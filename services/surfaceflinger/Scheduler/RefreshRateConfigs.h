@@ -29,7 +29,6 @@
 #include "Scheduler/StrongTyping.h"
 
 namespace android::scheduler {
-class RefreshRateConfigsTest;
 
 using namespace std::chrono_literals;
 
@@ -87,7 +86,7 @@ public:
 
     private:
         friend RefreshRateConfigs;
-        friend RefreshRateConfigsTest;
+        friend class RefreshRateConfigsTest;
 
         // The tolerance within which we consider FPS approximately equals.
         static constexpr float FPS_EPSILON = 0.001f;
@@ -258,11 +257,18 @@ public:
     // Returns a string that represents the layer vote type
     static std::string layerVoteTypeString(LayerVoteType vote);
 
+    // Returns a known frame rate that is the closest to frameRate
+    float findClosestKnownFrameRate(float frameRate) const;
+
     RefreshRateConfigs(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
                        HwcConfigIndexType currentConfigId);
 
 private:
+    friend class RefreshRateConfigsTest;
+
     void constructAvailableRefreshRates() REQUIRES(mLock);
+    static std::vector<float> constructKnownFrameRates(
+            const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs);
 
     void getSortedRefreshRateList(
             const std::function<bool(const RefreshRate&)>& shouldAddRefreshRate,
@@ -320,6 +326,10 @@ private:
     const RefreshRate* mMaxSupportedRefreshRate;
 
     mutable std::mutex mLock;
+
+    // A sorted list of known frame rates that a Heuristic layer will choose
+    // from based on the closest value.
+    const std::vector<float> mKnownFrameRates;
 };
 
 } // namespace android::scheduler
