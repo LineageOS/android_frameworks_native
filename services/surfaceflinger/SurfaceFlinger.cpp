@@ -1690,7 +1690,7 @@ void SurfaceFlinger::setPrimaryVsyncEnabledInternal(bool enabled) {
     if (const auto displayId = getInternalDisplayIdLocked()) {
         sp<DisplayDevice> display = getDefaultDisplayDeviceLocked();
         if (display && display->isPoweredOn()) {
-            setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
+            getHwComposer().setVsyncEnabled(*displayId, mHWCVsyncPendingState);
         }
     }
 }
@@ -4173,13 +4173,6 @@ void SurfaceFlinger::initializeDisplays() {
     static_cast<void>(schedule([this]() MAIN_THREAD { onInitializeDisplays(); }));
 }
 
-void SurfaceFlinger::setVsyncEnabledInHWC(DisplayId displayId, hal::Vsync enabled) {
-    if (mHWCVsyncState != enabled) {
-        getHwComposer().setVsyncEnabled(displayId, enabled);
-        mHWCVsyncState = enabled;
-    }
-}
-
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {
     if (display->isVirtual()) {
         ALOGE("%s: Invalid operation on virtual display", __FUNCTION__);
@@ -4208,7 +4201,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && mode != hal::PowerMode::DOZE_SUSPEND) {
-            setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
+            getHwComposer().setVsyncEnabled(*displayId, mHWCVsyncPendingState);
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
         }
@@ -4227,7 +4220,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
 
         // Make sure HWVsync is disabled before turning off the display
-        setVsyncEnabledInHWC(*displayId, hal::Vsync::DISABLE);
+        getHwComposer().setVsyncEnabled(*displayId, hal::Vsync::DISABLE);
 
         getHwComposer().setPowerMode(*displayId, mode);
         mVisibleRegionsDirty = true;

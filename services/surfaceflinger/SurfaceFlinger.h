@@ -302,7 +302,6 @@ public:
 
     // main thread function to enable/disable h/w composer event
     void setPrimaryVsyncEnabledInternal(bool enabled) REQUIRES(mStateLock);
-    void setVsyncEnabledInHWC(DisplayId displayId, hal::Vsync enabled);
 
     // called on the main thread by MessageQueue when an internal message
     // is received
@@ -1209,6 +1208,7 @@ private:
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
 
     std::atomic<nsecs_t> mExpectedPresentTime = 0;
+    hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
 
     /* ------------------------------------------------------------------------
      * Generic Layer Metadata
@@ -1278,10 +1278,6 @@ private:
     // The Layer pointer is removed from the set when the destructor is called so there shouldn't
     // be any issues with a raw pointer referencing an invalid object.
     std::unordered_set<Layer*> mOffscreenLayers;
-
-    // Flags to capture the state of Vsync in HWC
-    hal::Vsync mHWCVsyncState = hal::Vsync::DISABLE;
-    hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
 
     // Fields tracking the current jank event: when it started and how many
     // janky frames there are.
