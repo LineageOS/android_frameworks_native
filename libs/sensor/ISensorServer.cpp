@@ -216,14 +216,25 @@ status_t BnSensorServer::onTransact(
             int32_t type;
             Vector<float> floats;
             Vector<int32_t> ints;
+            uint32_t count;
 
             handle = data.readInt32();
             type = data.readInt32();
-            floats.resize(data.readUint32());
+
+            count = data.readUint32();
+            if (count > (data.dataAvail() / sizeof(float))) {
+              return BAD_VALUE;
+            }
+            floats.resize(count);
             for (auto &i : floats) {
                 i = data.readFloat();
             }
-            ints.resize(data.readUint32());
+
+            count = data.readUint32();
+            if (count > (data.dataAvail() / sizeof(int32_t))) {
+              return BAD_VALUE;
+            }
+            ints.resize(count);
             for (auto &i : ints) {
                 i = data.readInt32();
             }
