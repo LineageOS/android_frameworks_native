@@ -81,9 +81,11 @@ public:
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
-    void onConfigChanged(ConnectionHandle, PhysicalDisplayId, HwcConfigIndexType configId,
-                         nsecs_t vsyncPeriod);
-
+    void onPrimaryDisplayConfigChanged(ConnectionHandle, PhysicalDisplayId,
+                                       HwcConfigIndexType configId, nsecs_t vsyncPeriod)
+            EXCLUDES(mFeatureStateLock);
+    void onNonPrimaryDisplayConfigChanged(ConnectionHandle, PhysicalDisplayId,
+                                          HwcConfigIndexType configId, nsecs_t vsyncPeriod);
     void onScreenAcquired(ConnectionHandle);
     void onScreenReleased(ConnectionHandle);
 
@@ -179,15 +181,18 @@ private:
 
     // handles various timer features to change the refresh rate.
     template <class T>
-    bool handleTimerStateChanged(T* currentState, T newState, bool eventOnContentDetection);
+    bool handleTimerStateChanged(T* currentState, T newState);
 
     void setVsyncPeriod(nsecs_t period);
 
     // This function checks whether individual features that are affecting the refresh rate
     // selection were initialized, prioritizes them, and calculates the HwcConfigIndexType
     // for the suggested refresh rate.
-    HwcConfigIndexType calculateRefreshRateConfigIndexType(bool* touchConsidered = nullptr)
+    HwcConfigIndexType calculateRefreshRateConfigIndexType(
+            scheduler::RefreshRateConfigs::GlobalSignals* consideredSignals = nullptr)
             REQUIRES(mFeatureStateLock);
+
+    void dispatchCachedReportedConfig() REQUIRES(mFeatureStateLock);
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -240,6 +245,16 @@ private:
         LayerHistory::Summary contentRequirements;
 
         bool isDisplayPowerStateNormal = true;
+
+        // Used to cache the last parameters of onPrimaryDisplayConfigChanged
+        struct ConfigChangedParams {
+            ConnectionHandle handle;
+            PhysicalDisplayId displayId;
+            HwcConfigIndexType configId;
+            nsecs_t vsyncPeriod;
+        };
+
+        std::optional<ConfigChangedParams> cachedConfigChangedParams;
     } mFeatures GUARDED_BY(mFeatureStateLock);
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
