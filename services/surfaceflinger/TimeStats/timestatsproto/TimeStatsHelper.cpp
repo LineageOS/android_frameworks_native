@@ -87,7 +87,9 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     StringAppendF(&result, "badDesiredPresentFrames = %d\n", badDesiredPresentFrames);
     const auto iter = deltas.find("present2present");
     if (iter != deltas.end()) {
-        StringAppendF(&result, "averageFPS = %.3f\n", 1000.0 / iter->second.averageTime());
+        const float averageTime = iter->second.averageTime();
+        const float averageFPS = averageTime < 1.0f ? 0.0f : 1000.0f / averageTime;
+        StringAppendF(&result, "averageFPS = %.3f\n", averageFPS);
     }
     for (const auto& ele : deltas) {
         StringAppendF(&result, "%s histogram is as below:\n", ele.first.c_str());
