@@ -30,7 +30,7 @@ bool ShouldStartServiceAndWait(int argc, char* argv[]) {
     bool do_wait = false;
     int c;
     // Keep flags in sync with Dumpstate::DumpOptions::Initialize.
-    while ((c = getopt(argc, argv, "dho:svqzpAPBRSV:w")) != -1 && !do_wait) {
+    while ((c = getopt(argc, argv, "dho:svqzpLPBRSV:w")) != -1 && !do_wait) {
         switch (c) {
             case 'w':
                 do_wait = true;
