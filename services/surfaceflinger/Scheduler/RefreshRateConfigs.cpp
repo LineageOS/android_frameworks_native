@@ -242,7 +242,7 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
 
             if (layer.vote == LayerVoteType::ExplicitExactOrMultiple ||
                 layer.vote == LayerVoteType::Heuristic) {
-                const auto layerScore = [&]() {
+                const auto layerScore = [&] {
                     // Calculate how many display vsyncs we need to present a single frame for this
                     // layer
                     const auto [displayFramesQuot, displayFramesRem] =
@@ -384,7 +384,8 @@ void RefreshRateConfigs::setCurrentConfigId(HwcConfigIndexType configId) {
 
 RefreshRateConfigs::RefreshRateConfigs(
         const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
-        HwcConfigIndexType currentConfigId) {
+        HwcConfigIndexType currentConfigId)
+      : mKnownFrameRates(constructKnownFrameRates(configs)) {
     LOG_ALWAYS_FATAL_IF(configs.empty());
     LOG_ALWAYS_FATAL_IF(currentConfigId.value() >= configs.size());
 
@@ -542,6 +543,42 @@ void RefreshRateConfigs::constructAvailableRefreshRates() {
                        &mPrimaryRefreshRates);
     filterRefreshRates(policy->appRequestRange.min, policy->appRequestRange.max, "app request",
                        &mAppRequestRefreshRates);
+}
+
+std::vector<float> RefreshRateConfigs::constructKnownFrameRates(
+        const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
+    std::vector<float> knownFrameRates = {24.0f, 30.0f, 45.0f, 60.0f, 72.0f};
+    knownFrameRates.reserve(knownFrameRates.size() + configs.size());
+
+    // Add all supported refresh rates to the set
+    for (const auto& config : configs) {
+        const auto refreshRate = 1e9f / config->getVsyncPeriod();
+        knownFrameRates.emplace_back(refreshRate);
+    }
+
+    // Sort and remove duplicates
+    const auto frameRatesEqual = [](float a, float b) { return std::abs(a - b) <= 0.01f; };
+    std::sort(knownFrameRates.begin(), knownFrameRates.end());
+    knownFrameRates.erase(std::unique(knownFrameRates.begin(), knownFrameRates.end(),
+                                      frameRatesEqual),
+                          knownFrameRates.end());
+    return knownFrameRates;
+}
+
+float RefreshRateConfigs::findClosestKnownFrameRate(float frameRate) const {
+    if (frameRate <= *mKnownFrameRates.begin()) {
+        return *mKnownFrameRates.begin();
+    }
+
+    if (frameRate >= *std::prev(mKnownFrameRates.end())) {
+        return *std::prev(mKnownFrameRates.end());
+    }
+
+    auto lowerBound = std::lower_bound(mKnownFrameRates.begin(), mKnownFrameRates.end(), frameRate);
+
+    const auto distance1 = std::abs(frameRate - *lowerBound);
+    const auto distance2 = std::abs(frameRate - *std::prev(lowerBound));
+    return distance1 < distance2 ? *lowerBound : *std::prev(lowerBound);
 }
 
 } // namespace android::scheduler
