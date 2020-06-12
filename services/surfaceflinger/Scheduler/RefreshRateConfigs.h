@@ -211,14 +211,22 @@ public:
     const RefreshRate& getRefreshRateForContent(const std::vector<LayerRequirement>& layers) const
             EXCLUDES(mLock);
 
+    // Global state describing signals that affect refresh rate choice.
+    struct GlobalSignals {
+        // Whether the user touched the screen recently. Used to apply touch boost.
+        bool touch = false;
+        // True if the system hasn't seen any buffers posted to layers recently.
+        bool idle = false;
+    };
+
     // Returns the refresh rate that fits best to the given layers.
     //   layers - The layer requirements to consider.
-    //   touchActive - Whether the user touched the screen recently. Used to apply touch boost.
-    //   idle - True if the system hasn't seen any buffers posted to layers recently.
-    //   touchConsidered - An output param that tells the caller whether the refresh rate was chosen
-    //                     based on touch boost.
+    //   globalSignals - global state of touch and idle
+    //   outSignalsConsidered - An output param that tells the caller whether the refresh rate was
+    //                          chosen based on touch boost and/or idle timer.
     const RefreshRate& getBestRefreshRate(const std::vector<LayerRequirement>& layers,
-                                          bool touchActive, bool idle, bool* touchConsidered) const
+                                          const GlobalSignals& globalSignals,
+                                          GlobalSignals* outSignalsConsidered = nullptr) const
             EXCLUDES(mLock);
 
     // Returns all the refresh rates supported by the device. This won't change at runtime.
