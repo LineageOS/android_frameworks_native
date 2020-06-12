@@ -95,6 +95,7 @@ class Layer;
 class MessageBase;
 class RefreshRateOverlay;
 class RegionSamplingThread;
+class RenderArea;
 class TimeStats;
 class FrameTracer;
 

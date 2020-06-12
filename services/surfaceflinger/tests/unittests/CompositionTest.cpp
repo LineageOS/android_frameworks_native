@@ -35,6 +35,7 @@
 #include <utils/String8.h>
 
 #include "BufferQueueLayer.h"
+#include "DisplayRenderArea.h"
 #include "EffectLayer.h"
 #include "Layer.h"
 #include "TestableSurfaceFlinger.h"
@@ -248,8 +249,9 @@ void CompositionTest::captureScreenComposition() {
 
     int fd = -1;
     status_t result =
-            mFlinger.captureScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer.get(),
-                                             useIdentityTransform, forSystem, &fd, regionSampling);
+            mFlinger.captureScreenImplLocked(*renderArea, traverseLayers,
+                                             mCaptureScreenBuffer.get(), useIdentityTransform,
+                                             forSystem, &fd, regionSampling);
     if (fd >= 0) {
         close(fd);
     }
