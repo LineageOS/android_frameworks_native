@@ -115,12 +115,24 @@ std::pair<nsecs_t, nsecs_t> RefreshRateConfigs::getDisplayFrames(nsecs_t layerPe
 }
 
 const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
-        const std::vector<LayerRequirement>& layers, bool touchActive, bool idle,
-        bool* touchConsidered) const {
+        const std::vector<LayerRequirement>& layers, const GlobalSignals& globalSignals,
+        GlobalSignals* outSignalsConsidered) const {
     ATRACE_CALL();
     ALOGV("getRefreshRateForContent %zu layers", layers.size());
 
-    if (touchConsidered) *touchConsidered = false;
+    if (outSignalsConsidered) *outSignalsConsidered = {};
+    const auto setTouchConsidered = [&] {
+        if (outSignalsConsidered) {
+            outSignalsConsidered->touch = true;
+        }
+    };
+
+    const auto setIdleConsidered = [&] {
+        if (outSignalsConsidered) {
+            outSignalsConsidered->idle = true;
+        }
+    };
+
     std::lock_guard lock(mLock);
 
     int noVoteLayers = 0;
@@ -150,9 +162,9 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
 
     // Consider the touch event if there are no Explicit* layers. Otherwise wait until after we've
     // selected a refresh rate to see if we should apply touch boost.
-    if (touchActive && !hasExplicitVoteLayers) {
+    if (globalSignals.touch && !hasExplicitVoteLayers) {
         ALOGV("TouchBoost - choose %s", getMaxRefreshRateByPolicyLocked().getName().c_str());
-        if (touchConsidered) *touchConsidered = true;
+        setTouchConsidered();
         return getMaxRefreshRateByPolicyLocked();
     }
 
@@ -162,8 +174,10 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     const Policy* policy = getCurrentPolicyLocked();
     const bool primaryRangeIsSingleRate = policy->primaryRange.min == policy->primaryRange.max;
 
-    if (!touchActive && idle && !(primaryRangeIsSingleRate && hasExplicitVoteLayers)) {
+    if (!globalSignals.touch && globalSignals.idle &&
+        !(primaryRangeIsSingleRate && hasExplicitVoteLayers)) {
         ALOGV("Idle - choose %s", getMinRefreshRateByPolicyLocked().getName().c_str());
+        setIdleConsidered();
         return getMinRefreshRateByPolicyLocked();
     }
 
@@ -307,9 +321,9 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     // actually increase the refresh rate over the normal selection.
     const RefreshRate& touchRefreshRate = getMaxRefreshRateByPolicyLocked();
 
-    if (touchActive && explicitDefaultVoteLayers == 0 &&
+    if (globalSignals.touch && explicitDefaultVoteLayers == 0 &&
         bestRefreshRate->fps < touchRefreshRate.fps) {
-        if (touchConsidered) *touchConsidered = true;
+        setTouchConsidered();
         ALOGV("TouchBoost - choose %s", touchRefreshRate.getName().c_str());
         return touchRefreshRate;
     }
