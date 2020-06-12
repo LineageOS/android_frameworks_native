@@ -3235,7 +3235,7 @@ uint32_t SurfaceFlinger::getTransactionFlags(uint32_t flags) {
 }
 
 uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
-    return setTransactionFlags(flags, Scheduler::TransactionStart::NORMAL);
+    return setTransactionFlags(flags, Scheduler::TransactionStart::Normal);
 }
 
 uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
@@ -3452,15 +3452,36 @@ void SurfaceFlinger::applyTransactionState(
         mTraversalNeededMainThread = true;
     }
 
+    const auto transactionStart = [](uint32_t flags) {
+        if (flags & eEarlyWakeup) {
+            return Scheduler::TransactionStart::Early;
+        }
+        if (flags & eExplicitEarlyWakeupEnd) {
+            return Scheduler::TransactionStart::EarlyEnd;
+        }
+        if (flags & eExplicitEarlyWakeupStart) {
+            return Scheduler::TransactionStart::EarlyStart;
+        }
+        return Scheduler::TransactionStart::Normal;
+    }(flags);
+
     if (transactionFlags) {
         if (mInterceptor->isEnabled()) {
             mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags);
         }
 
+        // TODO(b/159125966): Remove eEarlyWakeup completly as no client should use this flag
+        if (flags & eEarlyWakeup) {
+            ALOGW("eEarlyWakeup is deprecated. Use eExplicitEarlyWakeup[Start|End]");
+        }
+
+        if (!privileged && (flags & (eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd))) {
+            ALOGE("Only WindowManager is allowed to use eExplicitEarlyWakeup[Start|End] flags");
+            flags &= ~(eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd);
+        }
+
         // this triggers the transaction
-        const auto start = (flags & eEarlyWakeup) ? Scheduler::TransactionStart::EARLY
-                                                  : Scheduler::TransactionStart::NORMAL;
-        setTransactionFlags(transactionFlags, start);
+        setTransactionFlags(transactionFlags, transactionStart);
 
         if (flags & eAnimation) {
             mAnimTransactionPending = true;
@@ -3496,6 +3517,13 @@ void SurfaceFlinger::applyTransactionState(
                 mPendingSyncInputWindows = false;
                 break;
             }
+        }
+    } else {
+        // even if a transaction is not needed, we need to update VsyncModulator
+        // about explicit early indications
+        if (transactionStart == Scheduler::TransactionStart::EarlyStart ||
+            transactionStart == Scheduler::TransactionStart::EarlyEnd) {
+            mVSyncModulator->setTransactionStart(transactionStart);
         }
     }
 }
