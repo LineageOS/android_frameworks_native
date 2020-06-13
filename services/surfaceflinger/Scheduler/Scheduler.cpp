@@ -228,8 +228,36 @@ void Scheduler::onScreenReleased(ConnectionHandle handle) {
     mConnections[handle].thread->onScreenReleased();
 }
 
-void Scheduler::onConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
+void Scheduler::onPrimaryDisplayConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
+                                              HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
+    std::lock_guard<std::mutex> lock(mFeatureStateLock);
+    // Cache the last reported config for primary display.
+    mFeatures.cachedConfigChangedParams = {handle, displayId, configId, vsyncPeriod};
+    onNonPrimaryDisplayConfigChanged(handle, displayId, configId, vsyncPeriod);
+}
+
+void Scheduler::dispatchCachedReportedConfig() {
+    const auto configId = *mFeatures.configId;
+    const auto vsyncPeriod =
+            mRefreshRateConfigs.getRefreshRateFromConfigId(configId).getVsyncPeriod();
+
+    // If there is no change from cached config, there is no need to dispatch an event
+    if (configId == mFeatures.cachedConfigChangedParams->configId &&
+        vsyncPeriod == mFeatures.cachedConfigChangedParams->vsyncPeriod) {
+        return;
+    }
+
+    mFeatures.cachedConfigChangedParams->configId = configId;
+    mFeatures.cachedConfigChangedParams->vsyncPeriod = vsyncPeriod;
+    onNonPrimaryDisplayConfigChanged(mFeatures.cachedConfigChangedParams->handle,
+                                     mFeatures.cachedConfigChangedParams->displayId,
+                                     mFeatures.cachedConfigChangedParams->configId,
+                                     mFeatures.cachedConfigChangedParams->vsyncPeriod);
+}
+
+void Scheduler::onNonPrimaryDisplayConfigChanged(ConnectionHandle handle,
+                                                 PhysicalDisplayId displayId,
+                                                 HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
     RETURN_IF_INVALID_HANDLE(handle);
     mConnections[handle].thread->onConfigChanged(displayId, configId, vsyncPeriod);
 }
@@ -446,13 +474,21 @@ void Scheduler::chooseRefreshRateForContent() {
         mFeatures.contentDetectionV1 =
                 !summary.empty() ? ContentDetectionState::On : ContentDetectionState::Off;
 
-        newConfigId = calculateRefreshRateConfigIndexType();
+        scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
+        newConfigId = calculateRefreshRateConfigIndexType(&consideredSignals);
         if (mFeatures.configId == newConfigId) {
+            // We don't need to change the config, but we might need to send an event
+            // about a config change, since it was suppressed due to a previous idleConsidered
+            if (!consideredSignals.idle) {
+                dispatchCachedReportedConfig();
+            }
             return;
         }
         mFeatures.configId = newConfigId;
         auto& newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
-        mSchedulerCallback.changeRefreshRate(newRefreshRate, ConfigEvent::Changed);
+        mSchedulerCallback.changeRefreshRate(newRefreshRate,
+                                             consideredSignals.idle ? ConfigEvent::None
+                                                                    : ConfigEvent::Changed);
     }
 }
 
@@ -522,21 +558,20 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
 }
 
 void Scheduler::idleTimerCallback(TimerState state) {
-    handleTimerStateChanged(&mFeatures.idleTimer, state, false /* eventOnContentDetection */);
+    handleTimerStateChanged(&mFeatures.idleTimer, state);
     ATRACE_INT("ExpiredIdleTimer", static_cast<int>(state));
 }
 
 void Scheduler::touchTimerCallback(TimerState state) {
     const TouchState touch = state == TimerState::Reset ? TouchState::Active : TouchState::Inactive;
-    if (handleTimerStateChanged(&mFeatures.touch, touch, true /* eventOnContentDetection */)) {
+    if (handleTimerStateChanged(&mFeatures.touch, touch)) {
         mLayerHistory->clear();
     }
     ATRACE_INT("TouchState", static_cast<int>(touch));
 }
 
 void Scheduler::displayPowerTimerCallback(TimerState state) {
-    handleTimerStateChanged(&mFeatures.displayPowerTimer, state,
-                            true /* eventOnContentDetection */);
+    handleTimerStateChanged(&mFeatures.displayPowerTimer, state);
     ATRACE_INT("ExpiredDisplayPowerTimer", static_cast<int>(state));
 }
 
@@ -553,33 +588,37 @@ void Scheduler::dump(std::string& result) const {
 }
 
 template <class T>
-bool Scheduler::handleTimerStateChanged(T* currentState, T newState, bool eventOnContentDetection) {
-    ConfigEvent event = ConfigEvent::None;
+bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
     HwcConfigIndexType newConfigId;
-    bool touchConsidered = false;
+    scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
         if (*currentState == newState) {
-            return touchConsidered;
+            return false;
         }
         *currentState = newState;
-        newConfigId = calculateRefreshRateConfigIndexType(&touchConsidered);
+        newConfigId = calculateRefreshRateConfigIndexType(&consideredSignals);
         if (mFeatures.configId == newConfigId) {
-            return touchConsidered;
+            // We don't need to change the config, but we might need to send an event
+            // about a config change, since it was suppressed due to a previous idleConsidered
+            if (!consideredSignals.idle) {
+                dispatchCachedReportedConfig();
+            }
+            return consideredSignals.touch;
         }
         mFeatures.configId = newConfigId;
-        if (eventOnContentDetection && !mFeatures.contentRequirements.empty()) {
-            event = ConfigEvent::Changed;
-        }
     }
     const RefreshRate& newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
-    mSchedulerCallback.changeRefreshRate(newRefreshRate, event);
-    return touchConsidered;
+    mSchedulerCallback.changeRefreshRate(newRefreshRate,
+                                         consideredSignals.idle ? ConfigEvent::None
+                                                                : ConfigEvent::Changed);
+    return consideredSignals.touch;
 }
 
-HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(bool* touchConsidered) {
+HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(
+        scheduler::RefreshRateConfigs::GlobalSignals* consideredSignals) {
     ATRACE_CALL();
-    if (touchConsidered) *touchConsidered = false;
+    if (consideredSignals) *consideredSignals = {};
 
     // If Display Power is not in normal operation we want to be in performance mode. When coming
     // back to normal mode, a grace period is given with DisplayPowerTimer.
@@ -600,6 +639,7 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(bool* touchCon
 
         // If timer has expired as it means there is no new content on the screen.
         if (idle) {
+            if (consideredSignals) consideredSignals->idle = true;
             return mRefreshRateConfigs.getMinRefreshRateByPolicy().getConfigId();
         }
 
@@ -615,7 +655,8 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(bool* touchCon
     }
 
     return mRefreshRateConfigs
-            .getBestRefreshRate(mFeatures.contentRequirements, touchActive, idle, touchConsidered)
+            .getBestRefreshRate(mFeatures.contentRequirements, {.touch = touchActive, .idle = idle},
+                                consideredSignals)
             .getConfigId();
 }
 
