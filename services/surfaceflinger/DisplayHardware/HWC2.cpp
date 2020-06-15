@@ -894,6 +894,10 @@ Error Layer::setPerFrameMetadata(const int32_t supportedPerFrameMetadata,
             mComposer.setLayerPerFrameMetadata(mDisplayId, mId, perFrameMetadatas));
 
     if (validTypes & HdrMetadata::HDR10PLUS) {
+        if (CC_UNLIKELY(mHdrMetadata.hdr10plus.size() == 0)) {
+            return Error::BAD_PARAMETER;
+        }
+
         std::vector<Hwc2::PerFrameMetadataBlob> perFrameMetadataBlobs;
         perFrameMetadataBlobs.push_back(
                 {Hwc2::PerFrameMetadataKey::HDR10_PLUS_SEI, mHdrMetadata.hdr10plus});
