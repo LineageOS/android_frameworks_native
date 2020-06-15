@@ -1676,6 +1676,7 @@ void CommandReader::takeClientTargetProperty(
     if (found == mReturnData.end()) {
         outClientTargetProperty->pixelFormat = PixelFormat::RGBA_8888;
         outClientTargetProperty->dataspace = Dataspace::UNKNOWN;
+        return;
     }
 
     ReturnData& data = found->second;
