@@ -209,6 +209,10 @@ static int Open(std::string path, int flags, mode_t mode = 0) {
     return fd;
 }
 
+static int OpenForWrite(std::string path) {
+    return Open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+}
 
 static int OpenForRead(std::string path) {
     return Open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
@@ -272,6 +276,27 @@ int64_t GetModuleMetadataVersion() {
         return 0L;
     }
     return version_code;
+}
+
+static bool PathExists(const std::string& path) {
+  struct stat sb;
+  return stat(path.c_str(), &sb) == 0;
+}
+
+static bool CopyFileToFile(const std::string& input_file, const std::string& output_file) {
+    if (input_file == output_file) {
+        MYLOGD("Skipping copying bugreport file since the destination is the same (%s)\n",
+               output_file.c_str());
+        return false;
+    }
+    else if (PathExists(output_file)) {
+        MYLOGD("Cannot overwrite an existing file (%s)\n", output_file.c_str());
+        return false;
+    }
+
+    MYLOGD("Going to copy bugreport file (%s) to %s\n", input_file.c_str(), output_file.c_str());
+    android::base::unique_fd out_fd(OpenForWrite(output_file));
+    return CopyFileToFd(input_file, out_fd.get());
 }
 
 }  // namespace
@@ -2092,11 +2117,12 @@ void Dumpstate::DumpstateBoard() {
 
 static void ShowUsage() {
     fprintf(stderr,
-            "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-d] [-p] "
+            "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-o directory] [-d] [-p] "
             "[-z] [-s] [-S] [-q] [-P] [-R] [-L] [-V version]\n"
             "  -h: display this help message\n"
             "  -b: play sound file instead of vibrate, at beginning of job\n"
             "  -e: play sound file instead of vibrate, at end of job\n"
+            "  -o: write to custom directory (only in limited mode)\n"
             "  -d: append date to filename\n"
             "  -p: capture screenshot to filename.png\n"
             "  -z: generate zipped file\n"
@@ -2267,6 +2293,14 @@ static void FinalizeFile() {
             do_text_file = false;
         }
     }
+
+    std::string final_path = ds.path_;
+    if (ds.options_->OutputToCustomFile()) {
+        std::string bugreport_dir = dirname(ds.options_->use_outfile.c_str());
+        final_path = ds.GetPath(bugreport_dir, ".zip");
+        android::os::CopyFileToFile(ds.path_, final_path);
+    }
+
     if (ds.options_->use_control_socket) {
         if (do_text_file) {
             dprintf(ds.control_socket_fd_,
@@ -2274,7 +2308,7 @@ static void FinalizeFile() {
                     "for more details\n",
                     ds.log_path_.c_str());
         } else {
-            dprintf(ds.control_socket_fd_, "OK:%s\n", ds.path_.c_str());
+            dprintf(ds.control_socket_fd_, "OK:%s\n", final_path.c_str());
         }
     }
 }
@@ -2384,6 +2418,7 @@ Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) 
             // clang-format off
             case 'd': do_add_date = true;            break;
             case 'z': do_zip_file = true;            break;
+            case 'o': use_outfile = optarg;          break;
             case 's': use_socket = true;             break;
             case 'S': use_control_socket = true;     break;
             case 'v': show_header_only = true;       break;
@@ -2505,8 +2540,8 @@ void Dumpstate::Cancel() {
  * If zipping, a bunch of other files and dumps also get added to the zip archive. The log file also
  * gets added to the archive.
  *
- * Bugreports are first generated in a local directory and later copied to the caller's fd if
- * supplied.
+ * Bugreports are first generated in a local directory and later copied to the caller's fd
+ * or directory if supplied.
  */
 Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
                                             const std::string& calling_package) {
