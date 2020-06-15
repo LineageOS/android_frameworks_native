@@ -22,7 +22,7 @@ import subprocess
 import xml.etree.ElementTree as element_tree
 
 # Extensions unsupported on Android.
-_BLACKLISTED_EXTENSIONS = [
+_BLOCKED_EXTENSIONS = [
     'VK_EXT_acquire_xlib_display',
     'VK_EXT_direct_mode_display',
     'VK_EXT_display_control',
@@ -192,7 +192,7 @@ def is_function_supported(cmd):
   if cmd not in extension_dict:
     return True
   else:
-    if extension_dict[cmd] not in _BLACKLISTED_EXTENSIONS:
+    if extension_dict[cmd] not in _BLOCKED_EXTENSIONS:
       return True
   return False
 
