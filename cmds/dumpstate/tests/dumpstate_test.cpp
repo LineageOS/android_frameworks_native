@@ -172,6 +172,7 @@ TEST_F(DumpOptionsTest, InitializeNone) {
 
     EXPECT_FALSE(options_.do_add_date);
     EXPECT_FALSE(options_.do_zip_file);
+    EXPECT_EQ("", options_.use_outfile);
     EXPECT_FALSE(options_.use_socket);
     EXPECT_FALSE(options_.use_control_socket);
     EXPECT_FALSE(options_.show_header_only);
@@ -352,7 +353,8 @@ TEST_F(DumpOptionsTest, InitializeLimitedOnlyBugreport) {
         const_cast<char*>("-d"),
         const_cast<char*>("-z"),
         const_cast<char*>("-q"),
-        const_cast<char*>("-L")
+        const_cast<char*>("-L"),
+        const_cast<char*>("-o abc")
     };
     // clang-format on
 
@@ -364,6 +366,7 @@ TEST_F(DumpOptionsTest, InitializeLimitedOnlyBugreport) {
     EXPECT_TRUE(options_.use_control_socket);
     EXPECT_FALSE(options_.do_vibrate);
     EXPECT_TRUE(options_.limited_only);
+    EXPECT_EQ(" abc", std::string(options_.use_outfile));
 
     // Other options retain default values
     EXPECT_FALSE(options_.show_header_only);
