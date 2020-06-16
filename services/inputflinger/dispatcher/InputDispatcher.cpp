@@ -62,6 +62,7 @@ static constexpr bool DEBUG_FOCUS = false;
 #include <binder/Binder.h>
 #include <input/InputDevice.h>
 #include <log/log.h>
+#include <log/log_event_list.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
 #include <powermanager/PowerManager.h>
@@ -103,6 +104,10 @@ constexpr std::chrono::milliseconds SLOW_INTERCEPTION_THRESHOLD = 50ms;
 
 // Number of recent events to keep for debugging purposes.
 constexpr size_t RECENT_QUEUE_MAX_SIZE = 10;
+
+// Event log tags. See EventLogTags.logtags for reference
+constexpr int LOGTAG_INPUT_INTERACTION = 62000;
+constexpr int LOGTAG_INPUT_FOCUS = 62001;
 
 static inline nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
@@ -1028,7 +1033,9 @@ void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime, FocusEntry* entry
     target.inputChannel = channel;
     target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
     entry->dispatchInProgress = true;
-
+    std::string message = std::string("Focus ") + (entry->hasFocus ? "entering " : "leaving ") +
+            channel->getName();
+    android_log_event_list(LOGTAG_INPUT_FOCUS) << message << LOG_ID_EVENTS;
     dispatchEventLocked(currentTime, entry, {target});
 }
 
@@ -1265,6 +1272,8 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime, EventEntry* event
 #if DEBUG_DISPATCH_CYCLE
     ALOGD("dispatchEventToCurrentInputTargets");
 #endif
+
+    updateInteractionTokensLocked(*eventEntry, inputTargets);
 
     ALOG_ASSERT(eventEntry->dispatchInProgress); // should already have been set to true
 
@@ -2414,6 +2423,73 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
     // Enqueue the dispatch entry.
     connection->outboundQueue.push_back(dispatchEntry.release());
     traceOutboundQueueLength(connection);
+}
+
+/**
+ * This function is purely for debugging. It helps us understand where the user interaction
+ * was taking place. For example, if user is touching launcher, we will see a log that user
+ * started interacting with launcher. In that example, the event would go to the wallpaper as well.
+ * We will see both launcher and wallpaper in that list.
+ * Once the interaction with a particular set of connections starts, no new logs will be printed
+ * until the set of interacted connections changes.
+ *
+ * The following items are skipped, to reduce the logspam:
+ * ACTION_OUTSIDE: any windows that are receiving ACTION_OUTSIDE are not logged
+ * ACTION_UP: any windows that receive ACTION_UP are not logged (for both keys and motions).
+ * This includes situations like the soft BACK button key. When the user releases (lifts up the
+ * finger) the back button, then navigation bar will inject KEYCODE_BACK with ACTION_UP.
+ * Both of those ACTION_UP events would not be logged
+ * Monitors (both gesture and global): any gesture monitors or global monitors receiving events
+ * will not be logged. This is omitted to reduce the amount of data printed.
+ * If you see <none>, it's likely that one of the gesture monitors pilfered the event, and therefore
+ * gesture monitor is the only connection receiving the remainder of the gesture.
+ */
+void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
+                                                    const std::vector<InputTarget>& targets) {
+    // Skip ACTION_UP events, and all events other than keys and motions
+    if (entry.type == EventEntry::Type::KEY) {
+        const KeyEntry& keyEntry = static_cast<const KeyEntry&>(entry);
+        if (keyEntry.action == AKEY_EVENT_ACTION_UP) {
+            return;
+        }
+    } else if (entry.type == EventEntry::Type::MOTION) {
+        const MotionEntry& motionEntry = static_cast<const MotionEntry&>(entry);
+        if (motionEntry.action == AMOTION_EVENT_ACTION_UP) {
+            return;
+        }
+    } else {
+        return; // Not a key or a motion
+    }
+
+    std::unordered_set<sp<IBinder>, IBinderHash> newConnections;
+    for (const InputTarget& target : targets) {
+        if ((target.flags & InputTarget::FLAG_DISPATCH_AS_OUTSIDE) ==
+            InputTarget::FLAG_DISPATCH_AS_OUTSIDE) {
+            continue; // Skip windows that receive ACTION_OUTSIDE
+        }
+
+        sp<IBinder> token = target.inputChannel->getConnectionToken();
+        sp<Connection> connection = getConnectionLocked(token); // get connection
+        if (connection->monitor) {
+            continue; // We only need to keep track of the non-monitor connections.
+        }
+
+        newConnections.insert(std::move(token));
+    }
+    if (newConnections == mInteractionConnections) {
+        return; // no change
+    }
+    mInteractionConnections = newConnections;
+    std::string windowList;
+    for (const sp<IBinder>& token : newConnections) {
+        sp<Connection> connection = getConnectionLocked(token);
+        windowList += connection->getWindowName() + ", ";
+    }
+    std::string message = "Interaction with windows: " + windowList;
+    if (windowList.empty()) {
+        message += "<none>";
+    }
+    android_log_event_list(LOGTAG_INPUT_INTERACTION) << message << LOG_ID_EVENTS;
 }
 
 void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t action,
