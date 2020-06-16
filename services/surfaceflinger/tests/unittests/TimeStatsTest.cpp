@@ -833,6 +833,15 @@ TEST_F(TimeStatsTest, canDumpWithInvalidMaxLayers) {
     ASSERT_EQ(0, globalProto.stats_size());
 }
 
+TEST_F(TimeStatsTest, noInfInAverageFPS) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 1000000);
+
+    const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    EXPECT_THAT(result, HasSubstr("averageFPS = 0.000"));
+}
+
 namespace {
 std::string buildExpectedHistogramBytestring(const std::vector<int32_t>& times,
                                              const std::vector<int32_t>& frameCounts) {
