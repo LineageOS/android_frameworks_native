@@ -169,6 +169,18 @@ void KeyEvent::initialize(const KeyEvent& from) {
     mEventTime = from.mEventTime;
 }
 
+const char* KeyEvent::actionToString(int32_t action) {
+    // Convert KeyEvent action to string
+    switch (action) {
+        case AKEY_EVENT_ACTION_DOWN:
+            return "DOWN";
+        case AKEY_EVENT_ACTION_UP:
+            return "UP";
+        case AKEY_EVENT_ACTION_MULTIPLE:
+            return "MULTIPLE";
+    }
+    return "UNKNOWN";
+}
 
 // --- PointerCoords ---
 
@@ -676,6 +688,25 @@ const char* MotionEvent::getLabel(int32_t axis) {
 
 int32_t MotionEvent::getAxisFromLabel(const char* label) {
     return getAxisByLabel(label);
+}
+
+const char* MotionEvent::actionToString(int32_t action) {
+    // Convert MotionEvent action to string
+    switch (action & AMOTION_EVENT_ACTION_MASK) {
+        case AMOTION_EVENT_ACTION_DOWN:
+            return "DOWN";
+        case AMOTION_EVENT_ACTION_MOVE:
+            return "MOVE";
+        case AMOTION_EVENT_ACTION_UP:
+            return "UP";
+        case AMOTION_EVENT_ACTION_CANCEL:
+            return "CANCEL";
+        case AMOTION_EVENT_ACTION_POINTER_DOWN:
+            return "POINTER_DOWN";
+        case AMOTION_EVENT_ACTION_POINTER_UP:
+            return "POINTER_UP";
+    }
+    return "UNKNOWN";
 }
 
 // --- FocusEvent ---
