@@ -462,6 +462,8 @@ public:
                     nsecs_t eventTime);
     void initialize(const KeyEvent& from);
 
+    static const char* actionToString(int32_t action);
+
 protected:
     int32_t mAction;
     int32_t mFlags;
@@ -724,6 +726,8 @@ public:
 
     static const char* getLabel(int32_t axis);
     static int32_t getAxisFromLabel(const char* label);
+
+    static const char* actionToString(int32_t action);
 
 protected:
     int32_t mAction;

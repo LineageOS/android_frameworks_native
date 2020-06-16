@@ -198,7 +198,11 @@ struct DispatchEntry {
     float globalScaleFactor;
     float windowXScale = 1.0f;
     float windowYScale = 1.0f;
+    // Both deliveryTime and timeoutTime are only populated when the entry is sent to the app,
+    // and will be undefined before that.
     nsecs_t deliveryTime; // time when the event was actually delivered
+    // An ANR will be triggered if a response for this entry is not received by timeoutTime
+    nsecs_t timeoutTime;
 
     // Set to the resolved ID, action and flags when the event is enqueued.
     int32_t resolvedEventId;
