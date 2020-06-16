@@ -2017,8 +2017,9 @@ bool SurfaceFlinger::handleMessageTransaction() {
 
     bool flushedATransaction = flushTransactionQueues();
 
-    bool runHandleTransaction = transactionFlags &&
-            ((transactionFlags != eTransactionFlushNeeded) || flushedATransaction);
+    bool runHandleTransaction =
+            (transactionFlags && (transactionFlags != eTransactionFlushNeeded)) ||
+            flushedATransaction;
 
     if (runHandleTransaction) {
         handleTransaction(eTransactionMask);
