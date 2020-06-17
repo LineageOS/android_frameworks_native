@@ -62,6 +62,7 @@ static constexpr bool DEBUG_FOCUS = false;
 #include <binder/Binder.h>
 #include <input/InputDevice.h>
 #include <log/log.h>
+#include <log/log_event_list.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
 #include <powermanager/PowerManager.h>
@@ -89,20 +90,23 @@ constexpr nsecs_t APP_SWITCH_TIMEOUT = 500 * 1000000LL; // 0.5sec
 // before considering it stale and dropping it.
 constexpr nsecs_t STALE_EVENT_TIMEOUT = 10000 * 1000000LL; // 10sec
 
-// Amount of time to allow touch events to be streamed out to a connection before requiring
-// that the first event be finished.  This value extends the ANR timeout by the specified
-// amount.  For example, if streaming is allowed to get ahead by one second relative to the
-// queue of waiting unfinished events, then ANRs will similarly be delayed by one second.
-constexpr nsecs_t STREAM_AHEAD_EVENT_TIMEOUT = 500 * 1000000LL; // 0.5sec
-
 // Log a warning when an event takes longer than this to process, even if an ANR does not occur.
 constexpr nsecs_t SLOW_EVENT_PROCESSING_WARNING_TIMEOUT = 2000 * 1000000LL; // 2sec
 
 // Log a warning when an interception call takes longer than this to process.
 constexpr std::chrono::milliseconds SLOW_INTERCEPTION_THRESHOLD = 50ms;
 
+// Additional key latency in case a connection is still processing some motion events.
+// This will help with the case when a user touched a button that opens a new window,
+// and gives us the chance to dispatch the key to this new window.
+constexpr std::chrono::nanoseconds KEY_WAITING_FOR_EVENTS_TIMEOUT = 500ms;
+
 // Number of recent events to keep for debugging purposes.
 constexpr size_t RECENT_QUEUE_MAX_SIZE = 10;
+
+// Event log tags. See EventLogTags.logtags for reference
+constexpr int LOGTAG_INPUT_INTERACTION = 62000;
+constexpr int LOGTAG_INPUT_FOCUS = 62001;
 
 static inline nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
@@ -404,8 +408,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         // To avoid leaking stack in case that call never comes, and for tests,
         // initialize it here anyways.
         mInTouchMode(true),
-        mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
-        mInputTargetWaitCause(INPUT_TARGET_WAIT_CAUSE_NONE) {
+        mFocusedDisplayId(ADISPLAY_ID_DEFAULT) {
     mLooper = new Looper(false);
     mReporter = createInputReporter();
 
@@ -465,6 +468,11 @@ void InputDispatcher::dispatchOnce() {
             nextWakeupTime = LONG_LONG_MIN;
         }
 
+        // If we are still waiting for ack on some events,
+        // we might have to wake up earlier to check if an app is anr'ing.
+        const nsecs_t nextAnrCheck = processAnrsLocked();
+        nextWakeupTime = std::min(nextWakeupTime, nextAnrCheck);
+
         // We are about to enter an infinitely long sleep, because we have no commands or
         // pending or queued events
         if (nextWakeupTime == LONG_LONG_MAX) {
@@ -476,6 +484,55 @@ void InputDispatcher::dispatchOnce() {
     nsecs_t currentTime = now();
     int timeoutMillis = toMillisecondTimeoutDelay(currentTime, nextWakeupTime);
     mLooper->pollOnce(timeoutMillis);
+}
+
+/**
+ * Check if any of the connections' wait queues have events that are too old.
+ * If we waited for events to be ack'ed for more than the window timeout, raise an ANR.
+ * Return the time at which we should wake up next.
+ */
+nsecs_t InputDispatcher::processAnrsLocked() {
+    const nsecs_t currentTime = now();
+    nsecs_t nextAnrCheck = LONG_LONG_MAX;
+    // Check if we are waiting for a focused window to appear. Raise ANR if waited too long
+    if (mNoFocusedWindowTimeoutTime.has_value() && mAwaitedFocusedApplication != nullptr) {
+        if (currentTime >= *mNoFocusedWindowTimeoutTime) {
+            onAnrLocked(mAwaitedFocusedApplication);
+            mAwaitedFocusedApplication.clear();
+            return LONG_LONG_MIN;
+        } else {
+            // Keep waiting
+            const nsecs_t millisRemaining = ns2ms(*mNoFocusedWindowTimeoutTime - currentTime);
+            ALOGW("Still no focused window. Will drop the event in %" PRId64 "ms", millisRemaining);
+            nextAnrCheck = *mNoFocusedWindowTimeoutTime;
+        }
+    }
+
+    // Check if any connection ANRs are due
+    nextAnrCheck = std::min(nextAnrCheck, mAnrTracker.firstTimeout());
+    if (currentTime < nextAnrCheck) { // most likely scenario
+        return nextAnrCheck;          // everything is normal. Let's check again at nextAnrCheck
+    }
+
+    // If we reached here, we have an unresponsive connection.
+    sp<Connection> connection = getConnectionLocked(mAnrTracker.firstToken());
+    if (connection == nullptr) {
+        ALOGE("Could not find connection for entry %" PRId64, mAnrTracker.firstTimeout());
+        return nextAnrCheck;
+    }
+    connection->responsive = false;
+    // Stop waking up for this unresponsive connection
+    mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
+    onAnrLocked(connection);
+    return LONG_LONG_MIN;
+}
+
+nsecs_t InputDispatcher::getDispatchingTimeoutLocked(const sp<IBinder>& token) {
+    sp<InputWindowHandle> window = getWindowHandleLocked(token);
+    if (window != nullptr) {
+        return window->getDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT).count();
+    }
+    return DEFAULT_INPUT_DISPATCHING_TIMEOUT.count();
 }
 
 void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
@@ -541,9 +598,6 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
         if (mPendingEvent->policyFlags & POLICY_FLAG_PASS_TO_USER) {
             pokeUserActivityLocked(*mPendingEvent);
         }
-
-        // Get ready to dispatch the event.
-        resetAnrTimeoutsLocked();
     }
 
     // Now we have an event to dispatch.
@@ -637,11 +691,14 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
  * Return false otherwise (the default behaviour)
  */
 bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) {
-    bool isPointerDownEvent = motionEntry.action == AMOTION_EVENT_ACTION_DOWN &&
+    const bool isPointerDownEvent = motionEntry.action == AMOTION_EVENT_ACTION_DOWN &&
             (motionEntry.source & AINPUT_SOURCE_CLASS_POINTER);
-    if (isPointerDownEvent &&
-        mInputTargetWaitCause == INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY &&
-        mInputTargetWaitApplicationToken != nullptr) {
+
+    // Optimize case where the current application is unresponsive and the user
+    // decides to touch a window in a different application.
+    // If the application takes too long to catch up then we drop all events preceding
+    // the touch into the other window.
+    if (isPointerDownEvent && mAwaitedFocusedApplication != nullptr) {
         int32_t displayId = motionEntry.displayId;
         int32_t x = static_cast<int32_t>(
                 motionEntry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
@@ -650,12 +707,41 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
         sp<InputWindowHandle> touchedWindowHandle =
                 findTouchedWindowAtLocked(displayId, x, y, nullptr);
         if (touchedWindowHandle != nullptr &&
-            touchedWindowHandle->getApplicationToken() != mInputTargetWaitApplicationToken) {
+            touchedWindowHandle->getApplicationToken() !=
+                    mAwaitedFocusedApplication->getApplicationToken()) {
             // User touched a different application than the one we are waiting on.
-            // Flag the event, and start pruning the input queue.
-            ALOGI("Pruning input queue because user touched a different application");
+            ALOGI("Pruning input queue because user touched a different application while waiting "
+                  "for %s",
+                  mAwaitedFocusedApplication->getName().c_str());
             return true;
         }
+
+        // Alternatively, maybe there's a gesture monitor that could handle this event
+        std::vector<TouchedMonitor> gestureMonitors =
+                findTouchedGestureMonitorsLocked(displayId, {});
+        for (TouchedMonitor& gestureMonitor : gestureMonitors) {
+            sp<Connection> connection =
+                    getConnectionLocked(gestureMonitor.monitor.inputChannel->getConnectionToken());
+            if (connection->responsive) {
+                // This monitor could take more input. Drop all events preceding this
+                // event, so that gesture monitor could get a chance to receive the stream
+                ALOGW("Pruning the input queue because %s is unresponsive, but we have a "
+                      "responsive gesture monitor that may handle the event",
+                      mAwaitedFocusedApplication->getName().c_str());
+                return true;
+            }
+        }
+    }
+
+    // Prevent getting stuck: if we have a pending key event, and some motion events that have not
+    // yet been processed by some connections, the dispatcher will wait for these motion
+    // events to be processed before dispatching the key event. This is because these motion events
+    // may cause a new window to be launched, which the user might expect to receive focus.
+    // To prevent waiting forever for such events, just send the key to the currently focused window
+    if (isPointerDownEvent && mKeyIsWaitingForEventsTimeout) {
+        ALOGD("Received a new pointer down event, stop waiting for events to process and "
+              "just send the pending key event to the focused window.");
+        mKeyIsWaitingForEventsTimeout = now();
     }
     return false;
 }
@@ -689,10 +775,6 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
         }
 
         case EventEntry::Type::MOTION: {
-            // Optimize case where the current application is unresponsive and the user
-            // decides to touch a window in a different application.
-            // If the application takes too long to catch up then we drop all events preceding
-            // the touch into the other window.
             if (shouldPruneInboundQueueLocked(static_cast<MotionEntry&>(*entry))) {
                 mNextUnblockedEvent = entry;
                 needWake = true;
@@ -907,7 +989,6 @@ void InputDispatcher::drainInboundQueueLocked() {
 
 void InputDispatcher::releasePendingEventLocked() {
     if (mPendingEvent) {
-        resetAnrTimeoutsLocked();
         releaseInboundEventLocked(mPendingEvent);
         mPendingEvent = nullptr;
     }
@@ -1028,7 +1109,9 @@ void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime, FocusEntry* entry
     target.inputChannel = channel;
     target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
     entry->dispatchInProgress = true;
-
+    std::string message = std::string("Focus ") + (entry->hasFocus ? "entering " : "leaving ") +
+            channel->getName();
+    android_log_event_list(LOGTAG_INPUT_FOCUS) << message << LOG_ID_EVENTS;
     dispatchEventLocked(currentTime, entry, {target});
 }
 
@@ -1266,6 +1349,8 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime, EventEntry* event
     ALOGD("dispatchEventToCurrentInputTargets");
 #endif
 
+    updateInteractionTokensLocked(*eventEntry, inputTargets);
+
     ALOG_ASSERT(eventEntry->dispatchInProgress); // should already have been set to true
 
     pokeUserActivityLocked(*eventEntry);
@@ -1285,109 +1370,29 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime, EventEntry* event
     }
 }
 
-int32_t InputDispatcher::handleTargetsNotReadyLocked(
-        nsecs_t currentTime, const EventEntry& entry,
-        const sp<InputApplicationHandle>& applicationHandle,
-        const sp<InputWindowHandle>& windowHandle, nsecs_t* nextWakeupTime, const char* reason) {
-    if (applicationHandle == nullptr && windowHandle == nullptr) {
-        if (mInputTargetWaitCause != INPUT_TARGET_WAIT_CAUSE_SYSTEM_NOT_READY) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Waiting for system to become ready for input.  Reason: %s", reason);
-            }
-            mInputTargetWaitCause = INPUT_TARGET_WAIT_CAUSE_SYSTEM_NOT_READY;
-            mInputTargetWaitStartTime = currentTime;
-            mInputTargetWaitTimeoutTime = LONG_LONG_MAX;
-            mInputTargetWaitTimeoutExpired = false;
-            mInputTargetWaitApplicationToken.clear();
-        }
-    } else {
-        if (mInputTargetWaitCause != INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY) {
-            ALOGI("Waiting for application to become ready for input: %s.  Reason: %s",
-                  getApplicationWindowLabel(applicationHandle, windowHandle).c_str(), reason);
-            std::chrono::nanoseconds timeout;
-            if (windowHandle != nullptr) {
-                timeout = windowHandle->getDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT);
-            } else if (applicationHandle != nullptr) {
-                timeout =
-                        applicationHandle->getDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT);
-            } else {
-                timeout = DEFAULT_INPUT_DISPATCHING_TIMEOUT;
-            }
-
-            mInputTargetWaitCause = INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY;
-            mInputTargetWaitStartTime = currentTime;
-            mInputTargetWaitTimeoutTime = currentTime + timeout.count();
-            mInputTargetWaitTimeoutExpired = false;
-            mInputTargetWaitApplicationToken.clear();
-
-            if (windowHandle != nullptr) {
-                mInputTargetWaitApplicationToken = windowHandle->getApplicationToken();
-            }
-            if (mInputTargetWaitApplicationToken == nullptr && applicationHandle != nullptr) {
-                mInputTargetWaitApplicationToken = applicationHandle->getApplicationToken();
-            }
-        }
-    }
-
-    if (mInputTargetWaitTimeoutExpired) {
-        return INPUT_EVENT_INJECTION_TIMED_OUT;
-    }
-
-    if (currentTime >= mInputTargetWaitTimeoutTime) {
-        onAnrLocked(currentTime, applicationHandle, windowHandle, entry.eventTime,
-                    mInputTargetWaitStartTime, reason);
-
-        // Force poll loop to wake up immediately on next iteration once we get the
-        // ANR response back from the policy.
-        *nextWakeupTime = LONG_LONG_MIN;
-        return INPUT_EVENT_INJECTION_PENDING;
-    } else {
-        // Force poll loop to wake up when timeout is due.
-        if (mInputTargetWaitTimeoutTime < *nextWakeupTime) {
-            *nextWakeupTime = mInputTargetWaitTimeoutTime;
-        }
-        return INPUT_EVENT_INJECTION_PENDING;
+void InputDispatcher::cancelEventsForAnrLocked(const sp<Connection>& connection) {
+    // We will not be breaking any connections here, even if the policy wants us to abort dispatch.
+    // If the policy decides to close the app, we will get a channel removal event via
+    // unregisterInputChannel, and will clean up the connection that way. We are already not
+    // sending new pointers to the connection when it blocked, but focused events will continue to
+    // pile up.
+    ALOGW("Canceling events for %s because it is unresponsive",
+          connection->inputChannel->getName().c_str());
+    if (connection->status == Connection::STATUS_NORMAL) {
+        CancelationOptions options(CancelationOptions::CANCEL_ALL_EVENTS,
+                                   "application not responding");
+        synthesizeCancelationEventsForConnectionLocked(connection, options);
     }
 }
 
-void InputDispatcher::removeWindowByTokenLocked(const sp<IBinder>& token) {
-    for (std::pair<const int32_t, TouchState>& pair : mTouchStatesByDisplay) {
-        TouchState& state = pair.second;
-        state.removeWindowByToken(token);
-    }
-}
-
-void InputDispatcher::resumeAfterTargetsNotReadyTimeoutLocked(
-        nsecs_t timeoutExtension, const sp<IBinder>& inputConnectionToken) {
-    if (timeoutExtension > 0) {
-        // Extend the timeout.
-        mInputTargetWaitTimeoutTime = now() + timeoutExtension;
-    } else {
-        // Give up.
-        mInputTargetWaitTimeoutExpired = true;
-
-        // Input state will not be realistic.  Mark it out of sync.
-        sp<Connection> connection = getConnectionLocked(inputConnectionToken);
-        if (connection != nullptr) {
-            removeWindowByTokenLocked(inputConnectionToken);
-
-            if (connection->status == Connection::STATUS_NORMAL) {
-                CancelationOptions options(CancelationOptions::CANCEL_ALL_EVENTS,
-                                           "application not responding");
-                synthesizeCancelationEventsForConnectionLocked(connection, options);
-            }
-        }
-    }
-}
-
-void InputDispatcher::resetAnrTimeoutsLocked() {
+void InputDispatcher::resetNoFocusedWindowTimeoutLocked() {
     if (DEBUG_FOCUS) {
         ALOGD("Resetting ANR timeouts.");
     }
 
     // Reset input target wait timeout.
-    mInputTargetWaitCause = INPUT_TARGET_WAIT_CAUSE_NONE;
-    mInputTargetWaitApplicationToken.clear();
+    mNoFocusedWindowTimeoutTime = std::nullopt;
+    mAwaitedFocusedApplication.clear();
 }
 
 /**
@@ -1418,6 +1423,36 @@ int32_t InputDispatcher::getTargetDisplayId(const EventEntry& entry) {
     return displayId == ADISPLAY_ID_NONE ? mFocusedDisplayId : displayId;
 }
 
+bool InputDispatcher::shouldWaitToSendKeyLocked(nsecs_t currentTime,
+                                                const char* focusedWindowName) {
+    if (mAnrTracker.empty()) {
+        // already processed all events that we waited for
+        mKeyIsWaitingForEventsTimeout = std::nullopt;
+        return false;
+    }
+
+    if (!mKeyIsWaitingForEventsTimeout.has_value()) {
+        // Start the timer
+        ALOGD("Waiting to send key to %s because there are unprocessed events that may cause "
+              "focus to change",
+              focusedWindowName);
+        mKeyIsWaitingForEventsTimeout = currentTime + KEY_WAITING_FOR_EVENTS_TIMEOUT.count();
+        return true;
+    }
+
+    // We still have pending events, and already started the timer
+    if (currentTime < *mKeyIsWaitingForEventsTimeout) {
+        return true; // Still waiting
+    }
+
+    // Waited too long, and some connection still hasn't processed all motions
+    // Just send the key to the focused window
+    ALOGW("Dispatching key to %s even though there are other unprocessed events",
+          focusedWindowName);
+    mKeyIsWaitingForEventsTimeout = std::nullopt;
+    return false;
+}
+
 int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
                                                         const EventEntry& entry,
                                                         std::vector<InputTarget>& inputTargets,
@@ -1432,31 +1467,70 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
 
     // If there is no currently focused window and no focused application
     // then drop the event.
-    if (focusedWindowHandle == nullptr) {
-        if (focusedApplicationHandle != nullptr) {
-            return handleTargetsNotReadyLocked(currentTime, entry, focusedApplicationHandle,
-                                               nullptr, nextWakeupTime,
-                                               "Waiting because no window has focus but there is "
-                                               "a focused application that may eventually add a "
-                                               "window when it finishes starting up.");
-        }
-
-        ALOGI("Dropping event because there is no focused window or focused application in display "
-              "%" PRId32 ".",
-              displayId);
+    if (focusedWindowHandle == nullptr && focusedApplicationHandle == nullptr) {
+        ALOGI("Dropping %s event because there is no focused window or focused application in "
+              "display %" PRId32 ".",
+              EventEntry::typeToString(entry.type), displayId);
         return INPUT_EVENT_INJECTION_FAILED;
     }
+
+    // Compatibility behavior: raise ANR if there is a focused application, but no focused window.
+    // Only start counting when we have a focused event to dispatch. The ANR is canceled if we
+    // start interacting with another application via touch (app switch). This code can be removed
+    // if the "no focused window ANR" is moved to the policy. Input doesn't know whether
+    // an app is expected to have a focused window.
+    if (focusedWindowHandle == nullptr && focusedApplicationHandle != nullptr) {
+        if (!mNoFocusedWindowTimeoutTime.has_value()) {
+            // We just discovered that there's no focused window. Start the ANR timer
+            const nsecs_t timeout = focusedApplicationHandle->getDispatchingTimeout(
+                    DEFAULT_INPUT_DISPATCHING_TIMEOUT.count());
+            mNoFocusedWindowTimeoutTime = currentTime + timeout;
+            mAwaitedFocusedApplication = focusedApplicationHandle;
+            ALOGW("Waiting because no window has focus but %s may eventually add a "
+                  "window when it finishes starting up. Will wait for %" PRId64 "ms",
+                  mAwaitedFocusedApplication->getName().c_str(), ns2ms(timeout));
+            *nextWakeupTime = *mNoFocusedWindowTimeoutTime;
+            return INPUT_EVENT_INJECTION_PENDING;
+        } else if (currentTime > *mNoFocusedWindowTimeoutTime) {
+            // Already raised ANR. Drop the event
+            ALOGE("Dropping %s event because there is no focused window",
+                  EventEntry::typeToString(entry.type));
+            return INPUT_EVENT_INJECTION_FAILED;
+        } else {
+            // Still waiting for the focused window
+            return INPUT_EVENT_INJECTION_PENDING;
+        }
+    }
+
+    // we have a valid, non-null focused window
+    resetNoFocusedWindowTimeoutLocked();
 
     // Check permissions.
     if (!checkInjectionPermission(focusedWindowHandle, entry.injectionState)) {
         return INPUT_EVENT_INJECTION_PERMISSION_DENIED;
     }
 
-    // Check whether the window is ready for more input.
-    reason = checkWindowReadyForMoreInputLocked(currentTime, focusedWindowHandle, entry, "focused");
-    if (!reason.empty()) {
-        return handleTargetsNotReadyLocked(currentTime, entry, focusedApplicationHandle,
-                                           focusedWindowHandle, nextWakeupTime, reason.c_str());
+    if (focusedWindowHandle->getInfo()->paused) {
+        ALOGI("Waiting because %s is paused", focusedWindowHandle->getName().c_str());
+        return INPUT_EVENT_INJECTION_PENDING;
+    }
+
+    // If the event is a key event, then we must wait for all previous events to
+    // complete before delivering it because previous events may have the
+    // side-effect of transferring focus to a different window and we want to
+    // ensure that the following keys are sent to the new window.
+    //
+    // Suppose the user touches a button in a window then immediately presses "A".
+    // If the button causes a pop-up window to appear then we want to ensure that
+    // the "A" key is delivered to the new pop-up window.  This is because users
+    // often anticipate pending UI changes when typing on a keyboard.
+    // To obtain this behavior, we must serialize key events with respect to all
+    // prior input events.
+    if (entry.type == EventEntry::Type::KEY) {
+        if (shouldWaitToSendKeyLocked(currentTime, focusedWindowHandle->getName().c_str())) {
+            *nextWakeupTime = *mKeyIsWaitingForEventsTimeout;
+            return INPUT_EVENT_INJECTION_PENDING;
+        }
     }
 
     // Success!  Output targets.
@@ -1466,6 +1540,32 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
 
     // Done.
     return INPUT_EVENT_INJECTION_SUCCEEDED;
+}
+
+/**
+ * Given a list of monitors, remove the ones we cannot find a connection for, and the ones
+ * that are currently unresponsive.
+ */
+std::vector<TouchedMonitor> InputDispatcher::selectResponsiveMonitorsLocked(
+        const std::vector<TouchedMonitor>& monitors) const {
+    std::vector<TouchedMonitor> responsiveMonitors;
+    std::copy_if(monitors.begin(), monitors.end(), std::back_inserter(responsiveMonitors),
+                 [this](const TouchedMonitor& monitor) REQUIRES(mLock) {
+                     sp<Connection> connection = getConnectionLocked(
+                             monitor.monitor.inputChannel->getConnectionToken());
+                     if (connection == nullptr) {
+                         ALOGE("Could not find connection for monitor %s",
+                               monitor.monitor.inputChannel->getName().c_str());
+                         return false;
+                     }
+                     if (!connection->responsive) {
+                         ALOGW("Unresponsive monitor %s will not get the new gesture",
+                               connection->inputChannel->getName().c_str());
+                         return false;
+                     }
+                     return true;
+                 });
+    return responsiveMonitors;
 }
 
 int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
@@ -1582,6 +1682,29 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             // Try to assign the pointer to the first foreground window we find, if there is one.
             newTouchedWindowHandle = tempTouchState.getFirstForegroundWindowHandle();
         }
+
+        if (newTouchedWindowHandle != nullptr && newTouchedWindowHandle->getInfo()->paused) {
+            ALOGI("Not sending touch event to %s because it is paused",
+                  newTouchedWindowHandle->getName().c_str());
+            newTouchedWindowHandle = nullptr;
+        }
+
+        if (newTouchedWindowHandle != nullptr) {
+            sp<Connection> connection = getConnectionLocked(newTouchedWindowHandle->getToken());
+            if (connection == nullptr) {
+                ALOGI("Could not find connection for %s",
+                      newTouchedWindowHandle->getName().c_str());
+                newTouchedWindowHandle = nullptr;
+            } else if (!connection->responsive) {
+                // don't send the new touch to an unresponsive window
+                ALOGW("Unresponsive window %s will not get the new gesture at %" PRIu64,
+                      newTouchedWindowHandle->getName().c_str(), entry.eventTime);
+                newTouchedWindowHandle = nullptr;
+            }
+        }
+
+        // Also don't send the new touch event to unresponsive gesture monitors
+        newGestureMonitors = selectResponsiveMonitorsLocked(newGestureMonitors);
 
         if (newTouchedWindowHandle == nullptr && newGestureMonitors.empty()) {
             ALOGI("Dropping event because there is no touchable window or gesture monitor at "
@@ -1745,21 +1868,6 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                                                          BitSet32(0));
                     }
                 }
-            }
-        }
-    }
-
-    // Ensure all touched foreground windows are ready for new input.
-    for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
-        if (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND) {
-            // Check whether the window is ready for more input.
-            std::string reason =
-                    checkWindowReadyForMoreInputLocked(currentTime, touchedWindow.windowHandle,
-                                                       entry, "touched");
-            if (!reason.empty()) {
-                return handleTargetsNotReadyLocked(currentTime, entry, nullptr,
-                                                   touchedWindow.windowHandle, nextWakeupTime,
-                                                   reason.c_str());
             }
         }
     }
@@ -2038,92 +2146,6 @@ bool InputDispatcher::isWindowObscuredLocked(const sp<InputWindowHandle>& window
         }
     }
     return false;
-}
-
-std::string InputDispatcher::checkWindowReadyForMoreInputLocked(
-        nsecs_t currentTime, const sp<InputWindowHandle>& windowHandle,
-        const EventEntry& eventEntry, const char* targetType) {
-    // If the window is paused then keep waiting.
-    if (windowHandle->getInfo()->paused) {
-        return StringPrintf("Waiting because the %s window is paused.", targetType);
-    }
-
-    // If the window's connection is not registered then keep waiting.
-    sp<Connection> connection = getConnectionLocked(windowHandle->getToken());
-    if (connection == nullptr) {
-        return StringPrintf("Waiting because the %s window's input channel is not "
-                            "registered with the input dispatcher.  The window may be in the "
-                            "process of being removed.",
-                            targetType);
-    }
-
-    // If the connection is dead then keep waiting.
-    if (connection->status != Connection::STATUS_NORMAL) {
-        return StringPrintf("Waiting because the %s window's input connection is %s."
-                            "The window may be in the process of being removed.",
-                            targetType, connection->getStatusLabel());
-    }
-
-    // If the connection is backed up then keep waiting.
-    if (connection->inputPublisherBlocked) {
-        return StringPrintf("Waiting because the %s window's input channel is full.  "
-                            "Outbound queue length: %zu.  Wait queue length: %zu.",
-                            targetType, connection->outboundQueue.size(),
-                            connection->waitQueue.size());
-    }
-
-    // Ensure that the dispatch queues aren't too far backed up for this event.
-    if (eventEntry.type == EventEntry::Type::KEY) {
-        // If the event is a key event, then we must wait for all previous events to
-        // complete before delivering it because previous events may have the
-        // side-effect of transferring focus to a different window and we want to
-        // ensure that the following keys are sent to the new window.
-        //
-        // Suppose the user touches a button in a window then immediately presses "A".
-        // If the button causes a pop-up window to appear then we want to ensure that
-        // the "A" key is delivered to the new pop-up window.  This is because users
-        // often anticipate pending UI changes when typing on a keyboard.
-        // To obtain this behavior, we must serialize key events with respect to all
-        // prior input events.
-        if (!connection->outboundQueue.empty() || !connection->waitQueue.empty()) {
-            return StringPrintf("Waiting to send key event because the %s window has not "
-                                "finished processing all of the input events that were previously "
-                                "delivered to it.  Outbound queue length: %zu.  Wait queue length: "
-                                "%zu.",
-                                targetType, connection->outboundQueue.size(),
-                                connection->waitQueue.size());
-        }
-    } else {
-        // Touch events can always be sent to a window immediately because the user intended
-        // to touch whatever was visible at the time.  Even if focus changes or a new
-        // window appears moments later, the touch event was meant to be delivered to
-        // whatever window happened to be on screen at the time.
-        //
-        // Generic motion events, such as trackball or joystick events are a little trickier.
-        // Like key events, generic motion events are delivered to the focused window.
-        // Unlike key events, generic motion events don't tend to transfer focus to other
-        // windows and it is not important for them to be serialized.  So we prefer to deliver
-        // generic motion events as soon as possible to improve efficiency and reduce lag
-        // through batching.
-        //
-        // The one case where we pause input event delivery is when the wait queue is piling
-        // up with lots of events because the application is not responding.
-        // This condition ensures that ANRs are detected reliably.
-        if (!connection->waitQueue.empty() &&
-            currentTime >=
-                    connection->waitQueue.front()->deliveryTime + STREAM_AHEAD_EVENT_TIMEOUT) {
-            return StringPrintf("Waiting to send non-key event because the %s window has not "
-                                "finished processing certain input events that were delivered to "
-                                "it over "
-                                "%0.1fms ago.  Wait queue length: %zu.  Wait queue head age: "
-                                "%0.1fms.",
-                                targetType, STREAM_AHEAD_EVENT_TIMEOUT * 0.000001f,
-                                connection->waitQueue.size(),
-                                (currentTime - connection->waitQueue.front()->deliveryTime) *
-                                        0.000001f);
-        }
-    }
-    return "";
 }
 
 std::string InputDispatcher::getApplicationWindowLabel(
@@ -2416,6 +2438,73 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
     traceOutboundQueueLength(connection);
 }
 
+/**
+ * This function is purely for debugging. It helps us understand where the user interaction
+ * was taking place. For example, if user is touching launcher, we will see a log that user
+ * started interacting with launcher. In that example, the event would go to the wallpaper as well.
+ * We will see both launcher and wallpaper in that list.
+ * Once the interaction with a particular set of connections starts, no new logs will be printed
+ * until the set of interacted connections changes.
+ *
+ * The following items are skipped, to reduce the logspam:
+ * ACTION_OUTSIDE: any windows that are receiving ACTION_OUTSIDE are not logged
+ * ACTION_UP: any windows that receive ACTION_UP are not logged (for both keys and motions).
+ * This includes situations like the soft BACK button key. When the user releases (lifts up the
+ * finger) the back button, then navigation bar will inject KEYCODE_BACK with ACTION_UP.
+ * Both of those ACTION_UP events would not be logged
+ * Monitors (both gesture and global): any gesture monitors or global monitors receiving events
+ * will not be logged. This is omitted to reduce the amount of data printed.
+ * If you see <none>, it's likely that one of the gesture monitors pilfered the event, and therefore
+ * gesture monitor is the only connection receiving the remainder of the gesture.
+ */
+void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
+                                                    const std::vector<InputTarget>& targets) {
+    // Skip ACTION_UP events, and all events other than keys and motions
+    if (entry.type == EventEntry::Type::KEY) {
+        const KeyEntry& keyEntry = static_cast<const KeyEntry&>(entry);
+        if (keyEntry.action == AKEY_EVENT_ACTION_UP) {
+            return;
+        }
+    } else if (entry.type == EventEntry::Type::MOTION) {
+        const MotionEntry& motionEntry = static_cast<const MotionEntry&>(entry);
+        if (motionEntry.action == AMOTION_EVENT_ACTION_UP) {
+            return;
+        }
+    } else {
+        return; // Not a key or a motion
+    }
+
+    std::unordered_set<sp<IBinder>, IBinderHash> newConnections;
+    for (const InputTarget& target : targets) {
+        if ((target.flags & InputTarget::FLAG_DISPATCH_AS_OUTSIDE) ==
+            InputTarget::FLAG_DISPATCH_AS_OUTSIDE) {
+            continue; // Skip windows that receive ACTION_OUTSIDE
+        }
+
+        sp<IBinder> token = target.inputChannel->getConnectionToken();
+        sp<Connection> connection = getConnectionLocked(token); // get connection
+        if (connection->monitor) {
+            continue; // We only need to keep track of the non-monitor connections.
+        }
+
+        newConnections.insert(std::move(token));
+    }
+    if (newConnections == mInteractionConnections) {
+        return; // no change
+    }
+    mInteractionConnections = newConnections;
+    std::string windowList;
+    for (const sp<IBinder>& token : newConnections) {
+        sp<Connection> connection = getConnectionLocked(token);
+        windowList += connection->getWindowName() + ", ";
+    }
+    std::string message = "Interaction with windows: " + windowList;
+    if (windowList.empty()) {
+        message += "<none>";
+    }
+    android_log_event_list(LOGTAG_INPUT_INTERACTION) << message << LOG_ID_EVENTS;
+}
+
 void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t action,
                                                       const sp<IBinder>& newToken) {
     int32_t maskedAction = action & AMOTION_EVENT_ACTION_MASK;
@@ -2458,6 +2547,9 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
     while (connection->status == Connection::STATUS_NORMAL && !connection->outboundQueue.empty()) {
         DispatchEntry* dispatchEntry = connection->outboundQueue.front();
         dispatchEntry->deliveryTime = currentTime;
+        const nsecs_t timeout =
+                getDispatchingTimeoutLocked(connection->inputChannel->getConnectionToken());
+        dispatchEntry->timeoutTime = currentTime + timeout;
 
         // Publish the event.
         status_t status;
@@ -2577,7 +2669,6 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                           "waiting for the application to catch up",
                           connection->getInputChannelName().c_str());
 #endif
-                    connection->inputPublisherBlocked = true;
                 }
             } else {
                 ALOGE("channel '%s' ~ Could not publish event due to an unexpected error, "
@@ -2594,6 +2685,10 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                     dispatchEntry));
         traceOutboundQueueLength(connection);
         connection->waitQueue.push_back(dispatchEntry);
+        if (connection->responsive) {
+            mAnrTracker.insert(dispatchEntry->timeoutTime,
+                               connection->inputChannel->getConnectionToken());
+        }
         traceWaitQueueLength(connection);
     }
 }
@@ -2627,8 +2722,6 @@ void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
     ALOGD("channel '%s' ~ finishDispatchCycle - seq=%u, handled=%s",
           connection->getInputChannelName().c_str(), seq, toString(handled));
 #endif
-
-    connection->inputPublisherBlocked = false;
 
     if (connection->status == Connection::STATUS_BROKEN ||
         connection->status == Connection::STATUS_ZOMBIE) {
@@ -3785,15 +3878,17 @@ void InputDispatcher::setFocusedApplication(
 
         sp<InputApplicationHandle> oldFocusedApplicationHandle =
                 getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
+
+        if (oldFocusedApplicationHandle == mAwaitedFocusedApplication &&
+            inputApplicationHandle != oldFocusedApplicationHandle) {
+            resetNoFocusedWindowTimeoutLocked();
+        }
+
         if (inputApplicationHandle != nullptr && inputApplicationHandle->updateInfo()) {
             if (oldFocusedApplicationHandle != inputApplicationHandle) {
-                if (oldFocusedApplicationHandle != nullptr) {
-                    resetAnrTimeoutsLocked();
-                }
                 mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
             }
         } else if (oldFocusedApplicationHandle != nullptr) {
-            resetAnrTimeoutsLocked();
             oldFocusedApplicationHandle.clear();
             mFocusedApplicationHandlesByDisplay.erase(displayId);
         }
@@ -3874,7 +3969,7 @@ void InputDispatcher::setInputDispatchMode(bool enabled, bool frozen) {
 
         if (mDispatchEnabled != enabled || mDispatchFrozen != frozen) {
             if (mDispatchFrozen && !frozen) {
-                resetAnrTimeoutsLocked();
+                resetNoFocusedWindowTimeoutLocked();
             }
 
             if (mDispatchEnabled && !enabled) {
@@ -4014,8 +4109,9 @@ void InputDispatcher::resetAndDropEverythingLocked(const char* reason) {
     resetKeyRepeatLocked();
     releasePendingEventLocked();
     drainInboundQueueLocked();
-    resetAnrTimeoutsLocked();
+    resetNoFocusedWindowTimeoutLocked();
 
+    mAnrTracker.clear();
     mTouchStatesByDisplay.clear();
     mLastHoverWindowHandle.clear();
     mReplacedKeys.clear();
@@ -4215,11 +4311,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         for (const auto& pair : mConnectionsByFd) {
             const sp<Connection>& connection = pair.second;
             dump += StringPrintf(INDENT2 "%i: channelName='%s', windowName='%s', "
-                                         "status=%s, monitor=%s, inputPublisherBlocked=%s\n",
+                                         "status=%s, monitor=%s, responsive=%s\n",
                                  pair.first, connection->getInputChannelName().c_str(),
                                  connection->getWindowName().c_str(), connection->getStatusLabel(),
-                                 toString(connection->monitor),
-                                 toString(connection->inputPublisherBlocked));
+                                 toString(connection->monitor), toString(connection->responsive));
 
             if (!connection->outboundQueue.empty()) {
                 dump += StringPrintf(INDENT3 "OutboundQueue: length=%zu\n",
@@ -4487,6 +4582,7 @@ sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConn
 }
 
 void InputDispatcher::removeConnectionLocked(const sp<Connection>& connection) {
+    mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
     removeByValue(mConnectionsByFd, connection);
 }
 
@@ -4524,17 +4620,69 @@ void InputDispatcher::onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus
     postCommandLocked(std::move(commandEntry));
 }
 
-void InputDispatcher::onAnrLocked(nsecs_t currentTime,
-                                  const sp<InputApplicationHandle>& applicationHandle,
-                                  const sp<InputWindowHandle>& windowHandle, nsecs_t eventTime,
-                                  nsecs_t waitStartTime, const char* reason) {
-    float dispatchLatency = (currentTime - eventTime) * 0.000001f;
-    float waitDuration = (currentTime - waitStartTime) * 0.000001f;
-    ALOGI("Application is not responding: %s.  "
-          "It has been %0.1fms since event, %0.1fms since wait started.  Reason: %s",
-          getApplicationWindowLabel(applicationHandle, windowHandle).c_str(), dispatchLatency,
-          waitDuration, reason);
+void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
+    // Since we are allowing the policy to extend the timeout, maybe the waitQueue
+    // is already healthy again. Don't raise ANR in this situation
+    if (connection->waitQueue.empty()) {
+        ALOGI("Not raising ANR because the connection %s has recovered",
+              connection->inputChannel->getName().c_str());
+        return;
+    }
+    /**
+     * The "oldestEntry" is the entry that was first sent to the application. That entry, however,
+     * may not be the one that caused the timeout to occur. One possibility is that window timeout
+     * has changed. This could cause newer entries to time out before the already dispatched
+     * entries. In that situation, the newest entries caused ANR. But in all likelihood, the app
+     * processes the events linearly. So providing information about the oldest entry seems to be
+     * most useful.
+     */
+    DispatchEntry* oldestEntry = *connection->waitQueue.begin();
+    const nsecs_t currentWait = now() - oldestEntry->deliveryTime;
+    std::string reason =
+            android::base::StringPrintf("%s is not responding. Waited %" PRId64 "ms for %s",
+                                        connection->inputChannel->getName().c_str(),
+                                        ns2ms(currentWait),
+                                        oldestEntry->eventEntry->getDescription().c_str());
 
+    updateLastAnrStateLocked(getWindowHandleLocked(connection->inputChannel->getConnectionToken()),
+                             reason);
+
+    std::unique_ptr<CommandEntry> commandEntry =
+            std::make_unique<CommandEntry>(&InputDispatcher::doNotifyAnrLockedInterruptible);
+    commandEntry->inputApplicationHandle = nullptr;
+    commandEntry->inputChannel = connection->inputChannel;
+    commandEntry->reason = std::move(reason);
+    postCommandLocked(std::move(commandEntry));
+}
+
+void InputDispatcher::onAnrLocked(const sp<InputApplicationHandle>& application) {
+    std::string reason = android::base::StringPrintf("%s does not have a focused window",
+                                                     application->getName().c_str());
+
+    updateLastAnrStateLocked(application, reason);
+
+    std::unique_ptr<CommandEntry> commandEntry =
+            std::make_unique<CommandEntry>(&InputDispatcher::doNotifyAnrLockedInterruptible);
+    commandEntry->inputApplicationHandle = application;
+    commandEntry->inputChannel = nullptr;
+    commandEntry->reason = std::move(reason);
+    postCommandLocked(std::move(commandEntry));
+}
+
+void InputDispatcher::updateLastAnrStateLocked(const sp<InputWindowHandle>& window,
+                                               const std::string& reason) {
+    const std::string windowLabel = getApplicationWindowLabel(nullptr, window);
+    updateLastAnrStateLocked(windowLabel, reason);
+}
+
+void InputDispatcher::updateLastAnrStateLocked(const sp<InputApplicationHandle>& application,
+                                               const std::string& reason) {
+    const std::string windowLabel = getApplicationWindowLabel(application, nullptr);
+    updateLastAnrStateLocked(windowLabel, reason);
+}
+
+void InputDispatcher::updateLastAnrStateLocked(const std::string& windowLabel,
+                                               const std::string& reason) {
     // Capture a record of the InputDispatcher state at the time of the ANR.
     time_t t = time(nullptr);
     struct tm tm;
@@ -4544,21 +4692,9 @@ void InputDispatcher::onAnrLocked(nsecs_t currentTime,
     mLastAnrState.clear();
     mLastAnrState += INDENT "ANR:\n";
     mLastAnrState += StringPrintf(INDENT2 "Time: %s\n", timestr);
-    mLastAnrState +=
-            StringPrintf(INDENT2 "Window: %s\n",
-                         getApplicationWindowLabel(applicationHandle, windowHandle).c_str());
-    mLastAnrState += StringPrintf(INDENT2 "DispatchLatency: %0.1fms\n", dispatchLatency);
-    mLastAnrState += StringPrintf(INDENT2 "WaitDuration: %0.1fms\n", waitDuration);
-    mLastAnrState += StringPrintf(INDENT2 "Reason: %s\n", reason);
+    mLastAnrState += StringPrintf(INDENT2 "Reason: %s\n", reason.c_str());
+    mLastAnrState += StringPrintf(INDENT2 "Window: %s\n", windowLabel.c_str());
     dumpDispatchStateLocked(mLastAnrState);
-
-    std::unique_ptr<CommandEntry> commandEntry =
-            std::make_unique<CommandEntry>(&InputDispatcher::doNotifyAnrLockedInterruptible);
-    commandEntry->inputApplicationHandle = applicationHandle;
-    commandEntry->inputChannel =
-            windowHandle != nullptr ? getInputChannelLocked(windowHandle->getToken()) : nullptr;
-    commandEntry->reason = reason;
-    postCommandLocked(std::move(commandEntry));
 }
 
 void InputDispatcher::doNotifyConfigurationChangedLockedInterruptible(CommandEntry* commandEntry) {
@@ -4599,13 +4735,50 @@ void InputDispatcher::doNotifyAnrLockedInterruptible(CommandEntry* commandEntry)
 
     mLock.lock();
 
-    resumeAfterTargetsNotReadyTimeoutLocked(timeoutExtension, token);
+    if (timeoutExtension > 0) {
+        extendAnrTimeoutsLocked(commandEntry->inputApplicationHandle, token, timeoutExtension);
+    } else {
+        // stop waking up for events in this connection, it is already not responding
+        sp<Connection> connection = getConnectionLocked(token);
+        if (connection == nullptr) {
+            return;
+        }
+        cancelEventsForAnrLocked(connection);
+    }
+}
+
+void InputDispatcher::extendAnrTimeoutsLocked(const sp<InputApplicationHandle>& application,
+                                              const sp<IBinder>& connectionToken,
+                                              nsecs_t timeoutExtension) {
+    sp<Connection> connection = getConnectionLocked(connectionToken);
+    if (connection == nullptr) {
+        if (mNoFocusedWindowTimeoutTime.has_value() && application != nullptr) {
+            // Maybe ANR happened because there's no focused window?
+            mNoFocusedWindowTimeoutTime = now() + timeoutExtension;
+            mAwaitedFocusedApplication = application;
+        } else {
+            // It's also possible that the connection already disappeared. No action necessary.
+        }
+        return;
+    }
+
+    ALOGI("Raised ANR, but the policy wants to keep waiting on %s for %" PRId64 "ms longer",
+          connection->inputChannel->getName().c_str(), ns2ms(timeoutExtension));
+
+    connection->responsive = true;
+    const nsecs_t newTimeout = now() + timeoutExtension;
+    for (DispatchEntry* entry : connection->waitQueue) {
+        if (newTimeout >= entry->timeoutTime) {
+            // Already removed old entries when connection was marked unresponsive
+            entry->timeoutTime = newTimeout;
+            mAnrTracker.insert(entry->timeoutTime, connectionToken);
+        }
+    }
 }
 
 void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
         CommandEntry* commandEntry) {
     KeyEntry* entry = commandEntry->keyEntry;
-
     KeyEvent event = createKeyEvent(*entry);
 
     mLock.unlock();
@@ -4639,6 +4812,20 @@ void InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible(CommandEntr
     mLock.lock();
 }
 
+/**
+ * Connection is responsive if it has no events in the waitQueue that are older than the
+ * current time.
+ */
+static bool isConnectionResponsive(const Connection& connection) {
+    const nsecs_t currentTime = now();
+    for (const DispatchEntry* entry : connection.waitQueue) {
+        if (entry->timeoutTime < currentTime) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* commandEntry) {
     sp<Connection> connection = commandEntry->connection;
     const nsecs_t finishTime = commandEntry->eventTime;
@@ -4651,7 +4838,6 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
         return;
     }
     DispatchEntry* dispatchEntry = *dispatchEntryIt;
-
     const nsecs_t eventDuration = finishTime - dispatchEntry->deliveryTime;
     if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
         ALOGI("%s spent %" PRId64 "ms processing %s", connection->getWindowName().c_str(),
@@ -4680,6 +4866,11 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
     if (dispatchEntryIt != connection->waitQueue.end()) {
         dispatchEntry = *dispatchEntryIt;
         connection->waitQueue.erase(dispatchEntryIt);
+        mAnrTracker.erase(dispatchEntry->timeoutTime,
+                          connection->inputChannel->getConnectionToken());
+        if (!connection->responsive) {
+            connection->responsive = isConnectionResponsive(*connection);
+        }
         traceWaitQueueLength(connection);
         if (restartEvent && connection->status == Connection::STATUS_NORMAL) {
             connection->outboundQueue.push_front(dispatchEntry);

@@ -22,6 +22,7 @@ cc_library_headers {
 filegroup {
     name: "libinputdispatcher_sources",
     srcs: [
+        "AnrTracker.cpp",
         "Connection.cpp",
         "Entry.cpp",
         "InjectionState.cpp",
@@ -67,4 +68,5 @@ cc_library_static {
     export_header_lib_headers: [
         "libinputdispatcher_headers",
     ],
+    logtags: ["EventLogTags.logtags"],
 }

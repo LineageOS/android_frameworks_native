@@ -27,6 +27,7 @@ cc_test {
         "libinputflinger_defaults",
     ],
     srcs: [
+        "AnrTracker_test.cpp",
         "BlockingQueue_test.cpp",
         "EventHub_test.cpp",
         "TestInputListener.cpp",
