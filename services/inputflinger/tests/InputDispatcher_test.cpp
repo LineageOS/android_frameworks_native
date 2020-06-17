@@ -126,6 +126,14 @@ public:
     void assertNotifyAnrWasCalled(std::chrono::nanoseconds timeout,
                                   const sp<InputApplicationHandle>& expectedApplication,
                                   const sp<IBinder>& expectedToken) {
+        std::pair<sp<InputApplicationHandle>, sp<IBinder>> anrData;
+        ASSERT_NO_FATAL_FAILURE(anrData = getNotifyAnrData(timeout));
+        ASSERT_EQ(expectedApplication, anrData.first);
+        ASSERT_EQ(expectedToken, anrData.second);
+    }
+
+    std::pair<sp<InputApplicationHandle>, sp<IBinder>> getNotifyAnrData(
+            std::chrono::nanoseconds timeout) {
         const std::chrono::time_point start = std::chrono::steady_clock::now();
         std::unique_lock lock(mLock);
         std::chrono::duration timeToWait = timeout + 100ms; // provide some slack
@@ -136,22 +144,41 @@ public:
         // before checking if ANR was called.
         // Since dispatcher is not guaranteed to call notifyAnr right away, we need to provide
         // it some time to act. 100ms seems reasonable.
-        mNotifyAnr.wait_for(lock, timeToWait,
-                            [this]() REQUIRES(mLock) { return mNotifyAnrWasCalled; });
+        mNotifyAnr.wait_for(lock, timeToWait, [this]() REQUIRES(mLock) {
+            return !mAnrApplications.empty() && !mAnrWindowTokens.empty();
+        });
         const std::chrono::duration waited = std::chrono::steady_clock::now() - start;
-        ASSERT_TRUE(mNotifyAnrWasCalled);
+        if (mAnrApplications.empty() || mAnrWindowTokens.empty()) {
+            ADD_FAILURE() << "Did not receive ANR callback";
+        }
         // Ensure that the ANR didn't get raised too early. We can't be too strict here because
         // the dispatcher started counting before this function was called
-        ASSERT_TRUE(timeout - 100ms < waited); // check (waited < timeout + 100ms) done by wait_for
-        mNotifyAnrWasCalled = false;
-        ASSERT_EQ(expectedApplication, mLastAnrApplication);
-        ASSERT_EQ(expectedToken, mLastAnrWindowToken);
+        if (std::chrono::abs(timeout - waited) > 100ms) {
+            ADD_FAILURE() << "ANR was raised too early or too late. Expected "
+                          << std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count()
+                          << "ms, but waited "
+                          << std::chrono::duration_cast<std::chrono::milliseconds>(waited).count()
+                          << "ms instead";
+        }
+        std::pair<sp<InputApplicationHandle>, sp<IBinder>> result =
+                std::make_pair(mAnrApplications.front(), mAnrWindowTokens.front());
+        mAnrApplications.pop();
+        mAnrWindowTokens.pop();
+        return result;
+    }
+
+    void assertNotifyAnrWasNotCalled() {
+        std::scoped_lock lock(mLock);
+        ASSERT_TRUE(mAnrApplications.empty());
+        ASSERT_TRUE(mAnrWindowTokens.empty());
     }
 
     void setKeyRepeatConfiguration(nsecs_t timeout, nsecs_t delay) {
         mConfig.keyRepeatTimeout = timeout;
         mConfig.keyRepeatDelay = delay;
     }
+
+    void setAnrTimeout(std::chrono::nanoseconds timeout) { mAnrTimeout = timeout; }
 
 private:
     std::mutex mLock;
@@ -161,9 +188,8 @@ private:
     std::optional<NotifySwitchArgs> mLastNotifySwitch GUARDED_BY(mLock);
 
     // ANR handling
-    bool mNotifyAnrWasCalled GUARDED_BY(mLock) = false;
-    sp<InputApplicationHandle> mLastAnrApplication GUARDED_BY(mLock);
-    sp<IBinder> mLastAnrWindowToken GUARDED_BY(mLock);
+    std::queue<sp<InputApplicationHandle>> mAnrApplications GUARDED_BY(mLock);
+    std::queue<sp<IBinder>> mAnrWindowTokens GUARDED_BY(mLock);
     std::condition_variable mNotifyAnr;
     std::chrono::nanoseconds mAnrTimeout = 0ms;
 
@@ -175,9 +201,8 @@ private:
     virtual nsecs_t notifyAnr(const sp<InputApplicationHandle>& application,
                               const sp<IBinder>& windowToken, const std::string&) override {
         std::scoped_lock lock(mLock);
-        mLastAnrApplication = application;
-        mLastAnrWindowToken = windowToken;
-        mNotifyAnrWasCalled = true;
+        mAnrApplications.push(application);
+        mAnrWindowTokens.push(windowToken);
         mNotifyAnr.notify_all();
         return mAnrTimeout.count();
     }
@@ -643,7 +668,7 @@ public:
         ASSERT_NE(nullptr, event) << mName.c_str()
                                   << ": consumer should have returned non-NULL event.";
         ASSERT_EQ(expectedEventType, event->getType())
-                << mName.c_str() << "expected " << inputEventTypeToString(expectedEventType)
+                << mName.c_str() << " expected " << inputEventTypeToString(expectedEventType)
                 << " event, got " << inputEventTypeToString(event->getType()) << " event";
 
         EXPECT_EQ(expectedDisplayId, event->getDisplayId());
@@ -688,9 +713,24 @@ public:
 
     void assertNoEvents() {
         InputEvent* event = consume();
-        ASSERT_EQ(nullptr, event)
-                << mName.c_str()
-                << ": should not have received any events, so consume() should return NULL";
+        if (event == nullptr) {
+            return;
+        }
+        if (event->getType() == AINPUT_EVENT_TYPE_KEY) {
+            KeyEvent& keyEvent = static_cast<KeyEvent&>(*event);
+            ADD_FAILURE() << "Received key event "
+                          << KeyEvent::actionToString(keyEvent.getAction());
+        } else if (event->getType() == AINPUT_EVENT_TYPE_MOTION) {
+            MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
+            ADD_FAILURE() << "Received motion event "
+                          << MotionEvent::actionToString(motionEvent.getAction());
+        } else if (event->getType() == AINPUT_EVENT_TYPE_FOCUS) {
+            FocusEvent& focusEvent = static_cast<FocusEvent&>(*event);
+            ADD_FAILURE() << "Received focus event, hasFocus = "
+                          << (focusEvent.getHasFocus() ? "true" : "false");
+        }
+        FAIL() << mName.c_str()
+               << ": should not have received any events, so consume() should return NULL";
     }
 
     sp<IBinder> getToken() { return mConsumer->getChannel()->getConnectionToken(); }
@@ -754,6 +794,8 @@ public:
         mInfo.dispatchingTimeout = timeout.count();
     }
 
+    void setPaused(bool paused) { mInfo.paused = paused; }
+
     void setFrame(const Rect& frame) {
         mInfo.frameLeft = frame.left;
         mInfo.frameTop = frame.top;
@@ -773,6 +815,10 @@ public:
     void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
         consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
                      expectedFlags);
+    }
+
+    void consumeKeyUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+        consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_UP, expectedDisplayId, expectedFlags);
     }
 
     void consumeMotionCancel(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
@@ -826,12 +872,12 @@ public:
                                      expectedFlags);
     }
 
-    std::optional<uint32_t> receiveEvent() {
+    std::optional<uint32_t> receiveEvent(InputEvent** outEvent = nullptr) {
         if (mInputReceiver == nullptr) {
             ADD_FAILURE() << "Invalid receive event on window with no receiver";
             return std::nullopt;
         }
-        return mInputReceiver->receiveEvent();
+        return mInputReceiver->receiveEvent(outEvent);
     }
 
     void finishEvent(uint32_t sequenceNum) {
@@ -865,7 +911,9 @@ private:
 std::atomic<int32_t> FakeWindowHandle::sId{1};
 
 static int32_t injectKey(const sp<InputDispatcher>& dispatcher, int32_t action, int32_t repeatCount,
-                         int32_t displayId = ADISPLAY_ID_NONE) {
+                         int32_t displayId = ADISPLAY_ID_NONE,
+                         int32_t syncMode = INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT,
+                         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT) {
     KeyEvent event;
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
@@ -875,10 +923,9 @@ static int32_t injectKey(const sp<InputDispatcher>& dispatcher, int32_t action, 
                      repeatCount, currentTime, currentTime);
 
     // Inject event until dispatch out.
-    return dispatcher->injectInputEvent(
-            &event,
-            INJECTOR_PID, INJECTOR_UID, INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT,
-            INJECT_EVENT_TIMEOUT, POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
+    return dispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID, syncMode,
+                                        injectionTimeout,
+                                        POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 }
 
 static int32_t injectKeyDown(const sp<InputDispatcher>& dispatcher,
@@ -886,11 +933,19 @@ static int32_t injectKeyDown(const sp<InputDispatcher>& dispatcher,
     return injectKey(dispatcher, AKEY_EVENT_ACTION_DOWN, /* repeatCount */ 0, displayId);
 }
 
+static int32_t injectKeyUp(const sp<InputDispatcher>& dispatcher,
+                           int32_t displayId = ADISPLAY_ID_NONE) {
+    return injectKey(dispatcher, AKEY_EVENT_ACTION_UP, /* repeatCount */ 0, displayId);
+}
+
 static int32_t injectMotionEvent(
         const sp<InputDispatcher>& dispatcher, int32_t action, int32_t source, int32_t displayId,
         const PointF& position,
         const PointF& cursorPosition = {AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                        AMOTION_EVENT_INVALID_CURSOR_POSITION}) {
+                                        AMOTION_EVENT_INVALID_CURSOR_POSITION},
+        std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
+        int32_t injectionMode = INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT,
+        nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC)) {
     MotionEvent event;
     PointerProperties pointerProperties[1];
     PointerCoords pointerCoords[1];
@@ -903,7 +958,6 @@ static int32_t injectMotionEvent(
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, position.x);
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, position.y);
 
-    nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid motion down event.
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, displayId, INVALID_HMAC, action,
                      /* actionButton */ 0,
@@ -911,14 +965,13 @@ static int32_t injectMotionEvent(
                      /* edgeFlags */ 0, AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
                      /* xScale */ 1, /* yScale */ 1, /* xOffset */ 0, /* yOffset */ 0,
                      /* xPrecision */ 0, /* yPrecision */ 0, cursorPosition.x, cursorPosition.y,
-                     currentTime, currentTime,
+                     eventTime, eventTime,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
 
     // Inject event until dispatch out.
-    return dispatcher->injectInputEvent(
-            &event,
-            INJECTOR_PID, INJECTOR_UID, INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT,
-            INJECT_EVENT_TIMEOUT, POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
+    return dispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID, injectionMode,
+                                        injectionTimeout,
+                                        POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 }
 
 static int32_t injectMotionDown(const sp<InputDispatcher>& dispatcher, int32_t source,
@@ -1429,6 +1482,10 @@ public:
                                      expectedDisplayId, expectedFlags);
     }
 
+    std::optional<int32_t> receiveEvent() { return mInputReceiver->receiveEvent(); }
+
+    void finishEvent(uint32_t consumeSeq) { return mInputReceiver->finishEvent(consumeSeq); }
+
     void consumeMotionDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
         mInputReceiver->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_DOWN,
                                      expectedDisplayId, expectedFlags);
@@ -1505,6 +1562,21 @@ TEST_F(InputDispatcherTest, GestureMonitor_CanPilferAfterWindowIsRemovedMidStrea
               injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
             << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
     monitor.consumeMotionUp(ADISPLAY_ID_DEFAULT);
+}
+
+TEST_F(InputDispatcherTest, UnresponsiveGestureMonitor_GetsAnr) {
+    FakeMonitorReceiver monitor =
+            FakeMonitorReceiver(mDispatcher, "Gesture monitor", ADISPLAY_ID_DEFAULT,
+                                true /*isGestureMonitor*/);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT));
+    std::optional<uint32_t> consumeSeq = monitor.receiveEvent();
+    ASSERT_TRUE(consumeSeq);
+
+    mFakePolicy->assertNotifyAnrWasCalled(DISPATCHING_TIMEOUT, nullptr, monitor.getToken());
+    monitor.finishEvent(*consumeSeq);
+    ASSERT_TRUE(mDispatcher->waitForIdle());
 }
 
 TEST_F(InputDispatcherTest, TestMoveEvent) {
@@ -2329,23 +2401,40 @@ protected:
     }
 };
 
+// Send a tap and respond, which should not cause an ANR.
+TEST_F(InputDispatcherSingleWindowAnr, WhenTouchIsConsumed_NoAnr) {
+    tapOnWindow();
+    mWindow->consumeMotionDown();
+    mWindow->consumeMotionUp();
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mFakePolicy->assertNotifyAnrWasNotCalled();
+}
+
+// Send a regular key and respond, which should not cause an ANR.
+TEST_F(InputDispatcherSingleWindowAnr, WhenKeyIsConsumed_NoAnr) {
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher));
+    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mFakePolicy->assertNotifyAnrWasNotCalled();
+}
+
 // Send an event to the app and have the app not respond right away.
-// Make sure that ANR is raised
+// When ANR is raised, policy will tell the dispatcher to cancel the events for that window.
+// So InputDispatcher will enqueue ACTION_CANCEL event as well.
 TEST_F(InputDispatcherSingleWindowAnr, OnPointerDown_BasicAnr) {
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
               injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                WINDOW_LOCATION));
 
-    // Also, overwhelm the socket to make sure ANR starts
-    for (size_t i = 0; i < 100; i++) {
-        injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
-                          ADISPLAY_ID_DEFAULT, {WINDOW_LOCATION.x, WINDOW_LOCATION.y + i});
-    }
-
     std::optional<uint32_t> sequenceNum = mWindow->receiveEvent(); // ACTION_DOWN
     ASSERT_TRUE(sequenceNum);
     const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
     mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr /*application*/, mWindow->getToken());
+
+    // The remaining lines are not really needed for the test, but kept as a sanity check
+    mWindow->finishEvent(*sequenceNum);
+    mWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL,
+                          ADISPLAY_ID_DEFAULT, 0 /*flags*/);
     ASSERT_TRUE(mDispatcher->waitForIdle());
 }
 
@@ -2355,14 +2444,591 @@ TEST_F(InputDispatcherSingleWindowAnr, OnKeyDown_BasicAnr) {
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher));
     std::optional<uint32_t> sequenceNum = mWindow->receiveEvent();
     ASSERT_TRUE(sequenceNum);
-
-    // Start ANR process by sending a 2nd key, which would trigger the check for whether
-    // waitQueue is empty
-    injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, /* repeatCount */ 1);
-
     const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyAnrWasCalled(timeout, mApplication, mWindow->getToken());
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr /*application*/, mWindow->getToken());
     ASSERT_TRUE(mDispatcher->waitForIdle());
+}
+
+// We have a focused application, but no focused window
+TEST_F(InputDispatcherSingleWindowAnr, FocusedApplication_NoFocusedWindow) {
+    mWindow->setFocus(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
+    mWindow->consumeFocusEvent(false);
+
+    // taps on the window work as normal
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               WINDOW_LOCATION));
+    ASSERT_NO_FATAL_FAILURE(mWindow->consumeMotionDown());
+    mDispatcher->waitForIdle();
+    mFakePolicy->assertNotifyAnrWasNotCalled();
+
+    // Once a focused event arrives, we get an ANR for this application
+    // We specify the injection timeout to be smaller than the application timeout, to ensure that
+    // injection times out (instead of failing).
+    const int32_t result =
+            injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /* repeatCount */, ADISPLAY_ID_DEFAULT,
+                      INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT, 10ms);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, result);
+    const std::chrono::duration timeout = mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, mApplication, nullptr /*windowToken*/);
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+}
+
+// We have a focused application, but no focused window
+// If the policy wants to keep waiting on the focused window to be added, make sure
+// that this timeout extension is honored and ANR is raised again.
+TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_ExtendsAnr) {
+    mWindow->setFocus(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
+    mWindow->consumeFocusEvent(false);
+    const std::chrono::duration timeout = 5ms;
+    mFakePolicy->setAnrTimeout(timeout);
+
+    // Once a focused event arrives, we get an ANR for this application
+    // We specify the injection timeout to be smaller than the application timeout, to ensure that
+    // injection times out (instead of failing).
+    const int32_t result =
+            injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /* repeatCount */, ADISPLAY_ID_DEFAULT,
+                      INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT, 10ms);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, result);
+    const std::chrono::duration appTimeout =
+            mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(appTimeout, mApplication, nullptr /*windowToken*/);
+
+    // After the extended time has passed, ANR should be raised again
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, mApplication, nullptr /*windowToken*/);
+
+    // If we stop extending the timeout, dispatcher should go to idle.
+    // Another ANR may be raised during this time
+    mFakePolicy->setAnrTimeout(0ms);
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+}
+
+// We have a focused application, but no focused window
+TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_DropsFocusedEvents) {
+    mWindow->setFocus(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
+    mWindow->consumeFocusEvent(false);
+
+    // Once a focused event arrives, we get an ANR for this application
+    const int32_t result =
+            injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /* repeatCount */, ADISPLAY_ID_DEFAULT,
+                      INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT, 10ms);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, result);
+
+    const std::chrono::duration timeout = mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, mApplication, nullptr /*windowToken*/);
+
+    // Future focused events get dropped right away
+    ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED, injectKeyDown(mDispatcher));
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mWindow->assertNoEvents();
+}
+
+/**
+ * Ensure that the implementation is valid. Since we are using multiset to keep track of the
+ * ANR timeouts, we are allowing entries with identical timestamps in the same connection.
+ * If we process 1 of the events, but ANR on the second event with the same timestamp,
+ * the ANR mechanism should still work.
+ *
+ * In this test, we are injecting DOWN and UP events with the same timestamps, and acknowledging the
+ * DOWN event, while not responding on the second one.
+ */
+TEST_F(InputDispatcherSingleWindowAnr, Anr_HandlesEventsWithIdenticalTimestamps) {
+    nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                      ADISPLAY_ID_DEFAULT, WINDOW_LOCATION,
+                      {AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                       AMOTION_EVENT_INVALID_CURSOR_POSITION},
+                      500ms, INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT, currentTime);
+
+    // Now send ACTION_UP, with identical timestamp
+    injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
+                      ADISPLAY_ID_DEFAULT, WINDOW_LOCATION,
+                      {AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                       AMOTION_EVENT_INVALID_CURSOR_POSITION},
+                      500ms, INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT, currentTime);
+
+    // We have now sent down and up. Let's consume first event and then ANR on the second.
+    mWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr /*application*/, mWindow->getToken());
+}
+
+// If an app is not responding to a key event, gesture monitors should continue to receive
+// new motion events
+TEST_F(InputDispatcherSingleWindowAnr, GestureMonitors_ReceiveEventsDuringAppAnrOnKey) {
+    FakeMonitorReceiver monitor =
+            FakeMonitorReceiver(mDispatcher, "Gesture monitor", ADISPLAY_ID_DEFAULT,
+                                true /*isGestureMonitor*/);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher, ADISPLAY_ID_DEFAULT));
+    mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyUp(mDispatcher, ADISPLAY_ID_DEFAULT));
+
+    // Stuck on the ACTION_UP
+    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr, mWindow->getToken());
+
+    // New tap will go to the gesture monitor, but not to the window
+    tapOnWindow();
+    monitor.consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    monitor.consumeMotionUp(ADISPLAY_ID_DEFAULT);
+
+    mWindow->consumeKeyUp(ADISPLAY_ID_DEFAULT); // still the previous motion
+    mDispatcher->waitForIdle();
+    mWindow->assertNoEvents();
+    monitor.assertNoEvents();
+}
+
+// If an app is not responding to a motion event, gesture monitors should continue to receive
+// new motion events
+TEST_F(InputDispatcherSingleWindowAnr, GestureMonitors_ReceiveEventsDuringAppAnrOnMotion) {
+    FakeMonitorReceiver monitor =
+            FakeMonitorReceiver(mDispatcher, "Gesture monitor", ADISPLAY_ID_DEFAULT,
+                                true /*isGestureMonitor*/);
+
+    tapOnWindow();
+    monitor.consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    monitor.consumeMotionUp(ADISPLAY_ID_DEFAULT);
+
+    mWindow->consumeMotionDown();
+    // Stuck on the ACTION_UP
+    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr, mWindow->getToken());
+
+    // New tap will go to the gesture monitor, but not to the window
+    tapOnWindow();
+    monitor.consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    monitor.consumeMotionUp(ADISPLAY_ID_DEFAULT);
+
+    mWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT); // still the previous motion
+    mDispatcher->waitForIdle();
+    mWindow->assertNoEvents();
+    monitor.assertNoEvents();
+}
+
+// If a window is unresponsive, then you get anr. if the window later catches up and starts to
+// process events, you don't get an anr. When the window later becomes unresponsive again, you
+// get an ANR again.
+// 1. tap -> block on ACTION_UP -> receive ANR
+// 2. consume all pending events (= queue becomes healthy again)
+// 3. tap again -> block on ACTION_UP again -> receive ANR second time
+TEST_F(InputDispatcherSingleWindowAnr, SameWindow_CanReceiveAnrTwice) {
+    tapOnWindow();
+
+    mWindow->consumeMotionDown();
+    // Block on ACTION_UP
+    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr /*application*/, mWindow->getToken());
+    mWindow->consumeMotionUp(); // Now the connection should be healthy again
+    mDispatcher->waitForIdle();
+    mWindow->assertNoEvents();
+
+    tapOnWindow();
+    mWindow->consumeMotionDown();
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr /*application*/, mWindow->getToken());
+    mWindow->consumeMotionUp();
+
+    mDispatcher->waitForIdle();
+    mWindow->assertNoEvents();
+}
+
+// If the policy tells us to raise ANR again after some time, ensure that the timeout extension
+// is honored
+TEST_F(InputDispatcherSingleWindowAnr, Policy_CanExtendTimeout) {
+    const std::chrono::duration timeout = 5ms;
+    mFakePolicy->setAnrTimeout(timeout);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               WINDOW_LOCATION));
+
+    const std::chrono::duration windowTimeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(windowTimeout, nullptr /*application*/,
+                                          mWindow->getToken());
+
+    // Since the policy wanted to extend ANR, make sure it is called again after the extension
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr /*application*/, mWindow->getToken());
+    mFakePolicy->setAnrTimeout(0ms);
+    std::this_thread::sleep_for(windowTimeout);
+    // We are not checking if ANR has been called, because it may have been called again by the
+    // time we set the timeout to 0
+
+    // When the policy finally says stop, we should get ACTION_CANCEL
+    mWindow->consumeMotionDown();
+    mWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL,
+                          ADISPLAY_ID_DEFAULT, 0 /*flags*/);
+    mWindow->assertNoEvents();
+}
+
+/**
+ * If a window is processing a motion event, and then a key event comes in, the key event should
+ * not to to the focused window until the motion is processed.
+ *
+ * Warning!!!
+ * This test depends on the value of android::inputdispatcher::KEY_WAITING_FOR_MOTION_TIMEOUT
+ * and the injection timeout that we specify when injecting the key.
+ * We must have the injection timeout (10ms) be smaller than
+ *  KEY_WAITING_FOR_MOTION_TIMEOUT (currently 500ms).
+ *
+ * If that value changes, this test should also change.
+ */
+TEST_F(InputDispatcherSingleWindowAnr, Key_StaysPendingWhileMotionIsProcessed) {
+    mWindow->setDispatchingTimeout(2s); // Set a long ANR timeout to prevent it from triggering
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
+
+    tapOnWindow();
+    std::optional<uint32_t> downSequenceNum = mWindow->receiveEvent();
+    ASSERT_TRUE(downSequenceNum);
+    std::optional<uint32_t> upSequenceNum = mWindow->receiveEvent();
+    ASSERT_TRUE(upSequenceNum);
+    // Don't finish the events yet, and send a key
+    // Injection will "succeed" because we will eventually give up and send the key to the focused
+    // window even if motions are still being processed. But because the injection timeout is short,
+    // we will receive INJECTION_TIMED_OUT as the result.
+
+    int32_t result =
+            injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /* repeatCount */, ADISPLAY_ID_DEFAULT,
+                      INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT, 10ms);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, result);
+    // Key will not be sent to the window, yet, because the window is still processing events
+    // and the key remains pending, waiting for the touch events to be processed
+    std::optional<uint32_t> keySequenceNum = mWindow->receiveEvent();
+    ASSERT_FALSE(keySequenceNum);
+
+    std::this_thread::sleep_for(500ms);
+    // if we wait long enough though, dispatcher will give up, and still send the key
+    // to the focused window, even though we have not yet finished the motion event
+    mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+    mWindow->finishEvent(*downSequenceNum);
+    mWindow->finishEvent(*upSequenceNum);
+}
+
+/**
+ * If a window is processing a motion event, and then a key event comes in, the key event should
+ * not go to the focused window until the motion is processed.
+ * If then a new motion comes in, then the pending key event should be going to the currently
+ * focused window right away.
+ */
+TEST_F(InputDispatcherSingleWindowAnr,
+       PendingKey_IsDroppedWhileMotionIsProcessedAndNewTouchComesIn) {
+    mWindow->setDispatchingTimeout(2s); // Set a long ANR timeout to prevent it from triggering
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
+
+    tapOnWindow();
+    std::optional<uint32_t> downSequenceNum = mWindow->receiveEvent();
+    ASSERT_TRUE(downSequenceNum);
+    std::optional<uint32_t> upSequenceNum = mWindow->receiveEvent();
+    ASSERT_TRUE(upSequenceNum);
+    // Don't finish the events yet, and send a key
+    // Injection is async, so it will succeed
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /* repeatCount */,
+                        ADISPLAY_ID_DEFAULT, INPUT_EVENT_INJECTION_SYNC_NONE));
+    // At this point, key is still pending, and should not be sent to the application yet.
+    std::optional<uint32_t> keySequenceNum = mWindow->receiveEvent();
+    ASSERT_FALSE(keySequenceNum);
+
+    // Now tap down again. It should cause the pending key to go to the focused window right away.
+    tapOnWindow();
+    mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT); // it doesn't matter that we haven't ack'd
+    // the other events yet. We can finish events in any order.
+    mWindow->finishEvent(*downSequenceNum); // first tap's ACTION_DOWN
+    mWindow->finishEvent(*upSequenceNum);   // first tap's ACTION_UP
+    mWindow->consumeMotionDown();
+    mWindow->consumeMotionUp();
+    mWindow->assertNoEvents();
+}
+
+class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
+    virtual void SetUp() override {
+        InputDispatcherTest::SetUp();
+
+        mApplication = new FakeApplicationHandle();
+        mApplication->setDispatchingTimeout(10ms);
+        mUnfocusedWindow =
+                new FakeWindowHandle(mApplication, mDispatcher, "Unfocused", ADISPLAY_ID_DEFAULT);
+        mUnfocusedWindow->setFrame(Rect(0, 0, 30, 30));
+        // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
+        // window.
+        // Adding FLAG_WATCH_OUTSIDE_TOUCH to receive ACTION_OUTSIDE when another window is tapped
+        mUnfocusedWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL |
+                                              InputWindowInfo::FLAG_WATCH_OUTSIDE_TOUCH |
+                                              InputWindowInfo::FLAG_SPLIT_TOUCH);
+
+        mFocusedWindow =
+                new FakeWindowHandle(mApplication, mDispatcher, "Focused", ADISPLAY_ID_DEFAULT);
+        mFocusedWindow->setDispatchingTimeout(10ms);
+        mFocusedWindow->setFrame(Rect(50, 50, 100, 100));
+        mFocusedWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL |
+                                            InputWindowInfo::FLAG_SPLIT_TOUCH);
+
+        // Set focused application.
+        mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
+        mFocusedWindow->setFocus(true);
+
+        // Expect one focus window exist in display.
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mUnfocusedWindow, mFocusedWindow}}});
+        mFocusedWindow->consumeFocusEvent(true);
+    }
+
+    virtual void TearDown() override {
+        InputDispatcherTest::TearDown();
+
+        mUnfocusedWindow.clear();
+        mFocusedWindow.clear();
+    }
+
+protected:
+    sp<FakeApplicationHandle> mApplication;
+    sp<FakeWindowHandle> mUnfocusedWindow;
+    sp<FakeWindowHandle> mFocusedWindow;
+    static constexpr PointF UNFOCUSED_WINDOW_LOCATION = {20, 20};
+    static constexpr PointF FOCUSED_WINDOW_LOCATION = {75, 75};
+    static constexpr PointF LOCATION_OUTSIDE_ALL_WINDOWS = {40, 40};
+
+    void tapOnFocusedWindow() { tap(FOCUSED_WINDOW_LOCATION); }
+
+    void tapOnUnfocusedWindow() { tap(UNFOCUSED_WINDOW_LOCATION); }
+
+private:
+    void tap(const PointF& location) {
+        ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+                  injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                                   location));
+        ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+                  injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                                 location));
+    }
+};
+
+// If we have 2 windows that are both unresponsive, the one with the shortest timeout
+// should be ANR'd first.
+TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsive) {
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               FOCUSED_WINDOW_LOCATION))
+            << "Inject motion event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mFocusedWindow->consumeMotionDown();
+    mUnfocusedWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
+                                   ADISPLAY_ID_DEFAULT, 0 /*flags*/);
+    // We consumed all events, so no ANR
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mFakePolicy->assertNotifyAnrWasNotCalled();
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               FOCUSED_WINDOW_LOCATION));
+    std::optional<uint32_t> unfocusedSequenceNum = mUnfocusedWindow->receiveEvent();
+    ASSERT_TRUE(unfocusedSequenceNum);
+    std::optional<uint32_t> focusedSequenceNum = mFocusedWindow->receiveEvent();
+    ASSERT_TRUE(focusedSequenceNum);
+
+    const std::chrono::duration timeout =
+            mFocusedWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr /*application*/,
+                                          mFocusedWindow->getToken());
+
+    mFocusedWindow->finishEvent(*focusedSequenceNum);
+    mUnfocusedWindow->finishEvent(*unfocusedSequenceNum);
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+}
+
+// If we have 2 windows with identical timeouts that are both unresponsive,
+// it doesn't matter which order they should have ANR.
+// But we should receive ANR for both.
+TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsiveWithSameTimeout) {
+    // Set the timeout for unfocused window to match the focused window
+    mUnfocusedWindow->setDispatchingTimeout(10ms);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mUnfocusedWindow, mFocusedWindow}}});
+
+    tapOnFocusedWindow();
+    // we should have ACTION_DOWN/ACTION_UP on focused window and ACTION_OUTSIDE on unfocused window
+    std::pair<sp<InputApplicationHandle>, sp<IBinder>> anrData1 =
+            mFakePolicy->getNotifyAnrData(10ms);
+    std::pair<sp<InputApplicationHandle>, sp<IBinder>> anrData2 =
+            mFakePolicy->getNotifyAnrData(0ms);
+
+    // We don't know which window will ANR first. But both of them should happen eventually.
+    ASSERT_TRUE(mFocusedWindow->getToken() == anrData1.second ||
+                mFocusedWindow->getToken() == anrData2.second);
+    ASSERT_TRUE(mUnfocusedWindow->getToken() == anrData1.second ||
+                mUnfocusedWindow->getToken() == anrData2.second);
+
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mFakePolicy->assertNotifyAnrWasNotCalled();
+}
+
+// If a window is already not responding, the second tap on the same window should be ignored.
+// We should also log an error to account for the dropped event (not tested here).
+// At the same time, FLAG_WATCH_OUTSIDE_TOUCH targets should not receive any events.
+TEST_F(InputDispatcherMultiWindowAnr, DuringAnr_SecondTapIsIgnored) {
+    tapOnFocusedWindow();
+    mUnfocusedWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
+                                   ADISPLAY_ID_DEFAULT, 0 /*flags*/);
+    // Receive the events, but don't respond
+    std::optional<uint32_t> downEventSequenceNum = mFocusedWindow->receiveEvent(); // ACTION_DOWN
+    ASSERT_TRUE(downEventSequenceNum);
+    std::optional<uint32_t> upEventSequenceNum = mFocusedWindow->receiveEvent(); // ACTION_UP
+    ASSERT_TRUE(upEventSequenceNum);
+    const std::chrono::duration timeout =
+            mFocusedWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr /*application*/,
+                                          mFocusedWindow->getToken());
+
+    // Tap once again
+    // We cannot use "tapOnFocusedWindow" because it asserts the injection result to be success
+    ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               FOCUSED_WINDOW_LOCATION));
+    ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
+              injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                             FOCUSED_WINDOW_LOCATION));
+    // Unfocused window does not receive ACTION_OUTSIDE because the tapped window is not a
+    // valid touch target
+    mUnfocusedWindow->assertNoEvents();
+
+    // Consume the first tap
+    mFocusedWindow->finishEvent(*downEventSequenceNum);
+    mFocusedWindow->finishEvent(*upEventSequenceNum);
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    // The second tap did not go to the focused window
+    mFocusedWindow->assertNoEvents();
+    // should not have another ANR after the window just became healthy again
+    mFakePolicy->assertNotifyAnrWasNotCalled();
+}
+
+// If you tap outside of all windows, there will not be ANR
+TEST_F(InputDispatcherMultiWindowAnr, TapOutsideAllWindows_DoesNotAnr) {
+    ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               LOCATION_OUTSIDE_ALL_WINDOWS));
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mFakePolicy->assertNotifyAnrWasNotCalled();
+}
+
+// Since the focused window is paused, tapping on it should not produce any events
+TEST_F(InputDispatcherMultiWindowAnr, Window_CanBePaused) {
+    mFocusedWindow->setPaused(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mUnfocusedWindow, mFocusedWindow}}});
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               FOCUSED_WINDOW_LOCATION));
+
+    std::this_thread::sleep_for(mFocusedWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT));
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    // Should not ANR because the window is paused, and touches shouldn't go to it
+    mFakePolicy->assertNotifyAnrWasNotCalled();
+
+    mFocusedWindow->assertNoEvents();
+    mUnfocusedWindow->assertNoEvents();
+}
+
+/**
+ * If a window is processing a motion event, and then a key event comes in, the key event should
+ * not to to the focused window until the motion is processed.
+ * If a different window becomes focused at this time, the key should go to that window instead.
+ *
+ * Warning!!!
+ * This test depends on the value of android::inputdispatcher::KEY_WAITING_FOR_MOTION_TIMEOUT
+ * and the injection timeout that we specify when injecting the key.
+ * We must have the injection timeout (10ms) be smaller than
+ *  KEY_WAITING_FOR_MOTION_TIMEOUT (currently 500ms).
+ *
+ * If that value changes, this test should also change.
+ */
+TEST_F(InputDispatcherMultiWindowAnr, PendingKey_GoesToNewlyFocusedWindow) {
+    // Set a long ANR timeout to prevent it from triggering
+    mFocusedWindow->setDispatchingTimeout(2s);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mFocusedWindow, mUnfocusedWindow}}});
+
+    tapOnUnfocusedWindow();
+    std::optional<uint32_t> downSequenceNum = mUnfocusedWindow->receiveEvent();
+    ASSERT_TRUE(downSequenceNum);
+    std::optional<uint32_t> upSequenceNum = mUnfocusedWindow->receiveEvent();
+    ASSERT_TRUE(upSequenceNum);
+    // Don't finish the events yet, and send a key
+    // Injection will succeed because we will eventually give up and send the key to the focused
+    // window even if motions are still being processed.
+
+    int32_t result =
+            injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /*repeatCount*/, ADISPLAY_ID_DEFAULT,
+                      INPUT_EVENT_INJECTION_SYNC_NONE, 10ms /*injectionTimeout*/);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, result);
+    // Key will not be sent to the window, yet, because the window is still processing events
+    // and the key remains pending, waiting for the touch events to be processed
+    std::optional<uint32_t> keySequenceNum = mFocusedWindow->receiveEvent();
+    ASSERT_FALSE(keySequenceNum);
+
+    // Switch the focus to the "unfocused" window that we tapped. Expect the key to go there
+    mFocusedWindow->setFocus(false);
+    mUnfocusedWindow->setFocus(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mFocusedWindow, mUnfocusedWindow}}});
+
+    // Focus events should precede the key events
+    mUnfocusedWindow->consumeFocusEvent(true);
+    mFocusedWindow->consumeFocusEvent(false);
+
+    // Finish the tap events, which should unblock dispatcher
+    mUnfocusedWindow->finishEvent(*downSequenceNum);
+    mUnfocusedWindow->finishEvent(*upSequenceNum);
+
+    // Now that all queues are cleared and no backlog in the connections, the key event
+    // can finally go to the newly focused "mUnfocusedWindow".
+    mUnfocusedWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+    mFocusedWindow->assertNoEvents();
+    mUnfocusedWindow->assertNoEvents();
+}
+
+// When the touch stream is split across 2 windows, and one of them does not respond,
+// then ANR should be raised and the touch should be canceled for the unresponsive window.
+// The other window should not be affected by that.
+TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
+    // Touch Window 1
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT, {FOCUSED_WINDOW_LOCATION});
+    mDispatcher->notifyMotion(&motionArgs);
+    mUnfocusedWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
+                                   ADISPLAY_ID_DEFAULT, 0 /*flags*/);
+
+    // Touch Window 2
+    int32_t actionPointerDown =
+            AMOTION_EVENT_ACTION_POINTER_DOWN + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+
+    motionArgs =
+            generateMotionArgs(actionPointerDown, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {FOCUSED_WINDOW_LOCATION, UNFOCUSED_WINDOW_LOCATION});
+    mDispatcher->notifyMotion(&motionArgs);
+
+    const std::chrono::duration timeout =
+            mFocusedWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyAnrWasCalled(timeout, nullptr /*application*/,
+                                          mFocusedWindow->getToken());
+
+    mUnfocusedWindow->consumeMotionDown();
+    mFocusedWindow->consumeMotionDown();
+    // Focused window may or may not receive ACTION_MOVE
+    // But it should definitely receive ACTION_CANCEL due to the ANR
+    InputEvent* event;
+    std::optional<int32_t> moveOrCancelSequenceNum = mFocusedWindow->receiveEvent(&event);
+    ASSERT_TRUE(moveOrCancelSequenceNum);
+    mFocusedWindow->finishEvent(*moveOrCancelSequenceNum);
+    ASSERT_NE(nullptr, event);
+    ASSERT_EQ(event->getType(), AINPUT_EVENT_TYPE_MOTION);
+    MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
+    if (motionEvent.getAction() == AMOTION_EVENT_ACTION_MOVE) {
+        mFocusedWindow->consumeMotionCancel();
+    } else {
+        ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionEvent.getAction());
+    }
+
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mUnfocusedWindow->assertNoEvents();
+    mFocusedWindow->assertNoEvents();
 }
 
 } // namespace android::inputdispatcher
