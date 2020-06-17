@@ -47,9 +47,10 @@ public:
     InputPublisher inputPublisher;
     InputState inputState;
 
-    // True if the socket is full and no further events can be published until
-    // the application consumes some of the input.
-    bool inputPublisherBlocked;
+    // True if this connection is responsive.
+    // If this connection is not responsive, avoid publishing more events to it until the
+    // application consumes some of the input.
+    bool responsive = true;
 
     // Queue of events that need to be published to the connection.
     std::deque<DispatchEntry*> outboundQueue;
