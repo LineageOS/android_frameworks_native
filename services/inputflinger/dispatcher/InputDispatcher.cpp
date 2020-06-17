@@ -328,6 +328,18 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
     return dispatchEntry;
 }
 
+static void addGestureMonitors(const std::vector<Monitor>& monitors,
+                               std::vector<TouchedMonitor>& outTouchedMonitors, float xOffset = 0,
+                               float yOffset = 0) {
+    if (monitors.empty()) {
+        return;
+    }
+    outTouchedMonitors.reserve(monitors.size() + outTouchedMonitors.size());
+    for (const Monitor& monitor : monitors) {
+        outTouchedMonitors.emplace_back(monitor, xOffset, yOffset);
+    }
+}
+
 static std::array<uint8_t, 128> getRandomKey() {
     std::array<uint8_t, 128> key;
     if (RAND_bytes(key.data(), key.size()) != 1) {
@@ -752,7 +764,7 @@ sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t display
 }
 
 std::vector<TouchedMonitor> InputDispatcher::findTouchedGestureMonitorsLocked(
-        int32_t displayId, const std::vector<sp<InputWindowHandle>>& portalWindows) {
+        int32_t displayId, const std::vector<sp<InputWindowHandle>>& portalWindows) const {
     std::vector<TouchedMonitor> touchedMonitors;
 
     std::vector<Monitor> monitors = getValueByKey(mGestureMonitorsByDisplay, displayId);
@@ -764,18 +776,6 @@ std::vector<TouchedMonitor> InputDispatcher::findTouchedGestureMonitorsLocked(
                            -windowInfo->frameTop);
     }
     return touchedMonitors;
-}
-
-void InputDispatcher::addGestureMonitors(const std::vector<Monitor>& monitors,
-                                         std::vector<TouchedMonitor>& outTouchedMonitors,
-                                         float xOffset, float yOffset) {
-    if (monitors.empty()) {
-        return;
-    }
-    outTouchedMonitors.reserve(monitors.size() + outTouchedMonitors.size());
-    for (const Monitor& monitor : monitors) {
-        outTouchedMonitors.emplace_back(monitor, xOffset, yOffset);
-    }
 }
 
 void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason dropReason) {
@@ -1508,11 +1508,9 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     if (newGesture) {
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
         if (switchedDevice && mTempTouchState.down && !down && !isHoverAction) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Dropping event because a pointer for a different device is already down "
-                      "in display %" PRId32,
-                      displayId);
-            }
+            ALOGI("Dropping event because a pointer for a different device is already down "
+                  "in display %" PRId32,
+                  displayId);
             // TODO: test multiple simultaneous input streams.
             injectionResult = INPUT_EVENT_INJECTION_FAILED;
             switchedDevice = false;
@@ -1526,11 +1524,9 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         mTempTouchState.displayId = displayId;
         isSplit = false;
     } else if (switchedDevice && maskedAction == AMOTION_EVENT_ACTION_MOVE) {
-        if (DEBUG_FOCUS) {
-            ALOGI("Dropping move event because a pointer for a different device is already active "
-                  "in display %" PRId32,
-                  displayId);
-        }
+        ALOGI("Dropping move event because a pointer for a different device is already active "
+              "in display %" PRId32,
+              displayId);
         // TODO: test multiple simultaneous input streams.
         injectionResult = INPUT_EVENT_INJECTION_PERMISSION_DENIED;
         switchedDevice = false;
@@ -1714,11 +1710,9 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         }
         bool hasGestureMonitor = !mTempTouchState.gestureMonitors.empty();
         if (!haveForegroundWindow && !hasGestureMonitor) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Dropping event because there is no touched foreground window in display "
-                      "%" PRId32 " or gesture monitor to receive it.",
-                      displayId);
-            }
+            ALOGI("Dropping event because there is no touched foreground window in display "
+                  "%" PRId32 " or gesture monitor to receive it.",
+                  displayId);
             injectionResult = INPUT_EVENT_INJECTION_FAILED;
             goto Failed;
         }
