@@ -1197,9 +1197,10 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, MotionEntry* ent
     addGlobalMonitoringTargetsLocked(inputTargets, getTargetDisplayId(*entry));
 
     if (isPointerEvent) {
-        ssize_t stateIndex = mTouchStatesByDisplay.indexOfKey(entry->displayId);
-        if (stateIndex >= 0) {
-            const TouchState& state = mTouchStatesByDisplay.valueAt(stateIndex);
+        std::unordered_map<int32_t, TouchState>::iterator it =
+                mTouchStatesByDisplay.find(entry->displayId);
+        if (it != mTouchStatesByDisplay.end()) {
+            const TouchState& state = it->second;
             if (!state.portalWindows.empty()) {
                 // The event has gone through these portal windows, so we add monitoring targets of
                 // the corresponding displays as well.
@@ -1344,8 +1345,8 @@ int32_t InputDispatcher::handleTargetsNotReadyLocked(
 }
 
 void InputDispatcher::removeWindowByTokenLocked(const sp<IBinder>& token) {
-    for (size_t d = 0; d < mTouchStatesByDisplay.size(); d++) {
-        TouchState& state = mTouchStatesByDisplay.editValueAt(d);
+    for (std::pair<const int32_t, TouchState>& pair : mTouchStatesByDisplay) {
+        TouchState& state = pair.second;
         state.removeWindowByToken(token);
     }
 }
@@ -1488,9 +1489,10 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     // This state is always reset at the end of this function, so if we don't find state
     // for the specified display then our initial state will be empty.
     const TouchState* oldState = nullptr;
-    ssize_t oldStateIndex = mTouchStatesByDisplay.indexOfKey(displayId);
-    if (oldStateIndex >= 0) {
-        oldState = &mTouchStatesByDisplay.valueAt(oldStateIndex);
+    std::unordered_map<int32_t, TouchState>::iterator oldStateIt =
+            mTouchStatesByDisplay.find(displayId);
+    if (oldStateIt != mTouchStatesByDisplay.end()) {
+        oldState = &(oldStateIt->second);
         mTempTouchState.copyFrom(*oldState);
     }
 
@@ -1876,13 +1878,9 @@ Failed:
         // state was only valid for this one action.
         if (maskedAction != AMOTION_EVENT_ACTION_SCROLL) {
             if (mTempTouchState.displayId >= 0) {
-                if (oldStateIndex >= 0) {
-                    mTouchStatesByDisplay.editValueAt(oldStateIndex).copyFrom(mTempTouchState);
-                } else {
-                    mTouchStatesByDisplay.add(displayId, mTempTouchState);
-                }
-            } else if (oldStateIndex >= 0) {
-                mTouchStatesByDisplay.removeItemsAt(oldStateIndex);
+                mTouchStatesByDisplay[displayId] = mTempTouchState;
+            } else {
+                mTouchStatesByDisplay.erase(displayId);
             }
         }
 
@@ -3037,7 +3035,7 @@ void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int3
         if (newKeyCode != AKEYCODE_UNKNOWN) {
             std::scoped_lock _l(mLock);
             struct KeyReplacement replacement = {keyCode, deviceId};
-            mReplacedKeys.add(replacement, newKeyCode);
+            mReplacedKeys[replacement] = newKeyCode;
             keyCode = newKeyCode;
             metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
         }
@@ -3047,10 +3045,10 @@ void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int3
         // even if the modifier was released between the down and the up events.
         std::scoped_lock _l(mLock);
         struct KeyReplacement replacement = {keyCode, deviceId};
-        ssize_t index = mReplacedKeys.indexOfKey(replacement);
-        if (index >= 0) {
-            keyCode = mReplacedKeys.valueAt(index);
-            mReplacedKeys.removeItemsAt(index);
+        auto replacementIt = mReplacedKeys.find(replacement);
+        if (replacementIt != mReplacedKeys.end()) {
+            keyCode = replacementIt->second;
+            mReplacedKeys.erase(replacementIt);
             metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
         }
     }
@@ -3732,9 +3730,10 @@ void InputDispatcher::setInputWindowsLocked(
         }
     }
 
-    ssize_t stateIndex = mTouchStatesByDisplay.indexOfKey(displayId);
-    if (stateIndex >= 0) {
-        TouchState& state = mTouchStatesByDisplay.editValueAt(stateIndex);
+    std::unordered_map<int32_t, TouchState>::iterator stateIt =
+            mTouchStatesByDisplay.find(displayId);
+    if (stateIt != mTouchStatesByDisplay.end()) {
+        TouchState& state = stateIt->second;
         for (size_t i = 0; i < state.windows.size();) {
             TouchedWindow& touchedWindow = state.windows[i];
             if (!hasWindowHandleLocked(touchedWindow.windowHandle)) {
@@ -3949,8 +3948,8 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
         }
 
         bool found = false;
-        for (size_t d = 0; d < mTouchStatesByDisplay.size(); d++) {
-            TouchState& state = mTouchStatesByDisplay.editValueAt(d);
+        for (std::pair<const int32_t, TouchState>& pair : mTouchStatesByDisplay) {
+            TouchState& state = pair.second;
             for (size_t i = 0; i < state.windows.size(); i++) {
                 const TouchedWindow& touchedWindow = state.windows[i];
                 if (touchedWindow.windowHandle == fromWindowHandle) {
@@ -4064,10 +4063,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += StringPrintf(INDENT "FocusedWindows: <none>\n");
     }
 
-    if (!mTouchStatesByDisplay.isEmpty()) {
+    if (!mTouchStatesByDisplay.empty()) {
         dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
-        for (size_t i = 0; i < mTouchStatesByDisplay.size(); i++) {
-            const TouchState& state = mTouchStatesByDisplay.valueAt(i);
+        for (const std::pair<int32_t, TouchState>& pair : mTouchStatesByDisplay) {
+            const TouchState& state = pair.second;
             dump += StringPrintf(INDENT2 "%d: down=%s, split=%s, deviceId=%d, source=0x%08x\n",
                                  state.displayId, toString(state.down), toString(state.split),
                                  state.deviceId, state.source);
@@ -4191,12 +4190,12 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += INDENT "InboundQueue: <empty>\n";
     }
 
-    if (!mReplacedKeys.isEmpty()) {
+    if (!mReplacedKeys.empty()) {
         dump += INDENT "ReplacedKeys:\n";
-        for (size_t i = 0; i < mReplacedKeys.size(); i++) {
-            const KeyReplacement& replacement = mReplacedKeys.keyAt(i);
-            int32_t newKeyCode = mReplacedKeys.valueAt(i);
-            dump += StringPrintf(INDENT2 "%zu: originalKeyCode=%d, deviceId=%d, newKeyCode=%d\n", i,
+        for (const std::pair<KeyReplacement, int32_t>& pair : mReplacedKeys) {
+            const KeyReplacement& replacement = pair.first;
+            int32_t newKeyCode = pair.second;
+            dump += StringPrintf(INDENT2 "originalKeyCode=%d, deviceId=%d -> newKeyCode=%d\n",
                                  replacement.keyCode, replacement.deviceId, newKeyCode);
         }
     } else {
@@ -4413,13 +4412,14 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
         }
         int32_t displayId = foundDisplayId.value();
 
-        ssize_t stateIndex = mTouchStatesByDisplay.indexOfKey(displayId);
-        if (stateIndex < 0) {
+        std::unordered_map<int32_t, TouchState>::iterator stateIt =
+                mTouchStatesByDisplay.find(displayId);
+        if (stateIt == mTouchStatesByDisplay.end()) {
             ALOGW("Failed to pilfer pointers: no pointers on display %" PRId32 ".", displayId);
             return BAD_VALUE;
         }
 
-        TouchState& state = mTouchStatesByDisplay.editValueAt(stateIndex);
+        TouchState& state = stateIt->second;
         std::optional<int32_t> foundDeviceId;
         for (const TouchedMonitor& touchedMonitor : state.gestureMonitors) {
             if (touchedMonitor.monitor.inputChannel->getConnectionToken() == token) {
