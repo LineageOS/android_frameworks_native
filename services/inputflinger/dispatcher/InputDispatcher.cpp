@@ -647,7 +647,8 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
                 motionEntry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
         int32_t y = static_cast<int32_t>(
                 motionEntry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
-        sp<InputWindowHandle> touchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y);
+        sp<InputWindowHandle> touchedWindowHandle =
+                findTouchedWindowAtLocked(displayId, x, y, nullptr);
         if (touchedWindowHandle != nullptr &&
             touchedWindowHandle->getApplicationToken() != mInputTargetWaitApplicationToken) {
             // User touched a different application than the one we are waiting on.
@@ -722,8 +723,13 @@ void InputDispatcher::addRecentEventLocked(EventEntry* entry) {
 }
 
 sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayId, int32_t x,
-                                                                 int32_t y, bool addOutsideTargets,
+                                                                 int32_t y, TouchState* touchState,
+                                                                 bool addOutsideTargets,
                                                                  bool addPortalWindows) {
+    if ((addPortalWindows || addOutsideTargets) && touchState == nullptr) {
+        LOG_ALWAYS_FATAL(
+                "Must provide a valid touch state if adding portal windows or outside targets");
+    }
     // Traverse windows from front to back to find touched window.
     const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<InputWindowHandle>& windowHandle : windowHandles) {
@@ -742,9 +748,9 @@ sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t display
                             portalToDisplayId != displayId) {
                             if (addPortalWindows) {
                                 // For the monitoring channels of the display.
-                                mTempTouchState.addPortalWindow(windowHandle);
+                                touchState->addPortalWindow(windowHandle);
                             }
-                            return findTouchedWindowAtLocked(portalToDisplayId, x, y,
+                            return findTouchedWindowAtLocked(portalToDisplayId, x, y, touchState,
                                                              addOutsideTargets, addPortalWindows);
                         }
                         // Found window.
@@ -753,9 +759,9 @@ sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t display
                 }
 
                 if (addOutsideTargets && (flags & InputWindowInfo::FLAG_WATCH_OUTSIDE_TOUCH)) {
-                    mTempTouchState.addOrUpdateWindow(windowHandle,
-                                                      InputTarget::FLAG_DISPATCH_AS_OUTSIDE,
-                                                      BitSet32(0));
+                    touchState->addOrUpdateWindow(windowHandle,
+                                                  InputTarget::FLAG_DISPATCH_AS_OUTSIDE,
+                                                  BitSet32(0));
                 }
             }
         }
@@ -1485,21 +1491,22 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     InjectionPermission injectionPermission = INJECTION_PERMISSION_UNKNOWN;
     sp<InputWindowHandle> newHoverWindowHandle;
 
-    // Copy current touch state into mTempTouchState.
-    // This state is always reset at the end of this function, so if we don't find state
-    // for the specified display then our initial state will be empty.
+    // Copy current touch state into tempTouchState.
+    // This state will be used to update mTouchStatesByDisplay at the end of this function.
+    // If no state for the specified display exists, then our initial state will be empty.
     const TouchState* oldState = nullptr;
+    TouchState tempTouchState;
     std::unordered_map<int32_t, TouchState>::iterator oldStateIt =
             mTouchStatesByDisplay.find(displayId);
     if (oldStateIt != mTouchStatesByDisplay.end()) {
         oldState = &(oldStateIt->second);
-        mTempTouchState.copyFrom(*oldState);
+        tempTouchState.copyFrom(*oldState);
     }
 
-    bool isSplit = mTempTouchState.split;
-    bool switchedDevice = mTempTouchState.deviceId >= 0 && mTempTouchState.displayId >= 0 &&
-            (mTempTouchState.deviceId != entry.deviceId || mTempTouchState.source != entry.source ||
-             mTempTouchState.displayId != displayId);
+    bool isSplit = tempTouchState.split;
+    bool switchedDevice = tempTouchState.deviceId >= 0 && tempTouchState.displayId >= 0 &&
+            (tempTouchState.deviceId != entry.deviceId || tempTouchState.source != entry.source ||
+             tempTouchState.displayId != displayId);
     bool isHoverAction = (maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE ||
                           maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
                           maskedAction == AMOTION_EVENT_ACTION_HOVER_EXIT);
@@ -1509,7 +1516,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     bool wrongDevice = false;
     if (newGesture) {
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
-        if (switchedDevice && mTempTouchState.down && !down && !isHoverAction) {
+        if (switchedDevice && tempTouchState.down && !down && !isHoverAction) {
             ALOGI("Dropping event because a pointer for a different device is already down "
                   "in display %" PRId32,
                   displayId);
@@ -1519,11 +1526,11 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             wrongDevice = true;
             goto Failed;
         }
-        mTempTouchState.reset();
-        mTempTouchState.down = down;
-        mTempTouchState.deviceId = entry.deviceId;
-        mTempTouchState.source = entry.source;
-        mTempTouchState.displayId = displayId;
+        tempTouchState.reset();
+        tempTouchState.down = down;
+        tempTouchState.deviceId = entry.deviceId;
+        tempTouchState.source = entry.source;
+        tempTouchState.displayId = displayId;
         isSplit = false;
     } else if (switchedDevice && maskedAction == AMOTION_EVENT_ACTION_MOVE) {
         ALOGI("Dropping move event because a pointer for a different device is already active "
@@ -1552,11 +1559,11 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         }
         bool isDown = maskedAction == AMOTION_EVENT_ACTION_DOWN;
         sp<InputWindowHandle> newTouchedWindowHandle =
-                findTouchedWindowAtLocked(displayId, x, y, isDown /*addOutsideTargets*/,
-                                          true /*addPortalWindows*/);
+                findTouchedWindowAtLocked(displayId, x, y, &tempTouchState,
+                                          isDown /*addOutsideTargets*/, true /*addPortalWindows*/);
 
         std::vector<TouchedMonitor> newGestureMonitors = isDown
-                ? findTouchedGestureMonitorsLocked(displayId, mTempTouchState.portalWindows)
+                ? findTouchedGestureMonitorsLocked(displayId, tempTouchState.portalWindows)
                 : std::vector<TouchedMonitor>{};
 
         // Figure out whether splitting will be allowed for this window.
@@ -1573,7 +1580,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         // Handle the case where we did not find a window.
         if (newTouchedWindowHandle == nullptr) {
             // Try to assign the pointer to the first foreground window we find, if there is one.
-            newTouchedWindowHandle = mTempTouchState.getFirstForegroundWindowHandle();
+            newTouchedWindowHandle = tempTouchState.getFirstForegroundWindowHandle();
         }
 
         if (newTouchedWindowHandle == nullptr && newGestureMonitors.empty()) {
@@ -1609,15 +1616,15 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                 uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
                 pointerIds.markBit(pointerId);
             }
-            mTempTouchState.addOrUpdateWindow(newTouchedWindowHandle, targetFlags, pointerIds);
+            tempTouchState.addOrUpdateWindow(newTouchedWindowHandle, targetFlags, pointerIds);
         }
 
-        mTempTouchState.addGestureMonitors(newGestureMonitors);
+        tempTouchState.addGestureMonitors(newGestureMonitors);
     } else {
         /* Case 2: Pointer move, up, cancel or non-splittable pointer down. */
 
         // If the pointer is not currently down, then ignore the event.
-        if (!mTempTouchState.down) {
+        if (!tempTouchState.down) {
             if (DEBUG_FOCUS) {
                 ALOGD("Dropping event because the pointer is not down or we previously "
                       "dropped the pointer down event in display %" PRId32,
@@ -1629,14 +1636,14 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
 
         // Check whether touches should slip outside of the current foreground window.
         if (maskedAction == AMOTION_EVENT_ACTION_MOVE && entry.pointerCount == 1 &&
-            mTempTouchState.isSlippery()) {
+            tempTouchState.isSlippery()) {
             int32_t x = int32_t(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
             int32_t y = int32_t(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
 
             sp<InputWindowHandle> oldTouchedWindowHandle =
-                    mTempTouchState.getFirstForegroundWindowHandle();
+                    tempTouchState.getFirstForegroundWindowHandle();
             sp<InputWindowHandle> newTouchedWindowHandle =
-                    findTouchedWindowAtLocked(displayId, x, y);
+                    findTouchedWindowAtLocked(displayId, x, y, &tempTouchState);
             if (oldTouchedWindowHandle != newTouchedWindowHandle &&
                 oldTouchedWindowHandle != nullptr && newTouchedWindowHandle != nullptr) {
                 if (DEBUG_FOCUS) {
@@ -1645,9 +1652,9 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                           newTouchedWindowHandle->getName().c_str(), displayId);
                 }
                 // Make a slippery exit from the old window.
-                mTempTouchState.addOrUpdateWindow(oldTouchedWindowHandle,
-                                                  InputTarget::FLAG_DISPATCH_AS_SLIPPERY_EXIT,
-                                                  BitSet32(0));
+                tempTouchState.addOrUpdateWindow(oldTouchedWindowHandle,
+                                                 InputTarget::FLAG_DISPATCH_AS_SLIPPERY_EXIT,
+                                                 BitSet32(0));
 
                 // Make a slippery entrance into the new window.
                 if (newTouchedWindowHandle->getInfo()->supportsSplitTouch()) {
@@ -1667,7 +1674,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                 if (isSplit) {
                     pointerIds.markBit(entry.pointerProperties[0].id);
                 }
-                mTempTouchState.addOrUpdateWindow(newTouchedWindowHandle, targetFlags, pointerIds);
+                tempTouchState.addOrUpdateWindow(newTouchedWindowHandle, targetFlags, pointerIds);
             }
         }
     }
@@ -1679,9 +1686,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             ALOGD("Sending hover exit event to window %s.",
                   mLastHoverWindowHandle->getName().c_str());
 #endif
-            mTempTouchState.addOrUpdateWindow(mLastHoverWindowHandle,
-                                              InputTarget::FLAG_DISPATCH_AS_HOVER_EXIT,
-                                              BitSet32(0));
+            tempTouchState.addOrUpdateWindow(mLastHoverWindowHandle,
+                                             InputTarget::FLAG_DISPATCH_AS_HOVER_EXIT, BitSet32(0));
         }
 
         // Let the new window know that the hover sequence is starting.
@@ -1690,9 +1696,9 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             ALOGD("Sending hover enter event to window %s.",
                   newHoverWindowHandle->getName().c_str());
 #endif
-            mTempTouchState.addOrUpdateWindow(newHoverWindowHandle,
-                                              InputTarget::FLAG_DISPATCH_AS_HOVER_ENTER,
-                                              BitSet32(0));
+            tempTouchState.addOrUpdateWindow(newHoverWindowHandle,
+                                             InputTarget::FLAG_DISPATCH_AS_HOVER_ENTER,
+                                             BitSet32(0));
         }
     }
 
@@ -1700,7 +1706,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     // is at least one touched foreground window.
     {
         bool haveForegroundWindow = false;
-        for (const TouchedWindow& touchedWindow : mTempTouchState.windows) {
+        for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
             if (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND) {
                 haveForegroundWindow = true;
                 if (!checkInjectionPermission(touchedWindow.windowHandle, entry.injectionState)) {
@@ -1710,7 +1716,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                 }
             }
         }
-        bool hasGestureMonitor = !mTempTouchState.gestureMonitors.empty();
+        bool hasGestureMonitor = !tempTouchState.gestureMonitors.empty();
         if (!haveForegroundWindow && !hasGestureMonitor) {
             ALOGI("Dropping event because there is no touched foreground window in display "
                   "%" PRId32 " or gesture monitor to receive it.",
@@ -1727,16 +1733,16 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     // set the policy flag that we will not reveal coordinate information to this window.
     if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
         sp<InputWindowHandle> foregroundWindowHandle =
-                mTempTouchState.getFirstForegroundWindowHandle();
+                tempTouchState.getFirstForegroundWindowHandle();
         if (foregroundWindowHandle) {
             const int32_t foregroundWindowUid = foregroundWindowHandle->getInfo()->ownerUid;
-            for (const TouchedWindow& touchedWindow : mTempTouchState.windows) {
+            for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
                 if (touchedWindow.targetFlags & InputTarget::FLAG_DISPATCH_AS_OUTSIDE) {
                     sp<InputWindowHandle> inputWindowHandle = touchedWindow.windowHandle;
                     if (inputWindowHandle->getInfo()->ownerUid != foregroundWindowUid) {
-                        mTempTouchState.addOrUpdateWindow(inputWindowHandle,
-                                                          InputTarget::FLAG_ZERO_COORDS,
-                                                          BitSet32(0));
+                        tempTouchState.addOrUpdateWindow(inputWindowHandle,
+                                                         InputTarget::FLAG_ZERO_COORDS,
+                                                         BitSet32(0));
                     }
                 }
             }
@@ -1744,7 +1750,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     }
 
     // Ensure all touched foreground windows are ready for new input.
-    for (const TouchedWindow& touchedWindow : mTempTouchState.windows) {
+    for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
         if (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND) {
             // Check whether the window is ready for more input.
             std::string reason =
@@ -1766,7 +1772,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     // to View.onGenericMotionEvent to enable wallpapers to handle these events.
     if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
         sp<InputWindowHandle> foregroundWindowHandle =
-                mTempTouchState.getFirstForegroundWindowHandle();
+                tempTouchState.getFirstForegroundWindowHandle();
         if (foregroundWindowHandle && foregroundWindowHandle->getInfo()->hasWallpaper) {
             const std::vector<sp<InputWindowHandle>> windowHandles =
                     getWindowHandlesLocked(displayId);
@@ -1774,7 +1780,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                 const InputWindowInfo* info = windowHandle->getInfo();
                 if (info->displayId == displayId &&
                     windowHandle->getInfo()->layoutParamsType == InputWindowInfo::TYPE_WALLPAPER) {
-                    mTempTouchState
+                    tempTouchState
                             .addOrUpdateWindow(windowHandle,
                                                InputTarget::FLAG_WINDOW_IS_OBSCURED |
                                                        InputTarget::
@@ -1789,19 +1795,19 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     // Success!  Output targets.
     injectionResult = INPUT_EVENT_INJECTION_SUCCEEDED;
 
-    for (const TouchedWindow& touchedWindow : mTempTouchState.windows) {
+    for (const TouchedWindow& touchedWindow : tempTouchState.windows) {
         addWindowTargetLocked(touchedWindow.windowHandle, touchedWindow.targetFlags,
                               touchedWindow.pointerIds, inputTargets);
     }
 
-    for (const TouchedMonitor& touchedMonitor : mTempTouchState.gestureMonitors) {
+    for (const TouchedMonitor& touchedMonitor : tempTouchState.gestureMonitors) {
         addMonitoringTargetLocked(touchedMonitor.monitor, touchedMonitor.xOffset,
                                   touchedMonitor.yOffset, inputTargets);
     }
 
     // Drop the outside or hover touch windows since we will not care about them
     // in the next iteration.
-    mTempTouchState.filterNonAsIsTouchWindows();
+    tempTouchState.filterNonAsIsTouchWindows();
 
 Failed:
     // Check injection permission once and for all.
@@ -1835,17 +1841,17 @@ Failed:
                 }
                 *outConflictingPointerActions = true;
             }
-            mTempTouchState.reset();
+            tempTouchState.reset();
             if (maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
                 maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
-                mTempTouchState.deviceId = entry.deviceId;
-                mTempTouchState.source = entry.source;
-                mTempTouchState.displayId = displayId;
+                tempTouchState.deviceId = entry.deviceId;
+                tempTouchState.source = entry.source;
+                tempTouchState.displayId = displayId;
             }
         } else if (maskedAction == AMOTION_EVENT_ACTION_UP ||
                    maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
             // All pointers up or canceled.
-            mTempTouchState.reset();
+            tempTouchState.reset();
         } else if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
             // First pointer went down.
             if (oldState && oldState->down) {
@@ -1860,12 +1866,12 @@ Failed:
                 int32_t pointerIndex = getMotionEventActionPointerIndex(action);
                 uint32_t pointerId = entry.pointerProperties[pointerIndex].id;
 
-                for (size_t i = 0; i < mTempTouchState.windows.size();) {
-                    TouchedWindow& touchedWindow = mTempTouchState.windows[i];
+                for (size_t i = 0; i < tempTouchState.windows.size();) {
+                    TouchedWindow& touchedWindow = tempTouchState.windows[i];
                     if (touchedWindow.targetFlags & InputTarget::FLAG_SPLIT) {
                         touchedWindow.pointerIds.clearBit(pointerId);
                         if (touchedWindow.pointerIds.isEmpty()) {
-                            mTempTouchState.windows.erase(mTempTouchState.windows.begin() + i);
+                            tempTouchState.windows.erase(tempTouchState.windows.begin() + i);
                             continue;
                         }
                     }
@@ -1877,8 +1883,8 @@ Failed:
         // Save changes unless the action was scroll in which case the temporary touch
         // state was only valid for this one action.
         if (maskedAction != AMOTION_EVENT_ACTION_SCROLL) {
-            if (mTempTouchState.displayId >= 0) {
-                mTouchStatesByDisplay[displayId] = mTempTouchState;
+            if (tempTouchState.displayId >= 0) {
+                mTouchStatesByDisplay[displayId] = tempTouchState;
             } else {
                 mTouchStatesByDisplay.erase(displayId);
             }
