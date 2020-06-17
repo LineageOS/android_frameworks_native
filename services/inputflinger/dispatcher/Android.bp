@@ -22,6 +22,7 @@ cc_library_headers {
 filegroup {
     name: "libinputdispatcher_sources",
     srcs: [
+        "AnrTracker.cpp",
         "Connection.cpp",
         "Entry.cpp",
         "InjectionState.cpp",
