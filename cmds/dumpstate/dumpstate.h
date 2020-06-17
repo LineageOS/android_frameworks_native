@@ -386,12 +386,12 @@ class Dumpstate {
         // The HAL is actually an API surface that can be validated, while the AIDL is not (@hide).
         ::android::hardware::dumpstate::V1_1::DumpstateMode dumpstate_hal_mode =
             ::android::hardware::dumpstate::V1_1::DumpstateMode::DEFAULT;
-        // File descriptor to output zip file. Takes precedence over use_outfile..
+        // File descriptor to output zip file. Takes precedence over out_dir.
         android::base::unique_fd bugreport_fd;
         // File descriptor to screenshot file.
         android::base::unique_fd screenshot_fd;
-        // Partial path to output file.
-        std::string use_outfile;
+        // Custom output directory.
+        std::string out_dir;
         // Bugreport mode of the bugreport.
         std::string bugreport_mode;
         // Command-line arguments as string
@@ -421,7 +421,7 @@ class Dumpstate {
         /* Returns if options specified require writing to custom file location */
         bool OutputToCustomFile() {
             // Custom location is only honored in limited mode.
-            return limited_only && !use_outfile.empty() && bugreport_fd.get() == -1;
+            return limited_only && !out_dir.empty() && bugreport_fd.get() == -1;
         }
     };
 
