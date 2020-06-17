@@ -2097,14 +2097,9 @@ static bool canBeObscuredBy(const sp<InputWindowHandle>& windowHandle,
     auto otherInfo = otherHandle->getInfo();
     if (!otherInfo->visible) {
         return false;
-    } else if (info->ownerPid == otherInfo->ownerPid && otherHandle->getToken() == nullptr) {
-      // In general, if ownerPid is the same we don't want to generate occlusion
-      // events. This line is now necessary since we are including all Surfaces
-      // in occlusion calculation, so if we didn't check PID like this SurfaceView
-      // would occlude their parents. On the other hand before we started including
-      // all surfaces in occlusion calculation and had this line, we would count
-      // windows with an input channel from the same PID as occluding, and so we
-      // preserve this behavior with the getToken() == null check.
+    } else if (info->ownerPid == otherInfo->ownerPid) {
+        // If ownerPid is the same we don't generate occlusion events as there
+        // is no in-process security boundary.
         return false;
     } else if (otherInfo->trustedOverlay) {
         return false;
