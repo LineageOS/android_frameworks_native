@@ -88,16 +88,6 @@ static int comparePolicyFiles(const struct dirent **d1, const struct dirent **d2
     return policyN1 - policyN2;
 }
 
-static int bpf_obj_get_wronly(const char *pathname) {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
-    attr.pathname = ptr_to_u64((void *)pathname);
-    attr.file_flags = BPF_F_WRONLY;
-
-    return syscall(__NR_bpf, BPF_OBJ_GET, &attr, sizeof(attr));
-}
-
 static bool initGlobals() {
     std::lock_guard<std::mutex> guard(gInitializedMutex);
     if (gInitialized) return true;
@@ -156,7 +146,7 @@ static bool initGlobals() {
 static bool attachTracepointProgram(const std::string &eventType, const std::string &eventName) {
     std::string path = StringPrintf(BPF_FS_PATH "prog_time_in_state_tracepoint_%s_%s",
                                     eventType.c_str(), eventName.c_str());
-    int prog_fd = bpfFdGet(path.c_str(), BPF_F_RDONLY);
+    int prog_fd = retrieveProgram(path.c_str());
     if (prog_fd < 0) return false;
     return bpf_attach_tracepoint(prog_fd, eventType.c_str(), eventName.c_str()) >= 0;
 }
@@ -183,7 +173,7 @@ bool startTrackingUidTimes() {
     if (!initGlobals()) return false;
     if (gTracking) return true;
 
-    unique_fd cpuPolicyFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_cpu_policy_map"));
+    unique_fd cpuPolicyFd(mapRetrieveWO(BPF_FS_PATH "map_time_in_state_cpu_policy_map"));
     if (cpuPolicyFd < 0) return false;
 
     for (uint32_t i = 0; i < gPolicyCpus.size(); ++i) {
@@ -192,7 +182,7 @@ bool startTrackingUidTimes() {
         }
     }
 
-    unique_fd freqToIdxFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_freq_to_idx_map"));
+    unique_fd freqToIdxFd(mapRetrieveWO(BPF_FS_PATH "map_time_in_state_freq_to_idx_map"));
     if (freqToIdxFd < 0) return false;
     freq_idx_key_t key;
     for (uint32_t i = 0; i < gNPolicies; ++i) {
@@ -207,23 +197,23 @@ bool startTrackingUidTimes() {
         }
     }
 
-    unique_fd cpuLastUpdateFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_cpu_last_update_map"));
+    unique_fd cpuLastUpdateFd(mapRetrieveWO(BPF_FS_PATH "map_time_in_state_cpu_last_update_map"));
     if (cpuLastUpdateFd < 0) return false;
     std::vector<uint64_t> zeros(get_nprocs_conf(), 0);
     uint32_t zero = 0;
     if (writeToMapEntry(cpuLastUpdateFd, &zero, zeros.data(), BPF_ANY)) return false;
 
-    unique_fd nrActiveFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_nr_active_map"));
+    unique_fd nrActiveFd(mapRetrieveWO(BPF_FS_PATH "map_time_in_state_nr_active_map"));
     if (nrActiveFd < 0) return false;
     if (writeToMapEntry(nrActiveFd, &zero, &zero, BPF_ANY)) return false;
 
-    unique_fd policyNrActiveFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_policy_nr_active_map"));
+    unique_fd policyNrActiveFd(mapRetrieveWO(BPF_FS_PATH "map_time_in_state_policy_nr_active_map"));
     if (policyNrActiveFd < 0) return false;
     for (uint32_t i = 0; i < gNPolicies; ++i) {
         if (writeToMapEntry(policyNrActiveFd, &i, &zero, BPF_ANY)) return false;
     }
 
-    unique_fd policyFreqIdxFd(bpf_obj_get_wronly(BPF_FS_PATH "map_time_in_state_policy_freq_idx_map"));
+    unique_fd policyFreqIdxFd(mapRetrieveWO(BPF_FS_PATH "map_time_in_state_policy_freq_idx_map"));
     if (policyFreqIdxFd < 0) return false;
     for (uint32_t i = 0; i < gNPolicies; ++i) {
         auto freqIdx = getPolicyFreqIdx(i);
