@@ -2765,7 +2765,8 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
      * (perform the transaction for each of them if needed)
      */
 
-    if ((transactionFlags & eTraversalNeeded) || mTraversalNeededMainThread) {
+    if ((transactionFlags & eTraversalNeeded) || mForceTraversal) {
+        mForceTraversal = false;
         mCurrentState.traverse([&](Layer* layer) {
             uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
             if (!trFlags) return;
@@ -2778,7 +2779,6 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 mInputInfoChanged = true;
             }
         });
-        mTraversalNeededMainThread = false;
     }
 
     /*
@@ -3249,8 +3249,8 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
     return old;
 }
 
-uint32_t SurfaceFlinger::setTransactionFlagsNoWake(uint32_t flags) {
-    return mTransactionFlags.fetch_or(flags);
+void SurfaceFlinger::setTraversalNeeded() {
+    mForceTraversal = true;
 }
 
 bool SurfaceFlinger::flushTransactionQueues() {
@@ -3450,7 +3450,7 @@ void SurfaceFlinger::applyTransactionState(
     // so we don't have to wake up again next frame to preform an uneeded traversal.
     if (isMainThread && (transactionFlags & eTraversalNeeded)) {
         transactionFlags = transactionFlags & (~eTraversalNeeded);
-        mTraversalNeededMainThread = true;
+        mForceTraversal = true;
     }
 
     if (transactionFlags) {
