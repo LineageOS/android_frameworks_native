@@ -28,38 +28,6 @@ using android::base::StringPrintf;
 
 namespace android::inputdispatcher {
 
-static std::string motionActionToString(int32_t action) {
-    // Convert MotionEvent action to string
-    switch (action & AMOTION_EVENT_ACTION_MASK) {
-        case AMOTION_EVENT_ACTION_DOWN:
-            return "DOWN";
-        case AMOTION_EVENT_ACTION_MOVE:
-            return "MOVE";
-        case AMOTION_EVENT_ACTION_UP:
-            return "UP";
-        case AMOTION_EVENT_ACTION_CANCEL:
-            return "CANCEL";
-        case AMOTION_EVENT_ACTION_POINTER_DOWN:
-            return "POINTER_DOWN";
-        case AMOTION_EVENT_ACTION_POINTER_UP:
-            return "POINTER_UP";
-    }
-    return StringPrintf("%" PRId32, action);
-}
-
-static std::string keyActionToString(int32_t action) {
-    // Convert KeyEvent action to string
-    switch (action) {
-        case AKEY_EVENT_ACTION_DOWN:
-            return "DOWN";
-        case AKEY_EVENT_ACTION_UP:
-            return "UP";
-        case AKEY_EVENT_ACTION_MULTIPLE:
-            return "MULTIPLE";
-    }
-    return StringPrintf("%" PRId32, action);
-}
-
 VerifiedKeyEvent verifiedKeyEventFromKeyEntry(const KeyEntry& entry) {
     return {{VerifiedInputEvent::Type::KEY, entry.deviceId, entry.eventTime, entry.source,
              entry.displayId},
@@ -191,7 +159,7 @@ void KeyEntry::appendDescription(std::string& msg) const {
     msg += StringPrintf("(deviceId=%d, source=0x%08x, displayId=%" PRId32 ", action=%s, "
                         "flags=0x%08x, keyCode=%d, scanCode=%d, metaState=0x%08x, "
                         "repeatCount=%d), policyFlags=0x%08x",
-                        deviceId, source, displayId, keyActionToString(action).c_str(), flags,
+                        deviceId, source, displayId, KeyEvent::actionToString(action), flags,
                         keyCode, scanCode, metaState, repeatCount, policyFlags);
 }
 
@@ -253,7 +221,7 @@ void MotionEntry::appendDescription(std::string& msg) const {
                         "buttonState=0x%08x, "
                         "classification=%s, edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, "
                         "xCursorPosition=%0.1f, yCursorPosition=%0.1f, pointers=[",
-                        deviceId, source, displayId, motionActionToString(action).c_str(),
+                        deviceId, source, displayId, MotionEvent::actionToString(action),
                         actionButton, flags, metaState, buttonState,
                         motionClassificationToString(classification), edgeFlags, xPrecision,
                         yPrecision, xCursorPosition, yCursorPosition);

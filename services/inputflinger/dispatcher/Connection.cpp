@@ -26,8 +26,7 @@ Connection::Connection(const sp<InputChannel>& inputChannel, bool monitor,
         inputChannel(inputChannel),
         monitor(monitor),
         inputPublisher(inputChannel),
-        inputState(idGenerator),
-        inputPublisherBlocked(false) {}
+        inputState(idGenerator) {}
 
 Connection::~Connection() {}
 
