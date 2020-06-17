@@ -2296,8 +2296,7 @@ static void FinalizeFile() {
 
     std::string final_path = ds.path_;
     if (ds.options_->OutputToCustomFile()) {
-        std::string bugreport_dir = dirname(ds.options_->use_outfile.c_str());
-        final_path = ds.GetPath(bugreport_dir, ".zip");
+        final_path = ds.GetPath(ds.options_->out_dir, ".zip");
         android::os::CopyFileToFile(ds.path_, final_path);
     }
 
@@ -2418,7 +2417,7 @@ Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) 
             // clang-format off
             case 'd': do_add_date = true;            break;
             case 'z': do_zip_file = true;            break;
-            case 'o': use_outfile = optarg;          break;
+            case 'o': out_dir = optarg;              break;
             case 's': use_socket = true;             break;
             case 'S': use_control_socket = true;     break;
             case 'v': show_header_only = true;       break;
