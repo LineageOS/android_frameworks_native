@@ -31,6 +31,29 @@ public:
     void initialize();
     // dumpsys interface
     void dump(const Vector<String16>& args, std::string* result);
+    bool isInitialized() { return mInitialized.load(); }
+
+    // Traverse the map and send each value read back to the callback function.
+    // Used for tracing.
+    template <typename lambda>
+    void traceGpuMemTotals(lambda tracerCallback) {
+        auto res = mGpuMemTotalMap.getFirstKey();
+        if (!res.ok()) return;
+        uint64_t key = res.value();
+        while (true) {
+            uint32_t gpu_id = key >> 32;
+            uint32_t pid = key;
+
+            res = mGpuMemTotalMap.readValue(key);
+            if (!res.ok()) break;
+            uint64_t size = res.value();
+
+            tracerCallback(gpu_id, pid, size);
+            res = mGpuMemTotalMap.getNextKey(key);
+            if (!res.ok()) break;
+            key = res.value();
+        }
+    }
 
 private:
     // Friend class for testing.
