@@ -1670,7 +1670,7 @@ void SurfaceFlinger::setPrimaryVsyncEnabledInternal(bool enabled) {
     if (const auto displayId = getInternalDisplayIdLocked()) {
         sp<DisplayDevice> display = getDefaultDisplayDeviceLocked();
         if (display && display->isPoweredOn()) {
-            setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
+            getHwComposer().setVsyncEnabled(*displayId, mHWCVsyncPendingState);
         }
     }
 }
@@ -2748,7 +2748,8 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
      * (perform the transaction for each of them if needed)
      */
 
-    if ((transactionFlags & eTraversalNeeded) || mTraversalNeededMainThread) {
+    if ((transactionFlags & eTraversalNeeded) || mForceTraversal) {
+        mForceTraversal = false;
         mCurrentState.traverse([&](Layer* layer) {
             uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
             if (!trFlags) return;
@@ -2761,7 +2762,6 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 mInputInfoChanged = true;
             }
         });
-        mTraversalNeededMainThread = false;
     }
 
     /*
@@ -3237,8 +3237,8 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
     return old;
 }
 
-uint32_t SurfaceFlinger::setTransactionFlagsNoWake(uint32_t flags) {
-    return mTransactionFlags.fetch_or(flags);
+void SurfaceFlinger::setTraversalNeeded() {
+    mForceTraversal = true;
 }
 
 bool SurfaceFlinger::flushTransactionQueues() {
@@ -3438,7 +3438,7 @@ void SurfaceFlinger::applyTransactionState(
     // so we don't have to wake up again next frame to preform an uneeded traversal.
     if (isMainThread && (transactionFlags & eTraversalNeeded)) {
         transactionFlags = transactionFlags & (~eTraversalNeeded);
-        mTraversalNeededMainThread = true;
+        mForceTraversal = true;
     }
 
     if (transactionFlags) {
@@ -4161,13 +4161,6 @@ void SurfaceFlinger::initializeDisplays() {
     static_cast<void>(schedule([this]() MAIN_THREAD { onInitializeDisplays(); }));
 }
 
-void SurfaceFlinger::setVsyncEnabledInHWC(DisplayId displayId, hal::Vsync enabled) {
-    if (mHWCVsyncState != enabled) {
-        getHwComposer().setVsyncEnabled(displayId, enabled);
-        mHWCVsyncState = enabled;
-    }
-}
-
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {
     if (display->isVirtual()) {
         ALOGE("%s: Invalid operation on virtual display", __FUNCTION__);
@@ -4196,7 +4189,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && mode != hal::PowerMode::DOZE_SUSPEND) {
-            setVsyncEnabledInHWC(*displayId, mHWCVsyncPendingState);
+            getHwComposer().setVsyncEnabled(*displayId, mHWCVsyncPendingState);
             mScheduler->onScreenAcquired(mAppConnectionHandle);
             mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
         }
@@ -4215,7 +4208,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
 
         // Make sure HWVsync is disabled before turning off the display
-        setVsyncEnabledInHWC(*displayId, hal::Vsync::DISABLE);
+        getHwComposer().setVsyncEnabled(*displayId, hal::Vsync::DISABLE);
 
         getHwComposer().setPowerMode(*displayId, mode);
         mVisibleRegionsDirty = true;

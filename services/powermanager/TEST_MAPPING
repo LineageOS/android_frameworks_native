@@ -1,10 +1,7 @@
 {
   "presubmit": [
     {
-      "name": "powermanager_test"
-    },
-    {
-      "name": "thermalmanager_test"
+      "name": "libpowermanager_test"
     }
   ]
 }
