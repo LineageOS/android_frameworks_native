@@ -13,9 +13,10 @@
 // limitations under the License.
 
 cc_test {
-    name: "powermanager_test",
+    name: "libpowermanager_test",
     test_suites: ["device-tests"],
     srcs: [
+        "IThermalManagerTest.cpp",
         "PowerHalControllerTest.cpp",
         "PowerHalLoaderTest.cpp",
         "PowerHalWrapperAidlTest.cpp",
@@ -40,24 +41,5 @@ cc_test {
     ],
     static_libs: [
         "libgmock",
-    ],
-}
-
-cc_test {
-    name: "thermalmanager_test",
-    test_suites: ["device-tests"],
-    srcs: ["IThermalManagerTest.cpp",],
-    cflags: [
-        "-Wall",
-        "-Werror",
-        "-Wextra",
-    ],
-    shared_libs: [
-        "libbase",
-        "libhidlbase",
-        "liblog",
-        "libpowermanager",
-        "libbinder",
-        "libutils",
     ],
 }
