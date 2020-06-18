@@ -38,6 +38,9 @@ private:
     // switch in and out of gl composition.
     static constexpr int MIN_EARLY_GL_FRAME_COUNT_TRANSACTION = 2;
 
+    // Margin used to account for potential data races
+    static const constexpr std::chrono::nanoseconds MARGIN_FOR_TX_APPLY = 1ms;
+
 public:
     // Wrapper for a collection of surfaceflinger/app offsets for a particular
     // configuration.
@@ -62,7 +65,7 @@ public:
         bool operator!=(const OffsetsConfig& other) const { return !(*this == other); }
     };
 
-    VSyncModulator(Scheduler&, ConnectionHandle appConnectionHandle,
+    VSyncModulator(IPhaseOffsetControl&, ConnectionHandle appConnectionHandle,
                    ConnectionHandle sfConnectionHandle, const OffsetsConfig&);
 
     void setPhaseOffsets(const OffsetsConfig&) EXCLUDES(mMutex);
@@ -91,13 +94,14 @@ public:
     Offsets getOffsets() const EXCLUDES(mMutex);
 
 private:
+    friend class VSyncModulatorTest;
     // Returns the next offsets that we should be using
     const Offsets& getNextOffsets() const REQUIRES(mMutex);
     // Updates offsets and persists them into the scheduler framework.
     void updateOffsets() EXCLUDES(mMutex);
     void updateOffsetsLocked() REQUIRES(mMutex);
 
-    Scheduler& mScheduler;
+    IPhaseOffsetControl& mPhaseOffsetControl;
     const ConnectionHandle mAppConnectionHandle;
     const ConnectionHandle mSfConnectionHandle;
 
@@ -107,8 +111,9 @@ private:
     Offsets mOffsets GUARDED_BY(mMutex){mOffsetsConfig.late};
 
     std::atomic<Scheduler::TransactionStart> mTransactionStart =
-            Scheduler::TransactionStart::NORMAL;
+            Scheduler::TransactionStart::Normal;
     std::atomic<bool> mRefreshRateChangePending = false;
+    std::atomic<bool> mExplicitEarlyWakeup = false;
     std::atomic<int> mRemainingEarlyFrameCount = 0;
     std::atomic<int> mRemainingRenderEngineUsageCount = 0;
     std::atomic<std::chrono::steady_clock::time_point> mEarlyTxnStartTime = {};
