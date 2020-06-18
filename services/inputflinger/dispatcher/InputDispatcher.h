@@ -17,6 +17,7 @@
 #ifndef _UI_INPUT_DISPATCHER_H
 #define _UI_INPUT_DISPATCHER_H
 
+#include "AnrTracker.h"
 #include "CancelationOptions.h"
 #include "Entry.h"
 #include "InjectionState.h"
@@ -191,6 +192,7 @@ private:
     EventEntry* mNextUnblockedEvent GUARDED_BY(mLock);
 
     sp<InputWindowHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t y,
+                                                    TouchState* touchState,
                                                     bool addOutsideTargets = false,
                                                     bool addPortalWindows = false) REQUIRES(mLock);
 
@@ -213,7 +215,6 @@ private:
     // Finds the display ID of the gesture monitor identified by the provided token.
     std::optional<int32_t> findGestureMonitorDisplayByTokenLocked(const sp<IBinder>& token)
             REQUIRES(mLock);
-
 
     // Input channels that will receive a copy of all input events sent to the provided display.
     std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay GUARDED_BY(mLock);
@@ -255,12 +256,14 @@ private:
         bool operator==(const KeyReplacement& rhs) const {
             return keyCode == rhs.keyCode && deviceId == rhs.deviceId;
         }
-        bool operator<(const KeyReplacement& rhs) const {
-            return keyCode != rhs.keyCode ? keyCode < rhs.keyCode : deviceId < rhs.deviceId;
+    };
+    struct KeyReplacementHash {
+        size_t operator()(const KeyReplacement& key) const {
+            return std::hash<int32_t>()(key.keyCode) ^ (std::hash<int32_t>()(key.deviceId) << 1);
         }
     };
     // Maps the key code replaced, device id tuple to the key code it was replaced with
-    KeyedVector<KeyReplacement, int32_t> mReplacedKeys GUARDED_BY(mLock);
+    std::unordered_map<KeyReplacement, int32_t, KeyReplacementHash> mReplacedKeys GUARDED_BY(mLock);
     // Process certain Meta + Key combinations
     void accelerateMetaShortcuts(const int32_t deviceId, const int32_t action, int32_t& keyCode,
                                  int32_t& metaState);
@@ -269,6 +272,9 @@ private:
     bool haveCommandsLocked() const REQUIRES(mLock);
     bool runCommandsLockedInterruptible() REQUIRES(mLock);
     void postCommandLocked(std::unique_ptr<CommandEntry> commandEntry) REQUIRES(mLock);
+
+    nsecs_t processAnrsLocked() REQUIRES(mLock);
+    nsecs_t getDispatchingTimeoutLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     // Input filter processing.
     bool shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args) REQUIRES(mLock);
@@ -308,8 +314,7 @@ private:
     std::unordered_map<int32_t, sp<InputWindowHandle>> mFocusedWindowHandlesByDisplay
             GUARDED_BY(mLock);
 
-    KeyedVector<int32_t, TouchState> mTouchStatesByDisplay GUARDED_BY(mLock);
-    TouchState mTempTouchState GUARDED_BY(mLock);
+    std::unordered_map<int32_t, TouchState> mTouchStatesByDisplay GUARDED_BY(mLock);
 
     // Focused applications.
     std::unordered_map<int32_t, sp<InputApplicationHandle>> mFocusedApplicationHandlesByDisplay
@@ -336,38 +341,53 @@ private:
     void logOutboundKeyDetails(const char* prefix, const KeyEntry& entry);
     void logOutboundMotionDetails(const char* prefix, const MotionEntry& entry);
 
-    // Keeping track of ANR timeouts.
-    enum InputTargetWaitCause {
-        INPUT_TARGET_WAIT_CAUSE_NONE,
-        INPUT_TARGET_WAIT_CAUSE_SYSTEM_NOT_READY,
-        INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY,
-    };
-
-    InputTargetWaitCause mInputTargetWaitCause GUARDED_BY(mLock);
-    nsecs_t mInputTargetWaitStartTime GUARDED_BY(mLock);
-    nsecs_t mInputTargetWaitTimeoutTime GUARDED_BY(mLock);
-    bool mInputTargetWaitTimeoutExpired GUARDED_BY(mLock);
-    sp<IBinder> mInputTargetWaitApplicationToken GUARDED_BY(mLock);
+    /**
+     * This field is set if there is no focused window, and we have an event that requires
+     * a focused window to be dispatched (for example, a KeyEvent).
+     * When this happens, we will wait until *mNoFocusedWindowTimeoutTime before
+     * dropping the event and raising an ANR for that application.
+     * This is useful if an application is slow to add a focused window.
+     */
+    std::optional<nsecs_t> mNoFocusedWindowTimeoutTime GUARDED_BY(mLock);
 
     bool shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) REQUIRES(mLock);
+
+    /**
+     * Time to stop waiting for the events to be processed while trying to dispatch a key.
+     * When this time expires, we just send the pending key event to the currently focused window,
+     * without waiting on other events to be processed first.
+     */
+    std::optional<nsecs_t> mKeyIsWaitingForEventsTimeout GUARDED_BY(mLock);
+    bool shouldWaitToSendKeyLocked(nsecs_t currentTime, const char* focusedWindowName)
+            REQUIRES(mLock);
+
+    /**
+     * The focused application at the time when no focused window was present.
+     * Used to raise an ANR when we have no focused window.
+     */
+    sp<InputApplicationHandle> mAwaitedFocusedApplication GUARDED_BY(mLock);
+
+    // Optimization: AnrTracker is used to quickly find which connection is due for a timeout next.
+    // AnrTracker must be kept in-sync with all responsive connection.waitQueues.
+    // If a connection is not responsive, then the entries should not be added to the AnrTracker.
+    // Once a connection becomes unresponsive, its entries are removed from AnrTracker to
+    // prevent unneeded wakeups.
+    AnrTracker mAnrTracker GUARDED_BY(mLock);
+    void extendAnrTimeoutsLocked(const sp<InputApplicationHandle>& application,
+                                 const sp<IBinder>& connectionToken, nsecs_t timeoutExtension)
+            REQUIRES(mLock);
 
     // Contains the last window which received a hover event.
     sp<InputWindowHandle> mLastHoverWindowHandle GUARDED_BY(mLock);
 
-    // Finding targets for input events.
-    int32_t handleTargetsNotReadyLocked(nsecs_t currentTime, const EventEntry& entry,
-                                        const sp<InputApplicationHandle>& applicationHandle,
-                                        const sp<InputWindowHandle>& windowHandle,
-                                        nsecs_t* nextWakeupTime, const char* reason)
-            REQUIRES(mLock);
-
-    void removeWindowByTokenLocked(const sp<IBinder>& token) REQUIRES(mLock);
-
-    void resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout,
-                                                 const sp<IBinder>& inputConnectionToken)
-            REQUIRES(mLock);
+    void cancelEventsForAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
     nsecs_t getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime) REQUIRES(mLock);
-    void resetAnrTimeoutsLocked() REQUIRES(mLock);
+    // If a focused application changes, we should stop counting down the "no focused window" time,
+    // because we will have no way of knowing when the previous application actually added a window.
+    // This also means that we will miss cases like pulling down notification shade when the
+    // focused application does not have a focused window (no ANR will be raised if notification
+    // shade is pulled down while we are counting down the timeout).
+    void resetNoFocusedWindowTimeoutLocked() REQUIRES(mLock);
 
     int32_t getTargetDisplayId(const EventEntry& entry);
     int32_t findFocusedWindowTargetsLocked(nsecs_t currentTime, const EventEntry& entry,
@@ -378,11 +398,10 @@ private:
                                            nsecs_t* nextWakeupTime,
                                            bool* outConflictingPointerActions) REQUIRES(mLock);
     std::vector<TouchedMonitor> findTouchedGestureMonitorsLocked(
-            int32_t displayId, const std::vector<sp<InputWindowHandle>>& portalWindows)
+            int32_t displayId, const std::vector<sp<InputWindowHandle>>& portalWindows) const
             REQUIRES(mLock);
-    void addGestureMonitors(const std::vector<Monitor>& monitors,
-                            std::vector<TouchedMonitor>& outTouchedMonitors, float xOffset = 0,
-                            float yOffset = 0);
+    std::vector<TouchedMonitor> selectResponsiveMonitorsLocked(
+            const std::vector<TouchedMonitor>& gestureMonitors) const REQUIRES(mLock);
 
     void addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle, int32_t targetFlags,
                                BitSet32 pointerIds, std::vector<InputTarget>& inputTargets)
@@ -400,11 +419,6 @@ private:
     bool isWindowObscuredLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
     std::string getApplicationWindowLabel(const sp<InputApplicationHandle>& applicationHandle,
                                           const sp<InputWindowHandle>& windowHandle);
-
-    std::string checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
-                                                   const sp<InputWindowHandle>& windowHandle,
-                                                   const EventEntry& eventEntry,
-                                                   const char* targetType) REQUIRES(mLock);
 
     // Manage the dispatch cycle for a single connection.
     // These methods are deliberately not Interruptible because doing all of the work
@@ -475,9 +489,14 @@ private:
             REQUIRES(mLock);
     void onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
                               const sp<InputWindowHandle>& newFocus) REQUIRES(mLock);
-    void onAnrLocked(nsecs_t currentTime, const sp<InputApplicationHandle>& applicationHandle,
-                     const sp<InputWindowHandle>& windowHandle, nsecs_t eventTime,
-                     nsecs_t waitStartTime, const char* reason) REQUIRES(mLock);
+    void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
+    void onAnrLocked(const sp<InputApplicationHandle>& application) REQUIRES(mLock);
+    void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)
+            REQUIRES(mLock);
+    void updateLastAnrStateLocked(const sp<InputApplicationHandle>& application,
+                                  const std::string& reason) REQUIRES(mLock);
+    void updateLastAnrStateLocked(const std::string& windowLabel, const std::string& reason)
+            REQUIRES(mLock);
 
     // Outbound policy interactions.
     void doNotifyConfigurationChangedLockedInterruptible(CommandEntry* commandEntry)
