@@ -24,6 +24,7 @@
 #include <utils/Log.h>
 #include <thread>
 
+#include <vibratorservice/VibratorCallbackScheduler.h>
 #include <vibratorservice/VibratorHalWrapper.h>
 
 #include "test_utils.h"
@@ -68,11 +69,13 @@ class VibratorHalWrapperHidlV1_3Test : public Test {
 public:
     void SetUp() override {
         mMockHal = new StrictMock<MockIVibratorV1_3>();
-        mWrapper = std::make_unique<vibrator::HidlHalWrapperV1_3>(mMockHal);
+        mMockScheduler = std::make_shared<StrictMock<vibrator::MockCallbackScheduler>>();
+        mWrapper = std::make_unique<vibrator::HidlHalWrapperV1_3>(mMockScheduler, mMockHal);
         ASSERT_NE(mWrapper, nullptr);
     }
 
 protected:
+    std::shared_ptr<StrictMock<vibrator::MockCallbackScheduler>> mMockScheduler = nullptr;
     std::unique_ptr<vibrator::HalWrapper> mWrapper = nullptr;
     sp<StrictMock<MockIVibratorV1_3>> mMockHal = nullptr;
 };
@@ -210,6 +213,10 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesCachesResult) {
         }));
     }
     std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
+
+    auto result = mWrapper->getCapabilities();
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesDoesNotCacheFailedResult) {
@@ -258,63 +265,78 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesDoesNotCacheFailedResu
 }
 
 TEST_F(VibratorHalWrapperHidlV1_3Test, TestPerformEffectV1_0) {
-    EXPECT_CALL(*mMockHal.get(),
-                perform(Eq(V1_0::Effect::CLICK), Eq(V1_0::EffectStrength::LIGHT), _))
-            .Times(Exactly(1))
-            .WillRepeatedly(
-                    [](V1_0::Effect, V1_0::EffectStrength, MockIVibratorV1_3::perform_cb cb) {
-                        cb(V1_0::Status::OK, 100);
-                        return hardware::Return<void>();
-                    });
+    {
+        InSequence seq;
+        EXPECT_CALL(*mMockHal.get(),
+                    perform(Eq(V1_0::Effect::CLICK), Eq(V1_0::EffectStrength::LIGHT), _))
+                .Times(Exactly(1))
+                .WillRepeatedly(
+                        [](V1_0::Effect, V1_0::EffectStrength, MockIVibratorV1_3::perform_cb cb) {
+                            cb(V1_0::Status::OK, 10);
+                            return hardware::Return<void>();
+                        });
+        EXPECT_CALL(*mMockScheduler.get(), schedule(_, Eq(10ms)))
+                .Times(Exactly(1))
+                .WillRepeatedly(vibrator::TriggerSchedulerCallback());
+    }
 
     std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
     auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
     auto result = mWrapper->performEffect(Effect::CLICK, EffectStrength::LIGHT, callback);
 
     ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(100ms, result.value());
-    // TODO(b/153418251): check callback will be triggered once implemented
-    ASSERT_EQ(0, *callbackCounter.get());
+    ASSERT_EQ(10ms, result.value());
+    ASSERT_EQ(1, *callbackCounter.get());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_3Test, TestPerformEffectV1_1) {
-    EXPECT_CALL(*mMockHal.get(),
-                perform_1_1(Eq(V1_1::Effect_1_1::TICK), Eq(V1_0::EffectStrength::LIGHT), _))
-            .Times(Exactly(1))
-            .WillRepeatedly(
-                    [](V1_1::Effect_1_1, V1_0::EffectStrength, MockIVibratorV1_3::perform_cb cb) {
-                        cb(V1_0::Status::OK, 100);
-                        return hardware::Return<void>();
-                    });
+    {
+        InSequence seq;
+        EXPECT_CALL(*mMockHal.get(),
+                    perform_1_1(Eq(V1_1::Effect_1_1::TICK), Eq(V1_0::EffectStrength::LIGHT), _))
+                .Times(Exactly(1))
+                .WillRepeatedly([](V1_1::Effect_1_1, V1_0::EffectStrength,
+                                   MockIVibratorV1_3::perform_cb cb) {
+                    cb(V1_0::Status::OK, 10);
+                    return hardware::Return<void>();
+                });
+        EXPECT_CALL(*mMockScheduler.get(), schedule(_, Eq(10ms)))
+                .Times(Exactly(1))
+                .WillRepeatedly(vibrator::TriggerSchedulerCallback());
+    }
 
     std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
     auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
     auto result = mWrapper->performEffect(Effect::TICK, EffectStrength::LIGHT, callback);
 
     ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(100ms, result.value());
-    // TODO(b/153418251): check callback will be triggered once implemented
-    ASSERT_EQ(0, *callbackCounter.get());
+    ASSERT_EQ(10ms, result.value());
+    ASSERT_EQ(1, *callbackCounter.get());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_3Test, TestPerformEffectV1_2) {
-    EXPECT_CALL(*mMockHal.get(),
-                perform_1_2(Eq(V1_2::Effect::THUD), Eq(V1_0::EffectStrength::LIGHT), _))
-            .Times(Exactly(1))
-            .WillRepeatedly(
-                    [](V1_2::Effect, V1_0::EffectStrength, MockIVibratorV1_3::perform_cb cb) {
-                        cb(V1_0::Status::OK, 100);
-                        return hardware::Return<void>();
-                    });
+    {
+        InSequence seq;
+        EXPECT_CALL(*mMockHal.get(),
+                    perform_1_2(Eq(V1_2::Effect::THUD), Eq(V1_0::EffectStrength::LIGHT), _))
+                .Times(Exactly(1))
+                .WillRepeatedly(
+                        [](V1_2::Effect, V1_0::EffectStrength, MockIVibratorV1_3::perform_cb cb) {
+                            cb(V1_0::Status::OK, 10);
+                            return hardware::Return<void>();
+                        });
+        EXPECT_CALL(*mMockScheduler.get(), schedule(_, Eq(10ms)))
+                .Times(Exactly(1))
+                .WillRepeatedly(vibrator::TriggerSchedulerCallback());
+    }
 
     std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
     auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
     auto result = mWrapper->performEffect(Effect::THUD, EffectStrength::LIGHT, callback);
 
     ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(100ms, result.value());
-    // TODO(b/153418251): check callback will be triggered once implemented
-    ASSERT_EQ(0, *callbackCounter.get());
+    ASSERT_EQ(10ms, result.value());
+    ASSERT_EQ(1, *callbackCounter.get());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_3Test, TestPerformEffectV1_3) {
@@ -328,6 +350,9 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestPerformEffectV1_3) {
                             cb(V1_0::Status::OK, 10);
                             return hardware::Return<void>();
                         });
+        EXPECT_CALL(*mMockScheduler.get(), schedule(_, Eq(10ms)))
+                .Times(Exactly(1))
+                .WillRepeatedly(vibrator::TriggerSchedulerCallback());
         EXPECT_CALL(*mMockHal.get(),
                     perform_1_3(Eq(V1_3::Effect::TEXTURE_TICK), Eq(V1_0::EffectStrength::MEDIUM),
                                 _))
@@ -357,21 +382,17 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestPerformEffectV1_3) {
     auto result = mWrapper->performEffect(Effect::TEXTURE_TICK, EffectStrength::LIGHT, callback);
     ASSERT_TRUE(result.isOk());
     ASSERT_EQ(10ms, result.value());
-    // TODO(b/153418251): check callback will be triggered once implemented
-    ASSERT_EQ(0, *callbackCounter.get());
+    ASSERT_EQ(1, *callbackCounter.get());
 
     result = mWrapper->performEffect(Effect::TEXTURE_TICK, EffectStrength::MEDIUM, callback);
     ASSERT_TRUE(result.isUnsupported());
-    // Callback not triggered
-    ASSERT_EQ(0, *callbackCounter.get());
 
     result = mWrapper->performEffect(Effect::TEXTURE_TICK, EffectStrength::STRONG, callback);
     ASSERT_TRUE(result.isFailed());
-    // Callback not triggered
-    ASSERT_EQ(0, *callbackCounter.get());
 
     result = mWrapper->performEffect(Effect::TEXTURE_TICK, EffectStrength::STRONG, callback);
     ASSERT_TRUE(result.isFailed());
-    // Callback not triggered
-    ASSERT_EQ(0, *callbackCounter.get());
+
+    // Callback not triggered for unsupported and on failure
+    ASSERT_EQ(1, *callbackCounter.get());
 }
