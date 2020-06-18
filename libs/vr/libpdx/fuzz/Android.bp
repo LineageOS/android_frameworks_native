@@ -16,4 +16,8 @@ cc_fuzz {
         "libutils",
         "liblog",
     ],
+    fuzz_config: {
+        fuzz_on_haiku_host: false,
+        fuzz_on_haiku_device: false,
+    },
 }
