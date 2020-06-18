@@ -338,10 +338,14 @@ CancelResult VSyncDispatchTimerQueue::cancel(CallbackToken token) {
     }
     auto& callback = it->second;
 
-    if (callback->wakeupTime()) {
+    auto const wakeupTime = callback->wakeupTime();
+    if (wakeupTime) {
         callback->disarm();
-        mIntendedWakeupTime = kInvalidTime;
-        rearmTimer(mTimeKeeper->now());
+
+        if (*wakeupTime == mIntendedWakeupTime) {
+            mIntendedWakeupTime = kInvalidTime;
+            rearmTimer(mTimeKeeper->now());
+        }
         return CancelResult::Cancelled;
     }
     return CancelResult::TooLate;
