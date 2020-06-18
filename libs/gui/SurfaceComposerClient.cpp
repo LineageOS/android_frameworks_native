@@ -353,6 +353,8 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
         mTransactionNestCount(other.mTransactionNestCount),
         mAnimation(other.mAnimation),
         mEarlyWakeup(other.mEarlyWakeup),
+        mExplicitEarlyWakeupStart(other.mExplicitEarlyWakeupStart),
+        mExplicitEarlyWakeupEnd(other.mExplicitEarlyWakeupEnd),
         mContainsBuffer(other.mContainsBuffer),
         mDesiredPresentTime(other.mDesiredPresentTime) {
     mDisplayStates = other.mDisplayStates;
@@ -375,6 +377,8 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     const uint32_t transactionNestCount = parcel->readUint32();
     const bool animation = parcel->readBool();
     const bool earlyWakeup = parcel->readBool();
+    const bool explicitEarlyWakeupStart = parcel->readBool();
+    const bool explicitEarlyWakeupEnd = parcel->readBool();
     const bool containsBuffer = parcel->readBool();
     const int64_t desiredPresentTime = parcel->readInt64();
 
@@ -443,6 +447,8 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     mTransactionNestCount = transactionNestCount;
     mAnimation = animation;
     mEarlyWakeup = earlyWakeup;
+    mExplicitEarlyWakeupStart = explicitEarlyWakeupStart;
+    mExplicitEarlyWakeupEnd = explicitEarlyWakeupEnd;
     mContainsBuffer = containsBuffer;
     mDesiredPresentTime = desiredPresentTime;
     mDisplayStates = displayStates;
@@ -470,6 +476,8 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     parcel->writeUint32(mTransactionNestCount);
     parcel->writeBool(mAnimation);
     parcel->writeBool(mEarlyWakeup);
+    parcel->writeBool(mExplicitEarlyWakeupStart);
+    parcel->writeBool(mExplicitEarlyWakeupEnd);
     parcel->writeBool(mContainsBuffer);
     parcel->writeInt64(mDesiredPresentTime);
     parcel->writeUint32(static_cast<uint32_t>(mDisplayStates.size()));
@@ -545,6 +553,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
 
     mContainsBuffer |= other.mContainsBuffer;
     mEarlyWakeup = mEarlyWakeup || other.mEarlyWakeup;
+    mExplicitEarlyWakeupStart = mExplicitEarlyWakeupStart || other.mExplicitEarlyWakeupStart;
+    mExplicitEarlyWakeupEnd = mExplicitEarlyWakeupEnd || other.mExplicitEarlyWakeupEnd;
     other.clear();
     return *this;
 }
@@ -559,6 +569,8 @@ void SurfaceComposerClient::Transaction::clear() {
     mTransactionNestCount = 0;
     mAnimation = false;
     mEarlyWakeup = false;
+    mExplicitEarlyWakeupStart = false;
+    mExplicitEarlyWakeupEnd = false;
     mDesiredPresentTime = -1;
 }
 
@@ -682,9 +694,20 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
         flags |= ISurfaceComposer::eEarlyWakeup;
     }
 
+    // If both mExplicitEarlyWakeupStart and mExplicitEarlyWakeupEnd are set
+    // it is equivalent for none
+    if (mExplicitEarlyWakeupStart && !mExplicitEarlyWakeupEnd) {
+        flags |= ISurfaceComposer::eExplicitEarlyWakeupStart;
+    }
+    if (mExplicitEarlyWakeupEnd && !mExplicitEarlyWakeupStart) {
+        flags |= ISurfaceComposer::eExplicitEarlyWakeupEnd;
+    }
+
     mForceSynchronous = false;
     mAnimation = false;
     mEarlyWakeup = false;
+    mExplicitEarlyWakeupStart = false;
+    mExplicitEarlyWakeupEnd = false;
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
     sf->setTransactionState(composerStates, displayStates, flags, applyToken, mInputWindowCommands,
@@ -729,6 +752,14 @@ void SurfaceComposerClient::Transaction::setAnimationTransaction() {
 
 void SurfaceComposerClient::Transaction::setEarlyWakeup() {
     mEarlyWakeup = true;
+}
+
+void SurfaceComposerClient::Transaction::setExplicitEarlyWakeupStart() {
+    mExplicitEarlyWakeupStart = true;
+}
+
+void SurfaceComposerClient::Transaction::setExplicitEarlyWakeupEnd() {
+    mExplicitEarlyWakeupEnd = true;
 }
 
 layer_state_t* SurfaceComposerClient::Transaction::getLayerState(const sp<IBinder>& handle) {

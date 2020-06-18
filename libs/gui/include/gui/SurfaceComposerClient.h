@@ -345,10 +345,12 @@ public:
         std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
                 mListenerCallbacks;
 
-        uint32_t                    mForceSynchronous = 0;
-        uint32_t                    mTransactionNestCount = 0;
-        bool                        mAnimation = false;
-        bool                        mEarlyWakeup = false;
+        uint32_t mForceSynchronous = 0;
+        uint32_t mTransactionNestCount = 0;
+        bool mAnimation = false;
+        bool mEarlyWakeup = false;
+        bool mExplicitEarlyWakeupStart = false;
+        bool mExplicitEarlyWakeupEnd = false;
 
         // Indicates that the Transaction contains a buffer that should be cached
         bool mContainsBuffer = false;
@@ -547,6 +549,8 @@ public:
         void setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height);
         void setAnimationTransaction();
         void setEarlyWakeup();
+        void setExplicitEarlyWakeupStart();
+        void setExplicitEarlyWakeupEnd();
     };
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;
