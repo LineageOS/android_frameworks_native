@@ -24,6 +24,7 @@
 #include <utils/Log.h>
 #include <thread>
 
+#include <vibratorservice/VibratorCallbackScheduler.h>
 #include <vibratorservice/VibratorHalWrapper.h>
 
 #include "test_utils.h"
@@ -59,11 +60,13 @@ class VibratorHalWrapperHidlV1_0Test : public Test {
 public:
     void SetUp() override {
         mMockHal = new StrictMock<MockIVibratorV1_0>();
-        mWrapper = std::make_unique<vibrator::HidlHalWrapperV1_0>(mMockHal);
+        mMockScheduler = std::make_shared<StrictMock<vibrator::MockCallbackScheduler>>();
+        mWrapper = std::make_unique<vibrator::HidlHalWrapperV1_0>(mMockScheduler, mMockHal);
         ASSERT_NE(mWrapper, nullptr);
     }
 
 protected:
+    std::shared_ptr<StrictMock<vibrator::MockCallbackScheduler>> mMockScheduler = nullptr;
     std::unique_ptr<vibrator::HalWrapper> mWrapper = nullptr;
     sp<StrictMock<MockIVibratorV1_0>> mMockHal = nullptr;
 };
@@ -89,17 +92,20 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestOn) {
                 .Times(Exactly(1))
                 .WillRepeatedly(
                         [](uint32_t) { return hardware::Return<V1_0::Status>(V1_0::Status::OK); });
+        EXPECT_CALL(*mMockScheduler.get(), schedule(_, Eq(1ms)))
+                .Times(Exactly(1))
+                .WillRepeatedly(vibrator::TriggerSchedulerCallback());
         EXPECT_CALL(*mMockHal.get(), on(Eq(static_cast<uint32_t>(10))))
                 .Times(Exactly(1))
                 .WillRepeatedly([](uint32_t) {
                     return hardware::Return<V1_0::Status>(V1_0::Status::UNSUPPORTED_OPERATION);
                 });
-        EXPECT_CALL(*mMockHal.get(), on(Eq(static_cast<uint32_t>(100))))
+        EXPECT_CALL(*mMockHal.get(), on(Eq(static_cast<uint32_t>(11))))
                 .Times(Exactly(1))
                 .WillRepeatedly([](uint32_t) {
                     return hardware::Return<V1_0::Status>(V1_0::Status::BAD_VALUE);
                 });
-        EXPECT_CALL(*mMockHal.get(), on(Eq(static_cast<uint32_t>(1000))))
+        EXPECT_CALL(*mMockHal.get(), on(Eq(static_cast<uint32_t>(12))))
                 .Times(Exactly(1))
                 .WillRepeatedly([](uint32_t) {
                     return hardware::Return<V1_0::Status>(hardware::Status::fromExceptionCode(-1));
@@ -110,20 +116,14 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestOn) {
     auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
 
     ASSERT_TRUE(mWrapper->on(1ms, callback).isOk());
-    // TODO(b/153418251): check callback will be triggered once implemented
-    ASSERT_EQ(0, *callbackCounter.get());
+    ASSERT_EQ(1, *callbackCounter.get());
 
     ASSERT_TRUE(mWrapper->on(10ms, callback).isUnsupported());
-    // Callback not triggered
-    ASSERT_EQ(0, *callbackCounter.get());
+    ASSERT_TRUE(mWrapper->on(11ms, callback).isFailed());
+    ASSERT_TRUE(mWrapper->on(12ms, callback).isFailed());
 
-    ASSERT_TRUE(mWrapper->on(100ms, callback).isFailed());
-    // Callback not triggered
-    ASSERT_EQ(0, *callbackCounter.get());
-
-    ASSERT_TRUE(mWrapper->on(1000ms, callback).isFailed());
-    // Callback not triggered
-    ASSERT_EQ(0, *callbackCounter.get());
+    // Callback not triggered for unsupported and on failure
+    ASSERT_EQ(1, *callbackCounter.get());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_0Test, TestOff) {
@@ -226,6 +226,10 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetCapabilitiesCachesResult) {
         }));
     }
     std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
+
+    auto result = mWrapper->getCapabilities();
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetSupportedEffectsUnsupported) {
@@ -240,9 +244,12 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestPerformEffect) {
                 .Times(Exactly(1))
                 .WillRepeatedly(
                         [](V1_0::Effect, V1_0::EffectStrength, MockIVibratorV1_0::perform_cb cb) {
-                            cb(V1_0::Status::OK, 100);
+                            cb(V1_0::Status::OK, 10);
                             return hardware::Return<void>();
                         });
+        EXPECT_CALL(*mMockScheduler.get(), schedule(_, Eq(10ms)))
+                .Times(Exactly(1))
+                .WillRepeatedly(vibrator::TriggerSchedulerCallback());
         EXPECT_CALL(*mMockHal.get(),
                     perform(Eq(V1_0::Effect::CLICK), Eq(V1_0::EffectStrength::MEDIUM), _))
                 .Times(Exactly(1))
@@ -269,24 +276,20 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestPerformEffect) {
 
     auto result = mWrapper->performEffect(Effect::CLICK, EffectStrength::LIGHT, callback);
     ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(100ms, result.value());
-    // TODO(b/153418251): check callback will be triggered once implemented
-    ASSERT_EQ(0, *callbackCounter.get());
+    ASSERT_EQ(10ms, result.value());
+    ASSERT_EQ(1, *callbackCounter.get());
 
     result = mWrapper->performEffect(Effect::CLICK, EffectStrength::MEDIUM, callback);
     ASSERT_TRUE(result.isUnsupported());
-    // Callback not triggered
-    ASSERT_EQ(0, *callbackCounter.get());
 
     result = mWrapper->performEffect(Effect::CLICK, EffectStrength::STRONG, callback);
     ASSERT_TRUE(result.isFailed());
-    // Callback not triggered
-    ASSERT_EQ(0, *callbackCounter.get());
 
     result = mWrapper->performEffect(Effect::CLICK, EffectStrength::STRONG, callback);
     ASSERT_TRUE(result.isFailed());
-    // Callback not triggered
-    ASSERT_EQ(0, *callbackCounter.get());
+
+    // Callback not triggered for unsupported and on failure
+    ASSERT_EQ(1, *callbackCounter.get());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_0Test, TestPerformEffectUnsupported) {
@@ -295,6 +298,7 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestPerformEffectUnsupported) {
     // Using TICK that is only available in v1.1
     auto result = mWrapper->performEffect(Effect::TICK, EffectStrength::LIGHT, callback);
     ASSERT_TRUE(result.isUnsupported());
+    // No callback is triggered.
     ASSERT_EQ(0, *callbackCounter.get());
 }
 

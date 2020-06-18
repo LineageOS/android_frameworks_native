@@ -24,6 +24,7 @@
 #include <utils/Log.h>
 #include <thread>
 
+#include <vibratorservice/VibratorCallbackScheduler.h>
 #include <vibratorservice/VibratorHalWrapper.h>
 
 #include "test_utils.h"
@@ -88,11 +89,13 @@ public:
     void SetUp() override {
         mMockBinder = new StrictMock<MockBinder>();
         mMockHal = new StrictMock<MockIVibrator>();
-        mWrapper = std::make_unique<vibrator::AidlHalWrapper>(mMockHal);
+        mMockScheduler = std::make_shared<StrictMock<vibrator::MockCallbackScheduler>>();
+        mWrapper = std::make_unique<vibrator::AidlHalWrapper>(mMockScheduler, mMockHal);
         ASSERT_NE(mWrapper, nullptr);
     }
 
 protected:
+    std::shared_ptr<StrictMock<vibrator::MockCallbackScheduler>> mMockScheduler = nullptr;
     std::unique_ptr<vibrator::HalWrapper> mWrapper = nullptr;
     sp<StrictMock<MockIVibrator>> mMockHal = nullptr;
     sp<StrictMock<MockBinder>> mMockBinder = nullptr;
@@ -124,9 +127,13 @@ TEST_F(VibratorHalWrapperAidlTest, TestPing) {
     ASSERT_TRUE(mWrapper->ping().isFailed());
 }
 
-TEST_F(VibratorHalWrapperAidlTest, TestOn) {
+TEST_F(VibratorHalWrapperAidlTest, TestOnWithCallbackSupport) {
     {
         InSequence seq;
+        EXPECT_CALL(*mMockHal.get(), getCapabilities(_))
+                .Times(Exactly(1))
+                .WillRepeatedly(
+                        DoAll(SetArgPointee<0>(IVibrator::CAP_ON_CALLBACK), Return(Status())));
         EXPECT_CALL(*mMockHal.get(), on(Eq(10), _))
                 .Times(Exactly(1))
                 .WillRepeatedly(DoAll(TriggerCallbackInArg1(), Return(Status())));
@@ -146,11 +153,46 @@ TEST_F(VibratorHalWrapperAidlTest, TestOn) {
     ASSERT_EQ(1, *callbackCounter.get());
 
     ASSERT_TRUE(mWrapper->on(100ms, callback).isUnsupported());
-    // Callback not triggered
+    // Callback not triggered for unsupported
     ASSERT_EQ(1, *callbackCounter.get());
 
     ASSERT_TRUE(mWrapper->on(1000ms, callback).isFailed());
-    // Callback not triggered
+    // Callback not triggered on failure
+    ASSERT_EQ(1, *callbackCounter.get());
+}
+
+TEST_F(VibratorHalWrapperAidlTest, TestOnWithoutCallbackSupport) {
+    {
+        InSequence seq;
+        EXPECT_CALL(*mMockHal.get(), getCapabilities(_))
+                .Times(Exactly(1))
+                .WillRepeatedly(
+                        DoAll(SetArgPointee<0>(IVibrator::CAP_COMPOSE_EFFECTS), Return(Status())));
+        EXPECT_CALL(*mMockHal.get(), on(Eq(10), _))
+                .Times(Exactly(1))
+                .WillRepeatedly(Return(Status()));
+        EXPECT_CALL(*mMockScheduler.get(), schedule(_, Eq(10ms)))
+                .Times(Exactly(1))
+                .WillRepeatedly(vibrator::TriggerSchedulerCallback());
+        EXPECT_CALL(*mMockHal.get(), on(Eq(11), _))
+                .Times(Exactly(1))
+                .WillRepeatedly(Return(
+                        Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+        EXPECT_CALL(*mMockHal.get(), on(Eq(12), _))
+                .Times(Exactly(1))
+                .WillRepeatedly(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)));
+    }
+
+    std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
+    auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
+
+    ASSERT_TRUE(mWrapper->on(10ms, callback).isOk());
+    ASSERT_EQ(1, *callbackCounter.get());
+
+    ASSERT_TRUE(mWrapper->on(11ms, callback).isUnsupported());
+    ASSERT_TRUE(mWrapper->on(12ms, callback).isFailed());
+
+    // Callback not triggered for unsupported and on failure
     ASSERT_EQ(1, *callbackCounter.get());
 }
 
@@ -274,6 +316,10 @@ TEST_F(VibratorHalWrapperAidlTest, TestGetCapabilitiesCachesResult) {
         }));
     }
     std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
+
+    auto result = mWrapper->getCapabilities();
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(vibrator::Capabilities::ON_CALLBACK, result.value());
 }
 
 TEST_F(VibratorHalWrapperAidlTest, TestGetSupportedEffectsDoesNotCacheFailedResult) {
@@ -314,11 +360,19 @@ TEST_F(VibratorHalWrapperAidlTest, TestGetSupportedEffectsCachesResult) {
         }));
     }
     std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
+
+    auto result = mWrapper->getSupportedEffects();
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(supportedEffects, result.value());
 }
 
-TEST_F(VibratorHalWrapperAidlTest, TestPerformEffect) {
+TEST_F(VibratorHalWrapperAidlTest, TestPerformEffectWithCallbackSupport) {
     {
         InSequence seq;
+        EXPECT_CALL(*mMockHal.get(), getCapabilities(_))
+                .Times(Exactly(1))
+                .WillRepeatedly(
+                        DoAll(SetArgPointee<0>(IVibrator::CAP_PERFORM_CALLBACK), Return(Status())));
         EXPECT_CALL(*mMockHal.get(), perform(Eq(Effect::CLICK), Eq(EffectStrength::LIGHT), _, _))
                 .Times(Exactly(1))
                 .WillRepeatedly(
@@ -342,12 +396,52 @@ TEST_F(VibratorHalWrapperAidlTest, TestPerformEffect) {
 
     result = mWrapper->performEffect(Effect::POP, EffectStrength::MEDIUM, callback);
     ASSERT_TRUE(result.isUnsupported());
-    // Callback not triggered
+    // Callback not triggered for unsupported
     ASSERT_EQ(1, *callbackCounter.get());
 
     result = mWrapper->performEffect(Effect::THUD, EffectStrength::STRONG, callback);
     ASSERT_TRUE(result.isFailed());
-    // Callback not triggered
+    // Callback not triggered on failure
+    ASSERT_EQ(1, *callbackCounter.get());
+}
+
+TEST_F(VibratorHalWrapperAidlTest, TestPerformEffectWithoutCallbackSupport) {
+    {
+        InSequence seq;
+        EXPECT_CALL(*mMockHal.get(), getCapabilities(_))
+                .Times(Exactly(1))
+                .WillRepeatedly(
+                        DoAll(SetArgPointee<0>(IVibrator::CAP_ON_CALLBACK), Return(Status())));
+        EXPECT_CALL(*mMockHal.get(), perform(Eq(Effect::CLICK), Eq(EffectStrength::LIGHT), _, _))
+                .Times(Exactly(1))
+                .WillRepeatedly(DoAll(SetArgPointee<3>(10), Return(Status())));
+        EXPECT_CALL(*mMockScheduler.get(), schedule(_, Eq(10ms)))
+                .Times(Exactly(1))
+                .WillRepeatedly(vibrator::TriggerSchedulerCallback());
+        EXPECT_CALL(*mMockHal.get(), perform(Eq(Effect::POP), Eq(EffectStrength::MEDIUM), _, _))
+                .Times(Exactly(1))
+                .WillRepeatedly(Return(
+                        Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+        EXPECT_CALL(*mMockHal.get(), perform(Eq(Effect::THUD), Eq(EffectStrength::STRONG), _, _))
+                .Times(Exactly(1))
+                .WillRepeatedly(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)));
+    }
+
+    std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
+    auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
+
+    auto result = mWrapper->performEffect(Effect::CLICK, EffectStrength::LIGHT, callback);
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(10ms, result.value());
+    ASSERT_EQ(1, *callbackCounter.get());
+
+    result = mWrapper->performEffect(Effect::POP, EffectStrength::MEDIUM, callback);
+    ASSERT_TRUE(result.isUnsupported());
+
+    result = mWrapper->performEffect(Effect::THUD, EffectStrength::STRONG, callback);
+    ASSERT_TRUE(result.isFailed());
+
+    // Callback not triggered for unsupported and on failure
     ASSERT_EQ(1, *callbackCounter.get());
 }
 
@@ -383,11 +477,11 @@ TEST_F(VibratorHalWrapperAidlTest, TestPerformComposedEffect) {
 
     result = mWrapper->performComposedEffect(singleEffect, callback);
     ASSERT_TRUE(result.isUnsupported());
-    // Callback not triggered
+    // Callback not triggered for unsupported
     ASSERT_EQ(1, *callbackCounter.get());
 
     result = mWrapper->performComposedEffect(multipleEffects, callback);
     ASSERT_TRUE(result.isFailed());
-    // Callback not triggered
+    // Callback not triggered on failure
     ASSERT_EQ(1, *callbackCounter.get());
 }
