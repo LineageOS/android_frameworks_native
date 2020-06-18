@@ -27,11 +27,11 @@ class BpGpuService : public BpInterface<IGpuService> {
 public:
     explicit BpGpuService(const sp<IBinder>& impl) : BpInterface<IGpuService>(impl) {}
 
-    virtual void setGpuStats(const std::string& driverPackageName,
-                             const std::string& driverVersionName, uint64_t driverVersionCode,
-                             int64_t driverBuildTime, const std::string& appPackageName,
-                             const int32_t vulkanVersion, GpuStatsInfo::Driver driver,
-                             bool isDriverLoaded, int64_t driverLoadingTime) {
+    void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
+                     uint64_t driverVersionCode, int64_t driverBuildTime,
+                     const std::string& appPackageName, const int32_t vulkanVersion,
+                     GpuStatsInfo::Driver driver, bool isDriverLoaded,
+                     int64_t driverLoadingTime) override {
         Parcel data, reply;
         data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
 
@@ -48,8 +48,8 @@ public:
         remote()->transact(BnGpuService::SET_GPU_STATS, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
-    virtual void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
-                                const GpuStatsInfo::Stats stats, const uint64_t value) {
+    void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
+                        const GpuStatsInfo::Stats stats, const uint64_t value) override {
         Parcel data, reply;
         data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
 
@@ -59,6 +59,27 @@ public:
         data.writeUint64(value);
 
         remote()->transact(BnGpuService::SET_TARGET_STATS, data, &reply, IBinder::FLAG_ONEWAY);
+    }
+
+    void setUpdatableDriverPath(const std::string& driverPath) override {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
+        data.writeUtf8AsUtf16(driverPath);
+
+        remote()->transact(BnGpuService::SET_UPDATABLE_DRIVER_PATH, data, &reply,
+                           IBinder::FLAG_ONEWAY);
+    }
+
+    std::string getUpdatableDriverPath() override {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
+
+        status_t error = remote()->transact(BnGpuService::GET_UPDATABLE_DRIVER_PATH, data, &reply);
+        std::string driverPath;
+        if (error == OK) {
+            error = reply.readUtf8FromUtf16(&driverPath);
+        }
+        return driverPath;
     }
 };
 
@@ -125,6 +146,21 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
                            static_cast<GpuStatsInfo::Stats>(stats), value);
 
             return OK;
+        }
+        case SET_UPDATABLE_DRIVER_PATH: {
+            CHECK_INTERFACE(IGpuService, data, reply);
+
+            std::string driverPath;
+            if ((status = data.readUtf8FromUtf16(&driverPath)) != OK) return status;
+
+            setUpdatableDriverPath(driverPath);
+            return OK;
+        }
+        case GET_UPDATABLE_DRIVER_PATH: {
+            CHECK_INTERFACE(IGpuService, data, reply);
+
+            std::string driverPath = getUpdatableDriverPath();
+            return reply->writeUtf8AsUtf16(driverPath);
         }
         case SHELL_COMMAND_TRANSACTION: {
             int in = data.readFileDescriptor();
