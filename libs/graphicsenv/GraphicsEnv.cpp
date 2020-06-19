@@ -40,6 +40,13 @@
 #include <string>
 #include <thread>
 
+// TODO(b/159240322): Extend this to x86 ABI.
+#if defined(__LP64__)
+#define UPDATABLE_DRIVER_ABI "arm64-v8a"
+#else
+#define UPDATABLE_DRIVER_ABI "armeabi-v7a"
+#endif // defined(__LP64__)
+
 // TODO(ianelliott@): Get the following from an ANGLE header:
 #define CURRENT_ANGLE_API_VERSION 2 // Current API verion we are targetting
 // Version-2 API:
@@ -584,7 +591,28 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
     }
 
     if (mDriverPath.empty()) {
-        return nullptr;
+        // For an application process, driver path is empty means this application is not opted in
+        // to use updatable driver. Application process doesn't have the ability to set up
+        // environment variables and hence before `getenv` call will return.
+        // For a process that is not an application process, if it's run from an environment,
+        // for example shell, where environment variables can be set, then it can opt into using
+        // udpatable driver by setting UPDATABLE_GFX_DRIVER to 1. By setting to 1 the developer
+        // driver will be used currently.
+        // TODO(b/159240322) Support the production updatable driver.
+        const char* id = getenv("UPDATABLE_GFX_DRIVER");
+        if (id == nullptr || std::strcmp(id, "1")) {
+            return nullptr;
+        }
+        const sp<IGpuService> gpuService = getGpuService();
+        if (!gpuService) {
+            return nullptr;
+        }
+        mDriverPath = gpuService->getUpdatableDriverPath();
+        if (mDriverPath.empty()) {
+            return nullptr;
+        }
+        mDriverPath.append(UPDATABLE_DRIVER_ABI);
+        ALOGI("Driver path is setup via UPDATABLE_GFX_DRIVER: %s", mDriverPath.c_str());
     }
 
     auto vndkNamespace = android_get_exported_namespace("vndk");
