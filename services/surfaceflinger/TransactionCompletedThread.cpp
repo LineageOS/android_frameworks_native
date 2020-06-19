@@ -154,6 +154,9 @@ status_t TransactionCompletedThread::registerPendingCallbackHandle(
 
 status_t TransactionCompletedThread::finalizePendingCallbackHandles(
         const std::deque<sp<CallbackHandle>>& handles) {
+    if (handles.empty()) {
+        return NO_ERROR;
+    }
     std::lock_guard lock(mMutex);
     if (!mRunning) {
         ALOGE("cannot add presented callback handle because the callback thread isn't running");
