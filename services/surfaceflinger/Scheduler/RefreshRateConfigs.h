@@ -82,6 +82,8 @@ public:
             return configId != other.configId || hwcConfig != other.hwcConfig;
         }
 
+        bool operator<(const RefreshRate& other) const { return getFps() < other.getFps(); }
+
         bool operator==(const RefreshRate& other) const { return !(*this != other); }
 
     private:
@@ -270,6 +272,17 @@ public:
 
     RefreshRateConfigs(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
                        HwcConfigIndexType currentConfigId);
+
+    // Class to enumerate options around toggling the kernel timer on and off. We have an option
+    // for no change to avoid extra calls to kernel.
+    enum class KernelIdleTimerAction {
+        NoChange, // Do not change the idle timer.
+        TurnOff,  // Turn off the idle timer.
+        TurnOn    // Turn on the idle timer.
+    };
+    // Checks whether kernel idle timer should be active depending the policy decisions around
+    // refresh rates.
+    KernelIdleTimerAction getIdleTimerAction() const;
 
 private:
     friend class RefreshRateConfigsTest;
