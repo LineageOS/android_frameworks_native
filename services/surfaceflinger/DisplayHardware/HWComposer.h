@@ -64,6 +64,8 @@ struct KnownHWCGenericLayerMetadata {
     const uint32_t id;
 };
 
+// See the comment for SurfaceFlinger::getHwComposer for the thread safety rules for accessing
+// this class.
 class HWComposer {
 public:
     struct DeviceRequestedChanges {

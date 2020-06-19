@@ -36,6 +36,7 @@
 
 #include "DisplayDevice.h"
 #include "Layer.h"
+#include "Promise.h"
 #include "Scheduler/DispSync.h"
 #include "SurfaceFlinger.h"
 
@@ -336,8 +337,20 @@ void RegionSamplingThread::captureSample() {
         return;
     }
 
-    const auto device = mFlinger.getDefaultDisplayDevice();
-    const auto orientation = ui::Transform::toRotationFlags(device->getOrientation());
+    wp<const DisplayDevice> displayWeak;
+
+    ui::LayerStack layerStack;
+    ui::Transform::RotationFlags orientation;
+    ui::Size displaySize;
+
+    {
+        // TODO(b/159112860): Don't keep sp<DisplayDevice> outside of SF main thread
+        const sp<const DisplayDevice> display = mFlinger.getDefaultDisplayDevice();
+        displayWeak = display;
+        layerStack = display->getLayerStack();
+        orientation = ui::Transform::toRotationFlags(display->getOrientation());
+        displaySize = display->getSize();
+    }
 
     std::vector<RegionSamplingThread::Descriptor> descriptors;
     Region sampleRegion;
@@ -346,20 +359,18 @@ void RegionSamplingThread::captureSample() {
         descriptors.emplace_back(descriptor);
     }
 
-    const Rect sampledArea = sampleRegion.bounds();
-
     auto dx = 0;
     auto dy = 0;
     switch (orientation) {
         case ui::Transform::ROT_90:
-            dx = device->getWidth();
+            dx = displaySize.getWidth();
             break;
         case ui::Transform::ROT_180:
-            dx = device->getWidth();
-            dy = device->getHeight();
+            dx = displaySize.getWidth();
+            dy = displaySize.getHeight();
             break;
         case ui::Transform::ROT_270:
-            dy = device->getHeight();
+            dy = displaySize.getHeight();
             break;
         default:
             break;
@@ -368,8 +379,13 @@ void RegionSamplingThread::captureSample() {
     ui::Transform t(orientation);
     auto screencapRegion = t.transform(sampleRegion);
     screencapRegion = screencapRegion.translate(dx, dy);
-    DisplayRenderArea renderArea(device, screencapRegion.bounds(), sampledArea.getWidth(),
-                                 sampledArea.getHeight(), ui::Dataspace::V0_SRGB, orientation);
+
+    const Rect sampledBounds = sampleRegion.bounds();
+
+    SurfaceFlinger::RenderAreaFuture renderAreaFuture = promise::defer([=] {
+        return DisplayRenderArea::create(displayWeak, sampledBounds, sampledBounds.getSize(),
+                                         ui::Dataspace::V0_SRGB, orientation);
+    });
 
     std::unordered_set<sp<IRegionSamplingListener>, SpHash<IRegionSamplingListener>> listeners;
 
@@ -393,9 +409,9 @@ void RegionSamplingThread::captureSample() {
             constexpr bool roundOutwards = true;
             Rect transformed = transform.transform(bounds, roundOutwards);
 
-            // If this layer doesn't intersect with the larger sampledArea, skip capturing it
+            // If this layer doesn't intersect with the larger sampledBounds, skip capturing it
             Rect ignore;
-            if (!transformed.intersect(sampledArea, &ignore)) return;
+            if (!transformed.intersect(sampledBounds, &ignore)) return;
 
             // If the layer doesn't intersect a sampling area, skip capturing it
             bool intersectsAnyArea = false;
@@ -411,22 +427,22 @@ void RegionSamplingThread::captureSample() {
                   bounds.top, bounds.right, bounds.bottom);
             visitor(layer);
         };
-        mFlinger.traverseLayersInDisplay(device, filterVisitor);
+        mFlinger.traverseLayersInLayerStack(layerStack, filterVisitor);
     };
 
     sp<GraphicBuffer> buffer = nullptr;
-    if (mCachedBuffer && mCachedBuffer->getWidth() == sampledArea.getWidth() &&
-        mCachedBuffer->getHeight() == sampledArea.getHeight()) {
+    if (mCachedBuffer && mCachedBuffer->getWidth() == sampledBounds.getWidth() &&
+        mCachedBuffer->getHeight() == sampledBounds.getHeight()) {
         buffer = mCachedBuffer;
     } else {
         const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER;
-        buffer = new GraphicBuffer(sampledArea.getWidth(), sampledArea.getHeight(),
+        buffer = new GraphicBuffer(sampledBounds.getWidth(), sampledBounds.getHeight(),
                                    PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
     }
 
     bool ignored;
-    mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false /* identityTransform */,
-                                 true /* regionSampling */, ignored);
+    mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
+                                 false /* identityTransform */, true /* regionSampling */, ignored);
 
     std::vector<Descriptor> activeDescriptors;
     for (const auto& descriptor : descriptors) {
@@ -437,7 +453,7 @@ void RegionSamplingThread::captureSample() {
 
     ALOGV("Sampling %zu descriptors", activeDescriptors.size());
     std::vector<float> lumas =
-            sampleBuffer(buffer, sampledArea.leftTop(), activeDescriptors, orientation);
+            sampleBuffer(buffer, sampledBounds.leftTop(), activeDescriptors, orientation);
     if (lumas.size() != activeDescriptors.size()) {
         ALOGW("collected %zu median luma values for %zu descriptors", lumas.size(),
               activeDescriptors.size());

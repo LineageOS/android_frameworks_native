@@ -5415,27 +5415,33 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
         renderAreaRotation = ui::Transform::ROT_0;
     }
 
-    sp<DisplayDevice> display;
+    wp<DisplayDevice> displayWeak;
+    ui::LayerStack layerStack;
+    ui::Size reqSize(reqWidth, reqHeight);
     {
         Mutex::Autolock lock(mStateLock);
-
-        display = getDisplayDeviceLocked(displayToken);
+        sp<DisplayDevice> display = getDisplayDeviceLocked(displayToken);
         if (!display) return NAME_NOT_FOUND;
+        displayWeak = display;
+        layerStack = display->getLayerStack();
 
         // set the requested width/height to the logical display viewport size
         // by default
         if (reqWidth == 0 || reqHeight == 0) {
-            reqWidth = uint32_t(display->getViewport().width());
-            reqHeight = uint32_t(display->getViewport().height());
+            reqSize = display->getViewport().getSize();
         }
     }
 
-    DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, reqDataspace,
-                                 renderAreaRotation, captureSecureLayers);
-    auto traverseLayers = std::bind(&SurfaceFlinger::traverseLayersInDisplay, this, display,
-                                    std::placeholders::_1);
-    return captureScreenCommon(renderArea, traverseLayers, outBuffer, reqPixelFormat,
-                               useIdentityTransform, outCapturedSecureLayers);
+    RenderAreaFuture renderAreaFuture = promise::defer([=] {
+        return DisplayRenderArea::create(displayWeak, sourceCrop, reqSize, reqDataspace,
+                                         renderAreaRotation, captureSecureLayers);
+    });
+
+    auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
+        traverseLayersInLayerStack(layerStack, visitor);
+    };
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize, outBuffer,
+                               reqPixelFormat, useIdentityTransform, outCapturedSecureLayers);
 }
 
 static Dataspace pickDataspaceFromColorMode(const ColorMode colorMode) {
@@ -5491,19 +5497,20 @@ sp<DisplayDevice> SurfaceFlinger::getDisplayByLayerStack(uint64_t layerStack) {
 
 status_t SurfaceFlinger::captureScreen(uint64_t displayOrLayerStack, Dataspace* outDataspace,
                                        sp<GraphicBuffer>* outBuffer) {
-    sp<DisplayDevice> display;
-    uint32_t width;
-    uint32_t height;
+    ui::LayerStack layerStack;
+    wp<DisplayDevice> displayWeak;
+    ui::Size size;
     ui::Transform::RotationFlags captureOrientation;
     {
         Mutex::Autolock lock(mStateLock);
-        display = getDisplayByIdOrLayerStack(displayOrLayerStack);
+        sp<DisplayDevice> display = getDisplayByIdOrLayerStack(displayOrLayerStack);
         if (!display) {
             return NAME_NOT_FOUND;
         }
+        layerStack = display->getLayerStack();
+        displayWeak = display;
 
-        width = uint32_t(display->getViewport().width());
-        height = uint32_t(display->getViewport().height());
+        size = display->getViewport().getSize();
 
         const auto orientation = display->getOrientation();
         captureOrientation = ui::Transform::toRotationFlags(orientation);
@@ -5529,14 +5536,19 @@ status_t SurfaceFlinger::captureScreen(uint64_t displayOrLayerStack, Dataspace* 
                 pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
     }
 
-    DisplayRenderArea renderArea(display, Rect(), width, height, *outDataspace, captureOrientation,
-                                 false /* captureSecureLayers */);
+    RenderAreaFuture renderAreaFuture = promise::defer([=] {
+        return DisplayRenderArea::create(displayWeak, Rect(), size, *outDataspace,
+                                         captureOrientation, false /* captureSecureLayers */);
+    });
 
-    auto traverseLayers = std::bind(&SurfaceFlinger::traverseLayersInDisplay, this, display,
-                                    std::placeholders::_1);
+    auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
+        traverseLayersInLayerStack(layerStack, visitor);
+    };
+
     bool ignored = false;
-    return captureScreenCommon(renderArea, traverseLayers, outBuffer, ui::PixelFormat::RGBA_8888,
-                               false /* useIdentityTransform */,
+
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size, outBuffer,
+                               ui::PixelFormat::RGBA_8888, false /* useIdentityTransform */,
                                ignored /* outCapturedSecureLayers */);
 }
 
@@ -5550,9 +5562,9 @@ status_t SurfaceFlinger::captureLayers(
     class LayerRenderArea : public RenderArea {
     public:
         LayerRenderArea(SurfaceFlinger* flinger, const sp<Layer>& layer, const Rect crop,
-                        int32_t reqWidth, int32_t reqHeight, Dataspace reqDataSpace,
-                        bool childrenOnly, const Rect& displayViewport)
-              : RenderArea(reqWidth, reqHeight, CaptureFill::CLEAR, reqDataSpace, displayViewport),
+                        ui::Size reqSize, Dataspace reqDataSpace, bool childrenOnly,
+                        const Rect& displayViewport)
+              : RenderArea(reqSize, CaptureFill::CLEAR, reqDataSpace, displayViewport),
                 mLayer(layer),
                 mCrop(crop),
                 mNeedsFiltering(false),
@@ -5627,8 +5639,7 @@ status_t SurfaceFlinger::captureLayers(
         const bool mChildrenOnly;
     };
 
-    int reqWidth = 0;
-    int reqHeight = 0;
+    ui::Size reqSize;
     sp<Layer> parent;
     Rect crop(sourceCrop);
     std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
@@ -5665,8 +5676,7 @@ status_t SurfaceFlinger::captureLayers(
             // crop was not specified, or an invalid frame scale was provided.
             return BAD_VALUE;
         }
-        reqWidth = crop.width() * frameScale;
-        reqHeight = crop.height() * frameScale;
+        reqSize = ui::Size(crop.width() * frameScale, crop.height() * frameScale);
 
         for (const auto& handle : excludeHandles) {
             sp<Layer> excludeLayer = fromHandleLocked(handle).promote();
@@ -5687,15 +5697,18 @@ status_t SurfaceFlinger::captureLayers(
     } // mStateLock
 
     // really small crop or frameScale
-    if (reqWidth <= 0) {
-        reqWidth = 1;
+    if (reqSize.width <= 0) {
+        reqSize.width = 1;
     }
-    if (reqHeight <= 0) {
-        reqHeight = 1;
+    if (reqSize.height <= 0) {
+        reqSize.height = 1;
     }
 
-    LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, reqDataspace, childrenOnly,
-                               displayViewport);
+    RenderAreaFuture renderAreaFuture = promise::defer([=]() -> std::unique_ptr<RenderArea> {
+        return std::make_unique<LayerRenderArea>(this, parent, crop, reqSize, reqDataspace,
+                                                 childrenOnly, displayViewport);
+    });
+
     auto traverseLayers = [parent, childrenOnly,
                            &excludeLayers](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
@@ -5718,14 +5731,14 @@ status_t SurfaceFlinger::captureLayers(
     };
 
     bool outCapturedSecureLayers = false;
-    return captureScreenCommon(renderArea, traverseLayers, outBuffer, reqPixelFormat, false,
-                               outCapturedSecureLayers);
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize, outBuffer,
+                               reqPixelFormat, false, outCapturedSecureLayers);
 }
 
-status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
+status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
-                                             sp<GraphicBuffer>* outBuffer,
-                                             const ui::PixelFormat reqPixelFormat,
+                                             ui::Size bufferSize, sp<GraphicBuffer>* outBuffer,
+                                             ui::PixelFormat reqPixelFormat,
                                              bool useIdentityTransform,
                                              bool& outCapturedSecureLayers) {
     ATRACE_CALL();
@@ -5733,16 +5746,16 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
     // TODO(b/116112787) Make buffer usage a parameter.
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
-    *outBuffer =
-            getFactory().createGraphicBuffer(renderArea.getReqWidth(), renderArea.getReqHeight(),
-                                             static_cast<android_pixel_format>(reqPixelFormat), 1,
-                                             usage, "screenshot");
+    *outBuffer = getFactory().createGraphicBuffer(bufferSize.getWidth(), bufferSize.getHeight(),
+                                                  static_cast<android_pixel_format>(reqPixelFormat),
+                                                  1, usage, "screenshot");
 
-    return captureScreenCommon(renderArea, traverseLayers, *outBuffer, useIdentityTransform,
-                               false /* regionSampling */, outCapturedSecureLayers);
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, *outBuffer,
+                               useIdentityTransform, false /* regionSampling */,
+                               outCapturedSecureLayers);
 }
 
-status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
+status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
                                              const sp<GraphicBuffer>& buffer,
                                              bool useIdentityTransform, bool regionSampling,
@@ -5755,23 +5768,28 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
 
     do {
         std::tie(result, syncFd) =
-                schedule([&] {
+                schedule([&]() -> std::pair<status_t, int> {
                     if (mRefreshPending) {
-                        ATRACE_NAME("Skipping screenshot for now");
-                        return std::make_pair(EAGAIN, -1);
+                        ALOGW("Skipping screenshot for now");
+                        return {EAGAIN, -1};
+                    }
+                    std::unique_ptr<RenderArea> renderArea = renderAreaFuture.get();
+                    if (!renderArea) {
+                        ALOGW("Skipping screen capture because of invalid render area.");
+                        return {NO_MEMORY, -1};
                     }
 
                     status_t result = NO_ERROR;
                     int fd = -1;
 
                     Mutex::Autolock lock(mStateLock);
-                    renderArea.render([&] {
-                        result = captureScreenImplLocked(renderArea, traverseLayers, buffer.get(),
+                    renderArea->render([&] {
+                        result = captureScreenImplLocked(*renderArea, traverseLayers, buffer.get(),
                                                          useIdentityTransform, forSystem, &fd,
                                                          regionSampling, outCapturedSecureLayers);
                     });
 
-                    return std::make_pair(result, fd);
+                    return {result, fd};
                 }).get();
     } while (result == EAGAIN);
 
@@ -5930,17 +5948,17 @@ void SurfaceFlinger::State::traverseInReverseZOrder(const LayerVector::Visitor& 
     layersSortedByZ.traverseInReverseZOrder(stateSet, visitor);
 }
 
-void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& display,
-                                             const LayerVector::Visitor& visitor) {
+void SurfaceFlinger::traverseLayersInLayerStack(ui::LayerStack layerStack,
+                                                const LayerVector::Visitor& visitor) {
     // We loop through the first level of layers without traversing,
     // as we need to determine which layers belong to the requested display.
     for (const auto& layer : mDrawingState.layersSortedByZ) {
-        if (!layer->belongsToDisplay(display->getLayerStack(), false)) {
+        if (!layer->belongsToDisplay(layerStack, false)) {
             continue;
         }
         // relative layers are traversed in Layer::traverseInZOrder
         layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
-            if (!layer->belongsToDisplay(display->getLayerStack(), false)) {
+            if (!layer->belongsToDisplay(layerStack, false)) {
                 return;
             }
             if (!layer->isVisible()) {
