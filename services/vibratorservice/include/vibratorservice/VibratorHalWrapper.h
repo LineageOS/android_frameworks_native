@@ -21,6 +21,8 @@
 #include <android/hardware/vibrator/1.3/IVibrator.h>
 #include <android/hardware/vibrator/IVibrator.h>
 
+#include <vibratorservice/VibratorCallbackScheduler.h>
+
 namespace android {
 
 namespace vibrator {
@@ -46,7 +48,7 @@ public:
                                    hardware::vibrator::V1_0::Status status, T data);
 
     // This will throw std::bad_optional_access if this result is not ok.
-    T value() const { return mValue.value(); }
+    const T& value() const { return mValue.value(); }
     bool isOk() const { return !mUnsupported && mValue.has_value(); }
     bool isFailed() const { return !mUnsupported && !mValue.has_value(); }
     bool isUnsupported() const { return mUnsupported; }
@@ -122,6 +124,8 @@ inline Capabilities& operator&=(Capabilities& lhs, Capabilities rhs) {
 // Wrapper for Vibrator HAL handlers.
 class HalWrapper {
 public:
+    explicit HalWrapper(std::shared_ptr<CallbackScheduler> scheduler)
+          : mCallbackScheduler(std::move(scheduler)) {}
     virtual ~HalWrapper() = default;
 
     virtual HalResult<void> ping() = 0;
@@ -147,13 +151,19 @@ public:
     virtual HalResult<void> performComposedEffect(
             const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
             const std::function<void()>& completionCallback) = 0;
+
+protected:
+    // Shared pointer to allow CallbackScheduler to outlive this wrapper.
+    const std::shared_ptr<CallbackScheduler> mCallbackScheduler;
 };
 
 // Wrapper for the AIDL Vibrator HAL.
 class AidlHalWrapper : public HalWrapper {
 public:
-    explicit AidlHalWrapper(sp<hardware::vibrator::IVibrator> handle)
-          : mHandle(std::move(handle)) {}
+    AidlHalWrapper(std::shared_ptr<CallbackScheduler> scheduler,
+                   sp<hardware::vibrator::IVibrator> handle)
+          : HalWrapper(std::move(scheduler)), mHandle(std::move(handle)) {}
+    virtual ~AidlHalWrapper() = default;
 
     virtual HalResult<void> ping() override;
 
@@ -186,13 +196,19 @@ private:
     std::optional<Capabilities> mCapabilities GUARDED_BY(mCapabilitiesMutex);
     std::optional<std::vector<hardware::vibrator::Effect>> mSupportedEffects
             GUARDED_BY(mSupportedEffectsMutex);
+
+    // Loads directly from IVibrator handle, skipping caches.
+    HalResult<Capabilities> getCapabilitiesInternal();
+    HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffectsInternal();
 };
 
 // Wrapper for the HDIL Vibrator HAL v1.0.
 class HidlHalWrapperV1_0 : public HalWrapper {
 public:
-    explicit HidlHalWrapperV1_0(sp<hardware::vibrator::V1_0::IVibrator> handle)
-          : mHandleV1_0(std::move(handle)) {}
+    HidlHalWrapperV1_0(std::shared_ptr<CallbackScheduler> scheduler,
+                       sp<hardware::vibrator::V1_0::IVibrator> handle)
+          : HalWrapper(std::move(scheduler)), mHandleV1_0(std::move(handle)) {}
+    virtual ~HidlHalWrapperV1_0() = default;
 
     virtual HalResult<void> ping() override;
 
@@ -225,14 +241,31 @@ protected:
 
     // Loads directly from IVibrator handle, skipping the mCapabilities cache.
     virtual HalResult<Capabilities> getCapabilitiesInternal();
+
+    template <class I, class T>
+    using perform_fn =
+            hardware::Return<void> (I::*)(T, hardware::vibrator::V1_0::EffectStrength,
+                                          hardware::vibrator::V1_0::IVibrator::perform_cb);
+
+    template <class I, class T>
+    HalResult<std::chrono::milliseconds> performInternal(
+            perform_fn<I, T> performFn, sp<I> handle, T effect,
+            hardware::vibrator::EffectStrength strength,
+            const std::function<void()>& completionCallback);
+
+    HalResult<std::chrono::milliseconds> performInternalV1_0(
+            hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
+            const std::function<void()>& completionCallback);
 };
 
 // Wrapper for the HDIL Vibrator HAL v1.1.
 class HidlHalWrapperV1_1 : public HidlHalWrapperV1_0 {
 public:
-    explicit HidlHalWrapperV1_1(sp<hardware::vibrator::V1_0::IVibrator> handleV1_0)
-          : HidlHalWrapperV1_0(handleV1_0),
+    HidlHalWrapperV1_1(std::shared_ptr<CallbackScheduler> scheduler,
+                       sp<hardware::vibrator::V1_0::IVibrator> handleV1_0)
+          : HidlHalWrapperV1_0(std::move(scheduler), handleV1_0),
             mHandleV1_1(hardware::vibrator::V1_1::IVibrator::castFrom(handleV1_0)) {}
+    virtual ~HidlHalWrapperV1_1() = default;
 
     virtual HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
@@ -240,14 +273,20 @@ public:
 
 protected:
     const sp<hardware::vibrator::V1_1::IVibrator> mHandleV1_1;
+
+    HalResult<std::chrono::milliseconds> performInternalV1_1(
+            hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
+            const std::function<void()>& completionCallback);
 };
 
 // Wrapper for the HDIL Vibrator HAL v1.2.
 class HidlHalWrapperV1_2 : public HidlHalWrapperV1_1 {
 public:
-    explicit HidlHalWrapperV1_2(sp<hardware::vibrator::V1_0::IVibrator> handleV1_0)
-          : HidlHalWrapperV1_1(handleV1_0),
+    HidlHalWrapperV1_2(std::shared_ptr<CallbackScheduler> scheduler,
+                       sp<hardware::vibrator::V1_0::IVibrator> handleV1_0)
+          : HidlHalWrapperV1_1(std::move(scheduler), handleV1_0),
             mHandleV1_2(hardware::vibrator::V1_2::IVibrator::castFrom(handleV1_0)) {}
+    virtual ~HidlHalWrapperV1_2() = default;
 
     virtual HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
@@ -255,14 +294,20 @@ public:
 
 protected:
     const sp<hardware::vibrator::V1_2::IVibrator> mHandleV1_2;
+
+    HalResult<std::chrono::milliseconds> performInternalV1_2(
+            hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
+            const std::function<void()>& completionCallback);
 };
 
 // Wrapper for the HDIL Vibrator HAL v1.3.
 class HidlHalWrapperV1_3 : public HidlHalWrapperV1_2 {
 public:
-    explicit HidlHalWrapperV1_3(sp<hardware::vibrator::V1_0::IVibrator> handleV1_0)
-          : HidlHalWrapperV1_2(handleV1_0),
+    HidlHalWrapperV1_3(std::shared_ptr<CallbackScheduler> scheduler,
+                       sp<hardware::vibrator::V1_0::IVibrator> handleV1_0)
+          : HidlHalWrapperV1_2(std::move(scheduler), handleV1_0),
             mHandleV1_3(hardware::vibrator::V1_3::IVibrator::castFrom(handleV1_0)) {}
+    virtual ~HidlHalWrapperV1_3() = default;
 
     virtual HalResult<void> setExternalControl(bool enabled) override;
 
@@ -274,6 +319,9 @@ protected:
     const sp<hardware::vibrator::V1_3::IVibrator> mHandleV1_3;
 
     virtual HalResult<Capabilities> getCapabilitiesInternal() override;
+    HalResult<std::chrono::milliseconds> performInternalV1_3(
+            hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
+            const std::function<void()>& completionCallback);
 };
 
 // -------------------------------------------------------------------------------------------------
