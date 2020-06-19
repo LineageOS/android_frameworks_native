@@ -3569,6 +3569,10 @@ std::vector<sp<InputWindowHandle>> InputDispatcher::getWindowHandlesLocked(
 
 sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(
         const sp<IBinder>& windowHandleToken) const {
+    if (windowHandleToken == nullptr) {
+        return nullptr;
+    }
+
     for (auto& it : mWindowHandlesByDisplay) {
         const std::vector<sp<InputWindowHandle>> windowHandles = it.second;
         for (const sp<InputWindowHandle>& windowHandle : windowHandles) {
@@ -3580,21 +3584,22 @@ sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(
     return nullptr;
 }
 
-bool InputDispatcher::hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const {
-    for (auto& it : mWindowHandlesByDisplay) {
-        const std::vector<sp<InputWindowHandle>> windowHandles = it.second;
-        for (const sp<InputWindowHandle>& handle : windowHandles) {
-            if (handle->getToken() == windowHandle->getToken()) {
-                if (windowHandle->getInfo()->displayId != it.first) {
-                    ALOGE("Found window %s in display %" PRId32
-                          ", but it should belong to display %" PRId32,
-                          windowHandle->getName().c_str(), it.first,
-                          windowHandle->getInfo()->displayId);
-                }
-                return true;
+bool InputDispatcher::hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle,
+                                            int32_t displayId) const {
+    const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
+    for (const sp<InputWindowHandle>& handle : windowHandles) {
+        if (handle->getId() == windowHandle->getId() &&
+            handle->getToken() == windowHandle->getToken()) {
+            if (handle->getInfo()->displayId != displayId) {
+                ALOGE("Found window %s in display %" PRId32
+                      ", but it should belong to display %" PRId32,
+                      windowHandle->getName().c_str(), displayId,
+                      windowHandle->getInfo()->displayId);
             }
+            return true;
         }
     }
+
     return false;
 }
 
@@ -3754,7 +3759,7 @@ void InputDispatcher::setInputWindowsLocked(
         TouchState& state = stateIt->second;
         for (size_t i = 0; i < state.windows.size();) {
             TouchedWindow& touchedWindow = state.windows[i];
-            if (!hasWindowHandleLocked(touchedWindow.windowHandle)) {
+            if (!hasWindowHandleLocked(touchedWindow.windowHandle, displayId)) {
                 if (DEBUG_FOCUS) {
                     ALOGD("Touched window was removed: %s in display %" PRId32,
                           touchedWindow.windowHandle->getName().c_str(), displayId);
@@ -3778,7 +3783,7 @@ void InputDispatcher::setInputWindowsLocked(
     // Otherwise, they might stick around until the window handle is destroyed
     // which might not happen until the next GC.
     for (const sp<InputWindowHandle>& oldWindowHandle : oldWindowHandles) {
-        if (!hasWindowHandleLocked(oldWindowHandle)) {
+        if (!hasWindowHandleLocked(oldWindowHandle, displayId)) {
             if (DEBUG_FOCUS) {
                 ALOGD("Window went away: %s", oldWindowHandle->getName().c_str());
             }
