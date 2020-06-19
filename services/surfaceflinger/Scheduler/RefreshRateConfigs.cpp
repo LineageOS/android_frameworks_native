@@ -595,4 +595,28 @@ float RefreshRateConfigs::findClosestKnownFrameRate(float frameRate) const {
     return distance1 < distance2 ? *lowerBound : *std::prev(lowerBound);
 }
 
+RefreshRateConfigs::KernelIdleTimerAction RefreshRateConfigs::getIdleTimerAction() const {
+    std::lock_guard lock(mLock);
+    const auto& deviceMin = getMinRefreshRate();
+    const auto& minByPolicy = getMinRefreshRateByPolicyLocked();
+    const auto& maxByPolicy = getMaxRefreshRateByPolicyLocked();
+
+    // Kernel idle timer will set the refresh rate to the device min. If DisplayManager says that
+    // the min allowed refresh rate is higher than the device min, we do not want to enable the
+    // timer.
+    if (deviceMin < minByPolicy) {
+        return RefreshRateConfigs::KernelIdleTimerAction::TurnOff;
+    }
+    if (minByPolicy == maxByPolicy) {
+        // Do not sent the call to toggle off kernel idle timer if the device min and policy min and
+        // max are all the same. This saves us extra unnecessary calls to sysprop.
+        if (deviceMin == minByPolicy) {
+            return RefreshRateConfigs::KernelIdleTimerAction::NoChange;
+        }
+        return RefreshRateConfigs::KernelIdleTimerAction::TurnOff;
+    }
+    // Turn on the timer in all other cases.
+    return RefreshRateConfigs::KernelIdleTimerAction::TurnOn;
+}
+
 } // namespace android::scheduler
