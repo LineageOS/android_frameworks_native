@@ -23,6 +23,7 @@
 
 #include "SurfaceFlinger.h"
 
+#include <android-base/properties.h>
 #include <android/configuration.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
@@ -444,6 +445,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     }
 
     useFrameRateApi = use_frame_rate_api(true);
+
+    mKernelIdleTimerEnabled = mSupportKernelIdleTimer = sysprop::support_kernel_idle_timer(false);
+    base::SetProperty(KERNEL_IDLE_TIMER_PROP, mKernelIdleTimerEnabled ? "true" : "false");
 }
 
 SurfaceFlinger::~SurfaceFlinger() = default;
@@ -5355,8 +5359,7 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
         const auto& min = mRefreshRateConfigs->getMinRefreshRate();
 
         if (current != min) {
-            const auto kernelTimerEnabled = property_get_bool(KERNEL_IDLE_TIMER_PROP, false);
-            const bool timerExpired = kernelTimerEnabled && expired;
+            const bool timerExpired = mKernelIdleTimerEnabled && expired;
 
             if (Mutex::Autolock lock(mStateLock); mRefreshRateOverlay) {
                 mRefreshRateOverlay->changeRefreshRate(timerExpired ? min : current);
@@ -5364,6 +5367,35 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
             mEventQueue->invalidate();
         }
     }));
+}
+
+void SurfaceFlinger::toggleKernelIdleTimer() {
+    using KernelIdleTimerAction = scheduler::RefreshRateConfigs::KernelIdleTimerAction;
+
+    // If the support for kernel idle timer is disabled in SF code, don't do anything.
+    if (!mSupportKernelIdleTimer) {
+        return;
+    }
+    const KernelIdleTimerAction action = mRefreshRateConfigs->getIdleTimerAction();
+
+    switch (action) {
+        case KernelIdleTimerAction::TurnOff:
+            if (mKernelIdleTimerEnabled) {
+                ATRACE_INT("KernelIdleTimer", 0);
+                base::SetProperty(KERNEL_IDLE_TIMER_PROP, "false");
+                mKernelIdleTimerEnabled = false;
+            }
+            break;
+        case KernelIdleTimerAction::TurnOn:
+            if (!mKernelIdleTimerEnabled) {
+                ATRACE_INT("KernelIdleTimer", 1);
+                base::SetProperty(KERNEL_IDLE_TIMER_PROP, "true");
+                mKernelIdleTimerEnabled = true;
+            }
+            break;
+        case KernelIdleTimerAction::NoChange:
+            break;
+    }
 }
 
 // A simple RAII class to disconnect from an ANativeWindow* when it goes out of scope
@@ -5992,14 +6024,14 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
           currentPolicy.primaryRange.max, currentPolicy.appRequestRange.min,
           currentPolicy.appRequestRange.max);
 
-    // TODO(b/140204874): This hack triggers a notification that something has changed, so
-    // that listeners that care about a change in allowed configs can get the notification.
-    // Giving current ActiveConfig so that most other listeners would just drop the event
+    // TODO(b/140204874): Leave the event in until we do proper testing with all apps that might
+    // be depending in this callback.
     const nsecs_t vsyncPeriod =
             mRefreshRateConfigs->getRefreshRateFromConfigId(display->getActiveConfig())
                     .getVsyncPeriod();
     mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, display->getId()->value,
                                               display->getActiveConfig(), vsyncPeriod);
+    toggleKernelIdleTimer();
 
     auto configId = mScheduler->getPreferredConfigId();
     auto& preferredRefreshRate = configId

@@ -1420,6 +1420,34 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_KnownFrameRate) {
     }
 }
 
+TEST_F(RefreshRateConfigsTest, testComparisonOperator) {
+    EXPECT_TRUE(mExpected60Config < mExpected90Config);
+    EXPECT_FALSE(mExpected60Config < mExpected60Config);
+    EXPECT_FALSE(mExpected90Config < mExpected90Config);
+}
+
+TEST_F(RefreshRateConfigsTest, testKernelIdleTimerAction) {
+    using KernelIdleTimerAction = scheduler::RefreshRateConfigs::KernelIdleTimerAction;
+
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_90);
+    // SetPolicy(60, 90), current 90Hz => TurnOn.
+    EXPECT_EQ(KernelIdleTimerAction::TurnOn, refreshRateConfigs->getIdleTimerAction());
+
+    // SetPolicy(60, 90), current 60Hz => TurnOn.
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {60, 90}}), 0);
+    EXPECT_EQ(KernelIdleTimerAction::TurnOn, refreshRateConfigs->getIdleTimerAction());
+
+    // SetPolicy(60, 60), current 60Hz => NoChange, avoid extra calls.
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {60, 60}}), 0);
+    EXPECT_EQ(KernelIdleTimerAction::NoChange, refreshRateConfigs->getIdleTimerAction());
+
+    // SetPolicy(90, 90), current 90Hz => TurnOff.
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {90, 90}}), 0);
+    EXPECT_EQ(KernelIdleTimerAction::TurnOff, refreshRateConfigs->getIdleTimerAction());
+}
+
 } // namespace
 } // namespace scheduler
 } // namespace android
