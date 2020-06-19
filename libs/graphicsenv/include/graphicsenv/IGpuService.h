@@ -42,6 +42,10 @@ public:
     // set target stats.
     virtual void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
                                 const GpuStatsInfo::Stats stats, const uint64_t value = 0) = 0;
+
+    // setter and getter for updatable driver path.
+    virtual void setUpdatableDriverPath(const std::string& driverPath) = 0;
+    virtual std::string getUpdatableDriverPath() = 0;
 };
 
 class BnGpuService : public BnInterface<IGpuService> {
@@ -49,6 +53,8 @@ public:
     enum IGpuServiceTag {
         SET_GPU_STATS = IBinder::FIRST_CALL_TRANSACTION,
         SET_TARGET_STATS,
+        SET_UPDATABLE_DRIVER_PATH,
+        GET_UPDATABLE_DRIVER_PATH,
         // Always append new enum to the end.
     };
 
