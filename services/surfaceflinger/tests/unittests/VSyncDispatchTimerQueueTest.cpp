@@ -701,6 +701,52 @@ TEST_F(VSyncDispatchTimerQueueTest, skipsSchedulingIfTimerReschedulingIsImminent
     EXPECT_THAT(cb.mCalls.size(), Eq(1));
 }
 
+// b/154303580.
+TEST_F(VSyncDispatchTimerQueueTest, skipsRearmingWhenNotNextScheduled) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmCancel()).InSequence(seq);
+    CountingCallback cb1(mDispatch);
+    CountingCallback cb2(mDispatch);
+
+    EXPECT_EQ(mDispatch.schedule(cb1, 400, 1000), ScheduleResult::Scheduled);
+    EXPECT_EQ(mDispatch.schedule(cb2, 100, 2000), ScheduleResult::Scheduled);
+
+    mMockClock.setLag(100);
+    mMockClock.advanceBy(620);
+
+    EXPECT_EQ(mDispatch.cancel(cb2), CancelResult::Cancelled);
+
+    mMockClock.advanceBy(80);
+
+    EXPECT_THAT(cb1.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb2.mCalls.size(), Eq(0));
+}
+
+TEST_F(VSyncDispatchTimerQueueTest, rearmsWhenCancelledAndIsNextScheduled) {
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmIn(_, 1280)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmCancel()).InSequence(seq);
+    CountingCallback cb1(mDispatch);
+    CountingCallback cb2(mDispatch);
+
+    EXPECT_EQ(mDispatch.schedule(cb1, 400, 1000), ScheduleResult::Scheduled);
+    EXPECT_EQ(mDispatch.schedule(cb2, 100, 2000), ScheduleResult::Scheduled);
+
+    mMockClock.setLag(100);
+    mMockClock.advanceBy(620);
+
+    EXPECT_EQ(mDispatch.cancel(cb1), CancelResult::Cancelled);
+
+    EXPECT_THAT(cb1.mCalls.size(), Eq(0));
+    EXPECT_THAT(cb2.mCalls.size(), Eq(0));
+    mMockClock.advanceToNextCallback();
+
+    EXPECT_THAT(cb1.mCalls.size(), Eq(0));
+    EXPECT_THAT(cb2.mCalls.size(), Eq(1));
+}
+
 class VSyncDispatchTimerQueueEntryTest : public testing::Test {
 protected:
     nsecs_t const mPeriod = 1000;

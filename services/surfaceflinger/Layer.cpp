@@ -866,13 +866,12 @@ bool Layer::applyPendingStates(State* stateToCommit) {
     }
 
     // If we still have pending updates, we need to ensure SurfaceFlinger
-    // will keep calling doTransaction, and so we set the transaction flags.
+    // will keep calling doTransaction, and so we force a traversal.
     // However, our pending states won't clear until a frame is available,
-    // and so there is no need to specifically trigger a wakeup. Rather
-    // we set the flags and wait for something else to wake us up.
+    // and so there is no need to specifically trigger a wakeup.
     if (!mPendingStates.empty()) {
         setTransactionFlags(eTransactionNeeded);
-        mFlinger->setTransactionFlagsNoWake(eTraversalNeeded);
+        mFlinger->setTraversalNeeded();
     }
 
     mCurrentState.modified = false;
@@ -2409,7 +2408,15 @@ InputWindowInfo Layer::fillInputInfo() {
     // Position the touchable region relative to frame screen location and restrict it to frame
     // bounds.
     info.touchableRegion = info.touchableRegion.translate(info.frameLeft, info.frameTop);
-    info.visible = canReceiveInput();
+    // For compatibility reasons we let layers which can receive input
+    // receive input before they have actually submitted a buffer. Because
+    // of this we use canReceiveInput instead of isVisible to check the
+    // policy-visibility, ignoring the buffer state. However for layers with
+    // hasInputInfo()==false we can use the real visibility state.
+    // We are just using these layers for occlusion detection in
+    // InputDispatcher, and obviously if they aren't visible they can't occlude
+    // anything.
+    info.visible = hasInputInfo() ? canReceiveInput() : isVisible();
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {

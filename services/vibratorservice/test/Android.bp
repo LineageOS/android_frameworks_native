@@ -16,6 +16,7 @@ cc_test {
     name: "libvibratorservice_test",
     test_suites: ["device-tests"],
     srcs: [
+        "VibratorCallbackSchedulerTest.cpp",
         "VibratorHalWrapperAidlTest.cpp",
         "VibratorHalWrapperHidlV1_0Test.cpp",
         "VibratorHalWrapperHidlV1_1Test.cpp",
