@@ -123,8 +123,8 @@ enum ResNsendFlags : uint32_t {
     ANDROID_RESOLV_NO_RETRY = 1 << 0,
 
     /**
-     * Do not cache the result of the lookup. The lookup may return a result that is already
-     * in the cache, unless the ANDROID_RESOLV_NO_CACHE_LOOKUP flag is also specified.
+     * Don't lookup this request in the cache, and don't cache the result of the lookup.
+     * This flag implies {@link #ANDROID_RESOLV_NO_CACHE_LOOKUP}.
      */
     ANDROID_RESOLV_NO_CACHE_STORE = 1 << 1,
 
