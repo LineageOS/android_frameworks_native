@@ -51,6 +51,8 @@ private:
                      int64_t driverLoadingTime) override;
     void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
                         const GpuStatsInfo::Stats stats, const uint64_t value) override;
+    void setUpdatableDriverPath(const std::string& driverPath) override;
+    std::string getUpdatableDriverPath() override;
 
     /*
      * IBinder interface
@@ -75,6 +77,7 @@ private:
      */
     std::unique_ptr<GpuMem> mGpuMem;
     std::unique_ptr<GpuStats> mGpuStats;
+    std::string developerDriverPath;
 };
 
 } // namespace android

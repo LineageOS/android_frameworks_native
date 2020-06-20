@@ -233,23 +233,22 @@ void CompositionTest::captureScreenComposition() {
     constexpr bool forSystem = true;
     constexpr bool regionSampling = false;
 
-    DisplayRenderArea renderArea(mDisplay, sourceCrop, DEFAULT_DISPLAY_WIDTH,
-                                 DEFAULT_DISPLAY_HEIGHT, ui::Dataspace::V0_SRGB,
-                                 ui::Transform::ROT_0);
+    auto renderArea = DisplayRenderArea::create(mDisplay, sourceCrop, sourceCrop.getSize(),
+                                                ui::Dataspace::V0_SRGB, ui::Transform::ROT_0);
 
     auto traverseLayers = [this](const LayerVector::Visitor& visitor) {
-        return mFlinger.traverseLayersInDisplay(mDisplay, visitor);
+        return mFlinger.traverseLayersInLayerStack(mDisplay->getLayerStack(), visitor);
     };
 
     // TODO: Eliminate expensive/real allocation if possible.
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
-    mCaptureScreenBuffer = new GraphicBuffer(renderArea.getReqWidth(), renderArea.getReqHeight(),
+    mCaptureScreenBuffer = new GraphicBuffer(renderArea->getReqWidth(), renderArea->getReqHeight(),
                                              HAL_PIXEL_FORMAT_RGBA_8888, 1, usage, "screenshot");
 
     int fd = -1;
     status_t result =
-            mFlinger.captureScreenImplLocked(renderArea, traverseLayers, mCaptureScreenBuffer.get(),
+            mFlinger.captureScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer.get(),
                                              useIdentityTransform, forSystem, &fd, regionSampling);
     if (fd >= 0) {
         close(fd);

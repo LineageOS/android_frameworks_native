@@ -59,12 +59,14 @@ class Display;
 class DisplaySurface;
 } // namespace compositionengine
 
-class DisplayDevice : public LightRefBase<DisplayDevice> {
+class DisplayDevice : public RefBase {
 public:
     constexpr static float sDefaultMinLumiance = 0.0;
     constexpr static float sDefaultMaxLumiance = 500.0;
 
     explicit DisplayDevice(DisplayDeviceCreationArgs& args);
+
+    // Must be destroyed on the main thread because it may call into HWComposer.
     virtual ~DisplayDevice();
 
     std::shared_ptr<compositionengine::Display> getCompositionDisplay() const {
@@ -246,21 +248,18 @@ struct DisplayDeviceCreationArgs {
 
 class DisplayRenderArea : public RenderArea {
 public:
-    DisplayRenderArea(const sp<const DisplayDevice>& display,
-                      RotationFlags rotation = ui::Transform::ROT_0)
-          : DisplayRenderArea(display, display->getBounds(),
-                              static_cast<uint32_t>(display->getWidth()),
-                              static_cast<uint32_t>(display->getHeight()),
-                              display->getCompositionDataSpace(), rotation) {}
-
-    DisplayRenderArea(sp<const DisplayDevice> display, const Rect& sourceCrop, uint32_t reqWidth,
-                      uint32_t reqHeight, ui::Dataspace reqDataSpace, RotationFlags rotation,
-                      bool allowSecureLayers = true)
-          : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE, reqDataSpace,
-                       display->getViewport(), applyDeviceOrientation(rotation, display)),
-            mDisplay(std::move(display)),
-            mSourceCrop(sourceCrop),
-            mAllowSecureLayers(allowSecureLayers) {}
+    static std::unique_ptr<RenderArea> create(wp<const DisplayDevice> displayWeak,
+                                              const Rect& sourceCrop, ui::Size reqSize,
+                                              ui::Dataspace reqDataSpace, RotationFlags rotation,
+                                              bool allowSecureLayers = true) {
+        if (auto display = displayWeak.promote()) {
+            // Using new to access a private constructor.
+            return std::unique_ptr<DisplayRenderArea>(
+                    new DisplayRenderArea(std::move(display), sourceCrop, reqSize, reqDataSpace,
+                                          rotation, allowSecureLayers));
+        }
+        return nullptr;
+    }
 
     const ui::Transform& getTransform() const override { return mTransform; }
     Rect getBounds() const override { return mDisplay->getBounds(); }
@@ -307,6 +306,14 @@ public:
     }
 
 private:
+    DisplayRenderArea(sp<const DisplayDevice> display, const Rect& sourceCrop, ui::Size reqSize,
+                      ui::Dataspace reqDataSpace, RotationFlags rotation, bool allowSecureLayers)
+          : RenderArea(reqSize, CaptureFill::OPAQUE, reqDataSpace, display->getViewport(),
+                       applyDeviceOrientation(rotation, display)),
+            mDisplay(std::move(display)),
+            mSourceCrop(sourceCrop),
+            mAllowSecureLayers(allowSecureLayers) {}
+
     static RotationFlags applyDeviceOrientation(RotationFlags orientationFlag,
                                                 const sp<const DisplayDevice>& device) {
         uint32_t inverseRotate90 = 0;
