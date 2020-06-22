@@ -19,6 +19,8 @@
 #include <atomic>
 #include <unordered_set>
 
+#include <utils/Mutex.h>
+
 #include "../Scheduler/OneShotTimer.h"
 #include "DisplayIdentification.h"
 
@@ -56,10 +58,11 @@ public:
     void notifyDisplayUpdateImminent() override;
 
 private:
-    HalWrapper* getPowerHal();
+    HalWrapper* getPowerHal() REQUIRES(mPowerHalMutex);
+    bool mReconnectPowerHal GUARDED_BY(mPowerHalMutex) = false;
+    std::mutex mPowerHalMutex;
 
     std::atomic_bool mBootFinished = false;
-    bool mReconnectPowerHal = false;
 
     std::unordered_set<DisplayId> mExpensiveDisplays;
     bool mNotifiedExpensiveRendering = false;
