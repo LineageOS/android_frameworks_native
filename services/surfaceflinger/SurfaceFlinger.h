@@ -631,7 +631,8 @@ private:
                                const client_cache_t& uncacheBuffer, const int64_t postTime,
                                bool privileged, bool hasListenerCallbacks,
                                const std::vector<ListenerCallbacks>& listenerCallbacks,
-                               bool isMainThread = false) REQUIRES(mStateLock);
+                               int originPID, int originUID, bool isMainThread = false)
+            REQUIRES(mStateLock);
     // Returns true if at least one transaction was flushed
     bool flushTransactionQueues();
     // Returns true if there is at least one transaction that needs to be flushed
