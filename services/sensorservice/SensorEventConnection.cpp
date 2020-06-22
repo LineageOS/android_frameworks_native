@@ -37,6 +37,7 @@ SensorService::SensorEventConnection::SensorEventConnection(
       mCacheSize(0), mMaxCacheSize(0), mTimeOfLastEventDrop(0), mEventsDropped(0),
       mPackageName(packageName), mOpPackageName(opPackageName), mDestroyed(false) {
     mChannel = new BitTube(mService->mSocketBufferSize);
+    mTargetSdk = SensorService::getTargetSdkVersion(opPackageName);
 #if DEBUG_CONNECTIONS
     mEventsReceived = mEventsSentFromCache = mEventsSent = 0;
     mTotalAcksNeeded = mTotalAcksReceived = 0;
@@ -439,8 +440,17 @@ bool SensorService::SensorEventConnection::noteOpIfRequired(const sensors_event_
     bool success = true;
     const auto iter = mHandleToAppOp.find(event.sensor);
     if (iter != mHandleToAppOp.end()) {
-        int32_t appOpMode = mService->sAppOpsManager.noteOp((*iter).second, mUid, mOpPackageName);
-        success = (appOpMode == AppOpsManager::MODE_ALLOWED);
+        // Special handling for step count/detect backwards compatibility: if the app's target SDK
+        // is pre-Q, still permit delivering events to the app even if permission isn't granted
+        // (since this permission was only introduced in Q)
+        if ((event.type == SENSOR_TYPE_STEP_COUNTER || event.type == SENSOR_TYPE_STEP_DETECTOR) &&
+                mTargetSdk > 0 && mTargetSdk <= __ANDROID_API_P__) {
+            success = true;
+        } else {
+            int32_t appOpMode = mService->sAppOpsManager.noteOp(iter->second, mUid,
+                                                                mOpPackageName);
+            success = (appOpMode == AppOpsManager::MODE_ALLOWED);
+        }
     }
     return success;
 }

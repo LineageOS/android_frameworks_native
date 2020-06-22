@@ -175,6 +175,7 @@ private:
     int mEventsDropped;
     String8 mPackageName;
     const String16 mOpPackageName;
+    int mTargetSdk;
 #if DEBUG_CONNECTIONS
     int mEventsReceived, mEventsSent, mEventsSentFromCache;
     int mTotalAcksNeeded, mTotalAcksReceived;
