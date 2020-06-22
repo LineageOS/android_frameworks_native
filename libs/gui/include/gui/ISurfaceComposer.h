@@ -310,7 +310,7 @@ public:
      *
      * Requires the ACCESS_SURFACE_FLINGER permission.
      */
-    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const = 0;
+    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) = 0;
 
     virtual status_t getColorManagement(bool* outGetColorManagement) const = 0;
 
