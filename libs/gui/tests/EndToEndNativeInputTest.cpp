@@ -104,6 +104,15 @@ public:
         return std::make_unique<InputSurface>(surfaceControl, width, height);
     }
 
+    static std::unique_ptr<InputSurface> makeCursorInputSurface(
+            const sp<SurfaceComposerClient> &scc, int width, int height) {
+        sp<SurfaceControl> surfaceControl =
+                scc->createSurface(String8("Test Cursor Surface"), 0 /* bufHeight */,
+                                   0 /* bufWidth */, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eCursorWindow);
+        return std::make_unique<InputSurface>(surfaceControl, width, height);
+    }
+
     InputEvent* consumeEvent() {
         waitForEventAvailable();
 
@@ -134,12 +143,14 @@ public:
         EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, mev->getAction());
         EXPECT_EQ(x, mev->getX(0));
         EXPECT_EQ(y, mev->getY(0));
+        EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
 
         ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
         ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
         mev = static_cast<MotionEvent*>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_UP, mev->getAction());
+        EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
     ~InputSurface() {
@@ -535,6 +546,19 @@ TEST_F(InputSurfacesTest, input_respects_outscreen) {
     surface->assertFocusChange(true);
 
     injectTap(0, 0);
+    surface->expectTap(1, 1);
+}
+
+TEST_F(InputSurfacesTest, input_ignores_cursor_layer) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> cursorSurface =
+            InputSurface::makeCursorInputSurface(mComposerClient, 10, 10);
+
+    surface->showAt(10, 10);
+    surface->assertFocusChange(true);
+    cursorSurface->showAt(10, 10);
+
+    injectTap(11, 11);
     surface->expectTap(1, 1);
 }
 }
