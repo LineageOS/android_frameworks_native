@@ -1802,27 +1802,19 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
     const int32_t appOpMode = sAppOpsManager.checkOp(opCode,
             IPCThreadState::self()->getCallingUid(), opPackageName);
     bool appOpAllowed = appOpMode == AppOpsManager::MODE_ALLOWED;
+    int targetSdkVersion = getTargetSdkVersion(opPackageName);
 
     bool canAccess = false;
-    if (hasPermissionForSensor(sensor)) {
+    if (targetSdkVersion > 0 && targetSdkVersion <= __ANDROID_API_P__ &&
+            (sensor.getType() == SENSOR_TYPE_STEP_COUNTER ||
+             sensor.getType() == SENSOR_TYPE_STEP_DETECTOR)) {
+        // Allow access to step sensors if the application targets pre-Q, which is before the
+        // requirement to hold the AR permission to access Step Counter and Step Detector events
+        // was introduced.
+        canAccess = true;
+    } else if (hasPermissionForSensor(sensor)) {
         // Ensure that the AppOp is allowed, or that there is no necessary app op for the sensor
         if (opCode < 0 || appOpAllowed) {
-            canAccess = true;
-        }
-    } else if (sensor.getType() == SENSOR_TYPE_STEP_COUNTER ||
-            sensor.getType() == SENSOR_TYPE_STEP_DETECTOR) {
-        int targetSdkVersion = getTargetSdkVersion(opPackageName);
-        // Allow access to the sensor if the application targets pre-Q, which is before the
-        // requirement to hold the AR permission to access Step Counter and Step Detector events
-        // was introduced, and the user hasn't revoked the app op.
-        //
-        // Verifying the app op is required to ensure that the user hasn't revoked the necessary
-        // permissions to access the Step Detector and Step Counter when the application targets
-        // pre-Q. Without this check, if the user revokes the pre-Q install-time GMS Core AR
-        // permission, the app would still be able to receive Step Counter and Step Detector events.
-        if (appOpAllowed &&
-                targetSdkVersion > 0 &&
-                targetSdkVersion <= __ANDROID_API_P__) {
             canAccess = true;
         }
     }
@@ -1830,8 +1822,8 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
     if (canAccess) {
         sAppOpsManager.noteOp(opCode, IPCThreadState::self()->getCallingUid(), opPackageName);
     } else {
-        ALOGE("%s a sensor (%s) without holding its required permission: %s",
-                operation, sensor.getName().string(), sensor.getRequiredPermission().string());
+        ALOGE("%s %s a sensor (%s) without holding %s", String8(opPackageName).string(),
+              operation, sensor.getName().string(), sensor.getRequiredPermission().string());
     }
 
     return canAccess;
