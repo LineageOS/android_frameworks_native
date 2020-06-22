@@ -148,10 +148,10 @@ private:
     virtual status_t updateActiveBuffer() = 0;
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
-    // We generate InputWindowHandles for all buffered layers regardless of whether they
+    // We generate InputWindowHandles for all non-cursor buffered layers regardless of whether they
     // have an InputChannel. This is to enable the InputDispatcher to do PID based occlusion
     // detection.
-    bool needsInputInfo() const override { return true; }
+    bool needsInputInfo() const override { return !mPotentialCursor; }
 
 protected:
     struct BufferInfo {
