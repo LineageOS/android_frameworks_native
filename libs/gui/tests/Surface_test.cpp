@@ -30,6 +30,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <inttypes.h>
 #include <private/gui/ComposerService.h>
+#include <ui/BufferQueueDefs.h>
 #include <ui/Rect.h>
 #include <utils/String8.h>
 
@@ -1972,6 +1973,31 @@ TEST_F(SurfaceTest, DequeueWithConsumerDrivenSize) {
     EXPECT_EQ(10, buffer->width);
     EXPECT_EQ(20, buffer->height);
     ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffer, fence));
+}
+
+TEST_F(SurfaceTest, DefaultMaxBufferCountSetAndUpdated) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
+    consumer->consumerConnect(dummyConsumer, false);
+
+    sp<Surface> surface = new Surface(producer);
+    sp<ANativeWindow> window(surface);
+
+    int count = -1;
+    ASSERT_EQ(NO_ERROR, window->query(window.get(), NATIVE_WINDOW_MAX_BUFFER_COUNT, &count));
+    EXPECT_EQ(BufferQueueDefs::NUM_BUFFER_SLOTS, count);
+
+    consumer->setMaxBufferCount(10);
+    ASSERT_EQ(NO_ERROR, native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU));
+    EXPECT_EQ(NO_ERROR, window->query(window.get(), NATIVE_WINDOW_MAX_BUFFER_COUNT, &count));
+    EXPECT_EQ(10, count);
+
+    ASSERT_EQ(NO_ERROR, native_window_api_disconnect(window.get(), NATIVE_WINDOW_API_CPU));
+    ASSERT_EQ(NO_ERROR, window->query(window.get(), NATIVE_WINDOW_MAX_BUFFER_COUNT, &count));
+    EXPECT_EQ(BufferQueueDefs::NUM_BUFFER_SLOTS, count);
 }
 
 } // namespace android
