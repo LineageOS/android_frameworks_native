@@ -110,7 +110,7 @@ Surface::Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controll
     mConnectedToCpu = false;
     mProducerControlledByApp = controlledByApp;
     mSwapIntervalZero = false;
-    mMaxBufferCount = 0;
+    mMaxBufferCount = NUM_BUFFER_SLOTS;
 }
 
 Surface::~Surface() {
@@ -1585,6 +1585,7 @@ int Surface::disconnect(int api, IGraphicBufferProducer::DisconnectMode mode) {
         mStickyTransform = 0;
         mAutoPrerotation = false;
         mEnableFrameTimestamps = false;
+        mMaxBufferCount = NUM_BUFFER_SLOTS;
 
         if (api == NATIVE_WINDOW_API_CPU) {
             mConnectedToCpu = false;
