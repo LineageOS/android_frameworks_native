@@ -85,6 +85,7 @@ void PowerAdvisor::setExpensiveRenderingExpected(DisplayId displayId, bool expec
 
     const bool expectsExpensiveRendering = !mExpensiveDisplays.empty();
     if (mNotifiedExpensiveRendering != expectsExpensiveRendering) {
+        std::lock_guard lock(mPowerHalMutex);
         HalWrapper* const halWrapper = getPowerHal();
         if (halWrapper == nullptr) {
             return;
@@ -108,6 +109,7 @@ void PowerAdvisor::notifyDisplayUpdateImminent() {
     }
 
     if (mSendUpdateImminent.load()) {
+        std::lock_guard lock(mPowerHalMutex);
         HalWrapper* const halWrapper = getPowerHal();
         if (halWrapper == nullptr) {
             return;
