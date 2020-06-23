@@ -2,6 +2,9 @@
   "presubmit": [
     // TODO(159590499) add BugreportManagerTestCases
     {
+      "name": "dumpstate_smoke_test"
+    },
+    {
       "name": "dumpstate_test"
     }
   ],
