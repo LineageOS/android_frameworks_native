@@ -717,7 +717,7 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
         for (TouchedMonitor& gestureMonitor : gestureMonitors) {
             sp<Connection> connection =
                     getConnectionLocked(gestureMonitor.monitor.inputChannel->getConnectionToken());
-            if (connection->responsive) {
+            if (connection != nullptr && connection->responsive) {
                 // This monitor could take more input. Drop all events preceding this
                 // event, so that gesture monitor could get a chance to receive the stream
                 ALOGW("Pruning the input queue because %s is unresponsive, but we have a "
