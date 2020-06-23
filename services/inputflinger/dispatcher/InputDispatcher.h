@@ -301,7 +301,8 @@ private:
     sp<InputWindowHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken) const
             REQUIRES(mLock);
     sp<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const REQUIRES(mLock);
-    bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
+    bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle, int32_t displayId) const
+            REQUIRES(mLock);
 
     /*
      * Validate and update InputWindowHandles for a given display.
