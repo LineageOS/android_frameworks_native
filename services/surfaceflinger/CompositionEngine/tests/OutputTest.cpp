@@ -1067,7 +1067,7 @@ struct OutputEnsureOutputLayerIfVisibleTest : public testing::Test {
         EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
                 .WillRepeatedly(Return(&mLayer.outputLayer));
 
-        mOutput.mState.bounds = Rect(0, 0, 200, 300);
+        mOutput.mState.frame = Rect(0, 0, 200, 300);
         mOutput.mState.viewport = Rect(0, 0, 200, 300);
         mOutput.mState.transform = ui::Transform(TR_IDENT, 200, 300);
 
@@ -1116,6 +1116,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, performsGeomLatchBeforeCheckingIfLa
     EXPECT_CALL(mOutput, belongsInOutput(sp<LayerFE>(mLayer.layerFE))).WillOnce(Return(false));
     EXPECT_CALL(*mLayer.layerFE,
                 prepareCompositionState(compositionengine::LayerFE::StateSubset::BasicGeometry));
+    EXPECT_CALL(mOutput, ensureOutputLayer(_, _)).Times(0);
 
     mGeomSnapshots.clear();
 
@@ -1125,30 +1126,35 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, performsGeomLatchBeforeCheckingIfLa
 TEST_F(OutputEnsureOutputLayerIfVisibleTest,
        skipsLatchIfAlreadyLatchedBeforeCheckingIfLayerBelongs) {
     EXPECT_CALL(mOutput, belongsInOutput(sp<LayerFE>(mLayer.layerFE))).WillOnce(Return(false));
+    EXPECT_CALL(mOutput, ensureOutputLayer(_, _)).Times(0);
 
     ensureOutputLayerIfVisible();
 }
 
 TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesEarlyOutIfLayerHasNoCompositionState) {
     EXPECT_CALL(*mLayer.layerFE, getCompositionState()).WillOnce(Return(nullptr));
+    EXPECT_CALL(mOutput, ensureOutputLayer(_, _)).Times(0);
 
     ensureOutputLayerIfVisible();
 }
 
 TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesEarlyOutIfLayerNotVisible) {
     mLayer.layerFEState.isVisible = false;
+    EXPECT_CALL(mOutput, ensureOutputLayer(_, _)).Times(0);
 
     ensureOutputLayerIfVisible();
 }
 
 TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesEarlyOutIfLayerHasEmptyVisibleRegion) {
     mLayer.layerFEState.geomLayerBounds = FloatRect{0, 0, 0, 0};
+    EXPECT_CALL(mOutput, ensureOutputLayer(_, _)).Times(0);
 
     ensureOutputLayerIfVisible();
 }
 
-TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutifDrawRegionEmpty) {
-    mOutput.mState.bounds = Rect(0, 0, 0, 0);
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutIfDrawRegionEmpty) {
+    mOutput.mState.frame = Rect(0, 0, 0, 0);
+    EXPECT_CALL(mOutput, ensureOutputLayer(_, _)).Times(0);
 
     ensureOutputLayerIfVisible();
 }
@@ -1420,6 +1426,41 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest,
     EXPECT_THAT(mLayer.outputLayerState.outputSpaceVisibleRegion, RegionEq(kRegionClipped));
 }
 
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, handlesCreatingOutputLayerWhenBoundsDifferFrame) {
+    const ui::Size bounds(1920, 1080);
+    const ui::Size frame(3840, 2160);
+    mOutput.mState.bounds = Rect(bounds);
+    mOutput.mState.viewport = Rect(bounds);
+    mOutput.mState.frame = Rect(frame);
+    ui::Transform transform;
+    transform.set(frame.width / bounds.width, 0, 0, frame.height / bounds.height);
+    mOutput.mState.transform = transform;
+
+    // Layer bounds are in the bottom right corner
+    const Rect layerBounds =
+            Rect(bounds.width - 20, bounds.height - 20, bounds.width, bounds.height);
+    const Region fullBoundsRegion = Region(layerBounds);
+    mLayer.layerFEState.geomLayerBounds =
+            FloatRect{static_cast<float>(layerBounds.left), static_cast<float>(layerBounds.top),
+                      static_cast<float>(layerBounds.right),
+                      static_cast<float>(layerBounds.bottom)};
+
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    EXPECT_CALL(mOutput, ensureOutputLayer(Eq(std::nullopt), Eq(mLayer.layerFE)))
+            .WillOnce(Return(&mLayer.outputLayer));
+
+    ensureOutputLayerIfVisible();
+    EXPECT_THAT(mCoverageState.dirtyRegion, RegionEq(fullBoundsRegion));
+    EXPECT_THAT(mCoverageState.aboveCoveredLayers, RegionEq(fullBoundsRegion));
+    EXPECT_THAT(mCoverageState.aboveOpaqueLayers, RegionEq(fullBoundsRegion));
+
+    EXPECT_THAT(mLayer.outputLayerState.visibleRegion, RegionEq(fullBoundsRegion));
+    EXPECT_THAT(mLayer.outputLayerState.visibleNonTransparentRegion, RegionEq(fullBoundsRegion));
+    EXPECT_THAT(mLayer.outputLayerState.coveredRegion, RegionEq(kEmptyRegion));
+    EXPECT_THAT(mLayer.outputLayerState.outputSpaceVisibleRegion,
+                RegionEq(transform.transform(fullBoundsRegion)));
+}
+
 TEST_F(OutputEnsureOutputLayerIfVisibleTest, coverageAccumulatesTest) {
     mLayer.layerFEState.isOpaque = false;
     mLayer.layerFEState.contentDirty = true;
@@ -1520,7 +1561,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, shadowRegionOnlyTest) {
     EXPECT_TRUE(kExpectedLayerVisibleRegion.subtract(kExpectedLayerShadowRegion).isEmpty());
 }
 
-TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutifLayerWithShadowIsCovered) {
+TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutIfLayerWithShadowIsCovered) {
     ui::Transform translate;
     translate.set(50, 50);
     mLayer.layerFEState.geomLayerTransform = translate;
