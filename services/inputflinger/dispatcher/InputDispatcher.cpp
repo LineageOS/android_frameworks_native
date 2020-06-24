@@ -3569,6 +3569,10 @@ std::vector<sp<InputWindowHandle>> InputDispatcher::getWindowHandlesLocked(
 
 sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(
         const sp<IBinder>& windowHandleToken) const {
+    if (windowHandleToken == nullptr) {
+        return nullptr;
+    }
+
     for (auto& it : mWindowHandlesByDisplay) {
         const std::vector<sp<InputWindowHandle>> windowHandles = it.second;
         for (const sp<InputWindowHandle>& windowHandle : windowHandles) {
@@ -3584,7 +3588,8 @@ bool InputDispatcher::hasWindowHandleLocked(const sp<InputWindowHandle>& windowH
     for (auto& it : mWindowHandlesByDisplay) {
         const std::vector<sp<InputWindowHandle>> windowHandles = it.second;
         for (const sp<InputWindowHandle>& handle : windowHandles) {
-            if (handle->getToken() == windowHandle->getToken()) {
+            if (handle->getId() == windowHandle->getId() &&
+                handle->getToken() == windowHandle->getToken()) {
                 if (windowHandle->getInfo()->displayId != it.first) {
                     ALOGE("Found window %s in display %" PRId32
                           ", but it should belong to display %" PRId32,
