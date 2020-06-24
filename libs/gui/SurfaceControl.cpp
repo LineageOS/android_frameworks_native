@@ -178,17 +178,28 @@ void SurfaceControl::writeToParcel(Parcel* parcel)
 }
 
 sp<SurfaceControl> SurfaceControl::readFromParcel(const Parcel* parcel) {
-    sp<IBinder> client = parcel->readStrongBinder();
-    sp<IBinder> handle = parcel->readStrongBinder();
-    if (client == nullptr || handle == nullptr)
-    {
-        ALOGE("Invalid parcel");
-        return nullptr;
+    bool invalidParcel = false;
+    status_t status;
+    sp<IBinder> client;
+    if ((status = parcel->readStrongBinder(&client)) != OK) {
+        ALOGE("Failed to read client: %s", statusToString(status).c_str());
+        invalidParcel = true;
+    }
+    sp<IBinder> handle;
+    if ((status = parcel->readStrongBinder(&handle)) != OK) {
+        ALOGE("Failed to read handle: %s", statusToString(status).c_str());
+        invalidParcel = true;
     }
     sp<IBinder> gbp;
-    parcel->readNullableStrongBinder(&gbp);
-
+    if ((status = parcel->readNullableStrongBinder(&gbp)) != OK) {
+        ALOGE("Failed to read gbp: %s", statusToString(status).c_str());
+        invalidParcel = true;
+    }
     uint32_t transformHint = parcel->readUint32();
+
+    if (invalidParcel) {
+        return nullptr;
+    }
     // We aren't the original owner of the surface.
     return new SurfaceControl(new SurfaceComposerClient(
                                       interface_cast<ISurfaceComposerClient>(client)),
