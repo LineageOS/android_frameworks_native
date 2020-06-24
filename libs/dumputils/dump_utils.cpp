@@ -86,7 +86,7 @@ static std::set<const std::string> extra_hal_interfaces_to_dump;
 
 static void read_extra_hals_to_dump_from_property() {
     // extra hals to dump are already filled
-    if (extra_hal_interfaces_to_dump.size() > 0) {
+    if (!extra_hal_interfaces_to_dump.empty()) {
         return;
     }
     std::string value = android::base::GetProperty("ro.dump.hals.extra", "");
