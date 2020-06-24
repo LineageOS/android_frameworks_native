@@ -206,12 +206,18 @@ public:
     void AllowUsbDevice(std::string_view buf) EXCLUDES(mutex_) {
         std::lock_guard<std::mutex> lock(mutex_);
         CHECK(buf.empty());
-        CHECK(dispatched_prompt_.has_value());
-        auto& [id, key, arg] = *dispatched_prompt_;
-        keys_.emplace(id, std::move(key));
 
-        callbacks_.key_authorized(arg, id);
-        dispatched_prompt_ = std::nullopt;
+        if (dispatched_prompt_.has_value()) {
+            // It's possible for the framework to send us a response without our having sent a
+            // request to it: e.g. if adbd restarts while we have a pending request.
+            auto& [id, key, arg] = *dispatched_prompt_;
+            keys_.emplace(id, std::move(key));
+
+            callbacks_.key_authorized(arg, id);
+            dispatched_prompt_ = std::nullopt;
+        } else {
+            LOG(WARNING) << "adbd_auth: received authorization for unknown prompt, ignoring";
+        }
 
         // We need to dispatch pending prompts here upon success as well,
         // since we might have multiple queued prompts.
