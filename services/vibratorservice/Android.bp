@@ -17,6 +17,7 @@ cc_library_shared {
 
     srcs: [
         "VibratorCallbackScheduler.cpp",
+        "VibratorHalController.cpp",
         "VibratorHalWrapper.cpp",
     ],
 
