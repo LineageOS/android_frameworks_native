@@ -364,7 +364,7 @@ void Loader::init_api(void* dso,
             f = (__eglMustCastToProperFunctionPointerType)gl_unimplemented;
 
             /*
-             * GL_EXT_debug_label is special, we always report it as
+             * GL_EXT_debug_marker is special, we always report it as
              * supported, it's handled by GLES_trace. If GLES_trace is not
              * enabled, then these are no-ops.
              */
