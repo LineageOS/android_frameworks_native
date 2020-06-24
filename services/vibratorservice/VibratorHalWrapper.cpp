@@ -68,21 +68,6 @@ bool isStaticCastValid(Effect effect) {
 // -------------------------------------------------------------------------------------------------
 
 template <typename T>
-HalResult<T> HalResult<T>::ok(T value) {
-    return HalResult(value);
-}
-
-template <typename T>
-HalResult<T> HalResult<T>::failed() {
-    return HalResult(/* unsupported= */ false);
-}
-
-template <typename T>
-HalResult<T> HalResult<T>::unsupported() {
-    return HalResult(/* unsupported= */ true);
-}
-
-template <typename T>
 HalResult<T> HalResult<T>::fromStatus(binder::Status status, T data) {
     if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
         return HalResult<T>::unsupported();
@@ -118,18 +103,6 @@ HalResult<T> HalResult<T>::fromReturn(hardware::Return<R>& ret, V1_0::Status sta
 }
 
 // -------------------------------------------------------------------------------------------------
-
-HalResult<void> HalResult<void>::ok() {
-    return HalResult();
-}
-
-HalResult<void> HalResult<void>::failed() {
-    return HalResult(/* failed= */ true);
-}
-
-HalResult<void> HalResult<void>::unsupported() {
-    return HalResult(/* failed= */ false, /* unsupported= */ true);
-}
 
 HalResult<void> HalResult<void>::fromStatus(binder::Status status) {
     if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
