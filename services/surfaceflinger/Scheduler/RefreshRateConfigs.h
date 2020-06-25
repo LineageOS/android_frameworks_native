@@ -273,6 +273,11 @@ public:
     RefreshRateConfigs(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
                        HwcConfigIndexType currentConfigId);
 
+    // Returns whether switching configs (refresh rate or resolution) is possible.
+    // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the configs only
+    // differ in resolution.
+    bool canSwitch() const { return mRefreshRates.size() > 1; }
+
     // Class to enumerate options around toggling the kernel timer on and off. We have an option
     // for no change to avoid extra calls to kernel.
     enum class KernelIdleTimerAction {

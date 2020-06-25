@@ -202,12 +202,19 @@ public:
                         std::unique_ptr<EventControlThread> eventControlThread,
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
-                        bool useContentDetectionV2 = false) {
+                        bool hasMultipleConfigs = false) {
         std::vector<std::shared_ptr<const HWC2::Display::Config>> configs{
                 HWC2::Display::Config::Builder(mDisplay, 0)
-                        .setVsyncPeriod(int32_t(16666667))
+                        .setVsyncPeriod(16'666'667)
                         .setConfigGroup(0)
                         .build()};
+
+        if (hasMultipleConfigs) {
+            configs.emplace_back(HWC2::Display::Config::Builder(mDisplay, 1)
+                                         .setVsyncPeriod(11'111'111)
+                                         .setConfigGroup(0)
+                                         .build());
+        }
 
         mFlinger->mRefreshRateConfigs = std::make_unique<
                 scheduler::RefreshRateConfigs>(configs, /*currentConfig=*/HwcConfigIndexType(0));
@@ -218,9 +225,10 @@ public:
         mFlinger->mPhaseConfiguration =
                 mFactory.createPhaseConfiguration(*mFlinger->mRefreshRateConfigs);
 
+        constexpr bool kUseContentDetectionV2 = false;
         mScheduler =
                 new TestableScheduler(std::move(primaryDispSync), std::move(eventControlThread),
-                                      *mFlinger->mRefreshRateConfigs, useContentDetectionV2);
+                                      *mFlinger->mRefreshRateConfigs, kUseContentDetectionV2);
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));

@@ -22,6 +22,7 @@
 
 #include <memory>
 #include <mutex>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -71,6 +72,7 @@ public:
     virtual Summary summarize(nsecs_t now) = 0;
 
     virtual void clear() = 0;
+    virtual std::string dump() const = 0;
 };
 
 namespace impl {
@@ -97,6 +99,7 @@ public:
     android::scheduler::LayerHistory::Summary summarize(nsecs_t now) override;
 
     void clear() override;
+    std::string dump() const override;
 
 private:
     friend class android::scheduler::LayerHistoryTest;
@@ -155,6 +158,7 @@ public:
     android::scheduler::LayerHistory::Summary summarize(nsecs_t /*now*/) override;
 
     void clear() override;
+    std::string dump() const override;
 
 private:
     friend android::scheduler::LayerHistoryTestV2;

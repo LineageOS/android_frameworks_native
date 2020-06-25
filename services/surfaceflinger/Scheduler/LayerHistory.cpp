@@ -20,6 +20,7 @@
 
 #include "LayerHistory.h"
 
+#include <android-base/stringprintf.h>
 #include <cutils/properties.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
@@ -180,4 +181,11 @@ void LayerHistory::clear() {
 
     mActiveLayersEnd = 0;
 }
+
+std::string LayerHistory::dump() const {
+    std::lock_guard lock(mLock);
+    return base::StringPrintf("LayerHistory{size=%zu, active=%zu}", mLayerInfos.size(),
+                              mActiveLayersEnd);
+}
+
 } // namespace android::scheduler::impl
