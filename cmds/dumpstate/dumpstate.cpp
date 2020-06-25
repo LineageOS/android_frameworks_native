@@ -2718,13 +2718,6 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
             MYLOGI("User denied consent. Returning\n");
             return status;
         }
-        if (options_->do_fb && options_->screenshot_fd.get() != -1) {
-            bool copy_succeeded = android::os::CopyFileToFd(screenshot_path_,
-                                                            options_->screenshot_fd.get());
-            if (copy_succeeded) {
-                android::os::UnlinkAndLogOnError(screenshot_path_);
-            }
-        }
         if (status == Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT) {
             MYLOGI(
                 "Did not receive user consent yet."
@@ -2832,6 +2825,13 @@ Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented() {
         bool copy_succeeded = android::os::CopyFileToFd(path_, options_->bugreport_fd.get());
         if (copy_succeeded) {
             android::os::UnlinkAndLogOnError(path_);
+            if (options_->do_fb && options_->screenshot_fd.get() != -1) {
+                copy_succeeded = android::os::CopyFileToFd(screenshot_path_,
+                                                           options_->screenshot_fd.get());
+                if (copy_succeeded) {
+                    android::os::UnlinkAndLogOnError(screenshot_path_);
+                }
+            }
         }
         return copy_succeeded ? Dumpstate::RunStatus::OK : Dumpstate::RunStatus::ERROR;
     } else if (consent_result == UserConsentResult::UNAVAILABLE) {
