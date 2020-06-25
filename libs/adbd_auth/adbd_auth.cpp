@@ -549,7 +549,12 @@ void adbd_auth_notify_disconnect(AdbdAuthContext* ctx, uint64_t id) {
 
 void adbd_auth_prompt_user(AdbdAuthContext* ctx, const char* public_key, size_t len,
                            void* opaque) {
-    ctx->PromptUser(std::string_view(public_key, len), opaque);
+    adbd_auth_prompt_user_with_id(ctx, public_key, len, opaque);
+}
+
+uint64_t adbd_auth_prompt_user_with_id(AdbdAuthContext* ctx, const char* public_key, size_t len,
+                                       void* opaque) {
+    return ctx->PromptUser(std::string_view(public_key, len), opaque);
 }
 
 uint64_t adbd_auth_tls_device_connected(AdbdAuthContext* ctx,
