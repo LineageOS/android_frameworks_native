@@ -309,6 +309,18 @@ void egl_context_t::onMakeCurrent(EGLSurface draw, EGLSurface read) {
             gl_extensions = exts;
             if (gl_extensions.find("GL_EXT_debug_marker") == std::string::npos) {
                 gl_extensions.insert(0, "GL_EXT_debug_marker ");
+                // eglGetProcAddress could return function pointers to these
+                // functions while they actually don't work. Fix them now.
+                __eglMustCastToProperFunctionPointerType* f;
+                f = (__eglMustCastToProperFunctionPointerType*)&gEGLImpl.hooks[version]
+                            ->gl.glInsertEventMarkerEXT;
+                if (*f != gl_noop) *f = gl_noop;
+                f = (__eglMustCastToProperFunctionPointerType*)&gEGLImpl.hooks[version]
+                            ->gl.glPushGroupMarkerEXT;
+                if (*f != gl_noop) *f = gl_noop;
+                f = (__eglMustCastToProperFunctionPointerType*)&gEGLImpl.hooks[version]
+                            ->gl.glPopGroupMarkerEXT;
+                if (*f != gl_noop) *f = gl_noop;
             }
 
             // tokenize the supported extensions for the glGetStringi() wrapper
