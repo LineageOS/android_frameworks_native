@@ -292,7 +292,8 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
 
     const auto makeLayerRequirements = [](float refreshRate) -> std::vector<LayerRequirement> {
-        return {{"testLayer", LayerVoteType::Heuristic, refreshRate, 1.0f}};
+        return {{"testLayer", LayerVoteType::Heuristic, refreshRate, /*weight*/ 1.0f,
+                 /*focused*/ false}};
     };
 
     EXPECT_EQ(mExpected90Config,
@@ -1132,6 +1133,7 @@ TEST_F(RefreshRateConfigsTest,
     lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr.desiredRefreshRate = 60.0f;
     lr.name = "60Hz ExplicitExactOrMultiple";
+    lr.focused = true;
     EXPECT_EQ(mExpected60Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = true, .idle = true},
                                                      &consideredSignals));
@@ -1140,6 +1142,7 @@ TEST_F(RefreshRateConfigsTest,
     lr.vote = LayerVoteType::ExplicitDefault;
     lr.desiredRefreshRate = 60.0f;
     lr.name = "60Hz ExplicitDefault";
+    lr.focused = true;
     EXPECT_EQ(mExpected60Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = true, .idle = true},
                                                      &consideredSignals));
@@ -1162,18 +1165,20 @@ TEST_F(RefreshRateConfigsTest,
     lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr.desiredRefreshRate = 90.0f;
     lr.name = "90Hz ExplicitExactOrMultiple";
+    lr.focused = true;
     EXPECT_EQ(mExpected90Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = true}));
 
     lr.vote = LayerVoteType::ExplicitDefault;
     lr.desiredRefreshRate = 90.0f;
     lr.name = "90Hz ExplicitDefault";
+    lr.focused = true;
     EXPECT_EQ(mExpected90Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = true}));
 }
 
 TEST_F(RefreshRateConfigsTest,
-       getBestRefreshRate_withDisplayManagerRequestingSingleRate_onlySwitchesRatesForExplicitLayers) {
+       getBestRefreshRate_withDisplayManagerRequestingSingleRate_onlySwitchesRatesForExplicitFocusedLayers) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m60_90Device,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_90);
@@ -1194,30 +1199,55 @@ TEST_F(RefreshRateConfigsTest,
     lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr.desiredRefreshRate = 60.0f;
     lr.name = "60Hz ExplicitExactOrMultiple";
+    lr.focused = false;
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    lr.focused = true;
     EXPECT_EQ(mExpected60Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
 
     lr.vote = LayerVoteType::ExplicitDefault;
     lr.desiredRefreshRate = 60.0f;
     lr.name = "60Hz ExplicitDefault";
+    lr.focused = false;
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    lr.focused = true;
     EXPECT_EQ(mExpected60Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
 
     lr.vote = LayerVoteType::Heuristic;
     lr.desiredRefreshRate = 60.0f;
     lr.name = "60Hz Heuristic";
+    lr.focused = false;
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    lr.focused = true;
     EXPECT_EQ(mExpected90Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
 
     lr.vote = LayerVoteType::Max;
     lr.desiredRefreshRate = 60.0f;
     lr.name = "60Hz Max";
+    lr.focused = false;
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    lr.focused = true;
     EXPECT_EQ(mExpected90Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
 
     lr.vote = LayerVoteType::Min;
     lr.desiredRefreshRate = 60.0f;
     lr.name = "60Hz Min";
+    lr.focused = false;
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    lr.focused = true;
     EXPECT_EQ(mExpected90Config,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
 }
@@ -1256,10 +1286,11 @@ TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
 
     // Return the config ID from calling getBestRefreshRate() for a single layer with the
     // given voteType and fps.
-    auto getFrameRate = [&](LayerVoteType voteType, float fps,
-                            bool touchActive = false) -> HwcConfigIndexType {
+    auto getFrameRate = [&](LayerVoteType voteType, float fps, bool touchActive = false,
+                            bool focused = true) -> HwcConfigIndexType {
         layers[0].vote = voteType;
         layers[0].desiredRefreshRate = fps;
+        layers[0].focused = focused;
         return refreshRateConfigs->getBestRefreshRate(layers, {.touch = touchActive, .idle = false})
                 .getConfigId();
     };
@@ -1276,6 +1307,14 @@ TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
     EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Heuristic, 90.f));
     EXPECT_EQ(HWC_CONFIG_ID_90, getFrameRate(LayerVoteType::ExplicitDefault, 90.f));
     EXPECT_EQ(HWC_CONFIG_ID_90, getFrameRate(LayerVoteType::ExplicitExactOrMultiple, 90.f));
+
+    // Layers not focused are not allowed to override primary config
+    EXPECT_EQ(HWC_CONFIG_ID_60,
+              getFrameRate(LayerVoteType::ExplicitDefault, 90.f, /*touch=*/false,
+                           /*focused=*/false));
+    EXPECT_EQ(HWC_CONFIG_ID_60,
+              getFrameRate(LayerVoteType::ExplicitExactOrMultiple, 90.f, /*touch=*/false,
+                           /*focused=*/false));
 
     // Touch boost should be restricted to the primary range.
     EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Max, 90.f, /*touch=*/true));
