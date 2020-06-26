@@ -33,7 +33,7 @@ namespace android {
  * The pointer controller is responsible for providing synchronization and for tracking
  * display orientation changes if needed.
  */
-class PointerControllerInterface : public virtual RefBase {
+class PointerControllerInterface {
 protected:
     PointerControllerInterface() { }
     virtual ~PointerControllerInterface() { }
