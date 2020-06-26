@@ -31,6 +31,8 @@
 #include <utils/Trace.h>
 #include <vkjson.h>
 
+#include <thread>
+
 namespace android {
 
 using base::StringAppendF;
@@ -47,7 +49,8 @@ const char* const GpuService::SERVICE_NAME = "gpu";
 
 GpuService::GpuService()
       : mGpuMem(std::make_unique<GpuMem>()), mGpuStats(std::make_unique<GpuStats>()) {
-    mGpuMem->initialize();
+    std::thread asyncInitThread([this]() { mGpuMem->initialize(); });
+    asyncInitThread.detach();
 };
 
 void GpuService::setGpuStats(const std::string& driverPackageName,
