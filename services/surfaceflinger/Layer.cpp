@@ -1280,7 +1280,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     LayerDebugInfo info;
     const State& ds = getDrawingState();
     info.mName = getName();
-    sp<Layer> parent = getParent();
+    sp<Layer> parent = mDrawingParent.promote();
     info.mParentName = (parent == nullptr ? std::string("none") : parent->getName().string());
     info.mType = std::string(getTypeId());
     info.mTransparentRegion = ds.activeTransparentRegion_legacy;
