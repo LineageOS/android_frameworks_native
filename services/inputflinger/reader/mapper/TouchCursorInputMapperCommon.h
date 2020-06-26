@@ -17,11 +17,11 @@
 #ifndef _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
 #define _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
 
+#include <stdint.h>
+
 #include "EventHub.h"
 #include "InputListener.h"
 #include "InputReaderContext.h"
-
-#include <stdint.h>
 
 namespace android {
 
