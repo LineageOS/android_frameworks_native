@@ -208,8 +208,14 @@ bool BufferQueueLayer::getSidebandStreamChanged() const {
 }
 
 bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
+    const bool updateSidebandStream = hasFrameUpdate() && mSidebandStream.get();
+    ALOGV_IF(updateSidebandStream,
+             "[%s] has both sideband stream and buffer. Updating the sideband stream.",
+             mName.c_str());
+
     bool sidebandStreamChanged = true;
-    if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false)) {
+    if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false) ||
+        updateSidebandStream) {
         // mSidebandStreamChanged was changed to false
         mSidebandStream = mConsumer->getSidebandStream();
         auto* layerCompositionState = editCompositionState();

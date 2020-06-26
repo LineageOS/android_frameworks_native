@@ -2003,7 +2003,8 @@ bool SurfaceFlinger::handleMessageTransaction() {
 
     bool runHandleTransaction =
             (transactionFlags && (transactionFlags != eTransactionFlushNeeded)) ||
-            flushedATransaction;
+            flushedATransaction ||
+            mForceTraversal;
 
     if (runHandleTransaction) {
         handleTransaction(eTransactionMask);
