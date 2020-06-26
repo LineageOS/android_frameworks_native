@@ -125,6 +125,8 @@ on late-init
     chmod 0666 /sys/kernel/tracing/events/task/task_rename/enable
     chmod 0666 /sys/kernel/debug/tracing/events/task/task_newtask/enable
     chmod 0666 /sys/kernel/tracing/events/task/task_newtask/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/gpu_mem/gpu_mem_total/enable
+    chmod 0666 /sys/kernel/tracing/events/gpu_mem/gpu_mem_total/enable
 
     # disk
     chmod 0666 /sys/kernel/tracing/events/f2fs/f2fs_get_data_block/enable
