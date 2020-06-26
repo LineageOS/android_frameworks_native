@@ -1325,6 +1325,10 @@ int32_t Layer::getFrameRateSelectionPriority() const {
     return Layer::PRIORITY_UNSET;
 }
 
+bool Layer::isLayerFocusedBasedOnPriority(int32_t priority) {
+    return priority == PRIORITY_FOCUSED_WITH_MODE || priority == PRIORITY_FOCUSED_WITHOUT_MODE;
+};
+
 uint32_t Layer::getLayerStack() const {
     auto p = mDrawingParent.promote();
     if (p == nullptr) {
@@ -1558,7 +1562,7 @@ void Layer::miniDumpHeader(std::string& result) {
     result.append("-------------------------------");
     result.append("-------------------------------");
     result.append("-------------------------------");
-    result.append("---------\n");
+    result.append("-------------------\n");
     result.append(" Layer name\n");
     result.append("           Z | ");
     result.append(" Window Type | ");
@@ -1566,12 +1570,12 @@ void Layer::miniDumpHeader(std::string& result) {
     result.append(" Transform | ");
     result.append("  Disp Frame (LTRB) | ");
     result.append("         Source Crop (LTRB) | ");
-    result.append("    Frame Rate (Explicit)\n");
+    result.append("    Frame Rate (Explicit) [Focused]\n");
     result.append("-------------------------------");
     result.append("-------------------------------");
     result.append("-------------------------------");
     result.append("-------------------------------");
-    result.append("---------\n");
+    result.append("-------------------\n");
 }
 
 std::string Layer::frameRateCompatibilityString(Layer::FrameRateCompatibility compatibility) {
@@ -1622,17 +1626,20 @@ void Layer::miniDump(std::string& result, const DisplayDevice& display) const {
                   crop.bottom);
     if (layerState.frameRate.rate != 0 ||
         layerState.frameRate.type != FrameRateCompatibility::Default) {
-        StringAppendF(&result, "% 6.2ffps %15s\n", layerState.frameRate.rate,
+        StringAppendF(&result, "% 6.2ffps %15s", layerState.frameRate.rate,
                       frameRateCompatibilityString(layerState.frameRate.type).c_str());
     } else {
-        StringAppendF(&result, "\n");
+        StringAppendF(&result, "                         ");
     }
+
+    const auto focused = isLayerFocusedBasedOnPriority(getFrameRateSelectionPriority());
+    StringAppendF(&result, "    [%s]\n", focused ? "*" : " ");
 
     result.append("- - - - - - - - - - - - - - - - ");
     result.append("- - - - - - - - - - - - - - - - ");
     result.append("- - - - - - - - - - - - - - - - ");
     result.append("- - - - - - - - - - - - - - - - ");
-    result.append("- - -\n");
+    result.append("- - - - - - - -\n");
 }
 
 void Layer::dumpFrameStats(std::string& result) const {
