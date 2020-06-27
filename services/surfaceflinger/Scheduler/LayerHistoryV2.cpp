@@ -125,9 +125,10 @@ LayerHistoryV2::Summary LayerHistoryV2::summarize(nsecs_t now) {
             continue;
         }
 
-        // TODO(b/144307188): This needs to be plugged into layer summary as
-        //  an additional parameter.
-        ALOGV("Layer has priority: %d", strong->getFrameRateSelectionPriority());
+        const auto frameRateSelectionPriority = strong->getFrameRateSelectionPriority();
+        const auto layerFocused = Layer::isLayerFocusedBasedOnPriority(frameRateSelectionPriority);
+        ALOGV("%s has priority: %d %s focused", strong->getName().c_str(),
+              frameRateSelectionPriority, layerFocused ? "" : "not");
 
         const auto [type, refreshRate] = info->getRefreshRate(now);
         // Skip NoVote layer as those don't have any requirements
@@ -143,7 +144,7 @@ LayerHistoryV2::Summary LayerHistoryV2::summarize(nsecs_t now) {
 
         const float layerArea = transformed.getWidth() * transformed.getHeight();
         float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
-        summary.push_back({strong->getName(), type, refreshRate, weight});
+        summary.push_back({strong->getName(), type, refreshRate, weight, layerFocused});
 
         if (CC_UNLIKELY(mTraceEnabled)) {
             trace(layer, *info, type, static_cast<int>(std::round(refreshRate)));

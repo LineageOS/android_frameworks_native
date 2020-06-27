@@ -195,15 +195,22 @@ public:
     // Captures the layer requirements for a refresh rate. This will be used to determine the
     // display refresh rate.
     struct LayerRequirement {
-        std::string name;         // Layer's name. Used for debugging purposes.
-        LayerVoteType vote;       // Layer vote type.
-        float desiredRefreshRate; // Layer's desired refresh rate, if applicable.
-        float weight; // Layer's weight in the range of [0, 1]. The higher the weight the more
-                      // impact this layer would have on choosing the refresh rate.
+        // Layer's name. Used for debugging purposes.
+        std::string name;
+        // Layer vote type.
+        LayerVoteType vote = LayerVoteType::NoVote;
+        // Layer's desired refresh rate, if applicable.
+        float desiredRefreshRate = 0.0f;
+        // Layer's weight in the range of [0, 1]. The higher the weight the more impact this layer
+        // would have on choosing the refresh rate.
+        float weight = 0.0f;
+        // Whether layer is in focus or not based on WindowManager's state
+        bool focused = false;
 
         bool operator==(const LayerRequirement& other) const {
             return name == other.name && vote == other.vote &&
-                    desiredRefreshRate == other.desiredRefreshRate && weight == other.weight;
+                    desiredRefreshRate == other.desiredRefreshRate && weight == other.weight &&
+                    focused == other.focused;
         }
 
         bool operator!=(const LayerRequirement& other) const { return !(*this == other); }
