@@ -122,9 +122,23 @@ void adbd_auth_notify_disconnect(AdbdAuthContext* ctx,
  * @param len the length of the public_key argument
  * @param arg an opaque userdata argument
  */
-void adbd_auth_prompt_user(AdbdAuthContext* ctx,
-                           const char* public_key,
-                           size_t len, void* opaque) __INTRODUCED_IN(30);
+void adbd_auth_prompt_user(AdbdAuthContext* ctx, const char* public_key, size_t len, void* opaque)
+        __INTRODUCED_IN(30);
+
+/**
+ * Prompt the user to authorize a public key.
+ *
+ * When this happens, a callback will be run on the auth thread with the result.
+ *
+ * @param ctx the AdbdAuthContext
+ * @param public_key the RSA public key to prompt user with
+ * @param len the length of the public_key argument
+ * @param arg an opaque userdata argument
+ * @return a unique id which will be returned via callback
+ */
+__attribute__((weak)) uint64_t adbd_auth_prompt_user_with_id(AdbdAuthContext* ctx,
+                                                             const char* public_key, size_t len,
+                                                             void* opaque) __INTRODUCED_IN(30);
 
 /**
  * Let system_server know that a TLS device has connected.
