@@ -26,6 +26,8 @@ public:
     TestableGpuMem() = default;
     explicit TestableGpuMem(GpuMem *gpuMem) : mGpuMem(gpuMem) {}
 
+    void setInitialized() { mGpuMem->mInitialized.store(true); }
+
     void setGpuMemTotalMap(bpf::BpfMap<uint64_t, uint64_t>& map) {
         mGpuMem->setGpuMemTotalMap(map);
     }

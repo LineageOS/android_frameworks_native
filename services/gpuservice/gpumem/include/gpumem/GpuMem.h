@@ -39,6 +39,8 @@ private:
     // set gpu memory total map
     void setGpuMemTotalMap(bpf::BpfMap<uint64_t, uint64_t>& map);
 
+    // indicate whether ebpf has been initialized
+    std::atomic<bool> mInitialized = false;
     // bpf map for GPU memory total data
     android::bpf::BpfMap<uint64_t, uint64_t> mGpuMemTotalMap;
 
@@ -51,6 +53,8 @@ private:
             "/sys/fs/bpf/prog_gpu_mem_tracepoint_gpu_mem_gpu_mem_total";
     // pinned gpu memory total bpf map path in bpf sysfs
     static constexpr char kGpuMemTotalMapPath[] = "/sys/fs/bpf/map_gpu_mem_gpu_mem_total_map";
+    // 30 seconds timeout for trying to attach bpf program to tracepoint
+    static constexpr int kGpuWaitTimeout = 30;
 };
 
 } // namespace android
