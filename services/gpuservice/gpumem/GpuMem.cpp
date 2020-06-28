@@ -24,6 +24,7 @@
 #include <libbpf.h>
 #include <libbpf_android.h>
 #include <log/log.h>
+#include <unistd.h>
 #include <utils/Trace.h>
 
 #include <unordered_map>
@@ -47,11 +48,17 @@ void GpuMem::initialize() {
         return;
     }
 
+    // TODO(http://b/159963505): Figure out a nicer way to wait until GPU driver loaded.
     // Attach the program to the tracepoint, and the tracepoint is automatically enabled here.
-    if (bpf_attach_tracepoint(fd, kGpuMemTraceGroup, kGpuMemTotalTracepoint) < 0) {
-        ALOGE("Failed to attach bpf program to %s/%s tracepoint", kGpuMemTraceGroup,
-              kGpuMemTotalTracepoint);
-        return;
+    int count = 0;
+    while (bpf_attach_tracepoint(fd, kGpuMemTraceGroup, kGpuMemTotalTracepoint) < 0) {
+        if (++count > kGpuWaitTimeout) {
+            ALOGE("Failed to attach bpf program to %s/%s tracepoint", kGpuMemTraceGroup,
+                  kGpuMemTotalTracepoint);
+            return;
+        }
+        // Retry until GPU driver loaded or timeout.
+        sleep(1);
     }
 
     // Use the read-only wrapper BpfMapRO to properly retrieve the read-only map.
@@ -61,6 +68,8 @@ void GpuMem::initialize() {
         return;
     }
     setGpuMemTotalMap(map);
+
+    mInitialized.store(true);
 }
 
 void GpuMem::setGpuMemTotalMap(bpf::BpfMap<uint64_t, uint64_t>& map) {
@@ -71,7 +80,7 @@ void GpuMem::setGpuMemTotalMap(bpf::BpfMap<uint64_t, uint64_t>& map) {
 void GpuMem::dump(const Vector<String16>& /* args */, std::string* result) {
     ATRACE_CALL();
 
-    if (!mGpuMemTotalMap.isValid()) {
+    if (!mInitialized.load() || !mGpuMemTotalMap.isValid()) {
         result->append("Failed to initialize GPU memory eBPF\n");
         return;
     }
