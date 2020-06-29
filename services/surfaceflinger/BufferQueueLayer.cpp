@@ -208,10 +208,8 @@ bool BufferQueueLayer::getSidebandStreamChanged() const {
 }
 
 bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
+    // We need to update the sideband stream if the layer has both a buffer and a sideband stream.
     const bool updateSidebandStream = hasFrameUpdate() && mSidebandStream.get();
-    ALOGV_IF(updateSidebandStream,
-             "[%s] has both sideband stream and buffer. Updating the sideband stream.",
-             mName.c_str());
 
     bool sidebandStreamChanged = true;
     if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false) ||
