@@ -77,7 +77,14 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     std::lock_guard<std::mutex> lk(mMutex);
 
     if (!validate(timestamp)) {
-        ALOGV("timestamp was too far off the last known timestamp");
+        // VSR could elect to ignore the incongruent timestamp or resetModel(). If ts is ignored,
+        // don't insert this ts into mTimestamps ringbuffer.
+        if (!mTimestamps.empty()) {
+            mKnownTimestamp =
+                    std::max(timestamp, *std::max_element(mTimestamps.begin(), mTimestamps.end()));
+        } else {
+            mKnownTimestamp = timestamp;
+        }
         return false;
     }
 
@@ -236,7 +243,13 @@ void VSyncPredictor::setPeriod(nsecs_t period) {
 
 void VSyncPredictor::clearTimestamps() {
     if (!mTimestamps.empty()) {
-        mKnownTimestamp = *std::max_element(mTimestamps.begin(), mTimestamps.end());
+        auto const maxRb = *std::max_element(mTimestamps.begin(), mTimestamps.end());
+        if (mKnownTimestamp) {
+            mKnownTimestamp = std::max(*mKnownTimestamp, maxRb);
+        } else {
+            mKnownTimestamp = maxRb;
+        }
+
         mTimestamps.clear();
         mLastTimestampIndex = 0;
     }
