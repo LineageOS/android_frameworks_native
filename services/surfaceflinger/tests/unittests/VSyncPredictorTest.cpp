@@ -124,6 +124,38 @@ TEST_F(VSyncPredictorTest, uponNotifiedOfInaccuracyUsesSynthetic) {
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + changedPeriod));
 }
 
+// b/159882858
+TEST_F(VSyncPredictorTest, updatesTimebaseForSyntheticAfterIdleTime) {
+    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
+        EXPECT_TRUE(tracker.addVsyncTimestamp(mNow += mPeriod));
+    }
+
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod));
+
+    auto const halfPeriod = mPeriod >> 2;
+    nsecs_t relativelyLongGapWithDrift = mPeriod * 100 + halfPeriod;
+
+    EXPECT_FALSE(tracker.addVsyncTimestamp(mNow += relativelyLongGapWithDrift));
+
+    tracker.resetModel();
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod));
+}
+
+TEST_F(VSyncPredictorTest, uponBadVsyncWillSwitchToSyntheticWhileRecalibrating) {
+    auto const slightlyMorePeriod = mPeriod + 10;
+    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
+        EXPECT_TRUE(tracker.addVsyncTimestamp(mNow += slightlyMorePeriod));
+    }
+
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + slightlyMorePeriod));
+
+    auto const halfPeriod = mPeriod >> 2;
+    EXPECT_FALSE(tracker.addVsyncTimestamp(mNow += halfPeriod));
+
+    tracker.resetModel();
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod));
+}
+
 TEST_F(VSyncPredictorTest, adaptsToFenceTimelines_60hzHighVariance) {
     // these are precomputed simulated 16.6s vsyncs with uniform distribution +/- 1.6ms error
     std::vector<nsecs_t> const simulatedVsyncs{
