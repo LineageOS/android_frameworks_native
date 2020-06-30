@@ -328,7 +328,7 @@ prop {
 prop {
     api_name: "refresh_rate_switching"
     type: Boolean
-    scope: System
+    scope: Public
     access: Readonly
     prop_name: "ro.surface_flinger.refresh_rate_switching"
     deprecated: true
