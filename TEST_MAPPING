@@ -58,6 +58,14 @@
     },
     {
       "name": "libsurfaceflinger_unittest"
+    },
+    {
+      "name": "CtsGraphicsTestCases",
+      "options": [
+        {
+          "include-filter": "android.graphics.cts.VulkanPreTransformTest"
+        }
+      ]
     }
   ]
 }
