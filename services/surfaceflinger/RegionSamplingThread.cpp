@@ -35,6 +35,7 @@
 #include <string>
 
 #include "DisplayDevice.h"
+#include "DisplayRenderArea.h"
 #include "Layer.h"
 #include "Promise.h"
 #include "Scheduler/DispSync.h"
@@ -383,8 +384,9 @@ void RegionSamplingThread::captureSample() {
     const Rect sampledBounds = sampleRegion.bounds();
 
     SurfaceFlinger::RenderAreaFuture renderAreaFuture = promise::defer([=] {
-        return DisplayRenderArea::create(displayWeak, sampledBounds, sampledBounds.getSize(),
-                                         ui::Dataspace::V0_SRGB, orientation);
+        return DisplayRenderArea::create(displayWeak, screencapRegion.bounds(),
+                                         sampledBounds.getSize(), ui::Dataspace::V0_SRGB,
+                                         orientation);
     });
 
     std::unordered_set<sp<IRegionSamplingListener>, SpHash<IRegionSamplingListener>> listeners;
