@@ -123,42 +123,15 @@ void JoystickInputMapper::configure(nsecs_t when, const InputReaderConfiguration
             if (rawAxisInfo.valid) {
                 // Map axis.
                 AxisInfo axisInfo;
-                bool explicitlyMapped = !getDeviceContext().mapAxis(abs, &axisInfo);
+                const bool explicitlyMapped = !getDeviceContext().mapAxis(abs, &axisInfo);
+
                 if (!explicitlyMapped) {
                     // Axis is not explicitly mapped, will choose a generic axis later.
                     axisInfo.mode = AxisInfo::MODE_NORMAL;
                     axisInfo.axis = -1;
                 }
 
-                // Apply flat override.
-                int32_t rawFlat =
-                        axisInfo.flatOverride < 0 ? rawAxisInfo.flat : axisInfo.flatOverride;
-
-                // Calculate scaling factors and limits.
-                Axis axis;
-                if (axisInfo.mode == AxisInfo::MODE_SPLIT) {
-                    float scale = 1.0f / (axisInfo.splitValue - rawAxisInfo.minValue);
-                    float highScale = 1.0f / (rawAxisInfo.maxValue - axisInfo.splitValue);
-                    axis.initialize(rawAxisInfo, axisInfo, explicitlyMapped, scale, 0.0f, highScale,
-                                    0.0f, 0.0f, 1.0f, rawFlat * scale, rawAxisInfo.fuzz * scale,
-                                    rawAxisInfo.resolution * scale);
-                } else if (isCenteredAxis(axisInfo.axis)) {
-                    float scale = 2.0f / (rawAxisInfo.maxValue - rawAxisInfo.minValue);
-                    float offset = avg(rawAxisInfo.minValue, rawAxisInfo.maxValue) * -scale;
-                    axis.initialize(rawAxisInfo, axisInfo, explicitlyMapped, scale, offset, scale,
-                                    offset, -1.0f, 1.0f, rawFlat * scale, rawAxisInfo.fuzz * scale,
-                                    rawAxisInfo.resolution * scale);
-                } else {
-                    float scale = 1.0f / (rawAxisInfo.maxValue - rawAxisInfo.minValue);
-                    axis.initialize(rawAxisInfo, axisInfo, explicitlyMapped, scale, 0.0f, scale,
-                                    0.0f, 0.0f, 1.0f, rawFlat * scale, rawAxisInfo.fuzz * scale,
-                                    rawAxisInfo.resolution * scale);
-                }
-
-                // To eliminate noise while the joystick is at rest, filter out small variations
-                // in axis values up front.
-                axis.filter = axis.fuzz ? axis.fuzz : axis.flat * 0.25f;
-
+                Axis axis = createAxis(axisInfo, rawAxisInfo, explicitlyMapped);
                 mAxes.add(abs, axis);
             }
         }
@@ -196,6 +169,40 @@ void JoystickInputMapper::configure(nsecs_t when, const InputReaderConfiguration
             }
         }
     }
+}
+
+JoystickInputMapper::Axis JoystickInputMapper::createAxis(const AxisInfo& axisInfo,
+                                                          const RawAbsoluteAxisInfo& rawAxisInfo,
+                                                          bool explicitlyMapped) {
+    // Apply flat override.
+    int32_t rawFlat = axisInfo.flatOverride < 0 ? rawAxisInfo.flat : axisInfo.flatOverride;
+
+    // Calculate scaling factors and limits.
+    Axis axis;
+    if (axisInfo.mode == AxisInfo::MODE_SPLIT) {
+        float scale = 1.0f / (axisInfo.splitValue - rawAxisInfo.minValue);
+        float highScale = 1.0f / (rawAxisInfo.maxValue - axisInfo.splitValue);
+        axis.initialize(rawAxisInfo, axisInfo, explicitlyMapped, scale, 0.0f, highScale, 0.0f, 0.0f,
+                        1.0f, rawFlat * scale, rawAxisInfo.fuzz * scale,
+                        rawAxisInfo.resolution * scale);
+    } else if (isCenteredAxis(axisInfo.axis)) {
+        float scale = 2.0f / (rawAxisInfo.maxValue - rawAxisInfo.minValue);
+        float offset = avg(rawAxisInfo.minValue, rawAxisInfo.maxValue) * -scale;
+        axis.initialize(rawAxisInfo, axisInfo, explicitlyMapped, scale, offset, scale, offset,
+                        -1.0f, 1.0f, rawFlat * scale, rawAxisInfo.fuzz * scale,
+                        rawAxisInfo.resolution * scale);
+    } else {
+        float scale = 1.0f / (rawAxisInfo.maxValue - rawAxisInfo.minValue);
+        axis.initialize(rawAxisInfo, axisInfo, explicitlyMapped, scale, 0.0f, scale, 0.0f, 0.0f,
+                        1.0f, rawFlat * scale, rawAxisInfo.fuzz * scale,
+                        rawAxisInfo.resolution * scale);
+    }
+
+    // To eliminate noise while the joystick is at rest, filter out small variations
+    // in axis values up front.
+    axis.filter = axis.fuzz ? axis.fuzz : axis.flat * 0.25f;
+
+    return axis;
 }
 
 bool JoystickInputMapper::haveAxis(int32_t axisId) {
