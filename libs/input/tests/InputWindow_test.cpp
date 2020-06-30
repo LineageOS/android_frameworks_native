@@ -22,6 +22,8 @@
 #include <input/InputWindow.h>
 #include <input/InputTransport.h>
 
+using std::chrono_literals::operator""s;
+
 namespace android {
 namespace test {
 
@@ -44,7 +46,7 @@ TEST(InputWindowInfo, Parcelling) {
     i.name = "Foobar";
     i.layoutParamsFlags = 7;
     i.layoutParamsType = 39;
-    i.dispatchingTimeout = 12;
+    i.dispatchingTimeout = 12s;
     i.frameLeft = 93;
     i.frameTop = 34;
     i.frameRight = 16;

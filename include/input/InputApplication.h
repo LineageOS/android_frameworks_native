@@ -34,7 +34,7 @@ namespace android {
 struct InputApplicationInfo {
     sp<IBinder> token;
     std::string name;
-    nsecs_t dispatchingTimeout;
+    std::chrono::nanoseconds dispatchingTimeout;
 
     status_t write(Parcel& output) const;
     static InputApplicationInfo read(const Parcel& from);
@@ -55,10 +55,6 @@ public:
 
     inline std::string getName() const {
         return !mInfo.name.empty() ? mInfo.name : "<invalid>";
-    }
-
-    inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
-        return mInfo.token ? mInfo.dispatchingTimeout : defaultValue;
     }
 
     inline std::chrono::nanoseconds getDispatchingTimeout(
