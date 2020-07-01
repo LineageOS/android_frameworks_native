@@ -2368,7 +2368,7 @@ class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
         mWindow =
                 new FakeWindowHandle(mApplication, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
         mWindow->setFrame(Rect(0, 0, 30, 30));
-        mWindow->setDispatchingTimeout(10ms);
+        mWindow->setDispatchingTimeout(30ms);
         mWindow->setFocus(true);
         // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
         // window.
@@ -2760,7 +2760,7 @@ class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
 
         mFocusedWindow =
                 new FakeWindowHandle(mApplication, mDispatcher, "Focused", ADISPLAY_ID_DEFAULT);
-        mFocusedWindow->setDispatchingTimeout(10ms);
+        mFocusedWindow->setDispatchingTimeout(30ms);
         mFocusedWindow->setFrame(Rect(50, 50, 100, 100));
         mFocusedWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL |
                                             InputWindowInfo::FLAG_SPLIT_TOUCH);
