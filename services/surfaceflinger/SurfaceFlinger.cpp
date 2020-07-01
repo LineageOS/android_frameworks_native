@@ -102,10 +102,12 @@
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
+#include "DisplayRenderArea.h"
 #include "EffectLayer.h"
 #include "Effects/Daltonizer.h"
 #include "FrameTracer/FrameTracer.h"
 #include "Layer.h"
+#include "LayerRenderArea.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "NativeWindowSurface.h"
@@ -5560,86 +5562,6 @@ status_t SurfaceFlinger::captureLayers(
         float frameScale, bool childrenOnly) {
     ATRACE_CALL();
 
-    class LayerRenderArea : public RenderArea {
-    public:
-        LayerRenderArea(SurfaceFlinger* flinger, const sp<Layer>& layer, const Rect crop,
-                        ui::Size reqSize, Dataspace reqDataSpace, bool childrenOnly,
-                        const Rect& displayViewport)
-              : RenderArea(reqSize, CaptureFill::CLEAR, reqDataSpace, displayViewport),
-                mLayer(layer),
-                mCrop(crop),
-                mNeedsFiltering(false),
-                mFlinger(flinger),
-                mChildrenOnly(childrenOnly) {}
-        const ui::Transform& getTransform() const override { return mTransform; }
-        Rect getBounds() const override { return mLayer->getBufferSize(mLayer->getDrawingState()); }
-        int getHeight() const override {
-            return mLayer->getBufferSize(mLayer->getDrawingState()).getHeight();
-        }
-        int getWidth() const override {
-            return mLayer->getBufferSize(mLayer->getDrawingState()).getWidth();
-        }
-        bool isSecure() const override { return false; }
-        bool needsFiltering() const override { return mNeedsFiltering; }
-        sp<const DisplayDevice> getDisplayDevice() const override { return nullptr; }
-        Rect getSourceCrop() const override {
-            if (mCrop.isEmpty()) {
-                return getBounds();
-            } else {
-                return mCrop;
-            }
-        }
-        class ReparentForDrawing {
-        public:
-            const sp<Layer>& oldParent;
-            const sp<Layer>& newParent;
-
-            ReparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent,
-                               const Rect& drawingBounds)
-                  : oldParent(oldParent), newParent(newParent) {
-                // Compute and cache the bounds for the new parent layer.
-                newParent->computeBounds(drawingBounds.toFloatRect(), ui::Transform(),
-                                         0.f /* shadowRadius */);
-                oldParent->setChildrenDrawingParent(newParent);
-            }
-            ~ReparentForDrawing() { oldParent->setChildrenDrawingParent(oldParent); }
-        };
-
-        void render(std::function<void()> drawLayers) override {
-            const Rect sourceCrop = getSourceCrop();
-            // no need to check rotation because there is none
-            mNeedsFiltering = sourceCrop.width() != getReqWidth() ||
-                sourceCrop.height() != getReqHeight();
-
-            if (!mChildrenOnly) {
-                mTransform = mLayer->getTransform().inverse();
-                drawLayers();
-            } else {
-                uint32_t w = static_cast<uint32_t>(getWidth());
-                uint32_t h = static_cast<uint32_t>(getHeight());
-                // In the "childrenOnly" case we reparent the children to a screenshot
-                // layer which has no properties set and which does not draw.
-                sp<ContainerLayer> screenshotParentLayer =
-                        mFlinger->getFactory().createContainerLayer({mFlinger, nullptr,
-                                                                     "Screenshot Parent"s, w, h, 0,
-                                                                     LayerMetadata()});
-
-                ReparentForDrawing reparent(mLayer, screenshotParentLayer, sourceCrop);
-                drawLayers();
-            }
-        }
-
-    private:
-        const sp<Layer> mLayer;
-        const Rect mCrop;
-
-        ui::Transform mTransform;
-        bool mNeedsFiltering;
-
-        SurfaceFlinger* mFlinger;
-        const bool mChildrenOnly;
-    };
-
     ui::Size reqSize;
     sp<Layer> parent;
     Rect crop(sourceCrop);
@@ -5706,7 +5628,7 @@ status_t SurfaceFlinger::captureLayers(
     }
 
     RenderAreaFuture renderAreaFuture = promise::defer([=]() -> std::unique_ptr<RenderArea> {
-        return std::make_unique<LayerRenderArea>(this, parent, crop, reqSize, reqDataspace,
+        return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, reqDataspace,
                                                  childrenOnly, displayViewport);
     });
 
