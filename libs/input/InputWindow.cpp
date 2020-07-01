@@ -174,7 +174,7 @@ status_t InputWindowInfo::readFromParcel(const android::Parcel* parcel) {
     }
 
     touchableRegionCropHandle = parcel->readStrongBinder();
-    transform.set(std::array<float, 9>{dsdx, dtdx, tx, dtdy, dsdy, ty, 0, 0, 1});
+    transform.set({dsdx, dtdx, tx, dtdy, dsdy, ty, 0, 0, 1});
 
     return OK;
 }

@@ -62,16 +62,18 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Motion, classification, 80);
   CHECK_OFFSET(InputMessage::Body::Motion, edgeFlags, 84);
   CHECK_OFFSET(InputMessage::Body::Motion, downTime, 88);
-  CHECK_OFFSET(InputMessage::Body::Motion, xScale, 96);
-  CHECK_OFFSET(InputMessage::Body::Motion, yScale, 100);
-  CHECK_OFFSET(InputMessage::Body::Motion, xOffset, 104);
-  CHECK_OFFSET(InputMessage::Body::Motion, yOffset, 108);
-  CHECK_OFFSET(InputMessage::Body::Motion, xPrecision, 112);
-  CHECK_OFFSET(InputMessage::Body::Motion, yPrecision, 116);
-  CHECK_OFFSET(InputMessage::Body::Motion, xCursorPosition, 120);
-  CHECK_OFFSET(InputMessage::Body::Motion, yCursorPosition, 124);
-  CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 128);
-  CHECK_OFFSET(InputMessage::Body::Motion, pointers, 136);
+  CHECK_OFFSET(InputMessage::Body::Motion, dsdx, 96);
+  CHECK_OFFSET(InputMessage::Body::Motion, dtdx, 100);
+  CHECK_OFFSET(InputMessage::Body::Motion, dtdy, 104);
+  CHECK_OFFSET(InputMessage::Body::Motion, dsdy, 108);
+  CHECK_OFFSET(InputMessage::Body::Motion, tx, 112);
+  CHECK_OFFSET(InputMessage::Body::Motion, ty, 116);
+  CHECK_OFFSET(InputMessage::Body::Motion, xPrecision, 120);
+  CHECK_OFFSET(InputMessage::Body::Motion, yPrecision, 124);
+  CHECK_OFFSET(InputMessage::Body::Motion, xCursorPosition, 128);
+  CHECK_OFFSET(InputMessage::Body::Motion, yCursorPosition, 132);
+  CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 136);
+  CHECK_OFFSET(InputMessage::Body::Motion, pointers, 144);
 
   CHECK_OFFSET(InputMessage::Body::Focus, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 4);
