@@ -193,11 +193,8 @@ struct DispatchEntry {
 
     EventEntry* eventEntry; // the event to dispatch
     int32_t targetFlags;
-    float xOffset;
-    float yOffset;
+    ui::Transform transform;
     float globalScaleFactor;
-    float windowXScale = 1.0f;
-    float windowYScale = 1.0f;
     // Both deliveryTime and timeoutTime are only populated when the entry is sent to the app,
     // and will be undefined before that.
     nsecs_t deliveryTime; // time when the event was actually delivered
@@ -209,8 +206,8 @@ struct DispatchEntry {
     int32_t resolvedAction;
     int32_t resolvedFlags;
 
-    DispatchEntry(EventEntry* eventEntry, int32_t targetFlags, float xOffset, float yOffset,
-                  float globalScaleFactor, float windowXScale, float windowYScale);
+    DispatchEntry(EventEntry* eventEntry, int32_t targetFlags, ui::Transform transform,
+                  float globalScaleFactor);
     ~DispatchEntry();
 
     inline bool hasForegroundTarget() const { return targetFlags & InputTarget::FLAG_FOREGROUND; }

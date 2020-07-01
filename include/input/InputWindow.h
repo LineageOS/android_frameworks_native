@@ -158,10 +158,6 @@ struct InputWindowInfo : public Parcelable {
     // in scaling of the TOUCH_MAJOR/TOUCH_MINOR axis.
     float globalScaleFactor = 1.0f;
 
-    // Scaling factors applied to individual windows.
-    float windowXScale = 1.0f;
-    float windowYScale = 1.0f;
-
     // Transform applied to individual windows.
     ui::Transform transform;
 

@@ -275,8 +275,8 @@ void InputFlingerServiceTest::SetUp() {
     mInfo.frameBottom = TestInfoFrameBottom;
     mInfo.surfaceInset = TestInfoSurfaceInset;
     mInfo.globalScaleFactor = TestInfoGlobalScaleFactor;
-    mInfo.windowXScale = TestInfoWindowXScale;
-    mInfo.windowYScale = TestInfoWindowYScale;
+    mInfo.transform.set(std::array<float, 9>{TestInfoWindowXScale, 0, TestInfoFrameLeft, 0,
+                                             TestInfoWindowYScale, TestInfoFrameTop, 0, 0, 1});
     mInfo.touchableRegion = TestInfoTouchableRegion;
     mInfo.visible = TestInfoVisible;
     mInfo.canReceiveKeys = TestInfoCanReceiveKeys;

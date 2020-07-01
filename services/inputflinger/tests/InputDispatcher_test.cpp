@@ -773,6 +773,7 @@ public:
         mInfo.frameTop = 0;
         mInfo.frameRight = WIDTH;
         mInfo.frameBottom = HEIGHT;
+        mInfo.transform.set(0, 0);
         mInfo.globalScaleFactor = 1.0;
         mInfo.touchableRegion.clear();
         mInfo.addTouchableRegion(Rect(0, 0, WIDTH, HEIGHT));
@@ -801,16 +802,14 @@ public:
         mInfo.frameTop = frame.top;
         mInfo.frameRight = frame.right;
         mInfo.frameBottom = frame.bottom;
+        mInfo.transform.set(frame.left, frame.top);
         mInfo.touchableRegion.clear();
         mInfo.addTouchableRegion(frame);
     }
 
     void setFlags(Flags<InputWindowInfo::Flag> flags) { mInfo.flags = flags; }
 
-    void setWindowScale(float xScale, float yScale) {
-        mInfo.windowXScale = xScale;
-        mInfo.windowYScale = yScale;
-    }
+    void setWindowScale(float xScale, float yScale) { mInfo.transform.set(xScale, 0, 0, yScale); }
 
     void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
         consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
@@ -2458,9 +2457,8 @@ protected:
 
     // Helper function to convert the point from screen coordinates into the window's space
     static PointF getPointInWindow(const InputWindowInfo* windowInfo, const PointF& point) {
-        float x = windowInfo->windowXScale * (point.x - windowInfo->frameLeft);
-        float y = windowInfo->windowYScale * (point.y - windowInfo->frameTop);
-        return {x, y};
+        vec2 vals = windowInfo->transform.transform(point.x, point.y);
+        return {vals.x, vals.y};
     }
 
     void consumeMotionEvent(const sp<FakeWindowHandle>& window, int32_t expectedAction,

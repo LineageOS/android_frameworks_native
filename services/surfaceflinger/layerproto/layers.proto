@@ -196,12 +196,13 @@ message InputWindowInfoProto {
     bool has_wallpaper = 9;
 
     float global_scale_factor = 10;
-    float window_x_scale = 11;
-    float window_y_scale = 12;
+    float window_x_scale = 11 [deprecated=true];
+    float window_y_scale = 12 [deprecated=true];
 
     uint32 crop_layer_id = 13;
     bool replace_touchable_region_with_crop = 14;
     RectProto touchable_region_crop = 15;
+    TransformProto transform = 16;
 }
 
 message ColorTransformProto {
