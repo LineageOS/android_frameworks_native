@@ -43,6 +43,14 @@ cc_library {
         "libcutils",
     ],
 
+    static_libs: [
+        "libui-types",
+    ],
+
+    export_static_lib_headers: [
+        "libui-types",
+    ],
+
     target: {
         android: {
             srcs: [

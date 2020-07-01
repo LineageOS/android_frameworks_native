@@ -21,6 +21,7 @@
 #include <input/InputTransport.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+#include <ui/Transform.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
@@ -159,6 +160,9 @@ struct InputWindowInfo {
     // Scaling factors applied to individual windows.
     float windowXScale = 1.0f;
     float windowYScale = 1.0f;
+
+    // Transform applied to individual windows.
+    ui::Transform transform;
 
     /*
      * This is filled in by the WM relative to the frame and then translated
