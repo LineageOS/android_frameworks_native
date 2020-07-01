@@ -15,9 +15,6 @@ cc_fuzz {
     shared_libs: [
         "libutils",
         "liblog",
+	"libcutils",
     ],
-    fuzz_config: {
-        fuzz_on_haiku_host: false,
-        fuzz_on_haiku_device: false,
-    },
 }
