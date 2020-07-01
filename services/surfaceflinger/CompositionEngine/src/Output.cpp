@@ -539,7 +539,7 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
     // TODO(b/121291683): Why does this not use visibleRegion? (see outputSpaceVisibleRegion below)
     const auto& outputState = getState();
     Region drawRegion(outputState.transform.transform(visibleNonTransparentRegion));
-    drawRegion.andSelf(outputState.frame);
+    drawRegion.andSelf(outputState.bounds);
     if (drawRegion.isEmpty()) {
         return;
     }
