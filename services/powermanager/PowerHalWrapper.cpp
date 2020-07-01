@@ -117,8 +117,7 @@ HalResult AidlHalWrapper::setBoost(Boost boost, int32_t durationMs) {
         bool isSupported = false;
         auto isSupportedRet = mHandle->isBoostSupported(boost, &isSupported);
         if (!isSupportedRet.isOk()) {
-            ALOGV("Skipped setBoost %s because Power HAL is not available to check "
-                  "support",
+            ALOGV("Skipped setBoost %s because Power HAL is not available to check support",
                   toString(boost).c_str());
             return HalResult::FAILED;
         }
@@ -149,8 +148,7 @@ HalResult AidlHalWrapper::setMode(Mode mode, bool enabled) {
         bool isSupported = false;
         auto isSupportedRet = mHandle->isModeSupported(mode, &isSupported);
         if (!isSupportedRet.isOk()) {
-            ALOGV("Skipped setMode %s because Power HAL is not available to check "
-                  "support",
+            ALOGV("Skipped setMode %s because Power HAL is not available to check support",
                   toString(mode).c_str());
             return HalResult::FAILED;
         }
