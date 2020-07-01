@@ -427,7 +427,7 @@ void InputReader::updatePointerDisplayLocked() {
 void InputReader::fadePointerLocked() {
     std::shared_ptr<PointerControllerInterface> controller = mPointerController.lock();
     if (controller != nullptr) {
-        controller->fade(PointerControllerInterface::TRANSITION_GRADUAL);
+        controller->fade(PointerControllerInterface::Transition::GRADUAL);
     }
 }
 
