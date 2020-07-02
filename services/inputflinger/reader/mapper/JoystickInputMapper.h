@@ -86,6 +86,9 @@ private:
         }
     };
 
+    static Axis createAxis(const AxisInfo& AxisInfo, const RawAbsoluteAxisInfo& rawAxisInfo,
+                           bool explicitlyMapped);
+
     // Axes indexed by raw ABS_* axis index.
     KeyedVector<int32_t, Axis> mAxes;
 
