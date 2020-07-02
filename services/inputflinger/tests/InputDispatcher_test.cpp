@@ -939,6 +939,126 @@ static int32_t injectKeyUp(const sp<InputDispatcher>& dispatcher,
     return injectKey(dispatcher, AKEY_EVENT_ACTION_UP, /* repeatCount */ 0, displayId);
 }
 
+class PointerBuilder {
+public:
+    PointerBuilder(int32_t id, int32_t toolType) {
+        mProperties.clear();
+        mProperties.id = id;
+        mProperties.toolType = toolType;
+        mCoords.clear();
+    }
+
+    PointerBuilder& x(float x) { return axis(AMOTION_EVENT_AXIS_X, x); }
+
+    PointerBuilder& y(float y) { return axis(AMOTION_EVENT_AXIS_Y, y); }
+
+    PointerBuilder& axis(int32_t axis, float value) {
+        mCoords.setAxisValue(axis, value);
+        return *this;
+    }
+
+    PointerProperties buildProperties() const { return mProperties; }
+
+    PointerCoords buildCoords() const { return mCoords; }
+
+private:
+    PointerProperties mProperties;
+    PointerCoords mCoords;
+};
+
+class MotionEventBuilder {
+public:
+    MotionEventBuilder(int32_t action, int32_t source) {
+        mAction = action;
+        mSource = source;
+        mEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    }
+
+    MotionEventBuilder& eventTime(nsecs_t eventTime) {
+        mEventTime = eventTime;
+        return *this;
+    }
+
+    MotionEventBuilder& displayId(int32_t displayId) {
+        mDisplayId = displayId;
+        return *this;
+    }
+
+    MotionEventBuilder& actionButton(int32_t actionButton) {
+        mActionButton = actionButton;
+        return *this;
+    }
+
+    MotionEventBuilder& buttonState(int32_t actionButton) {
+        mActionButton = actionButton;
+        return *this;
+    }
+
+    MotionEventBuilder& rawXCursorPosition(float rawXCursorPosition) {
+        mRawXCursorPosition = rawXCursorPosition;
+        return *this;
+    }
+
+    MotionEventBuilder& rawYCursorPosition(float rawYCursorPosition) {
+        mRawYCursorPosition = rawYCursorPosition;
+        return *this;
+    }
+
+    MotionEventBuilder& pointer(PointerBuilder pointer) {
+        mPointers.push_back(pointer);
+        return *this;
+    }
+
+    MotionEvent build() {
+        std::vector<PointerProperties> pointerProperties;
+        std::vector<PointerCoords> pointerCoords;
+        for (const PointerBuilder& pointer : mPointers) {
+            pointerProperties.push_back(pointer.buildProperties());
+            pointerCoords.push_back(pointer.buildCoords());
+        }
+
+        // Set mouse cursor position for the most common cases to avoid boilerplate.
+        if (mSource == AINPUT_SOURCE_MOUSE &&
+            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition) &&
+            mPointers.size() == 1) {
+            mRawXCursorPosition = pointerCoords[0].getX();
+            mRawYCursorPosition = pointerCoords[0].getY();
+        }
+
+        MotionEvent event;
+        event.initialize(InputEvent::nextId(), DEVICE_ID, mSource, mDisplayId, INVALID_HMAC,
+                         mAction, mActionButton, /* flags */ 0, /* edgeFlags */ 0, AMETA_NONE,
+                         mButtonState, MotionClassification::NONE, /* xScale */ 1, /* yScale */ 1,
+                         /* xOffset */ 0,
+                         /* yOffset */ 0, /* xPrecision */ 0, /* yPrecision */ 0,
+                         mRawXCursorPosition, mRawYCursorPosition, mEventTime, mEventTime,
+                         mPointers.size(), pointerProperties.data(), pointerCoords.data());
+
+        return event;
+    }
+
+private:
+    int32_t mAction;
+    int32_t mSource;
+    nsecs_t mEventTime;
+    int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
+    int32_t mActionButton{0};
+    int32_t mButtonState{0};
+    float mRawXCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
+    float mRawYCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
+
+    std::vector<PointerBuilder> mPointers;
+};
+
+static int32_t injectMotionEvent(
+        const sp<InputDispatcher>& dispatcher, const MotionEvent& event,
+        std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
+        int32_t injectionMode = INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT) {
+    return dispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID, injectionMode,
+                                        injectionTimeout,
+                                        POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
+}
+
 static int32_t injectMotionEvent(
         const sp<InputDispatcher>& dispatcher, int32_t action, int32_t source, int32_t displayId,
         const PointF& position,
@@ -947,32 +1067,18 @@ static int32_t injectMotionEvent(
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
         int32_t injectionMode = INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT,
         nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC)) {
-    MotionEvent event;
-    PointerProperties pointerProperties[1];
-    PointerCoords pointerCoords[1];
-
-    pointerProperties[0].clear();
-    pointerProperties[0].id = 0;
-    pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
-
-    pointerCoords[0].clear();
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, position.x);
-    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, position.y);
-
-    // Define a valid motion down event.
-    event.initialize(InputEvent::nextId(), DEVICE_ID, source, displayId, INVALID_HMAC, action,
-                     /* actionButton */ 0,
-                     /* flags */ 0,
-                     /* edgeFlags */ 0, AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
-                     /* xScale */ 1, /* yScale */ 1, /* xOffset */ 0, /* yOffset */ 0,
-                     /* xPrecision */ 0, /* yPrecision */ 0, cursorPosition.x, cursorPosition.y,
-                     eventTime, eventTime,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+    MotionEvent event = MotionEventBuilder(action, source)
+                                .displayId(displayId)
+                                .eventTime(eventTime)
+                                .rawXCursorPosition(cursorPosition.x)
+                                .rawYCursorPosition(cursorPosition.y)
+                                .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER)
+                                                 .x(position.x)
+                                                 .y(position.y))
+                                .build();
 
     // Inject event until dispatch out.
-    return dispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID, injectionMode,
-                                        injectionTimeout,
-                                        POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
+    return injectMotionEvent(dispatcher, event);
 }
 
 static int32_t injectMotionDown(const sp<InputDispatcher>& dispatcher, int32_t source,
@@ -1185,6 +1291,198 @@ TEST_F(InputDispatcherTest, SetInputWindow_InputWindowInfo) {
     // Top window is invalid, so it should not receive any input event.
     windowTop->assertNoEvents();
     windowSecond->consumeKeyDown(ADISPLAY_ID_NONE);
+}
+
+TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> windowLeft =
+            new FakeWindowHandle(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
+    windowLeft->setFrame(Rect(0, 0, 600, 800));
+    windowLeft->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+    sp<FakeWindowHandle> windowRight =
+            new FakeWindowHandle(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
+    windowRight->setFrame(Rect(600, 0, 1200, 800));
+    windowRight->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowLeft, windowRight}}});
+
+    // Start cursor position in right window so that we can move the cursor to left window.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(900)
+                                                         .y(400))
+                                        .build()));
+    windowRight->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_ENTER,
+                              ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowRight->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_MOVE,
+                              ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+
+    // Move cursor into left window
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    windowRight->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_EXIT,
+                              ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowLeft->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_ENTER,
+                             ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowLeft->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_MOVE,
+                             ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+
+    // Inject a series of mouse events for a mouse click
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_MOUSE)
+                                        .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    windowLeft->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_BUTTON_PRESS,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                                        .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    windowLeft->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_BUTTON_PRESS,
+                             ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_BUTTON_RELEASE,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .buttonState(0)
+                                        .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    windowLeft->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
+                             ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_MOUSE)
+                                        .buttonState(0)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    windowLeft->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+
+    // Move mouse cursor back to right window
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(900)
+                                                         .y(400))
+                                        .build()));
+    windowLeft->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_EXIT,
+                             ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowRight->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_ENTER,
+                              ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+    windowRight->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_MOVE,
+                              ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+}
+
+// This test is different from the test above that HOVER_ENTER and HOVER_EXIT events are injected
+// directly in this test.
+TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 1200, 800));
+    window->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_ENTER,
+                         ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+
+    // Inject a series of mouse events for a mouse click
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_MOUSE)
+                                        .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_BUTTON_PRESS,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .buttonState(AMOTION_EVENT_BUTTON_PRIMARY)
+                                        .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_BUTTON_PRESS,
+                         ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_BUTTON_RELEASE,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .buttonState(0)
+                                        .actionButton(AMOTION_EVENT_BUTTON_PRIMARY)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
+                         ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_MOUSE)
+                                        .buttonState(0)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    window->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_EXIT,
+                                                   AINPUT_SOURCE_MOUSE)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_MOUSE)
+                                                         .x(300)
+                                                         .y(400))
+                                        .build()));
+    window->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_HOVER_EXIT,
+                         ADISPLAY_ID_DEFAULT, 0 /* expectedFlag */);
 }
 
 TEST_F(InputDispatcherTest, DispatchMouseEventsUnderCursor) {
