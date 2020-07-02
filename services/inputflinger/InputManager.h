@@ -38,22 +38,23 @@
 
 namespace android {
 class InputChannel;
-class InputDispatcherThread;
 
 /*
  * The input manager is the core of the system event processing.
  *
- * The input manager has two components.
+ * The input manager has three components.
  *
  * 1. The InputReader class starts a thread that reads and preprocesses raw input events, applies
- *    policy, and posts messages to a queue managed by the InputDispatcherThread.
- * 2. The InputDispatcher class starts a thread that waits for new events on the
- *    queue and asynchronously dispatches them to applications.
+ *    policy, and posts messages to a queue managed by the InputClassifier.
+ * 2. The InputClassifier class starts a thread to communicate with the device-specific
+ *    classifiers. It then waits on the queue of events from InputReader, applies a classification
+ *    to them, and queues them for the InputDispatcher.
+ * 3. The InputDispatcher class starts a thread that waits for new events on the
+ *    previous queue and asynchronously dispatches them to applications.
  *
- * By design, the InputReader class and InputDispatcher class do not share any
- * internal state.  Moreover, all communication is done one way from the InputReader
- * into the InputDispatcherThread and never the reverse.  Both classes may interact with the
- * InputDispatchPolicy, however.
+ * By design, none of these classes share any internal state.  Moreover, all communication is
+ * done one way from the InputReader to the InputDispatcher and never the reverse.  All
+ * classes may interact with the InputDispatchPolicy, however.
  *
  * The InputManager class never makes any calls into Java itself.  Instead, the
  * InputDispatchPolicy is responsible for performing all external interactions with the
@@ -74,33 +75,34 @@ public:
     /* Gets the input reader. */
     virtual sp<InputReaderInterface> getReader() = 0;
 
+    /* Gets the input classifier */
+    virtual sp<InputClassifierInterface> getClassifier() = 0;
+
     /* Gets the input dispatcher. */
     virtual sp<InputDispatcherInterface> getDispatcher() = 0;
 };
 
 class InputManager : public InputManagerInterface, public BnInputFlinger {
 protected:
-    virtual ~InputManager();
+    ~InputManager() override;
 
 public:
     InputManager(
             const sp<InputReaderPolicyInterface>& readerPolicy,
             const sp<InputDispatcherPolicyInterface>& dispatcherPolicy);
 
-    virtual status_t start();
-    virtual status_t stop();
+    status_t start() override;
+    status_t stop() override;
 
-    virtual sp<InputReaderInterface> getReader();
-    virtual sp<InputClassifierInterface> getClassifier();
-    virtual sp<InputDispatcherInterface> getDispatcher();
+    sp<InputReaderInterface> getReader() override;
+    sp<InputClassifierInterface> getClassifier() override;
+    sp<InputDispatcherInterface> getDispatcher() override;
 
-    virtual void setInputWindows(const std::vector<InputWindowInfo>& handles,
-            const sp<ISetInputWindowsListener>& setInputWindowsListener);
+    void setInputWindows(const std::vector<InputWindowInfo>& handles,
+                         const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
 
-    virtual void registerInputChannel(const sp<InputChannel>& channel);
-    virtual void unregisterInputChannel(const sp<InputChannel>& channel);
-
-    void setMotionClassifierEnabled(bool enabled);
+    void registerInputChannel(const sp<InputChannel>& channel) override;
+    void unregisterInputChannel(const sp<InputChannel>& channel) override;
 
 private:
     sp<InputReaderInterface> mReader;
