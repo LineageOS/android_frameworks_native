@@ -585,18 +585,18 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
 
         ViewportType viewportTypeToUse;
         if (mParameters.associatedDisplayIsExternal) {
-            viewportTypeToUse = ViewportType::VIEWPORT_EXTERNAL;
+            viewportTypeToUse = ViewportType::EXTERNAL;
         } else {
-            viewportTypeToUse = ViewportType::VIEWPORT_INTERNAL;
+            viewportTypeToUse = ViewportType::INTERNAL;
         }
 
         std::optional<DisplayViewport> viewport =
                 mConfig.getDisplayViewportByType(viewportTypeToUse);
-        if (!viewport && viewportTypeToUse == ViewportType::VIEWPORT_EXTERNAL) {
+        if (!viewport && viewportTypeToUse == ViewportType::EXTERNAL) {
             ALOGW("Input device %s should be associated with external display, "
                   "fallback to internal one for the external viewport is not found.",
                   getDeviceName().c_str());
-            viewport = mConfig.getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+            viewport = mConfig.getDisplayViewportByType(ViewportType::INTERNAL);
         }
 
         return viewport;
