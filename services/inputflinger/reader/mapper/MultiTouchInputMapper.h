@@ -92,15 +92,15 @@ private:
 class MultiTouchInputMapper : public TouchInputMapper {
 public:
     explicit MultiTouchInputMapper(InputDeviceContext& deviceContext);
-    virtual ~MultiTouchInputMapper();
+    ~MultiTouchInputMapper() override;
 
-    virtual void reset(nsecs_t when) override;
-    virtual void process(const RawEvent* rawEvent) override;
+    void reset(nsecs_t when) override;
+    void process(const RawEvent* rawEvent) override;
 
 protected:
-    virtual void syncTouch(nsecs_t when, RawState* outState);
-    virtual void configureRawPointerAxes();
-    virtual bool hasStylus() const;
+    void syncTouch(nsecs_t when, RawState* outState) override;
+    void configureRawPointerAxes() override;
+    bool hasStylus() const override;
 
 private:
     MultiTouchMotionAccumulator mMultiTouchMotionAccumulator;
