@@ -141,6 +141,7 @@ class CreateInfoWrapper {
     };
 
     VkApplicationInfo application_info_;
+    uint32_t sanitized_api_version_;
 
     ExtensionFilter extension_filter_;
 
@@ -329,6 +330,7 @@ CreateInfoWrapper::CreateInfoWrapper(const VkInstanceCreateInfo& create_info,
       loader_api_version_(VK_API_VERSION_1_1),
       physical_dev_(VK_NULL_HANDLE),
       instance_info_(create_info),
+      sanitized_api_version_(loader_api_version_),
       extension_filter_() {}
 
 CreateInfoWrapper::CreateInfoWrapper(VkPhysicalDevice physical_dev,
@@ -385,10 +387,6 @@ VkResult CreateInfoWrapper::SanitizeApiVersion() {
             hal_extensions_.set(i);
         }
 
-        // If pApplicationInfo is NULL, apiVersion is assumed to be 1.0
-        if (!instance_info_.pApplicationInfo)
-            return VK_SUCCESS;
-
         uint32_t icd_api_version = VK_API_VERSION_1_0;
         PFN_vkEnumerateInstanceVersion pfn_enumerate_instance_version =
             reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
@@ -409,8 +407,13 @@ VkResult CreateInfoWrapper::SanitizeApiVersion() {
             return VK_SUCCESS;
 
         if (icd_api_version < loader_api_version_) {
+            sanitized_api_version_ = icd_api_version;
+
+            if (!instance_info_.pApplicationInfo)
+                return VK_SUCCESS;
+
             application_info_ = *instance_info_.pApplicationInfo;
-            application_info_.apiVersion = icd_api_version;
+            application_info_.apiVersion = sanitized_api_version_;
             instance_info_.pApplicationInfo = &application_info_;
         }
     } else {
@@ -498,15 +501,33 @@ VkResult CreateInfoWrapper::SanitizeExtensions() {
                                      : dev_info_.ppEnabledExtensionNames;
     auto& ext_count = (is_instance_) ? instance_info_.enabledExtensionCount
                                      : dev_info_.enabledExtensionCount;
-    if (!ext_count)
-        return VK_SUCCESS;
 
     VkResult result = InitExtensionFilter();
     if (result != VK_SUCCESS)
         return result;
 
-    for (uint32_t i = 0; i < ext_count; i++)
-        FilterExtension(ext_names[i]);
+    if (is_instance_ && sanitized_api_version_ < loader_api_version_) {
+        for (uint32_t i = 0; i < ext_count; i++) {
+            // Upon api downgrade, skip the promoted instance extensions in the
+            // first pass to avoid duplicate extensions.
+            const std::optional<uint32_t> version =
+                GetInstanceExtensionPromotedVersion(ext_names[i]);
+            if (version && *version > sanitized_api_version_ &&
+                *version <= loader_api_version_)
+                continue;
+
+            FilterExtension(ext_names[i]);
+        }
+
+        // Enable the required extensions to support core functionalities.
+        const auto promoted_extensions = GetPromotedInstanceExtensions(
+            sanitized_api_version_, loader_api_version_);
+        for (const auto& promoted_extension : promoted_extensions)
+            FilterExtension(promoted_extension);
+    } else {
+        for (uint32_t i = 0; i < ext_count; i++)
+            FilterExtension(ext_names[i]);
+    }
 
     // Enable device extensions that contain physical-device commands, so that
     // vkGetInstanceProcAddr will return those physical-device commands.
@@ -571,10 +592,20 @@ VkResult CreateInfoWrapper::InitExtensionFilter() {
     filter.ext_count = count;
 
     // allocate name array
-    uint32_t enabled_ext_count = (is_instance_)
-                                     ? instance_info_.enabledExtensionCount
-                                     : dev_info_.enabledExtensionCount;
-    count = std::min(filter.ext_count, enabled_ext_count);
+    if (is_instance_) {
+        uint32_t enabled_ext_count = instance_info_.enabledExtensionCount;
+
+        // It requires enabling additional promoted extensions to downgrade api,
+        // so we reserve enough space here.
+        if (sanitized_api_version_ < loader_api_version_) {
+            enabled_ext_count += CountPromotedInstanceExtensions(
+                sanitized_api_version_, loader_api_version_);
+        }
+
+        count = std::min(filter.ext_count, enabled_ext_count);
+    } else {
+        count = std::min(filter.ext_count, dev_info_.enabledExtensionCount);
+    }
     filter.names = reinterpret_cast<const char**>(allocator_.pfnAllocation(
         allocator_.pUserData, sizeof(const char*) * count, alignof(const char*),
         VK_SYSTEM_ALLOCATION_SCOPE_COMMAND));

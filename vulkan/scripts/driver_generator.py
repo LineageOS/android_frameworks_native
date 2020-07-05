@@ -162,6 +162,8 @@ def gen_h():
 #include <vulkan/vulkan.h>
 
 #include <bitset>
+#include <optional>
+#include <vector>
 
 namespace vulkan {
 namespace driver {
@@ -228,6 +230,12 @@ bool InitDriverTable(VkInstance instance,
 bool InitDriverTable(VkDevice dev,
                      PFN_vkGetDeviceProcAddr get_proc,
                      const std::bitset<ProcHook::EXTENSION_COUNT>& extensions);
+
+std::optional<uint32_t> GetInstanceExtensionPromotedVersion(const char* name);
+uint32_t CountPromotedInstanceExtensions(uint32_t begin_version,
+                                         uint32_t end_version);
+std::vector<const char*> GetPromotedInstanceExtensions(uint32_t begin_version,
+                                                       uint32_t end_version);
 
 }  // namespace driver
 }  // namespace vulkan
@@ -537,6 +545,54 @@ bool InitDriverTable(VkDevice dev,
     // clang-format on
 
     return success;
+}
+
+const std::pair<const char*, uint32_t> g_promoted_instance_extensions[] = {
+    // clang-format off\n""")
+
+    for key, value in sorted(gencom.promoted_inst_ext_dict.items()):
+      f.write(gencom.indent(1) + 'std::make_pair("' + key + '", ' + value + '),\n')
+
+    f.write("""\
+    // clang-format on
+};
+
+std::optional<uint32_t> GetInstanceExtensionPromotedVersion(const char* name) {
+    auto begin = std::cbegin(g_promoted_instance_extensions);
+    auto end = std::cend(g_promoted_instance_extensions);
+    auto iter =
+        std::lower_bound(begin, end, name,
+                         [](const std::pair<const char*, uint32_t>& e,
+                            const char* n) { return strcmp(e.first, n) < 0; });
+    return (iter < end && strcmp(iter->first, name) == 0)
+               ? std::optional<uint32_t>(iter->second)
+               : std::nullopt;
+}
+
+uint32_t CountPromotedInstanceExtensions(uint32_t begin_version,
+                                         uint32_t end_version) {
+    auto begin = std::cbegin(g_promoted_instance_extensions);
+    auto end = std::cend(g_promoted_instance_extensions);
+    uint32_t count = 0;
+
+    for (auto iter = begin; iter != end; iter++)
+        if (iter->second > begin_version && iter->second <= end_version)
+            count++;
+
+    return count;
+}
+
+std::vector<const char*> GetPromotedInstanceExtensions(uint32_t begin_version,
+                                                       uint32_t end_version) {
+    auto begin = std::cbegin(g_promoted_instance_extensions);
+    auto end = std::cend(g_promoted_instance_extensions);
+    std::vector<const char*> extensions;
+
+    for (auto iter = begin; iter != end; iter++)
+        if (iter->second > begin_version && iter->second <= end_version)
+            extensions.emplace_back(iter->first);
+
+    return extensions;
 }
 
 }  // namespace driver
