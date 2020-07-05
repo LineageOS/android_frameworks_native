@@ -72,8 +72,6 @@ _NEEDED_COMMANDS = [
     'vkDestroyImage',
 
     'vkGetPhysicalDeviceProperties',
-    'vkGetPhysicalDeviceProperties2',
-    'vkGetPhysicalDeviceProperties2KHR',
 
     # VK_KHR_swapchain v69 requirement
     'vkBindImageMemory2',
@@ -81,6 +79,22 @@ _NEEDED_COMMANDS = [
 
     # For promoted VK_KHR_device_group_creation
     'vkEnumeratePhysicalDeviceGroupsKHR',
+
+    # For promoted VK_KHR_get_physical_device_properties2
+    'vkGetPhysicalDeviceFeatures2',
+    'vkGetPhysicalDeviceFeatures2KHR',
+    'vkGetPhysicalDeviceProperties2',
+    'vkGetPhysicalDeviceProperties2KHR',
+    'vkGetPhysicalDeviceFormatProperties2',
+    'vkGetPhysicalDeviceFormatProperties2KHR',
+    'vkGetPhysicalDeviceImageFormatProperties2',
+    'vkGetPhysicalDeviceImageFormatProperties2KHR',
+    'vkGetPhysicalDeviceQueueFamilyProperties2',
+    'vkGetPhysicalDeviceQueueFamilyProperties2KHR',
+    'vkGetPhysicalDeviceMemoryProperties2',
+    'vkGetPhysicalDeviceMemoryProperties2KHR',
+    'vkGetPhysicalDeviceSparseImageFormatProperties2',
+    'vkGetPhysicalDeviceSparseImageFormatProperties2KHR',
 ]
 
 # Functions intercepted at vulkan::driver level.
@@ -110,6 +124,15 @@ _INTERCEPTED_COMMANDS = [
     # VK_KHR_swapchain v69 requirement
     'vkBindImageMemory2',
     'vkBindImageMemory2KHR',
+
+    # For promoted VK_KHR_get_physical_device_properties2
+    'vkGetPhysicalDeviceFeatures2',
+    'vkGetPhysicalDeviceProperties2',
+    'vkGetPhysicalDeviceFormatProperties2',
+    'vkGetPhysicalDeviceImageFormatProperties2',
+    'vkGetPhysicalDeviceQueueFamilyProperties2',
+    'vkGetPhysicalDeviceMemoryProperties2',
+    'vkGetPhysicalDeviceSparseImageFormatProperties2',
 ]
 
 
