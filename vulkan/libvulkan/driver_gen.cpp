@@ -505,6 +505,7 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     if (strcmp(name, "VK_ANDROID_external_memory_android_hardware_buffer") == 0) return ProcHook::ANDROID_external_memory_android_hardware_buffer;
     if (strcmp(name, "VK_KHR_bind_memory2") == 0) return ProcHook::KHR_bind_memory2;
     if (strcmp(name, "VK_KHR_get_physical_device_properties2") == 0) return ProcHook::KHR_get_physical_device_properties2;
+    if (strcmp(name, "VK_KHR_device_group_creation") == 0) return ProcHook::KHR_device_group_creation;
     // clang-format on
     return ProcHook::EXTENSION_UNKNOWN;
 }
@@ -546,6 +547,7 @@ bool InitDriverTable(VkInstance instance,
     INIT_PROC(false, instance, GetPhysicalDeviceProperties2);
     INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceProperties2KHR);
     INIT_PROC(false, instance, EnumeratePhysicalDeviceGroups);
+    INIT_PROC_EXT(KHR_device_group_creation, true, instance, EnumeratePhysicalDeviceGroupsKHR);
     // clang-format on
 
     return success;

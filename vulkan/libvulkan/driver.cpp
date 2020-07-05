@@ -633,6 +633,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 hook_extensions_.set(ext_bit);
                 break;
             case ProcHook::KHR_get_physical_device_properties2:
+            case ProcHook::KHR_device_group_creation:
             case ProcHook::EXTENSION_UNKNOWN:
                 // Extensions we don't need to do anything about at this level
                 break;
@@ -689,6 +690,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
 
             case ProcHook::KHR_android_surface:
             case ProcHook::KHR_get_physical_device_properties2:
+            case ProcHook::KHR_device_group_creation:
             case ProcHook::KHR_get_surface_capabilities2:
             case ProcHook::KHR_surface:
             case ProcHook::EXT_debug_report:
@@ -1266,7 +1268,8 @@ VkResult EnumeratePhysicalDeviceGroups(
     VkResult result = VK_SUCCESS;
     const auto& data = GetData(instance);
 
-    if (!data.driver.EnumeratePhysicalDeviceGroups) {
+    if (!data.driver.EnumeratePhysicalDeviceGroups &&
+        !data.driver.EnumeratePhysicalDeviceGroupsKHR) {
         uint32_t device_count = 0;
         result = EnumeratePhysicalDevices(instance, &device_count, nullptr);
         if (result < 0)
@@ -1298,9 +1301,15 @@ VkResult EnumeratePhysicalDeviceGroups(
             pPhysicalDeviceGroupProperties[i].subsetAllocation = 0;
         }
     } else {
-        result = data.driver.EnumeratePhysicalDeviceGroups(
-            instance, pPhysicalDeviceGroupCount,
-            pPhysicalDeviceGroupProperties);
+        if (data.driver.EnumeratePhysicalDeviceGroups) {
+            result = data.driver.EnumeratePhysicalDeviceGroups(
+                instance, pPhysicalDeviceGroupCount,
+                pPhysicalDeviceGroupProperties);
+        } else {
+            result = data.driver.EnumeratePhysicalDeviceGroupsKHR(
+                instance, pPhysicalDeviceGroupCount,
+                pPhysicalDeviceGroupProperties);
+        }
         if ((result == VK_SUCCESS || result == VK_INCOMPLETE) &&
             *pPhysicalDeviceGroupCount && pPhysicalDeviceGroupProperties) {
             for (uint32_t i = 0; i < *pPhysicalDeviceGroupCount; i++) {

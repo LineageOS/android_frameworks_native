@@ -50,6 +50,7 @@ struct ProcHook {
         ANDROID_external_memory_android_hardware_buffer,
         KHR_bind_memory2,
         KHR_get_physical_device_properties2,
+        KHR_device_group_creation,
 
         EXTENSION_CORE_1_0,
         EXTENSION_CORE_1_1,
@@ -79,6 +80,7 @@ struct InstanceDriverTable {
     PFN_vkGetPhysicalDeviceProperties2 GetPhysicalDeviceProperties2;
     PFN_vkGetPhysicalDeviceProperties2KHR GetPhysicalDeviceProperties2KHR;
     PFN_vkEnumeratePhysicalDeviceGroups EnumeratePhysicalDeviceGroups;
+    PFN_vkEnumeratePhysicalDeviceGroupsKHR EnumeratePhysicalDeviceGroupsKHR;
     // clang-format on
 };
 
