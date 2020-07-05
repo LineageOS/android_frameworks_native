@@ -1613,8 +1613,10 @@ void EventHub::addDeviceLocked(Device* device) {
 }
 
 void EventHub::loadConfigurationLocked(Device* device) {
-    device->configurationFile = getInputDeviceConfigurationFilePathByDeviceIdentifier(
-            device->identifier, INPUT_DEVICE_CONFIGURATION_FILE_TYPE_CONFIGURATION);
+    device->configurationFile =
+            getInputDeviceConfigurationFilePathByDeviceIdentifier(device->identifier,
+                                                                  InputDeviceConfigurationFileType::
+                                                                          CONFIGURATION);
     if (device->configurationFile.empty()) {
         ALOGD("No input device configuration file found for device '%s'.",
               device->identifier.name.c_str());

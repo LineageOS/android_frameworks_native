@@ -46,9 +46,9 @@ static bool isValidNameChar(char ch) {
 
 static void appendInputDeviceConfigurationFileRelativePath(std::string& path,
         const std::string& name, InputDeviceConfigurationFileType type) {
-    path += CONFIGURATION_FILE_DIR[type];
+    path += CONFIGURATION_FILE_DIR[static_cast<int32_t>(type)];
     path += name;
-    path += CONFIGURATION_FILE_EXTENSION[type];
+    path += CONFIGURATION_FILE_EXTENSION[static_cast<int32_t>(type)];
 }
 
 std::string getInputDeviceConfigurationFilePathByDeviceIdentifier(
