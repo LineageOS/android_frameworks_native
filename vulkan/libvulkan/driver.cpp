@@ -634,6 +634,9 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 break;
             case ProcHook::KHR_get_physical_device_properties2:
             case ProcHook::KHR_device_group_creation:
+            case ProcHook::KHR_external_memory_capabilities:
+            case ProcHook::KHR_external_semaphore_capabilities:
+            case ProcHook::KHR_external_fence_capabilities:
             case ProcHook::EXTENSION_UNKNOWN:
                 // Extensions we don't need to do anything about at this level
                 break;
@@ -691,6 +694,9 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::KHR_android_surface:
             case ProcHook::KHR_get_physical_device_properties2:
             case ProcHook::KHR_device_group_creation:
+            case ProcHook::KHR_external_memory_capabilities:
+            case ProcHook::KHR_external_semaphore_capabilities:
+            case ProcHook::KHR_external_fence_capabilities:
             case ProcHook::KHR_get_surface_capabilities2:
             case ProcHook::KHR_surface:
             case ProcHook::EXT_debug_report:
@@ -1482,6 +1488,82 @@ void GetPhysicalDeviceSparseImageFormatProperties2(
 
     driver.GetPhysicalDeviceSparseImageFormatProperties2KHR(
         physicalDevice, pFormatInfo, pPropertyCount, pProperties);
+}
+
+void GetPhysicalDeviceExternalBufferProperties(
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceExternalBufferInfo* pExternalBufferInfo,
+    VkExternalBufferProperties* pExternalBufferProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceExternalBufferProperties) {
+        driver.GetPhysicalDeviceExternalBufferProperties(
+            physicalDevice, pExternalBufferInfo, pExternalBufferProperties);
+        return;
+    }
+
+    if (driver.GetPhysicalDeviceExternalBufferPropertiesKHR) {
+        driver.GetPhysicalDeviceExternalBufferPropertiesKHR(
+            physicalDevice, pExternalBufferInfo, pExternalBufferProperties);
+        return;
+    }
+
+    memset(&pExternalBufferProperties->externalMemoryProperties, 0,
+           sizeof(VkExternalMemoryProperties));
+}
+
+void GetPhysicalDeviceExternalSemaphoreProperties(
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceExternalSemaphoreInfo* pExternalSemaphoreInfo,
+    VkExternalSemaphoreProperties* pExternalSemaphoreProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceExternalSemaphoreProperties) {
+        driver.GetPhysicalDeviceExternalSemaphoreProperties(
+            physicalDevice, pExternalSemaphoreInfo,
+            pExternalSemaphoreProperties);
+        return;
+    }
+
+    if (driver.GetPhysicalDeviceExternalSemaphorePropertiesKHR) {
+        driver.GetPhysicalDeviceExternalSemaphorePropertiesKHR(
+            physicalDevice, pExternalSemaphoreInfo,
+            pExternalSemaphoreProperties);
+        return;
+    }
+
+    pExternalSemaphoreProperties->exportFromImportedHandleTypes = 0;
+    pExternalSemaphoreProperties->compatibleHandleTypes = 0;
+    pExternalSemaphoreProperties->externalSemaphoreFeatures = 0;
+}
+
+void GetPhysicalDeviceExternalFenceProperties(
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceExternalFenceInfo* pExternalFenceInfo,
+    VkExternalFenceProperties* pExternalFenceProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceExternalFenceProperties) {
+        driver.GetPhysicalDeviceExternalFenceProperties(
+            physicalDevice, pExternalFenceInfo, pExternalFenceProperties);
+        return;
+    }
+
+    if (driver.GetPhysicalDeviceExternalFencePropertiesKHR) {
+        driver.GetPhysicalDeviceExternalFencePropertiesKHR(
+            physicalDevice, pExternalFenceInfo, pExternalFenceProperties);
+        return;
+    }
+
+    pExternalFenceProperties->exportFromImportedHandleTypes = 0;
+    pExternalFenceProperties->compatibleHandleTypes = 0;
+    pExternalFenceProperties->externalFenceFeatures = 0;
 }
 
 }  // namespace driver

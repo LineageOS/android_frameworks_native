@@ -41,6 +41,9 @@ _KNOWN_EXTENSIONS = _INTERCEPTED_EXTENSIONS + [
     'VK_KHR_bind_memory2',
     'VK_KHR_get_physical_device_properties2',
     'VK_KHR_device_group_creation',
+    'VK_KHR_external_memory_capabilities',
+    'VK_KHR_external_semaphore_capabilities',
+    'VK_KHR_external_fence_capabilities',
 ]
 
 # Functions needed at vulkan::driver level.
@@ -95,6 +98,18 @@ _NEEDED_COMMANDS = [
     'vkGetPhysicalDeviceMemoryProperties2KHR',
     'vkGetPhysicalDeviceSparseImageFormatProperties2',
     'vkGetPhysicalDeviceSparseImageFormatProperties2KHR',
+
+    # For promoted VK_KHR_external_memory_capabilities
+    'vkGetPhysicalDeviceExternalBufferProperties',
+    'vkGetPhysicalDeviceExternalBufferPropertiesKHR',
+
+    # For promoted VK_KHR_external_semaphore_capabilities
+    'vkGetPhysicalDeviceExternalSemaphoreProperties',
+    'vkGetPhysicalDeviceExternalSemaphorePropertiesKHR',
+
+    # For promoted VK_KHR_external_fence_capabilities
+    'vkGetPhysicalDeviceExternalFenceProperties',
+    'vkGetPhysicalDeviceExternalFencePropertiesKHR',
 ]
 
 # Functions intercepted at vulkan::driver level.
@@ -133,6 +148,15 @@ _INTERCEPTED_COMMANDS = [
     'vkGetPhysicalDeviceQueueFamilyProperties2',
     'vkGetPhysicalDeviceMemoryProperties2',
     'vkGetPhysicalDeviceSparseImageFormatProperties2',
+
+    # For promoted VK_KHR_external_memory_capabilities
+    'vkGetPhysicalDeviceExternalBufferProperties',
+
+    # For promoted VK_KHR_external_semaphore_capabilities
+    'vkGetPhysicalDeviceExternalSemaphoreProperties',
+
+    # For promoted VK_KHR_external_fence_capabilities
+    'vkGetPhysicalDeviceExternalFenceProperties',
 ]
 
 
