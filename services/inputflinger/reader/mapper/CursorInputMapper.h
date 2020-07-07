@@ -106,7 +106,7 @@ private:
 
     int32_t mOrientation;
 
-    sp<PointerControllerInterface> mPointerController;
+    std::shared_ptr<PointerControllerInterface> mPointerController;
 
     int32_t mButtonState;
     nsecs_t mDownTime;
