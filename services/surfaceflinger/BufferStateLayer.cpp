@@ -422,10 +422,6 @@ FloatRect BufferStateLayer::computeSourceBounds(const FloatRect& parentBounds) c
 // Interface implementation for BufferLayer
 // -----------------------------------------------------------------------
 bool BufferStateLayer::fenceHasSignaled() const {
-    if (latchUnsignaledBuffers()) {
-        return true;
-    }
-
     const bool fenceSignaled =
             getDrawingState().acquireFence->getStatus() == Fence::Status::Signaled;
     if (!fenceSignaled) {

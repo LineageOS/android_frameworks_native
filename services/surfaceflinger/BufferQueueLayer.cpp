@@ -131,10 +131,6 @@ bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
 // -----------------------------------------------------------------------
 
 bool BufferQueueLayer::fenceHasSignaled() const {
-    if (latchUnsignaledBuffers()) {
-        return true;
-    }
-
     if (!hasFrameUpdate()) {
         return true;
     }
