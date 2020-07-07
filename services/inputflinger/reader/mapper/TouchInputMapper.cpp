@@ -765,7 +765,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mPointerController = getContext()->getPointerController(getDeviceId());
         }
     } else {
-        mPointerController.clear();
+        mPointerController.reset();
     }
 
     if (viewportChanged || deviceModeChanged) {
