@@ -81,6 +81,8 @@ private:
     // Shared pointer to allow local copies to be used by different threads.
     std::shared_ptr<HalWrapper> mConnectedHal GUARDED_BY(mConnectedHalMutex);
 
+    std::shared_ptr<HalWrapper> initHal();
+
     template <typename T>
     HalResult<T> processHalResult(HalResult<T> result, const char* functionName);
 
