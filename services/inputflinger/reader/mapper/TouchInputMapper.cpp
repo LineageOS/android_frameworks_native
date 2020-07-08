@@ -778,7 +778,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mPointerController->setDisplayViewport(defaultViewport.value_or(mViewport));
         }
     } else {
-        mPointerController.clear();
+        mPointerController.reset();
     }
 
     if (viewportChanged || deviceModeChanged) {

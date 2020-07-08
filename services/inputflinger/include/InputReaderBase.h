@@ -332,7 +332,8 @@ public:
     virtual void getReaderConfiguration(InputReaderConfiguration* outConfig) = 0;
 
     /* Gets a pointer controller associated with the specified cursor device (ie. a mouse). */
-    virtual sp<PointerControllerInterface> obtainPointerController(int32_t deviceId) = 0;
+    virtual std::shared_ptr<PointerControllerInterface> obtainPointerController(
+            int32_t deviceId) = 0;
 
     /* Notifies the input reader policy that some input devices have changed
      * and provides information about all current input devices.
