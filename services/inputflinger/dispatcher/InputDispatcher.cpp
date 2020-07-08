@@ -3864,9 +3864,8 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
                 if (!mFocusedWindowHandlesByDisplay.empty()) {
                     ALOGE("But another display has a focused window:");
                     for (auto& it : mFocusedWindowHandlesByDisplay) {
-                        const int32_t displayId = it.first;
                         const sp<InputWindowHandle>& windowHandle = it.second;
-                        ALOGE("Display #%" PRId32 " has focused window: '%s'\n", displayId,
+                        ALOGE("Display #%" PRId32 " has focused window: '%s'\n", it.first,
                               windowHandle->getName().c_str());
                     }
                 }
