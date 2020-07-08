@@ -159,6 +159,10 @@ static bool isValidMotionAction(int32_t action, int32_t actionButton, int32_t po
     }
 }
 
+static int64_t millis(std::chrono::nanoseconds t) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(t).count();
+}
+
 static bool validateMotionEvent(int32_t action, int32_t actionButton, size_t pointerCount,
                                 const PointerProperties* pointerProperties) {
     if (!isValidMotionAction(action, actionButton, pointerCount)) {
@@ -1473,13 +1477,13 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
     if (focusedWindowHandle == nullptr && focusedApplicationHandle != nullptr) {
         if (!mNoFocusedWindowTimeoutTime.has_value()) {
             // We just discovered that there's no focused window. Start the ANR timer
-            const nsecs_t timeout = focusedApplicationHandle->getDispatchingTimeout(
-                    DEFAULT_INPUT_DISPATCHING_TIMEOUT.count());
-            mNoFocusedWindowTimeoutTime = currentTime + timeout;
+            std::chrono::nanoseconds timeout = focusedApplicationHandle->getDispatchingTimeout(
+                    DEFAULT_INPUT_DISPATCHING_TIMEOUT);
+            mNoFocusedWindowTimeoutTime = currentTime + timeout.count();
             mAwaitedFocusedApplication = focusedApplicationHandle;
             ALOGW("Waiting because no window has focus but %s may eventually add a "
                   "window when it finishes starting up. Will wait for %" PRId64 "ms",
-                  mAwaitedFocusedApplication->getName().c_str(), ns2ms(timeout));
+                  mAwaitedFocusedApplication->getName().c_str(), millis(timeout));
             *nextWakeupTime = *mNoFocusedWindowTimeoutTime;
             return INPUT_EVENT_INJECTION_PENDING;
         } else if (currentTime > *mNoFocusedWindowTimeoutTime) {
@@ -4063,13 +4067,11 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         for (auto& it : mFocusedApplicationHandlesByDisplay) {
             const int32_t displayId = it.first;
             const sp<InputApplicationHandle>& applicationHandle = it.second;
+            const int64_t timeoutMillis = millis(
+                    applicationHandle->getDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT));
             dump += StringPrintf(INDENT2 "displayId=%" PRId32
                                          ", name='%s', dispatchingTimeout=%" PRId64 "ms\n",
-                                 displayId, applicationHandle->getName().c_str(),
-                                 ns2ms(applicationHandle
-                                               ->getDispatchingTimeout(
-                                                       DEFAULT_INPUT_DISPATCHING_TIMEOUT)
-                                               .count()));
+                                 displayId, applicationHandle->getName().c_str(), timeoutMillis);
         }
     } else {
         dump += StringPrintf(INDENT "FocusedApplications: <none>\n");
@@ -4152,7 +4154,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%" PRId64
                                          "ms\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
-                                         ns2ms(windowInfo->dispatchingTimeout));
+                                         millis(windowInfo->dispatchingTimeout));
                     dump += StringPrintf(INDENT4 "    flags: %s\n",
                                          inputWindowFlagsToString(windowInfo->layoutParamsFlags)
                                                  .c_str());
@@ -4653,12 +4655,12 @@ void InputDispatcher::doNotifyAnrLockedInterruptible(CommandEntry* commandEntry)
             commandEntry->inputChannel ? commandEntry->inputChannel->getConnectionToken() : nullptr;
     mLock.unlock();
 
-    const nsecs_t timeoutExtension =
+    const std::chrono::nanoseconds timeoutExtension =
             mPolicy->notifyAnr(commandEntry->inputApplicationHandle, token, commandEntry->reason);
 
     mLock.lock();
 
-    if (timeoutExtension > 0) {
+    if (timeoutExtension > 0s) {
         extendAnrTimeoutsLocked(commandEntry->inputApplicationHandle, token, timeoutExtension);
     } else {
         // stop waking up for events in this connection, it is already not responding
@@ -4672,12 +4674,12 @@ void InputDispatcher::doNotifyAnrLockedInterruptible(CommandEntry* commandEntry)
 
 void InputDispatcher::extendAnrTimeoutsLocked(const sp<InputApplicationHandle>& application,
                                               const sp<IBinder>& connectionToken,
-                                              nsecs_t timeoutExtension) {
+                                              std::chrono::nanoseconds timeoutExtension) {
     sp<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
         if (mNoFocusedWindowTimeoutTime.has_value() && application != nullptr) {
             // Maybe ANR happened because there's no focused window?
-            mNoFocusedWindowTimeoutTime = now() + timeoutExtension;
+            mNoFocusedWindowTimeoutTime = now() + timeoutExtension.count();
             mAwaitedFocusedApplication = application;
         } else {
             // It's also possible that the connection already disappeared. No action necessary.
@@ -4686,10 +4688,10 @@ void InputDispatcher::extendAnrTimeoutsLocked(const sp<InputApplicationHandle>& 
     }
 
     ALOGI("Raised ANR, but the policy wants to keep waiting on %s for %" PRId64 "ms longer",
-          connection->inputChannel->getName().c_str(), ns2ms(timeoutExtension));
+          connection->inputChannel->getName().c_str(), millis(timeoutExtension));
 
     connection->responsive = true;
-    const nsecs_t newTimeout = now() + timeoutExtension;
+    const nsecs_t newTimeout = now() + timeoutExtension.count();
     for (DispatchEntry* entry : connection->waitQueue) {
         if (newTimeout >= entry->timeoutTime) {
             // Already removed old entries when connection was marked unresponsive

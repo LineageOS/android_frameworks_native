@@ -374,8 +374,8 @@ private:
     // prevent unneeded wakeups.
     AnrTracker mAnrTracker GUARDED_BY(mLock);
     void extendAnrTimeoutsLocked(const sp<InputApplicationHandle>& application,
-                                 const sp<IBinder>& connectionToken, nsecs_t timeoutExtension)
-            REQUIRES(mLock);
+                                 const sp<IBinder>& connectionToken,
+                                 std::chrono::nanoseconds timeoutExtension) REQUIRES(mLock);
 
     // Contains the last window which received a hover event.
     sp<InputWindowHandle> mLastHoverWindowHandle GUARDED_BY(mLock);
