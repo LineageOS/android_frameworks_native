@@ -20,6 +20,7 @@
 
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
+#include "PointerControllerInterface.h"
 #include "TouchCursorInputMapperCommon.h"
 
 namespace android {
@@ -153,7 +154,7 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
                 mParameters.mode = Parameters::MODE_POINTER_RELATIVE;
                 mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
                 // Keep PointerController around in order to preserve the pointer position.
-                mPointerController->fade(PointerControllerInterface::TRANSITION_IMMEDIATE);
+                mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
             } else {
                 ALOGE("Cannot request pointer capture, device is not in MODE_POINTER");
             }
@@ -335,7 +336,7 @@ void CursorInputMapper::sync(nsecs_t when) {
     int32_t displayId;
     if (mSource == AINPUT_SOURCE_MOUSE) {
         if (moved || scrolled || buttonsChanged) {
-            mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_POINTER);
+            mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
 
             if (moved) {
                 mPointerController->move(deltaX, deltaY);
@@ -345,7 +346,7 @@ void CursorInputMapper::sync(nsecs_t when) {
                 mPointerController->setButtonState(currentButtonState);
             }
 
-            mPointerController->unfade(PointerControllerInterface::TRANSITION_IMMEDIATE);
+            mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
         }
 
         float x, y;
@@ -480,7 +481,7 @@ int32_t CursorInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCod
 
 void CursorInputMapper::fadePointer() {
     if (mPointerController != nullptr) {
-        mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
+        mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
     }
 }
 

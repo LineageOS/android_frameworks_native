@@ -778,7 +778,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mPointerController->setDisplayViewport(defaultViewport.value_or(mViewport));
         }
     } else {
-        mPointerController.clear();
+        mPointerController.reset();
     }
 
     if (viewportChanged || deviceModeChanged) {
@@ -1394,7 +1394,7 @@ void TouchInputMapper::reset(nsecs_t when) {
     resetExternalStylus();
 
     if (mPointerController != nullptr) {
-        mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
+        mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
         mPointerController->clearSpots();
     }
 
@@ -1614,8 +1614,8 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
     } else {
         if (mDeviceMode == DEVICE_MODE_DIRECT && mConfig.showTouches &&
             mPointerController != nullptr) {
-            mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_SPOT);
-            mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
+            mPointerController->setPresentation(PointerControllerInterface::Presentation::SPOT);
+            mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
 
             mPointerController->setButtonState(mCurrentRawState.buttonState);
             mPointerController->setSpots(mCurrentCookedState.cookedPointerData.pointerCoords,
@@ -2366,7 +2366,7 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
 
     // Update the pointer presentation and spots.
     if (mParameters.gestureMode == Parameters::GESTURE_MODE_MULTI_TOUCH) {
-        mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_POINTER);
+        mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
         if (finishPreviousGesture || cancelPreviousGesture) {
             mPointerController->clearSpots();
         }
@@ -2378,7 +2378,7 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
                                          mPointerController->getDisplayId());
         }
     } else {
-        mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_POINTER);
+        mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
     }
 
     // Show or hide the pointer if needed.
@@ -2388,7 +2388,7 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
             if (mParameters.gestureMode == Parameters::GESTURE_MODE_MULTI_TOUCH &&
                 mPointerGesture.lastGestureMode == PointerGesture::FREEFORM) {
                 // Remind the user of where the pointer is after finishing a gesture with spots.
-                mPointerController->unfade(PointerControllerInterface::TRANSITION_GRADUAL);
+                mPointerController->unfade(PointerControllerInterface::Transition::GRADUAL);
             }
             break;
         case PointerGesture::TAP:
@@ -2399,15 +2399,15 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
         case PointerGesture::SWIPE:
             // Unfade the pointer when the current gesture manipulates the
             // area directly under the pointer.
-            mPointerController->unfade(PointerControllerInterface::TRANSITION_IMMEDIATE);
+            mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
             break;
         case PointerGesture::FREEFORM:
             // Fade the pointer when the current gesture manipulates a different
             // area and there are spots to guide the user experience.
             if (mParameters.gestureMode == Parameters::GESTURE_MODE_MULTI_TOUCH) {
-                mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
+                mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
             } else {
-                mPointerController->unfade(PointerControllerInterface::TRANSITION_IMMEDIATE);
+                mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
             }
             break;
     }
@@ -2578,7 +2578,7 @@ void TouchInputMapper::abortPointerGestures(nsecs_t when, uint32_t policyFlags) 
 
     // Remove any current spots.
     if (mPointerController != nullptr) {
-        mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
+        mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
         mPointerController->clearSpots();
     }
 }
@@ -3438,12 +3438,12 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
 
     if (mPointerController != nullptr) {
         if (down || hovering) {
-            mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_POINTER);
+            mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
             mPointerController->clearSpots();
             mPointerController->setButtonState(mCurrentRawState.buttonState);
-            mPointerController->unfade(PointerControllerInterface::TRANSITION_IMMEDIATE);
+            mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
         } else if (!down && !hovering && (mPointerSimple.down || mPointerSimple.hovering)) {
-            mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
+            mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
         }
         displayId = mPointerController->getDisplayId();
     }
@@ -3652,7 +3652,7 @@ bool TouchInputMapper::updateMovedPointers(const PointerProperties* inProperties
 
 void TouchInputMapper::fadePointer() {
     if (mPointerController != nullptr) {
-        mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
+        mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
     }
 }
 
