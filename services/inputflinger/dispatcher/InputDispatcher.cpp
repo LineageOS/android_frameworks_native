@@ -45,27 +45,28 @@ static constexpr bool DEBUG_FOCUS = false;
 
 #include "InputDispatcher.h"
 
-#include "Connection.h"
-
-#include <errno.h>
-#include <inttypes.h>
-#include <limits.h>
-#include <statslog.h>
-#include <stddef.h>
-#include <time.h>
-#include <unistd.h>
-#include <queue>
-#include <sstream>
-
 #include <android-base/chrono_utils.h>
 #include <android-base/stringprintf.h>
 #include <binder/Binder.h>
 #include <input/InputDevice.h>
+#include <input/InputWindow.h>
 #include <log/log.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
 #include <powermanager/PowerManager.h>
+#include <statslog.h>
+#include <unistd.h>
 #include <utils/Trace.h>
+
+#include <cerrno>
+#include <cinttypes>
+#include <climits>
+#include <cstddef>
+#include <ctime>
+#include <queue>
+#include <sstream>
+
+#include "Connection.h"
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -816,13 +817,12 @@ sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t display
     for (const sp<InputWindowHandle>& windowHandle : windowHandles) {
         const InputWindowInfo* windowInfo = windowHandle->getInfo();
         if (windowInfo->displayId == displayId) {
-            int32_t flags = windowInfo->layoutParamsFlags;
+            auto flags = windowInfo->flags;
 
             if (windowInfo->visible) {
-                if (!(flags & InputWindowInfo::FLAG_NOT_TOUCHABLE)) {
-                    bool isTouchModal = (flags &
-                                         (InputWindowInfo::FLAG_NOT_FOCUSABLE |
-                                          InputWindowInfo::FLAG_NOT_TOUCH_MODAL)) == 0;
+                if (!flags.test(InputWindowInfo::Flag::NOT_TOUCHABLE)) {
+                    bool isTouchModal = !flags.test(InputWindowInfo::Flag::NOT_FOCUSABLE) &&
+                            !flags.test(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
                     if (isTouchModal || windowInfo->touchableRegionContainsPoint(x, y)) {
                         int32_t portalToDisplayId = windowInfo->portalToDisplayId;
                         if (portalToDisplayId != ADISPLAY_ID_NONE &&
@@ -839,7 +839,7 @@ sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t display
                     }
                 }
 
-                if (addOutsideTargets && (flags & InputWindowInfo::FLAG_WATCH_OUTSIDE_TOUCH)) {
+                if (addOutsideTargets && flags.test(InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH)) {
                     touchState->addOrUpdateWindow(windowHandle,
                                                   InputTarget::FLAG_DISPATCH_AS_OUTSIDE,
                                                   BitSet32(0));
@@ -1888,7 +1888,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             for (const sp<InputWindowHandle>& windowHandle : windowHandles) {
                 const InputWindowInfo* info = windowHandle->getInfo();
                 if (info->displayId == displayId &&
-                    windowHandle->getInfo()->layoutParamsType == InputWindowInfo::TYPE_WALLPAPER) {
+                    windowHandle->getInfo()->type == InputWindowInfo::Type::WALLPAPER) {
                     tempTouchState
                             .addOrUpdateWindow(windowHandle,
                                                InputTarget::FLAG_WINDOW_IS_OBSCURED |
@@ -2170,7 +2170,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
             getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
     if (focusedWindowHandle != nullptr) {
         const InputWindowInfo* info = focusedWindowHandle->getInfo();
-        if (info->inputFeatures & InputWindowInfo::INPUT_FEATURE_DISABLE_USER_ACTIVITY) {
+        if (info->inputFeatures.test(InputWindowInfo::Feature::DISABLE_USER_ACTIVITY)) {
 #if DEBUG_DISPATCH_CYCLE
             ALOGD("Not poking user activity: disabled by window '%s'.", info->name.c_str());
 #endif
@@ -3647,10 +3647,9 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
         if ((getInputChannelLocked(handle->getToken()) == nullptr &&
              info->portalToDisplayId == ADISPLAY_ID_NONE)) {
             const bool noInputChannel =
-                    info->inputFeatures & InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL;
-            const bool canReceiveInput =
-                    !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_TOUCHABLE) ||
-                    !(info->layoutParamsFlags & InputWindowInfo::FLAG_NOT_FOCUSABLE);
+                    info->inputFeatures.test(InputWindowInfo::Feature::NO_INPUT_CHANNEL);
+            const bool canReceiveInput = !info->flags.test(InputWindowInfo::Flag::NOT_TOUCHABLE) ||
+                    !info->flags.test(InputWindowInfo::Flag::NOT_FOCUSABLE);
             if (canReceiveInput && !noInputChannel) {
                 ALOGV("Window handle %s has no registered input channel",
                       handle->getName().c_str());
@@ -4140,7 +4139,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     dump += StringPrintf(INDENT3 "%zu: name='%s', displayId=%d, "
                                                  "portalToDisplayId=%d, paused=%s, hasFocus=%s, "
                                                  "hasWallpaper=%s, visible=%s, canReceiveKeys=%s, "
-                                                 "flags=0x%08x, type=0x%08x, "
+                                                 "flags=%s, type=0x%08x, "
                                                  "frame=[%d,%d][%d,%d], globalScale=%f, "
                                                  "windowScale=(%f,%f), touchableRegion=",
                                          i, windowInfo->name.c_str(), windowInfo->displayId,
@@ -4150,20 +4149,20 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          toString(windowInfo->hasWallpaper),
                                          toString(windowInfo->visible),
                                          toString(windowInfo->canReceiveKeys),
-                                         windowInfo->layoutParamsFlags,
-                                         windowInfo->layoutParamsType, windowInfo->frameLeft,
-                                         windowInfo->frameTop, windowInfo->frameRight,
-                                         windowInfo->frameBottom, windowInfo->globalScaleFactor,
-                                         windowInfo->windowXScale, windowInfo->windowYScale);
+                                         windowInfo->flags.string(InputWindowInfo::flagToString)
+                                                 .c_str(),
+                                         static_cast<int32_t>(windowInfo->type),
+                                         windowInfo->frameLeft, windowInfo->frameTop,
+                                         windowInfo->frameRight, windowInfo->frameBottom,
+                                         windowInfo->globalScaleFactor, windowInfo->windowXScale,
+                                         windowInfo->windowYScale);
                     dumpRegion(dump, windowInfo->touchableRegion);
-                    dump += StringPrintf(", inputFeatures=0x%08x", windowInfo->inputFeatures);
+                    dump += StringPrintf(", inputFeatures=%s",
+                                         windowInfo->inputFeatures.string().c_str());
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%" PRId64
                                          "ms\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
                                          millis(windowInfo->dispatchingTimeout));
-                    dump += StringPrintf(INDENT4 "    flags: %s\n",
-                                         inputWindowFlagsToString(windowInfo->layoutParamsFlags)
-                                                 .c_str());
                 }
             } else {
                 dump += INDENT2 "Windows: <none>\n";

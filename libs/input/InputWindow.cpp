@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <type_traits>
 #define LOG_TAG "InputWindow"
 #define LOG_NDEBUG 0
 
@@ -26,117 +27,6 @@
 
 namespace android {
 
-const char* inputWindowFlagToString(uint32_t flag) {
-    switch (flag) {
-        case InputWindowInfo::FLAG_ALLOW_LOCK_WHILE_SCREEN_ON: {
-            return "ALLOW_LOCK_WHILE_SCREEN_ON";
-        }
-        case InputWindowInfo::FLAG_DIM_BEHIND: {
-            return "DIM_BEHIND";
-        }
-        case InputWindowInfo::FLAG_BLUR_BEHIND: {
-            return "BLUR_BEHIND";
-        }
-        case InputWindowInfo::FLAG_NOT_FOCUSABLE: {
-            return "NOT_FOCUSABLE";
-        }
-        case InputWindowInfo::FLAG_NOT_TOUCHABLE: {
-            return "NOT_TOUCHABLE";
-        }
-        case InputWindowInfo::FLAG_NOT_TOUCH_MODAL: {
-            return "NOT_TOUCH_MODAL";
-        }
-        case InputWindowInfo::FLAG_TOUCHABLE_WHEN_WAKING: {
-            return "TOUCHABLE_WHEN_WAKING";
-        }
-        case InputWindowInfo::FLAG_KEEP_SCREEN_ON: {
-            return "KEEP_SCREEN_ON";
-        }
-        case InputWindowInfo::FLAG_LAYOUT_IN_SCREEN: {
-            return "LAYOUT_IN_SCREEN";
-        }
-        case InputWindowInfo::FLAG_LAYOUT_NO_LIMITS: {
-            return "LAYOUT_NO_LIMITS";
-        }
-        case InputWindowInfo::FLAG_FULLSCREEN: {
-            return "FULLSCREEN";
-        }
-        case InputWindowInfo::FLAG_FORCE_NOT_FULLSCREEN: {
-            return "FORCE_NOT_FULLSCREEN";
-        }
-        case InputWindowInfo::FLAG_DITHER: {
-            return "DITHER";
-        }
-        case InputWindowInfo::FLAG_SECURE: {
-            return "SECURE";
-        }
-        case InputWindowInfo::FLAG_SCALED: {
-            return "SCALED";
-        }
-        case InputWindowInfo::FLAG_IGNORE_CHEEK_PRESSES: {
-            return "IGNORE_CHEEK_PRESSES";
-        }
-        case InputWindowInfo::FLAG_LAYOUT_INSET_DECOR: {
-            return "LAYOUT_INSET_DECOR";
-        }
-        case InputWindowInfo::FLAG_ALT_FOCUSABLE_IM: {
-            return "ALT_FOCUSABLE_IM";
-        }
-        case InputWindowInfo::FLAG_WATCH_OUTSIDE_TOUCH: {
-            return "WATCH_OUTSIDE_TOUCH";
-        }
-        case InputWindowInfo::FLAG_SHOW_WHEN_LOCKED: {
-            return "SHOW_WHEN_LOCKED";
-        }
-        case InputWindowInfo::FLAG_SHOW_WALLPAPER: {
-            return "SHOW_WALLPAPER";
-        }
-        case InputWindowInfo::FLAG_TURN_SCREEN_ON: {
-            return "TURN_SCREEN_ON";
-        }
-        case InputWindowInfo::FLAG_DISMISS_KEYGUARD: {
-            return "DISMISS_KEYGUARD";
-        }
-        case InputWindowInfo::FLAG_SPLIT_TOUCH: {
-            return "SPLIT_TOUCH";
-        }
-        case InputWindowInfo::FLAG_HARDWARE_ACCELERATED: {
-            return "HARDWARE_ACCELERATED";
-        }
-        case InputWindowInfo::FLAG_LAYOUT_IN_OVERSCAN: {
-            return "LAYOUT_IN_OVERSCAN";
-        }
-        case InputWindowInfo::FLAG_TRANSLUCENT_STATUS: {
-            return "TRANSLUCENT_STATUS";
-        }
-        case InputWindowInfo::FLAG_TRANSLUCENT_NAVIGATION: {
-            return "TRANSLUCENT_NAVIGATION";
-        }
-        case InputWindowInfo::FLAG_LOCAL_FOCUS_MODE: {
-            return "LOCAL_FOCUS_MODE";
-        }
-        case InputWindowInfo::FLAG_SLIPPERY: {
-            return "SLIPPERY";
-        }
-        case InputWindowInfo::FLAG_LAYOUT_ATTACHED_IN_DECOR: {
-            return "LAYOUT_ATTACHED_IN_DECOR";
-        }
-        case InputWindowInfo::FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS: {
-            return "DRAWS_SYSTEM_BAR_BACKGROUNDS";
-        }
-    }
-    return "UNKNOWN";
-}
-
-std::string inputWindowFlagsToString(uint32_t flags) {
-    std::string result;
-    for (BitSet32 bits(flags); !bits.isEmpty();) {
-        uint32_t bit = bits.clearLastMarkedBit(); // counts from left
-        const uint32_t flag = 1 << (32 - bit - 1);
-        result += android::base::StringPrintf("%s | ", inputWindowFlagToString(flag));
-    }
-    return result;
-}
 
 // --- InputWindowInfo ---
 void InputWindowInfo::addTouchableRegion(const Rect& region) {
@@ -153,7 +43,7 @@ bool InputWindowInfo::frameContainsPoint(int32_t x, int32_t y) const {
 }
 
 bool InputWindowInfo::supportsSplitTouch() const {
-    return layoutParamsFlags & FLAG_SPLIT_TOUCH;
+    return flags.test(Flag::SPLIT_TOUCH);
 }
 
 bool InputWindowInfo::overlaps(const InputWindowInfo* other) const {
@@ -162,14 +52,12 @@ bool InputWindowInfo::overlaps(const InputWindowInfo* other) const {
 }
 
 bool InputWindowInfo::operator==(const InputWindowInfo& info) const {
-    return info.token == token && info.id == id && info.name == name &&
-            info.layoutParamsFlags == layoutParamsFlags &&
-            info.layoutParamsType == layoutParamsType &&
-            info.dispatchingTimeout == dispatchingTimeout && info.frameLeft == frameLeft &&
-            info.frameTop == frameTop && info.frameRight == frameRight &&
-            info.frameBottom == frameBottom && info.surfaceInset == surfaceInset &&
-            info.globalScaleFactor == globalScaleFactor && info.windowXScale == windowXScale &&
-            info.windowYScale == windowYScale &&
+    return info.token == token && info.id == id && info.name == name && info.flags == flags &&
+            info.type == type && info.dispatchingTimeout == dispatchingTimeout &&
+            info.frameLeft == frameLeft && info.frameTop == frameTop &&
+            info.frameRight == frameRight && info.frameBottom == frameBottom &&
+            info.surfaceInset == surfaceInset && info.globalScaleFactor == globalScaleFactor &&
+            info.windowXScale == windowXScale && info.windowYScale == windowYScale &&
             info.touchableRegion.hasSameRects(touchableRegion) && info.visible == visible &&
             info.canReceiveKeys == canReceiveKeys && info.trustedOverlay == trustedOverlay &&
             info.hasFocus == hasFocus && info.hasWallpaper == hasWallpaper &&
@@ -197,8 +85,8 @@ status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeInt64(dispatchingTimeout.count()) ?:
         parcel->writeInt32(id) ?:
         parcel->writeUtf8AsUtf16(name) ?:
-        parcel->writeInt32(layoutParamsFlags) ?:
-        parcel->writeInt32(layoutParamsType) ?:
+        parcel->writeInt32(flags.get()) ?:
+        parcel->writeInt32(static_cast<std::underlying_type_t<InputWindowInfo::Type>>(type)) ?:
         parcel->writeInt32(frameLeft) ?:
         parcel->writeInt32(frameTop) ?:
         parcel->writeInt32(frameRight) ?:
@@ -215,7 +103,7 @@ status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeBool(trustedOverlay) ?:
         parcel->writeInt32(ownerPid) ?:
         parcel->writeInt32(ownerUid) ?:
-        parcel->writeInt32(inputFeatures) ?:
+        parcel->writeInt32(inputFeatures.get()) ?:
         parcel->writeInt32(displayId) ?:
         parcel->writeInt32(portalToDisplayId) ?:
         applicationInfo.writeToParcel(parcel) ?:
@@ -236,12 +124,15 @@ status_t InputWindowInfo::readFromParcel(const android::Parcel* parcel) {
     }
 
     token = parcel->readStrongBinder();
-    dispatchingTimeout = decltype(dispatchingTimeout)(parcel->readInt64());
-    status_t status = parcel->readInt32(&id) ?:
-        parcel->readUtf8FromUtf16(&name) ?:
-        parcel->readInt32(&layoutParamsFlags) ?:
-        parcel->readInt32(&layoutParamsType) ?:
-        parcel->readInt32(&frameLeft) ?:
+    dispatchingTimeout = static_cast<decltype(dispatchingTimeout)>(parcel->readInt64());
+    status_t status = parcel->readInt32(&id) ?: parcel->readUtf8FromUtf16(&name);
+    if (status != OK) {
+        return status;
+    }
+
+    flags = Flags<Flag>(parcel->readInt32());
+    type = static_cast<Type>(parcel->readInt32());
+    status = parcel->readInt32(&frameLeft) ?:
         parcel->readInt32(&frameTop) ?:
         parcel->readInt32(&frameRight) ?:
         parcel->readInt32(&frameBottom) ?:
@@ -256,17 +147,26 @@ status_t InputWindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->readBool(&paused) ?:
         parcel->readBool(&trustedOverlay) ?:
         parcel->readInt32(&ownerPid) ?:
-        parcel->readInt32(&ownerUid) ?:
-        parcel->readInt32(&inputFeatures) ?:
-        parcel->readInt32(&displayId) ?:
+        parcel->readInt32(&ownerUid);
+
+    if (status != OK) {
+        return status;
+    }
+
+    inputFeatures = Flags<Feature>(parcel->readInt32());
+    status = parcel->readInt32(&displayId) ?:
         parcel->readInt32(&portalToDisplayId) ?:
         applicationInfo.readFromParcel(parcel) ?:
         parcel->read(touchableRegion) ?:
         parcel->readBool(&replaceTouchableRegionWithCrop);
 
+    if (status != OK) {
+        return status;
+    }
+
     touchableRegionCropHandle = parcel->readStrongBinder();
 
-    return status;
+    return OK;
 }
 
 // --- InputWindowHandle ---
@@ -297,6 +197,108 @@ sp<IBinder> InputWindowHandle::getToken() const {
 
 void InputWindowHandle::updateFrom(sp<InputWindowHandle> handle) {
     mInfo = handle->mInfo;
+}
+
+std::optional<std::string> InputWindowInfo::flagToString(Flag flag) {
+    switch (flag) {
+        case InputWindowInfo::Flag::ALLOW_LOCK_WHILE_SCREEN_ON: {
+            return "ALLOW_LOCK_WHILE_SCREEN_ON";
+        }
+        case InputWindowInfo::Flag::DIM_BEHIND: {
+            return "DIM_BEHIND";
+        }
+        case InputWindowInfo::Flag::BLUR_BEHIND: {
+            return "BLUR_BEHIND";
+        }
+        case InputWindowInfo::Flag::NOT_FOCUSABLE: {
+            return "NOT_FOCUSABLE";
+        }
+        case InputWindowInfo::Flag::NOT_TOUCHABLE: {
+            return "NOT_TOUCHABLE";
+        }
+        case InputWindowInfo::Flag::NOT_TOUCH_MODAL: {
+            return "NOT_TOUCH_MODAL";
+        }
+        case InputWindowInfo::Flag::TOUCHABLE_WHEN_WAKING: {
+            return "TOUCHABLE_WHEN_WAKING";
+        }
+        case InputWindowInfo::Flag::KEEP_SCREEN_ON: {
+            return "KEEP_SCREEN_ON";
+        }
+        case InputWindowInfo::Flag::LAYOUT_IN_SCREEN: {
+            return "LAYOUT_IN_SCREEN";
+        }
+        case InputWindowInfo::Flag::LAYOUT_NO_LIMITS: {
+            return "LAYOUT_NO_LIMITS";
+        }
+        case InputWindowInfo::Flag::FULLSCREEN: {
+            return "FULLSCREEN";
+        }
+        case InputWindowInfo::Flag::FORCE_NOT_FULLSCREEN: {
+            return "FORCE_NOT_FULLSCREEN";
+        }
+        case InputWindowInfo::Flag::DITHER: {
+            return "DITHER";
+        }
+        case InputWindowInfo::Flag::SECURE: {
+            return "SECURE";
+        }
+        case InputWindowInfo::Flag::SCALED: {
+            return "SCALED";
+        }
+        case InputWindowInfo::Flag::IGNORE_CHEEK_PRESSES: {
+            return "IGNORE_CHEEK_PRESSES";
+        }
+        case InputWindowInfo::Flag::LAYOUT_INSET_DECOR: {
+            return "LAYOUT_INSET_DECOR";
+        }
+        case InputWindowInfo::Flag::ALT_FOCUSABLE_IM: {
+            return "ALT_FOCUSABLE_IM";
+        }
+        case InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH: {
+            return "WATCH_OUTSIDE_TOUCH";
+        }
+        case InputWindowInfo::Flag::SHOW_WHEN_LOCKED: {
+            return "SHOW_WHEN_LOCKED";
+        }
+        case InputWindowInfo::Flag::SHOW_WALLPAPER: {
+            return "SHOW_WALLPAPER";
+        }
+        case InputWindowInfo::Flag::TURN_SCREEN_ON: {
+            return "TURN_SCREEN_ON";
+        }
+        case InputWindowInfo::Flag::DISMISS_KEYGUARD: {
+            return "DISMISS_KEYGUARD";
+        }
+        case InputWindowInfo::Flag::SPLIT_TOUCH: {
+            return "SPLIT_TOUCH";
+        }
+        case InputWindowInfo::Flag::HARDWARE_ACCELERATED: {
+            return "HARDWARE_ACCELERATED";
+        }
+        case InputWindowInfo::Flag::LAYOUT_IN_OVERSCAN: {
+            return "LAYOUT_IN_OVERSCAN";
+        }
+        case InputWindowInfo::Flag::TRANSLUCENT_STATUS: {
+            return "TRANSLUCENT_STATUS";
+        }
+        case InputWindowInfo::Flag::TRANSLUCENT_NAVIGATION: {
+            return "TRANSLUCENT_NAVIGATION";
+        }
+        case InputWindowInfo::Flag::LOCAL_FOCUS_MODE: {
+            return "LOCAL_FOCUS_MODE";
+        }
+        case InputWindowInfo::Flag::SLIPPERY: {
+            return "SLIPPERY";
+        }
+        case InputWindowInfo::Flag::LAYOUT_ATTACHED_IN_DECOR: {
+            return "LAYOUT_ATTACHED_IN_DECOR";
+        }
+        case InputWindowInfo::Flag::DRAWS_SYSTEM_BAR_BACKGROUNDS: {
+            return "DRAWS_SYSTEM_BAR_BACKGROUNDS";
+        }
+    }
+    return std::nullopt;
 }
 
 } // namespace android

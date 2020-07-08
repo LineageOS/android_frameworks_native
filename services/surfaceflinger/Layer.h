@@ -286,7 +286,7 @@ public:
 
     void onFirstRef() override;
 
-    int getWindowType() const { return mWindowType; }
+    InputWindowInfo::Type getWindowType() const { return mWindowType; }
 
     void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
     bool getPrimaryDisplayOnly() const { return mPrimaryDisplayOnly; }
@@ -1038,7 +1038,7 @@ protected:
     bool mChildrenChanged{false};
 
     // Window types from WindowManager.LayoutParams
-    const int mWindowType;
+    const InputWindowInfo::Type mWindowType;
 
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}

@@ -44,8 +44,8 @@ TEST(InputWindowInfo, Parcelling) {
     i.token = new BBinder();
     i.id = 1;
     i.name = "Foobar";
-    i.layoutParamsFlags = 7;
-    i.layoutParamsType = 39;
+    i.flags = InputWindowInfo::Flag::SLIPPERY;
+    i.type = InputWindowInfo::Type::INPUT_METHOD;
     i.dispatchingTimeout = 12s;
     i.frameLeft = 93;
     i.frameTop = 34;
@@ -62,7 +62,7 @@ TEST(InputWindowInfo, Parcelling) {
     i.paused = false;
     i.ownerPid = 19;
     i.ownerUid = 24;
-    i.inputFeatures = 29;
+    i.inputFeatures = InputWindowInfo::Feature::DISABLE_USER_ACTIVITY;
     i.displayId = 34;
     i.portalToDisplayId = 2;
     i.replaceTouchableRegionWithCrop = true;
@@ -76,8 +76,8 @@ TEST(InputWindowInfo, Parcelling) {
     ASSERT_EQ(i.token, i2.token);
     ASSERT_EQ(i.id, i2.id);
     ASSERT_EQ(i.name, i2.name);
-    ASSERT_EQ(i.layoutParamsFlags, i2.layoutParamsFlags);
-    ASSERT_EQ(i.layoutParamsType, i2.layoutParamsType);
+    ASSERT_EQ(i.flags, i2.flags);
+    ASSERT_EQ(i.type, i2.type);
     ASSERT_EQ(i.dispatchingTimeout, i2.dispatchingTimeout);
     ASSERT_EQ(i.frameLeft, i2.frameLeft);
     ASSERT_EQ(i.frameTop, i2.frameTop);

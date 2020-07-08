@@ -186,8 +186,8 @@ private:
     void populateInputInfo(int width, int height) {
         mInputInfo.token = mServerChannel->getConnectionToken();
         mInputInfo.name = "Test info";
-        mInputInfo.layoutParamsFlags = InputWindowInfo::FLAG_NOT_TOUCH_MODAL;
-        mInputInfo.layoutParamsType = InputWindowInfo::TYPE_BASE_APPLICATION;
+        mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
+        mInputInfo.type = InputWindowInfo::Type::BASE_APPLICATION;
         mInputInfo.dispatchingTimeout = 5s;
         mInputInfo.globalScaleFactor = 1.0;
         mInputInfo.canReceiveKeys = true;
@@ -200,7 +200,6 @@ private:
         // TODO: Fill in from SF?
         mInputInfo.ownerPid = 11111;
         mInputInfo.ownerUid = 11111;
-        mInputInfo.inputFeatures = 0;
         mInputInfo.displayId = 0;
 
         InputApplicationInfo aInfo;
