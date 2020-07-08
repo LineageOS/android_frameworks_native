@@ -27,11 +27,12 @@
 #include <TestInputListener.h>
 #include <TouchInputMapper.h>
 #include <UinputDevice.h>
-
 #include <android-base/thread_annotations.h>
 #include <gtest/gtest.h>
 #include <inttypes.h>
 #include <math.h>
+
+#include <memory>
 
 namespace android {
 
@@ -76,14 +77,13 @@ class FakePointerController : public PointerControllerInterface {
     int32_t mButtonState;
     int32_t mDisplayId;
 
-protected:
-    virtual ~FakePointerController() { }
-
 public:
     FakePointerController() :
         mHaveBounds(false), mMinX(0), mMinY(0), mMaxX(0), mMaxY(0), mX(0), mY(0),
         mButtonState(0), mDisplayId(ADISPLAY_ID_DEFAULT) {
     }
+
+    virtual ~FakePointerController() {}
 
     void setBounds(float minX, float minY, float maxX, float maxY) {
         mHaveBounds = true;
@@ -176,7 +176,7 @@ class FakeInputReaderPolicy : public InputReaderPolicyInterface {
     std::condition_variable mDevicesChangedCondition;
 
     InputReaderConfiguration mConfig;
-    KeyedVector<int32_t, sp<FakePointerController> > mPointerControllers;
+    std::unordered_map<int32_t, std::shared_ptr<FakePointerController>> mPointerControllers;
     std::vector<InputDeviceInfo> mInputDevices GUARDED_BY(mLock);
     bool mInputDevicesChanged GUARDED_BY(mLock){false};
     std::vector<DisplayViewport> mViewports;
@@ -256,8 +256,8 @@ public:
 
     void removeDisabledDevice(int32_t deviceId) { mConfig.disabledDevices.erase(deviceId); }
 
-    void setPointerController(int32_t deviceId, const sp<FakePointerController>& controller) {
-        mPointerControllers.add(deviceId, controller);
+    void setPointerController(int32_t deviceId, std::shared_ptr<FakePointerController> controller) {
+        mPointerControllers.insert_or_assign(deviceId, std::move(controller));
     }
 
     const InputReaderConfiguration* getReaderConfiguration() const {
@@ -318,8 +318,8 @@ private:
         *outConfig = mConfig;
     }
 
-    virtual sp<PointerControllerInterface> obtainPointerController(int32_t deviceId) {
-        return mPointerControllers.valueFor(deviceId);
+    virtual std::shared_ptr<PointerControllerInterface> obtainPointerController(int32_t deviceId) {
+        return mPointerControllers[deviceId];
     }
 
     virtual void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) {
@@ -847,7 +847,7 @@ class FakeInputReaderContext : public InputReaderContext {
     bool mUpdateGlobalMetaStateWasCalled;
     int32_t mGeneration;
     int32_t mNextId;
-    wp<PointerControllerInterface> mPointerController;
+    std::weak_ptr<PointerControllerInterface> mPointerController;
 
 public:
     FakeInputReaderContext(std::shared_ptr<EventHubInterface> eventHub,
@@ -876,7 +876,7 @@ public:
     }
 
     void updatePointerDisplay() {
-        sp<PointerControllerInterface> controller = mPointerController.promote();
+        std::shared_ptr<PointerControllerInterface> controller = mPointerController.lock();
         if (controller != nullptr) {
             InputReaderConfiguration config;
             mPolicy->getReaderConfiguration(&config);
@@ -913,8 +913,8 @@ private:
 
     virtual bool shouldDropVirtualKey(nsecs_t, int32_t, int32_t) { return false; }
 
-    virtual sp<PointerControllerInterface> getPointerController(int32_t deviceId) {
-        sp<PointerControllerInterface> controller = mPointerController.promote();
+    virtual std::shared_ptr<PointerControllerInterface> getPointerController(int32_t deviceId) {
+        std::shared_ptr<PointerControllerInterface> controller = mPointerController.lock();
         if (controller == nullptr) {
             controller = mPolicy->obtainPointerController(deviceId);
             mPointerController = controller;
@@ -2348,9 +2348,9 @@ protected:
         ASSERT_NEAR(distance, coords.getAxisValue(AMOTION_EVENT_AXIS_DISTANCE), EPSILON);
     }
 
-    static void assertPosition(const sp<FakePointerController>& controller, float x, float y) {
+    static void assertPosition(const FakePointerController& controller, float x, float y) {
         float actualX, actualY;
-        controller->getPosition(&actualX, &actualY);
+        controller.getPosition(&actualX, &actualY);
         ASSERT_NEAR(x, actualX, 1);
         ASSERT_NEAR(y, actualY, 1);
     }
@@ -3021,12 +3021,12 @@ class CursorInputMapperTest : public InputMapperTest {
 protected:
     static const int32_t TRACKBALL_MOVEMENT_THRESHOLD;
 
-    sp<FakePointerController> mFakePointerController;
+    std::shared_ptr<FakePointerController> mFakePointerController;
 
     virtual void SetUp() override {
         InputMapperTest::SetUp();
 
-        mFakePointerController = new FakePointerController();
+        mFakePointerController = std::make_shared<FakePointerController>();
         mFakePolicy->setPointerController(mDevice->getId(), mFakePointerController);
     }
 
@@ -3682,7 +3682,7 @@ TEST_F(CursorInputMapperTest, Process_WhenModeIsPointer_ShouldMoveThePointerArou
     ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
             110.0f, 220.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
-    ASSERT_NO_FATAL_FAILURE(assertPosition(mFakePointerController, 110.0f, 220.0f));
+    ASSERT_NO_FATAL_FAILURE(assertPosition(*mFakePointerController, 110.0f, 220.0f));
 }
 
 TEST_F(CursorInputMapperTest, Process_PointerCapture) {
@@ -3710,7 +3710,7 @@ TEST_F(CursorInputMapperTest, Process_PointerCapture) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
             10.0f, 20.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
-    ASSERT_NO_FATAL_FAILURE(assertPosition(mFakePointerController, 100.0f, 200.0f));
+    ASSERT_NO_FATAL_FAILURE(assertPosition(*mFakePointerController, 100.0f, 200.0f));
 
     // Button press.
     process(mapper, ARBITRARY_TIME, EV_KEY, BTN_MOUSE, 1);
@@ -3749,7 +3749,7 @@ TEST_F(CursorInputMapperTest, Process_PointerCapture) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
             30.0f, 40.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
-    ASSERT_NO_FATAL_FAILURE(assertPosition(mFakePointerController, 100.0f, 200.0f));
+    ASSERT_NO_FATAL_FAILURE(assertPosition(*mFakePointerController, 100.0f, 200.0f));
 
     // Disable pointer capture and check that the device generation got bumped
     // and events are generated the usual way.
@@ -3770,7 +3770,7 @@ TEST_F(CursorInputMapperTest, Process_PointerCapture) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
             110.0f, 220.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
-    ASSERT_NO_FATAL_FAILURE(assertPosition(mFakePointerController, 110.0f, 220.0f));
+    ASSERT_NO_FATAL_FAILURE(assertPosition(*mFakePointerController, 110.0f, 220.0f));
 }
 
 TEST_F(CursorInputMapperTest, Process_ShouldHandleDisplayId) {
@@ -3798,7 +3798,7 @@ TEST_F(CursorInputMapperTest, Process_ShouldHandleDisplayId) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
             110.0f, 220.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
-    ASSERT_NO_FATAL_FAILURE(assertPosition(mFakePointerController, 110.0f, 220.0f));
+    ASSERT_NO_FATAL_FAILURE(assertPosition(*mFakePointerController, 110.0f, 220.0f));
     ASSERT_EQ(SECOND_DISPLAY_ID, args.displayId);
 }
 
@@ -6806,7 +6806,8 @@ TEST_F(MultiTouchInputMapperTest, Configure_AssignsDisplayPort) {
 
 TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShouldHandleDisplayId) {
     // Setup for second display.
-    sp<FakePointerController> fakePointerController = new FakePointerController();
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
     fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
     fakePointerController->setPosition(100, 200);
     fakePointerController->setButtonState(0);
@@ -6866,7 +6867,8 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
     device2->reset(ARBITRARY_TIME);
 
     // Setup PointerController.
-    sp<FakePointerController> fakePointerController = new FakePointerController();
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
     mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
     mFakePolicy->setPointerController(SECOND_DEVICE_ID, fakePointerController);
 

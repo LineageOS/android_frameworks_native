@@ -45,6 +45,8 @@ namespace vibrator {
 
 // -------------------------------------------------------------------------------------------------
 
+static constexpr int MAX_RETRIES = 1;
+
 template <typename T>
 using hal_connect_fn = std::function<sp<T>()>;
 
@@ -111,6 +113,14 @@ std::shared_ptr<HalWrapper> HalConnector::connect(std::shared_ptr<CallbackSchedu
 
 // -------------------------------------------------------------------------------------------------
 
+std::shared_ptr<HalWrapper> HalController::initHal() {
+    std::lock_guard<std::mutex> lock(mConnectedHalMutex);
+    if (mConnectedHal == nullptr) {
+        mConnectedHal = mHalConnector->connect(mCallbackScheduler);
+    }
+    return mConnectedHal;
+}
+
 template <typename T>
 HalResult<T> HalController::processHalResult(HalResult<T> result, const char* functionName) {
     if (result.isFailed()) {
@@ -124,20 +134,21 @@ HalResult<T> HalController::processHalResult(HalResult<T> result, const char* fu
 
 template <typename T>
 HalResult<T> HalController::apply(HalController::hal_fn<T>& halFn, const char* functionName) {
-    std::shared_ptr<HalWrapper> hal = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(mConnectedHalMutex);
-        if (mConnectedHal == nullptr) {
-            mConnectedHal = mHalConnector->connect(mCallbackScheduler);
-        }
-        hal = mConnectedHal;
-    }
-    if (hal) {
-        return processHalResult(halFn(hal), functionName);
+    std::shared_ptr<HalWrapper> hal = initHal();
+    if (hal == nullptr) {
+        ALOGV("Skipped %s because Vibrator HAL is not available", functionName);
+        return HalResult<T>::unsupported();
     }
 
-    ALOGV("Skipped %s because Vibrator HAL is not available", functionName);
-    return HalResult<T>::unsupported();
+    HalResult<T> ret = processHalResult(halFn(hal), functionName);
+    for (int i = 0; i < MAX_RETRIES && ret.isFailed(); i++) {
+        hal = initHal();
+        if (hal) {
+            ret = processHalResult(halFn(hal), functionName);
+        }
+    }
+
+    return ret;
 }
 
 // -------------------------------------------------------------------------------------------------
