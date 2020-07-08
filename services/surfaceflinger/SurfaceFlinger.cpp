@@ -2121,7 +2121,8 @@ void SurfaceFlinger::onMessageRefresh() {
         mTimeStats->incrementCompositionStrategyChanges();
     }
 
-    mVSyncModulator->onRefreshed(mHadClientComposition);
+    // TODO: b/160583065 Enable skip validation when SF caches all client composition layers
+    mVSyncModulator->onRefreshed(mHadClientComposition || mReusedClientComposition);
 
     mLayersWithQueuedFrames.clear();
     if (mVisibleRegionsDirty) {
