@@ -33,7 +33,7 @@ namespace android {
  * The pointer controller is responsible for providing synchronization and for tracking
  * display orientation changes if needed.
  */
-class PointerControllerInterface : public virtual RefBase {
+class PointerControllerInterface {
 protected:
     PointerControllerInterface() { }
     virtual ~PointerControllerInterface() { }
@@ -59,11 +59,11 @@ public:
     /* Gets the absolute location of the pointer. */
     virtual void getPosition(float* outX, float* outY) const = 0;
 
-    enum Transition {
+    enum class Transition {
         // Fade/unfade immediately.
-        TRANSITION_IMMEDIATE,
+        IMMEDIATE,
         // Fade/unfade gradually.
-        TRANSITION_GRADUAL,
+        GRADUAL,
     };
 
     /* Fades the pointer out now. */
@@ -75,11 +75,11 @@ public:
      * wants to ensure that the pointer becomes visible again. */
     virtual void unfade(Transition transition) = 0;
 
-    enum Presentation {
+    enum class Presentation {
         // Show the mouse pointer.
-        PRESENTATION_POINTER,
+        POINTER,
         // Show spots and a spot anchor in place of the mouse pointer.
-        PRESENTATION_SPOT,
+        SPOT,
     };
 
     /* Sets the mode of the pointer controller. */
