@@ -55,6 +55,7 @@
 #include <gui/IProducerListener.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
+#include <hidl/ServiceManagement.h>
 #include <input/IInputFlinger.h>
 #include <renderengine/RenderEngine.h>
 #include <ui/ColorSpace.h>
@@ -401,7 +402,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         // deriving the setting from the set service name, but it
         // would be brittle if the name that's not 'default' is used
         // for production purposes later on.
-        setenv("TREBLE_TESTING_OVERRIDE", "true", true);
+        android::hardware::details::setTrebleTestingOverride(true);
     }
 }
 
