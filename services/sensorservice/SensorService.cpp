@@ -1774,7 +1774,10 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
         if (halVersion <= SENSORS_DEVICE_API_VERSION_1_0 || isVirtualSensor(handle)) {
             // For older devices just increment pending flush count which will send a trivial
             // flush complete event.
-            connection->incrementPendingFlushCount(handle);
+            if (!connection->incrementPendingFlushCountIfHasAccess(handle)) {
+                ALOGE("flush called on an inaccessible sensor");
+                err = INVALID_OPERATION;
+            }
         } else {
             if (!canAccessSensor(sensor->getSensor(), "Tried flushing", opPackageName)) {
                 err = INVALID_OPERATION;
