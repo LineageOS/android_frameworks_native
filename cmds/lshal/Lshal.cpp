@@ -101,7 +101,7 @@ Status Lshal::emitDebugInfo(
         const std::string &interfaceName,
         const std::string &instanceName,
         const std::vector<std::string> &options,
-        bool excludesParentInstances,
+        ParentDebugInfoLevel parentDebugInfoLevel,
         std::ostream &out,
         NullableOStream<std::ostream> err) const {
     using android::hidl::base::V1_0::IBase;
@@ -126,7 +126,7 @@ Status Lshal::emitDebugInfo(
         return NO_INTERFACE;
     }
 
-    if (excludesParentInstances) {
+    if (parentDebugInfoLevel != ParentDebugInfoLevel::FULL) {
         const std::string descriptor = getDescriptor(base.get());
         if (descriptor.empty()) {
             std::string msg = interfaceName + "/" + instanceName + " getDescriptor failed";
@@ -134,6 +134,9 @@ Status Lshal::emitDebugInfo(
             LOG(ERROR) << msg;
         }
         if (descriptor != interfaceName) {
+            if (parentDebugInfoLevel == ParentDebugInfoLevel::FQNAME_ONLY) {
+                out << "[See " << descriptor << "/" << instanceName << "]";
+            }
             return OK;
         }
     }

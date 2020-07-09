@@ -793,6 +793,91 @@ TEST_F(ListTest, Vintf) {
     EXPECT_EQ("", err.str());
 }
 
+// Fake service returned by mocked IServiceManager::get for DumpDebug.
+// The interfaceChain and getHashChain functions returns
+// foo(id - 1) -> foo(id - 2) -> ... foo1 -> IBase.
+class InheritingService : public IBase {
+public:
+    explicit InheritingService(pid_t id) : mId(id) {}
+    android::hardware::Return<void> interfaceDescriptor(interfaceDescriptor_cb cb) override {
+        cb(getInterfaceName(mId));
+        return hardware::Void();
+    }
+    android::hardware::Return<void> interfaceChain(interfaceChain_cb cb) override {
+        std::vector<hidl_string> ret;
+        for (auto i = mId; i > 0; --i) {
+            ret.push_back(getInterfaceName(i));
+        }
+        ret.push_back(IBase::descriptor);
+        cb(ret);
+        return hardware::Void();
+    }
+    android::hardware::Return<void> getHashChain(getHashChain_cb cb) override {
+        std::vector<hidl_hash> ret;
+        for (auto i = mId; i > 0; --i) {
+            ret.push_back(getHashFromId(i));
+        }
+        ret.push_back(getHashFromId(0xff));
+        cb(ret);
+        return hardware::Void();
+    }
+    android::hardware::Return<void> debug(const hidl_handle& hh,
+                                          const hidl_vec<hidl_string>&) override {
+        const native_handle_t* handle = hh.getNativeHandle();
+        if (handle->numFds < 1) {
+            return Void();
+        }
+        int fd = handle->data[0];
+        std::string content = "debug info for ";
+        content += getInterfaceName(mId);
+        ssize_t written = write(fd, content.c_str(), content.size());
+        if (written != (ssize_t)content.size()) {
+            LOG(WARNING) << "SERVER(" << descriptor << ") debug writes " << written << " bytes < "
+                         << content.size() << " bytes, errno = " << errno;
+        }
+        return Void();
+    }
+
+private:
+    pid_t mId;
+};
+
+TEST_F(ListTest, DumpDebug) {
+    size_t inheritanceLevel = 3;
+    sp<IBase> service = new InheritingService(inheritanceLevel);
+
+    EXPECT_CALL(*serviceManager, list(_)).WillRepeatedly(Invoke([&](IServiceManager::list_cb cb) {
+        std::vector<hidl_string> ret;
+        for (auto i = 1; i <= inheritanceLevel; ++i) {
+            ret.push_back(getInterfaceName(i) + "/default");
+        }
+        cb(ret);
+        return hardware::Void();
+    }));
+    EXPECT_CALL(*serviceManager, get(_, _))
+            .WillRepeatedly(
+                    Invoke([&](const hidl_string&, const hidl_string& instance) -> sp<IBase> {
+                        int id = getIdFromInstanceName(instance);
+                        if (id > inheritanceLevel) return nullptr;
+                        return sp<IBase>(service);
+                    }));
+
+    const std::string expected = "[fake description 0]\n"
+                                 "Interface\n"
+                                 "a.h.foo1@1.0::IFoo/default\n"
+                                 "[See a.h.foo3@3.0::IFoo/default]\n"
+                                 "a.h.foo2@2.0::IFoo/default\n"
+                                 "[See a.h.foo3@3.0::IFoo/default]\n"
+                                 "a.h.foo3@3.0::IFoo/default\n"
+                                 "debug info for a.h.foo3@3.0::IFoo\n"
+                                 "\n";
+
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "--types=b", "-id"})));
+    EXPECT_EQ(expected, out.str());
+    EXPECT_EQ("", err.str());
+}
+
 class ListVintfTest : public ListTest {
 public:
     virtual void SetUp() override {
