@@ -212,10 +212,8 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
             bool inPrimaryRange =
                     scores[i].first->inPolicy(policy->primaryRange.min, policy->primaryRange.max);
             if ((primaryRangeIsSingleRate || !inPrimaryRange) &&
-                !(layer.focused &&
-                  (layer.vote == LayerVoteType::ExplicitDefault ||
-                   layer.vote == LayerVoteType::ExplicitExactOrMultiple))) {
-                // Only focused layers with explicit frame rate settings are allowed to score
+                !(layer.focused && layer.vote == LayerVoteType::ExplicitDefault)) {
+                // Only focused layers with ExplicitDefault frame rate settings are allowed to score
                 // refresh rates outside the primary range.
                 continue;
             }
