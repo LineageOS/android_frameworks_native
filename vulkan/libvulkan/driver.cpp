@@ -102,8 +102,6 @@ class CreateInfoWrapper {
     ~CreateInfoWrapper();
 
     VkResult Validate();
-    void DowngradeApiVersion();
-    void UpgradeDeviceCoreApiVersion(uint32_t api_version);
 
     const std::bitset<ProcHook::EXTENSION_COUNT>& GetHookExtensions() const;
     const std::bitset<ProcHook::EXTENSION_COUNT>& GetHalExtensions() const;
@@ -120,8 +118,8 @@ class CreateInfoWrapper {
         uint32_t name_count;
     };
 
+    VkResult SanitizeApiVersion();
     VkResult SanitizePNext();
-
     VkResult SanitizeLayers();
     VkResult SanitizeExtensions();
 
@@ -133,6 +131,7 @@ class CreateInfoWrapper {
 
     const bool is_instance_;
     const VkAllocationCallbacks& allocator_;
+    const uint32_t loader_api_version_;
 
     VkPhysicalDevice physical_dev_;
 
@@ -327,29 +326,20 @@ CreateInfoWrapper::CreateInfoWrapper(const VkInstanceCreateInfo& create_info,
                                      const VkAllocationCallbacks& allocator)
     : is_instance_(true),
       allocator_(allocator),
+      loader_api_version_(VK_API_VERSION_1_1),
       physical_dev_(VK_NULL_HANDLE),
       instance_info_(create_info),
-      extension_filter_() {
-    // instance core versions need to match the loader api version
-    for (uint32_t i = ProcHook::EXTENSION_CORE_1_0;
-         i != ProcHook::EXTENSION_COUNT; ++i) {
-        hook_extensions_.set(i);
-        hal_extensions_.set(i);
-    }
-}
+      extension_filter_() {}
 
 CreateInfoWrapper::CreateInfoWrapper(VkPhysicalDevice physical_dev,
                                      const VkDeviceCreateInfo& create_info,
                                      const VkAllocationCallbacks& allocator)
     : is_instance_(false),
       allocator_(allocator),
+      loader_api_version_(VK_API_VERSION_1_1),
       physical_dev_(physical_dev),
       dev_info_(create_info),
-      extension_filter_() {
-    // initialize with baseline core API version
-    hook_extensions_.set(ProcHook::EXTENSION_CORE_1_0);
-    hal_extensions_.set(ProcHook::EXTENSION_CORE_1_0);
-}
+      extension_filter_() {}
 
 CreateInfoWrapper::~CreateInfoWrapper() {
     allocator_.pfnFree(allocator_.pUserData, extension_filter_.exts);
@@ -357,7 +347,9 @@ CreateInfoWrapper::~CreateInfoWrapper() {
 }
 
 VkResult CreateInfoWrapper::Validate() {
-    VkResult result = SanitizePNext();
+    VkResult result = SanitizeApiVersion();
+    if (result == VK_SUCCESS)
+        result = SanitizePNext();
     if (result == VK_SUCCESS)
         result = SanitizeLayers();
     if (result == VK_SUCCESS)
@@ -382,6 +374,81 @@ CreateInfoWrapper::operator const VkInstanceCreateInfo*() const {
 
 CreateInfoWrapper::operator const VkDeviceCreateInfo*() const {
     return &dev_info_;
+}
+
+VkResult CreateInfoWrapper::SanitizeApiVersion() {
+    if (is_instance_) {
+        // instance core versions need to match the loader api version
+        for (uint32_t i = ProcHook::EXTENSION_CORE_1_0;
+             i != ProcHook::EXTENSION_COUNT; i++) {
+            hook_extensions_.set(i);
+            hal_extensions_.set(i);
+        }
+
+        // If pApplicationInfo is NULL, apiVersion is assumed to be 1.0
+        if (!instance_info_.pApplicationInfo)
+            return VK_SUCCESS;
+
+        uint32_t icd_api_version = VK_API_VERSION_1_0;
+        PFN_vkEnumerateInstanceVersion pfn_enumerate_instance_version =
+            reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
+                Hal::Device().GetInstanceProcAddr(
+                    nullptr, "vkEnumerateInstanceVersion"));
+        if (pfn_enumerate_instance_version) {
+            ATRACE_BEGIN("pfn_enumerate_instance_version");
+            VkResult result =
+                (*pfn_enumerate_instance_version)(&icd_api_version);
+            ATRACE_END();
+            if (result != VK_SUCCESS)
+                return result;
+
+            icd_api_version ^= VK_VERSION_PATCH(icd_api_version);
+        }
+
+        if (icd_api_version < VK_API_VERSION_1_0)
+            return VK_SUCCESS;
+
+        if (icd_api_version < loader_api_version_) {
+            application_info_ = *instance_info_.pApplicationInfo;
+            application_info_.apiVersion = icd_api_version;
+            instance_info_.pApplicationInfo = &application_info_;
+        }
+    } else {
+        const auto& driver = GetData(physical_dev_).driver;
+
+        VkPhysicalDeviceProperties properties;
+        ATRACE_BEGIN("driver.GetPhysicalDeviceProperties");
+        driver.GetPhysicalDeviceProperties(physical_dev_, &properties);
+        ATRACE_END();
+
+        if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU) {
+            // Log that the app is hitting software Vulkan implementation
+            android::GraphicsEnv::getInstance().setTargetStats(
+                android::GpuStatsInfo::Stats::CPU_VULKAN_IN_USE);
+        }
+
+        uint32_t api_version = properties.apiVersion;
+        api_version ^= VK_VERSION_PATCH(api_version);
+
+        if (api_version > loader_api_version_)
+            api_version = loader_api_version_;
+
+        switch (api_version) {
+            case VK_API_VERSION_1_1:
+                hook_extensions_.set(ProcHook::EXTENSION_CORE_1_1);
+                hal_extensions_.set(ProcHook::EXTENSION_CORE_1_1);
+                [[clang::fallthrough]];
+            case VK_API_VERSION_1_0:
+                hook_extensions_.set(ProcHook::EXTENSION_CORE_1_0);
+                hal_extensions_.set(ProcHook::EXTENSION_CORE_1_0);
+                break;
+            default:
+                ALOGE("Unknown API version[%u]", api_version);
+                break;
+        }
+    }
+
+    return VK_SUCCESS;
 }
 
 VkResult CreateInfoWrapper::SanitizePNext() {
@@ -633,40 +700,6 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
         }
 
         break;
-    }
-}
-
-void CreateInfoWrapper::DowngradeApiVersion() {
-    // If pApplicationInfo is NULL, apiVersion is assumed to be 1.0:
-    if (instance_info_.pApplicationInfo) {
-        application_info_ = *instance_info_.pApplicationInfo;
-        instance_info_.pApplicationInfo = &application_info_;
-        application_info_.apiVersion = VK_API_VERSION_1_0;
-    }
-}
-
-void CreateInfoWrapper::UpgradeDeviceCoreApiVersion(uint32_t api_version) {
-    ALOG_ASSERT(!is_instance_, "Device only API called by instance wrapper.");
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-    api_version ^= VK_VERSION_PATCH(api_version);
-#pragma clang diagnostic pop
-
-    // cap the API version to the loader supported highest version
-    if (api_version > VK_API_VERSION_1_1)
-        api_version = VK_API_VERSION_1_1;
-
-    switch (api_version) {
-        case VK_API_VERSION_1_1:
-            hook_extensions_.set(ProcHook::EXTENSION_CORE_1_1);
-            hal_extensions_.set(ProcHook::EXTENSION_CORE_1_1);
-            [[clang::fallthrough]];
-        case VK_API_VERSION_1_0:
-            break;
-        default:
-            ALOGD("Unknown upgrade API version[%u]", api_version);
-            break;
     }
 }
 
@@ -1032,44 +1065,11 @@ VkResult CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
     if (result != VK_SUCCESS)
         return result;
 
-    ATRACE_BEGIN("AllocateInstanceData");
     InstanceData* data = AllocateInstanceData(data_allocator);
-    ATRACE_END();
     if (!data)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     data->hook_extensions |= wrapper.GetHookExtensions();
-
-    ATRACE_BEGIN("autoDowngradeApiVersion");
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-    uint32_t api_version = ((pCreateInfo->pApplicationInfo)
-                                ? pCreateInfo->pApplicationInfo->apiVersion
-                                : VK_API_VERSION_1_0);
-    uint32_t api_major_version = VK_VERSION_MAJOR(api_version);
-    uint32_t api_minor_version = VK_VERSION_MINOR(api_version);
-    uint32_t icd_api_version;
-    PFN_vkEnumerateInstanceVersion pfn_enumerate_instance_version =
-        reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
-            Hal::Device().GetInstanceProcAddr(nullptr,
-                                              "vkEnumerateInstanceVersion"));
-    if (!pfn_enumerate_instance_version) {
-        icd_api_version = VK_API_VERSION_1_0;
-    } else {
-        ATRACE_BEGIN("pfn_enumerate_instance_version");
-        result = (*pfn_enumerate_instance_version)(&icd_api_version);
-        ATRACE_END();
-    }
-    uint32_t icd_api_major_version = VK_VERSION_MAJOR(icd_api_version);
-    uint32_t icd_api_minor_version = VK_VERSION_MINOR(icd_api_version);
-
-    if ((icd_api_major_version == 1) && (icd_api_minor_version == 0) &&
-        ((api_major_version > 1) || (api_minor_version > 0))) {
-        api_version = VK_API_VERSION_1_0;
-        wrapper.DowngradeApiVersion();
-    }
-#pragma clang diagnostic pop
-    ATRACE_END();
 
     // call into the driver
     VkInstance instance;
@@ -1145,13 +1145,6 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
     if (!data)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    VkPhysicalDeviceProperties properties;
-    ATRACE_BEGIN("driver.GetPhysicalDeviceProperties");
-    instance_data.driver.GetPhysicalDeviceProperties(physicalDevice,
-                                                     &properties);
-    ATRACE_END();
-
-    wrapper.UpgradeDeviceCoreApiVersion(properties.apiVersion);
     data->hook_extensions |= wrapper.GetHookExtensions();
 
     // call into the driver
@@ -1194,12 +1187,6 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
         FreeDeviceData(data, data_allocator);
 
         return VK_ERROR_INCOMPATIBLE_DRIVER;
-    }
-
-    if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU) {
-        // Log that the app is hitting software Vulkan implementation
-        android::GraphicsEnv::getInstance().setTargetStats(
-            android::GpuStatsInfo::Stats::CPU_VULKAN_IN_USE);
     }
 
     data->driver_device = dev;
