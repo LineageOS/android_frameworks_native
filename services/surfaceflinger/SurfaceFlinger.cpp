@@ -57,6 +57,7 @@
 #include <gui/LayerMetadata.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
+#include <hidl/ServiceManagement.h>
 #include <input/IInputFlinger.h>
 #include <layerproto/LayerProtoParser.h>
 #include <log/log.h>
@@ -441,7 +442,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         // deriving the setting from the set service name, but it
         // would be brittle if the name that's not 'default' is used
         // for production purposes later on.
-        setenv("TREBLE_TESTING_OVERRIDE", "true", true);
+        android::hardware::details::setTrebleTestingOverride(true);
     }
 
     useFrameRateApi = use_frame_rate_api(true);
