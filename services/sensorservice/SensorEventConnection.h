@@ -116,8 +116,9 @@ private:
     // for writing send the data from the cache.
     virtual int handleEvent(int fd, int events, void* data);
 
-    // Increment mPendingFlushEventsToSend for the given sensor handle.
-    void incrementPendingFlushCount(int32_t handle);
+    // Increment mPendingFlushEventsToSend for the given handle if the connection has sensor access.
+    // Returns true if this connection does have sensor access.
+    bool incrementPendingFlushCountIfHasAccess(int32_t handle);
 
     // Add or remove the file descriptor associated with the BitTube to the looper. If mDead is set
     // to true or there are no more sensors for this connection, the file descriptor is removed if
