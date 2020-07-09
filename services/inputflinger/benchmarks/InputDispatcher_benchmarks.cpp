@@ -135,7 +135,7 @@ protected:
     virtual ~FakeInputReceiver() {}
 
     sp<InputDispatcher> mDispatcher;
-    sp<InputChannel> mServerChannel, mClientChannel;
+    std::shared_ptr<InputChannel> mServerChannel, mClientChannel;
     std::unique_ptr<InputConsumer> mConsumer;
     PreallocatedInputEventFactory mEventFactory;
 };

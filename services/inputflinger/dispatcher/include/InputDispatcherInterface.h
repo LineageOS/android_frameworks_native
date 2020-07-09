@@ -152,7 +152,7 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel) = 0;
+    virtual status_t registerInputChannel(const std::shared_ptr<InputChannel>& inputChannel) = 0;
 
     /* Registers input channels to be used to monitor input events.
      *
@@ -162,14 +162,14 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t registerInputMonitor(const sp<InputChannel>& inputChannel, int32_t displayId,
-                                          bool gestureMonitor) = 0;
+    virtual status_t registerInputMonitor(const std::shared_ptr<InputChannel>& inputChannel,
+                                          int32_t displayId, bool gestureMonitor) = 0;
 
     /* Unregister input channels that will no longer receive input events.
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t unregisterInputChannel(const sp<InputChannel>& inputChannel) = 0;
+    virtual status_t unregisterInputChannel(const InputChannel& inputChannel) = 0;
 
     /* Allows an input monitor steal the current pointer stream away from normal input windows.
      *

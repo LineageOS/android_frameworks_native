@@ -16,7 +16,7 @@
 
 package android.os;
 
-import android.InputChannelInfo;
+import android.InputChannel;
 import android.InputWindowInfo;
 import android.os.ISetInputWindowsListener;
 
@@ -25,6 +25,6 @@ interface IInputFlinger
 {
     void setInputWindows(in InputWindowInfo[] inputHandles,
             in @nullable ISetInputWindowsListener setInputWindowsListener);
-    void registerInputChannel(in InputChannelInfo info);
-    void unregisterInputChannel(in InputChannelInfo info);
+    void registerInputChannel(in InputChannel channel);
+    void unregisterInputChannel(in InputChannel channel);
 }

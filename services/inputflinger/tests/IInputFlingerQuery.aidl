@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import android.InputChannelInfo;
+import android.InputChannel;
 import android.InputWindowInfo;
 import android.os.ISetInputWindowsListener;
 
@@ -23,5 +23,5 @@ interface IInputFlingerQuery
 {
     /* Test interfaces */
     void getInputWindows(out InputWindowInfo[] inputHandles);
-    void getInputChannels(out InputChannelInfo[] infos);
+    void getInputChannels(out InputChannel[] channels);
 }
