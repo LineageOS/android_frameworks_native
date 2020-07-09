@@ -45,49 +45,45 @@ protected:
     virtual ~FakeInputDispatcherPolicy() {}
 
 private:
-    virtual void notifyConfigurationChanged(nsecs_t) override {}
+    void notifyConfigurationChanged(nsecs_t) override {}
 
-    virtual nsecs_t notifyAnr(const sp<InputApplicationHandle>&, const sp<IBinder>&,
-                              const std::string& name) override {
+    std::chrono::nanoseconds notifyAnr(const sp<InputApplicationHandle>&, const sp<IBinder>&,
+                                       const std::string& name) override {
         ALOGE("The window is not responding : %s", name.c_str());
-        return 0;
+        return 0s;
     }
 
-    virtual void notifyInputChannelBroken(const sp<IBinder>&) override {}
+    void notifyInputChannelBroken(const sp<IBinder>&) override {}
 
-    virtual void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
+    void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
 
-    virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
+    void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
         *outConfig = mConfig;
     }
 
-    virtual bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) override {
+    bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) override {
         return true;
     }
 
-    virtual void interceptKeyBeforeQueueing(const KeyEvent*, uint32_t&) override {}
+    void interceptKeyBeforeQueueing(const KeyEvent*, uint32_t&) override {}
 
-    virtual void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) override {}
+    void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) override {}
 
-    virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent*,
-                                                  uint32_t) override {
+    nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent*, uint32_t) override {
         return 0;
     }
 
-    virtual bool dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent*, uint32_t,
-                                      KeyEvent*) override {
+    bool dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent*, uint32_t, KeyEvent*) override {
         return false;
     }
 
-    virtual void notifySwitch(nsecs_t, uint32_t, uint32_t, uint32_t) override {}
+    void notifySwitch(nsecs_t, uint32_t, uint32_t, uint32_t) override {}
 
-    virtual void pokeUserActivity(nsecs_t, int32_t) override {}
+    void pokeUserActivity(nsecs_t, int32_t) override {}
 
-    virtual bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) override {
-        return false;
-    }
+    bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) override { return false; }
 
-    virtual void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {}
+    void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {}
 
     InputDispatcherConfiguration mConfig;
 };
@@ -98,7 +94,7 @@ public:
     virtual ~FakeApplicationHandle() {}
 
     virtual bool updateInfo() {
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT.count();
+        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
         return true;
     }
 };
@@ -163,7 +159,7 @@ public:
         mInfo.name = "FakeWindowHandle";
         mInfo.layoutParamsFlags = 0;
         mInfo.layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT.count();
+        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
         mInfo.frameLeft = mFrame.left;
         mInfo.frameTop = mFrame.top;
         mInfo.frameRight = mFrame.right;

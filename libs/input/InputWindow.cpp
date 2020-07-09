@@ -177,7 +177,7 @@ status_t InputWindowInfo::write(Parcel& output) const {
     output.writeString8(String8(name.c_str()));
     output.writeInt32(layoutParamsFlags);
     output.writeInt32(layoutParamsType);
-    output.writeInt64(dispatchingTimeout);
+    output.writeInt64(dispatchingTimeout.count());
     output.writeInt32(frameLeft);
     output.writeInt32(frameTop);
     output.writeInt32(frameRight);
@@ -216,7 +216,7 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     ret.name = from.readString8().c_str();
     ret.layoutParamsFlags = from.readInt32();
     ret.layoutParamsType = from.readInt32();
-    ret.dispatchingTimeout = from.readInt64();
+    ret.dispatchingTimeout = decltype(ret.dispatchingTimeout)(from.readInt64());
     ret.frameLeft = from.readInt32();
     ret.frameTop = from.readInt32();
     ret.frameRight = from.readInt32();

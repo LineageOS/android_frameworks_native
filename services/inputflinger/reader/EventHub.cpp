@@ -933,11 +933,11 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
                 if (eventItem.events & EPOLLIN) {
                     ALOGV("awoken after wake()");
                     awoken = true;
-                    char buffer[16];
+                    char wakeReadBuffer[16];
                     ssize_t nRead;
                     do {
-                        nRead = read(mWakeReadPipeFd, buffer, sizeof(buffer));
-                    } while ((nRead == -1 && errno == EINTR) || nRead == sizeof(buffer));
+                        nRead = read(mWakeReadPipeFd, wakeReadBuffer, sizeof(wakeReadBuffer));
+                    } while ((nRead == -1 && errno == EINTR) || nRead == sizeof(wakeReadBuffer));
                 } else {
                     ALOGW("Received unexpected epoll event 0x%08x for wake read pipe.",
                           eventItem.events);
