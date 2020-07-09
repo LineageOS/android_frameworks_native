@@ -198,13 +198,14 @@ private:
         mConfigurationChangedTime = when;
     }
 
-    virtual nsecs_t notifyAnr(const sp<InputApplicationHandle>& application,
-                              const sp<IBinder>& windowToken, const std::string&) override {
+    std::chrono::nanoseconds notifyAnr(const sp<InputApplicationHandle>& application,
+                                       const sp<IBinder>& windowToken,
+                                       const std::string&) override {
         std::scoped_lock lock(mLock);
         mAnrApplications.push(application);
         mAnrWindowTokens.push(windowToken);
         mNotifyAnr.notify_all();
-        return mAnrTimeout.count();
+        return mAnrTimeout;
     }
 
     virtual void notifyInputChannelBroken(const sp<IBinder>&) override {}
@@ -585,7 +586,7 @@ public:
     FakeApplicationHandle() {
         mInfo.name = "Fake Application";
         mInfo.token = new BBinder();
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT.count();
+        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
     }
     virtual ~FakeApplicationHandle() {}
 
@@ -594,7 +595,7 @@ public:
     }
 
     void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
-        mInfo.dispatchingTimeout = timeout.count();
+        mInfo.dispatchingTimeout = timeout;
     }
 };
 
@@ -767,7 +768,7 @@ public:
         mInfo.name = name;
         mInfo.layoutParamsFlags = 0;
         mInfo.layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT.count();
+        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
         mInfo.frameLeft = 0;
         mInfo.frameTop = 0;
         mInfo.frameRight = WIDTH;
@@ -791,7 +792,7 @@ public:
     void setFocus(bool hasFocus) { mInfo.hasFocus = hasFocus; }
 
     void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
-        mInfo.dispatchingTimeout = timeout.count();
+        mInfo.dispatchingTimeout = timeout;
     }
 
     void setPaused(bool paused) { mInfo.paused = paused; }

@@ -136,7 +136,7 @@ struct InputWindowInfo {
     std::string name;
     int32_t layoutParamsFlags = 0;
     int32_t layoutParamsType = 0;
-    nsecs_t dispatchingTimeout = -1;
+    std::chrono::nanoseconds dispatchingTimeout = std::chrono::seconds(5);
 
     /* These values are filled in by SurfaceFlinger. */
     int32_t frameLeft = -1;
@@ -225,10 +225,6 @@ public:
 
     inline std::string getName() const {
         return !mInfo.name.empty() ? mInfo.name : "<invalid>";
-    }
-
-    inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
-        return mInfo.token ? mInfo.dispatchingTimeout : defaultValue;
     }
 
     inline std::chrono::nanoseconds getDispatchingTimeout(
