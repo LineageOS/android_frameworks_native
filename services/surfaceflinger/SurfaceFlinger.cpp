@@ -57,6 +57,7 @@
 #include <gui/LayerMetadata.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
+#include <hidl/ServiceManagement.h>
 #include <input/IInputFlinger.h>
 #include <layerproto/LayerProtoParser.h>
 #include <log/log.h>
@@ -398,10 +399,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     int debugDdms = atoi(value);
     ALOGI_IF(debugDdms, "DDMS debugging not supported");
 
-    property_get("debug.sf.disable_backpressure", value, "0");
-    mPropagateBackpressure = !atoi(value);
-    ALOGI_IF(!mPropagateBackpressure, "Disabling backpressure propagation");
-
     property_get("debug.sf.enable_gl_backpressure", value, "0");
     mPropagateBackpressureClientComposition = atoi(value);
     ALOGI_IF(mPropagateBackpressureClientComposition,
@@ -447,7 +444,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
         // deriving the setting from the set service name, but it
         // would be brittle if the name that's not 'default' is used
         // for production purposes later on.
-        setenv("TREBLE_TESTING_OVERRIDE", "true", true);
+        android::hardware::details::setTrebleTestingOverride(true);
     }
 
     useFrameRateApi = use_frame_rate_api(true);
@@ -1841,10 +1838,7 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
     // for the present fence to fire instead of just giving up on this frame to handle cases
     // where present fence is just about to get signaled.
     const int graceTimeForPresentFenceMs =
-            (mPropagateBackpressure &&
-             (mPropagateBackpressureClientComposition || !mHadClientComposition))
-            ? 1
-            : 0;
+            (mPropagateBackpressureClientComposition || !mHadClientComposition) ? 1 : 0;
 
     // Pending frames may trigger backpressure propagation.
     const TracedOrdinal<bool> framePending = {"PrevFramePending",
@@ -1903,7 +1897,7 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
         ON_MAIN_THREAD(setActiveConfigInternal());
     }
 
-    if (framePending && mPropagateBackpressure) {
+    if (framePending) {
         if ((hwcFrameMissed && !gpuFrameMissed) || mPropagateBackpressureClientComposition) {
             signalLayerUpdate();
             return;
