@@ -23,6 +23,8 @@
 #include <vulkan/vulkan.h>
 
 #include <bitset>
+#include <optional>
+#include <vector>
 
 namespace vulkan {
 namespace driver {
@@ -108,6 +110,12 @@ bool InitDriverTable(VkInstance instance,
 bool InitDriverTable(VkDevice dev,
                      PFN_vkGetDeviceProcAddr get_proc,
                      const std::bitset<ProcHook::EXTENSION_COUNT>& extensions);
+
+std::optional<uint32_t> GetInstanceExtensionPromotedVersion(const char* name);
+uint32_t CountPromotedInstanceExtensions(uint32_t begin_version,
+                                         uint32_t end_version);
+std::vector<const char*> GetPromotedInstanceExtensions(uint32_t begin_version,
+                                                       uint32_t end_version);
 
 }  // namespace driver
 }  // namespace vulkan
