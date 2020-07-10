@@ -272,11 +272,16 @@ void SensorService::SensorEventConnection::updateLooperRegistrationLocked(
     }
 }
 
-void SensorService::SensorEventConnection::incrementPendingFlushCount(int32_t handle) {
-    Mutex::Autolock _l(mConnectionLock);
-    if (mSensorInfo.count(handle) > 0) {
-        FlushInfo& flushInfo = mSensorInfo[handle];
-        flushInfo.mPendingFlushEventsToSend++;
+bool SensorService::SensorEventConnection::incrementPendingFlushCountIfHasAccess(int32_t handle) {
+    if (hasSensorAccess()) {
+        Mutex::Autolock _l(mConnectionLock);
+        if (mSensorInfo.count(handle) > 0) {
+            FlushInfo& flushInfo = mSensorInfo[handle];
+            flushInfo.mPendingFlushEventsToSend++;
+        }
+        return true;
+    } else {
+        return false;
     }
 }
 
