@@ -1820,7 +1820,7 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
         onRemovedFromCurrentState();
     }
 
-    if (callSetTransactionFlags || attachChildren()) {
+    if (attachChildren() || callSetTransactionFlags) {
         setTransactionFlags(eTransactionNeeded);
     }
     return true;
@@ -1848,9 +1848,9 @@ bool Layer::attachChildren() {
         if (client != nullptr && parentClient != client) {
             if (child->mLayerDetached) {
                 child->mLayerDetached = false;
+                child->attachChildren();
                 changed = true;
             }
-            changed |= child->attachChildren();
         }
     }
 
