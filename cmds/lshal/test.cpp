@@ -24,7 +24,7 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <android/hardware/tests/baz/1.0/IQuux.h>
+#include <android/hardware/tests/inheritance/1.0/IChild.h>
 #include <hidl/HidlTransportSupport.h>
 #include <vintf/parse_xml.h>
 
@@ -44,6 +44,7 @@ using ::android::hardware::hidl_death_recipient;
 using ::android::hardware::hidl_handle;
 using ::android::hardware::hidl_string;
 using ::android::hardware::hidl_vec;
+using ::android::hardware::Void;
 using android::vintf::Arch;
 using android::vintf::CompatibilityMatrix;
 using android::vintf::gCompatibilityMatrixConverter;
@@ -59,10 +60,14 @@ using hidl_hash = hidl_array<uint8_t, 32>;
 namespace android {
 namespace hardware {
 namespace tests {
-namespace baz {
+namespace inheritance {
 namespace V1_0 {
 namespace implementation {
-struct Quux : android::hardware::tests::baz::V1_0::IQuux {
+struct Child : android::hardware::tests::inheritance::V1_0::IChild {
+    ::android::hardware::Return<void> doChild() override { return Void(); }
+    ::android::hardware::Return<void> doParent() override { return Void(); }
+    ::android::hardware::Return<void> doGrandparent() override { return Void(); }
+
     ::android::hardware::Return<void> debug(const hidl_handle& hh, const hidl_vec<hidl_string>& options) override {
         const native_handle_t *handle = hh.getNativeHandle();
         if (handle->numFds < 1) {
@@ -76,7 +81,7 @@ struct Quux : android::hardware::tests::baz::V1_0::IQuux {
         }
         ssize_t written = write(fd, content.c_str(), content.size());
         if (written != (ssize_t)content.size()) {
-            LOG(WARNING) << "SERVER(Quux) debug writes " << written << " bytes < "
+            LOG(WARNING) << "SERVER(Child) debug writes " << written << " bytes < "
                     << content.size() << " bytes, errno = " << errno;
         }
         return Void();
@@ -85,7 +90,7 @@ struct Quux : android::hardware::tests::baz::V1_0::IQuux {
 
 } // namespace implementation
 } // namespace V1_0
-} // namespace baz
+} // namespace inheritance
 } // namespace tests
 } // namespace hardware
 
@@ -124,18 +129,24 @@ public:
 class DebugTest : public ::testing::Test {
 public:
     void SetUp() override {
-        using ::android::hardware::tests::baz::V1_0::IQuux;
-        using ::android::hardware::tests::baz::V1_0::implementation::Quux;
+        using ::android::hardware::tests::inheritance::V1_0::IChild;
+        using ::android::hardware::tests::inheritance::V1_0::IParent;
+        using ::android::hardware::tests::inheritance::V1_0::IGrandparent;
+        using ::android::hardware::tests::inheritance::V1_0::implementation::Child;
 
         err.str("");
         out.str("");
         serviceManager = new testing::NiceMock<MockServiceManager>();
-        ON_CALL(*serviceManager, get(_, _)).WillByDefault(Invoke(
-            [](const auto &iface, const auto &inst) -> ::android::hardware::Return<sp<IBase>> {
-                if (iface == IQuux::descriptor && inst == "default")
-                    return new Quux();
-                return nullptr;
-            }));
+        ON_CALL(*serviceManager, get(_, _))
+                .WillByDefault(
+                        Invoke([](const auto& iface,
+                                  const auto& inst) -> ::android::hardware::Return<sp<IBase>> {
+                            if (inst != "default") return nullptr;
+                            if (iface == IChild::descriptor || iface == IParent::descriptor ||
+                                iface == IGrandparent::descriptor)
+                                return new Child();
+                            return nullptr;
+                        }));
 
         lshal = std::make_unique<Lshal>(out, err, serviceManager, serviceManager);
     }
@@ -159,17 +170,17 @@ static Status callMain(const std::unique_ptr<T>& lshal, const std::vector<const 
 
 TEST_F(DebugTest, Debug) {
     EXPECT_EQ(0u, callMain(lshal, {
-        "lshal", "debug", "android.hardware.tests.baz@1.0::IQuux/default", "foo", "bar"
+        "lshal", "debug", "android.hardware.tests.inheritance@1.0::IChild/default", "foo", "bar"
     }));
-    EXPECT_THAT(out.str(), StrEq("android.hardware.tests.baz@1.0::IQuux\nfoo\nbar"));
+    EXPECT_THAT(out.str(), StrEq("android.hardware.tests.inheritance@1.0::IChild\nfoo\nbar"));
     EXPECT_THAT(err.str(), IsEmpty());
 }
 
 TEST_F(DebugTest, Debug2) {
     EXPECT_EQ(0u, callMain(lshal, {
-        "lshal", "debug", "android.hardware.tests.baz@1.0::IQuux", "baz", "quux"
+        "lshal", "debug", "android.hardware.tests.inheritance@1.0::IChild", "baz", "quux"
     }));
-    EXPECT_THAT(out.str(), StrEq("android.hardware.tests.baz@1.0::IQuux\nbaz\nquux"));
+    EXPECT_THAT(out.str(), StrEq("android.hardware.tests.inheritance@1.0::IChild\nbaz\nquux"));
     EXPECT_THAT(err.str(), IsEmpty());
 }
 
@@ -178,6 +189,22 @@ TEST_F(DebugTest, Debug3) {
         "lshal", "debug", "android.hardware.tests.doesnotexist@1.0::IDoesNotExist",
     }));
     EXPECT_THAT(err.str(), HasSubstr("does not exist"));
+}
+
+TEST_F(DebugTest, DebugParent) {
+    EXPECT_EQ(0u, callMain(lshal, {
+        "lshal", "debug", "android.hardware.tests.inheritance@1.0::IParent", "calling parent"
+    }));
+    EXPECT_THAT(out.str(), StrEq("android.hardware.tests.inheritance@1.0::IChild\ncalling parent"));
+    EXPECT_THAT(err.str(), IsEmpty());
+}
+
+TEST_F(DebugTest, DebugParentExclude) {
+    EXPECT_EQ(0u, callMain(lshal, {
+        "lshal", "debug", "-E", "android.hardware.tests.inheritance@1.0::IParent", "excluding"
+    }));
+    EXPECT_THAT(out.str(), IsEmpty());
+    EXPECT_THAT(err.str(), IsEmpty());
 }
 
 class MockLshal : public Lshal {
