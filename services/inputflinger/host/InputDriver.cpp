@@ -217,8 +217,10 @@ input_property_map_t* InputDriver::inputGetDevicePropertyMap(input_device_identi
     idi.product = id->productId;
     idi.version = id->version;
 
-    std::string configFile = getInputDeviceConfigurationFilePathByDeviceIdentifier(
-            idi, INPUT_DEVICE_CONFIGURATION_FILE_TYPE_CONFIGURATION);
+    std::string configFile =
+            getInputDeviceConfigurationFilePathByDeviceIdentifier(idi,
+                                                                  InputDeviceConfigurationFileType::
+                                                                          CONFIGURATION);
     if (configFile.empty()) {
         ALOGD("No input device configuration file found for device '%s'.",
                 idi.name.c_str());
