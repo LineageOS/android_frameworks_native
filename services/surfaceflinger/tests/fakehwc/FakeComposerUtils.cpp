@@ -29,8 +29,8 @@
 #include "SurfaceFlinger.h" // Get the name of the service...
 
 #include <binder/IServiceManager.h>
-
 #include <cutils/properties.h>
+#include <hidl/ServiceManagement.h>
 
 #include <iomanip>
 #include <thread>
@@ -173,7 +173,7 @@ void FakeHwcEnvironment::SetUp() {
     property_set("debug.sf.hwc_service_name", "mock");
 
     // This allows tests/SF to register/load a HIDL service not listed in manifest files.
-    setenv("TREBLE_TESTING_OVERRIDE", "true", true);
+    android::hardware::details::setTrebleTestingOverride(true);
     property_set("debug.sf.treble_testing_override", "true");
 }
 
