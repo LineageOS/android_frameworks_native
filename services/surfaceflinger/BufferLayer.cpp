@@ -539,20 +539,6 @@ bool BufferLayer::isProtected() const {
     return (buffer != 0) && (buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
-bool BufferLayer::latchUnsignaledBuffers() {
-    static bool propertyLoaded = false;
-    static bool latch = false;
-    static std::mutex mutex;
-    std::lock_guard<std::mutex> lock(mutex);
-    if (!propertyLoaded) {
-        char value[PROPERTY_VALUE_MAX] = {};
-        property_get("debug.sf.latch_unsignaled", value, "0");
-        latch = atoi(value);
-        propertyLoaded = true;
-    }
-    return latch;
-}
-
 // h/w composer set-up
 bool BufferLayer::allTransactionsSignaled(nsecs_t expectedPresentTime) {
     const auto headFrameNumber = getHeadFrameNumber(expectedPresentTime);
