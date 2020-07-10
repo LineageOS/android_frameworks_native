@@ -165,7 +165,6 @@ int server(size_t thisId, size_t otherId) {
     android::ProcessState::self()->startThreadPool();
 
     // HIDL
-    setenv("TREBLE_TESTING_OVERRIDE", "true", true);
     android::hardware::configureRpcThreadpool(1, true /*callerWillJoin*/);
     sp<IHidlStuff> hidlServer = new HidlServer(thisId, otherId);
     CHECK(OK == hidlServer->registerAsService(id2name(thisId).c_str()));
@@ -176,7 +175,7 @@ int server(size_t thisId, size_t otherId) {
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
-    setenv("TREBLE_TESTING_OVERRIDE", "true", true);
+    android::hardware::details::setTrebleTestingOverride(true);
     if (fork() == 0) {
         prctl(PR_SET_PDEATHSIG, SIGHUP);
         return server(kP1Id, kP2Id);
