@@ -187,9 +187,6 @@ protected:
     bool onPreComposition(nsecs_t) override;
     void preparePerFrameCompositionState() override;
 
-    // Loads the corresponding system property once per process
-    static bool latchUnsignaledBuffers();
-
     // Check all of the local sync points to ensure that all transactions
     // which need to have been applied prior to the frame which is about to
     // be latched have signaled
