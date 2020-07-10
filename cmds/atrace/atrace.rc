@@ -164,6 +164,12 @@ on late-init
     chmod 0666 /sys/kernel/tracing/events/filemap/mm_filemap_delete_from_page_cache/enable
     chmod 0666 /sys/kernel/debug/tracing/events/filemap/mm_filemap_delete_from_page_cache/enable
 
+    # thermal
+    chmod 0666 /sys/kernel/debug/tracing/events/thermal/thermal_temperature/enable
+    chmod 0666 /sys/kernel/tracing/events/thermal/thermal_temperature/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/thermal/cdev_update/enable
+    chmod 0666 /sys/kernel/tracing/events/thermal/cdev_update/enable
+
 # Tracing disabled by default
     write /sys/kernel/debug/tracing/tracing_on 0
     write /sys/kernel/tracing/tracing_on 0
