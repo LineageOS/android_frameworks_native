@@ -633,6 +633,10 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 hook_extensions_.set(ext_bit);
                 break;
             case ProcHook::KHR_get_physical_device_properties2:
+            case ProcHook::KHR_device_group_creation:
+            case ProcHook::KHR_external_memory_capabilities:
+            case ProcHook::KHR_external_semaphore_capabilities:
+            case ProcHook::KHR_external_fence_capabilities:
             case ProcHook::EXTENSION_UNKNOWN:
                 // Extensions we don't need to do anything about at this level
                 break;
@@ -689,6 +693,10 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
 
             case ProcHook::KHR_android_surface:
             case ProcHook::KHR_get_physical_device_properties2:
+            case ProcHook::KHR_device_group_creation:
+            case ProcHook::KHR_external_memory_capabilities:
+            case ProcHook::KHR_external_semaphore_capabilities:
+            case ProcHook::KHR_external_fence_capabilities:
             case ProcHook::KHR_get_surface_capabilities2:
             case ProcHook::KHR_surface:
             case ProcHook::EXT_debug_report:
@@ -968,13 +976,6 @@ VkResult EnumerateInstanceExtensionProperties(
 bool QueryPresentationProperties(
     VkPhysicalDevice physicalDevice,
     VkPhysicalDevicePresentationPropertiesANDROID *presentation_properties) {
-    const InstanceData& data = GetData(physicalDevice);
-
-    // GPDP2 must be present and enabled on the instance.
-    if (!data.driver.GetPhysicalDeviceProperties2KHR &&
-        !data.driver.GetPhysicalDeviceProperties2)
-        return false;
-
     // Request the android-specific presentation properties via GPDP2
     VkPhysicalDeviceProperties2KHR properties = {
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR,
@@ -990,12 +991,7 @@ bool QueryPresentationProperties(
     presentation_properties->pNext = nullptr;
     presentation_properties->sharedImage = VK_FALSE;
 
-    if (data.driver.GetPhysicalDeviceProperties2KHR) {
-        data.driver.GetPhysicalDeviceProperties2KHR(physicalDevice,
-                                                    &properties);
-    } else {
-        data.driver.GetPhysicalDeviceProperties2(physicalDevice, &properties);
-    }
+    GetPhysicalDeviceProperties2(physicalDevice, &properties);
 
     return true;
 }
@@ -1266,7 +1262,8 @@ VkResult EnumeratePhysicalDeviceGroups(
     VkResult result = VK_SUCCESS;
     const auto& data = GetData(instance);
 
-    if (!data.driver.EnumeratePhysicalDeviceGroups) {
+    if (!data.driver.EnumeratePhysicalDeviceGroups &&
+        !data.driver.EnumeratePhysicalDeviceGroupsKHR) {
         uint32_t device_count = 0;
         result = EnumeratePhysicalDevices(instance, &device_count, nullptr);
         if (result < 0)
@@ -1298,9 +1295,15 @@ VkResult EnumeratePhysicalDeviceGroups(
             pPhysicalDeviceGroupProperties[i].subsetAllocation = 0;
         }
     } else {
-        result = data.driver.EnumeratePhysicalDeviceGroups(
-            instance, pPhysicalDeviceGroupCount,
-            pPhysicalDeviceGroupProperties);
+        if (data.driver.EnumeratePhysicalDeviceGroups) {
+            result = data.driver.EnumeratePhysicalDeviceGroups(
+                instance, pPhysicalDeviceGroupCount,
+                pPhysicalDeviceGroupProperties);
+        } else {
+            result = data.driver.EnumeratePhysicalDeviceGroupsKHR(
+                instance, pPhysicalDeviceGroupCount,
+                pPhysicalDeviceGroupProperties);
+        }
         if ((result == VK_SUCCESS || result == VK_INCOMPLETE) &&
             *pPhysicalDeviceGroupCount && pPhysicalDeviceGroupProperties) {
             for (uint32_t i = 0; i < *pPhysicalDeviceGroupCount; i++) {
@@ -1368,6 +1371,199 @@ VKAPI_ATTR VkResult QueueSubmit(VkQueue queue,
     const auto& data = GetData(queue);
 
     return data.driver.QueueSubmit(queue, submitCount, pSubmits, fence);
+}
+
+void GetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
+                                VkPhysicalDeviceFeatures2* pFeatures) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceFeatures2) {
+        driver.GetPhysicalDeviceFeatures2(physicalDevice, pFeatures);
+        return;
+    }
+
+    driver.GetPhysicalDeviceFeatures2KHR(physicalDevice, pFeatures);
+}
+
+void GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
+                                  VkPhysicalDeviceProperties2* pProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceProperties2) {
+        driver.GetPhysicalDeviceProperties2(physicalDevice, pProperties);
+        return;
+    }
+
+    driver.GetPhysicalDeviceProperties2KHR(physicalDevice, pProperties);
+}
+
+void GetPhysicalDeviceFormatProperties2(
+    VkPhysicalDevice physicalDevice,
+    VkFormat format,
+    VkFormatProperties2* pFormatProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceFormatProperties2) {
+        driver.GetPhysicalDeviceFormatProperties2(physicalDevice, format,
+                                                  pFormatProperties);
+        return;
+    }
+
+    driver.GetPhysicalDeviceFormatProperties2KHR(physicalDevice, format,
+                                                 pFormatProperties);
+}
+
+VkResult GetPhysicalDeviceImageFormatProperties2(
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceImageFormatInfo2* pImageFormatInfo,
+    VkImageFormatProperties2* pImageFormatProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceImageFormatProperties2) {
+        return driver.GetPhysicalDeviceImageFormatProperties2(
+            physicalDevice, pImageFormatInfo, pImageFormatProperties);
+    }
+
+    return driver.GetPhysicalDeviceImageFormatProperties2KHR(
+        physicalDevice, pImageFormatInfo, pImageFormatProperties);
+}
+
+void GetPhysicalDeviceQueueFamilyProperties2(
+    VkPhysicalDevice physicalDevice,
+    uint32_t* pQueueFamilyPropertyCount,
+    VkQueueFamilyProperties2* pQueueFamilyProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceQueueFamilyProperties2) {
+        driver.GetPhysicalDeviceQueueFamilyProperties2(
+            physicalDevice, pQueueFamilyPropertyCount, pQueueFamilyProperties);
+        return;
+    }
+
+    driver.GetPhysicalDeviceQueueFamilyProperties2KHR(
+        physicalDevice, pQueueFamilyPropertyCount, pQueueFamilyProperties);
+}
+
+void GetPhysicalDeviceMemoryProperties2(
+    VkPhysicalDevice physicalDevice,
+    VkPhysicalDeviceMemoryProperties2* pMemoryProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceMemoryProperties2) {
+        driver.GetPhysicalDeviceMemoryProperties2(physicalDevice,
+                                                  pMemoryProperties);
+        return;
+    }
+
+    driver.GetPhysicalDeviceMemoryProperties2KHR(physicalDevice,
+                                                 pMemoryProperties);
+}
+
+void GetPhysicalDeviceSparseImageFormatProperties2(
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceSparseImageFormatInfo2* pFormatInfo,
+    uint32_t* pPropertyCount,
+    VkSparseImageFormatProperties2* pProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceSparseImageFormatProperties2) {
+        driver.GetPhysicalDeviceSparseImageFormatProperties2(
+            physicalDevice, pFormatInfo, pPropertyCount, pProperties);
+        return;
+    }
+
+    driver.GetPhysicalDeviceSparseImageFormatProperties2KHR(
+        physicalDevice, pFormatInfo, pPropertyCount, pProperties);
+}
+
+void GetPhysicalDeviceExternalBufferProperties(
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceExternalBufferInfo* pExternalBufferInfo,
+    VkExternalBufferProperties* pExternalBufferProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceExternalBufferProperties) {
+        driver.GetPhysicalDeviceExternalBufferProperties(
+            physicalDevice, pExternalBufferInfo, pExternalBufferProperties);
+        return;
+    }
+
+    if (driver.GetPhysicalDeviceExternalBufferPropertiesKHR) {
+        driver.GetPhysicalDeviceExternalBufferPropertiesKHR(
+            physicalDevice, pExternalBufferInfo, pExternalBufferProperties);
+        return;
+    }
+
+    memset(&pExternalBufferProperties->externalMemoryProperties, 0,
+           sizeof(VkExternalMemoryProperties));
+}
+
+void GetPhysicalDeviceExternalSemaphoreProperties(
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceExternalSemaphoreInfo* pExternalSemaphoreInfo,
+    VkExternalSemaphoreProperties* pExternalSemaphoreProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceExternalSemaphoreProperties) {
+        driver.GetPhysicalDeviceExternalSemaphoreProperties(
+            physicalDevice, pExternalSemaphoreInfo,
+            pExternalSemaphoreProperties);
+        return;
+    }
+
+    if (driver.GetPhysicalDeviceExternalSemaphorePropertiesKHR) {
+        driver.GetPhysicalDeviceExternalSemaphorePropertiesKHR(
+            physicalDevice, pExternalSemaphoreInfo,
+            pExternalSemaphoreProperties);
+        return;
+    }
+
+    pExternalSemaphoreProperties->exportFromImportedHandleTypes = 0;
+    pExternalSemaphoreProperties->compatibleHandleTypes = 0;
+    pExternalSemaphoreProperties->externalSemaphoreFeatures = 0;
+}
+
+void GetPhysicalDeviceExternalFenceProperties(
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceExternalFenceInfo* pExternalFenceInfo,
+    VkExternalFenceProperties* pExternalFenceProperties) {
+    ATRACE_CALL();
+
+    const auto& driver = GetData(physicalDevice).driver;
+
+    if (driver.GetPhysicalDeviceExternalFenceProperties) {
+        driver.GetPhysicalDeviceExternalFenceProperties(
+            physicalDevice, pExternalFenceInfo, pExternalFenceProperties);
+        return;
+    }
+
+    if (driver.GetPhysicalDeviceExternalFencePropertiesKHR) {
+        driver.GetPhysicalDeviceExternalFencePropertiesKHR(
+            physicalDevice, pExternalFenceInfo, pExternalFenceProperties);
+        return;
+    }
+
+    pExternalFenceProperties->exportFromImportedHandleTypes = 0;
+    pExternalFenceProperties->compatibleHandleTypes = 0;
+    pExternalFenceProperties->externalFenceFeatures = 0;
 }
 
 }  // namespace driver

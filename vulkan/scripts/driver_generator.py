@@ -40,6 +40,10 @@ _KNOWN_EXTENSIONS = _INTERCEPTED_EXTENSIONS + [
     'VK_ANDROID_external_memory_android_hardware_buffer',
     'VK_KHR_bind_memory2',
     'VK_KHR_get_physical_device_properties2',
+    'VK_KHR_device_group_creation',
+    'VK_KHR_external_memory_capabilities',
+    'VK_KHR_external_semaphore_capabilities',
+    'VK_KHR_external_fence_capabilities',
 ]
 
 # Functions needed at vulkan::driver level.
@@ -71,12 +75,41 @@ _NEEDED_COMMANDS = [
     'vkDestroyImage',
 
     'vkGetPhysicalDeviceProperties',
-    'vkGetPhysicalDeviceProperties2',
-    'vkGetPhysicalDeviceProperties2KHR',
 
     # VK_KHR_swapchain v69 requirement
     'vkBindImageMemory2',
     'vkBindImageMemory2KHR',
+
+    # For promoted VK_KHR_device_group_creation
+    'vkEnumeratePhysicalDeviceGroupsKHR',
+
+    # For promoted VK_KHR_get_physical_device_properties2
+    'vkGetPhysicalDeviceFeatures2',
+    'vkGetPhysicalDeviceFeatures2KHR',
+    'vkGetPhysicalDeviceProperties2',
+    'vkGetPhysicalDeviceProperties2KHR',
+    'vkGetPhysicalDeviceFormatProperties2',
+    'vkGetPhysicalDeviceFormatProperties2KHR',
+    'vkGetPhysicalDeviceImageFormatProperties2',
+    'vkGetPhysicalDeviceImageFormatProperties2KHR',
+    'vkGetPhysicalDeviceQueueFamilyProperties2',
+    'vkGetPhysicalDeviceQueueFamilyProperties2KHR',
+    'vkGetPhysicalDeviceMemoryProperties2',
+    'vkGetPhysicalDeviceMemoryProperties2KHR',
+    'vkGetPhysicalDeviceSparseImageFormatProperties2',
+    'vkGetPhysicalDeviceSparseImageFormatProperties2KHR',
+
+    # For promoted VK_KHR_external_memory_capabilities
+    'vkGetPhysicalDeviceExternalBufferProperties',
+    'vkGetPhysicalDeviceExternalBufferPropertiesKHR',
+
+    # For promoted VK_KHR_external_semaphore_capabilities
+    'vkGetPhysicalDeviceExternalSemaphoreProperties',
+    'vkGetPhysicalDeviceExternalSemaphorePropertiesKHR',
+
+    # For promoted VK_KHR_external_fence_capabilities
+    'vkGetPhysicalDeviceExternalFenceProperties',
+    'vkGetPhysicalDeviceExternalFencePropertiesKHR',
 ]
 
 # Functions intercepted at vulkan::driver level.
@@ -106,6 +139,24 @@ _INTERCEPTED_COMMANDS = [
     # VK_KHR_swapchain v69 requirement
     'vkBindImageMemory2',
     'vkBindImageMemory2KHR',
+
+    # For promoted VK_KHR_get_physical_device_properties2
+    'vkGetPhysicalDeviceFeatures2',
+    'vkGetPhysicalDeviceProperties2',
+    'vkGetPhysicalDeviceFormatProperties2',
+    'vkGetPhysicalDeviceImageFormatProperties2',
+    'vkGetPhysicalDeviceQueueFamilyProperties2',
+    'vkGetPhysicalDeviceMemoryProperties2',
+    'vkGetPhysicalDeviceSparseImageFormatProperties2',
+
+    # For promoted VK_KHR_external_memory_capabilities
+    'vkGetPhysicalDeviceExternalBufferProperties',
+
+    # For promoted VK_KHR_external_semaphore_capabilities
+    'vkGetPhysicalDeviceExternalSemaphoreProperties',
+
+    # For promoted VK_KHR_external_fence_capabilities
+    'vkGetPhysicalDeviceExternalFenceProperties',
 ]
 
 
