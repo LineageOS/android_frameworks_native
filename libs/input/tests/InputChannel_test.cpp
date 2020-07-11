@@ -23,6 +23,7 @@
 #include <errno.h>
 
 #include <binder/Binder.h>
+#include <binder/Parcel.h>
 #include <gtest/gtest.h>
 #include <input/InputTransport.h>
 #include <utils/StopWatch.h>
@@ -197,5 +198,36 @@ TEST_F(InputChannelTest, SendAndReceive_MotionClassification) {
     }
 }
 
+TEST_F(InputChannelTest, InputChannelParcelAndUnparcel) {
+    sp<InputChannel> serverChannel, clientChannel;
+
+    status_t result =
+            InputChannel::openInputChannelPair("channel parceling", serverChannel, clientChannel);
+
+    ASSERT_EQ(OK, result) << "should have successfully opened a channel pair";
+
+    InputChannel chan;
+    Parcel parcel;
+    ASSERT_EQ(OK, serverChannel->writeToParcel(&parcel));
+    parcel.setDataPosition(0);
+    chan.readFromParcel(&parcel);
+
+    EXPECT_EQ(chan == *serverChannel, true)
+            << "inputchannel should be equal after parceling and unparceling.\n"
+            << "name " << chan.getName() << " name " << serverChannel->getName();
+}
+
+TEST_F(InputChannelTest, DuplicateChannelAndAssertEqual) {
+    sp<InputChannel> serverChannel, clientChannel;
+
+    status_t result =
+            InputChannel::openInputChannelPair("channel dup", serverChannel, clientChannel);
+
+    ASSERT_EQ(OK, result) << "should have successfully opened a channel pair";
+
+    sp<InputChannel> dupChan = serverChannel->dup();
+
+    EXPECT_EQ(*serverChannel == *dupChan, true) << "inputchannel should be equal after duplication";
+}
 
 } // namespace android

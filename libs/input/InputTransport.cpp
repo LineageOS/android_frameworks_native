@@ -246,6 +246,28 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
     }
 }
 
+// --- InputChannelInfo ---
+
+status_t InputChannelInfo::writeToParcel(android::Parcel* parcel) const {
+    if (parcel == nullptr) {
+        ALOGE("%s: Null parcel", __func__);
+        return BAD_VALUE;
+    }
+    status_t status = parcel->writeStrongBinder(mToken)
+            ?: parcel->writeUtf8AsUtf16(mName) ?: parcel->writeUniqueFileDescriptor(mFd);
+    return status;
+}
+
+status_t InputChannelInfo::readFromParcel(const android::Parcel* parcel) {
+    if (parcel == nullptr) {
+        ALOGE("%s: Null parcel", __func__);
+        return BAD_VALUE;
+    }
+    mToken = parcel->readStrongBinder();
+    status_t status = parcel->readUtf8FromUtf16(&mName) ?: parcel->readUniqueFileDescriptor(&mFd);
+    return status;
+}
+
 // --- InputChannel ---
 
 sp<InputChannel> InputChannel::create(const std::string& name, android::base::unique_fd fd,
@@ -260,15 +282,17 @@ sp<InputChannel> InputChannel::create(const std::string& name, android::base::un
 }
 
 InputChannel::InputChannel(const std::string& name, android::base::unique_fd fd, sp<IBinder> token)
-      : mName(name), mFd(std::move(fd)), mToken(token) {
+      : mInfo(name, std::move(fd), token) {
     if (DEBUG_CHANNEL_LIFECYCLE) {
-        ALOGD("Input channel constructed: name='%s', fd=%d", mName.c_str(), mFd.get());
+        ALOGD("Input channel constructed: name='%s', fd=%d", mInfo.mName.c_str(), mInfo.mFd.get());
     }
 }
 
+InputChannel::InputChannel() {}
+
 InputChannel::~InputChannel() {
     if (DEBUG_CHANNEL_LIFECYCLE) {
-        ALOGD("Input channel destroyed: name='%s', fd=%d", mName.c_str(), mFd.get());
+        ALOGD("Input channel destroyed: name='%s', fd=%d", getName().c_str(), getFd());
     }
 }
 
@@ -308,7 +332,7 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
     msg->getSanitizedCopy(&cleanMsg);
     ssize_t nWrite;
     do {
-        nWrite = ::send(mFd.get(), &cleanMsg, msgLength, MSG_DONTWAIT | MSG_NOSIGNAL);
+        nWrite = ::send(getFd(), &cleanMsg, msgLength, MSG_DONTWAIT | MSG_NOSIGNAL);
     } while (nWrite == -1 && errno == EINTR);
 
     if (nWrite < 0) {
@@ -343,7 +367,7 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
 status_t InputChannel::receiveMessage(InputMessage* msg) {
     ssize_t nRead;
     do {
-        nRead = ::recv(mFd.get(), msg, sizeof(InputMessage), MSG_DONTWAIT);
+        nRead = ::recv(getFd(), msg, sizeof(InputMessage), MSG_DONTWAIT);
     } while (nRead == -1 && errno == EINTR);
 
     if (nRead < 0) {
@@ -383,7 +407,7 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
 sp<InputChannel> InputChannel::dup() const {
     android::base::unique_fd newFd(::dup(getFd()));
     if (!newFd.ok()) {
-        ALOGE("Could not duplicate fd %i for channel %s: %s", getFd(), mName.c_str(),
+        ALOGE("Could not duplicate fd %i for channel %s: %s", getFd(), getName().c_str(),
               strerror(errno));
         const bool hitFdLimit = errno == EMFILE || errno == ENFILE;
         // If this process is out of file descriptors, then throwing that might end up exploding
@@ -394,38 +418,19 @@ sp<InputChannel> InputChannel::dup() const {
                             getName().c_str());
         return nullptr;
     }
-    return InputChannel::create(mName, std::move(newFd), mToken);
+    return InputChannel::create(getName(), std::move(newFd), getConnectionToken());
 }
 
-status_t InputChannel::write(Parcel& out) const {
-    status_t s = out.writeCString(getName().c_str());
-    if (s != OK) {
-        return s;
-    }
-
-    s = out.writeStrongBinder(mToken);
-    if (s != OK) {
-        return s;
-    }
-
-    s = out.writeUniqueFileDescriptor(mFd);
-    return s;
+status_t InputChannel::writeToParcel(android::Parcel* parcel) const {
+    return mInfo.writeToParcel(parcel);
 }
 
-sp<InputChannel> InputChannel::read(const Parcel& from) {
-    std::string name = from.readCString();
-    sp<IBinder> token = from.readStrongBinder();
-    android::base::unique_fd rawFd;
-    status_t fdResult = from.readUniqueFileDescriptor(&rawFd);
-    if (fdResult != OK) {
-        return nullptr;
-    }
-
-    return InputChannel::create(name, std::move(rawFd), token);
+status_t InputChannel::readFromParcel(const android::Parcel* parcel) {
+    return mInfo.readFromParcel(parcel);
 }
 
 sp<IBinder> InputChannel::getConnectionToken() const {
-    return mToken;
+    return mInfo.mToken;
 }
 
 // --- InputPublisher ---

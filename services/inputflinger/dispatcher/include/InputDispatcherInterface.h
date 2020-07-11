@@ -18,14 +18,13 @@
 #define _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERINTERFACE_H
 
 #include <InputListener.h>
-#include <input/ISetInputWindowsListener.h>
+#include <android/os/ISetInputWindowsListener.h>
+#include <input/InputApplication.h>
+#include <input/InputTransport.h>
+#include <input/InputWindow.h>
 #include <unordered_map>
 
 namespace android {
-
-class InputApplicationHandle;
-class InputChannel;
-class InputWindowHandle;
 
 /*
  * Constants used to report the outcome of input event injection.

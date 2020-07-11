@@ -21,6 +21,7 @@
 
 #include <binder/IBinder.h>
 #include <binder/Parcel.h>
+#include <binder/Parcelable.h>
 
 #include <input/Input.h>
 #include <utils/RefBase.h>
@@ -31,15 +32,17 @@ namespace android {
 /*
  * Describes the properties of an application that can receive input.
  */
-struct InputApplicationInfo {
+struct InputApplicationInfo : public Parcelable {
     sp<IBinder> token;
     std::string name;
     std::chrono::nanoseconds dispatchingTimeout;
 
-    status_t write(Parcel& output) const;
-    static InputApplicationInfo read(const Parcel& from);
-};
+    InputApplicationInfo() = default;
 
+    status_t readFromParcel(const android::Parcel* parcel) override;
+
+    status_t writeToParcel(android::Parcel* parcel) const override;
+};
 
 /*
  * Handle for an application that can receive input.
@@ -76,6 +79,7 @@ public:
      * Returns true on success, or false if the handle is no longer valid.
      */
     virtual bool updateInfo() = 0;
+
 protected:
     InputApplicationHandle();
     virtual ~InputApplicationHandle();

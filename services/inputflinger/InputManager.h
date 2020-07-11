@@ -26,18 +26,23 @@
 
 #include <InputDispatcherInterface.h>
 #include <InputDispatcherPolicyInterface.h>
-#include <input/ISetInputWindowsListener.h>
+#include <android/os/ISetInputWindowsListener.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
 
-#include <input/IInputFlinger.h>
+#include <android/os/BnInputFlinger.h>
+#include <android/os/IInputFlinger.h>
 #include <utils/Errors.h>
-#include <utils/Vector.h>
-#include <utils/Timers.h>
 #include <utils/RefBase.h>
+#include <utils/Timers.h>
+#include <utils/Vector.h>
+
+using android::os::BnInputFlinger;
+using android::os::ISetInputWindowsListener;
 
 namespace android {
 class InputChannel;
+class InputDispatcherThread;
 
 /*
  * The input manager is the core of the system event processing.
@@ -98,11 +103,13 @@ public:
     sp<InputClassifierInterface> getClassifier() override;
     sp<InputDispatcherInterface> getDispatcher() override;
 
-    void setInputWindows(const std::vector<InputWindowInfo>& handles,
-                         const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
+    status_t dump(int fd, const Vector<String16>& args) override;
+    binder::Status setInputWindows(
+            const std::vector<InputWindowInfo>& handles,
+            const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
 
-    void registerInputChannel(const sp<InputChannel>& channel) override;
-    void unregisterInputChannel(const sp<InputChannel>& channel) override;
+    binder::Status registerInputChannel(const InputChannelInfo& info) override;
+    binder::Status unregisterInputChannel(const InputChannelInfo& info) override;
 
 private:
     sp<InputReaderInterface> mReader;

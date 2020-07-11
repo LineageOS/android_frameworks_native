@@ -33,7 +33,6 @@
 #include <gui/ITransactionCompletedListener.h>
 #include <gui/LayerState.h>
 #include <gui/OccupancyTracker.h>
-#include <input/ISetInputWindowsListener.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/mat4.h>
 #include <renderengine/LayerSettings.h>
@@ -89,8 +88,8 @@ namespace android {
 class Client;
 class EventThread;
 class HWComposer;
+struct SetInputWindowsListener;
 class IGraphicBufferProducer;
-class IInputFlinger;
 class Layer;
 class MessageBase;
 class RefreshRateOverlay;
@@ -98,6 +97,10 @@ class RegionSamplingThread;
 class RenderArea;
 class TimeStats;
 class FrameTracer;
+
+namespace os {
+    class IInputFlinger;
+}
 
 namespace compositionengine {
 class DisplaySurface;
@@ -336,6 +339,7 @@ public:
     // If set, disables reusing client composition buffers. This can be set by
     // debug.sf.disable_client_composition_cache
     bool mDisableClientCompositionCache = false;
+    void setInputWindowsFinished();
 
 private:
     friend class BufferLayer;
@@ -606,7 +610,6 @@ private:
     void updateInputFlinger();
     void updateInputWindowInfo();
     void commitInputWindowCommands() REQUIRES(mStateLock);
-    void setInputWindowsFinished();
     void updateCursorAsync();
     void initScheduler(DisplayId primaryDisplayId);
 
@@ -1254,21 +1257,12 @@ private:
     const float mInternalDisplayDensity;
     const float mEmulatedDisplayDensity;
 
-    sp<IInputFlinger> mInputFlinger;
+    sp<os::IInputFlinger> mInputFlinger;
     InputWindowCommands mPendingInputWindowCommands GUARDED_BY(mStateLock);
     // Should only be accessed by the main thread.
     InputWindowCommands mInputWindowCommands;
 
-    struct SetInputWindowsListener : BnSetInputWindowsListener {
-        explicit SetInputWindowsListener(sp<SurfaceFlinger> flinger)
-              : mFlinger(std::move(flinger)) {}
-
-        void onSetInputWindowsFinished() override;
-
-        const sp<SurfaceFlinger> mFlinger;
-    };
-
-    const sp<SetInputWindowsListener> mSetInputWindowsListener = new SetInputWindowsListener(this);
+    sp<SetInputWindowsListener> mSetInputWindowsListener;
 
     bool mPendingSyncInputWindows GUARDED_BY(mStateLock) = false;
     Hwc2::impl::PowerAdvisor mPowerAdvisor;
