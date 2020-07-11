@@ -22,12 +22,16 @@
 
 #include "InputHost.h"
 
+#include <android/os/BnInputFlinger.h>
+#include <android/os/ISetInputWindowsListener.h>
+#include <binder/Binder.h>
 #include <cutils/compiler.h>
-#include <input/IInputFlinger.h>
-#include <input/ISetInputWindowsListener.h>
-#include <utils/String8.h>
 #include <utils/String16.h>
+#include <utils/String8.h>
 #include <utils/StrongPointer.h>
+
+using android::os::BnInputFlinger;
+using android::os::ISetInputWindowsListener;
 
 namespace android {
 
@@ -40,10 +44,12 @@ public:
     InputFlinger() ANDROID_API;
 
     virtual status_t dump(int fd, const Vector<String16>& args);
-    void setInputWindows(const std::vector<InputWindowInfo>&,
-            const sp<ISetInputWindowsListener>&) {}
-    void registerInputChannel(const sp<InputChannel>&) {}
-    void unregisterInputChannel(const sp<InputChannel>&) {}
+    binder::Status setInputWindows(const std::vector<InputWindowInfo>&,
+                                   const sp<ISetInputWindowsListener>&) {
+        return binder::Status::ok();
+    }
+    binder::Status registerInputChannel(const InputChannelInfo&) { return binder::Status::ok(); }
+    binder::Status unregisterInputChannel(const InputChannelInfo&) { return binder::Status::ok(); }
 
 private:
     virtual ~InputFlinger();

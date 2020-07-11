@@ -201,7 +201,7 @@ struct layer_state_t {
     mat4 colorTransform;
 
 #ifndef NO_INPUT
-    InputWindowInfo inputInfo;
+    sp<InputWindowHandle> inputHandle = new InputWindowHandle();
 #endif
 
     client_cache_t cachedBuffer;

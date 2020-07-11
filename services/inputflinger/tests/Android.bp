@@ -35,7 +35,14 @@ cc_test {
         "InputClassifierConverter_test.cpp",
         "InputDispatcher_test.cpp",
         "InputReader_test.cpp",
+        "InputFlingerService_test.cpp",
         "UinputDevice.cpp",
+        "IInputFlingerQuery.aidl"
     ],
+    aidl: {
+        include_dirs: [
+            "frameworks/native/libs/input",
+        ],
+    },
     require_root: true,
 }

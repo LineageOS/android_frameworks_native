@@ -36,15 +36,16 @@
 #include <gui/SurfaceComposerClient.h>
 #include <gui/SurfaceControl.h>
 
-#include <input/InputWindow.h>
-#include <input/IInputFlinger.h>
-#include <input/InputTransport.h>
+#include <android/os/IInputFlinger.h>
 #include <input/Input.h>
+#include <input/InputTransport.h>
+#include <input/InputWindow.h>
 
 #include <ui/DisplayConfig.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
+using android::os::IInputFlinger;
 
 namespace android {
 namespace test {
@@ -71,7 +72,7 @@ public:
         InputChannel::openInputChannelPair("testchannels", mServerChannel, mClientChannel);
 
         mInputFlinger = getInputFlinger();
-        mInputFlinger->registerInputChannel(mServerChannel);
+        mInputFlinger->registerInputChannel(mServerChannel->getInfo());
 
         populateInputInfo(width, height);
 
@@ -153,9 +154,7 @@ public:
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
-    ~InputSurface() {
-        mInputFlinger->unregisterInputChannel(mServerChannel);
-    }
+    ~InputSurface() { mInputFlinger->unregisterInputChannel(mServerChannel->getInfo()); }
 
     void doTransaction(std::function<void(SurfaceComposerClient::Transaction&,
                     const sp<SurfaceControl>&)> transactionBody) {

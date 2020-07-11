@@ -17,6 +17,8 @@
 #ifndef _UI_INPUT_WINDOW_H
 #define _UI_INPUT_WINDOW_H
 
+#include <binder/Parcel.h>
+#include <binder/Parcelable.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
 #include <ui/Rect.h>
@@ -27,14 +29,12 @@
 #include "InputApplication.h"
 
 namespace android {
-class Parcel;
 
 /*
  * Describes the properties of a window that can receive input.
  */
-struct InputWindowInfo {
+struct InputWindowInfo : public Parcelable {
     InputWindowInfo() = default;
-    InputWindowInfo(const Parcel& from);
 
     // Window flags from WindowManager.LayoutParams
     enum : uint32_t {
@@ -195,9 +195,11 @@ struct InputWindowInfo {
 
     bool overlaps(const InputWindowInfo* other) const;
 
-    status_t write(Parcel& output) const;
+    bool operator==(const InputWindowInfo& inputChannel) const;
 
-    static InputWindowInfo read(const Parcel& from);
+    status_t writeToParcel(android::Parcel* parcel) const override;
+
+    status_t readFromParcel(const android::Parcel* parcel) override;
 };
 
 std::string inputWindowFlagsToString(uint32_t flags);
@@ -210,22 +212,19 @@ std::string inputWindowFlagsToString(uint32_t flags);
  */
 class InputWindowHandle : public RefBase {
 public:
+    explicit InputWindowHandle();
+    InputWindowHandle(const InputWindowHandle& other);
+    InputWindowHandle(const InputWindowInfo& other);
 
-    inline const InputWindowInfo* getInfo() const {
-        return &mInfo;
-    }
+    inline const InputWindowInfo* getInfo() const { return &mInfo; }
 
     sp<IBinder> getToken() const;
 
     int32_t getId() const { return mInfo.id; }
 
-    sp<IBinder> getApplicationToken() {
-        return mInfo.applicationInfo.token;
-    }
+    sp<IBinder> getApplicationToken() { return mInfo.applicationInfo.token; }
 
-    inline std::string getName() const {
-        return !mInfo.name.empty() ? mInfo.name : "<invalid>";
-    }
+    inline std::string getName() const { return !mInfo.name.empty() ? mInfo.name : "<invalid>"; }
 
     inline std::chrono::nanoseconds getDispatchingTimeout(
             std::chrono::nanoseconds defaultValue) const {
@@ -235,13 +234,14 @@ public:
     /**
      * Requests that the state of this object be updated to reflect
      * the most current available information about the application.
+     * As this class is created as RefBase object, no pure virtual function is allowed.
      *
      * This method should only be called from within the input dispatcher's
      * critical section.
      *
      * Returns true on success, or false if the handle is no longer valid.
      */
-    virtual bool updateInfo() = 0;
+    virtual bool updateInfo() { return false; }
 
     /**
      * Updates from another input window handle.
@@ -254,8 +254,11 @@ public:
      */
     void releaseChannel();
 
+    // Not override since this class is not derrived from Parcelable.
+    status_t readFromParcel(const android::Parcel* parcel);
+    status_t writeToParcel(android::Parcel* parcel) const;
+
 protected:
-    explicit InputWindowHandle();
     virtual ~InputWindowHandle();
 
     InputWindowInfo mInfo;

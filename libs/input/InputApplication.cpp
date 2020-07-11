@@ -22,29 +22,34 @@
 
 namespace android {
 
+status_t InputApplicationInfo::readFromParcel(const android::Parcel* parcel) {
+    if (parcel == nullptr) {
+        ALOGE("%s: Null parcel", __func__);
+        return BAD_VALUE;
+    }
+    token = parcel->readStrongBinder();
+    dispatchingTimeout = decltype(dispatchingTimeout)(parcel->readInt64());
+    status_t status = parcel->readUtf8FromUtf16(&name);
+
+    return status;
+}
+
+status_t InputApplicationInfo::writeToParcel(android::Parcel* parcel) const {
+    if (parcel == nullptr) {
+        ALOGE("%s: Null parcel", __func__);
+        return BAD_VALUE;
+    }
+    status_t status = parcel->writeStrongBinder(token)
+            ?: parcel->writeInt64(dispatchingTimeout.count())
+            ?: parcel->writeUtf8AsUtf16(name) ;
+
+    return status;
+}
+
 // --- InputApplicationHandle ---
 
-InputApplicationHandle::InputApplicationHandle() {
-}
+InputApplicationHandle::InputApplicationHandle() {}
 
-InputApplicationHandle::~InputApplicationHandle() {
-}
-
-InputApplicationInfo InputApplicationInfo::read(const Parcel& from) {
-    InputApplicationInfo ret;
-    ret.token = from.readStrongBinder();
-    ret.name = from.readString8().c_str();
-    ret.dispatchingTimeout = decltype(ret.dispatchingTimeout)(from.readInt64());
-
-    return ret;
-}
-
-status_t InputApplicationInfo::write(Parcel& output) const {
-    output.writeStrongBinder(token);
-    output.writeString8(String8(name.c_str()));
-    output.writeInt64(dispatchingTimeout.count());
-
-    return OK;
-}
+InputApplicationHandle::~InputApplicationHandle() {}
 
 } // namespace android

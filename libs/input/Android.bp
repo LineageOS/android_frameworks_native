@@ -46,14 +46,14 @@ cc_library {
     target: {
         android: {
             srcs: [
-                "IInputFlinger.cpp",
                 "InputApplication.cpp",
                 "InputTransport.cpp",
                 "InputWindow.cpp",
-                "ISetInputWindowsListener.cpp",
                 "LatencyStatistics.cpp",
                 "VelocityControl.cpp",
                 "VelocityTracker.cpp",
+                "android/os/IInputFlinger.aidl",
+                "android/os/ISetInputWindowsListener.aidl",
             ],
 
             shared_libs: [
@@ -71,6 +71,11 @@ cc_library {
                 enabled: false,
             },
         },
+    },
+
+    aidl: {
+        local_include_dirs: ["."],
+        export_aidl_headers: true
     },
 }
 

@@ -24,9 +24,6 @@
 
 #include <log/log.h>
 
-#include <ui/Rect.h>
-#include <ui/Region.h>
-
 namespace android {
 
 const char* inputWindowFlagToString(uint32_t flag) {
@@ -164,96 +161,130 @@ bool InputWindowInfo::overlaps(const InputWindowInfo* other) const {
             && frameTop < other->frameBottom && frameBottom > other->frameTop;
 }
 
-status_t InputWindowInfo::write(Parcel& output) const {
+bool InputWindowInfo::operator==(const InputWindowInfo& info) const {
+    return info.token == token && info.id == id && info.name == name &&
+            info.layoutParamsFlags == layoutParamsFlags &&
+            info.layoutParamsType == layoutParamsType &&
+            info.dispatchingTimeout == dispatchingTimeout && info.frameLeft == frameLeft &&
+            info.frameTop == frameTop && info.frameRight == frameRight &&
+            info.frameBottom == frameBottom && info.surfaceInset == surfaceInset &&
+            info.globalScaleFactor == globalScaleFactor && info.windowXScale == windowXScale &&
+            info.windowYScale == windowYScale &&
+            info.touchableRegion.hasSameRects(touchableRegion) && info.visible == visible &&
+            info.canReceiveKeys == canReceiveKeys && info.trustedOverlay == trustedOverlay &&
+            info.hasFocus == hasFocus && info.hasWallpaper == hasWallpaper &&
+            info.paused == paused && info.ownerPid == ownerPid && info.ownerUid == ownerUid &&
+            info.inputFeatures == inputFeatures && info.displayId == displayId &&
+            info.portalToDisplayId == portalToDisplayId &&
+            info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
+            info.applicationInfo.name == applicationInfo.name &&
+            info.applicationInfo.token == applicationInfo.token &&
+            info.applicationInfo.dispatchingTimeout == applicationInfo.dispatchingTimeout;
+}
+
+status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {
+    if (parcel == nullptr) {
+        ALOGE("%s: Null parcel", __func__);
+        return BAD_VALUE;
+    }
     if (name.empty()) {
-        output.writeInt32(0);
+        parcel->writeInt32(0);
         return OK;
     }
-    output.writeInt32(1);
-    status_t s = output.writeStrongBinder(token);
-    if (s != OK) return s;
+    parcel->writeInt32(1);
 
-    output.writeInt32(id);
-    output.writeString8(String8(name.c_str()));
-    output.writeInt32(layoutParamsFlags);
-    output.writeInt32(layoutParamsType);
-    output.writeInt64(dispatchingTimeout.count());
-    output.writeInt32(frameLeft);
-    output.writeInt32(frameTop);
-    output.writeInt32(frameRight);
-    output.writeInt32(frameBottom);
-    output.writeInt32(surfaceInset);
-    output.writeFloat(globalScaleFactor);
-    output.writeFloat(windowXScale);
-    output.writeFloat(windowYScale);
-    output.writeBool(visible);
-    output.writeBool(canReceiveKeys);
-    output.writeBool(hasFocus);
-    output.writeBool(hasWallpaper);
-    output.writeBool(paused);
-    output.writeBool(trustedOverlay);
-    output.writeInt32(ownerPid);
-    output.writeInt32(ownerUid);
-    output.writeInt32(inputFeatures);
-    output.writeInt32(displayId);
-    output.writeInt32(portalToDisplayId);
-    applicationInfo.write(output);
-    output.write(touchableRegion);
-    output.writeBool(replaceTouchableRegionWithCrop);
-    output.writeStrongBinder(touchableRegionCropHandle.promote());
-    return OK;
+    status_t status = parcel->writeStrongBinder(token) ?:
+        parcel->writeInt64(dispatchingTimeout.count()) ?:
+        parcel->writeInt32(id) ?:
+        parcel->writeUtf8AsUtf16(name) ?:
+        parcel->writeInt32(layoutParamsFlags) ?:
+        parcel->writeInt32(layoutParamsType) ?:
+        parcel->writeInt32(frameLeft) ?:
+        parcel->writeInt32(frameTop) ?:
+        parcel->writeInt32(frameRight) ?:
+        parcel->writeInt32(frameBottom) ?:
+        parcel->writeInt32(surfaceInset) ?:
+        parcel->writeFloat(globalScaleFactor) ?:
+        parcel->writeFloat(windowXScale) ?:
+        parcel->writeFloat(windowYScale) ?:
+        parcel->writeBool(visible) ?:
+        parcel->writeBool(canReceiveKeys) ?:
+        parcel->writeBool(hasFocus) ?:
+        parcel->writeBool(hasWallpaper) ?:
+        parcel->writeBool(paused) ?:
+        parcel->writeBool(trustedOverlay) ?:
+        parcel->writeInt32(ownerPid) ?:
+        parcel->writeInt32(ownerUid) ?:
+        parcel->writeInt32(inputFeatures) ?:
+        parcel->writeInt32(displayId) ?:
+        parcel->writeInt32(portalToDisplayId) ?:
+        applicationInfo.writeToParcel(parcel) ?:
+        parcel->write(touchableRegion) ?:
+        parcel->writeBool(replaceTouchableRegionWithCrop) ?:
+        parcel->writeStrongBinder(touchableRegionCropHandle.promote());
+
+    return status;
 }
 
-InputWindowInfo InputWindowInfo::read(const Parcel& from) {
-    InputWindowInfo ret;
-
-    if (from.readInt32() == 0) {
-        return ret;
+status_t InputWindowInfo::readFromParcel(const android::Parcel* parcel) {
+    if (parcel == nullptr) {
+        ALOGE("%s: Null parcel", __func__);
+        return BAD_VALUE;
+    }
+    if (parcel->readInt32() == 0) {
+        return OK;
     }
 
-    ret.token = from.readStrongBinder();
-    ret.id = from.readInt32();
-    ret.name = from.readString8().c_str();
-    ret.layoutParamsFlags = from.readInt32();
-    ret.layoutParamsType = from.readInt32();
-    ret.dispatchingTimeout = decltype(ret.dispatchingTimeout)(from.readInt64());
-    ret.frameLeft = from.readInt32();
-    ret.frameTop = from.readInt32();
-    ret.frameRight = from.readInt32();
-    ret.frameBottom = from.readInt32();
-    ret.surfaceInset = from.readInt32();
-    ret.globalScaleFactor = from.readFloat();
-    ret.windowXScale = from.readFloat();
-    ret.windowYScale = from.readFloat();
-    ret.visible = from.readBool();
-    ret.canReceiveKeys = from.readBool();
-    ret.hasFocus = from.readBool();
-    ret.hasWallpaper = from.readBool();
-    ret.paused = from.readBool();
-    ret.trustedOverlay = from.readBool();
-    ret.ownerPid = from.readInt32();
-    ret.ownerUid = from.readInt32();
-    ret.inputFeatures = from.readInt32();
-    ret.displayId = from.readInt32();
-    ret.portalToDisplayId = from.readInt32();
-    ret.applicationInfo = InputApplicationInfo::read(from);
-    from.read(ret.touchableRegion);
-    ret.replaceTouchableRegionWithCrop = from.readBool();
-    ret.touchableRegionCropHandle = from.readStrongBinder();
+    token = parcel->readStrongBinder();
+    dispatchingTimeout = decltype(dispatchingTimeout)(parcel->readInt64());
+    status_t status = parcel->readInt32(&id) ?:
+        parcel->readUtf8FromUtf16(&name) ?:
+        parcel->readInt32(&layoutParamsFlags) ?:
+        parcel->readInt32(&layoutParamsType) ?:
+        parcel->readInt32(&frameLeft) ?:
+        parcel->readInt32(&frameTop) ?:
+        parcel->readInt32(&frameRight) ?:
+        parcel->readInt32(&frameBottom) ?:
+        parcel->readInt32(&surfaceInset) ?:
+        parcel->readFloat(&globalScaleFactor) ?:
+        parcel->readFloat(&windowXScale) ?:
+        parcel->readFloat(&windowYScale) ?:
+        parcel->readBool(&visible) ?:
+        parcel->readBool(&canReceiveKeys) ?:
+        parcel->readBool(&hasFocus) ?:
+        parcel->readBool(&hasWallpaper) ?:
+        parcel->readBool(&paused) ?:
+        parcel->readBool(&trustedOverlay) ?:
+        parcel->readInt32(&ownerPid) ?:
+        parcel->readInt32(&ownerUid) ?:
+        parcel->readInt32(&inputFeatures) ?:
+        parcel->readInt32(&displayId) ?:
+        parcel->readInt32(&portalToDisplayId) ?:
+        applicationInfo.readFromParcel(parcel) ?:
+        parcel->read(touchableRegion) ?:
+        parcel->readBool(&replaceTouchableRegionWithCrop);
 
-    return ret;
-}
+    touchableRegionCropHandle = parcel->readStrongBinder();
 
-InputWindowInfo::InputWindowInfo(const Parcel& from) {
-    *this = read(from);
+    return status;
 }
 
 // --- InputWindowHandle ---
 
-InputWindowHandle::InputWindowHandle() {
+InputWindowHandle::InputWindowHandle() {}
+
+InputWindowHandle::~InputWindowHandle() {}
+
+InputWindowHandle::InputWindowHandle(const InputWindowHandle& other) : mInfo(other.mInfo) {}
+
+InputWindowHandle::InputWindowHandle(const InputWindowInfo& other) : mInfo(other) {}
+
+status_t InputWindowHandle::writeToParcel(android::Parcel* parcel) const {
+    return mInfo.writeToParcel(parcel);
 }
 
-InputWindowHandle::~InputWindowHandle() {
+status_t InputWindowHandle::readFromParcel(const android::Parcel* parcel) {
+    return mInfo.readFromParcel(parcel);
 }
 
 void InputWindowHandle::releaseChannel() {
