@@ -144,10 +144,10 @@ private:
 };
 
 /* Types of input device configuration files. */
-enum InputDeviceConfigurationFileType {
-    INPUT_DEVICE_CONFIGURATION_FILE_TYPE_CONFIGURATION = 0,     /* .idc file */
-    INPUT_DEVICE_CONFIGURATION_FILE_TYPE_KEY_LAYOUT = 1,        /* .kl file */
-    INPUT_DEVICE_CONFIGURATION_FILE_TYPE_KEY_CHARACTER_MAP = 2, /* .kcm file */
+enum class InputDeviceConfigurationFileType : int32_t {
+    CONFIGURATION = 0,     /* .idc file */
+    KEY_LAYOUT = 1,        /* .kl file */
+    KEY_CHARACTER_MAP = 2, /* .kcm file */
 };
 
 /*

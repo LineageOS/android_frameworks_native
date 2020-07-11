@@ -105,8 +105,7 @@ bool KeyMap::probeKeyMap(const InputDeviceIdentifier& deviceIdentifier,
 
 status_t KeyMap::loadKeyLayout(const InputDeviceIdentifier& deviceIdentifier,
         const std::string& name) {
-    std::string path(getPath(deviceIdentifier, name,
-            INPUT_DEVICE_CONFIGURATION_FILE_TYPE_KEY_LAYOUT));
+    std::string path(getPath(deviceIdentifier, name, InputDeviceConfigurationFileType::KEY_LAYOUT));
     if (path.empty()) {
         return NAME_NOT_FOUND;
     }
@@ -122,8 +121,8 @@ status_t KeyMap::loadKeyLayout(const InputDeviceIdentifier& deviceIdentifier,
 
 status_t KeyMap::loadKeyCharacterMap(const InputDeviceIdentifier& deviceIdentifier,
         const std::string& name) {
-    std::string path = getPath(deviceIdentifier, name,
-            INPUT_DEVICE_CONFIGURATION_FILE_TYPE_KEY_CHARACTER_MAP);
+    std::string path =
+            getPath(deviceIdentifier, name, InputDeviceConfigurationFileType::KEY_CHARACTER_MAP);
     if (path.empty()) {
         return NAME_NOT_FOUND;
     }

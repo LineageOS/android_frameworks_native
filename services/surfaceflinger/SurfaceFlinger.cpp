@@ -399,10 +399,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     int debugDdms = atoi(value);
     ALOGI_IF(debugDdms, "DDMS debugging not supported");
 
-    property_get("debug.sf.disable_backpressure", value, "0");
-    mPropagateBackpressure = !atoi(value);
-    ALOGI_IF(!mPropagateBackpressure, "Disabling backpressure propagation");
-
     property_get("debug.sf.enable_gl_backpressure", value, "0");
     mPropagateBackpressureClientComposition = atoi(value);
     ALOGI_IF(mPropagateBackpressureClientComposition,
@@ -607,13 +603,6 @@ void SurfaceFlinger::bootFinished()
     if (mWindowManager != 0) {
         mWindowManager->linkToDeath(static_cast<IBinder::DeathRecipient*>(this));
     }
-    sp<IBinder> input(defaultServiceManager()->getService(
-            String16("inputflinger")));
-    if (input == nullptr) {
-        ALOGE("Failed to link to input service");
-    } else {
-        mInputFlinger = interface_cast<IInputFlinger>(input);
-    }
 
     if (mVrFlinger) {
       mVrFlinger->OnBootFinished();
@@ -628,7 +617,15 @@ void SurfaceFlinger::bootFinished()
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
 
-    static_cast<void>(schedule([this] {
+    sp<IBinder> input(defaultServiceManager()->getService(String16("inputflinger")));
+
+    static_cast<void>(schedule([=] {
+        if (input == nullptr) {
+            ALOGE("Failed to link to input service");
+        } else {
+            mInputFlinger = interface_cast<IInputFlinger>(input);
+        }
+
         readPersistentProperties();
         mPowerAdvisor.onBootFinished();
         mBootStage = BootStage::FINISHED;
@@ -1842,10 +1839,7 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
     // for the present fence to fire instead of just giving up on this frame to handle cases
     // where present fence is just about to get signaled.
     const int graceTimeForPresentFenceMs =
-            (mPropagateBackpressure &&
-             (mPropagateBackpressureClientComposition || !mHadClientComposition))
-            ? 1
-            : 0;
+            (mPropagateBackpressureClientComposition || !mHadClientComposition) ? 1 : 0;
 
     // Pending frames may trigger backpressure propagation.
     const TracedOrdinal<bool> framePending = {"PrevFramePending",
@@ -1904,7 +1898,7 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
         ON_MAIN_THREAD(setActiveConfigInternal());
     }
 
-    if (framePending && mPropagateBackpressure) {
+    if (framePending) {
         if ((hwcFrameMissed && !gpuFrameMissed) || mPropagateBackpressureClientComposition) {
             signalLayerUpdate();
             return;
