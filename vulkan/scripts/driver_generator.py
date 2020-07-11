@@ -523,10 +523,9 @@ const ProcHook g_proc_hooks[] = {
 }  // namespace
 
 const ProcHook* GetProcHook(const char* name) {
-    const auto& begin = g_proc_hooks;
-    const auto& end =
-        g_proc_hooks + sizeof(g_proc_hooks) / sizeof(g_proc_hooks[0]);
-    const auto hook = std::lower_bound(
+    auto begin = std::cbegin(g_proc_hooks);
+    auto end = std::cend(g_proc_hooks);
+    auto hook = std::lower_bound(
         begin, end, name,
         [](const ProcHook& e, const char* n) { return strcmp(e.name, n) < 0; });
     return (hook < end && strcmp(hook->name, name) == 0) ? hook : nullptr;
