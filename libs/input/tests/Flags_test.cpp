@@ -197,4 +197,46 @@ TEST(Flags, String_WithIncompleteStringify) {
     ASSERT_EQ(flags.string(toStringIncomplete), "ONE | 0x00000004");
 }
 
+TEST(FlagsIterator, IteratesOverAllFlags) {
+    Flags<TestFlags> flags1 = TestFlags::ONE | TestFlags::TWO;
+    Flags<TestFlags> flags2;
+    for (TestFlags f : flags1) {
+        flags2 |= f;
+    }
+    ASSERT_EQ(flags2, flags1);
+}
+
+TEST(FlagsIterator, IteratesInExpectedOrder) {
+    const std::vector<TestFlags> flagOrder = {TestFlags::ONE, TestFlags::TWO};
+    Flags<TestFlags> flags;
+    for (TestFlags f : flagOrder) {
+        flags |= f;
+    }
+
+    size_t idx = 0;
+    auto iter = flags.begin();
+    while (iter != flags.end() && idx < flagOrder.size()) {
+        // Make sure the order is what we expect
+        ASSERT_EQ(*iter, flagOrder[idx]);
+        iter++;
+        idx++;
+    }
+    ASSERT_EQ(iter, flags.end());
+}
+TEST(FlagsIterator, PostFixIncrement) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
+    auto iter = flags.begin();
+    ASSERT_EQ(*(iter++), TestFlags::ONE);
+    ASSERT_EQ(*iter, TestFlags::TWO);
+    ASSERT_EQ(*(iter++), TestFlags::TWO);
+    ASSERT_EQ(iter, flags.end());
+}
+
+TEST(FlagsIterator, PreFixIncrement) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
+    auto iter = flags.begin();
+    ASSERT_EQ(*++iter, TestFlags::TWO);
+    ASSERT_EQ(++iter, flags.end());
+}
+
 } // namespace android::test
