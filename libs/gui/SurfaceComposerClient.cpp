@@ -1359,7 +1359,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInput
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->inputInfo = info;
+    s->inputHandle = new InputWindowHandle(info);
     s->what |= layer_state_t::eInputInfoChanged;
     return *this;
 }

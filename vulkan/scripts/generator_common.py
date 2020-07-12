@@ -97,6 +97,9 @@ version_code_list = []
 # Dict for mapping a function to the core Vulkan API version.
 version_dict = {}
 
+# Dict for mapping a promoted instance extension to the core Vulkan API version.
+promoted_inst_ext_dict = {}
+
 
 def indent(num):
   """Returns the requested indents.
@@ -181,6 +184,15 @@ def version_code(version):
     version: Vulkan version string.
   """
   return version[11:]
+
+
+def version_2_api_version(version):
+  """Returns the api version from a version string.
+
+  Args:
+    version: Vulkan version string.
+  """
+  return 'VK_API' + version[2:]
 
 
 def is_function_supported(cmd):
@@ -327,6 +339,7 @@ def parse_vulkan_registry():
   return_type_dict
   version_code_list
   version_dict
+  promoted_inst_ext_dict
   """
   registry = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..',
                           'external', 'vulkan-headers', 'registry', 'vk.xml')
@@ -379,6 +392,10 @@ def parse_vulkan_registry():
       apiversion = ''
       if extension.tag == 'extension':
         extname = extension.get('name')
+        if (extension.get('type') == 'instance' and
+            extension.get('promotedto') is not None):
+          promoted_inst_ext_dict[extname] = \
+              version_2_api_version(extension.get('promotedto'))
         for req in extension:
           if req.get('feature') is not None:
             apiversion = req.get('feature')

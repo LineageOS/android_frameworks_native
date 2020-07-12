@@ -30,6 +30,8 @@
 #include <android/hardware/configstore/1.1/types.h>
 #include <android/hardware/power/Boost.h>
 #include <android/native_window.h>
+#include <android/os/BnSetInputWindowsListener.h>
+#include <android/os/IInputFlinger.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
@@ -58,7 +60,6 @@
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <hidl/ServiceManagement.h>
-#include <input/IInputFlinger.h>
 #include <layerproto/LayerProtoParser.h>
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
@@ -256,6 +257,21 @@ private:
 
 }  // namespace anonymous
 
+struct SetInputWindowsListener : os::BnSetInputWindowsListener {
+    explicit SetInputWindowsListener(std::function<void()> listenerCb) : mListenerCb(listenerCb) {}
+
+    binder::Status onSetInputWindowsFinished() override;
+
+    std::function<void()> mListenerCb;
+};
+
+binder::Status SetInputWindowsListener::onSetInputWindowsFinished() {
+    if (mListenerCb != nullptr) {
+        mListenerCb();
+    }
+    return binder::Status::ok();
+}
+
 // ---------------------------------------------------------------------------
 
 const String16 sHardwareTest("android.permission.HARDWARE_TEST");
@@ -321,7 +337,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
-        mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)) {}
+        mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)) {
+    mSetInputWindowsListener = new SetInputWindowsListener([&]() { setInputWindowsFinished(); });
+}
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
@@ -603,13 +621,6 @@ void SurfaceFlinger::bootFinished()
     if (mWindowManager != 0) {
         mWindowManager->linkToDeath(static_cast<IBinder::DeathRecipient*>(this));
     }
-    sp<IBinder> input(defaultServiceManager()->getService(
-            String16("inputflinger")));
-    if (input == nullptr) {
-        ALOGE("Failed to link to input service");
-    } else {
-        mInputFlinger = interface_cast<IInputFlinger>(input);
-    }
 
     if (mVrFlinger) {
       mVrFlinger->OnBootFinished();
@@ -624,7 +635,15 @@ void SurfaceFlinger::bootFinished()
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
 
-    static_cast<void>(schedule([this] {
+    sp<IBinder> input(defaultServiceManager()->getService(String16("inputflinger")));
+
+    static_cast<void>(schedule([=] {
+        if (input == nullptr) {
+            ALOGE("Failed to link to input service");
+        } else {
+            mInputFlinger = interface_cast<os::IInputFlinger>(input);
+        }
+
         readPersistentProperties();
         mPowerAdvisor.onBootFinished();
         mBootStage = BootStage::FINISHED;
@@ -2891,19 +2910,19 @@ void SurfaceFlinger::updateInputFlinger() {
 }
 
 void SurfaceFlinger::updateInputWindowInfo() {
-    std::vector<InputWindowInfo> inputHandles;
+    std::vector<InputWindowInfo> inputInfos;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (layer->needsInputInfo()) {
             // When calculating the screen bounds we ignore the transparent region since it may
             // result in an unwanted offset.
-            inputHandles.push_back(layer->fillInputInfo());
+            inputInfos.push_back(layer->fillInputInfo());
         }
     });
 
-    mInputFlinger->setInputWindows(inputHandles,
-                                   mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
-                                                                         : nullptr);
+    mInputFlinger->setInputWindows(inputInfos,
+                               mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
+                                                                     : nullptr);
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
@@ -3806,7 +3825,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eInputInfoChanged) {
         if (privileged) {
-            layer->setInputInfo(s.inputInfo);
+            layer->setInputInfo(*s.inputHandle->getInfo());
             flags |= eTraversalNeeded;
         } else {
             ALOGE("Attempt to update InputWindowInfo without permission ACCESS_SURFACE_FLINGER");
@@ -6056,10 +6075,6 @@ status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(const sp<IBinder>& display
         *outAppRequestRefreshRateMax = 1e9f / vsyncPeriod;
         return NO_ERROR;
     }
-}
-
-void SurfaceFlinger::SetInputWindowsListener::onSetInputWindowsFinished() {
-    mFlinger->setInputWindowsFinished();
 }
 
 wp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
