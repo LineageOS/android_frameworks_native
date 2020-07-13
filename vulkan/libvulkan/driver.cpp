@@ -95,9 +95,11 @@ class Hal {
 class CreateInfoWrapper {
    public:
     CreateInfoWrapper(const VkInstanceCreateInfo& create_info,
+                      uint32_t icd_api_version,
                       const VkAllocationCallbacks& allocator);
     CreateInfoWrapper(VkPhysicalDevice physical_dev,
                       const VkDeviceCreateInfo& create_info,
+                      uint32_t icd_api_version,
                       const VkAllocationCallbacks& allocator);
     ~CreateInfoWrapper();
 
@@ -132,6 +134,7 @@ class CreateInfoWrapper {
     const bool is_instance_;
     const VkAllocationCallbacks& allocator_;
     const uint32_t loader_api_version_;
+    const uint32_t icd_api_version_;
 
     VkPhysicalDevice physical_dev_;
 
@@ -141,7 +144,6 @@ class CreateInfoWrapper {
     };
 
     VkApplicationInfo application_info_;
-    uint32_t sanitized_api_version_;
 
     ExtensionFilter extension_filter_;
 
@@ -324,21 +326,24 @@ bool Hal::InitDebugReportIndex() {
 }
 
 CreateInfoWrapper::CreateInfoWrapper(const VkInstanceCreateInfo& create_info,
+                                     uint32_t icd_api_version,
                                      const VkAllocationCallbacks& allocator)
     : is_instance_(true),
       allocator_(allocator),
       loader_api_version_(VK_API_VERSION_1_1),
+      icd_api_version_(icd_api_version),
       physical_dev_(VK_NULL_HANDLE),
       instance_info_(create_info),
-      sanitized_api_version_(loader_api_version_),
       extension_filter_() {}
 
 CreateInfoWrapper::CreateInfoWrapper(VkPhysicalDevice physical_dev,
                                      const VkDeviceCreateInfo& create_info,
+                                     uint32_t icd_api_version,
                                      const VkAllocationCallbacks& allocator)
     : is_instance_(false),
       allocator_(allocator),
       loader_api_version_(VK_API_VERSION_1_1),
+      icd_api_version_(icd_api_version),
       physical_dev_(physical_dev),
       dev_info_(create_info),
       extension_filter_() {}
@@ -379,77 +384,17 @@ CreateInfoWrapper::operator const VkDeviceCreateInfo*() const {
 }
 
 VkResult CreateInfoWrapper::SanitizeApiVersion() {
-    if (is_instance_) {
-        // instance core versions need to match the loader api version
-        for (uint32_t i = ProcHook::EXTENSION_CORE_1_0;
-             i != ProcHook::EXTENSION_COUNT; i++) {
-            hook_extensions_.set(i);
-            hal_extensions_.set(i);
-        }
+    if (!is_instance_ || !instance_info_.pApplicationInfo)
+        return VK_SUCCESS;
 
-        uint32_t icd_api_version = VK_API_VERSION_1_0;
-        PFN_vkEnumerateInstanceVersion pfn_enumerate_instance_version =
-            reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
-                Hal::Device().GetInstanceProcAddr(
-                    nullptr, "vkEnumerateInstanceVersion"));
-        if (pfn_enumerate_instance_version) {
-            ATRACE_BEGIN("pfn_enumerate_instance_version");
-            VkResult result =
-                (*pfn_enumerate_instance_version)(&icd_api_version);
-            ATRACE_END();
-            if (result != VK_SUCCESS)
-                return result;
+    if (icd_api_version_ > VK_API_VERSION_1_0 ||
+        instance_info_.pApplicationInfo->apiVersion < VK_API_VERSION_1_1)
+        return VK_SUCCESS;
 
-            icd_api_version ^= VK_VERSION_PATCH(icd_api_version);
-        }
-
-        if (icd_api_version < VK_API_VERSION_1_0)
-            return VK_SUCCESS;
-
-        if (icd_api_version < loader_api_version_) {
-            sanitized_api_version_ = icd_api_version;
-
-            if (!instance_info_.pApplicationInfo)
-                return VK_SUCCESS;
-
-            application_info_ = *instance_info_.pApplicationInfo;
-            application_info_.apiVersion = sanitized_api_version_;
-            instance_info_.pApplicationInfo = &application_info_;
-        }
-    } else {
-        const auto& driver = GetData(physical_dev_).driver;
-
-        VkPhysicalDeviceProperties properties;
-        ATRACE_BEGIN("driver.GetPhysicalDeviceProperties");
-        driver.GetPhysicalDeviceProperties(physical_dev_, &properties);
-        ATRACE_END();
-
-        if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU) {
-            // Log that the app is hitting software Vulkan implementation
-            android::GraphicsEnv::getInstance().setTargetStats(
-                android::GpuStatsInfo::Stats::CPU_VULKAN_IN_USE);
-        }
-
-        uint32_t api_version = properties.apiVersion;
-        api_version ^= VK_VERSION_PATCH(api_version);
-
-        if (api_version > loader_api_version_)
-            api_version = loader_api_version_;
-
-        switch (api_version) {
-            case VK_API_VERSION_1_1:
-                hook_extensions_.set(ProcHook::EXTENSION_CORE_1_1);
-                hal_extensions_.set(ProcHook::EXTENSION_CORE_1_1);
-                [[clang::fallthrough]];
-            case VK_API_VERSION_1_0:
-                hook_extensions_.set(ProcHook::EXTENSION_CORE_1_0);
-                hal_extensions_.set(ProcHook::EXTENSION_CORE_1_0);
-                break;
-            default:
-                ALOGE("Unknown API version[%u]", api_version);
-                break;
-        }
-    }
+    // override apiVersion to avoid error return from 1.0 icd
+    application_info_ = *instance_info_.pApplicationInfo;
+    application_info_.apiVersion = VK_API_VERSION_1_0;
+    instance_info_.pApplicationInfo = &application_info_;
 
     return VK_SUCCESS;
 }
@@ -506,13 +451,13 @@ VkResult CreateInfoWrapper::SanitizeExtensions() {
     if (result != VK_SUCCESS)
         return result;
 
-    if (is_instance_ && sanitized_api_version_ < loader_api_version_) {
+    if (is_instance_ && icd_api_version_ < loader_api_version_) {
         for (uint32_t i = 0; i < ext_count; i++) {
             // Upon api downgrade, skip the promoted instance extensions in the
             // first pass to avoid duplicate extensions.
             const std::optional<uint32_t> version =
                 GetInstanceExtensionPromotedVersion(ext_names[i]);
-            if (version && *version > sanitized_api_version_ &&
+            if (version && *version > icd_api_version_ &&
                 *version <= loader_api_version_)
                 continue;
 
@@ -521,7 +466,7 @@ VkResult CreateInfoWrapper::SanitizeExtensions() {
 
         // Enable the required extensions to support core functionalities.
         const auto promoted_extensions = GetPromotedInstanceExtensions(
-            sanitized_api_version_, loader_api_version_);
+            icd_api_version_, loader_api_version_);
         for (const auto& promoted_extension : promoted_extensions)
             FilterExtension(promoted_extension);
     } else {
@@ -533,6 +478,23 @@ VkResult CreateInfoWrapper::SanitizeExtensions() {
     // vkGetInstanceProcAddr will return those physical-device commands.
     if (is_instance_) {
         hook_extensions_.set(ProcHook::KHR_swapchain);
+    }
+
+    const uint32_t api_version =
+        is_instance_ ? loader_api_version_
+                     : std::min(icd_api_version_, loader_api_version_);
+    switch (api_version) {
+        case VK_API_VERSION_1_1:
+            hook_extensions_.set(ProcHook::EXTENSION_CORE_1_1);
+            hal_extensions_.set(ProcHook::EXTENSION_CORE_1_1);
+            [[clang::fallthrough]];
+        case VK_API_VERSION_1_0:
+            hook_extensions_.set(ProcHook::EXTENSION_CORE_1_0);
+            hal_extensions_.set(ProcHook::EXTENSION_CORE_1_0);
+            break;
+        default:
+            ALOGE("Unknown API version[%u]", api_version);
+            break;
     }
 
     ext_names = extension_filter_.names;
@@ -597,9 +559,9 @@ VkResult CreateInfoWrapper::InitExtensionFilter() {
 
         // It requires enabling additional promoted extensions to downgrade api,
         // so we reserve enough space here.
-        if (sanitized_api_version_ < loader_api_version_) {
+        if (icd_api_version_ < loader_api_version_) {
             enabled_ext_count += CountPromotedInstanceExtensions(
-                sanitized_api_version_, loader_api_version_);
+                icd_api_version_, loader_api_version_);
         }
 
         count = std::min(filter.ext_count, enabled_ext_count);
@@ -1087,8 +1049,24 @@ VkResult CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
     const VkAllocationCallbacks& data_allocator =
         (pAllocator) ? *pAllocator : GetDefaultAllocator();
 
-    CreateInfoWrapper wrapper(*pCreateInfo, data_allocator);
-    VkResult result = wrapper.Validate();
+    VkResult result = VK_SUCCESS;
+    uint32_t icd_api_version = VK_API_VERSION_1_0;
+    PFN_vkEnumerateInstanceVersion pfn_enumerate_instance_version =
+        reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
+            Hal::Device().GetInstanceProcAddr(nullptr,
+                                              "vkEnumerateInstanceVersion"));
+    if (pfn_enumerate_instance_version) {
+        ATRACE_BEGIN("pfn_enumerate_instance_version");
+        result = (*pfn_enumerate_instance_version)(&icd_api_version);
+        ATRACE_END();
+        if (result != VK_SUCCESS)
+            return result;
+
+        icd_api_version ^= VK_VERSION_PATCH(icd_api_version);
+    }
+
+    CreateInfoWrapper wrapper(*pCreateInfo, icd_api_version, data_allocator);
+    result = wrapper.Validate();
     if (result != VK_SUCCESS)
         return result;
 
@@ -1160,7 +1138,16 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
     const VkAllocationCallbacks& data_allocator =
         (pAllocator) ? *pAllocator : instance_data.allocator;
 
-    CreateInfoWrapper wrapper(physicalDevice, *pCreateInfo, data_allocator);
+    VkPhysicalDeviceProperties properties;
+    ATRACE_BEGIN("driver.GetPhysicalDeviceProperties");
+    instance_data.driver.GetPhysicalDeviceProperties(physicalDevice,
+                                                     &properties);
+    ATRACE_END();
+
+    CreateInfoWrapper wrapper(
+        physicalDevice, *pCreateInfo,
+        properties.apiVersion ^ VK_VERSION_PATCH(properties.apiVersion),
+        data_allocator);
     VkResult result = wrapper.Validate();
     if (result != VK_SUCCESS)
         return result;
@@ -1214,6 +1201,12 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
         FreeDeviceData(data, data_allocator);
 
         return VK_ERROR_INCOMPATIBLE_DRIVER;
+    }
+
+    if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU) {
+        // Log that the app is hitting software Vulkan implementation
+        android::GraphicsEnv::getInstance().setTargetStats(
+            android::GpuStatsInfo::Stats::CPU_VULKAN_IN_USE);
     }
 
     data->driver_device = dev;
