@@ -555,7 +555,7 @@ void ListCommand::dumpTable(const NullableOStream<std::ostream>& out) const {
                 std::stringstream ss;
                 auto pair = splitFirst(iName, '/');
                 mLshal.emitDebugInfo(pair.first, pair.second, {},
-                                     false /* excludesParentInstances */, ss,
+                                     ParentDebugInfoLevel::FQNAME_ONLY, ss,
                                      NullableOStream<std::ostream>(nullptr));
                 return ss.str();
             };
