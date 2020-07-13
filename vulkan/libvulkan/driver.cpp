@@ -935,14 +935,14 @@ VkResult EnumerateInstanceExtensionProperties(
     return result;
 }
 
-bool QueryPresentationProperties(
+void QueryPresentationProperties(
     VkPhysicalDevice physicalDevice,
-    VkPhysicalDevicePresentationPropertiesANDROID *presentation_properties) {
+    VkPhysicalDevicePresentationPropertiesANDROID* presentation_properties) {
     // Request the android-specific presentation properties via GPDP2
-    VkPhysicalDeviceProperties2KHR properties = {
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR,
+    VkPhysicalDeviceProperties2 properties = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
         presentation_properties,
-        {}
+        {},
     };
 
 #pragma clang diagnostic push
@@ -954,8 +954,6 @@ bool QueryPresentationProperties(
     presentation_properties->sharedImage = VK_FALSE;
 
     GetPhysicalDeviceProperties2(physicalDevice, &properties);
-
-    return true;
 }
 
 VkResult EnumerateDeviceExtensionProperties(
@@ -977,8 +975,8 @@ VkResult EnumerateDeviceExtensionProperties(
     }
 
     VkPhysicalDevicePresentationPropertiesANDROID presentation_properties;
-    if (QueryPresentationProperties(physicalDevice, &presentation_properties) &&
-        presentation_properties.sharedImage) {
+    QueryPresentationProperties(physicalDevice, &presentation_properties);
+    if (presentation_properties.sharedImage) {
         loader_extensions.push_back({
             VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME,
             VK_KHR_SHARED_PRESENTABLE_IMAGE_SPEC_VERSION});
@@ -1337,10 +1335,10 @@ void GetDeviceQueue2(VkDevice device,
     if (*pQueue != VK_NULL_HANDLE) SetData(*pQueue, data);
 }
 
-VKAPI_ATTR VkResult
-AllocateCommandBuffers(VkDevice device,
-                       const VkCommandBufferAllocateInfo* pAllocateInfo,
-                       VkCommandBuffer* pCommandBuffers) {
+VkResult AllocateCommandBuffers(
+    VkDevice device,
+    const VkCommandBufferAllocateInfo* pAllocateInfo,
+    VkCommandBuffer* pCommandBuffers) {
     ATRACE_CALL();
 
     const auto& data = GetData(device);
@@ -1355,10 +1353,10 @@ AllocateCommandBuffers(VkDevice device,
     return result;
 }
 
-VKAPI_ATTR VkResult QueueSubmit(VkQueue queue,
-                                uint32_t submitCount,
-                                const VkSubmitInfo* pSubmits,
-                                VkFence fence) {
+VkResult QueueSubmit(VkQueue queue,
+                     uint32_t submitCount,
+                     const VkSubmitInfo* pSubmits,
+                     VkFence fence) {
     ATRACE_CALL();
 
     const auto& data = GetData(queue);

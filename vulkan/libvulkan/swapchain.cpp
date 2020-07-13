@@ -881,11 +881,10 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
     present_modes.push_back(VK_PRESENT_MODE_FIFO_KHR);
 
     VkPhysicalDevicePresentationPropertiesANDROID present_properties;
-    if (QueryPresentationProperties(pdev, &present_properties)) {
-        if (present_properties.sharedImage) {
-            present_modes.push_back(VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR);
-            present_modes.push_back(VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR);
-        }
+    QueryPresentationProperties(pdev, &present_properties);
+    if (present_properties.sharedImage) {
+        present_modes.push_back(VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR);
+        present_modes.push_back(VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR);
     }
 
     uint32_t num_modes = uint32_t(present_modes.size());
