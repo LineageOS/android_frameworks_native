@@ -75,7 +75,7 @@ cc_test {
     defaults: ["lshal_defaults"],
     gtest: true,
     static_libs: [
-        "android.hardware.tests.baz@1.0",
+        "android.hardware.tests.inheritance@1.0",
         "libgmock",
     ],
     shared_libs: [
