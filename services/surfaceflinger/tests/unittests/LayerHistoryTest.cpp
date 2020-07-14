@@ -49,6 +49,8 @@ protected:
 
     LayerHistoryTest() { mFlinger.resetScheduler(mScheduler); }
 
+    void SetUp() override { ASSERT_TRUE(mScheduler->hasLayerHistory()); }
+
     impl::LayerHistory& history() { return *mScheduler->mutableLayerHistory(); }
     const impl::LayerHistory& history() const { return *mScheduler->mutableLayerHistory(); }
 

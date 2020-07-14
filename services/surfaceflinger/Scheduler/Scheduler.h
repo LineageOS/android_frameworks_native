@@ -174,8 +174,11 @@ private:
 
     // Used by tests to inject mocks.
     Scheduler(std::unique_ptr<DispSync>, std::unique_ptr<EventControlThread>,
-              const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback,
-              bool useContentDetectionV2, bool useContentDetection);
+              const scheduler::RefreshRateConfigs&, ISchedulerCallback&,
+              std::unique_ptr<LayerHistory>, bool useContentDetectionV2, bool useContentDetection);
+
+    static std::unique_ptr<LayerHistory> createLayerHistory(const scheduler::RefreshRateConfigs&,
+                                                            bool useContentDetectionV2);
 
     std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name, nsecs_t phaseOffsetNs);
 
@@ -231,7 +234,7 @@ private:
     std::unique_ptr<EventControlThread> mEventControlThread;
 
     // Used to choose refresh rate if content detection is enabled.
-    std::unique_ptr<LayerHistory> mLayerHistory;
+    const std::unique_ptr<LayerHistory> mLayerHistory;
 
     // Timer that records time between requests for next vsync.
     std::optional<scheduler::OneShotTimer> mIdleTimer;

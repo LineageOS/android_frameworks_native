@@ -50,6 +50,8 @@ protected:
 
     LayerHistoryTestV2() { mFlinger.resetScheduler(mScheduler); }
 
+    void SetUp() override { ASSERT_TRUE(mScheduler->hasLayerHistory()); }
+
     impl::LayerHistoryV2& history() { return *mScheduler->mutableLayerHistoryV2(); }
     const impl::LayerHistoryV2& history() const { return *mScheduler->mutableLayerHistoryV2(); }
 
