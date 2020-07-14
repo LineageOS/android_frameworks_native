@@ -31,8 +31,10 @@
 #include "Scheduler/EventThread.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "TestableScheduler.h"
+#include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockDisplay.h"
 #include "mock/MockEventThread.h"
+#include "mock/MockLayer.h"
 
 using testing::_;
 using testing::Return;
@@ -58,29 +60,24 @@ protected:
     SchedulerTest();
     ~SchedulerTest() override;
 
-    std::unique_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
-    std::unique_ptr<TestableScheduler> mScheduler;
+    Hwc2::mock::Display mDisplay;
+    const scheduler::RefreshRateConfigs mConfigs{{HWC2::Display::Config::Builder(mDisplay, 0)
+                                                          .setVsyncPeriod(16'666'667)
+                                                          .setConfigGroup(0)
+                                                          .build()},
+                                                 HwcConfigIndexType(0)};
+
+    TestableScheduler mScheduler{mConfigs, false};
 
     Scheduler::ConnectionHandle mConnectionHandle;
     mock::EventThread* mEventThread;
     sp<MockEventThreadConnection> mEventThreadConnection;
-    Hwc2::mock::Display mDisplay;
 };
 
 SchedulerTest::SchedulerTest() {
     const ::testing::TestInfo* const test_info =
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
-
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> configs{
-            HWC2::Display::Config::Builder(mDisplay, 0)
-                    .setVsyncPeriod(int32_t(16666667))
-                    .setConfigGroup(0)
-                    .build()};
-    mRefreshRateConfigs = std::make_unique<
-            scheduler::RefreshRateConfigs>(configs, /*currentConfig=*/HwcConfigIndexType(0));
-
-    mScheduler = std::make_unique<TestableScheduler>(*mRefreshRateConfigs, false);
 
     auto eventThread = std::make_unique<mock::EventThread>();
     mEventThread = eventThread.get();
@@ -93,7 +90,7 @@ SchedulerTest::SchedulerTest() {
     EXPECT_CALL(*mEventThread, createEventConnection(_, _))
             .WillRepeatedly(Return(mEventThreadConnection));
 
-    mConnectionHandle = mScheduler->createConnection(std::move(eventThread));
+    mConnectionHandle = mScheduler.createConnection(std::move(eventThread));
     EXPECT_TRUE(mConnectionHandle);
 }
 
@@ -103,7 +100,6 @@ SchedulerTest::~SchedulerTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-namespace {
 /* ------------------------------------------------------------------------
  * Test cases
  */
@@ -111,67 +107,84 @@ namespace {
 TEST_F(SchedulerTest, invalidConnectionHandle) {
     Scheduler::ConnectionHandle handle;
 
-    sp<IDisplayEventConnection> connection;
-    ASSERT_NO_FATAL_FAILURE(
-            connection = mScheduler->createDisplayEventConnection(handle,
-                                                                  ISurfaceComposer::
-                                                                          eConfigChangedSuppress));
+    const sp<IDisplayEventConnection> connection =
+            mScheduler.createDisplayEventConnection(handle,
+                                                    ISurfaceComposer::eConfigChangedSuppress);
+
     EXPECT_FALSE(connection);
-    EXPECT_FALSE(mScheduler->getEventConnection(handle));
+    EXPECT_FALSE(mScheduler.getEventConnection(handle));
 
     // The EXPECT_CALLS make sure we don't call the functions on the subsequent event threads.
     EXPECT_CALL(*mEventThread, onHotplugReceived(_, _)).Times(0);
-    ASSERT_NO_FATAL_FAILURE(mScheduler->onHotplugReceived(handle, PHYSICAL_DISPLAY_ID, false));
+    mScheduler.onHotplugReceived(handle, PHYSICAL_DISPLAY_ID, false);
 
     EXPECT_CALL(*mEventThread, onScreenAcquired()).Times(0);
-    ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenAcquired(handle));
+    mScheduler.onScreenAcquired(handle);
 
     EXPECT_CALL(*mEventThread, onScreenReleased()).Times(0);
-    ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenReleased(handle));
+    mScheduler.onScreenReleased(handle);
 
     std::string output;
     EXPECT_CALL(*mEventThread, dump(_)).Times(0);
-    ASSERT_NO_FATAL_FAILURE(mScheduler->dump(handle, output));
+    mScheduler.dump(handle, output);
     EXPECT_TRUE(output.empty());
 
     EXPECT_CALL(*mEventThread, setPhaseOffset(_)).Times(0);
-    ASSERT_NO_FATAL_FAILURE(mScheduler->setPhaseOffset(handle, 10));
+    mScheduler.setPhaseOffset(handle, 10);
 }
 
 TEST_F(SchedulerTest, validConnectionHandle) {
-    sp<IDisplayEventConnection> connection;
-    ASSERT_NO_FATAL_FAILURE(
-            connection = mScheduler->createDisplayEventConnection(mConnectionHandle,
-                                                                  ISurfaceComposer::
-                                                                          eConfigChangedSuppress));
+    const sp<IDisplayEventConnection> connection =
+            mScheduler.createDisplayEventConnection(mConnectionHandle,
+                                                    ISurfaceComposer::eConfigChangedSuppress);
+
     ASSERT_EQ(mEventThreadConnection, connection);
-    EXPECT_TRUE(mScheduler->getEventConnection(mConnectionHandle));
+    EXPECT_TRUE(mScheduler.getEventConnection(mConnectionHandle));
 
     EXPECT_CALL(*mEventThread, onHotplugReceived(PHYSICAL_DISPLAY_ID, false)).Times(1);
-    ASSERT_NO_FATAL_FAILURE(
-            mScheduler->onHotplugReceived(mConnectionHandle, PHYSICAL_DISPLAY_ID, false));
+    mScheduler.onHotplugReceived(mConnectionHandle, PHYSICAL_DISPLAY_ID, false);
 
     EXPECT_CALL(*mEventThread, onScreenAcquired()).Times(1);
-    ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenAcquired(mConnectionHandle));
+    mScheduler.onScreenAcquired(mConnectionHandle);
 
     EXPECT_CALL(*mEventThread, onScreenReleased()).Times(1);
-    ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenReleased(mConnectionHandle));
+    mScheduler.onScreenReleased(mConnectionHandle);
 
     std::string output("dump");
     EXPECT_CALL(*mEventThread, dump(output)).Times(1);
-    ASSERT_NO_FATAL_FAILURE(mScheduler->dump(mConnectionHandle, output));
+    mScheduler.dump(mConnectionHandle, output);
     EXPECT_FALSE(output.empty());
 
     EXPECT_CALL(*mEventThread, setPhaseOffset(10)).Times(1);
-    ASSERT_NO_FATAL_FAILURE(mScheduler->setPhaseOffset(mConnectionHandle, 10));
+    mScheduler.setPhaseOffset(mConnectionHandle, 10);
 
     static constexpr size_t kEventConnections = 5;
     ON_CALL(*mEventThread, getEventThreadConnectionCount())
             .WillByDefault(Return(kEventConnections));
-    EXPECT_EQ(kEventConnections, mScheduler->getEventThreadConnectionCount(mConnectionHandle));
+    EXPECT_EQ(kEventConnections, mScheduler.getEventThreadConnectionCount(mConnectionHandle));
 }
 
-} // namespace
+TEST_F(SchedulerTest, noLayerHistory) {
+    // Layer history should not be created if there is a single config.
+    ASSERT_FALSE(mScheduler.hasLayerHistory());
+
+    TestableSurfaceFlinger flinger;
+    mock::MockLayer layer(flinger.flinger());
+
+    // Content detection should be no-op.
+    mScheduler.registerLayer(&layer);
+    mScheduler.recordLayerHistory(&layer, 0, LayerHistory::LayerUpdateType::Buffer);
+
+    constexpr bool kPowerStateNormal = true;
+    mScheduler.setDisplayPowerState(kPowerStateNormal);
+
+    constexpr uint32_t kDisplayArea = 999'999;
+    mScheduler.onPrimaryDisplayAreaChanged(kDisplayArea);
+
+    mScheduler.chooseRefreshRateForContent();
+    EXPECT_EQ(0, mScheduler.refreshRateChangeCount());
+}
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
