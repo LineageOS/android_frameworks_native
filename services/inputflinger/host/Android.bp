@@ -64,5 +64,6 @@ cc_binary {
     ],
     static_libs: [
         "libarect",
+        "libui-types",
     ],
 }
