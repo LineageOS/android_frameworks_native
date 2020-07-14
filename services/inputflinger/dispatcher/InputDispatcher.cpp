@@ -1584,7 +1584,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     // Update the touch state as needed based on the properties of the touch event.
     int32_t injectionResult = INPUT_EVENT_INJECTION_PENDING;
     InjectionPermission injectionPermission = INJECTION_PERMISSION_UNKNOWN;
-    sp<InputWindowHandle> newHoverWindowHandle;
+    sp<InputWindowHandle> newHoverWindowHandle(mLastHoverWindowHandle);
+    sp<InputWindowHandle> newTouchedWindowHandle;
 
     // Copy current touch state into tempTouchState.
     // This state will be used to update mTouchStatesByDisplay at the end of this function.
@@ -1653,7 +1654,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             y = int32_t(entry.pointerCoords[pointerIndex].getAxisValue(AMOTION_EVENT_AXIS_Y));
         }
         bool isDown = maskedAction == AMOTION_EVENT_ACTION_DOWN;
-        sp<InputWindowHandle> newTouchedWindowHandle =
+        newTouchedWindowHandle =
                 findTouchedWindowAtLocked(displayId, x, y, &tempTouchState,
                                           isDown /*addOutsideTargets*/, true /*addPortalWindows*/);
 
@@ -1722,10 +1723,10 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             }
 
             // Update hover state.
-            if (isHoverAction) {
+            if (maskedAction == AMOTION_EVENT_ACTION_HOVER_EXIT) {
+                newHoverWindowHandle = nullptr;
+            } else if (isHoverAction) {
                 newHoverWindowHandle = newTouchedWindowHandle;
-            } else if (maskedAction == AMOTION_EVENT_ACTION_SCROLL) {
-                newHoverWindowHandle = mLastHoverWindowHandle;
             }
 
             // Update the temporary touch state.
@@ -1760,8 +1761,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
 
             sp<InputWindowHandle> oldTouchedWindowHandle =
                     tempTouchState.getFirstForegroundWindowHandle();
-            sp<InputWindowHandle> newTouchedWindowHandle =
-                    findTouchedWindowAtLocked(displayId, x, y, &tempTouchState);
+            newTouchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y, &tempTouchState);
             if (oldTouchedWindowHandle != newTouchedWindowHandle &&
                 oldTouchedWindowHandle != nullptr && newTouchedWindowHandle != nullptr) {
                 if (DEBUG_FOCUS) {
@@ -1798,8 +1798,11 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     }
 
     if (newHoverWindowHandle != mLastHoverWindowHandle) {
-        // Let the previous window know that the hover sequence is over.
-        if (mLastHoverWindowHandle != nullptr) {
+        // Let the previous window know that the hover sequence is over, unless we already did it
+        // when dispatching it as is to newTouchedWindowHandle.
+        if (mLastHoverWindowHandle != nullptr &&
+            (maskedAction != AMOTION_EVENT_ACTION_HOVER_EXIT ||
+             mLastHoverWindowHandle != newTouchedWindowHandle)) {
 #if DEBUG_HOVER
             ALOGD("Sending hover exit event to window %s.",
                   mLastHoverWindowHandle->getName().c_str());
@@ -1808,8 +1811,11 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                                              InputTarget::FLAG_DISPATCH_AS_HOVER_EXIT, BitSet32(0));
         }
 
-        // Let the new window know that the hover sequence is starting.
-        if (newHoverWindowHandle != nullptr) {
+        // Let the new window know that the hover sequence is starting, unless we already did it
+        // when dispatching it as is to newTouchedWindowHandle.
+        if (newHoverWindowHandle != nullptr &&
+            (maskedAction != AMOTION_EVENT_ACTION_HOVER_ENTER ||
+             newHoverWindowHandle != newTouchedWindowHandle)) {
 #if DEBUG_HOVER
             ALOGD("Sending hover enter event to window %s.",
                   newHoverWindowHandle->getName().c_str());
