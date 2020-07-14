@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// clang-format off
 #include "../Macros.h"
+// clang-format on
 
 #include "CursorInputMapper.h"
 
@@ -184,7 +186,7 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         mOrientation = DISPLAY_ORIENTATION_0;
         if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
             std::optional<DisplayViewport> internalViewport =
-                    config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+                    config->getDisplayViewportByType(ViewportType::INTERNAL);
             if (internalViewport) {
                 mOrientation = internalViewport->orientation;
             }
