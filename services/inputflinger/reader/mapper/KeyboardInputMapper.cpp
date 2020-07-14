@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// clang-format off
 #include "../Macros.h"
+// clang-format on
 
 #include "KeyboardInputMapper.h"
 
@@ -138,7 +140,7 @@ std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
 
     // No associated display defined, try to find default display if orientationAware.
     if (mParameters.orientationAware) {
-        return config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+        return config->getDisplayViewportByType(ViewportType::INTERNAL);
     }
 
     return std::nullopt;

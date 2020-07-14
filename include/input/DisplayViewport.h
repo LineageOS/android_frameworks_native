@@ -17,11 +17,11 @@
 #ifndef _LIBINPUT_DISPLAY_VIEWPORT_H
 #define _LIBINPUT_DISPLAY_VIEWPORT_H
 
-#include <cinttypes>
-#include <optional>
-
 #include <android-base/stringprintf.h>
 #include <input/Input.h>
+
+#include <cinttypes>
+#include <optional>
 
 using android::base::StringPrintf;
 
@@ -39,22 +39,21 @@ enum {
  * Keep in sync with values in InputManagerService.java.
  */
 enum class ViewportType : int32_t {
-    VIEWPORT_INTERNAL = 1,
-    VIEWPORT_EXTERNAL = 2,
-    VIEWPORT_VIRTUAL = 3,
+    INTERNAL = 1,
+    EXTERNAL = 2,
+    VIRTUAL = 3,
 };
 
 static const char* viewportTypeToString(ViewportType type) {
-    switch(type) {
-        case ViewportType::VIEWPORT_INTERNAL:
+    switch (type) {
+        case ViewportType::INTERNAL:
             return "INTERNAL";
-        case ViewportType::VIEWPORT_EXTERNAL:
+        case ViewportType::EXTERNAL:
             return "EXTERNAL";
-        case ViewportType::VIEWPORT_VIRTUAL:
+        case ViewportType::VIRTUAL:
             return "VIRTUAL";
-        default:
-            return "UNKNOWN";
     }
+    return "UNKNOWN";
 }
 
 /*
@@ -97,7 +96,7 @@ struct DisplayViewport {
             isActive(false),
             uniqueId(),
             physicalPort(std::nullopt),
-            type(ViewportType::VIEWPORT_INTERNAL) {}
+            type(ViewportType::INTERNAL) {}
 
     bool operator==(const DisplayViewport& other) const {
         return displayId == other.displayId && orientation == other.orientation &&
@@ -134,7 +133,7 @@ struct DisplayViewport {
         isActive = false;
         uniqueId.clear();
         physicalPort = std::nullopt;
-        type = ViewportType::VIEWPORT_INTERNAL;
+        type = ViewportType::INTERNAL;
     }
 
     std::string toString() const {
