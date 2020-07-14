@@ -51,22 +51,30 @@ cc_library_static {
     min_sdk_version: "apex_inherit",
 
     shared_libs: [
+        "libbase",
         "libutils",
     ],
 
     static_libs: [
+        "libarect",
         "libmath",
     ],
 
     srcs: [
         "ColorSpace.cpp",
+        "Rect.cpp",
+        "Region.cpp",
+        "Transform.cpp",
     ],
 
     export_include_dirs: [
+        "include",
+        "include_private",
         "include_types",
     ],
 
     export_static_lib_headers: [
+        "libarect",
         "libmath",
     ],
 
@@ -111,10 +119,7 @@ cc_library_shared {
         "HdrCapabilities.cpp",
         "PixelFormat.cpp",
         "PublicFormat.cpp",
-        "Rect.cpp",
-        "Region.cpp",
         "Size.cpp",
-        "Transform.cpp",
         "UiConfig.cpp",
     ],
 

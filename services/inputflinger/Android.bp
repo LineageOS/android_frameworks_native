@@ -111,6 +111,7 @@ cc_defaults {
         "libcutils",
         "libinput",
         "liblog",
+        "libui",
         "libutils",
     ],
     header_libs: [

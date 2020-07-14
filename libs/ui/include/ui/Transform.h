@@ -21,7 +21,6 @@
 #include <ostream>
 #include <string>
 
-#include <hardware/hardware.h>
 #include <math/mat4.h>
 #include <math/vec2.h>
 #include <math/vec3.h>
@@ -44,9 +43,9 @@ public:
 
     enum RotationFlags : uint32_t {
         ROT_0 = 0,
-        FLIP_H = HAL_TRANSFORM_FLIP_H,
-        FLIP_V = HAL_TRANSFORM_FLIP_V,
-        ROT_90 = HAL_TRANSFORM_ROT_90,
+        FLIP_H = 1, // HAL_TRANSFORM_FLIP_H
+        FLIP_V = 2, // HAL_TRANSFORM_FLIP_V
+        ROT_90 = 4, // HAL_TRANSFORM_ROT_90
         ROT_180 = FLIP_H | FLIP_V,
         ROT_270 = ROT_180 | ROT_90,
         ROT_INVALID = 0x80

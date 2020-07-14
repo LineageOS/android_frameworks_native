@@ -26,6 +26,7 @@
 #include <android/input.h>
 #include <math.h>
 #include <stdint.h>
+#include <ui/Transform.h>
 #include <utils/BitSet.h>
 #include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
@@ -741,6 +742,7 @@ protected:
     float mYScale;
     float mXOffset;
     float mYOffset;
+    ui::Transform mTransform;
     float mXPrecision;
     float mYPrecision;
     float mRawXCursorPosition;
