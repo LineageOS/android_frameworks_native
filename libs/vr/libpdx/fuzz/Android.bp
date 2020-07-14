@@ -1,5 +1,5 @@
 cc_fuzz {
-    name: "libpdx_fuzz",
+    name: "libpdx_service_dispatcher_fuzzer",
     clang: true,
     srcs: [
         "service_dispatcher_fuzzer.cpp",
@@ -15,6 +15,48 @@ cc_fuzz {
     shared_libs: [
         "libutils",
         "liblog",
-	"libcutils",
+        "libcutils"
+    ],
+}
+
+cc_fuzz {
+    name: "libpdx_message_fuzzer",
+    clang: true,
+    srcs: [
+        "message_fuzzer.cpp",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    static_libs: [
+        "libpdx",
+    ],
+    shared_libs: [
+        "libutils",
+        "liblog",
+        "libcutils"
+    ],
+}
+
+cc_fuzz {
+    name: "libpdx_serialization_fuzzer",
+    clang: true,
+    srcs: [
+        "serialization_fuzzer.cpp",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    static_libs: [
+        "libpdx",
+    ],
+    shared_libs: [
+        "libutils",
+        "liblog",
+        "libcutils"
     ],
 }
