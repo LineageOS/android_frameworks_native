@@ -48,7 +48,6 @@ void GpuMem::initialize() {
         return;
     }
 
-    // TODO(http://b/159963505): Figure out a nicer way to wait until GPU driver loaded.
     // Attach the program to the tracepoint, and the tracepoint is automatically enabled here.
     int count = 0;
     while (bpf_attach_tracepoint(fd, kGpuMemTraceGroup, kGpuMemTotalTracepoint) < 0) {
