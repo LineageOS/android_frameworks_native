@@ -150,9 +150,14 @@ public:
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
         EXPECT_CALL(*primaryDispSync, expectedPresentTime(_)).WillRepeatedly(Return(0));
 
+        constexpr bool kHasMultipleConfigs = true;
         mFlinger.setupScheduler(std::move(primaryDispSync),
                                 std::make_unique<mock::EventControlThread>(),
-                                std::move(eventThread), std::move(sfEventThread));
+                                std::move(eventThread), std::move(sfEventThread),
+                                kHasMultipleConfigs);
+
+        // Layer history should be created if there are multiple configs.
+        ASSERT_TRUE(mFlinger.scheduler()->hasLayerHistory());
     }
 
     void setupForceGeometryDirty() {

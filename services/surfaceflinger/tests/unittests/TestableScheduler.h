@@ -29,39 +29,18 @@ namespace android {
 class TestableScheduler : public Scheduler, private ISchedulerCallback {
 public:
     TestableScheduler(const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2)
-          : Scheduler([](bool) {}, configs, *this, useContentDetectionV2, true) {
-        if (mUseContentDetectionV2) {
-            mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>(configs);
-        } else {
-            mLayerHistory = std::make_unique<scheduler::impl::LayerHistory>();
-        }
-    }
+          : Scheduler([](bool) {}, configs, *this, useContentDetectionV2, true) {}
 
     TestableScheduler(std::unique_ptr<DispSync> primaryDispSync,
                       std::unique_ptr<EventControlThread> eventControlThread,
                       const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2)
           : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs, *this,
-                      useContentDetectionV2, true) {
-        if (mUseContentDetectionV2) {
-            mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>(configs);
-        } else {
-            mLayerHistory = std::make_unique<scheduler::impl::LayerHistory>();
-        }
-    }
+                      createLayerHistory(configs, useContentDetectionV2), useContentDetectionV2,
+                      true) {}
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
         return Scheduler::createConnection(std::move(eventThread));
-    }
-
-    size_t layerHistorySize() const NO_THREAD_SAFETY_ANALYSIS {
-        if (mUseContentDetectionV2) {
-            return static_cast<scheduler::impl::LayerHistoryV2*>(mLayerHistory.get())
-                    ->mLayerInfos.size();
-        } else {
-            return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get())
-                    ->mLayerInfos.size();
-        }
     }
 
     /* ------------------------------------------------------------------------
@@ -73,12 +52,24 @@ public:
     auto& mutablePrimaryDispSync() { return mPrimaryDispSync; }
     auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
 
-    auto mutableLayerHistory() {
+    size_t refreshRateChangeCount() const { return mRefreshRateChangeCount; }
+
+    bool hasLayerHistory() const { return static_cast<bool>(mLayerHistory); }
+
+    auto* mutableLayerHistory() {
+        LOG_ALWAYS_FATAL_IF(mUseContentDetectionV2);
         return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get());
     }
 
-    auto mutableLayerHistoryV2() {
+    auto* mutableLayerHistoryV2() {
+        LOG_ALWAYS_FATAL_IF(!mUseContentDetectionV2);
         return static_cast<scheduler::impl::LayerHistoryV2*>(mLayerHistory.get());
+    }
+
+    size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
+        if (!mLayerHistory) return 0;
+        return mUseContentDetectionV2 ? mutableLayerHistoryV2()->mLayerInfos.size()
+                                      : mutableLayerHistory()->mLayerInfos.size();
     }
 
     void replaceTouchTimer(int64_t millis) {
@@ -108,9 +99,12 @@ public:
     }
 
 private:
-    void changeRefreshRate(const RefreshRate&, ConfigEvent) override {}
+    void changeRefreshRate(const RefreshRate&, ConfigEvent) override { mRefreshRateChangeCount++; }
+
     void repaintEverythingForHWC() override {}
     void kernelTimerChanged(bool /*expired*/) override {}
+
+    size_t mRefreshRateChangeCount = 0;
 };
 
 } // namespace android
