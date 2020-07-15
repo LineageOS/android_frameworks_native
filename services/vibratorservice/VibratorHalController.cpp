@@ -47,105 +47,77 @@ namespace vibrator {
 
 static constexpr int MAX_RETRIES = 1;
 
-template <typename T>
-using hal_connect_fn = std::function<sp<T>()>;
-
-template <typename T>
-sp<T> connectToHal(bool* halExists, const hal_connect_fn<T>& connectFn, const char* halName) {
-    if (!*halExists) {
+std::shared_ptr<HalWrapper> HalConnector::connect(std::shared_ptr<CallbackScheduler> scheduler) {
+    static bool gHalExists = true;
+    if (!gHalExists) {
+        // We already tried to connect to all of the vibrator HAL versions and none was available.
         return nullptr;
     }
-    sp<T> hal = connectFn();
-    if (hal) {
-        ALOGV("Successfully connected to Vibrator HAL %s service.", halName);
-    } else {
-        ALOGV("Vibrator HAL %s service not available.", halName);
-        *halExists = false;
-    }
-    return hal;
-}
 
-sp<Aidl::IVibrator> connectToAidl() {
-    static bool gHalExists = true;
-    static hal_connect_fn<Aidl::IVibrator> connectFn = []() {
-        return waitForVintfService<Aidl::IVibrator>();
-    };
-    return connectToHal(&gHalExists, connectFn, "AIDL");
-}
-
-sp<V1_0::IVibrator> connectToHidl() {
-    static bool gHalExists = true;
-    static hal_connect_fn<V1_0::IVibrator> connectFn = []() {
-        return V1_0::IVibrator::getService();
-    };
-    return connectToHal(&gHalExists, connectFn, "v1.0");
-}
-
-// -------------------------------------------------------------------------------------------------
-
-std::shared_ptr<HalWrapper> HalConnector::connect(std::shared_ptr<CallbackScheduler> scheduler) {
-    sp<Aidl::IVibrator> aidlHal = connectToAidl();
+    sp<Aidl::IVibrator> aidlHal = waitForVintfService<Aidl::IVibrator>();
     if (aidlHal) {
+        ALOGV("Successfully connected to Vibrator HAL AIDL service.");
         return std::make_shared<AidlHalWrapper>(std::move(scheduler), aidlHal);
     }
-    sp<V1_0::IVibrator> halV1_0 = connectToHidl();
+
+    sp<V1_0::IVibrator> halV1_0 = V1_0::IVibrator::getService();
     if (halV1_0 == nullptr) {
-        // No Vibrator HAL service available.
+        ALOGV("Vibrator HAL service not available.");
+        gHalExists = false;
         return nullptr;
     }
+
     sp<V1_3::IVibrator> halV1_3 = V1_3::IVibrator::castFrom(halV1_0);
     if (halV1_3) {
-        ALOGV("Successfully converted to Vibrator HAL v1.3 service.");
+        ALOGV("Successfully connected to Vibrator HAL v1.3 service.");
         return std::make_shared<HidlHalWrapperV1_3>(std::move(scheduler), halV1_3);
     }
     sp<V1_2::IVibrator> halV1_2 = V1_2::IVibrator::castFrom(halV1_0);
     if (halV1_2) {
-        ALOGV("Successfully converted to Vibrator HAL v1.2 service.");
+        ALOGV("Successfully connected to Vibrator HAL v1.2 service.");
         return std::make_shared<HidlHalWrapperV1_2>(std::move(scheduler), halV1_2);
     }
     sp<V1_1::IVibrator> halV1_1 = V1_1::IVibrator::castFrom(halV1_0);
     if (halV1_1) {
-        ALOGV("Successfully converted to Vibrator HAL v1.1 service.");
+        ALOGV("Successfully connected to Vibrator HAL v1.1 service.");
         return std::make_shared<HidlHalWrapperV1_1>(std::move(scheduler), halV1_1);
     }
+    ALOGV("Successfully connected to Vibrator HAL v1.0 service.");
     return std::make_shared<HidlHalWrapperV1_0>(std::move(scheduler), halV1_0);
 }
 
 // -------------------------------------------------------------------------------------------------
-
-std::shared_ptr<HalWrapper> HalController::initHal() {
-    std::lock_guard<std::mutex> lock(mConnectedHalMutex);
-    if (mConnectedHal == nullptr) {
-        mConnectedHal = mHalConnector->connect(mCallbackScheduler);
-    }
-    return mConnectedHal;
-}
 
 template <typename T>
 HalResult<T> HalController::processHalResult(HalResult<T> result, const char* functionName) {
     if (result.isFailed()) {
         ALOGE("%s failed: Vibrator HAL not available", functionName);
         std::lock_guard<std::mutex> lock(mConnectedHalMutex);
-        // Drop HAL handle. This will force future api calls to reconnect.
-        mConnectedHal = nullptr;
+        mConnectedHal->tryReconnect();
     }
     return result;
 }
 
 template <typename T>
 HalResult<T> HalController::apply(HalController::hal_fn<T>& halFn, const char* functionName) {
-    std::shared_ptr<HalWrapper> hal = initHal();
-    if (hal == nullptr) {
-        ALOGV("Skipped %s because Vibrator HAL is not available", functionName);
-        return HalResult<T>::unsupported();
+    std::shared_ptr<HalWrapper> hal = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(mConnectedHalMutex);
+        if (mConnectedHal == nullptr) {
+            // Init was never called, so connect to HAL for the first time during this call.
+            mConnectedHal = mHalConnector->connect(mCallbackScheduler);
+
+            if (mConnectedHal == nullptr) {
+                ALOGV("Skipped %s because Vibrator HAL is not available", functionName);
+                return HalResult<T>::unsupported();
+            }
+        }
+        hal = mConnectedHal;
     }
 
     HalResult<T> ret = processHalResult(halFn(hal), functionName);
     for (int i = 0; i < MAX_RETRIES && ret.isFailed(); i++) {
-        hal = initHal();
-        if (hal) {
-            ret = processHalResult(halFn(hal), functionName);
-        }
+        ret = processHalResult(halFn(hal), functionName);
     }
 
     return ret;
@@ -153,9 +125,25 @@ HalResult<T> HalController::apply(HalController::hal_fn<T>& halFn, const char* f
 
 // -------------------------------------------------------------------------------------------------
 
+void HalController::init() {
+    std::lock_guard<std::mutex> lock(mConnectedHalMutex);
+    if (mConnectedHal == nullptr) {
+        mConnectedHal = mHalConnector->connect(mCallbackScheduler);
+    }
+}
+
 HalResult<void> HalController::ping() {
     hal_fn<void> pingFn = [](std::shared_ptr<HalWrapper> hal) { return hal->ping(); };
     return apply(pingFn, "ping");
+}
+
+void HalController::tryReconnect() {
+    std::lock_guard<std::mutex> lock(mConnectedHalMutex);
+    if (mConnectedHal == nullptr) {
+        mConnectedHal = mHalConnector->connect(mCallbackScheduler);
+    } else {
+        mConnectedHal->tryReconnect();
+    }
 }
 
 HalResult<void> HalController::on(milliseconds timeout,

@@ -51,7 +51,10 @@ public:
             mConnectedHal(nullptr) {}
     virtual ~HalController() = default;
 
+    void init();
+
     HalResult<void> ping() final override;
+    void tryReconnect() final override;
 
     HalResult<void> on(std::chrono::milliseconds timeout,
                        const std::function<void()>& completionCallback) final override;
@@ -80,8 +83,6 @@ private:
     std::mutex mConnectedHalMutex;
     // Shared pointer to allow local copies to be used by different threads.
     std::shared_ptr<HalWrapper> mConnectedHal GUARDED_BY(mConnectedHalMutex);
-
-    std::shared_ptr<HalWrapper> initHal();
 
     template <typename T>
     HalResult<T> processHalResult(HalResult<T> result, const char* functionName);
