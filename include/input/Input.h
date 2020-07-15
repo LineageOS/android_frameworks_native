@@ -342,6 +342,8 @@ struct PointerCoords {
     void scale(float globalScale, float windowXScale, float windowYScale);
     void applyOffset(float xOffset, float yOffset);
 
+    void transform(const ui::Transform& transform);
+
     inline float getX() const {
         return getAxisValue(AMOTION_EVENT_AXIS_X);
     }
