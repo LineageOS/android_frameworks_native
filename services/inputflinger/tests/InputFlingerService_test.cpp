@@ -402,7 +402,9 @@ int main(int argc, char** argv) {
     } else {
         android::ProcessState::self()->startThreadPool();
         ::testing::InitGoogleTest(&argc, argv);
-        return RUN_ALL_TESTS();
+        int result = RUN_ALL_TESTS();
+        kill(forkPid, SIGKILL);
+        return result;
     }
     return 0;
 }
