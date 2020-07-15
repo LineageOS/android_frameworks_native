@@ -300,13 +300,6 @@ public:
     // utility function to delete a texture on the main thread
     void deleteTextureAsync(uint32_t texture);
 
-    // enable/disable h/w composer event
-    // TODO: this should be made accessible only to EventThread
-    void setPrimaryVsyncEnabled(bool enabled);
-
-    // main thread function to enable/disable h/w composer event
-    void setPrimaryVsyncEnabledInternal(bool enabled) REQUIRES(mStateLock);
-
     // called on the main thread by MessageQueue when an internal message
     // is received
     // TODO: this should be made accessible only to MessageQueue
@@ -535,8 +528,12 @@ private:
     /* ------------------------------------------------------------------------
      * ISchedulerCallback
      */
+
+    // Toggles hardware VSYNC by calling into HWC.
+    void setVsyncEnabled(bool) override;
+    // Initiates a refresh rate change to be applied on invalidate.
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ConfigEvent) override;
-    // force full composition on all displays without resetting the scheduler idle timer.
+    // Forces full composition on all displays without resetting the scheduler idle timer.
     void repaintEverythingForHWC() override;
     // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
     void kernelTimerChanged(bool expired) override;
@@ -549,6 +546,7 @@ private:
     bool mSupportKernelIdleTimer = false;
     // Show spinner with refresh rate overlay
     bool mRefreshRateOverlaySpinner = false;
+
     /* ------------------------------------------------------------------------
      * Message handling
      */

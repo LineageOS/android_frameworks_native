@@ -23,20 +23,27 @@
 #include "Scheduler/EventThread.h"
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/Scheduler.h"
+#include "Scheduler/VSyncTracker.h"
+#include "mock/MockDispSync.h"
 
 namespace android {
 
-class TestableScheduler : public Scheduler, private ISchedulerCallback {
+class TestableScheduler : public Scheduler {
 public:
-    TestableScheduler(const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2)
-          : Scheduler([](bool) {}, configs, *this, useContentDetectionV2, true) {}
+    TestableScheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback,
+                      bool useContentDetectionV2)
+          : TestableScheduler(std::make_unique<mock::DispSync>(), configs, callback,
+                              useContentDetectionV2) {}
 
     TestableScheduler(std::unique_ptr<DispSync> primaryDispSync,
-                      std::unique_ptr<EventControlThread> eventControlThread,
-                      const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2)
-          : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs, *this,
-                      createLayerHistory(configs, useContentDetectionV2), useContentDetectionV2,
-                      true) {}
+                      const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback,
+                      bool useContentDetectionV2)
+          : Scheduler({std::move(primaryDispSync), nullptr, nullptr}, configs, callback,
+                      createLayerHistory(configs, useContentDetectionV2),
+                      {.supportKernelTimer = false,
+                       .useContentDetection = true,
+                       .useContentDetectionV2 = useContentDetectionV2,
+                       .useVsyncPredictor = false}) {}
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
@@ -48,28 +55,24 @@ public:
      * post-conditions.
      */
     auto& mutablePrimaryHWVsyncEnabled() { return mPrimaryHWVsyncEnabled; }
-    auto& mutableEventControlThread() { return mEventControlThread; }
-    auto& mutablePrimaryDispSync() { return mPrimaryDispSync; }
     auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
-
-    size_t refreshRateChangeCount() const { return mRefreshRateChangeCount; }
 
     bool hasLayerHistory() const { return static_cast<bool>(mLayerHistory); }
 
     auto* mutableLayerHistory() {
-        LOG_ALWAYS_FATAL_IF(mUseContentDetectionV2);
+        LOG_ALWAYS_FATAL_IF(mOptions.useContentDetectionV2);
         return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get());
     }
 
     auto* mutableLayerHistoryV2() {
-        LOG_ALWAYS_FATAL_IF(!mUseContentDetectionV2);
+        LOG_ALWAYS_FATAL_IF(!mOptions.useContentDetectionV2);
         return static_cast<scheduler::impl::LayerHistoryV2*>(mLayerHistory.get());
     }
 
     size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
         if (!mLayerHistory) return 0;
-        return mUseContentDetectionV2 ? mutableLayerHistoryV2()->mLayerInfos.size()
-                                      : mutableLayerHistory()->mLayerInfos.size();
+        return mOptions.useContentDetectionV2 ? mutableLayerHistoryV2()->mLayerInfos.size()
+                                              : mutableLayerHistory()->mLayerInfos.size();
     }
 
     void replaceTouchTimer(int64_t millis) {
@@ -93,18 +96,9 @@ public:
         // not report a leaked object, since the Scheduler instance may
         // still be referenced by something despite our best efforts to destroy
         // it after each test is done.
-        mutableEventControlThread().reset();
-        mutablePrimaryDispSync().reset();
+        mVsyncSchedule.sync.reset();
         mConnections.clear();
     }
-
-private:
-    void changeRefreshRate(const RefreshRate&, ConfigEvent) override { mRefreshRateChangeCount++; }
-
-    void repaintEverythingForHWC() override {}
-    void kernelTimerChanged(bool /*expired*/) override {}
-
-    size_t mRefreshRateChangeCount = 0;
 };
 
 } // namespace android

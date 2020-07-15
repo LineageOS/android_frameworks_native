@@ -46,10 +46,10 @@
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockPowerAdvisor.h"
 #include "mock/MockDispSync.h"
-#include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
 #include "mock/MockNativeWindowSurface.h"
+#include "mock/MockSchedulerCallback.h"
 #include "mock/MockSurfaceInterceptor.h"
 #include "mock/system/window/MockNativeWindow.h"
 
@@ -156,7 +156,7 @@ public:
     mock::SurfaceInterceptor* mSurfaceInterceptor = new mock::SurfaceInterceptor();
 
     mock::DispSync* mPrimaryDispSync = new mock::DispSync;
-    mock::EventControlThread* mEventControlThread = new mock::EventControlThread;
+    mock::SchedulerCallback mSchedulerCallback;
     mock::EventThread* mEventThread = new mock::EventThread;
     mock::EventThread* mSFEventThread = new mock::EventThread;
 
@@ -214,9 +214,8 @@ void DisplayTransactionTest::injectMockScheduler() {
                                                        ISurfaceComposer::eConfigChangedSuppress)));
 
     mFlinger.setupScheduler(std::unique_ptr<DispSync>(mPrimaryDispSync),
-                            std::unique_ptr<EventControlThread>(mEventControlThread),
                             std::unique_ptr<EventThread>(mEventThread),
-                            std::unique_ptr<EventThread>(mSFEventThread));
+                            std::unique_ptr<EventThread>(mSFEventThread), &mSchedulerCallback);
 }
 
 void DisplayTransactionTest::injectMockComposer(int virtualDisplayCount) {
@@ -1322,7 +1321,7 @@ TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
     // Call Expectations
 
     // The call disable vsyncs
-    EXPECT_CALL(*mEventControlThread, setVsyncEnabled(false)).Times(1);
+    EXPECT_CALL(mSchedulerCallback, setVsyncEnabled(false)).Times(1);
 
     // The call ends any display resyncs
     EXPECT_CALL(*mPrimaryDispSync, endResync()).Times(1);
@@ -3212,9 +3211,9 @@ struct DozeNotSupportedVariant {
 };
 
 struct EventThreadBaseSupportedVariant {
-    static void setupEventAndEventControlThreadNoCallExpectations(DisplayTransactionTest* test) {
-        // The event control thread should not be notified.
-        EXPECT_CALL(*test->mEventControlThread, setVsyncEnabled(_)).Times(0);
+    static void setupVsyncAndEventThreadNoCallExpectations(DisplayTransactionTest* test) {
+        // The callback should not be notified to toggle VSYNC.
+        EXPECT_CALL(test->mSchedulerCallback, setVsyncEnabled(_)).Times(0);
 
         // The event thread should not be notified.
         EXPECT_CALL(*test->mEventThread, onScreenReleased()).Times(0);
@@ -3227,29 +3226,29 @@ struct EventThreadNotSupportedVariant : public EventThreadBaseSupportedVariant {
         // These calls are only expected for the primary display.
 
         // Instead expect no calls.
-        setupEventAndEventControlThreadNoCallExpectations(test);
+        setupVsyncAndEventThreadNoCallExpectations(test);
     }
 
     static void setupReleaseAndDisableVsyncCallExpectations(DisplayTransactionTest* test) {
         // These calls are only expected for the primary display.
 
         // Instead expect no calls.
-        setupEventAndEventControlThreadNoCallExpectations(test);
+        setupVsyncAndEventThreadNoCallExpectations(test);
     }
 };
 
 struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
     static void setupAcquireAndEnableVsyncCallExpectations(DisplayTransactionTest* test) {
-        // The event control thread should be notified to enable vsyncs
-        EXPECT_CALL(*test->mEventControlThread, setVsyncEnabled(true)).Times(1);
+        // The callback should be notified to enable VSYNC.
+        EXPECT_CALL(test->mSchedulerCallback, setVsyncEnabled(true)).Times(1);
 
         // The event thread should be notified that the screen was acquired.
         EXPECT_CALL(*test->mEventThread, onScreenAcquired()).Times(1);
     }
 
     static void setupReleaseAndDisableVsyncCallExpectations(DisplayTransactionTest* test) {
-        // There should be a call to setVsyncEnabled(false)
-        EXPECT_CALL(*test->mEventControlThread, setVsyncEnabled(false)).Times(1);
+        // The callback should be notified to disable VSYNC.
+        EXPECT_CALL(test->mSchedulerCallback, setVsyncEnabled(false)).Times(1);
 
         // The event thread should not be notified that the screen was released.
         EXPECT_CALL(*test->mEventThread, onScreenReleased()).Times(1);
@@ -3308,7 +3307,7 @@ struct TransitionOffToDozeSuspendVariant
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::setupComposerCallExpectations(test, Case::Doze::ACTUAL_POWER_MODE_FOR_DOZE_SUSPEND);
-        Case::EventThread::setupEventAndEventControlThreadNoCallExpectations(test);
+        Case::EventThread::setupVsyncAndEventThreadNoCallExpectations(test);
         Case::setupRepaintEverythingCallExpectations(test);
     }
 
@@ -3335,7 +3334,7 @@ struct TransitionDozeSuspendToOffVariant
       : public TransitionVariantCommon<PowerMode::DOZE_SUSPEND, PowerMode::OFF> {
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
-        Case::EventThread::setupEventAndEventControlThreadNoCallExpectations(test);
+        Case::EventThread::setupVsyncAndEventThreadNoCallExpectations(test);
         Case::setupComposerCallExpectations(test, IComposerClient::PowerMode::OFF);
     }
 
@@ -3347,7 +3346,7 @@ struct TransitionDozeSuspendToOffVariant
 struct TransitionOnToDozeVariant : public TransitionVariantCommon<PowerMode::ON, PowerMode::DOZE> {
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
-        Case::EventThread::setupEventAndEventControlThreadNoCallExpectations(test);
+        Case::EventThread::setupVsyncAndEventThreadNoCallExpectations(test);
         Case::setupComposerCallExpectations(test, Case::Doze::ACTUAL_POWER_MODE_FOR_DOZE);
     }
 };
@@ -3365,7 +3364,7 @@ struct TransitionDozeSuspendToDozeVariant
 struct TransitionDozeToOnVariant : public TransitionVariantCommon<PowerMode::DOZE, PowerMode::ON> {
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
-        Case::EventThread::setupEventAndEventControlThreadNoCallExpectations(test);
+        Case::EventThread::setupVsyncAndEventThreadNoCallExpectations(test);
         Case::setupComposerCallExpectations(test, IComposerClient::PowerMode::ON);
     }
 };
@@ -3394,7 +3393,7 @@ struct TransitionOnToUnknownVariant
       : public TransitionVariantCommon<PowerMode::ON, static_cast<PowerMode>(POWER_MODE_LEET)> {
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
-        Case::EventThread::setupEventAndEventControlThreadNoCallExpectations(test);
+        Case::EventThread::setupVsyncAndEventThreadNoCallExpectations(test);
         Case::setupNoComposerPowerModeCallExpectations(test);
     }
 };

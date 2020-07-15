@@ -35,12 +35,10 @@ class EffectLayer;
 class ContainerLayer;
 class DisplayDevice;
 class DispSync;
-class EventControlThread;
 class GraphicBuffer;
 class HWComposer;
 class IGraphicBufferConsumer;
 class IGraphicBufferProducer;
-class ISchedulerCallback;
 class Layer;
 class MessageQueue;
 class Scheduler;
@@ -49,6 +47,7 @@ class SurfaceFlinger;
 class SurfaceInterceptor;
 
 struct DisplayDeviceCreationArgs;
+struct ISchedulerCallback;
 struct LayerCreationArgs;
 
 namespace compositionengine {
@@ -68,16 +67,12 @@ class NativeWindowSurface;
 // of each interface.
 class Factory {
 public:
-    using SetVSyncEnabled = std::function<void(bool)>;
-
     virtual std::unique_ptr<DispSync> createDispSync(const char* name, bool hasSyncFramework) = 0;
-    virtual std::unique_ptr<EventControlThread> createEventControlThread(SetVSyncEnabled) = 0;
     virtual std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) = 0;
     virtual std::unique_ptr<MessageQueue> createMessageQueue() = 0;
     virtual std::unique_ptr<scheduler::PhaseConfiguration> createPhaseConfiguration(
             const scheduler::RefreshRateConfigs&) = 0;
-    virtual std::unique_ptr<Scheduler> createScheduler(SetVSyncEnabled,
-                                                       const scheduler::RefreshRateConfigs&,
+    virtual std::unique_ptr<Scheduler> createScheduler(const scheduler::RefreshRateConfigs&,
                                                        ISchedulerCallback&) = 0;
     virtual std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger*) = 0;
 

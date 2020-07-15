@@ -23,7 +23,13 @@
 
 #include <vector>
 
+// StrictMock<T> derives from T and is not marked final, so the destructor of T is expected to be
+// virtual in case StrictMock<T> is used as a polymorphic base class. That is not the case here.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-virtual-dtor"
 #include <gmock/gmock.h>
+#pragma clang diagnostic pop
+
 #include <gui/LayerMetadata.h>
 #include <log/log.h>
 
@@ -45,27 +51,20 @@ using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::StrictMock;
 
-struct MockHWC2ComposerCallback : public HWC2::ComposerCallback {
-    ~MockHWC2ComposerCallback() = default;
-
-    MOCK_METHOD3(onHotplugReceived,
-                 void(int32_t sequenceId, hal::HWDisplayId display, hal::Connection connection));
-    MOCK_METHOD2(onRefreshReceived, void(int32_t sequenceId, hal::HWDisplayId display));
+struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
+    MOCK_METHOD3(onHotplugReceived, void(int32_t sequenceId, hal::HWDisplayId, hal::Connection));
+    MOCK_METHOD2(onRefreshReceived, void(int32_t sequenceId, hal::HWDisplayId));
     MOCK_METHOD4(onVsyncReceived,
-                 void(int32_t sequenceId, hal::HWDisplayId display, int64_t timestamp,
-                      std::optional<hal::VsyncPeriodNanos> vsyncPeriod));
+                 void(int32_t sequenceId, hal::HWDisplayId, int64_t timestamp,
+                      std::optional<hal::VsyncPeriodNanos>));
     MOCK_METHOD3(onVsyncPeriodTimingChangedReceived,
-                 void(int32_t sequenceId, hal::HWDisplayId display,
-                      const hal::VsyncPeriodChangeTimeline& updatedTimeline));
-    MOCK_METHOD2(onSeamlessPossible, void(int32_t sequenceId, hal::HWDisplayId display));
+                 void(int32_t sequenceId, hal::HWDisplayId, const hal::VsyncPeriodChangeTimeline&));
+    MOCK_METHOD2(onSeamlessPossible, void(int32_t sequenceId, hal::HWDisplayId));
 };
 
-struct HWComposerTest : public testing::Test {
+struct HWComposerSetConfigurationTest : testing::Test {
     Hwc2::mock::Composer* mHal = new StrictMock<Hwc2::mock::Composer>();
-};
-
-struct HWComposerSetConfigurationTest : public HWComposerTest {
-    StrictMock<MockHWC2ComposerCallback> mCallback;
+    MockHWC2ComposerCallback mCallback;
 };
 
 TEST_F(HWComposerSetConfigurationTest, loadsLayerMetadataSupport) {

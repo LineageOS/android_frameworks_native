@@ -33,7 +33,6 @@
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockDispSync.h"
-#include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
 
@@ -182,8 +181,7 @@ void SetFrameRateTest::setupScheduler() {
     EXPECT_CALL(*primaryDispSync, getPeriod())
             .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
     EXPECT_CALL(*primaryDispSync, expectedPresentTime(_)).WillRepeatedly(Return(0));
-    mFlinger.setupScheduler(std::move(primaryDispSync),
-                            std::make_unique<mock::EventControlThread>(), std::move(eventThread),
+    mFlinger.setupScheduler(std::move(primaryDispSync), std::move(eventThread),
                             std::move(sfEventThread));
 }
 
