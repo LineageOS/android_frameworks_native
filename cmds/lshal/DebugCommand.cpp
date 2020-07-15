@@ -39,7 +39,7 @@ Status DebugCommand::parseArgs(const Arg &arg) {
     // Optargs cannnot be used because the flag should not be considered set
     // if it should really be contained in mOptions.
     if (std::string(arg.argv[optind]) == "-E") {
-        mExcludesParentInstances = true;
+        mParentDebugInfoLevel = ParentDebugInfoLevel::NOTHING;
         optind++;
     }
 
@@ -67,7 +67,7 @@ Status DebugCommand::main(const Arg &arg) {
 
     return mLshal.emitDebugInfo(
             pair.first, pair.second.empty() ? "default" : pair.second, mOptions,
-            mExcludesParentInstances,
+            mParentDebugInfoLevel,
             mLshal.out().buf(),
             mLshal.err());
 }

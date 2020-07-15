@@ -2195,7 +2195,7 @@ void Layer::setInputInfo(const InputWindowInfo& info) {
 }
 
 LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags,
-                                const DisplayDevice* display) const {
+                                const DisplayDevice* display) {
     LayerProto* layerProto = layersProto.add_layers();
     writeToProtoDrawingState(layerProto, traceFlags, display);
     writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
@@ -2216,7 +2216,7 @@ LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags,
 }
 
 void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
-                                     const DisplayDevice* display) const {
+                                     const DisplayDevice* display) {
     ui::Transform transform = getTransform();
 
     if (traceFlags & SurfaceTracing::TRACE_CRITICAL) {
@@ -2273,7 +2273,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
 }
 
 void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet stateSet,
-                                    uint32_t traceFlags) const {
+                                    uint32_t traceFlags) {
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
@@ -2343,7 +2343,14 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     }
 
     if (traceFlags & SurfaceTracing::TRACE_INPUT) {
-        LayerProtoHelper::writeToProto(state.inputInfo, state.touchableRegionCrop,
+        InputWindowInfo info;
+        if (useDrawing) {
+            info = fillInputInfo();
+        } else {
+            info = state.inputInfo;
+        }
+
+        LayerProtoHelper::writeToProto(info, state.touchableRegionCrop,
                                        [&]() { return layerInfo->mutable_input_window_info(); });
     }
 

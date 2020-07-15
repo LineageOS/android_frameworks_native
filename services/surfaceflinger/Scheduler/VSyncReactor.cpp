@@ -233,6 +233,7 @@ nsecs_t VSyncReactor::expectedPresentTime(nsecs_t now) {
 }
 
 void VSyncReactor::startPeriodTransition(nsecs_t newPeriod) {
+    ATRACE_CALL();
     mPeriodConfirmationInProgress = true;
     mPeriodTransitioningTo = newPeriod;
     mMoreSamplesNeeded = true;
@@ -240,8 +241,7 @@ void VSyncReactor::startPeriodTransition(nsecs_t newPeriod) {
 }
 
 void VSyncReactor::endPeriodTransition() {
-    setIgnorePresentFencesInternal(false);
-    mMoreSamplesNeeded = false;
+    ATRACE_CALL();
     mPeriodTransitioningTo.reset();
     mPeriodConfirmationInProgress = false;
     mLastHwVsync.reset();
@@ -254,6 +254,8 @@ void VSyncReactor::setPeriod(nsecs_t period) {
 
     if (!mSupportKernelIdleTimer && period == getPeriod()) {
         endPeriodTransition();
+        setIgnorePresentFencesInternal(false);
+        mMoreSamplesNeeded = false;
     } else {
         startPeriodTransition(period);
     }
@@ -303,6 +305,7 @@ bool VSyncReactor::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwc
 
     std::lock_guard<std::mutex> lk(mMutex);
     if (periodConfirmed(timestamp, hwcVsyncPeriod)) {
+        ATRACE_NAME("VSR: period confirmed");
         if (mPeriodTransitioningTo) {
             mTracker->setPeriod(*mPeriodTransitioningTo);
             for (auto& entry : mCallbacks) {
@@ -310,17 +313,29 @@ bool VSyncReactor::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwc
             }
             *periodFlushed = true;
         }
+
+        if (mLastHwVsync) {
+            mTracker->addVsyncTimestamp(*mLastHwVsync);
+        }
+        mTracker->addVsyncTimestamp(timestamp);
+
         endPeriodTransition();
+        mMoreSamplesNeeded = mTracker->needsMoreSamples();
     } else if (mPeriodConfirmationInProgress) {
+        ATRACE_NAME("VSR: still confirming period");
         mLastHwVsync = timestamp;
         mMoreSamplesNeeded = true;
         *periodFlushed = false;
     } else {
-        mMoreSamplesNeeded = false;
+        ATRACE_NAME("VSR: adding sample");
         *periodFlushed = false;
+        mTracker->addVsyncTimestamp(timestamp);
+        mMoreSamplesNeeded = mTracker->needsMoreSamples();
     }
 
-    mTracker->addVsyncTimestamp(timestamp);
+    if (!mMoreSamplesNeeded) {
+        setIgnorePresentFencesInternal(false);
+    }
     return mMoreSamplesNeeded;
 }
 
