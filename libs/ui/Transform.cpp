@@ -55,7 +55,6 @@ bool Transform::operator==(const Transform& other) const {
             mMatrix[1][1] == other.mMatrix[1][1] && mMatrix[1][2] == other.mMatrix[1][2] &&
             mMatrix[2][0] == other.mMatrix[2][0] && mMatrix[2][1] == other.mMatrix[2][1] &&
             mMatrix[2][2] == other.mMatrix[2][2];
-    ;
 }
 
 Transform Transform::operator * (const Transform& rhs) const
@@ -87,6 +86,19 @@ Transform Transform::operator * (const Transform& rhs) const
     return r;
 }
 
+Transform Transform::operator * (float value) const {
+    Transform r(*this);
+    const mat33& M(mMatrix);
+    mat33& R(r.mMatrix);
+    for (size_t i = 0; i < 3; i++) {
+        for (size_t j = 0; j < 2; j++) {
+            R[i][j] = M[i][j] * value;
+        }
+    }
+    r.type();
+    return r;
+}
+
 Transform& Transform::operator=(const Transform& other) {
     mMatrix = other.mMatrix;
     mType = other.mType;
@@ -105,11 +117,19 @@ float Transform::ty() const {
     return mMatrix[2][1];
 }
 
-float Transform::sx() const {
+float Transform::dsdx() const {
     return mMatrix[0][0];
 }
 
-float Transform::sy() const {
+float Transform::dtdx() const {
+    return mMatrix[1][0];
+}
+
+float Transform::dtdy() const {
+    return mMatrix[0][1];
+}
+
+float Transform::dsdy() const {
     return mMatrix[1][1];
 }
 
@@ -187,6 +207,15 @@ status_t Transform::set(uint32_t flags, float w, float h)
     return NO_ERROR;
 }
 
+void Transform::set(const std::array<float, 9>& matrix) {
+    mat33& M(mMatrix);
+    M[0][0] = matrix[0];  M[1][0] = matrix[1];  M[2][0] = matrix[2];
+    M[0][1] = matrix[3];  M[1][1] = matrix[4];  M[2][1] = matrix[5];
+    M[0][2] = matrix[6];  M[1][2] = matrix[7];  M[2][2] = matrix[8];
+    mType = UNKNOWN_TYPE;
+    type();
+}
+
 vec2 Transform::transform(const vec2& v) const {
     vec2 r;
     const mat33& M(mMatrix);
@@ -204,9 +233,8 @@ vec3 Transform::transform(const vec3& v) const {
     return r;
 }
 
-vec2 Transform::transform(int x, int y) const
-{
-    return transform(vec2(x,y));
+vec2 Transform::transform(float x, float y) const {
+    return transform(vec2(x, y));
 }
 
 Rect Transform::makeBounds(int w, int h) const
