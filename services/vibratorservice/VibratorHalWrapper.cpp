@@ -149,8 +149,16 @@ private:
 // -------------------------------------------------------------------------------------------------
 
 HalResult<void> AidlHalWrapper::ping() {
-    return IInterface::asBinder(mHandle)->pingBinder() ? HalResult<void>::ok()
-                                                       : HalResult<void>::failed();
+    return IInterface::asBinder(getHal())->pingBinder() ? HalResult<void>::ok()
+                                                        : HalResult<void>::failed();
+}
+
+void AidlHalWrapper::tryReconnect() {
+    sp<Aidl::IVibrator> newHandle = checkVintfService<Aidl::IVibrator>();
+    if (newHandle) {
+        std::lock_guard<std::mutex> lock(mHandleMutex);
+        mHandle = std::move(newHandle);
+    }
 }
 
 HalResult<void> AidlHalWrapper::on(milliseconds timeout,
@@ -160,7 +168,7 @@ HalResult<void> AidlHalWrapper::on(milliseconds timeout,
             static_cast<int32_t>(capabilities.value() & Capabilities::ON_CALLBACK);
     auto cb = supportsCallback ? new HalCallbackWrapper(completionCallback) : nullptr;
 
-    auto ret = HalResult<void>::fromStatus(mHandle->on(timeout.count(), cb));
+    auto ret = HalResult<void>::fromStatus(getHal()->on(timeout.count(), cb));
     if (!supportsCallback && ret.isOk()) {
         mCallbackScheduler->schedule(completionCallback, timeout);
     }
@@ -169,24 +177,24 @@ HalResult<void> AidlHalWrapper::on(milliseconds timeout,
 }
 
 HalResult<void> AidlHalWrapper::off() {
-    return HalResult<void>::fromStatus(mHandle->off());
+    return HalResult<void>::fromStatus(getHal()->off());
 }
 
 HalResult<void> AidlHalWrapper::setAmplitude(int32_t amplitude) {
     float convertedAmplitude = static_cast<float>(amplitude) / std::numeric_limits<uint8_t>::max();
-    return HalResult<void>::fromStatus(mHandle->setAmplitude(convertedAmplitude));
+    return HalResult<void>::fromStatus(getHal()->setAmplitude(convertedAmplitude));
 }
 
 HalResult<void> AidlHalWrapper::setExternalControl(bool enabled) {
-    return HalResult<void>::fromStatus(mHandle->setExternalControl(enabled));
+    return HalResult<void>::fromStatus(getHal()->setExternalControl(enabled));
 }
 
 HalResult<void> AidlHalWrapper::alwaysOnEnable(int32_t id, Effect effect, EffectStrength strength) {
-    return HalResult<void>::fromStatus(mHandle->alwaysOnEnable(id, effect, strength));
+    return HalResult<void>::fromStatus(getHal()->alwaysOnEnable(id, effect, strength));
 }
 
 HalResult<void> AidlHalWrapper::alwaysOnDisable(int32_t id) {
-    return HalResult<void>::fromStatus(mHandle->alwaysOnDisable(id));
+    return HalResult<void>::fromStatus(getHal()->alwaysOnDisable(id));
 }
 
 HalResult<Capabilities> AidlHalWrapper::getCapabilities() {
@@ -210,7 +218,7 @@ HalResult<milliseconds> AidlHalWrapper::performEffect(
     auto cb = supportsCallback ? new HalCallbackWrapper(completionCallback) : nullptr;
 
     int32_t lengthMs;
-    auto result = mHandle->perform(effect, strength, cb, &lengthMs);
+    auto result = getHal()->perform(effect, strength, cb, &lengthMs);
     milliseconds length = milliseconds(lengthMs);
 
     auto ret = HalResult<milliseconds>::fromStatus(result, length);
@@ -226,31 +234,47 @@ HalResult<void> AidlHalWrapper::performComposedEffect(
         const std::function<void()>& completionCallback) {
     // This method should always support callbacks, so no need to double check.
     auto cb = new HalCallbackWrapper(completionCallback);
-    return HalResult<void>::fromStatus(mHandle->compose(primitiveEffects, cb));
+    return HalResult<void>::fromStatus(getHal()->compose(primitiveEffects, cb));
 }
 
 HalResult<Capabilities> AidlHalWrapper::getCapabilitiesInternal() {
     int32_t capabilities = 0;
-    auto result = mHandle->getCapabilities(&capabilities);
+    auto result = getHal()->getCapabilities(&capabilities);
     return HalResult<Capabilities>::fromStatus(result, static_cast<Capabilities>(capabilities));
 }
 
 HalResult<std::vector<Effect>> AidlHalWrapper::getSupportedEffectsInternal() {
     std::vector<Effect> supportedEffects;
-    auto result = mHandle->getSupportedEffects(&supportedEffects);
+    auto result = getHal()->getSupportedEffects(&supportedEffects);
     return HalResult<std::vector<Effect>>::fromStatus(result, supportedEffects);
+}
+
+sp<Aidl::IVibrator> AidlHalWrapper::getHal() {
+    std::lock_guard<std::mutex> lock(mHandleMutex);
+    return mHandle;
 }
 
 // -------------------------------------------------------------------------------------------------
 
-HalResult<void> HidlHalWrapperV1_0::ping() {
-    auto result = mHandleV1_0->ping();
+template <typename I>
+HalResult<void> HidlHalWrapper<I>::ping() {
+    auto result = getHal()->ping();
     return HalResult<void>::fromReturn(result);
 }
 
-HalResult<void> HidlHalWrapperV1_0::on(milliseconds timeout,
-                                       const std::function<void()>& completionCallback) {
-    auto result = mHandleV1_0->on(timeout.count());
+template <typename I>
+void HidlHalWrapper<I>::tryReconnect() {
+    sp<I> newHandle = I::tryGetService();
+    if (newHandle) {
+        std::lock_guard<std::mutex> lock(mHandleMutex);
+        mHandle = std::move(newHandle);
+    }
+}
+
+template <typename I>
+HalResult<void> HidlHalWrapper<I>::on(milliseconds timeout,
+                                      const std::function<void()>& completionCallback) {
+    auto result = getHal()->on(timeout.count());
     auto ret = HalResult<void>::fromStatus(result.withDefault(V1_0::Status::UNKNOWN_ERROR));
     if (ret.isOk()) {
         mCallbackScheduler->schedule(completionCallback, timeout);
@@ -258,69 +282,68 @@ HalResult<void> HidlHalWrapperV1_0::on(milliseconds timeout,
     return ret;
 }
 
-HalResult<void> HidlHalWrapperV1_0::off() {
-    auto result = mHandleV1_0->off();
+template <typename I>
+HalResult<void> HidlHalWrapper<I>::off() {
+    auto result = getHal()->off();
     return HalResult<void>::fromStatus(result.withDefault(V1_0::Status::UNKNOWN_ERROR));
 }
 
-HalResult<void> HidlHalWrapperV1_0::setAmplitude(int32_t amplitude) {
-    auto result = mHandleV1_0->setAmplitude(static_cast<uint8_t>(amplitude));
+template <typename I>
+HalResult<void> HidlHalWrapper<I>::setAmplitude(int32_t amplitude) {
+    auto result = getHal()->setAmplitude(static_cast<uint8_t>(amplitude));
     return HalResult<void>::fromStatus(result.withDefault(V1_0::Status::UNKNOWN_ERROR));
 }
 
-HalResult<void> HidlHalWrapperV1_0::setExternalControl(bool) {
+template <typename I>
+HalResult<void> HidlHalWrapper<I>::setExternalControl(bool) {
     ALOGV("Skipped setExternalControl because Vibrator HAL does not support it");
     return HalResult<void>::unsupported();
 }
 
-HalResult<void> HidlHalWrapperV1_0::alwaysOnEnable(int32_t, Effect, EffectStrength) {
+template <typename I>
+HalResult<void> HidlHalWrapper<I>::alwaysOnEnable(int32_t, Effect, EffectStrength) {
     ALOGV("Skipped alwaysOnEnable because Vibrator HAL AIDL is not available");
     return HalResult<void>::unsupported();
 }
 
-HalResult<void> HidlHalWrapperV1_0::alwaysOnDisable(int32_t) {
+template <typename I>
+HalResult<void> HidlHalWrapper<I>::alwaysOnDisable(int32_t) {
     ALOGV("Skipped alwaysOnDisable because Vibrator HAL AIDL is not available");
     return HalResult<void>::unsupported();
 }
 
-HalResult<Capabilities> HidlHalWrapperV1_0::getCapabilities() {
+template <typename I>
+HalResult<Capabilities> HidlHalWrapper<I>::getCapabilities() {
     std::lock_guard<std::mutex> lock(mCapabilitiesMutex);
-    return loadCached<Capabilities>(std::bind(&HidlHalWrapperV1_0::getCapabilitiesInternal, this),
+    return loadCached<Capabilities>(std::bind(&HidlHalWrapper<I>::getCapabilitiesInternal, this),
                                     mCapabilities);
 }
 
-HalResult<std::vector<Effect>> HidlHalWrapperV1_0::getSupportedEffects() {
+template <typename I>
+HalResult<std::vector<Effect>> HidlHalWrapper<I>::getSupportedEffects() {
     ALOGV("Skipped getSupportedEffects because Vibrator HAL AIDL is not available");
     return HalResult<std::vector<Effect>>::unsupported();
 }
 
-HalResult<milliseconds> HidlHalWrapperV1_0::performEffect(
-        Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
-    if (isStaticCastValid<V1_0::Effect>(effect)) {
-        return performInternalV1_0(effect, strength, completionCallback);
-    }
-
-    ALOGV("Skipped performEffect because Vibrator HAL does not support effect %s",
-          Aidl::toString(effect).c_str());
-    return HalResult<milliseconds>::unsupported();
-}
-
-HalResult<void> HidlHalWrapperV1_0::performComposedEffect(const std::vector<CompositeEffect>&,
-                                                          const std::function<void()>&) {
+template <typename I>
+HalResult<void> HidlHalWrapper<I>::performComposedEffect(const std::vector<CompositeEffect>&,
+                                                         const std::function<void()>&) {
     ALOGV("Skipped composed effect because Vibrator HAL AIDL is not available");
     return HalResult<void>::unsupported();
 }
 
-HalResult<Capabilities> HidlHalWrapperV1_0::getCapabilitiesInternal() {
-    hardware::Return<bool> result = mHandleV1_0->supportsAmplitudeControl();
+template <typename I>
+HalResult<Capabilities> HidlHalWrapper<I>::getCapabilitiesInternal() {
+    hardware::Return<bool> result = getHal()->supportsAmplitudeControl();
     Capabilities capabilities =
             result.withDefault(false) ? Capabilities::AMPLITUDE_CONTROL : Capabilities::NONE;
     return HalResult<Capabilities>::fromReturn(result, capabilities);
 }
 
-template <class I, class T>
-HalResult<milliseconds> HidlHalWrapperV1_0::performInternal(
-        perform_fn<I, T> performFn, sp<I> handle, T effect, EffectStrength strength,
+template <typename I>
+template <typename T>
+HalResult<milliseconds> HidlHalWrapper<I>::performInternal(
+        perform_fn<T> performFn, sp<I> handle, T effect, EffectStrength strength,
         const std::function<void()>& completionCallback) {
     V1_0::Status status;
     int32_t lengthMs;
@@ -341,10 +364,24 @@ HalResult<milliseconds> HidlHalWrapperV1_0::performInternal(
     return ret;
 }
 
-HalResult<milliseconds> HidlHalWrapperV1_0::performInternalV1_0(
+template <typename I>
+sp<I> HidlHalWrapper<I>::getHal() {
+    std::lock_guard<std::mutex> lock(mHandleMutex);
+    return mHandle;
+}
+
+// -------------------------------------------------------------------------------------------------
+
+HalResult<milliseconds> HidlHalWrapperV1_0::performEffect(
         Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
-    V1_0::Effect e = static_cast<V1_0::Effect>(effect);
-    return performInternal(&V1_0::IVibrator::perform, mHandleV1_0, e, strength, completionCallback);
+    if (isStaticCastValid<V1_0::Effect>(effect)) {
+        return performInternal(&V1_0::IVibrator::perform, getHal(),
+                               static_cast<V1_0::Effect>(effect), strength, completionCallback);
+    }
+
+    ALOGV("Skipped performEffect because Vibrator HAL does not support effect %s",
+          Aidl::toString(effect).c_str());
+    return HalResult<milliseconds>::unsupported();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -352,22 +389,17 @@ HalResult<milliseconds> HidlHalWrapperV1_0::performInternalV1_0(
 HalResult<milliseconds> HidlHalWrapperV1_1::performEffect(
         Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
     if (isStaticCastValid<V1_0::Effect>(effect)) {
-        return performInternalV1_0(effect, strength, completionCallback);
+        return performInternal(&V1_1::IVibrator::perform, getHal(),
+                               static_cast<V1_0::Effect>(effect), strength, completionCallback);
     }
     if (isStaticCastValid<V1_1::Effect_1_1>(effect)) {
-        return performInternalV1_1(effect, strength, completionCallback);
+        return performInternal(&V1_1::IVibrator::perform_1_1, getHal(),
+                               static_cast<V1_1::Effect_1_1>(effect), strength, completionCallback);
     }
 
     ALOGV("Skipped performEffect because Vibrator HAL does not support effect %s",
           Aidl::toString(effect).c_str());
     return HalResult<milliseconds>::unsupported();
-}
-
-HalResult<milliseconds> HidlHalWrapperV1_1::performInternalV1_1(
-        Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
-    V1_1::Effect_1_1 e = static_cast<V1_1::Effect_1_1>(effect);
-    return performInternal(&V1_1::IVibrator::perform_1_1, mHandleV1_1, e, strength,
-                           completionCallback);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -375,13 +407,16 @@ HalResult<milliseconds> HidlHalWrapperV1_1::performInternalV1_1(
 HalResult<milliseconds> HidlHalWrapperV1_2::performEffect(
         Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
     if (isStaticCastValid<V1_0::Effect>(effect)) {
-        return performInternalV1_0(effect, strength, completionCallback);
+        return performInternal(&V1_2::IVibrator::perform, getHal(),
+                               static_cast<V1_0::Effect>(effect), strength, completionCallback);
     }
     if (isStaticCastValid<V1_1::Effect_1_1>(effect)) {
-        return performInternalV1_1(effect, strength, completionCallback);
+        return performInternal(&V1_2::IVibrator::perform_1_1, getHal(),
+                               static_cast<V1_1::Effect_1_1>(effect), strength, completionCallback);
     }
     if (isStaticCastValid<V1_2::Effect>(effect)) {
-        return performInternalV1_2(effect, strength, completionCallback);
+        return performInternal(&V1_2::IVibrator::perform_1_2, getHal(),
+                               static_cast<V1_2::Effect>(effect), strength, completionCallback);
     }
 
     ALOGV("Skipped performEffect because Vibrator HAL does not support effect %s",
@@ -389,33 +424,30 @@ HalResult<milliseconds> HidlHalWrapperV1_2::performEffect(
     return HalResult<milliseconds>::unsupported();
 }
 
-HalResult<milliseconds> HidlHalWrapperV1_2::performInternalV1_2(
-        Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
-    V1_2::Effect e = static_cast<V1_2::Effect>(effect);
-    return performInternal(&V1_2::IVibrator::perform_1_2, mHandleV1_2, e, strength,
-                           completionCallback);
-}
-
 // -------------------------------------------------------------------------------------------------
 
 HalResult<void> HidlHalWrapperV1_3::setExternalControl(bool enabled) {
-    auto result = mHandleV1_3->setExternalControl(static_cast<uint32_t>(enabled));
+    auto result = getHal()->setExternalControl(static_cast<uint32_t>(enabled));
     return HalResult<void>::fromStatus(result.withDefault(V1_0::Status::UNKNOWN_ERROR));
 }
 
 HalResult<milliseconds> HidlHalWrapperV1_3::performEffect(
         Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
     if (isStaticCastValid<V1_0::Effect>(effect)) {
-        return performInternalV1_0(effect, strength, completionCallback);
+        return performInternal(&V1_3::IVibrator::perform, getHal(),
+                               static_cast<V1_0::Effect>(effect), strength, completionCallback);
     }
     if (isStaticCastValid<V1_1::Effect_1_1>(effect)) {
-        return performInternalV1_1(effect, strength, completionCallback);
+        return performInternal(&V1_3::IVibrator::perform_1_1, getHal(),
+                               static_cast<V1_1::Effect_1_1>(effect), strength, completionCallback);
     }
     if (isStaticCastValid<V1_2::Effect>(effect)) {
-        return performInternalV1_2(effect, strength, completionCallback);
+        return performInternal(&V1_3::IVibrator::perform_1_2, getHal(),
+                               static_cast<V1_2::Effect>(effect), strength, completionCallback);
     }
     if (isStaticCastValid<V1_3::Effect>(effect)) {
-        return performInternalV1_3(effect, strength, completionCallback);
+        return performInternal(&V1_3::IVibrator::perform_1_3, getHal(),
+                               static_cast<V1_3::Effect>(effect), strength, completionCallback);
     }
 
     ALOGV("Skipped performEffect because Vibrator HAL does not support effect %s",
@@ -424,23 +456,23 @@ HalResult<milliseconds> HidlHalWrapperV1_3::performEffect(
 }
 
 HalResult<Capabilities> HidlHalWrapperV1_3::getCapabilitiesInternal() {
-    HalResult<Capabilities> parentResult = HidlHalWrapperV1_2::getCapabilitiesInternal();
-    if (!parentResult.isOk()) {
-        // Loading for previous HAL versions already failed, so propagate failure.
-        return parentResult;
+    sp<V1_3::IVibrator> hal = getHal();
+    auto amplitudeResult = hal->supportsAmplitudeControl();
+    if (!amplitudeResult.isOk()) {
+        return HalResult<Capabilities>::failed();
     }
 
-    Capabilities capabilities = parentResult.value();
-    auto result = mHandleV1_3->supportsExternalControl();
-    capabilities |= result.withDefault(false) ? Capabilities::EXTERNAL_CONTROL : Capabilities::NONE;
-    return HalResult<Capabilities>::fromReturn(result, capabilities);
-}
+    auto externalControlResult = hal->supportsExternalControl();
+    Capabilities capabilities = Capabilities::NONE;
 
-HalResult<milliseconds> HidlHalWrapperV1_3::performInternalV1_3(
-        Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
-    V1_3::Effect e = static_cast<V1_3::Effect>(effect);
-    return performInternal(&V1_3::IVibrator::perform_1_3, mHandleV1_3, e, strength,
-                           completionCallback);
+    if (amplitudeResult.withDefault(false)) {
+        capabilities |= Capabilities::AMPLITUDE_CONTROL;
+    }
+    if (externalControlResult.withDefault(false)) {
+        capabilities |= Capabilities::EXTERNAL_CONTROL;
+    }
+
+    return HalResult<Capabilities>::fromReturn(externalControlResult, capabilities);
 }
 
 // -------------------------------------------------------------------------------------------------
