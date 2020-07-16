@@ -1256,7 +1256,7 @@ VkResult EnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
     ATRACE_CALL();
 
     if (!EnsureInitialized())
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     uint32_t count = GetLayerCount();
 
@@ -1280,7 +1280,7 @@ VkResult EnumerateInstanceExtensionProperties(
     ATRACE_CALL();
 
     if (!EnsureInitialized())
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     if (pLayerName) {
         const Layer* layer = FindLayer(pLayerName);
@@ -1455,6 +1455,11 @@ VkResult EnumerateDeviceExtensionProperties(
 
 VkResult EnumerateInstanceVersion(uint32_t* pApiVersion) {
     ATRACE_CALL();
+
+    // Load the driver here if not done yet. This api will be used in Zygote
+    // for Vulkan driver pre-loading because of the minimum overhead.
+    if (!EnsureInitialized())
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     *pApiVersion = VK_API_VERSION_1_1;
     return VK_SUCCESS;
