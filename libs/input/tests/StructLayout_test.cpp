@@ -34,8 +34,7 @@ void TestPointerCoordsAlignment() {
 void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage, body, 8);
 
-  CHECK_OFFSET(InputMessage::Body::Key, seq, 0);
-  CHECK_OFFSET(InputMessage::Body::Key, eventId, 4);
+  CHECK_OFFSET(InputMessage::Body::Key, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Key, eventTime, 8);
   CHECK_OFFSET(InputMessage::Body::Key, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Key, source, 20);
@@ -49,8 +48,7 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Key, repeatCount, 80);
   CHECK_OFFSET(InputMessage::Body::Key, downTime, 88);
 
-  CHECK_OFFSET(InputMessage::Body::Motion, seq, 0);
-  CHECK_OFFSET(InputMessage::Body::Motion, eventId, 4);
+  CHECK_OFFSET(InputMessage::Body::Motion, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Motion, eventTime, 8);
   CHECK_OFFSET(InputMessage::Body::Motion, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Motion, source, 20);
@@ -75,16 +73,16 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 128);
   CHECK_OFFSET(InputMessage::Body::Motion, pointers, 136);
 
-  CHECK_OFFSET(InputMessage::Body::Focus, seq, 0);
-  CHECK_OFFSET(InputMessage::Body::Focus, eventId, 4);
-  CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 12);
-  CHECK_OFFSET(InputMessage::Body::Focus, inTouchMode, 14);
+  CHECK_OFFSET(InputMessage::Body::Focus, eventId, 0);
+  CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 4);
+  CHECK_OFFSET(InputMessage::Body::Focus, inTouchMode, 6);
 
-  CHECK_OFFSET(InputMessage::Body::Finished, seq, 0);
   CHECK_OFFSET(InputMessage::Body::Finished, handled, 4);
 }
 
 void TestHeaderSize() {
+    CHECK_OFFSET(InputMessage::Header, type, 0);
+    CHECK_OFFSET(InputMessage::Header, seq, 4);
     static_assert(sizeof(InputMessage::Header) == 8);
 }
 
@@ -98,7 +96,7 @@ void TestBodySize() {
                   offsetof(InputMessage::Body::Motion, pointers) +
                           sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
     static_assert(sizeof(InputMessage::Body::Finished) == 8);
-    static_assert(sizeof(InputMessage::Body::Focus) == 16);
+    static_assert(sizeof(InputMessage::Body::Focus) == 8);
 }
 
 // --- VerifiedInputEvent ---

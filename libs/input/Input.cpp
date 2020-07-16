@@ -301,6 +301,11 @@ void PointerCoords::copyFrom(const PointerCoords& other) {
     }
 }
 
+void PointerCoords::transform(const ui::Transform& transform) {
+    vec2 newCoords = transform.transform(getX(), getY());
+    setAxisValue(AMOTION_EVENT_AXIS_X, newCoords.x);
+    setAxisValue(AMOTION_EVENT_AXIS_Y, newCoords.y);
+}
 
 // --- PointerProperties ---
 

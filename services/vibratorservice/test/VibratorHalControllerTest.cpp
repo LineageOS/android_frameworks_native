@@ -53,6 +53,7 @@ public:
     virtual ~MockHalWrapper() = default;
 
     MOCK_METHOD(vibrator::HalResult<void>, ping, (), (override));
+    MOCK_METHOD(void, tryReconnect, (), (override));
     MOCK_METHOD(vibrator::HalResult<void>, on,
                 (milliseconds timeout, const std::function<void()>& completionCallback),
                 (override));
@@ -132,7 +133,6 @@ protected:
                             vibrator::HalResult<vibrator::Capabilities> capabilitiesResult,
                             vibrator::HalResult<std::vector<Effect>> effectsResult,
                             vibrator::HalResult<milliseconds> durationResult) {
-        InSequence seq;
         EXPECT_CALL(*mMockHal.get(), ping())
                 .Times(Exactly(cardinality))
                 .WillRepeatedly(Return(voidResult));
@@ -167,10 +167,24 @@ protected:
         EXPECT_CALL(*mMockHal.get(), performComposedEffect(Eq(compositeEffects), _))
                 .Times(Exactly(cardinality))
                 .WillRepeatedly(Return(voidResult));
+
+        if (cardinality > 1) {
+            // One reconnection call after each failure.
+            EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(11 * cardinality));
+        }
     }
 };
 
 // -------------------------------------------------------------------------------------------------
+
+TEST_F(VibratorHalControllerTest, TestInit) {
+    mController->init();
+    ASSERT_EQ(1, mConnectCounter);
+
+    // Noop when wrapper was already initialized.
+    mController->init();
+    ASSERT_EQ(1, mConnectCounter);
+}
 
 TEST_F(VibratorHalControllerTest, TestApiCallsAreForwardedToHal) {
     std::vector<Effect> supportedEffects;
@@ -211,7 +225,6 @@ TEST_F(VibratorHalControllerTest, TestApiCallsAreForwardedToHal) {
 
     ASSERT_TRUE(mController->performComposedEffect(compositeEffects, []() {}).isOk());
 
-    // No reconnection attempt was made after the first one.
     ASSERT_EQ(1, mConnectCounter);
 }
 
@@ -239,7 +252,6 @@ TEST_F(VibratorHalControllerTest, TestUnsupportedApiResultDoNotResetHalConnectio
     ASSERT_TRUE(mController->performComposedEffect(std::vector<CompositeEffect>(), []() {})
                         .isUnsupported());
 
-    // No reconnection attempt was made after the first one.
     ASSERT_EQ(1, mConnectCounter);
 }
 
@@ -266,23 +278,24 @@ TEST_F(VibratorHalControllerTest, TestFailedApiResultResetsHalConnection) {
     ASSERT_TRUE(
             mController->performComposedEffect(std::vector<CompositeEffect>(), []() {}).isFailed());
 
-    // One reconnection attempt + retry attempts per api call.
-    ASSERT_EQ(11 * MAX_ATTEMPTS, mConnectCounter);
+    ASSERT_EQ(1, mConnectCounter);
 }
 
 TEST_F(VibratorHalControllerTest, TestFailedApiResultReturnsSuccessAfterRetries) {
     {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), ping())
-                .Times(Exactly(2))
-                .WillOnce(Return(vibrator::HalResult<void>::failed()))
+                .Times(Exactly(1))
+                .WillRepeatedly(Return(vibrator::HalResult<void>::failed()));
+        EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
+        EXPECT_CALL(*mMockHal.get(), ping())
+                .Times(Exactly(1))
                 .WillRepeatedly(Return(vibrator::HalResult<void>::ok()));
     }
 
     ASSERT_EQ(0, mConnectCounter);
     ASSERT_TRUE(mController->ping().isOk());
-    // One connect + one retry.
-    ASSERT_EQ(2, mConnectCounter);
+    ASSERT_EQ(1, mConnectCounter);
 }
 
 TEST_F(VibratorHalControllerTest, TestMultiThreadConnectsOnlyOnce) {
@@ -323,7 +336,7 @@ TEST_F(VibratorHalControllerTest, TestNoVibratorReturnsUnsupportedAndAttemptsToR
     ASSERT_TRUE(mController->performComposedEffect(std::vector<CompositeEffect>(), []() {})
                         .isUnsupported());
 
-    // One reconnection attempt per api call, no retry.
+    // One connection attempt per api call.
     ASSERT_EQ(11, mConnectCounter);
 }
 
@@ -337,19 +350,24 @@ TEST_F(VibratorHalControllerTest, TestScheduledCallbackSurvivesReconnection) {
                     return vibrator::HalResult<void>::ok();
                 });
         EXPECT_CALL(*mMockHal.get(), ping())
-                .Times(Exactly(MAX_ATTEMPTS))
+                .Times(Exactly(1))
                 .WillRepeatedly(Return(vibrator::HalResult<void>::failed()));
+        EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
+        EXPECT_CALL(*mMockHal.get(), ping())
+                .Times(Exactly(1))
+                .WillRepeatedly(Return(vibrator::HalResult<void>::failed()));
+        EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
     }
 
     std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
     auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
 
     ASSERT_TRUE(mController->on(10ms, callback).isOk());
-    ASSERT_TRUE(mController->ping().isFailed()); // Delete connected HAL pointer from controller.
-    mMockHal.reset();                            // Delete mock HAL pointer from test class.
+    ASSERT_TRUE(mController->ping().isFailed());
+    mMockHal.reset();
     ASSERT_EQ(0, *callbackCounter.get());
 
-    // Callback triggered even after HalWrapper was completely destroyed.
+    // Callback triggered even after HalWrapper was reconnected.
     std::this_thread::sleep_for(15ms);
     ASSERT_EQ(1, *callbackCounter.get());
 }
