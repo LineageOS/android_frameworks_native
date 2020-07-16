@@ -208,7 +208,15 @@ AHardwareBuffer* ASurfaceTexture_dequeueBuffer(ASurfaceTexture* st, int* outSlot
             *outNewContent = true;
         }
     } while (buffer.get() && (!queueEmpty));
-    return reinterpret_cast<AHardwareBuffer*>(buffer.get());
+    AHardwareBuffer* result = nullptr;
+    if (buffer.get()) {
+      result = buffer->toAHardwareBuffer();
+      // add a reference to keep the hardware buffer alive, even if
+      // BufferQueueProducer is disconnected. This is needed, because
+      // sp reference is destroyed at the end of this function.
+      AHardwareBuffer_acquire(result);
+    }
+    return result;
 }
 
 } // namespace android

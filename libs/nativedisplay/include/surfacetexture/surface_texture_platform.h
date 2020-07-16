@@ -79,6 +79,8 @@ typedef int (*ASurfaceTexture_fenceWait)(int fence, void* fencePassThroughHandle
 
 /**
  * ASurfaceTexture_dequeueBuffer returns the next available AHardwareBuffer.
+ * The caller gets ownership of the buffer and need to release it with
+ * AHardwareBuffer_release.
  */
 AHardwareBuffer* ASurfaceTexture_dequeueBuffer(ASurfaceTexture* st, int* outSlotid,
                                                android_dataspace* outDataspace,
