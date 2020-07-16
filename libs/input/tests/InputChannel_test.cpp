@@ -103,7 +103,7 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
     InputMessage clientReply;
     memset(&clientReply, 0, sizeof(InputMessage));
     clientReply.header.type = InputMessage::Type::FINISHED;
-    clientReply.body.finished.seq = 0x11223344;
+    clientReply.header.seq = 0x11223344;
     clientReply.body.finished.handled = true;
     EXPECT_EQ(OK, clientChannel->sendMessage(&clientReply))
             << "client channel should be able to send message to server channel";
@@ -113,7 +113,7 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
             << "server channel should be able to receive message from client channel";
     EXPECT_EQ(clientReply.header.type, serverReply.header.type)
             << "server channel should receive the correct message from client channel";
-    EXPECT_EQ(clientReply.body.finished.seq, serverReply.body.finished.seq)
+    EXPECT_EQ(clientReply.header.seq, serverReply.header.seq)
             << "server channel should receive the correct message from client channel";
     EXPECT_EQ(clientReply.body.finished.handled, serverReply.body.finished.handled)
             << "server channel should receive the correct message from client channel";
@@ -181,7 +181,7 @@ TEST_F(InputChannelTest, SendAndReceive_MotionClassification) {
 
     InputMessage serverMsg = {}, clientMsg;
     serverMsg.header.type = InputMessage::Type::MOTION;
-    serverMsg.body.motion.seq = 1;
+    serverMsg.header.seq = 1;
     serverMsg.body.motion.pointerCount = 1;
 
     for (MotionClassification classification : classifications) {

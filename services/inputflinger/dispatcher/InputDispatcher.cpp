@@ -4269,10 +4269,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     dump += INDENT4;
                     entry->eventEntry->appendDescription(dump);
                     dump += StringPrintf(", targetFlags=0x%08x, resolvedAction=%d, "
-                                         "age=%" PRId64 "ms, wait=%" PRId64 "ms\n",
+                                         "age=%" PRId64 "ms, wait=%" PRId64 "ms seq=%" PRIu32 "\n",
                                          entry->targetFlags, entry->resolvedAction,
                                          ns2ms(currentTime - entry->eventEntry->eventTime),
-                                         ns2ms(currentTime - entry->deliveryTime));
+                                         ns2ms(currentTime - entry->deliveryTime), entry->seq);
                 }
             } else {
                 dump += INDENT3 "WaitQueue: <empty>\n";

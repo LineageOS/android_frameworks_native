@@ -41,7 +41,6 @@
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
-#include <utils/Vector.h>
 
 #include <android-base/unique_fd.h>
 
@@ -71,10 +70,7 @@ struct InputMessage {
 
     struct Header {
         Type type; // 4 bytes
-        // We don't need this field in order to align the body below but we
-        // leave it here because InputMessage::size() and other functions
-        // compute the size of this structure as sizeof(Header) + sizeof(Body).
-        uint32_t padding;
+        uint32_t seq;
     } header;
 
     // Body *must* be 8 byte aligned.
@@ -83,8 +79,8 @@ struct InputMessage {
     static_assert(sizeof(std::array<uint8_t, 32>) == 32);
     union Body {
         struct Key {
-            uint32_t seq;
             int32_t eventId;
+            uint32_t empty1;
             nsecs_t eventTime __attribute__((aligned(8)));
             int32_t deviceId;
             int32_t source;
@@ -103,8 +99,8 @@ struct InputMessage {
         } key;
 
         struct Motion {
-            uint32_t seq;
             int32_t eventId;
+            uint32_t empty1;
             nsecs_t eventTime __attribute__((aligned(8)));
             int32_t deviceId;
             int32_t source;
@@ -153,16 +149,14 @@ struct InputMessage {
         } motion;
 
         struct Finished {
-            uint32_t seq;
+            uint32_t empty1;
             uint32_t handled; // actually a bool, but we must maintain 8-byte alignment
 
             inline size_t size() const { return sizeof(Finished); }
         } finished;
 
         struct Focus {
-            uint32_t seq;
             int32_t eventId;
-            uint32_t empty1;
             // The following two fields take up 4 bytes total
             uint16_t hasFocus;    // actually a bool
             uint16_t inTouchMode; // actually a bool, but we must maintain 8-byte alignment
@@ -174,6 +168,19 @@ struct InputMessage {
     bool isValid(size_t actualSize) const;
     size_t size() const;
     void getSanitizedCopy(InputMessage* msg) const;
+
+    static const char* typeToString(Type type) {
+        switch (type) {
+            case Type::KEY:
+                return "KEY";
+            case Type::MOTION:
+                return "MOTION";
+            case Type::FINISHED:
+                return "FINISHED";
+            case Type::FOCUS:
+                return "FOCUS";
+        }
+    }
 };
 
 struct InputChannelInfo : public Parcelable {
@@ -438,6 +445,8 @@ public:
      */
     int32_t getPendingBatchSource() const;
 
+    std::string dump() const;
+
 private:
     // True if touch resampling is enabled.
     const bool mResampleTouch;
@@ -454,9 +463,9 @@ private:
 
     // Batched motion events per device and source.
     struct Batch {
-        Vector<InputMessage> samples;
+        std::vector<InputMessage> samples;
     };
-    Vector<Batch> mBatches;
+    std::vector<Batch> mBatches;
 
     // Touch state per device and source, only for sources of class pointer.
     struct History {
@@ -543,7 +552,7 @@ private:
             return false;
         }
     };
-    Vector<TouchState> mTouchStates;
+    std::vector<TouchState> mTouchStates;
 
     // Chain of batched sequence numbers.  When multiple input messages are combined into
     // a batch, we append a record here that associates the last sequence number in the
@@ -553,7 +562,7 @@ private:
         uint32_t seq;   // sequence number of batched input message
         uint32_t chain; // sequence number of previous batched input message
     };
-    Vector<SeqChain> mSeqChains;
+    std::vector<SeqChain> mSeqChains;
 
     status_t consumeBatch(InputEventFactoryInterface* factory,
             nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent);

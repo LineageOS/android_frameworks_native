@@ -2385,8 +2385,8 @@ InputWindowInfo Layer::fillInputInfo() {
     }
 
     ui::Transform t = getTransform();
-    const float xScale = t.sx();
-    const float yScale = t.sy();
+    const float xScale = t.dsdx();
+    const float yScale = t.dsdy();
     int32_t xSurfaceInset = info.surfaceInset;
     int32_t ySurfaceInset = info.surfaceInset;
     if (xScale != 1.0f || yScale != 1.0f) {
