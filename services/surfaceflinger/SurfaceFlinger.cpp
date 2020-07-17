@@ -469,6 +469,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     mKernelIdleTimerEnabled = mSupportKernelIdleTimer = sysprop::support_kernel_idle_timer(false);
     base::SetProperty(KERNEL_IDLE_TIMER_PROP, mKernelIdleTimerEnabled ? "true" : "false");
+
+    mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
 }
 
 SurfaceFlinger::~SurfaceFlinger() = default;
@@ -1962,6 +1964,12 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
     if (mTracingEnabledChanged) {
         mTracingEnabled = mTracing.isEnabled();
         mTracingEnabledChanged = false;
+    }
+
+    if (mRefreshRateOverlaySpinner) {
+        if (Mutex::Autolock lock(mStateLock); mRefreshRateOverlay) {
+            mRefreshRateOverlay->onInvalidate();
+        }
     }
 
     bool refreshNeeded;
@@ -6253,7 +6261,7 @@ void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
     static_cast<void>(schedule([=] {
         std::unique_ptr<RefreshRateOverlay> overlay;
         if (enable) {
-            overlay = std::make_unique<RefreshRateOverlay>(*this);
+            overlay = std::make_unique<RefreshRateOverlay>(*this, mRefreshRateOverlaySpinner);
         }
 
         {
