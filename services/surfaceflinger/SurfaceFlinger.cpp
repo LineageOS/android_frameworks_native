@@ -3785,7 +3785,7 @@ status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBind
     // called by a client when it wants to remove a Layer
     status_t err = NO_ERROR;
     sp<Layer> l = fromHandle(handle);
-    if (l != nullptr || client->isAttached(handle)) {
+    if (l != nullptr && client->isAttached(handle)) {
         mInterceptor->saveSurfaceDeletion(l);
         err = removeLayerLocked(mStateLock, l);
         ALOGE_IF(err<0 && err != NAME_NOT_FOUND,
