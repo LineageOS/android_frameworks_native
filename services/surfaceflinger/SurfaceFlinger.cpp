@@ -3300,8 +3300,8 @@ bool SurfaceFlinger::flushTransactionQueues() {
                                       mPendingInputWindowCommands, transaction.desiredPresentTime,
                                       transaction.buffer, transaction.postTime,
                                       transaction.privileged, transaction.hasListenerCallbacks,
-                                      transaction.listenerCallbacks, /*originPID*/ -1,
-                                      /*originUID*/ -1, /*isMainThread*/ true);
+                                      transaction.listenerCallbacks, transaction.originPID,
+                                      transaction.originUID, /*isMainThread*/ true);
                 transactionQueue.pop();
                 flushedATransaction = true;
             }
@@ -3381,17 +3381,18 @@ void SurfaceFlinger::setTransactionState(
         mExpectedPresentTime = calculateExpectedPresentTime(systemTime());
     }
 
-    if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
-        mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
-                                               uncacheBuffer, postTime, privileged,
-                                               hasListenerCallbacks, listenerCallbacks);
-        setTransactionFlags(eTransactionFlushNeeded);
-        return;
-    }
-
     IPCThreadState* ipc = IPCThreadState::self();
     const int originPID = ipc->getCallingPid();
     const int originUID = ipc->getCallingUid();
+
+    if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
+        mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
+                                               uncacheBuffer, postTime, privileged,
+                                               hasListenerCallbacks, listenerCallbacks, originPID,
+                                               originUID);
+        setTransactionFlags(eTransactionFlushNeeded);
+        return;
+    }
 
     applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
                           uncacheBuffer, postTime, privileged, hasListenerCallbacks,
