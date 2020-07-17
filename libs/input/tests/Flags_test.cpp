@@ -1,0 +1,200 @@
+/*
+ * Copyright 2020 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <gtest/gtest.h>
+#include <input/Flags.h>
+
+#include <type_traits>
+
+namespace android::test {
+
+using namespace android::flag_operators;
+
+enum class TestFlags { ONE = 0x1, TWO = 0x2, THREE = 0x4 };
+
+static std::optional<std::string> toStringComplete(TestFlags f) {
+    switch (f) {
+        case TestFlags::ONE:
+            return "ONE";
+        case TestFlags::TWO:
+            return "TWO";
+        case TestFlags::THREE:
+            return "THREE";
+    }
+    return std::nullopt;
+}
+
+static std::optional<std::string> toStringIncomplete(TestFlags f) {
+    switch (f) {
+        case TestFlags::ONE:
+            return "ONE";
+        case TestFlags::TWO:
+            return "TWO";
+        case TestFlags::THREE:
+        default:
+            return std::nullopt;
+    }
+}
+
+TEST(Flags, Test) {
+    Flags<TestFlags> flags = TestFlags::ONE;
+    ASSERT_TRUE(flags.test(TestFlags::ONE));
+    ASSERT_FALSE(flags.test(TestFlags::TWO));
+    ASSERT_FALSE(flags.test(TestFlags::THREE));
+}
+
+TEST(Flags, Any) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
+    ASSERT_TRUE(flags.any(TestFlags::ONE));
+    ASSERT_TRUE(flags.any(TestFlags::TWO));
+    ASSERT_FALSE(flags.any(TestFlags::THREE));
+    ASSERT_TRUE(flags.any(TestFlags::ONE | TestFlags::TWO));
+    ASSERT_TRUE(flags.any(TestFlags::TWO | TestFlags::THREE));
+    ASSERT_TRUE(flags.any(TestFlags::ONE | TestFlags::THREE));
+    ASSERT_TRUE(flags.any(TestFlags::ONE | TestFlags::TWO | TestFlags::THREE));
+}
+
+TEST(Flags, All) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
+    ASSERT_TRUE(flags.all(TestFlags::ONE));
+    ASSERT_TRUE(flags.all(TestFlags::TWO));
+    ASSERT_FALSE(flags.all(TestFlags::THREE));
+    ASSERT_TRUE(flags.all(TestFlags::ONE | TestFlags::TWO));
+    ASSERT_FALSE(flags.all(TestFlags::TWO | TestFlags::THREE));
+    ASSERT_FALSE(flags.all(TestFlags::ONE | TestFlags::THREE));
+    ASSERT_FALSE(flags.all(TestFlags::ONE | TestFlags::TWO | TestFlags::THREE));
+}
+
+TEST(Flags, DefaultConstructor_hasNoFlagsSet) {
+    Flags<TestFlags> flags;
+    ASSERT_FALSE(flags.any(TestFlags::ONE | TestFlags::TWO | TestFlags::THREE));
+}
+
+TEST(Flags, NotOperator_onEmptyFlagsSetsAllFlags) {
+    Flags<TestFlags> flags;
+    flags = ~flags;
+    ASSERT_TRUE(flags.all(TestFlags::ONE | TestFlags::TWO | TestFlags::THREE));
+}
+
+TEST(Flags, NotOperator_onNonEmptyFlagsInvertsFlags) {
+    Flags<TestFlags> flags = TestFlags::TWO;
+    flags = ~flags;
+    ASSERT_TRUE(flags.all(TestFlags::ONE | TestFlags::THREE));
+    ASSERT_FALSE(flags.test(TestFlags::TWO));
+}
+
+TEST(Flags, OrOperator_withNewFlag) {
+    Flags<TestFlags> flags = TestFlags::ONE;
+    Flags<TestFlags> flags2 = flags | TestFlags::TWO;
+    ASSERT_FALSE(flags2.test(TestFlags::THREE));
+    ASSERT_TRUE(flags2.all(TestFlags::ONE | TestFlags::TWO));
+}
+
+TEST(Flags, OrOperator_withExistingFlag) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::THREE;
+    Flags<TestFlags> flags2 = flags | TestFlags::THREE;
+    ASSERT_FALSE(flags2.test(TestFlags::TWO));
+    ASSERT_TRUE(flags2.all(TestFlags::ONE | TestFlags::THREE));
+}
+
+TEST(Flags, OrEqualsOperator_withNewFlag) {
+    Flags<TestFlags> flags;
+    flags |= TestFlags::THREE;
+    ASSERT_TRUE(flags.test(TestFlags::THREE));
+    ASSERT_FALSE(flags.any(TestFlags::ONE | TestFlags::TWO));
+}
+
+TEST(Flags, OrEqualsOperator_withExistingFlag) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::THREE;
+    flags |= TestFlags::THREE;
+    ASSERT_TRUE(flags.all(TestFlags::ONE | TestFlags::THREE));
+    ASSERT_FALSE(flags.test(TestFlags::TWO));
+}
+
+TEST(Flags, AndOperator_withOneSetFlag) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::THREE;
+    Flags<TestFlags> andFlags = flags & TestFlags::THREE;
+    ASSERT_TRUE(andFlags.test(TestFlags::THREE));
+    ASSERT_FALSE(andFlags.any(TestFlags::ONE | TestFlags::TWO));
+}
+
+TEST(Flags, AndOperator_withMultipleSetFlags) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::THREE;
+    Flags<TestFlags> andFlags = flags & (TestFlags::ONE | TestFlags::THREE);
+    ASSERT_TRUE(andFlags.all(TestFlags::ONE | TestFlags::THREE));
+    ASSERT_FALSE(andFlags.test(TestFlags::TWO));
+}
+
+TEST(Flags, AndOperator_withNoSetFlags) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::THREE;
+    Flags<TestFlags> andFlags = flags & TestFlags::TWO;
+    ASSERT_FALSE(andFlags.any(TestFlags::ONE | TestFlags::TWO | TestFlags::THREE));
+}
+
+TEST(Flags, Equality) {
+    Flags<TestFlags> flags1 = TestFlags::ONE | TestFlags::TWO;
+    Flags<TestFlags> flags2 = TestFlags::ONE | TestFlags::TWO;
+    ASSERT_EQ(flags1, flags2);
+}
+
+TEST(Flags, Inequality) {
+    Flags<TestFlags> flags1 = TestFlags::ONE | TestFlags::TWO;
+    Flags<TestFlags> flags2 = TestFlags::ONE | TestFlags::THREE;
+    ASSERT_NE(flags1, flags2);
+}
+
+TEST(Flags, EqualsOperator) {
+    Flags<TestFlags> flags;
+    flags = TestFlags::ONE;
+    ASSERT_TRUE(flags.test(TestFlags::ONE));
+    ASSERT_FALSE(flags.any(TestFlags::TWO | TestFlags::THREE));
+}
+
+TEST(Flags, EqualsOperator_DontShareState) {
+    Flags<TestFlags> flags1 = TestFlags::ONE | TestFlags::TWO;
+    Flags<TestFlags> flags2 = flags1;
+    ASSERT_EQ(flags1, flags2);
+
+    flags1 &= TestFlags::TWO;
+    ASSERT_NE(flags1, flags2);
+}
+
+TEST(Flags, String_NoFlagsWithDefaultStringify) {
+    Flags<TestFlags> flags;
+    ASSERT_EQ(flags.string(), "0x0");
+}
+
+TEST(Flags, String_NoFlagsWithNonDefaultStringify) {
+    Flags<TestFlags> flags;
+    ASSERT_EQ(flags.string(toStringComplete), "0x0");
+}
+
+TEST(Flags, String_WithDefaultStringify) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
+    ASSERT_EQ(flags.string(), "0x00000003");
+}
+
+TEST(Flags, String_WithCompleteStringify) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
+    ASSERT_EQ(flags.string(toStringComplete), "ONE | TWO");
+}
+
+TEST(Flags, String_WithIncompleteStringify) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::THREE;
+    ASSERT_EQ(flags.string(toStringIncomplete), "ONE | 0x00000004");
+}
+
+} // namespace android::test

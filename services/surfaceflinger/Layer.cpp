@@ -67,12 +67,14 @@
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
+#include "input/InputWindow.h"
 
 #define DEBUG_RESIZE 0
 
 namespace android {
 
 using base::StringAppendF;
+using namespace android::flag_operators;
 
 std::atomic<int32_t> Layer::sSequence{1};
 
@@ -80,7 +82,8 @@ Layer::Layer(const LayerCreationArgs& args)
       : mFlinger(args.flinger),
         mName(args.name),
         mClientRef(args.client),
-        mWindowType(args.metadata.getInt32(METADATA_WINDOW_TYPE, 0)) {
+        mWindowType(static_cast<InputWindowInfo::Type>(
+                args.metadata.getInt32(METADATA_WINDOW_TYPE, 0))) {
     uint32_t layerFlags = 0;
     if (args.flags & ISurfaceComposerClient::eHidden) layerFlags |= layer_state_t::eLayerHidden;
     if (args.flags & ISurfaceComposerClient::eOpaque) layerFlags |= layer_state_t::eLayerOpaque;
@@ -2371,9 +2374,8 @@ InputWindowInfo Layer::fillInputInfo() {
         mDrawingState.inputInfo.name = getName();
         mDrawingState.inputInfo.ownerUid = mCallingUid;
         mDrawingState.inputInfo.ownerPid = mCallingPid;
-        mDrawingState.inputInfo.inputFeatures =
-            InputWindowInfo::INPUT_FEATURE_NO_INPUT_CHANNEL;
-        mDrawingState.inputInfo.layoutParamsFlags = InputWindowInfo::FLAG_NOT_TOUCH_MODAL;
+        mDrawingState.inputInfo.inputFeatures = InputWindowInfo::Feature::NO_INPUT_CHANNEL;
+        mDrawingState.inputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
         mDrawingState.inputInfo.displayId = getLayerStack();
     }
 
@@ -2575,7 +2577,7 @@ void Layer::updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLa
     }
     // Cloned layers shouldn't handle watch outside since their z order is not determined by
     // WM or the client.
-    mDrawingState.inputInfo.layoutParamsFlags &= ~InputWindowInfo::FLAG_WATCH_OUTSIDE_TOUCH;
+    mDrawingState.inputInfo.flags &= ~InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH;
 }
 
 void Layer::updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {

@@ -57,8 +57,8 @@ namespace android {
 static const sp<IBinder> TestInfoToken = new BBinder();
 static constexpr int32_t TestInfoId = 1;
 static const std::string TestInfoName = "InputFlingerServiceTestInputWindowInfo";
-static constexpr int32_t TestInfoLayoutParamsFlags = 0xABCD;
-static constexpr int32_t TestInfoLayoutParamsType = 39;
+static constexpr Flags<InputWindowInfo::Flag> TestInfoFlags = InputWindowInfo::Flag::NOT_FOCUSABLE;
+static constexpr InputWindowInfo::Type TestInfoType = InputWindowInfo::Type::INPUT_METHOD;
 static constexpr std::chrono::duration TestInfoDispatchingTimeout = 2532ms;
 static constexpr int32_t TestInfoFrameLeft = 93;
 static constexpr int32_t TestInfoFrameTop = 34;
@@ -79,7 +79,8 @@ static constexpr bool TestInfoHasWallpaper = false;
 static constexpr bool TestInfoPaused = false;
 static constexpr int32_t TestInfoOwnerPid = 19;
 static constexpr int32_t TestInfoOwnerUid = 24;
-static constexpr int32_t TestInfoInputFeatures = 29;
+static constexpr InputWindowInfo::Feature TestInfoInputFeatures =
+        InputWindowInfo::Feature::NO_INPUT_CHANNEL;
 static constexpr int32_t TestInfoDisplayId = 34;
 static constexpr int32_t TestInfoPortalToDisplayId = 2;
 static constexpr bool TestInfoReplaceTouchableRegionWithCrop = true;
@@ -265,8 +266,8 @@ void InputFlingerServiceTest::SetUp() {
     mInfo.token = TestInfoToken;
     mInfo.id = TestInfoId;
     mInfo.name = TestInfoName;
-    mInfo.layoutParamsFlags = TestInfoLayoutParamsFlags;
-    mInfo.layoutParamsType = TestInfoLayoutParamsType;
+    mInfo.flags = TestInfoFlags;
+    mInfo.type = TestInfoType;
     mInfo.dispatchingTimeout = TestInfoDispatchingTimeout;
     mInfo.frameLeft = TestInfoFrameLeft;
     mInfo.frameTop = TestInfoFrameTop;

@@ -29,6 +29,7 @@
 #include <vector>
 
 using android::base::StringPrintf;
+using namespace android::flag_operators;
 
 namespace android::inputdispatcher {
 
@@ -766,8 +767,7 @@ public:
         mInfo.token = token;
         mInfo.id = sId++;
         mInfo.name = name;
-        mInfo.layoutParamsFlags = 0;
-        mInfo.layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
+        mInfo.type = InputWindowInfo::Type::APPLICATION;
         mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
         mInfo.frameLeft = 0;
         mInfo.frameTop = 0;
@@ -783,7 +783,6 @@ public:
         mInfo.paused = false;
         mInfo.ownerPid = INJECTOR_PID;
         mInfo.ownerUid = INJECTOR_UID;
-        mInfo.inputFeatures = 0;
         mInfo.displayId = displayId;
     }
 
@@ -806,7 +805,7 @@ public:
         mInfo.addTouchableRegion(frame);
     }
 
-    void setLayoutParamFlags(int32_t flags) { mInfo.layoutParamsFlags = flags; }
+    void setFlags(Flags<InputWindowInfo::Flag> flags) { mInfo.flags = flags; }
 
     void setWindowScale(float xScale, float yScale) {
         mInfo.windowXScale = xScale;
@@ -1165,7 +1164,7 @@ TEST_F(InputDispatcherTest, SetInputWindowOnce_SingleWindowTouch) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 100, 100));
-    window->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+    window->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
@@ -1188,7 +1187,7 @@ TEST_F(InputDispatcherTest, SetInputWindowTwice_SingleWindowTouch) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 100, 100));
-    window->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+    window->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
@@ -1298,11 +1297,11 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
     sp<FakeWindowHandle> windowLeft =
             new FakeWindowHandle(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
     windowLeft->setFrame(Rect(0, 0, 600, 800));
-    windowLeft->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+    windowLeft->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
     sp<FakeWindowHandle> windowRight =
             new FakeWindowHandle(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
     windowRight->setFrame(Rect(600, 0, 1200, 800));
-    windowRight->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+    windowRight->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
@@ -1409,7 +1408,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 1200, 800));
-    window->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+    window->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
@@ -1491,11 +1490,11 @@ TEST_F(InputDispatcherTest, DispatchMouseEventsUnderCursor) {
     sp<FakeWindowHandle> windowLeft =
             new FakeWindowHandle(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
     windowLeft->setFrame(Rect(0, 0, 600, 800));
-    windowLeft->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+    windowLeft->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
     sp<FakeWindowHandle> windowRight =
             new FakeWindowHandle(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
     windowRight->setFrame(Rect(600, 0, 1200, 800));
-    windowRight->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+    windowRight->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
@@ -1654,15 +1653,15 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
     sp<FakeWindowHandle> firstWindow = new FakeWindowHandle(application, mDispatcher,
             "First Window", ADISPLAY_ID_DEFAULT);
     firstWindow->setFrame(Rect(0, 0, 600, 400));
-    firstWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL
-            | InputWindowInfo::FLAG_SPLIT_TOUCH);
+    firstWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
+                          InputWindowInfo::Flag::SPLIT_TOUCH);
 
     // Create a non touch modal window that supports split touch
     sp<FakeWindowHandle> secondWindow = new FakeWindowHandle(application, mDispatcher,
             "Second Window", ADISPLAY_ID_DEFAULT);
     secondWindow->setFrame(Rect(0, 400, 600, 800));
-    secondWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL
-            | InputWindowInfo::FLAG_SPLIT_TOUCH);
+    secondWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
+                           InputWindowInfo::Flag::SPLIT_TOUCH);
 
     // Add the windows to the dispatcher
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
@@ -2347,12 +2346,12 @@ class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
         mUnfocusedWindow->setFrame(Rect(0, 0, 30, 30));
         // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
         // window.
-        mUnfocusedWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+        mUnfocusedWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
 
         mFocusedWindow =
                 new FakeWindowHandle(application, mDispatcher, "Second", ADISPLAY_ID_DEFAULT);
         mFocusedWindow->setFrame(Rect(50, 50, 100, 100));
-        mFocusedWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+        mFocusedWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
@@ -2440,14 +2439,14 @@ class InputDispatcherMultiWindowSameTokenTests : public InputDispatcherTest {
                                         ADISPLAY_ID_DEFAULT);
         // Adding FLAG_NOT_TOUCH_MODAL otherwise all taps will go to the top most window.
         // We also need FLAG_SPLIT_TOUCH or we won't be able to get touches for both windows.
-        mWindow1->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL |
-                                      InputWindowInfo::FLAG_SPLIT_TOUCH);
+        mWindow1->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
+                           InputWindowInfo::Flag::SPLIT_TOUCH);
         mWindow1->setFrame(Rect(0, 0, 100, 100));
 
         mWindow2 = new FakeWindowHandle(application, mDispatcher, "Fake Window 2",
                                         ADISPLAY_ID_DEFAULT, mWindow1->getToken());
-        mWindow2->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL |
-                                      InputWindowInfo::FLAG_SPLIT_TOUCH);
+        mWindow2->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
+                           InputWindowInfo::Flag::SPLIT_TOUCH);
         mWindow2->setFrame(Rect(100, 100, 200, 200));
 
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow1, mWindow2}}});
@@ -2671,7 +2670,7 @@ class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
         mWindow->setFocus(true);
         // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
         // window.
-        mWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL);
+        mWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
@@ -3053,16 +3052,16 @@ class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
         // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
         // window.
         // Adding FLAG_WATCH_OUTSIDE_TOUCH to receive ACTION_OUTSIDE when another window is tapped
-        mUnfocusedWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL |
-                                              InputWindowInfo::FLAG_WATCH_OUTSIDE_TOUCH |
-                                              InputWindowInfo::FLAG_SPLIT_TOUCH);
+        mUnfocusedWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
+                                   InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH |
+                                   InputWindowInfo::Flag::SPLIT_TOUCH);
 
         mFocusedWindow =
                 new FakeWindowHandle(mApplication, mDispatcher, "Focused", ADISPLAY_ID_DEFAULT);
         mFocusedWindow->setDispatchingTimeout(30ms);
         mFocusedWindow->setFrame(Rect(50, 50, 100, 100));
-        mFocusedWindow->setLayoutParamFlags(InputWindowInfo::FLAG_NOT_TOUCH_MODAL |
-                                            InputWindowInfo::FLAG_SPLIT_TOUCH);
+        mFocusedWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
+                                 InputWindowInfo::Flag::SPLIT_TOUCH);
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
