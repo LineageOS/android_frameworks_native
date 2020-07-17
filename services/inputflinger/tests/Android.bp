@@ -44,5 +44,8 @@ cc_test {
             "frameworks/native/libs/input",
         ],
     },
+    static_libs: [
+        "libc++fs"
+    ],
     require_root: true,
 }
