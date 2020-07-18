@@ -432,7 +432,7 @@ void Scheduler::registerLayer(Layer* layer) {
     const auto minFps = mRefreshRateConfigs.getMinRefreshRate().getFps();
     const auto maxFps = mRefreshRateConfigs.getMaxRefreshRate().getFps();
 
-    if (layer->getWindowType() == InputWindowInfo::TYPE_STATUS_BAR) {
+    if (layer->getWindowType() == InputWindowInfo::Type::STATUS_BAR) {
         mLayerHistory->registerLayer(layer, minFps, maxFps,
                                      scheduler::LayerHistory::LayerVoteType::NoVote);
     } else if (!mUseContentDetection) {
@@ -445,12 +445,12 @@ void Scheduler::registerLayer(Layer* layer) {
         // In V1 of content detection, all layers are registered as Heuristic (unless it's
         // wallpaper).
         const auto highFps =
-                layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER ? minFps : maxFps;
+                layer->getWindowType() == InputWindowInfo::Type::WALLPAPER ? minFps : maxFps;
 
         mLayerHistory->registerLayer(layer, minFps, highFps,
                                      scheduler::LayerHistory::LayerVoteType::Heuristic);
     } else {
-        if (layer->getWindowType() == InputWindowInfo::TYPE_WALLPAPER) {
+        if (layer->getWindowType() == InputWindowInfo::Type::WALLPAPER) {
             // Running Wallpaper at Min is considered as part of content detection.
             mLayerHistory->registerLayer(layer, minFps, maxFps,
                                          scheduler::LayerHistory::LayerVoteType::Min);
