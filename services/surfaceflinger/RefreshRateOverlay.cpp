@@ -106,41 +106,71 @@ void RefreshRateOverlay::SevenSegmentDrawer::drawDigit(int digit, int left, cons
         drawSegment(Segment::Buttom, left, color, buffer, pixels);
 }
 
-sp<GraphicBuffer> RefreshRateOverlay::SevenSegmentDrawer::drawNumber(int number,
-                                                                     const half4& color) {
-    if (number < 0 || number > 1000) return nullptr;
+std::vector<sp<GraphicBuffer>> RefreshRateOverlay::SevenSegmentDrawer::drawNumber(
+        int number, const half4& color, bool showSpinner) {
+    if (number < 0 || number > 1000) return {};
 
     const auto hundreds = number / 100;
     const auto tens = (number / 10) % 10;
     const auto ones = number % 10;
 
-    sp<GraphicBuffer> buffer =
-            new GraphicBuffer(BUFFER_WIDTH, BUFFER_HEIGHT, HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                              GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
-                                      GRALLOC_USAGE_HW_TEXTURE,
-                              "RefreshRateOverlayBuffer");
-    uint8_t* pixels;
-    buffer->lock(GRALLOC_USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&pixels));
-    // Clear buffer content
-    drawRect(Rect(BUFFER_WIDTH, BUFFER_HEIGHT), half4(0), buffer, pixels);
-    int left = 0;
-    if (hundreds != 0) {
-        drawDigit(hundreds, left, color, buffer, pixels);
+    std::vector<sp<GraphicBuffer>> buffers;
+    const auto loopCount = showSpinner ? 6 : 1;
+    for (int i = 0; i < loopCount; i++) {
+        sp<GraphicBuffer> buffer =
+                new GraphicBuffer(BUFFER_WIDTH, BUFFER_HEIGHT, HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                  GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
+                                          GRALLOC_USAGE_HW_TEXTURE,
+                                  "RefreshRateOverlayBuffer");
+        uint8_t* pixels;
+        buffer->lock(GRALLOC_USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&pixels));
+        // Clear buffer content
+        drawRect(Rect(BUFFER_WIDTH, BUFFER_HEIGHT), half4(0), buffer, pixels);
+        int left = 0;
+        if (hundreds != 0) {
+            drawDigit(hundreds, left, color, buffer, pixels);
+        }
         left += DIGIT_WIDTH + DIGIT_SPACE;
-    }
 
-    if (tens != 0) {
-        drawDigit(tens, left, color, buffer, pixels);
+        if (tens != 0) {
+            drawDigit(tens, left, color, buffer, pixels);
+        }
         left += DIGIT_WIDTH + DIGIT_SPACE;
-    }
 
-    drawDigit(ones, left, color, buffer, pixels);
-    buffer->unlock();
-    return buffer;
+        drawDigit(ones, left, color, buffer, pixels);
+        left += DIGIT_WIDTH + DIGIT_SPACE;
+
+        if (showSpinner) {
+            switch (i) {
+                case 0:
+                    drawSegment(Segment::Upper, left, color, buffer, pixels);
+                    break;
+                case 1:
+                    drawSegment(Segment::UpperRight, left, color, buffer, pixels);
+                    break;
+                case 2:
+                    drawSegment(Segment::LowerRight, left, color, buffer, pixels);
+                    break;
+                case 3:
+                    drawSegment(Segment::Buttom, left, color, buffer, pixels);
+                    break;
+                case 4:
+                    drawSegment(Segment::LowerLeft, left, color, buffer, pixels);
+                    break;
+                case 5:
+                    drawSegment(Segment::UpperLeft, left, color, buffer, pixels);
+                    break;
+            }
+        }
+
+        buffer->unlock();
+        buffers.emplace_back(buffer);
+    }
+    return buffers;
 }
 
-RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger)
-      : mFlinger(flinger), mClient(new Client(&mFlinger)) {
+RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger, bool showSpinner)
+      : mFlinger(flinger), mClient(new Client(&mFlinger)), mShowSpinner(showSpinner) {
     createLayer();
     primeCache();
 }
@@ -176,7 +206,7 @@ void RefreshRateOverlay::primeCache() {
     if (allRefreshRates.size() == 1) {
         auto fps = allRefreshRates.begin()->second->getFps();
         half4 color = {LOW_FPS_COLOR, ALPHA};
-        mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color));
+        mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color, mShowSpinner));
         return;
     }
 
@@ -196,12 +226,12 @@ void RefreshRateOverlay::primeCache() {
         color.g = HIGH_FPS_COLOR.g * fpsScale + LOW_FPS_COLOR.g * (1 - fpsScale);
         color.b = HIGH_FPS_COLOR.b * fpsScale + LOW_FPS_COLOR.b * (1 - fpsScale);
         color.a = ALPHA;
-        mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color));
+        mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color, mShowSpinner));
     }
 }
 
 void RefreshRateOverlay::setViewport(ui::Size viewport) {
-    Rect frame(viewport.width >> 3, viewport.height >> 5);
+    Rect frame((3 * viewport.width) >> 4, viewport.height >> 5);
     frame.offsetBy(viewport.width >> 5, viewport.height >> 4);
     mLayer->setFrame(frame);
 
@@ -209,7 +239,19 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
 }
 
 void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
-    auto buffer = mBufferCache[refreshRate.getFps()];
+    mCurrentFps = refreshRate.getFps();
+    auto buffer = mBufferCache[*mCurrentFps][mFrame];
+    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {});
+
+    mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+}
+
+void RefreshRateOverlay::onInvalidate() {
+    if (!mCurrentFps.has_value()) return;
+
+    const auto& buffers = mBufferCache[*mCurrentFps];
+    mFrame = (mFrame + 1) % buffers.size();
+    auto buffer = buffers[mFrame];
     mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {});
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
