@@ -49,6 +49,7 @@
 #include <deque>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <InputListener.h>
 #include <InputReporterInterface.h>
@@ -325,6 +326,11 @@ private:
 
     // Dispatcher state at time of last ANR.
     std::string mLastAnrState GUARDED_BY(mLock);
+
+    // The connection tokens of the channels that the user last interacted, for debugging
+    std::unordered_set<sp<IBinder>, IBinderHash> mInteractionConnectionTokens GUARDED_BY(mLock);
+    void updateInteractionTokensLocked(const EventEntry& entry,
+                                       const std::vector<InputTarget>& targets) REQUIRES(mLock);
 
     // Dispatch inbound events.
     bool dispatchConfigurationChangedLocked(nsecs_t currentTime, ConfigurationChangedEntry* entry)

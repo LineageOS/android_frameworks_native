@@ -157,8 +157,7 @@ public:
     virtual bool updateInfo() override {
         mInfo.token = mServerChannel->getConnectionToken();
         mInfo.name = "FakeWindowHandle";
-        mInfo.layoutParamsFlags = 0;
-        mInfo.layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
+        mInfo.type = InputWindowInfo::Type::APPLICATION;
         mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
         mInfo.frameLeft = mFrame.left;
         mInfo.frameTop = mFrame.top;
@@ -174,7 +173,6 @@ public:
         mInfo.paused = false;
         mInfo.ownerPid = INJECTOR_PID;
         mInfo.ownerUid = INJECTOR_UID;
-        mInfo.inputFeatures = 0;
         mInfo.displayId = ADISPLAY_ID_DEFAULT;
 
         return true;

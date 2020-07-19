@@ -90,6 +90,7 @@
 #include <functional>
 #include <mutex>
 #include <optional>
+#include <type_traits>
 #include <unordered_map>
 
 #include "BufferLayer.h"
@@ -469,6 +470,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     mKernelIdleTimerEnabled = mSupportKernelIdleTimer = sysprop::support_kernel_idle_timer(false);
     base::SetProperty(KERNEL_IDLE_TIMER_PROP, mKernelIdleTimerEnabled ? "true" : "false");
+
+    mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
 }
 
 SurfaceFlinger::~SurfaceFlinger() = default;
@@ -1962,6 +1965,12 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
     if (mTracingEnabledChanged) {
         mTracingEnabled = mTracing.isEnabled();
         mTracingEnabledChanged = false;
+    }
+
+    if (mRefreshRateOverlaySpinner) {
+        if (Mutex::Autolock lock(mStateLock); mRefreshRateOverlay) {
+            mRefreshRateOverlay->onInvalidate();
+        }
     }
 
     bool refreshNeeded;
@@ -3981,7 +3990,12 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     if (metadata.has(METADATA_WINDOW_TYPE)) {
         int32_t windowType = metadata.getInt32(METADATA_WINDOW_TYPE, 0);
         if (windowType == 441731) {
-            metadata.setInt32(METADATA_WINDOW_TYPE, InputWindowInfo::TYPE_NAVIGATION_BAR_PANEL);
+            using U = std::underlying_type_t<InputWindowInfo::Type>;
+            // TODO(b/129481165): This static assert can be safely removed once conversion warnings
+            // are re-enabled.
+            static_assert(std::is_same_v<U, int32_t>);
+            metadata.setInt32(METADATA_WINDOW_TYPE,
+                              static_cast<U>(InputWindowInfo::Type::NAVIGATION_BAR_PANEL));
             primaryDisplayOnly = true;
         }
     }
@@ -6253,7 +6267,7 @@ void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
     static_cast<void>(schedule([=] {
         std::unique_ptr<RefreshRateOverlay> overlay;
         if (enable) {
-            overlay = std::make_unique<RefreshRateOverlay>(*this);
+            overlay = std::make_unique<RefreshRateOverlay>(*this, mRefreshRateOverlaySpinner);
         }
 
         {

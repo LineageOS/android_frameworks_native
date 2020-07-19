@@ -68,4 +68,5 @@ cc_library_static {
     export_header_lib_headers: [
         "libinputdispatcher_headers",
     ],
+    logtags: ["EventLogTags.logtags"],
 }

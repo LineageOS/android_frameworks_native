@@ -547,6 +547,8 @@ private:
     bool mKernelIdleTimerEnabled = false;
     // Keeps track of whether the kernel timer is supported on the SF side.
     bool mSupportKernelIdleTimer = false;
+    // Show spinner with refresh rate overlay
+    bool mRefreshRateOverlaySpinner = false;
     /* ------------------------------------------------------------------------
      * Message handling
      */
