@@ -23,7 +23,11 @@ import android.os.ISetInputWindowsListener;
 /** @hide */
 interface IInputFlinger
 {
-    void setInputWindows(in InputWindowInfo[] inputHandles,
+    // SurfaceFlinger is the caller of this method, it uses the listener callback to ensure the
+    // ordering when needed.
+    // SurfaceFlinger calls this only every VSync, so overflow of binder's oneway buffer
+    // shouldn't be a concern.
+    oneway void setInputWindows(in InputWindowInfo[] inputHandles,
             in @nullable ISetInputWindowsListener setInputWindowsListener);
     void registerInputChannel(in InputChannelInfo info);
     void unregisterInputChannel(in InputChannelInfo info);
