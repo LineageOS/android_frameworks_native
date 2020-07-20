@@ -205,8 +205,6 @@ struct InputWindowInfo : public Parcelable {
     status_t writeToParcel(android::Parcel* parcel) const override;
 
     status_t readFromParcel(const android::Parcel* parcel) override;
-
-    static std::optional<std::string> flagToString(Flag f);
 };
 
 /*
