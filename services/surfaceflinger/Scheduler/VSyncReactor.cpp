@@ -55,15 +55,15 @@ private:
     }
 };
 
-VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, std::unique_ptr<VSyncDispatch> dispatch,
-                           std::unique_ptr<VSyncTracker> tracker, size_t pendingFenceLimit,
+VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, VSyncDispatch& dispatch,
+                           VSyncTracker& tracker, size_t pendingFenceLimit,
                            bool supportKernelIdleTimer)
       : mClock(std::move(clock)),
-        mTracker(std::move(tracker)),
-        mDispatch(std::move(dispatch)),
+        mTracker(tracker),
+        mDispatch(dispatch),
         mPendingLimit(pendingFenceLimit),
         mPredictedVsyncTracer(property_get_bool("debug.sf.show_predicted_vsync", false)
-                                      ? std::make_unique<PredictedVsyncTracer>(*mDispatch)
+                                      ? std::make_unique<PredictedVsyncTracer>(mDispatch)
                                       : nullptr),
         mSupportKernelIdleTimer(supportKernelIdleTimer) {}
 
@@ -182,7 +182,7 @@ bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
         } else if (time == Fence::SIGNAL_TIME_INVALID) {
             it = mUnfiredFences.erase(it);
         } else {
-            timestampAccepted &= mTracker->addVsyncTimestamp(time);
+            timestampAccepted &= mTracker.addVsyncTimestamp(time);
 
             it = mUnfiredFences.erase(it);
         }
@@ -194,7 +194,7 @@ bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
         }
         mUnfiredFences.push_back(fence);
     } else {
-        timestampAccepted &= mTracker->addVsyncTimestamp(signalTime);
+        timestampAccepted &= mTracker.addVsyncTimestamp(signalTime);
     }
 
     if (!timestampAccepted) {
@@ -224,12 +224,12 @@ void VSyncReactor::updateIgnorePresentFencesInternal() {
 }
 
 nsecs_t VSyncReactor::computeNextRefresh(int periodOffset, nsecs_t now) const {
-    auto const currentPeriod = periodOffset ? mTracker->currentPeriod() : 0;
-    return mTracker->nextAnticipatedVSyncTimeFrom(now + periodOffset * currentPeriod);
+    auto const currentPeriod = periodOffset ? mTracker.currentPeriod() : 0;
+    return mTracker.nextAnticipatedVSyncTimeFrom(now + periodOffset * currentPeriod);
 }
 
 nsecs_t VSyncReactor::expectedPresentTime(nsecs_t now) {
-    return mTracker->nextAnticipatedVSyncTimeFrom(now);
+    return mTracker.nextAnticipatedVSyncTimeFrom(now);
 }
 
 void VSyncReactor::startPeriodTransition(nsecs_t newPeriod) {
@@ -262,11 +262,11 @@ void VSyncReactor::setPeriod(nsecs_t period) {
 }
 
 nsecs_t VSyncReactor::getPeriod() {
-    return mTracker->currentPeriod();
+    return mTracker.currentPeriod();
 }
 
 void VSyncReactor::beginResync() {
-    mTracker->resetModel();
+    mTracker.resetModel();
 }
 
 void VSyncReactor::endResync() {}
@@ -307,7 +307,7 @@ bool VSyncReactor::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwc
     if (periodConfirmed(timestamp, hwcVsyncPeriod)) {
         ATRACE_NAME("VSR: period confirmed");
         if (mPeriodTransitioningTo) {
-            mTracker->setPeriod(*mPeriodTransitioningTo);
+            mTracker.setPeriod(*mPeriodTransitioningTo);
             for (auto& entry : mCallbacks) {
                 entry.second->setPeriod(*mPeriodTransitioningTo);
             }
@@ -315,12 +315,12 @@ bool VSyncReactor::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwc
         }
 
         if (mLastHwVsync) {
-            mTracker->addVsyncTimestamp(*mLastHwVsync);
+            mTracker.addVsyncTimestamp(*mLastHwVsync);
         }
-        mTracker->addVsyncTimestamp(timestamp);
+        mTracker.addVsyncTimestamp(timestamp);
 
         endPeriodTransition();
-        mMoreSamplesNeeded = mTracker->needsMoreSamples();
+        mMoreSamplesNeeded = mTracker.needsMoreSamples();
     } else if (mPeriodConfirmationInProgress) {
         ATRACE_NAME("VSR: still confirming period");
         mLastHwVsync = timestamp;
@@ -329,8 +329,8 @@ bool VSyncReactor::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwc
     } else {
         ATRACE_NAME("VSR: adding sample");
         *periodFlushed = false;
-        mTracker->addVsyncTimestamp(timestamp);
-        mMoreSamplesNeeded = mTracker->needsMoreSamples();
+        mTracker.addVsyncTimestamp(timestamp);
+        mMoreSamplesNeeded = mTracker.needsMoreSamples();
     }
 
     if (!mMoreSamplesNeeded) {
@@ -353,9 +353,9 @@ status_t VSyncReactor::addEventListener(const char* name, nsecs_t phase,
             return NO_MEMORY;
         }
 
-        auto const period = mTracker->currentPeriod();
-        auto repeater = std::make_unique<CallbackRepeater>(*mDispatch, callback, name, period,
-                                                           phase, mClock->now());
+        auto const period = mTracker.currentPeriod();
+        auto repeater = std::make_unique<CallbackRepeater>(mDispatch, callback, name, period, phase,
+                                                           mClock->now());
         it = mCallbacks.emplace(std::pair(callback, std::move(repeater))).first;
     }
 
@@ -409,9 +409,9 @@ void VSyncReactor::dump(std::string& result) const {
     }
 
     StringAppendF(&result, "VSyncTracker:\n");
-    mTracker->dump(result);
+    mTracker.dump(result);
     StringAppendF(&result, "VSyncDispatch:\n");
-    mDispatch->dump(result);
+    mDispatch.dump(result);
 }
 
 void VSyncReactor::reset() {}
