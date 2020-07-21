@@ -821,8 +821,7 @@ private:
         return false;
     }
 
-    virtual void vibrate(int32_t, nsecs_t) {
-    }
+    virtual void vibrate(int32_t, const VibrationElement&) {}
 
     virtual void cancelVibrate(int32_t) {
     }

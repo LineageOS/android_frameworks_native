@@ -702,7 +702,7 @@ void EventHub::assignDescriptorLocked(InputDeviceIdentifier& identifier) {
           identifier.descriptor.c_str());
 }
 
-void EventHub::vibrate(int32_t deviceId, nsecs_t duration) {
+void EventHub::vibrate(int32_t deviceId, const VibrationElement& element) {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && device->hasValidFd()) {
@@ -710,9 +710,10 @@ void EventHub::vibrate(int32_t deviceId, nsecs_t duration) {
         memset(&effect, 0, sizeof(effect));
         effect.type = FF_RUMBLE;
         effect.id = device->ffEffectId;
-        effect.u.rumble.strong_magnitude = 0xc000;
-        effect.u.rumble.weak_magnitude = 0xc000;
-        effect.replay.length = (duration + 999999LL) / 1000000LL;
+        // evdev FF_RUMBLE effect only supports two channels of vibration.
+        effect.u.rumble.strong_magnitude = element.getChannel(0);
+        effect.u.rumble.weak_magnitude = element.getChannel(1);
+        effect.replay.length = element.duration.count();
         effect.replay.delay = 0;
         if (ioctl(device->fd, EVIOCSFF, &effect)) {
             ALOGW("Could not upload force feedback effect to device %s due to error %d.",
