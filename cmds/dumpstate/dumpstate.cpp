@@ -226,6 +226,8 @@ static const std::string DUMP_TRACES_TASK = "DUMP TRACES";
 static const std::string DUMP_INCIDENT_REPORT_TASK = "INCIDENT REPORT";
 static const std::string DUMP_HALS_TASK = "DUMP HALS";
 static const std::string DUMP_BOARD_TASK = "dumpstate_board()";
+static const std::string DUMP_CHECKINS_TASK = "DUMP CHECKINS";
+static const std::string DUMP_APP_INFOS_TASK = "DUMP APP INFOS";
 
 namespace android {
 namespace os {
@@ -335,8 +337,12 @@ static bool CopyFileToFile(const std::string& input_file, const std::string& out
 
 static void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
                        const CommandOptions& options = Dumpstate::DEFAULT_DUMPSYS,
-                       long dumpsysTimeoutMs = 0) {
-    return ds.RunDumpsys(title, dumpsysArgs, options, dumpsysTimeoutMs);
+                       long dumpsysTimeoutMs = 0, int out_fd = STDOUT_FILENO) {
+    return ds.RunDumpsys(title, dumpsysArgs, options, dumpsysTimeoutMs, out_fd);
+}
+static void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+                       int out_fd) {
+    return ds.RunDumpsys(title, dumpsysArgs, Dumpstate::DEFAULT_DUMPSYS, 0, out_fd);
 }
 static int DumpFile(const std::string& title, const std::string& path) {
     return ds.DumpFile(title, path);
@@ -1482,6 +1488,73 @@ static void DumpstateLimitedOnly() {
     printf("========================================================\n");
 }
 
+/*
+ * |out_fd| A fd to support the DumpPool to output results to a temporary file.
+ * Dumpstate can pick up later and output to the bugreport. Using STDOUT_FILENO
+ * if it's not running in the parallel task.
+ */
+static void DumpCheckins(int out_fd = STDOUT_FILENO) {
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Checkins\n");
+    dprintf(out_fd, "========================================================\n");
+
+    RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"}, out_fd);
+    RunDumpsys("CHECKIN MEMINFO", {"meminfo", "--checkin"}, out_fd);
+    RunDumpsys("CHECKIN NETSTATS", {"netstats", "--checkin"}, out_fd);
+    RunDumpsys("CHECKIN PROCSTATS", {"procstats", "-c"}, out_fd);
+    RunDumpsys("CHECKIN USAGESTATS", {"usagestats", "-c"}, out_fd);
+    RunDumpsys("CHECKIN PACKAGE", {"package", "--checkin"}, out_fd);
+}
+
+/*
+ * Runs dumpsys on activity service to dump all application activities, services
+ * and providers in the device.
+ *
+ * |out_fd| A fd to support the DumpPool to output results to a temporary file.
+ * Dumpstate can pick up later and output to the bugreport. Using STDOUT_FILENO
+ * if it's not running in the parallel task.
+ */
+static void DumpAppInfos(int out_fd = STDOUT_FILENO) {
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Running Application Activities\n");
+    dprintf(out_fd, "========================================================\n");
+
+    // The following dumpsys internally collects output from running apps, so it can take a long
+    // time. So let's extend the timeout.
+
+    const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
+
+    RunDumpsys("APP ACTIVITIES", {"activity", "-v", "all"}, DUMPSYS_COMPONENTS_OPTIONS, 0, out_fd);
+
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Running Application Services (platform)\n");
+    dprintf(out_fd, "========================================================\n");
+
+    RunDumpsys("APP SERVICES PLATFORM", {"activity", "service", "all-platform-non-critical"},
+            DUMPSYS_COMPONENTS_OPTIONS, 0, out_fd);
+
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Running Application Services (non-platform)\n");
+    dprintf(out_fd, "========================================================\n");
+
+    RunDumpsys("APP SERVICES NON-PLATFORM", {"activity", "service", "all-non-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS, 0, out_fd);
+
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Running Application Providers (platform)\n");
+    dprintf(out_fd, "========================================================\n");
+
+    RunDumpsys("APP PROVIDERS PLATFORM", {"activity", "provider", "all-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS, out_fd);
+
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Running Application Providers (non-platform)\n");
+    dprintf(out_fd, "========================================================\n");
+
+    RunDumpsys("APP PROVIDERS NON-PLATFORM", {"activity", "provider", "all-non-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS, 0, out_fd);
+}
+
 // Dumps various things. Returns early with status USER_CONSENT_DENIED if user denies consent
 // via the consent they are shown. Ignores other errors that occur while running various
 // commands. The consent checking is currently done around long running tasks, which happen to
@@ -1498,6 +1571,8 @@ static Dumpstate::RunStatus dumpstate() {
         ds.dump_pool_->enqueueTaskWithFd(DUMP_HALS_TASK, &DumpHals, _1);
         ds.dump_pool_->enqueueTask(DUMP_INCIDENT_REPORT_TASK, &DumpIncidentReport);
         ds.dump_pool_->enqueueTaskWithFd(DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
+        ds.dump_pool_->enqueueTaskWithFd(DUMP_CHECKINS_TASK, &DumpCheckins, _1);
+        ds.dump_pool_->enqueueTaskWithFd(DUMP_APP_INFOS_TASK, &DumpAppInfos, _1);
     }
 
     // Dump various things. Note that anything that takes "long" (i.e. several seconds) should
@@ -1642,57 +1717,17 @@ static Dumpstate::RunStatus dumpstate() {
 
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsysNormal);
 
-    printf("========================================================\n");
-    printf("== Checkins\n");
-    printf("========================================================\n");
+    if (ds.dump_pool_) {
+        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_CHECKINS_TASK, ds.dump_pool_);
+    } else {
+        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_CHECKINS_TASK, DumpCheckins);
+    }
 
-    RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
-
-    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsys, "CHECKIN MEMINFO", {"meminfo", "--checkin"});
-
-    RunDumpsys("CHECKIN NETSTATS", {"netstats", "--checkin"});
-    RunDumpsys("CHECKIN PROCSTATS", {"procstats", "-c"});
-    RunDumpsys("CHECKIN USAGESTATS", {"usagestats", "-c"});
-    RunDumpsys("CHECKIN PACKAGE", {"package", "--checkin"});
-
-    printf("========================================================\n");
-    printf("== Running Application Activities\n");
-    printf("========================================================\n");
-
-    // The following dumpsys internally collects output from running apps, so it can take a long
-    // time. So let's extend the timeout.
-
-    const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
-
-    RunDumpsys("APP ACTIVITIES", {"activity", "-v", "all"}, DUMPSYS_COMPONENTS_OPTIONS);
-
-    printf("========================================================\n");
-    printf("== Running Application Services (platform)\n");
-    printf("========================================================\n");
-
-    RunDumpsys("APP SERVICES PLATFORM", {"activity", "service", "all-platform-non-critical"},
-            DUMPSYS_COMPONENTS_OPTIONS);
-
-    printf("========================================================\n");
-    printf("== Running Application Services (non-platform)\n");
-    printf("========================================================\n");
-
-    RunDumpsys("APP SERVICES NON-PLATFORM", {"activity", "service", "all-non-platform"},
-            DUMPSYS_COMPONENTS_OPTIONS);
-
-    printf("========================================================\n");
-    printf("== Running Application Providers (platform)\n");
-    printf("========================================================\n");
-
-    RunDumpsys("APP PROVIDERS PLATFORM", {"activity", "provider", "all-platform"},
-            DUMPSYS_COMPONENTS_OPTIONS);
-
-    printf("========================================================\n");
-    printf("== Running Application Providers (non-platform)\n");
-    printf("========================================================\n");
-
-    RunDumpsys("APP PROVIDERS NON-PLATFORM", {"activity", "provider", "all-non-platform"},
-            DUMPSYS_COMPONENTS_OPTIONS);
+    if (ds.dump_pool_) {
+        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_APP_INFOS_TASK, ds.dump_pool_);
+    } else {
+        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_APP_INFOS_TASK, DumpAppInfos);
+    }
 
     printf("========================================================\n");
     printf("== Dropbox crashes\n");
@@ -3753,11 +3788,11 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
 }
 
 void Dumpstate::RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
-                           const CommandOptions& options, long dumpsysTimeoutMs) {
+                           const CommandOptions& options, long dumpsysTimeoutMs, int out_fd) {
     long timeout_ms = dumpsysTimeoutMs > 0 ? dumpsysTimeoutMs : options.TimeoutInMs();
     std::vector<std::string> dumpsys = {"/system/bin/dumpsys", "-T", std::to_string(timeout_ms)};
     dumpsys.insert(dumpsys.end(), dumpsys_args.begin(), dumpsys_args.end());
-    RunCommand(title, dumpsys, options);
+    RunCommand(title, dumpsys, options, false, out_fd);
 }
 
 int open_socket(const char *service) {

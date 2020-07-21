@@ -249,10 +249,12 @@ class Dumpstate {
      * |options| optional argument defining the command's behavior.
      * |dumpsys_timeout| when > 0, defines the value passed to `dumpsys -T` (otherwise it uses the
      * timeout from `options`)
+     * |out_fd| A fd to support the DumpPool to output results to a temporary
+     * file. Using STDOUT_FILENO if it's not running in the parallel task.
      */
     void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
                     const android::os::dumpstate::CommandOptions& options = DEFAULT_DUMPSYS,
-                    long dumpsys_timeout_ms = 0);
+                    long dumpsys_timeout_ms = 0, int out_fd = STDOUT_FILENO);
 
     /*
      * Prints the contents of a file.
