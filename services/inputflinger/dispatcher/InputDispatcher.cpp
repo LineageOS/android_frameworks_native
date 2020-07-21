@@ -433,7 +433,7 @@ InputDispatcher::~InputDispatcher() {
 
     while (!mConnectionsByFd.empty()) {
         sp<Connection> connection = mConnectionsByFd.begin()->second;
-        unregisterInputChannel(connection->inputChannel);
+        unregisterInputChannel(*connection->inputChannel);
     }
 }
 
@@ -1105,7 +1105,7 @@ void InputDispatcher::enqueueFocusEventLocked(const InputWindowHandle& window, b
 }
 
 void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime, FocusEntry* entry) {
-    sp<InputChannel> channel = getInputChannelLocked(entry->connectionToken);
+    std::shared_ptr<InputChannel> channel = getInputChannelLocked(entry->connectionToken);
     if (channel == nullptr) {
         return; // Window has gone away
     }
@@ -2029,7 +2029,8 @@ void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowH
 
     if (it == inputTargets.end()) {
         InputTarget inputTarget;
-        sp<InputChannel> inputChannel = getInputChannelLocked(windowHandle->getToken());
+        std::shared_ptr<InputChannel> inputChannel =
+                getInputChannelLocked(windowHandle->getToken());
         if (inputChannel == nullptr) {
             ALOGW("Window %s already unregistered input channel", windowHandle->getName().c_str());
             return;
@@ -2844,7 +2845,7 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
         }
 
         // Unregister the channel.
-        d->unregisterInputChannelLocked(connection->inputChannel, notify);
+        d->unregisterInputChannelLocked(*connection->inputChannel, notify);
         return 0; // remove the callback
     }             // release lock
 }
@@ -2874,7 +2875,7 @@ void InputDispatcher::synthesizeCancelationEventsForMonitorsLocked(
 }
 
 void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
-        const sp<InputChannel>& channel, const CancelationOptions& options) {
+        const std::shared_ptr<InputChannel>& channel, const CancelationOptions& options) {
     sp<Connection> connection = getConnectionLocked(channel->getConnectionToken());
     if (connection == nullptr) {
         return;
@@ -3690,7 +3691,8 @@ bool InputDispatcher::hasWindowHandleLocked(const sp<InputWindowHandle>& windowH
     return false;
 }
 
-sp<InputChannel> InputDispatcher::getInputChannelLocked(const sp<IBinder>& token) const {
+std::shared_ptr<InputChannel> InputDispatcher::getInputChannelLocked(
+        const sp<IBinder>& token) const {
     size_t count = mInputChannelsByToken.count(token);
     if (count == 0) {
         return nullptr;
@@ -3815,7 +3817,7 @@ void InputDispatcher::setInputWindowsLocked(
                 ALOGD("Focus left window: %s in display %" PRId32,
                       oldFocusedWindowHandle->getName().c_str(), displayId);
             }
-            sp<InputChannel> focusedInputChannel =
+            std::shared_ptr<InputChannel> focusedInputChannel =
                     getInputChannelLocked(oldFocusedWindowHandle->getToken());
             if (focusedInputChannel != nullptr) {
                 CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
@@ -3850,7 +3852,7 @@ void InputDispatcher::setInputWindowsLocked(
                     ALOGD("Touched window was removed: %s in display %" PRId32,
                           touchedWindow.windowHandle->getName().c_str(), displayId);
                 }
-                sp<InputChannel> touchedInputChannel =
+                std::shared_ptr<InputChannel> touchedInputChannel =
                         getInputChannelLocked(touchedWindow.windowHandle->getToken());
                 if (touchedInputChannel != nullptr) {
                     CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
@@ -3929,7 +3931,7 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
             sp<InputWindowHandle> oldFocusedWindowHandle =
                     getValueByKey(mFocusedWindowHandlesByDisplay, mFocusedDisplayId);
             if (oldFocusedWindowHandle != nullptr) {
-                sp<InputChannel> inputChannel =
+                std::shared_ptr<InputChannel> inputChannel =
                         getInputChannelLocked(oldFocusedWindowHandle->getToken());
                 if (inputChannel != nullptr) {
                     CancelationOptions
@@ -4376,13 +4378,13 @@ void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>
     const size_t numMonitors = monitors.size();
     for (size_t i = 0; i < numMonitors; i++) {
         const Monitor& monitor = monitors[i];
-        const sp<InputChannel>& channel = monitor.inputChannel;
+        const std::shared_ptr<InputChannel>& channel = monitor.inputChannel;
         dump += StringPrintf(INDENT2 "%zu: '%s', ", i, channel->getName().c_str());
         dump += "\n";
     }
 }
 
-status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChannel) {
+status_t InputDispatcher::registerInputChannel(const std::shared_ptr<InputChannel>& inputChannel) {
 #if DEBUG_REGISTRATION
     ALOGD("channel '%s' ~ registerInputChannel", inputChannel->getName().c_str());
 #endif
@@ -4410,7 +4412,7 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
     return OK;
 }
 
-status_t InputDispatcher::registerInputMonitor(const sp<InputChannel>& inputChannel,
+status_t InputDispatcher::registerInputMonitor(const std::shared_ptr<InputChannel>& inputChannel,
                                                int32_t displayId, bool isGestureMonitor) {
     { // acquire lock
         std::scoped_lock _l(mLock);
@@ -4442,9 +4444,9 @@ status_t InputDispatcher::registerInputMonitor(const sp<InputChannel>& inputChan
     return OK;
 }
 
-status_t InputDispatcher::unregisterInputChannel(const sp<InputChannel>& inputChannel) {
+status_t InputDispatcher::unregisterInputChannel(const InputChannel& inputChannel) {
 #if DEBUG_REGISTRATION
-    ALOGD("channel '%s' ~ unregisterInputChannel", inputChannel->getName().c_str());
+    ALOGD("channel '%s' ~ unregisterInputChannel", inputChannel.getName().c_str());
 #endif
 
     { // acquire lock
@@ -4462,23 +4464,23 @@ status_t InputDispatcher::unregisterInputChannel(const sp<InputChannel>& inputCh
     return OK;
 }
 
-status_t InputDispatcher::unregisterInputChannelLocked(const sp<InputChannel>& inputChannel,
+status_t InputDispatcher::unregisterInputChannelLocked(const InputChannel& inputChannel,
                                                        bool notify) {
-    sp<Connection> connection = getConnectionLocked(inputChannel->getConnectionToken());
+    sp<Connection> connection = getConnectionLocked(inputChannel.getConnectionToken());
     if (connection == nullptr) {
         ALOGW("Attempted to unregister already unregistered input channel '%s'",
-              inputChannel->getName().c_str());
+              inputChannel.getName().c_str());
         return BAD_VALUE;
     }
 
     removeConnectionLocked(connection);
-    mInputChannelsByToken.erase(inputChannel->getConnectionToken());
+    mInputChannelsByToken.erase(inputChannel.getConnectionToken());
 
     if (connection->monitor) {
         removeMonitorChannelLocked(inputChannel);
     }
 
-    mLooper->removeFd(inputChannel->getFd());
+    mLooper->removeFd(inputChannel.getFd());
 
     nsecs_t currentTime = now();
     abortBrokenDispatchCycleLocked(currentTime, connection, notify);
@@ -4487,19 +4489,19 @@ status_t InputDispatcher::unregisterInputChannelLocked(const sp<InputChannel>& i
     return OK;
 }
 
-void InputDispatcher::removeMonitorChannelLocked(const sp<InputChannel>& inputChannel) {
+void InputDispatcher::removeMonitorChannelLocked(const InputChannel& inputChannel) {
     removeMonitorChannelLocked(inputChannel, mGlobalMonitorsByDisplay);
     removeMonitorChannelLocked(inputChannel, mGestureMonitorsByDisplay);
 }
 
 void InputDispatcher::removeMonitorChannelLocked(
-        const sp<InputChannel>& inputChannel,
+        const InputChannel& inputChannel,
         std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay) {
     for (auto it = monitorsByDisplay.begin(); it != monitorsByDisplay.end();) {
         std::vector<Monitor>& monitors = it->second;
         const size_t numMonitors = monitors.size();
         for (size_t i = 0; i < numMonitors; i++) {
-            if (monitors[i].inputChannel == inputChannel) {
+            if (*monitors[i].inputChannel == inputChannel) {
                 monitors.erase(monitors.begin() + i);
                 break;
             }
@@ -4550,7 +4552,8 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
         options.deviceId = deviceId;
         options.displayId = displayId;
         for (const TouchedWindow& window : state.windows) {
-            sp<InputChannel> channel = getInputChannelLocked(window.windowHandle->getToken());
+            std::shared_ptr<InputChannel> channel =
+                    getInputChannelLocked(window.windowHandle->getToken());
             if (channel != nullptr) {
                 synthesizeCancelationEventsForInputChannelLocked(channel, options);
             }

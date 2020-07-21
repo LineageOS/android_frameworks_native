@@ -119,7 +119,7 @@ binder::Status InputManager::setInputWindows(
 }
 
 // Used by tests only.
-binder::Status InputManager::registerInputChannel(const InputChannelInfo& info) {
+binder::Status InputManager::registerInputChannel(const InputChannel& channel) {
     IPCThreadState* ipc = IPCThreadState::self();
     const int uid = ipc->getCallingUid();
     if (uid != AID_SHELL && uid != AID_ROOT) {
@@ -127,15 +127,12 @@ binder::Status InputManager::registerInputChannel(const InputChannelInfo& info) 
                 "from non shell/root entity (PID: %d)", ipc->getCallingPid());
         return binder::Status::ok();
     }
-    android::base::unique_fd newFd(::dup(info.mFd));
-    sp<InputChannel> channel = InputChannel::create(info.mName, std::move(newFd), info.mToken);
-    mDispatcher->registerInputChannel(channel);
+
+    mDispatcher->registerInputChannel(channel.dup());
     return binder::Status::ok();
 }
 
-binder::Status InputManager::unregisterInputChannel(const InputChannelInfo& info) {
-    android::base::unique_fd newFd(::dup(info.mFd));
-    sp<InputChannel> channel = InputChannel::create(info.mName, std::move(newFd), info.mToken);
+binder::Status InputManager::unregisterInputChannel(const InputChannel& channel) {
     mDispatcher->unregisterInputChannel(channel);
     return binder::Status::ok();
 }

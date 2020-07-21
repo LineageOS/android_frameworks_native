@@ -602,7 +602,8 @@ public:
 
 class FakeInputReceiver {
 public:
-    explicit FakeInputReceiver(const sp<InputChannel>& clientChannel, const std::string name)
+    explicit FakeInputReceiver(const std::shared_ptr<InputChannel>& clientChannel,
+                               const std::string name)
           : mName(name) {
         mConsumer = std::make_unique<InputConsumer>(clientChannel);
     }
@@ -754,7 +755,7 @@ public:
                      int32_t displayId, sp<IBinder> token = nullptr)
           : mName(name) {
         if (token == nullptr) {
-            sp<InputChannel> serverChannel, clientChannel;
+            std::shared_ptr<InputChannel> serverChannel, clientChannel;
             InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
             mInputReceiver = std::make_unique<FakeInputReceiver>(clientChannel, name);
             dispatcher->registerInputChannel(serverChannel);
@@ -1767,7 +1768,7 @@ class FakeMonitorReceiver {
 public:
     FakeMonitorReceiver(const sp<InputDispatcher>& dispatcher, const std::string name,
                         int32_t displayId, bool isGestureMonitor = false) {
-        sp<InputChannel> serverChannel, clientChannel;
+        std::shared_ptr<InputChannel> serverChannel, clientChannel;
         InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
         mInputReceiver = std::make_unique<FakeInputReceiver>(clientChannel, name);
         dispatcher->registerInputMonitor(serverChannel, displayId, isGestureMonitor);
