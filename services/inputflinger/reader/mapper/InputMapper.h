@@ -22,6 +22,7 @@
 #include "InputListener.h"
 #include "InputReaderContext.h"
 #include "StylusState.h"
+#include "VibrationElement.h"
 
 namespace android {
 
@@ -62,7 +63,8 @@ public:
     virtual int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
     virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
                                        const int32_t* keyCodes, uint8_t* outFlags);
-    virtual void vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat, int32_t token);
+    virtual void vibrate(const std::vector<VibrationElement>& pattern, ssize_t repeat,
+                         int32_t token);
     virtual void cancelVibrate(int32_t token);
     virtual void cancelTouch(nsecs_t when);
 
