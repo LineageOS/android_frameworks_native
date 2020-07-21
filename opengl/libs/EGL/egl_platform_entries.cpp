@@ -98,7 +98,7 @@ char const * const gBuiltinExtensionString =
         "EGL_EXT_surface_CTA861_3_metadata "
         ;
 
-// Whitelist of extensions exposed to applications if implemented in the vendor driver.
+// Allowed list of extensions exposed to applications if implemented in the vendor driver.
 char const * const gExtensionString  =
         "EGL_KHR_image "                        // mandatory
         "EGL_KHR_image_base "                   // mandatory
