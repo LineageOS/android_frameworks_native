@@ -113,7 +113,7 @@ protected:
 
 private:
     sp<SetInputWindowsListener> mSetInputWindowsListener;
-    std::shared_ptr<InputChannel> mServerChannel, mClientChannel;
+    std::unique_ptr<InputChannel> mServerChannel, mClientChannel;
     InputWindowInfo mInfo;
     std::mutex mLock;
     std::condition_variable mSetInputWindowsFinishedCondition;
@@ -336,7 +336,7 @@ TEST_F(InputFlingerServiceTest, InputWindow_SetInputWindows) {
  *  Test InputFlinger service interface registerInputChannel
  */
 TEST_F(InputFlingerServiceTest, InputWindow_RegisterInputChannel) {
-    std::shared_ptr<InputChannel> serverChannel, clientChannel;
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
 
     InputChannel::openInputChannelPair("testchannels", serverChannel, clientChannel);
     mService->registerInputChannel(*serverChannel);
@@ -355,7 +355,7 @@ TEST_F(InputFlingerServiceTest, InputWindow_RegisterInputChannel) {
  *  Test InputFlinger service interface registerInputChannel with invalid cases
  */
 TEST_F(InputFlingerServiceTest, InputWindow_RegisterInputChannelInvalid) {
-    std::shared_ptr<InputChannel> serverChannel, clientChannel;
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
     InputChannel::openInputChannelPair("testchannels", serverChannel, clientChannel);
 
     std::vector<::android::InputChannel> channels;

@@ -30,33 +30,21 @@ namespace android {
 
 class InputPublisherAndConsumerTest : public testing::Test {
 protected:
-    std::shared_ptr<InputChannel> serverChannel, clientChannel;
-    InputPublisher* mPublisher;
-    InputConsumer* mConsumer;
+    std::shared_ptr<InputChannel> mServerChannel, mClientChannel;
+    std::unique_ptr<InputPublisher> mPublisher;
+    std::unique_ptr<InputConsumer> mConsumer;
     PreallocatedInputEventFactory mEventFactory;
 
-    virtual void SetUp() {
+    void SetUp() override {
+        std::unique_ptr<InputChannel> serverChannel, clientChannel;
         status_t result = InputChannel::openInputChannelPair("channel name",
                 serverChannel, clientChannel);
         ASSERT_EQ(OK, result);
+        mServerChannel = std::move(serverChannel);
+        mClientChannel = std::move(clientChannel);
 
-        mPublisher = new InputPublisher(serverChannel);
-        mConsumer = new InputConsumer(clientChannel);
-    }
-
-    virtual void TearDown() {
-        if (mPublisher) {
-            delete mPublisher;
-            mPublisher = nullptr;
-        }
-
-        if (mConsumer) {
-            delete mConsumer;
-            mConsumer = nullptr;
-        }
-
-        serverChannel.reset();
-        clientChannel.reset();
+        mPublisher = std::make_unique<InputPublisher>(mServerChannel);
+        mConsumer = std::make_unique<InputConsumer>(mClientChannel);
     }
 
     void PublishAndConsumeKeyEvent();
@@ -65,8 +53,8 @@ protected:
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
-    EXPECT_EQ(serverChannel.get(), mPublisher->getChannel().get());
-    EXPECT_EQ(clientChannel.get(), mConsumer->getChannel().get());
+    EXPECT_EQ(mServerChannel.get(), mPublisher->getChannel().get());
+    EXPECT_EQ(mClientChannel.get(), mConsumer->getChannel().get());
 }
 
 void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {

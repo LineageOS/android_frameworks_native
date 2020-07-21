@@ -243,7 +243,7 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
 
 // --- InputChannel ---
 
-std::shared_ptr<InputChannel> InputChannel::create(const std::string& name,
+std::unique_ptr<InputChannel> InputChannel::create(const std::string& name,
                                                    android::base::unique_fd fd, sp<IBinder> token) {
     const int result = fcntl(fd, F_SETFL, O_NONBLOCK);
     if (result != 0) {
@@ -252,7 +252,7 @@ std::shared_ptr<InputChannel> InputChannel::create(const std::string& name,
         return nullptr;
     }
     // using 'new' to access a non-public constructor
-    return std::shared_ptr<InputChannel>(new InputChannel(name, std::move(fd), token));
+    return std::unique_ptr<InputChannel>(new InputChannel(name, std::move(fd), token));
 }
 
 InputChannel::InputChannel(const std::string name, android::base::unique_fd fd, sp<IBinder> token)
@@ -269,8 +269,8 @@ InputChannel::~InputChannel() {
 }
 
 status_t InputChannel::openInputChannelPair(const std::string& name,
-                                            std::shared_ptr<InputChannel>& outServerChannel,
-                                            std::shared_ptr<InputChannel>& outClientChannel) {
+                                            std::unique_ptr<InputChannel>& outServerChannel,
+                                            std::unique_ptr<InputChannel>& outClientChannel) {
     int sockets[2];
     if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets)) {
         status_t result = -errno;
@@ -376,7 +376,7 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
     return OK;
 }
 
-std::shared_ptr<InputChannel> InputChannel::dup() const {
+std::unique_ptr<InputChannel> InputChannel::dup() const {
     android::base::unique_fd newFd(::dup(getFd()));
     if (!newFd.ok()) {
         ALOGE("Could not duplicate fd %i for channel %s: %s", getFd().get(), getName().c_str(),

@@ -755,11 +755,11 @@ public:
                      int32_t displayId, sp<IBinder> token = nullptr)
           : mName(name) {
         if (token == nullptr) {
-            std::shared_ptr<InputChannel> serverChannel, clientChannel;
+            std::unique_ptr<InputChannel> serverChannel, clientChannel;
             InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
-            mInputReceiver = std::make_unique<FakeInputReceiver>(clientChannel, name);
-            dispatcher->registerInputChannel(serverChannel);
+            mInputReceiver = std::make_unique<FakeInputReceiver>(std::move(clientChannel), name);
             token = serverChannel->getConnectionToken();
+            dispatcher->registerInputChannel(std::move(serverChannel));
         }
 
         inputApplicationHandle->updateInfo();
@@ -1768,10 +1768,10 @@ class FakeMonitorReceiver {
 public:
     FakeMonitorReceiver(const sp<InputDispatcher>& dispatcher, const std::string name,
                         int32_t displayId, bool isGestureMonitor = false) {
-        std::shared_ptr<InputChannel> serverChannel, clientChannel;
+        std::unique_ptr<InputChannel> serverChannel, clientChannel;
         InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
-        mInputReceiver = std::make_unique<FakeInputReceiver>(clientChannel, name);
-        dispatcher->registerInputMonitor(serverChannel, displayId, isGestureMonitor);
+        mInputReceiver = std::make_unique<FakeInputReceiver>(std::move(clientChannel), name);
+        dispatcher->registerInputMonitor(std::move(serverChannel), displayId, isGestureMonitor);
     }
 
     sp<IBinder> getToken() { return mInputReceiver->getToken(); }
