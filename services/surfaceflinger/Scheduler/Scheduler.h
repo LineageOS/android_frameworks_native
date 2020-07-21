@@ -44,7 +44,11 @@ using scheduler::LayerHistory;
 class DispSync;
 class FenceTime;
 class InjectVSyncSource;
-struct DisplayStateInfo;
+
+namespace scheduler {
+class VSyncDispatch;
+class VSyncTracker;
+} // namespace scheduler
 
 class ISchedulerCallback {
 public:
@@ -230,6 +234,9 @@ private:
     // Whether to use idle timer callbacks that support the kernel timer.
     const bool mSupportKernelTimer;
 
+    const bool mUseVsyncPredictor;
+    const std::unique_ptr<scheduler::VSyncTracker> mVSyncTracker;
+    const std::unique_ptr<scheduler::VSyncDispatch> mVSyncDispatch;
     std::unique_ptr<DispSync> mPrimaryDispSync;
     std::unique_ptr<EventControlThread> mEventControlThread;
 
