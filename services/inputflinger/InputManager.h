@@ -108,8 +108,8 @@ public:
             const std::vector<InputWindowInfo>& handles,
             const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
 
-    binder::Status registerInputChannel(const InputChannelInfo& info) override;
-    binder::Status unregisterInputChannel(const InputChannelInfo& info) override;
+    binder::Status registerInputChannel(const InputChannel& channel) override;
+    binder::Status unregisterInputChannel(const InputChannel& channel) override;
 
 private:
     sp<InputReaderInterface> mReader;

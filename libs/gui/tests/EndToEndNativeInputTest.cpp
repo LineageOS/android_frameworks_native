@@ -72,7 +72,7 @@ public:
         InputChannel::openInputChannelPair("testchannels", mServerChannel, mClientChannel);
 
         mInputFlinger = getInputFlinger();
-        mInputFlinger->registerInputChannel(mServerChannel->getInfo());
+        mInputFlinger->registerInputChannel(*mServerChannel);
 
         populateInputInfo(width, height);
 
@@ -154,7 +154,7 @@ public:
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
-    ~InputSurface() { mInputFlinger->unregisterInputChannel(mServerChannel->getInfo()); }
+    ~InputSurface() { mInputFlinger->unregisterInputChannel(*mServerChannel); }
 
     void doTransaction(std::function<void(SurfaceComposerClient::Transaction&,
                     const sp<SurfaceControl>&)> transactionBody) {
@@ -211,7 +211,8 @@ private:
     }
 public:
     sp<SurfaceControl> mSurfaceControl;
-    sp<InputChannel> mServerChannel, mClientChannel;
+    std::shared_ptr<InputChannel> mServerChannel;
+    std::shared_ptr<InputChannel> mClientChannel;
     sp<IInputFlinger> mInputFlinger;
 
     InputWindowInfo mInputInfo;

@@ -183,18 +183,6 @@ struct InputMessage {
     }
 };
 
-struct InputChannelInfo : public Parcelable {
-    std::string mName;
-    android::base::unique_fd mFd;
-    sp<IBinder> mToken;
-
-    InputChannelInfo() = default;
-    InputChannelInfo(const std::string& name, android::base::unique_fd fd, sp<IBinder> token)
-          : mName(name), mFd(std::move(fd)), mToken(token){};
-    status_t readFromParcel(const android::Parcel* parcel) override;
-    status_t writeToParcel(android::Parcel* parcel) const override;
-};
-
 /*
  * An input channel consists of a local unix domain socket used to send and receive
  * input messages across processes.  Each channel has a descriptive name for debugging purposes.
@@ -203,14 +191,15 @@ struct InputChannelInfo : public Parcelable {
  *
  * The input channel is closed when all references to it are released.
  */
-class InputChannel : public RefBase {
+class InputChannel : public Parcelable {
 public:
-    InputChannel();
+    static std::shared_ptr<InputChannel> create(const std::string& name,
+                                                android::base::unique_fd fd, sp<IBinder> token);
+    InputChannel() = default;
+    InputChannel(const InputChannel& other)
+          : mName(other.mName), mFd(::dup(other.mFd)), mToken(other.mToken){};
+    InputChannel(const std::string name, android::base::unique_fd fd, sp<IBinder> token);
     virtual ~InputChannel();
-
-    static sp<InputChannel> create(const std::string& name, android::base::unique_fd fd,
-                                   sp<IBinder> token);
-
     /**
      * Create a pair of input channels.
      * The two returned input channels are equivalent, and are labeled as "server" and "client"
@@ -219,12 +208,12 @@ public:
      * Return OK on success.
      */
     static status_t openInputChannelPair(const std::string& name,
-            sp<InputChannel>& outServerChannel, sp<InputChannel>& outClientChannel);
+                                         std::shared_ptr<InputChannel>& outServerChannel,
+                                         std::shared_ptr<InputChannel>& outClientChannel);
 
-    inline std::string getName() const { return mInfo.mName; }
-    inline int getFd() const { return mInfo.mFd.get(); }
-    inline sp<IBinder> getToken() const { return mInfo.mToken; }
-    inline InputChannelInfo& getInfo() { return mInfo; }
+    inline std::string getName() const { return mName; }
+    inline const android::base::unique_fd& getFd() const { return mFd; }
+    inline sp<IBinder> getToken() const { return mToken; }
 
     /* Send a message to the other endpoint.
      *
@@ -252,11 +241,10 @@ public:
     status_t receiveMessage(InputMessage* msg);
 
     /* Return a new object that has a duplicate of this channel's fd. */
-    sp<InputChannel> dup() const;
+    std::shared_ptr<InputChannel> dup() const;
 
-    status_t readFromParcel(const android::Parcel* parcel);
-
-    status_t writeToParcel(android::Parcel* parcel) const;
+    status_t readFromParcel(const android::Parcel* parcel) override;
+    status_t writeToParcel(android::Parcel* parcel) const override;
 
     /**
      * The connection token is used to identify the input connection, i.e.
@@ -273,22 +261,23 @@ public:
     sp<IBinder> getConnectionToken() const;
 
     bool operator==(const InputChannel& inputChannel) const {
-        struct stat lhsInfo, rhsInfo;
-        if (fstat(mInfo.mFd.get(), &lhsInfo) != 0) {
+        struct stat lhs, rhs;
+        if (fstat(mFd.get(), &lhs) != 0) {
             return false;
         }
-        if (fstat(inputChannel.getFd(), &rhsInfo) != 0) {
+        if (fstat(inputChannel.getFd(), &rhs) != 0) {
             return false;
         }
         // If file descriptors are pointing to same inode they are duplicated fds.
-        return inputChannel.getName() == getName() &&
-                inputChannel.getConnectionToken() == mInfo.mToken &&
-                lhsInfo.st_ino == rhsInfo.st_ino;
+        return inputChannel.getName() == getName() && inputChannel.getConnectionToken() == mToken &&
+                lhs.st_ino == rhs.st_ino;
     }
 
 private:
-    InputChannel(const std::string& name, android::base::unique_fd fd, sp<IBinder> token);
-    InputChannelInfo mInfo;
+    std::string mName;
+    android::base::unique_fd mFd;
+
+    sp<IBinder> mToken;
 };
 
 /*
@@ -297,13 +286,13 @@ private:
 class InputPublisher {
 public:
     /* Creates a publisher associated with an input channel. */
-    explicit InputPublisher(const sp<InputChannel>& channel);
+    explicit InputPublisher(const std::shared_ptr<InputChannel>& channel);
 
     /* Destroys the publisher and releases its input channel. */
     ~InputPublisher();
 
     /* Gets the underlying input channel. */
-    inline sp<InputChannel> getChannel() { return mChannel; }
+    inline std::shared_ptr<InputChannel> getChannel() { return mChannel; }
 
     /* Publishes a key event to the input channel.
      *
@@ -360,7 +349,7 @@ public:
     status_t receiveFinishedSignal(uint32_t* outSeq, bool* outHandled);
 
 private:
-    sp<InputChannel> mChannel;
+    std::shared_ptr<InputChannel> mChannel;
 };
 
 /*
@@ -369,13 +358,13 @@ private:
 class InputConsumer {
 public:
     /* Creates a consumer associated with an input channel. */
-    explicit InputConsumer(const sp<InputChannel>& channel);
+    explicit InputConsumer(const std::shared_ptr<InputChannel>& channel);
 
     /* Destroys the consumer and releases its input channel. */
     ~InputConsumer();
 
     /* Gets the underlying input channel. */
-    inline sp<InputChannel> getChannel() { return mChannel; }
+    inline std::shared_ptr<InputChannel> getChannel() { return mChannel; }
 
     /* Consumes an input event from the input channel and copies its contents into
      * an InputEvent object created using the specified factory.
@@ -451,8 +440,7 @@ private:
     // True if touch resampling is enabled.
     const bool mResampleTouch;
 
-    // The input channel.
-    sp<InputChannel> mChannel;
+    std::shared_ptr<InputChannel> mChannel;
 
     // The current input message.
     InputMessage mMsg;
