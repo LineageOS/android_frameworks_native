@@ -45,26 +45,6 @@ public:
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 
-class VSyncTrackerWrapper : public VSyncTracker {
-public:
-    VSyncTrackerWrapper(std::shared_ptr<VSyncTracker> const& tracker) : mTracker(tracker) {}
-
-    bool addVsyncTimestamp(nsecs_t timestamp) final {
-        return mTracker->addVsyncTimestamp(timestamp);
-    }
-    nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final {
-        return mTracker->nextAnticipatedVSyncTimeFrom(timePoint);
-    }
-    nsecs_t currentPeriod() const final { return mTracker->currentPeriod(); }
-    void setPeriod(nsecs_t period) final { mTracker->setPeriod(period); }
-    void resetModel() final { mTracker->resetModel(); }
-    bool needsMoreSamples() const final { return mTracker->needsMoreSamples(); }
-    void dump(std::string& result) const final { mTracker->dump(result); }
-
-private:
-    std::shared_ptr<VSyncTracker> const mTracker;
-};
-
 class MockClock : public Clock {
 public:
     MOCK_CONST_METHOD0(now, nsecs_t());
@@ -88,29 +68,6 @@ public:
     MOCK_METHOD3(schedule, ScheduleResult(CallbackToken, nsecs_t, nsecs_t));
     MOCK_METHOD1(cancel, CancelResult(CallbackToken token));
     MOCK_CONST_METHOD1(dump, void(std::string&));
-};
-
-class VSyncDispatchWrapper : public VSyncDispatch {
-public:
-    VSyncDispatchWrapper(std::shared_ptr<VSyncDispatch> const& dispatch) : mDispatch(dispatch) {}
-    CallbackToken registerCallback(std::function<void(nsecs_t, nsecs_t)> const& callbackFn,
-                                   std::string callbackName) final {
-        return mDispatch->registerCallback(callbackFn, callbackName);
-    }
-
-    void unregisterCallback(CallbackToken token) final { mDispatch->unregisterCallback(token); }
-
-    ScheduleResult schedule(CallbackToken token, nsecs_t workDuration,
-                            nsecs_t earliestVsync) final {
-        return mDispatch->schedule(token, workDuration, earliestVsync);
-    }
-
-    CancelResult cancel(CallbackToken token) final { return mDispatch->cancel(token); }
-
-    void dump(std::string& result) const final { return mDispatch->dump(result); }
-
-private:
-    std::shared_ptr<VSyncDispatch> const mDispatch;
 };
 
 std::shared_ptr<FenceTime> generateInvalidFence() {
@@ -157,10 +114,8 @@ protected:
           : mMockDispatch(std::make_shared<NiceMock<MockVSyncDispatch>>()),
             mMockTracker(std::make_shared<NiceMock<MockVSyncTracker>>()),
             mMockClock(std::make_shared<NiceMock<MockClock>>()),
-            mReactor(std::make_unique<ClockWrapper>(mMockClock),
-                     std::make_unique<VSyncDispatchWrapper>(mMockDispatch),
-                     std::make_unique<VSyncTrackerWrapper>(mMockTracker), kPendingLimit,
-                     false /* supportKernelIdleTimer */) {
+            mReactor(std::make_unique<ClockWrapper>(mMockClock), *mMockDispatch, *mMockTracker,
+                     kPendingLimit, false /* supportKernelIdleTimer */) {
         ON_CALL(*mMockClock, now()).WillByDefault(Return(mFakeNow));
         ON_CALL(*mMockTracker, currentPeriod()).WillByDefault(Return(period));
     }
@@ -745,10 +700,9 @@ TEST_F(VSyncReactorTest, periodChangeWithGivenVsyncPeriod) {
 
 TEST_F(VSyncReactorTest, periodIsMeasuredIfIgnoringComposer) {
     // Create a reactor which supports the kernel idle timer
-    auto idleReactor = VSyncReactor(std::make_unique<ClockWrapper>(mMockClock),
-                                    std::make_unique<VSyncDispatchWrapper>(mMockDispatch),
-                                    std::make_unique<VSyncTrackerWrapper>(mMockTracker),
-                                    kPendingLimit, true /* supportKernelIdleTimer */);
+    auto idleReactor =
+            VSyncReactor(std::make_unique<ClockWrapper>(mMockClock), *mMockDispatch, *mMockTracker,
+                         kPendingLimit, true /* supportKernelIdleTimer */);
 
     bool periodFlushed = true;
     EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(4);

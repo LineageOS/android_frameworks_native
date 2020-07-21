@@ -61,36 +61,46 @@
     } while (false)
 
 namespace android {
+
 namespace {
 
-std::unique_ptr<DispSync> createDispSync(bool supportKernelTimer) {
-    // TODO (140302863) remove this and use the vsync_reactor system.
-    if (property_get_bool("debug.sf.vsync_reactor", true)) {
+std::unique_ptr<scheduler::VSyncTracker> createVSyncTracker() {
+    // TODO (144707443) tune Predictor tunables.
+    static constexpr int default_rate = 60;
+    static constexpr auto initial_period =
+            std::chrono::duration<nsecs_t, std::ratio<1, default_rate>>(1);
+    static constexpr size_t vsyncTimestampHistorySize = 20;
+    static constexpr size_t minimumSamplesForPrediction = 6;
+    static constexpr uint32_t discardOutlierPercent = 20;
+    return std::make_unique<
+            scheduler::VSyncPredictor>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                               initial_period)
+                                               .count(),
+                                       vsyncTimestampHistorySize, minimumSamplesForPrediction,
+                                       discardOutlierPercent);
+}
+
+std::unique_ptr<scheduler::VSyncDispatch> createVSyncDispatch(
+        const std::unique_ptr<scheduler::VSyncTracker>& vSyncTracker) {
+    if (!vSyncTracker) return {};
+
+    // TODO (144707443) tune Predictor tunables.
+    static constexpr auto vsyncMoveThreshold =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(3ms);
+    static constexpr auto timerSlack = std::chrono::duration_cast<std::chrono::nanoseconds>(500us);
+    return std::make_unique<
+            scheduler::VSyncDispatchTimerQueue>(std::make_unique<scheduler::Timer>(), *vSyncTracker,
+                                                timerSlack.count(), vsyncMoveThreshold.count());
+}
+
+std::unique_ptr<DispSync> createDispSync(
+        const std::unique_ptr<scheduler::VSyncTracker>& vSyncTracker,
+        const std::unique_ptr<scheduler::VSyncDispatch>& vSyncDispatch, bool supportKernelTimer) {
+    if (vSyncTracker && vSyncDispatch) {
         // TODO (144707443) tune Predictor tunables.
-        static constexpr int defaultRate = 60;
-        static constexpr auto initialPeriod =
-                std::chrono::duration<nsecs_t, std::ratio<1, defaultRate>>(1);
-        static constexpr size_t vsyncTimestampHistorySize = 20;
-        static constexpr size_t minimumSamplesForPrediction = 6;
-        static constexpr uint32_t discardOutlierPercent = 20;
-        auto tracker = std::make_unique<
-                scheduler::VSyncPredictor>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                                   initialPeriod)
-                                                   .count(),
-                                           vsyncTimestampHistorySize, minimumSamplesForPrediction,
-                                           discardOutlierPercent);
-
-        static constexpr auto vsyncMoveThreshold =
-                std::chrono::duration_cast<std::chrono::nanoseconds>(3ms);
-        static constexpr auto timerSlack =
-                std::chrono::duration_cast<std::chrono::nanoseconds>(500us);
-        auto dispatch = std::make_unique<
-                scheduler::VSyncDispatchTimerQueue>(std::make_unique<scheduler::Timer>(), *tracker,
-                                                    timerSlack.count(), vsyncMoveThreshold.count());
-
         static constexpr size_t pendingFenceLimit = 20;
         return std::make_unique<scheduler::VSyncReactor>(std::make_unique<scheduler::SystemClock>(),
-                                                         std::move(dispatch), std::move(tracker),
+                                                         *vSyncDispatch, *vSyncTracker,
                                                          pendingFenceLimit, supportKernelTimer);
     } else {
         return std::make_unique<impl::DispSync>("SchedulerDispSync",
@@ -110,7 +120,11 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
                      ISchedulerCallback& schedulerCallback, bool useContentDetectionV2,
                      bool useContentDetection)
       : mSupportKernelTimer(sysprop::support_kernel_idle_timer(false)),
-        mPrimaryDispSync(createDispSync(mSupportKernelTimer)),
+        // TODO (140302863) remove this and use the vsync_reactor system.
+        mUseVsyncPredictor(property_get_bool("debug.sf.vsync_reactor", true)),
+        mVSyncTracker(mUseVsyncPredictor ? createVSyncTracker() : nullptr),
+        mVSyncDispatch(createVSyncDispatch(mVSyncTracker)),
+        mPrimaryDispSync(createDispSync(mVSyncTracker, mVSyncDispatch, mSupportKernelTimer)),
         mEventControlThread(new impl::EventControlThread(std::move(function))),
         mLayerHistory(createLayerHistory(refreshRateConfigs, useContentDetectionV2)),
         mSchedulerCallback(schedulerCallback),
@@ -156,6 +170,7 @@ Scheduler::Scheduler(std::unique_ptr<DispSync> primaryDispSync,
                      std::unique_ptr<LayerHistory> layerHistory, bool useContentDetectionV2,
                      bool useContentDetection)
       : mSupportKernelTimer(false),
+        mUseVsyncPredictor(true),
         mPrimaryDispSync(std::move(primaryDispSync)),
         mEventControlThread(std::move(eventControlThread)),
         mLayerHistory(std::move(layerHistory)),

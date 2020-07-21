@@ -35,9 +35,8 @@ class PredictedVsyncTracer;
 // TODO (b/145217110): consider renaming.
 class VSyncReactor : public android::DispSync {
 public:
-    VSyncReactor(std::unique_ptr<Clock> clock, std::unique_ptr<VSyncDispatch> dispatch,
-                 std::unique_ptr<VSyncTracker> tracker, size_t pendingFenceLimit,
-                 bool supportKernelIdleTimer);
+    VSyncReactor(std::unique_ptr<Clock> clock, VSyncDispatch& dispatch, VSyncTracker& tracker,
+                 size_t pendingFenceLimit, bool supportKernelIdleTimer);
     ~VSyncReactor();
 
     bool addPresentFence(const std::shared_ptr<FenceTime>& fence) final;
@@ -72,8 +71,8 @@ private:
             REQUIRES(mMutex);
 
     std::unique_ptr<Clock> const mClock;
-    std::unique_ptr<VSyncTracker> const mTracker;
-    std::unique_ptr<VSyncDispatch> const mDispatch;
+    VSyncTracker& mTracker;
+    VSyncDispatch& mDispatch;
     size_t const mPendingLimit;
 
     mutable std::mutex mMutex;
