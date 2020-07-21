@@ -199,3 +199,76 @@ TEST_F(EventHubTest, InputEvent_TimestampIsMonotonic) {
         lastEventTime = event.when; // Ensure all returned events are monotonic
     }
 }
+
+// --- BitArrayTest ---
+class BitArrayTest : public testing::Test {
+protected:
+    static constexpr size_t SINGLE_ELE_BITS = 32UL;
+    static constexpr size_t MULTI_ELE_BITS = 256UL;
+
+    virtual void SetUp() override {
+        mBitmaskSingle.loadFromBuffer(mBufferSingle);
+        mBitmaskMulti.loadFromBuffer(mBufferMulti);
+    }
+
+    android::BitArray<SINGLE_ELE_BITS> mBitmaskSingle;
+    android::BitArray<MULTI_ELE_BITS> mBitmaskMulti;
+
+private:
+    const typename android::BitArray<SINGLE_ELE_BITS>::Buffer mBufferSingle = {
+            0x800F0F0FUL // bit 0 - 31
+    };
+    const typename android::BitArray<MULTI_ELE_BITS>::Buffer mBufferMulti = {
+            0xFFFFFFFFUL, // bit 0 - 31
+            0x01000001UL, // bit 32 - 63
+            0x00000000UL, // bit 64 - 95
+            0x80000000UL, // bit 96 - 127
+            0x00000000UL, // bit 128 - 159
+            0x00000000UL, // bit 160 - 191
+            0x80000008UL, // bit 192 - 223
+            0x00000000UL, // bit 224 - 255
+    };
+};
+
+TEST_F(BitArrayTest, SetBit) {
+    ASSERT_TRUE(mBitmaskSingle.test(0));
+    ASSERT_TRUE(mBitmaskSingle.test(31));
+    ASSERT_FALSE(mBitmaskSingle.test(7));
+
+    ASSERT_TRUE(mBitmaskMulti.test(32));
+    ASSERT_TRUE(mBitmaskMulti.test(56));
+    ASSERT_FALSE(mBitmaskMulti.test(192));
+    ASSERT_TRUE(mBitmaskMulti.test(223));
+    ASSERT_FALSE(mBitmaskMulti.test(255));
+}
+
+TEST_F(BitArrayTest, AnyBit) {
+    ASSERT_TRUE(mBitmaskSingle.any(31, 32));
+    ASSERT_FALSE(mBitmaskSingle.any(12, 16));
+
+    ASSERT_TRUE(mBitmaskMulti.any(31, 32));
+    ASSERT_FALSE(mBitmaskMulti.any(33, 33));
+    ASSERT_TRUE(mBitmaskMulti.any(32, 55));
+    ASSERT_TRUE(mBitmaskMulti.any(33, 57));
+    ASSERT_FALSE(mBitmaskMulti.any(33, 55));
+    ASSERT_FALSE(mBitmaskMulti.any(130, 190));
+
+    ASSERT_FALSE(mBitmaskMulti.any(128, 195));
+    ASSERT_TRUE(mBitmaskMulti.any(128, 196));
+    ASSERT_TRUE(mBitmaskMulti.any(128, 224));
+    ASSERT_FALSE(mBitmaskMulti.any(255, 256));
+}
+
+TEST_F(BitArrayTest, SetBit_InvalidBitIndex) {
+    ASSERT_FALSE(mBitmaskSingle.test(32));
+    ASSERT_FALSE(mBitmaskMulti.test(256));
+}
+
+TEST_F(BitArrayTest, AnyBit_InvalidBitIndex) {
+    ASSERT_FALSE(mBitmaskSingle.any(32, 32));
+    ASSERT_FALSE(mBitmaskSingle.any(33, 34));
+
+    ASSERT_FALSE(mBitmaskMulti.any(256, 256));
+    ASSERT_FALSE(mBitmaskMulti.any(257, 258));
+    ASSERT_FALSE(mBitmaskMulti.any(0, 0));
+}
