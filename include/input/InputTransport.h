@@ -193,7 +193,7 @@ struct InputMessage {
  */
 class InputChannel : public Parcelable {
 public:
-    static std::shared_ptr<InputChannel> create(const std::string& name,
+    static std::unique_ptr<InputChannel> create(const std::string& name,
                                                 android::base::unique_fd fd, sp<IBinder> token);
     InputChannel() = default;
     InputChannel(const InputChannel& other)
@@ -208,8 +208,8 @@ public:
      * Return OK on success.
      */
     static status_t openInputChannelPair(const std::string& name,
-                                         std::shared_ptr<InputChannel>& outServerChannel,
-                                         std::shared_ptr<InputChannel>& outClientChannel);
+                                         std::unique_ptr<InputChannel>& outServerChannel,
+                                         std::unique_ptr<InputChannel>& outClientChannel);
 
     inline std::string getName() const { return mName; }
     inline const android::base::unique_fd& getFd() const { return mFd; }
@@ -241,7 +241,7 @@ public:
     status_t receiveMessage(InputMessage* msg);
 
     /* Return a new object that has a duplicate of this channel's fd. */
-    std::shared_ptr<InputChannel> dup() const;
+    std::unique_ptr<InputChannel> dup() const;
 
     status_t readFromParcel(const android::Parcel* parcel) override;
     status_t writeToParcel(android::Parcel* parcel) const override;
