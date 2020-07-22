@@ -115,7 +115,8 @@ public:
             const std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>>&
                     handlesPerDisplay) override;
     virtual void setFocusedApplication(
-            int32_t displayId, const sp<InputApplicationHandle>& inputApplicationHandle) override;
+            int32_t displayId,
+            const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) override;
     virtual void setFocusedDisplay(int32_t displayId) override;
     virtual void setInputDispatchMode(bool enabled, bool frozen) override;
     virtual void setInputFilterEnabled(bool enabled) override;
@@ -321,8 +322,8 @@ private:
     std::unordered_map<int32_t, TouchState> mTouchStatesByDisplay GUARDED_BY(mLock);
 
     // Focused applications.
-    std::unordered_map<int32_t, sp<InputApplicationHandle>> mFocusedApplicationHandlesByDisplay
-            GUARDED_BY(mLock);
+    std::unordered_map<int32_t, std::shared_ptr<InputApplicationHandle>>
+            mFocusedApplicationHandlesByDisplay GUARDED_BY(mLock);
 
     // Top focused display.
     int32_t mFocusedDisplayId GUARDED_BY(mLock);
@@ -374,7 +375,7 @@ private:
      * The focused application at the time when no focused window was present.
      * Used to raise an ANR when we have no focused window.
      */
-    sp<InputApplicationHandle> mAwaitedFocusedApplication GUARDED_BY(mLock);
+    std::shared_ptr<InputApplicationHandle> mAwaitedFocusedApplication GUARDED_BY(mLock);
 
     // Optimization: AnrTracker is used to quickly find which connection is due for a timeout next.
     // AnrTracker must be kept in-sync with all responsive connection.waitQueues.
@@ -382,7 +383,7 @@ private:
     // Once a connection becomes unresponsive, its entries are removed from AnrTracker to
     // prevent unneeded wakeups.
     AnrTracker mAnrTracker GUARDED_BY(mLock);
-    void extendAnrTimeoutsLocked(const sp<InputApplicationHandle>& application,
+    void extendAnrTimeoutsLocked(const std::shared_ptr<InputApplicationHandle>& application,
                                  const sp<IBinder>& connectionToken,
                                  std::chrono::nanoseconds timeoutExtension) REQUIRES(mLock);
 
@@ -426,8 +427,9 @@ private:
     bool isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle, int32_t x,
                                        int32_t y) const REQUIRES(mLock);
     bool isWindowObscuredLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
-    std::string getApplicationWindowLabel(const sp<InputApplicationHandle>& applicationHandle,
-                                          const sp<InputWindowHandle>& windowHandle);
+    std::string getApplicationWindowLabel(
+            const std::shared_ptr<InputApplicationHandle>& applicationHandle,
+            const sp<InputWindowHandle>& windowHandle);
 
     // Manage the dispatch cycle for a single connection.
     // These methods are deliberately not Interruptible because doing all of the work
@@ -499,10 +501,10 @@ private:
     void onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
                               const sp<InputWindowHandle>& newFocus) REQUIRES(mLock);
     void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
-    void onAnrLocked(const sp<InputApplicationHandle>& application) REQUIRES(mLock);
+    void onAnrLocked(const std::shared_ptr<InputApplicationHandle>& application) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)
             REQUIRES(mLock);
-    void updateLastAnrStateLocked(const sp<InputApplicationHandle>& application,
+    void updateLastAnrStateLocked(const std::shared_ptr<InputApplicationHandle>& application,
                                   const std::string& reason) REQUIRES(mLock);
     void updateLastAnrStateLocked(const std::string& windowLabel, const std::string& reason)
             REQUIRES(mLock);

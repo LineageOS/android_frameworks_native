@@ -113,7 +113,8 @@ public:
      * This method may be called on any thread (usually by the input manager).
      */
     virtual void setFocusedApplication(
-            int32_t displayId, const sp<InputApplicationHandle>& inputApplicationHandle) = 0;
+            int32_t displayId,
+            const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) = 0;
 
     /* Sets the focused display.
      *
