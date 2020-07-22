@@ -14,288 +14,157 @@
  * limitations under the License.
  */
 
-#undef LOG_TAG
-#define LOG_TAG "LibSurfaceFlingerUnittests"
-#define LOG_NDEBUG 0
-
-#include "Scheduler/VsyncModulator.h"
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-using namespace testing;
+#include "Scheduler/VsyncModulator.h"
 
 namespace android::scheduler {
 
-class MockScheduler final : public IPhaseOffsetControl {
-public:
-    nsecs_t getOffset(ConnectionHandle handle) { return mPhaseOffset[handle]; }
-
-private:
-    void setPhaseOffset(ConnectionHandle handle, nsecs_t phaseOffset) override {
-        mPhaseOffset[handle] = phaseOffset;
-    }
-
-    std::unordered_map<ConnectionHandle, nsecs_t> mPhaseOffset;
-};
-
-class VSyncModulatorTest : public testing::Test {
-protected:
-    static constexpr auto MIN_EARLY_FRAME_COUNT_TRANSACTION =
-            VSyncModulator::MIN_EARLY_FRAME_COUNT_TRANSACTION;
-    // Add a 1ms slack to avoid strange timer race conditions.
-    static constexpr auto MARGIN_FOR_TX_APPLY = VSyncModulator::MARGIN_FOR_TX_APPLY + 1ms;
-
-    // Used to enumerate the different offsets we have
-    enum {
+class VsyncModulatorTest : public testing::Test {
+    enum Offsets {
         SF_LATE,
         APP_LATE,
         SF_EARLY,
         APP_EARLY,
-        SF_EARLY_GL,
-        APP_EARLY_GL,
+        SF_EARLY_GPU,
+        APP_EARLY_GPU,
     };
 
-    std::unique_ptr<VSyncModulator> mVSyncModulator;
-    MockScheduler mMockScheduler;
-    ConnectionHandle mAppConnection{1};
-    ConnectionHandle mSfConnection{2};
-    VSyncModulator::OffsetsConfig mOffsets = {{SF_EARLY, APP_EARLY},
-                                              {SF_EARLY_GL, APP_EARLY_GL},
-                                              {SF_LATE, APP_LATE}};
+    static VsyncModulator::TimePoint Now() {
+        static VsyncModulator::TimePoint now;
+        return now += VsyncModulator::MIN_EARLY_TRANSACTION_TIME;
+    }
 
-    void SetUp() override {
-        mVSyncModulator = std::make_unique<VSyncModulator>(mMockScheduler, mAppConnection,
-                                                           mSfConnection, mOffsets);
-        mVSyncModulator->setPhaseOffsets(mOffsets);
+protected:
+    static constexpr auto MIN_EARLY_TRANSACTION_FRAMES =
+            VsyncModulator::MIN_EARLY_TRANSACTION_FRAMES;
 
-        EXPECT_EQ(APP_LATE, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_LATE, mMockScheduler.getOffset(mSfConnection));
-    };
+    using Schedule = scheduler::TransactionSchedule;
 
-    void TearDown() override { mVSyncModulator.reset(); }
+    const VsyncModulator::Offsets kEarly{SF_EARLY, APP_EARLY};
+    const VsyncModulator::Offsets kEarlyGpu{SF_EARLY_GPU, APP_EARLY_GPU};
+    const VsyncModulator::Offsets kLate{SF_LATE, APP_LATE};
+
+    const VsyncModulator::OffsetsConfig mOffsets = {kEarly, kEarlyGpu, kLate};
+    VsyncModulator mVsyncModulator{mOffsets, Now};
+
+    void SetUp() override { EXPECT_EQ(kLate, mVsyncModulator.setPhaseOffsets(mOffsets)); }
 };
 
-TEST_F(VSyncModulatorTest, Normal) {
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::Normal);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_LATE, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_LATE, mMockScheduler.getOffset(mSfConnection));
+#define CHECK_COMMIT(result, offsets)                         \
+    EXPECT_EQ(result, mVsyncModulator.onTransactionCommit()); \
+    EXPECT_EQ(offsets, mVsyncModulator.getOffsets());
 
-    for (int i = 0; i < MIN_EARLY_FRAME_COUNT_TRANSACTION; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_LATE, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_LATE, mMockScheduler.getOffset(mSfConnection));
+#define CHECK_REFRESH(N, result, offsets)                           \
+    for (int i = 0; i < N; i++) {                                   \
+        EXPECT_EQ(result, mVsyncModulator.onDisplayRefresh(false)); \
+        EXPECT_EQ(offsets, mVsyncModulator.getOffsets());           \
     }
+
+TEST_F(VsyncModulatorTest, Late) {
+    EXPECT_FALSE(mVsyncModulator.setTransactionSchedule(Schedule::Late));
+
+    CHECK_COMMIT(std::nullopt, kLate);
+    CHECK_REFRESH(MIN_EARLY_TRANSACTION_FRAMES, std::nullopt, kLate);
 }
 
-TEST_F(VSyncModulatorTest, EarlyEnd) {
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyEnd);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+TEST_F(VsyncModulatorTest, EarlyEnd) {
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyEnd));
 
-    for (int i = 0; i < MIN_EARLY_FRAME_COUNT_TRANSACTION - 1; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
-
-    mVSyncModulator->onRefreshed(false);
-    EXPECT_EQ(APP_LATE, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_LATE, mMockScheduler.getOffset(mSfConnection));
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(MIN_EARLY_TRANSACTION_FRAMES - 1, kEarly, kEarly);
+    CHECK_REFRESH(1, kLate, kLate);
 }
 
-TEST_F(VSyncModulatorTest, EarlyStart) {
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyStart);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+TEST_F(VsyncModulatorTest, EarlyStart) {
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyStart));
 
-    for (int i = 0; i < 5 * MIN_EARLY_FRAME_COUNT_TRANSACTION; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(5 * MIN_EARLY_TRANSACTION_FRAMES, std::nullopt, kEarly);
 
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyEnd);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyEnd));
 
-    for (int i = 0; i < MIN_EARLY_FRAME_COUNT_TRANSACTION - 1; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
-
-    mVSyncModulator->onRefreshed(false);
-    EXPECT_EQ(APP_LATE, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_LATE, mMockScheduler.getOffset(mSfConnection));
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(MIN_EARLY_TRANSACTION_FRAMES - 1, kEarly, kEarly);
+    CHECK_REFRESH(1, kLate, kLate);
 }
 
-TEST_F(VSyncModulatorTest, EarlyStartWithEarly) {
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyStart);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+TEST_F(VsyncModulatorTest, EarlyStartWithEarly) {
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyStart));
 
-    for (int i = 0; i < 5 * MIN_EARLY_FRAME_COUNT_TRANSACTION; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(5 * MIN_EARLY_TRANSACTION_FRAMES, std::nullopt, kEarly);
 
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::Early);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::Early));
 
-    for (int i = 0; i < 5 * MIN_EARLY_FRAME_COUNT_TRANSACTION; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(5 * MIN_EARLY_TRANSACTION_FRAMES, std::nullopt, kEarly);
 
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyEnd);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyEnd));
 
-    for (int i = 0; i < MIN_EARLY_FRAME_COUNT_TRANSACTION - 1; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
-
-    mVSyncModulator->onRefreshed(false);
-    EXPECT_EQ(APP_LATE, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_LATE, mMockScheduler.getOffset(mSfConnection));
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(MIN_EARLY_TRANSACTION_FRAMES - 1, kEarly, kEarly);
+    CHECK_REFRESH(1, kLate, kLate);
 }
 
-TEST_F(VSyncModulatorTest, EarlyStartWithMoreTransactions) {
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyStart);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+TEST_F(VsyncModulatorTest, EarlyStartWithMoreTransactions) {
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyStart));
 
-    for (int i = 0; i < 5 * MIN_EARLY_FRAME_COUNT_TRANSACTION; i++) {
-        mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::Normal);
-        std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+    CHECK_COMMIT(kEarly, kEarly);
+
+    for (int i = 0; i < 5 * MIN_EARLY_TRANSACTION_FRAMES; i++) {
+        EXPECT_FALSE(mVsyncModulator.setTransactionSchedule(Schedule::Late));
+        CHECK_REFRESH(1, std::nullopt, kEarly);
     }
 
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyEnd);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyEnd));
 
-    for (int i = 0; i < MIN_EARLY_FRAME_COUNT_TRANSACTION - 1; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
-
-    mVSyncModulator->onRefreshed(false);
-    EXPECT_EQ(APP_LATE, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_LATE, mMockScheduler.getOffset(mSfConnection));
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(MIN_EARLY_TRANSACTION_FRAMES - 1, kEarly, kEarly);
+    CHECK_REFRESH(1, kLate, kLate);
 }
 
-TEST_F(VSyncModulatorTest, EarlyStartAfterEarlyEnd) {
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyEnd);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+TEST_F(VsyncModulatorTest, EarlyStartAfterEarlyEnd) {
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyEnd));
 
-    for (int i = 0; i < MIN_EARLY_FRAME_COUNT_TRANSACTION - 1; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(MIN_EARLY_TRANSACTION_FRAMES - 1, kEarly, kEarly);
 
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyStart);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyStart));
 
-    for (int i = 0; i < 5 * MIN_EARLY_FRAME_COUNT_TRANSACTION; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(1, kEarly, kEarly);
+    CHECK_REFRESH(5 * MIN_EARLY_TRANSACTION_FRAMES, std::nullopt, kEarly);
 
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyEnd);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyEnd));
 
-    for (int i = 0; i < MIN_EARLY_FRAME_COUNT_TRANSACTION - 1; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
-
-    mVSyncModulator->onRefreshed(false);
-    EXPECT_EQ(APP_LATE, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_LATE, mMockScheduler.getOffset(mSfConnection));
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(MIN_EARLY_TRANSACTION_FRAMES - 1, kEarly, kEarly);
+    CHECK_REFRESH(1, kLate, kLate);
 }
 
-TEST_F(VSyncModulatorTest, EarlyStartAfterEarlyEndWithMoreTransactions) {
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyEnd);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+TEST_F(VsyncModulatorTest, EarlyStartAfterEarlyEndWithMoreTransactions) {
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyEnd));
 
-    for (int i = 0; i < MIN_EARLY_FRAME_COUNT_TRANSACTION - 1; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(MIN_EARLY_TRANSACTION_FRAMES - 1, kEarly, kEarly);
+
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyStart));
+
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(1, kEarly, kEarly);
+
+    for (int i = 0; i < 5 * MIN_EARLY_TRANSACTION_FRAMES; i++) {
+        EXPECT_FALSE(mVsyncModulator.setTransactionSchedule(Schedule::Late));
+        CHECK_REFRESH(1, std::nullopt, kEarly);
     }
 
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyStart);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
+    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyEnd));
 
-    for (int i = 0; i < 5 * MIN_EARLY_FRAME_COUNT_TRANSACTION; i++) {
-        mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::Normal);
-        std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
-
-    mVSyncModulator->setTransactionStart(Scheduler::TransactionStart::EarlyEnd);
-    std::this_thread::sleep_for(MARGIN_FOR_TX_APPLY);
-    mVSyncModulator->onTransactionHandled();
-    EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-
-    for (int i = 0; i < MIN_EARLY_FRAME_COUNT_TRANSACTION - 1; i++) {
-        mVSyncModulator->onRefreshed(false);
-        EXPECT_EQ(APP_EARLY, mMockScheduler.getOffset(mAppConnection));
-        EXPECT_EQ(SF_EARLY, mMockScheduler.getOffset(mSfConnection));
-    }
-
-    mVSyncModulator->onRefreshed(false);
-    EXPECT_EQ(APP_LATE, mMockScheduler.getOffset(mAppConnection));
-    EXPECT_EQ(SF_LATE, mMockScheduler.getOffset(mSfConnection));
+    CHECK_COMMIT(kEarly, kEarly);
+    CHECK_REFRESH(MIN_EARLY_TRANSACTION_FRAMES - 1, kEarly, kEarly);
+    CHECK_REFRESH(1, kLate, kLate);
 }
 
 } // namespace android::scheduler

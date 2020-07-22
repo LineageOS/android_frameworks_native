@@ -31,7 +31,7 @@ namespace android::scheduler {
  */
 class PhaseConfiguration {
 public:
-    using Offsets = VSyncModulator::OffsetsConfig;
+    using Offsets = VsyncModulator::OffsetsConfig;
 
     virtual ~PhaseConfiguration();
 

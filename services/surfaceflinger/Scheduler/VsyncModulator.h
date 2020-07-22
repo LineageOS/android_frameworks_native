@@ -18,108 +18,106 @@
 
 #include <chrono>
 #include <mutex>
+#include <optional>
 
-#include "Scheduler.h"
+#include <android-base/thread_annotations.h>
+#include <utils/Timers.h>
 
 namespace android::scheduler {
 
-/*
- * Modulates the vsync-offsets depending on current SurfaceFlinger state.
- */
-class VSyncModulator {
-private:
-    // Number of frames we'll keep the early phase offsets once they are activated for a
-    // transaction. This acts as a low-pass filter in case the client isn't quick enough in
-    // sending new transactions.
-    static constexpr int MIN_EARLY_FRAME_COUNT_TRANSACTION = 2;
+// State machine controlled by transaction flags. VsyncModulator switches to early phase offsets
+// when a transaction is flagged EarlyStart or Early, lasting until an EarlyEnd transaction or a
+// fixed number of frames, respectively.
+enum class TransactionSchedule {
+    Late,  // Default.
+    Early, // Deprecated.
+    EarlyStart,
+    EarlyEnd
+};
 
-    // Number of frames we'll keep the early gl phase offsets once they are activated.
-    // This acts as a low-pass filter to avoid scenarios where we rapidly
-    // switch in and out of gl composition.
-    static constexpr int MIN_EARLY_GL_FRAME_COUNT_TRANSACTION = 2;
-
-    // Margin used to account for potential data races
-    static const constexpr std::chrono::nanoseconds MARGIN_FOR_TX_APPLY = 1ms;
-
+// Modulates VSYNC phase depending on transaction schedule and refresh rate changes.
+class VsyncModulator {
 public:
-    // Wrapper for a collection of surfaceflinger/app offsets for a particular
-    // configuration.
+    // Number of frames to keep early offsets after an early transaction or GPU composition.
+    // This acts as a low-pass filter in case subsequent transactions are delayed, or if the
+    // composition strategy alternates on subsequent frames.
+    static constexpr int MIN_EARLY_TRANSACTION_FRAMES = 2;
+    static constexpr int MIN_EARLY_GPU_FRAMES = 2;
+
+    // Duration to delay the MIN_EARLY_TRANSACTION_FRAMES countdown after an early transaction.
+    // This may keep early offsets for an extra frame, but avoids a race with transaction commit.
+    static const std::chrono::nanoseconds MIN_EARLY_TRANSACTION_TIME;
+
+    // Phase offsets for SF and app deadlines from VSYNC.
     struct Offsets {
         nsecs_t sf;
         nsecs_t app;
 
         bool operator==(const Offsets& other) const { return sf == other.sf && app == other.app; }
-
         bool operator!=(const Offsets& other) const { return !(*this == other); }
     };
 
+    using OffsetsOpt = std::optional<Offsets>;
+
     struct OffsetsConfig {
-        Offsets early;   // For transactions with the eEarlyWakeup flag.
-        Offsets earlyGl; // As above but while compositing with GL.
-        Offsets late;    // Default.
+        Offsets early;    // Used for early transactions, and during refresh rate change.
+        Offsets earlyGpu; // Used during GPU composition.
+        Offsets late;     // Default.
 
         bool operator==(const OffsetsConfig& other) const {
-            return early == other.early && earlyGl == other.earlyGl && late == other.late;
+            return early == other.early && earlyGpu == other.earlyGpu && late == other.late;
         }
 
         bool operator!=(const OffsetsConfig& other) const { return !(*this == other); }
     };
 
-    VSyncModulator(IPhaseOffsetControl&, ConnectionHandle appConnectionHandle,
-                   ConnectionHandle sfConnectionHandle, const OffsetsConfig&);
+    using Clock = std::chrono::steady_clock;
+    using TimePoint = Clock::time_point;
+    using Now = TimePoint (*)();
 
-    void setPhaseOffsets(const OffsetsConfig&) EXCLUDES(mMutex);
+    explicit VsyncModulator(const OffsetsConfig&, Now = Clock::now);
 
-    // Signals that a transaction has started, and changes offsets accordingly.
-    void setTransactionStart(Scheduler::TransactionStart transactionStart);
+    Offsets getOffsets() const EXCLUDES(mMutex);
 
-    // Signals that a transaction has been completed, so that we can finish
-    // special handling for a transaction.
-    void onTransactionHandled();
+    [[nodiscard]] Offsets setPhaseOffsets(const OffsetsConfig&) EXCLUDES(mMutex);
+
+    // Changes offsets in response to transaction flags or commit.
+    [[nodiscard]] OffsetsOpt setTransactionSchedule(TransactionSchedule);
+    [[nodiscard]] OffsetsOpt onTransactionCommit();
 
     // Called when we send a refresh rate change to hardware composer, so that
     // we can move into early offsets.
-    void onRefreshRateChangeInitiated();
+    [[nodiscard]] OffsetsOpt onRefreshRateChangeInitiated();
 
-    // Called when we detect from vsync signals that the refresh rate changed.
+    // Called when we detect from VSYNC signals that the refresh rate changed.
     // This way we can move out of early offsets if no longer necessary.
-    void onRefreshRateChangeCompleted();
+    [[nodiscard]] OffsetsOpt onRefreshRateChangeCompleted();
 
-    // Called when the display is presenting a new frame. usedRenderEngine
-    // should be set to true if RenderEngine was involved with composing the new
-    // frame.
-    void onRefreshed(bool usedRenderEngine);
-
-    // Returns the offsets that we are currently using
-    Offsets getOffsets() const EXCLUDES(mMutex);
+    [[nodiscard]] OffsetsOpt onDisplayRefresh(bool usedGpuComposition);
 
 private:
-    friend class VSyncModulatorTest;
-    // Returns the next offsets that we should be using
     const Offsets& getNextOffsets() const REQUIRES(mMutex);
-    // Updates offsets and persists them into the scheduler framework.
-    void updateOffsets() EXCLUDES(mMutex);
-    void updateOffsetsLocked() REQUIRES(mMutex);
-
-    IPhaseOffsetControl& mPhaseOffsetControl;
-    const ConnectionHandle mAppConnectionHandle;
-    const ConnectionHandle mSfConnectionHandle;
+    [[nodiscard]] Offsets updateOffsets() EXCLUDES(mMutex);
+    [[nodiscard]] Offsets updateOffsetsLocked() REQUIRES(mMutex);
 
     mutable std::mutex mMutex;
     OffsetsConfig mOffsetsConfig GUARDED_BY(mMutex);
 
     Offsets mOffsets GUARDED_BY(mMutex){mOffsetsConfig.late};
 
-    std::atomic<Scheduler::TransactionStart> mTransactionStart =
-            Scheduler::TransactionStart::Normal;
-    std::atomic<bool> mRefreshRateChangePending = false;
+    using Schedule = TransactionSchedule;
+    std::atomic<Schedule> mTransactionSchedule = Schedule::Late;
     std::atomic<bool> mExplicitEarlyWakeup = false;
-    std::atomic<int> mRemainingEarlyFrameCount = 0;
-    std::atomic<int> mRemainingRenderEngineUsageCount = 0;
-    std::atomic<std::chrono::steady_clock::time_point> mEarlyTxnStartTime = {};
-    std::atomic<std::chrono::steady_clock::time_point> mTxnAppliedTime = {};
 
-    bool mTraceDetailedInfo = false;
+    std::atomic<bool> mRefreshRateChangePending = false;
+
+    std::atomic<int> mEarlyTransactionFrames = 0;
+    std::atomic<int> mEarlyGpuFrames = 0;
+    std::atomic<TimePoint> mEarlyTransactionStartTime = TimePoint();
+    std::atomic<TimePoint> mLastTransactionCommitTime = TimePoint();
+
+    const Now mNow;
+    const bool mTraceDetailedInfo;
 };
 
 } // namespace android::scheduler

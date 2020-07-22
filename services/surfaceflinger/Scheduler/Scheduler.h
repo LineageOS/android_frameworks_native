@@ -60,28 +60,13 @@ protected:
     ~ISchedulerCallback() = default;
 };
 
-struct IPhaseOffsetControl {
-    virtual void setPhaseOffset(scheduler::ConnectionHandle, nsecs_t phaseOffset) = 0;
-
-protected:
-    ~IPhaseOffsetControl() = default;
-};
-
-class Scheduler : public IPhaseOffsetControl {
+class Scheduler {
 public:
     using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
     using ConfigEvent = scheduler::RefreshRateConfigEvent;
 
-    // Indicates whether to start the transaction early, or at vsync time.
-    enum class TransactionStart {
-        Early,      // DEPRECATED. Start the transaction early. Times out on its own
-        EarlyStart, // Start the transaction early and keep this config until EarlyEnd
-        EarlyEnd,   // End the early config started at EarlyStart
-        Normal      // Start the transaction at the normal time
-    };
-
     Scheduler(const scheduler::RefreshRateConfigs&, ISchedulerCallback&);
-    virtual ~Scheduler();
+    ~Scheduler();
 
     DispSync& getPrimaryDispSync();
 
@@ -104,7 +89,7 @@ public:
     void onScreenReleased(ConnectionHandle);
 
     // Modifies phase offset in the event thread.
-    void setPhaseOffset(ConnectionHandle, nsecs_t phaseOffset) override;
+    void setPhaseOffset(ConnectionHandle, nsecs_t phaseOffset);
 
     void getDisplayStatInfo(DisplayStatInfo* stats);
 
