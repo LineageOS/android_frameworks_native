@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,28 @@
  * limitations under the License.
  */
 
-#include "Monitor.h"
+#ifndef _VIBRATION_ELEMENT_H
+#define _VIBRATION_ELEMENT_H
 
-namespace android::inputdispatcher {
+#include <chrono>
+#include <cstdint>
+#include <string>
+#include <vector>
 
-// --- Monitor ---
-Monitor::Monitor(const std::shared_ptr<InputChannel>& inputChannel) : inputChannel(inputChannel) {}
+namespace android {
 
-// --- TouchedMonitor ---
-TouchedMonitor::TouchedMonitor(const Monitor& monitor, float xOffset, float yOffset)
-      : monitor(monitor), xOffset(xOffset), yOffset(yOffset) {}
+/*
+ * Describes a rumble effect
+ */
+struct VibrationElement {
+    std::chrono::milliseconds duration;
+    std::vector<int> channels;
 
-} // namespace android::inputdispatcher
+    void dump(std::string& dump) const;
+    uint16_t getChannel(int id) const;
+    bool isOn() const;
+};
+
+} // namespace android
+
+#endif // _VIBRATION_ELEMENT_H

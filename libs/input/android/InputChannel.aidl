@@ -17,4 +17,4 @@
 
 package android;
 
-parcelable InputChannelInfo cpp_header "input/InputTransport.h";
+parcelable InputChannel cpp_header "input/InputTransport.h";

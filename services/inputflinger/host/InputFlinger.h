@@ -48,8 +48,8 @@ public:
                                    const sp<ISetInputWindowsListener>&) {
         return binder::Status::ok();
     }
-    binder::Status registerInputChannel(const InputChannelInfo&) { return binder::Status::ok(); }
-    binder::Status unregisterInputChannel(const InputChannelInfo&) { return binder::Status::ok(); }
+    binder::Status registerInputChannel(const InputChannel&) { return binder::Status::ok(); }
+    binder::Status unregisterInputChannel(const InputChannel&) { return binder::Status::ok(); }
 
 private:
     virtual ~InputFlinger();

@@ -30,7 +30,7 @@ namespace android {
 
 class InputPublisherAndConsumerTest : public testing::Test {
 protected:
-    sp<InputChannel> serverChannel, clientChannel;
+    std::shared_ptr<InputChannel> serverChannel, clientChannel;
     InputPublisher* mPublisher;
     InputConsumer* mConsumer;
     PreallocatedInputEventFactory mEventFactory;
@@ -55,8 +55,8 @@ protected:
             mConsumer = nullptr;
         }
 
-        serverChannel.clear();
-        clientChannel.clear();
+        serverChannel.reset();
+        clientChannel.reset();
     }
 
     void PublishAndConsumeKeyEvent();

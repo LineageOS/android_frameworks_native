@@ -106,7 +106,7 @@ struct InputTarget {
     };
 
     // The input channel to be targeted.
-    sp<InputChannel> inputChannel;
+    std::shared_ptr<InputChannel> inputChannel;
 
     // Flags for the input target.
     int32_t flags = 0;

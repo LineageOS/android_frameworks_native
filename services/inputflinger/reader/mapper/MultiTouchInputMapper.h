@@ -103,6 +103,8 @@ protected:
     bool hasStylus() const override;
 
 private:
+    // If the slot is in use, return the bit id. Return std::nullopt otherwise.
+    std::optional<int32_t> getActiveBitId(const MultiTouchMotionAccumulator::Slot& inSlot);
     MultiTouchMotionAccumulator mMultiTouchMotionAccumulator;
 
     // Specifies the pointer id bits that are in use, and their associated tracking id.
