@@ -583,7 +583,7 @@ public:
     FakeApplicationHandle() {
         mInfo.name = "Fake Application";
         mInfo.token = new BBinder();
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
+        mInfo.dispatchingTimeoutNanos = DISPATCHING_TIMEOUT.count();
     }
     virtual ~FakeApplicationHandle() {}
 
@@ -592,7 +592,7 @@ public:
     }
 
     void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
-        mInfo.dispatchingTimeout = timeout;
+        mInfo.dispatchingTimeoutNanos = timeout.count();
     }
 };
 

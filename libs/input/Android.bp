@@ -54,13 +54,13 @@ cc_library {
     target: {
         android: {
             srcs: [
-                "InputApplication.cpp",
                 "InputTransport.cpp",
                 "InputWindow.cpp",
                 "LatencyStatistics.cpp",
                 "VelocityControl.cpp",
                 "VelocityTracker.cpp",
                 "android/FocusRequest.aidl",
+                "android/InputApplicationInfo.aidl",
                 "android/os/IInputFlinger.aidl",
                 "android/os/ISetInputWindowsListener.aidl",
             ],

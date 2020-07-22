@@ -310,7 +310,7 @@ void InputFlingerServiceTest::SetUp() {
 
     mInfo.applicationInfo.name = TestAppInfoName;
     mInfo.applicationInfo.token = TestAppInfoToken;
-    mInfo.applicationInfo.dispatchingTimeout = TestAppInfoDispatchingTimeout;
+    mInfo.applicationInfo.dispatchingTimeoutNanos = TestAppInfoDispatchingTimeout.count();
 
     InitializeInputFlinger();
 }
