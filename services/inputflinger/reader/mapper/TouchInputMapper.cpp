@@ -104,6 +104,7 @@ void RawPointerData::copyFrom(const RawPointerData& other) {
     pointerCount = other.pointerCount;
     hoveringIdBits = other.hoveringIdBits;
     touchingIdBits = other.touchingIdBits;
+    canceledIdBits = other.canceledIdBits;
 
     for (uint32_t i = 0; i < pointerCount; i++) {
         pointers[i] = other.pointers[i];
@@ -140,6 +141,7 @@ void CookedPointerData::clear() {
     pointerCount = 0;
     hoveringIdBits.clear();
     touchingIdBits.clear();
+    canceledIdBits.clear();
 }
 
 void CookedPointerData::copyFrom(const CookedPointerData& other) {
@@ -1444,10 +1446,11 @@ void TouchInputMapper::sync(nsecs_t when) {
 
 #if DEBUG_RAW_EVENTS
     ALOGD("syncTouch: pointerCount %d -> %d, touching ids 0x%08x -> 0x%08x, "
-          "hovering ids 0x%08x -> 0x%08x",
+          "hovering ids 0x%08x -> 0x%08x, canceled ids 0x%08x",
           last->rawPointerData.pointerCount, next->rawPointerData.pointerCount,
           last->rawPointerData.touchingIdBits.value, next->rawPointerData.touchingIdBits.value,
-          last->rawPointerData.hoveringIdBits.value, next->rawPointerData.hoveringIdBits.value);
+          last->rawPointerData.hoveringIdBits.value, next->rawPointerData.hoveringIdBits.value,
+          next->rawPointerData.canceledIdBits.value);
 #endif
 
     processRawTouches(false /*timeout*/);
@@ -1892,14 +1895,15 @@ void TouchInputMapper::dispatchTouches(nsecs_t when, uint32_t policyFlags) {
         // Dispatch pointer up events.
         while (!upIdBits.isEmpty()) {
             uint32_t upId = upIdBits.clearFirstMarkedBit();
-
-            dispatchMotion(when, policyFlags, mSource, AMOTION_EVENT_ACTION_POINTER_UP, 0, 0,
-                           metaState, buttonState, 0,
+            bool isCanceled = mCurrentCookedState.cookedPointerData.canceledIdBits.hasBit(upId);
+            dispatchMotion(when, policyFlags, mSource, AMOTION_EVENT_ACTION_POINTER_UP, 0,
+                           isCanceled ? AMOTION_EVENT_FLAG_CANCELED : 0, metaState, buttonState, 0,
                            mLastCookedState.cookedPointerData.pointerProperties,
                            mLastCookedState.cookedPointerData.pointerCoords,
                            mLastCookedState.cookedPointerData.idToIndex, dispatchedIdBits, upId,
                            mOrientedXPrecision, mOrientedYPrecision, mDownTime);
             dispatchedIdBits.clearBit(upId);
+            mCurrentCookedState.cookedPointerData.canceledIdBits.clearBit(upId);
         }
 
         // Dispatch move events if any of the remaining pointers moved from their old locations.
@@ -2025,6 +2029,8 @@ void TouchInputMapper::cookPointerData() {
             mCurrentRawState.rawPointerData.hoveringIdBits;
     mCurrentCookedState.cookedPointerData.touchingIdBits =
             mCurrentRawState.rawPointerData.touchingIdBits;
+    mCurrentCookedState.cookedPointerData.canceledIdBits =
+            mCurrentRawState.rawPointerData.canceledIdBits;
 
     if (mCurrentCookedState.cookedPointerData.pointerCount == 0) {
         mCurrentCookedState.buttonState = 0;
@@ -3563,7 +3569,11 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
         if (action == AMOTION_EVENT_ACTION_POINTER_DOWN) {
             action = AMOTION_EVENT_ACTION_DOWN;
         } else if (action == AMOTION_EVENT_ACTION_POINTER_UP) {
-            action = AMOTION_EVENT_ACTION_UP;
+            if ((flags & AMOTION_EVENT_FLAG_CANCELED) != 0) {
+                action = AMOTION_EVENT_ACTION_CANCEL;
+            } else {
+                action = AMOTION_EVENT_ACTION_UP;
+            }
         } else {
             // Can't happen.
             ALOG_ASSERT(false);

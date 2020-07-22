@@ -424,10 +424,10 @@ bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
     return result;
 }
 
-void InputDevice::vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat,
+void InputDevice::vibrate(const std::vector<VibrationElement>& pattern, ssize_t repeat,
                           int32_t token) {
-    for_each_mapper([pattern, patternSize, repeat, token](InputMapper& mapper) {
-        mapper.vibrate(pattern, patternSize, repeat, token);
+    for_each_mapper([pattern, repeat, token](InputMapper& mapper) {
+        mapper.vibrate(pattern, repeat, token);
     });
 }
 

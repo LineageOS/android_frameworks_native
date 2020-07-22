@@ -17,6 +17,8 @@
 #ifndef _RUNTIME_EVENT_HUB_H
 #define _RUNTIME_EVENT_HUB_H
 
+#include <bitset>
+#include <climits>
 #include <vector>
 
 #include <input/Input.h>
@@ -25,6 +27,8 @@
 #include <input/KeyLayoutMap.h>
 #include <input/Keyboard.h>
 #include <input/VirtualKeyMap.h>
+#include <linux/input.h>
+#include <sys/epoll.h>
 #include <utils/BitSet.h>
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
@@ -33,15 +37,8 @@
 #include <utils/Mutex.h>
 #include <utils/PropertyMap.h>
 
-#include <linux/input.h>
-#include <sys/epoll.h>
-
 #include "TouchVideoDevice.h"
-
-/* Convenience constants. */
-
-#define BTN_FIRST 0x100 // first button code
-#define BTN_LAST 0x15f  // last button code
+#include "VibrationElement.h"
 
 namespace android {
 
@@ -231,7 +228,7 @@ public:
     virtual bool setKeyboardLayoutOverlay(int32_t deviceId, const sp<KeyCharacterMap>& map) = 0;
 
     /* Control the vibrator. */
-    virtual void vibrate(int32_t deviceId, nsecs_t duration) = 0;
+    virtual void vibrate(int32_t deviceId, const VibrationElement& effect) = 0;
     virtual void cancelVibrate(int32_t deviceId) = 0;
 
     /* Requests the EventHub to reopen all input devices on the next call to getEvents(). */
@@ -254,6 +251,76 @@ public:
 
     /* Disable an input device. Closes file descriptor to that device. */
     virtual status_t disableDevice(int32_t deviceId) = 0;
+};
+
+template <std::size_t BITS>
+class BitArray {
+    /* Array element type and vector of element type. */
+    using Element = std::uint32_t;
+    /* Number of bits in each BitArray element. */
+    static constexpr size_t WIDTH = sizeof(Element) * CHAR_BIT;
+    /* Number of elements to represent a bit array of the specified size of bits. */
+    static constexpr size_t COUNT = (BITS + WIDTH - 1) / WIDTH;
+
+public:
+    /* BUFFER type declaration for BitArray */
+    using Buffer = std::array<Element, COUNT>;
+    /* To tell if a bit is set in array, it selects an element from the array, and test
+     * if the relevant bit set.
+     * Note the parameter "bit" is an index to the bit, 0 <= bit < BITS.
+     */
+    inline bool test(size_t bit) const {
+        return (bit < BITS) ? mData[bit / WIDTH].test(bit % WIDTH) : false;
+    }
+    /* Returns total number of bytes needed for the array */
+    inline size_t bytes() { return (BITS + CHAR_BIT - 1) / CHAR_BIT; }
+    /* Returns true if array contains any non-zero bit from the range defined by start and end
+     * bit index [startIndex, endIndex).
+     */
+    bool any(size_t startIndex, size_t endIndex) {
+        if (startIndex >= endIndex || startIndex > BITS || endIndex > BITS + 1) {
+            ALOGE("Invalid start/end index. start = %zu, end = %zu, total bits = %zu", startIndex,
+                  endIndex, BITS);
+            return false;
+        }
+        size_t se = startIndex / WIDTH; // Start of element
+        size_t ee = endIndex / WIDTH;   // End of element
+        size_t si = startIndex % WIDTH; // Start index in start element
+        size_t ei = endIndex % WIDTH;   // End index in end element
+        // Need to check first unaligned bitset for any non zero bit
+        if (si > 0) {
+            size_t nBits = se == ee ? ei - si : WIDTH - si;
+            // Generate the mask of interested bit range
+            Element mask = ((1 << nBits) - 1) << si;
+            if (mData[se++].to_ulong() & mask) {
+                return true;
+            }
+        }
+        // Check whole bitset for any bit set
+        for (; se < ee; se++) {
+            if (mData[se].any()) {
+                return true;
+            }
+        }
+        // Need to check last unaligned bitset for any non zero bit
+        if (ei > 0 && se <= ee) {
+            // Generate the mask of interested bit range
+            Element mask = (1 << ei) - 1;
+            if (mData[se].to_ulong() & mask) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /* Load bit array values from buffer */
+    void loadFromBuffer(const Buffer& buffer) {
+        for (size_t i = 0; i < COUNT; i++) {
+            mData[i] = std::bitset<WIDTH>(buffer[i]);
+        }
+    }
+
+private:
+    std::array<std::bitset<WIDTH>, COUNT> mData;
 };
 
 class EventHub : public EventHubInterface {
@@ -307,7 +374,7 @@ public:
     virtual bool setKeyboardLayoutOverlay(int32_t deviceId,
                                           const sp<KeyCharacterMap>& map) override;
 
-    virtual void vibrate(int32_t deviceId, nsecs_t duration) override;
+    virtual void vibrate(int32_t deviceId, const VibrationElement& effect) override;
     virtual void cancelVibrate(int32_t deviceId) override;
 
     virtual void requestReopenDevices() override;
@@ -332,13 +399,15 @@ private:
 
         uint32_t classes;
 
-        uint8_t keyBitmask[(KEY_MAX + 1) / 8];
-        uint8_t absBitmask[(ABS_MAX + 1) / 8];
-        uint8_t relBitmask[(REL_MAX + 1) / 8];
-        uint8_t swBitmask[(SW_MAX + 1) / 8];
-        uint8_t ledBitmask[(LED_MAX + 1) / 8];
-        uint8_t ffBitmask[(FF_MAX + 1) / 8];
-        uint8_t propBitmask[(INPUT_PROP_MAX + 1) / 8];
+        BitArray<KEY_MAX> keyBitmask;
+        BitArray<KEY_MAX> keyState;
+        BitArray<ABS_MAX> absBitmask;
+        BitArray<REL_MAX> relBitmask;
+        BitArray<SW_MAX> swBitmask;
+        BitArray<SW_MAX> swState;
+        BitArray<LED_MAX> ledBitmask;
+        BitArray<FF_MAX> ffBitmask;
+        BitArray<INPUT_PROP_MAX> propBitmask;
 
         std::string configurationFile;
         PropertyMap* configuration;
@@ -370,6 +439,21 @@ private:
                 return combinedKeyMap;
             }
             return keyMap.keyCharacterMap;
+        }
+
+        template <std::size_t N>
+        status_t readDeviceBitMask(unsigned long ioctlCode, BitArray<N>& bitArray) {
+            if (!hasValidFd()) {
+                return BAD_VALUE;
+            }
+            if ((_IOC_SIZE(ioctlCode) == 0)) {
+                ioctlCode |= _IOC(0, 0, 0, bitArray.bytes());
+            }
+
+            typename BitArray<N>::Buffer buffer;
+            status_t ret = ioctl(fd, ioctlCode, buffer.data());
+            bitArray.loadFromBuffer(buffer);
+            return ret;
         }
     };
 

@@ -241,65 +241,42 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
     }
 }
 
-// --- InputChannelInfo ---
-
-status_t InputChannelInfo::writeToParcel(android::Parcel* parcel) const {
-    if (parcel == nullptr) {
-        ALOGE("%s: Null parcel", __func__);
-        return BAD_VALUE;
-    }
-    status_t status = parcel->writeStrongBinder(mToken)
-            ?: parcel->writeUtf8AsUtf16(mName) ?: parcel->writeUniqueFileDescriptor(mFd);
-    return status;
-}
-
-status_t InputChannelInfo::readFromParcel(const android::Parcel* parcel) {
-    if (parcel == nullptr) {
-        ALOGE("%s: Null parcel", __func__);
-        return BAD_VALUE;
-    }
-    mToken = parcel->readStrongBinder();
-    status_t status = parcel->readUtf8FromUtf16(&mName) ?: parcel->readUniqueFileDescriptor(&mFd);
-    return status;
-}
-
 // --- InputChannel ---
 
-sp<InputChannel> InputChannel::create(const std::string& name, android::base::unique_fd fd,
-                                      sp<IBinder> token) {
+std::unique_ptr<InputChannel> InputChannel::create(const std::string& name,
+                                                   android::base::unique_fd fd, sp<IBinder> token) {
     const int result = fcntl(fd, F_SETFL, O_NONBLOCK);
     if (result != 0) {
         LOG_ALWAYS_FATAL("channel '%s' ~ Could not make socket non-blocking: %s", name.c_str(),
                          strerror(errno));
         return nullptr;
     }
-    return new InputChannel(name, std::move(fd), token);
+    // using 'new' to access a non-public constructor
+    return std::unique_ptr<InputChannel>(new InputChannel(name, std::move(fd), token));
 }
 
-InputChannel::InputChannel(const std::string& name, android::base::unique_fd fd, sp<IBinder> token)
-      : mInfo(name, std::move(fd), token) {
+InputChannel::InputChannel(const std::string name, android::base::unique_fd fd, sp<IBinder> token)
+      : mName(std::move(name)), mFd(std::move(fd)), mToken(std::move(token)) {
     if (DEBUG_CHANNEL_LIFECYCLE) {
-        ALOGD("Input channel constructed: name='%s', fd=%d", mInfo.mName.c_str(), mInfo.mFd.get());
+        ALOGD("Input channel constructed: name='%s', fd=%d", getName().c_str(), getFd().get());
     }
 }
 
-InputChannel::InputChannel() {}
-
 InputChannel::~InputChannel() {
     if (DEBUG_CHANNEL_LIFECYCLE) {
-        ALOGD("Input channel destroyed: name='%s', fd=%d", getName().c_str(), getFd());
+        ALOGD("Input channel destroyed: name='%s', fd=%d", getName().c_str(), getFd().get());
     }
 }
 
 status_t InputChannel::openInputChannelPair(const std::string& name,
-        sp<InputChannel>& outServerChannel, sp<InputChannel>& outClientChannel) {
+                                            std::unique_ptr<InputChannel>& outServerChannel,
+                                            std::unique_ptr<InputChannel>& outClientChannel) {
     int sockets[2];
     if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets)) {
         status_t result = -errno;
-        ALOGE("channel '%s' ~ Could not create socket pair.  errno=%d",
-                name.c_str(), errno);
-        outServerChannel.clear();
-        outClientChannel.clear();
+        ALOGE("channel '%s' ~ Could not create socket pair.  errno=%d", name.c_str(), errno);
+        outServerChannel.reset();
+        outClientChannel.reset();
         return result;
     }
 
@@ -399,10 +376,10 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
     return OK;
 }
 
-sp<InputChannel> InputChannel::dup() const {
+std::unique_ptr<InputChannel> InputChannel::dup() const {
     android::base::unique_fd newFd(::dup(getFd()));
     if (!newFd.ok()) {
-        ALOGE("Could not duplicate fd %i for channel %s: %s", getFd(), getName().c_str(),
+        ALOGE("Could not duplicate fd %i for channel %s: %s", getFd().get(), getName().c_str(),
               strerror(errno));
         const bool hitFdLimit = errno == EMFILE || errno == ENFILE;
         // If this process is out of file descriptors, then throwing that might end up exploding
@@ -417,22 +394,30 @@ sp<InputChannel> InputChannel::dup() const {
 }
 
 status_t InputChannel::writeToParcel(android::Parcel* parcel) const {
-    return mInfo.writeToParcel(parcel);
+    if (parcel == nullptr) {
+        ALOGE("%s: Null parcel", __func__);
+        return BAD_VALUE;
+    }
+    return parcel->writeStrongBinder(mToken)
+            ?: parcel->writeUtf8AsUtf16(mName) ?: parcel->writeUniqueFileDescriptor(mFd);
 }
 
 status_t InputChannel::readFromParcel(const android::Parcel* parcel) {
-    return mInfo.readFromParcel(parcel);
+    if (parcel == nullptr) {
+        ALOGE("%s: Null parcel", __func__);
+        return BAD_VALUE;
+    }
+    mToken = parcel->readStrongBinder();
+    return parcel->readUtf8FromUtf16(&mName) ?: parcel->readUniqueFileDescriptor(&mFd);
 }
 
 sp<IBinder> InputChannel::getConnectionToken() const {
-    return mInfo.mToken;
+    return mToken;
 }
 
 // --- InputPublisher ---
 
-InputPublisher::InputPublisher(const sp<InputChannel>& channel) :
-        mChannel(channel) {
-}
+InputPublisher::InputPublisher(const std::shared_ptr<InputChannel>& channel) : mChannel(channel) {}
 
 InputPublisher::~InputPublisher() {
 }
@@ -596,10 +581,8 @@ status_t InputPublisher::receiveFinishedSignal(uint32_t* outSeq, bool* outHandle
 
 // --- InputConsumer ---
 
-InputConsumer::InputConsumer(const sp<InputChannel>& channel) :
-        mResampleTouch(isTouchResamplingEnabled()),
-        mChannel(channel), mMsgDeferred(false) {
-}
+InputConsumer::InputConsumer(const std::shared_ptr<InputChannel>& channel)
+      : mResampleTouch(isTouchResamplingEnabled()), mChannel(channel), mMsgDeferred(false) {}
 
 InputConsumer::~InputConsumer() {
 }

@@ -37,7 +37,7 @@ class CommandCompose : public Command {
                 {"-b", {"Block for duration of vibration."}},
                 {"<delay>", {"In milliseconds"}},
                 {"<primitive>", {"Primitive ID."}},
-                {"<scale>", {"0.0 (exclusive) - 1.0 (inclusive)."}},
+                {"<scale>", {"0.0 (inclusive) - 1.0 (inclusive)."}},
                 {"...", {"May repeat multiple times."}},
         };
         return details;
@@ -72,7 +72,7 @@ class CommandCompose : public Command {
                 return USAGE;
             }
             if (auto scale = args.pop<decltype(effect.scale)>();
-                scale && *scale > 0.0 && scale <= 1.0) {
+                scale && *scale >= 0.0 && scale <= 1.0) {
                 effect.scale = *scale;
                 std::cout << "Scale: " << effect.scale << std::endl;
             } else {

@@ -68,11 +68,12 @@ class InputSurface {
 public:
     InputSurface(const sp<SurfaceControl> &sc, int width, int height) {
         mSurfaceControl = sc;
-
-        InputChannel::openInputChannelPair("testchannels", mServerChannel, mClientChannel);
+        std::unique_ptr<InputChannel> clientChannel;
+        InputChannel::openInputChannelPair("testchannels", mServerChannel, clientChannel);
+        mClientChannel = std::move(clientChannel);
 
         mInputFlinger = getInputFlinger();
-        mInputFlinger->registerInputChannel(mServerChannel->getInfo());
+        mInputFlinger->registerInputChannel(*mServerChannel);
 
         populateInputInfo(width, height);
 
@@ -154,7 +155,7 @@ public:
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
-    ~InputSurface() { mInputFlinger->unregisterInputChannel(mServerChannel->getInfo()); }
+    ~InputSurface() { mInputFlinger->unregisterInputChannel(*mServerChannel); }
 
     void doTransaction(std::function<void(SurfaceComposerClient::Transaction&,
                     const sp<SurfaceControl>&)> transactionBody) {
@@ -211,7 +212,8 @@ private:
     }
 public:
     sp<SurfaceControl> mSurfaceControl;
-    sp<InputChannel> mServerChannel, mClientChannel;
+    std::unique_ptr<InputChannel> mServerChannel;
+    std::shared_ptr<InputChannel> mClientChannel;
     sp<IInputFlinger> mInputFlinger;
 
     InputWindowInfo mInputInfo;

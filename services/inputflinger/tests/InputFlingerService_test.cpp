@@ -113,7 +113,7 @@ protected:
 
 private:
     sp<SetInputWindowsListener> mSetInputWindowsListener;
-    sp<InputChannel> mServerChannel, mClientChannel;
+    std::unique_ptr<InputChannel> mServerChannel, mClientChannel;
     InputWindowInfo mInfo;
     std::mutex mLock;
     std::condition_variable mSetInputWindowsFinishedCondition;
@@ -136,7 +136,7 @@ public:
     void checkFdFlags(const android::base::unique_fd& fd);
 
     binder::Status getInputWindows(std::vector<::android::InputWindowInfo>* inputHandles);
-    binder::Status getInputChannels(std::vector<::android::InputChannelInfo>* infos);
+    binder::Status getInputChannels(std::vector<::android::InputChannel>* channels);
 
     status_t dump(int fd, const Vector<String16>& args) override;
 
@@ -144,20 +144,20 @@ public:
             const std::vector<InputWindowInfo>& handles,
             const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
 
-    binder::Status registerInputChannel(const InputChannelInfo& channel) override;
-    binder::Status unregisterInputChannel(const InputChannelInfo& channel) override;
+    binder::Status registerInputChannel(const InputChannel& channel) override;
+    binder::Status unregisterInputChannel(const InputChannel& channel) override;
 
 private:
     mutable Mutex mLock;
     std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> mHandlesPerDisplay;
-    std::vector<sp<InputChannel>> mInputChannels;
+    std::vector<std::shared_ptr<InputChannel>> mInputChannels;
 };
 
 class TestInputQuery : public BnInputFlingerQuery {
 public:
     TestInputQuery(sp<android::TestInputManager> manager) : mManager(manager){};
     binder::Status getInputWindows(std::vector<::android::InputWindowInfo>* inputHandles) override;
-    binder::Status getInputChannels(std::vector<::android::InputChannelInfo>* infos) override;
+    binder::Status getInputChannels(std::vector<::android::InputChannel>* channels) override;
 
 private:
     sp<android::TestInputManager> mManager;
@@ -168,8 +168,8 @@ binder::Status TestInputQuery::getInputWindows(
     return mManager->getInputWindows(inputHandles);
 }
 
-binder::Status TestInputQuery::getInputChannels(std::vector<::android::InputChannelInfo>* infos) {
-    return mManager->getInputChannels(infos);
+binder::Status TestInputQuery::getInputChannels(std::vector<::android::InputChannel>* channels) {
+    return mManager->getInputChannels(channels);
 }
 
 binder::Status SetInputWindowsListener::onSetInputWindowsFinished() {
@@ -200,27 +200,23 @@ void TestInputManager::checkFdFlags(const android::base::unique_fd& fd) {
     EXPECT_EQ(result & O_NONBLOCK, O_NONBLOCK);
 }
 
-binder::Status TestInputManager::registerInputChannel(const InputChannelInfo& info) {
+binder::Status TestInputManager::registerInputChannel(const InputChannel& channel) {
     AutoMutex _l(mLock);
     // check Fd flags
-    checkFdFlags(info.mFd);
+    checkFdFlags(channel.getFd());
 
-    android::base::unique_fd newFd(::dup(info.mFd));
-    sp<InputChannel> channel = InputChannel::create(info.mName, std::move(newFd), info.mToken);
-    mInputChannels.push_back(channel);
+    mInputChannels.push_back(channel.dup());
 
     return binder::Status::ok();
 }
 
-binder::Status TestInputManager::unregisterInputChannel(const InputChannelInfo& info) {
+binder::Status TestInputManager::unregisterInputChannel(const InputChannel& channel) {
     AutoMutex _l(mLock);
     // check Fd flags
-    checkFdFlags(info.mFd);
-    android::base::unique_fd newFd(::dup(info.mFd));
-    sp<InputChannel> channel = InputChannel::create(info.mName, std::move(newFd), info.mToken);
+    checkFdFlags(channel.getFd());
 
     auto it = std::find_if(mInputChannels.begin(), mInputChannels.end(),
-                           [&](sp<InputChannel>& it) { return *it == *channel; });
+                           [&](std::shared_ptr<InputChannel>& c) { return *c == channel; });
     if (it != mInputChannels.end()) {
         mInputChannels.erase(it);
     }
@@ -247,11 +243,10 @@ binder::Status TestInputManager::getInputWindows(
     return binder::Status::ok();
 }
 
-binder::Status TestInputManager::getInputChannels(std::vector<::android::InputChannelInfo>* infos) {
-    infos->clear();
-    for (auto& channel : mInputChannels) {
-        auto chanDup = channel->dup();
-        infos->push_back(std::move(chanDup->getInfo()));
+binder::Status TestInputManager::getInputChannels(std::vector<::android::InputChannel>* channels) {
+    channels->clear();
+    for (std::shared_ptr<InputChannel>& channel : mInputChannels) {
+        channels->push_back(*channel);
     }
     return binder::Status::ok();
 }
@@ -320,12 +315,6 @@ void InputFlingerServiceTest::setInputWindowsByInfos(std::vector<InputWindowInfo
     mService->setInputWindows(infos, mSetInputWindowsListener);
     // Verify listener call
     EXPECT_NE(mSetInputWindowsFinishedCondition.wait_for(lock, 1s), std::cv_status::timeout);
-    // Verify input windows from service
-    std::vector<::android::InputWindowInfo> inputHandles;
-    mQuery->getInputWindows(&inputHandles);
-    for (auto& inputInfo : inputHandles) {
-        verifyInputWindowInfo(inputInfo);
-    }
 }
 
 /**
@@ -334,54 +323,57 @@ void InputFlingerServiceTest::setInputWindowsByInfos(std::vector<InputWindowInfo
 TEST_F(InputFlingerServiceTest, InputWindow_SetInputWindows) {
     std::vector<InputWindowInfo> infos = {getInfo()};
     setInputWindowsByInfos(infos);
+
+    // Verify input windows from service
+    std::vector<::android::InputWindowInfo> windowInfos;
+    mQuery->getInputWindows(&windowInfos);
+    for (const ::android::InputWindowInfo& windowInfo : windowInfos) {
+        verifyInputWindowInfo(windowInfo);
+    }
 }
 
 /**
  *  Test InputFlinger service interface registerInputChannel
  */
 TEST_F(InputFlingerServiceTest, InputWindow_RegisterInputChannel) {
-    sp<InputChannel> serverChannel, clientChannel;
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
 
     InputChannel::openInputChannelPair("testchannels", serverChannel, clientChannel);
-    mService->registerInputChannel(serverChannel->getInfo());
+    mService->registerInputChannel(*serverChannel);
 
-    std::vector<::android::InputChannelInfo> infos(2);
-    mQuery->getInputChannels(&infos);
-    EXPECT_EQ(infos.size(), 1UL);
+    std::vector<::android::InputChannel> channels;
+    mQuery->getInputChannels(&channels);
+    ASSERT_EQ(channels.size(), 1UL);
+    EXPECT_EQ(channels[0], *serverChannel);
 
-    auto& info = infos[0];
-    android::base::unique_fd newFd(::dup(info.mFd));
-    sp<InputChannel> channel = InputChannel::create(info.mName, std::move(newFd), info.mToken);
-    EXPECT_EQ(*channel, *serverChannel);
-
-    mService->unregisterInputChannel(serverChannel->getInfo());
-    mQuery->getInputChannels(&infos);
-    EXPECT_EQ(infos.size(), 0UL);
+    mService->unregisterInputChannel(*serverChannel);
+    mQuery->getInputChannels(&channels);
+    EXPECT_EQ(channels.size(), 0UL);
 }
 
 /**
  *  Test InputFlinger service interface registerInputChannel with invalid cases
  */
 TEST_F(InputFlingerServiceTest, InputWindow_RegisterInputChannelInvalid) {
-    sp<InputChannel> serverChannel, clientChannel;
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
     InputChannel::openInputChannelPair("testchannels", serverChannel, clientChannel);
 
-    std::vector<::android::InputChannelInfo> infos(2);
-    mQuery->getInputChannels(&infos);
-    EXPECT_EQ(infos.size(), 0UL);
+    std::vector<::android::InputChannel> channels;
+    mQuery->getInputChannels(&channels);
+    EXPECT_EQ(channels.size(), 0UL);
 
-    mService->registerInputChannel(InputChannelInfo());
-    mService->unregisterInputChannel(clientChannel->getInfo());
+    mService->registerInputChannel(InputChannel());
+    mService->unregisterInputChannel(*clientChannel);
 
-    mService->registerInputChannel(serverChannel->getInfo());
-    mService->registerInputChannel(clientChannel->getInfo());
-    mQuery->getInputChannels(&infos);
-    EXPECT_EQ(infos.size(), 2UL);
+    mService->registerInputChannel(*serverChannel);
+    mService->registerInputChannel(*clientChannel);
+    mQuery->getInputChannels(&channels);
+    EXPECT_EQ(channels.size(), 2UL);
 
-    mService->unregisterInputChannel(clientChannel->getInfo());
-    mService->unregisterInputChannel(serverChannel->getInfo());
-    mQuery->getInputChannels(&infos);
-    EXPECT_EQ(infos.size(), 0UL);
+    mService->unregisterInputChannel(*clientChannel);
+    mService->unregisterInputChannel(*serverChannel);
+    mQuery->getInputChannels(&channels);
+    EXPECT_EQ(channels.size(), 0UL);
 }
 
 } // namespace android

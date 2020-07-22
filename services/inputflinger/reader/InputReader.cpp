@@ -559,12 +559,12 @@ void InputReader::requestRefreshConfiguration(uint32_t changes) {
     }
 }
 
-void InputReader::vibrate(int32_t deviceId, const nsecs_t* pattern, size_t patternSize,
+void InputReader::vibrate(int32_t deviceId, const std::vector<VibrationElement>& pattern,
                           ssize_t repeat, int32_t token) {
     AutoMutex _l(mLock);
     InputDevice* device = findInputDevice(deviceId);
     if (device) {
-        device->vibrate(pattern, patternSize, repeat, token);
+        device->vibrate(pattern, repeat, token);
     }
 }
 
