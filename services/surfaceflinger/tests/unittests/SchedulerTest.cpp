@@ -120,8 +120,8 @@ TEST_F(SchedulerTest, invalidConnectionHandle) {
     mScheduler.dump(handle, output);
     EXPECT_TRUE(output.empty());
 
-    EXPECT_CALL(*mEventThread, setPhaseOffset(_)).Times(0);
-    mScheduler.setPhaseOffset(handle, 10);
+    EXPECT_CALL(*mEventThread, setDuration(10ns, 20ns)).Times(0);
+    mScheduler.setDuration(handle, 10ns, 20ns);
 }
 
 TEST_F(SchedulerTest, validConnectionHandle) {
@@ -146,8 +146,8 @@ TEST_F(SchedulerTest, validConnectionHandle) {
     mScheduler.dump(mConnectionHandle, output);
     EXPECT_FALSE(output.empty());
 
-    EXPECT_CALL(*mEventThread, setPhaseOffset(10)).Times(1);
-    mScheduler.setPhaseOffset(mConnectionHandle, 10);
+    EXPECT_CALL(*mEventThread, setDuration(10ns, 20ns)).Times(1);
+    mScheduler.setDuration(mConnectionHandle, 10ns, 20ns);
 
     static constexpr size_t kEventConnections = 5;
     EXPECT_CALL(*mEventThread, getEventThreadConnectionCount()).WillOnce(Return(kEventConnections));

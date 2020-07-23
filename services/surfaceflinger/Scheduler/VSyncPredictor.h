@@ -74,7 +74,7 @@ private:
     size_t const kOutlierTolerancePercent;
 
     std::mutex mutable mMutex;
-    size_t next(int i) const REQUIRES(mMutex);
+    size_t next(size_t i) const REQUIRES(mMutex);
     bool validate(nsecs_t timestamp) const REQUIRES(mMutex);
     std::tuple<nsecs_t, nsecs_t> getVSyncPredictionModel(std::lock_guard<std::mutex> const&) const
             REQUIRES(mMutex);
@@ -84,7 +84,7 @@ private:
 
     std::unordered_map<nsecs_t, std::tuple<nsecs_t, nsecs_t>> mutable mRateMap GUARDED_BY(mMutex);
 
-    int mLastTimestampIndex GUARDED_BY(mMutex) = 0;
+    size_t mLastTimestampIndex GUARDED_BY(mMutex) = 0;
     std::vector<nsecs_t> mTimestamps GUARDED_BY(mMutex);
 };
 

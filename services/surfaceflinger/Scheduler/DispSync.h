@@ -32,32 +32,15 @@ class FenceTime;
 
 class DispSync {
 public:
-    class Callback {
-    public:
-        Callback() = default;
-        virtual ~Callback() = default;
-        virtual void onDispSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) = 0;
-
-    protected:
-        Callback(Callback const&) = delete;
-        Callback& operator=(Callback const&) = delete;
-    };
-
     DispSync() = default;
     virtual ~DispSync() = default;
 
-    virtual void reset() = 0;
     virtual bool addPresentFence(const std::shared_ptr<FenceTime>&) = 0;
     virtual void beginResync() = 0;
     virtual bool addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
                                  bool* periodFlushed) = 0;
-    virtual void endResync() = 0;
     virtual void setPeriod(nsecs_t period) = 0;
     virtual nsecs_t getPeriod() = 0;
-    virtual status_t addEventListener(const char* name, nsecs_t phase, Callback* callback,
-                                      nsecs_t lastCallbackTime) = 0;
-    virtual status_t removeEventListener(Callback* callback, nsecs_t* outLastCallback) = 0;
-    virtual status_t changePhaseOffset(Callback* callback, nsecs_t phase) = 0;
     virtual nsecs_t computeNextRefresh(int periodOffset, nsecs_t now) const = 0;
     virtual void setIgnorePresentFences(bool ignore) = 0;
     virtual nsecs_t expectedPresentTime(nsecs_t now) = 0;

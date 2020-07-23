@@ -63,9 +63,9 @@ private:
 class MockVSyncDispatch : public VSyncDispatch {
 public:
     MOCK_METHOD2(registerCallback,
-                 CallbackToken(std::function<void(nsecs_t, nsecs_t)> const&, std::string));
+                 CallbackToken(std::function<void(nsecs_t, nsecs_t, nsecs_t)> const&, std::string));
     MOCK_METHOD1(unregisterCallback, void(CallbackToken));
-    MOCK_METHOD3(schedule, ScheduleResult(CallbackToken, nsecs_t, nsecs_t));
+    MOCK_METHOD2(schedule, ScheduleResult(CallbackToken, ScheduleTiming));
     MOCK_METHOD1(cancel, CancelResult(CallbackToken token));
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };
@@ -91,22 +91,6 @@ std::shared_ptr<FenceTime> generateSignalledFenceWithTime(nsecs_t time) {
     signalFenceWithTime(ft, time);
     return ft;
 }
-
-class StubCallback : public DispSync::Callback {
-public:
-    void onDispSyncEvent(nsecs_t when, nsecs_t /*expectedVSyncTimestamp*/) final {
-        std::lock_guard<std::mutex> lk(mMutex);
-        mLastCallTime = when;
-    }
-    std::optional<nsecs_t> lastCallTime() const {
-        std::lock_guard<std::mutex> lk(mMutex);
-        return mLastCallTime;
-    }
-
-private:
-    std::mutex mutable mMutex;
-    std::optional<nsecs_t> mLastCallTime GUARDED_BY(mMutex);
-};
 
 class VSyncReactorTest : public testing::Test {
 protected:
@@ -135,7 +119,7 @@ protected:
     VSyncDispatch::CallbackToken const mFakeToken{2398};
 
     nsecs_t lastCallbackTime = 0;
-    StubCallback outerCb;
+    // StubCallback outerCb;
     std::function<void(nsecs_t, nsecs_t)> innerCb;
 
     VSyncReactor mReactor;
@@ -489,192 +473,6 @@ TEST_F(VSyncReactorTest, hwVsyncIsRequestedForTrackerMultiplePeriodChanges) {
     EXPECT_FALSE(mReactor.addResyncSample(time += newPeriod2, std::nullopt, &periodFlushed));
 }
 
-static nsecs_t computeWorkload(nsecs_t period, nsecs_t phase) {
-    return period - phase;
-}
-
-TEST_F(VSyncReactorTest, addEventListener) {
-    Sequence seq;
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
-            .InSequence(seq)
-            .WillOnce(Return(mFakeToken));
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
-            .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, cancel(mFakeToken)).Times(2).InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, unregisterCallback(mFakeToken)).InSequence(seq);
-
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-    mReactor.removeEventListener(&outerCb, &lastCallbackTime);
-}
-
-TEST_F(VSyncReactorTest, addEventListenerTwiceChangesPhase) {
-    Sequence seq;
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
-            .InSequence(seq)
-            .WillOnce(Return(mFakeToken));
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
-            .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch,
-                schedule(mFakeToken, computeWorkload(period, mAnotherPhase), _)) // mFakeNow))
-            .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, cancel(mFakeToken)).InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, unregisterCallback(mFakeToken)).InSequence(seq);
-
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-    mReactor.addEventListener(mName, mAnotherPhase, &outerCb, lastCallbackTime);
-}
-
-TEST_F(VSyncReactorTest, eventListenerGetsACallbackAndReschedules) {
-    Sequence seq;
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
-            .InSequence(seq)
-            .WillOnce(DoAll(SaveArg<0>(&innerCb), Return(mFakeToken)));
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
-            .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch,
-                schedule(mFakeToken, computeWorkload(period, mPhase), mFakeVSyncTime))
-            .Times(2)
-            .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, cancel(mFakeToken)).InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, unregisterCallback(mFakeToken)).InSequence(seq);
-
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-    ASSERT_TRUE(innerCb);
-    innerCb(mFakeVSyncTime, mFakeWakeupTime);
-    innerCb(mFakeVSyncTime, mFakeWakeupTime);
-}
-
-TEST_F(VSyncReactorTest, callbackTimestampDistributedIsWakeupTime) {
-    Sequence seq;
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, _))
-            .InSequence(seq)
-            .WillOnce(DoAll(SaveArg<0>(&innerCb), Return(mFakeToken)));
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
-            .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch,
-                schedule(mFakeToken, computeWorkload(period, mPhase), mFakeVSyncTime))
-            .InSequence(seq);
-
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-    ASSERT_TRUE(innerCb);
-    innerCb(mFakeVSyncTime, mFakeWakeupTime);
-    EXPECT_THAT(outerCb.lastCallTime(), Optional(mFakeWakeupTime));
-}
-
-TEST_F(VSyncReactorTest, eventListenersRemovedOnDestruction) {
-    Sequence seq;
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
-            .InSequence(seq)
-            .WillOnce(Return(mFakeToken));
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
-            .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, cancel(mFakeToken)).InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, unregisterCallback(mFakeToken)).InSequence(seq);
-
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-}
-
-// b/149221293
-TEST_F(VSyncReactorTest, selfRemovingEventListenerStopsCallbacks) {
-    class SelfRemovingCallback : public DispSync::Callback {
-    public:
-        SelfRemovingCallback(VSyncReactor& vsr) : mVsr(vsr) {}
-        void onDispSyncEvent(nsecs_t when, nsecs_t /*expectedVSyncTimestamp*/) final {
-            mVsr.removeEventListener(this, &when);
-        }
-
-    private:
-        VSyncReactor& mVsr;
-    } selfRemover(mReactor);
-
-    Sequence seq;
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
-            .InSequence(seq)
-            .WillOnce(DoAll(SaveArg<0>(&innerCb), Return(mFakeToken)));
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
-            .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, cancel(mFakeToken)).Times(2).InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, unregisterCallback(mFakeToken)).InSequence(seq);
-
-    mReactor.addEventListener(mName, mPhase, &selfRemover, lastCallbackTime);
-    innerCb(0, 0);
-}
-
-TEST_F(VSyncReactorTest, addEventListenerChangePeriod) {
-    Sequence seq;
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
-            .InSequence(seq)
-            .WillOnce(Return(mFakeToken));
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
-            .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch,
-                schedule(mFakeToken, computeWorkload(period, mAnotherPhase), mFakeNow))
-            .InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, cancel(mFakeToken)).InSequence(seq);
-    EXPECT_CALL(*mMockDispatch, unregisterCallback(mFakeToken)).InSequence(seq);
-
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-    mReactor.addEventListener(mName, mAnotherPhase, &outerCb, lastCallbackTime);
-}
-
-TEST_F(VSyncReactorTest, changingPeriodChangesOffsetsOnNextCb) {
-    static constexpr nsecs_t anotherPeriod = 23333;
-    Sequence seq;
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
-            .InSequence(seq)
-            .WillOnce(Return(mFakeToken));
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), mFakeNow))
-            .InSequence(seq);
-    EXPECT_CALL(*mMockTracker, setPeriod(anotherPeriod));
-    EXPECT_CALL(*mMockDispatch,
-                schedule(mFakeToken, computeWorkload(anotherPeriod, mPhase), mFakeNow))
-            .InSequence(seq);
-
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-
-    bool periodFlushed = false;
-    mReactor.setPeriod(anotherPeriod);
-    EXPECT_TRUE(mReactor.addResyncSample(anotherPeriod, std::nullopt, &periodFlushed));
-    EXPECT_FALSE(mReactor.addResyncSample(anotherPeriod * 2, std::nullopt, &periodFlushed));
-
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-}
-
-TEST_F(VSyncReactorTest, offsetsAppliedOnNextOpportunity) {
-    Sequence seq;
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
-            .InSequence(seq)
-            .WillOnce(DoAll(SaveArg<0>(&innerCb), Return(mFakeToken)));
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mPhase), _))
-            .InSequence(seq)
-            .WillOnce(Return(ScheduleResult::Scheduled));
-
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mAnotherPhase), _))
-            .InSequence(seq)
-            .WillOnce(Return(ScheduleResult::Scheduled));
-
-    EXPECT_CALL(*mMockDispatch, schedule(mFakeToken, computeWorkload(period, mAnotherPhase), _))
-            .InSequence(seq)
-            .WillOnce(Return(ScheduleResult::Scheduled));
-
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-    mReactor.changePhaseOffset(&outerCb, mAnotherPhase);
-    ASSERT_TRUE(innerCb);
-    innerCb(mFakeVSyncTime, mFakeWakeupTime);
-}
-
-TEST_F(VSyncReactorTest, negativeOffsetsApplied) {
-    nsecs_t const negativePhase = -4000;
-    Sequence seq;
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
-            .InSequence(seq)
-            .WillOnce(Return(mFakeToken));
-    EXPECT_CALL(*mMockDispatch,
-                schedule(mFakeToken, computeWorkload(period, negativePhase), mFakeNow))
-            .InSequence(seq);
-    mReactor.addEventListener(mName, negativePhase, &outerCb, lastCallbackTime);
-}
-
 TEST_F(VSyncReactorTest, beginResyncResetsModel) {
     EXPECT_CALL(*mMockTracker, resetModel());
     mReactor.beginResync();
@@ -732,44 +530,6 @@ TEST_F(VSyncReactorTest, periodIsMeasuredIfIgnoringComposer) {
     EXPECT_TRUE(periodFlushed);
 
     EXPECT_TRUE(idleReactor.addPresentFence(generateSignalledFenceWithTime(0)));
-}
-
-using VSyncReactorDeathTest = VSyncReactorTest;
-TEST_F(VSyncReactorDeathTest, invalidRemoval) {
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-    mReactor.removeEventListener(&outerCb, &lastCallbackTime);
-    EXPECT_DEATH(mReactor.removeEventListener(&outerCb, &lastCallbackTime), ".*");
-}
-
-TEST_F(VSyncReactorDeathTest, invalidChange) {
-    EXPECT_DEATH(mReactor.changePhaseOffset(&outerCb, mPhase), ".*");
-
-    // the current DispSync-interface usage pattern has evolved around an implementation quirk,
-    // which is a callback is assumed to always exist, and it is valid api usage to change the
-    // offset of an object that is in the removed state.
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-    mReactor.removeEventListener(&outerCb, &lastCallbackTime);
-    mReactor.changePhaseOffset(&outerCb, mPhase);
-}
-
-TEST_F(VSyncReactorDeathTest, cannotScheduleOnRegistration) {
-    ON_CALL(*mMockDispatch, schedule(_, _, _))
-            .WillByDefault(Return(ScheduleResult::CannotSchedule));
-    EXPECT_DEATH(mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime), ".*");
-}
-
-TEST_F(VSyncReactorDeathTest, cannotScheduleOnCallback) {
-    EXPECT_CALL(*mMockDispatch, registerCallback(_, std::string(mName)))
-            .WillOnce(DoAll(SaveArg<0>(&innerCb), Return(mFakeToken)));
-    EXPECT_CALL(*mMockDispatch, schedule(_, _, _)).WillOnce(Return(ScheduleResult::Scheduled));
-
-    mReactor.addEventListener(mName, mPhase, &outerCb, lastCallbackTime);
-    ASSERT_TRUE(innerCb);
-    Mock::VerifyAndClearExpectations(mMockDispatch.get());
-
-    ON_CALL(*mMockDispatch, schedule(_, _, _))
-            .WillByDefault(Return(ScheduleResult::CannotSchedule));
-    EXPECT_DEATH(innerCb(mFakeVSyncTime, mFakeWakeupTime), ".*");
 }
 
 } // namespace android::scheduler

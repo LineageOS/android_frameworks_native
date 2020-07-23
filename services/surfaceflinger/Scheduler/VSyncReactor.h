@@ -29,7 +29,6 @@ namespace android::scheduler {
 class Clock;
 class VSyncDispatch;
 class VSyncTracker;
-class CallbackRepeater;
 class PredictedVsyncTracer;
 
 // TODO (b/145217110): consider renaming.
@@ -52,15 +51,8 @@ public:
     void beginResync() final;
     bool addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
                          bool* periodFlushed) final;
-    void endResync() final;
-
-    status_t addEventListener(const char* name, nsecs_t phase, DispSync::Callback* callback,
-                              nsecs_t lastCallbackTime) final;
-    status_t removeEventListener(DispSync::Callback* callback, nsecs_t* outLastCallback) final;
-    status_t changePhaseOffset(DispSync::Callback* callback, nsecs_t phase) final;
 
     void dump(std::string& result) const final;
-    void reset() final;
 
 private:
     void setIgnorePresentFencesInternal(bool ignoration) REQUIRES(mMutex);
@@ -84,9 +76,6 @@ private:
     bool mPeriodConfirmationInProgress GUARDED_BY(mMutex) = false;
     std::optional<nsecs_t> mPeriodTransitioningTo GUARDED_BY(mMutex);
     std::optional<nsecs_t> mLastHwVsync GUARDED_BY(mMutex);
-
-    std::unordered_map<DispSync::Callback*, std::unique_ptr<CallbackRepeater>> mCallbacks
-            GUARDED_BY(mMutex);
 
     const std::unique_ptr<PredictedVsyncTracer> mPredictedVsyncTracer;
     const bool mSupportKernelIdleTimer = false;

@@ -57,7 +57,8 @@ public:
     class Callback {
     public:
         virtual ~Callback() {}
-        virtual void onVSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) = 0;
+        virtual void onVSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp,
+                                  nsecs_t deadlineTimestamp) = 0;
     };
 
     virtual ~VSyncSource() {}
@@ -65,7 +66,8 @@ public:
     virtual const char* getName() const = 0;
     virtual void setVSyncEnabled(bool enable) = 0;
     virtual void setCallback(Callback* callback) = 0;
-    virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
+    virtual void setDuration(std::chrono::nanoseconds workDuration,
+                             std::chrono::nanoseconds readyDuration) = 0;
 
     virtual void dump(std::string& result) const = 0;
 };
@@ -116,7 +118,8 @@ public:
 
     virtual void dump(std::string& result) const = 0;
 
-    virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
+    virtual void setDuration(std::chrono::nanoseconds workDuration,
+                             std::chrono::nanoseconds readyDuration) = 0;
 
     virtual status_t registerDisplayEventConnection(
             const sp<EventThreadConnection>& connection) = 0;
@@ -157,7 +160,8 @@ public:
 
     void dump(std::string& result) const override;
 
-    void setPhaseOffset(nsecs_t phaseOffset) override;
+    void setDuration(std::chrono::nanoseconds workDuration,
+                     std::chrono::nanoseconds readyDuration) override;
 
     size_t getEventThreadConnectionCount() override;
 
@@ -177,7 +181,8 @@ private:
             REQUIRES(mMutex);
 
     // Implements VSyncSource::Callback
-    void onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp) override;
+    void onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp,
+                      nsecs_t deadlineTimestamp) override;
 
     const std::unique_ptr<VSyncSource> mVSyncSource GUARDED_BY(mMutex);
 
