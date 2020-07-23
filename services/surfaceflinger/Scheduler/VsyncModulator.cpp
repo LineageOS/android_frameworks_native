@@ -20,7 +20,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "VSyncModulator.h"
+#include "VsyncModulator.h"
 
 #include <cutils/properties.h>
 #include <utils/Trace.h>

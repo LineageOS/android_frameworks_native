@@ -58,7 +58,7 @@
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
-#include "Scheduler/VSyncModulator.h"
+#include "Scheduler/VsyncModulator.h"
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceTracing.h"
 #include "TracedOrdinal.h"

@@ -19,7 +19,7 @@
 #include <unordered_map>
 
 #include "RefreshRateConfigs.h"
-#include "VSyncModulator.h"
+#include "VsyncModulator.h"
 
 namespace android::scheduler {
 

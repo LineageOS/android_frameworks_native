@@ -61,7 +61,7 @@ cc_test {
         "StrongTypingTest.cpp",
         "VSyncDispatchTimerQueueTest.cpp",
         "VSyncDispatchRealtimeTest.cpp",
-        "VSyncModulatorTest.cpp",
+        "VsyncModulatorTest.cpp",
         "VSyncPredictorTest.cpp",
         "VSyncReactorTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",

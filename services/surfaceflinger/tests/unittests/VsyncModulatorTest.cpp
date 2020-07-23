@@ -18,7 +18,7 @@
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 #define LOG_NDEBUG 0
 
-#include "Scheduler/VSyncModulator.h"
+#include "Scheduler/VsyncModulator.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
