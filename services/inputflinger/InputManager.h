@@ -110,6 +110,7 @@ public:
 
     binder::Status registerInputChannel(const InputChannel& channel) override;
     binder::Status unregisterInputChannel(const InputChannel& channel) override;
+    binder::Status setFocusedWindow(const FocusRequest&) override;
 
 private:
     sp<InputReaderInterface> mReader;

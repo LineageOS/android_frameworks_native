@@ -448,19 +448,36 @@ void layer_state_t::merge(const layer_state_t& other) {
 
 // ------------------------------- InputWindowCommands ----------------------------------------
 
-void InputWindowCommands::merge(const InputWindowCommands& other) {
+bool InputWindowCommands::merge(const InputWindowCommands& other) {
+    bool changes = false;
+#ifndef NO_INPUT
+    changes |= !other.focusRequests.empty();
+    focusRequests.insert(focusRequests.end(), std::make_move_iterator(other.focusRequests.begin()),
+                         std::make_move_iterator(other.focusRequests.end()));
+#endif
+    changes |= other.syncInputWindows && !syncInputWindows;
     syncInputWindows |= other.syncInputWindows;
+    return changes;
 }
 
 void InputWindowCommands::clear() {
+#ifndef NO_INPUT
+    focusRequests.clear();
+#endif
     syncInputWindows = false;
 }
 
 void InputWindowCommands::write(Parcel& output) const {
+#ifndef NO_INPUT
+    output.writeParcelableVector(focusRequests);
+#endif
     output.writeBool(syncInputWindows);
 }
 
 void InputWindowCommands::read(const Parcel& input) {
+#ifndef NO_INPUT
+    input.readParcelableVector(&focusRequests);
+#endif
     syncInputWindows = input.readBool();
 }
 
