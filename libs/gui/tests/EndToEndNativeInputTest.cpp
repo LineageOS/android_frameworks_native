@@ -68,8 +68,9 @@ class InputSurface {
 public:
     InputSurface(const sp<SurfaceControl> &sc, int width, int height) {
         mSurfaceControl = sc;
-
-        InputChannel::openInputChannelPair("testchannels", mServerChannel, mClientChannel);
+        std::unique_ptr<InputChannel> clientChannel;
+        InputChannel::openInputChannelPair("testchannels", mServerChannel, clientChannel);
+        mClientChannel = std::move(clientChannel);
 
         mInputFlinger = getInputFlinger();
         mInputFlinger->registerInputChannel(*mServerChannel);
@@ -211,7 +212,7 @@ private:
     }
 public:
     sp<SurfaceControl> mSurfaceControl;
-    std::shared_ptr<InputChannel> mServerChannel;
+    std::unique_ptr<InputChannel> mServerChannel;
     std::shared_ptr<InputChannel> mClientChannel;
     sp<IInputFlinger> mInputFlinger;
 

@@ -128,7 +128,10 @@ public:
 protected:
     explicit FakeInputReceiver(const sp<InputDispatcher>& dispatcher, const std::string name)
           : mDispatcher(dispatcher) {
-        InputChannel::openInputChannelPair(name, mServerChannel, mClientChannel);
+        std::unique_ptr<InputChannel> serverChannel, clientChannel;
+        InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
+        mServerChannel = std::move(serverChannel);
+        mClientChannel = std::move(clientChannel);
         mConsumer = std::make_unique<InputConsumer>(mClientChannel);
     }
 

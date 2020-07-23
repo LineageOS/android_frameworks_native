@@ -25,30 +25,6 @@ using namespace android::flag_operators;
 
 enum class TestFlags { ONE = 0x1, TWO = 0x2, THREE = 0x4 };
 
-static std::optional<std::string> toStringComplete(TestFlags f) {
-    switch (f) {
-        case TestFlags::ONE:
-            return "ONE";
-        case TestFlags::TWO:
-            return "TWO";
-        case TestFlags::THREE:
-            return "THREE";
-    }
-    return std::nullopt;
-}
-
-static std::optional<std::string> toStringIncomplete(TestFlags f) {
-    switch (f) {
-        case TestFlags::ONE:
-            return "ONE";
-        case TestFlags::TWO:
-            return "TWO";
-        case TestFlags::THREE:
-        default:
-            return std::nullopt;
-    }
-}
-
 TEST(Flags, Test) {
     Flags<TestFlags> flags = TestFlags::ONE;
     ASSERT_TRUE(flags.test(TestFlags::ONE));
@@ -172,29 +148,75 @@ TEST(Flags, EqualsOperator_DontShareState) {
     ASSERT_NE(flags1, flags2);
 }
 
-TEST(Flags, String_NoFlagsWithDefaultStringify) {
+TEST(Flags, String_NoFlags) {
     Flags<TestFlags> flags;
     ASSERT_EQ(flags.string(), "0x0");
 }
 
-TEST(Flags, String_NoFlagsWithNonDefaultStringify) {
+TEST(Flags, String_KnownValues) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
+    ASSERT_EQ(flags.string(), "ONE | TWO");
+}
+
+TEST(Flags, String_UnknownValues) {
+    auto flags = Flags<TestFlags>(0b1011);
+    ASSERT_EQ(flags.string(), "ONE | TWO | 0x00000008");
+}
+
+TEST(FlagsIterator, IteratesOverAllFlags) {
+    Flags<TestFlags> flags1 = TestFlags::ONE | TestFlags::TWO;
+    Flags<TestFlags> flags2;
+    for (TestFlags f : flags1) {
+        flags2 |= f;
+    }
+    ASSERT_EQ(flags2, flags1);
+}
+
+TEST(FlagsIterator, IteratesInExpectedOrder) {
+    const std::vector<TestFlags> flagOrder = {TestFlags::ONE, TestFlags::TWO};
     Flags<TestFlags> flags;
-    ASSERT_EQ(flags.string(toStringComplete), "0x0");
-}
+    for (TestFlags f : flagOrder) {
+        flags |= f;
+    }
 
-TEST(Flags, String_WithDefaultStringify) {
+    size_t idx = 0;
+    auto iter = flags.begin();
+    while (iter != flags.end() && idx < flagOrder.size()) {
+        // Make sure the order is what we expect
+        ASSERT_EQ(*iter, flagOrder[idx]);
+        iter++;
+        idx++;
+    }
+    ASSERT_EQ(iter, flags.end());
+}
+TEST(FlagsIterator, PostFixIncrement) {
     Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
-    ASSERT_EQ(flags.string(), "0x00000003");
+    auto iter = flags.begin();
+    ASSERT_EQ(*(iter++), TestFlags::ONE);
+    ASSERT_EQ(*iter, TestFlags::TWO);
+    ASSERT_EQ(*(iter++), TestFlags::TWO);
+    ASSERT_EQ(iter, flags.end());
 }
 
-TEST(Flags, String_WithCompleteStringify) {
+TEST(FlagsIterator, PreFixIncrement) {
     Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
-    ASSERT_EQ(flags.string(toStringComplete), "ONE | TWO");
+    auto iter = flags.begin();
+    ASSERT_EQ(*++iter, TestFlags::TWO);
+    ASSERT_EQ(++iter, flags.end());
 }
 
-TEST(Flags, String_WithIncompleteStringify) {
-    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::THREE;
-    ASSERT_EQ(flags.string(toStringIncomplete), "ONE | 0x00000004");
+TEST(FlagNames, RuntimeFlagName) {
+    TestFlags f = TestFlags::ONE;
+    ASSERT_EQ(flag_name(f), "ONE");
+}
+
+TEST(FlagNames, RuntimeUnknownFlagName) {
+    TestFlags f = static_cast<TestFlags>(0x8);
+    ASSERT_EQ(flag_name(f), std::nullopt);
+}
+
+TEST(FlagNames, CompileTimeFlagName) {
+    static_assert(flag_name<TestFlags::TWO>() == "TWO");
 }
 
 } // namespace android::test

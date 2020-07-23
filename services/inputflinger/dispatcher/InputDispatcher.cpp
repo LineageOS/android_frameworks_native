@@ -4229,8 +4229,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          toString(windowInfo->hasWallpaper),
                                          toString(windowInfo->visible),
                                          toString(windowInfo->canReceiveKeys),
-                                         windowInfo->flags.string(InputWindowInfo::flagToString)
-                                                 .c_str(),
+                                         windowInfo->flags.string().c_str(),
                                          static_cast<int32_t>(windowInfo->type),
                                          windowInfo->frameLeft, windowInfo->frameTop,
                                          windowInfo->frameRight, windowInfo->frameBottom,

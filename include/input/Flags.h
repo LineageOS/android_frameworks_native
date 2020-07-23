@@ -16,6 +16,7 @@
 
 #include <android-base/stringprintf.h>
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -27,6 +28,69 @@
 #define __UI_INPUT_FLAGS_H
 
 namespace android {
+
+namespace details {
+template <typename F, F V>
+constexpr std::optional<std::string_view> enum_value_name() {
+    // Should look something like (but all on one line):
+    //   std::optional<std::string_view>
+    //   android::details::enum_value_name()
+    //   [F = android::test::TestFlags, V = android::test::TestFlags::ONE]
+    std::string_view view = __PRETTY_FUNCTION__;
+    size_t templateStart = view.rfind("[");
+    size_t templateEnd = view.rfind("]");
+    if (templateStart == std::string::npos || templateEnd == std::string::npos) {
+        return std::nullopt;
+    }
+
+    // Extract the template parameters without the enclosing braces.
+    // Example (cont'd): F = android::test::TestFlags, V = android::test::TestFlags::ONE
+    view = view.substr(templateStart + 1, templateEnd - templateStart - 1);
+    size_t valStart = view.rfind("V = ");
+    if (valStart == std::string::npos) {
+        return std::nullopt;
+    }
+
+    // Example (cont'd): V = android::test::TestFlags::ONE
+    view = view.substr(valStart);
+    size_t nameStart = view.rfind("::");
+    if (nameStart == std::string::npos) {
+        return std::nullopt;
+    }
+
+    // Chop off the initial "::"
+    nameStart += 2;
+    return view.substr(nameStart);
+}
+
+template <typename F>
+inline constexpr auto flag_count = sizeof(F) * __CHAR_BIT__;
+
+template <typename F, typename T, T... I>
+constexpr auto generate_flag_values(std::integer_sequence<T, I...> seq) {
+    constexpr int count = seq.size();
+
+    std::array<F, count> values{};
+    for (int i = 0, v = 0; v < count; ++i) {
+        values[v++] = static_cast<F>(T{1} << i);
+    }
+
+    return values;
+}
+
+template <typename F>
+inline constexpr auto flag_values = generate_flag_values<F>(
+        std::make_integer_sequence<std::underlying_type_t<F>, flag_count<F>>{});
+
+template <typename F, std::size_t... I>
+constexpr auto generate_flag_names(std::index_sequence<I...>) noexcept {
+    return std::array<std::optional<std::string_view>, sizeof...(I)>{
+            {enum_value_name<F, flag_values<F>[I]>()...}};
+}
+
+template <typename F>
+inline constexpr auto flag_names =
+        generate_flag_names<F>(std::make_index_sequence<flag_count<F>>{});
 
 // A trait for determining whether a type is specifically an enum class or not.
 template <typename T, bool = std::is_enum_v<T>>
@@ -40,70 +104,148 @@ struct is_enum_class<T, true>
 
 template <typename T>
 inline constexpr bool is_enum_class_v = is_enum_class<T>::value;
+} // namespace details
+
+template <auto V>
+constexpr auto flag_name() {
+    using F = decltype(V);
+    return details::enum_value_name<F, V>();
+}
+
+template <typename F>
+constexpr std::optional<std::string_view> flag_name(F flag) {
+    using U = std::underlying_type_t<F>;
+    auto idx = __builtin_ctzl(static_cast<U>(flag));
+    return details::flag_names<F>[idx];
+}
 
 /* A class for handling flags defined by an enum or enum class in a type-safe way. */
-template <class F, typename = std::enable_if_t<std::is_enum_v<F>>>
+template <typename F>
 class Flags {
     // F must be an enum or its underlying type is undefined. Theoretically we could specialize this
     // further to avoid this restriction but in general we want to encourage the use of enums
     // anyways.
+    static_assert(std::is_enum_v<F>, "Flags type must be an enum");
     using U = typename std::underlying_type_t<F>;
 
 public:
-    constexpr Flags(F f) : flags(static_cast<U>(f)) {}
-    constexpr Flags() : flags(0) {}
-    constexpr Flags(const Flags<F>& f) : flags(f.flags) {}
+    constexpr Flags(F f) : mFlags(static_cast<U>(f)) {}
+    constexpr Flags() : mFlags(0) {}
+    constexpr Flags(const Flags<F>& f) : mFlags(f.mFlags) {}
 
     // Provide a non-explicit construct for non-enum classes since they easily convert to their
     // underlying types (e.g. when used with bitwise operators). For enum classes, however, we
     // should force them to be explicitly constructed from their underlying types to make full use
     // of the type checker.
     template <typename T = U>
-    constexpr Flags(T t, typename std::enable_if_t<!is_enum_class_v<F>, T>* = nullptr) : flags(t) {}
+    constexpr Flags(T t, typename std::enable_if_t<!details::is_enum_class_v<F>, T>* = nullptr)
+          : mFlags(t) {}
     template <typename T = U>
-    explicit constexpr Flags(T t, typename std::enable_if_t<is_enum_class_v<F>, T>* = nullptr)
-          : flags(t) {}
+    explicit constexpr Flags(T t,
+                             typename std::enable_if_t<details::is_enum_class_v<F>, T>* = nullptr)
+          : mFlags(t) {}
+
+    class Iterator {
+        // The type can't be larger than 64-bits otherwise it won't fit in BitSet64.
+        static_assert(sizeof(U) <= sizeof(uint64_t));
+
+    public:
+        Iterator(Flags<F> flags) : mRemainingFlags(flags.mFlags) { (*this)++; }
+        Iterator() : mRemainingFlags(0), mCurrFlag(static_cast<F>(0)) {}
+
+        // Pre-fix ++
+        Iterator& operator++() {
+            if (mRemainingFlags.isEmpty()) {
+                mCurrFlag = static_cast<F>(0);
+            } else {
+                uint64_t bit = mRemainingFlags.clearLastMarkedBit(); // counts from left
+                const U flag = 1 << (64 - bit - 1);
+                mCurrFlag = static_cast<F>(flag);
+            }
+            return *this;
+        }
+
+        // Post-fix ++
+        Iterator operator++(int) {
+            Iterator iter = *this;
+            ++*this;
+            return iter;
+        }
+
+        bool operator==(Iterator other) const {
+            return mCurrFlag == other.mCurrFlag && mRemainingFlags == other.mRemainingFlags;
+        }
+
+        bool operator!=(Iterator other) const { return !(*this == other); }
+
+        F operator*() { return mCurrFlag; }
+
+        // iterator traits
+
+        // In the future we could make this a bidirectional const iterator instead of a forward
+        // iterator but it doesn't seem worth the added complexity at this point. This could not,
+        // however, be made a non-const iterator as assigning one flag to another is a non-sensical
+        // operation.
+        using iterator_category = std::input_iterator_tag;
+        using value_type = F;
+        // Per the C++ spec, because input iterators are not assignable the iterator's reference
+        // type does not actually need to be a reference. In fact, making it a reference would imply
+        // that modifying it would change the underlying Flags object, which is obviously wrong for
+        // the same reason this can't be a non-const iterator.
+        using reference = F;
+        using difference_type = void;
+        using pointer = void;
+
+    private:
+        BitSet64 mRemainingFlags;
+        F mCurrFlag;
+    };
+
     /*
      * Tests whether the given flag is set.
      */
     bool test(F flag) const {
         U f = static_cast<U>(flag);
-        return (f & flags) == f;
+        return (f & mFlags) == f;
     }
 
     /* Tests whether any of the given flags are set */
-    bool any(Flags<F> f) { return (flags & f.flags) != 0; }
+    bool any(Flags<F> f) { return (mFlags & f.mFlags) != 0; }
 
     /* Tests whether all of the given flags are set */
-    bool all(Flags<F> f) { return (flags & f.flags) == f.flags; }
+    bool all(Flags<F> f) { return (mFlags & f.mFlags) == f.mFlags; }
 
-    Flags<F> operator|(Flags<F> rhs) const { return static_cast<F>(flags | rhs.flags); }
+    Flags<F> operator|(Flags<F> rhs) const { return static_cast<F>(mFlags | rhs.mFlags); }
     Flags<F>& operator|=(Flags<F> rhs) {
-        flags = flags | rhs.flags;
+        mFlags = mFlags | rhs.mFlags;
         return *this;
     }
 
-    Flags<F> operator&(Flags<F> rhs) const { return static_cast<F>(flags & rhs.flags); }
+    Flags<F> operator&(Flags<F> rhs) const { return static_cast<F>(mFlags & rhs.mFlags); }
     Flags<F>& operator&=(Flags<F> rhs) {
-        flags = flags & rhs.flags;
+        mFlags = mFlags & rhs.mFlags;
         return *this;
     }
 
-    Flags<F> operator^(Flags<F> rhs) const { return static_cast<F>(flags ^ rhs.flags); }
+    Flags<F> operator^(Flags<F> rhs) const { return static_cast<F>(mFlags ^ rhs.mFlags); }
     Flags<F>& operator^=(Flags<F> rhs) {
-        flags = flags ^ rhs.flags;
+        mFlags = mFlags ^ rhs.mFlags;
         return *this;
     }
 
-    Flags<F> operator~() { return static_cast<F>(~flags); }
+    Flags<F> operator~() { return static_cast<F>(~mFlags); }
 
-    bool operator==(Flags<F> rhs) const { return flags == rhs.flags; }
+    bool operator==(Flags<F> rhs) const { return mFlags == rhs.mFlags; }
     bool operator!=(Flags<F> rhs) const { return !operator==(rhs); }
 
     Flags<F>& operator=(const Flags<F>& rhs) {
-        flags = rhs.flags;
+        mFlags = rhs.mFlags;
         return *this;
     }
+
+    Iterator begin() const { return Iterator(*this); }
+
+    Iterator end() const { return Iterator(); }
 
     /*
      * Returns the stored set of flags.
@@ -112,24 +254,18 @@ public:
      * the value is no longer necessarily a strict member of the enum since the returned value could
      * be multiple enum variants OR'd together.
      */
-    U get() const { return flags; }
+    U get() const { return mFlags; }
 
-    std::string string() const { return string(defaultStringify); }
-
-    std::string string(std::function<std::optional<std::string>(F)> stringify) const {
-        // The type can't be larger than 64-bits otherwise it won't fit in BitSet64.
-        static_assert(sizeof(U) <= sizeof(uint64_t));
+    std::string string() const {
         std::string result;
         bool first = true;
         U unstringified = 0;
-        for (BitSet64 bits(flags); !bits.isEmpty();) {
-            uint64_t bit = bits.clearLastMarkedBit(); // counts from left
-            const U flag = 1 << (64 - bit - 1);
-            std::optional<std::string> flagString = stringify(static_cast<F>(flag));
+        for (const F f : *this) {
+            std::optional<std::string_view> flagString = flag_name(f);
             if (flagString) {
                 appendFlag(result, flagString.value(), first);
             } else {
-                unstringified |= flag;
+                unstringified |= static_cast<U>(f);
             }
         }
 
@@ -145,10 +281,9 @@ public:
     }
 
 private:
-    U flags;
+    U mFlags;
 
-    static std::optional<std::string> defaultStringify(F) { return std::nullopt; }
-    static void appendFlag(std::string& str, const std::string& flag, bool& first) {
+    static void appendFlag(std::string& str, const std::string_view& flag, bool& first) {
         if (first) {
             first = false;
         } else {
@@ -162,12 +297,12 @@ private:
 // as flags. In order to use these, add them via a `using namespace` declaration.
 namespace flag_operators {
 
-template <typename F, typename = std::enable_if_t<is_enum_class_v<F>>>
+template <typename F, typename = std::enable_if_t<details::is_enum_class_v<F>>>
 inline Flags<F> operator~(F f) {
     using U = typename std::underlying_type_t<F>;
     return static_cast<F>(~static_cast<U>(f));
 }
-template <typename F, typename = std::enable_if_t<is_enum_class_v<F>>>
+template <typename F, typename = std::enable_if_t<details::is_enum_class_v<F>>>
 Flags<F> operator|(F lhs, F rhs) {
     using U = typename std::underlying_type_t<F>;
     return static_cast<F>(static_cast<U>(lhs) | static_cast<U>(rhs));
