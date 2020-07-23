@@ -2387,17 +2387,8 @@ InputWindowInfo Layer::fillInputInfo() {
     }
 
     ui::Transform t = getTransform();
-    const float xScale = t.dsdx();
-    const float yScale = t.dsdy();
     int32_t xSurfaceInset = info.surfaceInset;
     int32_t ySurfaceInset = info.surfaceInset;
-    if (xScale != 1.0f || yScale != 1.0f) {
-        info.windowXScale *= (xScale != 0.0f) ? 1.0f / xScale : 0.0f;
-        info.windowYScale *= (yScale != 0.0f) ? 1.0f / yScale : 0.0f;
-        info.touchableRegion.scaleSelf(xScale, yScale);
-        xSurfaceInset = std::round(xSurfaceInset * xScale);
-        ySurfaceInset = std::round(ySurfaceInset * yScale);
-    }
 
     // Transform layer size to screen space and inset it by surface insets.
     // If this is a portal window, set the touchableRegion to the layerBounds.
@@ -2407,6 +2398,15 @@ InputWindowInfo Layer::fillInputInfo() {
     if (!layerBounds.isValid()) {
         layerBounds = getCroppedBufferSize(getDrawingState());
     }
+
+    const float xScale = t.getScaleX();
+    const float yScale = t.getScaleY();
+    if (xScale != 1.0f || yScale != 1.0f) {
+        info.touchableRegion.scaleSelf(xScale, yScale);
+        xSurfaceInset = std::round(xSurfaceInset * xScale);
+        ySurfaceInset = std::round(ySurfaceInset * yScale);
+    }
+
     layerBounds = t.transform(layerBounds);
 
     // clamp inset to layer bounds
@@ -2420,6 +2420,10 @@ InputWindowInfo Layer::fillInputInfo() {
     info.frameTop = layerBounds.top;
     info.frameRight = layerBounds.right;
     info.frameBottom = layerBounds.bottom;
+
+    ui::Transform inputTransform(t);
+    inputTransform.set(layerBounds.left, layerBounds.top);
+    info.transform = inputTransform.inverse();
 
     // Position the touchable region relative to frame screen location and restrict it to frame
     // bounds.
