@@ -240,17 +240,13 @@ void MotionEntry::appendDescription(std::string& msg) const {
 
 volatile int32_t DispatchEntry::sNextSeqAtomic;
 
-DispatchEntry::DispatchEntry(EventEntry* eventEntry, int32_t targetFlags, float xOffset,
-                             float yOffset, float globalScaleFactor, float windowXScale,
-                             float windowYScale)
+DispatchEntry::DispatchEntry(EventEntry* eventEntry, int32_t targetFlags, ui::Transform transform,
+                             float globalScaleFactor)
       : seq(nextSeq()),
         eventEntry(eventEntry),
         targetFlags(targetFlags),
-        xOffset(xOffset),
-        yOffset(yOffset),
+        transform(transform),
         globalScaleFactor(globalScaleFactor),
-        windowXScale(windowXScale),
-        windowYScale(windowYScale),
         deliveryTime(0),
         resolvedAction(0),
         resolvedFlags(0) {

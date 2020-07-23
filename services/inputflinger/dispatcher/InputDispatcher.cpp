@@ -271,12 +271,11 @@ static bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
 static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarget,
                                                           EventEntry* eventEntry,
                                                           int32_t inputTargetFlags) {
-    if (inputTarget.useDefaultPointerInfo()) {
-        const PointerInfo& pointerInfo = inputTarget.getDefaultPointerInfo();
+    if (inputTarget.useDefaultPointerTransform()) {
+        const ui::Transform& transform = inputTarget.getDefaultPointerTransform();
         return std::make_unique<DispatchEntry>(eventEntry, // increments ref
-                                               inputTargetFlags, pointerInfo.xOffset,
-                                               pointerInfo.yOffset, inputTarget.globalScaleFactor,
-                                               pointerInfo.windowXScale, pointerInfo.windowYScale);
+                                               inputTargetFlags, transform,
+                                               inputTarget.globalScaleFactor);
     }
 
     ALOG_ASSERT(eventEntry->type == EventEntry::Type::MOTION);
@@ -286,28 +285,24 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
 
     // Use the first pointer information to normalize all other pointers. This could be any pointer
     // as long as all other pointers are normalized to the same value and the final DispatchEntry
-    // uses the offset and scale for the normalized pointer.
-    const PointerInfo& firstPointerInfo =
-            inputTarget.pointerInfos[inputTarget.pointerIds.firstMarkedBit()];
+    // uses the transform for the normalized pointer.
+    const ui::Transform& firstPointerTransform =
+            inputTarget.pointerTransforms[inputTarget.pointerIds.firstMarkedBit()];
+    ui::Transform inverseFirstTransform = firstPointerTransform.inverse();
 
     // Iterate through all pointers in the event to normalize against the first.
     for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.pointerCount; pointerIndex++) {
         const PointerProperties& pointerProperties = motionEntry.pointerProperties[pointerIndex];
         uint32_t pointerId = uint32_t(pointerProperties.id);
-        const PointerInfo& currPointerInfo = inputTarget.pointerInfos[pointerId];
-
-        // The scale factor is the ratio of the current pointers scale to the normalized scale.
-        float scaleXDiff = currPointerInfo.windowXScale / firstPointerInfo.windowXScale;
-        float scaleYDiff = currPointerInfo.windowYScale / firstPointerInfo.windowYScale;
+        const ui::Transform& currTransform = inputTarget.pointerTransforms[pointerId];
 
         pointerCoords[pointerIndex].copyFrom(motionEntry.pointerCoords[pointerIndex]);
-        // First apply the current pointers offset to set the window at 0,0
-        pointerCoords[pointerIndex].applyOffset(currPointerInfo.xOffset, currPointerInfo.yOffset);
-        // Next scale the coordinates.
-        pointerCoords[pointerIndex].scale(1, scaleXDiff, scaleYDiff);
-        // Lastly, offset the coordinates so they're in the normalized pointer's frame.
-        pointerCoords[pointerIndex].applyOffset(-firstPointerInfo.xOffset,
-                                                -firstPointerInfo.yOffset);
+        // First, apply the current pointer's transform to update the coordinates into
+        // window space.
+        pointerCoords[pointerIndex].transform(currTransform);
+        // Next, apply the inverse transform of the normalized coordinates so the
+        // current coordinates are transformed into the normalized coordinate space.
+        pointerCoords[pointerIndex].transform(inverseFirstTransform);
     }
 
     MotionEntry* combinedMotionEntry =
@@ -329,10 +324,8 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
 
     std::unique_ptr<DispatchEntry> dispatchEntry =
             std::make_unique<DispatchEntry>(combinedMotionEntry, // increments ref
-                                            inputTargetFlags, firstPointerInfo.xOffset,
-                                            firstPointerInfo.yOffset, inputTarget.globalScaleFactor,
-                                            firstPointerInfo.windowXScale,
-                                            firstPointerInfo.windowYScale);
+                                            inputTargetFlags, firstPointerTransform,
+                                            inputTarget.globalScaleFactor);
     combinedMotionEntry->release();
     return dispatchEntry;
 }
@@ -2045,8 +2038,7 @@ void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowH
     ALOG_ASSERT(it->flags == targetFlags);
     ALOG_ASSERT(it->globalScaleFactor == windowInfo->globalScaleFactor);
 
-    it->addPointers(pointerIds, -windowInfo->frameLeft, -windowInfo->frameTop,
-                    windowInfo->windowXScale, windowInfo->windowYScale);
+    it->addPointers(pointerIds, windowInfo->transform);
 }
 
 void InputDispatcher::addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets,
@@ -2069,7 +2061,9 @@ void InputDispatcher::addMonitoringTargetLocked(const Monitor& monitor, float xO
     InputTarget target;
     target.inputChannel = monitor.inputChannel;
     target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
-    target.setDefaultPointerInfo(xOffset, yOffset, 1 /* windowXScale */, 1 /* windowYScale */);
+    ui::Transform t;
+    t.set(xOffset, yOffset);
+    target.setDefaultPointerTransform(t);
     inputTargets.push_back(target);
 }
 
@@ -2588,15 +2582,9 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 const PointerCoords* usingCoords = motionEntry->pointerCoords;
 
                 // Set the X and Y offset and X and Y scale depending on the input source.
-                float xOffset = 0.0f, yOffset = 0.0f;
-                float xScale = 1.0f, yScale = 1.0f;
                 if ((motionEntry->source & AINPUT_SOURCE_CLASS_POINTER) &&
                     !(dispatchEntry->targetFlags & InputTarget::FLAG_ZERO_COORDS)) {
                     float globalScaleFactor = dispatchEntry->globalScaleFactor;
-                    xScale = dispatchEntry->windowXScale;
-                    yScale = dispatchEntry->windowYScale;
-                    xOffset = dispatchEntry->xOffset * xScale;
-                    yOffset = dispatchEntry->yOffset * yScale;
                     if (globalScaleFactor != 1.0f) {
                         for (uint32_t i = 0; i < motionEntry->pointerCount; i++) {
                             scaledCoords[i] = motionEntry->pointerCoords[i];
@@ -2631,8 +2619,12 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                      dispatchEntry->resolvedFlags,
                                                      motionEntry->edgeFlags, motionEntry->metaState,
                                                      motionEntry->buttonState,
-                                                     motionEntry->classification, xScale, yScale,
-                                                     xOffset, yOffset, motionEntry->xPrecision,
+                                                     motionEntry->classification,
+                                                     dispatchEntry->transform.dsdx(),
+                                                     dispatchEntry->transform.dsdy(),
+                                                     dispatchEntry->transform.tx(),
+                                                     dispatchEntry->transform.ty(),
+                                                     motionEntry->xPrecision,
                                                      motionEntry->yPrecision,
                                                      motionEntry->xCursorPosition,
                                                      motionEntry->yCursorPosition,
@@ -2910,8 +2902,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
             getWindowHandleLocked(connection->inputChannel->getConnectionToken());
     if (windowHandle != nullptr) {
         const InputWindowInfo* windowInfo = windowHandle->getInfo();
-        target.setDefaultPointerInfo(-windowInfo->frameLeft, -windowInfo->frameTop,
-                                     windowInfo->windowXScale, windowInfo->windowYScale);
+        target.setDefaultPointerTransform(windowInfo->transform);
         target.globalScaleFactor = windowInfo->globalScaleFactor;
     }
     target.inputChannel = connection->inputChannel;
@@ -2976,8 +2967,7 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
             getWindowHandleLocked(connection->inputChannel->getConnectionToken());
     if (windowHandle != nullptr) {
         const InputWindowInfo* windowInfo = windowHandle->getInfo();
-        target.setDefaultPointerInfo(-windowInfo->frameLeft, -windowInfo->frameTop,
-                                     windowInfo->windowXScale, windowInfo->windowYScale);
+        target.setDefaultPointerTransform(windowInfo->transform);
         target.globalScaleFactor = windowInfo->globalScaleFactor;
     }
     target.inputChannel = connection->inputChannel;
@@ -4221,7 +4211,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                                  "hasWallpaper=%s, visible=%s, canReceiveKeys=%s, "
                                                  "flags=%s, type=0x%08x, "
                                                  "frame=[%d,%d][%d,%d], globalScale=%f, "
-                                                 "windowScale=(%f,%f), touchableRegion=",
+                                                 "touchableRegion=",
                                          i, windowInfo->name.c_str(), windowInfo->displayId,
                                          windowInfo->portalToDisplayId,
                                          toString(windowInfo->paused),
@@ -4233,8 +4223,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          static_cast<int32_t>(windowInfo->type),
                                          windowInfo->frameLeft, windowInfo->frameTop,
                                          windowInfo->frameRight, windowInfo->frameBottom,
-                                         windowInfo->globalScaleFactor, windowInfo->windowXScale,
-                                         windowInfo->windowYScale);
+                                         windowInfo->globalScaleFactor);
                     dumpRegion(dump, windowInfo->touchableRegion);
                     dump += StringPrintf(", inputFeatures=%s",
                                          windowInfo->inputFeatures.string().c_str());
@@ -4242,6 +4231,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          "ms\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
                                          millis(windowInfo->dispatchingTimeout));
+                    windowInfo->transform.dump(dump, INDENT4 "transform=");
                 }
             } else {
                 dump += INDENT2 "Windows: <none>\n";
