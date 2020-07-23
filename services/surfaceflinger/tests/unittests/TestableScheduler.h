@@ -42,8 +42,7 @@ public:
                       createLayerHistory(configs, useContentDetectionV2),
                       {.supportKernelTimer = false,
                        .useContentDetection = true,
-                       .useContentDetectionV2 = useContentDetectionV2,
-                       .useVsyncPredictor = false}) {}
+                       .useContentDetectionV2 = useContentDetectionV2}) {}
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {

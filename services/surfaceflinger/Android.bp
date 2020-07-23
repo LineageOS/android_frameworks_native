@@ -160,7 +160,6 @@ filegroup {
         "RefreshRateOverlay.cpp",
         "RegionSamplingThread.cpp",
         "RenderArea.cpp",
-        "Scheduler/DispSync.cpp",
         "Scheduler/DispSyncSource.cpp",
         "Scheduler/EventThread.cpp",
         "Scheduler/OneShotTimer.cpp",
