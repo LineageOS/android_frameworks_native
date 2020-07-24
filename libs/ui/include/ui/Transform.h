@@ -74,6 +74,9 @@ public:
     float dtdy() const;
     float dsdy() const;
 
+    float getScaleX() const;
+    float getScaleY() const;
+
     // modify the transform
     void        reset();
     void        set(float tx, float ty);
