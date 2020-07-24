@@ -16,6 +16,7 @@
 
 package android.os;
 
+import android.FocusRequest;
 import android.InputChannel;
 import android.InputWindowInfo;
 import android.os.ISetInputWindowsListener;
@@ -31,4 +32,9 @@ interface IInputFlinger
             in @nullable ISetInputWindowsListener setInputWindowsListener);
     void registerInputChannel(in InputChannel channel);
     void unregisterInputChannel(in InputChannel channel);
+    /**
+     * Sets focus to the window identified by the token. This must be called
+     * after updating any input window handles.
+     */
+    oneway void setFocusedWindow(in FocusRequest request);
 }

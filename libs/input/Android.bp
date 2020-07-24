@@ -60,6 +60,7 @@ cc_library {
                 "LatencyStatistics.cpp",
                 "VelocityControl.cpp",
                 "VelocityTracker.cpp",
+                "android/FocusRequest.aidl",
                 "android/os/IInputFlinger.aidl",
                 "android/os/ISetInputWindowsListener.aidl",
             ],

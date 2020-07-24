@@ -92,6 +92,7 @@ cc_library_shared {
 
     export_shared_lib_headers: [
         "libbinder",
+        "libinput",
     ],
 
     // bufferhub is not used when building libgui for vendors
