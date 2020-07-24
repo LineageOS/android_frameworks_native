@@ -1364,6 +1364,21 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInput
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFocusedWindow(
+        const sp<IBinder>& token, const sp<IBinder>& focusedToken, nsecs_t timestampNanos) {
+    FocusRequest request;
+    request.token = token;
+    request.focusedToken = focusedToken;
+    request.timestamp = timestampNanos;
+    return setFocusedWindow(request);
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFocusedWindow(
+        const FocusRequest& request) {
+    mInputWindowCommands.focusRequests.push_back(request);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::syncInputWindows() {
     mInputWindowCommands.syncInputWindows = true;
     return *this;

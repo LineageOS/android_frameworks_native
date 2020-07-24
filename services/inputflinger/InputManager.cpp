@@ -146,4 +146,9 @@ status_t InputManager::dump(int fd, const Vector<String16>& args) {
     return NO_ERROR;
 }
 
+binder::Status InputManager::setFocusedWindow(const FocusRequest& request) {
+    mDispatcher->setFocusedWindow(request);
+    return binder::Status::ok();
+}
+
 } // namespace android

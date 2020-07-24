@@ -55,6 +55,7 @@ using std::chrono_literals::operator""s;
 namespace android {
 
 static const sp<IBinder> TestInfoToken = new BBinder();
+static const sp<IBinder> FocusedTestInfoToken = new BBinder();
 static constexpr int32_t TestInfoId = 1;
 static const std::string TestInfoName = "InputFlingerServiceTestInputWindowInfo";
 static constexpr Flags<InputWindowInfo::Flag> TestInfoFlags = InputWindowInfo::Flag::NOT_FOCUSABLE;
@@ -102,7 +103,9 @@ public:
 
 protected:
     void InitializeInputFlinger();
-    void setInputWindowsByInfos(std::vector<InputWindowInfo>& infos);
+    void setInputWindowsByInfos(const std::vector<InputWindowInfo>& infos);
+    void setFocusedWindow(const sp<IBinder> token, const sp<IBinder> focusedToken,
+                          nsecs_t timestampNanos);
 
     void setInputWindowsFinished();
     void verifyInputWindowInfo(const InputWindowInfo& info) const;
@@ -137,6 +140,7 @@ public:
 
     binder::Status getInputWindows(std::vector<::android::InputWindowInfo>* inputHandles);
     binder::Status getInputChannels(std::vector<::android::InputChannel>* channels);
+    binder::Status getLastFocusRequest(FocusRequest*);
 
     status_t dump(int fd, const Vector<String16>& args) override;
 
@@ -146,11 +150,13 @@ public:
 
     binder::Status registerInputChannel(const InputChannel& channel) override;
     binder::Status unregisterInputChannel(const InputChannel& channel) override;
+    binder::Status setFocusedWindow(const FocusRequest&) override;
 
 private:
     mutable Mutex mLock;
     std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> mHandlesPerDisplay;
     std::vector<std::shared_ptr<InputChannel>> mInputChannels;
+    FocusRequest mFocusRequest;
 };
 
 class TestInputQuery : public BnInputFlingerQuery {
@@ -158,6 +164,7 @@ public:
     TestInputQuery(sp<android::TestInputManager> manager) : mManager(manager){};
     binder::Status getInputWindows(std::vector<::android::InputWindowInfo>* inputHandles) override;
     binder::Status getInputChannels(std::vector<::android::InputChannel>* channels) override;
+    binder::Status getLastFocusRequest(FocusRequest*) override;
 
 private:
     sp<android::TestInputManager> mManager;
@@ -170,6 +177,10 @@ binder::Status TestInputQuery::getInputWindows(
 
 binder::Status TestInputQuery::getInputChannels(std::vector<::android::InputChannel>* channels) {
     return mManager->getInputChannels(channels);
+}
+
+binder::Status TestInputQuery::getLastFocusRequest(FocusRequest* request) {
+    return mManager->getLastFocusRequest(request);
 }
 
 binder::Status SetInputWindowsListener::onSetInputWindowsFinished() {
@@ -251,6 +262,16 @@ binder::Status TestInputManager::getInputChannels(std::vector<::android::InputCh
     return binder::Status::ok();
 }
 
+binder::Status TestInputManager::getLastFocusRequest(FocusRequest* request) {
+    *request = mFocusRequest;
+    return binder::Status::ok();
+}
+
+binder::Status TestInputManager::setFocusedWindow(const FocusRequest& request) {
+    mFocusRequest = request;
+    return binder::Status::ok();
+}
+
 void InputFlingerServiceTest::SetUp() {
     mSetInputWindowsListener = new SetInputWindowsListener([&]() {
         std::unique_lock<std::mutex> lock(mLock);
@@ -310,11 +331,23 @@ void InputFlingerServiceTest::InitializeInputFlinger() {
     mQuery = interface_cast<IInputFlingerQuery>(input);
 }
 
-void InputFlingerServiceTest::setInputWindowsByInfos(std::vector<InputWindowInfo>& infos) {
+void InputFlingerServiceTest::setInputWindowsByInfos(const std::vector<InputWindowInfo>& infos) {
     std::unique_lock<std::mutex> lock(mLock);
     mService->setInputWindows(infos, mSetInputWindowsListener);
     // Verify listener call
     EXPECT_NE(mSetInputWindowsFinishedCondition.wait_for(lock, 1s), std::cv_status::timeout);
+}
+
+void InputFlingerServiceTest::setFocusedWindow(const sp<IBinder> token,
+                                               const sp<IBinder> focusedToken,
+                                               nsecs_t timestampNanos) {
+    FocusRequest request;
+    request.token = TestInfoToken;
+    request.focusedToken = focusedToken;
+    request.timestamp = timestampNanos;
+    mService->setFocusedWindow(request);
+    // call set input windows and wait for the callback to drain the queue.
+    setInputWindowsByInfos(std::vector<InputWindowInfo>());
 }
 
 /**
@@ -374,6 +407,30 @@ TEST_F(InputFlingerServiceTest, InputWindow_RegisterInputChannelInvalid) {
     mService->unregisterInputChannel(*serverChannel);
     mQuery->getInputChannels(&channels);
     EXPECT_EQ(channels.size(), 0UL);
+}
+
+TEST_F(InputFlingerServiceTest, InputWindow_setFocusedWindow) {
+    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+    setFocusedWindow(TestInfoToken, nullptr /* focusedToken */, now);
+
+    FocusRequest request;
+    mQuery->getLastFocusRequest(&request);
+
+    EXPECT_EQ(request.token, TestInfoToken);
+    EXPECT_EQ(request.focusedToken, nullptr);
+    EXPECT_EQ(request.timestamp, now);
+}
+
+TEST_F(InputFlingerServiceTest, InputWindow_setFocusedWindowWithFocusedToken) {
+    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+    setFocusedWindow(TestInfoToken, FocusedTestInfoToken, now);
+
+    FocusRequest request;
+    mQuery->getLastFocusRequest(&request);
+
+    EXPECT_EQ(request.token, TestInfoToken);
+    EXPECT_EQ(request.focusedToken, FocusedTestInfoToken);
+    EXPECT_EQ(request.timestamp, now);
 }
 
 } // namespace android

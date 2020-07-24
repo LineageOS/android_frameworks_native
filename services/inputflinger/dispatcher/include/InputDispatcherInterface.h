@@ -18,6 +18,7 @@
 #define _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERINTERFACE_H
 
 #include <InputListener.h>
+#include <android/FocusRequest.h>
 #include <android/os/ISetInputWindowsListener.h>
 #include <input/InputApplication.h>
 #include <input/InputTransport.h>
@@ -147,6 +148,11 @@ public:
      * Returns true on success.  False if the window did not actually have touch focus.
      */
     virtual bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) = 0;
+
+    /**
+     * Sets focus on the specified window.
+     */
+    virtual void setFocusedWindow(const FocusRequest&) = 0;
 
     /* Registers input channels that may be used as targets for input events.
      *
