@@ -151,8 +151,7 @@ void LayerProtoHelper::writeToProto(
     proto->set_has_wallpaper(inputInfo.hasWallpaper);
 
     proto->set_global_scale_factor(inputInfo.globalScaleFactor);
-    proto->set_window_x_scale(inputInfo.windowXScale);
-    proto->set_window_y_scale(inputInfo.windowYScale);
+    LayerProtoHelper::writeToProto(inputInfo.transform, proto->mutable_transform());
     proto->set_replace_touchable_region_with_crop(inputInfo.replaceTouchableRegionWithCrop);
     auto cropLayer = touchableRegionBounds.promote();
     if (cropLayer != nullptr) {

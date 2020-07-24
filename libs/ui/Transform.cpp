@@ -133,6 +133,14 @@ float Transform::dsdy() const {
     return mMatrix[1][1];
 }
 
+float Transform::getScaleX() const {
+    return sqrt(dsdx() * dsdx()) + (dtdx() * dtdx());
+}
+
+float Transform::getScaleY() const {
+    return sqrt((dtdy() * dtdy()) + (dsdy() * dsdy()));
+}
+
 void Transform::reset() {
     mType = IDENTITY;
     for(size_t i = 0; i < 3; i++) {
