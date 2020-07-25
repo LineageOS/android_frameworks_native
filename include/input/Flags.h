@@ -68,10 +68,10 @@ inline constexpr auto flag_count = sizeof(F) * __CHAR_BIT__;
 
 template <typename F, typename T, T... I>
 constexpr auto generate_flag_values(std::integer_sequence<T, I...> seq) {
-    constexpr int count = seq.size();
+    constexpr size_t count = seq.size();
 
     std::array<F, count> values{};
-    for (int i = 0, v = 0; v < count; ++i) {
+    for (size_t i = 0, v = 0; v < count; ++i) {
         values[v++] = static_cast<F>(T{1} << i);
     }
 
