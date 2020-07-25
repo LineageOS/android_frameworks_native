@@ -170,11 +170,15 @@ TEST_P(LayerTypeTransactionTest, SetFlagsSecure) {
     Transaction()
             .setFlags(layer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
             .apply(true);
-    ASSERT_EQ(PERMISSION_DENIED,
-              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
+
+    DisplayCaptureArgs args;
+    args.displayToken = mDisplay;
+
+    ScreenCaptureResults captureResults;
+    ASSERT_EQ(PERMISSION_DENIED, composer->captureDisplay(args, captureResults));
 
     Transaction().setFlags(layer, 0, layer_state_t::eLayerSecure).apply(true);
-    ASSERT_EQ(NO_ERROR, composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
+    ASSERT_EQ(NO_ERROR, composer->captureDisplay(args, captureResults));
 }
 TEST_P(LayerTypeTransactionTest, RefreshRateIsInitialized) {
     sp<SurfaceControl> layer;

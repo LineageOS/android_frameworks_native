@@ -35,9 +35,12 @@ public:
         const auto sf = ComposerService::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureScreen(displayToken, &outBuffer, Rect(), 0, 0, false));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
+        DisplayCaptureArgs args;
+        args.displayToken = displayToken;
+
+        ScreenCaptureResults captureResults;
+        ASSERT_EQ(NO_ERROR, sf->captureDisplay(args, captureResults));
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
     }
 
     static void captureLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
