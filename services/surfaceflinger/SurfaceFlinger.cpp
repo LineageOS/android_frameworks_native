@@ -2932,6 +2932,10 @@ void SurfaceFlinger::updateInputWindowInfo() {
     mInputFlinger->setInputWindows(inputInfos,
                                mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
                                                                      : nullptr);
+    for (const auto& focusRequest : mInputWindowCommands.focusRequests) {
+        mInputFlinger->setFocusedWindow(focusRequest);
+    }
+    mInputWindowCommands.focusRequests.clear();
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
@@ -3922,13 +3926,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
 }
 
 uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& inputWindowCommands) {
-    uint32_t flags = 0;
-    if (inputWindowCommands.syncInputWindows) {
-        flags |= eTraversalNeeded;
-    }
-
-    mPendingInputWindowCommands.merge(inputWindowCommands);
-    return flags;
+    const bool hasChanges = mPendingInputWindowCommands.merge(inputWindowCommands);
+    return hasChanges ? eTraversalNeeded : 0;
 }
 
 status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
