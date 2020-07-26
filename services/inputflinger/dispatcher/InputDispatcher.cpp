@@ -5175,4 +5175,19 @@ bool InputDispatcher::waitForIdle() {
     return result == std::cv_status::no_timeout;
 }
 
+/**
+ * Sets focus to the window identified by the token. This must be called
+ * after updating any input window handles.
+ *
+ * Params:
+ *  request.token - input channel token used to identify the window that should gain focus.
+ *  request.focusedToken - the token that the caller expects currently to be focused. If the
+ *  specified token does not match the currently focused window, this request will be dropped.
+ *  If the specified focused token matches the currently focused window, the call will succeed.
+ *  Set this to "null" if this call should succeed no matter what the currently focused token is.
+ *  request.timestamp - SYSTEM_TIME_MONOTONIC timestamp in nanos set by the client (wm)
+ *  when requesting the focus change. This determines which request gets
+ *  precedence if there is a focus change request from another source such as pointer down.
+ */
+void InputDispatcher::setFocusedWindow(const FocusRequest&) {}
 } // namespace android::inputdispatcher

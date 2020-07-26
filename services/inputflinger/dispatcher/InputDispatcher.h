@@ -126,6 +126,7 @@ public:
 
     virtual status_t registerInputChannel(
             const std::shared_ptr<InputChannel>& inputChannel) override;
+    virtual void setFocusedWindow(const FocusRequest&) override;
     virtual status_t registerInputMonitor(const std::shared_ptr<InputChannel>& inputChannel,
                                           int32_t displayId, bool isGestureMonitor) override;
     virtual status_t unregisterInputChannel(const InputChannel& inputChannel) override;

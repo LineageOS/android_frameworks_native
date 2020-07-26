@@ -50,6 +50,7 @@ public:
     }
     binder::Status registerInputChannel(const InputChannel&) { return binder::Status::ok(); }
     binder::Status unregisterInputChannel(const InputChannel&) { return binder::Status::ok(); }
+    binder::Status setFocusedWindow(const FocusRequest&) { return binder::Status::ok(); }
 
 private:
     virtual ~InputFlinger();
