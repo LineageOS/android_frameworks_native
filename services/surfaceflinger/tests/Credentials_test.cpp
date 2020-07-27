@@ -260,9 +260,10 @@ TEST_F(CredentialsTest, CaptureTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     std::function<status_t()> condition = [=]() {
         sp<GraphicBuffer> outBuffer;
-        return ScreenshotClient::capture(display, ui::Dataspace::V0_SRGB,
-                                         ui::PixelFormat::RGBA_8888, Rect(), 0 /*reqWidth*/,
-                                         0 /*reqHeight*/, false, ui::ROTATION_0, &outBuffer);
+        DisplayCaptureArgs captureArgs;
+        captureArgs.displayToken = display;
+        ScreenCaptureResults captureResults;
+        return ScreenshotClient::captureDisplay(captureArgs, captureResults);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }

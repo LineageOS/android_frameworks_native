@@ -597,17 +597,10 @@ class ScreenshotClient {
 public:
     // if cropping isn't required, callers may pass in a default Rect, e.g.:
     //   capture(display, producer, Rect(), reqWidth, ...);
-    static status_t capture(const sp<IBinder>& display, ui::Dataspace reqDataSpace,
-                            ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                            uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                            ui::Rotation rotation, bool captureSecureLayers,
-                            sp<GraphicBuffer>* outBuffer, bool& outCapturedSecureLayers);
-    static status_t capture(const sp<IBinder>& display, ui::Dataspace reqDataSpace,
-                            ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                            uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                            ui::Rotation rotation, sp<GraphicBuffer>* outBuffer);
-    static status_t capture(uint64_t displayOrLayerStack, ui::Dataspace* outDataspace,
-                            sp<GraphicBuffer>* outBuffer);
+    static status_t captureDisplay(const DisplayCaptureArgs& captureArgs,
+                                   ScreenCaptureResults& captureResults);
+    static status_t captureDisplay(uint64_t displayOrLayerStack,
+                                   ScreenCaptureResults& captureResults);
     static status_t captureLayers(const sp<IBinder>& layerHandle, ui::Dataspace reqDataSpace,
                                   ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                                   float frameScale, sp<GraphicBuffer>* outBuffer);
