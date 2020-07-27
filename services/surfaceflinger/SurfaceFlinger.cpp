@@ -5585,22 +5585,20 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
                                captureResults.capturedSecureLayers);
 }
 
-status_t SurfaceFlinger::captureLayers(
-        const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
-        const Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-        const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& excludeHandles,
-        float frameScale, bool childrenOnly) {
+status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
+                                       ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
     ui::Size reqSize;
     sp<Layer> parent;
-    Rect crop(sourceCrop);
+    Rect crop(args.sourceCrop);
     std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
     Rect displayViewport;
+    ui::Dataspace dataspace;
     {
         Mutex::Autolock lock(mStateLock);
 
-        parent = fromHandleLocked(layerHandleBinder).promote();
+        parent = fromHandleLocked(args.layerHandle).promote();
         if (parent == nullptr || parent->isRemovedFromCurrentState()) {
             ALOGE("captureLayers called with an invalid or removed parent");
             return NAME_NOT_FOUND;
@@ -5614,24 +5612,24 @@ status_t SurfaceFlinger::captureLayers(
         }
 
         Rect parentSourceBounds = parent->getCroppedBufferSize(parent->getCurrentState());
-        if (sourceCrop.width() <= 0) {
+        if (args.sourceCrop.width() <= 0) {
             crop.left = 0;
             crop.right = parentSourceBounds.getWidth();
         }
 
-        if (sourceCrop.height() <= 0) {
+        if (args.sourceCrop.height() <= 0) {
             crop.top = 0;
             crop.bottom = parentSourceBounds.getHeight();
         }
 
-        if (crop.isEmpty() || frameScale <= 0.0f) {
+        if (crop.isEmpty() || args.frameScale <= 0.0f) {
             // Error out if the layer has no source bounds (i.e. they are boundless) and a source
             // crop was not specified, or an invalid frame scale was provided.
             return BAD_VALUE;
         }
-        reqSize = ui::Size(crop.width() * frameScale, crop.height() * frameScale);
+        reqSize = ui::Size(crop.width() * args.frameScale, crop.height() * args.frameScale);
 
-        for (const auto& handle : excludeHandles) {
+        for (const auto& handle : args.excludeHandles) {
             sp<Layer> excludeLayer = fromHandleLocked(handle).promote();
             if (excludeLayer != nullptr) {
                 excludeLayers.emplace(excludeLayer);
@@ -5647,6 +5645,9 @@ status_t SurfaceFlinger::captureLayers(
         }
 
         displayViewport = display->getViewport();
+
+        const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
+        dataspace = pickDataspaceFromColorMode(colorMode);
     } // mStateLock
 
     // really small crop or frameScale
@@ -5657,8 +5658,10 @@ status_t SurfaceFlinger::captureLayers(
         reqSize.height = 1;
     }
 
+    bool childrenOnly = args.childrenOnly;
+
     RenderAreaFuture renderAreaFuture = promise::defer([=]() -> std::unique_ptr<RenderArea> {
-        return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, reqDataspace,
+        return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
                                                  childrenOnly, displayViewport);
     });
 
@@ -5683,9 +5686,10 @@ status_t SurfaceFlinger::captureLayers(
         });
     };
 
-    bool outCapturedSecureLayers = false;
-    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize, outBuffer,
-                               reqPixelFormat, false, outCapturedSecureLayers);
+    captureResults.capturedDataspace = dataspace;
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+                               &captureResults.buffer, args.pixelFormat, false,
+                               captureResults.capturedSecureLayers);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,

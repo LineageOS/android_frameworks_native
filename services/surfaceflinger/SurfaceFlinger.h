@@ -437,12 +437,8 @@ private:
                             ScreenCaptureResults& captureResults) override;
     status_t captureDisplay(uint64_t displayOrLayerStack,
                             ScreenCaptureResults& captureResults) override;
-    status_t captureLayers(
-            const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
-            const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
-            const Rect& sourceCrop,
-            const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& exclude,
-            float frameScale, bool childrenOnly) override;
+    status_t captureLayers(const LayerCaptureArgs& args,
+                           ScreenCaptureResults& captureResults) override;
 
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
     status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*) override;

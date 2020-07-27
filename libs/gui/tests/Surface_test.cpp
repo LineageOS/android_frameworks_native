@@ -760,13 +760,8 @@ public:
                             ScreenCaptureResults& /* captureResults */) override {
         return NO_ERROR;
     }
-    virtual status_t captureLayers(
-            const sp<IBinder>& /*parentHandle*/, sp<GraphicBuffer>* /*outBuffer*/,
-            ui::Dataspace /*reqDataspace*/, ui::PixelFormat /*reqPixelFormat*/,
-            const Rect& /*sourceCrop*/,
-            const std::unordered_set<sp<IBinder>,
-                                     ISurfaceComposer::SpHash<IBinder>>& /*excludeHandles*/,
-            float /*frameScale*/, bool /*childrenOnly*/) override {
+    virtual status_t captureLayers(const LayerCaptureArgs& /* captureArgs */,
+                                   ScreenCaptureResults& /* captureResults */) override {
         return NO_ERROR;
     }
     status_t clearAnimationFrameStats() override { return NO_ERROR; }
