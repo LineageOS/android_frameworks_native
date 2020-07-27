@@ -53,7 +53,7 @@ TEST(InputWindowInfo, Parcelling) {
     i.frameBottom = 19;
     i.surfaceInset = 17;
     i.globalScaleFactor = 0.3;
-    i.transform.set(std::array<float, 9>{0.4, -1, 100, 0.5, 0, 40, 0, 0, 1});
+    i.transform.set({0.4, -1, 100, 0.5, 0, 40, 0, 0, 1});
     i.visible = false;
     i.canReceiveKeys = false;
     i.hasFocus = false;

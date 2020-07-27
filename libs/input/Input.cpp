@@ -325,10 +325,10 @@ void PointerProperties::copyFrom(const PointerProperties& other) {
 void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
                              std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
                              int32_t flags, int32_t edgeFlags, int32_t metaState,
-                             int32_t buttonState, MotionClassification classification, float xScale,
-                             float yScale, float xOffset, float yOffset, float xPrecision,
-                             float yPrecision, float rawXCursorPosition, float rawYCursorPosition,
-                             nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
+                             int32_t buttonState, MotionClassification classification,
+                             const ui::Transform& transform, float xPrecision, float yPrecision,
+                             float rawXCursorPosition, float rawYCursorPosition, nsecs_t downTime,
+                             nsecs_t eventTime, size_t pointerCount,
                              const PointerProperties* pointerProperties,
                              const PointerCoords* pointerCoords) {
     InputEvent::initialize(id, deviceId, source, displayId, hmac);
@@ -339,10 +339,7 @@ void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int3
     mMetaState = metaState;
     mButtonState = buttonState;
     mClassification = classification;
-    mXScale = xScale;
-    mYScale = yScale;
-    mXOffset = xOffset;
-    mYOffset = yOffset;
+    mTransform = transform;
     mXPrecision = xPrecision;
     mYPrecision = yPrecision;
     mRawXCursorPosition = rawXCursorPosition;
@@ -365,10 +362,7 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
     mMetaState = other->mMetaState;
     mButtonState = other->mButtonState;
     mClassification = other->mClassification;
-    mXScale = other->mXScale;
-    mYScale = other->mYScale;
-    mXOffset = other->mXOffset;
-    mYOffset = other->mYOffset;
+    mTransform = other->mTransform;
     mXPrecision = other->mXPrecision;
     mYPrecision = other->mYPrecision;
     mRawXCursorPosition = other->mRawXCursorPosition;
@@ -398,18 +392,20 @@ void MotionEvent::addSample(
 }
 
 float MotionEvent::getXCursorPosition() const {
-    const float rawX = getRawXCursorPosition();
-    return rawX * mXScale + mXOffset;
+    vec2 vals = mTransform.transform(getRawXCursorPosition(), getRawYCursorPosition());
+    return vals.x;
 }
 
 float MotionEvent::getYCursorPosition() const {
-    const float rawY = getRawYCursorPosition();
-    return rawY * mYScale + mYOffset;
+    vec2 vals = mTransform.transform(getRawXCursorPosition(), getRawYCursorPosition());
+    return vals.y;
 }
 
 void MotionEvent::setCursorPosition(float x, float y) {
-    mRawXCursorPosition = (x - mXOffset) / mXScale;
-    mRawYCursorPosition = (y - mYOffset) / mYScale;
+    ui::Transform inverse = mTransform.inverse();
+    vec2 vals = inverse.transform(x, y);
+    mRawXCursorPosition = vals.x;
+    mRawYCursorPosition = vals.y;
 }
 
 const PointerCoords* MotionEvent::getRawPointerCoords(size_t pointerIndex) const {
@@ -421,14 +417,7 @@ float MotionEvent::getRawAxisValue(int32_t axis, size_t pointerIndex) const {
 }
 
 float MotionEvent::getAxisValue(int32_t axis, size_t pointerIndex) const {
-    float value = getRawPointerCoords(pointerIndex)->getAxisValue(axis);
-    switch (axis) {
-    case AMOTION_EVENT_AXIS_X:
-        return value * mXScale + mXOffset;
-    case AMOTION_EVENT_AXIS_Y:
-        return value * mYScale + mYOffset;
-    }
-    return value;
+    return getHistoricalAxisValue(axis, pointerIndex, getHistorySize());
 }
 
 const PointerCoords* MotionEvent::getHistoricalRawPointerCoords(
@@ -443,14 +432,23 @@ float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
 
 float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
         size_t historicalIndex) const {
-    float value = getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getAxisValue(axis);
+    if (axis != AMOTION_EVENT_AXIS_X && axis != AMOTION_EVENT_AXIS_Y) {
+        return getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getAxisValue(axis);
+    }
+
+    float rawX = getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getX();
+    float rawY = getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getY();
+    vec2 vals = mTransform.transform(rawX, rawY);
+
     switch (axis) {
     case AMOTION_EVENT_AXIS_X:
-        return value * mXScale + mXOffset;
+        return vals.x;
     case AMOTION_EVENT_AXIS_Y:
-        return value * mYScale + mYOffset;
+        return vals.y;
     }
-    return value;
+
+    // This should never happen
+    return 0;
 }
 
 ssize_t MotionEvent::findPointerIndex(int32_t pointerId) const {
@@ -464,23 +462,24 @@ ssize_t MotionEvent::findPointerIndex(int32_t pointerId) const {
 }
 
 void MotionEvent::offsetLocation(float xOffset, float yOffset) {
-    mXOffset += xOffset;
-    mYOffset += yOffset;
+    float currXOffset = mTransform.tx();
+    float currYOffset = mTransform.ty();
+    mTransform.set(currXOffset + xOffset, currYOffset + yOffset);
 }
 
 void MotionEvent::scale(float globalScaleFactor) {
-    mXOffset *= globalScaleFactor;
-    mYOffset *= globalScaleFactor;
+    mTransform.set(mTransform.tx() * globalScaleFactor, mTransform.ty() * globalScaleFactor);
     mXPrecision *= globalScaleFactor;
     mYPrecision *= globalScaleFactor;
 
     size_t numSamples = mSamplePointerCoords.size();
     for (size_t i = 0; i < numSamples; i++) {
-        mSamplePointerCoords.editItemAt(i).scale(globalScaleFactor);
+        mSamplePointerCoords.editItemAt(i).scale(globalScaleFactor, globalScaleFactor,
+                                                 globalScaleFactor);
     }
 }
 
-static void transformPoint(const float matrix[9], float x, float y, float *outX, float *outY) {
+static vec2 transformPoint(const std::array<float, 9>& matrix, float x, float y) {
     // Apply perspective transform like Skia.
     float newX = matrix[0] * x + matrix[1] * y + matrix[2];
     float newY = matrix[3] * x + matrix[4] * y + matrix[5];
@@ -488,22 +487,25 @@ static void transformPoint(const float matrix[9], float x, float y, float *outX,
     if (newZ) {
         newZ = 1.0f / newZ;
     }
-    *outX = newX * newZ;
-    *outY = newY * newZ;
+    vec2 transformedPoint;
+    transformedPoint.x = newX * newZ;
+    transformedPoint.y = newY * newZ;
+    return transformedPoint;
 }
 
-static float transformAngle(const float matrix[9], float angleRadians,
-        float originX, float originY) {
+static float transformAngle(const std::array<float, 9>& matrix, float angleRadians, float originX,
+                            float originY) {
     // Construct and transform a vector oriented at the specified clockwise angle from vertical.
     // Coordinate system: down is increasing Y, right is increasing X.
     float x = sinf(angleRadians);
     float y = -cosf(angleRadians);
-    transformPoint(matrix, x, y, &x, &y);
-    x -= originX;
-    y -= originY;
+    vec2 transformedPoint = transformPoint(matrix, x, y);
+
+    transformedPoint.x -= originX;
+    transformedPoint.y -= originY;
 
     // Derive the transformed vector's clockwise angle from vertical.
-    float result = atan2f(x, -y);
+    float result = atan2f(transformedPoint.x, -transformedPoint.y);
     if (result < - M_PI_2) {
         result += M_PI;
     } else if (result > M_PI_2) {
@@ -512,51 +514,51 @@ static float transformAngle(const float matrix[9], float angleRadians,
     return result;
 }
 
-void MotionEvent::transform(const float matrix[9]) {
-    // The tricky part of this implementation is to preserve the value of
-    // rawX and rawY.  So we apply the transformation to the first point
-    // then derive an appropriate new X/Y offset that will preserve rawX
-     // and rawY for that point.
-    float oldXOffset = mXOffset;
-    float oldYOffset = mYOffset;
-    float newX, newY;
-    float scaledRawX = getRawX(0) * mXScale;
-    float scaledRawY = getRawY(0) * mYScale;
-    transformPoint(matrix, scaledRawX + oldXOffset, scaledRawY + oldYOffset, &newX, &newY);
-    mXOffset = newX - scaledRawX;
-    mYOffset = newY - scaledRawY;
+void MotionEvent::transform(const std::array<float, 9>& matrix) {
+    // We want to preserve the rawX and rawY so we just update the transform
+    // using the values of the transform passed in
+    ui::Transform newTransform;
+    newTransform.set(matrix);
+    mTransform = newTransform * mTransform;
 
     // Determine how the origin is transformed by the matrix so that we
     // can transform orientation vectors.
-    float originX, originY;
-    transformPoint(matrix, 0, 0, &originX, &originY);
-
-    // Apply the transformation to cursor position.
-    if (isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition)) {
-        float x = mRawXCursorPosition * mXScale + oldXOffset;
-        float y = mRawYCursorPosition * mYScale + oldYOffset;
-        transformPoint(matrix, x, y, &x, &y);
-        mRawXCursorPosition = (x - mXOffset) / mXScale;
-        mRawYCursorPosition = (y - mYOffset) / mYScale;
-    }
+    vec2 origin = transformPoint(matrix, 0, 0);
 
     // Apply the transformation to all samples.
     size_t numSamples = mSamplePointerCoords.size();
     for (size_t i = 0; i < numSamples; i++) {
         PointerCoords& c = mSamplePointerCoords.editItemAt(i);
-        float x = c.getAxisValue(AMOTION_EVENT_AXIS_X) * mXScale + oldXOffset;
-        float y = c.getAxisValue(AMOTION_EVENT_AXIS_Y) * mYScale + oldYOffset;
-        transformPoint(matrix, x, y, &x, &y);
-        c.setAxisValue(AMOTION_EVENT_AXIS_X, (x - mXOffset) / mXScale);
-        c.setAxisValue(AMOTION_EVENT_AXIS_Y, (y - mYOffset) / mYScale);
-
         float orientation = c.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
         c.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
-                transformAngle(matrix, orientation, originX, originY));
+                       transformAngle(matrix, orientation, origin.x, origin.y));
     }
 }
 
 #ifdef __ANDROID__
+static status_t readFromParcel(ui::Transform& transform, const Parcel& parcel) {
+    float dsdx, dtdx, tx, dtdy, dsdy, ty;
+    status_t status = parcel.readFloat(&dsdx);
+    status |= parcel.readFloat(&dtdx);
+    status |= parcel.readFloat(&tx);
+    status |= parcel.readFloat(&dtdy);
+    status |= parcel.readFloat(&dsdy);
+    status |= parcel.readFloat(&ty);
+
+    transform.set({dsdx, dtdx, tx, dtdy, dsdy, ty, 0, 0, 1});
+    return status;
+}
+
+static status_t writeToParcel(const ui::Transform& transform, Parcel& parcel) {
+    status_t status = parcel.writeFloat(transform.dsdx());
+    status |= parcel.writeFloat(transform.dtdx());
+    status |= parcel.writeFloat(transform.tx());
+    status |= parcel.writeFloat(transform.dtdy());
+    status |= parcel.writeFloat(transform.dsdy());
+    status |= parcel.writeFloat(transform.ty());
+    return status;
+}
+
 status_t MotionEvent::readFromParcel(Parcel* parcel) {
     size_t pointerCount = parcel->readInt32();
     size_t sampleCount = parcel->readInt32();
@@ -582,10 +584,11 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mMetaState = parcel->readInt32();
     mButtonState = parcel->readInt32();
     mClassification = static_cast<MotionClassification>(parcel->readByte());
-    mXScale = parcel->readFloat();
-    mYScale = parcel->readFloat();
-    mXOffset = parcel->readFloat();
-    mYOffset = parcel->readFloat();
+
+    result = android::readFromParcel(mTransform, *parcel);
+    if (result != OK) {
+        return result;
+    }
     mXPrecision = parcel->readFloat();
     mYPrecision = parcel->readFloat();
     mRawXCursorPosition = parcel->readFloat();
@@ -640,10 +643,11 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeInt32(mMetaState);
     parcel->writeInt32(mButtonState);
     parcel->writeByte(static_cast<int8_t>(mClassification));
-    parcel->writeFloat(mXScale);
-    parcel->writeFloat(mYScale);
-    parcel->writeFloat(mXOffset);
-    parcel->writeFloat(mYOffset);
+
+    status_t result = android::writeToParcel(mTransform, *parcel);
+    if (result != OK) {
+        return result;
+    }
     parcel->writeFloat(mXPrecision);
     parcel->writeFloat(mYPrecision);
     parcel->writeFloat(mRawXCursorPosition);
