@@ -46,7 +46,7 @@ public:
 
     MOCK_METHOD3(allocateVirtualDisplay,
                  std::optional<DisplayId>(uint32_t, uint32_t, ui::PixelFormat*));
-    MOCK_METHOD2(allocatePhysicalDisplay, void(hal::HWDisplayId, DisplayId));
+    MOCK_METHOD2(allocatePhysicalDisplay, void(hal::HWDisplayId, PhysicalDisplayId));
     MOCK_METHOD1(createLayer, HWC2::Layer*(DisplayId));
     MOCK_METHOD2(destroyLayer, void(DisplayId, HWC2::Layer*));
     MOCK_METHOD3(getDeviceCompositionChanges,
@@ -107,8 +107,8 @@ public:
     MOCK_CONST_METHOD1(getHwcDisplayId, std::optional<hal::HWDisplayId>(int32_t));
     MOCK_CONST_METHOD0(getInternalHwcDisplayId, std::optional<hal::HWDisplayId>());
     MOCK_CONST_METHOD0(getExternalHwcDisplayId, std::optional<hal::HWDisplayId>());
-    MOCK_CONST_METHOD1(toPhysicalDisplayId, std::optional<DisplayId>(hal::HWDisplayId));
-    MOCK_CONST_METHOD1(fromPhysicalDisplayId, std::optional<hal::HWDisplayId>(DisplayId));
+    MOCK_CONST_METHOD1(toPhysicalDisplayId, std::optional<PhysicalDisplayId>(hal::HWDisplayId));
+    MOCK_CONST_METHOD1(fromPhysicalDisplayId, std::optional<hal::HWDisplayId>(PhysicalDisplayId));
 };
 
 } // namespace mock

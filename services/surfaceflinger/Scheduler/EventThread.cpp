@@ -74,18 +74,16 @@ std::string toString(const EventThreadConnection& connection) {
 std::string toString(const DisplayEventReceiver::Event& event) {
     switch (event.header.type) {
         case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
-            return StringPrintf("Hotplug{displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT ", %s}",
-                                event.header.displayId,
+            return StringPrintf("Hotplug{displayId=%s, %s}",
+                                to_string(event.header.displayId).c_str(),
                                 event.hotplug.connected ? "connected" : "disconnected");
         case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:
-            return StringPrintf("VSync{displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT
-                                ", count=%u, expectedVSyncTimestamp=%" PRId64 "}",
-                                event.header.displayId, event.vsync.count,
+            return StringPrintf("VSync{displayId=%s, count=%u, expectedVSyncTimestamp=%" PRId64 "}",
+                                to_string(event.header.displayId).c_str(), event.vsync.count,
                                 event.vsync.expectedVSyncTimestamp);
         case DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED:
-            return StringPrintf("ConfigChanged{displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT
-                                ", configId=%u}",
-                                event.header.displayId, event.config.configId);
+            return StringPrintf("ConfigChanged{displayId=%s, configId=%u}",
+                                to_string(event.header.displayId).c_str(), event.config.configId);
         default:
             return "Event{}";
     }
@@ -508,8 +506,8 @@ void EventThread::dump(std::string& result) const {
 
     StringAppendF(&result, "%s: state=%s VSyncState=", mThreadName, toCString(mState));
     if (mVSyncState) {
-        StringAppendF(&result, "{displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT ", count=%u%s}\n",
-                      mVSyncState->displayId, mVSyncState->count,
+        StringAppendF(&result, "{displayId=%s, count=%u%s}\n",
+                      to_string(mVSyncState->displayId).c_str(), mVSyncState->count,
                       mVSyncState->synthetic ? ", synthetic" : "");
     } else {
         StringAppendF(&result, "none\n");

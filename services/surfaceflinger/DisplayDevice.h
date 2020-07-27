@@ -194,7 +194,7 @@ private:
 
 struct DisplayDeviceState {
     struct Physical {
-        DisplayId id;
+        PhysicalDisplayId id;
         DisplayConnectionType type;
         hardware::graphics::composer::hal::HWDisplayId hwcDisplayId;
         std::optional<DeviceProductInfo> deviceProductInfo;

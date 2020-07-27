@@ -41,7 +41,7 @@ using testing::Return;
 
 namespace android {
 
-constexpr PhysicalDisplayId PHYSICAL_DISPLAY_ID = 999;
+constexpr PhysicalDisplayId PHYSICAL_DISPLAY_ID(999);
 
 class SchedulerTest : public testing::Test {
 protected:

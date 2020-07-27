@@ -565,11 +565,11 @@ std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIds() const {
 
     std::vector<PhysicalDisplayId> displayIds;
     displayIds.reserve(mPhysicalDisplayTokens.size());
-    displayIds.push_back(internalDisplayId->value);
+    displayIds.push_back(*internalDisplayId);
 
     for (const auto& [id, token] : mPhysicalDisplayTokens) {
         if (id != *internalDisplayId) {
-            displayIds.push_back(id.value);
+            displayIds.push_back(id);
         }
     }
 
@@ -578,7 +578,7 @@ std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIds() const {
 
 sp<IBinder> SurfaceFlinger::getPhysicalDisplayToken(PhysicalDisplayId displayId) const {
     Mutex::Autolock lock(mStateLock);
-    return getPhysicalDisplayTokenLocked(DisplayId{displayId});
+    return getPhysicalDisplayTokenLocked(displayId);
 }
 
 status_t SurfaceFlinger::getColorManagement(bool* outGetColorManagement) const {
@@ -738,10 +738,11 @@ void SurfaceFlinger::init() {
                 signalTransaction();
             }));
         };
-        mVrFlinger = dvr::VrFlinger::Create(getHwComposer().getComposer(),
-                                            getHwComposer()
-                                                    .fromPhysicalDisplayId(*display->getId())
-                                                    .value_or(0),
+        auto hwcDisplayId =
+                getHwComposer()
+                        .fromPhysicalDisplayId(static_cast<PhysicalDisplayId>(*display->getId()))
+                        .value_or(0);
+        mVrFlinger = dvr::VrFlinger::Create(getHwComposer().getComposer(), hwcDisplayId,
                                             vrFlingerRequestDisplayCallback);
         if (!mVrFlinger) {
             ALOGE("Failed to start vrflinger");
@@ -1106,7 +1107,8 @@ void SurfaceFlinger::setActiveConfigInternal() {
         const nsecs_t vsyncPeriod =
                 mRefreshRateConfigs->getRefreshRateFromConfigId(mUpcomingActiveConfig.configId)
                         .getVsyncPeriod();
-        mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, display->getId()->value,
+        mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle,
+                                                  static_cast<PhysicalDisplayId>(*display->getId()),
                                                   mUpcomingActiveConfig.configId, vsyncPeriod);
     }
 }
@@ -2440,7 +2442,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
             continue;
         }
 
-        const DisplayId displayId = info->id;
+        const auto displayId = info->id;
         const auto it = mPhysicalDisplayTokens.find(displayId);
 
         if (event.connection == hal::Connection::CONNECTED) {
@@ -2654,7 +2656,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     mDisplays.emplace(displayToken, display);
     if (!state.isVirtual()) {
         LOG_FATAL_IF(!displayId);
-        dispatchDisplayHotplugEvent(displayId->value, true);
+        dispatchDisplayHotplugEvent(static_cast<PhysicalDisplayId>(*displayId), true);
     }
 
     if (display->isPrimary()) {
@@ -2670,7 +2672,7 @@ void SurfaceFlinger::processDisplayRemoved(const wp<IBinder>& displayToken) {
 
         if (!display->isVirtual()) {
             LOG_FATAL_IF(!displayId);
-            dispatchDisplayHotplugEvent(displayId->value, false);
+            dispatchDisplayHotplugEvent(static_cast<PhysicalDisplayId>(*displayId), false);
         }
     }
 
@@ -2960,7 +2962,7 @@ void SurfaceFlinger::changeRefreshRate(const RefreshRate& refreshRate,
     changeRefreshRateLocked(refreshRate, event);
 }
 
-void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
+void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
     if (mScheduler) {
         // In practice it's not allowed to hotplug in/out the primary display once it's been
         // connected during startup, but some tests do it, so just warn and return.
@@ -3009,8 +3011,8 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
     // anyway since there are no connected apps at this point.
     const nsecs_t vsyncPeriod =
             mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).getVsyncPeriod();
-    mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, primaryDisplayId.value,
-                                              currentConfig, vsyncPeriod);
+    mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, primaryDisplayId, currentConfig,
+                                              vsyncPeriod);
 }
 
 void SurfaceFlinger::commitTransaction()
@@ -4564,7 +4566,8 @@ void SurfaceFlinger::dumpDisplayIdentificationData(std::string& result) const {
         if (!displayId) {
             continue;
         }
-        const auto hwcDisplayId = getHwComposer().fromPhysicalDisplayId(*displayId);
+        const auto hwcDisplayId =
+                getHwComposer().fromPhysicalDisplayId(static_cast<PhysicalDisplayId>(*displayId));
         if (!hwcDisplayId) {
             continue;
         }
@@ -5508,8 +5511,8 @@ status_t SurfaceFlinger::setSchedFifo(bool enabled) {
 }
 
 sp<DisplayDevice> SurfaceFlinger::getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) {
-    const sp<IBinder> displayToken = getPhysicalDisplayTokenLocked(DisplayId{displayOrLayerStack});
-    if (displayToken) {
+    if (const sp<IBinder> displayToken =
+                getPhysicalDisplayTokenLocked(PhysicalDisplayId{displayOrLayerStack})) {
         return getDisplayDeviceLocked(displayToken);
     }
     // Couldn't find display by displayId. Try to get display by layerStack since virtual displays
@@ -5955,7 +5958,9 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
         const nsecs_t vsyncPeriod = getHwComposer()
                                             .getConfigs(*displayId)[policy->defaultConfig.value()]
                                             ->getVsyncPeriod();
-        mScheduler->onNonPrimaryDisplayConfigChanged(mAppConnectionHandle, display->getId()->value,
+        mScheduler->onNonPrimaryDisplayConfigChanged(mAppConnectionHandle,
+                                                     static_cast<PhysicalDisplayId>(
+                                                             *display->getId()),
                                                      policy->defaultConfig, vsyncPeriod);
         return NO_ERROR;
     }
@@ -5987,7 +5992,8 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
     const nsecs_t vsyncPeriod =
             mRefreshRateConfigs->getRefreshRateFromConfigId(display->getActiveConfig())
                     .getVsyncPeriod();
-    mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, display->getId()->value,
+    mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle,
+                                              static_cast<PhysicalDisplayId>(*display->getId()),
                                               display->getActiveConfig(), vsyncPeriod);
     toggleKernelIdleTimer();
 

@@ -327,8 +327,11 @@ public:
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (remote()->transact(BnSurfaceComposer::GET_PHYSICAL_DISPLAY_IDS, data, &reply) ==
             NO_ERROR) {
-            std::vector<PhysicalDisplayId> displayIds;
-            if (reply.readUint64Vector(&displayIds) == NO_ERROR) {
+            std::vector<uint64_t> rawIds;
+            if (reply.readUint64Vector(&rawIds) == NO_ERROR) {
+                std::vector<PhysicalDisplayId> displayIds(rawIds.size());
+                std::transform(rawIds.begin(), rawIds.end(), displayIds.begin(),
+                               [](uint64_t rawId) { return PhysicalDisplayId(rawId); });
                 return displayIds;
             }
         }
@@ -339,7 +342,7 @@ public:
     virtual sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeUint64(displayId);
+        data.writeUint64(displayId.value);
         remote()->transact(BnSurfaceComposer::GET_PHYSICAL_DISPLAY_TOKEN, data, &reply);
         return reply.readStrongBinder();
     }
@@ -1417,7 +1420,7 @@ status_t BnSurfaceComposer::onTransact(
         }
         case GET_PHYSICAL_DISPLAY_TOKEN: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            PhysicalDisplayId displayId = data.readUint64();
+            PhysicalDisplayId displayId(data.readUint64());
             sp<IBinder> display = getPhysicalDisplayToken(displayId);
             reply->writeStrongBinder(display);
             return NO_ERROR;
@@ -1819,7 +1822,11 @@ status_t BnSurfaceComposer::onTransact(
         }
         case GET_PHYSICAL_DISPLAY_IDS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            return reply->writeUint64Vector(getPhysicalDisplayIds());
+            std::vector<PhysicalDisplayId> ids = getPhysicalDisplayIds();
+            std::vector<uint64_t> rawIds(ids.size());
+            std::transform(ids.begin(), ids.end(), rawIds.begin(),
+                           [](PhysicalDisplayId id) { return id.value; });
+            return reply->writeUint64Vector(rawIds);
         }
         case ADD_REGION_SAMPLING_LISTENER: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

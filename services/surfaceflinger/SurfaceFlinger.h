@@ -613,7 +613,7 @@ private:
     void updateInputWindowInfo();
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
-    void initScheduler(DisplayId primaryDisplayId);
+    void initScheduler(PhysicalDisplayId primaryDisplayId);
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
      * region. Returns whether a new buffer has been latched, i.e., whether it
@@ -888,7 +888,8 @@ private:
     /*
      * Display identification
      */
-    sp<IBinder> getPhysicalDisplayTokenLocked(DisplayId displayId) const REQUIRES(mStateLock) {
+    sp<IBinder> getPhysicalDisplayTokenLocked(PhysicalDisplayId displayId) const
+            REQUIRES(mStateLock) {
         const auto it = mPhysicalDisplayTokens.find(displayId);
         return it != mPhysicalDisplayTokens.end() ? it->second : nullptr;
     }
@@ -909,7 +910,7 @@ private:
         return displayId ? getPhysicalDisplayTokenLocked(*displayId) : nullptr;
     }
 
-    std::optional<DisplayId> getInternalDisplayIdLocked() const REQUIRES(mStateLock) {
+    std::optional<PhysicalDisplayId> getInternalDisplayIdLocked() const REQUIRES(mStateLock) {
         const auto hwcDisplayId = getHwComposer().getInternalHwcDisplayId();
         return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
     }
@@ -1078,7 +1079,8 @@ private:
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held
     std::map<wp<IBinder>, sp<DisplayDevice>> mDisplays GUARDED_BY(mStateLock);
-    std::unordered_map<DisplayId, sp<IBinder>> mPhysicalDisplayTokens GUARDED_BY(mStateLock);
+    std::unordered_map<PhysicalDisplayId, sp<IBinder>> mPhysicalDisplayTokens
+            GUARDED_BY(mStateLock);
 
     std::unordered_map<BBinder*, wp<Layer>> mLayersByLocalBinderToken GUARDED_BY(mStateLock);
 
