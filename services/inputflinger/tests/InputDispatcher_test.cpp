@@ -433,10 +433,11 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     constexpr int32_t metaState = AMETA_NONE;
     constexpr MotionClassification classification = MotionClassification::NONE;
 
+    ui::Transform identityTransform;
     // Rejects undefined motion actions.
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
-                     /*action*/ -1, 0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */,
-                     1 /* yScale */, 0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     /*action*/ -1, 0, 0, edgeFlags, metaState, 0, classification,
+                     identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
@@ -448,10 +449,10 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_DOWN |
                              (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                     0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
-                     0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
+                     pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
                                             INPUT_EVENT_INJECTION_SYNC_NONE, 0ms, 0))
@@ -460,10 +461,10 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_DOWN |
                              (~0U << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                     0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
-                     0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
+                     pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
                                             INPUT_EVENT_INJECTION_SYNC_NONE, 0ms, 0))
@@ -473,10 +474,10 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_UP |
                              (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                     0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
-                     0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
+                     pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
                                             INPUT_EVENT_INJECTION_SYNC_NONE, 0ms, 0))
@@ -485,10 +486,10 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_POINTER_UP |
                              (~0U << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                     0, 0, edgeFlags, metaState, 0, classification, 1 /* xScale */, 1 /* yScale */,
-                     0, 0, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
-                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
+                     0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
+                     pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
                                             INPUT_EVENT_INJECTION_SYNC_NONE, 0ms, 0))
@@ -497,9 +498,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     // Rejects motion events with invalid number of pointers.
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
-                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     ARBITRARY_TIME, ARBITRARY_TIME,
+                     identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 0, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -508,9 +508,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
 
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
-                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     ARBITRARY_TIME, ARBITRARY_TIME,
+                     identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ MAX_POINTERS + 1, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -521,9 +520,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     pointerProperties[0].id = -1;
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
-                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     ARBITRARY_TIME, ARBITRARY_TIME,
+                     identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -533,9 +531,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     pointerProperties[0].id = MAX_POINTER_ID + 1;
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
-                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     ARBITRARY_TIME, ARBITRARY_TIME,
+                     identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -547,9 +544,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     pointerProperties[1].id = 1;
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
-                     1 /* xScale */, 1 /* yScale */, 0, 0, 0, 0,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     ARBITRARY_TIME, ARBITRARY_TIME,
+                     identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 2, pointerProperties, pointerCoords);
     ASSERT_EQ(INPUT_EVENT_INJECTION_FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -810,7 +806,11 @@ public:
 
     void setFlags(Flags<InputWindowInfo::Flag> flags) { mInfo.flags = flags; }
 
-    void setWindowScale(float xScale, float yScale) { mInfo.transform.set(xScale, 0, 0, yScale); }
+    void setWindowTransform(float dsdx, float dtdx, float dtdy, float dsdy) {
+        mInfo.transform.set(dsdx, dtdx, dtdy, dsdy);
+    }
+
+    void setWindowScale(float xScale, float yScale) { setWindowTransform(xScale, 0, 0, yScale); }
 
     void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
         consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
@@ -1025,13 +1025,13 @@ public:
         }
 
         MotionEvent event;
+        ui::Transform identityTransform;
         event.initialize(InputEvent::nextId(), DEVICE_ID, mSource, mDisplayId, INVALID_HMAC,
                          mAction, mActionButton, /* flags */ 0, /* edgeFlags */ 0, AMETA_NONE,
-                         mButtonState, MotionClassification::NONE, /* xScale */ 1, /* yScale */ 1,
-                         /* xOffset */ 0,
-                         /* yOffset */ 0, /* xPrecision */ 0, /* yPrecision */ 0,
-                         mRawXCursorPosition, mRawYCursorPosition, mEventTime, mEventTime,
-                         mPointers.size(), pointerProperties.data(), pointerCoords.data());
+                         mButtonState, MotionClassification::NONE, identityTransform,
+                         /* xPrecision */ 0, /* yPrecision */ 0, mRawXCursorPosition,
+                         mRawYCursorPosition, mEventTime, mEventTime, mPointers.size(),
+                         pointerProperties.data(), pointerCoords.data());
 
         return event;
     }
@@ -2489,133 +2489,123 @@ protected:
                     << ", got " << motionEvent.getY(i);
         }
     }
+
+    void touchAndAssertPositions(int32_t action, std::vector<PointF> touchedPoints,
+                                 std::vector<PointF> expectedPoints) {
+        NotifyMotionArgs motionArgs = generateMotionArgs(action, AINPUT_SOURCE_TOUCHSCREEN,
+                                                         ADISPLAY_ID_DEFAULT, touchedPoints);
+        mDispatcher->notifyMotion(&motionArgs);
+
+        // Always consume from window1 since it's the window that has the InputReceiver
+        consumeMotionEvent(mWindow1, action, expectedPoints);
+    }
 };
 
 TEST_F(InputDispatcherMultiWindowSameTokenTests, SingleTouchSameScale) {
     // Touch Window 1
     PointF touchedPoint = {10, 10};
     PointF expectedPoint = getPointInWindow(mWindow1->getInfo(), touchedPoint);
-
-    NotifyMotionArgs motionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
-                               ADISPLAY_ID_DEFAULT, {touchedPoint});
-    mDispatcher->notifyMotion(&motionArgs);
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_DOWN, {expectedPoint});
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, {touchedPoint}, {expectedPoint});
 
     // Release touch on Window 1
-    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
-                                    ADISPLAY_ID_DEFAULT, {touchedPoint});
-    mDispatcher->notifyMotion(&motionArgs);
-    // consume the UP event
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_UP, {expectedPoint});
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_UP, {touchedPoint}, {expectedPoint});
 
     // Touch Window 2
     touchedPoint = {150, 150};
     expectedPoint = getPointInWindow(mWindow2->getInfo(), touchedPoint);
-
-    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
-                                    ADISPLAY_ID_DEFAULT, {touchedPoint});
-    mDispatcher->notifyMotion(&motionArgs);
-
-    // Consuming from window1 since it's the window that has the InputReceiver
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_DOWN, {expectedPoint});
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, {touchedPoint}, {expectedPoint});
 }
 
-TEST_F(InputDispatcherMultiWindowSameTokenTests, SingleTouchDifferentScale) {
+TEST_F(InputDispatcherMultiWindowSameTokenTests, SingleTouchDifferentTransform) {
+    // Set scale value for window2
     mWindow2->setWindowScale(0.5f, 0.5f);
 
     // Touch Window 1
     PointF touchedPoint = {10, 10};
     PointF expectedPoint = getPointInWindow(mWindow1->getInfo(), touchedPoint);
-
-    NotifyMotionArgs motionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
-                               ADISPLAY_ID_DEFAULT, {touchedPoint});
-    mDispatcher->notifyMotion(&motionArgs);
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_DOWN, {expectedPoint});
-
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, {touchedPoint}, {expectedPoint});
     // Release touch on Window 1
-    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
-                                    ADISPLAY_ID_DEFAULT, {touchedPoint});
-    mDispatcher->notifyMotion(&motionArgs);
-    // consume the UP event
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_UP, {expectedPoint});
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_UP, {touchedPoint}, {expectedPoint});
 
     // Touch Window 2
     touchedPoint = {150, 150};
     expectedPoint = getPointInWindow(mWindow2->getInfo(), touchedPoint);
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, {touchedPoint}, {expectedPoint});
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_UP, {touchedPoint}, {expectedPoint});
 
-    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
-                                    ADISPLAY_ID_DEFAULT, {touchedPoint});
-    mDispatcher->notifyMotion(&motionArgs);
-
-    // Consuming from window1 since it's the window that has the InputReceiver
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_DOWN, {expectedPoint});
+    // Update the transform so rotation is set
+    mWindow2->setWindowTransform(0, -1, 1, 0);
+    expectedPoint = getPointInWindow(mWindow2->getInfo(), touchedPoint);
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, {touchedPoint}, {expectedPoint});
 }
 
-TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleTouchDifferentScale) {
+TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleTouchDifferentTransform) {
     mWindow2->setWindowScale(0.5f, 0.5f);
 
     // Touch Window 1
     std::vector<PointF> touchedPoints = {PointF{10, 10}};
     std::vector<PointF> expectedPoints = {getPointInWindow(mWindow1->getInfo(), touchedPoints[0])};
-
-    NotifyMotionArgs motionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
-                               ADISPLAY_ID_DEFAULT, touchedPoints);
-    mDispatcher->notifyMotion(&motionArgs);
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_DOWN, expectedPoints);
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, touchedPoints, expectedPoints);
 
     // Touch Window 2
     int32_t actionPointerDown =
             AMOTION_EVENT_ACTION_POINTER_DOWN + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-    touchedPoints.emplace_back(PointF{150, 150});
-    expectedPoints.emplace_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
+    touchedPoints.push_back(PointF{150, 150});
+    expectedPoints.push_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
+    touchAndAssertPositions(actionPointerDown, touchedPoints, expectedPoints);
 
-    motionArgs = generateMotionArgs(actionPointerDown, AINPUT_SOURCE_TOUCHSCREEN,
-                                    ADISPLAY_ID_DEFAULT, touchedPoints);
-    mDispatcher->notifyMotion(&motionArgs);
+    // Release Window 2
+    int32_t actionPointerUp =
+            AMOTION_EVENT_ACTION_POINTER_UP + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+    touchAndAssertPositions(actionPointerUp, touchedPoints, expectedPoints);
+    expectedPoints.pop_back();
 
-    // Consuming from window1 since it's the window that has the InputReceiver
-    consumeMotionEvent(mWindow1, actionPointerDown, expectedPoints);
+    // Update the transform so rotation is set for Window 2
+    mWindow2->setWindowTransform(0, -1, 1, 0);
+    expectedPoints.push_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
+    touchAndAssertPositions(actionPointerDown, touchedPoints, expectedPoints);
 }
 
-TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleTouchMoveDifferentScale) {
+TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleTouchMoveDifferentTransform) {
     mWindow2->setWindowScale(0.5f, 0.5f);
 
     // Touch Window 1
     std::vector<PointF> touchedPoints = {PointF{10, 10}};
     std::vector<PointF> expectedPoints = {getPointInWindow(mWindow1->getInfo(), touchedPoints[0])};
-
-    NotifyMotionArgs motionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
-                               ADISPLAY_ID_DEFAULT, touchedPoints);
-    mDispatcher->notifyMotion(&motionArgs);
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_DOWN, expectedPoints);
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, touchedPoints, expectedPoints);
 
     // Touch Window 2
     int32_t actionPointerDown =
             AMOTION_EVENT_ACTION_POINTER_DOWN + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-    touchedPoints.emplace_back(PointF{150, 150});
-    expectedPoints.emplace_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
+    touchedPoints.push_back(PointF{150, 150});
+    expectedPoints.push_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
 
-    motionArgs = generateMotionArgs(actionPointerDown, AINPUT_SOURCE_TOUCHSCREEN,
-                                    ADISPLAY_ID_DEFAULT, touchedPoints);
-    mDispatcher->notifyMotion(&motionArgs);
-
-    // Consuming from window1 since it's the window that has the InputReceiver
-    consumeMotionEvent(mWindow1, actionPointerDown, expectedPoints);
+    touchAndAssertPositions(actionPointerDown, touchedPoints, expectedPoints);
 
     // Move both windows
     touchedPoints = {{20, 20}, {175, 175}};
     expectedPoints = {getPointInWindow(mWindow1->getInfo(), touchedPoints[0]),
                       getPointInWindow(mWindow2->getInfo(), touchedPoints[1])};
 
-    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
-                                    ADISPLAY_ID_DEFAULT, touchedPoints);
-    mDispatcher->notifyMotion(&motionArgs);
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_MOVE, touchedPoints, expectedPoints);
 
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_MOVE, expectedPoints);
+    // Release Window 2
+    int32_t actionPointerUp =
+            AMOTION_EVENT_ACTION_POINTER_UP + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+    touchAndAssertPositions(actionPointerUp, touchedPoints, expectedPoints);
+    expectedPoints.pop_back();
+
+    // Touch Window 2
+    mWindow2->setWindowTransform(0, -1, 1, 0);
+    expectedPoints.push_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
+    touchAndAssertPositions(actionPointerDown, touchedPoints, expectedPoints);
+
+    // Move both windows
+    touchedPoints = {{20, 20}, {175, 175}};
+    expectedPoints = {getPointInWindow(mWindow1->getInfo(), touchedPoints[0]),
+                      getPointInWindow(mWindow2->getInfo(), touchedPoints[1])};
+
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_MOVE, touchedPoints, expectedPoints);
 }
 
 TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleWindowsFirstTouchWithScale) {
@@ -2624,36 +2614,22 @@ TEST_F(InputDispatcherMultiWindowSameTokenTests, MultipleWindowsFirstTouchWithSc
     // Touch Window 1
     std::vector<PointF> touchedPoints = {PointF{10, 10}};
     std::vector<PointF> expectedPoints = {getPointInWindow(mWindow1->getInfo(), touchedPoints[0])};
-
-    NotifyMotionArgs motionArgs =
-            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
-                               ADISPLAY_ID_DEFAULT, touchedPoints);
-    mDispatcher->notifyMotion(&motionArgs);
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_DOWN, expectedPoints);
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_DOWN, touchedPoints, expectedPoints);
 
     // Touch Window 2
     int32_t actionPointerDown =
             AMOTION_EVENT_ACTION_POINTER_DOWN + (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-    touchedPoints.emplace_back(PointF{150, 150});
-    expectedPoints.emplace_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
+    touchedPoints.push_back(PointF{150, 150});
+    expectedPoints.push_back(getPointInWindow(mWindow2->getInfo(), touchedPoints[1]));
 
-    motionArgs = generateMotionArgs(actionPointerDown, AINPUT_SOURCE_TOUCHSCREEN,
-                                    ADISPLAY_ID_DEFAULT, touchedPoints);
-    mDispatcher->notifyMotion(&motionArgs);
-
-    // Consuming from window1 since it's the window that has the InputReceiver
-    consumeMotionEvent(mWindow1, actionPointerDown, expectedPoints);
+    touchAndAssertPositions(actionPointerDown, touchedPoints, expectedPoints);
 
     // Move both windows
     touchedPoints = {{20, 20}, {175, 175}};
     expectedPoints = {getPointInWindow(mWindow1->getInfo(), touchedPoints[0]),
                       getPointInWindow(mWindow2->getInfo(), touchedPoints[1])};
 
-    motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
-                                    ADISPLAY_ID_DEFAULT, touchedPoints);
-    mDispatcher->notifyMotion(&motionArgs);
-
-    consumeMotionEvent(mWindow1, AMOTION_EVENT_ACTION_MOVE, expectedPoints);
+    touchAndAssertPositions(AMOTION_EVENT_ACTION_MOVE, touchedPoints, expectedPoints);
 }
 
 class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
