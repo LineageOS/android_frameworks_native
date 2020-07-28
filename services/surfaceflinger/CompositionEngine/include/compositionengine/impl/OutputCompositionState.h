@@ -79,9 +79,6 @@ struct OutputCompositionState {
     // The logical space user viewport rectangle
     Rect viewport;
 
-    // The physical space source clip rectangle
-    Rect sourceClip;
-
     // The physical space destination clip rectangle
     Rect destinationClip;
 

@@ -41,7 +41,6 @@ void OutputCompositionState::dump(std::string& out) const {
     dumpVal(out, "bounds", bounds);
     dumpVal(out, "frame", frame);
     dumpVal(out, "viewport", viewport);
-    dumpVal(out, "sourceClip", sourceClip);
     dumpVal(out, "destinationClip", destinationClip);
     dumpVal(out, "needsFiltering", needsFiltering);
 
