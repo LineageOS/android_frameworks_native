@@ -1369,8 +1369,7 @@ static Dumpstate::RunStatus dumpstate() {
         RunCommand("LSMOD", {"lsmod"});
     }
 
-    if (__android_logger_property_get_bool(
-            "ro.logd.kernel", BOOL_DEFAULT_TRUE | BOOL_DEFAULT_FLAG_ENG | BOOL_DEFAULT_FLAG_SVELTE)) {
+    if (android::base::GetBoolProperty("ro.logd.kernel", false)) {
         DoKernelLogcat();
     } else {
         do_dmesg();
