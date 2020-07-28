@@ -2620,10 +2620,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                      motionEntry->edgeFlags, motionEntry->metaState,
                                                      motionEntry->buttonState,
                                                      motionEntry->classification,
-                                                     dispatchEntry->transform.dsdx(),
-                                                     dispatchEntry->transform.dsdy(),
-                                                     dispatchEntry->transform.tx(),
-                                                     dispatchEntry->transform.ty(),
+                                                     dispatchEntry->transform,
                                                      motionEntry->xPrecision,
                                                      motionEntry->yPrecision,
                                                      motionEntry->xCursorPosition,
@@ -3278,13 +3275,13 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
             mLock.unlock();
 
             MotionEvent event;
+            ui::Transform transform;
             event.initialize(args->id, args->deviceId, args->source, args->displayId, INVALID_HMAC,
                              args->action, args->actionButton, args->flags, args->edgeFlags,
-                             args->metaState, args->buttonState, args->classification, 1 /*xScale*/,
-                             1 /*yScale*/, 0 /* xOffset */, 0 /* yOffset */, args->xPrecision,
-                             args->yPrecision, args->xCursorPosition, args->yCursorPosition,
-                             args->downTime, args->eventTime, args->pointerCount,
-                             args->pointerProperties, args->pointerCoords);
+                             args->metaState, args->buttonState, args->classification, transform,
+                             args->xPrecision, args->yPrecision, args->xCursorPosition,
+                             args->yCursorPosition, args->downTime, args->eventTime,
+                             args->pointerCount, args->pointerProperties, args->pointerCoords);
 
             policyFlags |= POLICY_FLAG_FILTERED;
             if (!mPolicy->filterInputEvent(&event, policyFlags)) {

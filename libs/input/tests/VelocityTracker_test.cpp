@@ -176,12 +176,12 @@ static std::vector<MotionEvent> createMotionEventStream(
         EXPECT_EQ(pointerIndex, pointerCount);
 
         MotionEvent event;
+        ui::Transform identityTransform;
         event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN,
                          DISPLAY_ID, INVALID_HMAC, action, 0 /*actionButton*/, 0 /*flags*/,
                          AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
-                         MotionClassification::NONE, 1 /*xScale*/, 1 /*yScale*/, 0 /*xOffset*/,
-                         0 /*yOffset*/, 0 /*xPrecision*/, 0 /*yPrecision*/,
-                         AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                         MotionClassification::NONE, identityTransform, 0 /*xPrecision*/,
+                         0 /*yPrecision*/, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                          AMOTION_EVENT_INVALID_CURSOR_POSITION, 0 /*downTime*/,
                          entry.eventTime.count(), pointerCount, properties, coords);
 
@@ -239,10 +239,10 @@ TEST_F(VelocityTrackerTest, ThreePointsPositiveVelocityTest) {
     // It is difficult to determine the correct answer here, but at least the direction
     // of the reported velocity should be positive.
     std::vector<MotionEventEntry> motions = {
-        {0ms, {{ 273, NAN}}},
-        {12585us, {{293, NAN}}},
-        {14730us, {{293, NAN}}},
-        {14730us, {{293, NAN}}}, // ACTION_UP
+            {0ms, {{273, 0}}},
+            {12585us, {{293, 0}}},
+            {14730us, {{293, 0}}},
+            {14730us, {{293, 0}}}, // ACTION_UP
     };
     computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X,
                             1600);
@@ -251,10 +251,10 @@ TEST_F(VelocityTrackerTest, ThreePointsPositiveVelocityTest) {
 TEST_F(VelocityTrackerTest, ThreePointsZeroVelocityTest) {
     // Same coordinate is reported 3 times in a row
     std::vector<MotionEventEntry> motions = {
-        { 0ms, {{293, NAN}} },
-        { 6132us, {{293, NAN}} },
-        { 11283us, {{293, NAN}} },
-        { 11283us, {{293, NAN}} }, // ACTION_UP
+            {0ms, {{293, 0}}},
+            {6132us, {{293, 0}}},
+            {11283us, {{293, 0}}},
+            {11283us, {{293, 0}}}, // ACTION_UP
     };
     computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X, 0);
     computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 0);
@@ -263,10 +263,7 @@ TEST_F(VelocityTrackerTest, ThreePointsZeroVelocityTest) {
 TEST_F(VelocityTrackerTest, ThreePointsLinearVelocityTest) {
     // Fixed velocity at 5 points per 10 milliseconds
     std::vector<MotionEventEntry> motions = {
-        { 0ms, {{0, NAN}} },
-        { 10ms, {{5, NAN}} },
-        { 20ms, {{10, NAN}} },
-        { 20ms, {{10, NAN}} }, // ACTION_UP
+            {0ms, {{0, 0}}}, {10ms, {{5, 0}}}, {20ms, {{10, 0}}}, {20ms, {{10, 0}}}, // ACTION_UP
     };
     computeAndCheckVelocity(VelocityTracker::Strategy::IMPULSE, motions, AMOTION_EVENT_AXIS_X, 500);
     computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 500);

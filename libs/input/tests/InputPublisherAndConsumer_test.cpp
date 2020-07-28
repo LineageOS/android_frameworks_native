@@ -173,12 +173,13 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 3.5 * i);
     }
 
+    ui::Transform transform;
+    transform.set({xScale, 0, xOffset, 0, yScale, yOffset, 0, 0, 1});
     status = mPublisher->publishMotionEvent(seq, eventId, deviceId, source, displayId, hmac, action,
                                             actionButton, flags, edgeFlags, metaState, buttonState,
-                                            classification, xScale, yScale, xOffset, yOffset,
-                                            xPrecision, yPrecision, xCursorPosition,
-                                            yCursorPosition, downTime, eventTime, pointerCount,
-                                            pointerProperties, pointerCoords);
+                                            classification, transform, xPrecision, yPrecision,
+                                            xCursorPosition, yCursorPosition, downTime, eventTime,
+                                            pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(OK, status)
             << "publisher publishMotionEvent should return OK";
 
@@ -206,8 +207,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     EXPECT_EQ(metaState, motionEvent->getMetaState());
     EXPECT_EQ(buttonState, motionEvent->getButtonState());
     EXPECT_EQ(classification, motionEvent->getClassification());
-    EXPECT_EQ(xScale, motionEvent->getXScale());
-    EXPECT_EQ(yScale, motionEvent->getYScale());
+    EXPECT_EQ(transform, motionEvent->getTransform());
     EXPECT_EQ(xOffset, motionEvent->getXOffset());
     EXPECT_EQ(yOffset, motionEvent->getYOffset());
     EXPECT_EQ(xPrecision, motionEvent->getXPrecision());
@@ -326,10 +326,10 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZer
         pointerCoords[i].clear();
     }
 
+    ui::Transform identityTransform;
     status = mPublisher->publishMotionEvent(0, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
-                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
-                                            1 /* yScale */, 0, 0, 0, 0,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                            0, 0, 0, MotionClassification::NONE, identityTransform,
+                                            0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                             AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
                                             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
@@ -342,10 +342,10 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessTha
     PointerProperties pointerProperties[pointerCount];
     PointerCoords pointerCoords[pointerCount];
 
+    ui::Transform identityTransform;
     status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
-                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
-                                            1 /* yScale */, 0, 0, 0, 0,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                            0, 0, 0, MotionClassification::NONE, identityTransform,
+                                            0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                             AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
                                             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
@@ -363,10 +363,10 @@ TEST_F(InputPublisherAndConsumerTest,
         pointerCoords[i].clear();
     }
 
+    ui::Transform identityTransform;
     status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
-                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
-                                            1 /* yScale */, 0, 0, 0, 0,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                            0, 0, 0, MotionClassification::NONE, identityTransform,
+                                            0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                             AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
                                             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
