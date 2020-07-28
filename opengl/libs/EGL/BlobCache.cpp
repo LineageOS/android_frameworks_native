@@ -78,12 +78,12 @@ void BlobCache::set(const void* key, size_t keySize, const void* value,
         return;
     }
 
-    std::shared_ptr<Blob> dummyKey(new Blob(key, keySize, false));
-    CacheEntry dummyEntry(dummyKey, nullptr);
+    std::shared_ptr<Blob> cacheKey(new Blob(key, keySize, false));
+    CacheEntry cacheEntry(cacheKey, nullptr);
 
     while (true) {
-        auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), dummyEntry);
-        if (index == mCacheEntries.end() || dummyEntry < *index) {
+        auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), cacheEntry);
+        if (index == mCacheEntries.end() || cacheEntry < *index) {
             // Create a new cache entry.
             std::shared_ptr<Blob> keyBlob(new Blob(key, keySize, true));
             std::shared_ptr<Blob> valueBlob(new Blob(value, valueSize, true));
@@ -138,10 +138,10 @@ size_t BlobCache::get(const void* key, size_t keySize, void* value,
                 keySize, mMaxKeySize);
         return 0;
     }
-    std::shared_ptr<Blob> dummyKey(new Blob(key, keySize, false));
-    CacheEntry dummyEntry(dummyKey, nullptr);
-    auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), dummyEntry);
-    if (index == mCacheEntries.end() || dummyEntry < *index) {
+    std::shared_ptr<Blob> cacheKey(new Blob(key, keySize, false));
+    CacheEntry cacheEntry(cacheKey, nullptr);
+    auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), cacheEntry);
+    if (index == mCacheEntries.end() || cacheEntry < *index) {
         ALOGV("get: no cache entry found for key of size %zu", keySize);
         return 0;
     }
