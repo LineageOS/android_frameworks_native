@@ -128,7 +128,7 @@ protected:
         ASSERT_EQ(NO_ERROR, igbProducer->setMaxDequeuedBufferCount(2));
         IGraphicBufferProducer::QueueBufferOutput qbOutput;
         ASSERT_EQ(NO_ERROR,
-                  igbProducer->connect(new DummyProducerListener, NATIVE_WINDOW_API_CPU, false,
+                  igbProducer->connect(new StubProducerListener, NATIVE_WINDOW_API_CPU, false,
                                        &qbOutput));
         ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
         producer = igbProducer;

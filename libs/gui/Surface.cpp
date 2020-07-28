@@ -1513,7 +1513,7 @@ bool Surface::transformToDisplayInverse() {
 }
 
 int Surface::connect(int api) {
-    static sp<IProducerListener> listener = new DummyProducerListener();
+    static sp<IProducerListener> listener = new StubProducerListener();
     return connect(api, listener);
 }
 

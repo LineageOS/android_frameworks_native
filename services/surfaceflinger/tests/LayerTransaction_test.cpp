@@ -118,10 +118,9 @@ TEST_F(LayerTransactionTest, DISABLED_BufferQueueLayerMergeDamageRegionWhenDropp
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", width, height));
     const auto producer = layer->getIGraphicBufferProducer();
-    const sp<IProducerListener> dummyListener(new DummyProducerListener);
+    const sp<IProducerListener> stubListener(new StubProducerListener);
     IGraphicBufferProducer::QueueBufferOutput queueBufferOutput;
-    ASSERT_EQ(OK,
-              producer->connect(dummyListener, NATIVE_WINDOW_API_CPU, true, &queueBufferOutput));
+    ASSERT_EQ(OK, producer->connect(stubListener, NATIVE_WINDOW_API_CPU, true, &queueBufferOutput));
 
     std::map<int, sp<GraphicBuffer>> slotMap;
     auto slotToBuffer = [&](int slot, sp<GraphicBuffer>* buf) {
