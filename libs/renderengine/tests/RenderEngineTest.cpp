@@ -928,7 +928,7 @@ void RenderEngineTest::clearLeftRegion() {
     settings.clip = Rect(4, 4);
     settings.clearRegion = Region(Rect(2, 4));
     std::vector<const renderengine::LayerSettings*> layers;
-    // dummy layer, without bounds should not render anything
+    // fake layer, without bounds should not render anything
     renderengine::LayerSettings layer;
     layers.push_back(&layer);
     invokeDraw(settings, layers, mBuffer);

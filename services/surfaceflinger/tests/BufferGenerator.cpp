@@ -88,7 +88,7 @@ private:
     sp<Surface> mSurface;
 };
 
-/* Used to generate valid fences. It is not possible to create a dummy sync
+/* Used to generate valid fences. It is not possible to create a placeholder sync
  * fence for testing. Egl can generate buffers along with a valid fence.
  * The buffer cannot be guaranteed to be the same format across all devices so
  * a CPU filled buffer is used instead. The Egl fence is used along with the

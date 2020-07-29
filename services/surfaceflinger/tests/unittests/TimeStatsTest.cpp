@@ -221,7 +221,7 @@ std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
 }
 
 static std::string genLayerName(int32_t layerId) {
-    return (layerId < 0 ? "PopupWindow:b54fcd1#0" : "com.dummy#") + std::to_string(layerId);
+    return (layerId < 0 ? "PopupWindow:b54fcd1#0" : "com.example.fake#") + std::to_string(layerId);
 }
 
 void TimeStatsTest::setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts) {
@@ -424,7 +424,7 @@ TEST_F(TimeStatsTest, canAverageRenderEngineTimings) {
                                            std::chrono::duration_cast<std::chrono::nanoseconds>(8ms)
                                                    .count());
 
-    // Push a dummy present fence to trigger flushing the RenderEngine timings.
+    // Push a fake present fence to trigger flushing the RenderEngine timings.
     mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
@@ -505,7 +505,7 @@ TEST_F(TimeStatsTest, canInsertGlobalRenderEngineTiming) {
     ASSERT_TRUE(preFlushProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
     ASSERT_EQ(0, preFlushProto.render_engine_timing_size());
 
-    // Push a dummy present fence to trigger flushing the RenderEngine timings.
+    // Push a fake present fence to trigger flushing the RenderEngine timings.
     mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));

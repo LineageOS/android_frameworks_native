@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "DummyConsumer.h"
+#include "MockConsumer.h"
 
 #include <gtest/gtest.h>
 
@@ -56,12 +56,11 @@ class FakeProducerFrameEventHistory;
 
 static constexpr uint64_t NO_FRAME_INDEX = std::numeric_limits<uint64_t>::max();
 
-class DummySurfaceListener : public SurfaceListener {
+class FakeSurfaceListener : public SurfaceListener {
 public:
-    DummySurfaceListener(bool enableReleasedCb = false) :
-            mEnableReleaseCb(enableReleasedCb),
-            mBuffersReleased(0) {}
-    virtual ~DummySurfaceListener() = default;
+    FakeSurfaceListener(bool enableReleasedCb = false)
+          : mEnableReleaseCb(enableReleasedCb), mBuffersReleased(0) {}
+    virtual ~FakeSurfaceListener() = default;
 
     virtual void onBufferReleased() {
         mBuffersReleased++;
@@ -124,15 +123,15 @@ protected:
         sp<IGraphicBufferConsumer> consumer;
         BufferQueue::createBufferQueue(&producer, &consumer);
 
-        sp<DummyConsumer> dummyConsumer(new DummyConsumer);
-        consumer->consumerConnect(dummyConsumer, false);
+        sp<MockConsumer> mockConsumer(new MockConsumer);
+        consumer->consumerConnect(mockConsumer, false);
         consumer->setConsumerName(String8("TestConsumer"));
 
         sp<Surface> surface = new Surface(producer);
         sp<ANativeWindow> window(surface);
-        sp<DummySurfaceListener> listener;
+        sp<FakeSurfaceListener> listener;
         if (hasSurfaceListener) {
-            listener = new DummySurfaceListener(enableReleasedCb);
+            listener = new FakeSurfaceListener(enableReleasedCb);
         }
         ASSERT_EQ(OK, surface->connect(
                 NATIVE_WINDOW_API_CPU,
@@ -381,8 +380,8 @@ TEST_F(SurfaceTest, GetConsumerName) {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
 
-    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
-    consumer->consumerConnect(dummyConsumer, false);
+    sp<MockConsumer> mockConsumer(new MockConsumer);
+    consumer->consumerConnect(mockConsumer, false);
     consumer->setConsumerName(String8("TestConsumer"));
 
     sp<Surface> surface = new Surface(producer);
@@ -397,8 +396,8 @@ TEST_F(SurfaceTest, GetWideColorSupport) {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
 
-    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
-    consumer->consumerConnect(dummyConsumer, false);
+    sp<MockConsumer> mockConsumer(new MockConsumer);
+    consumer->consumerConnect(mockConsumer, false);
     consumer->setConsumerName(String8("TestConsumer"));
 
     sp<Surface> surface = new Surface(producer);
@@ -428,8 +427,8 @@ TEST_F(SurfaceTest, GetHdrSupport) {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
 
-    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
-    consumer->consumerConnect(dummyConsumer, false);
+    sp<MockConsumer> mockConsumer(new MockConsumer);
+    consumer->consumerConnect(mockConsumer, false);
     consumer->setConsumerName(String8("TestConsumer"));
 
     sp<Surface> surface = new Surface(producer);
@@ -452,8 +451,8 @@ TEST_F(SurfaceTest, SetHdrMetadata) {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
 
-    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
-    consumer->consumerConnect(dummyConsumer, false);
+    sp<MockConsumer> mockConsumer(new MockConsumer);
+    consumer->consumerConnect(mockConsumer, false);
     consumer->setConsumerName(String8("TestConsumer"));
 
     sp<Surface> surface = new Surface(producer);
@@ -497,8 +496,8 @@ TEST_F(SurfaceTest, DynamicSetBufferCount) {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
 
-    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
-    consumer->consumerConnect(dummyConsumer, false);
+    sp<MockConsumer> mockConsumer(new MockConsumer);
+    consumer->consumerConnect(mockConsumer, false);
     consumer->setConsumerName(String8("TestConsumer"));
 
     sp<Surface> surface = new Surface(producer);
@@ -523,13 +522,13 @@ TEST_F(SurfaceTest, GetAndFlushRemovedBuffers) {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
 
-    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
-    consumer->consumerConnect(dummyConsumer, false);
+    sp<MockConsumer> mockConsumer(new MockConsumer);
+    consumer->consumerConnect(mockConsumer, false);
     consumer->setConsumerName(String8("TestConsumer"));
 
     sp<Surface> surface = new Surface(producer);
     sp<ANativeWindow> window(surface);
-    sp<DummyProducerListener> listener = new DummyProducerListener();
+    sp<StubProducerListener> listener = new StubProducerListener();
     ASSERT_EQ(OK, surface->connect(
             NATIVE_WINDOW_API_CPU,
             /*listener*/listener,
@@ -1910,8 +1909,8 @@ TEST_F(SurfaceTest, DequeueWithConsumerDrivenSize) {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
 
-    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
-    consumer->consumerConnect(dummyConsumer, false);
+    sp<MockConsumer> mockConsumer(new MockConsumer);
+    consumer->consumerConnect(mockConsumer, false);
     consumer->setDefaultBufferSize(10, 10);
 
     sp<Surface> surface = new Surface(producer);
@@ -1980,8 +1979,8 @@ TEST_F(SurfaceTest, DefaultMaxBufferCountSetAndUpdated) {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
 
-    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
-    consumer->consumerConnect(dummyConsumer, false);
+    sp<MockConsumer> mockConsumer(new MockConsumer);
+    consumer->consumerConnect(mockConsumer, false);
 
     sp<Surface> surface = new Surface(producer);
     sp<ANativeWindow> window(surface);
