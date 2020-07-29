@@ -28,7 +28,7 @@
 // Clears any remaining contents wrapped in parentheses.
 #define _PDX_CLEAR(...)
 
-// Introduces a first dummy argument and _PDX_CLEAR as second argument.
+// Introduces a first stub argument and _PDX_CLEAR as second argument.
 #define _PDX_CLEAR_IF_LAST() _, _PDX_CLEAR
 
 // Returns the first argument of a list.
@@ -45,7 +45,7 @@
 // Returns next_func if the next element is not (), or _PDX_CLEAR
 // otherwise.
 //
-// _PDX_CLEAR_IF_LAST inserts an extra first dummy argument if peek is ().
+// _PDX_CLEAR_IF_LAST inserts an extra first stub argument if peek is ().
 #define _PDX_NEXT_FUNC(next_element, next_func) \
   _PDX_EXPAND_NEXT_FUNC(_PDX_CLEAR_IF_LAST next_element, next_func)
 

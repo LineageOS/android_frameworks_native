@@ -334,8 +334,8 @@ Status<void> Endpoint::CloseChannelLocked(int32_t channel_id) {
 
   int channel_fd = iter->second.data_fd.Get();
   Status<void> status;
-  epoll_event dummy;  // See BUGS in man 2 epoll_ctl.
-  if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_DEL, channel_fd, &dummy) < 0) {
+  epoll_event ee;  // See BUGS in man 2 epoll_ctl.
+  if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_DEL, channel_fd, &ee) < 0) {
     status.SetError(errno);
     ALOGE(
         "Endpoint::CloseChannelLocked: Failed to remove channel from endpoint: "

@@ -245,22 +245,22 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCre
     // if can't create a GL context, we can only abort.
     LOG_ALWAYS_FATAL_IF(ctxt == EGL_NO_CONTEXT, "EGLContext creation failed");
 
-    EGLSurface dummy = EGL_NO_SURFACE;
+    EGLSurface stub = EGL_NO_SURFACE;
     if (!extensions.hasSurfacelessContext()) {
-        dummy = createDummyEglPbufferSurface(display, config, args.pixelFormat,
-                                             Protection::UNPROTECTED);
-        LOG_ALWAYS_FATAL_IF(dummy == EGL_NO_SURFACE, "can't create dummy pbuffer");
+        stub = createStubEglPbufferSurface(display, config, args.pixelFormat,
+                                           Protection::UNPROTECTED);
+        LOG_ALWAYS_FATAL_IF(stub == EGL_NO_SURFACE, "can't create stub pbuffer");
     }
-    EGLBoolean success = eglMakeCurrent(display, dummy, dummy, ctxt);
-    LOG_ALWAYS_FATAL_IF(!success, "can't make dummy pbuffer current");
+    EGLBoolean success = eglMakeCurrent(display, stub, stub, ctxt);
+    LOG_ALWAYS_FATAL_IF(!success, "can't make stub pbuffer current");
     extensions.initWithGLStrings(glGetString(GL_VENDOR), glGetString(GL_RENDERER),
                                  glGetString(GL_VERSION), glGetString(GL_EXTENSIONS));
 
-    EGLSurface protectedDummy = EGL_NO_SURFACE;
+    EGLSurface protectedStub = EGL_NO_SURFACE;
     if (protectedContext != EGL_NO_CONTEXT && !extensions.hasSurfacelessContext()) {
-        protectedDummy = createDummyEglPbufferSurface(display, config, args.pixelFormat,
-                                                      Protection::PROTECTED);
-        ALOGE_IF(protectedDummy == EGL_NO_SURFACE, "can't create protected dummy pbuffer");
+        protectedStub = createStubEglPbufferSurface(display, config, args.pixelFormat,
+                                                    Protection::PROTECTED);
+        ALOGE_IF(protectedStub == EGL_NO_SURFACE, "can't create protected stub pbuffer");
     }
 
     // now figure out what version of GL did we actually get
@@ -278,8 +278,8 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCre
             break;
         case GLES_VERSION_2_0:
         case GLES_VERSION_3_0:
-            engine = std::make_unique<GLESRenderEngine>(args, display, config, ctxt, dummy,
-                                                        protectedContext, protectedDummy);
+            engine = std::make_unique<GLESRenderEngine>(args, display, config, ctxt, stub,
+                                                        protectedContext, protectedStub);
             break;
     }
 
@@ -334,15 +334,15 @@ EGLConfig GLESRenderEngine::chooseEglConfig(EGLDisplay display, int format, bool
 }
 
 GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
-                                   EGLConfig config, EGLContext ctxt, EGLSurface dummy,
-                                   EGLContext protectedContext, EGLSurface protectedDummy)
+                                   EGLConfig config, EGLContext ctxt, EGLSurface stub,
+                                   EGLContext protectedContext, EGLSurface protectedStub)
       : renderengine::impl::RenderEngine(args),
         mEGLDisplay(display),
         mEGLConfig(config),
         mEGLContext(ctxt),
-        mDummySurface(dummy),
+        mStubSurface(stub),
         mProtectedEGLContext(protectedContext),
-        mProtectedDummySurface(protectedDummy),
+        mProtectedStubSurface(protectedStub),
         mVpWidth(0),
         mVpHeight(0),
         mFramebufferImageCacheSize(args.imageCacheSize),
@@ -355,12 +355,12 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
 
     // Initialize protected EGL Context.
     if (mProtectedEGLContext != EGL_NO_CONTEXT) {
-        EGLBoolean success = eglMakeCurrent(display, mProtectedDummySurface, mProtectedDummySurface,
+        EGLBoolean success = eglMakeCurrent(display, mProtectedStubSurface, mProtectedStubSurface,
                                             mProtectedEGLContext);
         ALOGE_IF(!success, "can't make protected context current");
         glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
         glPixelStorei(GL_PACK_ALIGNMENT, 4);
-        success = eglMakeCurrent(display, mDummySurface, mDummySurface, mEGLContext);
+        success = eglMakeCurrent(display, mStubSurface, mStubSurface, mEGLContext);
         LOG_ALWAYS_FATAL_IF(!success, "can't make default context current");
     }
 
@@ -896,7 +896,7 @@ bool GLESRenderEngine::cleanupPostRender() {
         return false;
     }
 
-    // Bind the texture to dummy data so that backing image data can be freed.
+    // Bind the texture to placeholder so that backing image data can be freed.
     GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(getFramebufferForDrawing());
     glFramebuffer->allocateBuffers(1, 1, mPlaceholderDrawBuffer);
     // Release the cached fence here, so that we don't churn reallocations when
@@ -934,7 +934,7 @@ bool GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
     if (useProtectedContext && mProtectedEGLContext == EGL_NO_CONTEXT) {
         return false;
     }
-    const EGLSurface surface = useProtectedContext ? mProtectedDummySurface : mDummySurface;
+    const EGLSurface surface = useProtectedContext ? mProtectedStubSurface : mStubSurface;
     const EGLContext context = useProtectedContext ? mProtectedEGLContext : mEGLContext;
     const bool success = eglMakeCurrent(mEGLDisplay, surface, surface, context) == EGL_TRUE;
     if (success) {
@@ -1566,11 +1566,11 @@ EGLContext GLESRenderEngine::createEglContext(EGLDisplay display, EGLConfig conf
     return context;
 }
 
-EGLSurface GLESRenderEngine::createDummyEglPbufferSurface(EGLDisplay display, EGLConfig config,
-                                                          int hwcFormat, Protection protection) {
-    EGLConfig dummyConfig = config;
-    if (dummyConfig == EGL_NO_CONFIG) {
-        dummyConfig = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
+EGLSurface GLESRenderEngine::createStubEglPbufferSurface(EGLDisplay display, EGLConfig config,
+                                                         int hwcFormat, Protection protection) {
+    EGLConfig stubConfig = config;
+    if (stubConfig == EGL_NO_CONFIG) {
+        stubConfig = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
     }
     std::vector<EGLint> attributes;
     attributes.reserve(7);
@@ -1584,7 +1584,7 @@ EGLSurface GLESRenderEngine::createDummyEglPbufferSurface(EGLDisplay display, EG
     }
     attributes.push_back(EGL_NONE);
 
-    return eglCreatePbufferSurface(display, dummyConfig, attributes.data());
+    return eglCreatePbufferSurface(display, stubConfig, attributes.data());
 }
 
 bool GLESRenderEngine::isHdrDataSpace(const Dataspace dataSpace) const {

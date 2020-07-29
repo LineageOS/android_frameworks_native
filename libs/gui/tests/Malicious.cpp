@@ -129,7 +129,7 @@ private:
     int32_t mExpectedSlot = 0;
 };
 
-class DummyListener : public BnConsumerListener {
+class FakeListener : public BnConsumerListener {
 public:
     void onFrameAvailable(const BufferItem&) override {}
     void onBuffersReleased() override {}
@@ -140,7 +140,7 @@ sp<MaliciousBQP> getMaliciousBQP() {
     sp<IGraphicBufferProducer> producer;
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
-    sp<IConsumerListener> listener = new DummyListener;
+    sp<IConsumerListener> listener = new FakeListener;
     consumer->consumerConnect(listener, false);
 
     sp<MaliciousBQP> malicious = new MaliciousBQP(producer);
