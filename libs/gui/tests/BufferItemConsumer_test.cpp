@@ -51,7 +51,7 @@ class BufferItemConsumerTest : public ::testing::Test {
         mBFL = new BufferFreedListener(this);
         mBIC->setBufferFreedListener(mBFL);
 
-        sp<IProducerListener> producerListener = new DummyProducerListener();
+        sp<IProducerListener> producerListener = new StubProducerListener();
         IGraphicBufferProducer::QueueBufferOutput bufferOutput;
         ASSERT_EQ(NO_ERROR,
                   mProducer->connect(producerListener, NATIVE_WINDOW_API_CPU,
@@ -131,7 +131,7 @@ class BufferItemConsumerTest : public ::testing::Test {
 // Test that detaching buffer from consumer side triggers onBufferFreed.
 TEST_F(BufferItemConsumerTest, TriggerBufferFreed_DetachBufferFromConsumer) {
     int slot;
-    // Producer: generate a dummy buffer.
+    // Producer: generate a placeholder buffer.
     DequeueBuffer(&slot);
     QueueBuffer(slot);
 

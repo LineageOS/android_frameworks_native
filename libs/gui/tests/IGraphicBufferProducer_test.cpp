@@ -17,7 +17,7 @@
 #define LOG_TAG "IGraphicBufferProducer_test"
 //#define LOG_NDEBUG 0
 
-#include "DummyConsumer.h"
+#include "MockConsumer.h"
 
 #include <gtest/gtest.h>
 
@@ -89,7 +89,7 @@ protected:
         ALOGV("Begin test: %s.%s", testInfo->test_case_name(),
                 testInfo->name());
 
-        mDC = new DummyConsumer;
+        mMC = new MockConsumer;
 
         switch (GetParam()) {
             case USE_BUFFER_QUEUE_PRODUCER: {
@@ -114,7 +114,7 @@ protected:
         }
 
         // Must connect consumer before producer connects will succeed.
-        ASSERT_OK(mConsumer->consumerConnect(mDC, /*controlledByApp*/false));
+        ASSERT_OK(mConsumer->consumerConnect(mMC, /*controlledByApp*/ false));
     }
 
     virtual void TearDown() {
@@ -249,7 +249,7 @@ protected:
     }
 
 private: // hide from test body
-    sp<DummyConsumer> mDC;
+    sp<MockConsumer> mMC;
 
 protected: // accessible from test body
     sp<IGraphicBufferProducer> mProducer;
