@@ -138,7 +138,7 @@ struct OutputLayerSourceCropTest : public OutputLayerTest {
         mLayerFEState.geomBufferSize = Rect{0, 0, 1920, 1080};
         mLayerFEState.geomBufferTransform = TR_IDENT;
 
-        mOutputState.viewport = Rect{0, 0, 1920, 1080};
+        mOutputState.layerStackSpace.content = Rect{0, 0, 1920, 1080};
     }
 
     FloatRect calculateOutputSourceCrop() {
@@ -223,7 +223,7 @@ TEST_F(OutputLayerSourceCropTest, geomContentCropAffectsCrop) {
 }
 
 TEST_F(OutputLayerSourceCropTest, viewportAffectsCrop) {
-    mOutputState.viewport = Rect{0, 0, 960, 540};
+    mOutputState.layerStackSpace.content = Rect{0, 0, 960, 540};
 
     const FloatRect expected{0.f, 0.f, 960.f, 540.f};
     EXPECT_THAT(calculateOutputSourceCrop(), expected);
@@ -245,7 +245,7 @@ struct OutputLayerDisplayFrameTest : public OutputLayerTest {
         mLayerFEState.geomCrop = Rect{0, 0, 1920, 1080};
         mLayerFEState.geomLayerBounds = FloatRect{0.f, 0.f, 1920.f, 1080.f};
 
-        mOutputState.viewport = Rect{0, 0, 1920, 1080};
+        mOutputState.layerStackSpace.content = Rect{0, 0, 1920, 1080};
         mOutputState.transform = ui::Transform{TR_IDENT};
     }
 
@@ -293,7 +293,7 @@ TEST_F(OutputLayerDisplayFrameTest, geomLayerBoundsAffectsFrame) {
 }
 
 TEST_F(OutputLayerDisplayFrameTest, viewportAffectsFrame) {
-    mOutputState.viewport = Rect{0, 0, 960, 540};
+    mOutputState.layerStackSpace.content = Rect{0, 0, 960, 540};
     const Rect expected{0, 0, 960, 540};
     EXPECT_THAT(calculateOutputDisplayFrame(), expected);
 }
@@ -988,7 +988,7 @@ struct OutputLayerWriteCursorPositionToHWCTest : public OutputLayerTest {
 
         mLayerFEState.cursorFrame = kDefaultCursorFrame;
 
-        mOutputState.viewport = kDefaultDisplayViewport;
+        mOutputState.layerStackSpace.content = kDefaultDisplayViewport;
         mOutputState.transform = ui::Transform{kDefaultTransform};
     }
 

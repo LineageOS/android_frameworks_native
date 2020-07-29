@@ -77,6 +77,7 @@ void dumpVal(std::string& out, const char* name, const Region& region) {
 
 void dumpVal(std::string& out, const char* name, const ui::Transform& transform) {
     transform.dump(out, name);
+    out.append(" ");
 }
 
 void dumpVal(std::string& out, const char* name, const ui::Size& size) {

@@ -647,9 +647,9 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
 }
 
 std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareShadowClientComposition(
-        const LayerFE::LayerSettings& casterLayerSettings, const Rect& displayViewport,
+        const LayerFE::LayerSettings& casterLayerSettings, const Rect& layerStackRect,
         ui::Dataspace outputDataspace) {
-    renderengine::ShadowSettings shadow = getShadowSettings(displayViewport);
+    renderengine::ShadowSettings shadow = getShadowSettings(layerStackRect);
     if (shadow.length <= 0.f) {
         return {};
     }
@@ -2158,12 +2158,12 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
             : RoundedCornerState();
 }
 
-renderengine::ShadowSettings Layer::getShadowSettings(const Rect& viewport) const {
+renderengine::ShadowSettings Layer::getShadowSettings(const Rect& layerStackRect) const {
     renderengine::ShadowSettings state = mFlinger->mDrawingState.globalShadowSettings;
 
     // Shift the spot light x-position to the middle of the display and then
     // offset it by casting layer's screen pos.
-    state.lightPos.x = (viewport.width() / 2.f) - mScreenBounds.left;
+    state.lightPos.x = (layerStackRect.width() / 2.f) - mScreenBounds.left;
     state.lightPos.y -= mScreenBounds.top;
 
     state.length = mEffectiveShadowRadius;

@@ -29,6 +29,7 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
 
+#include <compositionengine/ProjectionSpace.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
@@ -50,8 +51,7 @@ struct OutputCompositionState {
     // If true, the current frame on this output uses device composition
     bool usesDeviceComposition{false};
 
-    // If true, the client target should be flipped when performing client
-    // composition
+    // If true, the client target should be flipped when performing client composition
     bool flipClientTarget{false};
 
     // If true, the current frame reused the buffer from a previous client composition
@@ -63,24 +63,25 @@ struct OutputCompositionState {
     // The layer stack to display on this display
     uint32_t layerStackId{~0u};
 
-    // The physical space screen bounds
-    Rect bounds;
+    // The common space for all layers in the layer stack. layerStackSpace.content is the Rect
+    // which gets projected on the display. The content in this space is always in a single
+    // orientation.
+    ProjectionSpace layerStackSpace;
 
-    // The logical to physical transformation to use
+    // Oriented physical display space. It will have the same size as displaySpace oriented to
+    // match the orientation of layerStackSpace. The content in this space is always in a single
+    // orientation.
+    ProjectionSpace orientedDisplaySpace;
+
+    // The space of the physical display. It is as big as the currently active display mode. The
+    // content in this space can be rotated.
+    ProjectionSpace displaySpace;
+
+    // Transformation from layerStackSpace to displaySpace
     ui::Transform transform;
 
-    // The physical orientation of the display, expressed as ui::Transform
-    // orientation flags.
+    // The physical orientation of the display, expressed as ui::Transform orientation flags.
     uint32_t orientation{0};
-
-    // The logical space user visible bounds
-    Rect frame;
-
-    // The logical space user viewport rectangle
-    Rect viewport;
-
-    // The physical space destination clip rectangle
-    Rect destinationClip;
 
     // If true, RenderEngine filtering should be enabled
     bool needsFiltering{false};

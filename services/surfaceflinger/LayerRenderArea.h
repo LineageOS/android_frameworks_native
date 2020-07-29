@@ -33,7 +33,7 @@ class SurfaceFlinger;
 class LayerRenderArea : public RenderArea {
 public:
     LayerRenderArea(SurfaceFlinger& flinger, sp<Layer> layer, const Rect& crop, ui::Size reqSize,
-                    ui::Dataspace reqDataSpace, bool childrenOnly, const Rect& displayViewport,
+                    ui::Dataspace reqDataSpace, bool childrenOnly, const Rect& layerStackRect,
                     bool allowSecureLayers);
 
     const ui::Transform& getTransform() const override;

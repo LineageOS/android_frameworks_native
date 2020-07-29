@@ -136,7 +136,7 @@ struct OutputTest : public testing::Test {
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
         mOutput->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
 
-        mOutput->editState().bounds = kDefaultDisplaySize;
+        mOutput->editState().displaySpace.bounds = kDefaultDisplaySize;
     }
 
     void injectOutputLayer(InjectedLayer& layer) {
@@ -248,14 +248,14 @@ TEST_F(OutputTest, setProjectionTriviallyWorks) {
 
     EXPECT_THAT(mOutput->getState().transform, transform);
     EXPECT_EQ(orientation, mOutput->getState().orientation);
-    EXPECT_EQ(frame, mOutput->getState().frame);
-    EXPECT_EQ(viewport, mOutput->getState().viewport);
-    EXPECT_EQ(destinationClip, mOutput->getState().destinationClip);
+    EXPECT_EQ(frame, mOutput->getState().orientedDisplaySpace.content);
+    EXPECT_EQ(viewport, mOutput->getState().layerStackSpace.content);
+    EXPECT_EQ(destinationClip, mOutput->getState().displaySpace.content);
     EXPECT_EQ(needsFiltering, mOutput->getState().needsFiltering);
 }
 
 /*
- * Output::setBounds()
+ * Output::setDisplaySpaceSize()
  */
 
 TEST_F(OutputTest, setBoundsSetsSizeAndDirtiesEntireOutput) {
@@ -264,9 +264,9 @@ TEST_F(OutputTest, setBoundsSetsSizeAndDirtiesEntireOutput) {
     EXPECT_CALL(*mRenderSurface, setDisplaySize(displaySize)).Times(1);
     EXPECT_CALL(*mRenderSurface, getSize()).WillOnce(ReturnRef(displaySize));
 
-    mOutput->setBounds(displaySize);
+    mOutput->setDisplaySpaceSize(displaySize);
 
-    EXPECT_EQ(Rect(displaySize), mOutput->getState().bounds);
+    EXPECT_EQ(Rect(displaySize), mOutput->getState().displaySpace.bounds);
 
     EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(Rect(displaySize))));
 }
@@ -429,7 +429,7 @@ TEST_F(OutputTest, setRenderSurfaceResetsBounds) {
 
     mOutput->setRenderSurface(std::unique_ptr<RenderSurface>(renderSurface));
 
-    EXPECT_EQ(Rect(newDisplaySize), mOutput->getState().bounds);
+    EXPECT_EQ(Rect(newDisplaySize), mOutput->getState().displaySpace.bounds);
 }
 
 /*
@@ -438,7 +438,7 @@ TEST_F(OutputTest, setRenderSurfaceResetsBounds) {
 
 TEST_F(OutputTest, getDirtyRegionWithRepaintEverythingTrue) {
     const Rect viewport{100, 200};
-    mOutput->editState().viewport = viewport;
+    mOutput->editState().layerStackSpace.content = viewport;
     mOutput->editState().dirtyRegion.set(50, 300);
 
     {
@@ -450,7 +450,7 @@ TEST_F(OutputTest, getDirtyRegionWithRepaintEverythingTrue) {
 
 TEST_F(OutputTest, getDirtyRegionWithRepaintEverythingFalse) {
     const Rect viewport{100, 200};
-    mOutput->editState().viewport = viewport;
+    mOutput->editState().layerStackSpace.content = viewport;
     mOutput->editState().dirtyRegion.set(50, 300);
 
     {
@@ -858,7 +858,7 @@ struct OutputRebuildLayerStacksTest : public testing::Test {
     OutputRebuildLayerStacksTest() {
         mOutput.mState.isEnabled = true;
         mOutput.mState.transform = kIdentityTransform;
-        mOutput.mState.bounds = kOutputBounds;
+        mOutput.mState.displaySpace.bounds = kOutputBounds;
 
         mRefreshArgs.updatingOutputGeometryThisFrame = true;
 
@@ -1065,8 +1065,8 @@ struct OutputEnsureOutputLayerIfVisibleTest : public testing::Test {
         EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
                 .WillRepeatedly(Return(&mLayer.outputLayer));
 
-        mOutput.mState.bounds = Rect(0, 0, 200, 300);
-        mOutput.mState.viewport = Rect(0, 0, 200, 300);
+        mOutput.mState.displaySpace.bounds = Rect(0, 0, 200, 300);
+        mOutput.mState.layerStackSpace.content = Rect(0, 0, 200, 300);
         mOutput.mState.transform = ui::Transform(TR_IDENT, 200, 300);
 
         mLayer.layerFEState.isVisible = true;
@@ -1146,7 +1146,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesEarlyOutIfLayerHasEmptyVisible
 }
 
 TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutifDrawRegionEmpty) {
-    mOutput.mState.bounds = Rect(0, 0, 0, 0);
+    mOutput.mState.displaySpace.bounds = Rect(0, 0, 0, 0);
 
     ensureOutputLayerIfVisible();
 }
@@ -1343,7 +1343,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest,
     mLayer.layerFEState.contentDirty = true;
     mLayer.layerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
 
-    mOutput.mState.viewport = Rect(0, 0, 300, 200);
+    mOutput.mState.layerStackSpace.content = Rect(0, 0, 300, 200);
     mOutput.mState.transform = ui::Transform(TR_ROT_90, 200, 300);
 
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
@@ -1369,7 +1369,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest,
     mLayer.layerFEState.contentDirty = true;
     mLayer.layerFEState.geomLayerTransform = ui::Transform(TR_IDENT, 100, 200);
 
-    mOutput.mState.viewport = Rect(0, 0, 300, 200);
+    mOutput.mState.layerStackSpace.content = Rect(0, 0, 300, 200);
     mOutput.mState.transform = ui::Transform(TR_ROT_90, 200, 300);
 
     EXPECT_CALL(mOutput, ensureOutputLayer(Eq(0u), Eq(mLayer.layerFE)))
@@ -2783,9 +2783,9 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
         mOutput.cacheClientCompositionRequests(MAX_CLIENT_COMPOSITION_CACHE_SIZE);
 
-        mOutput.mState.frame = kDefaultOutputFrame;
-        mOutput.mState.viewport = kDefaultOutputViewport;
-        mOutput.mState.destinationClip = kDefaultOutputDestinationClip;
+        mOutput.mState.orientedDisplaySpace.content = kDefaultOutputFrame;
+        mOutput.mState.layerStackSpace.content = kDefaultOutputViewport;
+        mOutput.mState.displaySpace.content = kDefaultOutputDestinationClip;
         mOutput.mState.transform = ui::Transform{kDefaultOutputOrientation};
         mOutput.mState.orientation = kDefaultOutputOrientation;
         mOutput.mState.dataspace = kDefaultOutputDataspace;
@@ -3409,9 +3409,9 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
 struct GenerateClientCompositionRequestsTest_ThreeLayers
       : public GenerateClientCompositionRequestsTest {
     GenerateClientCompositionRequestsTest_ThreeLayers() {
-        mOutput.mState.frame = kDisplayFrame;
-        mOutput.mState.viewport = kDisplayViewport;
-        mOutput.mState.destinationClip = kDisplayDestinationClip;
+        mOutput.mState.orientedDisplaySpace.content = kDisplayFrame;
+        mOutput.mState.layerStackSpace.content = kDisplayViewport;
+        mOutput.mState.displaySpace.content = kDisplayDestinationClip;
         mOutput.mState.transform = ui::Transform{kDisplayOrientation};
         mOutput.mState.orientation = kDisplayOrientation;
         mOutput.mState.needsFiltering = false;
@@ -3924,9 +3924,9 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
     const uint32_t kPortraitOrientation = TR_ROT_90;
     constexpr ui::Dataspace kOutputDataspace = ui::Dataspace::DISPLAY_P3;
 
-    mOutput.mState.frame = kPortraitFrame;
-    mOutput.mState.viewport = kPortraitViewport;
-    mOutput.mState.destinationClip = kPortraitDestinationClip;
+    mOutput.mState.orientedDisplaySpace.content = kPortraitFrame;
+    mOutput.mState.layerStackSpace.content = kPortraitViewport;
+    mOutput.mState.displaySpace.content = kPortraitDestinationClip;
     mOutput.mState.transform = ui::Transform{kPortraitOrientation};
     mOutput.mState.orientation = kPortraitOrientation;
     mOutput.mState.needsFiltering = false;

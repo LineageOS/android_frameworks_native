@@ -99,8 +99,8 @@ public:
     }
 
     const ui::Transform& getTransform() const;
-    const Rect& getViewport() const;
-    const Rect& getFrame() const;
+    const Rect& getLayerStackSpaceRect() const;
+    const Rect& getOrientedDisplaySpaceRect() const;
     bool needsFiltering() const;
     ui::LayerStack getLayerStack() const;
 
@@ -208,8 +208,8 @@ struct DisplayDeviceState {
     std::optional<Physical> physical;
     sp<IGraphicBufferProducer> surface;
     ui::LayerStack layerStack = ui::NO_LAYER_STACK;
-    Rect viewport;
-    Rect frame;
+    Rect layerStackSpaceRect;
+    Rect orientedDisplaySpaceRect;
     ui::Rotation orientation = ui::ROTATION_0;
     uint32_t width = 0;
     uint32_t height = 0;
