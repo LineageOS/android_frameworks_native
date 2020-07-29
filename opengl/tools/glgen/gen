@@ -17,7 +17,7 @@ rm -rf out generated
 
 mkdir out
 
-# Create dummy Java files for Android APIs that are used by the code we generate.
+# Create stub Java files for Android APIs that are used by the code we generate.
 # This allows us to test the generated code without building the rest of Android.
 
 mkdir -p out/javax/microedition/khronos/opengles
