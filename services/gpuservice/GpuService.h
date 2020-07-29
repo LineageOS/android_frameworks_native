@@ -79,7 +79,8 @@ private:
     std::shared_ptr<GpuMem> mGpuMem;
     std::unique_ptr<GpuStats> mGpuStats;
     std::unique_ptr<GpuMemTracer> mGpuMemTracer;
-    std::string developerDriverPath;
+    std::mutex mLock;
+    std::string mDeveloperDriverPath;
 };
 
 } // namespace android
