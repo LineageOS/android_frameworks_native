@@ -129,7 +129,7 @@ bool DisplayRenderArea::needsFiltering() const {
 Rect DisplayRenderArea::getSourceCrop() const {
     // use the projected display viewport by default.
     if (mSourceCrop.isEmpty()) {
-        return mDisplay->getSourceClip();
+        return mDisplay->getViewport();
     }
 
     // If there is a source crop provided then it is assumed that the device
@@ -144,8 +144,8 @@ Rect DisplayRenderArea::getSourceCrop() const {
     }
 
     const auto flags = ui::Transform::toRotationFlags(logicalOrientation);
-    int width = mDisplay->getSourceClip().getWidth();
-    int height = mDisplay->getSourceClip().getHeight();
+    int width = mDisplay->getViewport().getWidth();
+    int height = mDisplay->getViewport().getHeight();
     ui::Transform rotation;
     rotation.set(flags, width, height);
     return rotation.transform(mSourceCrop);
