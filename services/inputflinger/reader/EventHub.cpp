@@ -53,6 +53,7 @@
 #define INDENT3 "      "
 
 using android::base::StringPrintf;
+using namespace android::flag_operators;
 
 namespace android {
 
@@ -127,9 +128,9 @@ static nsecs_t processEventTimestamp(const struct input_event& event) {
 
 // --- Global Functions ---
 
-uint32_t getAbsAxisUsage(int32_t axis, uint32_t deviceClasses) {
+Flags<InputDeviceClass> getAbsAxisUsage(int32_t axis, Flags<InputDeviceClass> deviceClasses) {
     // Touch devices get dibs on touch-related axes.
-    if (deviceClasses & INPUT_DEVICE_CLASS_TOUCH) {
+    if (deviceClasses.test(InputDeviceClass::TOUCH)) {
         switch (axis) {
             case ABS_X:
             case ABS_Y:
@@ -151,19 +152,19 @@ uint32_t getAbsAxisUsage(int32_t axis, uint32_t deviceClasses) {
             case ABS_MT_TRACKING_ID:
             case ABS_MT_PRESSURE:
             case ABS_MT_DISTANCE:
-                return INPUT_DEVICE_CLASS_TOUCH;
+                return InputDeviceClass::TOUCH;
         }
     }
 
     // External stylus gets the pressure axis
-    if (deviceClasses & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
+    if (deviceClasses.test(InputDeviceClass::EXTERNAL_STYLUS)) {
         if (axis == ABS_PRESSURE) {
-            return INPUT_DEVICE_CLASS_EXTERNAL_STYLUS;
+            return InputDeviceClass::EXTERNAL_STYLUS;
         }
     }
 
     // Joystick devices get the rest.
-    return deviceClasses & INPUT_DEVICE_CLASS_JOYSTICK;
+    return deviceClasses & InputDeviceClass::JOYSTICK;
 }
 
 // --- EventHub::Device ---
@@ -340,10 +341,12 @@ InputDeviceIdentifier EventHub::getDeviceIdentifier(int32_t deviceId) const {
     return device->identifier;
 }
 
-uint32_t EventHub::getDeviceClasses(int32_t deviceId) const {
+Flags<InputDeviceClass> EventHub::getDeviceClasses(int32_t deviceId) const {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device == nullptr) return 0;
+    if (device == nullptr) {
+        return Flags<InputDeviceClass>(0);
+    }
     return device->classes;
 }
 
@@ -1278,13 +1281,13 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     bool haveGamepadButtons = device->keyBitmask.any(BTN_MISC, BTN_MOUSE) ||
             device->keyBitmask.any(BTN_JOYSTICK, BTN_DIGI);
     if (haveKeyboardKeys || haveGamepadButtons) {
-        device->classes |= INPUT_DEVICE_CLASS_KEYBOARD;
+        device->classes |= InputDeviceClass::KEYBOARD;
     }
 
     // See if this is a cursor device such as a trackball or mouse.
     if (device->keyBitmask.test(BTN_MOUSE) && device->relBitmask.test(REL_X) &&
         device->relBitmask.test(REL_Y)) {
-        device->classes |= INPUT_DEVICE_CLASS_CURSOR;
+        device->classes |= InputDeviceClass::CURSOR;
     }
 
     // See if this is a rotary encoder type device.
@@ -1292,7 +1295,7 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     if (device->configuration &&
         device->configuration->tryGetProperty(String8("device.type"), deviceType)) {
         if (!deviceType.compare(String8("rotaryEncoder"))) {
-            device->classes |= INPUT_DEVICE_CLASS_ROTARY_ENCODER;
+            device->classes |= InputDeviceClass::ROTARY_ENCODER;
         }
     }
 
@@ -1303,30 +1306,30 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
         // with the ABS_MT range.  Try to confirm that the device really is
         // a touch screen.
         if (device->keyBitmask.test(BTN_TOUCH) || !haveGamepadButtons) {
-            device->classes |= INPUT_DEVICE_CLASS_TOUCH | INPUT_DEVICE_CLASS_TOUCH_MT;
+            device->classes |= (InputDeviceClass::TOUCH | InputDeviceClass::TOUCH_MT);
         }
         // Is this an old style single-touch driver?
     } else if (device->keyBitmask.test(BTN_TOUCH) && device->absBitmask.test(ABS_X) &&
                device->absBitmask.test(ABS_Y)) {
-        device->classes |= INPUT_DEVICE_CLASS_TOUCH;
+        device->classes |= InputDeviceClass::TOUCH;
         // Is this a BT stylus?
     } else if ((device->absBitmask.test(ABS_PRESSURE) || device->keyBitmask.test(BTN_TOUCH)) &&
                !device->absBitmask.test(ABS_X) && !device->absBitmask.test(ABS_Y)) {
-        device->classes |= INPUT_DEVICE_CLASS_EXTERNAL_STYLUS;
+        device->classes |= InputDeviceClass::EXTERNAL_STYLUS;
         // Keyboard will try to claim some of the buttons but we really want to reserve those so we
         // can fuse it with the touch screen data, so just take them back. Note this means an
         // external stylus cannot also be a keyboard device.
-        device->classes &= ~INPUT_DEVICE_CLASS_KEYBOARD;
+        device->classes &= ~InputDeviceClass::KEYBOARD;
     }
 
     // See if this device is a joystick.
     // Assumes that joysticks always have gamepad buttons in order to distinguish them
     // from other devices such as accelerometers that also have absolute axes.
     if (haveGamepadButtons) {
-        uint32_t assumedClasses = device->classes | INPUT_DEVICE_CLASS_JOYSTICK;
+        auto assumedClasses = device->classes | InputDeviceClass::JOYSTICK;
         for (int i = 0; i <= ABS_MAX; i++) {
             if (device->absBitmask.test(i) &&
-                (getAbsAxisUsage(i, assumedClasses) & INPUT_DEVICE_CLASS_JOYSTICK)) {
+                (getAbsAxisUsage(i, assumedClasses).test(InputDeviceClass::JOYSTICK))) {
                 device->classes = assumedClasses;
                 break;
             }
@@ -1336,36 +1339,36 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     // Check whether this device has switches.
     for (int i = 0; i <= SW_MAX; i++) {
         if (device->swBitmask.test(i)) {
-            device->classes |= INPUT_DEVICE_CLASS_SWITCH;
+            device->classes |= InputDeviceClass::SWITCH;
             break;
         }
     }
 
     // Check whether this device supports the vibrator.
     if (device->ffBitmask.test(FF_RUMBLE)) {
-        device->classes |= INPUT_DEVICE_CLASS_VIBRATOR;
+        device->classes |= InputDeviceClass::VIBRATOR;
     }
 
     // Configure virtual keys.
-    if ((device->classes & INPUT_DEVICE_CLASS_TOUCH)) {
+    if ((device->classes.test(InputDeviceClass::TOUCH))) {
         // Load the virtual keys for the touch screen, if any.
         // We do this now so that we can make sure to load the keymap if necessary.
         bool success = loadVirtualKeyMapLocked(device);
         if (success) {
-            device->classes |= INPUT_DEVICE_CLASS_KEYBOARD;
+            device->classes |= InputDeviceClass::KEYBOARD;
         }
     }
 
     // Load the key map.
     // We need to do this for joysticks too because the key layout may specify axes.
     status_t keyMapStatus = NAME_NOT_FOUND;
-    if (device->classes & (INPUT_DEVICE_CLASS_KEYBOARD | INPUT_DEVICE_CLASS_JOYSTICK)) {
+    if (device->classes.any(InputDeviceClass::KEYBOARD | InputDeviceClass::JOYSTICK)) {
         // Load the keymap for the device.
         keyMapStatus = loadKeyMapLocked(device);
     }
 
     // Configure the keyboard, gamepad or virtual keyboard.
-    if (device->classes & INPUT_DEVICE_CLASS_KEYBOARD) {
+    if (device->classes.test(InputDeviceClass::KEYBOARD)) {
         // Register the keyboard as a built-in keyboard if it is eligible.
         if (!keyMapStatus && mBuiltInKeyboardId == NO_BUILT_IN_KEYBOARD &&
             isEligibleBuiltInKeyboard(device->identifier, device->configuration, &device->keyMap)) {
@@ -1374,7 +1377,7 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
 
         // 'Q' key support = cheap test of whether this is an alpha-capable kbd
         if (hasKeycodeLocked(device, AKEYCODE_Q)) {
-            device->classes |= INPUT_DEVICE_CLASS_ALPHAKEY;
+            device->classes |= InputDeviceClass::ALPHAKEY;
         }
 
         // See if this device has a DPAD.
@@ -1383,20 +1386,20 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
             hasKeycodeLocked(device, AKEYCODE_DPAD_LEFT) &&
             hasKeycodeLocked(device, AKEYCODE_DPAD_RIGHT) &&
             hasKeycodeLocked(device, AKEYCODE_DPAD_CENTER)) {
-            device->classes |= INPUT_DEVICE_CLASS_DPAD;
+            device->classes |= InputDeviceClass::DPAD;
         }
 
         // See if this device has a gamepad.
         for (size_t i = 0; i < sizeof(GAMEPAD_KEYCODES) / sizeof(GAMEPAD_KEYCODES[0]); i++) {
             if (hasKeycodeLocked(device, GAMEPAD_KEYCODES[i])) {
-                device->classes |= INPUT_DEVICE_CLASS_GAMEPAD;
+                device->classes |= InputDeviceClass::GAMEPAD;
                 break;
             }
         }
     }
 
     // If the device isn't recognized as something we handle, don't monitor it.
-    if (device->classes == 0) {
+    if (device->classes == Flags<InputDeviceClass>(0)) {
         ALOGV("Dropping device: id=%d, path='%s', name='%s'", deviceId, devicePath.c_str(),
               device->identifier.name.c_str());
         delete device;
@@ -1405,16 +1408,16 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
 
     // Determine whether the device has a mic.
     if (deviceHasMicLocked(device)) {
-        device->classes |= INPUT_DEVICE_CLASS_MIC;
+        device->classes |= InputDeviceClass::MIC;
     }
 
     // Determine whether the device is external or internal.
     if (isExternalDeviceLocked(device)) {
-        device->classes |= INPUT_DEVICE_CLASS_EXTERNAL;
+        device->classes |= InputDeviceClass::EXTERNAL;
     }
 
-    if (device->classes & (INPUT_DEVICE_CLASS_JOYSTICK | INPUT_DEVICE_CLASS_DPAD) &&
-        device->classes & INPUT_DEVICE_CLASS_GAMEPAD) {
+    if (device->classes.any(InputDeviceClass::JOYSTICK | InputDeviceClass::DPAD) &&
+        device->classes.test(InputDeviceClass::GAMEPAD)) {
         device->controllerNumber = getNextControllerNumberLocked(device);
         setLedForControllerLocked(device);
     }
@@ -1441,11 +1444,12 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
 
     configureFd(device);
 
-    ALOGI("New device: id=%d, fd=%d, path='%s', name='%s', classes=0x%x, "
+    ALOGI("New device: id=%d, fd=%d, path='%s', name='%s', classes=%s, "
           "configuration='%s', keyLayout='%s', keyCharacterMap='%s', builtinKeyboard=%s, ",
-          deviceId, fd, devicePath.c_str(), device->identifier.name.c_str(), device->classes,
-          device->configurationFile.c_str(), device->keyMap.keyLayoutFile.c_str(),
-          device->keyMap.keyCharacterMapFile.c_str(), toString(mBuiltInKeyboardId == deviceId));
+          deviceId, fd, devicePath.c_str(), device->identifier.name.c_str(),
+          device->classes.string().c_str(), device->configurationFile.c_str(),
+          device->keyMap.keyLayoutFile.c_str(), device->keyMap.keyCharacterMapFile.c_str(),
+          toString(mBuiltInKeyboardId == deviceId));
 
     addDeviceLocked(device);
     return OK;
@@ -1453,7 +1457,7 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
 
 void EventHub::configureFd(Device* device) {
     // Set fd parameters with ioctl, such as key repeat, suspend block, and clock type
-    if (device->classes & INPUT_DEVICE_CLASS_KEYBOARD) {
+    if (device->classes.test(InputDeviceClass::KEYBOARD)) {
         // Disable kernel key repeat since we handle it ourselves
         unsigned int repeatRate[] = {0, 0};
         if (ioctl(device->fd, EVIOCSREP, repeatRate)) {
@@ -1551,8 +1555,8 @@ void EventHub::createVirtualKeyboardLocked() {
 
     Device* device =
             new Device(-1, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, "<virtual>", identifier);
-    device->classes = INPUT_DEVICE_CLASS_KEYBOARD | INPUT_DEVICE_CLASS_ALPHAKEY |
-            INPUT_DEVICE_CLASS_DPAD | INPUT_DEVICE_CLASS_VIRTUAL;
+    device->classes = InputDeviceClass::KEYBOARD | InputDeviceClass::ALPHAKEY |
+            InputDeviceClass::DPAD | InputDeviceClass::VIRTUAL;
     loadKeyMapLocked(device);
     addDeviceLocked(device);
 }
@@ -1719,8 +1723,9 @@ void EventHub::closeAllDevicesLocked() {
 }
 
 void EventHub::closeDeviceLocked(Device* device) {
-    ALOGI("Removed device: path=%s name=%s id=%d fd=%d classes=0x%x", device->path.c_str(),
-          device->identifier.name.c_str(), device->id, device->fd, device->classes);
+    ALOGI("Removed device: path=%s name=%s id=%d fd=%d classes=%s", device->path.c_str(),
+          device->identifier.name.c_str(), device->id, device->fd,
+          device->classes.string().c_str());
 
     if (device->id == mBuiltInKeyboardId) {
         ALOGW("built-in keyboard device %s (id=%d) is closing! the apps will not like this",
@@ -1862,7 +1867,7 @@ void EventHub::dump(std::string& dump) {
                 dump += StringPrintf(INDENT2 "%d: %s\n", device->id,
                                      device->identifier.name.c_str());
             }
-            dump += StringPrintf(INDENT3 "Classes: 0x%08x\n", device->classes);
+            dump += StringPrintf(INDENT3 "Classes: %s\n", device->classes.string().c_str());
             dump += StringPrintf(INDENT3 "Path: %s\n", device->path.c_str());
             dump += StringPrintf(INDENT3 "Enabled: %s\n", toString(device->enabled));
             dump += StringPrintf(INDENT3 "Descriptor: %s\n", device->identifier.descriptor.c_str());
