@@ -66,6 +66,9 @@ TEST(InputWindowInfo, Parcelling) {
     i.portalToDisplayId = 2;
     i.replaceTouchableRegionWithCrop = true;
     i.touchableRegionCropHandle = touchableRegionCropHandle;
+    i.applicationInfo.name = "ApplicationFooBar";
+    i.applicationInfo.token = new BBinder();
+    i.applicationInfo.dispatchingTimeoutNanos = 0x12345678ABCD;
 
     Parcel p;
     i.writeToParcel(&p);
@@ -97,6 +100,21 @@ TEST(InputWindowInfo, Parcelling) {
     ASSERT_EQ(i.portalToDisplayId, i2.portalToDisplayId);
     ASSERT_EQ(i.replaceTouchableRegionWithCrop, i2.replaceTouchableRegionWithCrop);
     ASSERT_EQ(i.touchableRegionCropHandle, i2.touchableRegionCropHandle);
+    ASSERT_EQ(i.applicationInfo, i2.applicationInfo);
+}
+
+TEST(InputApplicationInfo, Parcelling) {
+    InputApplicationInfo i;
+    i.token = new BBinder();
+    i.name = "ApplicationFooBar";
+    i.dispatchingTimeoutNanos = 0x12345678ABCD;
+
+    Parcel p;
+    ASSERT_EQ(i.writeToParcel(&p), OK);
+    p.setDataPosition(0);
+    InputApplicationInfo i2;
+    ASSERT_EQ(i2.readFromParcel(&p), OK);
+    ASSERT_EQ(i, i2);
 }
 
 } // namespace test

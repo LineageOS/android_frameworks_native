@@ -94,7 +94,7 @@ public:
     virtual ~FakeApplicationHandle() {}
 
     virtual bool updateInfo() {
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
+        mInfo.dispatchingTimeoutNanos = DISPATCHING_TIMEOUT.count();
         return true;
     }
 };

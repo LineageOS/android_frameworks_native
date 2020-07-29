@@ -63,6 +63,7 @@ sp<IInputFlinger> getInputFlinger() {
 
 // We use the top 10 layers as a way to haphazardly place ourselves above anything else.
 static const int LAYER_BASE = INT32_MAX - 10;
+static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 5s;
 
 class InputSurface {
 public:
@@ -206,7 +207,7 @@ private:
         InputApplicationInfo aInfo;
         aInfo.token = new BBinder();
         aInfo.name = "Test app info";
-        aInfo.dispatchingTimeout = 5s;
+        aInfo.dispatchingTimeoutNanos = DISPATCHING_TIMEOUT.count();
 
         mInputInfo.applicationInfo = aInfo;
     }
