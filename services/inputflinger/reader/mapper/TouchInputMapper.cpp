@@ -142,12 +142,14 @@ void CookedPointerData::clear() {
     hoveringIdBits.clear();
     touchingIdBits.clear();
     canceledIdBits.clear();
+    validIdBits.clear();
 }
 
 void CookedPointerData::copyFrom(const CookedPointerData& other) {
     pointerCount = other.pointerCount;
     hoveringIdBits = other.hoveringIdBits;
     touchingIdBits = other.touchingIdBits;
+    validIdBits = other.validIdBits;
 
     for (uint32_t i = 0; i < pointerCount; i++) {
         pointerProperties[i].copyFrom(other.pointerProperties[i]);
@@ -288,12 +290,14 @@ void TouchInputMapper::dump(std::string& dump) {
         const PointerProperties& pointerProperties =
                 mLastCookedState.cookedPointerData.pointerProperties[i];
         const PointerCoords& pointerCoords = mLastCookedState.cookedPointerData.pointerCoords[i];
-        dump += StringPrintf(INDENT4 "[%d]: id=%d, x=%0.3f, y=%0.3f, pressure=%0.3f, "
-                                     "touchMajor=%0.3f, touchMinor=%0.3f, toolMajor=%0.3f, "
-                                     "toolMinor=%0.3f, "
+        dump += StringPrintf(INDENT4 "[%d]: id=%d, x=%0.3f, y=%0.3f, dx=%0.3f, dy=%0.3f, "
+                                     "pressure=%0.3f, touchMajor=%0.3f, touchMinor=%0.3f, "
+                                     "toolMajor=%0.3f, toolMinor=%0.3f, "
                                      "orientation=%0.3f, tilt=%0.3f, distance=%0.3f, "
                                      "toolType=%d, isHovering=%s\n",
                              i, pointerProperties.id, pointerCoords.getX(), pointerCoords.getY(),
+                             pointerCoords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
+                             pointerCoords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y),
                              pointerCoords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE),
                              pointerCoords.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR),
                              pointerCoords.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR),
@@ -379,6 +383,7 @@ void TouchInputMapper::configure(nsecs_t when, const InputReaderConfiguration* c
     if (!changes ||
         (changes &
          (InputReaderConfiguration::CHANGE_DISPLAY_INFO |
+          InputReaderConfiguration::CHANGE_POINTER_CAPTURE |
           InputReaderConfiguration::CHANGE_POINTER_GESTURE_ENABLEMENT |
           InputReaderConfiguration::CHANGE_SHOW_TOUCHES |
           InputReaderConfiguration::CHANGE_EXTERNAL_STYLUS_PRESENCE))) {
@@ -562,7 +567,7 @@ bool TouchInputMapper::hasExternalStylus() const {
  * 4. Otherwise, use a non-display viewport.
  */
 std::optional<DisplayViewport> TouchInputMapper::findViewport() {
-    if (mParameters.hasAssociatedDisplay) {
+    if (mParameters.hasAssociatedDisplay && mDeviceMode != DeviceMode::UNSCALED) {
         const std::optional<uint8_t> displayPort = getDeviceContext().getAssociatedDisplayPort();
         if (displayPort) {
             // Find the viewport that contains the same port
@@ -620,7 +625,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 
     // Determine device mode.
     if (mParameters.deviceType == Parameters::DeviceType::POINTER &&
-        mConfig.pointerGesturesEnabled) {
+        mConfig.pointerGesturesEnabled && !mConfig.pointerCapture) {
         mSource = AINPUT_SOURCE_MOUSE;
         mDeviceMode = DeviceMode::POINTER;
         if (hasStylus()) {
@@ -2269,15 +2274,26 @@ void TouchInputMapper::cookPointerData() {
             out.setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, toolMinor);
         }
 
+        // Write output relative fieldis if applicable.
+        uint32_t id = in.id;
+        if (mSource == AINPUT_SOURCE_TOUCHPAD &&
+            mLastCookedState.cookedPointerData.hasPointerCoordsForId(id)) {
+            const PointerCoords& p = mLastCookedState.cookedPointerData.pointerCoordsForId(id);
+            float dx = xTransformed - p.getAxisValue(AMOTION_EVENT_AXIS_X);
+            float dy = yTransformed - p.getAxisValue(AMOTION_EVENT_AXIS_Y);
+            out.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, dx);
+            out.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, dy);
+        }
+
         // Write output properties.
         PointerProperties& properties = mCurrentCookedState.cookedPointerData.pointerProperties[i];
-        uint32_t id = in.id;
         properties.clear();
         properties.id = id;
         properties.toolType = in.toolType;
 
-        // Write id index.
+        // Write id index and mark id as valid.
         mCurrentCookedState.cookedPointerData.idToIndex[id] = i;
+        mCurrentCookedState.cookedPointerData.validIdBits.markBit(id);
     }
 }
 
