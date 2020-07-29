@@ -66,6 +66,8 @@ public:
     /* Inform the tracker that the samples it has are not accurate for prediction. */
     virtual void resetModel() = 0;
 
+    virtual bool needsMoreSamples() const = 0;
+
     virtual void dump(std::string& result) const = 0;
 
 protected:
