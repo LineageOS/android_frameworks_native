@@ -39,7 +39,7 @@ public:
     std::optional<DisplayId> getDisplayId() const override;
     void setCompositionEnabled(bool) override;
     void setProjection(const ui::Transform&, uint32_t orientation, const Rect& frame,
-                       const Rect& viewport, const Rect& sourceClip, const Rect& destinationClip,
+                       const Rect& viewport, const Rect& destinationClip,
                        bool needsFiltering) override;
     void setBounds(const ui::Size&) override;
     void setLayerStackFilter(uint32_t layerStackId, bool isInternal) override;
