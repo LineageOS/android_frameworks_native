@@ -3583,15 +3583,15 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqu
     mLayers[1].mLayerFEState.isOpaque = true;
     mLayers[2].mLayerFEState.isOpaque = true;
     Region accumClearRegion(Rect(10, 11, 12, 13));
-    Region dummyRegion;
+    Region stubRegion;
 
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
-            false,       /* identity transform */
-            false,       /* needs filtering */
-            false,       /* secure */
-            false,       /* supports protected content */
-            dummyRegion, /* clear region */
+            false,      /* identity transform */
+            false,      /* needs filtering */
+            false,      /* secure */
+            false,      /* supports protected content */
+            stubRegion, /* clear region */
             kDisplayViewport,
             kDisplayDataspace,
             false /* realContentIsVisible */,
