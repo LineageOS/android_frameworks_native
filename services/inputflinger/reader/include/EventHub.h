@@ -21,6 +21,7 @@
 #include <climits>
 #include <vector>
 
+#include <input/Flags.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/KeyCharacterMap.h>
@@ -76,58 +77,58 @@ struct RawAbsoluteAxisInfo {
 /*
  * Input device classes.
  */
-enum {
+enum class InputDeviceClass : uint32_t {
     /* The input device is a keyboard or has buttons. */
-    INPUT_DEVICE_CLASS_KEYBOARD = 0x00000001,
+    KEYBOARD = 0x00000001,
 
     /* The input device is an alpha-numeric keyboard (not just a dial pad). */
-    INPUT_DEVICE_CLASS_ALPHAKEY = 0x00000002,
+    ALPHAKEY = 0x00000002,
 
     /* The input device is a touchscreen or a touchpad (either single-touch or multi-touch). */
-    INPUT_DEVICE_CLASS_TOUCH = 0x00000004,
+    TOUCH = 0x00000004,
 
     /* The input device is a cursor device such as a trackball or mouse. */
-    INPUT_DEVICE_CLASS_CURSOR = 0x00000008,
+    CURSOR = 0x00000008,
 
     /* The input device is a multi-touch touchscreen. */
-    INPUT_DEVICE_CLASS_TOUCH_MT = 0x00000010,
+    TOUCH_MT = 0x00000010,
 
     /* The input device is a directional pad (implies keyboard, has DPAD keys). */
-    INPUT_DEVICE_CLASS_DPAD = 0x00000020,
+    DPAD = 0x00000020,
 
     /* The input device is a gamepad (implies keyboard, has BUTTON keys). */
-    INPUT_DEVICE_CLASS_GAMEPAD = 0x00000040,
+    GAMEPAD = 0x00000040,
 
     /* The input device has switches. */
-    INPUT_DEVICE_CLASS_SWITCH = 0x00000080,
+    SWITCH = 0x00000080,
 
     /* The input device is a joystick (implies gamepad, has joystick absolute axes). */
-    INPUT_DEVICE_CLASS_JOYSTICK = 0x00000100,
+    JOYSTICK = 0x00000100,
 
     /* The input device has a vibrator (supports FF_RUMBLE). */
-    INPUT_DEVICE_CLASS_VIBRATOR = 0x00000200,
+    VIBRATOR = 0x00000200,
 
     /* The input device has a microphone. */
-    INPUT_DEVICE_CLASS_MIC = 0x00000400,
+    MIC = 0x00000400,
 
     /* The input device is an external stylus (has data we want to fuse with touch data). */
-    INPUT_DEVICE_CLASS_EXTERNAL_STYLUS = 0x00000800,
+    EXTERNAL_STYLUS = 0x00000800,
 
     /* The input device has a rotary encoder */
-    INPUT_DEVICE_CLASS_ROTARY_ENCODER = 0x00001000,
+    ROTARY_ENCODER = 0x00001000,
 
     /* The input device is virtual (not a real device, not part of UI configuration). */
-    INPUT_DEVICE_CLASS_VIRTUAL = 0x40000000,
+    VIRTUAL = 0x40000000,
 
     /* The input device is external (not built-in). */
-    INPUT_DEVICE_CLASS_EXTERNAL = 0x80000000,
+    EXTERNAL = 0x80000000,
 };
 
 /*
  * Gets the class that owns an axis, in cases where multiple classes might claim
  * the same axis for different purposes.
  */
-extern uint32_t getAbsAxisUsage(int32_t axis, uint32_t deviceClasses);
+extern Flags<InputDeviceClass> getAbsAxisUsage(int32_t axis, Flags<InputDeviceClass> deviceClasses);
 
 /*
  * Grand Central Station for events.
@@ -160,7 +161,7 @@ public:
         FIRST_SYNTHETIC_EVENT = DEVICE_ADDED,
     };
 
-    virtual uint32_t getDeviceClasses(int32_t deviceId) const = 0;
+    virtual Flags<InputDeviceClass> getDeviceClasses(int32_t deviceId) const = 0;
 
     virtual InputDeviceIdentifier getDeviceIdentifier(int32_t deviceId) const = 0;
 
@@ -327,7 +328,7 @@ class EventHub : public EventHubInterface {
 public:
     EventHub();
 
-    virtual uint32_t getDeviceClasses(int32_t deviceId) const override;
+    virtual Flags<InputDeviceClass> getDeviceClasses(int32_t deviceId) const override;
 
     virtual InputDeviceIdentifier getDeviceIdentifier(int32_t deviceId) const override;
 
@@ -397,7 +398,7 @@ private:
 
         std::unique_ptr<TouchVideoDevice> videoDevice;
 
-        uint32_t classes;
+        Flags<InputDeviceClass> classes;
 
         BitArray<KEY_MAX> keyBitmask;
         BitArray<KEY_MAX> keyState;
