@@ -43,54 +43,13 @@ public:
         *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
     }
 
-    static void captureLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
-                              Rect crop = Rect::EMPTY_RECT, float frameScale = 1.0) {
+    static void captureLayers(std::unique_ptr<ScreenCapture>* sc,
+                              const LayerCaptureArgs& captureArgs) {
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
         SurfaceComposerClient::Transaction().apply(true);
 
-        LayerCaptureArgs args;
-        args.layerHandle = parentHandle;
-        args.sourceCrop = crop;
-        args.frameScale = frameScale;
-        args.childrenOnly = false;
-
         ScreenCaptureResults captureResults;
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(args, captureResults));
-        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
-    }
-
-    static void captureChildLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
-                                   Rect crop = Rect::EMPTY_RECT, float frameScale = 1.0) {
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        SurfaceComposerClient::Transaction().apply(true);
-
-        LayerCaptureArgs args;
-        args.layerHandle = parentHandle;
-        args.sourceCrop = crop;
-        args.frameScale = frameScale;
-        args.childrenOnly = true;
-
-        ScreenCaptureResults captureResults;
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(args, captureResults));
-        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
-    }
-
-    static void captureChildLayersExcluding(
-            std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
-            std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> excludeLayers) {
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        SurfaceComposerClient::Transaction().apply(true);
-
-        LayerCaptureArgs args;
-        args.layerHandle = parentHandle;
-        args.pixelFormat = ui::PixelFormat::RGBA_8888;
-        args.sourceCrop = Rect::EMPTY_RECT;
-        args.excludeHandles = excludeLayers;
-        args.frameScale = 1.0f;
-        args.childrenOnly = true;
-
-        ScreenCaptureResults captureResults;
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(args, captureResults));
+        ASSERT_EQ(NO_ERROR, sf->captureLayers(captureArgs, captureResults));
         *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
     }
 

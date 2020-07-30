@@ -5592,6 +5592,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
     Rect displayViewport;
     ui::Dataspace dataspace;
+    bool captureSecureLayers;
     {
         Mutex::Autolock lock(mStateLock);
 
@@ -5645,6 +5646,8 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
         const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
         dataspace = pickDataspaceFromColorMode(colorMode);
+
+        captureSecureLayers = args.captureSecureLayers && display->isSecure();
     } // mStateLock
 
     // really small crop or frameScale
@@ -5659,7 +5662,8 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
     RenderAreaFuture renderAreaFuture = promise::defer([=]() -> std::unique_ptr<RenderArea> {
         return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
-                                                 childrenOnly, displayViewport);
+                                                 childrenOnly, displayViewport,
+                                                 captureSecureLayers);
     });
 
     auto traverseLayers = [parent, childrenOnly,

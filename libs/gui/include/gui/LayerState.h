@@ -339,7 +339,7 @@ struct DisplayCaptureArgs : CaptureArgs {
 struct LayerCaptureArgs : CaptureArgs {
     sp<IBinder> layerHandle;
     std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> excludeHandles;
-    bool childrenOnly{true};
+    bool childrenOnly{false};
 
     status_t write(Parcel& output) const override;
     status_t read(const Parcel& input) override;

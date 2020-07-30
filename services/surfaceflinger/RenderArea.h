@@ -24,8 +24,10 @@ public:
     static float getCaptureFillValue(CaptureFill captureFill);
 
     RenderArea(ui::Size reqSize, CaptureFill captureFill, ui::Dataspace reqDataSpace,
-               const Rect& displayViewport, RotationFlags rotation = ui::Transform::ROT_0)
-          : mReqSize(reqSize),
+               const Rect& displayViewport, bool allowSecureLayers = false,
+               RotationFlags rotation = ui::Transform::ROT_0)
+          : mAllowSecureLayers(allowSecureLayers),
+            mReqSize(reqSize),
             mReqDataSpace(reqDataSpace),
             mCaptureFill(captureFill),
             mRotationFlags(rotation),
@@ -82,6 +84,9 @@ public:
 
     // Returns the source display viewport.
     const Rect& getDisplayViewport() const { return mDisplayViewport; }
+
+protected:
+    const bool mAllowSecureLayers;
 
 private:
     const ui::Size mReqSize;

@@ -47,7 +47,6 @@ private:
 
     const sp<const DisplayDevice> mDisplay;
     const Rect mSourceCrop;
-    const bool mAllowSecureLayers;
     const ui::Transform mTransform;
 };
 
