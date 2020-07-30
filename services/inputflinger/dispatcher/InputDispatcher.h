@@ -278,7 +278,7 @@ private:
     void postCommandLocked(std::unique_ptr<CommandEntry> commandEntry) REQUIRES(mLock);
 
     nsecs_t processAnrsLocked() REQUIRES(mLock);
-    nsecs_t getDispatchingTimeoutLocked(const sp<IBinder>& token) REQUIRES(mLock);
+    std::chrono::nanoseconds getDispatchingTimeoutLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     // Input filter processing.
     bool shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args) REQUIRES(mLock);
