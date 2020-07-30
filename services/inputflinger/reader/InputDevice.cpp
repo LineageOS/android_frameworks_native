@@ -18,6 +18,7 @@
 
 #include "InputDevice.h"
 
+#include <input/Flags.h>
 #include <algorithm>
 
 #include "CursorInputMapper.h"
@@ -131,7 +132,7 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
         return;
     }
     std::unique_ptr<InputDeviceContext> contextPtr(new InputDeviceContext(*this, eventHubId));
-    uint32_t classes = contextPtr->getDeviceClasses();
+    Flags<InputDeviceClass> classes = contextPtr->getDeviceClasses();
     std::vector<std::unique_ptr<InputMapper>> mappers;
 
     // Check if we should skip population
@@ -141,33 +142,33 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
     }
 
     // Switch-like devices.
-    if (classes & INPUT_DEVICE_CLASS_SWITCH) {
+    if (classes.test(InputDeviceClass::SWITCH)) {
         mappers.push_back(std::make_unique<SwitchInputMapper>(*contextPtr));
     }
 
     // Scroll wheel-like devices.
-    if (classes & INPUT_DEVICE_CLASS_ROTARY_ENCODER) {
+    if (classes.test(InputDeviceClass::ROTARY_ENCODER)) {
         mappers.push_back(std::make_unique<RotaryEncoderInputMapper>(*contextPtr));
     }
 
     // Vibrator-like devices.
-    if (classes & INPUT_DEVICE_CLASS_VIBRATOR) {
+    if (classes.test(InputDeviceClass::VIBRATOR)) {
         mappers.push_back(std::make_unique<VibratorInputMapper>(*contextPtr));
     }
 
     // Keyboard-like devices.
     uint32_t keyboardSource = 0;
     int32_t keyboardType = AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC;
-    if (classes & INPUT_DEVICE_CLASS_KEYBOARD) {
+    if (classes.test(InputDeviceClass::KEYBOARD)) {
         keyboardSource |= AINPUT_SOURCE_KEYBOARD;
     }
-    if (classes & INPUT_DEVICE_CLASS_ALPHAKEY) {
+    if (classes.test(InputDeviceClass::ALPHAKEY)) {
         keyboardType = AINPUT_KEYBOARD_TYPE_ALPHABETIC;
     }
-    if (classes & INPUT_DEVICE_CLASS_DPAD) {
+    if (classes.test(InputDeviceClass::DPAD)) {
         keyboardSource |= AINPUT_SOURCE_DPAD;
     }
-    if (classes & INPUT_DEVICE_CLASS_GAMEPAD) {
+    if (classes.test(InputDeviceClass::GAMEPAD)) {
         keyboardSource |= AINPUT_SOURCE_GAMEPAD;
     }
 
@@ -177,24 +178,24 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
     }
 
     // Cursor-like devices.
-    if (classes & INPUT_DEVICE_CLASS_CURSOR) {
+    if (classes.test(InputDeviceClass::CURSOR)) {
         mappers.push_back(std::make_unique<CursorInputMapper>(*contextPtr));
     }
 
     // Touchscreens and touchpad devices.
-    if (classes & INPUT_DEVICE_CLASS_TOUCH_MT) {
+    if (classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(std::make_unique<MultiTouchInputMapper>(*contextPtr));
-    } else if (classes & INPUT_DEVICE_CLASS_TOUCH) {
+    } else if (classes.test(InputDeviceClass::TOUCH)) {
         mappers.push_back(std::make_unique<SingleTouchInputMapper>(*contextPtr));
     }
 
     // Joystick-like devices.
-    if (classes & INPUT_DEVICE_CLASS_JOYSTICK) {
+    if (classes.test(InputDeviceClass::JOYSTICK)) {
         mappers.push_back(std::make_unique<JoystickInputMapper>(*contextPtr));
     }
 
     // External stylus-like devices.
-    if (classes & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
+    if (classes.test(InputDeviceClass::EXTERNAL_STYLUS)) {
         mappers.push_back(std::make_unique<ExternalStylusInputMapper>(*contextPtr));
     }
 
@@ -209,7 +210,7 @@ void InputDevice::removeEventHubDevice(int32_t eventHubId) {
 void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config,
                             uint32_t changes) {
     mSources = 0;
-    mClasses = 0;
+    mClasses = Flags<InputDeviceClass>(0);
     mControllerNumber = 0;
 
     for_each_subdevice([this](InputDeviceContext& context) {
@@ -224,8 +225,8 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
         }
     });
 
-    mIsExternal = !!(mClasses & INPUT_DEVICE_CLASS_EXTERNAL);
-    mHasMic = !!(mClasses & INPUT_DEVICE_CLASS_MIC);
+    mIsExternal = mClasses.test(InputDeviceClass::EXTERNAL);
+    mHasMic = mClasses.test(InputDeviceClass::MIC);
 
     if (!isIgnored()) {
         if (!changes) { // first time only
@@ -238,7 +239,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
         }
 
         if (!changes || (changes & InputReaderConfiguration::CHANGE_KEYBOARD_LAYOUTS)) {
-            if (!(mClasses & INPUT_DEVICE_CLASS_VIRTUAL)) {
+            if (!mClasses.test(InputDeviceClass::VIRTUAL)) {
                 sp<KeyCharacterMap> keyboardLayout =
                         mContext->getPolicy()->getKeyboardLayoutOverlay(mIdentifier);
                 bool shouldBumpGeneration = false;
@@ -255,7 +256,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
         }
 
         if (!changes || (changes & InputReaderConfiguration::CHANGE_DEVICE_ALIAS)) {
-            if (!(mClasses & INPUT_DEVICE_CLASS_VIRTUAL)) {
+            if (!(mClasses.test(InputDeviceClass::VIRTUAL))) {
                 std::string alias = mContext->getPolicy()->getDeviceAlias(mIdentifier);
                 if (mAlias != alias) {
                     mAlias = alias;

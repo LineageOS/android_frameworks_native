@@ -37,6 +37,7 @@
 namespace android {
 
 using std::chrono_literals::operator""ms;
+using namespace android::flag_operators;
 
 // Timeout for waiting for an expected event
 static constexpr std::chrono::duration WAIT_TIMEOUT = 100ms;
@@ -370,7 +371,7 @@ class FakeEventHub : public EventHubInterface {
 
     struct Device {
         InputDeviceIdentifier identifier;
-        uint32_t classes;
+        Flags<InputDeviceClass> classes;
         PropertyMap configuration;
         KeyedVector<int, RawAbsoluteAxisInfo> absoluteAxes;
         KeyedVector<int, bool> relativeAxes;
@@ -394,9 +395,7 @@ class FakeEventHub : public EventHubInterface {
             return OK;
         }
 
-        explicit Device(uint32_t classes) :
-                classes(classes), enabled(true) {
-        }
+        explicit Device(Flags<InputDeviceClass> classes) : classes(classes), enabled(true) {}
     };
 
     std::mutex mLock;
@@ -416,7 +415,7 @@ public:
 
     FakeEventHub() { }
 
-    void addDevice(int32_t deviceId, const std::string& name, uint32_t classes) {
+    void addDevice(int32_t deviceId, const std::string& name, Flags<InputDeviceClass> classes) {
         Device* device = new Device(classes);
         device->identifier.name = name;
         mDevices.add(deviceId, device);
@@ -592,9 +591,9 @@ private:
         return index >= 0 ? mDevices.valueAt(index) : nullptr;
     }
 
-    virtual uint32_t getDeviceClasses(int32_t deviceId) const {
+    virtual Flags<InputDeviceClass> getDeviceClasses(int32_t deviceId) const {
         Device* device = getDevice(deviceId);
-        return device ? device->classes : 0;
+        return device ? device->classes : Flags<InputDeviceClass>(0);
     }
 
     virtual InputDeviceIdentifier getDeviceIdentifier(int32_t deviceId) const {
@@ -1386,7 +1385,7 @@ protected:
         mFakePolicy.clear();
     }
 
-    void addDevice(int32_t eventHubId, const std::string& name, uint32_t classes,
+    void addDevice(int32_t eventHubId, const std::string& name, Flags<InputDeviceClass> classes,
                    const PropertyMap* configuration) {
         mFakeEventHub->addDevice(eventHubId, name, classes);
 
@@ -1411,8 +1410,8 @@ protected:
     }
 
     FakeInputMapper& addDeviceWithFakeInputMapper(int32_t deviceId, int32_t eventHubId,
-                                                  const std::string& name, uint32_t classes,
-                                                  uint32_t sources,
+                                                  const std::string& name,
+                                                  Flags<InputDeviceClass> classes, uint32_t sources,
                                                   const PropertyMap* configuration) {
         std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, name);
         FakeInputMapper& mapper = device->addMapper<FakeInputMapper>(eventHubId, sources);
@@ -1423,10 +1422,9 @@ protected:
 };
 
 TEST_F(InputReaderTest, GetInputDevices) {
-    ASSERT_NO_FATAL_FAILURE(addDevice(1, "keyboard",
-            INPUT_DEVICE_CLASS_KEYBOARD, nullptr));
-    ASSERT_NO_FATAL_FAILURE(addDevice(2, "ignored",
-            0, nullptr)); // no classes so device will be ignored
+    ASSERT_NO_FATAL_FAILURE(addDevice(1, "keyboard", InputDeviceClass::KEYBOARD, nullptr));
+    ASSERT_NO_FATAL_FAILURE(addDevice(2, "ignored", Flags<InputDeviceClass>(0),
+                                      nullptr)); // no classes so device will be ignored
 
     std::vector<InputDeviceInfo> inputDevices;
     mReader->getInputDevices(inputDevices);
@@ -1449,7 +1447,7 @@ TEST_F(InputReaderTest, GetInputDevices) {
 
 TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
-    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr Flags<InputDeviceClass> deviceClass(InputDeviceClass::KEYBOARD);
     constexpr int32_t eventHubId = 1;
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
@@ -1486,7 +1484,7 @@ TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
 
 TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToMappers) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
-    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD;
     constexpr int32_t eventHubId = 1;
     FakeInputMapper& mapper =
             addDeviceWithFakeInputMapper(deviceId, eventHubId, "fake", deviceClass,
@@ -1519,7 +1517,7 @@ TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToMappers) {
 
 TEST_F(InputReaderTest, GetScanCodeState_ForwardsRequestsToMappers) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
-    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD;
     constexpr int32_t eventHubId = 1;
     FakeInputMapper& mapper =
             addDeviceWithFakeInputMapper(deviceId, eventHubId, "fake", deviceClass,
@@ -1552,7 +1550,7 @@ TEST_F(InputReaderTest, GetScanCodeState_ForwardsRequestsToMappers) {
 
 TEST_F(InputReaderTest, GetSwitchState_ForwardsRequestsToMappers) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
-    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD;
     constexpr int32_t eventHubId = 1;
     FakeInputMapper& mapper =
             addDeviceWithFakeInputMapper(deviceId, eventHubId, "fake", deviceClass,
@@ -1585,7 +1583,7 @@ TEST_F(InputReaderTest, GetSwitchState_ForwardsRequestsToMappers) {
 
 TEST_F(InputReaderTest, MarkSupportedKeyCodes_ForwardsRequestsToMappers) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
-    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD;
     constexpr int32_t eventHubId = 1;
     FakeInputMapper& mapper =
             addDeviceWithFakeInputMapper(deviceId, eventHubId, "fake", deviceClass,
@@ -1627,7 +1625,7 @@ TEST_F(InputReaderTest, MarkSupportedKeyCodes_ForwardsRequestsToMappers) {
 
 TEST_F(InputReaderTest, LoopOnce_WhenDeviceScanFinished_SendsConfigurationChanged) {
     constexpr int32_t eventHubId = 1;
-    addDevice(eventHubId, "ignored", INPUT_DEVICE_CLASS_KEYBOARD, nullptr);
+    addDevice(eventHubId, "ignored", InputDeviceClass::KEYBOARD, nullptr);
 
     NotifyConfigurationChangedArgs args;
 
@@ -1637,7 +1635,7 @@ TEST_F(InputReaderTest, LoopOnce_WhenDeviceScanFinished_SendsConfigurationChange
 
 TEST_F(InputReaderTest, LoopOnce_ForwardsRawEventsToMappers) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
-    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD;
     constexpr int32_t eventHubId = 1;
     FakeInputMapper& mapper =
             addDeviceWithFakeInputMapper(deviceId, eventHubId, "fake", deviceClass,
@@ -1658,7 +1656,7 @@ TEST_F(InputReaderTest, LoopOnce_ForwardsRawEventsToMappers) {
 
 TEST_F(InputReaderTest, DeviceReset_RandomId) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
-    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD;
     constexpr int32_t eventHubId = 1;
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
@@ -1691,7 +1689,7 @@ TEST_F(InputReaderTest, DeviceReset_RandomId) {
 
 TEST_F(InputReaderTest, DeviceReset_GenerateIdWithInputReaderSource) {
     constexpr int32_t deviceId = 1;
-    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD;
     constexpr int32_t eventHubId = 1;
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
     // Must add at least one mapper or the device will be ignored!
@@ -1706,7 +1704,7 @@ TEST_F(InputReaderTest, DeviceReset_GenerateIdWithInputReaderSource) {
 
 TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
-    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    constexpr Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD;
     constexpr int32_t eventHubId = 1;
     const char* DEVICE_LOCATION = "USB1";
     std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake", DEVICE_LOCATION);
@@ -2026,7 +2024,7 @@ protected:
     static const int32_t DEVICE_ID;
     static const int32_t DEVICE_GENERATION;
     static const int32_t DEVICE_CONTROLLER_NUMBER;
-    static const uint32_t DEVICE_CLASSES;
+    static const Flags<InputDeviceClass> DEVICE_CLASSES;
     static const int32_t EVENTHUB_ID;
 
     std::shared_ptr<FakeEventHub> mFakeEventHub;
@@ -2042,7 +2040,7 @@ protected:
         mFakeListener = new TestInputListener();
         mFakeContext = new FakeInputReaderContext(mFakeEventHub, mFakePolicy, mFakeListener);
 
-        mFakeEventHub->addDevice(EVENTHUB_ID, DEVICE_NAME, 0);
+        mFakeEventHub->addDevice(EVENTHUB_ID, DEVICE_NAME, Flags<InputDeviceClass>(0));
         InputDeviceIdentifier identifier;
         identifier.name = DEVICE_NAME;
         identifier.location = DEVICE_LOCATION;
@@ -2063,14 +2061,14 @@ const char* InputDeviceTest::DEVICE_LOCATION = "USB1";
 const int32_t InputDeviceTest::DEVICE_ID = END_RESERVED_ID + 1000;
 const int32_t InputDeviceTest::DEVICE_GENERATION = 2;
 const int32_t InputDeviceTest::DEVICE_CONTROLLER_NUMBER = 0;
-const uint32_t InputDeviceTest::DEVICE_CLASSES = INPUT_DEVICE_CLASS_KEYBOARD
-        | INPUT_DEVICE_CLASS_TOUCH | INPUT_DEVICE_CLASS_JOYSTICK;
+const Flags<InputDeviceClass> InputDeviceTest::DEVICE_CLASSES =
+        InputDeviceClass::KEYBOARD | InputDeviceClass::TOUCH | InputDeviceClass::JOYSTICK;
 const int32_t InputDeviceTest::EVENTHUB_ID = 1;
 
 TEST_F(InputDeviceTest, ImmutableProperties) {
     ASSERT_EQ(DEVICE_ID, mDevice->getId());
     ASSERT_STREQ(DEVICE_NAME, mDevice->getName().c_str());
-    ASSERT_EQ(0U, mDevice->getClasses());
+    ASSERT_EQ(Flags<InputDeviceClass>(0), mDevice->getClasses());
 }
 
 TEST_F(InputDeviceTest, WhenDeviceCreated_EnabledIsFalse) {
@@ -2265,7 +2263,7 @@ protected:
     static const int32_t DEVICE_ID;
     static const int32_t DEVICE_GENERATION;
     static const int32_t DEVICE_CONTROLLER_NUMBER;
-    static const uint32_t DEVICE_CLASSES;
+    static const Flags<InputDeviceClass> DEVICE_CLASSES;
     static const int32_t EVENTHUB_ID;
 
     std::shared_ptr<FakeEventHub> mFakeEventHub;
@@ -2274,7 +2272,7 @@ protected:
     FakeInputReaderContext* mFakeContext;
     InputDevice* mDevice;
 
-    virtual void SetUp(uint32_t classes) {
+    virtual void SetUp(Flags<InputDeviceClass> classes) {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
         mFakeListener = new TestInputListener();
@@ -2379,7 +2377,8 @@ const char* InputMapperTest::DEVICE_LOCATION = "USB1";
 const int32_t InputMapperTest::DEVICE_ID = END_RESERVED_ID + 1000;
 const int32_t InputMapperTest::DEVICE_GENERATION = 2;
 const int32_t InputMapperTest::DEVICE_CONTROLLER_NUMBER = 0;
-const uint32_t InputMapperTest::DEVICE_CLASSES = 0; // not needed for current tests
+const Flags<InputDeviceClass> InputMapperTest::DEVICE_CLASSES =
+        Flags<InputDeviceClass>(0); // not needed for current tests
 const int32_t InputMapperTest::EVENTHUB_ID = 1;
 
 // --- SwitchInputMapperTest ---
@@ -2884,7 +2883,8 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
     std::unique_ptr<InputDevice> device2 =
             std::make_unique<InputDevice>(mFakeContext, SECOND_DEVICE_ID, DEVICE_GENERATION,
                                           identifier);
-    mFakeEventHub->addDevice(SECOND_EVENTHUB_ID, DEVICE_NAME, 0 /*classes*/);
+    mFakeEventHub->addDevice(SECOND_EVENTHUB_ID, DEVICE_NAME,
+                             Flags<InputDeviceClass>(0) /*classes*/);
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_RIGHT, 0, AKEYCODE_DPAD_RIGHT, 0);
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_DOWN, 0, AKEYCODE_DPAD_DOWN, 0);
@@ -2952,7 +2952,7 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
 class KeyboardInputMapperTest_ExternalDevice : public InputMapperTest {
 protected:
     virtual void SetUp() override {
-        InputMapperTest::SetUp(DEVICE_CLASSES | INPUT_DEVICE_CLASS_EXTERNAL);
+        InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::EXTERNAL);
     }
 };
 
@@ -6865,7 +6865,8 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
     std::unique_ptr<InputDevice> device2 =
             std::make_unique<InputDevice>(mFakeContext, SECOND_DEVICE_ID, DEVICE_GENERATION,
                                           identifier);
-    mFakeEventHub->addDevice(SECOND_EVENTHUB_ID, DEVICE_NAME, 0 /*classes*/);
+    mFakeEventHub->addDevice(SECOND_EVENTHUB_ID, DEVICE_NAME,
+                             Flags<InputDeviceClass>(0) /*classes*/);
     mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_POSITION_X, RAW_X_MIN, RAW_X_MAX,
                                    0 /*flat*/, 0 /*fuzz*/);
     mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_POSITION_Y, RAW_Y_MIN, RAW_Y_MAX,
@@ -7378,7 +7379,7 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType_KeepFirstPoin
 class MultiTouchInputMapperTest_ExternalDevice : public MultiTouchInputMapperTest {
 protected:
     virtual void SetUp() override {
-        InputMapperTest::SetUp(DEVICE_CLASSES | INPUT_DEVICE_CLASS_EXTERNAL);
+        InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::EXTERNAL);
     }
 };
 

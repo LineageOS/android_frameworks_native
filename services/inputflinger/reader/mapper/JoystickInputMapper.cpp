@@ -111,8 +111,8 @@ void JoystickInputMapper::configure(nsecs_t when, const InputReaderConfiguration
     if (!changes) { // first time only
         // Collect all axes.
         for (int32_t abs = 0; abs <= ABS_MAX; abs++) {
-            if (!(getAbsAxisUsage(abs, getDeviceContext().getDeviceClasses()) &
-                  INPUT_DEVICE_CLASS_JOYSTICK)) {
+            if (!(getAbsAxisUsage(abs, getDeviceContext().getDeviceClasses())
+                          .test(InputDeviceClass::JOYSTICK))) {
                 continue; // axis must be claimed by a different device
             }
 
