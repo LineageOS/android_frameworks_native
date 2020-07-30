@@ -48,8 +48,8 @@ public:
     /* Notifies the system that an application is not responding.
      * Returns a new timeout to continue waiting, or 0 to abort dispatch. */
     virtual std::chrono::nanoseconds notifyAnr(
-            const sp<InputApplicationHandle>& inputApplicationHandle, const sp<IBinder>& token,
-            const std::string& reason) = 0;
+            const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
+            const sp<IBinder>& token, const std::string& reason) = 0;
 
     /* Notifies the system that an input channel is unrecoverably broken. */
     virtual void notifyInputChannelBroken(const sp<IBinder>& token) = 0;
