@@ -57,17 +57,15 @@ bool InputWindowInfo::operator==(const InputWindowInfo& info) const {
             info.frameLeft == frameLeft && info.frameTop == frameTop &&
             info.frameRight == frameRight && info.frameBottom == frameBottom &&
             info.surfaceInset == surfaceInset && info.globalScaleFactor == globalScaleFactor &&
-            info.transform == transform &&
-            info.touchableRegion.hasSameRects(touchableRegion) && info.visible == visible &&
-            info.canReceiveKeys == canReceiveKeys && info.trustedOverlay == trustedOverlay &&
-            info.hasFocus == hasFocus && info.hasWallpaper == hasWallpaper &&
-            info.paused == paused && info.ownerPid == ownerPid && info.ownerUid == ownerUid &&
+            info.transform == transform && info.touchableRegion.hasSameRects(touchableRegion) &&
+            info.visible == visible && info.canReceiveKeys == canReceiveKeys &&
+            info.trustedOverlay == trustedOverlay && info.hasFocus == hasFocus &&
+            info.hasWallpaper == hasWallpaper && info.paused == paused &&
+            info.ownerPid == ownerPid && info.ownerUid == ownerUid &&
             info.inputFeatures == inputFeatures && info.displayId == displayId &&
             info.portalToDisplayId == portalToDisplayId &&
             info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
-            info.applicationInfo.name == applicationInfo.name &&
-            info.applicationInfo.token == applicationInfo.token &&
-            info.applicationInfo.dispatchingTimeout == applicationInfo.dispatchingTimeout;
+            info.applicationInfo == applicationInfo;
 }
 
 status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {

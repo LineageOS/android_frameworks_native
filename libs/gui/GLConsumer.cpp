@@ -280,7 +280,7 @@ status_t GLConsumer::releaseTexImage() {
         mCurrentFenceTime = FenceTime::NO_FENCE;
 
         if (mAttached) {
-            // This binds a dummy buffer (mReleasedTexImage).
+            // This binds a buffer placeholder (mReleasedTexImage).
             status_t result = bindTextureImageLocked();
             if (result != NO_ERROR) {
                 return result;

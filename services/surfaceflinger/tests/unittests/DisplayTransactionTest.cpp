@@ -88,7 +88,7 @@ using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
 using HotplugEvent = TestableSurfaceFlinger::HotplugEvent;
 using HWC2Display = TestableSurfaceFlinger::HWC2Display;
 
-constexpr int32_t DEFAULT_REFRESH_RATE = 16'666'666;
+constexpr int32_t DEFAULT_REFRESH_RATE = 16'666'667;
 constexpr int32_t DEFAULT_DPI = 320;
 constexpr int DEFAULT_VIRTUAL_DISPLAY_SURFACE_FORMAT = HAL_PIXEL_FORMAT_RGB_565;
 
@@ -1522,7 +1522,6 @@ public:
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
         EXPECT_EQ(TRANSFORM_FLAGS_ROT_0, compositionState.orientation);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.sourceClip);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.destinationClip);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.frame);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.viewport);
@@ -1535,7 +1534,6 @@ public:
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
         EXPECT_EQ(TRANSFORM_FLAGS_ROT_90, compositionState.orientation);
-        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.sourceClip);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.destinationClip);
         // For 90, the frame and viewport have the hardware display size width and height swapped
         EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.frame);
@@ -1549,8 +1547,6 @@ public:
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
         EXPECT_EQ(TRANSFORM_FLAGS_ROT_180, compositionState.orientation);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.sourceClip);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.destinationClip);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.frame);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.viewport);
         EXPECT_EQ(false, compositionState.needsFiltering);
@@ -1562,7 +1558,6 @@ public:
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
         EXPECT_EQ(TRANSFORM_FLAGS_ROT_270, compositionState.orientation);
-        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.sourceClip);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.destinationClip);
         // For 270, the frame and viewport have the hardware display size width and height swapped
         EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.frame);

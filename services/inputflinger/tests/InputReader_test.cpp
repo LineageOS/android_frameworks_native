@@ -297,6 +297,8 @@ public:
         mConfig.defaultPointerDisplayId = pointerDisplayId;
     }
 
+    float getPointerGestureMovementSpeedRatio() { return mConfig.pointerGestureMovementSpeedRatio; }
+
 private:
     DisplayViewport createDisplayViewport(int32_t displayId, int32_t width, int32_t height,
             int32_t orientation, const std::string& uniqueId, std::optional<uint8_t> physicalPort,
@@ -7533,4 +7535,207 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270) {
     constexpr int32_t yExpected = (x + 1) - DISPLAY_WIDTH / 4;
     processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
 }
+
+TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
+    // we need a pointer controller for mouse mode of touchpad (start pointer at 0,0)
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+    fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+    fakePointerController->setPosition(0, 0);
+    fakePointerController->setButtonState(0);
+
+    // prepare device and capture
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOUCH, 0, AKEYCODE_UNKNOWN, 0);
+    mFakePolicy->setPointerCapture(true);
+    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // captured touchpad should be a touchpad source
+    NotifyDeviceResetArgs resetArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
+
+    // run captured pointer tests - note that this is unscaled, so input listener events should be
+    //                              identical to what the hardware sends (accounting for any
+    //                              calibration).
+    // FINGER 0 DOWN
+    processId(mapper, 1);
+    processPosition(mapper, 100 + RAW_X_MIN, 100 + RAW_Y_MIN);
+    processKey(mapper, BTN_TOUCH, 1);
+    processSync(mapper);
+
+    // expect coord[0] to contain initial location of touch 0
+    NotifyMotionArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, args.action);
+    ASSERT_EQ(1U, args.pointerCount);
+    ASSERT_EQ(0, args.pointerProperties[0].id);
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, args.source);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 100, 100, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // FINGER 1 DOWN
+    processSlot(mapper, 1);
+    processId(mapper, 2);
+    processPosition(mapper, 560 + RAW_X_MIN, 154 + RAW_Y_MIN);
+    processSync(mapper);
+
+    // expect coord[0] to contain previous location, coord[1] to contain new touch 1 location
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN | 0x0100, args.action);
+    ASSERT_EQ(2U, args.pointerCount);
+    ASSERT_EQ(0, args.pointerProperties[0].id);
+    ASSERT_EQ(1, args.pointerProperties[1].id);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 100, 100, 1, 0, 0, 0, 0, 0, 0, 0));
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[1], 560, 154, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // FINGER 1 MOVE
+    processPosition(mapper, 540 + RAW_X_MIN, 690 + RAW_Y_MIN);
+    processSync(mapper);
+
+    // expect coord[0] to contain previous location, coord[1] to contain new touch 1 location
+    // from move
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 100, 100, 1, 0, 0, 0, 0, 0, 0, 0));
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[1], 540, 690, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // FINGER 0 MOVE
+    processSlot(mapper, 0);
+    processPosition(mapper, 50 + RAW_X_MIN, 800 + RAW_Y_MIN);
+    processSync(mapper);
+
+    // expect coord[0] to contain new touch 0 location, coord[1] to contain previous location
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 50, 800, 1, 0, 0, 0, 0, 0, 0, 0));
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[1], 540, 690, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // BUTTON DOWN
+    processKey(mapper, BTN_LEFT, 1);
+    processSync(mapper);
+
+    // touchinputmapper design sends a move before button press
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_PRESS, args.action);
+
+    // BUTTON UP
+    processKey(mapper, BTN_LEFT, 0);
+    processSync(mapper);
+
+    // touchinputmapper design sends a move after button release
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_RELEASE, args.action);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+
+    // FINGER 0 UP
+    processId(mapper, -1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_UP | 0x0000, args.action);
+
+    // FINGER 1 MOVE
+    processSlot(mapper, 1);
+    processPosition(mapper, 320 + RAW_X_MIN, 900 + RAW_Y_MIN);
+    processSync(mapper);
+
+    // expect coord[0] to contain new location of touch 1, and properties[0].id to contain 1
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    ASSERT_EQ(1U, args.pointerCount);
+    ASSERT_EQ(1, args.pointerProperties[0].id);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 320, 900, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // FINGER 1 UP
+    processId(mapper, -1);
+    processKey(mapper, BTN_TOUCH, 0);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
+
+    // non captured touchpad should be a mouse source
+    mFakePolicy->setPointerCapture(false);
+    configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
+}
+
+TEST_F(MultiTouchInputMapperTest, Process_UnCapturedTouchpadPointer) {
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+    fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+    fakePointerController->setPosition(0, 0);
+    fakePointerController->setButtonState(0);
+
+    // prepare device and capture
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOUCH, 0, AKEYCODE_UNKNOWN, 0);
+    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+    // run uncaptured pointer tests - pushes out generic events
+    // FINGER 0 DOWN
+    processId(mapper, 3);
+    processPosition(mapper, 100, 100);
+    processKey(mapper, BTN_TOUCH, 1);
+    processSync(mapper);
+
+    // start at (100,100), cursor should be at (0,0) * scale
+    NotifyMotionArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+
+    // FINGER 0 MOVE
+    processPosition(mapper, 200, 200);
+    processSync(mapper);
+
+    // compute scaling to help with touch position checking
+    float rawDiagonal = hypotf(RAW_X_MAX - RAW_X_MIN, RAW_Y_MAX - RAW_Y_MIN);
+    float displayDiagonal = hypotf(DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    float scale =
+            mFakePolicy->getPointerGestureMovementSpeedRatio() * displayDiagonal / rawDiagonal;
+
+    // translate from (100,100) -> (200,200), cursor should have changed to (100,100) * scale)
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0], 100 * scale, 100 * scale, 0,
+                                                0, 0, 0, 0, 0, 0, 0));
+}
+
+TEST_F(MultiTouchInputMapperTest, WhenCapturedAndNotCaptured_GetSources) {
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
+    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    mFakePolicy->setPointerCapture(false);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // uncaptured touchpad should be a pointer device
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
+
+    // captured touchpad should be a touchpad device
+    mFakePolicy->setPointerCapture(true);
+    configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
+}
+
 } // namespace android

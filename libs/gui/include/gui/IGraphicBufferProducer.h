@@ -458,7 +458,7 @@ public:
     // the producer wants to be notified when the consumer releases a buffer
     // back to the BufferQueue. It is also used to detect the death of the
     // producer. If only the latter functionality is desired, there is a
-    // DummyProducerListener class in IProducerListener.h that can be used.
+    // StubProducerListener class in IProducerListener.h that can be used.
     //
     // The api should be one of the NATIVE_WINDOW_API_* values in <window.h>
     //

@@ -53,8 +53,8 @@ public:
     static std::unique_ptr<GLESRenderEngine> create(const RenderEngineCreationArgs& args);
 
     GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display, EGLConfig config,
-                     EGLContext ctxt, EGLSurface dummy, EGLContext protectedContext,
-                     EGLSurface protectedDummy);
+                     EGLContext ctxt, EGLSurface stub, EGLContext protectedContext,
+                     EGLSurface protectedStub);
     ~GLESRenderEngine() override EXCLUDES(mRenderingMutex);
 
     void primeCache() const override;
@@ -115,8 +115,8 @@ private:
     static EGLContext createEglContext(EGLDisplay display, EGLConfig config,
                                        EGLContext shareContext, bool useContextPriority,
                                        Protection protection);
-    static EGLSurface createDummyEglPbufferSurface(EGLDisplay display, EGLConfig config,
-                                                   int hwcFormat, Protection protection);
+    static EGLSurface createStubEglPbufferSurface(EGLDisplay display, EGLConfig config,
+                                                  int hwcFormat, Protection protection);
     std::unique_ptr<Framebuffer> createFramebuffer();
     std::unique_ptr<Image> createImage();
     void checkErrors() const;
@@ -175,9 +175,9 @@ private:
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;
     EGLContext mEGLContext;
-    EGLSurface mDummySurface;
+    EGLSurface mStubSurface;
     EGLContext mProtectedEGLContext;
-    EGLSurface mProtectedDummySurface;
+    EGLSurface mProtectedStubSurface;
     GLint mMaxViewportDims[2];
     GLint mMaxTextureSize;
     GLuint mVpWidth;

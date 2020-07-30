@@ -226,7 +226,6 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect viewport, Rect 
     const bool needsFiltering =
             (!globalTransform.preserveRects() || (type >= ui::Transform::SCALE));
 
-    const Rect& sourceClip = viewport;
     Rect destinationClip = globalTransform.transform(viewport);
     if (destinationClip.isEmpty()) {
         destinationClip = displayBounds;
@@ -244,7 +243,7 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect viewport, Rect 
     }
 
     getCompositionDisplay()->setProjection(globalTransform, transformOrientation, frame, viewport,
-                                           sourceClip, destinationClip, needsFiltering);
+                                           destinationClip, needsFiltering);
 }
 
 ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
@@ -322,10 +321,6 @@ const Rect& DisplayDevice::getViewport() const {
 
 const Rect& DisplayDevice::getFrame() const {
     return mCompositionDisplay->getState().frame;
-}
-
-const Rect& DisplayDevice::getSourceClip() const {
-    return mCompositionDisplay->getState().sourceClip;
 }
 
 bool DisplayDevice::hasWideColorGamut() const {
