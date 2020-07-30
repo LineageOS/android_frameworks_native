@@ -509,7 +509,7 @@ status_t CaptureArgs::write(Parcel& output) const {
 }
 
 status_t CaptureArgs::read(const Parcel& input) {
-    int32_t format;
+    int32_t format = 0;
     status_t status = input.readInt32(&format) ?:
         input.read(sourceCrop) ?:
         input.readFloat(&frameScale) ?:
@@ -533,7 +533,7 @@ status_t DisplayCaptureArgs::write(Parcel& output) const {
 status_t DisplayCaptureArgs::read(const Parcel& input) {
     status_t status = CaptureArgs::read(input);
 
-    int32_t rotationInt;
+    int32_t rotationInt = 0;
 
     status |= input.readStrongBinder(&displayToken) ?:
         input.readUint32(&width) ?:
@@ -562,7 +562,7 @@ status_t LayerCaptureArgs::read(const Parcel& input) {
 
     status |= input.readStrongBinder(&layerHandle);
 
-    int32_t numExcludeHandles;
+    int32_t numExcludeHandles = 0;
     status |= input.readInt32(&numExcludeHandles);
     excludeHandles.reserve(numExcludeHandles);
     for (int i = 0; i < numExcludeHandles; i++) {
@@ -584,7 +584,7 @@ status_t ScreenCaptureResults::write(Parcel& output) const {
 
 status_t ScreenCaptureResults::read(const Parcel& input) {
     buffer = new GraphicBuffer();
-    uint32_t dataspace;
+    uint32_t dataspace = 0;
     status_t status = input.read(*buffer) ?:
         input.readBool(&capturedSecureLayers) ?:
         input.readUint32(&dataspace);
