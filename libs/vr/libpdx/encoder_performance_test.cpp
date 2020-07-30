@@ -158,12 +158,12 @@ std::chrono::nanoseconds SerializeBaseTest(MessageWriter* writer,
                                            size_t iterations,
                                            ResetFunc* write_reset,
                                            void* reset_data, size_t data_size) {
-  std::vector<uint8_t> dummy_data(data_size);
+  std::vector<uint8_t> fake_data(data_size);
   auto start = std::chrono::high_resolution_clock::now();
   for (size_t i = 0; i < iterations; i++) {
     write_reset(reset_data);
-    memcpy(writer->GetNextWriteBufferSection(dummy_data.size()),
-           dummy_data.data(), dummy_data.size());
+    memcpy(writer->GetNextWriteBufferSection(fake_data.size()),
+           fake_data.data(), fake_data.size());
   }
   auto stop = std::chrono::high_resolution_clock::now();
   return stop - start;
@@ -177,17 +177,17 @@ std::chrono::nanoseconds DeserializeBaseTest(
     MessageReader* reader, MessageWriter* writer, size_t iterations,
     ResetFunc* read_reset, ResetFunc* write_reset, void* reset_data,
     size_t data_size) {
-  std::vector<uint8_t> dummy_data(data_size);
+  std::vector<uint8_t> fake_data(data_size);
   write_reset(reset_data);
-  memcpy(writer->GetNextWriteBufferSection(dummy_data.size()),
-         dummy_data.data(), dummy_data.size());
+  memcpy(writer->GetNextWriteBufferSection(fake_data.size()), fake_data.data(),
+         fake_data.size());
   auto start = std::chrono::high_resolution_clock::now();
   for (size_t i = 0; i < iterations; i++) {
     read_reset(reset_data);
     auto section = reader->GetNextReadBufferSection();
-    memcpy(dummy_data.data(), section.first, dummy_data.size());
+    memcpy(fake_data.data(), section.first, fake_data.size());
     reader->ConsumeReadBufferSectionData(
-        AdvancePointer(section.first, dummy_data.size()));
+        AdvancePointer(section.first, fake_data.size()));
   }
   auto stop = std::chrono::high_resolution_clock::now();
   return stop - start;

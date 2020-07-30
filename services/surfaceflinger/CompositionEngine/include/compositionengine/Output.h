@@ -164,8 +164,8 @@ public:
 
     // Sets the projection state to use
     virtual void setProjection(const ui::Transform&, uint32_t orientation, const Rect& frame,
-                               const Rect& viewport, const Rect& sourceClip,
-                               const Rect& destinationClip, bool needsFiltering) = 0;
+                               const Rect& viewport, const Rect& destinationClip,
+                               bool needsFiltering) = 0;
     // Sets the bounds to use
     virtual void setBounds(const ui::Size&) = 0;
 

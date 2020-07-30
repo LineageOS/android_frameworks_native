@@ -240,18 +240,16 @@ TEST_F(OutputTest, setProjectionTriviallyWorks) {
     const int32_t orientation = 123;
     const Rect frame{1, 2, 3, 4};
     const Rect viewport{5, 6, 7, 8};
-    const Rect sourceClip{9, 10, 11, 12};
     const Rect destinationClip{13, 14, 15, 16};
     const bool needsFiltering = true;
 
-    mOutput->setProjection(transform, orientation, frame, viewport, sourceClip, destinationClip,
+    mOutput->setProjection(transform, orientation, frame, viewport, destinationClip,
                            needsFiltering);
 
     EXPECT_THAT(mOutput->getState().transform, transform);
     EXPECT_EQ(orientation, mOutput->getState().orientation);
     EXPECT_EQ(frame, mOutput->getState().frame);
     EXPECT_EQ(viewport, mOutput->getState().viewport);
-    EXPECT_EQ(sourceClip, mOutput->getState().sourceClip);
     EXPECT_EQ(destinationClip, mOutput->getState().destinationClip);
     EXPECT_EQ(needsFiltering, mOutput->getState().needsFiltering);
 }
@@ -2787,7 +2785,6 @@ struct OutputComposeSurfacesTest : public testing::Test {
 
         mOutput.mState.frame = kDefaultOutputFrame;
         mOutput.mState.viewport = kDefaultOutputViewport;
-        mOutput.mState.sourceClip = kDefaultOutputSourceClip;
         mOutput.mState.destinationClip = kDefaultOutputDestinationClip;
         mOutput.mState.transform = ui::Transform{kDefaultOutputOrientation};
         mOutput.mState.orientation = kDefaultOutputOrientation;
@@ -2834,7 +2831,6 @@ struct OutputComposeSurfacesTest : public testing::Test {
 
     static const Rect kDefaultOutputFrame;
     static const Rect kDefaultOutputViewport;
-    static const Rect kDefaultOutputSourceClip;
     static const Rect kDefaultOutputDestinationClip;
     static const mat4 kDefaultColorTransformMat;
 
@@ -2856,7 +2852,6 @@ struct OutputComposeSurfacesTest : public testing::Test {
 
 const Rect OutputComposeSurfacesTest::kDefaultOutputFrame{1001, 1002, 1003, 1004};
 const Rect OutputComposeSurfacesTest::kDefaultOutputViewport{1005, 1006, 1007, 1008};
-const Rect OutputComposeSurfacesTest::kDefaultOutputSourceClip{1009, 1010, 1011, 1012};
 const Rect OutputComposeSurfacesTest::kDefaultOutputDestinationClip{1013, 1014, 1015, 1016};
 const mat4 OutputComposeSurfacesTest::kDefaultColorTransformMat{mat4() * 0.5f};
 const compositionengine::CompositionRefreshArgs OutputComposeSurfacesTest::kDefaultRefreshArgs;
@@ -3122,7 +3117,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputSourceClip,
+            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
                                             Region::INVALID_REGION, kDefaultOutputOrientation})
             .execute()
@@ -3133,7 +3128,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(false)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputSourceClip,
+            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
                                             Region::INVALID_REGION, kDefaultOutputOrientation})
             .execute()
@@ -3144,7 +3139,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputSourceClip,
+            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace,
                                             kDefaultColorTransformMat, Region::INVALID_REGION,
                                             kDefaultOutputOrientation})
@@ -3156,7 +3151,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(false)
             .andIfSkipColorTransform(false)
-            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputSourceClip,
+            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace,
                                             kDefaultColorTransformMat, Region::INVALID_REGION,
                                             kDefaultOutputOrientation})
@@ -3169,7 +3164,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .andIfSkipColorTransform(true)
-            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputSourceClip,
+            .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
                                             Region::INVALID_REGION, kDefaultOutputOrientation})
             .execute()
@@ -3416,7 +3411,6 @@ struct GenerateClientCompositionRequestsTest_ThreeLayers
     GenerateClientCompositionRequestsTest_ThreeLayers() {
         mOutput.mState.frame = kDisplayFrame;
         mOutput.mState.viewport = kDisplayViewport;
-        mOutput.mState.sourceClip = kDisplaySourceClip;
         mOutput.mState.destinationClip = kDisplayDestinationClip;
         mOutput.mState.transform = ui::Transform{kDisplayOrientation};
         mOutput.mState.orientation = kDisplayOrientation;
@@ -3448,7 +3442,6 @@ struct GenerateClientCompositionRequestsTest_ThreeLayers
 
     static const Rect kDisplayFrame;
     static const Rect kDisplayViewport;
-    static const Rect kDisplaySourceClip;
     static const Rect kDisplayDestinationClip;
 
     std::array<Layer, 3> mLayers;
@@ -3456,7 +3449,6 @@ struct GenerateClientCompositionRequestsTest_ThreeLayers
 
 const Rect GenerateClientCompositionRequestsTest_ThreeLayers::kDisplayFrame(0, 0, 100, 200);
 const Rect GenerateClientCompositionRequestsTest_ThreeLayers::kDisplayViewport(0, 0, 101, 201);
-const Rect GenerateClientCompositionRequestsTest_ThreeLayers::kDisplaySourceClip(0, 0, 102, 202);
 const Rect GenerateClientCompositionRequestsTest_ThreeLayers::kDisplayDestinationClip(0, 0, 103,
                                                                                       203);
 
@@ -3583,15 +3575,15 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqu
     mLayers[1].mLayerFEState.isOpaque = true;
     mLayers[2].mLayerFEState.isOpaque = true;
     Region accumClearRegion(Rect(10, 11, 12, 13));
-    Region dummyRegion;
+    Region stubRegion;
 
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
-            false,       /* identity transform */
-            false,       /* needs filtering */
-            false,       /* secure */
-            false,       /* supports protected content */
-            dummyRegion, /* clear region */
+            false,      /* identity transform */
+            false,      /* needs filtering */
+            false,      /* secure */
+            false,      /* supports protected content */
+            stubRegion, /* clear region */
             kDisplayViewport,
             kDisplayDataspace,
             false /* realContentIsVisible */,
@@ -3945,14 +3937,12 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
 
     const Rect kPortraitFrame(0, 0, 1000, 2000);
     const Rect kPortraitViewport(0, 0, 2000, 1000);
-    const Rect kPortraitSourceClip(0, 0, 1000, 2000);
     const Rect kPortraitDestinationClip(0, 0, 1000, 2000);
     const uint32_t kPortraitOrientation = TR_ROT_90;
     constexpr ui::Dataspace kOutputDataspace = ui::Dataspace::DISPLAY_P3;
 
     mOutput.mState.frame = kPortraitFrame;
     mOutput.mState.viewport = kPortraitViewport;
-    mOutput.mState.sourceClip = kPortraitSourceClip;
     mOutput.mState.destinationClip = kPortraitDestinationClip;
     mOutput.mState.transform = ui::Transform{kPortraitOrientation};
     mOutput.mState.orientation = kPortraitOrientation;

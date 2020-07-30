@@ -101,7 +101,6 @@ public:
     const ui::Transform& getTransform() const;
     const Rect& getViewport() const;
     const Rect& getFrame() const;
-    const Rect& getSourceClip() const;
     bool needsFiltering() const;
     ui::LayerStack getLayerStack() const;
 

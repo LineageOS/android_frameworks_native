@@ -92,9 +92,9 @@ int ServiceDispatcher::RemoveService(const std::shared_ptr<Service>& service) {
   if (thread_count_ > 0)
     return -EBUSY;
 
-  epoll_event dummy;  // See BUGS in man 2 epoll_ctl.
+  epoll_event ee;  // See BUGS in man 2 epoll_ctl.
   if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_DEL, service->endpoint()->epoll_fd(),
-                &dummy) < 0) {
+                &ee) < 0) {
     ALOGE("Failed to remove service from dispatcher because: %s\n",
           strerror(errno));
     return -errno;

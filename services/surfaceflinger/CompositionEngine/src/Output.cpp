@@ -106,12 +106,10 @@ void Output::setCompositionEnabled(bool enabled) {
 }
 
 void Output::setProjection(const ui::Transform& transform, uint32_t orientation, const Rect& frame,
-                           const Rect& viewport, const Rect& sourceClip,
-                           const Rect& destinationClip, bool needsFiltering) {
+                           const Rect& viewport, const Rect& destinationClip, bool needsFiltering) {
     auto& outputState = editState();
     outputState.transform = transform;
     outputState.orientation = orientation;
-    outputState.sourceClip = sourceClip;
     outputState.destinationClip = destinationClip;
     outputState.frame = frame;
     outputState.viewport = viewport;
@@ -863,7 +861,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(
 
     renderengine::DisplaySettings clientCompositionDisplay;
     clientCompositionDisplay.physicalDisplay = outputState.destinationClip;
-    clientCompositionDisplay.clip = outputState.sourceClip;
+    clientCompositionDisplay.clip = outputState.viewport;
     clientCompositionDisplay.orientation = outputState.orientation;
     clientCompositionDisplay.outputDataspace = mDisplayColorProfile->hasWideColorGamut()
             ? outputState.dataspace
@@ -951,7 +949,7 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
     const bool useIdentityTransform = false;
     bool firstLayer = true;
     // Used when a layer clears part of the buffer.
-    Region dummyRegion;
+    Region stubRegion;
 
     for (auto* layer : getOutputLayersOrderedByZ()) {
         const auto& layerState = layer->getState();
@@ -990,7 +988,7 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                     layer->needsFiltering() || outputState.needsFiltering,
                     outputState.isSecure,
                     supportsProtectedContent,
-                    clientComposition ? clearRegion : dummyRegion,
+                    clientComposition ? clearRegion : stubRegion,
                     outputState.viewport,
                     outputDataspace,
                     realContentIsVisible,

@@ -19,6 +19,8 @@
 
 #include <string>
 
+#include <android/InputApplicationInfo.h>
+
 #include <binder/IBinder.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
@@ -28,22 +30,6 @@
 #include <utils/Timers.h>
 
 namespace android {
-
-/*
- * Describes the properties of an application that can receive input.
- */
-struct InputApplicationInfo : public Parcelable {
-    sp<IBinder> token;
-    std::string name;
-    std::chrono::nanoseconds dispatchingTimeout;
-
-    InputApplicationInfo() = default;
-
-    status_t readFromParcel(const android::Parcel* parcel) override;
-
-    status_t writeToParcel(android::Parcel* parcel) const override;
-};
-
 /*
  * Handle for an application that can receive input.
  *
@@ -62,7 +48,7 @@ public:
 
     inline std::chrono::nanoseconds getDispatchingTimeout(
             std::chrono::nanoseconds defaultValue) const {
-        return mInfo.token ? std::chrono::nanoseconds(mInfo.dispatchingTimeout) : defaultValue;
+        return mInfo.token ? std::chrono::nanoseconds(mInfo.dispatchingTimeoutNanos) : defaultValue;
     }
 
     inline sp<IBinder> getApplicationToken() const {
@@ -81,8 +67,8 @@ public:
     virtual bool updateInfo() = 0;
 
 protected:
-    InputApplicationHandle();
-    virtual ~InputApplicationHandle();
+    InputApplicationHandle() = default;
+    virtual ~InputApplicationHandle() = default;
 
     InputApplicationInfo mInfo;
 };
