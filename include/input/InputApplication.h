@@ -36,7 +36,7 @@ namespace android {
  * Used by the native input dispatcher as a handle for the window manager objects
  * that describe an application.
  */
-class InputApplicationHandle : public RefBase {
+class InputApplicationHandle {
 public:
     inline const InputApplicationInfo* getInfo() const {
         return &mInfo;
@@ -54,6 +54,12 @@ public:
     inline sp<IBinder> getApplicationToken() const {
         return mInfo.token;
     }
+
+    bool operator==(const InputApplicationHandle& other) const {
+        return getName() == other.getName() && getApplicationToken() == other.getApplicationToken();
+    }
+
+    bool operator!=(const InputApplicationHandle& other) const { return !(*this == other); }
 
     /**
      * Requests that the state of this object be updated to reflect
