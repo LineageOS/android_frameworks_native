@@ -18,16 +18,58 @@
 
 #include <android/hardware/power/Boost.h>
 #include <android/hardware/power/Mode.h>
-
 #include <benchmark/benchmark.h>
-
 #include <powermanager/PowerHalController.h>
+#include <testUtil.h>
+#include <chrono>
 
 using android::hardware::power::Boost;
 using android::hardware::power::Mode;
+using android::power::HalResult;
 using android::power::PowerHalController;
 
 using namespace android;
+using namespace std::chrono_literals;
+
+// Values from Boost.aidl and Mode.aidl.
+static constexpr int64_t FIRST_BOOST = static_cast<int64_t>(Boost::INTERACTION);
+static constexpr int64_t LAST_BOOST = static_cast<int64_t>(Boost::CAMERA_SHOT);
+static constexpr int64_t FIRST_MODE = static_cast<int64_t>(Mode::DOUBLE_TAP_TO_WAKE);
+static constexpr int64_t LAST_MODE = static_cast<int64_t>(Mode::CAMERA_STREAMING_HIGH);
+
+// Delay between oneway method calls to avoid overflowing the binder buffers.
+static constexpr std::chrono::microseconds ONEWAY_API_DELAY = 100us;
+
+template <class... Args0, class... Args1>
+static void runBenchmark(benchmark::State& state, HalResult (PowerHalController::*fn)(Args0...),
+                         Args1&&... args1) {
+    while (state.KeepRunning()) {
+        PowerHalController controller;
+        HalResult ret = (controller.*fn)(std::forward<Args1>(args1)...);
+        state.PauseTiming();
+        if (ret == HalResult::FAILED) state.SkipWithError("Power HAL request failed");
+        state.ResumeTiming();
+    }
+}
+
+template <class... Args0, class... Args1>
+static void runCachedBenchmark(benchmark::State& state,
+                               HalResult (PowerHalController::*fn)(Args0...), Args1&&... args1) {
+    PowerHalController controller;
+    // First call out of test, to cache HAL service and isSupported result.
+    (controller.*fn)(std::forward<Args1>(args1)...);
+
+    while (state.KeepRunning()) {
+        HalResult ret = (controller.*fn)(std::forward<Args1>(args1)...);
+        state.PauseTiming();
+        if (ret == HalResult::FAILED) {
+            state.SkipWithError("Power HAL request failed");
+        }
+        testDelaySpin(
+                std::chrono::duration_cast<std::chrono::duration<float>>(ONEWAY_API_DELAY).count());
+        state.ResumeTiming();
+    }
+}
 
 static void BM_PowerHalControllerBenchmarks_init(benchmark::State& state) {
     while (state.KeepRunning()) {
@@ -47,42 +89,28 @@ static void BM_PowerHalControllerBenchmarks_initCached(benchmark::State& state) 
 }
 
 static void BM_PowerHalControllerBenchmarks_setBoost(benchmark::State& state) {
-    while (state.KeepRunning()) {
-        PowerHalController controller;
-        controller.setBoost(Boost::INTERACTION, 0);
-    }
+    Boost boost = static_cast<Boost>(state.range(0));
+    runBenchmark(state, &PowerHalController::setBoost, boost, 0);
 }
 
 static void BM_PowerHalControllerBenchmarks_setBoostCached(benchmark::State& state) {
-    PowerHalController controller;
-    // First call out of test, to cache supported boost.
-    controller.setBoost(Boost::INTERACTION, 0);
-
-    while (state.KeepRunning()) {
-        controller.setBoost(Boost::INTERACTION, 0);
-    }
+    Boost boost = static_cast<Boost>(state.range(0));
+    runCachedBenchmark(state, &PowerHalController::setBoost, boost, 0);
 }
 
 static void BM_PowerHalControllerBenchmarks_setMode(benchmark::State& state) {
-    while (state.KeepRunning()) {
-        PowerHalController controller;
-        controller.setMode(Mode::INTERACTIVE, false);
-    }
+    Mode mode = static_cast<Mode>(state.range(0));
+    runBenchmark(state, &PowerHalController::setMode, mode, false);
 }
 
 static void BM_PowerHalControllerBenchmarks_setModeCached(benchmark::State& state) {
-    PowerHalController controller;
-    // First call out of test, to cache supported mode.
-    controller.setMode(Mode::INTERACTIVE, false);
-
-    while (state.KeepRunning()) {
-        controller.setMode(Mode::INTERACTIVE, false);
-    }
+    Mode mode = static_cast<Mode>(state.range(0));
+    runCachedBenchmark(state, &PowerHalController::setMode, mode, false);
 }
 
 BENCHMARK(BM_PowerHalControllerBenchmarks_init);
 BENCHMARK(BM_PowerHalControllerBenchmarks_initCached);
-BENCHMARK(BM_PowerHalControllerBenchmarks_setBoost);
-BENCHMARK(BM_PowerHalControllerBenchmarks_setBoostCached);
-BENCHMARK(BM_PowerHalControllerBenchmarks_setMode);
-BENCHMARK(BM_PowerHalControllerBenchmarks_setModeCached);
+BENCHMARK(BM_PowerHalControllerBenchmarks_setBoost)->DenseRange(FIRST_BOOST, LAST_BOOST, 1);
+BENCHMARK(BM_PowerHalControllerBenchmarks_setBoostCached)->DenseRange(FIRST_BOOST, LAST_BOOST, 1);
+BENCHMARK(BM_PowerHalControllerBenchmarks_setMode)->DenseRange(FIRST_MODE, LAST_MODE, 1);
+BENCHMARK(BM_PowerHalControllerBenchmarks_setModeCached)->DenseRange(FIRST_MODE, LAST_MODE, 1);
