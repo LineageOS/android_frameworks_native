@@ -31,6 +31,9 @@ cc_benchmark {
         "android.hardware.power@1.1",
         "android.hardware.power-cpp",
     ],
+    static_libs: [
+        "libtestUtil",
+    ],
     cflags: [
         "-Wall",
         "-Werror",

@@ -20,23 +20,34 @@
 #include <android/hardware/power/Boost.h>
 #include <android/hardware/power/IPower.h>
 #include <android/hardware/power/Mode.h>
-
 #include <benchmark/benchmark.h>
-
 #include <hardware/power.h>
 #include <hardware_legacy/power.h>
+#include <testUtil.h>
+#include <chrono>
 
+using android::hardware::Return;
 using android::hardware::power::Boost;
 using android::hardware::power::Mode;
 using android::hardware::power::V1_0::Feature;
 using android::hardware::power::V1_0::PowerHint;
+using std::chrono::microseconds;
 using IPower1_0 = android::hardware::power::V1_0::IPower;
 using IPower1_1 = android::hardware::power::V1_1::IPower;
 
 using namespace android;
+using namespace std::chrono_literals;
+
+// Values from types.hal from versions 1.0 to 1.3.
+static constexpr int64_t FIRST_POWER_HINT = static_cast<int64_t>(PowerHint::VSYNC);
+static constexpr int64_t LAST_POWER_HINT = static_cast<int64_t>(PowerHint::LAUNCH);
+
+// Delay between oneway method calls to avoid overflowing the binder buffers.
+static constexpr microseconds ONEWAY_API_DELAY = 100us;
 
 template <class R, class I, class... Args0, class... Args1>
-static void runBenchmark(benchmark::State& state, R (I::*fn)(Args0...), Args1&&... args1) {
+static void runBenchmark(benchmark::State& state, microseconds delay, Return<R> (I::*fn)(Args0...),
+                         Args1&&... args1) {
     sp<I> hal = I::getService();
 
     if (hal == nullptr) {
@@ -45,27 +56,37 @@ static void runBenchmark(benchmark::State& state, R (I::*fn)(Args0...), Args1&&.
     }
 
     while (state.KeepRunning()) {
-        (*hal.*fn)(std::forward<Args1>(args1)...);
+        Return<R> ret = (*hal.*fn)(std::forward<Args1>(args1)...);
+        state.PauseTiming();
+        if (!ret.isOk()) state.SkipWithError(ret.description().c_str());
+        if (delay > 0us) {
+            testDelaySpin(std::chrono::duration_cast<std::chrono::duration<float>>(delay).count());
+        }
+        state.ResumeTiming();
     }
 }
 
 static void BM_PowerHalHidlBenchmarks_setFeature(benchmark::State& state) {
-    runBenchmark(state, &IPower1_0::setFeature, Feature::POWER_FEATURE_DOUBLE_TAP_TO_WAKE, false);
+    runBenchmark(state, 0us, &IPower1_0::setFeature, Feature::POWER_FEATURE_DOUBLE_TAP_TO_WAKE,
+                 false);
 }
 
 static void BM_PowerHalHidlBenchmarks_setInteractive(benchmark::State& state) {
-    runBenchmark(state, &IPower1_0::setInteractive, false);
+    runBenchmark(state, 0us, &IPower1_0::setInteractive, false);
 }
 
 static void BM_PowerHalHidlBenchmarks_powerHint(benchmark::State& state) {
-    runBenchmark(state, &IPower1_0::powerHint, PowerHint::INTERACTION, 0);
+    PowerHint powerHint = static_cast<PowerHint>(state.range(0));
+    runBenchmark(state, 0us, &IPower1_0::powerHint, powerHint, 0);
 }
 
 static void BM_PowerHalHidlBenchmarks_powerHintAsync(benchmark::State& state) {
-    runBenchmark(state, &IPower1_1::powerHintAsync, PowerHint::INTERACTION, 0);
+    PowerHint powerHint = static_cast<PowerHint>(state.range(0));
+    runBenchmark(state, ONEWAY_API_DELAY, &IPower1_1::powerHintAsync, powerHint, 0);
 }
 
 BENCHMARK(BM_PowerHalHidlBenchmarks_setFeature);
 BENCHMARK(BM_PowerHalHidlBenchmarks_setInteractive);
-BENCHMARK(BM_PowerHalHidlBenchmarks_powerHint);
-BENCHMARK(BM_PowerHalHidlBenchmarks_powerHintAsync);
+BENCHMARK(BM_PowerHalHidlBenchmarks_powerHint)->DenseRange(FIRST_POWER_HINT, LAST_POWER_HINT, 1);
+BENCHMARK(BM_PowerHalHidlBenchmarks_powerHintAsync)
+        ->DenseRange(FIRST_POWER_HINT, LAST_POWER_HINT, 1);
