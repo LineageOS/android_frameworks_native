@@ -60,6 +60,8 @@ public:
     virtual void disable() = 0;
     virtual bool isEnabled() = 0;
 
+    virtual void addTransactionTraceListener(
+            const sp<gui::ITransactionTraceListener>& listener) = 0;
     virtual void binderDied(const wp<IBinder>& who) = 0;
 
     // Intercept display and surface transactions
@@ -99,6 +101,7 @@ public:
     void disable() override;
     bool isEnabled() override;
 
+    void addTransactionTraceListener(const sp<gui::ITransactionTraceListener>& listener) override;
     void binderDied(const wp<IBinder>& who) override;
 
     // Intercept display and surface transactions
@@ -199,6 +202,9 @@ private:
     std::mutex mTraceMutex {};
     Trace mTrace {};
     SurfaceFlinger* const mFlinger;
+    std::mutex mListenersMutex;
+    std::map<wp<IBinder>, sp<gui::ITransactionTraceListener>> mTraceToggledListeners
+            GUARDED_BY(mListenersMutex);
 };
 
 } // namespace impl

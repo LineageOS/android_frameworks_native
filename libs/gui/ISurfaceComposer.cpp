@@ -20,6 +20,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <android/gui/ITransactionTraceListener.h>
+
 #include <binder/Parcel.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
@@ -1197,6 +1199,15 @@ public:
 
         return reply.readInt32();
     }
+
+    virtual status_t addTransactionTraceListener(
+            const sp<gui::ITransactionTraceListener>& listener) {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
+
+        return remote()->transact(BnSurfaceComposer::ADD_TRANSACTION_TRACE_LISTENER, data, &reply);
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -2025,6 +2036,13 @@ status_t BnSurfaceComposer::onTransact(
             status_t result = setFrameTimelineVsync(surface, frameTimelineVsyncId);
             reply->writeInt32(result);
             return NO_ERROR;
+        }
+        case ADD_TRANSACTION_TRACE_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<gui::ITransactionTraceListener> listener;
+            SAFE_PARCEL(data.readStrongBinder, &listener);
+
+            return addTransactionTraceListener(listener);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

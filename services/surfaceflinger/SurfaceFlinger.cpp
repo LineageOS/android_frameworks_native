@@ -4885,6 +4885,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             }
             return OK;
         }
+        case ADD_TRANSACTION_TRACE_LISTENER:
         case CAPTURE_DISPLAY_BY_ID: {
             IPCThreadState* ipc = IPCThreadState::self();
             const int uid = ipc->getCallingUid();
@@ -6228,6 +6229,17 @@ void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
             mRefreshRateOverlay->changeRefreshRate(mRefreshRateConfigs->getCurrentRefreshRate());
         }
     }));
+}
+
+status_t SurfaceFlinger::addTransactionTraceListener(
+        const sp<gui::ITransactionTraceListener>& listener) {
+    if (!listener) {
+        return BAD_VALUE;
+    }
+
+    mInterceptor->addTransactionTraceListener(listener);
+
+    return NO_ERROR;
 }
 
 } // namespace android
