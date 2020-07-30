@@ -30,6 +30,7 @@
 #include <input/InputWindow.h>
 #endif
 
+#include <gui/ISurfaceComposer.h>
 #include <gui/LayerMetadata.h>
 #include <math/vec3.h>
 #include <ui/GraphicTypes.h>
@@ -311,6 +312,47 @@ static inline int compare_type(const DisplayState& lhs, const DisplayState& rhs)
 // functionName is added to the log to indicate which function call failed.
 // functionName can be null.
 bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* functionName);
+
+struct CaptureArgs {
+    virtual ~CaptureArgs() = default;
+
+    ui::PixelFormat pixelFormat{ui::PixelFormat::RGBA_8888};
+    Rect sourceCrop;
+    float frameScale{1};
+    bool captureSecureLayers{false};
+
+    virtual status_t write(Parcel& output) const;
+    virtual status_t read(const Parcel& input);
+};
+
+struct DisplayCaptureArgs : CaptureArgs {
+    sp<IBinder> displayToken;
+    uint32_t width{0};
+    uint32_t height{0};
+    bool useIdentityTransform{false};
+    ui::Rotation rotation{ui::ROTATION_0};
+
+    status_t write(Parcel& output) const override;
+    status_t read(const Parcel& input) override;
+};
+
+struct LayerCaptureArgs : CaptureArgs {
+    sp<IBinder> layerHandle;
+    std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> excludeHandles;
+    bool childrenOnly{true};
+
+    status_t write(Parcel& output) const override;
+    status_t read(const Parcel& input) override;
+};
+
+struct ScreenCaptureResults {
+    sp<GraphicBuffer> buffer;
+    bool capturedSecureLayers{false};
+    ui::Dataspace capturedDataspace{ui::Dataspace::V0_SRGB};
+
+    status_t write(Parcel& output) const;
+    status_t read(const Parcel& input);
+};
 
 }; // namespace android
 
