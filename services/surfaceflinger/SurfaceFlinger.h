@@ -852,7 +852,7 @@ private:
     /* ------------------------------------------------------------------------
      * VSync
      */
-    nsecs_t getVsyncPeriod() const REQUIRES(mStateLock);
+    nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
 
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
