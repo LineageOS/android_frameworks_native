@@ -40,6 +40,8 @@ protected:
 
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
         ASSERT_NO_FATAL_FAILURE(sf->getColorManagement(&mColorManagementUsed));
+
+        mCaptureArgs.displayToken = mDisplay;
     }
 
     virtual void TearDown() {
@@ -248,6 +250,9 @@ protected:
 
     sp<SurfaceControl> mBlackBgSurface;
     bool mColorManagementUsed;
+
+    DisplayCaptureArgs mCaptureArgs;
+    ScreenCaptureResults mCaptureResults;
 
 private:
     void SetUpDisplay() {

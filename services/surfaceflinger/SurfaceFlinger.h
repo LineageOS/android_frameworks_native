@@ -433,13 +433,10 @@ private:
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp,
             ISurfaceComposer::ConfigChanged configChanged =
                     ISurfaceComposer::eConfigChangedSuppress) override;
-    status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
-                           bool& outCapturedSecureLayers, ui::Dataspace reqDataspace,
-                           ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                           uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                           ui::Rotation rotation, bool captureSecureLayers) override;
-    status_t captureScreen(uint64_t displayOrLayerStack, ui::Dataspace* outDataspace,
-                           sp<GraphicBuffer>* outBuffer) override;
+    status_t captureDisplay(const DisplayCaptureArgs& args,
+                            ScreenCaptureResults& captureResults) override;
+    status_t captureDisplay(uint64_t displayOrLayerStack,
+                            ScreenCaptureResults& captureResults) override;
     status_t captureLayers(
             const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
             const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,

@@ -32,18 +32,16 @@ TEST_F(LayerTransactionTest, SetFlagsSecureEUidSystem) {
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     sp<ISurfaceComposer> composer = ComposerService::getComposerService();
-    sp<GraphicBuffer> outBuffer;
     Transaction()
             .setFlags(layer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
             .apply(true);
-    ASSERT_EQ(PERMISSION_DENIED,
-              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
+    ASSERT_EQ(PERMISSION_DENIED, composer->captureDisplay(mCaptureArgs, mCaptureResults));
 
     UIDFaker f(AID_SYSTEM);
 
     // By default the system can capture screenshots with secure layers but they
     // will be blacked out
-    ASSERT_EQ(NO_ERROR, composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
+    ASSERT_EQ(NO_ERROR, composer->captureDisplay(mCaptureArgs, mCaptureResults));
 
     {
         SCOPED_TRACE("as system");
@@ -53,13 +51,12 @@ TEST_F(LayerTransactionTest, SetFlagsSecureEUidSystem) {
 
     // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
     // to receive them...we are expected to take care with the results.
-    bool outCapturedSecureLayers;
-    ASSERT_EQ(NO_ERROR,
-              composer->captureScreen(mDisplay, &outBuffer, outCapturedSecureLayers,
-                                      ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888, Rect(), 0,
-                                      0, false, ui::ROTATION_0, true));
-    ASSERT_EQ(true, outCapturedSecureLayers);
-    ScreenCapture sc(outBuffer);
+    DisplayCaptureArgs args;
+    args.displayToken = mDisplay;
+    args.captureSecureLayers = true;
+    ASSERT_EQ(NO_ERROR, composer->captureDisplay(args, mCaptureResults));
+    ASSERT_EQ(true, mCaptureResults.capturedSecureLayers);
+    ScreenCapture sc(mCaptureResults.buffer);
     sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 

@@ -244,11 +244,13 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersDontSucceed) {
     const sp<IBinder> display = sf->getInternalDisplayToken();
     ASSERT_FALSE(display == nullptr);
 
-    sp<GraphicBuffer> outBuffer;
-    bool ignored;
-    ASSERT_EQ(NO_ERROR,
-              sf->captureScreen(display, &outBuffer, ignored, ui::Dataspace::V0_SRGB,
-                                ui::PixelFormat::RGBA_8888, Rect(), 64, 64, false));
+    DisplayCaptureArgs captureArgs;
+    captureArgs.displayToken = display;
+    captureArgs.width = 64;
+    captureArgs.height = 64;
+
+    ScreenCaptureResults captureResults;
+    ASSERT_EQ(NO_ERROR, sf->captureDisplay(captureArgs, captureResults));
 
     ASSERT_EQ(NO_ERROR, native_window_api_connect(anw.get(),
             NATIVE_WINDOW_API_CPU));
@@ -278,9 +280,7 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersDontSucceed) {
                 &buf));
         ASSERT_EQ(NO_ERROR, anw->queueBuffer(anw.get(), buf, -1));
     }
-    ASSERT_EQ(NO_ERROR,
-              sf->captureScreen(display, &outBuffer, ignored, ui::Dataspace::V0_SRGB,
-                                ui::PixelFormat::RGBA_8888, Rect(), 64, 64, false));
+    ASSERT_EQ(NO_ERROR, sf->captureDisplay(captureArgs, captureResults));
 }
 
 TEST_F(SurfaceTest, ConcreteTypeIsSurface) {
@@ -742,12 +742,8 @@ public:
     }
     status_t setActiveColorMode(const sp<IBinder>& /*display*/,
         ColorMode /*colorMode*/) override { return NO_ERROR; }
-    status_t captureScreen(const sp<IBinder>& /*display*/, sp<GraphicBuffer>* /*outBuffer*/,
-                           bool& /*outCapturedSecureLayers*/, ui::Dataspace /*reqDataspace*/,
-                           ui::PixelFormat /*reqPixelFormat*/, const Rect& /*sourceCrop*/,
-                           uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
-                           bool /*useIdentityTransform*/, ui::Rotation,
-                           bool /*captureSecureLayers*/) override {
+    status_t captureDisplay(const DisplayCaptureArgs& /* captureArgs */,
+                            ScreenCaptureResults& /* captureResults */) override {
         return NO_ERROR;
     }
     status_t getAutoLowLatencyModeSupport(const sp<IBinder>& /*display*/,
@@ -760,8 +756,8 @@ public:
         return NO_ERROR;
     }
     void setGameContentType(const sp<IBinder>& /*display*/, bool /*on*/) override {}
-    status_t captureScreen(uint64_t /*displayOrLayerStack*/, ui::Dataspace* /*outDataspace*/,
-                           sp<GraphicBuffer>* /*outBuffer*/) override {
+    status_t captureDisplay(uint64_t /*displayOrLayerStack*/,
+                            ScreenCaptureResults& /* captureResults */) override {
         return NO_ERROR;
     }
     virtual status_t captureLayers(
