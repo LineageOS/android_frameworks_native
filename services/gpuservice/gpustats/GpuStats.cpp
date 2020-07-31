@@ -291,24 +291,27 @@ AStatsManager_PullAtomCallbackReturn GpuStats::pullAppInfoAtom(AStatsEventList* 
 
     if (data) {
         for (const auto& ele : mAppStats) {
-            AStatsEvent* event = AStatsEventList_addStatsEvent(data);
-            AStatsEvent_setAtomId(event, android::util::GPU_STATS_APP_INFO);
-            AStatsEvent_writeString(event, ele.second.appPackageName.c_str());
-            AStatsEvent_writeInt64(event, ele.second.driverVersionCode);
+            std::string glDriverBytes = int64VectorToProtoByteString(
+                ele.second.glDriverLoadingTime);
+            std::string vkDriverBytes = int64VectorToProtoByteString(
+                ele.second.vkDriverLoadingTime);
+            std::string angleDriverBytes = int64VectorToProtoByteString(
+                ele.second.angleDriverLoadingTime);
 
-            std::string bytes = int64VectorToProtoByteString(ele.second.glDriverLoadingTime);
-            AStatsEvent_writeByteArray(event, (const uint8_t*)bytes.c_str(), bytes.length());
-
-            bytes = int64VectorToProtoByteString(ele.second.vkDriverLoadingTime);
-            AStatsEvent_writeByteArray(event, (const uint8_t*)bytes.c_str(), bytes.length());
-
-            bytes = int64VectorToProtoByteString(ele.second.angleDriverLoadingTime);
-            AStatsEvent_writeByteArray(event, (const uint8_t*)bytes.c_str(), bytes.length());
-
-            AStatsEvent_writeBool(event, ele.second.cpuVulkanInUse);
-            AStatsEvent_writeBool(event, ele.second.falsePrerotation);
-            AStatsEvent_writeBool(event, ele.second.gles1InUse);
-            AStatsEvent_build(event);
+            android::util::addAStatsEvent(
+                    data,
+                    android::util::GPU_STATS_APP_INFO,
+                    ele.second.appPackageName.c_str(),
+                    ele.second.driverVersionCode,
+                    android::util::BytesField(glDriverBytes.c_str(),
+                                              glDriverBytes.length()),
+                    android::util::BytesField(vkDriverBytes.c_str(),
+                                              vkDriverBytes.length()),
+                    android::util::BytesField(angleDriverBytes.c_str(),
+                                              angleDriverBytes.length()),
+                    ele.second.cpuVulkanInUse,
+                    ele.second.falsePrerotation,
+                    ele.second.gles1InUse);
         }
     }
 
@@ -326,22 +329,22 @@ AStatsManager_PullAtomCallbackReturn GpuStats::pullGlobalInfoAtom(AStatsEventLis
 
     if (data) {
         for (const auto& ele : mGlobalStats) {
-            AStatsEvent* event = AStatsEventList_addStatsEvent(data);
-            AStatsEvent_setAtomId(event, android::util::GPU_STATS_GLOBAL_INFO);
-            AStatsEvent_writeString(event, ele.second.driverPackageName.c_str());
-            AStatsEvent_writeString(event, ele.second.driverVersionName.c_str());
-            AStatsEvent_writeInt64(event, ele.second.driverVersionCode);
-            AStatsEvent_writeInt64(event, ele.second.driverBuildTime);
-            AStatsEvent_writeInt64(event, ele.second.glLoadingCount);
-            AStatsEvent_writeInt64(event, ele.second.glLoadingFailureCount);
-            AStatsEvent_writeInt64(event, ele.second.vkLoadingCount);
-            AStatsEvent_writeInt64(event, ele.second.vkLoadingFailureCount);
-            AStatsEvent_writeInt32(event, ele.second.vulkanVersion);
-            AStatsEvent_writeInt32(event, ele.second.cpuVulkanVersion);
-            AStatsEvent_writeInt32(event, ele.second.glesVersion);
-            AStatsEvent_writeInt64(event, ele.second.angleLoadingCount);
-            AStatsEvent_writeInt64(event, ele.second.angleLoadingFailureCount);
-            AStatsEvent_build(event);
+          android::util::addAStatsEvent(
+                  data,
+                  android::util::GPU_STATS_GLOBAL_INFO,
+                  ele.second.driverPackageName.c_str(),
+                  ele.second.driverVersionName.c_str(),
+                  ele.second.driverVersionCode,
+                  ele.second.driverBuildTime,
+                  ele.second.glLoadingCount,
+                  ele.second.glLoadingFailureCount,
+                  ele.second.vkLoadingCount,
+                  ele.second.vkLoadingFailureCount,
+                  ele.second.vulkanVersion,
+                  ele.second.cpuVulkanVersion,
+                  ele.second.glesVersion,
+                  ele.second.angleLoadingCount,
+                  ele.second.angleLoadingFailureCount);
         }
     }
 
