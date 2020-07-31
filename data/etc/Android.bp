@@ -1,0 +1,7 @@
+prebuilt_etc {
+    name: "android.hardware.biometrics.face.xml",
+    product_specific: true,
+    sub_dir: "permissions",
+    src: "android.hardware.biometrics.face.xml",
+    filename_from_src: true,
+}
