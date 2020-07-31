@@ -208,7 +208,7 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t eventHubId) {
     mDevices.emplace(eventHubId, device);
     bumpGenerationLocked();
 
-    if (device->getClasses() & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
+    if (device->getClasses().test(InputDeviceClass::EXTERNAL_STYLUS)) {
         notifyExternalStylusPresenceChanged();
     }
 }
@@ -237,7 +237,7 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
 
     device->removeEventHubDevice(eventHubId);
 
-    if (device->getClasses() & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
+    if (device->getClasses().test(InputDeviceClass::EXTERNAL_STYLUS)) {
         notifyExternalStylusPresenceChanged();
     }
 
@@ -360,7 +360,7 @@ void InputReader::notifyExternalStylusPresenceChanged() {
 void InputReader::getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices) {
     for (auto& devicePair : mDevices) {
         std::shared_ptr<InputDevice>& device = devicePair.second;
-        if (device->getClasses() & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS && !device->isIgnored()) {
+        if (device->getClasses().test(InputDeviceClass::EXTERNAL_STYLUS) && !device->isIgnored()) {
             InputDeviceInfo info;
             device->getDeviceInfo(&info);
             outDevices.push_back(info);
