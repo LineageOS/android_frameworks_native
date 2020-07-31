@@ -233,7 +233,7 @@ private:
 
     // mZeroErrSamplesCount keeps track of how many times in a row there were
     // zero timestamps available in the mPresentFences array.
-    // Used to sanity check that we are able to calculate the model error.
+    // Used to check that we are able to calculate the model error.
     size_t mZeroErrSamplesCount;
 
     // Whether we have updated the vsync event model since the last resync.
