@@ -57,10 +57,12 @@ TEST_F(InvalidHandleTest, createSurfaceInvalidHandle) {
 
 TEST_F(InvalidHandleTest, captureLayersInvalidHandle) {
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-    sp<GraphicBuffer> outBuffer;
 
-    ASSERT_EQ(NAME_NOT_FOUND,
-              sf->captureLayers(mNotSc->getHandle(), &outBuffer, Rect::EMPTY_RECT, 1.0f));
+    LayerCaptureArgs args;
+    args.layerHandle = mNotSc->getHandle();
+
+    ScreenCaptureResults captureResults;
+    ASSERT_EQ(NAME_NOT_FOUND, sf->captureLayers(args, captureResults));
 }
 
 } // namespace

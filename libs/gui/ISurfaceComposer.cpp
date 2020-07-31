@@ -157,25 +157,18 @@ public:
         return result;
     }
 
-    virtual status_t captureLayers(
-            const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
-            const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
-            const Rect& sourceCrop,
-            const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& excludeLayers, float frameScale,
-            bool childrenOnly) {
+    virtual status_t captureLayers(const LayerCaptureArgs& args,
+                                   ScreenCaptureResults& captureResults) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(layerHandleBinder);
-        data.writeInt32(static_cast<int32_t>(reqDataspace));
-        data.writeInt32(static_cast<int32_t>(reqPixelFormat));
-        data.write(sourceCrop);
-        data.writeInt32(excludeLayers.size());
-        for (auto el : excludeLayers) {
-            data.writeStrongBinder(el);
+
+        status_t result = args.write(data);
+        if (result != NO_ERROR) {
+            ALOGE("captureLayers failed to parcel args: %d", result);
+            return result;
         }
-        data.writeFloat(frameScale);
-        data.writeBool(childrenOnly);
-        status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
+
+        result = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
         if (result != NO_ERROR) {
             ALOGE("captureLayers failed to transact: %d", result);
             return result;
@@ -186,9 +179,7 @@ public:
             return result;
         }
 
-        *outBuffer = new GraphicBuffer();
-        reply.read(**outBuffer);
-
+        captureResults.read(reply);
         return result;
     }
 
@@ -1315,32 +1306,19 @@ status_t BnSurfaceComposer::onTransact(
         }
         case CAPTURE_LAYERS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> layerHandleBinder = data.readStrongBinder();
-            ui::Dataspace reqDataspace = static_cast<ui::Dataspace>(data.readInt32());
-            ui::PixelFormat reqPixelFormat = static_cast<ui::PixelFormat>(data.readInt32());
-            sp<GraphicBuffer> outBuffer;
-            Rect sourceCrop(Rect::EMPTY_RECT);
-            data.read(sourceCrop);
+            LayerCaptureArgs args;
+            ScreenCaptureResults captureResults;
 
-            std::unordered_set<sp<IBinder>, SpHash<IBinder>> excludeHandles;
-            int numExcludeHandles = data.readInt32();
-            if (numExcludeHandles >= static_cast<int>(MAX_LAYERS)) {
-                return BAD_VALUE;
-            }
-            excludeHandles.reserve(numExcludeHandles);
-            for (int i = 0; i < numExcludeHandles; i++) {
-                excludeHandles.emplace(data.readStrongBinder());
+            status_t res = args.read(data);
+            if (res != NO_ERROR) {
+                reply->writeInt32(res);
+                return NO_ERROR;
             }
 
-            float frameScale = data.readFloat();
-            bool childrenOnly = data.readBool();
-
-            status_t res =
-                    captureLayers(layerHandleBinder, &outBuffer, reqDataspace, reqPixelFormat,
-                                  sourceCrop, excludeHandles, frameScale, childrenOnly);
+            res = captureLayers(args, captureResults);
             reply->writeInt32(res);
             if (res == NO_ERROR) {
-                reply->write(*outBuffer);
+                captureResults.write(*reply);
             }
             return NO_ERROR;
         }
