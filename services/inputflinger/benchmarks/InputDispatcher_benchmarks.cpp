@@ -47,8 +47,8 @@ protected:
 private:
     void notifyConfigurationChanged(nsecs_t) override {}
 
-    std::chrono::nanoseconds notifyAnr(const sp<InputApplicationHandle>&, const sp<IBinder>&,
-                                       const std::string& name) override {
+    std::chrono::nanoseconds notifyAnr(const std::shared_ptr<InputApplicationHandle>&,
+                                       const sp<IBinder>&, const std::string& name) override {
         ALOGE("The window is not responding : %s", name.c_str());
         return 0s;
     }
@@ -148,7 +148,7 @@ public:
     static const int32_t WIDTH = 200;
     static const int32_t HEIGHT = 200;
 
-    FakeWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle,
+    FakeWindowHandle(const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
                      const sp<InputDispatcher>& dispatcher, const std::string name)
           : FakeInputReceiver(dispatcher, name), mFrame(Rect(0, 0, WIDTH, HEIGHT)) {
         mDispatcher->registerInputChannel(mServerChannel);
@@ -246,7 +246,7 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
     dispatcher->start();
 
     // Create a window that will receive motion events
-    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window = new FakeWindowHandle(application, dispatcher, "Fake Window");
 
     dispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
@@ -282,7 +282,7 @@ static void benchmarkInjectMotion(benchmark::State& state) {
     dispatcher->start();
 
     // Create a window that will receive motion events
-    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window = new FakeWindowHandle(application, dispatcher, "Fake Window");
 
     dispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});

@@ -496,7 +496,7 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     if (mNoFocusedWindowTimeoutTime.has_value() && mAwaitedFocusedApplication != nullptr) {
         if (currentTime >= *mNoFocusedWindowTimeoutTime) {
             onAnrLocked(mAwaitedFocusedApplication);
-            mAwaitedFocusedApplication.clear();
+            mAwaitedFocusedApplication.reset();
             return LONG_LONG_MIN;
         } else {
             // Keep waiting
@@ -1389,7 +1389,7 @@ void InputDispatcher::resetNoFocusedWindowTimeoutLocked() {
 
     // Reset input target wait timeout.
     mNoFocusedWindowTimeoutTime = std::nullopt;
-    mAwaitedFocusedApplication.clear();
+    mAwaitedFocusedApplication.reset();
 }
 
 /**
@@ -1459,7 +1459,7 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
     int32_t displayId = getTargetDisplayId(entry);
     sp<InputWindowHandle> focusedWindowHandle =
             getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
-    sp<InputApplicationHandle> focusedApplicationHandle =
+    std::shared_ptr<InputApplicationHandle> focusedApplicationHandle =
             getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
 
     // If there is no currently focused window and no focused application
@@ -2149,7 +2149,7 @@ bool InputDispatcher::isWindowObscuredLocked(const sp<InputWindowHandle>& window
 }
 
 std::string InputDispatcher::getApplicationWindowLabel(
-        const sp<InputApplicationHandle>& applicationHandle,
+        const std::shared_ptr<InputApplicationHandle>& applicationHandle,
         const sp<InputWindowHandle>& windowHandle) {
     if (applicationHandle != nullptr) {
         if (windowHandle != nullptr) {
@@ -3868,30 +3868,36 @@ void InputDispatcher::setInputWindowsLocked(
 }
 
 void InputDispatcher::setFocusedApplication(
-        int32_t displayId, const sp<InputApplicationHandle>& inputApplicationHandle) {
+        int32_t displayId, const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) {
     if (DEBUG_FOCUS) {
         ALOGD("setFocusedApplication displayId=%" PRId32 " %s", displayId,
               inputApplicationHandle ? inputApplicationHandle->getName().c_str() : "<nullptr>");
     }
-    { // acquire lock
+    if (inputApplicationHandle != nullptr &&
+        inputApplicationHandle->getApplicationToken() != nullptr) {
+        // acquire lock
         std::scoped_lock _l(mLock);
 
-        sp<InputApplicationHandle> oldFocusedApplicationHandle =
+        std::shared_ptr<InputApplicationHandle> oldFocusedApplicationHandle =
                 getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
 
-        if (oldFocusedApplicationHandle == mAwaitedFocusedApplication &&
-            inputApplicationHandle != oldFocusedApplicationHandle) {
-            resetNoFocusedWindowTimeoutLocked();
+        // If oldFocusedApplicationHandle already exists
+        if (oldFocusedApplicationHandle != nullptr) {
+            // If a new focused application handle is different from the old one and
+            // old focus application info is awaited focused application info.
+            if (*oldFocusedApplicationHandle != *inputApplicationHandle &&
+                mAwaitedFocusedApplication != nullptr &&
+                *oldFocusedApplicationHandle == *mAwaitedFocusedApplication) {
+                resetNoFocusedWindowTimeoutLocked();
+            }
+            // Erase the old application from container first
+            mFocusedApplicationHandlesByDisplay.erase(displayId);
+            // Should already get freed after removed from container but just double check.
+            oldFocusedApplicationHandle.reset();
         }
 
-        if (inputApplicationHandle != nullptr && inputApplicationHandle->updateInfo()) {
-            if (oldFocusedApplicationHandle != inputApplicationHandle) {
-                mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
-            }
-        } else if (oldFocusedApplicationHandle != nullptr) {
-            oldFocusedApplicationHandle.clear();
-            mFocusedApplicationHandlesByDisplay.erase(displayId);
-        }
+        // Set the new application handle.
+        mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
     } // release lock
 
     // Wake up poll loop since it may need to make new input dispatching choices.
@@ -4138,7 +4144,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += StringPrintf(INDENT "FocusedApplications:\n");
         for (auto& it : mFocusedApplicationHandlesByDisplay) {
             const int32_t displayId = it.first;
-            const sp<InputApplicationHandle>& applicationHandle = it.second;
+            const std::shared_ptr<InputApplicationHandle>& applicationHandle = it.second;
             const int64_t timeoutMillis = millis(
                     applicationHandle->getDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT));
             dump += StringPrintf(INDENT2 "displayId=%" PRId32
@@ -4652,7 +4658,7 @@ void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
     postCommandLocked(std::move(commandEntry));
 }
 
-void InputDispatcher::onAnrLocked(const sp<InputApplicationHandle>& application) {
+void InputDispatcher::onAnrLocked(const std::shared_ptr<InputApplicationHandle>& application) {
     std::string reason = android::base::StringPrintf("%s does not have a focused window",
                                                      application->getName().c_str());
 
@@ -4672,8 +4678,8 @@ void InputDispatcher::updateLastAnrStateLocked(const sp<InputWindowHandle>& wind
     updateLastAnrStateLocked(windowLabel, reason);
 }
 
-void InputDispatcher::updateLastAnrStateLocked(const sp<InputApplicationHandle>& application,
-                                               const std::string& reason) {
+void InputDispatcher::updateLastAnrStateLocked(
+        const std::shared_ptr<InputApplicationHandle>& application, const std::string& reason) {
     const std::string windowLabel = getApplicationWindowLabel(application, nullptr);
     updateLastAnrStateLocked(windowLabel, reason);
 }
@@ -4744,9 +4750,9 @@ void InputDispatcher::doNotifyAnrLockedInterruptible(CommandEntry* commandEntry)
     }
 }
 
-void InputDispatcher::extendAnrTimeoutsLocked(const sp<InputApplicationHandle>& application,
-                                              const sp<IBinder>& connectionToken,
-                                              std::chrono::nanoseconds timeoutExtension) {
+void InputDispatcher::extendAnrTimeoutsLocked(
+        const std::shared_ptr<InputApplicationHandle>& application,
+        const sp<IBinder>& connectionToken, std::chrono::nanoseconds timeoutExtension) {
     sp<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
         if (mNoFocusedWindowTimeoutTime.has_value() && application != nullptr) {

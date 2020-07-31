@@ -96,7 +96,7 @@ static constexpr bool IsPowerOfTwo(T x) {
 
 template<typename T>
 static constexpr T RoundDown(T x, typename std::decay<T>::type n) {
-    return DCHECK_CONSTEXPR(IsPowerOfTwo(n), , T(0))(x & -n);
+    return (x & -n);
 }
 
 template<typename T>
@@ -523,6 +523,7 @@ private:
     // Choose a random relocation offset. Taken from art/runtime/gc/image_space.cc.
     static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta) {
         constexpr size_t kPageSize = PAGE_SIZE;
+        static_assert(IsPowerOfTwo(kPageSize), "page size must be power of two");
         CHECK_EQ(min_delta % kPageSize, 0u);
         CHECK_EQ(max_delta % kPageSize, 0u);
         CHECK_LT(min_delta, max_delta);

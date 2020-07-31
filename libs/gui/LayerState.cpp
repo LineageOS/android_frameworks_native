@@ -498,4 +498,100 @@ bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* inFunc
     return true;
 }
 
+// ----------------------------------------------------------------------------
+
+status_t CaptureArgs::write(Parcel& output) const {
+    status_t status = output.writeInt32(static_cast<int32_t>(pixelFormat)) ?:
+        output.write(sourceCrop) ?:
+        output.writeFloat(frameScale) ?:
+        output.writeBool(captureSecureLayers);
+    return status;
+}
+
+status_t CaptureArgs::read(const Parcel& input) {
+    int32_t format = 0;
+    status_t status = input.readInt32(&format) ?:
+        input.read(sourceCrop) ?:
+        input.readFloat(&frameScale) ?:
+        input.readBool(&captureSecureLayers);
+
+    pixelFormat = static_cast<ui::PixelFormat>(format);
+    return status;
+}
+
+status_t DisplayCaptureArgs::write(Parcel& output) const {
+    status_t status = CaptureArgs::write(output);
+
+    status |= output.writeStrongBinder(displayToken) ?:
+        output.writeUint32(width) ?:
+        output.writeUint32(height) ?:
+        output.writeBool(useIdentityTransform) ?:
+        output.writeInt32(static_cast<int32_t>(rotation));
+    return status;
+}
+
+status_t DisplayCaptureArgs::read(const Parcel& input) {
+    status_t status = CaptureArgs::read(input);
+
+    int32_t rotationInt = 0;
+
+    status |= input.readStrongBinder(&displayToken) ?:
+        input.readUint32(&width) ?:
+        input.readUint32(&height) ?:
+        input.readBool(&useIdentityTransform) ?:
+        input.readInt32(&rotationInt);
+
+    rotation = ui::toRotation(rotationInt);
+    return status;
+}
+
+status_t LayerCaptureArgs::write(Parcel& output) const {
+    status_t status = CaptureArgs::write(output);
+
+    status |= output.writeStrongBinder(layerHandle);
+    status |= output.writeInt32(excludeHandles.size());
+    for (auto el : excludeHandles) {
+        status |= output.writeStrongBinder(el);
+    }
+    status |= output.writeBool(childrenOnly);
+    return status;
+}
+
+status_t LayerCaptureArgs::read(const Parcel& input) {
+    status_t status = CaptureArgs::read(input);
+
+    status |= input.readStrongBinder(&layerHandle);
+
+    int32_t numExcludeHandles = 0;
+    status |= input.readInt32(&numExcludeHandles);
+    excludeHandles.reserve(numExcludeHandles);
+    for (int i = 0; i < numExcludeHandles; i++) {
+        sp<IBinder> binder;
+        status |= input.readStrongBinder(&binder);
+        excludeHandles.emplace(binder);
+    }
+
+    status |= input.readBool(&childrenOnly);
+    return status;
+}
+
+status_t ScreenCaptureResults::write(Parcel& output) const {
+    status_t status = output.write(*buffer) ?:
+        output.writeBool(capturedSecureLayers) ?:
+        output.writeUint32(static_cast<uint32_t>(capturedDataspace));
+    return status;
+}
+
+status_t ScreenCaptureResults::read(const Parcel& input) {
+    buffer = new GraphicBuffer();
+    uint32_t dataspace = 0;
+    status_t status = input.read(*buffer) ?:
+        input.readBool(&capturedSecureLayers) ?:
+        input.readUint32(&dataspace);
+
+    capturedDataspace = static_cast<ui::Dataspace>(dataspace);
+
+    return status;
+}
+
 }; // namespace android

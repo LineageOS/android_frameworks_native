@@ -254,7 +254,7 @@ struct CommandEntry {
     sp<Connection> connection;
     nsecs_t eventTime;
     KeyEntry* keyEntry;
-    sp<InputApplicationHandle> inputApplicationHandle;
+    std::shared_ptr<InputApplicationHandle> inputApplicationHandle;
     std::string reason;
     int32_t userActivityEventType;
     uint32_t seq;
