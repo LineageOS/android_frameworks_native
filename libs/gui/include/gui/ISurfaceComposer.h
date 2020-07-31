@@ -268,27 +268,11 @@ public:
 
     /**
      * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
-     *
-     * reqDataspace and reqPixelFormat specify the data space and pixel format
-     * of the buffer. The caller should pick the data space and pixel format
-     * that it can consume.
+     * This requires READ_FRAME_BUFFER permission. This function will fail if there
+     * is a secure window on screen
      */
-    virtual status_t captureLayers(
-            const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
-            ui::Dataspace reqDataspace, ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-            const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& excludeHandles,
-            float frameScale = 1.0, bool childrenOnly = false) = 0;
-
-    /**
-     * Capture a subtree of the layer hierarchy into an sRGB buffer with RGBA_8888 pixel format,
-     * potentially ignoring the root node.
-     */
-    status_t captureLayers(const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
-                           const Rect& sourceCrop, float frameScale = 1.0,
-                           bool childrenOnly = false) {
-        return captureLayers(layerHandleBinder, outBuffer, ui::Dataspace::V0_SRGB,
-                             ui::PixelFormat::RGBA_8888, sourceCrop, {}, frameScale, childrenOnly);
-    }
+    virtual status_t captureLayers(const LayerCaptureArgs& args,
+                                   ScreenCaptureResults& captureResults) = 0;
 
     /* Clears the frame statistics for animations.
      *
