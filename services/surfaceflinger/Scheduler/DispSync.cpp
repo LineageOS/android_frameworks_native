@@ -331,7 +331,7 @@ private:
         return nextEventTime;
     }
 
-    // Sanity check that the duration is close enough in length to a period without
+    // Check that the duration is close enough in length to a period without
     // falling into double-rate vsyncs.
     bool isCloseToPeriod(nsecs_t duration) {
         // Ratio of 3/5 is arbitrary, but it must be greater than 1/2.
