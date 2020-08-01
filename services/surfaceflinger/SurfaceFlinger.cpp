@@ -4969,7 +4969,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             return OK;
         }
         case CAPTURE_LAYERS:
-        case CAPTURE_SCREEN:
+        case CAPTURE_DISPLAY:
         case ADD_REGION_SAMPLING_LISTENER:
         case REMOVE_REGION_SAMPLING_LISTENER: {
             // codes that require permission check
@@ -4983,7 +4983,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             }
             return OK;
         }
-        case CAPTURE_SCREEN_BY_ID: {
+        case CAPTURE_DISPLAY_BY_ID: {
             IPCThreadState* ipc = IPCThreadState::self();
             const int uid = ipc->getCallingUid();
             if (uid == AID_ROOT || uid == AID_GRAPHICS || uid == AID_SYSTEM || uid == AID_SHELL) {
@@ -5429,51 +5429,6 @@ private:
     const int mApi;
 };
 
-status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
-                                       sp<GraphicBuffer>* outBuffer, bool& outCapturedSecureLayers,
-                                       Dataspace reqDataspace, ui::PixelFormat reqPixelFormat,
-                                       const Rect& sourceCrop, uint32_t reqWidth,
-                                       uint32_t reqHeight, bool useIdentityTransform,
-                                       ui::Rotation rotation, bool captureSecureLayers) {
-    ATRACE_CALL();
-
-    if (!displayToken) return BAD_VALUE;
-
-    auto renderAreaRotation = ui::Transform::toRotationFlags(rotation);
-    if (renderAreaRotation == ui::Transform::ROT_INVALID) {
-        ALOGE("%s: Invalid rotation: %s", __FUNCTION__, toCString(rotation));
-        renderAreaRotation = ui::Transform::ROT_0;
-    }
-
-    wp<DisplayDevice> displayWeak;
-    ui::LayerStack layerStack;
-    ui::Size reqSize(reqWidth, reqHeight);
-    {
-        Mutex::Autolock lock(mStateLock);
-        sp<DisplayDevice> display = getDisplayDeviceLocked(displayToken);
-        if (!display) return NAME_NOT_FOUND;
-        displayWeak = display;
-        layerStack = display->getLayerStack();
-
-        // set the requested width/height to the logical display viewport size
-        // by default
-        if (reqWidth == 0 || reqHeight == 0) {
-            reqSize = display->getViewport().getSize();
-        }
-    }
-
-    RenderAreaFuture renderAreaFuture = promise::defer([=] {
-        return DisplayRenderArea::create(displayWeak, sourceCrop, reqSize, reqDataspace,
-                                         renderAreaRotation, captureSecureLayers);
-    });
-
-    auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
-        traverseLayersInLayerStack(layerStack, visitor);
-    };
-    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize, outBuffer,
-                               reqPixelFormat, useIdentityTransform, outCapturedSecureLayers);
-}
-
 static Dataspace pickDataspaceFromColorMode(const ColorMode colorMode) {
     switch (colorMode) {
         case ColorMode::DISPLAY_P3:
@@ -5484,6 +5439,54 @@ static Dataspace pickDataspaceFromColorMode(const ColorMode colorMode) {
         default:
             return Dataspace::V0_SRGB;
     }
+}
+
+status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
+                                        ScreenCaptureResults& captureResults) {
+    ATRACE_CALL();
+
+    if (!args.displayToken) return BAD_VALUE;
+
+    auto renderAreaRotation = ui::Transform::toRotationFlags(args.rotation);
+    if (renderAreaRotation == ui::Transform::ROT_INVALID) {
+        ALOGE("%s: Invalid rotation: %s", __FUNCTION__, toCString(args.rotation));
+        renderAreaRotation = ui::Transform::ROT_0;
+    }
+
+    wp<DisplayDevice> displayWeak;
+    ui::LayerStack layerStack;
+    ui::Size reqSize(args.width, args.height);
+    ui::Dataspace dataspace;
+    {
+        Mutex::Autolock lock(mStateLock);
+        sp<DisplayDevice> display = getDisplayDeviceLocked(args.displayToken);
+        if (!display) return NAME_NOT_FOUND;
+        displayWeak = display;
+        layerStack = display->getLayerStack();
+
+        // set the requested width/height to the logical display viewport size
+        // by default
+        if (args.width == 0 || args.height == 0) {
+            reqSize = display->getViewport().getSize();
+        }
+
+        const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
+        dataspace = pickDataspaceFromColorMode(colorMode);
+    }
+
+    RenderAreaFuture renderAreaFuture = promise::defer([=] {
+        return DisplayRenderArea::create(displayWeak, args.sourceCrop, reqSize, dataspace,
+                                         renderAreaRotation, args.captureSecureLayers);
+    });
+
+    auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
+        traverseLayersInLayerStack(layerStack, visitor);
+    };
+
+    captureResults.capturedDataspace = dataspace;
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+                               &captureResults.buffer, args.pixelFormat, args.useIdentityTransform,
+                               captureResults.capturedSecureLayers);
 }
 
 status_t SurfaceFlinger::setSchedFifo(bool enabled) {
@@ -5525,8 +5528,8 @@ sp<DisplayDevice> SurfaceFlinger::getDisplayByLayerStack(uint64_t layerStack) {
     return nullptr;
 }
 
-status_t SurfaceFlinger::captureScreen(uint64_t displayOrLayerStack, Dataspace* outDataspace,
-                                       sp<GraphicBuffer>* outBuffer) {
+status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
+                                        ScreenCaptureResults& captureResults) {
     ui::LayerStack layerStack;
     wp<DisplayDevice> displayWeak;
     ui::Size size;
@@ -5562,42 +5565,40 @@ status_t SurfaceFlinger::captureScreen(uint64_t displayOrLayerStack, Dataspace* 
             default:
                 break;
         }
-        *outDataspace =
+        captureResults.capturedDataspace =
                 pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
     }
 
     RenderAreaFuture renderAreaFuture = promise::defer([=] {
-        return DisplayRenderArea::create(displayWeak, Rect(), size, *outDataspace,
-                                         captureOrientation, false /* captureSecureLayers */);
+        return DisplayRenderArea::create(displayWeak, Rect(), size,
+                                         captureResults.capturedDataspace, captureOrientation,
+                                         false /* captureSecureLayers */);
     });
 
     auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
         traverseLayersInLayerStack(layerStack, visitor);
     };
 
-    bool ignored = false;
-
-    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size, outBuffer,
-                               ui::PixelFormat::RGBA_8888, false /* useIdentityTransform */,
-                               ignored /* outCapturedSecureLayers */);
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
+                               &captureResults.buffer, ui::PixelFormat::RGBA_8888,
+                               false /* useIdentityTransform */,
+                               captureResults.capturedSecureLayers);
 }
 
-status_t SurfaceFlinger::captureLayers(
-        const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
-        const Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-        const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& excludeHandles,
-        float frameScale, bool childrenOnly) {
+status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
+                                       ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
     ui::Size reqSize;
     sp<Layer> parent;
-    Rect crop(sourceCrop);
+    Rect crop(args.sourceCrop);
     std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
     Rect displayViewport;
+    ui::Dataspace dataspace;
     {
         Mutex::Autolock lock(mStateLock);
 
-        parent = fromHandleLocked(layerHandleBinder).promote();
+        parent = fromHandleLocked(args.layerHandle).promote();
         if (parent == nullptr || parent->isRemovedFromCurrentState()) {
             ALOGE("captureLayers called with an invalid or removed parent");
             return NAME_NOT_FOUND;
@@ -5611,24 +5612,24 @@ status_t SurfaceFlinger::captureLayers(
         }
 
         Rect parentSourceBounds = parent->getCroppedBufferSize(parent->getCurrentState());
-        if (sourceCrop.width() <= 0) {
+        if (args.sourceCrop.width() <= 0) {
             crop.left = 0;
             crop.right = parentSourceBounds.getWidth();
         }
 
-        if (sourceCrop.height() <= 0) {
+        if (args.sourceCrop.height() <= 0) {
             crop.top = 0;
             crop.bottom = parentSourceBounds.getHeight();
         }
 
-        if (crop.isEmpty() || frameScale <= 0.0f) {
+        if (crop.isEmpty() || args.frameScale <= 0.0f) {
             // Error out if the layer has no source bounds (i.e. they are boundless) and a source
             // crop was not specified, or an invalid frame scale was provided.
             return BAD_VALUE;
         }
-        reqSize = ui::Size(crop.width() * frameScale, crop.height() * frameScale);
+        reqSize = ui::Size(crop.width() * args.frameScale, crop.height() * args.frameScale);
 
-        for (const auto& handle : excludeHandles) {
+        for (const auto& handle : args.excludeHandles) {
             sp<Layer> excludeLayer = fromHandleLocked(handle).promote();
             if (excludeLayer != nullptr) {
                 excludeLayers.emplace(excludeLayer);
@@ -5644,6 +5645,9 @@ status_t SurfaceFlinger::captureLayers(
         }
 
         displayViewport = display->getViewport();
+
+        const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
+        dataspace = pickDataspaceFromColorMode(colorMode);
     } // mStateLock
 
     // really small crop or frameScale
@@ -5654,8 +5658,10 @@ status_t SurfaceFlinger::captureLayers(
         reqSize.height = 1;
     }
 
+    bool childrenOnly = args.childrenOnly;
+
     RenderAreaFuture renderAreaFuture = promise::defer([=]() -> std::unique_ptr<RenderArea> {
-        return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, reqDataspace,
+        return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
                                                  childrenOnly, displayViewport);
     });
 
@@ -5680,9 +5686,10 @@ status_t SurfaceFlinger::captureLayers(
         });
     };
 
-    bool outCapturedSecureLayers = false;
-    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize, outBuffer,
-                               reqPixelFormat, false, outCapturedSecureLayers);
+    captureResults.capturedDataspace = dataspace;
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+                               &captureResults.buffer, args.pixelFormat, false,
+                               captureResults.capturedSecureLayers);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,

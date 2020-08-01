@@ -111,81 +111,64 @@ public:
         remote()->transact(BnSurfaceComposer::BOOT_FINISHED, data, &reply);
     }
 
-    virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   bool& outCapturedSecureLayers, ui::Dataspace reqDataspace,
-                                   ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                                   uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   ui::Rotation rotation, bool captureSecureLayers) {
+    virtual status_t captureDisplay(const DisplayCaptureArgs& args,
+                                    ScreenCaptureResults& captureResults) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        data.writeInt32(static_cast<int32_t>(reqDataspace));
-        data.writeInt32(static_cast<int32_t>(reqPixelFormat));
-        data.write(sourceCrop);
-        data.writeUint32(reqWidth);
-        data.writeUint32(reqHeight);
-        data.writeInt32(static_cast<int32_t>(useIdentityTransform));
-        data.writeInt32(static_cast<int32_t>(rotation));
-        data.writeInt32(static_cast<int32_t>(captureSecureLayers));
-        status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_SCREEN, data, &reply);
+
+        status_t result = args.write(data);
         if (result != NO_ERROR) {
-            ALOGE("captureScreen failed to transact: %d", result);
+            ALOGE("captureDisplay failed to parcel args: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("captureDisplay failed to transact: %d", result);
             return result;
         }
         result = reply.readInt32();
         if (result != NO_ERROR) {
-            ALOGE("captureScreen failed to readInt32: %d", result);
+            ALOGE("captureDisplay failed to readInt32: %d", result);
             return result;
         }
 
-        *outBuffer = new GraphicBuffer();
-        reply.read(**outBuffer);
-        outCapturedSecureLayers = reply.readBool();
-
+        captureResults.read(reply);
         return result;
     }
 
-    virtual status_t captureScreen(uint64_t displayOrLayerStack, ui::Dataspace* outDataspace,
-                                   sp<GraphicBuffer>* outBuffer) {
+    virtual status_t captureDisplay(uint64_t displayOrLayerStack,
+                                    ScreenCaptureResults& captureResults) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeUint64(displayOrLayerStack);
-        status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_SCREEN_BY_ID, data, &reply);
+        status_t result =
+                remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY_BY_ID, data, &reply);
         if (result != NO_ERROR) {
-            ALOGE("captureScreen failed to transact: %d", result);
+            ALOGE("captureDisplay failed to transact: %d", result);
             return result;
         }
         result = reply.readInt32();
         if (result != NO_ERROR) {
-            ALOGE("captureScreen failed to readInt32: %d", result);
+            ALOGE("captureDisplay failed to readInt32: %d", result);
             return result;
         }
 
-        *outDataspace = static_cast<ui::Dataspace>(reply.readInt32());
-        *outBuffer = new GraphicBuffer();
-        reply.read(**outBuffer);
+        captureResults.read(reply);
         return result;
     }
 
-    virtual status_t captureLayers(
-            const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
-            const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
-            const Rect& sourceCrop,
-            const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& excludeLayers, float frameScale,
-            bool childrenOnly) {
+    virtual status_t captureLayers(const LayerCaptureArgs& args,
+                                   ScreenCaptureResults& captureResults) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(layerHandleBinder);
-        data.writeInt32(static_cast<int32_t>(reqDataspace));
-        data.writeInt32(static_cast<int32_t>(reqPixelFormat));
-        data.write(sourceCrop);
-        data.writeInt32(excludeLayers.size());
-        for (auto el : excludeLayers) {
-            data.writeStrongBinder(el);
+
+        status_t result = args.write(data);
+        if (result != NO_ERROR) {
+            ALOGE("captureLayers failed to parcel args: %d", result);
+            return result;
         }
-        data.writeFloat(frameScale);
-        data.writeBool(childrenOnly);
-        status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
+
+        result = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
         if (result != NO_ERROR) {
             ALOGE("captureLayers failed to transact: %d", result);
             return result;
@@ -196,9 +179,7 @@ public:
             return result;
         }
 
-        *outBuffer = new GraphicBuffer();
-        reply.read(**outBuffer);
-
+        captureResults.read(reply);
         return result;
     }
 
@@ -1293,74 +1274,51 @@ status_t BnSurfaceComposer::onTransact(
             bootFinished();
             return NO_ERROR;
         }
-        case CAPTURE_SCREEN: {
+        case CAPTURE_DISPLAY: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = data.readStrongBinder();
-            ui::Dataspace reqDataspace = static_cast<ui::Dataspace>(data.readInt32());
-            ui::PixelFormat reqPixelFormat = static_cast<ui::PixelFormat>(data.readInt32());
-            sp<GraphicBuffer> outBuffer;
-            Rect sourceCrop(Rect::EMPTY_RECT);
-            data.read(sourceCrop);
-            uint32_t reqWidth = data.readUint32();
-            uint32_t reqHeight = data.readUint32();
-            bool useIdentityTransform = static_cast<bool>(data.readInt32());
-            int32_t rotation = data.readInt32();
-            bool captureSecureLayers = static_cast<bool>(data.readInt32());
+            DisplayCaptureArgs args;
+            ScreenCaptureResults captureResults;
 
-            bool capturedSecureLayers = false;
-            status_t res = captureScreen(display, &outBuffer, capturedSecureLayers, reqDataspace,
-                                         reqPixelFormat, sourceCrop, reqWidth, reqHeight,
-                                         useIdentityTransform, ui::toRotation(rotation),
-                                         captureSecureLayers);
+            status_t res = args.read(data);
+            if (res != NO_ERROR) {
+                reply->writeInt32(res);
+                return NO_ERROR;
+            }
+
+            res = captureDisplay(args, captureResults);
 
             reply->writeInt32(res);
             if (res == NO_ERROR) {
-                reply->write(*outBuffer);
-                reply->writeBool(capturedSecureLayers);
+                captureResults.write(*reply);
             }
             return NO_ERROR;
         }
-        case CAPTURE_SCREEN_BY_ID: {
+        case CAPTURE_DISPLAY_BY_ID: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             uint64_t displayOrLayerStack = data.readUint64();
-            ui::Dataspace outDataspace = ui::Dataspace::V0_SRGB;
-            sp<GraphicBuffer> outBuffer;
-            status_t res = captureScreen(displayOrLayerStack, &outDataspace, &outBuffer);
+            ScreenCaptureResults captureResults;
+            status_t res = captureDisplay(displayOrLayerStack, captureResults);
             reply->writeInt32(res);
             if (res == NO_ERROR) {
-                reply->writeInt32(static_cast<int32_t>(outDataspace));
-                reply->write(*outBuffer);
+                captureResults.write(*reply);
             }
             return NO_ERROR;
         }
         case CAPTURE_LAYERS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> layerHandleBinder = data.readStrongBinder();
-            ui::Dataspace reqDataspace = static_cast<ui::Dataspace>(data.readInt32());
-            ui::PixelFormat reqPixelFormat = static_cast<ui::PixelFormat>(data.readInt32());
-            sp<GraphicBuffer> outBuffer;
-            Rect sourceCrop(Rect::EMPTY_RECT);
-            data.read(sourceCrop);
+            LayerCaptureArgs args;
+            ScreenCaptureResults captureResults;
 
-            std::unordered_set<sp<IBinder>, SpHash<IBinder>> excludeHandles;
-            int numExcludeHandles = data.readInt32();
-            if (numExcludeHandles >= static_cast<int>(MAX_LAYERS)) {
-                return BAD_VALUE;
-            }
-            excludeHandles.reserve(numExcludeHandles);
-            for (int i = 0; i < numExcludeHandles; i++) {
-                excludeHandles.emplace(data.readStrongBinder());
+            status_t res = args.read(data);
+            if (res != NO_ERROR) {
+                reply->writeInt32(res);
+                return NO_ERROR;
             }
 
-            float frameScale = data.readFloat();
-            bool childrenOnly = data.readBool();
-
-            status_t res =
-                    captureLayers(layerHandleBinder, &outBuffer, reqDataspace, reqPixelFormat,
-                                  sourceCrop, excludeHandles, frameScale, childrenOnly);
+            res = captureLayers(args, captureResults);
             reply->writeInt32(res);
             if (res == NO_ERROR) {
-                reply->write(*outBuffer);
+                captureResults.write(*reply);
             }
             return NO_ERROR;
         }
