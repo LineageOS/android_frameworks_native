@@ -749,9 +749,9 @@ public:
 
     FakeWindowHandle(const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
                      const sp<InputDispatcher>& dispatcher, const std::string name,
-                     int32_t displayId, sp<IBinder> token = nullptr)
+                     int32_t displayId, std::optional<sp<IBinder>> token = std::nullopt)
           : mName(name) {
-        if (token == nullptr) {
+        if (token == std::nullopt) {
             std::unique_ptr<InputChannel> serverChannel, clientChannel;
             InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
             mInputReceiver = std::make_unique<FakeInputReceiver>(std::move(clientChannel), name);
@@ -762,7 +762,7 @@ public:
         inputApplicationHandle->updateInfo();
         mInfo.applicationInfo = *inputApplicationHandle->getInfo();
 
-        mInfo.token = token;
+        mInfo.token = *token;
         mInfo.id = sId++;
         mInfo.name = name;
         mInfo.type = InputWindowInfo::Type::APPLICATION;
@@ -806,6 +806,8 @@ public:
     }
 
     void setFlags(Flags<InputWindowInfo::Flag> flags) { mInfo.flags = flags; }
+
+    void setInputFeatures(InputWindowInfo::Feature features) { mInfo.inputFeatures = features; }
 
     void setWindowTransform(float dsdx, float dtdx, float dtdy, float dsdy) {
         mInfo.transform.set(dsdx, dtdx, dtdy, dsdy);
@@ -894,8 +896,12 @@ public:
     }
 
     void assertNoEvents() {
-        ASSERT_NE(mInputReceiver, nullptr)
-                << "Call 'assertNoEvents' on a window with an InputReceiver";
+        if (mInputReceiver == nullptr &&
+            mInfo.inputFeatures.test(InputWindowInfo::Feature::NO_INPUT_CHANNEL)) {
+            return; // Can't receive events if the window does not have input channel
+        }
+        ASSERT_NE(nullptr, mInputReceiver)
+                << "Window without InputReceiver must specify feature NO_INPUT_CHANNEL";
         mInputReceiver->assertNoEvents();
     }
 
@@ -3305,6 +3311,79 @@ TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mUnfocusedWindow->assertNoEvents();
     mFocusedWindow->assertNoEvents();
+}
+
+// These tests ensure we cannot send touch events to a window that's positioned behind a window
+// that has feature NO_INPUT_CHANNEL.
+// Layout:
+//   Top (closest to user)
+//       mNoInputWindow (above all windows)
+//       mBottomWindow
+//   Bottom (furthest from user)
+class InputDispatcherMultiWindowOcclusionTests : public InputDispatcherTest {
+    virtual void SetUp() override {
+        InputDispatcherTest::SetUp();
+
+        mApplication = std::make_shared<FakeApplicationHandle>();
+        mNoInputWindow = new FakeWindowHandle(mApplication, mDispatcher,
+                                              "Window without input channel", ADISPLAY_ID_DEFAULT,
+                                              std::make_optional<sp<IBinder>>(nullptr) /*token*/);
+
+        mNoInputWindow->setInputFeatures(InputWindowInfo::Feature::NO_INPUT_CHANNEL);
+        mNoInputWindow->setFrame(Rect(0, 0, 100, 100));
+        // It's perfectly valid for this window to not have an associated input channel
+
+        mBottomWindow = new FakeWindowHandle(mApplication, mDispatcher, "Bottom window",
+                                             ADISPLAY_ID_DEFAULT);
+        mBottomWindow->setFrame(Rect(0, 0, 100, 100));
+
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mNoInputWindow, mBottomWindow}}});
+    }
+
+protected:
+    std::shared_ptr<FakeApplicationHandle> mApplication;
+    sp<FakeWindowHandle> mNoInputWindow;
+    sp<FakeWindowHandle> mBottomWindow;
+};
+
+TEST_F(InputDispatcherMultiWindowOcclusionTests, NoInputChannelFeature_DropsTouches) {
+    PointF touchedPoint = {10, 10};
+
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT, {touchedPoint});
+    mDispatcher->notifyMotion(&motionArgs);
+
+    mNoInputWindow->assertNoEvents();
+    // Even though the window 'mNoInputWindow' positioned above 'mBottomWindow' does not have
+    // an input channel, it is not marked as FLAG_NOT_TOUCHABLE,
+    // and therefore should prevent mBottomWindow from receiving touches
+    mBottomWindow->assertNoEvents();
+}
+
+/**
+ * If a window has feature NO_INPUT_CHANNEL, and somehow (by mistake) still has an input channel,
+ * ensure that this window does not receive any touches, and blocks touches to windows underneath.
+ */
+TEST_F(InputDispatcherMultiWindowOcclusionTests,
+       NoInputChannelFeature_DropsTouchesWithValidChannel) {
+    mNoInputWindow = new FakeWindowHandle(mApplication, mDispatcher,
+                                          "Window with input channel and NO_INPUT_CHANNEL",
+                                          ADISPLAY_ID_DEFAULT);
+
+    mNoInputWindow->setInputFeatures(InputWindowInfo::Feature::NO_INPUT_CHANNEL);
+    mNoInputWindow->setFrame(Rect(0, 0, 100, 100));
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mNoInputWindow, mBottomWindow}}});
+
+    PointF touchedPoint = {10, 10};
+
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT, {touchedPoint});
+    mDispatcher->notifyMotion(&motionArgs);
+
+    mNoInputWindow->assertNoEvents();
+    mBottomWindow->assertNoEvents();
 }
 
 } // namespace android::inputdispatcher
