@@ -1687,15 +1687,11 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             newTouchedWindowHandle = nullptr;
         }
 
+        // Ensure the window has a connection and the connection is responsive
         if (newTouchedWindowHandle != nullptr) {
-            sp<Connection> connection = getConnectionLocked(newTouchedWindowHandle->getToken());
-            if (connection == nullptr) {
-                ALOGI("Could not find connection for %s",
-                      newTouchedWindowHandle->getName().c_str());
-                newTouchedWindowHandle = nullptr;
-            } else if (!connection->responsive) {
-                // don't send the new touch to an unresponsive window
-                ALOGW("Unresponsive window %s will not get the new gesture at %" PRIu64,
+            const bool isResponsive = hasResponsiveConnectionLocked(*newTouchedWindowHandle);
+            if (!isResponsive) {
+                ALOGW("%s will not receive the new gesture at %" PRIu64,
                       newTouchedWindowHandle->getName().c_str(), entry.eventTime);
                 newTouchedWindowHandle = nullptr;
             }
@@ -3678,6 +3674,29 @@ bool InputDispatcher::hasWindowHandleLocked(const sp<InputWindowHandle>& windowH
     return false;
 }
 
+bool InputDispatcher::hasResponsiveConnectionLocked(InputWindowHandle& windowHandle) const {
+    sp<Connection> connection = getConnectionLocked(windowHandle.getToken());
+    const bool noInputChannel =
+            windowHandle.getInfo()->inputFeatures.test(InputWindowInfo::Feature::NO_INPUT_CHANNEL);
+    if (connection != nullptr && noInputChannel) {
+        ALOGW("%s has feature NO_INPUT_CHANNEL, but it matched to connection %s",
+              windowHandle.getName().c_str(), connection->inputChannel->getName().c_str());
+        return false;
+    }
+
+    if (connection == nullptr) {
+        if (!noInputChannel) {
+            ALOGI("Could not find connection for %s", windowHandle.getName().c_str());
+        }
+        return false;
+    }
+    if (!connection->responsive) {
+        ALOGW("Window %s is not responsive", windowHandle.getName().c_str());
+        return false;
+    }
+    return true;
+}
+
 std::shared_ptr<InputChannel> InputDispatcher::getInputChannelLocked(
         const sp<IBinder>& token) const {
     size_t count = mInputChannelsByToken.count(token);
@@ -3771,6 +3790,17 @@ void InputDispatcher::setInputWindowsLocked(
             windowList += iwh->getName() + " ";
         }
         ALOGD("setInputWindows displayId=%" PRId32 " %s", displayId, windowList.c_str());
+    }
+
+    // Ensure all tokens are null if the window has feature NO_INPUT_CHANNEL
+    for (const sp<InputWindowHandle>& window : inputWindowHandles) {
+        const bool noInputWindow =
+                window->getInfo()->inputFeatures.test(InputWindowInfo::Feature::NO_INPUT_CHANNEL);
+        if (noInputWindow && window->getToken() != nullptr) {
+            ALOGE("%s has feature NO_INPUT_WINDOW, but a non-null token. Clearing",
+                  window->getName().c_str());
+            window->releaseChannel();
+        }
     }
 
     // Copy old handles for release if they are no longer present.
