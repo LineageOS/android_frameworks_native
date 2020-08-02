@@ -35,9 +35,12 @@ public:
         const auto sf = ComposerService::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureScreen(displayToken, &outBuffer, Rect(), 0, 0, false));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
+        DisplayCaptureArgs args;
+        args.displayToken = displayToken;
+
+        ScreenCaptureResults captureResults;
+        ASSERT_EQ(NO_ERROR, sf->captureDisplay(args, captureResults));
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
     }
 
     static void captureLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
@@ -45,9 +48,15 @@ public:
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
         SurfaceComposerClient::Transaction().apply(true);
 
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, &outBuffer, crop, frameScale));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
+        LayerCaptureArgs args;
+        args.layerHandle = parentHandle;
+        args.sourceCrop = crop;
+        args.frameScale = frameScale;
+        args.childrenOnly = false;
+
+        ScreenCaptureResults captureResults;
+        ASSERT_EQ(NO_ERROR, sf->captureLayers(args, captureResults));
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
     }
 
     static void captureChildLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
@@ -55,9 +64,15 @@ public:
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
         SurfaceComposerClient::Transaction().apply(true);
 
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, &outBuffer, crop, frameScale, true));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
+        LayerCaptureArgs args;
+        args.layerHandle = parentHandle;
+        args.sourceCrop = crop;
+        args.frameScale = frameScale;
+        args.childrenOnly = true;
+
+        ScreenCaptureResults captureResults;
+        ASSERT_EQ(NO_ERROR, sf->captureLayers(args, captureResults));
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
     }
 
     static void captureChildLayersExcluding(
@@ -66,12 +81,17 @@ public:
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
         SurfaceComposerClient::Transaction().apply(true);
 
-        sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR,
-                  sf->captureLayers(parentHandle, &outBuffer, ui::Dataspace::V0_SRGB,
-                                    ui::PixelFormat::RGBA_8888, Rect::EMPTY_RECT, excludeLayers,
-                                    1.0f, true));
-        *sc = std::make_unique<ScreenCapture>(outBuffer);
+        LayerCaptureArgs args;
+        args.layerHandle = parentHandle;
+        args.pixelFormat = ui::PixelFormat::RGBA_8888;
+        args.sourceCrop = Rect::EMPTY_RECT;
+        args.excludeHandles = excludeLayers;
+        args.frameScale = 1.0f;
+        args.childrenOnly = true;
+
+        ScreenCaptureResults captureResults;
+        ASSERT_EQ(NO_ERROR, sf->captureLayers(args, captureResults));
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
     }
 
     void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
