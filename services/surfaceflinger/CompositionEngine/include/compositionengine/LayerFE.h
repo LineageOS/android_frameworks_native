@@ -80,10 +80,6 @@ public:
         // The clip region, or visible region that is being rendered to
         const Region& clip;
 
-        // If true, the layer should use an identity transform for its position
-        // transform. Used only by the captureScreen API call.
-        const bool useIdentityTransform;
-
         // If set to true, the layer should enable filtering when rendering.
         const bool needsFiltering;
 
@@ -148,7 +144,6 @@ using LayerFESet = std::unordered_set<sp<LayerFE>, LayerFESpHash>;
 static inline bool operator==(const LayerFE::ClientCompositionTargetSettings& lhs,
                               const LayerFE::ClientCompositionTargetSettings& rhs) {
     return lhs.clip.hasSameRects(rhs.clip) &&
-            lhs.useIdentityTransform == rhs.useIdentityTransform &&
             lhs.needsFiltering == rhs.needsFiltering && lhs.isSecure == rhs.isSecure &&
             lhs.supportsProtectedContent == rhs.supportsProtectedContent &&
             lhs.clearRegion.hasSameRects(rhs.clearRegion) && lhs.viewport == rhs.viewport &&
@@ -170,7 +165,6 @@ static inline void PrintTo(const LayerFE::ClientCompositionTargetSettings& setti
     *os << "ClientCompositionTargetSettings{";
     *os << "\n    .clip = \n";
     PrintTo(settings.clip, os);
-    *os << "\n    .useIdentityTransform = " << settings.useIdentityTransform;
     *os << "\n    .needsFiltering = " << settings.needsFiltering;
     *os << "\n    .isSecure = " << settings.isSecure;
     *os << "\n    .supportsProtectedContent = " << settings.supportsProtectedContent;

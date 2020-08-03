@@ -719,15 +719,12 @@ private:
 
     status_t renderScreenImplLocked(const RenderArea& renderArea,
                                     TraverseLayersFunction traverseLayers,
-                                    const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
-                                    bool forSystem, int* outSyncFd, bool regionSampling,
-                                    ScreenCaptureResults& captureResults);
+                                    const sp<GraphicBuffer>& buffer, bool forSystem, int* outSyncFd,
+                                    bool regionSampling, ScreenCaptureResults& captureResults);
     status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize,
-                                 ui::PixelFormat, bool useIdentityTransform,
-                                 ScreenCaptureResults& captureResults);
+                                 ui::PixelFormat, ScreenCaptureResults& captureResults);
     status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, const sp<GraphicBuffer>&,
-                                 bool useIdentityTransform, bool regionSampling,
-                                 ScreenCaptureResults& captureResults);
+                                 bool regionSampling, ScreenCaptureResults& captureResults);
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack) REQUIRES(mStateLock);
 

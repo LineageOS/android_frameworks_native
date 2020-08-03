@@ -335,12 +335,11 @@ public:
 
     auto renderScreenImplLocked(const RenderArea& renderArea,
                                 SurfaceFlinger::TraverseLayersFunction traverseLayers,
-                                const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
-                                bool forSystem, int* outSyncFd, bool regionSampling) {
+                                const sp<GraphicBuffer>& buffer, bool forSystem, int* outSyncFd,
+                                bool regionSampling) {
         ScreenCaptureResults captureResults;
-        return mFlinger->renderScreenImplLocked(renderArea, traverseLayers, buffer,
-                                                useIdentityTransform, forSystem, outSyncFd,
-                                                regionSampling, captureResults);
+        return mFlinger->renderScreenImplLocked(renderArea, traverseLayers, buffer, forSystem,
+                                                outSyncFd, regionSampling, captureResults);
     }
 
     auto traverseLayersInLayerStack(ui::LayerStack layerStack,

@@ -233,7 +233,6 @@ void CompositionTest::captureScreenComposition() {
     LayerCase::setupForScreenCapture(this);
 
     const Rect sourceCrop(0, 0, DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT);
-    constexpr bool useIdentityTransform = true;
     constexpr bool forSystem = true;
     constexpr bool regionSampling = false;
 
@@ -253,7 +252,7 @@ void CompositionTest::captureScreenComposition() {
     int fd = -1;
     status_t result =
             mFlinger.renderScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer.get(),
-                                            useIdentityTransform, forSystem, &fd, regionSampling);
+                                            forSystem, &fd, regionSampling);
     if (fd >= 0) {
         close(fd);
     }

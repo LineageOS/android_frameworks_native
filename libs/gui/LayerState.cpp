@@ -530,23 +530,17 @@ status_t DisplayCaptureArgs::write(Parcel& output) const {
     status |= output.writeStrongBinder(displayToken) ?:
         output.writeUint32(width) ?:
         output.writeUint32(height) ?:
-        output.writeBool(useIdentityTransform) ?:
-        output.writeInt32(static_cast<int32_t>(rotation));
+        output.writeBool(useIdentityTransform);
     return status;
 }
 
 status_t DisplayCaptureArgs::read(const Parcel& input) {
     status_t status = CaptureArgs::read(input);
 
-    int32_t rotationInt = 0;
-
     status |= input.readStrongBinder(&displayToken) ?:
         input.readUint32(&width) ?:
         input.readUint32(&height) ?:
-        input.readBool(&useIdentityTransform) ?:
-        input.readInt32(&rotationInt);
-
-    rotation = ui::toRotation(rotationInt);
+        input.readBool(&useIdentityTransform);
     return status;
 }
 
