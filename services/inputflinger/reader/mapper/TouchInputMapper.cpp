@@ -3842,9 +3842,9 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
 
 #if DEBUG_POINTER_ASSIGNMENT
                 ALOGD("assignPointerIds - reduced distance min-heap: size=%d", heapSize);
-                for (size_t i = 0; i < heapSize; i++) {
-                    ALOGD("  heap[%zu]: cur=%" PRIu32 ", last=%" PRIu32 ", distance=%" PRIu64, i,
-                          heap[i].currentPointerIndex, heap[i].lastPointerIndex, heap[i].distance);
+                for (size_t j = 0; j < heapSize; j++) {
+                    ALOGD("  heap[%zu]: cur=%" PRIu32 ", last=%" PRIu32 ", distance=%" PRIu64, j,
+                          heap[j].currentPointerIndex, heap[j].lastPointerIndex, heap[j].distance);
                 }
 #endif
             }
