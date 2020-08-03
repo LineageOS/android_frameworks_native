@@ -1922,52 +1922,18 @@ status_t SurfaceComposerClient::setGlobalShadowSettings(const half4& ambientColo
 
 // ----------------------------------------------------------------------------
 
-status_t ScreenshotClient::capture(const sp<IBinder>& display, ui::Dataspace /* reqDataspace */,
-                                   ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                                   uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   ui::Rotation rotation, bool captureSecureLayers,
-                                   sp<GraphicBuffer>* outBuffer, bool& outCapturedSecureLayers) {
+status_t ScreenshotClient::captureDisplay(const DisplayCaptureArgs& captureArgs,
+                                          ScreenCaptureResults& captureResults) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
-
-    DisplayCaptureArgs args;
-    args.displayToken = display;
-    args.pixelFormat = reqPixelFormat;
-    args.sourceCrop = sourceCrop;
-    args.width = reqWidth;
-    args.height = reqHeight;
-    args.useIdentityTransform = useIdentityTransform;
-    args.rotation = rotation;
-    args.captureSecureLayers = captureSecureLayers;
-
-    ScreenCaptureResults captureResults;
-    status_t ret = s->captureDisplay(args, captureResults);
-    if (ret != NO_ERROR) {
-        return ret;
-    }
-    *outBuffer = captureResults.buffer;
-    outCapturedSecureLayers = captureResults.capturedSecureLayers;
-    return ret;
+    return s->captureDisplay(captureArgs, captureResults);
 }
 
-status_t ScreenshotClient::capture(const sp<IBinder>& display, ui::Dataspace reqDataspace,
-                                   ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                                   uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   ui::Rotation rotation, sp<GraphicBuffer>* outBuffer) {
-    bool ignored;
-    return capture(display, reqDataspace, reqPixelFormat, sourceCrop, reqWidth, reqHeight,
-                   useIdentityTransform, rotation, false, outBuffer, ignored);
-}
-
-status_t ScreenshotClient::capture(uint64_t displayOrLayerStack, ui::Dataspace* outDataspace,
-                                   sp<GraphicBuffer>* outBuffer) {
+status_t ScreenshotClient::captureDisplay(uint64_t displayOrLayerStack,
+                                          ScreenCaptureResults& captureResults) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
-    ScreenCaptureResults captureResults;
-    status_t ret = s->captureDisplay(displayOrLayerStack, captureResults);
-    *outBuffer = captureResults.buffer;
-    *outDataspace = captureResults.capturedDataspace;
-    return ret;
+    return s->captureDisplay(displayOrLayerStack, captureResults);
 }
 
 status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle,
