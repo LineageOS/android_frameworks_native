@@ -176,7 +176,12 @@ status_t layer_state_t::read(const Parcel& input)
         sidebandStream = NativeHandle::create(input.readNativeHandle(), true);
     }
 
-    colorTransform = mat4(static_cast<const float*>(input.readInplace(16 * sizeof(float))));
+    const void* color_transform_data = input.readInplace(16 * sizeof(float));
+    if (color_transform_data) {
+        colorTransform = mat4(static_cast<const float*>(color_transform_data));
+    } else {
+        return BAD_VALUE;
+    }
     cornerRadius = input.readFloat();
     backgroundBlurRadius = input.readUint32();
     cachedBuffer.token = input.readStrongBinder();
