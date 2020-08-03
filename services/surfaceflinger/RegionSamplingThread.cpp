@@ -442,9 +442,10 @@ void RegionSamplingThread::captureSample() {
                                    PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
     }
 
-    bool ignored;
+    ScreenCaptureResults captureResults;
     mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                                 false /* identityTransform */, true /* regionSampling */, ignored);
+                                 false /* identityTransform */, true /* regionSampling */,
+                                 captureResults);
 
     std::vector<Descriptor> activeDescriptors;
     for (const auto& descriptor : descriptors) {
