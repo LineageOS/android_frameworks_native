@@ -207,7 +207,8 @@ private:
         InputApplicationInfo aInfo;
         aInfo.token = new BBinder();
         aInfo.name = "Test app info";
-        aInfo.dispatchingTimeoutNanos = DISPATCHING_TIMEOUT.count();
+        aInfo.dispatchingTimeoutMillis =
+                std::chrono::duration_cast<std::chrono::milliseconds>(DISPATCHING_TIMEOUT).count();
 
         mInputInfo.applicationInfo = aInfo;
     }
