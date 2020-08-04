@@ -94,7 +94,8 @@ public:
     virtual ~FakeApplicationHandle() {}
 
     virtual bool updateInfo() {
-        mInfo.dispatchingTimeoutNanos = DISPATCHING_TIMEOUT.count();
+        mInfo.dispatchingTimeoutMillis =
+                std::chrono::duration_cast<std::chrono::milliseconds>(DISPATCHING_TIMEOUT).count();
         return true;
     }
 };

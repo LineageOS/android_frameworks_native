@@ -310,7 +310,9 @@ void InputFlingerServiceTest::SetUp() {
 
     mInfo.applicationInfo.name = TestAppInfoName;
     mInfo.applicationInfo.token = TestAppInfoToken;
-    mInfo.applicationInfo.dispatchingTimeoutNanos = TestAppInfoDispatchingTimeout.count();
+    mInfo.applicationInfo.dispatchingTimeoutMillis =
+            std::chrono::duration_cast<std::chrono::milliseconds>(TestAppInfoDispatchingTimeout)
+                    .count();
 
     InitializeInputFlinger();
 }

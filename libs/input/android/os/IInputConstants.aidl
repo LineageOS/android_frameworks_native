@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package android;
+package android.os;
 
-parcelable InputApplicationInfo {
-    @nullable IBinder token;
-    @utf8InCpp String name;
-    long dispatchingTimeoutMillis;
+
+/** @hide */
+interface IInputConstants
+{
+    const int DEFAULT_DISPATCHING_TIMEOUT_MILLIS = 5000; // 5 seconds
 }

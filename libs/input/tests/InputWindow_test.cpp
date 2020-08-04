@@ -68,7 +68,7 @@ TEST(InputWindowInfo, Parcelling) {
     i.touchableRegionCropHandle = touchableRegionCropHandle;
     i.applicationInfo.name = "ApplicationFooBar";
     i.applicationInfo.token = new BBinder();
-    i.applicationInfo.dispatchingTimeoutNanos = 0x12345678ABCD;
+    i.applicationInfo.dispatchingTimeoutMillis = 0x12345678ABCD;
 
     Parcel p;
     i.writeToParcel(&p);
@@ -107,7 +107,7 @@ TEST(InputApplicationInfo, Parcelling) {
     InputApplicationInfo i;
     i.token = new BBinder();
     i.name = "ApplicationFooBar";
-    i.dispatchingTimeoutNanos = 0x12345678ABCD;
+    i.dispatchingTimeoutMillis = 0x12345678ABCD;
 
     Parcel p;
     ASSERT_EQ(i.writeToParcel(&p), OK);
