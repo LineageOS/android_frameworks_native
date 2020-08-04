@@ -601,15 +601,8 @@ public:
                                    ScreenCaptureResults& captureResults);
     static status_t captureDisplay(uint64_t displayOrLayerStack,
                                    ScreenCaptureResults& captureResults);
-    static status_t captureLayers(const sp<IBinder>& layerHandle, ui::Dataspace reqDataSpace,
-                                  ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                                  float frameScale, sp<GraphicBuffer>* outBuffer);
-    static status_t captureChildLayers(
-            const sp<IBinder>& layerHandle, ui::Dataspace reqDataSpace,
-            ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-            const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
-                    excludeHandles,
-            float frameScale, sp<GraphicBuffer>* outBuffer);
+    static status_t captureLayers(const LayerCaptureArgs& captureArgs,
+                                  ScreenCaptureResults& captureResults);
 };
 
 // ---------------------------------------------------------------------------
