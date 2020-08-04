@@ -30,6 +30,7 @@
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/MockLayer.h"
+#include "mock/MockSchedulerCallback.h"
 
 using testing::_;
 using testing::Return;
@@ -75,7 +76,13 @@ protected:
                                          .setConfigGroup(0)
                                          .build()},
                                 HwcConfigIndexType(0)};
-    TestableScheduler* const mScheduler{new TestableScheduler(mConfigs, false)};
+
+    mock::NoOpSchedulerCallback mSchedulerCallback;
+    static constexpr bool kUseContentDetectionV2 = false;
+
+    TestableScheduler* const mScheduler =
+            new TestableScheduler(mConfigs, mSchedulerCallback, kUseContentDetectionV2);
+
     TestableSurfaceFlinger mFlinger;
 
     const nsecs_t mTime = systemTime();

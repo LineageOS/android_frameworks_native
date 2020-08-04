@@ -38,7 +38,6 @@
 
 #include "DisplayHardware/ComposerHal.h"
 #include "Scheduler/DispSync.h"
-#include "Scheduler/EventControlThread.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/PhaseOffsets.h"
 #include "Scheduler/Scheduler.h"
@@ -49,11 +48,6 @@ DefaultFactory::~DefaultFactory() = default;
 
 std::unique_ptr<DispSync> DefaultFactory::createDispSync(const char* name, bool hasSyncFramework) {
     return std::make_unique<android::impl::DispSync>(name, hasSyncFramework);
-}
-
-std::unique_ptr<EventControlThread> DefaultFactory::createEventControlThread(
-        SetVSyncEnabled setVSyncEnabled) {
-    return std::make_unique<android::impl::EventControlThread>(std::move(setVSyncEnabled));
 }
 
 std::unique_ptr<HWComposer> DefaultFactory::createHWComposer(const std::string& serviceName) {
@@ -74,11 +68,8 @@ std::unique_ptr<scheduler::PhaseConfiguration> DefaultFactory::createPhaseConfig
 }
 
 std::unique_ptr<Scheduler> DefaultFactory::createScheduler(
-        SetVSyncEnabled setVSyncEnabled, const scheduler::RefreshRateConfigs& configs,
-        ISchedulerCallback& schedulerCallback) {
-    return std::make_unique<Scheduler>(std::move(setVSyncEnabled), configs, schedulerCallback,
-                                       property_get_bool("debug.sf.use_content_detection_v2", true),
-                                       sysprop::use_content_detection_for_refresh_rate(false));
+        const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback) {
+    return std::make_unique<Scheduler>(configs, callback);
 }
 
 std::unique_ptr<SurfaceInterceptor> DefaultFactory::createSurfaceInterceptor(

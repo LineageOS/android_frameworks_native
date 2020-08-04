@@ -27,15 +27,15 @@ using namespace testing;
 
 namespace android::scheduler {
 
-class MockScheduler : public IPhaseOffsetControl {
+class MockScheduler final : public IPhaseOffsetControl {
 public:
-    void setPhaseOffset(ConnectionHandle handle, nsecs_t phaseOffset) {
-        mPhaseOffset[handle] = phaseOffset;
-    }
-
     nsecs_t getOffset(ConnectionHandle handle) { return mPhaseOffset[handle]; }
 
 private:
+    void setPhaseOffset(ConnectionHandle handle, nsecs_t phaseOffset) override {
+        mPhaseOffset[handle] = phaseOffset;
+    }
+
     std::unordered_map<ConnectionHandle, nsecs_t> mPhaseOffset;
 };
 

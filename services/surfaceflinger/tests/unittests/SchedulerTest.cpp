@@ -14,20 +14,12 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
-#undef LOG_TAG
-#define LOG_TAG "SchedulerUnittests"
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
 
 #include <mutex>
 
-#include "Scheduler/EventControlThread.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "TestableScheduler.h"
@@ -35,11 +27,13 @@
 #include "mock/DisplayHardware/MockDisplay.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockLayer.h"
+#include "mock/MockSchedulerCallback.h"
 
 using testing::_;
 using testing::Return;
 
 namespace android {
+namespace {
 
 constexpr PhysicalDisplayId PHYSICAL_DISPLAY_ID = 999;
 
@@ -58,7 +52,6 @@ protected:
     };
 
     SchedulerTest();
-    ~SchedulerTest() override;
 
     Hwc2::mock::Display mDisplay;
     const scheduler::RefreshRateConfigs mConfigs{{HWC2::Display::Config::Builder(mDisplay, 0)
@@ -67,7 +60,17 @@ protected:
                                                           .build()},
                                                  HwcConfigIndexType(0)};
 
-    TestableScheduler mScheduler{mConfigs, false};
+    mock::SchedulerCallback mSchedulerCallback;
+
+    // The scheduler should initially disable VSYNC.
+    struct ExpectDisableVsync {
+        ExpectDisableVsync(mock::SchedulerCallback& callback) {
+            EXPECT_CALL(callback, setVsyncEnabled(false)).Times(1);
+        }
+    } mExpectDisableVsync{mSchedulerCallback};
+
+    static constexpr bool kUseContentDetectionV2 = false;
+    TestableScheduler mScheduler{mConfigs, mSchedulerCallback, kUseContentDetectionV2};
 
     Scheduler::ConnectionHandle mConnectionHandle;
     mock::EventThread* mEventThread;
@@ -75,10 +78,6 @@ protected:
 };
 
 SchedulerTest::SchedulerTest() {
-    const ::testing::TestInfo* const test_info =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-    ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
-
     auto eventThread = std::make_unique<mock::EventThread>();
     mEventThread = eventThread.get();
     EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_)).WillOnce(Return(0));
@@ -94,15 +93,7 @@ SchedulerTest::SchedulerTest() {
     EXPECT_TRUE(mConnectionHandle);
 }
 
-SchedulerTest::~SchedulerTest() {
-    const ::testing::TestInfo* const test_info =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-    ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
-}
-
-/* ------------------------------------------------------------------------
- * Test cases
- */
+} // namespace
 
 TEST_F(SchedulerTest, invalidConnectionHandle) {
     Scheduler::ConnectionHandle handle;
@@ -159,8 +150,7 @@ TEST_F(SchedulerTest, validConnectionHandle) {
     mScheduler.setPhaseOffset(mConnectionHandle, 10);
 
     static constexpr size_t kEventConnections = 5;
-    ON_CALL(*mEventThread, getEventThreadConnectionCount())
-            .WillByDefault(Return(kEventConnections));
+    EXPECT_CALL(*mEventThread, getEventThreadConnectionCount()).WillOnce(Return(kEventConnections));
     EXPECT_EQ(kEventConnections, mScheduler.getEventThreadConnectionCount(mConnectionHandle));
 }
 
@@ -181,11 +171,8 @@ TEST_F(SchedulerTest, noLayerHistory) {
     constexpr uint32_t kDisplayArea = 999'999;
     mScheduler.onPrimaryDisplayAreaChanged(kDisplayArea);
 
+    EXPECT_CALL(mSchedulerCallback, changeRefreshRate(_, _)).Times(0);
     mScheduler.chooseRefreshRateForContent();
-    EXPECT_EQ(0, mScheduler.refreshRateChangeCount());
 }
 
 } // namespace android
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
