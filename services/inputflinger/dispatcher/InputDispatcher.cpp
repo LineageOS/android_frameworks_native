@@ -1076,7 +1076,8 @@ bool InputDispatcher::dispatchDeviceResetLocked(nsecs_t currentTime, DeviceReset
     return true;
 }
 
-void InputDispatcher::enqueueFocusEventLocked(const InputWindowHandle& window, bool hasFocus) {
+void InputDispatcher::enqueueFocusEventLocked(const InputWindowHandle& window, bool hasFocus,
+                                              std::string_view reason) {
     if (mPendingEvent != nullptr) {
         // Move the pending event to the front of the queue. This will give the chance
         // for the pending event to get dispatched to the newly focused window
@@ -1085,7 +1086,7 @@ void InputDispatcher::enqueueFocusEventLocked(const InputWindowHandle& window, b
     }
 
     FocusEntry* focusEntry =
-            new FocusEntry(mIdGenerator.nextId(), now(), window.getToken(), hasFocus);
+            new FocusEntry(mIdGenerator.nextId(), now(), window.getToken(), hasFocus, reason);
 
     // This event should go to the front of the queue, but behind all other focus events
     // Find the last focus event, and insert right after it
@@ -1108,7 +1109,8 @@ void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime, FocusEntry* entry
     entry->dispatchInProgress = true;
     std::string message = std::string("Focus ") + (entry->hasFocus ? "entering " : "leaving ") +
             channel->getName();
-    android_log_event_list(LOGTAG_INPUT_FOCUS) << message << LOG_ID_EVENTS;
+    std::string reason = std::string("reason=").append(entry->reason);
+    android_log_event_list(LOGTAG_INPUT_FOCUS) << message << reason << LOG_ID_EVENTS;
     dispatchEventLocked(currentTime, entry, {target});
 }
 
@@ -3829,33 +3831,8 @@ void InputDispatcher::setInputWindowsLocked(
             getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
 
     if (!haveSameToken(oldFocusedWindowHandle, newFocusedWindowHandle)) {
-        if (oldFocusedWindowHandle != nullptr) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Focus left window: %s in display %" PRId32,
-                      oldFocusedWindowHandle->getName().c_str(), displayId);
-            }
-            std::shared_ptr<InputChannel> focusedInputChannel =
-                    getInputChannelLocked(oldFocusedWindowHandle->getToken());
-            if (focusedInputChannel != nullptr) {
-                CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
-                                           "focus left window");
-                synthesizeCancelationEventsForInputChannelLocked(focusedInputChannel, options);
-                enqueueFocusEventLocked(*oldFocusedWindowHandle, false /*hasFocus*/);
-            }
-            mFocusedWindowHandlesByDisplay.erase(displayId);
-        }
-        if (newFocusedWindowHandle != nullptr) {
-            if (DEBUG_FOCUS) {
-                ALOGD("Focus entered window: %s in display %" PRId32,
-                      newFocusedWindowHandle->getName().c_str(), displayId);
-            }
-            mFocusedWindowHandlesByDisplay[displayId] = newFocusedWindowHandle;
-            enqueueFocusEventLocked(*newFocusedWindowHandle, true /*hasFocus*/);
-        }
-
-        if (mFocusedDisplayId == displayId) {
-            onFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
-        }
+        onFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle, displayId,
+                             "setInputWindowsLocked");
     }
 
     std::unordered_map<int32_t, TouchState>::iterator stateIt =
@@ -3969,7 +3946,7 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
             // Sanity check
             sp<InputWindowHandle> newFocusedWindowHandle =
                     getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
-            onFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
+            notifyFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
 
             if (newFocusedWindowHandle == nullptr) {
                 ALOGW("Focused display #%" PRId32 " does not have a focused window.", displayId);
@@ -4642,8 +4619,8 @@ void InputDispatcher::onDispatchCycleBrokenLocked(nsecs_t currentTime,
     postCommandLocked(std::move(commandEntry));
 }
 
-void InputDispatcher::onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
-                                           const sp<InputWindowHandle>& newFocus) {
+void InputDispatcher::notifyFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
+                                               const sp<InputWindowHandle>& newFocus) {
     sp<IBinder> oldToken = oldFocus != nullptr ? oldFocus->getToken() : nullptr;
     sp<IBinder> newToken = newFocus != nullptr ? newFocus->getToken() : nullptr;
     std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
@@ -5222,5 +5199,37 @@ bool InputDispatcher::waitForIdle() {
  *  when requesting the focus change. This determines which request gets
  *  precedence if there is a focus change request from another source such as pointer down.
  */
-void InputDispatcher::setFocusedWindow(const FocusRequest&) {}
+void InputDispatcher::setFocusedWindow(const FocusRequest& request) {}
+
+void InputDispatcher::onFocusChangedLocked(const sp<InputWindowHandle>& oldFocusedWindowHandle,
+                                           const sp<InputWindowHandle>& newFocusedWindowHandle,
+                                           int32_t displayId, std::string_view reason) {
+    if (oldFocusedWindowHandle) {
+        if (DEBUG_FOCUS) {
+            ALOGD("Focus left window: %s in display %" PRId32,
+                  oldFocusedWindowHandle->getName().c_str(), displayId);
+        }
+        std::shared_ptr<InputChannel> focusedInputChannel =
+                getInputChannelLocked(oldFocusedWindowHandle->getToken());
+        if (focusedInputChannel) {
+            CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
+                                       "focus left window");
+            synthesizeCancelationEventsForInputChannelLocked(focusedInputChannel, options);
+            enqueueFocusEventLocked(*oldFocusedWindowHandle, false /*hasFocus*/, reason);
+        }
+        mFocusedWindowHandlesByDisplay.erase(displayId);
+    }
+    if (newFocusedWindowHandle) {
+        if (DEBUG_FOCUS) {
+            ALOGD("Focus entered window: %s in display %" PRId32,
+                  newFocusedWindowHandle->getName().c_str(), displayId);
+        }
+        mFocusedWindowHandlesByDisplay[displayId] = newFocusedWindowHandle;
+        enqueueFocusEventLocked(*newFocusedWindowHandle, true /*hasFocus*/, reason);
+    }
+
+    if (mFocusedDisplayId == displayId) {
+        notifyFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
+    }
+}
 } // namespace android::inputdispatcher
