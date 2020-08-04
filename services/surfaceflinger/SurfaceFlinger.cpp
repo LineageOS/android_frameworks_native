@@ -5482,11 +5482,8 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
         traverseLayersInLayerStack(layerStack, visitor);
     };
-
-    captureResults.capturedDataspace = dataspace;
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               &captureResults.buffer, args.pixelFormat, args.useIdentityTransform,
-                               captureResults.capturedSecureLayers);
+                               args.pixelFormat, args.useIdentityTransform, captureResults);
 }
 
 status_t SurfaceFlinger::setSchedFifo(bool enabled) {
@@ -5534,6 +5531,7 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
     wp<DisplayDevice> displayWeak;
     ui::Size size;
     ui::Transform::RotationFlags captureOrientation;
+    ui::Dataspace dataspace;
     {
         Mutex::Autolock lock(mStateLock);
         sp<DisplayDevice> display = getDisplayByIdOrLayerStack(displayOrLayerStack);
@@ -5565,7 +5563,7 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
             default:
                 break;
         }
-        captureResults.capturedDataspace =
+        dataspace =
                 pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
     }
 
@@ -5580,9 +5578,8 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
-                               &captureResults.buffer, ui::PixelFormat::RGBA_8888,
-                               false /* useIdentityTransform */,
-                               captureResults.capturedSecureLayers);
+                               ui::PixelFormat::RGBA_8888, false /* useIdentityTransform */,
+                               captureResults);
 }
 
 status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
@@ -5686,37 +5683,34 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         });
     };
 
-    captureResults.capturedDataspace = dataspace;
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               &captureResults.buffer, args.pixelFormat, false,
-                               captureResults.capturedSecureLayers);
+                               args.pixelFormat, false, captureResults);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
-                                             ui::Size bufferSize, sp<GraphicBuffer>* outBuffer,
-                                             ui::PixelFormat reqPixelFormat,
+                                             ui::Size bufferSize, ui::PixelFormat reqPixelFormat,
                                              bool useIdentityTransform,
-                                             bool& outCapturedSecureLayers) {
+                                             ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
     // TODO(b/116112787) Make buffer usage a parameter.
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
-    *outBuffer = getFactory().createGraphicBuffer(bufferSize.getWidth(), bufferSize.getHeight(),
-                                                  static_cast<android_pixel_format>(reqPixelFormat),
-                                                  1, usage, "screenshot");
+    sp<GraphicBuffer> buffer =
+            getFactory().createGraphicBuffer(bufferSize.getWidth(), bufferSize.getHeight(),
+                                             static_cast<android_pixel_format>(reqPixelFormat),
+                                             1 /* layerCount */, usage, "screenshot");
 
-    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, *outBuffer,
-                               useIdentityTransform, false /* regionSampling */,
-                               outCapturedSecureLayers);
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
+                               useIdentityTransform, false /* regionSampling */, captureResults);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
                                              const sp<GraphicBuffer>& buffer,
                                              bool useIdentityTransform, bool regionSampling,
-                                             bool& outCapturedSecureLayers) {
+                                             ScreenCaptureResults& captureResults) {
     const int uid = IPCThreadState::self()->getCallingUid();
     const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
 
@@ -5741,9 +5735,9 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
 
                     Mutex::Autolock lock(mStateLock);
                     renderArea->render([&] {
-                        result = captureScreenImplLocked(*renderArea, traverseLayers, buffer.get(),
-                                                         useIdentityTransform, forSystem, &fd,
-                                                         regionSampling, outCapturedSecureLayers);
+                        result = renderScreenImplLocked(*renderArea, traverseLayers, buffer.get(),
+                                                        useIdentityTransform, forSystem, &fd,
+                                                        regionSampling, captureResults);
                     });
 
                     return {result, fd};
@@ -5758,12 +5752,29 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
     return result;
 }
 
-void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
-                                            TraverseLayersFunction traverseLayers,
-                                            const sp<GraphicBuffer>& buffer,
-                                            bool useIdentityTransform, bool regionSampling,
-                                            int* outSyncFd) {
+status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
+                                                TraverseLayersFunction traverseLayers,
+                                                const sp<GraphicBuffer>& buffer,
+                                                bool useIdentityTransform, bool forSystem,
+                                                int* outSyncFd, bool regionSampling,
+                                                ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
+
+    traverseLayers([&](Layer* layer) {
+        captureResults.capturedSecureLayers =
+                captureResults.capturedSecureLayers || (layer->isVisible() && layer->isSecure());
+    });
+
+    // We allow the system server to take screenshots of secure layers for
+    // use in situations like the Screen-rotation animation and place
+    // the impetus on WindowManager to not persist them.
+    if (captureResults.capturedSecureLayers && !forSystem) {
+        ALOGW("FB is protected: PERMISSION_DENIED");
+        return PERMISSION_DENIED;
+    }
+
+    captureResults.buffer = buffer;
+    captureResults.capturedDataspace = renderArea.getReqDataSpace();
 
     const auto reqWidth = renderArea.getReqWidth();
     const auto reqHeight = renderArea.getReqHeight();
@@ -5856,30 +5867,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
             layer->onLayerDisplayed(releaseFence);
         }
     }
-}
 
-status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
-                                                 TraverseLayersFunction traverseLayers,
-                                                 const sp<GraphicBuffer>& buffer,
-                                                 bool useIdentityTransform, bool forSystem,
-                                                 int* outSyncFd, bool regionSampling,
-                                                 bool& outCapturedSecureLayers) {
-    ATRACE_CALL();
-
-    traverseLayers([&](Layer* layer) {
-        outCapturedSecureLayers =
-                outCapturedSecureLayers || (layer->isVisible() && layer->isSecure());
-    });
-
-    // We allow the system server to take screenshots of secure layers for
-    // use in situations like the Screen-rotation animation and place
-    // the impetus on WindowManager to not persist them.
-    if (outCapturedSecureLayers && !forSystem) {
-        ALOGW("FB is protected: PERMISSION_DENIED");
-        return PERMISSION_DENIED;
-    }
-    renderScreenImplLocked(renderArea, traverseLayers, buffer, useIdentityTransform, regionSampling,
-                           outSyncFd);
     return NO_ERROR;
 }
 

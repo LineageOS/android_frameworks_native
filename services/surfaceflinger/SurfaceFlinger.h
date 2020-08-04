@@ -719,22 +719,20 @@ private:
     using TraverseLayersFunction = std::function<void(const LayerVector::Visitor&)>;
     using RenderAreaFuture = std::future<std::unique_ptr<RenderArea>>;
 
-    void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
-                                bool regionSampling, int* outSyncFd);
+    status_t renderScreenImplLocked(const RenderArea& renderArea,
+                                    TraverseLayersFunction traverseLayers,
+                                    const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
+                                    bool forSystem, int* outSyncFd, bool regionSampling,
+                                    ScreenCaptureResults& captureResults);
     status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize,
-                                 sp<GraphicBuffer>* outBuffer, ui::PixelFormat,
-                                 bool useIdentityTransform, bool& outCapturedSecureLayers);
+                                 ui::PixelFormat, bool useIdentityTransform,
+                                 ScreenCaptureResults& captureResults);
     status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, const sp<GraphicBuffer>&,
                                  bool useIdentityTransform, bool regionSampling,
-                                 bool& outCapturedSecureLayers);
+                                 ScreenCaptureResults& captureResults);
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack) REQUIRES(mStateLock);
-    status_t captureScreenImplLocked(const RenderArea& renderArea,
-                                     TraverseLayersFunction traverseLayers,
-                                     const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
-                                     bool forSystem, int* outSyncFd, bool regionSampling,
-                                     bool& outCapturedSecureLayers);
+
     void traverseLayersInLayerStack(ui::LayerStack, const LayerVector::Visitor&);
 
     sp<StartPropertySetThread> mStartPropertySetThread;

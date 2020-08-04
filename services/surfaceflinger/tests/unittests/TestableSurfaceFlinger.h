@@ -339,14 +339,14 @@ public:
 
     auto onMessageReceived(int32_t what) { return mFlinger->onMessageReceived(what, systemTime()); }
 
-    auto captureScreenImplLocked(const RenderArea& renderArea,
-                                 SurfaceFlinger::TraverseLayersFunction traverseLayers,
-                                 const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
-                                 bool forSystem, int* outSyncFd, bool regionSampling) {
-        bool ignored;
-        return mFlinger->captureScreenImplLocked(renderArea, traverseLayers, buffer,
-                                                 useIdentityTransform, forSystem, outSyncFd,
-                                                 regionSampling, ignored);
+    auto renderScreenImplLocked(const RenderArea& renderArea,
+                                SurfaceFlinger::TraverseLayersFunction traverseLayers,
+                                const sp<GraphicBuffer>& buffer, bool useIdentityTransform,
+                                bool forSystem, int* outSyncFd, bool regionSampling) {
+        ScreenCaptureResults captureResults;
+        return mFlinger->renderScreenImplLocked(renderArea, traverseLayers, buffer,
+                                                useIdentityTransform, forSystem, outSyncFd,
+                                                regionSampling, captureResults);
     }
 
     auto traverseLayersInLayerStack(ui::LayerStack layerStack,

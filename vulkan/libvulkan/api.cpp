@@ -1174,23 +1174,18 @@ const LayerChain::ActiveLayer* LayerChain::GetActiveLayers(
 // ----------------------------------------------------------------------------
 
 bool EnsureInitialized() {
-    static std::once_flag once_flag;
-    static bool initialized;
+    static bool initialized = false;
+    static pid_t init_attempted_for_pid = 0;
+    static std::mutex init_lock;
 
-    std::call_once(once_flag, []() {
-        if (driver::OpenHAL()) {
-            initialized = true;
-        }
-    });
+    std::lock_guard<std::mutex> lock(init_lock);
+    if (init_attempted_for_pid == getpid())
+        return initialized;
 
-    {
-        static pid_t pid = getpid() + 1;
-        static std::mutex layer_lock;
-        std::lock_guard<std::mutex> lock(layer_lock);
-        if (pid != getpid()) {
-            pid = getpid();
-            DiscoverLayers();
-        }
+    init_attempted_for_pid = getpid();
+    if (driver::OpenHAL()) {
+        DiscoverLayers();
+        initialized = true;
     }
 
     return initialized;
