@@ -1936,47 +1936,11 @@ status_t ScreenshotClient::captureDisplay(uint64_t displayOrLayerStack,
     return s->captureDisplay(displayOrLayerStack, captureResults);
 }
 
-status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle,
-                                         ui::Dataspace /* reqDataspace */,
-                                         ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                                         float frameScale, sp<GraphicBuffer>* outBuffer) {
+status_t ScreenshotClient::captureLayers(const LayerCaptureArgs& captureArgs,
+                                         ScreenCaptureResults& captureResults) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
-
-    LayerCaptureArgs args;
-    args.layerHandle = layerHandle;
-    args.pixelFormat = reqPixelFormat;
-    args.sourceCrop = sourceCrop;
-    args.frameScale = frameScale;
-
-    ScreenCaptureResults captureResults;
-    status_t ret = s->captureLayers(args, captureResults);
-
-    *outBuffer = captureResults.buffer;
-    return ret;
-}
-
-status_t ScreenshotClient::captureChildLayers(
-        const sp<IBinder>& layerHandle, ui::Dataspace /* reqDataspace */,
-        ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-        const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& excludeHandles,
-        float frameScale, sp<GraphicBuffer>* outBuffer) {
-    sp<ISurfaceComposer> s(ComposerService::getComposerService());
-    if (s == nullptr) return NO_INIT;
-
-    LayerCaptureArgs args;
-    args.layerHandle = layerHandle;
-    args.pixelFormat = reqPixelFormat;
-    args.sourceCrop = sourceCrop;
-    args.frameScale = frameScale;
-    args.excludeHandles = excludeHandles;
-    args.childrenOnly = true;
-
-    ScreenCaptureResults captureResults;
-    status_t ret = s->captureLayers(args, captureResults);
-
-    *outBuffer = captureResults.buffer;
-    return ret;
+    return s->captureLayers(captureArgs, captureResults);
 }
 
 } // namespace android

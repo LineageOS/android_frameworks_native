@@ -18,7 +18,6 @@ using ui::ColorMode;
 namespace {
 const String8 DISPLAY_NAME("Credentials Display Test");
 const String8 SURFACE_NAME("Test Surface Name");
-const float FRAME_SCALE = 1.0f;
 } // namespace
 
 /**
@@ -272,10 +271,12 @@ TEST_F(CredentialsTest, CaptureLayersTest) {
     setupBackgroundSurface();
     sp<GraphicBuffer> outBuffer;
     std::function<status_t()> condition = [=]() {
-        sp<GraphicBuffer> outBuffer;
-        return ScreenshotClient::captureLayers(mBGSurfaceControl->getHandle(),
-                                               ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888,
-                                               Rect(0, 0, 1, 1), FRAME_SCALE, &outBuffer);
+        LayerCaptureArgs captureArgs;
+        captureArgs.layerHandle = mBGSurfaceControl->getHandle();
+        captureArgs.sourceCrop = {0, 0, 1, 1};
+
+        ScreenCaptureResults captureResults;
+        return ScreenshotClient::captureLayers(captureArgs, captureResults);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
