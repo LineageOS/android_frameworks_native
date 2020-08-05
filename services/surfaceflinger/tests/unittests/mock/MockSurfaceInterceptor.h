@@ -35,10 +35,10 @@ public:
     MOCK_METHOD0(isEnabled, bool());
     MOCK_METHOD1(addTransactionTraceListener, void(const sp<gui::ITransactionTraceListener>&));
     MOCK_METHOD1(binderDied, void(const wp<IBinder>&));
-    MOCK_METHOD6(saveTransaction,
+    MOCK_METHOD7(saveTransaction,
                  void(const Vector<ComposerState>&,
                       const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>&,
-                      const Vector<DisplayState>&, uint32_t, int, int));
+                      const Vector<DisplayState>&, uint32_t, int, int, uint64_t));
     MOCK_METHOD1(saveSurfaceCreation, void(const sp<const Layer>&));
     MOCK_METHOD1(saveSurfaceDeletion, void(const sp<const Layer>&));
     MOCK_METHOD4(saveBufferUpdate, void(int32_t, uint32_t, uint32_t, uint64_t));
