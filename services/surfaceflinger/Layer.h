@@ -967,6 +967,8 @@ public:
      */
     virtual bool needsInputInfo() const { return hasInputInfo(); }
 
+    uid_t getOwnerUid() { return mOwnerUid; }
+
 protected:
     compositionengine::OutputLayer* findOutputLayerForDisplay(const DisplayDevice*) const;
 
@@ -1088,6 +1090,10 @@ private:
     // to help debugging.
     pid_t mCallingPid;
     uid_t mCallingUid;
+
+    // The owner of the layer. If created from a non system process, it will be the calling uid.
+    // If created from a system process, the value can be passed in.
+    uid_t mOwnerUid;
 
     // The current layer is a clone of mClonedFrom. This means that this layer will update it's
     // properties based on mClonedFrom. When mClonedFrom latches a new buffer for BufferLayers,

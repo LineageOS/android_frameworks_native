@@ -114,6 +114,7 @@ public:
         LayerMetadata metadata;
         LayerProtoParser::FloatRect cornerRadiusCrop;
         float shadowRadius;
+        uid_t ownerUid;
 
         std::string to_string() const;
     };
