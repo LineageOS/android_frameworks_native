@@ -162,7 +162,6 @@ filegroup {
         "RenderArea.cpp",
         "Scheduler/DispSync.cpp",
         "Scheduler/DispSyncSource.cpp",
-        "Scheduler/EventControlThread.cpp",
         "Scheduler/EventThread.cpp",
         "Scheduler/OneShotTimer.cpp",
         "Scheduler/LayerHistory.cpp",

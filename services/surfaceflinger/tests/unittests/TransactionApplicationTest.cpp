@@ -32,7 +32,6 @@
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/MockDispSync.h"
-#include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
 
@@ -81,7 +80,6 @@ public:
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
 
         mFlinger.setupScheduler(std::unique_ptr<mock::DispSync>(mPrimaryDispSync),
-                                std::make_unique<mock::EventControlThread>(),
                                 std::move(eventThread), std::move(sfEventThread));
     }
 
@@ -89,7 +87,6 @@ public:
     TestableSurfaceFlinger mFlinger;
 
     std::unique_ptr<mock::EventThread> mEventThread = std::make_unique<mock::EventThread>();
-    mock::EventControlThread* mEventControlThread = new mock::EventControlThread();
 
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
     mock::DispSync* mPrimaryDispSync = new mock::DispSync();

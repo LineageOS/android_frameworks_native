@@ -20,11 +20,11 @@
 
 #include "Scheduler.h"
 
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
-#include <cutils/properties.h>
 #include <input/InputWindow.h>
 #include <system/window.h>
 #include <ui/DisplayStatInfo.h>
@@ -41,7 +41,6 @@
 #include "../Layer.h"
 #include "DispSync.h"
 #include "DispSyncSource.h"
-#include "EventControlThread.h"
 #include "EventThread.h"
 #include "InjectVSyncSource.h"
 #include "OneShotTimer.h"
@@ -60,52 +59,33 @@
         }                                                            \
     } while (false)
 
+using namespace std::string_literals;
+
 namespace android {
 
 namespace {
 
 std::unique_ptr<scheduler::VSyncTracker> createVSyncTracker() {
-    // TODO (144707443) tune Predictor tunables.
-    static constexpr int default_rate = 60;
-    static constexpr auto initial_period =
-            std::chrono::duration<nsecs_t, std::ratio<1, default_rate>>(1);
-    static constexpr size_t vsyncTimestampHistorySize = 20;
-    static constexpr size_t minimumSamplesForPrediction = 6;
-    static constexpr uint32_t discardOutlierPercent = 20;
-    return std::make_unique<
-            scheduler::VSyncPredictor>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                               initial_period)
-                                               .count(),
-                                       vsyncTimestampHistorySize, minimumSamplesForPrediction,
-                                       discardOutlierPercent);
+    // TODO(b/144707443): Tune constants.
+    constexpr int kDefaultRate = 60;
+    constexpr auto initialPeriod = std::chrono::duration<nsecs_t, std::ratio<1, kDefaultRate>>(1);
+    constexpr nsecs_t idealPeriod =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(initialPeriod).count();
+    constexpr size_t vsyncTimestampHistorySize = 20;
+    constexpr size_t minimumSamplesForPrediction = 6;
+    constexpr uint32_t discardOutlierPercent = 20;
+    return std::make_unique<scheduler::VSyncPredictor>(idealPeriod, vsyncTimestampHistorySize,
+                                                       minimumSamplesForPrediction,
+                                                       discardOutlierPercent);
 }
 
-std::unique_ptr<scheduler::VSyncDispatch> createVSyncDispatch(
-        const std::unique_ptr<scheduler::VSyncTracker>& vSyncTracker) {
-    if (!vSyncTracker) return {};
-
-    // TODO (144707443) tune Predictor tunables.
-    static constexpr auto vsyncMoveThreshold =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(3ms);
-    static constexpr auto timerSlack = std::chrono::duration_cast<std::chrono::nanoseconds>(500us);
+std::unique_ptr<scheduler::VSyncDispatch> createVSyncDispatch(scheduler::VSyncTracker& tracker) {
+    // TODO(b/144707443): Tune constants.
+    constexpr std::chrono::nanoseconds vsyncMoveThreshold = 3ms;
+    constexpr std::chrono::nanoseconds timerSlack = 500us;
     return std::make_unique<
-            scheduler::VSyncDispatchTimerQueue>(std::make_unique<scheduler::Timer>(), *vSyncTracker,
+            scheduler::VSyncDispatchTimerQueue>(std::make_unique<scheduler::Timer>(), tracker,
                                                 timerSlack.count(), vsyncMoveThreshold.count());
-}
-
-std::unique_ptr<DispSync> createDispSync(
-        const std::unique_ptr<scheduler::VSyncTracker>& vSyncTracker,
-        const std::unique_ptr<scheduler::VSyncDispatch>& vSyncDispatch, bool supportKernelTimer) {
-    if (vSyncTracker && vSyncDispatch) {
-        // TODO (144707443) tune Predictor tunables.
-        static constexpr size_t pendingFenceLimit = 20;
-        return std::make_unique<scheduler::VSyncReactor>(std::make_unique<scheduler::SystemClock>(),
-                                                         *vSyncDispatch, *vSyncTracker,
-                                                         pendingFenceLimit, supportKernelTimer);
-    } else {
-        return std::make_unique<impl::DispSync>("SchedulerDispSync",
-                                                sysprop::running_without_sync_framework(true));
-    }
 }
 
 const char* toContentDetectionString(bool useContentDetection, bool useContentDetectionV2) {
@@ -115,29 +95,26 @@ const char* toContentDetectionString(bool useContentDetection, bool useContentDe
 
 } // namespace
 
-Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
-                     const scheduler::RefreshRateConfigs& refreshRateConfigs,
-                     ISchedulerCallback& schedulerCallback, bool useContentDetectionV2,
-                     bool useContentDetection)
-      : mSupportKernelTimer(sysprop::support_kernel_idle_timer(false)),
-        // TODO (140302863) remove this and use the vsync_reactor system.
-        mUseVsyncPredictor(property_get_bool("debug.sf.vsync_reactor", true)),
-        mVSyncTracker(mUseVsyncPredictor ? createVSyncTracker() : nullptr),
-        mVSyncDispatch(createVSyncDispatch(mVSyncTracker)),
-        mPrimaryDispSync(createDispSync(mVSyncTracker, mVSyncDispatch, mSupportKernelTimer)),
-        mEventControlThread(new impl::EventControlThread(std::move(function))),
-        mLayerHistory(createLayerHistory(refreshRateConfigs, useContentDetectionV2)),
-        mSchedulerCallback(schedulerCallback),
-        mRefreshRateConfigs(refreshRateConfigs),
-        mUseContentDetection(useContentDetection),
-        mUseContentDetectionV2(useContentDetectionV2) {
+Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback)
+      : Scheduler(configs, callback,
+                  {.supportKernelTimer = sysprop::support_kernel_idle_timer(false),
+                   .useContentDetection = sysprop::use_content_detection_for_refresh_rate(false),
+                   .useContentDetectionV2 =
+                           base::GetBoolProperty("debug.sf.use_content_detection_v2"s, true),
+                   // TODO(b/140302863): Remove this and use the vsync_reactor system.
+                   .useVsyncPredictor = base::GetBoolProperty("debug.sf.vsync_reactor"s, true)}) {}
+
+Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback,
+                     Options options)
+      : Scheduler(createVsyncSchedule(options), configs, callback,
+                  createLayerHistory(configs, options.useContentDetectionV2), options) {
     using namespace sysprop;
 
-    const int setIdleTimerMs = property_get_int32("debug.sf.set_idle_timer_ms", 0);
+    const int setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms"s, 0);
 
     if (const auto millis = setIdleTimerMs ? setIdleTimerMs : set_idle_timer_ms(0); millis > 0) {
-        const auto callback = mSupportKernelTimer ? &Scheduler::kernelIdleTimerCallback
-                                                  : &Scheduler::idleTimerCallback;
+        const auto callback = mOptions.supportKernelTimer ? &Scheduler::kernelIdleTimerCallback
+                                                          : &Scheduler::idleTimerCallback;
         mIdleTimer.emplace(
                 std::chrono::milliseconds(millis),
                 [this, callback] { std::invoke(callback, this, TimerState::Reset); },
@@ -163,27 +140,41 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
     }
 }
 
-Scheduler::Scheduler(std::unique_ptr<DispSync> primaryDispSync,
-                     std::unique_ptr<EventControlThread> eventControlThread,
-                     const scheduler::RefreshRateConfigs& configs,
+Scheduler::Scheduler(VsyncSchedule schedule, const scheduler::RefreshRateConfigs& configs,
                      ISchedulerCallback& schedulerCallback,
-                     std::unique_ptr<LayerHistory> layerHistory, bool useContentDetectionV2,
-                     bool useContentDetection)
-      : mSupportKernelTimer(false),
-        mUseVsyncPredictor(true),
-        mPrimaryDispSync(std::move(primaryDispSync)),
-        mEventControlThread(std::move(eventControlThread)),
+                     std::unique_ptr<LayerHistory> layerHistory, Options options)
+      : mOptions(options),
+        mVsyncSchedule(std::move(schedule)),
         mLayerHistory(std::move(layerHistory)),
         mSchedulerCallback(schedulerCallback),
-        mRefreshRateConfigs(configs),
-        mUseContentDetection(useContentDetection),
-        mUseContentDetectionV2(useContentDetectionV2) {}
+        mRefreshRateConfigs(configs) {
+    mSchedulerCallback.setVsyncEnabled(false);
+}
 
 Scheduler::~Scheduler() {
     // Ensure the OneShotTimer threads are joined before we start destroying state.
     mDisplayPowerTimer.reset();
     mTouchTimer.reset();
     mIdleTimer.reset();
+}
+
+Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(Options options) {
+    if (!options.useVsyncPredictor) {
+        auto sync = std::make_unique<impl::DispSync>("SchedulerDispSync",
+                                                     sysprop::running_without_sync_framework(true));
+        return {std::move(sync), nullptr, nullptr};
+    }
+
+    auto clock = std::make_unique<scheduler::SystemClock>();
+    auto tracker = createVSyncTracker();
+    auto dispatch = createVSyncDispatch(*tracker);
+
+    // TODO(b/144707443): Tune constants.
+    constexpr size_t pendingFenceLimit = 20;
+    auto sync = std::make_unique<scheduler::VSyncReactor>(std::move(clock), *dispatch, *tracker,
+                                                          pendingFenceLimit,
+                                                          options.supportKernelTimer);
+    return {std::move(sync), std::move(tracker), std::move(dispatch)};
 }
 
 std::unique_ptr<LayerHistory> Scheduler::createLayerHistory(
@@ -198,12 +189,12 @@ std::unique_ptr<LayerHistory> Scheduler::createLayerHistory(
 }
 
 DispSync& Scheduler::getPrimaryDispSync() {
-    return *mPrimaryDispSync;
+    return *mVsyncSchedule.sync;
 }
 
 std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(const char* name,
                                                                   nsecs_t phaseOffsetNs) {
-    return std::make_unique<DispSyncSource>(mPrimaryDispSync.get(), phaseOffsetNs,
+    return std::make_unique<DispSyncSource>(&getPrimaryDispSync(), phaseOffsetNs,
                                             true /* traceVsync */, name);
 }
 
@@ -309,8 +300,8 @@ void Scheduler::setPhaseOffset(ConnectionHandle handle, nsecs_t phaseOffset) {
 }
 
 void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats) {
-    stats->vsyncTime = mPrimaryDispSync->computeNextRefresh(0, systemTime());
-    stats->vsyncPeriod = mPrimaryDispSync->getPeriod();
+    stats->vsyncTime = getPrimaryDispSync().computeNextRefresh(0, systemTime());
+    stats->vsyncPeriod = getPrimaryDispSync().getPeriod();
 }
 
 Scheduler::ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
@@ -347,8 +338,8 @@ bool Scheduler::injectVSync(nsecs_t when, nsecs_t expectedVSyncTime) {
 void Scheduler::enableHardwareVsync() {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
     if (!mPrimaryHWVsyncEnabled && mHWVsyncAvailable) {
-        mPrimaryDispSync->beginResync();
-        mEventControlThread->setVsyncEnabled(true);
+        getPrimaryDispSync().beginResync();
+        mSchedulerCallback.setVsyncEnabled(true);
         mPrimaryHWVsyncEnabled = true;
     }
 }
@@ -356,8 +347,8 @@ void Scheduler::enableHardwareVsync() {
 void Scheduler::disableHardwareVsync(bool makeUnavailable) {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
     if (mPrimaryHWVsyncEnabled) {
-        mEventControlThread->setVsyncEnabled(false);
-        mPrimaryDispSync->endResync();
+        mSchedulerCallback.setVsyncEnabled(false);
+        getPrimaryDispSync().endResync();
         mPrimaryHWVsyncEnabled = false;
     }
     if (makeUnavailable) {
@@ -397,11 +388,11 @@ void Scheduler::resync() {
 
 void Scheduler::setVsyncPeriod(nsecs_t period) {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
-    mPrimaryDispSync->setPeriod(period);
+    getPrimaryDispSync().setPeriod(period);
 
     if (!mPrimaryHWVsyncEnabled) {
-        mPrimaryDispSync->beginResync();
-        mEventControlThread->setVsyncEnabled(true);
+        getPrimaryDispSync().beginResync();
+        mSchedulerCallback.setVsyncEnabled(true);
         mPrimaryHWVsyncEnabled = true;
     }
 }
@@ -414,7 +405,7 @@ void Scheduler::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsy
         std::lock_guard<std::mutex> lock(mHWVsyncLock);
         if (mPrimaryHWVsyncEnabled) {
             needsHwVsync =
-                    mPrimaryDispSync->addResyncSample(timestamp, hwcVsyncPeriod, periodFlushed);
+                    getPrimaryDispSync().addResyncSample(timestamp, hwcVsyncPeriod, periodFlushed);
         }
     }
 
@@ -426,7 +417,7 @@ void Scheduler::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsy
 }
 
 void Scheduler::addPresentFence(const std::shared_ptr<FenceTime>& fenceTime) {
-    if (mPrimaryDispSync->addPresentFence(fenceTime)) {
+    if (getPrimaryDispSync().addPresentFence(fenceTime)) {
         enableHardwareVsync();
     } else {
         disableHardwareVsync(false);
@@ -434,11 +425,11 @@ void Scheduler::addPresentFence(const std::shared_ptr<FenceTime>& fenceTime) {
 }
 
 void Scheduler::setIgnorePresentFences(bool ignore) {
-    mPrimaryDispSync->setIgnorePresentFences(ignore);
+    getPrimaryDispSync().setIgnorePresentFences(ignore);
 }
 
 nsecs_t Scheduler::getDispSyncExpectedPresentTime(nsecs_t now) {
-    return mPrimaryDispSync->expectedPresentTime(now);
+    return getPrimaryDispSync().expectedPresentTime(now);
 }
 
 void Scheduler::registerLayer(Layer* layer) {
@@ -450,13 +441,13 @@ void Scheduler::registerLayer(Layer* layer) {
     if (layer->getWindowType() == InputWindowInfo::Type::STATUS_BAR) {
         mLayerHistory->registerLayer(layer, minFps, maxFps,
                                      scheduler::LayerHistory::LayerVoteType::NoVote);
-    } else if (!mUseContentDetection) {
+    } else if (!mOptions.useContentDetection) {
         // If the content detection feature is off, all layers are registered at Max. We still keep
         // the layer history, since we use it for other features (like Frame Rate API), so layers
         // still need to be registered.
         mLayerHistory->registerLayer(layer, minFps, maxFps,
                                      scheduler::LayerHistory::LayerVoteType::Max);
-    } else if (!mUseContentDetectionV2) {
+    } else if (!mOptions.useContentDetectionV2) {
         // In V1 of content detection, all layers are registered as Heuristic (unless it's
         // wallpaper).
         const auto highFps =
@@ -533,7 +524,7 @@ void Scheduler::notifyTouchEvent() {
     if (mTouchTimer) {
         mTouchTimer->reset();
 
-        if (mSupportKernelTimer && mIdleTimer) {
+        if (mOptions.supportKernelTimer && mIdleTimer) {
             mIdleTimer->reset();
         }
     }
@@ -610,7 +601,8 @@ void Scheduler::dump(std::string& result) const {
     StringAppendF(&result, "+  Touch timer: %s\n",
                   mTouchTimer ? mTouchTimer->dump().c_str() : "off");
     StringAppendF(&result, "+  Content detection: %s %s\n\n",
-                  toContentDetectionString(mUseContentDetection, mUseContentDetectionV2),
+                  toContentDetectionString(mOptions.useContentDetection,
+                                           mOptions.useContentDetectionV2),
                   mLayerHistory ? mLayerHistory->dump().c_str() : "(no layer history)");
 }
 
@@ -658,7 +650,7 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(
     const bool touchActive = mTouchTimer && mFeatures.touch == TouchState::Active;
     const bool idle = mIdleTimer && mFeatures.idleTimer == TimerState::Expired;
 
-    if (!mUseContentDetectionV2) {
+    if (!mOptions.useContentDetectionV2) {
         // As long as touch is active we want to be in performance mode.
         if (touchActive) {
             return mRefreshRateConfigs.getMaxRefreshRateByPolicy().getConfigId();

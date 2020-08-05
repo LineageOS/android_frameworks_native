@@ -69,11 +69,6 @@ public:
         return nullptr;
     }
 
-    std::unique_ptr<EventControlThread> createEventControlThread(
-            std::function<void(bool)>) override {
-        return nullptr;
-    }
-
     std::unique_ptr<HWComposer> createHWComposer(const std::string&) override {
         return nullptr;
     }
@@ -87,8 +82,7 @@ public:
         return std::make_unique<scheduler::FakePhaseOffsets>();
     }
 
-    std::unique_ptr<Scheduler> createScheduler(std::function<void(bool)>,
-                                               const scheduler::RefreshRateConfigs&,
+    std::unique_ptr<Scheduler> createScheduler(const scheduler::RefreshRateConfigs&,
                                                ISchedulerCallback&) override {
         return nullptr;
     }
@@ -175,7 +169,7 @@ public:
 
 } // namespace surfaceflinger::test
 
-class TestableSurfaceFlinger {
+class TestableSurfaceFlinger final : private ISchedulerCallback {
 public:
     using HotplugEvent = SurfaceFlinger::HotplugEvent;
 
@@ -198,11 +192,11 @@ public:
         mFlinger->mCompositionEngine->setTimeStats(timeStats);
     }
 
+    // The ISchedulerCallback argument can be nullptr for a no-op implementation.
     void setupScheduler(std::unique_ptr<DispSync> primaryDispSync,
-                        std::unique_ptr<EventControlThread> eventControlThread,
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
-                        bool hasMultipleConfigs = false) {
+                        ISchedulerCallback* callback = nullptr, bool hasMultipleConfigs = false) {
         std::vector<std::shared_ptr<const HWC2::Display::Config>> configs{
                 HWC2::Display::Config::Builder(mDisplay, 0)
                         .setVsyncPeriod(16'666'667)
@@ -227,8 +221,8 @@ public:
 
         constexpr bool kUseContentDetectionV2 = false;
         mScheduler =
-                new TestableScheduler(std::move(primaryDispSync), std::move(eventControlThread),
-                                      *mFlinger->mRefreshRateConfigs, kUseContentDetectionV2);
+                new TestableScheduler(std::move(primaryDispSync), *mFlinger->mRefreshRateConfigs,
+                                      *(callback ?: this), kUseContentDetectionV2);
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
@@ -666,6 +660,12 @@ public:
         DisplayDeviceCreationArgs mCreationArgs;
         const std::optional<hal::HWDisplayId> mHwcDisplayId;
     };
+
+private:
+    void setVsyncEnabled(bool) override {}
+    void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ConfigEvent) override {}
+    void repaintEverythingForHWC() override {}
+    void kernelTimerChanged(bool) override {}
 
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);

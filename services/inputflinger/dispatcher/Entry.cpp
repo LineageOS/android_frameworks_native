@@ -117,10 +117,12 @@ void DeviceResetEntry::appendDescription(std::string& msg) const {
 // --- FocusEntry ---
 
 // Focus notifications always go to apps, so set the flag POLICY_FLAG_PASS_TO_USER for all entries
-FocusEntry::FocusEntry(int32_t id, nsecs_t eventTime, sp<IBinder> connectionToken, bool hasFocus)
+FocusEntry::FocusEntry(int32_t id, nsecs_t eventTime, sp<IBinder> connectionToken, bool hasFocus,
+                       std::string_view reason)
       : EventEntry(id, Type::FOCUS, eventTime, POLICY_FLAG_PASS_TO_USER),
         connectionToken(connectionToken),
-        hasFocus(hasFocus) {}
+        hasFocus(hasFocus),
+        reason(reason) {}
 
 FocusEntry::~FocusEntry() {}
 

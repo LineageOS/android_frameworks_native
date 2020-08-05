@@ -112,8 +112,10 @@ protected:
 struct FocusEntry : EventEntry {
     sp<IBinder> connectionToken;
     bool hasFocus;
+    std::string_view reason;
 
-    FocusEntry(int32_t id, nsecs_t eventTime, sp<IBinder> connectionToken, bool hasFocus);
+    FocusEntry(int32_t id, nsecs_t eventTime, sp<IBinder> connectionToken, bool hasFocus,
+               std::string_view reason);
     virtual void appendDescription(std::string& msg) const;
 
 protected:

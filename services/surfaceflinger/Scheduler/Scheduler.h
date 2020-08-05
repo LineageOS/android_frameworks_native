@@ -29,7 +29,6 @@
 #include <ui/GraphicTypes.h>
 #pragma clang diagnostic pop
 
-#include "EventControlThread.h"
 #include "EventThread.h"
 #include "LayerHistory.h"
 #include "OneShotTimer.h"
@@ -50,19 +49,22 @@ class VSyncDispatch;
 class VSyncTracker;
 } // namespace scheduler
 
-class ISchedulerCallback {
-public:
-    virtual ~ISchedulerCallback() = default;
+struct ISchedulerCallback {
+    virtual void setVsyncEnabled(bool) = 0;
     virtual void changeRefreshRate(const scheduler::RefreshRateConfigs::RefreshRate&,
                                    scheduler::RefreshRateConfigEvent) = 0;
     virtual void repaintEverythingForHWC() = 0;
     virtual void kernelTimerChanged(bool expired) = 0;
+
+protected:
+    ~ISchedulerCallback() = default;
 };
 
-class IPhaseOffsetControl {
-public:
-    virtual ~IPhaseOffsetControl() = default;
+struct IPhaseOffsetControl {
     virtual void setPhaseOffset(scheduler::ConnectionHandle, nsecs_t phaseOffset) = 0;
+
+protected:
+    ~IPhaseOffsetControl() = default;
 };
 
 class Scheduler : public IPhaseOffsetControl {
@@ -78,10 +80,7 @@ public:
         Normal      // Start the transaction at the normal time
     };
 
-    Scheduler(impl::EventControlThread::SetVSyncEnabledFunction,
-              const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback,
-              bool useContentDetectionV2, bool useContentDetection);
-
+    Scheduler(const scheduler::RefreshRateConfigs&, ISchedulerCallback&);
     virtual ~Scheduler();
 
     DispSync& getPrimaryDispSync();
@@ -176,11 +175,31 @@ private:
     enum class TimerState { Reset, Expired };
     enum class TouchState { Inactive, Active };
 
-    // Used by tests to inject mocks.
-    Scheduler(std::unique_ptr<DispSync>, std::unique_ptr<EventControlThread>,
-              const scheduler::RefreshRateConfigs&, ISchedulerCallback&,
-              std::unique_ptr<LayerHistory>, bool useContentDetectionV2, bool useContentDetection);
+    struct Options {
+        // Whether to use idle timer callbacks that support the kernel timer.
+        bool supportKernelTimer;
+        // Whether to use content detection at all.
+        bool useContentDetection;
+        // Whether to use improved content detection.
+        bool useContentDetectionV2;
+        // Whether to use improved DispSync implementation.
+        bool useVsyncPredictor;
+    };
 
+    struct VsyncSchedule {
+        std::unique_ptr<DispSync> sync;
+        std::unique_ptr<scheduler::VSyncTracker> tracker;
+        std::unique_ptr<scheduler::VSyncDispatch> dispatch;
+    };
+
+    // Unlike the testing constructor, this creates the VsyncSchedule, LayerHistory, and timers.
+    Scheduler(const scheduler::RefreshRateConfigs&, ISchedulerCallback&, Options);
+
+    // Used by tests to inject mocks.
+    Scheduler(VsyncSchedule, const scheduler::RefreshRateConfigs&, ISchedulerCallback&,
+              std::unique_ptr<LayerHistory>, Options);
+
+    static VsyncSchedule createVsyncSchedule(Options);
     static std::unique_ptr<LayerHistory> createLayerHistory(const scheduler::RefreshRateConfigs&,
                                                             bool useContentDetectionV2);
 
@@ -231,14 +250,8 @@ private:
 
     std::atomic<nsecs_t> mLastResyncTime = 0;
 
-    // Whether to use idle timer callbacks that support the kernel timer.
-    const bool mSupportKernelTimer;
-
-    const bool mUseVsyncPredictor;
-    const std::unique_ptr<scheduler::VSyncTracker> mVSyncTracker;
-    const std::unique_ptr<scheduler::VSyncDispatch> mVSyncDispatch;
-    std::unique_ptr<DispSync> mPrimaryDispSync;
-    std::unique_ptr<EventControlThread> mEventControlThread;
+    const Options mOptions;
+    VsyncSchedule mVsyncSchedule;
 
     // Used to choose refresh rate if content detection is enabled.
     const std::unique_ptr<LayerHistory> mLayerHistory;
@@ -284,11 +297,6 @@ private:
     std::optional<hal::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline
             GUARDED_BY(mVsyncTimelineLock);
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
-
-    // This variable indicates whether to use the content detection feature at all.
-    const bool mUseContentDetection;
-    // This variable indicates whether to use V2 version of the content detection.
-    const bool mUseContentDetectionV2;
 };
 
 } // namespace android

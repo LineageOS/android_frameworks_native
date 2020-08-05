@@ -178,7 +178,8 @@ private:
     void dropInboundEventLocked(const EventEntry& entry, DropReason dropReason) REQUIRES(mLock);
 
     // Enqueues a focus event.
-    void enqueueFocusEventLocked(const InputWindowHandle& window, bool hasFocus) REQUIRES(mLock);
+    void enqueueFocusEventLocked(const InputWindowHandle& window, bool hasFocus,
+                                 std::string_view reason) REQUIRES(mLock);
 
     // Adds an event to a queue of recent events for debugging purposes.
     void addRecentEventLocked(EventEntry* entry) REQUIRES(mLock);
@@ -278,7 +279,7 @@ private:
     void postCommandLocked(std::unique_ptr<CommandEntry> commandEntry) REQUIRES(mLock);
 
     nsecs_t processAnrsLocked() REQUIRES(mLock);
-    nsecs_t getDispatchingTimeoutLocked(const sp<IBinder>& token) REQUIRES(mLock);
+    std::chrono::nanoseconds getDispatchingTimeoutLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     // Input filter processing.
     bool shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args) REQUIRES(mLock);
@@ -500,7 +501,10 @@ private:
     void onDispatchCycleBrokenLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
     void onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
-                              const sp<InputWindowHandle>& newFocus) REQUIRES(mLock);
+                              const sp<InputWindowHandle>& newFocus, int32_t displayId,
+                              std::string_view reason) REQUIRES(mLock);
+    void notifyFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
+                                  const sp<InputWindowHandle>& newFocus) REQUIRES(mLock);
     void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
     void onAnrLocked(const std::shared_ptr<InputApplicationHandle>& application) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)

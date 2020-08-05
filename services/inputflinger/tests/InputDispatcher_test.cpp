@@ -584,7 +584,8 @@ public:
     FakeApplicationHandle() {
         mInfo.name = "Fake Application";
         mInfo.token = new BBinder();
-        mInfo.dispatchingTimeoutNanos = DISPATCHING_TIMEOUT.count();
+        mInfo.dispatchingTimeoutMillis =
+                std::chrono::duration_cast<std::chrono::milliseconds>(DISPATCHING_TIMEOUT).count();
     }
     virtual ~FakeApplicationHandle() {}
 
@@ -592,8 +593,8 @@ public:
         return true;
     }
 
-    void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
-        mInfo.dispatchingTimeoutNanos = timeout.count();
+    void setDispatchingTimeout(std::chrono::milliseconds timeout) {
+        mInfo.dispatchingTimeoutMillis = timeout.count();
     }
 };
 
