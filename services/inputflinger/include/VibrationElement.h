@@ -17,22 +17,25 @@
 #ifndef _VIBRATION_ELEMENT_H
 #define _VIBRATION_ELEMENT_H
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <string>
-#include <vector>
 
 namespace android {
 
+// evdev FF_RUMBLE effect only supports two channels of vibration.
+constexpr size_t CHANNEL_SIZE = 2;
 /*
  * Describes a rumble effect
  */
 struct VibrationElement {
     std::chrono::milliseconds duration;
-    std::vector<int> channels;
+    // Channel amplitude range 0-255.
+    std::array<uint8_t, CHANNEL_SIZE> channels = {0, 0};
 
-    void dump(std::string& dump) const;
-    uint16_t getChannel(int id) const;
+    const std::string toString() const;
+    uint16_t getMagnitude(size_t channelIndex) const;
     bool isOn() const;
 };
 
