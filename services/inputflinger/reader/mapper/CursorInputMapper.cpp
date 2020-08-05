@@ -316,7 +316,7 @@ void CursorInputMapper::sync(nsecs_t when) {
 
     mPointerVelocityControl.move(when, &deltaX, &deltaY);
 
-    int32_t displayId;
+    int32_t displayId = ADISPLAY_ID_NONE;
     float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     if (mSource == AINPUT_SOURCE_MOUSE) {
@@ -340,12 +340,12 @@ void CursorInputMapper::sync(nsecs_t when) {
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
         displayId = mPointerController->getDisplayId();
-    } else {
+    } else if (mSource == AINPUT_SOURCE_MOUSE_RELATIVE) {
+        // Pointer capture mode
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, deltaY);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
-        displayId = ADISPLAY_ID_NONE;
     }
 
     pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, down ? 1.0f : 0.0f);
