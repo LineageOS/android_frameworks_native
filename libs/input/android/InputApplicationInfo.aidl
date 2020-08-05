@@ -19,5 +19,5 @@ package android;
 parcelable InputApplicationInfo {
     @nullable IBinder token;
     @utf8InCpp String name;
-    long dispatchingTimeoutNanos;
+    long dispatchingTimeoutMillis;
 }

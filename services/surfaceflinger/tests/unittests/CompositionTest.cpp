@@ -42,7 +42,6 @@
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockPowerAdvisor.h"
 #include "mock/MockDispSync.h"
-#include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
 #include "mock/MockTimeStats.h"
@@ -150,11 +149,10 @@ public:
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
         EXPECT_CALL(*primaryDispSync, expectedPresentTime(_)).WillRepeatedly(Return(0));
 
+        constexpr ISchedulerCallback* kCallback = nullptr;
         constexpr bool kHasMultipleConfigs = true;
-        mFlinger.setupScheduler(std::move(primaryDispSync),
-                                std::make_unique<mock::EventControlThread>(),
-                                std::move(eventThread), std::move(sfEventThread),
-                                kHasMultipleConfigs);
+        mFlinger.setupScheduler(std::move(primaryDispSync), std::move(eventThread),
+                                std::move(sfEventThread), kCallback, kHasMultipleConfigs);
 
         // Layer history should be created if there are multiple configs.
         ASSERT_TRUE(mFlinger.scheduler()->hasLayerHistory());
@@ -896,7 +894,7 @@ struct EffectLayerVariant : public BaseLayerVariant<LayerProperties> {
     static FlingerLayerType createLayer(CompositionTest* test) {
         FlingerLayerType layer = Base::template createLayerWithFactory<EffectLayer>(test, [test]() {
             return new EffectLayer(
-                    LayerCreationArgs(test->mFlinger.mFlinger.get(), sp<Client>(), "test-layer",
+                    LayerCreationArgs(test->mFlinger.flinger(), sp<Client>(), "test-layer",
                                       LayerProperties::WIDTH, LayerProperties::HEIGHT,
                                       LayerProperties::LAYER_FLAGS, LayerMetadata()));
         });
@@ -935,8 +933,7 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
 
         FlingerLayerType layer =
                 Base::template createLayerWithFactory<BufferQueueLayer>(test, [test]() {
-                    sp<Client> client;
-                    LayerCreationArgs args(test->mFlinger.mFlinger.get(), client, "test-layer",
+                    LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-layer",
                                            LayerProperties::WIDTH, LayerProperties::HEIGHT,
                                            LayerProperties::LAYER_FLAGS, LayerMetadata());
                     args.textureName = test->mFlinger.mutableTexturePool().back();

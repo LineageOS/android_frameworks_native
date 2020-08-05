@@ -119,7 +119,6 @@
 #include "RegionSamplingThread.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/DispSyncSource.h"
-#include "Scheduler/EventControlThread.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/MessageQueue.h"
@@ -1679,25 +1678,18 @@ void SurfaceFlinger::onRefreshReceived(int sequenceId, hal::HWDisplayId /*hwcDis
     repaintEverythingForHWC();
 }
 
-void SurfaceFlinger::setPrimaryVsyncEnabled(bool enabled) {
+void SurfaceFlinger::setVsyncEnabled(bool enabled) {
     ATRACE_CALL();
 
-    // Enable / Disable HWVsync from the main thread to avoid race conditions with
-    // display power state.
-    static_cast<void>(schedule([=]() MAIN_THREAD { setPrimaryVsyncEnabledInternal(enabled); }));
-}
+    // On main thread to avoid race conditions with display power state.
+    static_cast<void>(schedule([=]() MAIN_THREAD {
+        mHWCVsyncPendingState = enabled ? hal::Vsync::ENABLE : hal::Vsync::DISABLE;
 
-void SurfaceFlinger::setPrimaryVsyncEnabledInternal(bool enabled) {
-    ATRACE_CALL();
-
-    mHWCVsyncPendingState = enabled ? hal::Vsync::ENABLE : hal::Vsync::DISABLE;
-
-    if (const auto displayId = getInternalDisplayIdLocked()) {
-        sp<DisplayDevice> display = getDefaultDisplayDeviceLocked();
-        if (display && display->isPoweredOn()) {
-            getHwComposer().setVsyncEnabled(*displayId, mHWCVsyncPendingState);
+        if (const auto display = getDefaultDisplayDeviceLocked();
+            display && display->isPoweredOn()) {
+            getHwComposer().setVsyncEnabled(*display->getId(), mHWCVsyncPendingState);
         }
-    }
+    }));
 }
 
 void SurfaceFlinger::resetDisplayState() {
@@ -2985,9 +2977,7 @@ void SurfaceFlinger::initScheduler(DisplayId primaryDisplayId) {
     mPhaseConfiguration = getFactory().createPhaseConfiguration(*mRefreshRateConfigs);
 
     // start the EventThread
-    mScheduler =
-            getFactory().createScheduler([this](bool enabled) { setPrimaryVsyncEnabled(enabled); },
-                                         *mRefreshRateConfigs, *this);
+    mScheduler = getFactory().createScheduler(*mRefreshRateConfigs, *this);
     mAppConnectionHandle =
             mScheduler->createConnection("app", mPhaseConfiguration->getCurrentOffsets().late.app,
                                          impl::EventThread::InterceptVSyncsCallback());

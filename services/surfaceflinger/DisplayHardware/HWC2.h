@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_SF_HWC2_H
-#define ANDROID_SF_HWC2_H
+#pragma once
 
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
@@ -36,15 +35,16 @@
 #include "Hal.h"
 
 namespace android {
-    struct DisplayedFrameStats;
-    class Fence;
-    class FloatRect;
-    class GraphicBuffer;
-    namespace Hwc2 {
-        class Composer;
-    }
 
-    class TestableSurfaceFlinger;
+class Fence;
+class FloatRect;
+class GraphicBuffer;
+class TestableSurfaceFlinger;
+struct DisplayedFrameStats;
+
+namespace Hwc2 {
+class Composer;
+} // namespace Hwc2
 
 namespace HWC2 {
 
@@ -61,19 +61,17 @@ namespace hal = android::hardware::graphics::composer::hal;
 // All calls receive a sequenceId, which will be the value that was supplied to
 // HWC2::Device::registerCallback(). It's used to help differentiate callbacks
 // from different hardware composer instances.
-class ComposerCallback {
- public:
-     virtual void onHotplugReceived(int32_t sequenceId, hal::HWDisplayId display,
-                                    hal::Connection connection) = 0;
-     virtual void onRefreshReceived(int32_t sequenceId, hal::HWDisplayId display) = 0;
-     virtual void onVsyncReceived(int32_t sequenceId, hal::HWDisplayId display, int64_t timestamp,
-                                  std::optional<hal::VsyncPeriodNanos> vsyncPeriod) = 0;
-     virtual void onVsyncPeriodTimingChangedReceived(
-             int32_t sequenceId, hal::HWDisplayId display,
-             const hal::VsyncPeriodChangeTimeline& updatedTimeline) = 0;
-     virtual void onSeamlessPossible(int32_t sequenceId, hal::HWDisplayId display) = 0;
+struct ComposerCallback {
+    virtual void onHotplugReceived(int32_t sequenceId, hal::HWDisplayId, hal::Connection) = 0;
+    virtual void onRefreshReceived(int32_t sequenceId, hal::HWDisplayId) = 0;
+    virtual void onVsyncReceived(int32_t sequenceId, hal::HWDisplayId, int64_t timestamp,
+                                 std::optional<hal::VsyncPeriodNanos>) = 0;
+    virtual void onVsyncPeriodTimingChangedReceived(int32_t sequenceId, hal::HWDisplayId,
+                                                    const hal::VsyncPeriodChangeTimeline&) = 0;
+    virtual void onSeamlessPossible(int32_t sequenceId, hal::HWDisplayId) = 0;
 
-     virtual ~ComposerCallback() = default;
+protected:
+    ~ComposerCallback() = default;
 };
 
 // Convenience C++ class to access per display functions directly.
@@ -454,5 +452,3 @@ private:
 } // namespace impl
 } // namespace HWC2
 } // namespace android
-
-#endif // ANDROID_SF_HWC2_H
