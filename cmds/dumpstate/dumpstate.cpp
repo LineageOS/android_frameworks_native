@@ -76,6 +76,7 @@
 #include <hardware_legacy/power.h>
 #include <hidl/ServiceManagement.h>
 #include <log/log.h>
+#include <log/log_read.h>
 #include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
 #include <private/android_logger.h>
@@ -634,14 +635,24 @@ static int dump_stat_from_fd(const char *title __unused, const char *path, int f
 
 static const long MINIMUM_LOGCAT_TIMEOUT_MS = 50000;
 
-/* timeout in ms to read a list of buffers */
+// Returns the actual readable size of the given buffer or -1 on error.
+static long logcat_buffer_readable_size(const std::string& buffer) {
+    std::unique_ptr<logger_list, decltype(&android_logger_list_free)> logger_list{
+        android_logger_list_alloc(0, 0, 0), &android_logger_list_free};
+    auto logger = android_logger_open(logger_list.get(), android_name_to_log_id(buffer.c_str()));
+
+    return android_logger_get_log_readable_size(logger);
+}
+
+// Returns timeout in ms to read a list of buffers.
 static unsigned long logcat_timeout(const std::vector<std::string>& buffers) {
     unsigned long timeout_ms = 0;
     for (const auto& buffer : buffers) {
-        log_id_t id = android_name_to_log_id(buffer.c_str());
-        unsigned long property_size = __android_logger_get_buffer_size(id);
-        /* Engineering margin is ten-fold our guess */
-        timeout_ms += 10 * (property_size + worst_write_perf) / worst_write_perf;
+        long readable_size = logcat_buffer_readable_size(buffer);
+        if (readable_size > 0) {
+            // Engineering margin is ten-fold our guess.
+            timeout_ms += 10 * (readable_size + worst_write_perf) / worst_write_perf;
+        }
     }
     return timeout_ms > MINIMUM_LOGCAT_TIMEOUT_MS ? timeout_ms : MINIMUM_LOGCAT_TIMEOUT_MS;
 }
