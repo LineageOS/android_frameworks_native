@@ -436,9 +436,7 @@ public:
     // Deprecated, please use compositionengine::Output::belongsInOutput()
     // instead.
     // TODO(lpique): Move the remaining callers (screencap) to the new function.
-    bool belongsToDisplay(uint32_t layerStack, bool isPrimaryDisplay) const {
-        return getLayerStack() == layerStack && (!mPrimaryDisplayOnly || isPrimaryDisplay);
-    }
+    bool belongsToDisplay(uint32_t layerStack) const { return getLayerStack() == layerStack; }
 
     FloatRect getBounds(const Region& activeTransparentRegion) const;
     FloatRect getBounds() const;

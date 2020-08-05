@@ -429,7 +429,7 @@ void RegionSamplingThread::captureSample() {
                   bounds.top, bounds.right, bounds.bottom);
             visitor(layer);
         };
-        mFlinger.traverseLayersInLayerStack(layerStack, filterVisitor);
+        mFlinger.traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, filterVisitor);
     };
 
     sp<GraphicBuffer> buffer = nullptr;
