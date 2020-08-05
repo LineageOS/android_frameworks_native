@@ -121,9 +121,8 @@ int DisplayEventDispatcher::handleEvent(int, int events, void*) {
     PhysicalDisplayId vsyncDisplayId;
     uint32_t vsyncCount;
     if (processPendingEvents(&vsyncTimestamp, &vsyncDisplayId, &vsyncCount)) {
-        ALOGV("dispatcher %p ~ Vsync pulse: timestamp=%" PRId64
-              ", displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT ", count=%d",
-              this, ns2ms(vsyncTimestamp), vsyncDisplayId, vsyncCount);
+        ALOGV("dispatcher %p ~ Vsync pulse: timestamp=%" PRId64 ", displayId=%s, count=%d", this,
+              ns2ms(vsyncTimestamp), to_string(vsyncDisplayId).c_str(), vsyncCount);
         mWaitingForVsync = false;
         dispatchVsync(vsyncTimestamp, vsyncDisplayId, vsyncCount);
     }

@@ -363,9 +363,8 @@ void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t
 }
 
 void Choreographer::dispatchHotplug(nsecs_t, PhysicalDisplayId displayId, bool connected) {
-    ALOGV("choreographer %p ~ received hotplug event (displayId=%"
-            ANDROID_PHYSICAL_DISPLAY_ID_FORMAT ", connected=%s), ignoring.",
-            this, displayId, toString(connected));
+    ALOGV("choreographer %p ~ received hotplug event (displayId=%s, connected=%s), ignoring.",
+            this, to_string(displayId).c_str(), toString(connected));
 }
 
 // TODO(b/74619554): The PhysicalDisplayId is ignored because currently
@@ -375,9 +374,8 @@ void Choreographer::dispatchHotplug(nsecs_t, PhysicalDisplayId displayId, bool c
 // PhysicalDisplayId should no longer be ignored.
 void Choreographer::dispatchConfigChanged(nsecs_t, PhysicalDisplayId displayId, int32_t configId,
                                           nsecs_t vsyncPeriod) {
-    ALOGV("choreographer %p ~ received config change event "
-          "(displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT ", configId=%d).",
-          this, displayId, configId);
+    ALOGV("choreographer %p ~ received config change event (displayId=%s, configId=%d).",
+          this, to_string(displayId).c_str(), configId);
 
     const nsecs_t lastPeriod = mLatestVsyncPeriod;
     std::vector<RefreshRateCallback> callbacks{};

@@ -34,7 +34,7 @@ AutomotiveDisplayProxyService::getIGraphicBufferProducer(uint64_t id) {
     sp<IBinder> displayToken = nullptr;
     sp<SurfaceControl> surfaceControl = nullptr;
     if (it == mDisplays.end()) {
-        displayToken = SurfaceComposerClient::getPhysicalDisplayToken(id);
+        displayToken = SurfaceComposerClient::getPhysicalDisplayToken(PhysicalDisplayId(id));
         if (displayToken == nullptr) {
             ALOGE("Given display id, 0x%lX, is invalid.", (unsigned long)id);
             return nullptr;
@@ -145,7 +145,7 @@ Return<void> AutomotiveDisplayProxyService::getDisplayIdList(getDisplayIdList_cb
     auto displayIds = SurfaceComposerClient::getPhysicalDisplayIds();
     ids.resize(displayIds.size());
     for (auto i = 0; i < displayIds.size(); ++i) {
-        ids[i] = displayIds[i];
+        ids[i] = displayIds[i].value;
     }
 
     _cb(ids);
@@ -157,7 +157,7 @@ Return<void> AutomotiveDisplayProxyService::getDisplayInfo(uint64_t id, getDispl
     HwDisplayConfig activeConfig;
     HwDisplayState  activeState;
 
-    auto displayToken = SurfaceComposerClient::getPhysicalDisplayToken(id);
+    auto displayToken = SurfaceComposerClient::getPhysicalDisplayToken(PhysicalDisplayId(id));
     if (displayToken == nullptr) {
         ALOGE("Given display id, 0x%lX, is invalid.", (unsigned long)id);
     } else {

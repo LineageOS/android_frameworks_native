@@ -27,11 +27,11 @@
 #include <math/vec4.h>
 
 #include <ui/ConfigStoreTypes.h>
+#include <ui/DisplayId.h>
 #include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
-#include <ui/PhysicalDisplayId.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rotation.h>
 
