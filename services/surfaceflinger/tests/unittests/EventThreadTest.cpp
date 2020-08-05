@@ -36,9 +36,9 @@ namespace android {
 
 namespace {
 
-constexpr PhysicalDisplayId INTERNAL_DISPLAY_ID = 111;
-constexpr PhysicalDisplayId EXTERNAL_DISPLAY_ID = 222;
-constexpr PhysicalDisplayId DISPLAY_ID_64BIT = 0xabcd12349876fedcULL;
+constexpr PhysicalDisplayId INTERNAL_DISPLAY_ID(111);
+constexpr PhysicalDisplayId EXTERNAL_DISPLAY_ID(222);
+constexpr PhysicalDisplayId DISPLAY_ID_64BIT(0xabcd12349876fedcULL);
 
 class MockVSyncSource : public VSyncSource {
 public:

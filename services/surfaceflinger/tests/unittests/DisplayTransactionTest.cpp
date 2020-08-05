@@ -252,7 +252,7 @@ void DisplayTransactionTest::injectFakeNativeWindowSurfaceFactory() {
 
 sp<DisplayDevice> DisplayTransactionTest::injectDefaultInternalDisplay(
         std::function<void(FakeDisplayDeviceInjector&)> injectExtra) {
-    constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{777};
+    constexpr PhysicalDisplayId DEFAULT_DISPLAY_ID(777);
     constexpr int DEFAULT_DISPLAY_WIDTH = 1080;
     constexpr int DEFAULT_DISPLAY_HEIGHT = 1920;
     constexpr HWDisplayId DEFAULT_DISPLAY_HWC_DISPLAY_ID = 0;
@@ -331,10 +331,10 @@ const DisplayDeviceState& DisplayTransactionTest::getDrawingDisplayState(sp<IBin
  */
 
 template <typename PhysicalDisplay>
-struct PhysicalDisplayId {};
+struct PhysicalDisplayIdType {};
 
-template <DisplayId::Type displayId>
-using VirtualDisplayId = std::integral_constant<DisplayId::Type, displayId>;
+template <uint64_t displayId>
+using VirtualDisplayIdType = std::integral_constant<uint64_t, displayId>;
 
 struct NoDisplayId {};
 
@@ -342,18 +342,18 @@ template <typename>
 struct IsPhysicalDisplayId : std::bool_constant<false> {};
 
 template <typename PhysicalDisplay>
-struct IsPhysicalDisplayId<PhysicalDisplayId<PhysicalDisplay>> : std::bool_constant<true> {};
+struct IsPhysicalDisplayId<PhysicalDisplayIdType<PhysicalDisplay>> : std::bool_constant<true> {};
 
 template <typename>
 struct DisplayIdGetter;
 
 template <typename PhysicalDisplay>
-struct DisplayIdGetter<PhysicalDisplayId<PhysicalDisplay>> {
-    static std::optional<DisplayId> get() {
+struct DisplayIdGetter<PhysicalDisplayIdType<PhysicalDisplay>> {
+    static std::optional<PhysicalDisplayId> get() {
         if (!PhysicalDisplay::HAS_IDENTIFICATION_DATA) {
-            return getFallbackDisplayId(static_cast<bool>(PhysicalDisplay::PRIMARY)
-                                                ? LEGACY_DISPLAY_TYPE_PRIMARY
-                                                : LEGACY_DISPLAY_TYPE_EXTERNAL);
+            return PhysicalDisplayId::fromPort(static_cast<bool>(PhysicalDisplay::PRIMARY)
+                                                       ? LEGACY_DISPLAY_TYPE_PRIMARY
+                                                       : LEGACY_DISPLAY_TYPE_EXTERNAL);
         }
 
         const auto info =
@@ -363,9 +363,10 @@ struct DisplayIdGetter<PhysicalDisplayId<PhysicalDisplay>> {
     }
 };
 
-template <DisplayId::Type displayId>
-struct DisplayIdGetter<VirtualDisplayId<displayId>> {
-    static std::optional<DisplayId> get() { return DisplayId{displayId}; }
+template <uint64_t displayId>
+struct DisplayIdGetter<VirtualDisplayIdType<displayId>> {
+    // TODO(b/160679868) Use VirtualDisplayId
+    static std::optional<PhysicalDisplayId> get() { return PhysicalDisplayId{displayId}; }
 };
 
 template <>
@@ -379,7 +380,7 @@ struct DisplayConnectionTypeGetter {
 };
 
 template <typename PhysicalDisplay>
-struct DisplayConnectionTypeGetter<PhysicalDisplayId<PhysicalDisplay>> {
+struct DisplayConnectionTypeGetter<PhysicalDisplayIdType<PhysicalDisplay>> {
     static constexpr std::optional<DisplayConnectionType> value = PhysicalDisplay::CONNECTION_TYPE;
 };
 
@@ -390,19 +391,19 @@ struct HwcDisplayIdGetter {
 
 constexpr HWDisplayId HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID = 1010;
 
-template <DisplayId::Type displayId>
-struct HwcDisplayIdGetter<VirtualDisplayId<displayId>> {
+template <uint64_t displayId>
+struct HwcDisplayIdGetter<VirtualDisplayIdType<displayId>> {
     static constexpr std::optional<HWDisplayId> value = HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID;
 };
 
 template <typename PhysicalDisplay>
-struct HwcDisplayIdGetter<PhysicalDisplayId<PhysicalDisplay>> {
+struct HwcDisplayIdGetter<PhysicalDisplayIdType<PhysicalDisplay>> {
     static constexpr std::optional<HWDisplayId> value = PhysicalDisplay::HWC_DISPLAY_ID;
 };
 
 // DisplayIdType can be:
-//     1) PhysicalDisplayId<...> for generated ID of physical display backed by HWC.
-//     2) VirtualDisplayId<...> for hard-coded ID of virtual display backed by HWC.
+//     1) PhysicalDisplayIdType<...> for generated ID of physical display backed by HWC.
+//     2) VirtualDisplayIdType<...> for hard-coded ID of virtual display backed by HWC.
 //     3) NoDisplayId for virtual display without HWC backing.
 template <typename DisplayIdType, int width, int height, Critical critical, Async async,
           Secure secure, Primary primary, int grallocUsage>
@@ -630,10 +631,11 @@ constexpr uint32_t GRALLOC_USAGE_PHYSICAL_DISPLAY =
 
 template <typename PhysicalDisplay, int width, int height, Critical critical>
 struct PhysicalDisplayVariant
-      : DisplayVariant<PhysicalDisplayId<PhysicalDisplay>, width, height, critical, Async::FALSE,
-                       Secure::TRUE, PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY>,
+      : DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height, critical,
+                       Async::FALSE, Secure::TRUE, PhysicalDisplay::PRIMARY,
+                       GRALLOC_USAGE_PHYSICAL_DISPLAY>,
         HwcDisplayVariant<PhysicalDisplay::HWC_DISPLAY_ID, DisplayType::PHYSICAL,
-                          DisplayVariant<PhysicalDisplayId<PhysicalDisplay>, width, height,
+                          DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height,
                                          critical, Async::FALSE, Secure::TRUE,
                                          PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY>,
                           PhysicalDisplay> {};
@@ -719,14 +721,14 @@ constexpr uint32_t GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY = GRALLOC_USAGE_HW_COMPOSER
 
 template <int width, int height, Secure secure>
 struct HwcVirtualDisplayVariant
-      : DisplayVariant<VirtualDisplayId<42>, width, height, Critical::FALSE, Async::TRUE, secure,
-                       Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>,
-        HwcDisplayVariant<
-                HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID, DisplayType::VIRTUAL,
-                DisplayVariant<VirtualDisplayId<42>, width, height, Critical::FALSE, Async::TRUE,
-                               secure, Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>> {
-    using Base = DisplayVariant<VirtualDisplayId<42>, width, height, Critical::FALSE, Async::TRUE,
-                                secure, Primary::FALSE, GRALLOC_USAGE_HW_COMPOSER>;
+      : DisplayVariant<VirtualDisplayIdType<42>, width, height, Critical::FALSE, Async::TRUE,
+                       secure, Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>,
+        HwcDisplayVariant<HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID, DisplayType::VIRTUAL,
+                          DisplayVariant<VirtualDisplayIdType<42>, width, height, Critical::FALSE,
+                                         Async::TRUE, secure, Primary::FALSE,
+                                         GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>> {
+    using Base = DisplayVariant<VirtualDisplayIdType<42>, width, height, Critical::FALSE,
+                                Async::TRUE, secure, Primary::FALSE, GRALLOC_USAGE_HW_COMPOSER>;
     using Self = HwcVirtualDisplayVariant<width, height, secure>;
 
     static std::shared_ptr<compositionengine::Display> injectCompositionDisplay(
@@ -1815,7 +1817,9 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
         ASSERT_TRUE(hwcDisplayId);
-        state.physical = {.id = *displayId, .type = *connectionType, .hwcDisplayId = *hwcDisplayId};
+        state.physical = {.id = static_cast<PhysicalDisplayId>(*displayId),
+                          .type = *connectionType,
+                          .hwcDisplayId = *hwcDisplayId};
     }
 
     state.isSecure = static_cast<bool>(Case::Display::SECURE);
@@ -1991,7 +1995,7 @@ void HandleTransactionLockedTest::verifyDisplayIsConnected(const sp<IBinder>& di
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
         ASSERT_TRUE(hwcDisplayId);
-        expectedPhysical = {.id = *displayId,
+        expectedPhysical = {.id = static_cast<PhysicalDisplayId>(*displayId),
                             .type = *connectionType,
                             .hwcDisplayId = *hwcDisplayId};
     }
