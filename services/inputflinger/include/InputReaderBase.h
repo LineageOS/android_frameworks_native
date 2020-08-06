@@ -39,11 +39,6 @@
 // Must be at least 2.
 #define MAX_VIBRATE_PATTERN_SIZE 100
 
-// Maximum allowable delay value in a vibration pattern before
-// which the delay will be truncated.
-#define MAX_VIBRATE_PATTERN_DELAY_NSECS (1000000 * 1000000000LL)
-#define MAX_VIBRATE_PATTERN_DELAY_MSECS (1000000 * 1000LL)
-
 namespace android {
 
 // --- InputReaderInterface ---
