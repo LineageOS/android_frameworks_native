@@ -308,14 +308,6 @@ class TestDisplayManager {
 class DvrDisplayManagerTest : public Test {
  protected:
   void SetUp() override {
-    // dvr display manager test doesn't apply to standalone vr devices because
-    // tests cannot create display manager client on these devices.
-    if (property_get_bool("ro.boot.vr", false)) {
-      GTEST_SKIP()
-          << "All tests in DvrDisplayManagerTest test case are skipped "
-             "because the device boot to VR.";
-    }
-
     int ret;
     DvrDisplayManager* display_manager;
     DvrSurfaceState* surface_state;
