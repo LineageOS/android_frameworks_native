@@ -56,7 +56,7 @@ using ui::Dataspace;
  *
  */
 
-FramebufferSurface::FramebufferSurface(HWComposer& hwc, DisplayId displayId,
+FramebufferSurface::FramebufferSurface(HWComposer& hwc, PhysicalDisplayId displayId,
                                        const sp<IGraphicBufferConsumer>& consumer,
                                        uint32_t maxWidth, uint32_t maxHeight)
       : ConsumerBase(consumer),
