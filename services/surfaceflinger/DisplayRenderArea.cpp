@@ -85,10 +85,9 @@ DisplayRenderArea::DisplayRenderArea(sp<const DisplayDevice> display, const Rect
                                      ui::Size reqSize, ui::Dataspace reqDataSpace,
                                      RotationFlags rotation, bool allowSecureLayers)
       : RenderArea(reqSize, CaptureFill::OPAQUE, reqDataSpace, display->getViewport(),
-                   applyDeviceOrientation(rotation, *display)),
+                   allowSecureLayers, applyDeviceOrientation(rotation, *display)),
         mDisplay(std::move(display)),
-        mSourceCrop(sourceCrop),
-        mAllowSecureLayers(allowSecureLayers) {}
+        mSourceCrop(sourceCrop) {}
 
 const ui::Transform& DisplayRenderArea::getTransform() const {
     return mTransform;
