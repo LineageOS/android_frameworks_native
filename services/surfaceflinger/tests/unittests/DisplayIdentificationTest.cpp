@@ -396,10 +396,10 @@ TEST(DisplayIdentificationTest, deviceProductInfo) {
     }
 }
 
-TEST(DisplayIdentificationTest, getFallbackDisplayId) {
+TEST(DisplayIdentificationTest, fromPort) {
     // Manufacturer ID should be invalid.
-    ASSERT_FALSE(getPnpId(getFallbackDisplayId(0)));
-    ASSERT_FALSE(getPnpId(getFallbackDisplayId(0xffu)));
+    ASSERT_FALSE(getPnpId(PhysicalDisplayId::fromPort(0)));
+    ASSERT_FALSE(getPnpId(PhysicalDisplayId::fromPort(0xffu)));
 }
 
 TEST(DisplayIdentificationTest, getVirtualDisplayId) {
