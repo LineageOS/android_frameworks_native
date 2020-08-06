@@ -61,8 +61,10 @@ TEST_P(LayerTypeTransactionTest, SetRelativeZNegative) {
 
     std::unique_ptr<ScreenCapture> screenshot;
     // only layerB is in this range
-    sp<IBinder> parentHandle = parent->getHandle();
-    ScreenCapture::captureLayers(&screenshot, parentHandle, Rect(0, 0, 32, 32));
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = parent->getHandle();
+    captureArgs.sourceCrop = {0, 0, 32, 32};
+    ScreenCapture::captureLayers(&screenshot, captureArgs);
     screenshot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
 }
 
