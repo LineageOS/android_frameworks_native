@@ -20,8 +20,7 @@
 
 #include "SurfaceInterceptor.h"
 
-namespace android {
-namespace mock {
+namespace android::mock {
 
 class SurfaceInterceptor : public android::SurfaceInterceptor {
 public:
@@ -48,5 +47,4 @@ public:
     MOCK_METHOD1(saveVSyncEvent, void(nsecs_t));
 };
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock
