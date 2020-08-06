@@ -47,7 +47,6 @@ namespace dvr {
 namespace {
 
 const char kDvrPerformanceProperty[] = "sys.dvr.performance";
-const char kDvrStandaloneProperty[] = "ro.boot.vr";
 
 const char kRightEyeOffsetProperty[] = "dvr.right_eye_offset_ns";
 
@@ -147,8 +146,6 @@ bool HardwareComposer::Initialize(
     return false;
   }
 
-  is_standalone_device_ = property_get_bool(kDvrStandaloneProperty, false);
-
   request_display_callback_ = request_display_callback;
 
   primary_display_ = GetDisplayParams(composer, primary_display_id, true);
@@ -192,8 +189,6 @@ void HardwareComposer::OnBootFinished() {
     return;
   boot_finished_ = true;
   post_thread_wait_.notify_one();
-  if (is_standalone_device_)
-    request_display_callback_(true);
 }
 
 // Update the post thread quiescent state based on idle and suspended inputs.
@@ -253,17 +248,11 @@ void HardwareComposer::OnPostThreadPaused() {
   layers_.clear();
 
   // Phones create a new composer client on resume and destroy it on pause.
-  // Standalones only create the composer client once and then use SetPowerMode
-  // to control the screen on pause/resume.
-  if (!is_standalone_device_) {
-    if (composer_callback_ != nullptr) {
-      composer_callback_->SetVsyncService(nullptr);
-      composer_callback_ = nullptr;
-    }
-    composer_.reset(nullptr);
-  } else {
-    EnableDisplay(*target_display_, false);
+  if (composer_callback_ != nullptr) {
+    composer_callback_->SetVsyncService(nullptr);
+    composer_callback_ = nullptr;
   }
+  composer_.reset(nullptr);
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "idle");
@@ -574,7 +563,7 @@ void HardwareComposer::SetDisplaySurfaces(
     surfaces_changed_ = true;
   }
 
-  if (request_display_callback_ && !is_standalone_device_)
+  if (request_display_callback_)
     request_display_callback_(!display_idle);
 
   // Set idle state based on whether there are any surfaces to handle.
@@ -758,28 +747,6 @@ void HardwareComposer::PostThread() {
   };
 
   VsyncEyeOffsets vsync_eye_offsets = get_vsync_eye_offsets();
-
-  if (is_standalone_device_) {
-    // First, wait until boot finishes.
-    std::unique_lock<std::mutex> lock(post_thread_mutex_);
-    if (PostThreadCondWait(lock, -1, [this] { return boot_finished_; })) {
-      return;
-    }
-
-    // Then, wait until we're either leaving the quiescent state, or the boot
-    // finished display off timeout expires.
-    if (PostThreadCondWait(lock, kBootFinishedDisplayOffTimeoutSec,
-                           [this] { return !post_thread_quiescent_; })) {
-      return;
-    }
-
-    LOG_ALWAYS_FATAL_IF(post_thread_state_ & PostThreadState::Suspended,
-                        "Vr flinger should own the display by now.");
-    post_thread_resumed_ = true;
-    post_thread_ready_.notify_all();
-    if (!composer_)
-      CreateComposer();
-  }
 
   while (1) {
     ATRACE_NAME("HardwareComposer::PostThread");
