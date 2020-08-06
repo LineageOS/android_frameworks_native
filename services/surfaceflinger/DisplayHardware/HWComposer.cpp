@@ -284,7 +284,8 @@ std::optional<DisplayId> HWComposer::allocateVirtualDisplay(uint32_t width, uint
     return displayId;
 }
 
-void HWComposer::allocatePhysicalDisplay(hal::HWDisplayId hwcDisplayId, DisplayId displayId) {
+void HWComposer::allocatePhysicalDisplay(hal::HWDisplayId hwcDisplayId,
+                                         PhysicalDisplayId displayId) {
     if (!mInternalHwcDisplayId) {
         mInternalHwcDisplayId = hwcDisplayId;
     } else if (mInternalHwcDisplayId != hwcDisplayId && !mExternalHwcDisplayId) {
@@ -865,7 +866,8 @@ void HWComposer::dump(std::string& result) const {
     result.append(mComposer->dumpDebugInfo());
 }
 
-std::optional<DisplayId> HWComposer::toPhysicalDisplayId(hal::HWDisplayId hwcDisplayId) const {
+std::optional<PhysicalDisplayId> HWComposer::toPhysicalDisplayId(
+        hal::HWDisplayId hwcDisplayId) const {
     if (const auto it = mPhysicalDisplayIdMap.find(hwcDisplayId);
         it != mPhysicalDisplayIdMap.end()) {
         return it->second;
@@ -873,7 +875,8 @@ std::optional<DisplayId> HWComposer::toPhysicalDisplayId(hal::HWDisplayId hwcDis
     return {};
 }
 
-std::optional<hal::HWDisplayId> HWComposer::fromPhysicalDisplayId(DisplayId displayId) const {
+std::optional<hal::HWDisplayId> HWComposer::fromPhysicalDisplayId(
+        PhysicalDisplayId displayId) const {
     if (const auto it = mDisplayData.find(displayId);
         it != mDisplayData.end() && !it->second.isVirtual) {
         return it->second.hwcDisplay->getId();
@@ -937,7 +940,7 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplugConnect(
                 port = isPrimary ? LEGACY_DISPLAY_TYPE_PRIMARY : LEGACY_DISPLAY_TYPE_EXTERNAL;
             }
 
-            return DisplayIdentificationInfo{.id = getFallbackDisplayId(port),
+            return DisplayIdentificationInfo{.id = PhysicalDisplayId::fromPort(port),
                                              .name = isPrimary ? "Internal display"
                                                                : "External display",
                                              .deviceProductInfo = std::nullopt};
