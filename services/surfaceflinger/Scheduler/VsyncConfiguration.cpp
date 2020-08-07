@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "PhaseOffsets.h"
+#include "VsyncConfiguration.h"
 
 #include <cutils/properties.h>
 

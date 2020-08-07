@@ -18,7 +18,7 @@
 
 #include <gmock/gmock.h>
 
-#include "Scheduler/PhaseOffsets.h"
+#include "Scheduler/VsyncConfiguration.h"
 
 namespace android::scheduler {
 
