@@ -135,6 +135,26 @@ TEST(AddService, HappyOverExistingService) {
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
 }
 
+TEST(AddService, OverwriteExistingService) {
+    auto sm = getPermissiveServiceManager();
+    sp<IBinder> serviceA = getBinder();
+    EXPECT_TRUE(sm->addService("foo", serviceA, false /*allowIsolated*/,
+        IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
+
+    sp<IBinder> outA;
+    EXPECT_TRUE(sm->getService("foo", &outA).isOk());
+    EXPECT_EQ(serviceA, outA);
+
+    // serviceA should be overwritten by serviceB
+    sp<IBinder> serviceB = getBinder();
+    EXPECT_TRUE(sm->addService("foo", serviceB, false /*allowIsolated*/,
+        IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT).isOk());
+
+    sp<IBinder> outB;
+    EXPECT_TRUE(sm->getService("foo", &outB).isOk());
+    EXPECT_EQ(serviceB, outB);
+}
+
 TEST(AddService, NoPermissions) {
     std::unique_ptr<MockAccess> access = std::make_unique<NiceMock<MockAccess>>();
 
