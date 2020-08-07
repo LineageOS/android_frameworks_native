@@ -86,6 +86,10 @@ void BitTube::setReceiveFd(base::unique_fd&& receiveFd) {
     mReceiveFd = std::move(receiveFd);
 }
 
+void BitTube::setSendFd(base::unique_fd&& sendFd) {
+    mSendFd = std::move(sendFd);
+}
+
 ssize_t BitTube::write(void const* vaddr, size_t size) {
     ssize_t err, len;
     do {
@@ -115,6 +119,11 @@ status_t BitTube::writeToParcel(Parcel* reply) const {
 
     status_t result = reply->writeDupFileDescriptor(mReceiveFd);
     mReceiveFd.reset();
+    if (result != NO_ERROR) {
+        return result;
+    }
+    result = reply->writeDupFileDescriptor(mSendFd);
+    mSendFd.reset();
     return result;
 }
 
@@ -122,6 +131,13 @@ status_t BitTube::readFromParcel(const Parcel* parcel) {
     mReceiveFd.reset(dup(parcel->readFileDescriptor()));
     if (mReceiveFd < 0) {
         mReceiveFd.reset();
+        int error = errno;
+        ALOGE("BitTube::readFromParcel: can't dup file descriptor (%s)", strerror(error));
+        return -error;
+    }
+    mSendFd.reset(dup(parcel->readFileDescriptor()));
+    if (mSendFd < 0) {
+        mSendFd.reset();
         int error = errno;
         ALOGE("BitTube::readFromParcel: can't dup file descriptor (%s)", strerror(error));
         return -error;

@@ -53,6 +53,7 @@ public:
         DISPLAY_EVENT_VSYNC = fourcc('v', 's', 'y', 'n'),
         DISPLAY_EVENT_HOTPLUG = fourcc('p', 'l', 'u', 'g'),
         DISPLAY_EVENT_CONFIG_CHANGED = fourcc('c', 'o', 'n', 'f'),
+        DISPLAY_EVENT_NULL = fourcc('n', 'u', 'l', 'l'),
     };
 
     struct Event {
@@ -130,6 +131,7 @@ public:
      * sendEvents write events to the queue and returns how many events were
      * written.
      */
+    ssize_t sendEvents(Event const* events, size_t count);
     static ssize_t sendEvents(gui::BitTube* dataChannel, Event const* events, size_t count);
 
     /*
@@ -145,12 +147,6 @@ public:
      * if the vsync rate is > 0.
      */
     status_t requestNextVsync();
-
-    /*
-     * requestLatestConfig() force-requests the current config for the primary
-     * display.
-     */
-    status_t requestLatestConfig();
 
 private:
     sp<IDisplayEventConnection> mEventConnection;
