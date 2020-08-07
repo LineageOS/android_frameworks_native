@@ -61,6 +61,9 @@ static const char* DEVICE_PATH = "/dev/input";
 // v4l2 devices go directly into /dev
 static const char* VIDEO_DEVICE_PATH = "/dev";
 
+static constexpr size_t FF_STRONG_MAGNITUDE_CHANNEL_IDX = 0;
+static constexpr size_t FF_WEAK_MAGNITUDE_CHANNEL_IDX = 1;
+
 static inline const char* toString(bool value) {
     return value ? "true" : "false";
 }
@@ -834,8 +837,8 @@ void EventHub::vibrate(int32_t deviceId, const VibrationElement& element) {
         effect.type = FF_RUMBLE;
         effect.id = device->ffEffectId;
         // evdev FF_RUMBLE effect only supports two channels of vibration.
-        effect.u.rumble.strong_magnitude = element.getChannel(0);
-        effect.u.rumble.weak_magnitude = element.getChannel(1);
+        effect.u.rumble.strong_magnitude = element.getMagnitude(FF_STRONG_MAGNITUDE_CHANNEL_IDX);
+        effect.u.rumble.weak_magnitude = element.getMagnitude(FF_WEAK_MAGNITUDE_CHANNEL_IDX);
         effect.replay.length = element.duration.count();
         effect.replay.delay = 0;
         if (ioctl(device->fd, EVIOCSFF, &effect)) {

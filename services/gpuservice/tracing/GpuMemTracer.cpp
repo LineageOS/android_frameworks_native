@@ -44,10 +44,6 @@ void GpuMemTracer::initialize(std::shared_ptr<GpuMem> gpuMem) {
     mGpuMem = gpuMem;
     perfetto::TracingInitArgs args;
     args.backends = perfetto::kSystemBackend;
-    // TODO(b/160016498): Find a better way to wait for traced
-    // Sleep for 30 seconds to make sure the data source is registered only
-    // after traced starts.
-    sleep(30);
     perfetto::Tracing::Initialize(args);
     registerDataSource();
     std::thread tracerThread(&GpuMemTracer::threadLoop, this);

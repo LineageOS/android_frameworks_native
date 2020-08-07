@@ -91,8 +91,7 @@ void VibratorInputMapper::nextStep() {
     const VibrationElement& element = mPattern[mIndex];
     if (element.isOn()) {
 #if DEBUG_VIBRATOR
-        std::string description;
-        element.dump(description);
+        std::string description = element.toString();
         ALOGD("nextStep: sending vibrate deviceId=%d, element=%s", getDeviceId(),
               description.c_str());
 #endif
@@ -135,13 +134,13 @@ void VibratorInputMapper::dump(std::string& dump) {
 void VibratorInputMapper::dumpPattern(std::string& dump) const {
     dump += "[";
 
-    if (mPattern.size() > 0) {
-        mPattern[0].dump(dump);
-        std::for_each(mPattern.begin() + 1, mPattern.end(), [&dump](const auto& element) {
+    for (auto it = mPattern.begin(); it != mPattern.end(); ++it) {
+        dump += it->toString();
+        if (std::next(it) != mPattern.end()) {
             dump += ", ";
-            element.dump(dump);
-        });
+        }
     }
+
     dump += "]";
 }
 

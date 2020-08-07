@@ -25,38 +25,27 @@ using android::base::StringPrintf;
 
 namespace android {
 
-// The sentinel to use the default amplitude
-static const int DEFAULT_AMPLITUDE = -1;
-
-// The vibration magnitude for the "DEFAULT_AMPLITUDE" magnitude constant.
-static const uint16_t DEFAULT_MAGNITUDE = 0xc000;
-
-void VibrationElement::dump(std::string& dump) const {
+const std::string VibrationElement::toString() const {
+    std::string dump;
     dump += StringPrintf("[duration=%lldms, channels=[", duration.count());
 
-    if (channels.size()) {
-        dump += std::to_string(channels[0]);
-        std::for_each(channels.begin() + 1, channels.end(), [&dump](int channel) {
+    for (auto it = channels.begin(); it != channels.end(); ++it) {
+        dump += std::to_string(*it);
+        if (std::next(it) != channels.end()) {
             dump += ", ";
-            dump += std::to_string(channel);
-        });
+        }
     }
+
     dump += "]]";
+    return dump;
 }
 
-uint16_t VibrationElement::getChannel(int id) const {
-    if (id >= (int)channels.size()) {
+uint16_t VibrationElement::getMagnitude(size_t channelIdx) const {
+    if (channelIdx >= channels.size()) {
         return 0;
     }
-
-    // android framework uses DEFAULT_AMPLITUDE to signal that the vibration
-    // should use some built-in default value, denoted here as DEFAULT_MAGNITUDE
-    if (channels[id] == DEFAULT_AMPLITUDE) {
-        return DEFAULT_MAGNITUDE;
-    }
-
     // convert range [0,255] to [0,65535] (android framework to linux ff ranges)
-    return ((uint16_t)channels[id]) << 8;
+    return static_cast<uint16_t>(channels[channelIdx]) << 8;
 }
 
 bool VibrationElement::isOn() const {
