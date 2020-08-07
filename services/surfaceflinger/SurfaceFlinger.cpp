@@ -4958,11 +4958,13 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // special permissions.
         case SET_FRAME_RATE:
         case GET_DISPLAY_BRIGHTNESS_SUPPORT:
+        // captureLayers and captureDisplay will handle the permission check in the function
+        case CAPTURE_LAYERS:
+        case CAPTURE_DISPLAY:
         case SET_DISPLAY_BRIGHTNESS: {
             return OK;
         }
-        case CAPTURE_LAYERS:
-        case CAPTURE_DISPLAY:
+
         case ADD_REGION_SAMPLING_LISTENER:
         case REMOVE_REGION_SAMPLING_LISTENER: {
             // codes that require permission check
@@ -5434,9 +5436,32 @@ static Dataspace pickDataspaceFromColorMode(const ColorMode colorMode) {
     }
 }
 
+static status_t validateScreenshotPermissions(const CaptureArgs& captureArgs) {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    if (uid == AID_GRAPHICS || PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
+        return OK;
+    }
+
+    // If the caller doesn't have the correct permissions but is only attempting to screenshot
+    // itself, we allow it to continue.
+    if (captureArgs.uid == uid) {
+        return OK;
+    }
+
+    ALOGE("Permission Denial: can't take screenshot pid=%d, uid=%d", pid, uid);
+    return PERMISSION_DENIED;
+}
+
 status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                                         ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
+
+    status_t validate = validateScreenshotPermissions(args);
+    if (validate != OK) {
+        return validate;
+    }
 
     if (!args.displayToken) return BAD_VALUE;
 
@@ -5472,8 +5497,8 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                                          renderAreaRotation, args.captureSecureLayers);
     });
 
-    auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
-        traverseLayersInLayerStack(layerStack, visitor);
+    auto traverseLayers = [this, args, layerStack](const LayerVector::Visitor& visitor) {
+        traverseLayersInLayerStack(layerStack, args.uid, visitor);
     };
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
                                args.pixelFormat, args.useIdentityTransform, captureResults);
@@ -5567,7 +5592,7 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
     });
 
     auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
-        traverseLayersInLayerStack(layerStack, visitor);
+        traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, visitor);
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
@@ -5578,6 +5603,11 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
 status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
                                        ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
+
+    status_t validate = validateScreenshotPermissions(args);
+    if (validate != OK) {
+        return validate;
+    }
 
     ui::Size reqSize;
     sp<Layer> parent;
@@ -5652,19 +5682,19 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     }
 
     bool childrenOnly = args.childrenOnly;
-
     RenderAreaFuture renderAreaFuture = promise::defer([=]() -> std::unique_ptr<RenderArea> {
         return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
                                                  childrenOnly, displayViewport,
                                                  captureSecureLayers);
     });
 
-    auto traverseLayers = [parent, childrenOnly,
-                           &excludeLayers](const LayerVector::Visitor& visitor) {
+    auto traverseLayers = [parent, args, &excludeLayers](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
             if (!layer->isVisible()) {
                 return;
-            } else if (childrenOnly && layer == parent.get()) {
+            } else if (args.childrenOnly && layer == parent.get()) {
+                return;
+            } else if (args.uid != CaptureArgs::UNSET_UID && args.uid != layer->getOwnerUid()) {
                 return;
             }
 
@@ -5890,20 +5920,23 @@ void SurfaceFlinger::State::traverseInReverseZOrder(const LayerVector::Visitor& 
     layersSortedByZ.traverseInReverseZOrder(stateSet, visitor);
 }
 
-void SurfaceFlinger::traverseLayersInLayerStack(ui::LayerStack layerStack,
+void SurfaceFlinger::traverseLayersInLayerStack(ui::LayerStack layerStack, const int32_t uid,
                                                 const LayerVector::Visitor& visitor) {
     // We loop through the first level of layers without traversing,
     // as we need to determine which layers belong to the requested display.
     for (const auto& layer : mDrawingState.layersSortedByZ) {
-        if (!layer->belongsToDisplay(layerStack, false)) {
+        if (!layer->belongsToDisplay(layerStack)) {
             continue;
         }
         // relative layers are traversed in Layer::traverseInZOrder
         layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
-            if (!layer->belongsToDisplay(layerStack, false)) {
+            if (layer->getPrimaryDisplayOnly()) {
                 return;
             }
             if (!layer->isVisible()) {
+                return;
+            }
+            if (uid != CaptureArgs::UNSET_UID && layer->getOwnerUid() != uid) {
                 return;
             }
             visitor(layer);

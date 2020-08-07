@@ -31,16 +31,20 @@ public:
         captureScreen(sc, SurfaceComposerClient::getInternalDisplayToken());
     }
 
-    static void captureScreen(std::unique_ptr<ScreenCapture>* sc, sp<IBinder> displayToken) {
+    static void captureDisplay(std::unique_ptr<ScreenCapture>* sc,
+                               const DisplayCaptureArgs& captureArgs) {
         const auto sf = ComposerService::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
+        ScreenCaptureResults captureResults;
+        ASSERT_EQ(NO_ERROR, sf->captureDisplay(captureArgs, captureResults));
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
+    }
+
+    static void captureScreen(std::unique_ptr<ScreenCapture>* sc, sp<IBinder> displayToken) {
         DisplayCaptureArgs args;
         args.displayToken = displayToken;
-
-        ScreenCaptureResults captureResults;
-        ASSERT_EQ(NO_ERROR, sf->captureDisplay(args, captureResults));
-        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
+        captureDisplay(sc, args);
     }
 
     static void captureLayers(std::unique_ptr<ScreenCapture>* sc,
