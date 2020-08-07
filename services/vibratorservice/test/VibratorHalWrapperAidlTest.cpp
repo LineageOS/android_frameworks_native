@@ -116,19 +116,16 @@ ACTION(TriggerCallbackInArg2) {
 }
 
 TEST_F(VibratorHalWrapperAidlTest, TestPing) {
-    {
-        InSequence seq;
-        EXPECT_CALL(*mMockHal.get(), getCapabilities(_))
-                .Times(Exactly(3))
-                .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
-                .WillOnce(Return(
-                        Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)))
-                .WillRepeatedly(Return(Status()));
-    }
+    EXPECT_CALL(*mMockHal.get(), onAsBinder())
+            .Times(Exactly(2))
+            .WillRepeatedly(Return(mMockBinder.get()));
+    EXPECT_CALL(*mMockBinder.get(), pingBinder())
+            .Times(Exactly(2))
+            .WillOnce(Return(android::OK))
+            .WillRepeatedly(Return(android::DEAD_OBJECT));
 
+    ASSERT_TRUE(mWrapper->ping().isOk());
     ASSERT_TRUE(mWrapper->ping().isFailed());
-    ASSERT_TRUE(mWrapper->ping().isOk());
-    ASSERT_TRUE(mWrapper->ping().isOk());
 }
 
 TEST_F(VibratorHalWrapperAidlTest, TestOnWithCallbackSupport) {

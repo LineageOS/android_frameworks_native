@@ -91,7 +91,7 @@ std::shared_ptr<HalWrapper> HalConnector::connect(std::shared_ptr<CallbackSchedu
 template <typename T>
 HalResult<T> HalController::processHalResult(HalResult<T> result, const char* functionName) {
     if (result.isFailed()) {
-        ALOGE("%s failed: Vibrator HAL not available", functionName);
+        ALOGE("%s failed: %s", functionName, result.errorMessage());
         std::lock_guard<std::mutex> lock(mConnectedHalMutex);
         mConnectedHal->tryReconnect();
     }
