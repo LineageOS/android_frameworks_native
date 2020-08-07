@@ -149,8 +149,8 @@ private:
 // -------------------------------------------------------------------------------------------------
 
 HalResult<void> AidlHalWrapper::ping() {
-    return IInterface::asBinder(getHal())->pingBinder() ? HalResult<void>::ok()
-                                                        : HalResult<void>::failed();
+    // TODO(b/153415251): Investigate why IBinder::pingBinder() is returning false even on success.
+    return getCapabilitiesInternal().isFailed() ? HalResult<void>::failed() : HalResult<void>::ok();
 }
 
 void AidlHalWrapper::tryReconnect() {
