@@ -21,6 +21,7 @@
 #include "DumpstateService.h"
 #include "android/os/BnDumpstate.h"
 #include "dumpstate.h"
+#include "DumpPool.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -46,6 +47,7 @@ namespace dumpstate {
 
 using ::android::hardware::dumpstate::V1_1::DumpstateMode;
 using ::testing::EndsWith;
+using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
@@ -1617,6 +1619,80 @@ TEST_F(DumpstateUtilTest, DumpFileOnDryRun) {
         out, StartsWith("------ Might as well dump. Dump! (" + kTestDataPath + "single-line.txt:"));
     EXPECT_THAT(out, EndsWith("skipped on dry run\n"));
 }
+
+class DumpPoolTest : public DumpstateBaseTest {
+  public:
+    void SetUp() {
+        DumpstateBaseTest::SetUp();
+        CreateOutputFile();
+    }
+
+    void CreateOutputFile() {
+        out_path_ = kTestDataPath + "out.txt";
+        out_fd_.reset(TEMP_FAILURE_RETRY(open(out_path_.c_str(),
+                O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
+        ASSERT_GE(out_fd_.get(), 0) << "could not create FD for path "
+                << out_path_;
+    }
+
+    int getTempFileCounts(const std::string& folder) {
+        int count = 0;
+        std::unique_ptr<DIR, decltype(&closedir)> dir_ptr(opendir(folder.c_str()),
+                &closedir);
+        if (!dir_ptr) {
+            return -1;
+        }
+        int dir_fd = dirfd(dir_ptr.get());
+        if (dir_fd < 0) {
+            return -1;
+        }
+
+        struct dirent* de;
+        while ((de = readdir(dir_ptr.get()))) {
+            if (de->d_type != DT_REG) {
+                continue;
+            }
+            std::string file_name(de->d_name);
+            if (file_name.find(DumpPool::PREFIX_TMPFILE_NAME) != 0) {
+                continue;
+            }
+            count++;
+        }
+        return count;
+    }
+
+    android::base::unique_fd out_fd_;
+    std::string out_path_;
+};
+
+TEST_F(DumpPoolTest, EnqueueTask) {
+    DumpPool pool(kTestDataPath);
+    auto dump_func_1 = [](int out_fd) {
+        dprintf(out_fd, "A");
+    };
+    auto dump_func_2 = [](int out_fd) {
+        dprintf(out_fd, "B");
+        sleep(1);
+    };
+    auto dump_func_3 = [](int out_fd) {
+        dprintf(out_fd, "C");
+    };
+    pool.enqueueTask(/* task_name = */"1", dump_func_1, std::placeholders::_1);
+    pool.enqueueTask(/* task_name = */"2", dump_func_2, std::placeholders::_1);
+    pool.enqueueTask(/* task_name = */"3", dump_func_3, std::placeholders::_1);
+
+    pool.waitForTask("1", "", out_fd_.get());
+    pool.waitForTask("2", "", out_fd_.get());
+    pool.waitForTask("3", "", out_fd_.get());
+
+    std::string result;
+    ReadFileToString(out_path_, &result);
+    EXPECT_THAT(result, StrEq("A\nB\nC\n"));
+    EXPECT_THAT(getTempFileCounts(kTestDataPath), Eq(0));
+    pool.shutdown();
+}
+
 
 }  // namespace dumpstate
 }  // namespace os
