@@ -89,12 +89,8 @@ status_t DisplayEventDispatcher::scheduleVsync() {
     return OK;
 }
 
-void DisplayEventDispatcher::requestLatestConfig() {
-    status_t status = mReceiver.requestLatestConfig();
-    if (status) {
-        ALOGW("Failed enable config events, status=%d", status);
-        return;
-    }
+void DisplayEventDispatcher::injectEvent(const DisplayEventReceiver::Event& event) {
+    mReceiver.sendEvents(&event, 1);
 }
 
 int DisplayEventDispatcher::getFd() const {
@@ -157,6 +153,9 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                     dispatchConfigChanged(ev.header.timestamp, ev.header.displayId,
                                           ev.config.configId, ev.config.vsyncPeriod);
                     break;
+                case DisplayEventReceiver::DISPLAY_EVENT_NULL:
+                    dispatchNullEvent(ev.header.timestamp, ev.header.displayId);
+                    break;
                 default:
                     ALOGW("dispatcher %p ~ ignoring unknown event type %#x", this, ev.header.type);
                     break;
@@ -168,4 +167,5 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
     }
     return gotVsync;
 }
+
 } // namespace android
