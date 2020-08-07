@@ -351,6 +351,7 @@ class RunDex2Oat : public ExecVHelper {
                bool enable_hidden_api_checks,
                bool generate_compact_dex,
                int dex_metadata_fd,
+               bool use_jitzygote_image,
                const char* compilation_reason) {
         // Get the relative path to the input file.
         const char* relative_input_file_name = get_location_from_path(input_file_name);
@@ -455,12 +456,7 @@ class RunDex2Oat : public ExecVHelper {
                 GetBoolProperty(kMinidebugInfoSystemProperty, kMinidebugInfoSystemPropertyDefault);
 
         std::string boot_image;
-        std::string use_jitzygote_image =
-            server_configurable_flags::GetServerConfigurableFlag(RUNTIME_NATIVE_BOOT_NAMESPACE,
-                                                                 ENABLE_JITZYGOTE_IMAGE,
-                                                                 /*default_value=*/ "");
-
-        if (use_jitzygote_image == "true" || IsBootClassPathProfilingEnable()) {
+        if (use_jitzygote_image) {
           boot_image = StringPrintf("--boot-image=%s", kJitZygoteImage);
         } else {
           boot_image = MapPropertyToArg("dalvik.vm.boot-image", "--boot-image=%s");
@@ -2220,6 +2216,12 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         }
     }
 
+    std::string jitzygote_flag = server_configurable_flags::GetServerConfigurableFlag(
+        RUNTIME_NATIVE_BOOT_NAMESPACE,
+        ENABLE_JITZYGOTE_IMAGE,
+        /*default_value=*/ "");
+    bool use_jitzygote_image = jitzygote_flag == "true" || IsBootClassPathProfilingEnable();
+
     LOG(VERBOSE) << "DexInv: --- BEGIN '" << dex_path << "' ---";
 
     RunDex2Oat runner(input_fd.get(),
@@ -2243,6 +2245,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                       enable_hidden_api_checks,
                       generate_compact_dex,
                       dex_metadata_fd.get(),
+                      use_jitzygote_image,
                       compilation_reason);
 
     pid_t pid = fork();
