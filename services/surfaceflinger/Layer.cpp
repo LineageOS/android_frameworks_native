@@ -39,6 +39,7 @@
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 #include <math.h>
+#include <private/android_filesystem_config.h>
 #include <renderengine/RenderEngine.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -139,6 +140,14 @@ Layer::Layer(const LayerCreationArgs& args)
 
     mCallingPid = args.callingPid;
     mCallingUid = args.callingUid;
+
+    if (mCallingUid == AID_GRAPHICS || mCallingUid == AID_SYSTEM) {
+        // If the system didn't send an ownerUid, use the callingUid for the ownerUid.
+        mOwnerUid = args.metadata.getInt32(METADATA_OWNER_UID, mCallingUid);
+    } else {
+        // A create layer request from a non system request cannot specify the owner uid
+        mOwnerUid = mCallingUid;
+    }
 }
 
 void Layer::onFirstRef() {
@@ -1669,8 +1678,8 @@ void Layer::dumpFrameEvents(std::string& result) {
 }
 
 void Layer::dumpCallingUidPid(std::string& result) const {
-    StringAppendF(&result, "Layer %s (%s) pid:%d uid:%d\n", getName().c_str(), getType(),
-                  mCallingPid, mCallingUid);
+    StringAppendF(&result, "Layer %s (%s) callingPid:%d callingUid:%d ownerUid:%d\n",
+                  getName().c_str(), getType(), mCallingPid, mCallingUid, mOwnerUid);
 }
 
 void Layer::onDisconnect() {
@@ -2343,6 +2352,8 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
         }
 
         layerInfo->set_is_relative_of(state.isRelativeOf);
+
+        layerInfo->set_owner_uid(mOwnerUid);
     }
 
     if (traceFlags & SurfaceTracing::TRACE_INPUT) {

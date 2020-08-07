@@ -731,7 +731,9 @@ private:
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack) REQUIRES(mStateLock);
 
-    void traverseLayersInLayerStack(ui::LayerStack, const LayerVector::Visitor&);
+    // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a
+    // matching ownerUid
+    void traverseLayersInLayerStack(ui::LayerStack, const int32_t uid, const LayerVector::Visitor&);
 
     sp<StartPropertySetThread> mStartPropertySetThread;
 

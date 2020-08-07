@@ -18,47 +18,12 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
-#include <private/android_filesystem_config.h>
 #include <thread>
 #include "LayerTransactionTest.h"
 
 namespace android {
 
 using android::hardware::graphics::common::V1_1::BufferUsage;
-
-TEST_F(LayerTransactionTest, SetFlagsSecureEUidSystem) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
-    Transaction()
-            .setFlags(layer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
-            .apply(true);
-    ASSERT_EQ(PERMISSION_DENIED, composer->captureDisplay(mCaptureArgs, mCaptureResults));
-
-    UIDFaker f(AID_SYSTEM);
-
-    // By default the system can capture screenshots with secure layers but they
-    // will be blacked out
-    ASSERT_EQ(NO_ERROR, composer->captureDisplay(mCaptureArgs, mCaptureResults));
-
-    {
-        SCOPED_TRACE("as system");
-        auto shot = screenshot();
-        shot->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
-    }
-
-    // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
-    // to receive them...we are expected to take care with the results.
-    DisplayCaptureArgs args;
-    args.displayToken = mDisplay;
-    args.captureSecureLayers = true;
-    ASSERT_EQ(NO_ERROR, composer->captureDisplay(args, mCaptureResults));
-    ASSERT_EQ(true, mCaptureResults.capturedSecureLayers);
-    ScreenCapture sc(mCaptureResults.buffer);
-    sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
-}
 
 TEST_F(LayerTransactionTest, SetTransformToDisplayInverse_BufferState) {
     sp<SurfaceControl> layer;
