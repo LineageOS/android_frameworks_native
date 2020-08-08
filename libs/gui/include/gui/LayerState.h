@@ -314,12 +314,14 @@ static inline int compare_type(const DisplayState& lhs, const DisplayState& rhs)
 bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* functionName);
 
 struct CaptureArgs {
+    const static int32_t UNSET_UID = -1;
     virtual ~CaptureArgs() = default;
 
     ui::PixelFormat pixelFormat{ui::PixelFormat::RGBA_8888};
     Rect sourceCrop;
     float frameScale{1};
     bool captureSecureLayers{false};
+    int32_t uid{UNSET_UID};
 
     virtual status_t write(Parcel& output) const;
     virtual status_t read(const Parcel& input);

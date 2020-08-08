@@ -241,7 +241,8 @@ void CompositionTest::captureScreenComposition() {
                                                 ui::Dataspace::V0_SRGB, ui::Transform::ROT_0);
 
     auto traverseLayers = [this](const LayerVector::Visitor& visitor) {
-        return mFlinger.traverseLayersInLayerStack(mDisplay->getLayerStack(), visitor);
+        return mFlinger.traverseLayersInLayerStack(mDisplay->getLayerStack(),
+                                                   CaptureArgs::UNSET_UID, visitor);
     };
 
     // TODO: Eliminate expensive/real allocation if possible.

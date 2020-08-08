@@ -74,6 +74,42 @@ protected:
     std::unique_ptr<ScreenCapture> mCapture;
 };
 
+TEST_F(ScreenCaptureTest, SetFlagsSecureEUidSystem) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32,
+                                ISurfaceComposerClient::eSecure |
+                                        ISurfaceComposerClient::eFXSurfaceBufferQueue));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
+
+    Transaction().show(layer).setLayer(layer, INT32_MAX).apply(true);
+
+    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
+    ASSERT_EQ(PERMISSION_DENIED, composer->captureDisplay(mCaptureArgs, mCaptureResults));
+
+    UIDFaker f(AID_SYSTEM);
+
+    // By default the system can capture screenshots with secure layers but they
+    // will be blacked out
+    ASSERT_EQ(NO_ERROR, composer->captureDisplay(mCaptureArgs, mCaptureResults));
+
+    {
+        SCOPED_TRACE("as system");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
+    // to receive them...we are expected to take care with the results.
+    DisplayCaptureArgs args;
+    args.displayToken = mDisplay;
+    args.captureSecureLayers = true;
+    ASSERT_EQ(NO_ERROR, composer->captureDisplay(args, mCaptureResults));
+    ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+    ScreenCapture sc(mCaptureResults.buffer);
+    sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
 TEST_F(ScreenCaptureTest, CaptureSingleLayer) {
     LayerCaptureArgs captureArgs;
     captureArgs.layerHandle = mBGSurfaceControl->getHandle();
@@ -492,6 +528,128 @@ TEST_F(ScreenCaptureTest, CaputureSecureLayer) {
     ScreenCapture::captureLayers(&mCapture, args);
     mCapture->expectColor(Rect(0, 0, 30, 30), Color::BLUE);
     mCapture->expectColor(Rect(30, 30, 60, 60), Color::RED);
+}
+
+TEST_F(ScreenCaptureTest, CaptureDisplayWithUid) {
+    uid_t fakeUid = 12345;
+
+    DisplayCaptureArgs captureArgs;
+    captureArgs.displayToken = mDisplay;
+
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
+                                                ISurfaceComposerClient::eFXSurfaceBufferQueue,
+                                                mBGSurfaceControl.get()));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
+
+    Transaction().show(layer).setLayer(layer, INT32_MAX).apply();
+
+    // Make sure red layer with the background layer is screenshot.
+    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    mCapture->expectBorder(Rect(0, 0, 32, 32), {63, 63, 195, 255});
+
+    // From non system uid, can't request screenshot without a specified uid.
+    UIDFaker f(fakeUid);
+    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
+    ASSERT_EQ(PERMISSION_DENIED, composer->captureDisplay(captureArgs, mCaptureResults));
+
+    // Make screenshot request with current uid set. No layers were created with the current
+    // uid so screenshot will be black.
+    captureArgs.uid = fakeUid;
+    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    mCapture->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+
+    sp<SurfaceControl> layerWithFakeUid;
+    // Create a new layer with the current uid
+    ASSERT_NO_FATAL_FAILURE(layerWithFakeUid =
+                                    createLayer("new test layer", 32, 32,
+                                                ISurfaceComposerClient::eFXSurfaceBufferQueue,
+                                                mBGSurfaceControl.get()));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layerWithFakeUid, Color::GREEN, 32, 32));
+    Transaction()
+            .show(layerWithFakeUid)
+            .setLayer(layerWithFakeUid, INT32_MAX)
+            .setPosition(layerWithFakeUid, 128, 128)
+            .apply();
+
+    // Screenshot from the fakeUid caller with the uid requested allows the layer
+    // with that uid to be screenshotted. Everything else is black
+    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(128, 128, 160, 160), Color::GREEN);
+    mCapture->expectBorder(Rect(128, 128, 160, 160), Color::BLACK);
+}
+
+TEST_F(ScreenCaptureTest, CaptureLayerWithUid) {
+    uid_t fakeUid = 12345;
+
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
+                                                ISurfaceComposerClient::eFXSurfaceBufferQueue,
+                                                mBGSurfaceControl.get()));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
+
+    Transaction().show(layer).setLayer(layer, INT32_MAX).apply();
+
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = mBGSurfaceControl->getHandle();
+    captureArgs.childrenOnly = false;
+
+    // Make sure red layer with the background layer is screenshot.
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    mCapture->expectBorder(Rect(0, 0, 32, 32), {63, 63, 195, 255});
+
+    // From non system uid, can't request screenshot without a specified uid.
+    std::unique_ptr<UIDFaker> uidFaker = std::make_unique<UIDFaker>(fakeUid);
+
+    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
+    ASSERT_EQ(PERMISSION_DENIED, composer->captureLayers(captureArgs, mCaptureResults));
+
+    // Make screenshot request with current uid set. No layers were created with the current
+    // uid so screenshot will be black.
+    captureArgs.uid = fakeUid;
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(0, 0, 32, 32), Color::TRANSPARENT);
+    mCapture->expectBorder(Rect(0, 0, 32, 32), Color::TRANSPARENT);
+
+    sp<SurfaceControl> layerWithFakeUid;
+    // Create a new layer with the current uid
+    ASSERT_NO_FATAL_FAILURE(layerWithFakeUid =
+                                    createLayer("new test layer", 32, 32,
+                                                ISurfaceComposerClient::eFXSurfaceBufferQueue,
+                                                mBGSurfaceControl.get()));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layerWithFakeUid, Color::GREEN, 32, 32));
+    Transaction()
+            .show(layerWithFakeUid)
+            .setLayer(layerWithFakeUid, INT32_MAX)
+            .setPosition(layerWithFakeUid, 128, 128)
+            // reparent a layer that was created with a different uid to the new layer.
+            .reparent(layer, layerWithFakeUid->getHandle())
+            .apply();
+
+    // Screenshot from the fakeUid caller with the uid requested allows the layer
+    // with that uid to be screenshotted. The child layer is skipped since it was created
+    // from a different uid.
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(128, 128, 160, 160), Color::GREEN);
+    mCapture->expectBorder(Rect(128, 128, 160, 160), Color::TRANSPARENT);
+
+    // Clear fake calling uid so it's back to system.
+    uidFaker = nullptr;
+    // Screenshot from the test caller with the uid requested allows the layer
+    // with that uid to be screenshotted. The child layer is skipped since it was created
+    // from a different uid.
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(128, 128, 160, 160), Color::GREEN);
+    mCapture->expectBorder(Rect(128, 128, 160, 160), Color::TRANSPARENT);
+
+    // Screenshot from the fakeUid caller with no uid requested allows everything to be screenshot.
+    captureArgs.uid = -1;
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(128, 128, 160, 160), Color::RED);
+    mCapture->expectBorder(Rect(128, 128, 160, 160), {63, 63, 195, 255});
 }
 
 // In the following tests we verify successful skipping of a parent layer,
