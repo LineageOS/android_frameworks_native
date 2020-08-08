@@ -58,6 +58,9 @@ public:
     // resets this BitTube's receive file descriptor to receiveFd
     void setReceiveFd(base::unique_fd&& receiveFd);
 
+    // resets this BitTube's send file descriptor to sendFd
+    void setSendFd(base::unique_fd&& sendFd);
+
     // send objects (sized blobs). All objects are guaranteed to be written or the call fails.
     template <typename T>
     static ssize_t sendObjects(BitTube* tube, T const* events, size_t count) {
@@ -85,7 +88,7 @@ private:
     // the message, excess data is silently discarded.
     ssize_t read(void* vaddr, size_t size);
 
-    base::unique_fd mSendFd;
+    mutable base::unique_fd mSendFd;
     mutable base::unique_fd mReceiveFd;
 
     static ssize_t sendObjects(BitTube* tube, void const* events, size_t count, size_t objSize);

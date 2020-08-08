@@ -43,6 +43,7 @@ using namespace android;
 
 constexpr char kExistingNonNdkService[] = "SurfaceFlinger";
 constexpr char kBinderNdkUnitTestService[] = "BinderNdkUnitTest";
+constexpr char kLazyBinderNdkUnitTestService[] = "LazyBinderNdkUnitTest";
 
 class MyBinderNdkUnitTest : public aidl::BnBinderNdkUnitTest {
     ndk::ScopedAStatus repeatInt(int32_t in, int32_t* out) {
@@ -143,11 +144,31 @@ int manualThreadPoolService(const char* instance) {
     return 1;
 }
 
-// This is too slow
-// TEST(NdkBinder, GetServiceThatDoesntExist) {
-//     sp<IFoo> foo = IFoo::getService("asdfghkl;");
-//     EXPECT_EQ(nullptr, foo.get());
-// }
+int lazyService(const char* instance) {
+    ABinderProcess_setThreadPoolMaxThreadCount(0);
+    // Wait to register this service to make sure the main test process will
+    // actually wait for the service to be available. Tested with sleep(60),
+    // and reduced for sake of time.
+    sleep(1);
+    // Strong reference to MyBinderNdkUnitTest kept by service manager.
+    // This is just for testing, it has no corresponding init behavior.
+    auto service = ndk::SharedRefBase::make<MyBinderNdkUnitTest>();
+    auto binder = service->asBinder();
+
+    binder_status_t status = AServiceManager_registerLazyService(binder.get(), instance);
+    if (status != STATUS_OK) {
+        LOG(FATAL) << "Could not register: " << status << " " << instance;
+    }
+
+    ABinderProcess_joinThreadPool();
+
+    return 1;  // should not return
+}
+
+TEST(NdkBinder, GetServiceThatDoesntExist) {
+    sp<IFoo> foo = IFoo::getService("asdfghkl;");
+    EXPECT_EQ(nullptr, foo.get());
+}
 
 TEST(NdkBinder, CheckServiceThatDoesntExist) {
     AIBinder* binder = AServiceManager_checkService("asdfghkl;");
@@ -162,6 +183,26 @@ TEST(NdkBinder, CheckServiceThatDoesExist) {
     AIBinder_decStrong(binder);
 }
 
+TEST(NdkBinder, UnimplementedDump) {
+    sp<IFoo> foo = IFoo::getService(IFoo::kSomeInstanceName);
+    ASSERT_NE(foo, nullptr);
+    AIBinder* binder = foo->getBinder();
+    EXPECT_EQ(OK, AIBinder_dump(binder, STDOUT_FILENO, nullptr, 0));
+    AIBinder_decStrong(binder);
+}
+
+TEST(NdkBinder, UnimplementedShell) {
+    // libbinder_ndk doesn't support calling shell, so we are calling from the
+    // libbinder across processes to the NDK service which doesn't implement
+    // shell
+    static const sp<android::IServiceManager> sm(android::defaultServiceManager());
+    sp<IBinder> testService = sm->getService(String16(IFoo::kSomeInstanceName));
+
+    Vector<String16> argsVec;
+    EXPECT_EQ(OK, IBinder::shellCommand(testService, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
+                                        argsVec, nullptr, nullptr));
+}
+
 TEST(NdkBinder, DoubleNumber) {
     sp<IFoo> foo = IFoo::getService(IFoo::kSomeInstanceName);
     ASSERT_NE(foo, nullptr);
@@ -169,6 +210,33 @@ TEST(NdkBinder, DoubleNumber) {
     int32_t out;
     EXPECT_EQ(STATUS_OK, foo->doubleNumber(1, &out));
     EXPECT_EQ(2, out);
+}
+
+TEST(NdkBinder, GetLazyService) {
+    // Not declared in the vintf manifest
+    ASSERT_FALSE(AServiceManager_isDeclared(kLazyBinderNdkUnitTestService));
+    ndk::SpAIBinder binder(AServiceManager_waitForService(kLazyBinderNdkUnitTestService));
+    std::shared_ptr<aidl::IBinderNdkUnitTest> service =
+            aidl::IBinderNdkUnitTest::fromBinder(binder);
+    ASSERT_NE(service, nullptr);
+
+    EXPECT_EQ(STATUS_OK, AIBinder_ping(binder.get()));
+}
+
+// This is too slow
+TEST(NdkBinder, CheckLazyServiceShutDown) {
+    ndk::SpAIBinder binder(AServiceManager_waitForService(kLazyBinderNdkUnitTestService));
+    std::shared_ptr<aidl::IBinderNdkUnitTest> service =
+            aidl::IBinderNdkUnitTest::fromBinder(binder);
+    ASSERT_NE(service, nullptr);
+
+    EXPECT_EQ(STATUS_OK, AIBinder_ping(binder.get()));
+    binder = nullptr;
+    service = nullptr;
+    IPCThreadState::self()->flushCommands();
+    // Make sure the service is dead after some time of no use
+    sleep(10);
+    ASSERT_EQ(nullptr, AServiceManager_checkService(kLazyBinderNdkUnitTestService));
 }
 
 void LambdaOnDeath(void* cookie) {
@@ -474,6 +542,10 @@ int main(int argc, char* argv[]) {
     if (fork() == 0) {
         prctl(PR_SET_PDEATHSIG, SIGHUP);
         return manualPollingService(IFoo::kSomeInstanceName);
+    }
+    if (fork() == 0) {
+        prctl(PR_SET_PDEATHSIG, SIGHUP);
+        return lazyService(kLazyBinderNdkUnitTestService);
     }
     if (fork() == 0) {
         prctl(PR_SET_PDEATHSIG, SIGHUP);

@@ -44,8 +44,8 @@ struct ReparentForDrawing {
 
 LayerRenderArea::LayerRenderArea(SurfaceFlinger& flinger, sp<Layer> layer, const Rect& crop,
                                  ui::Size reqSize, ui::Dataspace reqDataSpace, bool childrenOnly,
-                                 const Rect& displayViewport)
-      : RenderArea(reqSize, CaptureFill::CLEAR, reqDataSpace, displayViewport),
+                                 const Rect& displayViewport, bool allowSecureLayers)
+      : RenderArea(reqSize, CaptureFill::CLEAR, reqDataSpace, displayViewport, allowSecureLayers),
         mLayer(std::move(layer)),
         mCrop(crop),
         mFlinger(flinger),
@@ -68,7 +68,7 @@ int LayerRenderArea::getWidth() const {
 }
 
 bool LayerRenderArea::isSecure() const {
-    return false;
+    return mAllowSecureLayers;
 }
 
 bool LayerRenderArea::needsFiltering() const {

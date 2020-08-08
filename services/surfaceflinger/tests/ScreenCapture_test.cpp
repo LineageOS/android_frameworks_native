@@ -18,6 +18,8 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
+#include <private/android_filesystem_config.h>
+
 #include "LayerTransactionTest.h"
 
 namespace android {
@@ -73,16 +75,15 @@ protected:
 };
 
 TEST_F(ScreenCaptureTest, CaptureSingleLayer) {
-    auto bgHandle = mBGSurfaceControl->getHandle();
-    ScreenCapture::captureLayers(&mCapture, bgHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = mBGSurfaceControl->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectBGColor(0, 0);
     // Doesn't capture FG layer which is at 64, 64
     mCapture->expectBGColor(64, 64);
 }
 
 TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
-    auto fgHandle = mFGSurfaceControl->getHandle();
-
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
@@ -90,7 +91,9 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
     SurfaceComposerClient::Transaction().show(child).apply(true);
 
     // Captures mFGSurfaceControl layer and its child.
-    ScreenCapture::captureLayers(&mCapture, fgHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = mFGSurfaceControl->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectFGColor(10, 10);
     mCapture->expectChildColor(0, 0);
 }
@@ -105,7 +108,10 @@ TEST_F(ScreenCaptureTest, CaptureLayerChildOnly) {
     SurfaceComposerClient::Transaction().show(child).apply(true);
 
     // Captures mFGSurfaceControl's child
-    ScreenCapture::captureChildLayers(&mCapture, fgHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = fgHandle;
+    captureArgs.childrenOnly = true;
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->checkPixel(10, 10, 0, 0, 0);
     mCapture->expectChildColor(0, 0);
 }
@@ -128,7 +134,11 @@ TEST_F(ScreenCaptureTest, CaptureLayerExclude) {
             .apply(true);
 
     // Child2 would be visible but its excluded, so we should see child1 color instead.
-    ScreenCapture::captureChildLayersExcluding(&mCapture, fgHandle, {child2->getHandle()});
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = fgHandle;
+    captureArgs.childrenOnly = true;
+    captureArgs.excludeHandles = {child2->getHandle()};
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->checkPixel(10, 10, 0, 0, 0);
     mCapture->checkPixel(0, 0, 200, 200, 200);
 }
@@ -156,7 +166,11 @@ TEST_F(ScreenCaptureTest, CaptureLayerExcludeTree) {
             .apply(true);
 
     // Child2 would be visible but its excluded, so we should see child1 color instead.
-    ScreenCapture::captureChildLayersExcluding(&mCapture, fgHandle, {child2->getHandle()});
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = fgHandle;
+    captureArgs.childrenOnly = true;
+    captureArgs.excludeHandles = {child2->getHandle()};
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->checkPixel(10, 10, 0, 0, 0);
     mCapture->checkPixel(0, 0, 200, 200, 200);
 }
@@ -169,18 +183,17 @@ TEST_F(ScreenCaptureTest, CaptureTransparent) {
 
     SurfaceComposerClient::Transaction().show(child).apply(true);
 
-    auto childHandle = child->getHandle();
-
     // Captures child
-    ScreenCapture::captureLayers(&mCapture, childHandle, {0, 0, 10, 20});
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = child->getHandle();
+    captureArgs.sourceCrop = {0, 0, 10, 20};
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectColor(Rect(0, 0, 9, 9), {200, 200, 200, 255});
     // Area outside of child's bounds is transparent.
     mCapture->expectColor(Rect(0, 10, 9, 19), {0, 0, 0, 0});
 }
 
 TEST_F(ScreenCaptureTest, DontCaptureRelativeOutsideTree) {
-    auto fgHandle = mFGSurfaceControl->getHandle();
-
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     ASSERT_NE(nullptr, child.get()) << "failed to create surface";
@@ -191,19 +204,19 @@ TEST_F(ScreenCaptureTest, DontCaptureRelativeOutsideTree) {
     SurfaceComposerClient::Transaction()
             .show(child)
             // Set relative layer above fg layer so should be shown above when computing all layers.
-            .setRelativeLayer(relative, fgHandle, 1)
+            .setRelativeLayer(relative, mFGSurfaceControl->getHandle(), 1)
             .show(relative)
             .apply(true);
 
     // Captures mFGSurfaceControl layer and its child. Relative layer shouldn't be captured.
-    ScreenCapture::captureLayers(&mCapture, fgHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = mFGSurfaceControl->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectFGColor(10, 10);
     mCapture->expectChildColor(0, 0);
 }
 
 TEST_F(ScreenCaptureTest, CaptureRelativeInTree) {
-    auto fgHandle = mFGSurfaceControl->getHandle();
-
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     sp<SurfaceControl> relative = createSurface(mClient, "Relative surface", 10, 10,
@@ -222,7 +235,9 @@ TEST_F(ScreenCaptureTest, CaptureRelativeInTree) {
 
     // Captures mFGSurfaceControl layer and its children. Relative layer is a child of fg so its
     // relative value should be taken into account, placing it above child layer.
-    ScreenCapture::captureLayers(&mCapture, fgHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = mFGSurfaceControl->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectFGColor(10, 10);
     // Relative layer is showing on top of child layer
     mCapture->expectColor(Rect(0, 0, 9, 9), {100, 100, 100, 255});
@@ -232,10 +247,10 @@ TEST_F(ScreenCaptureTest, CaptureBoundlessLayerWithSourceCrop) {
     sp<SurfaceControl> child = createColorLayer("Child layer", Color::RED, mFGSurfaceControl.get());
     SurfaceComposerClient::Transaction().show(child).apply(true);
 
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-    Rect sourceCrop(0, 0, 10, 10);
-    sp<IBinder> childHandle = child->getHandle();
-    ScreenCapture::captureLayers(&mCapture, childHandle, sourceCrop);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = child->getHandle();
+    captureArgs.sourceCrop = {0, 0, 10, 10};
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     mCapture->expectColor(Rect(0, 0, 9, 9), Color::RED);
 }
@@ -245,10 +260,9 @@ TEST_F(ScreenCaptureTest, CaptureBoundedLayerWithoutSourceCrop) {
     Rect layerCrop(0, 0, 10, 10);
     SurfaceComposerClient::Transaction().setCrop_legacy(child, layerCrop).show(child).apply(true);
 
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-    sp<GraphicBuffer> outBuffer;
-    sp<IBinder> childHandle = child->getHandle();
-    ScreenCapture::captureLayers(&mCapture, childHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = child->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     mCapture->expectColor(Rect(0, 0, 9, 9), Color::RED);
 }
@@ -289,8 +303,6 @@ TEST_F(ScreenCaptureTest, CaptureBufferLayerWithoutBufferFails) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
-    auto fgHandle = mFGSurfaceControl->getHandle();
-
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
@@ -306,7 +318,9 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
             .apply(true);
 
     // Captures mFGSurfaceControl, its child, and the grandchild.
-    ScreenCapture::captureLayers(&mCapture, fgHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = mFGSurfaceControl->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectFGColor(10, 10);
     mCapture->expectChildColor(0, 0);
     mCapture->checkPixel(5, 5, 50, 50, 50);
@@ -316,12 +330,13 @@ TEST_F(ScreenCaptureTest, CaptureChildOnly) {
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     TransactionUtils::fillSurfaceRGBA8(child, 200, 200, 200);
-    auto childHandle = child->getHandle();
 
     SurfaceComposerClient::Transaction().setPosition(child, 5, 5).show(child).apply(true);
 
     // Captures only the child layer, and not the parent.
-    ScreenCapture::captureLayers(&mCapture, childHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = child->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectChildColor(0, 0);
     mCapture->expectChildColor(9, 9);
 }
@@ -342,10 +357,10 @@ TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
             .show(grandchild)
             .apply(true);
 
-    auto grandchildHandle = grandchild->getHandle();
-
     // Captures only the grandchild.
-    ScreenCapture::captureLayers(&mCapture, grandchildHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = grandchild->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->checkPixel(0, 0, 50, 50, 50);
     mCapture->checkPixel(4, 4, 50, 50, 50);
 }
@@ -364,18 +379,18 @@ TEST_F(ScreenCaptureTest, CaptureCrop) {
             .show(blueLayer)
             .apply(true);
 
-    auto redLayerHandle = redLayer->getHandle();
-
     // Capturing full screen should have both red and blue are visible.
-    ScreenCapture::captureLayers(&mCapture, redLayerHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = redLayer->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectColor(Rect(0, 0, 29, 29), Color::BLUE);
     // red area below the blue area
     mCapture->expectColor(Rect(0, 30, 59, 59), Color::RED);
     // red area to the right of the blue area
     mCapture->expectColor(Rect(30, 0, 59, 59), Color::RED);
 
-    const Rect crop = Rect(0, 0, 30, 30);
-    ScreenCapture::captureLayers(&mCapture, redLayerHandle, crop);
+    captureArgs.sourceCrop = {0, 0, 30, 30};
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     // Capturing the cropped screen, cropping out the shown red area, should leave only the blue
     // area visible.
     mCapture->expectColor(Rect(0, 0, 29, 29), Color::BLUE);
@@ -396,17 +411,18 @@ TEST_F(ScreenCaptureTest, CaptureSize) {
             .show(blueLayer)
             .apply(true);
 
-    auto redLayerHandle = redLayer->getHandle();
-
     // Capturing full screen should have both red and blue are visible.
-    ScreenCapture::captureLayers(&mCapture, redLayerHandle);
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = redLayer->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectColor(Rect(0, 0, 29, 29), Color::BLUE);
     // red area below the blue area
     mCapture->expectColor(Rect(0, 30, 59, 59), Color::RED);
     // red area to the right of the blue area
     mCapture->expectColor(Rect(30, 0, 59, 59), Color::RED);
 
-    ScreenCapture::captureLayers(&mCapture, redLayerHandle, Rect::EMPTY_RECT, 0.5);
+    captureArgs.frameScale = 0.5f;
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
     // Capturing the downsized area (30x30) should leave both red and blue but in a smaller area.
     mCapture->expectColor(Rect(0, 0, 14, 14), Color::BLUE);
     // red area below the blue area
@@ -435,6 +451,49 @@ TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
     ASSERT_EQ(NAME_NOT_FOUND, sf->captureLayers(args, captureResults));
 }
 
+TEST_F(ScreenCaptureTest, CaputureSecureLayer) {
+    sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60, 0);
+    sp<SurfaceControl> secureLayer =
+            createLayer(String8("Secure surface"), 30, 30,
+                        ISurfaceComposerClient::eSecure |
+                                ISurfaceComposerClient::eFXSurfaceBufferQueue,
+                        redLayer.get());
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(secureLayer, Color::BLUE, 30, 30));
+
+    auto redLayerHandle = redLayer->getHandle();
+    Transaction()
+            .show(redLayer)
+            .show(secureLayer)
+            .setLayerStack(redLayer, 0)
+            .setLayer(redLayer, INT32_MAX)
+            .apply();
+
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+
+    LayerCaptureArgs args;
+    args.layerHandle = redLayerHandle;
+    args.childrenOnly = false;
+    ScreenCaptureResults captureResults;
+
+    // Call from outside system with secure layers will result in permission denied
+    ASSERT_EQ(PERMISSION_DENIED, sf->captureLayers(args, captureResults));
+
+    UIDFaker f(AID_SYSTEM);
+
+    // From system request, only red layer will be screenshot since the blue layer is secure.
+    // Black will be present where the secure layer is.
+    ScreenCapture::captureLayers(&mCapture, args);
+    mCapture->expectColor(Rect(0, 0, 30, 30), Color::BLACK);
+    mCapture->expectColor(Rect(30, 30, 60, 60), Color::RED);
+
+    // Passing flag secure so the blue layer should be screenshot too.
+    args.captureSecureLayers = true;
+    ScreenCapture::captureLayers(&mCapture, args);
+    mCapture->expectColor(Rect(0, 0, 30, 30), Color::BLUE);
+    mCapture->expectColor(Rect(30, 30, 60, 60), Color::RED);
+}
+
 // In the following tests we verify successful skipping of a parent layer,
 // so we use the same verification logic and only change how we mutate
 // the parent layer to verify that various properties are ignored.
@@ -456,8 +515,10 @@ public:
 
         // Verify child layer does not inherit any of the properties of its
         // parent when its screenshot is captured.
-        auto fgHandle = mFGSurfaceControl->getHandle();
-        ScreenCapture::captureChildLayers(&mCapture, fgHandle);
+        LayerCaptureArgs captureArgs;
+        captureArgs.layerHandle = mFGSurfaceControl->getHandle();
+        captureArgs.childrenOnly = true;
+        ScreenCapture::captureLayers(&mCapture, captureArgs);
         mCapture->checkPixel(10, 10, 0, 0, 0);
         mCapture->expectChildColor(0, 0);
 
