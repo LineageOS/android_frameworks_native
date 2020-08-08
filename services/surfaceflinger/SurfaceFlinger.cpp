@@ -3009,6 +3009,11 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
             mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).getVsyncPeriod();
     mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, primaryDisplayId, currentConfig,
                                               vsyncPeriod);
+    static auto ignorePresentFences =
+            base::GetBoolProperty("debug.sf.vsync_reactor_ignore_present_fences"s, false);
+    mScheduler->setIgnorePresentFences(
+            ignorePresentFences ||
+            getHwComposer().hasCapability(hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE));
 }
 
 void SurfaceFlinger::updatePhaseConfiguration(const RefreshRate& refreshRate) {
