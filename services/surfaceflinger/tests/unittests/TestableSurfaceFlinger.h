@@ -343,9 +343,9 @@ public:
                                                 regionSampling, captureResults);
     }
 
-    auto traverseLayersInLayerStack(ui::LayerStack layerStack,
+    auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,
                                     const LayerVector::Visitor& visitor) {
-        return mFlinger->SurfaceFlinger::traverseLayersInLayerStack(layerStack, visitor);
+        return mFlinger->SurfaceFlinger::traverseLayersInLayerStack(layerStack, uid, visitor);
     }
 
     auto getDisplayNativePrimaries(const sp<IBinder>& displayToken,

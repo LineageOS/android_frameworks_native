@@ -509,7 +509,8 @@ status_t CaptureArgs::write(Parcel& output) const {
     status_t status = output.writeInt32(static_cast<int32_t>(pixelFormat)) ?:
         output.write(sourceCrop) ?:
         output.writeFloat(frameScale) ?:
-        output.writeBool(captureSecureLayers);
+        output.writeBool(captureSecureLayers) ?:
+        output.writeInt32(uid);
     return status;
 }
 
@@ -518,7 +519,8 @@ status_t CaptureArgs::read(const Parcel& input) {
     status_t status = input.readInt32(&format) ?:
         input.read(sourceCrop) ?:
         input.readFloat(&frameScale) ?:
-        input.readBool(&captureSecureLayers);
+        input.readBool(&captureSecureLayers) ?:
+        input.readInt32(&uid);
 
     pixelFormat = static_cast<ui::PixelFormat>(format);
     return status;
