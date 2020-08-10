@@ -946,7 +946,6 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
 
     const auto& outputState = getState();
     const Region viewportRegion(outputState.viewport);
-    const bool useIdentityTransform = false;
     bool firstLayer = true;
     // Used when a layer clears part of the buffer.
     Region stubRegion;
@@ -984,7 +983,6 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
         if (clientComposition || clearClientComposition) {
             compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
                     clip,
-                    useIdentityTransform,
                     layer->needsFiltering() || outputState.needsFiltering,
                     outputState.isSecure,
                     supportsProtectedContent,
