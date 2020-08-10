@@ -1237,12 +1237,12 @@ static Dumpstate::RunStatus RunDumpsysNormal() {
 
 static void DumpHals() {
     if (!ds.IsZipping()) {
-        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z", "--debug"},
+        RunCommand("HARDWARE HALS", {"lshal", "--all", "--types=all", "--debug"},
                    CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
         return;
     }
     DurationReporter duration_reporter("DUMP HALS");
-    RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z"},
+    RunCommand("HARDWARE HALS", {"lshal", "--all", "--types=all"},
                CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
 
     using android::hidl::manager::V1_0::IServiceManager;

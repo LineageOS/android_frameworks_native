@@ -35,19 +35,25 @@ using android::procpartition::Partition;
 using Pids = std::vector<int32_t>;
 
 enum class TableColumnType : unsigned int {
-    INTERFACE_NAME,
+    INTERFACE_NAME = 0,
     TRANSPORT,
     SERVER_PID,
-    SERVER_CMD,
     SERVER_ADDR,
-    CLIENT_PIDS,
-    CLIENT_CMDS,
     ARCH,
     THREADS,
     RELEASED,
     HASH,
     VINTF,
     SERVICE_STATUS,
+    CLIENT_PIDS,
+
+    // Not a real TableColumnType. Used to determine all TableColumnTypes.
+    LAST,
+
+    // Not included in all TableColumnTypes because they replace *PID(S) when the
+    // --cmdline option is set.
+    SERVER_CMD,
+    CLIENT_CMDS,
 };
 
 enum : unsigned int {
