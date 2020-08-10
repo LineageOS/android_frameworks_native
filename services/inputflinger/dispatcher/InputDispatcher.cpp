@@ -3947,7 +3947,7 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
             }
             mFocusedDisplayId = displayId;
 
-            // Sanity check
+            // Find new focused window and validate
             sp<InputWindowHandle> newFocusedWindowHandle =
                     getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
             notifyFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
