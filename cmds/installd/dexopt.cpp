@@ -320,7 +320,8 @@ static bool IsBootClassPathProfilingEnable() {
 
 class RunDex2Oat : public ExecVHelper {
   public:
-    RunDex2Oat(int zip_fd,
+    RunDex2Oat(const char* dex2oat_bin,
+               int zip_fd,
                int oat_fd,
                int input_vdex_fd,
                int output_vdex_fd,
@@ -333,7 +334,6 @@ class RunDex2Oat : public ExecVHelper {
                bool debuggable,
                bool post_bootcomplete,
                bool for_restore,
-               bool background_job_compile,
                int profile_fd,
                const char* class_loader_context,
                const std::string& class_loader_context_fds,
@@ -428,19 +428,6 @@ class RunDex2Oat : public ExecVHelper {
 
         std::string dex2oat_large_app_threshold_arg =
             MapPropertyToArg("dalvik.vm.dex2oat-very-large", "--very-large-app-threshold=%s");
-
-
-
-        // Decide whether to use dex2oat64.
-        bool use_dex2oat64 = false;
-        // Check whether the device even supports 64-bit ABIs.
-        if (!GetProperty("ro.product.cpu.abilist64", "").empty()) {
-          use_dex2oat64 = GetBoolProperty("dalvik.vm.dex2oat64.enabled", false);
-        }
-        const char* dex2oat_bin = select_execution_binary(
-            (use_dex2oat64 ? kDex2oat64Path : kDex2oat32Path),
-            (use_dex2oat64 ? kDex2oatDebug64Path : kDex2oatDebug32Path),
-            background_job_compile);
 
         bool generate_minidebug_info = kEnableMinidebugInfo &&
                 GetBoolProperty(kMinidebugInfoSystemProperty, kMinidebugInfoSystemPropertyDefault);
@@ -2212,9 +2199,21 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         /*default_value=*/ "");
     bool use_jitzygote_image = jitzygote_flag == "true" || IsBootClassPathProfilingEnable();
 
+    // Decide whether to use dex2oat64.
+    bool use_dex2oat64 = false;
+    // Check whether the device even supports 64-bit ABIs.
+    if (!GetProperty("ro.product.cpu.abilist64", "").empty()) {
+      use_dex2oat64 = GetBoolProperty("dalvik.vm.dex2oat64.enabled", false);
+    }
+    const char* dex2oat_bin = select_execution_binary(
+        (use_dex2oat64 ? kDex2oat64Path : kDex2oat32Path),
+        (use_dex2oat64 ? kDex2oatDebug64Path : kDex2oatDebug32Path),
+        background_job_compile);
+
     LOG(VERBOSE) << "DexInv: --- BEGIN '" << dex_path << "' ---";
 
-    RunDex2Oat runner(input_fd.get(),
+    RunDex2Oat runner(dex2oat_bin,
+                      input_fd.get(),
                       out_oat_fd.get(),
                       in_vdex_fd.get(),
                       out_vdex_fd.get(),
@@ -2227,7 +2226,6 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                       debuggable,
                       boot_complete,
                       for_restore,
-                      background_job_compile,
                       reference_profile_fd.get(),
                       class_loader_context,
                       join_fds(context_input_fds),
