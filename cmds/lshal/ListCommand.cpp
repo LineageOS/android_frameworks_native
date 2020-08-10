@@ -916,6 +916,18 @@ void ListCommand::initFetchTypes() {
     }
 }
 
+// Get all values of enum type T, assuming the first value is 0 and the last value is T::LAST.
+// T::LAST is not included in the returned list.
+template <typename T>
+std::vector<T> GetAllValues() {
+    using BaseType = std::underlying_type_t<T>;
+    std::vector<T> ret;
+    for (BaseType i = 0; i < static_cast<BaseType>(T::LAST); ++i) {
+        ret.push_back(static_cast<T>(i));
+    }
+    return ret;
+}
+
 void ListCommand::registerAllOptions() {
     int v = mOptions.size();
     // A list of acceptable command line options
@@ -989,6 +1001,15 @@ void ListCommand::registerAllOptions() {
        "    - declared: only declared in VINTF manifest but is not registered to hwservicemanager;\n"
        "    - N/A: no information for passthrough HALs."});
 
+    mOptions.push_back({'A', "all", no_argument, v++,
+                        [](ListCommand* thiz, const char*) {
+                            auto allColumns = GetAllValues<TableColumnType>();
+                            thiz->mSelectedColumns.insert(thiz->mSelectedColumns.end(),
+                                                          allColumns.begin(), allColumns.end());
+                            return OK;
+                        },
+                        "print all columns"});
+
     // long options without short alternatives
     mOptions.push_back({'\0', "init-vintf", no_argument, v++, [](ListCommand* thiz, const char* arg) {
         thiz->mVintf = true;
@@ -1019,46 +1040,55 @@ void ListCommand::registerAllOptions() {
         thiz->mNeat = true;
         return OK;
     }, "output is machine parsable (no explanatory text).\nCannot be used with --debug."});
-    mOptions.push_back({'\0', "types", required_argument, v++, [](ListCommand* thiz, const char* arg) {
-        if (!arg) { return USAGE; }
+    mOptions.push_back(
+            {'\0', "types", required_argument, v++,
+             [](ListCommand* thiz, const char* arg) {
+                 if (!arg) {
+                     return USAGE;
+                 }
 
-        static const std::map<std::string, HalType> kHalTypeMap {
-            {"binderized", HalType::BINDERIZED_SERVICES},
-            {"b", HalType::BINDERIZED_SERVICES},
-            {"passthrough_clients", HalType::PASSTHROUGH_CLIENTS},
-            {"c", HalType::PASSTHROUGH_CLIENTS},
-            {"passthrough_libs", HalType::PASSTHROUGH_LIBRARIES},
-            {"l", HalType::PASSTHROUGH_LIBRARIES},
-            {"vintf", HalType::VINTF_MANIFEST},
-            {"v", HalType::VINTF_MANIFEST},
-            {"lazy", HalType::LAZY_HALS},
-            {"z", HalType::LAZY_HALS},
-        };
+                 static const std::map<std::string, std::vector<HalType>> kHalTypeMap{
+                         {"binderized", {HalType::BINDERIZED_SERVICES}},
+                         {"b", {HalType::BINDERIZED_SERVICES}},
+                         {"passthrough_clients", {HalType::PASSTHROUGH_CLIENTS}},
+                         {"c", {HalType::PASSTHROUGH_CLIENTS}},
+                         {"passthrough_libs", {HalType::PASSTHROUGH_LIBRARIES}},
+                         {"l", {HalType::PASSTHROUGH_LIBRARIES}},
+                         {"vintf", {HalType::VINTF_MANIFEST}},
+                         {"v", {HalType::VINTF_MANIFEST}},
+                         {"lazy", {HalType::LAZY_HALS}},
+                         {"z", {HalType::LAZY_HALS}},
+                         {"all", GetAllValues<HalType>()},
+                         {"a", GetAllValues<HalType>()},
+                 };
 
-        std::vector<std::string> halTypesArgs = split(std::string(arg), ',');
-        for (const auto& halTypeArg : halTypesArgs) {
-            if (halTypeArg.empty()) continue;
+                 std::vector<std::string> halTypesArgs = split(std::string(arg), ',');
+                 for (const auto& halTypeArg : halTypesArgs) {
+                     if (halTypeArg.empty()) continue;
 
-            const auto& halTypeIter = kHalTypeMap.find(halTypeArg);
-            if (halTypeIter == kHalTypeMap.end()) {
+                     const auto& halTypeIter = kHalTypeMap.find(halTypeArg);
+                     if (halTypeIter == kHalTypeMap.end()) {
+                         thiz->err() << "Unrecognized HAL type: " << halTypeArg << std::endl;
+                         return USAGE;
+                     }
 
-                thiz->err() << "Unrecognized HAL type: " << halTypeArg << std::endl;
-                return USAGE;
-            }
+                     // Append unique (non-repeated) HAL types to the reporting list
+                     for (auto halType : halTypeIter->second) {
+                         if (std::find(thiz->mListTypes.begin(), thiz->mListTypes.end(), halType) ==
+                             thiz->mListTypes.end()) {
+                             thiz->mListTypes.push_back(halType);
+                         }
+                     }
+                 }
 
-            // Append unique (non-repeated) HAL types to the reporting list
-            HalType halType = halTypeIter->second;
-            if (std::find(thiz->mListTypes.begin(), thiz->mListTypes.end(), halType) ==
-                thiz->mListTypes.end()) {
-                thiz->mListTypes.push_back(halType);
-            }
-        }
-
-        if (thiz->mListTypes.empty()) { return USAGE; }
-        return OK;
-    }, "comma-separated list of one or more sections.\nThe output is restricted to the selected "
-       "section(s). Valid options\nare: (b|binderized), (c|passthrough_clients), (l|"
-       "passthrough_libs), (v|vintf), and (z|lazy).\nDefault is `bcl`."});
+                 if (thiz->mListTypes.empty()) {
+                     return USAGE;
+                 }
+                 return OK;
+             },
+             "comma-separated list of one or more sections.\nThe output is restricted to the "
+             "selected section(s). Valid options\nare: (b|binderized), (c|passthrough_clients), (l|"
+             "passthrough_libs), (v|vintf), (z|lazy), and (a|all).\nDefault is `b,c,l`."});
 }
 
 // Create 'longopts' argument to getopt_long. Caller is responsible for maintaining
