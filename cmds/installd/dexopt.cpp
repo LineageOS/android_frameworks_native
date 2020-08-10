@@ -55,6 +55,7 @@
 #include "otapreopt_utils.h"
 #include "utils.h"
 
+using android::base::Basename;
 using android::base::EndsWith;
 using android::base::GetBoolProperty;
 using android::base::GetProperty;
@@ -191,17 +192,6 @@ static std::vector<std::string> SplitBySpaces(const std::string& str) {
         return {};
     }
     return android::base::Split(str, " ");
-}
-
-static const char* get_location_from_path(const char* path) {
-    static constexpr char kLocationSeparator = '/';
-    const char *location = strrchr(path, kLocationSeparator);
-    if (location == nullptr) {
-        return path;
-    } else {
-        // Skip the separator character.
-        return location + 1;
-    }
 }
 
 // ExecVHelper prepares and holds pointers to parsed command line arguments so that no allocations
@@ -354,7 +344,7 @@ class RunDex2Oat : public ExecVHelper {
                bool use_jitzygote_image,
                const char* compilation_reason) {
         // Get the relative path to the input file.
-        const char* relative_input_file_name = get_location_from_path(input_file_name);
+        std::string input_basename = Basename(input_file_name);
 
         std::string dex2oat_Xms_arg = MapPropertyToArg("dalvik.vm.dex2oat-Xms", "-Xms%s");
         std::string dex2oat_Xmx_arg = MapPropertyToArg("dalvik.vm.dex2oat-Xmx", "-Xmx%s");
@@ -465,7 +455,7 @@ class RunDex2Oat : public ExecVHelper {
         // clang FORTIFY doesn't let us use strlen in constant array bounds, so we
         // use arraysize instead.
         std::string zip_fd_arg = StringPrintf("--zip-fd=%d", zip_fd);
-        std::string zip_location_arg = StringPrintf("--zip-location=%s", relative_input_file_name);
+        std::string zip_location_arg = StringPrintf("--zip-location=%s", input_basename.c_str());
         std::string input_vdex_fd_arg = StringPrintf("--input-vdex-fd=%d", input_vdex_fd);
         std::string output_vdex_fd_arg = StringPrintf("--output-vdex-fd=%d", output_vdex_fd);
         std::string oat_fd_arg = StringPrintf("--oat-fd=%d", oat_fd);
@@ -535,7 +525,7 @@ class RunDex2Oat : public ExecVHelper {
                 ? ""
                 : std::string("--compilation-reason=") + compilation_reason;
 
-        ALOGV("Running %s in=%s out=%s\n", dex2oat_bin, relative_input_file_name, output_file_name);
+        ALOGV("Running %s in=%s out=%s\n", dex2oat_bin, input_basename.c_str(), output_file_name);
 
         // Disable cdex if update input vdex is true since this combination of options is not
         // supported.
@@ -1018,7 +1008,7 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& p
         PLOG(ERROR) << "installd cannot open " << code_path.c_str();
         return false;
     }
-    dex_locations.push_back(get_location_from_path(code_path.c_str()));
+    dex_locations.push_back(Basename(code_path));
     apk_fds.push_back(std::move(apk_fd));
 
 
