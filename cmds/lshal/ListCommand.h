@@ -52,6 +52,9 @@ enum class HalType {
     PASSTHROUGH_LIBRARIES,
     VINTF_MANIFEST,
     LAZY_HALS,
+
+    // Not a real HalType. Used to determine all HalTypes.
+    LAST,
 };
 
 class ListCommand : public Command {
