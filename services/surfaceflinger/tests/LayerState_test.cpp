@@ -34,7 +34,6 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
     args.width = 10;
     args.height = 20;
     args.useIdentityTransform = true;
-    args.rotation = ui::ROTATION_90;
 
     Parcel p;
     args.write(p);
@@ -51,7 +50,6 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
     ASSERT_EQ(args.width, args2.width);
     ASSERT_EQ(args.height, args2.height);
     ASSERT_EQ(args.useIdentityTransform, args2.useIdentityTransform);
-    ASSERT_EQ(args.rotation, args2.rotation);
 }
 
 TEST(LayerStateTest, ParcellingLayerCaptureArgs) {

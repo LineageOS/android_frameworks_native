@@ -620,7 +620,7 @@ const char* Layer::getDebugName() const {
 // ---------------------------------------------------------------------------
 
 std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientComposition(
-        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
+        compositionengine::LayerFE::ClientCompositionTargetSettings& /* targetSettings */) {
     if (!getCompositionState()) {
         return {};
     }
@@ -630,11 +630,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
 
     compositionengine::LayerFE::LayerSettings layerSettings;
     layerSettings.geometry.boundaries = bounds;
-    if (targetSettings.useIdentityTransform) {
-        layerSettings.geometry.positionTransform = mat4();
-    } else {
-        layerSettings.geometry.positionTransform = getTransform().asMatrix4();
-    }
+    layerSettings.geometry.positionTransform = getTransform().asMatrix4();
 
     if (hasColorTransform()) {
         layerSettings.colorTransform = getColorTransform();
