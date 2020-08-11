@@ -844,115 +844,6 @@ private:
     }
 };
 
-
-// --- FakeInputReaderContext ---
-
-class FakeInputReaderContext : public InputReaderContext {
-    std::shared_ptr<EventHubInterface> mEventHub;
-    sp<InputReaderPolicyInterface> mPolicy;
-    sp<InputListenerInterface> mListener;
-    int32_t mGlobalMetaState;
-    bool mUpdateGlobalMetaStateWasCalled;
-    int32_t mGeneration;
-    int32_t mNextId;
-    std::weak_ptr<PointerControllerInterface> mPointerController;
-
-public:
-    FakeInputReaderContext(std::shared_ptr<EventHubInterface> eventHub,
-                           const sp<InputReaderPolicyInterface>& policy,
-                           const sp<InputListenerInterface>& listener)
-          : mEventHub(eventHub),
-            mPolicy(policy),
-            mListener(listener),
-            mGlobalMetaState(0),
-            mNextId(1) {}
-
-    virtual ~FakeInputReaderContext() { }
-
-    void assertUpdateGlobalMetaStateWasCalled() {
-        ASSERT_TRUE(mUpdateGlobalMetaStateWasCalled)
-                << "Expected updateGlobalMetaState() to have been called.";
-        mUpdateGlobalMetaStateWasCalled = false;
-    }
-
-    void setGlobalMetaState(int32_t state) {
-        mGlobalMetaState = state;
-    }
-
-    uint32_t getGeneration() {
-        return mGeneration;
-    }
-
-    void updatePointerDisplay() {
-        std::shared_ptr<PointerControllerInterface> controller = mPointerController.lock();
-        if (controller != nullptr) {
-            InputReaderConfiguration config;
-            mPolicy->getReaderConfiguration(&config);
-            auto viewport = config.getDisplayViewportById(config.defaultPointerDisplayId);
-            if (viewport) {
-                controller->setDisplayViewport(*viewport);
-            }
-        }
-    }
-
-private:
-    virtual void updateGlobalMetaState() {
-        mUpdateGlobalMetaStateWasCalled = true;
-    }
-
-    virtual int32_t getGlobalMetaState() {
-        return mGlobalMetaState;
-    }
-
-    virtual EventHubInterface* getEventHub() {
-        return mEventHub.get();
-    }
-
-    virtual InputReaderPolicyInterface* getPolicy() {
-        return mPolicy.get();
-    }
-
-    virtual InputListenerInterface* getListener() {
-        return mListener.get();
-    }
-
-    virtual void disableVirtualKeysUntil(nsecs_t) {
-    }
-
-    virtual bool shouldDropVirtualKey(nsecs_t, int32_t, int32_t) { return false; }
-
-    virtual std::shared_ptr<PointerControllerInterface> getPointerController(int32_t deviceId) {
-        std::shared_ptr<PointerControllerInterface> controller = mPointerController.lock();
-        if (controller == nullptr) {
-            controller = mPolicy->obtainPointerController(deviceId);
-            mPointerController = controller;
-            updatePointerDisplay();
-        }
-        return controller;
-    }
-
-    virtual void fadePointer() {
-    }
-
-    virtual void requestTimeoutAtTime(nsecs_t) {
-    }
-
-    virtual int32_t bumpGeneration() {
-        return ++mGeneration;
-    }
-
-    virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) {
-
-    }
-
-    virtual void dispatchExternalStylusState(const StylusState&) {
-
-    }
-
-    virtual int32_t getNextId() { return mNextId++; }
-};
-
-
 // --- FakeInputMapper ---
 
 class FakeInputMapper : public InputMapper {
@@ -1143,7 +1034,7 @@ public:
     InstrumentedInputReader(std::shared_ptr<EventHubInterface> eventHub,
                             const sp<InputReaderPolicyInterface>& policy,
                             const sp<InputListenerInterface>& listener)
-          : InputReader(eventHub, policy, listener) {}
+          : InputReader(eventHub, policy, listener), mFakeContext(this) {}
 
     virtual ~InstrumentedInputReader() {}
 
@@ -1155,7 +1046,7 @@ public:
         identifier.name = name;
         identifier.location = location;
         int32_t generation = deviceId + 1;
-        return std::make_shared<InputDevice>(&mContext, deviceId, generation, identifier);
+        return std::make_shared<InputDevice>(&mFakeContext, deviceId, generation, identifier);
     }
 
     // Make the protected loopOnce method accessible to tests.
@@ -1172,7 +1063,50 @@ protected:
         return InputReader::createDeviceLocked(eventHubId, identifier);
     }
 
+    // --- FakeInputReaderContext ---
+    class FakeInputReaderContext : public ContextImpl {
+        int32_t mGlobalMetaState;
+        bool mUpdateGlobalMetaStateWasCalled;
+        int32_t mGeneration;
+
+    public:
+        FakeInputReaderContext(InputReader* reader)
+              : ContextImpl(reader),
+                mGlobalMetaState(0),
+                mUpdateGlobalMetaStateWasCalled(false),
+                mGeneration(1) {}
+
+        virtual ~FakeInputReaderContext() {}
+
+        void assertUpdateGlobalMetaStateWasCalled() {
+            ASSERT_TRUE(mUpdateGlobalMetaStateWasCalled)
+                    << "Expected updateGlobalMetaState() to have been called.";
+            mUpdateGlobalMetaStateWasCalled = false;
+        }
+
+        void setGlobalMetaState(int32_t state) { mGlobalMetaState = state; }
+
+        uint32_t getGeneration() { return mGeneration; }
+
+        void updateGlobalMetaState() override {
+            mUpdateGlobalMetaStateWasCalled = true;
+            ContextImpl::updateGlobalMetaState();
+        }
+
+        int32_t getGlobalMetaState() override {
+            return mGlobalMetaState | ContextImpl::getGlobalMetaState();
+        }
+
+        int32_t bumpGeneration() override {
+            mGeneration = ContextImpl::bumpGeneration();
+            return mGeneration;
+        }
+    } mFakeContext;
+
     friend class InputReaderTest;
+
+public:
+    FakeInputReaderContext* getContext() { return &mFakeContext; }
 };
 
 // --- InputReaderPolicyTest ---
@@ -2097,27 +2031,26 @@ protected:
     std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
     sp<TestInputListener> mFakeListener;
-    FakeInputReaderContext* mFakeContext;
-
+    std::unique_ptr<InstrumentedInputReader> mReader;
     std::shared_ptr<InputDevice> mDevice;
 
     virtual void SetUp() override {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
         mFakeListener = new TestInputListener();
-        mFakeContext = new FakeInputReaderContext(mFakeEventHub, mFakePolicy, mFakeListener);
-
-        mFakeEventHub->addDevice(EVENTHUB_ID, DEVICE_NAME, Flags<InputDeviceClass>(0));
+        mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
+                                                            mFakeListener);
         InputDeviceIdentifier identifier;
         identifier.name = DEVICE_NAME;
         identifier.location = DEVICE_LOCATION;
-        mDevice = std::make_shared<InputDevice>(mFakeContext, DEVICE_ID, DEVICE_GENERATION,
+        mDevice = std::make_shared<InputDevice>(mReader->getContext(), DEVICE_ID, DEVICE_GENERATION,
                                                 identifier);
+        mReader->pushNextDevice(mDevice);
+        mFakeEventHub->addDevice(EVENTHUB_ID, DEVICE_NAME, Flags<InputDeviceClass>(0));
+        mReader->loopOnce();
     }
 
     virtual void TearDown() override {
-        mDevice = nullptr;
-        delete mFakeContext;
         mFakeListener.clear();
         mFakePolicy.clear();
     }
@@ -2336,27 +2269,21 @@ protected:
     std::shared_ptr<FakeEventHub> mFakeEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
     sp<TestInputListener> mFakeListener;
-    FakeInputReaderContext* mFakeContext;
-    InputDevice* mDevice;
+    std::unique_ptr<InstrumentedInputReader> mReader;
+    std::shared_ptr<InputDevice> mDevice;
 
     virtual void SetUp(Flags<InputDeviceClass> classes) {
         mFakeEventHub = std::make_unique<FakeEventHub>();
         mFakePolicy = new FakeInputReaderPolicy();
         mFakeListener = new TestInputListener();
-        mFakeContext = new FakeInputReaderContext(mFakeEventHub, mFakePolicy, mFakeListener);
-        InputDeviceIdentifier identifier;
-        identifier.name = DEVICE_NAME;
-        identifier.location = DEVICE_LOCATION;
-        mDevice = new InputDevice(mFakeContext, DEVICE_ID, DEVICE_GENERATION, identifier);
-
-        mFakeEventHub->addDevice(EVENTHUB_ID, DEVICE_NAME, classes);
+        mReader = std::make_unique<InstrumentedInputReader>(mFakeEventHub, mFakePolicy,
+                                                            mFakeListener);
+        mDevice = newDevice(DEVICE_ID, DEVICE_NAME, DEVICE_LOCATION, EVENTHUB_ID, classes);
     }
 
     virtual void SetUp() override { SetUp(DEVICE_CLASSES); }
 
     virtual void TearDown() override {
-        delete mDevice;
-        delete mFakeContext;
         mFakeListener.clear();
         mFakePolicy.clear();
     }
@@ -2367,9 +2294,25 @@ protected:
 
     void configureDevice(uint32_t changes) {
         if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
-            mFakeContext->updatePointerDisplay();
+            mReader->requestRefreshConfiguration(changes);
+            mReader->loopOnce();
         }
         mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), changes);
+    }
+
+    std::shared_ptr<InputDevice> newDevice(int32_t deviceId, const std::string& name,
+                                           const std::string& location, int32_t eventHubId,
+                                           Flags<InputDeviceClass> classes) {
+        InputDeviceIdentifier identifier;
+        identifier.name = name;
+        identifier.location = location;
+        std::shared_ptr<InputDevice> device =
+                std::make_shared<InputDevice>(mReader->getContext(), deviceId, DEVICE_GENERATION,
+                                              identifier);
+        mReader->pushNextDevice(device);
+        mFakeEventHub->addDevice(eventHubId, name, classes);
+        mReader->loopOnce();
+        return device;
     }
 
     template <class T, typename... Args>
@@ -2393,8 +2336,7 @@ protected:
         mFakePolicy->clearViewports();
     }
 
-    static void process(InputMapper& mapper, nsecs_t when, int32_t type, int32_t code,
-                        int32_t value) {
+    void process(InputMapper& mapper, nsecs_t when, int32_t type, int32_t code, int32_t value) {
         RawEvent event;
         event.when = when;
         event.deviceId = mapper.getDeviceContext().getEventHubId();
@@ -2402,6 +2344,7 @@ protected:
         event.code = code;
         event.value = value;
         mapper.process(&event);
+        mReader->loopOnce();
     }
 
     static void assertMotionRange(const InputDeviceInfo& info,
@@ -2655,7 +2598,7 @@ TEST_F(KeyboardInputMapperTest, Process_ShouldUpdateMetaState) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, args.metaState);
     ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, mapper.getMetaState());
-    ASSERT_NO_FATAL_FAILURE(mFakeContext->assertUpdateGlobalMetaStateWasCalled());
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertUpdateGlobalMetaStateWasCalled());
 
     // Key down.
     process(mapper, ARBITRARY_TIME + 1, EV_KEY, KEY_A, 1);
@@ -2674,7 +2617,7 @@ TEST_F(KeyboardInputMapperTest, Process_ShouldUpdateMetaState) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     ASSERT_EQ(AMETA_NONE, args.metaState);
     ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
-    ASSERT_NO_FATAL_FAILURE(mFakeContext->assertUpdateGlobalMetaStateWasCalled());
+    ASSERT_NO_FATAL_FAILURE(mReader->getContext()->assertUpdateGlobalMetaStateWasCalled());
 }
 
 TEST_F(KeyboardInputMapperTest, Process_WhenNotOrientationAware_ShouldNotRotateDPad) {
@@ -2943,16 +2886,13 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
 
     // keyboard 2.
     const std::string USB2 = "USB2";
+    const std::string DEVICE_NAME2 = "KEYBOARD2";
     constexpr int32_t SECOND_DEVICE_ID = DEVICE_ID + 1;
     constexpr int32_t SECOND_EVENTHUB_ID = EVENTHUB_ID + 1;
-    InputDeviceIdentifier identifier;
-    identifier.name = "KEYBOARD2";
-    identifier.location = USB2;
-    std::unique_ptr<InputDevice> device2 =
-            std::make_unique<InputDevice>(mFakeContext, SECOND_DEVICE_ID, DEVICE_GENERATION,
-                                          identifier);
-    mFakeEventHub->addDevice(SECOND_EVENTHUB_ID, DEVICE_NAME,
-                             Flags<InputDeviceClass>(0) /*classes*/);
+    std::shared_ptr<InputDevice> device2 =
+            newDevice(SECOND_DEVICE_ID, DEVICE_NAME2, USB2, SECOND_EVENTHUB_ID,
+                      Flags<InputDeviceClass>(0));
+
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_RIGHT, 0, AKEYCODE_DPAD_RIGHT, 0);
     mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_DOWN, 0, AKEYCODE_DPAD_DOWN, 0);
@@ -3211,7 +3151,7 @@ TEST_F(CursorInputMapperTest, Process_ShouldSetAllFieldsAndIncludeGlobalMetaStat
     addConfigurationProperty("cursor.mode", "navigation");
     CursorInputMapper& mapper = addMapperAndConfigure<CursorInputMapper>();
 
-    mFakeContext->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
+    mReader->getContext()->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
 
     NotifyMotionArgs args;
 
@@ -3839,10 +3779,10 @@ TEST_F(CursorInputMapperTest, Process_PointerCapture) {
 
     // Disable pointer capture and check that the device generation got bumped
     // and events are generated the usual way.
-    const uint32_t generation = mFakeContext->getGeneration();
+    const uint32_t generation = mReader->getContext()->getGeneration();
     mFakePolicy->setPointerCapture(false);
     configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
-    ASSERT_TRUE(mFakeContext->getGeneration() != generation);
+    ASSERT_TRUE(mReader->getContext()->getGeneration() != generation);
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
     ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
@@ -4257,7 +4197,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenVirtualKeyIsPressedAndReleasedNor
     prepareVirtualKeys();
     SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
 
-    mFakeContext->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
+    mReader->getContext()->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
 
     NotifyKeyArgs args;
 
@@ -4307,7 +4247,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenVirtualKeyIsPressedAndMovedOutOfB
     prepareVirtualKeys();
     SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
 
-    mFakeContext->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
+    mReader->getContext()->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
 
     NotifyKeyArgs keyArgs;
 
@@ -4428,7 +4368,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenTouchStartsOutsideDisplayAndMoves
     prepareVirtualKeys();
     SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
 
-    mFakeContext->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
+    mReader->getContext()->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
 
     NotifyMotionArgs motionArgs;
 
@@ -4503,7 +4443,7 @@ TEST_F(SingleTouchInputMapperTest, Process_NormalSingleTouchGesture_VirtualDispl
     prepareVirtualKeys();
     SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
 
-    mFakeContext->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
+    mReader->getContext()->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
 
     NotifyMotionArgs motionArgs;
 
@@ -4599,7 +4539,7 @@ TEST_F(SingleTouchInputMapperTest, Process_NormalSingleTouchGesture) {
     prepareVirtualKeys();
     SingleTouchInputMapper& mapper = addMapperAndConfigure<SingleTouchInputMapper>();
 
-    mFakeContext->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
+    mReader->getContext()->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
 
     NotifyMotionArgs motionArgs;
 
@@ -5494,7 +5434,7 @@ TEST_F(MultiTouchInputMapperTest, Process_NormalMultiTouchGesture_WithoutTrackin
     prepareVirtualKeys();
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
-    mFakeContext->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
+    mReader->getContext()->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
 
     NotifyMotionArgs motionArgs;
 
@@ -5770,7 +5710,7 @@ TEST_F(MultiTouchInputMapperTest, Process_NormalMultiTouchGesture_WithTrackingId
     prepareVirtualKeys();
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
-    mFakeContext->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
+    mReader->getContext()->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
 
     NotifyMotionArgs motionArgs;
 
@@ -5945,7 +5885,7 @@ TEST_F(MultiTouchInputMapperTest, Process_NormalMultiTouchGesture_WithSlots) {
     prepareVirtualKeys();
     MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
 
-    mFakeContext->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
+    mReader->getContext()->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
 
     NotifyMotionArgs motionArgs;
 
@@ -6925,16 +6865,13 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
 
     // Create the second touch screen device, and enable multi fingers.
     const std::string USB2 = "USB2";
+    const std::string DEVICE_NAME2 = "TOUCHSCREEN2";
     constexpr int32_t SECOND_DEVICE_ID = DEVICE_ID + 1;
     constexpr int32_t SECOND_EVENTHUB_ID = EVENTHUB_ID + 1;
-    InputDeviceIdentifier identifier;
-    identifier.name = "TOUCHSCREEN2";
-    identifier.location = USB2;
-    std::unique_ptr<InputDevice> device2 =
-            std::make_unique<InputDevice>(mFakeContext, SECOND_DEVICE_ID, DEVICE_GENERATION,
-                                          identifier);
-    mFakeEventHub->addDevice(SECOND_EVENTHUB_ID, DEVICE_NAME,
-                             Flags<InputDeviceClass>(0) /*classes*/);
+    std::shared_ptr<InputDevice> device2 =
+            newDevice(SECOND_DEVICE_ID, DEVICE_NAME2, USB2, SECOND_EVENTHUB_ID,
+                      Flags<InputDeviceClass>(0));
+
     mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_POSITION_X, RAW_X_MIN, RAW_X_MAX,
                                    0 /*flat*/, 0 /*fuzz*/);
     mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_POSITION_Y, RAW_Y_MIN, RAW_Y_MAX,
