@@ -236,6 +236,10 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetSupportedEffectsUnsupported) {
     ASSERT_TRUE(mWrapper->getSupportedEffects().isUnsupported());
 }
 
+TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetSupportedPrimitivesUnsupported) {
+    ASSERT_TRUE(mWrapper->getSupportedPrimitives().isUnsupported());
+}
+
 TEST_F(VibratorHalWrapperHidlV1_0Test, TestPerformEffect) {
     {
         InSequence seq;

@@ -27,6 +27,7 @@
 #include <vibratorservice/VibratorHalWrapper.h>
 
 using android::hardware::vibrator::CompositeEffect;
+using android::hardware::vibrator::CompositePrimitive;
 using android::hardware::vibrator::Effect;
 using android::hardware::vibrator::EffectStrength;
 
@@ -221,6 +222,13 @@ HalResult<std::vector<Effect>> AidlHalWrapper::getSupportedEffects() {
                                            mSupportedEffects);
 }
 
+HalResult<std::vector<CompositePrimitive>> AidlHalWrapper::getSupportedPrimitives() {
+    std::lock_guard<std::mutex> lock(mSupportedPrimitivesMutex);
+    return loadCached<std::vector<
+            CompositePrimitive>>(std::bind(&AidlHalWrapper::getSupportedPrimitivesInternal, this),
+                                 mSupportedPrimitives);
+}
+
 HalResult<milliseconds> AidlHalWrapper::performEffect(
         Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
     HalResult<Capabilities> capabilities = getCapabilities();
@@ -258,6 +266,12 @@ HalResult<std::vector<Effect>> AidlHalWrapper::getSupportedEffectsInternal() {
     std::vector<Effect> supportedEffects;
     auto result = getHal()->getSupportedEffects(&supportedEffects);
     return HalResult<std::vector<Effect>>::fromStatus(result, supportedEffects);
+}
+
+HalResult<std::vector<CompositePrimitive>> AidlHalWrapper::getSupportedPrimitivesInternal() {
+    std::vector<CompositePrimitive> supportedPrimitives;
+    auto result = getHal()->getSupportedPrimitives(&supportedPrimitives);
+    return HalResult<std::vector<CompositePrimitive>>::fromStatus(result, supportedPrimitives);
 }
 
 sp<Aidl::IVibrator> AidlHalWrapper::getHal() {
@@ -334,6 +348,12 @@ template <typename I>
 HalResult<std::vector<Effect>> HidlHalWrapper<I>::getSupportedEffects() {
     ALOGV("Skipped getSupportedEffects because Vibrator HAL AIDL is not available");
     return HalResult<std::vector<Effect>>::unsupported();
+}
+
+template <typename I>
+HalResult<std::vector<CompositePrimitive>> HidlHalWrapper<I>::getSupportedPrimitives() {
+    ALOGV("Skipped getSupportedPrimitives because Vibrator HAL AIDL is not available");
+    return HalResult<std::vector<CompositePrimitive>>::unsupported();
 }
 
 template <typename I>
