@@ -444,8 +444,7 @@ void RegionSamplingThread::captureSample() {
 
     ScreenCaptureResults captureResults;
     mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                                 false /* identityTransform */, true /* regionSampling */,
-                                 captureResults);
+                                 true /* regionSampling */, captureResults);
 
     std::vector<Descriptor> activeDescriptors;
     for (const auto& descriptor : descriptors) {

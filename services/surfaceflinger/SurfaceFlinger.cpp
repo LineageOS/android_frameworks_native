@@ -5465,12 +5465,6 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
 
     if (!args.displayToken) return BAD_VALUE;
 
-    auto renderAreaRotation = ui::Transform::toRotationFlags(args.rotation);
-    if (renderAreaRotation == ui::Transform::ROT_INVALID) {
-        ALOGE("%s: Invalid rotation: %s", __FUNCTION__, toCString(args.rotation));
-        renderAreaRotation = ui::Transform::ROT_0;
-    }
-
     wp<DisplayDevice> displayWeak;
     ui::LayerStack layerStack;
     ui::Size reqSize(args.width, args.height);
@@ -5494,14 +5488,14 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
 
     RenderAreaFuture renderAreaFuture = promise::defer([=] {
         return DisplayRenderArea::create(displayWeak, args.sourceCrop, reqSize, dataspace,
-                                         renderAreaRotation, args.captureSecureLayers);
+                                         args.useIdentityTransform, args.captureSecureLayers);
     });
 
     auto traverseLayers = [this, args, layerStack](const LayerVector::Visitor& visitor) {
         traverseLayersInLayerStack(layerStack, args.uid, visitor);
     };
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               args.pixelFormat, args.useIdentityTransform, captureResults);
+                               args.pixelFormat, captureResults);
 }
 
 status_t SurfaceFlinger::setSchedFifo(bool enabled) {
@@ -5548,7 +5542,6 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
     ui::LayerStack layerStack;
     wp<DisplayDevice> displayWeak;
     ui::Size size;
-    ui::Transform::RotationFlags captureOrientation;
     ui::Dataspace dataspace;
     {
         Mutex::Autolock lock(mStateLock);
@@ -5561,33 +5554,14 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
 
         size = display->getViewport().getSize();
 
-        const auto orientation = display->getOrientation();
-        captureOrientation = ui::Transform::toRotationFlags(orientation);
-
-        switch (captureOrientation) {
-            case ui::Transform::ROT_90:
-                captureOrientation = ui::Transform::ROT_270;
-                break;
-
-            case ui::Transform::ROT_270:
-                captureOrientation = ui::Transform::ROT_90;
-                break;
-
-            case ui::Transform::ROT_INVALID:
-                ALOGE("%s: Invalid orientation: %s", __FUNCTION__, toCString(orientation));
-                captureOrientation = ui::Transform::ROT_0;
-                break;
-
-            default:
-                break;
-        }
         dataspace =
                 pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
     }
 
     RenderAreaFuture renderAreaFuture = promise::defer([=] {
         return DisplayRenderArea::create(displayWeak, Rect(), size,
-                                         captureResults.capturedDataspace, captureOrientation,
+                                         captureResults.capturedDataspace,
+                                         false /* useIdentityTransform */,
                                          false /* captureSecureLayers */);
     });
 
@@ -5596,8 +5570,7 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
-                               ui::PixelFormat::RGBA_8888, false /* useIdentityTransform */,
-                               captureResults);
+                               ui::PixelFormat::RGBA_8888, captureResults);
 }
 
 status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
@@ -5711,13 +5684,12 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               args.pixelFormat, false, captureResults);
+                               args.pixelFormat, captureResults);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
                                              ui::Size bufferSize, ui::PixelFormat reqPixelFormat,
-                                             bool useIdentityTransform,
                                              ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
@@ -5730,13 +5702,12 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              1 /* layerCount */, usage, "screenshot");
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                               useIdentityTransform, false /* regionSampling */, captureResults);
+                               false /* regionSampling */, captureResults);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
-                                             const sp<GraphicBuffer>& buffer,
-                                             bool useIdentityTransform, bool regionSampling,
+                                             const sp<GraphicBuffer>& buffer, bool regionSampling,
                                              ScreenCaptureResults& captureResults) {
     const int uid = IPCThreadState::self()->getCallingUid();
     const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
@@ -5763,8 +5734,8 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                     Mutex::Autolock lock(mStateLock);
                     renderArea->render([&] {
                         result = renderScreenImplLocked(*renderArea, traverseLayers, buffer.get(),
-                                                        useIdentityTransform, forSystem, &fd,
-                                                        regionSampling, captureResults);
+                                                        forSystem, &fd, regionSampling,
+                                                        captureResults);
                     });
 
                     return {result, fd};
@@ -5781,8 +5752,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
 
 status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                                 TraverseLayersFunction traverseLayers,
-                                                const sp<GraphicBuffer>& buffer,
-                                                bool useIdentityTransform, bool forSystem,
+                                                const sp<GraphicBuffer>& buffer, bool forSystem,
                                                 int* outSyncFd, bool regionSampling,
                                                 ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
@@ -5840,7 +5810,6 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         Region clip(renderArea.getBounds());
         compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
                 clip,
-                useIdentityTransform,
                 layer->needsFilteringForScreenshots(display.get(), transform) ||
                         renderArea.needsFiltering(),
                 renderArea.isSecure(),

@@ -708,8 +708,8 @@ TEST_F(ListTest, DumpEmptyAndDuplicateHalTypes) {
 
 TEST_F(ListTest, UnknownHalType) {
     optind = 1; // mimic Lshal::parseArg()
-    EXPECT_EQ(1u, mockList->main(createArg({"lshal", "-itrepac", "--types=c,a"})));
-    EXPECT_THAT(err.str(), HasSubstr("Unrecognized HAL type: a"));
+    EXPECT_EQ(1u, mockList->main(createArg({"lshal", "-itrepac", "--types=c,r"})));
+    EXPECT_THAT(err.str(), HasSubstr("Unrecognized HAL type: r"));
 }
 
 TEST_F(ListTest, Vintf) {
@@ -790,6 +790,71 @@ TEST_F(ListTest, Vintf) {
     optind = 1; // mimic Lshal::parseArg()
     EXPECT_EQ(0u, mockList->main(createArg({"lshal", "-Vi", "--neat"})));
     EXPECT_THAT(out.str(), HasSubstr(expected));
+    EXPECT_EQ("", err.str());
+}
+
+TEST_F(ListTest, AllColumns) {
+    // clang-format off
+    const std::string expected =
+        "[fake description 0]\n"
+        "Interface            Transport Server PTR              Arch Thread Use R Hash                                                             VINTF Status Clients\n"
+        "a.h.foo1@1.0::IFoo/1 hwbinder  1      0000000000002711 64   11/21      N 0000000000000000000000000000000000000000000000000000000000000000 X     alive  2 4\n"
+        "a.h.foo2@2.0::IFoo/2 hwbinder  2      0000000000002712 64   12/22      Y 0202020202020202020202020202020202020202020202020202020202020202 X     alive  3 5\n"
+        "\n"
+        "[fake description 1]\n"
+        "Interface            Transport   Server PTR Arch Thread Use R Hash VINTF Status Clients\n"
+        "a.h.foo3@3.0::IFoo/3 passthrough N/A    N/A 32   N/A        ?      X     N/A    4 6\n"
+        "a.h.foo4@4.0::IFoo/4 passthrough N/A    N/A 32   N/A        ?      X     N/A    5 7\n"
+        "\n"
+        "[fake description 2]\n"
+        "Interface            Transport   Server PTR Arch Thread Use R Hash VINTF Status Clients\n"
+        "a.h.foo5@5.0::IFoo/5 passthrough N/A    N/A 32   N/A        ?      X     N/A    6 8\n"
+        "a.h.foo6@6.0::IFoo/6 passthrough N/A    N/A 32   N/A        ?      X     N/A    7 9\n"
+        "\n";
+    // clang-format on
+
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "--all"})));
+    EXPECT_EQ(expected, out.str());
+    EXPECT_EQ("", err.str());
+}
+
+TEST_F(ListTest, AllColumnsWithCmd) {
+    // clang-format off
+    const std::string expected =
+        "[fake description 0]\n"
+        "Interface            Transport Server CMD     PTR              Arch Thread Use R Hash                                                             VINTF Status Clients CMD\n"
+        "a.h.foo1@1.0::IFoo/1 hwbinder  command_line_1 0000000000002711 64   11/21      N 0000000000000000000000000000000000000000000000000000000000000000 X     alive  command_line_2;command_line_4\n"
+        "a.h.foo2@2.0::IFoo/2 hwbinder  command_line_2 0000000000002712 64   12/22      Y 0202020202020202020202020202020202020202020202020202020202020202 X     alive  command_line_3;command_line_5\n"
+        "\n"
+        "[fake description 1]\n"
+        "Interface            Transport   Server CMD PTR Arch Thread Use R Hash VINTF Status Clients CMD\n"
+        "a.h.foo3@3.0::IFoo/3 passthrough            N/A 32   N/A        ?      X     N/A    command_line_4;command_line_6\n"
+        "a.h.foo4@4.0::IFoo/4 passthrough            N/A 32   N/A        ?      X     N/A    command_line_5;command_line_7\n"
+        "\n"
+        "[fake description 2]\n"
+        "Interface            Transport   Server CMD PTR Arch Thread Use R Hash VINTF Status Clients CMD\n"
+        "a.h.foo5@5.0::IFoo/5 passthrough            N/A 32   N/A        ?      X     N/A    command_line_6;command_line_8\n"
+        "a.h.foo6@6.0::IFoo/6 passthrough            N/A 32   N/A        ?      X     N/A    command_line_7;command_line_9\n"
+        "\n";
+    // clang-format on
+
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "-Am"})));
+    EXPECT_EQ(expected, out.str());
+    EXPECT_EQ("", err.str());
+}
+
+TEST_F(ListTest, AllSections) {
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "--types=all"})));
+    using HalTypeBase = std::underlying_type_t<HalType>;
+    for (HalTypeBase i = 0; i < static_cast<HalTypeBase>(HalType::LAST); ++i) {
+        EXPECT_THAT(out.str(), HasSubstr("[fake description " + std::to_string(i) + "]"));
+    }
+    EXPECT_THAT(out.str(),
+                Not(HasSubstr("[fake description " +
+                              std::to_string(static_cast<HalTypeBase>(HalType::LAST)) + "]")));
     EXPECT_EQ("", err.str());
 }
 

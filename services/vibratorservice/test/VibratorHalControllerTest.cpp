@@ -257,10 +257,10 @@ TEST_F(VibratorHalControllerTest, TestUnsupportedApiResultDoNotResetHalConnectio
 
 TEST_F(VibratorHalControllerTest, TestFailedApiResultResetsHalConnection) {
     setHalExpectations(MAX_ATTEMPTS, std::vector<CompositeEffect>(),
-                       vibrator::HalResult<void>::failed(),
-                       vibrator::HalResult<vibrator::Capabilities>::failed(),
-                       vibrator::HalResult<std::vector<Effect>>::failed(),
-                       vibrator::HalResult<milliseconds>::failed());
+                       vibrator::HalResult<void>::failed("message"),
+                       vibrator::HalResult<vibrator::Capabilities>::failed("message"),
+                       vibrator::HalResult<std::vector<Effect>>::failed("message"),
+                       vibrator::HalResult<milliseconds>::failed("message"));
 
     ASSERT_EQ(0, mConnectCounter);
 
@@ -286,7 +286,7 @@ TEST_F(VibratorHalControllerTest, TestFailedApiResultReturnsSuccessAfterRetries)
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), ping())
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(vibrator::HalResult<void>::failed()));
+                .WillRepeatedly(Return(vibrator::HalResult<void>::failed("message")));
         EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
         EXPECT_CALL(*mMockHal.get(), ping())
                 .Times(Exactly(1))
@@ -351,11 +351,11 @@ TEST_F(VibratorHalControllerTest, TestScheduledCallbackSurvivesReconnection) {
                 });
         EXPECT_CALL(*mMockHal.get(), ping())
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(vibrator::HalResult<void>::failed()));
+                .WillRepeatedly(Return(vibrator::HalResult<void>::failed("message")));
         EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
         EXPECT_CALL(*mMockHal.get(), ping())
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(vibrator::HalResult<void>::failed()));
+                .WillRepeatedly(Return(vibrator::HalResult<void>::failed("message")));
         EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
     }
 
