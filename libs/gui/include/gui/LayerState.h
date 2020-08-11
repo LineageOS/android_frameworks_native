@@ -332,7 +332,6 @@ struct DisplayCaptureArgs : CaptureArgs {
     uint32_t width{0};
     uint32_t height{0};
     bool useIdentityTransform{false};
-    ui::Rotation rotation{ui::ROTATION_0};
 
     status_t write(Parcel& output) const override;
     status_t read(const Parcel& input) override;

@@ -29,7 +29,7 @@ class DisplayRenderArea : public RenderArea {
 public:
     static std::unique_ptr<RenderArea> create(wp<const DisplayDevice>, const Rect& sourceCrop,
                                               ui::Size reqSize, ui::Dataspace,
-                                              RotationFlags rotation,
+                                              bool useIdentityTransform,
                                               bool allowSecureLayers = true);
 
     const ui::Transform& getTransform() const override;
@@ -43,7 +43,7 @@ public:
 
 private:
     DisplayRenderArea(sp<const DisplayDevice>, const Rect& sourceCrop, ui::Size reqSize,
-                      ui::Dataspace, RotationFlags rotation, bool allowSecureLayers = true);
+                      ui::Dataspace, bool useIdentityTransform, bool allowSecureLayers = true);
 
     const sp<const DisplayDevice> mDisplay;
     const Rect mSourceCrop;

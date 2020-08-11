@@ -3579,7 +3579,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqu
 
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
-            false,      /* identity transform */
             false,      /* needs filtering */
             false,      /* secure */
             false,      /* supports protected content */
@@ -3591,7 +3590,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqu
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             false, /* needs filtering */
             false, /* secure */
             false, /* supports protected content */
@@ -3635,7 +3633,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
     compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
             Region(Rect(10, 10, 20, 20)),
-            false, /* identity transform */
             false, /* needs filtering */
             false, /* secure */
             false, /* supports protected content */
@@ -3647,7 +3644,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(Rect(0, 0, 30, 30)),
-            false, /* identity transform */
             false, /* needs filtering */
             false, /* secure */
             false, /* supports protected content */
@@ -3659,7 +3655,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(Rect(0, 0, 40, 201)),
-            false, /* identity transform */
             false, /* needs filtering */
             false, /* secure */
             false, /* supports protected content */
@@ -3691,7 +3686,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
     compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             true,  /* needs filtering */
             false, /* secure */
             false, /* supports protected content */
@@ -3703,7 +3697,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             false, /* needs filtering */
             false, /* secure */
             false, /* supports protected content */
@@ -3715,7 +3708,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             false, /* needs filtering */
             false, /* secure */
             false, /* supports protected content */
@@ -3747,7 +3739,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
     compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             true,  /* needs filtering */
             false, /* secure */
             false, /* supports protected content */
@@ -3760,7 +3751,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             true,  /* needs filtering */
             false, /* secure */
             false, /* supports protected content */
@@ -3772,7 +3762,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             true,  /* needs filtering */
             false, /* secure */
             false, /* supports protected content */
@@ -3803,7 +3792,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
     compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             false, /* needs filtering */
             true,  /* secure */
             false, /* supports protected content */
@@ -3815,7 +3803,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             false, /* needs filtering */
             true,  /* secure */
             false, /* supports protected content */
@@ -3827,7 +3814,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             false, /* needs filtering */
             true,  /* secure */
             false, /* supports protected content */
@@ -3856,7 +3842,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
     compositionengine::LayerFE::ClientCompositionTargetSettings layer0TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             false, /* needs filtering */
             false, /* secure */
             true,  /* supports protected content */
@@ -3868,7 +3853,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             false, /* needs filtering */
             false, /* secure */
             true,  /* supports protected content */
@@ -3880,7 +3864,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
-            false, /* identity transform */
             false, /* needs filtering */
             false, /* secure */
             true,  /* supports protected content */
@@ -3972,7 +3955,6 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
 
     compositionengine::LayerFE::ClientCompositionTargetSettings leftLayerSettings{
             Region(Rect(0, 0, 1000, 1000)),
-            false, /* identity transform */
             false, /* needs filtering */
             true,  /* secure */
             true,  /* supports protected content */
@@ -3990,7 +3972,6 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
 
     compositionengine::LayerFE::ClientCompositionTargetSettings rightLayerSettings{
             Region(Rect(1000, 0, 2000, 1000)),
-            false, /* identity transform */
             false, /* needs filtering */
             true,  /* secure */
             true,  /* supports protected content */
@@ -4024,7 +4005,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     Region accumClearRegion(Rect(10, 11, 12, 13));
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2Settings{
             Region(Rect(60, 40, 70, 80)).merge(Rect(40, 80, 70, 90)), /* visible region */
-            false,                                                    /* identity transform */
             false,                                                    /* needs filtering */
             false,                                                    /* secure */
             false, /* supports protected content */
@@ -4070,7 +4050,6 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     Region accumClearRegion(Rect(10, 11, 12, 13));
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2Settings{
             Region(Rect(50, 40, 70, 80)).merge(Rect(40, 80, 70, 90)), /* visible region */
-            false,                                                    /* identity transform */
             false,                                                    /* needs filtering */
             false,                                                    /* secure */
             false, /* supports protected content */
