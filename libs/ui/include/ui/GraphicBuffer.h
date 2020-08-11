@@ -260,6 +260,9 @@ private:
 
     uint64_t mId;
 
+    // Unused, but removing this may break GSI.
+    int32_t mBufferId = -1;
+
     // Stores the generation number of this buffer. If this number does not
     // match the BufferQueue's internal generation number (set through
     // IGBP::setGenerationNumber), attempts to attach the buffer will fail.
