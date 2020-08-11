@@ -2490,6 +2490,9 @@ TEST_F(KeyboardInputMapperTest, Process_SimpleKeyPress) {
     KeyboardInputMapper& mapper =
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    // Initial metastate to AMETA_NONE.
+    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
+    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
 
     // Key down by scan code.
     process(mapper, ARBITRARY_TIME, EV_KEY, KEY_HOME, 1);
@@ -2589,8 +2592,9 @@ TEST_F(KeyboardInputMapperTest, Process_ShouldUpdateMetaState) {
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
 
-    // Initial metastate.
-    ASSERT_EQ(AMETA_NONE, mapper.getMetaState());
+    // Initial metastate to AMETA_NONE.
+    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
+    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
 
     // Metakey down.
     process(mapper, ARBITRARY_TIME, EV_KEY, KEY_LEFTSHIFT, 1);
@@ -2822,6 +2826,9 @@ TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleMetaStateAndLeds) 
     KeyboardInputMapper& mapper =
             addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
                                                        AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    // Initial metastate to AMETA_NONE.
+    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
+    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
 
     // Initialization should have turned all of the lights off.
     ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
@@ -2953,6 +2960,73 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
                                                 AKEYCODE_DPAD_DOWN, newDisplayId));
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper2, KEY_LEFT, AKEYCODE_DPAD_LEFT,
                                                 AKEYCODE_DPAD_LEFT, newDisplayId));
+}
+
+TEST_F(KeyboardInputMapperTest, Process_LockedKeysShouldToggleAfterReattach) {
+    mFakeEventHub->addLed(EVENTHUB_ID, LED_CAPSL, true /*initially on*/);
+    mFakeEventHub->addLed(EVENTHUB_ID, LED_NUML, false /*initially off*/);
+    mFakeEventHub->addLed(EVENTHUB_ID, LED_SCROLLL, false /*initially off*/);
+    mFakeEventHub->addKey(EVENTHUB_ID, KEY_CAPSLOCK, 0, AKEYCODE_CAPS_LOCK, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, KEY_NUMLOCK, 0, AKEYCODE_NUM_LOCK, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
+
+    KeyboardInputMapper& mapper =
+            addMapperAndConfigure<KeyboardInputMapper>(AINPUT_SOURCE_KEYBOARD,
+                                                       AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    // Initial metastate to AMETA_NONE.
+    ASSERT_EQ(AMETA_NUM_LOCK_ON, mapper.getMetaState());
+    mapper.updateMetaState(AKEYCODE_NUM_LOCK);
+
+    // Initialization should have turned all of the lights off.
+    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
+    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
+    ASSERT_FALSE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_SCROLLL));
+
+    // Toggle caps lock on.
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_CAPSLOCK, 1);
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_CAPSLOCK, 0);
+    ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_CAPSL));
+    ASSERT_EQ(AMETA_CAPS_LOCK_ON, mapper.getMetaState());
+
+    // Toggle num lock on.
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_NUMLOCK, 1);
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_NUMLOCK, 0);
+    ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_NUML));
+    ASSERT_EQ(AMETA_CAPS_LOCK_ON | AMETA_NUM_LOCK_ON, mapper.getMetaState());
+
+    // Toggle scroll lock on.
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_SCROLLLOCK, 1);
+    process(mapper, ARBITRARY_TIME, EV_KEY, KEY_SCROLLLOCK, 0);
+    ASSERT_TRUE(mFakeEventHub->getLedState(EVENTHUB_ID, LED_SCROLLL));
+    ASSERT_EQ(AMETA_CAPS_LOCK_ON | AMETA_NUM_LOCK_ON | AMETA_SCROLL_LOCK_ON, mapper.getMetaState());
+
+    mFakeEventHub->removeDevice(EVENTHUB_ID);
+    mReader->loopOnce();
+
+    // keyboard 2 should default toggle keys.
+    const std::string USB2 = "USB2";
+    const std::string DEVICE_NAME2 = "KEYBOARD2";
+    constexpr int32_t SECOND_DEVICE_ID = DEVICE_ID + 1;
+    constexpr int32_t SECOND_EVENTHUB_ID = EVENTHUB_ID + 1;
+    std::shared_ptr<InputDevice> device2 =
+            newDevice(SECOND_DEVICE_ID, DEVICE_NAME2, USB2, SECOND_EVENTHUB_ID,
+                      Flags<InputDeviceClass>(0));
+    mFakeEventHub->addLed(SECOND_EVENTHUB_ID, LED_CAPSL, true /*initially on*/);
+    mFakeEventHub->addLed(SECOND_EVENTHUB_ID, LED_NUML, false /*initially off*/);
+    mFakeEventHub->addLed(SECOND_EVENTHUB_ID, LED_SCROLLL, false /*initially off*/);
+    mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_CAPSLOCK, 0, AKEYCODE_CAPS_LOCK, 0);
+    mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_NUMLOCK, 0, AKEYCODE_NUM_LOCK, 0);
+    mFakeEventHub->addKey(SECOND_EVENTHUB_ID, KEY_SCROLLLOCK, 0, AKEYCODE_SCROLL_LOCK, 0);
+
+    device2->addMapper<KeyboardInputMapper>(SECOND_EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD,
+                                            AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0 /*changes*/);
+    device2->reset(ARBITRARY_TIME);
+
+    ASSERT_TRUE(mFakeEventHub->getLedState(SECOND_EVENTHUB_ID, LED_CAPSL));
+    ASSERT_TRUE(mFakeEventHub->getLedState(SECOND_EVENTHUB_ID, LED_NUML));
+    ASSERT_TRUE(mFakeEventHub->getLedState(SECOND_EVENTHUB_ID, LED_SCROLLL));
+    ASSERT_EQ(AMETA_CAPS_LOCK_ON | AMETA_NUM_LOCK_ON | AMETA_SCROLL_LOCK_ON, mapper.getMetaState());
 }
 
 // --- KeyboardInputMapperTest_ExternalDevice ---

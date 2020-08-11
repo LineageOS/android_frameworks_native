@@ -481,6 +481,10 @@ size_t InputDevice::getMapperCount() {
     return count;
 }
 
+void InputDevice::updateLedState(bool reset) {
+    for_each_mapper([reset](InputMapper& mapper) { mapper.updateLedState(reset); });
+}
+
 InputDeviceContext::InputDeviceContext(InputDevice& device, int32_t eventHubId)
       : mDevice(device),
         mContext(device.getContext()),

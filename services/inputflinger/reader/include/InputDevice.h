@@ -98,6 +98,8 @@ public:
 
     std::optional<int32_t> getAssociatedDisplayId();
 
+    void updateLedState(bool reset);
+
     size_t getMapperCount();
 
     // construct and add a mapper to the input device

@@ -55,34 +55,32 @@ public:
                 const sp<InputListenerInterface>& listener);
     virtual ~InputReader();
 
-    virtual void dump(std::string& dump) override;
-    virtual void monitor() override;
+    void dump(std::string& dump) override;
+    void monitor() override;
 
-    virtual status_t start() override;
-    virtual status_t stop() override;
+    status_t start() override;
+    status_t stop() override;
 
-    virtual void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) override;
+    void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) override;
 
-    virtual bool isInputDeviceEnabled(int32_t deviceId) override;
+    bool isInputDeviceEnabled(int32_t deviceId) override;
 
-    virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask,
-                                     int32_t scanCode) override;
-    virtual int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask,
-                                    int32_t keyCode) override;
-    virtual int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t sw) override;
+    int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask, int32_t scanCode) override;
+    int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask, int32_t keyCode) override;
+    int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t sw) override;
 
-    virtual void toggleCapsLockState(int32_t deviceId) override;
+    void toggleCapsLockState(int32_t deviceId) override;
 
-    virtual bool hasKeys(int32_t deviceId, uint32_t sourceMask, size_t numCodes,
-                         const int32_t* keyCodes, uint8_t* outFlags) override;
+    bool hasKeys(int32_t deviceId, uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
+                 uint8_t* outFlags) override;
 
-    virtual void requestRefreshConfiguration(uint32_t changes) override;
+    void requestRefreshConfiguration(uint32_t changes) override;
 
-    virtual void vibrate(int32_t deviceId, const std::vector<VibrationElement>& pattern,
-                         ssize_t repeat, int32_t token) override;
-    virtual void cancelVibrate(int32_t deviceId, int32_t token) override;
+    void vibrate(int32_t deviceId, const std::vector<VibrationElement>& pattern, ssize_t repeat,
+                 int32_t token) override;
+    void cancelVibrate(int32_t deviceId, int32_t token) override;
 
-    virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) override;
+    bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) override;
 
 protected:
     // These members are protected so they can be instrumented by test cases.
@@ -100,21 +98,22 @@ protected:
     public:
         explicit ContextImpl(InputReader* reader);
 
-        virtual void updateGlobalMetaState() override;
-        virtual int32_t getGlobalMetaState() override;
-        virtual void disableVirtualKeysUntil(nsecs_t time) override;
-        virtual bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode, int32_t scanCode) override;
-        virtual void fadePointer() override;
-        virtual std::shared_ptr<PointerControllerInterface> getPointerController(
-                int32_t deviceId) override;
-        virtual void requestTimeoutAtTime(nsecs_t when) override;
-        virtual int32_t bumpGeneration() override;
-        virtual void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) override;
-        virtual void dispatchExternalStylusState(const StylusState& outState) override;
-        virtual InputReaderPolicyInterface* getPolicy() override;
-        virtual InputListenerInterface* getListener() override;
-        virtual EventHubInterface* getEventHub() override;
-        virtual int32_t getNextId() override;
+        void updateGlobalMetaState() override;
+        int32_t getGlobalMetaState() override;
+        void disableVirtualKeysUntil(nsecs_t time) override;
+        bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode, int32_t scanCode) override;
+        void fadePointer() override;
+        std::shared_ptr<PointerControllerInterface> getPointerController(int32_t deviceId) override;
+        void requestTimeoutAtTime(nsecs_t when) override;
+        int32_t bumpGeneration() override;
+        void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) override;
+        void dispatchExternalStylusState(const StylusState& outState) override;
+        InputReaderPolicyInterface* getPolicy() override;
+        InputListenerInterface* getListener() override;
+        EventHubInterface* getEventHub() override;
+        int32_t getNextId() override;
+        void updateLedMetaState(int32_t metaState) override;
+        int32_t getLedMetaState() override;
     } mContext;
 
     friend class ContextImpl;
@@ -156,6 +155,10 @@ private:
     int32_t mGlobalMetaState;
     void updateGlobalMetaStateLocked();
     int32_t getGlobalMetaStateLocked();
+
+    int32_t mLedMetaState;
+    void updateLedMetaStateLocked(int32_t metaState);
+    int32_t getLedMetaStateLocked();
 
     void notifyExternalStylusPresenceChanged();
     void getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices);
