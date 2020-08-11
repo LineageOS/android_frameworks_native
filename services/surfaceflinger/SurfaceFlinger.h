@@ -411,13 +411,13 @@ private:
     void destroyDisplay(const sp<IBinder>& displayToken) override;
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override;
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override;
-    void setTransactionState(const Vector<ComposerState>& state,
-                             const Vector<DisplayState>& displays, uint32_t flags,
-                             const sp<IBinder>& applyToken,
-                             const InputWindowCommands& inputWindowCommands,
-                             int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
-                             bool hasListenerCallbacks,
-                             const std::vector<ListenerCallbacks>& listenerCallbacks) override;
+    status_t setTransactionState(const Vector<ComposerState>& state,
+                                 const Vector<DisplayState>& displays, uint32_t flags,
+                                 const sp<IBinder>& applyToken,
+                                 const InputWindowCommands& inputWindowCommands,
+                                 int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
+                                 bool hasListenerCallbacks,
+                                 const std::vector<ListenerCallbacks>& listenerCallbacks) override;
     void bootFinished() override;
     bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& bufferProducer) const override;
