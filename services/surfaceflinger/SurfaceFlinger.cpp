@@ -3046,15 +3046,19 @@ void SurfaceFlinger::commitTransactionLocked() {
     // clear the "changed" flags in current state
     mCurrentState.colorMatrixChanged = false;
 
-    mDrawingState.traverse([&](Layer* layer) {
-        layer->commitChildList();
-
-        // If the layer can be reached when traversing mDrawingState, then the layer is no
-        // longer offscreen. Remove the layer from the offscreenLayer set.
-        if (mOffscreenLayers.count(layer)) {
-            mOffscreenLayers.erase(layer);
-        }
-    });
+    for (const auto& rootLayer : mDrawingState.layersSortedByZ) {
+        rootLayer->commitChildList();
+    }
+    // TODO(b/163019109): See if this traversal is needed at all...
+    if (!mOffscreenLayers.empty()) {
+        mDrawingState.traverse([&](Layer* layer) {
+            // If the layer can be reached when traversing mDrawingState, then the layer is no
+            // longer offscreen. Remove the layer from the offscreenLayer set.
+            if (mOffscreenLayers.count(layer)) {
+                mOffscreenLayers.erase(layer);
+            }
+        });
+    }
 
     commitOffscreenLayers();
     mDrawingState.traverse([&](Layer* layer) { layer->updateMirrorInfo(); });
