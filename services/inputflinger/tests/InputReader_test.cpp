@@ -340,7 +340,8 @@ private:
         mDevicesChangedCondition.notify_all();
     }
 
-    virtual sp<KeyCharacterMap> getKeyboardLayoutOverlay(const InputDeviceIdentifier&) {
+    virtual std::shared_ptr<KeyCharacterMap> getKeyboardLayoutOverlay(
+            const InputDeviceIdentifier&) {
         return nullptr;
     }
 
@@ -814,11 +815,11 @@ private:
         }
     }
 
-    virtual sp<KeyCharacterMap> getKeyCharacterMap(int32_t) const {
+    virtual const std::shared_ptr<KeyCharacterMap> getKeyCharacterMap(int32_t) const {
         return nullptr;
     }
 
-    virtual bool setKeyboardLayoutOverlay(int32_t, const sp<KeyCharacterMap>&) {
+    virtual bool setKeyboardLayoutOverlay(int32_t, std::shared_ptr<KeyCharacterMap>) {
         return false;
     }
 

@@ -341,7 +341,7 @@ public:
     virtual void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) = 0;
 
     /* Gets the keyboard layout for a particular input device. */
-    virtual sp<KeyCharacterMap> getKeyboardLayoutOverlay(
+    virtual std::shared_ptr<KeyCharacterMap> getKeyboardLayoutOverlay(
             const InputDeviceIdentifier& identifier) = 0;
 
     /* Gets a user-supplied alias for a particular input device, or an empty string if none. */

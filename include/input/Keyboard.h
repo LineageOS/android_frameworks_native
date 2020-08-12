@@ -37,7 +37,7 @@ public:
     std::shared_ptr<KeyLayoutMap> keyLayoutMap;
 
     std::string keyCharacterMapFile;
-    sp<KeyCharacterMap> keyCharacterMap;
+    std::shared_ptr<KeyCharacterMap> keyCharacterMap;
 
     KeyMap();
     ~KeyMap();

@@ -261,10 +261,10 @@ public:
     inline void getVirtualKeyDefinitions(std::vector<VirtualKeyDefinition>& outVirtualKeys) const {
         return mEventHub->getVirtualKeyDefinitions(mId, outVirtualKeys);
     }
-    inline sp<KeyCharacterMap> getKeyCharacterMap() const {
+    inline const std::shared_ptr<KeyCharacterMap> getKeyCharacterMap() const {
         return mEventHub->getKeyCharacterMap(mId);
     }
-    inline bool setKeyboardLayoutOverlay(const sp<KeyCharacterMap>& map) {
+    inline bool setKeyboardLayoutOverlay(std::shared_ptr<KeyCharacterMap> map) {
         return mEventHub->setKeyboardLayoutOverlay(mId, map);
     }
     inline void vibrate(const VibrationElement& element) {

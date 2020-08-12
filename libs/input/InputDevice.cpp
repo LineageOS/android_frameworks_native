@@ -153,14 +153,20 @@ InputDeviceInfo::InputDeviceInfo() {
     initialize(-1, 0, -1, InputDeviceIdentifier(), "", false, false);
 }
 
-InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other) :
-        mId(other.mId), mGeneration(other.mGeneration), mControllerNumber(other.mControllerNumber),
-        mIdentifier(other.mIdentifier), mAlias(other.mAlias), mIsExternal(other.mIsExternal),
-        mHasMic(other.mHasMic), mSources(other.mSources),
-        mKeyboardType(other.mKeyboardType), mKeyCharacterMap(other.mKeyCharacterMap),
-        mHasVibrator(other.mHasVibrator), mHasButtonUnderPad(other.mHasButtonUnderPad),
-        mMotionRanges(other.mMotionRanges) {
-}
+InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
+      : mId(other.mId),
+        mGeneration(other.mGeneration),
+        mControllerNumber(other.mControllerNumber),
+        mIdentifier(other.mIdentifier),
+        mAlias(other.mAlias),
+        mIsExternal(other.mIsExternal),
+        mHasMic(other.mHasMic),
+        mSources(other.mSources),
+        mKeyboardType(other.mKeyboardType),
+        mKeyCharacterMap(other.mKeyCharacterMap),
+        mHasVibrator(other.mHasVibrator),
+        mHasButtonUnderPad(other.mHasButtonUnderPad),
+        mMotionRanges(other.mMotionRanges) {}
 
 InputDeviceInfo::~InputDeviceInfo() {
 }

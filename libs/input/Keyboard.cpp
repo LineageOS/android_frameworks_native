@@ -127,12 +127,12 @@ status_t KeyMap::loadKeyCharacterMap(const InputDeviceIdentifier& deviceIdentifi
         return NAME_NOT_FOUND;
     }
 
-    status_t status = KeyCharacterMap::load(path,
-            KeyCharacterMap::FORMAT_BASE, &keyCharacterMap);
-    if (status) {
-        return status;
+    base::Result<std::shared_ptr<KeyCharacterMap>> ret =
+            KeyCharacterMap::load(path, KeyCharacterMap::FORMAT_BASE);
+    if (!ret) {
+        return ret.error().code();
     }
-
+    keyCharacterMap = *ret;
     keyCharacterMapFile = path;
     return OK;
 }
