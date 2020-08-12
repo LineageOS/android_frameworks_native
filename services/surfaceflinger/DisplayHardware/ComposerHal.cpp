@@ -27,6 +27,12 @@
 #include <hidl/HidlTransportSupport.h>
 #include <hidl/HidlTransportUtils.h>
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+#include <vendor/nvidia/hardware/graphics/composer/2.0/INvComposer.h>
+
+using vendor::nvidia::hardware::graphics::composer::V2_0::INvComposer;
+#endif
+
 namespace android {
 
 using hardware::Return;
@@ -204,6 +210,14 @@ Composer::Composer(const std::string& serviceName)
             LOG_ALWAYS_FATAL("failed to create vr composer client");
         }
     }
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    sp<INvComposer> nvComposer = INvComposer::castFrom(mComposer);
+    if (nvComposer != nullptr) {
+        mNvClient = INvComposerClient::castFrom(mClient);
+        LOG_ALWAYS_FATAL_IF(mNvClient == nullptr, "INvComposer 2.0 did not return INvComposerClient 2.0");
+    }
+#endif
 }
 
 Composer::~Composer() = default;
