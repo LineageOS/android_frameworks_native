@@ -58,7 +58,7 @@
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
-#include "Scheduler/VSyncModulator.h"
+#include "Scheduler/VsyncModulator.h"
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceTracing.h"
 #include "TracedOrdinal.h"
@@ -549,8 +549,6 @@ private:
     void signalLayerUpdate();
     void signalRefresh();
 
-    using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
-
     struct ActiveConfigInfo {
         HwcConfigIndexType configId;
         Scheduler::ConfigEvent event = Scheduler::ConfigEvent::None;
@@ -604,7 +602,13 @@ private:
     void updateInputWindowInfo();
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
+
+    using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
+    using VsyncModulator = scheduler::VsyncModulator;
+
     void initScheduler(PhysicalDisplayId primaryDisplayId);
+    void updatePhaseConfiguration(const RefreshRate&);
+    void setPhaseOffsets(const VsyncModulator::Offsets&);
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
      * region. Returns whether a new buffer has been latched, i.e., whether it
@@ -615,6 +619,8 @@ private:
     /* ------------------------------------------------------------------------
      * Transactions
      */
+    using TransactionSchedule = scheduler::TransactionSchedule;
+
     void applyTransactionState(const Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
@@ -638,7 +644,7 @@ private:
     // but there is no need to try and wake up immediately to do it. Rather we rely on
     // onFrameAvailable or another layer update to wake us up.
     void setTraversalNeeded();
-    uint32_t setTransactionFlags(uint32_t flags, Scheduler::TransactionStart transactionStart);
+    uint32_t setTransactionFlags(uint32_t flags, TransactionSchedule);
     void commitTransaction() REQUIRES(mStateLock);
     void commitOffscreenLayers();
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
@@ -843,14 +849,13 @@ private:
     void dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected);
 
     /* ------------------------------------------------------------------------
-     * VSync
+     * VSYNC
      */
     nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
 
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
-    void changeRefreshRateLocked(const RefreshRate&, Scheduler::ConfigEvent event)
-            REQUIRES(mStateLock);
+    void changeRefreshRateLocked(const RefreshRate&, Scheduler::ConfigEvent) REQUIRES(mStateLock);
 
     bool isDisplayConfigAllowed(HwcConfigIndexType configId) const REQUIRES(mStateLock);
 
@@ -1211,14 +1216,22 @@ private:
     // Stores phase offsets configured per refresh rate.
     std::unique_ptr<scheduler::PhaseConfiguration> mPhaseConfiguration;
 
-    // Optional to defer construction until scheduler connections are created.
-    std::optional<scheduler::VSyncModulator> mVSyncModulator;
+    // Optional to defer construction until PhaseConfiguration is created.
+    std::optional<scheduler::VsyncModulator> mVsyncModulator;
 
     std::unique_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
 
     std::atomic<nsecs_t> mExpectedPresentTime = 0;
     hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
+
+    template <typename... Args,
+              typename Handler = VsyncModulator::OffsetsOpt (VsyncModulator::*)(Args...)>
+    void modulateVsync(Handler handler, Args... args) {
+        if (const auto offsets = (*mVsyncModulator.*handler)(args...)) {
+            setPhaseOffsets(*offsets);
+        }
+    }
 
     /* ------------------------------------------------------------------------
      * Generic Layer Metadata
