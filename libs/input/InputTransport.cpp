@@ -481,13 +481,13 @@ status_t InputPublisher::publishMotionEvent(
     }
     if (DEBUG_TRANSPORT_ACTIONS) {
         std::string transformString;
-        transform.dump(transformString, "");
+        transform.dump(transformString, "transform", "        ");
         ALOGD("channel '%s' publisher ~ publishMotionEvent: seq=%u, deviceId=%d, source=0x%x, "
               "displayId=%" PRId32 ", "
               "action=0x%x, actionButton=0x%08x, flags=0x%x, edgeFlags=0x%x, "
               "metaState=0x%x, buttonState=0x%x, classification=%s,"
               "xPrecision=%f, yPrecision=%f, downTime=%" PRId64 ", eventTime=%" PRId64 ", "
-              "pointerCount=%" PRIu32 " transform=%s",
+              "pointerCount=%" PRIu32 " \n%s",
               mChannel->getName().c_str(), seq, deviceId, source, displayId, action, actionButton,
               flags, edgeFlags, metaState, buttonState,
               motionClassificationToString(classification), xPrecision, yPrecision, downTime,
