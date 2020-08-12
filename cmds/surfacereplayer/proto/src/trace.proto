@@ -25,8 +25,9 @@ message Transaction {
     repeated SurfaceChange surface_change = 1;
     repeated DisplayChange display_change = 2;
 
-    required bool synchronous = 3;
-    required bool animation   = 4;
+    required bool   synchronous = 3;
+    required bool   animation   = 4;
+    optional Origin origin      = 5;
 }
 
 message SurfaceChange {
@@ -208,4 +209,9 @@ message DetachChildrenChange {
 
 message ShadowRadiusChange {
     required float radius = 1;
+}
+
+message Origin {
+    required int32 pid = 1;
+    required int32 uid = 2;
 }
