@@ -75,7 +75,8 @@ private:
      * Attributes
      */
     std::unique_ptr<GpuStats> mGpuStats;
-    std::string developerDriverPath;
+    std::mutex mLock;
+    std::string mDeveloperDriverPath;
 };
 
 } // namespace android

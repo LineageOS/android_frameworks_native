@@ -63,11 +63,23 @@ void GpuService::setTargetStats(const std::string& appPackageName, const uint64_
 }
 
 void GpuService::setUpdatableDriverPath(const std::string& driverPath) {
-    developerDriverPath = driverPath;
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+
+    // only system_server is allowed to set updatable driver path
+    if (uid != AID_SYSTEM) {
+        ALOGE("Permission Denial: can't set updatable driver path from pid=%d, uid=%d\n", pid, uid);
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mLock);
+    mDeveloperDriverPath = driverPath;
 }
 
 std::string GpuService::getUpdatableDriverPath() {
-    return developerDriverPath;
+    std::lock_guard<std::mutex> lock(mLock);
+    return mDeveloperDriverPath;
 }
 
 status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<String16>& args) {
