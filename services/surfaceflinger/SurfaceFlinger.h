@@ -622,7 +622,8 @@ private:
                                const client_cache_t& uncacheBuffer, const int64_t postTime,
                                bool privileged, bool hasListenerCallbacks,
                                const std::vector<ListenerCallbacks>& listenerCallbacks,
-                               bool isMainThread = false) REQUIRES(mStateLock);
+                               int originPID, int originUID, bool isMainThread = false)
+            REQUIRES(mStateLock);
     // Returns true if at least one transaction was flushed
     bool flushTransactionQueues();
     // Returns true if there is at least one transaction that needs to be flushed
@@ -1129,7 +1130,8 @@ private:
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
                          int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
                          int64_t postTime, bool privileged, bool hasListenerCallbacks,
-                         std::vector<ListenerCallbacks> listenerCallbacks)
+                         std::vector<ListenerCallbacks> listenerCallbacks, int originPID,
+                         int originUID)
               : states(composerStates),
                 displays(displayStates),
                 flags(transactionFlags),
@@ -1138,7 +1140,9 @@ private:
                 postTime(postTime),
                 privileged(privileged),
                 hasListenerCallbacks(hasListenerCallbacks),
-                listenerCallbacks(listenerCallbacks) {}
+                listenerCallbacks(listenerCallbacks),
+                originPID(originPID),
+                originUID(originUID) {}
 
         Vector<ComposerState> states;
         Vector<DisplayState> displays;
@@ -1149,6 +1153,8 @@ private:
         bool privileged;
         bool hasListenerCallbacks;
         std::vector<ListenerCallbacks> listenerCallbacks;
+        int originPID;
+        int originUID;
     };
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash> mTransactionQueues;
 

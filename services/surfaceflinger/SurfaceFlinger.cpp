@@ -3296,7 +3296,8 @@ bool SurfaceFlinger::flushTransactionQueues() {
                                       mPendingInputWindowCommands, transaction.desiredPresentTime,
                                       transaction.buffer, transaction.postTime,
                                       transaction.privileged, transaction.hasListenerCallbacks,
-                                      transaction.listenerCallbacks, /*isMainThread*/ true);
+                                      transaction.listenerCallbacks, transaction.originPID,
+                                      transaction.originUID, /*isMainThread*/ true);
                 transactionQueue.pop();
                 flushedATransaction = true;
             }
@@ -3376,17 +3377,22 @@ void SurfaceFlinger::setTransactionState(
         mExpectedPresentTime = calculateExpectedPresentTime(systemTime());
     }
 
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int originPID = ipc->getCallingPid();
+    const int originUID = ipc->getCallingUid();
+
     if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
                                                uncacheBuffer, postTime, privileged,
-                                               hasListenerCallbacks, listenerCallbacks);
+                                               hasListenerCallbacks, listenerCallbacks, originPID,
+                                               originUID);
         setTransactionFlags(eTransactionFlushNeeded);
         return;
     }
 
     applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
                           uncacheBuffer, postTime, privileged, hasListenerCallbacks,
-                          listenerCallbacks);
+                          listenerCallbacks, originPID, originUID, /*isMainThread*/ false);
 }
 
 void SurfaceFlinger::applyTransactionState(
@@ -3394,7 +3400,7 @@ void SurfaceFlinger::applyTransactionState(
         const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
         const client_cache_t& uncacheBuffer, const int64_t postTime, bool privileged,
         bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
-        bool isMainThread) {
+        int originPID, int originUID, bool isMainThread) {
     uint32_t transactionFlags = 0;
 
     if (flags & eAnimation) {
@@ -3486,7 +3492,8 @@ void SurfaceFlinger::applyTransactionState(
 
     if (transactionFlags) {
         if (mInterceptor->isEnabled()) {
-            mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags);
+            mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags,
+                                          originPID, originUID);
         }
 
         // TODO(b/159125966): Remove eEarlyWakeup completly as no client should use this flag
