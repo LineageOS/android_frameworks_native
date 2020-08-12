@@ -48,62 +48,69 @@ public:
     // This may keep early offsets for an extra frame, but avoids a race with transaction commit.
     static const std::chrono::nanoseconds MIN_EARLY_TRANSACTION_TIME;
 
-    // Phase offsets for SF and app deadlines from VSYNC.
-    struct Offsets {
-        nsecs_t sf;
-        nsecs_t app;
+    // Phase offsets and work durations for SF and app deadlines from VSYNC.
+    struct VsyncConfig {
+        nsecs_t sfOffset;
+        nsecs_t appOffset;
+        std::chrono::nanoseconds sfWorkDuration;
+        std::chrono::nanoseconds appWorkDuration;
 
-        bool operator==(const Offsets& other) const { return sf == other.sf && app == other.app; }
-        bool operator!=(const Offsets& other) const { return !(*this == other); }
+        bool operator==(const VsyncConfig& other) const {
+            return sfOffset == other.sfOffset && appOffset == other.appOffset &&
+                    sfWorkDuration == other.sfWorkDuration &&
+                    appWorkDuration == other.appWorkDuration;
+        }
+
+        bool operator!=(const VsyncConfig& other) const { return !(*this == other); }
     };
 
-    using OffsetsOpt = std::optional<Offsets>;
+    using VsyncConfigOpt = std::optional<VsyncConfig>;
 
-    struct OffsetsConfig {
-        Offsets early;    // Used for early transactions, and during refresh rate change.
-        Offsets earlyGpu; // Used during GPU composition.
-        Offsets late;     // Default.
+    struct VsyncConfigSet {
+        VsyncConfig early;    // Used for early transactions, and during refresh rate change.
+        VsyncConfig earlyGpu; // Used during GPU composition.
+        VsyncConfig late;     // Default.
 
-        bool operator==(const OffsetsConfig& other) const {
+        bool operator==(const VsyncConfigSet& other) const {
             return early == other.early && earlyGpu == other.earlyGpu && late == other.late;
         }
 
-        bool operator!=(const OffsetsConfig& other) const { return !(*this == other); }
+        bool operator!=(const VsyncConfigSet& other) const { return !(*this == other); }
     };
 
     using Clock = std::chrono::steady_clock;
     using TimePoint = Clock::time_point;
     using Now = TimePoint (*)();
 
-    explicit VsyncModulator(const OffsetsConfig&, Now = Clock::now);
+    explicit VsyncModulator(const VsyncConfigSet&, Now = Clock::now);
 
-    Offsets getOffsets() const EXCLUDES(mMutex);
+    VsyncConfig getVsyncConfig() const EXCLUDES(mMutex);
 
-    [[nodiscard]] Offsets setPhaseOffsets(const OffsetsConfig&) EXCLUDES(mMutex);
+    [[nodiscard]] VsyncConfig setVsyncConfigSet(const VsyncConfigSet&) EXCLUDES(mMutex);
 
     // Changes offsets in response to transaction flags or commit.
-    [[nodiscard]] OffsetsOpt setTransactionSchedule(TransactionSchedule);
-    [[nodiscard]] OffsetsOpt onTransactionCommit();
+    [[nodiscard]] VsyncConfigOpt setTransactionSchedule(TransactionSchedule);
+    [[nodiscard]] VsyncConfigOpt onTransactionCommit();
 
     // Called when we send a refresh rate change to hardware composer, so that
     // we can move into early offsets.
-    [[nodiscard]] OffsetsOpt onRefreshRateChangeInitiated();
+    [[nodiscard]] VsyncConfigOpt onRefreshRateChangeInitiated();
 
     // Called when we detect from VSYNC signals that the refresh rate changed.
     // This way we can move out of early offsets if no longer necessary.
-    [[nodiscard]] OffsetsOpt onRefreshRateChangeCompleted();
+    [[nodiscard]] VsyncConfigOpt onRefreshRateChangeCompleted();
 
-    [[nodiscard]] OffsetsOpt onDisplayRefresh(bool usedGpuComposition);
+    [[nodiscard]] VsyncConfigOpt onDisplayRefresh(bool usedGpuComposition);
 
 private:
-    const Offsets& getNextOffsets() const REQUIRES(mMutex);
-    [[nodiscard]] Offsets updateOffsets() EXCLUDES(mMutex);
-    [[nodiscard]] Offsets updateOffsetsLocked() REQUIRES(mMutex);
+    const VsyncConfig& getNextVsyncConfig() const REQUIRES(mMutex);
+    [[nodiscard]] VsyncConfig updateVsyncConfig() EXCLUDES(mMutex);
+    [[nodiscard]] VsyncConfig updateVsyncConfigLocked() REQUIRES(mMutex);
 
     mutable std::mutex mMutex;
-    OffsetsConfig mOffsetsConfig GUARDED_BY(mMutex);
+    VsyncConfigSet mVsyncConfigSet GUARDED_BY(mMutex);
 
-    Offsets mOffsets GUARDED_BY(mMutex){mOffsetsConfig.late};
+    VsyncConfig mVsyncConfig GUARDED_BY(mMutex){mVsyncConfigSet.late};
 
     using Schedule = TransactionSchedule;
     std::atomic<Schedule> mTransactionSchedule = Schedule::Late;

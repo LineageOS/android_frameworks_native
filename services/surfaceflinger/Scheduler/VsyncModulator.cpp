@@ -35,18 +35,19 @@ namespace android::scheduler {
 
 const std::chrono::nanoseconds VsyncModulator::MIN_EARLY_TRANSACTION_TIME = 1ms;
 
-VsyncModulator::VsyncModulator(const OffsetsConfig& config, Now now)
-      : mOffsetsConfig(config),
+VsyncModulator::VsyncModulator(const VsyncConfigSet& config, Now now)
+      : mVsyncConfigSet(config),
         mNow(now),
         mTraceDetailedInfo(base::GetBoolProperty("debug.sf.vsync_trace_detailed_info", false)) {}
 
-VsyncModulator::Offsets VsyncModulator::setPhaseOffsets(const OffsetsConfig& config) {
+VsyncModulator::VsyncConfig VsyncModulator::setVsyncConfigSet(const VsyncConfigSet& config) {
     std::lock_guard<std::mutex> lock(mMutex);
-    mOffsetsConfig = config;
-    return updateOffsetsLocked();
+    mVsyncConfigSet = config;
+    return updateVsyncConfigLocked();
 }
 
-VsyncModulator::OffsetsOpt VsyncModulator::setTransactionSchedule(TransactionSchedule schedule) {
+VsyncModulator::VsyncConfigOpt VsyncModulator::setTransactionSchedule(
+        TransactionSchedule schedule) {
     switch (schedule) {
         case Schedule::EarlyStart:
             ALOGW_IF(mExplicitEarlyWakeup, "%s: Duplicate EarlyStart", __FUNCTION__);
@@ -76,29 +77,29 @@ VsyncModulator::OffsetsOpt VsyncModulator::setTransactionSchedule(TransactionSch
         return std::nullopt;
     }
     mTransactionSchedule = schedule;
-    return updateOffsets();
+    return updateVsyncConfig();
 }
 
-VsyncModulator::OffsetsOpt VsyncModulator::onTransactionCommit() {
+VsyncModulator::VsyncConfigOpt VsyncModulator::onTransactionCommit() {
     mLastTransactionCommitTime = mNow();
     if (mTransactionSchedule == Schedule::Late) return std::nullopt;
     mTransactionSchedule = Schedule::Late;
-    return updateOffsets();
+    return updateVsyncConfig();
 }
 
-VsyncModulator::OffsetsOpt VsyncModulator::onRefreshRateChangeInitiated() {
+VsyncModulator::VsyncConfigOpt VsyncModulator::onRefreshRateChangeInitiated() {
     if (mRefreshRateChangePending) return std::nullopt;
     mRefreshRateChangePending = true;
-    return updateOffsets();
+    return updateVsyncConfig();
 }
 
-VsyncModulator::OffsetsOpt VsyncModulator::onRefreshRateChangeCompleted() {
+VsyncModulator::VsyncConfigOpt VsyncModulator::onRefreshRateChangeCompleted() {
     if (!mRefreshRateChangePending) return std::nullopt;
     mRefreshRateChangePending = false;
-    return updateOffsets();
+    return updateVsyncConfig();
 }
 
-VsyncModulator::OffsetsOpt VsyncModulator::onDisplayRefresh(bool usedGpuComposition) {
+VsyncModulator::VsyncConfigOpt VsyncModulator::onDisplayRefresh(bool usedGpuComposition) {
     bool updateOffsetsNeeded = false;
 
     if (mEarlyTransactionStartTime.load() + MIN_EARLY_TRANSACTION_TIME <=
@@ -117,40 +118,40 @@ VsyncModulator::OffsetsOpt VsyncModulator::onDisplayRefresh(bool usedGpuComposit
     }
 
     if (!updateOffsetsNeeded) return std::nullopt;
-    return updateOffsets();
+    return updateVsyncConfig();
 }
 
-VsyncModulator::Offsets VsyncModulator::getOffsets() const {
+VsyncModulator::VsyncConfig VsyncModulator::getVsyncConfig() const {
     std::lock_guard<std::mutex> lock(mMutex);
-    return mOffsets;
+    return mVsyncConfig;
 }
 
-const VsyncModulator::Offsets& VsyncModulator::getNextOffsets() const {
+const VsyncModulator::VsyncConfig& VsyncModulator::getNextVsyncConfig() const {
     // Early offsets are used if we're in the middle of a refresh rate
     // change, or if we recently begin a transaction.
     if (mExplicitEarlyWakeup || mTransactionSchedule == Schedule::EarlyEnd ||
         mEarlyTransactionFrames > 0 || mRefreshRateChangePending) {
-        return mOffsetsConfig.early;
+        return mVsyncConfigSet.early;
     } else if (mEarlyGpuFrames > 0) {
-        return mOffsetsConfig.earlyGpu;
+        return mVsyncConfigSet.earlyGpu;
     } else {
-        return mOffsetsConfig.late;
+        return mVsyncConfigSet.late;
     }
 }
 
-VsyncModulator::Offsets VsyncModulator::updateOffsets() {
+VsyncModulator::VsyncConfig VsyncModulator::updateVsyncConfig() {
     std::lock_guard<std::mutex> lock(mMutex);
-    return updateOffsetsLocked();
+    return updateVsyncConfigLocked();
 }
 
-VsyncModulator::Offsets VsyncModulator::updateOffsetsLocked() {
-    const Offsets& offsets = getNextOffsets();
-    mOffsets = offsets;
+VsyncModulator::VsyncConfig VsyncModulator::updateVsyncConfigLocked() {
+    const VsyncConfig& offsets = getNextVsyncConfig();
+    mVsyncConfig = offsets;
 
     if (mTraceDetailedInfo) {
-        const bool isEarly = &offsets == &mOffsetsConfig.early;
-        const bool isEarlyGpu = &offsets == &mOffsetsConfig.earlyGpu;
-        const bool isLate = &offsets == &mOffsetsConfig.late;
+        const bool isEarly = &offsets == &mVsyncConfigSet.early;
+        const bool isEarlyGpu = &offsets == &mVsyncConfigSet.earlyGpu;
+        const bool isLate = &offsets == &mVsyncConfigSet.late;
 
         ATRACE_INT("Vsync-EarlyOffsetsOn", isEarly);
         ATRACE_INT("Vsync-EarlyGpuOffsetsOn", isEarlyGpu);
