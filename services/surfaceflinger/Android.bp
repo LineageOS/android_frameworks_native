@@ -78,6 +78,14 @@ cc_defaults {
                 cflags: ["-DQCOM_UM_FAMILY"],
                 header_libs: ["//%s:display_intf_headers"],
             },
+            uses_nvidia_enhancements: {
+                cppflags: [
+                    "-DNV_ANDROID_FRAMEWORK_ENHANCEMENTS"
+                ],
+                shared_libs: [
+                    "vendor.nvidia.hardware.graphics.composer@2.0",
+                ],
+            },
         },
     },
     export_static_lib_headers: [
