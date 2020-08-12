@@ -170,6 +170,8 @@ TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext)
         mRawSurfaceHeight(-1),
         mSurfaceLeft(0),
         mSurfaceTop(0),
+        mSurfaceRight(0),
+        mSurfaceBottom(0),
         mPhysicalWidth(-1),
         mPhysicalHeight(-1),
         mPhysicalLeft(0),

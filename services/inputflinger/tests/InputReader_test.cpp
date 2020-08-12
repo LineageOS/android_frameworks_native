@@ -2377,6 +2377,7 @@ protected:
         T& mapper = mDevice->addMapper<T>(EVENTHUB_ID, args...);
         configureDevice(0);
         mDevice->reset(ARBITRARY_TIME);
+        mapper.reset(ARBITRARY_TIME);
         return mapper;
     }
 
