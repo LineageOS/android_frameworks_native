@@ -185,7 +185,6 @@ MotionEntry::MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32
                          uint32_t pointerCount, const PointerProperties* pointerProperties,
                          const PointerCoords* pointerCoords, float xOffset, float yOffset)
       : EventEntry(id, Type::MOTION, eventTime, policyFlags),
-        eventTime(eventTime),
         deviceId(deviceId),
         source(source),
         displayId(displayId),
