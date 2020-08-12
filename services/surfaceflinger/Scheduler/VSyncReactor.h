@@ -29,13 +29,12 @@ namespace android::scheduler {
 class Clock;
 class VSyncDispatch;
 class VSyncTracker;
-class PredictedVsyncTracer;
 
 // TODO (b/145217110): consider renaming.
 class VSyncReactor : public android::DispSync {
 public:
-    VSyncReactor(std::unique_ptr<Clock> clock, VSyncDispatch& dispatch, VSyncTracker& tracker,
-                 size_t pendingFenceLimit, bool supportKernelIdleTimer);
+    VSyncReactor(std::unique_ptr<Clock> clock, VSyncTracker& tracker, size_t pendingFenceLimit,
+                 bool supportKernelIdleTimer);
     ~VSyncReactor();
 
     bool addPresentFence(const std::shared_ptr<FenceTime>& fence) final;
@@ -64,7 +63,6 @@ private:
 
     std::unique_ptr<Clock> const mClock;
     VSyncTracker& mTracker;
-    VSyncDispatch& mDispatch;
     size_t const mPendingLimit;
 
     mutable std::mutex mMutex;
@@ -77,7 +75,6 @@ private:
     std::optional<nsecs_t> mPeriodTransitioningTo GUARDED_BY(mMutex);
     std::optional<nsecs_t> mLastHwVsync GUARDED_BY(mMutex);
 
-    const std::unique_ptr<PredictedVsyncTracer> mPredictedVsyncTracer;
     const bool mSupportKernelIdleTimer = false;
 };
 

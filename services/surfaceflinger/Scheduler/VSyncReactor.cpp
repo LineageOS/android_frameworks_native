@@ -35,36 +35,11 @@ nsecs_t SystemClock::now() const {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
 
-class PredictedVsyncTracer {
-public:
-    PredictedVsyncTracer(VSyncDispatch& dispatch)
-          : mRegistration(dispatch, std::bind(&PredictedVsyncTracer::callback, this),
-                          "PredictedVsyncTracer") {
-        scheduleRegistration();
-    }
-
-private:
-    TracedOrdinal<bool> mParity = {"VSYNC-predicted", 0};
-    VSyncCallbackRegistration mRegistration;
-
-    void scheduleRegistration() { mRegistration.schedule({0, 0, 0}); }
-
-    void callback() {
-        mParity = !mParity;
-        scheduleRegistration();
-    }
-};
-
-VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, VSyncDispatch& dispatch,
-                           VSyncTracker& tracker, size_t pendingFenceLimit,
-                           bool supportKernelIdleTimer)
+VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, VSyncTracker& tracker,
+                           size_t pendingFenceLimit, bool supportKernelIdleTimer)
       : mClock(std::move(clock)),
         mTracker(tracker),
-        mDispatch(dispatch),
         mPendingLimit(pendingFenceLimit),
-        mPredictedVsyncTracer(property_get_bool("debug.sf.show_predicted_vsync", false)
-                                      ? std::make_unique<PredictedVsyncTracer>(mDispatch)
-                                      : nullptr),
         mSupportKernelIdleTimer(supportKernelIdleTimer) {}
 
 VSyncReactor::~VSyncReactor() = default;
@@ -267,8 +242,6 @@ void VSyncReactor::dump(std::string& result) const {
 
     StringAppendF(&result, "VSyncTracker:\n");
     mTracker.dump(result);
-    StringAppendF(&result, "VSyncDispatch:\n");
-    mDispatch.dump(result);
 }
 
 } // namespace android::scheduler

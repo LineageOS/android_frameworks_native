@@ -95,16 +95,14 @@ std::shared_ptr<FenceTime> generateSignalledFenceWithTime(nsecs_t time) {
 class VSyncReactorTest : public testing::Test {
 protected:
     VSyncReactorTest()
-          : mMockDispatch(std::make_shared<NiceMock<MockVSyncDispatch>>()),
-            mMockTracker(std::make_shared<NiceMock<MockVSyncTracker>>()),
+          : mMockTracker(std::make_shared<NiceMock<MockVSyncTracker>>()),
             mMockClock(std::make_shared<NiceMock<MockClock>>()),
-            mReactor(std::make_unique<ClockWrapper>(mMockClock), *mMockDispatch, *mMockTracker,
-                     kPendingLimit, false /* supportKernelIdleTimer */) {
+            mReactor(std::make_unique<ClockWrapper>(mMockClock), *mMockTracker, kPendingLimit,
+                     false /* supportKernelIdleTimer */) {
         ON_CALL(*mMockClock, now()).WillByDefault(Return(mFakeNow));
         ON_CALL(*mMockTracker, currentPeriod()).WillByDefault(Return(period));
     }
 
-    std::shared_ptr<MockVSyncDispatch> mMockDispatch;
     std::shared_ptr<MockVSyncTracker> mMockTracker;
     std::shared_ptr<MockClock> mMockClock;
     static constexpr size_t kPendingLimit = 3;
@@ -498,9 +496,8 @@ TEST_F(VSyncReactorTest, periodChangeWithGivenVsyncPeriod) {
 
 TEST_F(VSyncReactorTest, periodIsMeasuredIfIgnoringComposer) {
     // Create a reactor which supports the kernel idle timer
-    auto idleReactor =
-            VSyncReactor(std::make_unique<ClockWrapper>(mMockClock), *mMockDispatch, *mMockTracker,
-                         kPendingLimit, true /* supportKernelIdleTimer */);
+    auto idleReactor = VSyncReactor(std::make_unique<ClockWrapper>(mMockClock), *mMockTracker,
+                                    kPendingLimit, true /* supportKernelIdleTimer */);
 
     bool periodFlushed = true;
     EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(4);
