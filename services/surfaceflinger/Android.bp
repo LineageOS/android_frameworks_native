@@ -203,6 +203,14 @@ cc_library_shared {
                     "//hardware/qcom/display-caf/sm8150:libqdMetaData.system",
                 ],
             },
+            uses_nvidia_enhancements: {
+                cppflags: [
+                    "-DNV_ANDROID_FRAMEWORK_ENHANCEMENTS"
+                ],
+                shared_libs: [
+                    "vendor.nvidia.hardware.graphics.composer@2.0",
+                ],
+            },
         },
     },
 }

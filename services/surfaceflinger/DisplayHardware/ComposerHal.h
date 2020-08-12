@@ -33,6 +33,12 @@
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+#include <vendor/nvidia/hardware/graphics/composer/2.0/INvComposerClient.h>
+
+using vendor::nvidia::hardware::graphics::composer::V2_0::INvComposerClient;
+#endif
+
 namespace android {
 
 namespace Hwc2 {
@@ -406,6 +412,10 @@ private:
 
     sp<V2_1::IComposerClient> mClient;
     sp<IComposerClient> mClient_2_2;
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    sp<INvComposerClient> mNvClient;
+#endif
 
     // 64KiB minus a small space for metadata such as read/write pointers
     static constexpr size_t kWriterInitialSize =
