@@ -25,6 +25,9 @@ cc_defaults {
         "-Wshadow-field-in-constructor-modified",
         "-Wshadow-uncaptured-local",
     ],
+    sanitize: {
+        misc_undefined: ["bounds"],
+    },
 }
 
 /////////////////////////////////////////////////

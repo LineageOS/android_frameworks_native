@@ -103,7 +103,7 @@ public:
 class FakeInputReceiver {
 public:
     void consumeEvent() {
-        uint32_t consumeSeq;
+        uint32_t consumeSeq = 0;
         InputEvent* event;
 
         std::chrono::time_point start = std::chrono::steady_clock::now();

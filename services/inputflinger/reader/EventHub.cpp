@@ -187,7 +187,6 @@ EventHub::Device::Device(int fd, int32_t id, const std::string& path,
 
 EventHub::Device::~Device() {
     close();
-    delete configuration;
 }
 
 void EventHub::Device::close() {
@@ -284,11 +283,14 @@ void EventHub::Device::loadConfigurationLocked() {
     if (configurationFile.empty()) {
         ALOGD("No input device configuration file found for device '%s'.", identifier.name.c_str());
     } else {
-        status_t status = PropertyMap::load(String8(configurationFile.c_str()), &configuration);
+        PropertyMap* propertyMap;
+        status_t status = PropertyMap::load(String8(configurationFile.c_str()), &propertyMap);
         if (status) {
             ALOGE("Error loading input device configuration file for device '%s'.  "
                   "Using default configuration.",
                   identifier.name.c_str());
+        } else {
+            configuration = std::unique_ptr<PropertyMap>(propertyMap);
         }
     }
 }
@@ -305,7 +307,7 @@ bool EventHub::Device::loadVirtualKeyMapLocked() {
 }
 
 status_t EventHub::Device::loadKeyMapLocked() {
-    return keyMap.load(identifier, configuration);
+    return keyMap.load(identifier, configuration.get());
 }
 
 bool EventHub::Device::isExternalDeviceLocked() {
@@ -415,8 +417,6 @@ EventHub::EventHub(void)
       : mBuiltInKeyboardId(NO_BUILT_IN_KEYBOARD),
         mNextDeviceId(1),
         mControllerNumbers(),
-        mOpeningDevices(0),
-        mClosingDevices(0),
         mNeedToSendFinishedDeviceScan(false),
         mNeedToReopenDevices(false),
         mNeedToScanDevices(true),
@@ -470,8 +470,6 @@ EventHub::EventHub(void)
 
 EventHub::~EventHub(void) {
     closeAllDevicesLocked();
-
-    mClosingDevices.clear();
 
     ::close(mEpollFd);
     ::close(mINotifyFd);
@@ -1487,7 +1485,8 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     if (device->classes.test(InputDeviceClass::KEYBOARD)) {
         // Register the keyboard as a built-in keyboard if it is eligible.
         if (!keyMapStatus && mBuiltInKeyboardId == NO_BUILT_IN_KEYBOARD &&
-            isEligibleBuiltInKeyboard(device->identifier, device->configuration, &device->keyMap)) {
+            isEligibleBuiltInKeyboard(device->identifier, device->configuration.get(),
+                                      &device->keyMap)) {
             mBuiltInKeyboardId = device->id;
         }
 
@@ -1711,8 +1710,8 @@ void EventHub::closeVideoDeviceByPathLocked(const std::string& devicePath) {
 
 void EventHub::closeAllDevicesLocked() {
     mUnattachedVideoDevices.clear();
-    for (const auto& [id, device] : mDevices) {
-        closeDeviceLocked(*device);
+    while (!mDevices.empty()) {
+        closeDeviceLocked(*(mDevices.begin()->second));
     }
 }
 
@@ -1733,11 +1732,10 @@ void EventHub::closeDeviceLocked(Device& device) {
     }
 
     releaseControllerNumberLocked(device.controllerNumber);
+    device.controllerNumber = 0;
     device.close();
-
-    // Move device to mClosingDevices
     mClosingDevices.push_back(std::move(mDevices[device.id]));
-    // Erase device from mDevices
+
     mDevices.erase(device.id);
 }
 
