@@ -82,66 +82,67 @@ extern char const * const gExtensionString;
 // clang-format off
 // Extensions implemented by the EGL wrapper.
 char const * const gBuiltinExtensionString =
-        "EGL_KHR_get_all_proc_addresses "
-        "EGL_ANDROID_presentation_time "
-        "EGL_KHR_swap_buffers_with_damage "
-        "EGL_ANDROID_get_native_client_buffer "
         "EGL_ANDROID_front_buffer_auto_refresh "
         "EGL_ANDROID_get_frame_timestamps "
-        "EGL_EXT_surface_SMPTE2086_metadata "
+        "EGL_ANDROID_get_native_client_buffer "
+        "EGL_ANDROID_presentation_time "
         "EGL_EXT_surface_CTA861_3_metadata "
+        "EGL_EXT_surface_SMPTE2086_metadata "
+        "EGL_KHR_get_all_proc_addresses "
+        "EGL_KHR_swap_buffers_with_damage "
         ;
 
 // Allowed list of extensions exposed to applications if implemented in the vendor driver.
 char const * const gExtensionString  =
-        "EGL_KHR_image "                        // mandatory
-        "EGL_KHR_image_base "                   // mandatory
+        "EGL_ANDROID_image_native_buffer "      // mandatory
+        "EGL_ANDROID_native_fence_sync "        // strongly recommended
+        "EGL_ANDROID_recordable "               // mandatory
+        "EGL_EXT_buffer_age "                   // strongly recommended with partial_update
+        "EGL_EXT_create_context_robustness "
         "EGL_EXT_image_gl_colorspace "
-        "EGL_KHR_image_pixmap "
-        "EGL_KHR_lock_surface "
+        "EGL_EXT_pixel_format_float "
+        "EGL_EXT_protected_content "
+        "EGL_EXT_yuv_surface "
+        "EGL_IMG_context_priority "
+        "EGL_KHR_config_attribs "
+        "EGL_KHR_create_context "
+        "EGL_KHR_create_context_no_error "
+        "EGL_KHR_fence_sync "
         "EGL_KHR_gl_colorspace "
+        "EGL_KHR_gl_renderbuffer_image "
         "EGL_KHR_gl_texture_2D_image "
         "EGL_KHR_gl_texture_3D_image "
         "EGL_KHR_gl_texture_cubemap_image "
-        "EGL_KHR_gl_renderbuffer_image "
+        "EGL_KHR_image "                        // mandatory
+        "EGL_KHR_image_base "                   // mandatory
+        "EGL_KHR_image_pixmap "
+        "EGL_KHR_lock_surface "
+        "EGL_KHR_mutable_render_buffer "
+        "EGL_KHR_no_config_context "
+        "EGL_KHR_partial_update "               // strongly recommended
         "EGL_KHR_reusable_sync "
-        "EGL_KHR_fence_sync "
-        "EGL_KHR_create_context "
-        "EGL_KHR_config_attribs "
-        "EGL_KHR_surfaceless_context "
         "EGL_KHR_stream "
-        "EGL_KHR_stream_fifo "
-        "EGL_KHR_stream_producer_eglsurface "
         "EGL_KHR_stream_consumer_gltexture "
         "EGL_KHR_stream_cross_process_fd "
-        "EGL_EXT_create_context_robustness "
-        "EGL_NV_system_time "
-        "EGL_ANDROID_image_native_buffer "      // mandatory
+        "EGL_KHR_stream_fifo "
+        "EGL_KHR_stream_producer_eglsurface "
+        "EGL_KHR_surfaceless_context "
         "EGL_KHR_wait_sync "                    // strongly recommended
-        "EGL_ANDROID_recordable "               // mandatory
-        "EGL_KHR_partial_update "               // strongly recommended
-        "EGL_EXT_pixel_format_float "
-        "EGL_EXT_buffer_age "                   // strongly recommended with partial_update
-        "EGL_KHR_create_context_no_error "
-        "EGL_KHR_mutable_render_buffer "
-        "EGL_EXT_yuv_surface "
-        "EGL_EXT_protected_content "
-        "EGL_IMG_context_priority "
-        "EGL_KHR_no_config_context "
+        "EGL_NV_system_time "
         ;
 
 char const * const gClientExtensionString =
+        "EGL_ANDROID_GLES_layers "
+        "EGL_ANGLE_platform_angle "
         "EGL_EXT_client_extensions "
         "EGL_KHR_platform_android "
-        "EGL_ANGLE_platform_angle "
-        "EGL_ANDROID_GLES_layers";
+        ;
 // clang-format on
 
 // extensions not exposed to applications but used by the ANDROID system
 //      "EGL_ANDROID_blob_cache "               // strongly recommended
-//      "EGL_IMG_hibernate_process "            // optional
-//      "EGL_ANDROID_native_fence_sync "        // strongly recommended
 //      "EGL_ANDROID_framebuffer_target "       // mandatory for HWC 1.1
+//      "EGL_IMG_hibernate_process "            // optional
 
 /*
  * EGL Extensions entry-points exposed to 3rd party applications
