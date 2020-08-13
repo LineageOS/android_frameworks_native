@@ -55,6 +55,7 @@
 #include "installd_deps.h"
 #include "otapreopt_utils.h"
 #include "run_dex2oat.h"
+#include "unique_file.h"
 #include "utils.h"
 
 using android::base::Basename;
@@ -231,6 +232,12 @@ static bool IsBootClassPathProfilingEnable() {
     return profile_boot_class_path == "true";
 }
 
+static void UnlinkIgnoreResult(const std::string& path) {
+    if (unlink(path.c_str()) < 0) {
+        PLOG(ERROR) << "Failed to unlink " << path;
+    }
+}
+
 /*
  * Whether dexopt should use a swap file when compiling an APK.
  *
@@ -345,6 +352,16 @@ static unique_fd open_reference_profile(uid_t uid, const std::string& package_na
         const std::string& location, bool read_write, bool is_secondary_dex) {
     std::string profile = create_reference_profile_path(package_name, location, is_secondary_dex);
     return open_profile(uid, profile, read_write ? (O_CREAT | O_RDWR) : O_RDONLY);
+}
+
+static UniqueFile open_reference_profile_as_unique_file(uid_t uid, const std::string& package_name,
+        const std::string& location, bool read_write, bool is_secondary_dex) {
+    std::string profile_path = create_reference_profile_path(package_name, location,
+                                                             is_secondary_dex);
+    unique_fd ufd = open_profile(uid, profile_path, read_write ? (O_CREAT | O_RDWR) : O_RDONLY);
+    return UniqueFile(ufd.release(), profile_path, [](const std::string& path) {
+        clear_profile(path);
+    });
 }
 
 static unique_fd open_spnashot_profile(uid_t uid, const std::string& package_name,
@@ -837,118 +854,14 @@ static bool create_oat_out_path(const char* apk_path, const char* instruction_se
     return true;
 }
 
-// Helper for fd management. This is similar to a unique_fd in that it closes the file descriptor
-// on destruction. It will also run the given cleanup (unless told not to) after closing.
-//
-// Usage example:
-//
-//   Dex2oatFileWrapper file(open(...),
-//                                                   [name]() {
-//                                                       unlink(name.c_str());
-//                                                   });
-//   // Note: care needs to be taken about name, as it needs to have a lifetime longer than the
-//            wrapper if captured as a reference.
-//
-//   if (file.get() == -1) {
-//       // Error opening...
-//   }
-//
-//   ...
-//   if (error) {
-//       // At this point, when the Dex2oatFileWrapper is destructed, the cleanup function will run
-//       // and delete the file (after the fd is closed).
-//       return -1;
-//   }
-//
-//   (Success case)
-//   file.SetCleanup(false);
-//   // At this point, when the Dex2oatFileWrapper is destructed, the cleanup function will not run
-//   // (leaving the file around; after the fd is closed).
-//
-class Dex2oatFileWrapper {
- public:
-    Dex2oatFileWrapper() : value_(-1), cleanup_(), do_cleanup_(true), auto_close_(true) {
-    }
-
-    Dex2oatFileWrapper(int value, std::function<void ()> cleanup)
-            : value_(value), cleanup_(cleanup), do_cleanup_(true), auto_close_(true) {}
-
-    Dex2oatFileWrapper(Dex2oatFileWrapper&& other) {
-        value_ = other.value_;
-        cleanup_ = other.cleanup_;
-        do_cleanup_ = other.do_cleanup_;
-        auto_close_ = other.auto_close_;
-        other.release();
-    }
-
-    Dex2oatFileWrapper& operator=(Dex2oatFileWrapper&& other) {
-        value_ = other.value_;
-        cleanup_ = other.cleanup_;
-        do_cleanup_ = other.do_cleanup_;
-        auto_close_ = other.auto_close_;
-        other.release();
-        return *this;
-    }
-
-    ~Dex2oatFileWrapper() {
-        reset(-1);
-    }
-
-    int get() {
-        return value_;
-    }
-
-    void SetCleanup(bool cleanup) {
-        do_cleanup_ = cleanup;
-    }
-
-    void reset(int new_value) {
-        if (auto_close_ && value_ >= 0) {
-            close(value_);
-        }
-        if (do_cleanup_ && cleanup_ != nullptr) {
-            cleanup_();
-        }
-
-        value_ = new_value;
-    }
-
-    void reset(int new_value, std::function<void ()> new_cleanup) {
-        if (auto_close_ && value_ >= 0) {
-            close(value_);
-        }
-        if (do_cleanup_ && cleanup_ != nullptr) {
-            cleanup_();
-        }
-
-        value_ = new_value;
-        cleanup_ = new_cleanup;
-    }
-
-    void DisableAutoClose() {
-        auto_close_ = false;
-    }
-
- private:
-    void release() {
-        value_ = -1;
-        do_cleanup_ = false;
-        cleanup_ = nullptr;
-    }
-    int value_;
-    std::function<void ()> cleanup_;
-    bool do_cleanup_;
-    bool auto_close_;
-};
-
 // (re)Creates the app image if needed.
-Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path,
+UniqueFile maybe_open_app_image(const std::string& out_oat_path,
         bool generate_app_image, bool is_public, int uid, bool is_secondary_dex) {
 
     const std::string image_path = create_image_filename(out_oat_path);
     if (image_path.empty()) {
         // Happens when the out_oat_path has an unknown extension.
-        return Dex2oatFileWrapper();
+        return UniqueFile();
     }
 
     // In case there is a stale image, remove it now. Ignore any error.
@@ -956,18 +869,19 @@ Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path,
 
     // Not enabled, exit.
     if (!generate_app_image) {
-        return Dex2oatFileWrapper();
+        return UniqueFile();
     }
     std::string app_image_format = GetProperty("dalvik.vm.appimageformat", "");
     if (app_image_format.empty()) {
-        return Dex2oatFileWrapper();
+        return UniqueFile();
     }
     // Recreate is true since we do not want to modify a mapped image. If the app is
     // already running and we modify the image file, it can cause crashes (b/27493510).
-    Dex2oatFileWrapper wrapper_fd(
+    UniqueFile image_file(
             open_output_file(image_path.c_str(), true /*recreate*/, 0600 /*permissions*/),
-            [image_path]() { unlink(image_path.c_str()); });
-    if (wrapper_fd.get() < 0) {
+            image_path,
+            UnlinkIgnoreResult);
+    if (image_file.fd() < 0) {
         // Could not create application image file. Go on since we can compile without it.
         LOG(ERROR) << "installd could not create '" << image_path
                 << "' for image file during dexopt";
@@ -978,21 +892,21 @@ Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path,
             }
         }
     } else if (!set_permissions_and_ownership(
-                wrapper_fd.get(), is_public, uid, image_path.c_str(), is_secondary_dex)) {
+                image_file.fd(), is_public, uid, image_path.c_str(), is_secondary_dex)) {
         ALOGE("installd cannot set owner '%s' for image during dexopt\n", image_path.c_str());
-        wrapper_fd.reset(-1);
+        image_file.reset();
     }
 
-    return wrapper_fd;
+    return image_file;
 }
 
 // Creates the dexopt swap file if necessary and return its fd.
 // Returns -1 if there's no need for a swap or in case of errors.
-unique_fd maybe_open_dexopt_swap_file(const char* out_oat_path) {
+unique_fd maybe_open_dexopt_swap_file(const std::string& out_oat_path) {
     if (!ShouldUseSwapFileForDexopt()) {
         return invalid_unique_fd();
     }
-    auto swap_file_name = std::string(out_oat_path) + ".swap";
+    auto swap_file_name = out_oat_path + ".swap";
     unique_fd swap_fd(open_output_file(
             swap_file_name.c_str(), /*recreate*/true, /*permissions*/0600));
     if (swap_fd.get() < 0) {
@@ -1010,13 +924,13 @@ unique_fd maybe_open_dexopt_swap_file(const char* out_oat_path) {
 
 // Opens the reference profiles if needed.
 // Note that the reference profile might not exist so it's OK if the fd will be -1.
-Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
+UniqueFile maybe_open_reference_profile(const std::string& pkgname,
         const std::string& dex_path, const char* profile_name, bool profile_guided,
         bool is_public, int uid, bool is_secondary_dex) {
     // If we are not profile guided compilation, or we are compiling system server
     // do not bother to open the profiles; we won't be using them.
     if (!profile_guided || (pkgname[0] == '*')) {
-        return Dex2oatFileWrapper();
+        return UniqueFile();
     }
 
     // If this is a secondary dex path which is public do not open the profile.
@@ -1028,7 +942,7 @@ Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
     // compiling with a public profile from the .dm file the PackageManager will
     // set is_public toghether with the profile guided compilation.
     if (is_secondary_dex && is_public) {
-        return Dex2oatFileWrapper();
+        return UniqueFile();
     }
 
     // Open reference profile in read only mode as dex2oat does not get write permissions.
@@ -1038,33 +952,28 @@ Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
     } else {
         if (profile_name == nullptr) {
             // This path is taken for system server re-compilation lunched from ZygoteInit.
-            return Dex2oatFileWrapper();
+            return UniqueFile();
         } else {
             location = profile_name;
         }
     }
-    unique_fd ufd = open_reference_profile(uid, pkgname, location, /*read_write*/false,
-            is_secondary_dex);
-    const auto& cleanup = [pkgname, location, is_secondary_dex]() {
-        clear_reference_profile(pkgname, location, is_secondary_dex);
-    };
-    return Dex2oatFileWrapper(ufd.release(), cleanup);
+    return open_reference_profile_as_unique_file(uid, pkgname, location, /*read_write*/false,
+                                                 is_secondary_dex);
 }
 
-// Opens the vdex files and assigns the input fd to in_vdex_wrapper_fd and the output fd to
-// out_vdex_wrapper_fd. Returns true for success or false in case of errors.
+// Opens the vdex files and assigns the input fd to in_vdex_wrapper and the output fd to
+// out_vdex_wrapper. Returns true for success or false in case of errors.
 bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path, int dexopt_needed,
         const char* instruction_set, bool is_public, int uid, bool is_secondary_dex,
-        bool profile_guided, Dex2oatFileWrapper* in_vdex_wrapper_fd,
-        Dex2oatFileWrapper* out_vdex_wrapper_fd) {
-    CHECK(in_vdex_wrapper_fd != nullptr);
-    CHECK(out_vdex_wrapper_fd != nullptr);
+        bool profile_guided, UniqueFile* in_vdex_wrapper,
+        UniqueFile* out_vdex_wrapper) {
+    CHECK(in_vdex_wrapper != nullptr);
+    CHECK(out_vdex_wrapper != nullptr);
     // Open the existing VDEX. We do this before creating the new output VDEX, which will
     // unlink the old one.
     char in_odex_path[PKG_PATH_MAX];
     int dexopt_action = abs(dexopt_needed);
     bool is_odex_location = dexopt_needed < 0;
-    std::string in_vdex_path_str;
 
     // Infer the name of the output VDEX.
     const std::string out_vdex_path_str = create_vdex_filename(out_oat_path);
@@ -1086,7 +995,7 @@ bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path,
         } else {
             path = out_oat_path;
         }
-        in_vdex_path_str = create_vdex_filename(path);
+        std::string in_vdex_path_str = create_vdex_filename(path);
         if (in_vdex_path_str.empty()) {
             ALOGE("installd cannot compute input vdex location for '%s'\n", path);
             return false;
@@ -1104,13 +1013,15 @@ bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path,
             !profile_guided;
         if (update_vdex_in_place) {
             // Open the file read-write to be able to update it.
-            in_vdex_wrapper_fd->reset(open(in_vdex_path_str.c_str(), O_RDWR, 0));
-            if (in_vdex_wrapper_fd->get() == -1) {
+            in_vdex_wrapper->reset(open(in_vdex_path_str.c_str(), O_RDWR, 0),
+                                   in_vdex_path_str);
+            if (in_vdex_wrapper->fd() == -1) {
                 // If we failed to open the file, we cannot update it in place.
                 update_vdex_in_place = false;
             }
         } else {
-            in_vdex_wrapper_fd->reset(open(in_vdex_path_str.c_str(), O_RDONLY, 0));
+            in_vdex_wrapper->reset(open(in_vdex_path_str.c_str(), O_RDONLY, 0),
+                                   in_vdex_path_str);
         }
     }
 
@@ -1119,22 +1030,24 @@ bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path,
     if (update_vdex_in_place) {
         // We unlink the file in case the invocation of dex2oat fails, to ensure we don't
         // have bogus stale vdex files.
-        out_vdex_wrapper_fd->reset(
-              in_vdex_wrapper_fd->get(),
-              [out_vdex_path_str]() { unlink(out_vdex_path_str.c_str()); });
+        out_vdex_wrapper->reset(
+              in_vdex_wrapper->fd(),
+              out_vdex_path_str,
+              UnlinkIgnoreResult);
         // Disable auto close for the in wrapper fd (it will be done when destructing the out
         // wrapper).
-        in_vdex_wrapper_fd->DisableAutoClose();
+        in_vdex_wrapper->DisableAutoClose();
     } else {
-        out_vdex_wrapper_fd->reset(
+        out_vdex_wrapper->reset(
               open_output_file(out_vdex_path_str.c_str(), /*recreate*/true, /*permissions*/0644),
-              [out_vdex_path_str]() { unlink(out_vdex_path_str.c_str()); });
-        if (out_vdex_wrapper_fd->get() < 0) {
+              out_vdex_path_str,
+              UnlinkIgnoreResult);
+        if (out_vdex_wrapper->fd() < 0) {
             ALOGE("installd cannot open vdex'%s' during dexopt\n", out_vdex_path_str.c_str());
             return false;
         }
     }
-    if (!set_permissions_and_ownership(out_vdex_wrapper_fd->get(), is_public, uid,
+    if (!set_permissions_and_ownership(out_vdex_wrapper->fd(), is_public, uid,
             out_vdex_path_str.c_str(), is_secondary_dex)) {
         ALOGE("installd cannot set owner '%s' for vdex during dexopt\n", out_vdex_path_str.c_str());
         return false;
@@ -1145,25 +1058,24 @@ bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path,
 }
 
 // Opens the output oat file for the given apk.
-// If successful it stores the output path into out_oat_path and returns true.
-Dex2oatFileWrapper open_oat_out_file(const char* apk_path, const char* oat_dir,
-        bool is_public, int uid, const char* instruction_set, bool is_secondary_dex,
-        char* out_oat_path) {
+UniqueFile open_oat_out_file(const char* apk_path, const char* oat_dir,
+        bool is_public, int uid, const char* instruction_set, bool is_secondary_dex) {
+    char out_oat_path[PKG_PATH_MAX];
     if (!create_oat_out_path(apk_path, instruction_set, oat_dir, is_secondary_dex, out_oat_path)) {
-        return Dex2oatFileWrapper();
+        return UniqueFile();
     }
-    const std::string out_oat_path_str(out_oat_path);
-    Dex2oatFileWrapper wrapper_fd(
+    UniqueFile oat(
             open_output_file(out_oat_path, /*recreate*/true, /*permissions*/0644),
-            [out_oat_path_str]() { unlink(out_oat_path_str.c_str()); });
-    if (wrapper_fd.get() < 0) {
+            out_oat_path,
+            UnlinkIgnoreResult);
+    if (oat.fd() < 0) {
         PLOG(ERROR) << "installd cannot open output during dexopt" <<  out_oat_path;
     } else if (!set_permissions_and_ownership(
-                wrapper_fd.get(), is_public, uid, out_oat_path, is_secondary_dex)) {
+                oat.fd(), is_public, uid, out_oat_path, is_secondary_dex)) {
         ALOGE("installd cannot set owner '%s' for output during dexopt\n", out_oat_path);
-        wrapper_fd.reset(-1);
+        oat.reset();
     }
-    return wrapper_fd;
+    return oat;
 }
 
 // Creates RDONLY fds for oat and vdex files, if exist.
@@ -1770,8 +1682,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     }
 
     // Open the input file.
-    unique_fd input_fd(open(dex_path, O_RDONLY, 0));
-    if (input_fd.get() < 0) {
+    UniqueFile in_dex(open(dex_path, O_RDONLY, 0), dex_path);
+    if (in_dex.fd() < 0) {
         *error_msg = StringPrintf("installd cannot open '%s' for input during dexopt", dex_path);
         LOG(ERROR) << *error_msg;
         return -1;
@@ -1785,19 +1697,19 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     }
 
     // Create the output OAT file.
-    char out_oat_path[PKG_PATH_MAX];
-    Dex2oatFileWrapper out_oat_fd = open_oat_out_file(dex_path, oat_dir, is_public, uid,
-            instruction_set, is_secondary_dex, out_oat_path);
-    if (out_oat_fd.get() < 0) {
+    UniqueFile out_oat = open_oat_out_file(dex_path, oat_dir, is_public, uid,
+            instruction_set, is_secondary_dex);
+    if (out_oat.fd() < 0) {
         *error_msg = "Could not open out oat file.";
         return -1;
     }
 
     // Open vdex files.
-    Dex2oatFileWrapper in_vdex_fd;
-    Dex2oatFileWrapper out_vdex_fd;
-    if (!open_vdex_files_for_dex2oat(dex_path, out_oat_path, dexopt_needed, instruction_set,
-            is_public, uid, is_secondary_dex, profile_guided, &in_vdex_fd, &out_vdex_fd)) {
+    UniqueFile in_vdex;
+    UniqueFile out_vdex;
+    if (!open_vdex_files_for_dex2oat(dex_path, out_oat.path().c_str(), dexopt_needed,
+            instruction_set, is_public, uid, is_secondary_dex, profile_guided, &in_vdex,
+            &out_vdex)) {
         *error_msg = "Could not open vdex files.";
         return -1;
     }
@@ -1817,26 +1729,27 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     }
 
     // Create a swap file if necessary.
-    unique_fd swap_fd = maybe_open_dexopt_swap_file(out_oat_path);
+    unique_fd swap_fd = maybe_open_dexopt_swap_file(out_oat.path());
 
     // Open the reference profile if needed.
-    Dex2oatFileWrapper reference_profile_fd = maybe_open_reference_profile(
+    UniqueFile reference_profile = maybe_open_reference_profile(
             pkgname, dex_path, profile_name, profile_guided, is_public, uid, is_secondary_dex);
 
-    if (reference_profile_fd.get() == -1) {
+    if (reference_profile.fd() == -1) {
         // We don't create an app image without reference profile since there is no speedup from
         // loading it in that case and instead will be a small overhead.
         generate_app_image = false;
     }
 
     // Create the app image file if needed.
-    Dex2oatFileWrapper image_fd = maybe_open_app_image(
-            out_oat_path, generate_app_image, is_public, uid, is_secondary_dex);
+    UniqueFile out_image = maybe_open_app_image(
+            out_oat.path(), generate_app_image, is_public, uid, is_secondary_dex);
 
-    unique_fd dex_metadata_fd;
+    UniqueFile dex_metadata;
     if (dex_metadata_path != nullptr) {
-        dex_metadata_fd.reset(TEMP_FAILURE_RETRY(open(dex_metadata_path, O_RDONLY | O_NOFOLLOW)));
-        if (dex_metadata_fd.get() < 0) {
+        dex_metadata.reset(TEMP_FAILURE_RETRY(open(dex_metadata_path, O_RDONLY | O_NOFOLLOW)),
+                           dex_metadata_path);
+        if (dex_metadata.fd() < 0) {
             PLOG(ERROR) << "Failed to open dex metadata file " << dex_metadata_path;
         }
     }
@@ -1863,26 +1776,24 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     LOG(VERBOSE) << "DexInv: --- BEGIN '" << dex_path << "' ---";
 
     RunDex2Oat runner(dex2oat_bin, execv_helper.get());
-    runner.Initialize(input_fd.get(),
-                      out_oat_fd.get(),
-                      in_vdex_fd.get(),
-                      out_vdex_fd.get(),
-                      image_fd.get(),
-                      dex_path,
-                      out_oat_path,
+    runner.Initialize(out_oat,
+                      out_vdex,
+                      out_image,
+                      in_dex,
+                      in_vdex,
+                      dex_metadata,
+                      reference_profile,
+                      class_loader_context,
+                      join_fds(context_input_fds),
                       swap_fd.get(),
                       instruction_set,
                       compiler_filter,
                       debuggable,
                       boot_complete,
                       for_restore,
-                      reference_profile_fd.get(),
-                      class_loader_context,
-                      join_fds(context_input_fds),
                       target_sdk_version,
                       enable_hidden_api_checks,
                       generate_compact_dex,
-                      dex_metadata_fd.get(),
                       use_jitzygote_image,
                       compilation_reason);
 
@@ -1892,8 +1803,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         drop_capabilities(uid);
 
         SetDex2OatScheduling(boot_complete);
-        if (flock(out_oat_fd.get(), LOCK_EX | LOCK_NB) != 0) {
-            PLOG(ERROR) << "flock(" << out_oat_path << ") failed";
+        if (flock(out_oat.fd(), LOCK_EX | LOCK_NB) != 0) {
+            PLOG(ERROR) << "flock(" << out_oat.path() << ") failed";
             _exit(DexoptReturnCodes::kFlock);
         }
 
@@ -1910,13 +1821,13 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         }
     }
 
-    update_out_oat_access_times(dex_path, out_oat_path);
+    update_out_oat_access_times(dex_path, out_oat.path().c_str());
 
     // We've been successful, don't delete output.
-    out_oat_fd.SetCleanup(false);
-    out_vdex_fd.SetCleanup(false);
-    image_fd.SetCleanup(false);
-    reference_profile_fd.SetCleanup(false);
+    out_oat.DisableCleanup();
+    out_vdex.DisableCleanup();
+    out_image.DisableCleanup();
+    reference_profile.DisableCleanup();
 
     return 0;
 }

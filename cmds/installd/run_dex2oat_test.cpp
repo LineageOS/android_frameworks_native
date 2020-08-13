@@ -24,6 +24,7 @@
 
 #include "execv_helper.h"
 #include "run_dex2oat.h"
+#include "unique_file.h"
 
 namespace android {
 namespace installd {
@@ -34,14 +35,16 @@ class RunDex2OatTest : public testing::Test {
     static constexpr const char* OUTPUT_PATH = "/dir/output/basename.oat";
     static constexpr const char* FLAG_UNUSED = "{{FLAG_UNUSED}}";
 
-    static constexpr int ZIP_FD = 1;
-    static constexpr int OAT_FD = 2;
-    static constexpr int INPUT_VDEX_FD = 3;
-    static constexpr int OUTPUT_VDEX_FD = 4;
-    static constexpr int IMAGE_FD = 5;
-    static constexpr int PROFILE_FD = 6;
-    static constexpr int DEX_METADATA_FD = 7;
-    static constexpr int SWAP_FD = 8;
+    // UniqueFile closes FD. Avoid using standard I/O since the test is expected to print gtest
+    // results. Alternatively, mock out UniqueFile to avoid the side effect of close(2).
+    static constexpr int ZIP_FD = 3;
+    static constexpr int OAT_FD = 4;
+    static constexpr int INPUT_VDEX_FD = 5;
+    static constexpr int OUTPUT_VDEX_FD = 6;
+    static constexpr int IMAGE_FD = 7;
+    static constexpr int PROFILE_FD = 8;
+    static constexpr int DEX_METADATA_FD = 9;
+    static constexpr int SWAP_FD = 10;
 
     using FakeSystemProperties = std::map<std::string, std::string>;
 
@@ -84,37 +87,33 @@ class RunDex2OatTest : public testing::Test {
     struct RunDex2OatArgs {
         static std::unique_ptr<RunDex2OatArgs> MakeDefaultTestArgs() {
             auto args = std::make_unique<RunDex2OatArgs>();
-            args->input_file_name = INPUT_PATH;
-            args->zip_fd = ZIP_FD;
-            args->output_file_name = OUTPUT_PATH;
-            args->oat_fd = OAT_FD;
-            args->input_vdex_fd = INPUT_VDEX_FD;
-            args->output_vdex_fd = OUTPUT_VDEX_FD;
+            args->input_dex.reset(ZIP_FD, INPUT_PATH);
+            args->output_oat.reset(OAT_FD, OUTPUT_PATH);
+            args->input_vdex.reset(INPUT_VDEX_FD, "UNUSED_PATH");
+            args->output_vdex.reset(OUTPUT_VDEX_FD, "UNUSED_PATH");
             args->instruction_set = "arm64";
             args->compilation_reason = "rundex2oattest";
             return args;
         }
 
-        int zip_fd = -1;
-        int oat_fd = -1;
-        int input_vdex_fd = -1;
-        int output_vdex_fd = -1;
-        int image_fd = -1;
-        const char* input_file_name = nullptr;
-        const char* output_file_name = nullptr;
+        UniqueFile output_oat;
+        UniqueFile output_vdex;
+        UniqueFile output_image;
+        UniqueFile input_dex;
+        UniqueFile input_vdex;
+        UniqueFile dex_metadata;
+        UniqueFile profile;
         int swap_fd = -1;
         const char* instruction_set = nullptr;
         const char* compiler_filter = "extract";
         bool debuggable = false;
         bool post_bootcomplete = false;
         bool for_restore = false;
-        int profile_fd = -1;
         const char* class_loader_context = nullptr;
         std::string class_loader_context_fds;
         int target_sdk_version = 0;
         bool enable_hidden_api_checks = false;
         bool generate_compact_dex = true;
-        int dex_metadata_fd = -1;
         bool use_jitzygote_image = false;
         const char* compilation_reason = nullptr;
     };
@@ -143,7 +142,7 @@ class RunDex2OatTest : public testing::Test {
                 cmd += arg;
                 cmd += " ";
             }
-            LOG(DEBUG) << "FakeExecVHelper exit_code: " << exit_code << " cmd: " << cmd;
+            LOG(DEBUG) << "FakeExecVHelper exit_code: " << exit_code << " cmd: " << cmd << "\n";
         }
     };
 
@@ -230,7 +229,7 @@ class RunDex2OatTest : public testing::Test {
                     << "Flag " << flag << " should be specified without value, but got " << value;
             } else {
                 EXPECT_TRUE(execv_helper_->HasArg(flag + value))
-                    << "Flag " << flag << "=" << value << " is not specificed";
+                    << "Flag " << flag << value << " is not specificed";
             }
         }
     }
@@ -241,26 +240,24 @@ class RunDex2OatTest : public testing::Test {
 
     void CallRunDex2Oat(std::unique_ptr<RunDex2OatArgs> args) {
         FakeRunDex2Oat runner(execv_helper_.get(), &system_properties_);
-        runner.Initialize(args->zip_fd,
-                          args->oat_fd,
-                          args->input_vdex_fd,
-                          args->output_vdex_fd,
-                          args->image_fd,
-                          args->input_file_name,
-                          args->output_file_name,
+        runner.Initialize(args->output_oat,
+                          args->output_vdex,
+                          args->output_image,
+                          args->input_dex,
+                          args->input_vdex,
+                          args->dex_metadata,
+                          args->profile,
+                          args->class_loader_context,
+                          args->class_loader_context_fds,
                           args->swap_fd,
                           args->instruction_set,
                           args->compiler_filter,
                           args->debuggable,
                           args->post_bootcomplete,
                           args->for_restore,
-                          args->profile_fd,
-                          args->class_loader_context,
-                          args->class_loader_context_fds,
                           args->target_sdk_version,
                           args->enable_hidden_api_checks,
                           args->generate_compact_dex,
-                          args->dex_metadata_fd,
                           args->use_jitzygote_image,
                           args->compilation_reason);
         runner.Exec(/*exit_code=*/ 0);
@@ -281,8 +278,8 @@ TEST_F(RunDex2OatTest, BasicInputOutput) {
 
 TEST_F(RunDex2OatTest, WithAllOtherInputFds) {
     auto args = RunDex2OatArgs::MakeDefaultTestArgs();
-    args->image_fd = IMAGE_FD;
-    args->profile_fd = PROFILE_FD;
+    args->output_image.reset(IMAGE_FD, "UNUSED_PATH");
+    args->profile.reset(PROFILE_FD, "UNUSED_PATH");
     args->swap_fd = SWAP_FD;
     CallRunDex2Oat(std::move(args));
 
@@ -357,8 +354,8 @@ TEST_F(RunDex2OatTest, DoNotGenerateCompactDex) {
 TEST_F(RunDex2OatTest, DoNotGenerateCompactDexWithVdexInPlaceUpdate) {
     auto args = RunDex2OatArgs::MakeDefaultTestArgs();
     args->generate_compact_dex = true;
-    args->input_vdex_fd = INPUT_VDEX_FD;
-    args->output_vdex_fd = INPUT_VDEX_FD;
+    args->input_vdex.reset(INPUT_VDEX_FD, "UNUSED_PATH");
+    args->output_vdex.reset(INPUT_VDEX_FD, "UNUSED_PATH");
     CallRunDex2Oat(std::move(args));
 
     SetExpectedFlagUsed("--compact-dex-level", "=none");
