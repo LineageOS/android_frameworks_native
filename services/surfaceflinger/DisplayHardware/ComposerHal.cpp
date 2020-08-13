@@ -237,7 +237,11 @@ std::string Composer::dumpDebugInfo()
 
 void Composer::registerCallback(const sp<IComposerCallback>& callback)
 {
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    auto ret = mNvClient->registerExtCallback(callback);
+#else
     auto ret = mClient->registerCallback(callback);
+#endif
     if (!ret.isOk()) {
         ALOGE("failed to register IComposerCallback");
     }
