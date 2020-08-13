@@ -409,6 +409,23 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
     mImageManager = std::make_unique<ImageManager>(this);
     mImageManager->initThread();
     mDrawingBuffer = createFramebuffer();
+    sp<GraphicBuffer> buf =
+            new GraphicBuffer(1, 1, PIXEL_FORMAT_RGBA_8888, 1,
+                              GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE, "placeholder");
+
+    const status_t err = buf->initCheck();
+    if (err != OK) {
+        ALOGE("Error allocating placeholder buffer: %d", err);
+        return;
+    }
+    mPlaceholderBuffer = buf.get();
+    EGLint attributes[] = {
+            EGL_NONE,
+    };
+    mPlaceholderImage = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
+                                          mPlaceholderBuffer, attributes);
+    ALOGE_IF(mPlaceholderImage == EGL_NO_IMAGE_KHR, "Failed to create placeholder image: %#x",
+             eglGetError());
 }
 
 GLESRenderEngine::~GLESRenderEngine() {
@@ -423,6 +440,7 @@ GLESRenderEngine::~GLESRenderEngine() {
         eglDestroyImageKHR(mEGLDisplay, expired);
         DEBUG_EGL_IMAGE_TRACKER_DESTROY();
     }
+    eglDestroyImageKHR(mEGLDisplay, mPlaceholderImage);
     mImageCache.clear();
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglTerminate(mEGLDisplay);
@@ -589,6 +607,9 @@ void GLESRenderEngine::genTextures(size_t count, uint32_t* names) {
 }
 
 void GLESRenderEngine::deleteTextures(size_t count, uint32_t const* names) {
+    for (int i = 0; i < count; ++i) {
+        mTextureView.erase(names[i]);
+    }
     glDeleteTextures(count, names);
 }
 
@@ -646,6 +667,7 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName,
         }
 
         bindExternalTextureImage(texName, *cachedImage->second);
+        mTextureView.insert_or_assign(texName, buffer->getId());
     }
 
     // Wait for the new buffer to be ready.
@@ -887,13 +909,37 @@ void GLESRenderEngine::unbindFrameBuffer(Framebuffer* /*framebuffer*/) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-bool GLESRenderEngine::cleanupPostRender() {
+bool GLESRenderEngine::cleanupPostRender(CleanupMode mode) {
     ATRACE_CALL();
 
     if (mPriorResourcesCleaned ||
         (mLastDrawFence != nullptr && mLastDrawFence->getStatus() != Fence::Status::Signaled)) {
         // If we don't have a prior frame needing cleanup, then don't do anything.
         return false;
+    }
+
+    // This is a bit of a band-aid fix for FrameCaptureProcessor, as we should
+    // not need to keep memory around if we don't need to do so.
+    if (mode == CleanupMode::CLEAN_ALL) {
+        // TODO: SurfaceFlinger memory utilization may benefit from resetting
+        // texture bindings as well. Assess if it does and there's no performance regression
+        // when rebinding the same image data to the same texture, and if so then its mode
+        // behavior can be tweaked.
+        if (mPlaceholderImage != EGL_NO_IMAGE_KHR) {
+            for (auto [textureName, bufferId] : mTextureView) {
+                if (bufferId && mPlaceholderImage != EGL_NO_IMAGE_KHR) {
+                    glBindTexture(GL_TEXTURE_EXTERNAL_OES, textureName);
+                    glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES,
+                                                 static_cast<GLeglImageOES>(mPlaceholderImage));
+                    mTextureView[textureName] = std::nullopt;
+                    checkErrors();
+                }
+            }
+        }
+        {
+            std::lock_guard<std::mutex> lock(mRenderingMutex);
+            mImageCache.clear();
+        }
     }
 
     // Bind the texture to dummy data so that backing image data can be freed.
@@ -1614,6 +1660,16 @@ bool GLESRenderEngine::isImageCachedForTesting(uint64_t bufferId) {
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     const auto& cachedImage = mImageCache.find(bufferId);
     return cachedImage != mImageCache.end();
+}
+
+bool GLESRenderEngine::isTextureNameKnownForTesting(uint32_t texName) {
+    const auto& entry = mTextureView.find(texName);
+    return entry != mTextureView.end();
+}
+
+std::optional<uint64_t> GLESRenderEngine::getBufferIdForTextureNameForTesting(uint32_t texName) {
+    const auto& entry = mTextureView.find(texName);
+    return entry != mTextureView.end() ? entry->second : std::nullopt;
 }
 
 bool GLESRenderEngine::isFramebufferImageCachedForTesting(uint64_t bufferId) {
