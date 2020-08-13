@@ -81,25 +81,22 @@ static int sEarlyInitState = pthread_once(&once_control, &early_egl_init);
 
 // ----------------------------------------------------------------------------
 
-egl_display_ptr validate_display(EGLDisplay dpy) {
-    egl_display_ptr dp = get_display(dpy);
-    if (!dp)
-        return setError(EGL_BAD_DISPLAY, egl_display_ptr(nullptr));
-    if (!dp->isReady())
-        return setError(EGL_NOT_INITIALIZED, egl_display_ptr(nullptr));
+egl_display_t* validate_display(EGLDisplay dpy) {
+    egl_display_t* const dp = get_display(dpy);
+    if (!dp) return setError(EGL_BAD_DISPLAY, (egl_display_t*)nullptr);
+    if (!dp->isReady()) return setError(EGL_NOT_INITIALIZED, (egl_display_t*)nullptr);
 
     return dp;
 }
 
-egl_display_ptr validate_display_connection(EGLDisplay dpy,
-        egl_connection_t*& cnx) {
-    cnx = nullptr;
-    egl_display_ptr dp = validate_display(dpy);
+egl_display_t* validate_display_connection(EGLDisplay dpy, egl_connection_t** outCnx) {
+    *outCnx = nullptr;
+    egl_display_t* dp = validate_display(dpy);
     if (!dp)
         return dp;
-    cnx = &gEGLImpl;
-    if (cnx->dso == nullptr) {
-        return setError(EGL_BAD_CONFIG, egl_display_ptr(nullptr));
+    *outCnx = &gEGLImpl;
+    if ((*outCnx)->dso == nullptr) {
+        return setError(EGL_BAD_CONFIG, (egl_display_t*)nullptr);
     }
     return dp;
 }
