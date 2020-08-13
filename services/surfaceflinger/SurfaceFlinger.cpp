@@ -1036,10 +1036,9 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         mScheduler->resyncToHardwareVsync(true, refreshRate.getVsyncPeriod());
         // As we called to set period, we will call to onRefreshRateChangeCompleted once
         // DispSync model is locked.
-        mVSyncModulator->onRefreshRateChangeInitiated();
+        modulateVsync(&VsyncModulator::onRefreshRateChangeInitiated);
 
-        mPhaseConfiguration->setRefreshRateFps(refreshRate.getFps());
-        mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
+        updatePhaseConfiguration(refreshRate);
         mScheduler->setConfigChangePending(true);
     }
 
@@ -1098,8 +1097,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
     if (refreshRate.getVsyncPeriod() != oldRefreshRate.getVsyncPeriod()) {
         mTimeStats->incrementRefreshRateSwitches();
     }
-    mPhaseConfiguration->setRefreshRateFps(refreshRate.getFps());
-    mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
+    updatePhaseConfiguration(refreshRate);
     ATRACE_INT("ActiveConfigFPS", refreshRate.getFps());
 
     if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
@@ -1119,9 +1117,9 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
 
     const auto& refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(mDesiredActiveConfig.configId);
+
     mScheduler->resyncToHardwareVsync(true, refreshRate.getVsyncPeriod());
-    mPhaseConfiguration->setRefreshRateFps(refreshRate.getFps());
-    mVSyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets());
+    updatePhaseConfiguration(refreshRate);
     mScheduler->setConfigChangePending(false);
 }
 
@@ -1600,7 +1598,7 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hal::HWDisplayId hwcDis
     bool periodFlushed = false;
     mScheduler->addResyncSample(timestamp, vsyncPeriod, &periodFlushed);
     if (periodFlushed) {
-        mVSyncModulator->onRefreshRateChangeCompleted();
+        modulateVsync(&VsyncModulator::onRefreshRateChangeCompleted);
     }
 }
 
@@ -1790,7 +1788,7 @@ sp<Fence> SurfaceFlinger::previousFrameFence() {
     // We are storing the last 2 present fences. If sf's phase offset is to be
     // woken up before the actual vsync but targeting the next vsync, we need to check
     // fence N-2
-    return mVSyncModulator->getOffsets().sf > 0 ? mPreviousPresentFences[0]
+    return mVsyncModulator->getOffsets().sf > 0 ? mPreviousPresentFences[0]
                                                 : mPreviousPresentFences[1];
 }
 
@@ -1823,7 +1821,7 @@ nsecs_t SurfaceFlinger::calculateExpectedPresentTime(nsecs_t now) const {
     mScheduler->getDisplayStatInfo(&stats);
     const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime(now);
     // Inflate the expected present time if we're targetting the next vsync.
-    return mVSyncModulator->getOffsets().sf > 0 ? presentTime : presentTime + stats.vsyncPeriod;
+    return mVsyncModulator->getOffsets().sf > 0 ? presentTime : presentTime + stats.vsyncPeriod;
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what, nsecs_t expectedVSyncTime) {
@@ -2120,7 +2118,8 @@ void SurfaceFlinger::onMessageRefresh() {
     }
 
     // TODO: b/160583065 Enable skip validation when SF caches all client composition layers
-    mVSyncModulator->onRefreshed(mHadClientComposition || mReusedClientComposition);
+    const bool usedGpuComposition = mHadClientComposition || mReusedClientComposition;
+    modulateVsync(&VsyncModulator::onDisplayRefresh, usedGpuComposition);
 
     mLayersWithQueuedFrames.clear();
     if (mVisibleRegionsDirty) {
@@ -2416,7 +2415,7 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
     // with mStateLock held to guarantee that mCurrentState won't change
     // until the transaction is committed.
 
-    mVSyncModulator->onTransactionHandled();
+    modulateVsync(&VsyncModulator::onTransactionCommit);
     transactionFlags = getTransactionFlags(eTransactionMask);
     handleTransactionLocked(transactionFlags);
 
@@ -2977,6 +2976,7 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
     mRefreshRateStats->setConfigMode(currentConfig);
 
     mPhaseConfiguration = getFactory().createPhaseConfiguration(*mRefreshRateConfigs);
+    mVsyncModulator.emplace(mPhaseConfiguration->getCurrentOffsets());
 
     // start the EventThread
     mScheduler = getFactory().createScheduler(*mRefreshRateConfigs, *this);
@@ -2990,8 +2990,6 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
                                          });
 
     mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
-    mVSyncModulator.emplace(*mScheduler, mAppConnectionHandle, mSfConnectionHandle,
-                            mPhaseConfiguration->getCurrentOffsets());
 
     mRegionSamplingThread =
             new RegionSamplingThread(*this, *mScheduler,
@@ -3009,8 +3007,17 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
                                               vsyncPeriod);
 }
 
-void SurfaceFlinger::commitTransaction()
-{
+void SurfaceFlinger::updatePhaseConfiguration(const RefreshRate& refreshRate) {
+    mPhaseConfiguration->setRefreshRateFps(refreshRate.getFps());
+    setPhaseOffsets(mVsyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets()));
+}
+
+void SurfaceFlinger::setPhaseOffsets(const VsyncModulator::Offsets& offsets) {
+    mScheduler->setPhaseOffset(mAppConnectionHandle, offsets.app);
+    mScheduler->setPhaseOffset(mSfConnectionHandle, offsets.sf);
+}
+
+void SurfaceFlinger::commitTransaction() {
     commitTransactionLocked();
     mTransactionPending = false;
     mAnimTransactionPending = false;
@@ -3046,15 +3053,19 @@ void SurfaceFlinger::commitTransactionLocked() {
     // clear the "changed" flags in current state
     mCurrentState.colorMatrixChanged = false;
 
-    mDrawingState.traverse([&](Layer* layer) {
-        layer->commitChildList();
-
-        // If the layer can be reached when traversing mDrawingState, then the layer is no
-        // longer offscreen. Remove the layer from the offscreenLayer set.
-        if (mOffscreenLayers.count(layer)) {
-            mOffscreenLayers.erase(layer);
-        }
-    });
+    for (const auto& rootLayer : mDrawingState.layersSortedByZ) {
+        rootLayer->commitChildList();
+    }
+    // TODO(b/163019109): See if this traversal is needed at all...
+    if (!mOffscreenLayers.empty()) {
+        mDrawingState.traverse([&](Layer* layer) {
+            // If the layer can be reached when traversing mDrawingState, then the layer is no
+            // longer offscreen. Remove the layer from the offscreenLayer set.
+            if (mOffscreenLayers.count(layer)) {
+                mOffscreenLayers.erase(layer);
+            }
+        });
+    }
 
     commitOffscreenLayers();
     mDrawingState.traverse([&](Layer* layer) { layer->updateMirrorInfo(); });
@@ -3250,16 +3261,13 @@ uint32_t SurfaceFlinger::getTransactionFlags(uint32_t flags) {
 }
 
 uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
-    return setTransactionFlags(flags, Scheduler::TransactionStart::Normal);
+    return setTransactionFlags(flags, TransactionSchedule::Late);
 }
 
-uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
-                                             Scheduler::TransactionStart transactionStart) {
+uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags, TransactionSchedule schedule) {
     uint32_t old = mTransactionFlags.fetch_or(flags);
-    mVSyncModulator->setTransactionStart(transactionStart);
-    if ((old & flags)==0) { // wake the server up
-        signalTransaction();
-    }
+    modulateVsync(&VsyncModulator::setTransactionSchedule, schedule);
+    if ((old & flags) == 0) signalTransaction();
     return old;
 }
 
@@ -3292,7 +3300,8 @@ bool SurfaceFlinger::flushTransactionQueues() {
                                       mPendingInputWindowCommands, transaction.desiredPresentTime,
                                       transaction.buffer, transaction.postTime,
                                       transaction.privileged, transaction.hasListenerCallbacks,
-                                      transaction.listenerCallbacks, /*isMainThread*/ true);
+                                      transaction.listenerCallbacks, transaction.originPID,
+                                      transaction.originUID, /*isMainThread*/ true);
                 transactionQueue.pop();
                 flushedATransaction = true;
             }
@@ -3372,17 +3381,22 @@ void SurfaceFlinger::setTransactionState(
         mExpectedPresentTime = calculateExpectedPresentTime(systemTime());
     }
 
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int originPID = ipc->getCallingPid();
+    const int originUID = ipc->getCallingUid();
+
     if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
                                                uncacheBuffer, postTime, privileged,
-                                               hasListenerCallbacks, listenerCallbacks);
+                                               hasListenerCallbacks, listenerCallbacks, originPID,
+                                               originUID);
         setTransactionFlags(eTransactionFlushNeeded);
         return;
     }
 
     applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
                           uncacheBuffer, postTime, privileged, hasListenerCallbacks,
-                          listenerCallbacks);
+                          listenerCallbacks, originPID, originUID, /*isMainThread*/ false);
 }
 
 void SurfaceFlinger::applyTransactionState(
@@ -3390,7 +3404,7 @@ void SurfaceFlinger::applyTransactionState(
         const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
         const client_cache_t& uncacheBuffer, const int64_t postTime, bool privileged,
         bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
-        bool isMainThread) {
+        int originPID, int originUID, bool isMainThread) {
     uint32_t transactionFlags = 0;
 
     if (flags & eAnimation) {
@@ -3467,22 +3481,17 @@ void SurfaceFlinger::applyTransactionState(
         mForceTraversal = true;
     }
 
-    const auto transactionStart = [](uint32_t flags) {
-        if (flags & eEarlyWakeup) {
-            return Scheduler::TransactionStart::Early;
-        }
-        if (flags & eExplicitEarlyWakeupEnd) {
-            return Scheduler::TransactionStart::EarlyEnd;
-        }
-        if (flags & eExplicitEarlyWakeupStart) {
-            return Scheduler::TransactionStart::EarlyStart;
-        }
-        return Scheduler::TransactionStart::Normal;
+    const auto schedule = [](uint32_t flags) {
+        if (flags & eEarlyWakeup) return TransactionSchedule::Early;
+        if (flags & eExplicitEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;
+        if (flags & eExplicitEarlyWakeupStart) return TransactionSchedule::EarlyStart;
+        return TransactionSchedule::Late;
     }(flags);
 
     if (transactionFlags) {
         if (mInterceptor->isEnabled()) {
-            mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags);
+            mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags,
+                                          originPID, originUID);
         }
 
         // TODO(b/159125966): Remove eEarlyWakeup completly as no client should use this flag
@@ -3496,7 +3505,7 @@ void SurfaceFlinger::applyTransactionState(
         }
 
         // this triggers the transaction
-        setTransactionFlags(transactionFlags, transactionStart);
+        setTransactionFlags(transactionFlags, schedule);
 
         if (flags & eAnimation) {
             mAnimTransactionPending = true;
@@ -3534,11 +3543,10 @@ void SurfaceFlinger::applyTransactionState(
             }
         }
     } else {
-        // even if a transaction is not needed, we need to update VsyncModulator
-        // about explicit early indications
-        if (transactionStart == Scheduler::TransactionStart::EarlyStart ||
-            transactionStart == Scheduler::TransactionStart::EarlyEnd) {
-            mVSyncModulator->setTransactionStart(transactionStart);
+        // Update VsyncModulator state machine even if transaction is not needed.
+        if (schedule == TransactionSchedule::EarlyStart ||
+            schedule == TransactionSchedule::EarlyEnd) {
+            modulateVsync(&VsyncModulator::setTransactionSchedule, schedule);
         }
     }
 }

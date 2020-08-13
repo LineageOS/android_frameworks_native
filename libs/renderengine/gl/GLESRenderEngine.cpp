@@ -51,8 +51,6 @@
 #include "ProgramCache.h"
 #include "filters/BlurFilter.h"
 
-extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
-
 bool checkGlError(const char* op, int lineNumber) {
     bool errorFound = false;
     GLint error = glGetError();
@@ -208,16 +206,16 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCre
         LOG_ALWAYS_FATAL("failed to initialize EGL");
     }
 
-    const auto eglVersion = eglQueryStringImplementationANDROID(display, EGL_VERSION);
+    const auto eglVersion = eglQueryString(display, EGL_VERSION);
     if (!eglVersion) {
         checkGlError(__FUNCTION__, __LINE__);
-        LOG_ALWAYS_FATAL("eglQueryStringImplementationANDROID(EGL_VERSION) failed");
+        LOG_ALWAYS_FATAL("eglQueryString(EGL_VERSION) failed");
     }
 
-    const auto eglExtensions = eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS);
+    const auto eglExtensions = eglQueryString(display, EGL_EXTENSIONS);
     if (!eglExtensions) {
         checkGlError(__FUNCTION__, __LINE__);
-        LOG_ALWAYS_FATAL("eglQueryStringImplementationANDROID(EGL_EXTENSIONS) failed");
+        LOG_ALWAYS_FATAL("eglQueryString(EGL_EXTENSIONS) failed");
     }
 
     GLExtensions& extensions = GLExtensions::getInstance();

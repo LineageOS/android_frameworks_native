@@ -156,7 +156,6 @@ protected:
 };
 
 struct MotionEntry : EventEntry {
-    nsecs_t eventTime;
     int32_t deviceId;
     uint32_t source;
     int32_t displayId;

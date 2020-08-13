@@ -221,6 +221,13 @@ void SurfaceInterceptor::setProtoRectLocked(Rectangle* protoRect, const Rect& re
     protoRect->set_bottom(rect.bottom);
 }
 
+void SurfaceInterceptor::setTransactionOriginLocked(Transaction* transaction, int32_t pid,
+                                                    int32_t uid) {
+    Origin* origin(transaction->mutable_origin());
+    origin->set_pid(pid);
+    origin->set_uid(uid);
+}
+
 void SurfaceInterceptor::addPositionLocked(Transaction* transaction, int32_t layerId,
         float x, float y)
 {
@@ -487,14 +494,16 @@ void SurfaceInterceptor::addDisplayChangesLocked(Transaction* transaction,
     }
 }
 
-void SurfaceInterceptor::addTransactionLocked(Increment* increment,
-        const Vector<ComposerState>& stateUpdates,
-        const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays,
-        const Vector<DisplayState>& changedDisplays, uint32_t transactionFlags)
-{
+void SurfaceInterceptor::addTransactionLocked(
+        Increment* increment, const Vector<ComposerState>& stateUpdates,
+        const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,
+        const Vector<DisplayState>& changedDisplays, uint32_t transactionFlags, int originPID,
+        int originUID) {
     Transaction* transaction(increment->mutable_transaction());
     transaction->set_synchronous(transactionFlags & BnSurfaceComposer::eSynchronous);
     transaction->set_animation(transactionFlags & BnSurfaceComposer::eAnimation);
+    setTransactionOriginLocked(transaction, originPID, originUID);
+
     for (const auto& compState: stateUpdates) {
         addSurfaceChangesLocked(transaction, compState.state);
     }
@@ -613,17 +622,17 @@ void SurfaceInterceptor::addPowerModeUpdateLocked(Increment* increment, int32_t 
     powerModeUpdate->set_mode(mode);
 }
 
-void SurfaceInterceptor::saveTransaction(const Vector<ComposerState>& stateUpdates,
-        const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays,
-        const Vector<DisplayState>& changedDisplays, uint32_t flags)
-{
+void SurfaceInterceptor::saveTransaction(
+        const Vector<ComposerState>& stateUpdates,
+        const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,
+        const Vector<DisplayState>& changedDisplays, uint32_t flags, int originPID, int originUID) {
     if (!mEnabled || (stateUpdates.size() <= 0 && changedDisplays.size() <= 0)) {
         return;
     }
     ATRACE_CALL();
     std::lock_guard<std::mutex> protoGuard(mTraceMutex);
     addTransactionLocked(createTraceIncrementLocked(), stateUpdates, displays, changedDisplays,
-            flags);
+                         flags, originPID, originUID);
 }
 
 void SurfaceInterceptor::saveSurfaceCreation(const sp<const Layer>& layer) {

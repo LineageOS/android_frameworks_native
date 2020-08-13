@@ -457,7 +457,43 @@ mat4 Transform::asMatrix4() const {
     return m;
 }
 
-void Transform::dump(std::string& out, const char* name) const {
+static std::string rotationToString(const uint32_t rotationFlags) {
+    switch (rotationFlags) {
+        case Transform::ROT_0:
+            return "ROT_0";
+        case Transform::FLIP_H:
+            return "FLIP_H";
+        case Transform::FLIP_V:
+            return "FLIP_V";
+        case Transform::ROT_90:
+            return "ROT_90";
+        case Transform::ROT_180:
+            return "ROT_180";
+        case Transform::ROT_270:
+            return "ROT_270";
+        case Transform::ROT_INVALID:
+        default:
+            return "ROT_INVALID";
+    }
+}
+
+static std::string transformToString(const uint32_t transform) {
+    if (transform == Transform::IDENTITY) {
+        return "IDENTITY";
+    }
+
+    if (transform == Transform::UNKNOWN) {
+        return "UNKNOWN";
+    }
+
+    std::string out;
+    if (transform & Transform::SCALE) out.append("SCALE ");
+    if (transform & Transform::ROTATE) out.append("ROTATE ");
+    if (transform & Transform::TRANSLATE) out.append("TRANSLATE");
+    return out;
+}
+
+void Transform::dump(std::string& out, const char* name, const char* prefix) const {
     using android::base::StringAppendF;
 
     type(); // Ensure the information in mType is up to date
@@ -465,38 +501,29 @@ void Transform::dump(std::string& out, const char* name) const {
     const uint32_t type = mType;
     const uint32_t orient = type >> 8;
 
-    StringAppendF(&out, "%s 0x%08x (", name, orient);
+    out += prefix;
+    out += name;
+    out += " ";
 
     if (orient & ROT_INVALID) {
-        out.append("ROT_INVALID ");
-    } else {
-        if (orient & ROT_90) {
-            out.append("ROT_90 ");
-        } else {
-            out.append("ROT_0 ");
-        }
-        if (orient & FLIP_V) out.append("FLIP_V ");
-        if (orient & FLIP_H) out.append("FLIP_H ");
+        StringAppendF(&out, "0x%08x ", orient);
     }
+    out += "(" + rotationToString(orient) + ") ";
 
-    StringAppendF(&out, ") 0x%02x (", type);
-
-    if (!(type & (SCALE | ROTATE | TRANSLATE))) out.append("IDENTITY ");
-    if (type & SCALE) out.append("SCALE ");
-    if (type & ROTATE) out.append("ROTATE ");
-    if (type & TRANSLATE) out.append("TRANSLATE ");
-
-    out.append(")\n");
+    if (type & UNKNOWN) {
+        StringAppendF(&out, "0x%02x ", type);
+    }
+    out += "(" + transformToString(type) + ")\n";
 
     for (size_t i = 0; i < 3; i++) {
-        StringAppendF(&out, "    %.4f  %.4f  %.4f\n", static_cast<double>(mMatrix[0][i]),
+        StringAppendF(&out, "%s    %.4f  %.4f  %.4f\n", prefix, static_cast<double>(mMatrix[0][i]),
                       static_cast<double>(mMatrix[1][i]), static_cast<double>(mMatrix[2][i]));
     }
 }
 
-void Transform::dump(const char* name) const {
+void Transform::dump(const char* name, const char* prefix) const {
     std::string out;
-    dump(out, name);
+    dump(out, name, prefix);
     ALOGD("%s", out.c_str());
 }
 

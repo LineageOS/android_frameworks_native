@@ -218,6 +218,7 @@ public:
                                              /*powerMode=*/hal::PowerMode::OFF);
         mFlinger->mPhaseConfiguration =
                 mFactory.createPhaseConfiguration(*mFlinger->mRefreshRateConfigs);
+        mFlinger->mVsyncModulator.emplace(mFlinger->mPhaseConfiguration->getCurrentOffsets());
 
         constexpr bool kUseContentDetectionV2 = false;
         mScheduler =
@@ -227,10 +228,6 @@ public:
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
         resetScheduler(mScheduler);
-
-        mFlinger->mVSyncModulator.emplace(*mScheduler, mFlinger->mAppConnectionHandle,
-                                          mFlinger->mSfConnectionHandle,
-                                          mFlinger->mPhaseConfiguration->getCurrentOffsets());
     }
 
     void resetScheduler(Scheduler* scheduler) { mFlinger->mScheduler.reset(scheduler); }

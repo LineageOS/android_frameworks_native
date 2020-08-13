@@ -417,7 +417,7 @@ private:
         BitArray<INPUT_PROP_MAX> propBitmask;
 
         std::string configurationFile;
-        PropertyMap* configuration;
+        std::unique_ptr<PropertyMap> configuration;
         std::unique_ptr<VirtualKeyMap> virtualKeyMap;
         KeyMap keyMap;
 

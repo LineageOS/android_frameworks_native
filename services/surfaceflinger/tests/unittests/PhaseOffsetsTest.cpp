@@ -29,8 +29,7 @@
 
 using namespace testing;
 
-namespace android {
-namespace scheduler {
+namespace android::scheduler {
 
 class TestablePhaseOffsetsAsDurations : public impl::PhaseDurations {
 public:
@@ -53,7 +52,6 @@ protected:
     TestablePhaseOffsetsAsDurations mPhaseDurations;
 };
 
-namespace {
 /* ------------------------------------------------------------------------
  * Test cases
  */
@@ -71,9 +69,9 @@ TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_60Hz) {
 
     EXPECT_EQ(offsets.early.app, 833'334);
 
-    EXPECT_EQ(offsets.earlyGl.sf, 3'166'667);
+    EXPECT_EQ(offsets.earlyGpu.sf, 3'166'667);
 
-    EXPECT_EQ(offsets.earlyGl.app, 15'500'001);
+    EXPECT_EQ(offsets.earlyGpu.app, 15'500'001);
 }
 
 TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_90Hz) {
@@ -90,9 +88,9 @@ TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_90Hz) {
 
     EXPECT_EQ(offsets.early.app, 833'333);
 
-    EXPECT_EQ(offsets.earlyGl.sf, -2'388'889);
+    EXPECT_EQ(offsets.earlyGpu.sf, -2'388'889);
 
-    EXPECT_EQ(offsets.earlyGl.app, 9'944'444);
+    EXPECT_EQ(offsets.earlyGpu.app, 9'944'444);
 }
 
 TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_DefaultOffsets) {
@@ -107,9 +105,9 @@ TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_DefaultOffsets) {
 
         EXPECT_EQ(offsets.early.app, 1'000'000);
 
-        EXPECT_EQ(offsets.earlyGl.sf, 1'000'000);
+        EXPECT_EQ(offsets.earlyGpu.sf, 1'000'000);
 
-        EXPECT_EQ(offsets.earlyGl.app, 1'000'000);
+        EXPECT_EQ(offsets.earlyGpu.app, 1'000'000);
     };
 
     phaseOffsetsWithDefaultValues.setRefreshRateFps(90.0f);
@@ -136,31 +134,20 @@ TEST_F(PhaseDurationTest, getOffsetsForRefreshRate_unknownRefreshRate) {
 
     EXPECT_EQ(offsets.early.app, 35'527'208);
 
-    EXPECT_EQ(offsets.earlyGl.sf, 54'527'208);
+    EXPECT_EQ(offsets.earlyGpu.sf, 54'527'208);
 
-    EXPECT_EQ(offsets.earlyGl.app, 33'527'208);
+    EXPECT_EQ(offsets.earlyGpu.app, 33'527'208);
 }
 
-} // namespace
+TEST(PhaseOffsetsTest, getOffsetsForRefreshRate_unknownRefreshRate) {
+    struct PhaseOffsets : impl::PhaseOffsets {
+        using impl::PhaseOffsets::PhaseOffsets;
+        static PhaseOffsets get() {
+            return {{60.0f, 90.0f}, 60.0f, 1'000'000, 1'000'000, {}, {}, {}, {}, 10'000'000};
+        }
+    };
 
-class TestablePhaseOffsets : public impl::PhaseOffsets {
-public:
-    TestablePhaseOffsets()
-          : impl::PhaseOffsets({60.0f, 90.0f}, 60.0f, 1'000'000, 1'000'000, {}, {}, {}, {},
-                               10'000'000) {}
-};
-
-class PhaseOffsetsTest : public testing::Test {
-protected:
-    PhaseOffsetsTest() = default;
-    ~PhaseOffsetsTest() = default;
-
-    TestablePhaseOffsets mPhaseOffsets;
-};
-
-namespace {
-TEST_F(PhaseOffsetsTest, getOffsetsForRefreshRate_unknownRefreshRate) {
-    auto offsets = mPhaseOffsets.getOffsetsForRefreshRate(14.7f);
+    auto offsets = PhaseOffsets::get().getOffsetsForRefreshRate(14.7f);
 
     EXPECT_EQ(offsets.late.sf, 1'000'000);
 
@@ -170,14 +157,12 @@ TEST_F(PhaseOffsetsTest, getOffsetsForRefreshRate_unknownRefreshRate) {
 
     EXPECT_EQ(offsets.early.app, 1'000'000);
 
-    EXPECT_EQ(offsets.earlyGl.sf, 1'000'000);
+    EXPECT_EQ(offsets.earlyGpu.sf, 1'000'000);
 
-    EXPECT_EQ(offsets.earlyGl.app, 1'000'000);
+    EXPECT_EQ(offsets.earlyGpu.app, 1'000'000);
 }
 
-} // namespace
-} // namespace scheduler
-} // namespace android
+} // namespace android::scheduler
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
