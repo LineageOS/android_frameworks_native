@@ -62,7 +62,11 @@ using types::V1_1::RenderIntent;
 using V2_1::Config;
 using V2_1::Display;
 using V2_1::Error;
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+using IComposerCallback = vendor::nvidia::hardware::graphics::composer::V2_0::INvComposerCallback;
+#else
 using V2_1::IComposerCallback;
+#endif
 using V2_1::Layer;
 
 using V2_2::CommandReaderBase;
