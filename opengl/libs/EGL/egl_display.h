@@ -29,8 +29,6 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include <cutils/compiler.h>
-
 #include "egldefs.h"
 #include "../hooks.h"
 
@@ -118,8 +116,6 @@ public:
     bool    hasColorSpaceSupport;
 
 private:
-    friend class egl_display_ptr;
-
             uint32_t                    refs;
             bool                        eglIsInitialized;
     mutable std::mutex                  lock;
@@ -134,60 +130,14 @@ private:
 
 // ----------------------------------------------------------------------------
 
-// An egl_display_ptr is a kind of smart pointer for egl_display_t objects.
-// It doesn't refcount the egl_display_t, but does ensure that the underlying
-// EGL implementation is "awake" (not hibernating) and ready for use as long
-// as the egl_display_ptr exists.
-class egl_display_ptr {
-public:
-    explicit egl_display_ptr(egl_display_t* dpy): mDpy(dpy) {}
-
-    // We only really need a C++11 move constructor, not a copy constructor.
-    // A move constructor would save an enter()/leave() pair on every EGL API
-    // call. But enabling -std=c++0x causes lots of errors elsewhere, so I
-    // can't use a move constructor until those are cleaned up.
-    //
-    // egl_display_ptr(egl_display_ptr&& other) {
-    //     mDpy = other.mDpy;
-    //     other.mDpy = NULL;
-    // }
-    //
-    egl_display_ptr(const egl_display_ptr& other): mDpy(other.mDpy) {}
-
-    ~egl_display_ptr() {}
-
-    const egl_display_t* operator->() const { return mDpy; }
-          egl_display_t* operator->()       { return mDpy; }
-
-    const egl_display_t* get() const { return mDpy; }
-          egl_display_t* get()       { return mDpy; }
-
-    operator bool() const { return mDpy != nullptr; }
-
-private:
-    egl_display_t* mDpy;
-
-    // non-assignable
-    egl_display_ptr& operator=(const egl_display_ptr&);
-};
-
-// ----------------------------------------------------------------------------
-
-inline egl_display_ptr get_display(EGLDisplay dpy) {
-    return egl_display_ptr(egl_display_t::get(dpy));
-}
-
-// Does not ensure EGL is unhibernated. Use with caution: calls into the
-// underlying EGL implementation are not safe.
-inline egl_display_t* get_display_nowake(EGLDisplay dpy) {
+inline egl_display_t* get_display(EGLDisplay dpy) {
     return egl_display_t::get(dpy);
 }
 
 // ----------------------------------------------------------------------------
 
-egl_display_ptr validate_display(EGLDisplay dpy);
-egl_display_ptr validate_display_connection(EGLDisplay dpy,
-        egl_connection_t*& cnx);
+egl_display_t* validate_display(EGLDisplay dpy);
+egl_display_t* validate_display_connection(EGLDisplay dpy, egl_connection_t** outCnx);
 EGLBoolean validate_display_context(EGLDisplay dpy, EGLContext ctx);
 EGLBoolean validate_display_surface(EGLDisplay dpy, EGLSurface surface);
 
