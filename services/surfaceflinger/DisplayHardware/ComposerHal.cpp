@@ -31,6 +31,7 @@
 #include <vendor/nvidia/hardware/graphics/composer/2.0/INvComposer.h>
 
 using vendor::nvidia::hardware::graphics::composer::V2_0::INvComposer;
+using vendor::nvidia::hardware::graphics::composer::V2_0::INvComposerCallback;
 #endif
 
 namespace android {
@@ -237,7 +238,17 @@ std::string Composer::dumpDebugInfo()
 
 void Composer::registerCallback(const sp<IComposerCallback>& callback)
 {
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    hardware::Return<void> ret;
+    sp<INvComposerCallback> nvCallback = INvComposerCallback::castFrom(callback);
+    if (nvCallback != nullptr) {
+        ret = mNvClient->registerExtCallback(nvCallback);
+    } else {
+        ret = mClient->registerCallback(callback);
+    }
+#else
     auto ret = mClient->registerCallback(callback);
+#endif
     if (!ret.isOk()) {
         ALOGE("failed to register IComposerCallback");
     }

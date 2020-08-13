@@ -61,7 +61,11 @@ inline bool hasMetadataKey(const std::set<Hwc2::PerFrameMetadataKey>& keys,
     return keys.find(key) != keys.end();
 }
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+class ComposerCallbackBridge : public INvComposerCallback {
+#else
 class ComposerCallbackBridge : public Hwc2::IComposerCallback {
+#endif
 public:
     ComposerCallbackBridge(ComposerCallback* callback, int32_t sequenceId)
             : mCallback(callback), mSequenceId(sequenceId) {}
@@ -85,6 +89,14 @@ public:
         mCallback->onVsyncReceived(mSequenceId, display, timestamp);
         return Void();
     }
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    Return<void> onResync(Hwc2::Display display) override
+    {
+        mCallback->onResyncReceived(mSequenceId, display);
+        return Void();
+    }
+#endif
 
 private:
     ComposerCallback* mCallback;
