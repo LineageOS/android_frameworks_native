@@ -1137,7 +1137,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
         return *this;
     }
     s->what |= layer_state_t::eFrameChanged;
-    s->frame = frame;
+    s->orientedDisplaySpaceRect = frame;
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -1545,8 +1545,8 @@ void SurfaceComposerClient::Transaction::setDisplayProjection(const sp<IBinder>&
                                                               const Rect& displayRect) {
     DisplayState& s(getDisplayState(token));
     s.orientation = orientation;
-    s.viewport = layerStackRect;
-    s.frame = displayRect;
+    s.layerStackSpaceRect = layerStackRect;
+    s.orientedDisplaySpaceRect = displayRect;
     s.what |= DisplayState::eDisplayProjectionChanged;
     mForceSynchronous = true; // TODO: do we actually still need this?
 }

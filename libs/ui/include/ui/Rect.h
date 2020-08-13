@@ -19,10 +19,10 @@
 
 #include <ostream>
 
+#include <log/log.h>
 #include <utils/Flattenable.h>
 #include <utils/Log.h>
 #include <utils/TypeHelpers.h>
-#include <log/log.h>
 
 #include <ui/FloatRect.h>
 #include <ui/Point.h>
@@ -216,11 +216,10 @@ public:
     }
 };
 
+std::string to_string(const android::Rect& rect);
+
 // Defining PrintTo helps with Google Tests.
-static inline void PrintTo(const Rect& rect, ::std::ostream* os) {
-    *os << "Rect(" << rect.left << ", " << rect.top << ", " << rect.right << ", " << rect.bottom
-        << ")";
-}
+void PrintTo(const Rect& rect, ::std::ostream* os);
 
 ANDROID_BASIC_TYPES_TRAITS(Rect)
 

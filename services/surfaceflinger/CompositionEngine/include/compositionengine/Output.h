@@ -163,11 +163,12 @@ public:
     virtual void setCompositionEnabled(bool) = 0;
 
     // Sets the projection state to use
-    virtual void setProjection(const ui::Transform&, uint32_t orientation, const Rect& frame,
-                               const Rect& viewport, const Rect& destinationClip,
+    virtual void setProjection(const ui::Transform&, uint32_t orientation,
+                               const Rect& orientedDisplaySpaceRect,
+                               const Rect& layerStackSpaceRect, const Rect& displaySpaceRect,
                                bool needsFiltering) = 0;
     // Sets the bounds to use
-    virtual void setBounds(const ui::Size&) = 0;
+    virtual void setDisplaySpaceSize(const ui::Size&) = 0;
 
     // Sets the layer stack filtering settings for this output. See
     // belongsInOutput for full details.

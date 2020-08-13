@@ -105,24 +105,32 @@ void Output::setCompositionEnabled(bool enabled) {
     dirtyEntireOutput();
 }
 
-void Output::setProjection(const ui::Transform& transform, uint32_t orientation, const Rect& frame,
-                           const Rect& viewport, const Rect& destinationClip, bool needsFiltering) {
+void Output::setProjection(const ui::Transform& transform, uint32_t orientation,
+                           const Rect& orientedDisplaySpaceRect, const Rect& layerStackSpaceRect,
+                           const Rect& displaySpaceRect, bool needsFiltering) {
     auto& outputState = editState();
     outputState.transform = transform;
     outputState.orientation = orientation;
-    outputState.destinationClip = destinationClip;
-    outputState.frame = frame;
-    outputState.viewport = viewport;
+    outputState.displaySpace.content = displaySpaceRect;
+    // outputState.displaySpace.bounds should be already set from setDisplaySpaceSize().
+    outputState.orientedDisplaySpace.content = orientedDisplaySpaceRect;
+
+    ui::Size orientedSize = outputState.displaySpace.bounds.getSize();
+    if (orientation == ui::Transform::ROT_90 || orientation == ui::Transform::ROT_270) {
+        std::swap(orientedSize.width, orientedSize.height);
+    }
+    outputState.orientedDisplaySpace.bounds = Rect(orientedSize);
+
+    outputState.layerStackSpace.content = layerStackSpaceRect;
+    outputState.layerStackSpace.bounds = layerStackSpaceRect;
     outputState.needsFiltering = needsFiltering;
 
     dirtyEntireOutput();
 }
 
-// TODO(b/121291683): Rename setSize() once more is moved.
-void Output::setBounds(const ui::Size& size) {
+void Output::setDisplaySpaceSize(const ui::Size& size) {
     mRenderSurface->setDisplaySize(size);
-    // TODO(b/121291683): Rename outputState.size once more is moved.
-    editState().bounds = Rect(mRenderSurface->getSize());
+    editState().displaySpace.bounds = Rect(mRenderSurface->getSize());
 
     dirtyEntireOutput();
 }
@@ -230,7 +238,7 @@ compositionengine::RenderSurface* Output::getRenderSurface() const {
 
 void Output::setRenderSurface(std::unique_ptr<compositionengine::RenderSurface> surface) {
     mRenderSurface = std::move(surface);
-    editState().bounds = Rect(mRenderSurface->getSize());
+    editState().displaySpace.bounds = Rect(mRenderSurface->getSize());
 
     dirtyEntireOutput();
 }
@@ -249,7 +257,7 @@ void Output::setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSu
 
 Region Output::getDirtyRegion(bool repaintEverything) const {
     const auto& outputState = getState();
-    Region dirty(outputState.viewport);
+    Region dirty(outputState.layerStackSpace.content);
     if (!repaintEverything) {
         dirty.andSelf(outputState.dirtyRegion);
     }
@@ -334,7 +342,7 @@ void Output::rebuildLayerStacks(const compositionengine::CompositionRefreshArgs&
 
     // Compute the resulting coverage for this output, and store it for later
     const ui::Transform& tr = outputState.transform;
-    Region undefinedRegion{outputState.bounds};
+    Region undefinedRegion{outputState.displaySpace.bounds};
     undefinedRegion.subtractSelf(tr.transform(coverage.aboveOpaqueLayers));
 
     outputState.undefinedRegion = undefinedRegion;
@@ -537,7 +545,7 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
     // TODO(b/121291683): Why does this not use visibleRegion? (see outputSpaceVisibleRegion below)
     const auto& outputState = getState();
     Region drawRegion(outputState.transform.transform(visibleNonTransparentRegion));
-    drawRegion.andSelf(outputState.bounds);
+    drawRegion.andSelf(outputState.displaySpace.bounds);
     if (drawRegion.isEmpty()) {
         return;
     }
@@ -554,8 +562,8 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
     outputLayerState.visibleRegion = visibleRegion;
     outputLayerState.visibleNonTransparentRegion = visibleNonTransparentRegion;
     outputLayerState.coveredRegion = coveredRegion;
-    outputLayerState.outputSpaceVisibleRegion =
-            outputState.transform.transform(visibleNonShadowRegion.intersect(outputState.viewport));
+    outputLayerState.outputSpaceVisibleRegion = outputState.transform.transform(
+            visibleNonShadowRegion.intersect(outputState.layerStackSpace.content));
     outputLayerState.shadowRegion = shadowRegion;
 }
 
@@ -860,8 +868,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     ALOGV("hasClientComposition");
 
     renderengine::DisplaySettings clientCompositionDisplay;
-    clientCompositionDisplay.physicalDisplay = outputState.destinationClip;
-    clientCompositionDisplay.clip = outputState.viewport;
+    clientCompositionDisplay.physicalDisplay = outputState.displaySpace.content;
+    clientCompositionDisplay.clip = outputState.layerStackSpace.content;
     clientCompositionDisplay.orientation = outputState.orientation;
     clientCompositionDisplay.outputDataspace = mDisplayColorProfile->hasWideColorGamut()
             ? outputState.dataspace
@@ -945,7 +953,7 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
     ALOGV("Rendering client layers");
 
     const auto& outputState = getState();
-    const Region viewportRegion(outputState.viewport);
+    const Region viewportRegion(outputState.layerStackSpace.content);
     bool firstLayer = true;
     // Used when a layer clears part of the buffer.
     Region stubRegion;
@@ -981,17 +989,17 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                 !layerState.visibleRegion.subtract(layerState.shadowRegion).isEmpty();
 
         if (clientComposition || clearClientComposition) {
-            compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
-                    clip,
-                    layer->needsFiltering() || outputState.needsFiltering,
-                    outputState.isSecure,
-                    supportsProtectedContent,
-                    clientComposition ? clearRegion : stubRegion,
-                    outputState.viewport,
-                    outputDataspace,
-                    realContentIsVisible,
-                    !clientComposition, /* clearContent  */
-            };
+            compositionengine::LayerFE::ClientCompositionTargetSettings
+                    targetSettings{.clip = clip,
+                                   .needsFiltering =
+                                           layer->needsFiltering() || outputState.needsFiltering,
+                                   .isSecure = outputState.isSecure,
+                                   .supportsProtectedContent = supportsProtectedContent,
+                                   .clearRegion = clientComposition ? clearRegion : stubRegion,
+                                   .viewport = outputState.layerStackSpace.content,
+                                   .dataspace = outputDataspace,
+                                   .realContentIsVisible = realContentIsVisible,
+                                   .clearContent = !clientComposition};
             std::vector<LayerFE::LayerSettings> results =
                     layerFE.prepareClientCompositionList(targetSettings);
             if (realContentIsVisible && !results.empty()) {
@@ -1088,7 +1096,7 @@ void Output::postFramebuffer() {
 
 void Output::dirtyEntireOutput() {
     auto& outputState = editState();
-    outputState.dirtyRegion.set(outputState.bounds);
+    outputState.dirtyRegion.set(outputState.displaySpace.bounds);
 }
 
 void Output::chooseCompositionStrategy() {
