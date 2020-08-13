@@ -74,10 +74,10 @@ const ui::Transform& InputTarget::getDefaultPointerTransform() const {
 }
 
 std::string InputTarget::getPointerInfoString() const {
-    std::string out;
+    std::string out = "\n";
     if (useDefaultPointerTransform()) {
         const ui::Transform& transform = getDefaultPointerTransform();
-        transform.dump(out, "default");
+        transform.dump(out, "default", "        ");
         return out;
     }
 
@@ -86,9 +86,8 @@ std::string InputTarget::getPointerInfoString() const {
             continue;
         }
 
-        out += "\n";
         const std::string name = "pointerId " + std::to_string(i) + ":";
-        pointerTransforms[i].dump(out, name.c_str());
+        pointerTransforms[i].dump(out, name.c_str(), "        ");
     }
     return out;
 }

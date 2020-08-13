@@ -104,8 +104,8 @@ public:
     Transform inverse() const;
 
     // for debugging
-    void dump(std::string& result, const char* name) const;
-    void dump(const char* name) const;
+    void dump(std::string& result, const char* name, const char* prefix = "") const;
+    void dump(const char* name, const char* prefix = "") const;
 
     static RotationFlags toRotationFlags(Rotation);
 

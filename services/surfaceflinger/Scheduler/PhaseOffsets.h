@@ -19,7 +19,7 @@
 #include <unordered_map>
 
 #include "RefreshRateConfigs.h"
-#include "VSyncModulator.h"
+#include "VsyncModulator.h"
 
 namespace android::scheduler {
 
@@ -31,7 +31,7 @@ namespace android::scheduler {
  */
 class PhaseConfiguration {
 public:
-    using Offsets = VSyncModulator::OffsetsConfig;
+    using Offsets = VsyncModulator::OffsetsConfig;
 
     virtual ~PhaseConfiguration();
 

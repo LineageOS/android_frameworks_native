@@ -22,7 +22,12 @@ cc_defaults {
         "-Wno-unused-parameter",
         "-Wthread-safety",
         "-Wshadow",
+        "-Wshadow-field-in-constructor-modified",
+        "-Wshadow-uncaptured-local",
     ],
+    sanitize: {
+        misc_undefined: ["bounds"],
+    },
 }
 
 /////////////////////////////////////////////////

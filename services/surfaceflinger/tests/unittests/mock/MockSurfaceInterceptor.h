@@ -33,10 +33,10 @@ public:
                       const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>&));
     MOCK_METHOD0(disable, void());
     MOCK_METHOD0(isEnabled, bool());
-    MOCK_METHOD4(saveTransaction,
+    MOCK_METHOD6(saveTransaction,
                  void(const Vector<ComposerState>&,
                       const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>&,
-                      const Vector<DisplayState>&, uint32_t));
+                      const Vector<DisplayState>&, uint32_t, int, int));
     MOCK_METHOD1(saveSurfaceCreation, void(const sp<const Layer>&));
     MOCK_METHOD1(saveSurfaceDeletion, void(const sp<const Layer>&));
     MOCK_METHOD4(saveBufferUpdate, void(int32_t, uint32_t, uint32_t, uint64_t));

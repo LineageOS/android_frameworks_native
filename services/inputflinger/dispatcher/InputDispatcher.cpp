@@ -4245,7 +4245,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          "ms\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
                                          millis(windowInfo->dispatchingTimeout));
-                    windowInfo->transform.dump(dump, INDENT4 "transform=");
+                    windowInfo->transform.dump(dump, "transform", INDENT4);
                 }
             } else {
                 dump += INDENT2 "Windows: <none>\n";
