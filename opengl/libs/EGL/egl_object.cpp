@@ -18,19 +18,14 @@
 
 #include <sstream>
 
-
-// ----------------------------------------------------------------------------
 namespace android {
-// ----------------------------------------------------------------------------
 
-egl_object_t::egl_object_t(egl_display_t* disp) :
-    display(disp), count(1) {
+egl_object_t::egl_object_t(egl_display_t* disp) : display(disp), count(1) {
     // NOTE: this does an implicit incRef
     display->addObject(this);
 }
 
-egl_object_t::~egl_object_t() {
-}
+egl_object_t::~egl_object_t() {}
 
 void egl_object_t::terminate() {
     // this marks the object as "terminated"
@@ -53,8 +48,6 @@ bool egl_object_t::get(egl_display_t const* display, egl_object_t* object) {
     return display->getObject(object);
 }
 
-// ----------------------------------------------------------------------------
-
 egl_surface_t::egl_surface_t(egl_display_t* dpy, EGLConfig config, EGLNativeWindowType win,
                              EGLSurface surface, EGLint colorSpace, egl_connection_t const* cnx)
       : egl_object_t(dpy),
@@ -66,10 +59,10 @@ egl_surface_t::egl_surface_t(egl_display_t* dpy, EGLConfig config, EGLNativeWind
         colorSpace(colorSpace),
         egl_smpte2086_dirty(false),
         egl_cta861_3_dirty(false) {
-    egl_smpte2086_metadata.displayPrimaryRed = { EGL_DONT_CARE, EGL_DONT_CARE };
-    egl_smpte2086_metadata.displayPrimaryGreen = { EGL_DONT_CARE, EGL_DONT_CARE };
-    egl_smpte2086_metadata.displayPrimaryBlue = { EGL_DONT_CARE, EGL_DONT_CARE };
-    egl_smpte2086_metadata.whitePoint = { EGL_DONT_CARE, EGL_DONT_CARE };
+    egl_smpte2086_metadata.displayPrimaryRed = {EGL_DONT_CARE, EGL_DONT_CARE};
+    egl_smpte2086_metadata.displayPrimaryGreen = {EGL_DONT_CARE, EGL_DONT_CARE};
+    egl_smpte2086_metadata.displayPrimaryBlue = {EGL_DONT_CARE, EGL_DONT_CARE};
+    egl_smpte2086_metadata.whitePoint = {EGL_DONT_CARE, EGL_DONT_CARE};
     egl_smpte2086_metadata.maxLuminance = EGL_DONT_CARE;
     egl_smpte2086_metadata.minLuminance = EGL_DONT_CARE;
     egl_cta861_3_metadata.maxFrameAverageLightLevel = EGL_DONT_CARE;
@@ -173,16 +166,30 @@ EGLBoolean egl_surface_t::getSmpte2086Metadata(android_smpte2086_metadata& metad
         return EGL_FALSE;
     }
 
-    metadata.displayPrimaryRed.x = static_cast<float>(egl_smpte2086_metadata.displayPrimaryRed.x) / EGL_METADATA_SCALING_EXT;
-    metadata.displayPrimaryRed.y = static_cast<float>(egl_smpte2086_metadata.displayPrimaryRed.y) / EGL_METADATA_SCALING_EXT;
-    metadata.displayPrimaryGreen.x = static_cast<float>(egl_smpte2086_metadata.displayPrimaryGreen.x) / EGL_METADATA_SCALING_EXT;
-    metadata.displayPrimaryGreen.y = static_cast<float>(egl_smpte2086_metadata.displayPrimaryGreen.y) / EGL_METADATA_SCALING_EXT;
-    metadata.displayPrimaryBlue.x = static_cast<float>(egl_smpte2086_metadata.displayPrimaryBlue.x) / EGL_METADATA_SCALING_EXT;
-    metadata.displayPrimaryBlue.y = static_cast<float>(egl_smpte2086_metadata.displayPrimaryBlue.y) / EGL_METADATA_SCALING_EXT;
-    metadata.whitePoint.x = static_cast<float>(egl_smpte2086_metadata.whitePoint.x) / EGL_METADATA_SCALING_EXT;
-    metadata.whitePoint.y = static_cast<float>(egl_smpte2086_metadata.whitePoint.y) / EGL_METADATA_SCALING_EXT;
-    metadata.maxLuminance = static_cast<float>(egl_smpte2086_metadata.maxLuminance) / EGL_METADATA_SCALING_EXT;
-    metadata.minLuminance = static_cast<float>(egl_smpte2086_metadata.minLuminance) / EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryRed.x = static_cast<float>(egl_smpte2086_metadata.displayPrimaryRed.x) /
+            EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryRed.y = static_cast<float>(egl_smpte2086_metadata.displayPrimaryRed.y) /
+            EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryGreen.x =
+            static_cast<float>(egl_smpte2086_metadata.displayPrimaryGreen.x) /
+            EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryGreen.y =
+            static_cast<float>(egl_smpte2086_metadata.displayPrimaryGreen.y) /
+            EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryBlue.x =
+            static_cast<float>(egl_smpte2086_metadata.displayPrimaryBlue.x) /
+            EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryBlue.y =
+            static_cast<float>(egl_smpte2086_metadata.displayPrimaryBlue.y) /
+            EGL_METADATA_SCALING_EXT;
+    metadata.whitePoint.x =
+            static_cast<float>(egl_smpte2086_metadata.whitePoint.x) / EGL_METADATA_SCALING_EXT;
+    metadata.whitePoint.y =
+            static_cast<float>(egl_smpte2086_metadata.whitePoint.y) / EGL_METADATA_SCALING_EXT;
+    metadata.maxLuminance =
+            static_cast<float>(egl_smpte2086_metadata.maxLuminance) / EGL_METADATA_SCALING_EXT;
+    metadata.minLuminance =
+            static_cast<float>(egl_smpte2086_metadata.minLuminance) / EGL_METADATA_SCALING_EXT;
 
     return EGL_TRUE;
 }
@@ -196,12 +203,14 @@ EGLBoolean egl_surface_t::getCta8613Metadata(android_cta861_3_metadata& metadata
         return EGL_FALSE;
     }
 
-    metadata.maxContentLightLevel = static_cast<float>(egl_cta861_3_metadata.maxContentLightLevel) / EGL_METADATA_SCALING_EXT;
-    metadata.maxFrameAverageLightLevel = static_cast<float>(egl_cta861_3_metadata.maxFrameAverageLightLevel) / EGL_METADATA_SCALING_EXT;
+    metadata.maxContentLightLevel = static_cast<float>(egl_cta861_3_metadata.maxContentLightLevel) /
+            EGL_METADATA_SCALING_EXT;
+    metadata.maxFrameAverageLightLevel =
+            static_cast<float>(egl_cta861_3_metadata.maxFrameAverageLightLevel) /
+            EGL_METADATA_SCALING_EXT;
 
     return EGL_TRUE;
 }
-
 
 EGLBoolean egl_surface_t::getColorSpaceAttribute(EGLint attribute, EGLint* value) const {
     if (attribute == EGL_GL_COLORSPACE_KHR) {
@@ -211,7 +220,7 @@ EGLBoolean egl_surface_t::getColorSpaceAttribute(EGLint attribute, EGLint* value
     return EGL_FALSE;
 }
 
-EGLBoolean egl_surface_t::getSmpte2086Attribute(EGLint attribute, EGLint *value) const {
+EGLBoolean egl_surface_t::getSmpte2086Attribute(EGLint attribute, EGLint* value) const {
     switch (attribute) {
         case EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT:
             *value = egl_smpte2086_metadata.displayPrimaryRed.x;
@@ -257,7 +266,7 @@ EGLBoolean egl_surface_t::getSmpte2086Attribute(EGLint attribute, EGLint *value)
     return EGL_FALSE;
 }
 
-EGLBoolean egl_surface_t::getCta8613Attribute(EGLint attribute, EGLint *value) const {
+EGLBoolean egl_surface_t::getCta8613Attribute(EGLint attribute, EGLint* value) const {
     switch (attribute) {
         case EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT:
             *value = egl_cta861_3_metadata.maxContentLightLevel;
@@ -275,8 +284,6 @@ void egl_surface_t::terminate() {
     disconnect();
     egl_object_t::terminate();
 }
-
-// ----------------------------------------------------------------------------
 
 egl_context_t::egl_context_t(EGLDisplay dpy, EGLContext context, EGLConfig config,
                              egl_connection_t const* cnx, int version)
@@ -302,43 +309,39 @@ void egl_context_t::onMakeCurrent(EGLSurface draw, EGLSurface read) {
      * Here we cache the GL_EXTENSIONS string for this context and we
      * add the extensions always handled by the wrapper
      */
+    if (!gl_extensions.empty()) return;
 
-    if (gl_extensions.empty()) {
-        // call the implementation's glGetString(GL_EXTENSIONS)
-        const char* exts = (const char *)gEGLImpl.hooks[version]->gl.glGetString(GL_EXTENSIONS);
+    // call the implementation's glGetString(GL_EXTENSIONS)
+    const char* exts = (const char*)gEGLImpl.hooks[version]->gl.glGetString(GL_EXTENSIONS);
+    if (!exts) return;
 
-        // If this context is sharing with another context, and the other context was reset
-        // e.g. due to robustness failure, this context might also be reset and glGetString can
-        // return NULL.
-        if (exts) {
-            gl_extensions = exts;
-            if (gl_extensions.find("GL_EXT_debug_marker") == std::string::npos) {
-                gl_extensions.insert(0, "GL_EXT_debug_marker ");
-                // eglGetProcAddress could return function pointers to these
-                // functions while they actually don't work. Fix them now.
-                __eglMustCastToProperFunctionPointerType* f;
-                f = (__eglMustCastToProperFunctionPointerType*)&gEGLImpl.hooks[version]
-                            ->gl.glInsertEventMarkerEXT;
-                if (*f != gl_noop) *f = gl_noop;
-                f = (__eglMustCastToProperFunctionPointerType*)&gEGLImpl.hooks[version]
-                            ->gl.glPushGroupMarkerEXT;
-                if (*f != gl_noop) *f = gl_noop;
-                f = (__eglMustCastToProperFunctionPointerType*)&gEGLImpl.hooks[version]
-                            ->gl.glPopGroupMarkerEXT;
-                if (*f != gl_noop) *f = gl_noop;
-            }
+    // If this context is sharing with another context, and the other context was reset
+    // e.g. due to robustness failure, this context might also be reset and glGetString can
+    // return NULL.
+    gl_extensions = exts;
+    if (gl_extensions.find("GL_EXT_debug_marker") == std::string::npos) {
+        gl_extensions.insert(0, "GL_EXT_debug_marker ");
+        // eglGetProcAddress could return function pointers to these
+        // functions while they actually don't work. Fix them now.
+        __eglMustCastToProperFunctionPointerType* f;
+        f = (__eglMustCastToProperFunctionPointerType*)&gEGLImpl.hooks[version]
+                    ->gl.glInsertEventMarkerEXT;
+        if (*f != gl_noop) *f = gl_noop;
+        f = (__eglMustCastToProperFunctionPointerType*)&gEGLImpl.hooks[version]
+                    ->gl.glPushGroupMarkerEXT;
+        if (*f != gl_noop) *f = gl_noop;
+        f = (__eglMustCastToProperFunctionPointerType*)&gEGLImpl.hooks[version]
+                    ->gl.glPopGroupMarkerEXT;
+        if (*f != gl_noop) *f = gl_noop;
+    }
 
-            // tokenize the supported extensions for the glGetStringi() wrapper
-            std::stringstream ss;
-            std::string str;
-            ss << gl_extensions;
-            while (ss >> str) {
-                tokenized_gl_extensions.push_back(str);
-            }
-        }
+    // tokenize the supported extensions for the glGetStringi() wrapper
+    std::stringstream ss;
+    std::string str;
+    ss << gl_extensions;
+    while (ss >> str) {
+        tokenized_gl_extensions.push_back(str);
     }
 }
 
-// ----------------------------------------------------------------------------
 }; // namespace android
-// ----------------------------------------------------------------------------
