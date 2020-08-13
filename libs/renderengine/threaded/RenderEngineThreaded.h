@@ -62,7 +62,7 @@ public:
     bool isProtected() const override;
     bool supportsProtectedContent() const override;
     bool useProtectedContext(bool useProtectedContext) override;
-    bool cleanupPostRender() override;
+    bool cleanupPostRender(CleanupMode mode) override;
 
     status_t drawLayers(const DisplaySettings& display,
                         const std::vector<const LayerSettings*>& layers,

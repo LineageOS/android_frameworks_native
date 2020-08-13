@@ -178,14 +178,20 @@ TEST_F(RenderEngineThreadedTest, useProtectedContext_returnsTrue) {
 }
 
 TEST_F(RenderEngineThreadedTest, cleanupPostRender_returnsFalse) {
-    EXPECT_CALL(*mRenderEngine, cleanupPostRender()).WillOnce(Return(false));
-    status_t result = mThreadedRE->cleanupPostRender();
+    EXPECT_CALL(*mRenderEngine,
+                cleanupPostRender(renderengine::RenderEngine::CleanupMode::CLEAN_ALL))
+            .WillOnce(Return(false));
+    status_t result =
+            mThreadedRE->cleanupPostRender(renderengine::RenderEngine::CleanupMode::CLEAN_ALL);
     ASSERT_EQ(false, result);
 }
 
 TEST_F(RenderEngineThreadedTest, cleanupPostRender_returnsTrue) {
-    EXPECT_CALL(*mRenderEngine, cleanupPostRender()).WillOnce(Return(true));
-    status_t result = mThreadedRE->cleanupPostRender();
+    EXPECT_CALL(*mRenderEngine,
+                cleanupPostRender(renderengine::RenderEngine::CleanupMode::CLEAN_ALL))
+            .WillOnce(Return(true));
+    status_t result =
+            mThreadedRE->cleanupPostRender(renderengine::RenderEngine::CleanupMode::CLEAN_ALL);
     ASSERT_EQ(true, result);
 }
 
