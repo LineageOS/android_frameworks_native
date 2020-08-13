@@ -72,6 +72,10 @@ class ComposerCallback {
                                    hwc2_display_t display) = 0;
     virtual void onVsyncReceived(int32_t sequenceId, hwc2_display_t display,
                                  int64_t timestamp) = 0;
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    virtual void onResyncReceived(int32_t sequenceId,
+                                  hwc2_display_t display) = 0;
+#endif
     virtual ~ComposerCallback() = default;
 };
 

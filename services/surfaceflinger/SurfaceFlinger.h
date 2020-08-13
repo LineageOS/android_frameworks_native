@@ -496,6 +496,9 @@ private:
     void onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
                            HWC2::Connection connection) override;
     void onRefreshReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId) override;
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    void onResyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId) override;
+#endif
 
     /* ------------------------------------------------------------------------
      * Message handling
