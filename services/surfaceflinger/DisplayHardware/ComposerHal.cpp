@@ -245,7 +245,11 @@ std::string Composer::dumpDebugInfo()
 void Composer::registerCallback(const sp<IComposerCallback>& callback)
 {
     android::hardware::setMinSchedulerPolicy(callback, SCHED_FIFO, 2);
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    auto ret = mNvClient->registerExtCallback(callback);
+#else
     auto ret = mClient->registerCallback(callback);
+#endif
     if (!ret.isOk()) {
         ALOGE("failed to register IComposerCallback");
     }

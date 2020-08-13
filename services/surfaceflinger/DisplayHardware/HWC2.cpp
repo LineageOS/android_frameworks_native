@@ -85,6 +85,14 @@ public:
         return Void();
     }
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    Return<void> onResync(Hwc2::Display display) override
+    {
+        mCallback->onResyncReceived(mSequenceId, display);
+        return Void();
+    }
+#endif
+
 private:
     ComposerCallback* mCallback;
     int32_t mSequenceId;
