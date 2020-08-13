@@ -243,6 +243,16 @@ void Composer::registerCallback(const sp<IComposerCallback>& callback)
     }
 }
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+void Composer::registerCallback(const sp<INvComposerCallback>& callback)
+{
+    auto ret = mNvClient->registerExtCallback(callback);
+    if (!ret.isOk()) {
+        ALOGE("failed to register INvComposerCallback");
+    }
+}
+#endif
+
 bool Composer::isRemote() {
     return mClient->isRemote();
 }

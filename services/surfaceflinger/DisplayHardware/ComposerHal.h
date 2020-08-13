@@ -36,6 +36,7 @@
 #ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
 #include <vendor/nvidia/hardware/graphics/composer/2.0/INvComposerClient.h>
 
+using vendor::nvidia::hardware::graphics::composer::V2_0::INvComposerCallback;
 using vendor::nvidia::hardware::graphics::composer::V2_0::INvComposerClient;
 #endif
 
@@ -81,6 +82,10 @@ public:
     virtual std::string dumpDebugInfo() = 0;
 
     virtual void registerCallback(const sp<IComposerCallback>& callback) = 0;
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    virtual void registerCallback(const sp<INvComposerCallback>& callback) = 0;
+#endif
 
     // Returns true if the connected composer service is running in a remote
     // process, false otherwise. This will return false if the service is
@@ -280,6 +285,10 @@ public:
     std::string dumpDebugInfo() override;
 
     void registerCallback(const sp<IComposerCallback>& callback) override;
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+    void registerCallback(const sp<INvComposerCallback>& callback) override;
+#endif
 
     // Returns true if the connected composer service is running in a remote
     // process, false otherwise. This will return false if the service is

@@ -1489,6 +1489,17 @@ void SurfaceFlinger::setVsyncEnabled(int disp, int enabled) {
             enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable);
 }
 
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+void SurfaceFlinger::onResyncReceived(int sequenceId,
+                                      hwc2_display_t display) {
+    Mutex::Autolock lock(mStateLock);
+    if (sequenceId != getBE().mComposerSequenceId) {
+        return;
+    }
+    ALOGE("Resync hook not implemented");
+}
+#endif
+
 // Note: it is assumed the caller holds |mStateLock| when this is called
 void SurfaceFlinger::resetDisplayState() {
     disableHardwareVsync(true);
