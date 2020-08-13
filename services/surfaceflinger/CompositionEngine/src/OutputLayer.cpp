@@ -77,7 +77,7 @@ Rect OutputLayer::calculateInitialCrop() const {
     FloatRect activeCropFloat =
             reduce(layerState.geomLayerBounds, layerState.transparentRegionHint);
 
-    const Rect& viewport = getOutput().getState().viewport;
+    const Rect& viewport = getOutput().getState().layerStackSpace.content;
     const ui::Transform& layerTransform = layerState.geomLayerTransform;
     const ui::Transform& inverseLayerTransform = layerState.geomInverseLayerTransform;
     // Transform to screen space.
@@ -189,7 +189,7 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
     Rect activeCrop = layerState.geomCrop;
     if (!activeCrop.isEmpty() && bufferSize.isValid()) {
         activeCrop = layerTransform.transform(activeCrop);
-        if (!activeCrop.intersect(outputState.viewport, &activeCrop)) {
+        if (!activeCrop.intersect(outputState.layerStackSpace.content, &activeCrop)) {
             activeCrop.clear();
         }
         activeCrop = inverseLayerTransform.transform(activeCrop, true);
@@ -215,7 +215,7 @@ Rect OutputLayer::calculateOutputDisplayFrame() const {
     // transformation. We then round upon constructing 'frame'.
     Rect frame{
             layerTransform.transform(reduce(layerState.geomLayerBounds, activeTransparentRegion))};
-    if (!frame.intersect(outputState.viewport, &frame)) {
+    if (!frame.intersect(outputState.layerStackSpace.content, &frame)) {
         frame.clear();
     }
     const ui::Transform displayTransform{outputState.transform};
@@ -568,7 +568,7 @@ void OutputLayer::writeCursorPositionToHWC() const {
     const auto& outputState = getOutput().getState();
 
     Rect frame = layerFEState->cursorFrame;
-    frame.intersect(outputState.viewport, &frame);
+    frame.intersect(outputState.layerStackSpace.content, &frame);
     Rect position = outputState.transform.transform(frame);
 
     if (auto error = hwcLayer->setCursorPosition(position.left, position.top);

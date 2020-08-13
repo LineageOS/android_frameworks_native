@@ -65,7 +65,7 @@ public:
                 t.setDisplaySurface(vDisplay, producer);
                 t.setDisplayLayerStack(vDisplay, 0);
                 t.setDisplayProjection(vDisplay, displayState.orientation,
-                                       Rect(displayState.viewport), Rect(resolution));
+                                       Rect(displayState.layerStackSpaceRect), Rect(resolution));
                 t.apply();
                 SurfaceComposerClient::Transaction().apply(true);
                 BufferItem item;

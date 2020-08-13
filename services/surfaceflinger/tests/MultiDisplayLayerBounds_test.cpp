@@ -90,7 +90,7 @@ protected:
 };
 
 TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInVirtualDisplay) {
-    createDisplay(mMainDisplayState.viewport, 1 /* layerStack */);
+    createDisplay(mMainDisplayState.layerStackSpaceRect, 1 /* layerStack */);
     createColorLayer(1 /* layerStack */);
 
     asTransaction([&](Transaction& t) { t.setPosition(mColorLayer, 10, 10); });
@@ -111,9 +111,9 @@ TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInMirroredVirtualDisplay) {
     // Create a display and set its layer stack to the main display's layer stack so
     // the contents of the main display are mirrored on to the virtual display.
 
-    // Assumption here is that the new mirrored display has the same viewport as the
+    // Assumption here is that the new mirrored display has the same layer stack rect as the
     // primary display that it is mirroring.
-    createDisplay(mMainDisplayState.viewport, 0 /* layerStack */);
+    createDisplay(mMainDisplayState.layerStackSpaceRect, 0 /* layerStack */);
     createColorLayer(0 /* layerStack */);
 
     asTransaction([&](Transaction& t) { t.setPosition(mColorLayer, 10, 10); });

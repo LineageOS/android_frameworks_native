@@ -61,7 +61,7 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeUint32(transform);
     output.writeBool(transformToDisplayInverse);
     output.write(crop);
-    output.write(frame);
+    output.write(orientedDisplaySpaceRect);
     if (buffer) {
         output.writeBool(true);
         output.write(*buffer);
@@ -159,7 +159,7 @@ status_t layer_state_t::read(const Parcel& input)
     transform = input.readUint32();
     transformToDisplayInverse = input.readBool();
     input.read(crop);
-    input.read(frame);
+    input.read(orientedDisplaySpaceRect);
     buffer = new GraphicBuffer();
     if (input.readBool()) {
         input.read(*buffer);
@@ -216,15 +216,13 @@ status_t ComposerState::read(const Parcel& input) {
     return state.read(input);
 }
 
-
-DisplayState::DisplayState() :
-    what(0),
-    layerStack(0),
-    viewport(Rect::EMPTY_RECT),
-    frame(Rect::EMPTY_RECT),
-    width(0),
-    height(0) {
-}
+DisplayState::DisplayState()
+      : what(0),
+        layerStack(0),
+        layerStackSpaceRect(Rect::EMPTY_RECT),
+        orientedDisplaySpaceRect(Rect::EMPTY_RECT),
+        width(0),
+        height(0) {}
 
 status_t DisplayState::write(Parcel& output) const {
     output.writeStrongBinder(token);
@@ -232,8 +230,8 @@ status_t DisplayState::write(Parcel& output) const {
     output.writeUint32(what);
     output.writeUint32(layerStack);
     output.writeUint32(toRotationInt(orientation));
-    output.write(viewport);
-    output.write(frame);
+    output.write(layerStackSpaceRect);
+    output.write(orientedDisplaySpaceRect);
     output.writeUint32(width);
     output.writeUint32(height);
     return NO_ERROR;
@@ -245,8 +243,8 @@ status_t DisplayState::read(const Parcel& input) {
     what = input.readUint32();
     layerStack = input.readUint32();
     orientation = ui::toRotation(input.readUint32());
-    input.read(viewport);
-    input.read(frame);
+    input.read(layerStackSpaceRect);
+    input.read(orientedDisplaySpaceRect);
     width = input.readUint32();
     height = input.readUint32();
     return NO_ERROR;
@@ -264,8 +262,8 @@ void DisplayState::merge(const DisplayState& other) {
     if (other.what & eDisplayProjectionChanged) {
         what |= eDisplayProjectionChanged;
         orientation = other.orientation;
-        viewport = other.viewport;
-        frame = other.frame;
+        layerStackSpaceRect = other.layerStackSpaceRect;
+        orientedDisplaySpaceRect = other.orientedDisplaySpaceRect;
     }
     if (other.what & eDisplaySizeChanged) {
         what |= eDisplaySizeChanged;
@@ -368,7 +366,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eFrameChanged) {
         what |= eFrameChanged;
-        frame = other.frame;
+        orientedDisplaySpaceRect = other.orientedDisplaySpaceRect;
     }
     if (other.what & eBufferChanged) {
         what |= eBufferChanged;

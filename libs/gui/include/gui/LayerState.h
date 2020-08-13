@@ -129,7 +129,7 @@ struct layer_state_t {
             transform(0),
             transformToDisplayInverse(false),
             crop(Rect::INVALID_RECT),
-            frame(Rect::INVALID_RECT),
+            orientedDisplaySpaceRect(Rect::INVALID_RECT),
             dataspace(ui::Dataspace::UNKNOWN),
             surfaceDamageRegion(),
             api(-1),
@@ -192,7 +192,7 @@ struct layer_state_t {
     uint32_t transform;
     bool transformToDisplayInverse;
     Rect crop;
-    Rect frame;
+    Rect orientedDisplaySpaceRect;
     sp<GraphicBuffer> buffer;
     sp<Fence> acquireFence;
     ui::Dataspace dataspace;
@@ -265,18 +265,18 @@ struct DisplayState {
 
     // These states define how layers are projected onto the physical display.
     //
-    // Layers are first clipped to `viewport'.  They are then translated and
-    // scaled from `viewport' to `frame'.  Finally, they are rotated according
-    // to `orientation', `width', and `height'.
+    // Layers are first clipped to `layerStackSpaceRect'.  They are then translated and
+    // scaled from `layerStackSpaceRect' to `orientedDisplaySpaceRect'.  Finally, they are rotated
+    // according to `orientation', `width', and `height'.
     //
-    // For example, assume viewport is Rect(0, 0, 200, 100), frame is Rect(20,
-    // 10, 420, 210), and the size of the display is WxH.  When orientation is
-    // 0, layers will be scaled by a factor of 2 and translated by (20, 10).
-    // When orientation is 1, layers will be additionally rotated by 90
-    // degrees around the origin clockwise and translated by (W, 0).
+    // For example, assume layerStackSpaceRect is Rect(0, 0, 200, 100), orientedDisplaySpaceRect is
+    // Rect(20, 10, 420, 210), and the size of the display is WxH.  When orientation is 0, layers
+    // will be scaled by a factor of 2 and translated by (20, 10). When orientation is 1, layers
+    // will be additionally rotated by 90 degrees around the origin clockwise and translated by (W,
+    // 0).
     ui::Rotation orientation = ui::ROTATION_0;
-    Rect viewport;
-    Rect frame;
+    Rect layerStackSpaceRect;
+    Rect orientedDisplaySpaceRect;
 
     uint32_t width, height;
 
