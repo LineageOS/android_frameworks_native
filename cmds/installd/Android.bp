@@ -16,7 +16,9 @@ cc_defaults {
         "InstalldNativeService.cpp",
         "QuotaUtils.cpp",
         "dexopt.cpp",
+        "execv_helper.cpp",
         "globals.cpp",
+        "run_dex2oat.cpp",
         "utils.cpp",
         "utils_default.cpp",
         "view_compiler.cpp",
@@ -99,6 +101,30 @@ cc_library_static {
 cc_library_headers {
     name: "libinstalld_headers",
     export_include_dirs: ["."],
+}
+
+//
+// Unit tests
+//
+
+cc_test_host {
+    name: "run_dex2oat_test",
+    test_suites: ["general-tests"],
+    clang: true,
+    srcs: [
+        "run_dex2oat_test.cpp",
+        "run_dex2oat.cpp",
+        "execv_helper.cpp",
+    ],
+    cflags: ["-Wall", "-Werror"],
+    shared_libs: [
+        "libbase",
+        "server_configurable_flags",
+    ],
+    static_libs: [
+        //"libinstalld",
+    ],
+    test_config: "run_dex2oat_test.xml",
 }
 
 //
@@ -203,9 +229,11 @@ cc_binary {
 
     srcs: [
         "dexopt.cpp",
+        "execv_helper.cpp",
         "globals.cpp",
         "otapreopt.cpp",
         "otapreopt_utils.cpp",
+        "run_dex2oat.cpp",
         "utils.cpp",
         "utils_default.cpp",
         "view_compiler.cpp",
