@@ -15,6 +15,9 @@
     {
       "name": "installd_utils_test"
     },
+    {
+      "name": "run_dex2oat_test"
+    },
     // AdoptableHostTest moves packages, part of which is handled by installd
     {
       "name": "AdoptableHostTest"

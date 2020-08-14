@@ -1523,9 +1523,9 @@ public:
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
         EXPECT_EQ(TRANSFORM_FLAGS_ROT_0, compositionState.orientation);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.destinationClip);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.frame);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.viewport);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.orientedDisplaySpace.content);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.layerStackSpace.content);
         EXPECT_EQ(false, compositionState.needsFiltering);
     }
 
@@ -1535,10 +1535,12 @@ public:
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
         EXPECT_EQ(TRANSFORM_FLAGS_ROT_90, compositionState.orientation);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.destinationClip);
-        // For 90, the frame and viewport have the hardware display size width and height swapped
-        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.frame);
-        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.viewport);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
+        // For 90, the orientedDisplaySpaceRect and layerStackSpaceRect have the hardware display
+        // size width and height swapped
+        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)),
+                  compositionState.orientedDisplaySpace.content);
+        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.layerStackSpace.content);
         EXPECT_EQ(false, compositionState.needsFiltering);
     }
 
@@ -1548,8 +1550,8 @@ public:
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
         EXPECT_EQ(TRANSFORM_FLAGS_ROT_180, compositionState.orientation);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.frame);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.viewport);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.orientedDisplaySpace.content);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.layerStackSpace.content);
         EXPECT_EQ(false, compositionState.needsFiltering);
     }
 
@@ -1559,10 +1561,12 @@ public:
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
         EXPECT_EQ(TRANSFORM_FLAGS_ROT_270, compositionState.orientation);
-        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.destinationClip);
-        // For 270, the frame and viewport have the hardware display size width and height swapped
-        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.frame);
-        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.viewport);
+        EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
+        // For 270, the orientedDisplaySpaceRect and layerStackSpaceRect have the hardware display
+        // size width and height swapped
+        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)),
+                  compositionState.orientedDisplaySpace.content);
+        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.layerStackSpace.content);
         EXPECT_EQ(false, compositionState.needsFiltering);
     }
 
@@ -2484,11 +2488,11 @@ TEST_F(HandleTransactionLockedTest, processesDisplayTransformChanges) {
     EXPECT_EQ(newTransform, display.mutableDisplayDevice()->getOrientation());
 }
 
-TEST_F(HandleTransactionLockedTest, processesDisplayViewportChanges) {
+TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackRectChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
-    const Rect oldViewport(0, 0, 0, 0);
-    const Rect newViewport(0, 0, 123, 456);
+    const Rect oldLayerStackRect(0, 0, 0, 0);
+    const Rect newLayerStackRect(0, 0, 123, 456);
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -2497,9 +2501,9 @@ TEST_F(HandleTransactionLockedTest, processesDisplayViewportChanges) {
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.inject();
 
-    // There is a change to the viewport state
-    display.mutableDrawingDisplayState().viewport = oldViewport;
-    display.mutableCurrentDisplayState().viewport = newViewport;
+    // There is a change to the layerStackSpaceRect state
+    display.mutableDrawingDisplayState().layerStackSpaceRect = oldLayerStackRect;
+    display.mutableCurrentDisplayState().layerStackSpaceRect = newLayerStackRect;
 
     // --------------------------------------------------------------------
     // Invocation
@@ -2509,7 +2513,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayViewportChanges) {
     // --------------------------------------------------------------------
     // Postconditions
 
-    EXPECT_EQ(newViewport, display.mutableDisplayDevice()->getViewport());
+    EXPECT_EQ(newLayerStackRect, display.mutableDisplayDevice()->getLayerStackSpaceRect());
 }
 
 TEST_F(HandleTransactionLockedTest, processesDisplayFrameChanges) {
@@ -2525,9 +2529,9 @@ TEST_F(HandleTransactionLockedTest, processesDisplayFrameChanges) {
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.inject();
 
-    // There is a change to the viewport state
-    display.mutableDrawingDisplayState().frame = oldFrame;
-    display.mutableCurrentDisplayState().frame = newFrame;
+    // There is a change to the layerStackSpaceRect state
+    display.mutableDrawingDisplayState().orientedDisplaySpaceRect = oldFrame;
+    display.mutableCurrentDisplayState().orientedDisplaySpaceRect = newFrame;
 
     // --------------------------------------------------------------------
     // Invocation
@@ -2537,7 +2541,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayFrameChanges) {
     // --------------------------------------------------------------------
     // Postconditions
 
-    EXPECT_EQ(newFrame, display.mutableDisplayDevice()->getFrame());
+    EXPECT_EQ(newFrame, display.mutableDisplayDevice()->getOrientedDisplaySpaceRect());
 }
 
 TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
@@ -2568,7 +2572,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
     EXPECT_CALL(*nativeWindow, perform(NATIVE_WINDOW_API_DISCONNECT)).Times(1);
     display.inject();
 
-    // There is a change to the viewport state
+    // There is a change to the layerStackSpaceRect state
     display.mutableDrawingDisplayState().width = oldWidth;
     display.mutableDrawingDisplayState().height = oldHeight;
     display.mutableCurrentDisplayState().width = newWidth;
@@ -2613,7 +2617,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     EXPECT_CALL(*nativeWindow, perform(NATIVE_WINDOW_API_DISCONNECT)).Times(1);
     display.inject();
 
-    // There is a change to the viewport state
+    // There is a change to the layerStackSpaceRect state
     display.mutableDrawingDisplayState().width = oldWidth;
     display.mutableDrawingDisplayState().height = oldHeight;
     display.mutableCurrentDisplayState().width = oldWidth;
@@ -2834,8 +2838,8 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfLayerStackCh
 TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingIfProjectionDidNotChange) {
     using Case = SimplePrimaryDisplayCase;
     constexpr ui::Rotation initialOrientation = ui::ROTATION_180;
-    const Rect initialFrame = {1, 2, 3, 4};
-    const Rect initialViewport = {5, 6, 7, 8};
+    const Rect initialOrientedDisplayRect = {1, 2, 3, 4};
+    const Rect initialLayerStackRect = {5, 6, 7, 8};
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -2846,16 +2850,16 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingIfProjectionDidNo
 
     // The current display state projection state is all set
     display.mutableCurrentDisplayState().orientation = initialOrientation;
-    display.mutableCurrentDisplayState().frame = initialFrame;
-    display.mutableCurrentDisplayState().viewport = initialViewport;
+    display.mutableCurrentDisplayState().orientedDisplaySpaceRect = initialOrientedDisplayRect;
+    display.mutableCurrentDisplayState().layerStackSpaceRect = initialLayerStackRect;
 
     // The incoming request sets the same projection state
     DisplayState state;
     state.what = DisplayState::eDisplayProjectionChanged;
     state.token = display.token();
     state.orientation = initialOrientation;
-    state.frame = initialFrame;
-    state.viewport = initialViewport;
+    state.orientedDisplaySpaceRect = initialOrientedDisplayRect;
+    state.layerStackSpaceRect = initialLayerStackRect;
 
     // --------------------------------------------------------------------
     // Invocation
@@ -2871,8 +2875,9 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingIfProjectionDidNo
     // The current display state is unchanged
     EXPECT_EQ(initialOrientation, display.getCurrentDisplayState().orientation);
 
-    EXPECT_EQ(initialFrame, display.getCurrentDisplayState().frame);
-    EXPECT_EQ(initialViewport, display.getCurrentDisplayState().viewport);
+    EXPECT_EQ(initialOrientedDisplayRect,
+              display.getCurrentDisplayState().orientedDisplaySpaceRect);
+    EXPECT_EQ(initialLayerStackRect, display.getCurrentDisplayState().layerStackSpaceRect);
 }
 
 TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfOrientationChanged) {
@@ -2913,8 +2918,8 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfOrientationC
 
 TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfFrameChanged) {
     using Case = SimplePrimaryDisplayCase;
-    const Rect initialFrame = {0, 0, 0, 0};
-    const Rect desiredFrame = {5, 6, 7, 8};
+    const Rect initialOrientedDisplayRect = {0, 0, 0, 0};
+    const Rect desiredOrientedDisplayRect = {5, 6, 7, 8};
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -2923,14 +2928,14 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfFrameChanged
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.inject();
 
-    // The current display state does not have a frame
-    display.mutableCurrentDisplayState().frame = initialFrame;
+    // The current display state does not have a orientedDisplaySpaceRect
+    display.mutableCurrentDisplayState().orientedDisplaySpaceRect = initialOrientedDisplayRect;
 
-    // The incoming request sets a frame
+    // The incoming request sets a orientedDisplaySpaceRect
     DisplayState state;
     state.what = DisplayState::eDisplayProjectionChanged;
     state.token = display.token();
-    state.frame = desiredFrame;
+    state.orientedDisplaySpaceRect = desiredOrientedDisplayRect;
 
     // --------------------------------------------------------------------
     // Invocation
@@ -2944,13 +2949,14 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfFrameChanged
     EXPECT_EQ(eDisplayTransactionNeeded, flags);
 
     // The current display state has the new value.
-    EXPECT_EQ(desiredFrame, display.getCurrentDisplayState().frame);
+    EXPECT_EQ(desiredOrientedDisplayRect,
+              display.getCurrentDisplayState().orientedDisplaySpaceRect);
 }
 
-TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfViewportChanged) {
+TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfLayerStackRectChanged) {
     using Case = SimplePrimaryDisplayCase;
-    const Rect initialViewport = {0, 0, 0, 0};
-    const Rect desiredViewport = {5, 6, 7, 8};
+    const Rect initialLayerStackRect = {0, 0, 0, 0};
+    const Rect desiredLayerStackRect = {5, 6, 7, 8};
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -2959,14 +2965,14 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfViewportChan
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.inject();
 
-    // The current display state does not have a viewport
-    display.mutableCurrentDisplayState().viewport = initialViewport;
+    // The current display state does not have a layerStackSpaceRect
+    display.mutableCurrentDisplayState().layerStackSpaceRect = initialLayerStackRect;
 
-    // The incoming request sets a viewport
+    // The incoming request sets a layerStackSpaceRect
     DisplayState state;
     state.what = DisplayState::eDisplayProjectionChanged;
     state.token = display.token();
-    state.viewport = desiredViewport;
+    state.layerStackSpaceRect = desiredLayerStackRect;
 
     // --------------------------------------------------------------------
     // Invocation
@@ -2980,7 +2986,7 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfViewportChan
     EXPECT_EQ(eDisplayTransactionNeeded, flags);
 
     // The current display state has the new value.
-    EXPECT_EQ(desiredViewport, display.getCurrentDisplayState().viewport);
+    EXPECT_EQ(desiredLayerStackRect, display.getCurrentDisplayState().layerStackSpaceRect);
 }
 
 TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingIfSizeDidNotChange) {
@@ -3142,11 +3148,11 @@ TEST_F(DisplayTransactionTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // The orientation state should be set to zero
     EXPECT_EQ(ui::ROTATION_0, primaryDisplayState.orientation);
 
-    // The frame state should be set to INVALID
-    EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.frame);
+    // The orientedDisplaySpaceRect state should be set to INVALID
+    EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.orientedDisplaySpaceRect);
 
-    // The viewport state should be set to INVALID
-    EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.viewport);
+    // The layerStackSpaceRect state should be set to INVALID
+    EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.layerStackSpaceRect);
 
     // The width and height should both be zero
     EXPECT_EQ(0u, primaryDisplayState.width);
@@ -3157,7 +3163,7 @@ TEST_F(DisplayTransactionTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     auto displayDevice = primaryDisplay.mutableDisplayDevice();
     EXPECT_EQ(PowerMode::ON, displayDevice->getPowerMode());
 
-    // The display refresh period should be set in the frame tracker.
+    // The display refresh period should be set in the orientedDisplaySpaceRect tracker.
     FrameStats stats;
     mFlinger.getAnimFrameTracker().getStats(&stats);
     EXPECT_EQ(DEFAULT_REFRESH_RATE, stats.refreshPeriodNano);

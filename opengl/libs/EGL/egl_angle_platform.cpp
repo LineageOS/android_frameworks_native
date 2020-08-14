@@ -16,19 +16,19 @@
 
 #if defined(__ANDROID__)
 
-#include "Loader.h"
 #include "egl_angle_platform.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #include <EGL/Platform.h>
 #pragma GCC diagnostic pop
-
 #include <android/dlext.h>
 #include <dlfcn.h>
 #include <graphicsenv/GraphicsEnv.h>
-#include <time.h>
 #include <log/log.h>
+#include <time.h>
+
+#include "Loader.h"
 
 namespace angle {
 
@@ -114,14 +114,12 @@ bool initializeAnglePlatform(EGLDisplay dpy) {
         return false;
     }
 
-    angleResetDisplayPlatform =
-            reinterpret_cast<ResetDisplayPlatformFunc>(
-                    eglGetProcAddress("ANGLEResetDisplayPlatform"));
+    angleResetDisplayPlatform = reinterpret_cast<ResetDisplayPlatformFunc>(
+            eglGetProcAddress("ANGLEResetDisplayPlatform"));
 
     PlatformMethods* platformMethods = nullptr;
-    if (!((angleGetDisplayPlatform)(dpy, g_PlatformMethodNames,
-                                                              g_NumPlatformMethods, nullptr,
-                                                              &platformMethods))) {
+    if (!((angleGetDisplayPlatform)(dpy, g_PlatformMethodNames, g_NumPlatformMethods, nullptr,
+                                    &platformMethods))) {
         ALOGE("ANGLEGetDisplayPlatform call failed!");
         return false;
     }

@@ -49,7 +49,7 @@ std::unique_ptr<RenderArea> DisplayRenderArea::create(wp<const DisplayDevice> di
 DisplayRenderArea::DisplayRenderArea(sp<const DisplayDevice> display, const Rect& sourceCrop,
                                      ui::Size reqSize, ui::Dataspace reqDataSpace,
                                      bool useIdentityTransform, bool allowSecureLayers)
-      : RenderArea(reqSize, CaptureFill::OPAQUE, reqDataSpace, display->getViewport(),
+      : RenderArea(reqSize, CaptureFill::OPAQUE, reqDataSpace, display->getLayerStackSpaceRect(),
                    allowSecureLayers, applyDeviceOrientation(useIdentityTransform, *display)),
         mDisplay(std::move(display)),
         mSourceCrop(sourceCrop) {}
@@ -93,7 +93,7 @@ bool DisplayRenderArea::needsFiltering() const {
 Rect DisplayRenderArea::getSourceCrop() const {
     // use the projected display viewport by default.
     if (mSourceCrop.isEmpty()) {
-        return mDisplay->getViewport();
+        return mDisplay->getLayerStackSpaceRect();
     }
 
     // Correct for the orientation when the screen capture request contained
@@ -101,8 +101,8 @@ Rect DisplayRenderArea::getSourceCrop() const {
     // it needs to rotate based on the screen orientation to allow the screenshot
     // to be taken in the ROT_0 orientation
     const auto flags = getRotationFlags();
-    int width = mDisplay->getViewport().getWidth();
-    int height = mDisplay->getViewport().getHeight();
+    int width = mDisplay->getLayerStackSpaceRect().getWidth();
+    int height = mDisplay->getLayerStackSpaceRect().getHeight();
     ui::Transform rotation;
     rotation.set(flags, width, height);
     return rotation.transform(mSourceCrop);

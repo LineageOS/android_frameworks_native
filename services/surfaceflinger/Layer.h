@@ -366,7 +366,7 @@ public:
     virtual bool setMetadata(const LayerMetadata& data);
     bool reparentChildren(const sp<IBinder>& newParentHandle);
     void reparentChildren(const sp<Layer>& newParent);
-    virtual void setChildrenDrawingParent(const sp<Layer>& layer);
+    virtual void setChildrenDrawingParent(const sp<Layer>&);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
     virtual bool detachChildren();
     bool attachChildren();
@@ -535,7 +535,7 @@ public:
     // Write drawing or current state. If writing current state, the caller should hold the
     // external mStateLock. If writing drawing state, this function should be called on the
     // main or tracing thread.
-    void writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet stateSet,
+    void writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet,
                                  uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
 
     virtual Geometry getActiveGeometry(const Layer::State& s) const { return s.active_legacy; }
@@ -585,16 +585,16 @@ protected:
     void updateClonedChildren(const sp<Layer>& mirrorRoot,
                               std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
     void updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
-    void addChildToDrawing(const sp<Layer>& layer);
+    void addChildToDrawing(const sp<Layer>&);
     void updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
     virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&);
     virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareShadowClientComposition(
-            const LayerFE::LayerSettings& layerSettings, const Rect& displayViewport,
+            const LayerFE::LayerSettings&, const Rect& layerStackRect,
             ui::Dataspace outputDataspace);
     // Modifies the passed in layer settings to clear the contents. If the blackout flag is set,
     // the settings clears the content with a solid black fill.
-    void prepareClearClientComposition(LayerFE::LayerSettings& layerSettings, bool blackout) const;
+    void prepareClearClientComposition(LayerFE::LayerSettings&, bool blackout) const;
 
 public:
     /*
@@ -756,7 +756,7 @@ public:
     // ignored.
     virtual RoundedCornerState getRoundedCornerState() const;
 
-    renderengine::ShadowSettings getShadowSettings(const Rect& viewport) const;
+    renderengine::ShadowSettings getShadowSettings(const Rect& layerStackRect) const;
 
     /**
      * Traverse this layer and it's hierarchy of children directly. Unlike traverseInZOrder
@@ -766,17 +766,15 @@ public:
      * the scene state, but it's also more efficient than traverseInZOrder and so useful for
      * book-keeping.
      */
-    void traverse(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor);
-    void traverseInReverseZOrder(LayerVector::StateSet stateSet,
-                                 const LayerVector::Visitor& visitor);
-    void traverseInZOrder(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor);
+    void traverse(LayerVector::StateSet, const LayerVector::Visitor&);
+    void traverseInReverseZOrder(LayerVector::StateSet, const LayerVector::Visitor&);
+    void traverseInZOrder(LayerVector::StateSet, const LayerVector::Visitor&);
 
     /**
      * Traverse only children in z order, ignoring relative layers that are not children of the
      * parent.
      */
-    void traverseChildrenInZOrder(LayerVector::StateSet stateSet,
-                                  const LayerVector::Visitor& visitor);
+    void traverseChildrenInZOrder(LayerVector::StateSet, const LayerVector::Visitor&);
 
     size_t getChildrenCount() const;
 
@@ -788,7 +786,7 @@ public:
     // the current state, but should not be called anywhere else!
     LayerVector& getCurrentChildren() { return mCurrentChildren; }
 
-    void addChild(const sp<Layer>& layer);
+    void addChild(const sp<Layer>&);
     // Returns index if removed, or negative value otherwise
     // for symmetry with Vector::remove
     ssize_t removeChild(const sp<Layer>& layer);
@@ -802,7 +800,7 @@ public:
     // Copy the current list of children to the drawing state. Called by
     // SurfaceFlinger to complete a transaction.
     void commitChildList();
-    int32_t getZ(LayerVector::StateSet stateSet) const;
+    int32_t getZ(LayerVector::StateSet) const;
     virtual void pushPendingState();
 
     /**
@@ -828,7 +826,7 @@ public:
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
 
-    bool setFrameRate(FrameRate frameRate);
+    bool setFrameRate(FrameRate);
     virtual FrameRate getFrameRateForLayerTree() const;
     static std::string frameRateCompatibilityString(FrameRateCompatibility compatibility);
 
@@ -870,8 +868,8 @@ protected:
      * crop coordinates, transforming them into layer space.
      */
     void setupRoundedCornersCropCoordinates(Rect win, const FloatRect& roundedCornersCrop) const;
-    void setParent(const sp<Layer>& layer);
-    LayerVector makeTraversalList(LayerVector::StateSet stateSet, bool* outSkipRelativeZUsers);
+    void setParent(const sp<Layer>&);
+    LayerVector makeTraversalList(LayerVector::StateSet, bool* outSkipRelativeZUsers);
     void addZOrderRelative(const wp<Layer>& relative);
     void removeZOrderRelative(const wp<Layer>& relative);
 
@@ -970,7 +968,7 @@ public:
 protected:
     compositionengine::OutputLayer* findOutputLayerForDisplay(const DisplayDevice*) const;
 
-    bool usingRelativeZ(LayerVector::StateSet stateSet) const;
+    bool usingRelativeZ(LayerVector::StateSet) const;
 
     bool mPremultipliedAlpha{true};
     const std::string mName;
@@ -1050,15 +1048,14 @@ private:
      * Returns an unsorted vector of all layers that are part of this tree.
      * That includes the current layer and all its descendants.
      */
-    std::vector<Layer*> getLayersInTree(LayerVector::StateSet stateSet);
+    std::vector<Layer*> getLayersInTree(LayerVector::StateSet);
     /**
      * Traverses layers that are part of this tree in the correct z order.
      * layersInTree must be sorted before calling this method.
      */
     void traverseChildrenInZOrderInner(const std::vector<Layer*>& layersInTree,
-                                       LayerVector::StateSet stateSet,
-                                       const LayerVector::Visitor& visitor);
-    LayerVector makeChildrenTraversalList(LayerVector::StateSet stateSet,
+                                       LayerVector::StateSet, const LayerVector::Visitor&);
+    LayerVector makeChildrenTraversalList(LayerVector::StateSet,
                                           const std::vector<Layer*>& layersInTree);
 
     void updateTreeHasFrameRateVote();

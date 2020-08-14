@@ -27,8 +27,6 @@
 
 #include <private/gui/SyncFeatures.h>
 
-extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
-
 namespace android {
 
 ANDROID_SINGLETON_STATIC_INSTANCE(SyncFeatures);
@@ -40,8 +38,8 @@ SyncFeatures::SyncFeatures() : Singleton<SyncFeatures>(),
     EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     // This can only be called after EGL has been initialized; otherwise the
     // check below will abort.
-    const char* exts = eglQueryStringImplementationANDROID(dpy, EGL_EXTENSIONS);
-    LOG_ALWAYS_FATAL_IF(exts == nullptr, "eglQueryStringImplementationANDROID failed");
+    const char* exts = eglQueryString(dpy, EGL_EXTENSIONS);
+    LOG_ALWAYS_FATAL_IF(exts == nullptr, "eglQueryString failed");
     if (strstr(exts, "EGL_ANDROID_native_fence_sync")) {
         // This makes GLConsumer use the EGL_ANDROID_native_fence_sync
         // extension to create Android native fences to signal when all
