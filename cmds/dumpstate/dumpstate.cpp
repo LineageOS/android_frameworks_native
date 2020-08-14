@@ -1852,32 +1852,39 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     return status;
 }
 
+// Common states for telephony and wifi which are needed to be collected before
+// dumpstate drop the root user.
+static void DumpstateRadioAsRoot() {
+    DumpIpTablesAsRoot();
+    ds.AddDir(LOGPERSIST_DATA_DIR, false);
+}
+
 // This method collects common dumpsys for telephony and wifi. Typically, wifi
 // reports are fine to include all information, but telephony reports on user
 // builds need to strip some content (see DumpstateTelephonyOnly).
 static void DumpstateRadioCommon(bool include_sensitive_info = true) {
-    DumpIpTablesAsRoot();
-
-    ds.AddDir(LOGPERSIST_DATA_DIR, false);
-
-    if (!DropRootUser()) {
-        return;
-    }
-
     // We need to be picky about some stuff for telephony reports on user builds.
     if (!include_sensitive_info) {
         // Only dump the radio log buffer (other buffers and dumps contain too much unrelated info).
         DoRadioLogcat();
     } else {
+        // DumpHals takes long time, post it to the another thread in the pool,
+        // if pool is available.
+        if (ds.dump_pool_) {
+            ds.dump_pool_->enqueueTaskWithFd(DUMP_HALS_TASK, &DumpHals, _1);
+        }
         // Contains various system properties and process startup info.
         do_dmesg();
         // Logs other than the radio buffer may contain package/component names and potential PII.
         DoLogcat();
         // Too broad for connectivity problems.
         DoKmsg();
-        // Contains unrelated hardware info (camera, NFC, biometrics, ...).
-        // TODO(b/136262402) Using thread pool for DumpHals
-        RUN_SLOW_FUNCTION_AND_LOG(DUMP_HALS_TASK, DumpHals);
+        // DumpHals contains unrelated hardware info (camera, NFC, biometrics, ...).
+        if (ds.dump_pool_) {
+            ds.dump_pool_->waitForTask(DUMP_HALS_TASK);
+        } else {
+            RUN_SLOW_FUNCTION_AND_LOG(DUMP_HALS_TASK, DumpHals);
+        }
     }
 
     DumpPacketStats();
@@ -1900,6 +1907,21 @@ static void DumpstateTelephonyOnly(const std::string& calling_package) {
     const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
 
     const bool include_sensitive_info = !PropertiesHelper::IsUserBuild();
+
+    DumpstateRadioAsRoot();
+    if (!DropRootUser()) {
+        return;
+    }
+
+    // Starts thread pool after the root user is dropped, and two additional threads
+    // are created for DumpHals in the DumpstateRadioCommon and DumpstateBoard.
+    if (ds.dump_pool_) {
+        ds.dump_pool_->start(/*thread_counts =*/2);
+
+        // DumpstateBoard takes long time, post it to the another thread in the pool,
+        // if pool is available.
+        ds.dump_pool_->enqueueTaskWithFd(DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
+    }
 
     DumpstateRadioCommon(include_sensitive_info);
 
@@ -1977,11 +1999,28 @@ static void DumpstateTelephonyOnly(const std::string& calling_package) {
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
+
+    if (ds.dump_pool_) {
+        ds.dump_pool_->waitForTask(DUMP_BOARD_TASK);
+    } else {
+        RUN_SLOW_FUNCTION_AND_LOG(DUMP_BOARD_TASK, ds.DumpstateBoard);
+    }
 }
 
 // This method collects dumpsys for wifi debugging only
 static void DumpstateWifiOnly() {
     DurationReporter duration_reporter("DUMPSTATE");
+
+    DumpstateRadioAsRoot();
+    if (!DropRootUser()) {
+        return;
+    }
+
+    // Starts thread pool after the root user is dropped. Only one additional
+    // thread is needed for DumpHals in the DumpstateRadioCommon.
+    if (ds.dump_pool_) {
+        ds.dump_pool_->start(/*thread_counts =*/1);
+    }
 
     DumpstateRadioCommon();
 
@@ -2856,8 +2895,6 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         onUiIntensiveBugreportDumpsFinished(calling_uid, calling_package);
         MaybeCheckUserConsent(calling_uid, calling_package);
         DumpstateTelephonyOnly(calling_package);
-        // TODO(b/136262402) Using thread pool for DumpstateBoard
-        RUN_SLOW_FUNCTION_AND_LOG(DUMP_BOARD_TASK, DumpstateBoard);
     } else if (options_->wifi_only) {
         MaybeTakeEarlyScreenshot();
         onUiIntensiveBugreportDumpsFinished(calling_uid, calling_package);
