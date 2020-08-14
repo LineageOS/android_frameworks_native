@@ -120,6 +120,8 @@ class CreateInfoWrapper {
 
         const char** names;
         uint32_t name_count;
+        ExtensionFilter()
+            : exts(nullptr), ext_count(0), names(nullptr), name_count(0) {}
     };
 
     VkResult SanitizeApiVersion();
@@ -607,6 +609,10 @@ VkResult CreateInfoWrapper::InitExtensionFilter() {
     } else {
         count = std::min(filter.ext_count, dev_info_.enabledExtensionCount);
     }
+
+    if (!count)
+        return VK_SUCCESS;
+
     filter.names = reinterpret_cast<const char**>(allocator_.pfnAllocation(
         allocator_.pUserData, sizeof(const char*) * count, alignof(const char*),
         VK_SYSTEM_ALLOCATION_SCOPE_COMMAND));

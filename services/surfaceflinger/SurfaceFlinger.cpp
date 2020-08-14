@@ -862,8 +862,9 @@ status_t SurfaceFlinger::getDisplayState(const sp<IBinder>& displayToken, ui::Di
     state->layerStack = display->getLayerStack();
     state->orientation = display->getOrientation();
 
-    const Rect viewport = display->getViewport();
-    state->viewport = viewport.isValid() ? viewport.getSize() : display->getSize();
+    const Rect layerStackRect = display->getLayerStackSpaceRect();
+    state->layerStackSpaceRect =
+            layerStackRect.isValid() ? layerStackRect.getSize() : display->getSize();
 
     return NO_ERROR;
 }
@@ -2367,7 +2368,7 @@ void SurfaceFlinger::postComposition()
 }
 
 FloatRect SurfaceFlinger::getLayerClipBoundsForDisplay(const DisplayDevice& displayDevice) const {
-    return displayDevice.getViewport().toFloatRect();
+    return displayDevice.getLayerStackSpaceRect().toFloatRect();
 }
 
 void SurfaceFlinger::computeLayerBounds() {
@@ -2568,7 +2569,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     }
 
     display->setLayerStack(state.layerStack);
-    display->setProjection(state.orientation, state.viewport, state.frame);
+    display->setProjection(state.orientation, state.layerStackSpaceRect,
+                           state.orientedDisplaySpaceRect);
     display->setDisplayName(state.displayName);
 
     return display;
@@ -2697,10 +2699,10 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             display->setLayerStack(currentState.layerStack);
         }
         if ((currentState.orientation != drawingState.orientation) ||
-            (currentState.viewport != drawingState.viewport) ||
-            (currentState.frame != drawingState.frame)) {
-            display->setProjection(currentState.orientation, currentState.viewport,
-                                   currentState.frame);
+            (currentState.layerStackSpaceRect != drawingState.layerStackSpaceRect) ||
+            (currentState.orientedDisplaySpaceRect != drawingState.orientedDisplaySpaceRect)) {
+            display->setProjection(currentState.orientation, currentState.layerStackSpaceRect,
+                                   currentState.orientedDisplaySpaceRect);
         }
         if (currentState.width != drawingState.width ||
             currentState.height != drawingState.height) {
@@ -3576,12 +3578,12 @@ uint32_t SurfaceFlinger::setDisplayStateLocked(const DisplayState& s) {
             state.orientation = s.orientation;
             flags |= eDisplayTransactionNeeded;
         }
-        if (state.frame != s.frame) {
-            state.frame = s.frame;
+        if (state.orientedDisplaySpaceRect != s.orientedDisplaySpaceRect) {
+            state.orientedDisplaySpaceRect = s.orientedDisplaySpaceRect;
             flags |= eDisplayTransactionNeeded;
         }
-        if (state.viewport != s.viewport) {
-            state.viewport = s.viewport;
+        if (state.layerStackSpaceRect != s.layerStackSpaceRect) {
+            state.layerStackSpaceRect = s.layerStackSpaceRect;
             flags |= eDisplayTransactionNeeded;
         }
     }
@@ -3816,7 +3818,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         if (layer->setCrop(s.crop)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eFrameChanged) {
-        if (layer->setFrame(s.frame)) flags |= eTraversalNeeded;
+        if (layer->setFrame(s.orientedDisplaySpaceRect)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eAcquireFenceChanged) {
         if (layer->setAcquireFence(s.acquireFence)) flags |= eTraversalNeeded;
@@ -4199,8 +4201,8 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.token = token;
     d.layerStack = 0;
     d.orientation = ui::ROTATION_0;
-    d.frame.makeInvalid();
-    d.viewport.makeInvalid();
+    d.orientedDisplaySpaceRect.makeInvalid();
+    d.layerStackSpaceRect.makeInvalid();
     d.width = 0;
     d.height = 0;
     displays.add(d);
@@ -5484,10 +5486,9 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         displayWeak = display;
         layerStack = display->getLayerStack();
 
-        // set the requested width/height to the logical display viewport size
-        // by default
+        // set the requested width/height to the logical display layer stack rect size by default
         if (args.width == 0 || args.height == 0) {
-            reqSize = display->getViewport().getSize();
+            reqSize = display->getLayerStackSpaceRect().getSize();
         }
 
         const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
@@ -5560,7 +5561,7 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
         layerStack = display->getLayerStack();
         displayWeak = display;
 
-        size = display->getViewport().getSize();
+        size = display->getLayerStackSpaceRect().getSize();
 
         dataspace =
                 pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
@@ -5594,7 +5595,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     sp<Layer> parent;
     Rect crop(args.sourceCrop);
     std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> excludeLayers;
-    Rect displayViewport;
+    Rect layerStackSpaceRect;
     ui::Dataspace dataspace;
     bool captureSecureLayers;
     {
@@ -5646,7 +5647,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
             return NAME_NOT_FOUND;
         }
 
-        displayViewport = display->getViewport();
+        layerStackSpaceRect = display->getLayerStackSpaceRect();
 
         const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
         dataspace = pickDataspaceFromColorMode(colorMode);
@@ -5665,7 +5666,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     bool childrenOnly = args.childrenOnly;
     RenderAreaFuture renderAreaFuture = promise::defer([=]() -> std::unique_ptr<RenderArea> {
         return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
-                                                 childrenOnly, displayViewport,
+                                                 childrenOnly, layerStackSpaceRect,
                                                  captureSecureLayers);
     });
 
@@ -5786,7 +5787,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     const auto sourceCrop = renderArea.getSourceCrop();
     const auto transform = renderArea.getTransform();
     const auto rotation = renderArea.getRotationFlags();
-    const auto& displayViewport = renderArea.getDisplayViewport();
+    const auto& layerStackSpaceRect = renderArea.getLayerStackSpaceRect();
 
     renderengine::DisplaySettings clientCompositionDisplay;
     std::vector<compositionengine::LayerFE::LayerSettings> clientCompositionLayers;
@@ -5823,7 +5824,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                 renderArea.isSecure(),
                 supportProtectedContent,
                 clearRegion,
-                displayViewport,
+                layerStackSpaceRect,
                 clientCompositionDisplay.outputDataspace,
                 true,  /* realContentIsVisible */
                 false, /* clearContent */
