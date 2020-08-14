@@ -41,6 +41,8 @@ constexpr uint64_t TEST_PROC_KEY_1 = 1;
 constexpr uint64_t TEST_PROC_VAL_1 = 234;
 constexpr uint64_t TEST_PROC_KEY_2 = 4294967298; // (1 << 32) + 2
 constexpr uint64_t TEST_PROC_VAL_2 = 345;
+constexpr uint32_t TEST_KEY_MASK = 0x1 | 0x2 | 0x4;
+constexpr uint32_t TEST_KEY_COUNT = 3;
 
 class GpuMemTest : public testing::Test {
 public:
@@ -141,6 +143,38 @@ TEST_F(GpuMemTest, procMemTotal) {
     EXPECT_THAT(dumpsys(),
                 HasSubstr(StringPrintf("Proc %u total: %" PRIu64 "\n", (uint32_t)TEST_PROC_KEY_2,
                                        TEST_PROC_VAL_2)));
+}
+
+TEST_F(GpuMemTest, traverseGpuMemTotals) {
+    SKIP_IF_BPF_NOT_SUPPORTED;
+    ASSERT_RESULT_OK(mTestMap.writeValue(TEST_GLOBAL_KEY, TEST_GLOBAL_VAL, BPF_ANY));
+    ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_1, TEST_PROC_VAL_1, BPF_ANY));
+    ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_2, TEST_PROC_VAL_2, BPF_ANY));
+    mTestableGpuMem.setGpuMemTotalMap(mTestMap);
+
+    static uint32_t sMask = 0;
+    static uint32_t sCount = 0;
+    mGpuMem->traverseGpuMemTotals([](int64_t, uint32_t gpuId, uint32_t pid, uint64_t size) {
+        const uint64_t key = ((uint64_t)gpuId << 32) | pid;
+        switch (key) {
+            case TEST_GLOBAL_KEY:
+                EXPECT_EQ(size, TEST_GLOBAL_VAL);
+                sMask |= 0x1;
+                break;
+            case TEST_PROC_KEY_1:
+                EXPECT_EQ(size, TEST_PROC_VAL_1);
+                sMask |= 0x2;
+                break;
+            case TEST_PROC_KEY_2:
+                EXPECT_EQ(size, TEST_PROC_VAL_2);
+                sMask |= 0x4;
+                break;
+        }
+        sCount++;
+    });
+
+    EXPECT_EQ(sMask, TEST_KEY_MASK);
+    EXPECT_EQ(sCount, TEST_KEY_COUNT);
 }
 
 } // namespace
