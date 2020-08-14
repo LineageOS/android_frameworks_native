@@ -25,6 +25,7 @@
 #include <libbpf_android.h>
 #include <log/log.h>
 #include <unistd.h>
+#include <utils/Timers.h>
 #include <utils/Trace.h>
 
 #include <unordered_map>
@@ -125,6 +126,26 @@ void GpuMem::dump(const Vector<String16>& /* args */, std::string* result) {
             StringAppendF(result, "Proc %u total: %" PRIu64 "\n", gpu.second[i].first,
                           gpu.second[i].second);
         }
+    }
+}
+
+void GpuMem::traverseGpuMemTotals(const std::function<void(int64_t ts, uint32_t gpuId, uint32_t pid,
+                                                           uint64_t size)>& callback) {
+    auto res = mGpuMemTotalMap.getFirstKey();
+    if (!res.ok()) return;
+    uint64_t key = res.value();
+    while (true) {
+        uint32_t gpu_id = key >> 32;
+        uint32_t pid = key;
+
+        res = mGpuMemTotalMap.readValue(key);
+        if (!res.ok()) break;
+        uint64_t size = res.value();
+
+        callback(systemTime(), gpu_id, pid, size);
+        res = mGpuMemTotalMap.getNextKey(key);
+        if (!res.ok()) break;
+        key = res.value();
     }
 }
 
