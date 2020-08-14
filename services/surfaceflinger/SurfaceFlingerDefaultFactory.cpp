@@ -39,8 +39,8 @@
 #include "DisplayHardware/ComposerHal.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/MessageQueue.h"
-#include "Scheduler/PhaseOffsets.h"
 #include "Scheduler/Scheduler.h"
+#include "Scheduler/VsyncConfiguration.h"
 
 namespace android::surfaceflinger {
 
