@@ -29,7 +29,7 @@ public:
     std::unique_ptr<DispSync> createDispSync(const char* name, bool hasSyncFramework) override;
     std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) override;
     std::unique_ptr<MessageQueue> createMessageQueue() override;
-    std::unique_ptr<scheduler::PhaseConfiguration> createPhaseConfiguration(
+    std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
             const scheduler::RefreshRateConfigs&) override;
     std::unique_ptr<Scheduler> createScheduler(const scheduler::RefreshRateConfigs&,
                                                ISchedulerCallback&) override;

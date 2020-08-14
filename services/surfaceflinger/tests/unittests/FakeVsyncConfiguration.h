@@ -22,15 +22,19 @@
 
 namespace android::scheduler {
 
-struct FakePhaseOffsets : PhaseConfiguration {
+struct FakePhaseOffsets : VsyncConfiguration {
     static constexpr nsecs_t FAKE_PHASE_OFFSET_NS = 0;
+    static constexpr auto FAKE_DURATION_OFFSET_NS = std::chrono::nanoseconds(0);
 
-    Offsets getOffsetsForRefreshRate(float) const override { return getCurrentOffsets(); }
+    VsyncConfigSet getConfigsForRefreshRate(float) const override { return getCurrentConfigs(); }
 
-    Offsets getCurrentOffsets() const override {
-        return {{FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
-                {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
-                {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS}};
+    VsyncConfigSet getCurrentConfigs() const override {
+        return {{FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS, FAKE_DURATION_OFFSET_NS,
+                 FAKE_DURATION_OFFSET_NS},
+                {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS, FAKE_DURATION_OFFSET_NS,
+                 FAKE_DURATION_OFFSET_NS},
+                {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS, FAKE_DURATION_OFFSET_NS,
+                 FAKE_DURATION_OFFSET_NS}};
     }
 
     void setRefreshRateFps(float) override {}
