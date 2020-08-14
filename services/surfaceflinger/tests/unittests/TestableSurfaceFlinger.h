@@ -77,7 +77,7 @@ public:
         return std::make_unique<android::impl::MessageQueue>();
     }
 
-    std::unique_ptr<scheduler::PhaseConfiguration> createPhaseConfiguration(
+    std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
             const scheduler::RefreshRateConfigs& /*refreshRateConfigs*/) override {
         return std::make_unique<scheduler::FakePhaseOffsets>();
     }
@@ -216,9 +216,9 @@ public:
                 scheduler::RefreshRateStats>(*mFlinger->mRefreshRateConfigs, *mFlinger->mTimeStats,
                                              /*currentConfig=*/HwcConfigIndexType(0),
                                              /*powerMode=*/hal::PowerMode::OFF);
-        mFlinger->mPhaseConfiguration =
-                mFactory.createPhaseConfiguration(*mFlinger->mRefreshRateConfigs);
-        mFlinger->mVsyncModulator.emplace(mFlinger->mPhaseConfiguration->getCurrentOffsets());
+        mFlinger->mVsyncConfiguration =
+                mFactory.createVsyncConfiguration(*mFlinger->mRefreshRateConfigs);
+        mFlinger->mVsyncModulator.emplace(mFlinger->mVsyncConfiguration->getCurrentConfigs());
 
         constexpr bool kUseContentDetectionV2 = false;
         mScheduler =

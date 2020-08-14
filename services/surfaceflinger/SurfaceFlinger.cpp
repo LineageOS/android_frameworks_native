@@ -948,9 +948,10 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         const nsecs_t period = hwConfig->getVsyncPeriod();
         config.refreshRate = 1e9f / period;
 
-        const auto offsets = mPhaseConfiguration->getOffsetsForRefreshRate(config.refreshRate);
-        config.appVsyncOffset = offsets.late.app;
-        config.sfVsyncOffset = offsets.late.sf;
+        const auto vsyncConfigSet =
+                mVsyncConfiguration->getConfigsForRefreshRate(config.refreshRate);
+        config.appVsyncOffset = vsyncConfigSet.late.appOffset;
+        config.sfVsyncOffset = vsyncConfigSet.late.sfOffset;
         config.configGroup = hwConfig->getConfigGroup();
 
         // This is how far in advance a buffer must be queued for
@@ -1789,8 +1790,8 @@ sp<Fence> SurfaceFlinger::previousFrameFence() {
     // We are storing the last 2 present fences. If sf's phase offset is to be
     // woken up before the actual vsync but targeting the next vsync, we need to check
     // fence N-2
-    return mVsyncModulator->getOffsets().sf > 0 ? mPreviousPresentFences[0]
-                                                : mPreviousPresentFences[1];
+    return mVsyncModulator->getVsyncConfig().sfOffset > 0 ? mPreviousPresentFences[0]
+                                                          : mPreviousPresentFences[1];
 }
 
 bool SurfaceFlinger::previousFramePending(int graceTimeMs) {
@@ -1822,7 +1823,8 @@ nsecs_t SurfaceFlinger::calculateExpectedPresentTime(nsecs_t now) const {
     mScheduler->getDisplayStatInfo(&stats);
     const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime(now);
     // Inflate the expected present time if we're targetting the next vsync.
-    return mVsyncModulator->getOffsets().sf > 0 ? presentTime : presentTime + stats.vsyncPeriod;
+    return mVsyncModulator->getVsyncConfig().sfOffset > 0 ? presentTime
+                                                          : presentTime + stats.vsyncPeriod;
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what, nsecs_t expectedVSyncTime) {
@@ -2182,12 +2184,12 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
                                                 nsecs_t compositeToPresentLatency) {
     // Integer division and modulo round toward 0 not -inf, so we need to
     // treat negative and positive offsets differently.
-    nsecs_t idealLatency = (mPhaseConfiguration->getCurrentOffsets().late.sf > 0)
+    nsecs_t idealLatency = (mVsyncConfiguration->getCurrentConfigs().late.sfOffset > 0)
             ? (stats.vsyncPeriod -
-               (mPhaseConfiguration->getCurrentOffsets().late.sf % stats.vsyncPeriod))
-            : ((-mPhaseConfiguration->getCurrentOffsets().late.sf) % stats.vsyncPeriod);
+               (mVsyncConfiguration->getCurrentConfigs().late.sfOffset % stats.vsyncPeriod))
+            : ((-mVsyncConfiguration->getCurrentConfigs().late.sfOffset) % stats.vsyncPeriod);
 
-    // Just in case mPhaseConfiguration->getCurrentOffsets().late.sf == -vsyncInterval.
+    // Just in case mVsyncConfiguration->getCurrentConfigs().late.sf == -vsyncInterval.
     if (idealLatency <= 0) {
         idealLatency = stats.vsyncPeriod;
     }
@@ -2197,7 +2199,7 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
     // Reducing jitter is important if an app attempts to extrapolate
     // something (such as user input) to an accurate diasplay time.
     // Snapping also allows an app to precisely calculate
-    // mPhaseConfiguration->getCurrentOffsets().late.sf with (presentLatency % interval).
+    // mVsyncConfiguration->getCurrentConfigs().late.sf with (presentLatency % interval).
     nsecs_t bias = stats.vsyncPeriod / 2;
     int64_t extraVsyncs = (compositeToPresentLatency - idealLatency + bias) / stats.vsyncPeriod;
     nsecs_t snappedCompositeToPresentLatency =
@@ -2977,16 +2979,18 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
                                                           currentConfig, hal::PowerMode::OFF);
     mRefreshRateStats->setConfigMode(currentConfig);
 
-    mPhaseConfiguration = getFactory().createPhaseConfiguration(*mRefreshRateConfigs);
-    mVsyncModulator.emplace(mPhaseConfiguration->getCurrentOffsets());
+    mVsyncConfiguration = getFactory().createVsyncConfiguration(*mRefreshRateConfigs);
+    mVsyncModulator.emplace(mVsyncConfiguration->getCurrentConfigs());
 
     // start the EventThread
     mScheduler = getFactory().createScheduler(*mRefreshRateConfigs, *this);
     mAppConnectionHandle =
-            mScheduler->createConnection("app", mPhaseConfiguration->getCurrentOffsets().late.app,
+            mScheduler->createConnection("app",
+                                         mVsyncConfiguration->getCurrentConfigs().late.appOffset,
                                          impl::EventThread::InterceptVSyncsCallback());
     mSfConnectionHandle =
-            mScheduler->createConnection("sf", mPhaseConfiguration->getCurrentOffsets().late.sf,
+            mScheduler->createConnection("sf",
+                                         mVsyncConfiguration->getCurrentConfigs().late.sfOffset,
                                          [this](nsecs_t timestamp) {
                                              mInterceptor->saveVSyncEvent(timestamp);
                                          });
@@ -3007,16 +3011,21 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
             mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).getVsyncPeriod();
     mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, primaryDisplayId, currentConfig,
                                               vsyncPeriod);
+    static auto ignorePresentFences =
+            base::GetBoolProperty("debug.sf.vsync_reactor_ignore_present_fences"s, false);
+    mScheduler->setIgnorePresentFences(
+            ignorePresentFences ||
+            getHwComposer().hasCapability(hal::Capability::PRESENT_FENCE_IS_NOT_RELIABLE));
 }
 
 void SurfaceFlinger::updatePhaseConfiguration(const RefreshRate& refreshRate) {
-    mPhaseConfiguration->setRefreshRateFps(refreshRate.getFps());
-    setPhaseOffsets(mVsyncModulator->setPhaseOffsets(mPhaseConfiguration->getCurrentOffsets()));
+    mVsyncConfiguration->setRefreshRateFps(refreshRate.getFps());
+    setVsyncConfig(mVsyncModulator->setVsyncConfigSet(mVsyncConfiguration->getCurrentConfigs()));
 }
 
-void SurfaceFlinger::setPhaseOffsets(const VsyncModulator::Offsets& offsets) {
-    mScheduler->setPhaseOffset(mAppConnectionHandle, offsets.app);
-    mScheduler->setPhaseOffset(mSfConnectionHandle, offsets.sf);
+void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config) {
+    mScheduler->setPhaseOffset(mAppConnectionHandle, config.appOffset);
+    mScheduler->setPhaseOffset(mSfConnectionHandle, config.sfOffset);
 }
 
 void SurfaceFlinger::commitTransaction() {
@@ -4456,7 +4465,7 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
     mRefreshRateStats->dump(result);
     result.append("\n");
 
-    mPhaseConfiguration->dump(result);
+    mVsyncConfiguration->dump(result);
     StringAppendF(&result,
                   "      present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriodFromHWC());

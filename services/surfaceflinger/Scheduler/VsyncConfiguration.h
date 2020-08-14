@@ -24,19 +24,18 @@
 namespace android::scheduler {
 
 /*
- * This class encapsulates offsets for different refresh rates. Depending
+ * This class encapsulates vsync configurations for different refresh rates. Depending
  * on what refresh rate we are using, and wheter we are composing in GL,
  * different offsets will help us with latency. This class keeps track of
  * which mode the device is on, and returns approprate offsets when needed.
  */
-class PhaseConfiguration {
+class VsyncConfiguration {
 public:
-    using Offsets = VsyncModulator::OffsetsConfig;
+    using VsyncConfigSet = VsyncModulator::VsyncConfigSet;
 
-    virtual ~PhaseConfiguration();
-
-    virtual Offsets getCurrentOffsets() const = 0;
-    virtual Offsets getOffsetsForRefreshRate(float fps) const = 0;
+    virtual ~VsyncConfiguration() = default;
+    virtual VsyncConfigSet getCurrentConfigs() const = 0;
+    virtual VsyncConfigSet getConfigsForRefreshRate(float fps) const = 0;
 
     virtual void setRefreshRateFps(float fps) = 0;
 
@@ -46,18 +45,21 @@ public:
 namespace impl {
 
 /*
- * This is the old implementation of phase offsets and considered as deprecated.
- * PhaseDurations is the new implementation.
+ * This is a common implementation for both phase offsets and durations.
+ * PhaseOffsets and WorkDuration derive from this class and implement the
+ * constructOffsets method
  */
-class PhaseOffsets : public scheduler::PhaseConfiguration {
+class VsyncConfiguration : public scheduler::VsyncConfiguration {
 public:
-    PhaseOffsets(const scheduler::RefreshRateConfigs&);
+    explicit VsyncConfiguration(float currentFps);
 
     // Returns early, early GL, and late offsets for Apps and SF for a given refresh rate.
-    Offsets getOffsetsForRefreshRate(float fps) const override;
+    VsyncConfigSet getConfigsForRefreshRate(float fps) const override;
 
     // Returns early, early GL, and late offsets for Apps and SF.
-    Offsets getCurrentOffsets() const override { return getOffsetsForRefreshRate(mRefreshRateFps); }
+    VsyncConfigSet getCurrentConfigs() const override {
+        return getConfigsForRefreshRate(mRefreshRateFps);
+    }
 
     // This function should be called when the device is switching between different
     // refresh rates, to properly update the offsets.
@@ -65,63 +67,75 @@ public:
 
     // Returns current offsets in human friendly format.
     void dump(std::string& result) const override;
+
+protected:
+    void initializeOffsets(const std::vector<float>& refreshRates);
+    virtual VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const = 0;
+
+    std::unordered_map<float, VsyncConfigSet> mOffsets;
+    std::atomic<float> mRefreshRateFps;
+};
+
+/*
+ * This is the old implementation of phase offsets and considered as deprecated.
+ * WorkDuration is the new implementation.
+ */
+class PhaseOffsets : public VsyncConfiguration {
+public:
+    explicit PhaseOffsets(const scheduler::RefreshRateConfigs&);
 
 protected:
     // Used for unit tests
     PhaseOffsets(const std::vector<float>& refreshRates, float currentFps,
                  nsecs_t vsyncPhaseOffsetNs, nsecs_t sfVSyncPhaseOffsetNs,
-                 std::optional<nsecs_t> earlySfOffsetNs, std::optional<nsecs_t> earlyGlSfOffsetNs,
-                 std::optional<nsecs_t> earlyAppOffsetNs, std::optional<nsecs_t> earlyGlAppOffsetNs,
-                 nsecs_t thresholdForNextVsync);
-    std::unordered_map<float, Offsets> initializeOffsets(
-            const std::vector<float>& refreshRates) const;
-    Offsets getDefaultOffsets(nsecs_t vsyncPeriod) const;
-    Offsets getHighFpsOffsets(nsecs_t vsyncPeriod) const;
-    Offsets getPhaseOffsets(float fps, nsecs_t vsyncPeriod) const;
+                 std::optional<nsecs_t> earlySfOffsetNs, std::optional<nsecs_t> earlyGpuSfOffsetNs,
+                 std::optional<nsecs_t> earlyAppOffsetNs,
+                 std::optional<nsecs_t> earlyGpuAppOffsetNs, nsecs_t highFpsVsyncPhaseOffsetNs,
+                 nsecs_t highFpsSfVSyncPhaseOffsetNs, std::optional<nsecs_t> highFpsEarlySfOffsetNs,
+                 std::optional<nsecs_t> highFpsEarlyGpuSfOffsetNs,
+                 std::optional<nsecs_t> highFpsEarlyAppOffsetNs,
+                 std::optional<nsecs_t> highFpsEarlyGpuAppOffsetNs, nsecs_t thresholdForNextVsync);
+
+private:
+    VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const override;
+
+    VsyncConfigSet getDefaultOffsets(nsecs_t vsyncPeriod) const;
+    VsyncConfigSet getHighFpsOffsets(nsecs_t vsyncPeriod) const;
 
     const nsecs_t mVSyncPhaseOffsetNs;
     const nsecs_t mSfVSyncPhaseOffsetNs;
     const std::optional<nsecs_t> mEarlySfOffsetNs;
-    const std::optional<nsecs_t> mEarlyGlSfOffsetNs;
+    const std::optional<nsecs_t> mEarlyGpuSfOffsetNs;
     const std::optional<nsecs_t> mEarlyAppOffsetNs;
-    const std::optional<nsecs_t> mEarlyGlAppOffsetNs;
-    const nsecs_t mThresholdForNextVsync;
-    const std::unordered_map<float, Offsets> mOffsets;
+    const std::optional<nsecs_t> mEarlyGpuAppOffsetNs;
 
-    std::atomic<float> mRefreshRateFps;
+    const nsecs_t mHighFpsVSyncPhaseOffsetNs;
+    const nsecs_t mHighFpsSfVSyncPhaseOffsetNs;
+    const std::optional<nsecs_t> mHighFpsEarlySfOffsetNs;
+    const std::optional<nsecs_t> mHighFpsEarlyGpuSfOffsetNs;
+    const std::optional<nsecs_t> mHighFpsEarlyAppOffsetNs;
+    const std::optional<nsecs_t> mHighFpsEarlyGpuAppOffsetNs;
+
+    const nsecs_t mThresholdForNextVsync;
 };
 
 /*
  * Class that encapsulates the phase offsets for SurfaceFlinger and App.
- * The offsets are calculated from durations for each one of the (late, early, earlyGL)
+ * The offsets are calculated from durations for each one of the (late, early, earlyGpu)
  * offset types.
  */
-class PhaseDurations : public scheduler::PhaseConfiguration {
+class WorkDuration : public VsyncConfiguration {
 public:
-    PhaseDurations(const scheduler::RefreshRateConfigs&);
-
-    // Returns early, early GL, and late offsets for Apps and SF for a given refresh rate.
-    Offsets getOffsetsForRefreshRate(float fps) const override;
-
-    // Returns early, early GL, and late offsets for Apps and SF.
-    Offsets getCurrentOffsets() const override { return getOffsetsForRefreshRate(mRefreshRateFps); }
-
-    // This function should be called when the device is switching between different
-    // refresh rates, to properly update the offsets.
-    void setRefreshRateFps(float fps) override { mRefreshRateFps = fps; }
-
-    // Returns current offsets in human friendly format.
-    void dump(std::string& result) const override;
+    explicit WorkDuration(const scheduler::RefreshRateConfigs&);
 
 protected:
     // Used for unit tests
-    PhaseDurations(const std::vector<float>& refreshRates, float currentFps, nsecs_t sfDuration,
-                   nsecs_t appDuration, nsecs_t sfEarlyDuration, nsecs_t appEarlyDuration,
-                   nsecs_t sfEarlyGlDuration, nsecs_t appEarlyGlDuration);
+    WorkDuration(const std::vector<float>& refreshRates, float currentFps, nsecs_t sfDuration,
+                 nsecs_t appDuration, nsecs_t sfEarlyDuration, nsecs_t appEarlyDuration,
+                 nsecs_t sfEarlyGpuDuration, nsecs_t appEarlyGpuDuration);
 
 private:
-    std::unordered_map<float, Offsets> initializeOffsets(const std::vector<float>&) const;
-    PhaseDurations::Offsets constructOffsets(nsecs_t vsyncDuration) const;
+    VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const override;
 
     const nsecs_t mSfDuration;
     const nsecs_t mAppDuration;
@@ -129,12 +143,8 @@ private:
     const nsecs_t mSfEarlyDuration;
     const nsecs_t mAppEarlyDuration;
 
-    const nsecs_t mSfEarlyGlDuration;
-    const nsecs_t mAppEarlyGlDuration;
-
-    const std::unordered_map<float, Offsets> mOffsets;
-
-    std::atomic<float> mRefreshRateFps;
+    const nsecs_t mSfEarlyGpuDuration;
+    const nsecs_t mAppEarlyGpuDuration;
 };
 
 } // namespace impl
