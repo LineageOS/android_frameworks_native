@@ -25,7 +25,7 @@
 #include <log/log.h>
 #include <thread>
 
-#include "Scheduler/PhaseOffsets.h"
+#include "Scheduler/VsyncConfiguration.h"
 
 using namespace testing;
 

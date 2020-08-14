@@ -29,7 +29,7 @@
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "EffectLayer.h"
-#include "FakePhaseOffsets.h"
+#include "FakeVsyncConfiguration.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
 #include "Scheduler/MessageQueue.h"
