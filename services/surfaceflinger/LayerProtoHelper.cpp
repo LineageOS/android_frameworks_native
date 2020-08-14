@@ -146,8 +146,7 @@ void LayerProtoHelper::writeToProto(
 
     proto->set_surface_inset(inputInfo.surfaceInset);
     proto->set_visible(inputInfo.visible);
-    proto->set_can_receive_keys(inputInfo.canReceiveKeys);
-    proto->set_has_focus(inputInfo.hasFocus);
+    proto->set_focusable(inputInfo.focusable);
     proto->set_has_wallpaper(inputInfo.hasWallpaper);
 
     proto->set_global_scale_factor(inputInfo.globalScaleFactor);
