@@ -69,6 +69,8 @@ public:
 
     HalResult<Capabilities> getCapabilities() final override;
     HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffects() final override;
+    HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitives()
+            final override;
 
     HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,

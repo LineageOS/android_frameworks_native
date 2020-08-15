@@ -28,6 +28,7 @@
 #include <vibratorservice/VibratorHalWrapper.h>
 
 using android::hardware::vibrator::CompositeEffect;
+using android::hardware::vibrator::CompositePrimitive;
 using android::hardware::vibrator::Effect;
 using android::hardware::vibrator::EffectStrength;
 
@@ -199,6 +200,12 @@ HalResult<std::vector<Effect>> HalController::getSupportedEffects() {
         return hal->getSupportedEffects();
     };
     return apply(getSupportedEffectsFn, "getSupportedEffects");
+}
+
+HalResult<std::vector<CompositePrimitive>> HalController::getSupportedPrimitives() {
+    hal_fn<std::vector<CompositePrimitive>> getSupportedPrimitivesFn =
+            [](std::shared_ptr<HalWrapper> hal) { return hal->getSupportedPrimitives(); };
+    return apply(getSupportedPrimitivesFn, "getSupportedPrimitives");
 }
 
 HalResult<milliseconds> HalController::performEffect(
