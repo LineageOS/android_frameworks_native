@@ -43,10 +43,10 @@ public:
     virtual ~TimeKeeper();
 
     /*
-     * Arms callback to fired in time nanoseconds.
+     * Arms callback to fired when time is current based on CLOCK_MONOTONIC
      * There is only one timer, and subsequent calls will reset the callback function and the time.
      */
-    virtual void alarmIn(std::function<void()> const& callback, nsecs_t time) = 0;
+    virtual void alarmAt(std::function<void()> const& callback, nsecs_t time) = 0;
 
     /*
      * Cancels an existing pending callback

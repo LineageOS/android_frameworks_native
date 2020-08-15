@@ -30,9 +30,9 @@ public:
     ~Timer();
     nsecs_t now() const final;
 
-    // NB: alarmIn and alarmCancel are threadsafe; with the last-returning function being effectual
+    // NB: alarmAt and alarmCancel are threadsafe; with the last-returning function being effectual
     //     Most users will want to serialize thes calls so as to be aware of the timer state.
-    void alarmIn(std::function<void()> const& cb, nsecs_t fireIn) final;
+    void alarmAt(std::function<void()> const& cb, nsecs_t time) final;
     void alarmCancel() final;
     void dump(std::string& result) const final;
 
