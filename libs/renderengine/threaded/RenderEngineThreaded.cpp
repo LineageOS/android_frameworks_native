@@ -361,14 +361,14 @@ Framebuffer* RenderEngineThreaded::getFramebufferForDrawing() {
     return resultFuture.get();
 }
 
-bool RenderEngineThreaded::cleanupPostRender() {
+bool RenderEngineThreaded::cleanupPostRender(CleanupMode mode) {
     std::promise<bool> resultPromise;
     std::future<bool> resultFuture = resultPromise.get_future();
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
+        mFunctionCalls.push([&resultPromise, mode](renderengine::RenderEngine& instance) {
             ATRACE_NAME("REThreaded::cleanupPostRender");
-            bool returnValue = instance.cleanupPostRender();
+            bool returnValue = instance.cleanupPostRender(mode);
             resultPromise.set_value(returnValue);
         });
     }
