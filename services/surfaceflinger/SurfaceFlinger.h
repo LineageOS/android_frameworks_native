@@ -608,7 +608,7 @@ private:
 
     void initScheduler(PhysicalDisplayId primaryDisplayId);
     void updatePhaseConfiguration(const RefreshRate&);
-    void setPhaseOffsets(const VsyncModulator::Offsets&);
+    void setVsyncConfig(const VsyncModulator::VsyncConfig&);
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
      * region. Returns whether a new buffer has been latched, i.e., whether it
@@ -1214,7 +1214,7 @@ private:
     scheduler::ConnectionHandle mSfConnectionHandle;
 
     // Stores phase offsets configured per refresh rate.
-    std::unique_ptr<scheduler::PhaseConfiguration> mPhaseConfiguration;
+    std::unique_ptr<scheduler::VsyncConfiguration> mVsyncConfiguration;
 
     // Optional to defer construction until PhaseConfiguration is created.
     std::optional<scheduler::VsyncModulator> mVsyncModulator;
@@ -1226,10 +1226,10 @@ private:
     hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
 
     template <typename... Args,
-              typename Handler = VsyncModulator::OffsetsOpt (VsyncModulator::*)(Args...)>
+              typename Handler = VsyncModulator::VsyncConfigOpt (VsyncModulator::*)(Args...)>
     void modulateVsync(Handler handler, Args... args) {
-        if (const auto offsets = (*mVsyncModulator.*handler)(args...)) {
-            setPhaseOffsets(*offsets);
+        if (const auto config = (*mVsyncModulator.*handler)(args...)) {
+            setVsyncConfig(*config);
         }
     }
 

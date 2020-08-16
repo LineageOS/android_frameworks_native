@@ -39,8 +39,8 @@
 #include "DisplayHardware/ComposerHal.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/MessageQueue.h"
-#include "Scheduler/PhaseOffsets.h"
 #include "Scheduler/Scheduler.h"
+#include "Scheduler/VsyncConfiguration.h"
 
 namespace android::surfaceflinger {
 
@@ -58,10 +58,10 @@ std::unique_ptr<MessageQueue> DefaultFactory::createMessageQueue() {
     return std::make_unique<android::impl::MessageQueue>();
 }
 
-std::unique_ptr<scheduler::PhaseConfiguration> DefaultFactory::createPhaseConfiguration(
+std::unique_ptr<scheduler::VsyncConfiguration> DefaultFactory::createVsyncConfiguration(
         const scheduler::RefreshRateConfigs& refreshRateConfigs) {
     if (property_get_bool("debug.sf.use_phase_offsets_as_durations", false)) {
-        return std::make_unique<scheduler::impl::PhaseDurations>(refreshRateConfigs);
+        return std::make_unique<scheduler::impl::WorkDuration>(refreshRateConfigs);
     } else {
         return std::make_unique<scheduler::impl::PhaseOffsets>(refreshRateConfigs);
     }

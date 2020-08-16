@@ -156,6 +156,8 @@ public:
 
     virtual HalResult<Capabilities> getCapabilities() = 0;
     virtual HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffects() = 0;
+    virtual HalResult<std::vector<hardware::vibrator::CompositePrimitive>>
+    getSupportedPrimitives() = 0;
 
     virtual HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
@@ -194,6 +196,8 @@ public:
 
     HalResult<Capabilities> getCapabilities() override final;
     HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffects() override final;
+    HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitives()
+            override final;
 
     HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
@@ -207,14 +211,18 @@ private:
     std::mutex mHandleMutex;
     std::mutex mCapabilitiesMutex;
     std::mutex mSupportedEffectsMutex;
+    std::mutex mSupportedPrimitivesMutex;
     sp<hardware::vibrator::IVibrator> mHandle GUARDED_BY(mHandleMutex);
     std::optional<Capabilities> mCapabilities GUARDED_BY(mCapabilitiesMutex);
     std::optional<std::vector<hardware::vibrator::Effect>> mSupportedEffects
             GUARDED_BY(mSupportedEffectsMutex);
+    std::optional<std::vector<hardware::vibrator::CompositePrimitive>> mSupportedPrimitives
+            GUARDED_BY(mSupportedPrimitivesMutex);
 
     // Loads directly from IVibrator handle, skipping caches.
     HalResult<Capabilities> getCapabilitiesInternal();
     HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffectsInternal();
+    HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitivesInternal();
     sp<hardware::vibrator::IVibrator> getHal();
 };
 
@@ -242,6 +250,8 @@ public:
 
     HalResult<Capabilities> getCapabilities() override final;
     HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffects() override final;
+    HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitives()
+            override final;
 
     HalResult<void> performComposedEffect(
             const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
