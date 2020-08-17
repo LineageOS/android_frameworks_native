@@ -970,9 +970,7 @@ VkResult EnumerateDeviceExtensionProperties(
 
     // conditionally add VK_GOOGLE_display_timing if present timestamps are
     // supported by the driver:
-    const std::string timestamp_property("service.sf.present_timestamp");
-    android::base::WaitForPropertyCreation(timestamp_property);
-    if (android::base::GetBoolProperty(timestamp_property, true)) {
+    if (android::base::GetBoolProperty("service.sf.present_timestamp", false)) {
         loader_extensions.push_back({
                 VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
                 VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION});
