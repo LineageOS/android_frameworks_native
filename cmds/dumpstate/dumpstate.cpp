@@ -95,6 +95,7 @@ using ::android::hardware::dumpstate::V1_1::DumpstateStatus;
 using ::android::hardware::dumpstate::V1_1::toString;
 using ::std::literals::chrono_literals::operator""ms;
 using ::std::literals::chrono_literals::operator""s;
+using ::std::placeholders::_1;
 
 // TODO: remove once moved to namespace
 using android::defaultServiceManager;
@@ -113,6 +114,7 @@ using android::base::StringPrintf;
 using android::os::IDumpstateListener;
 using android::os::dumpstate::CommandOptions;
 using android::os::dumpstate::DumpFileToFd;
+using android::os::dumpstate::DumpPool;
 using android::os::dumpstate::PropertiesHelper;
 
 // Keep in sync with
@@ -196,7 +198,25 @@ static const std::string ANR_FILE_PREFIX = "anr_";
     func_ptr(__VA_ARGS__);                                  \
     RETURN_IF_USER_DENIED_CONSENT();
 
+// Runs func_ptr, and logs a duration report after it's finished.
+#define RUN_SLOW_FUNCTION_AND_LOG(log_title, func_ptr, ...)      \
+    {                                                            \
+        DurationReporter duration_reporter_in_macro(log_title);  \
+        func_ptr(__VA_ARGS__);                                   \
+    }
+
+// Similar with RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK, an additional duration report
+// is output after a slow function is finished.
+#define RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(log_title, func_ptr, ...) \
+    RETURN_IF_USER_DENIED_CONSENT();                                           \
+    RUN_SLOW_FUNCTION_AND_LOG(log_title, func_ptr, __VA_ARGS__);               \
+    RETURN_IF_USER_DENIED_CONSENT();
+
 static const char* WAKE_LOCK_NAME = "dumpstate_wakelock";
+
+// Names of parallel tasks, they are used for the DumpPool to identify the dump
+// task and the log title of the duration report.
+static const std::string DUMP_TRACES_TASK = "DUMP TRACES";
 
 namespace android {
 namespace os {
@@ -762,8 +782,9 @@ void Dumpstate::PrintHeader() const {
     RunCommandToFd(STDOUT_FILENO, "", {"uptime", "-p"},
                    CommandOptions::WithTimeout(1).Always().Build());
     printf("Bugreport format version: %s\n", version_.c_str());
-    printf("Dumpstate info: id=%d pid=%d dry_run=%d args=%s bugreport_mode=%s\n", id_, pid_,
-           PropertiesHelper::IsDryRun(), options_->args.c_str(), options_->bugreport_mode.c_str());
+    printf("Dumpstate info: id=%d pid=%d dry_run=%d parallel_run=%d args=%s bugreport_mode=%s\n",
+           id_, pid_, PropertiesHelper::IsDryRun(), PropertiesHelper::IsParallelRun(),
+           options_->args.c_str(), options_->bugreport_mode.c_str());
     printf("\n");
 }
 
@@ -1680,7 +1701,18 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     time_t logcat_ts = time(nullptr);
 
     /* collect stack traces from Dalvik and native processes (needs root) */
-    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(ds.DumpTraces, &dump_traces_path);
+    if (dump_pool_) {
+        RETURN_IF_USER_DENIED_CONSENT();
+        // One thread is enough since we only need to enqueue DumpTraces here.
+        dump_pool_->start(/* thread_counts = */1);
+
+        // DumpTraces takes long time, post it to the another thread in the
+        // pool, if pool is available
+        dump_pool_->enqueueTask(DUMP_TRACES_TASK, &Dumpstate::DumpTraces, &ds, &dump_traces_path);
+    } else {
+        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_TRACES_TASK, ds.DumpTraces,
+                &dump_traces_path);
+    }
 
     /* Run some operations that require root. */
     ds.tombstone_data_ = GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX, !ds.IsZipping());
@@ -1723,6 +1755,15 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     DumpFile("PSI memory", "/proc/pressure/memory");
     DumpFile("PSI io", "/proc/pressure/io");
 
+    if (dump_pool_) {
+        RETURN_IF_USER_DENIED_CONSENT();
+        dump_pool_->waitForTask(DUMP_TRACES_TASK);
+
+        // Current running thread in the pool is the root user also. Shutdown
+        // the pool and restart later to ensure all threads in the pool could
+        // drop the root user.
+        dump_pool_->shutdown();
+    }
     if (!DropRootUser()) {
         return Dumpstate::RunStatus::ERROR;
     }
@@ -1881,8 +1922,6 @@ static void DumpstateWifiOnly() {
 }
 
 Dumpstate::RunStatus Dumpstate::DumpTraces(const char** path) {
-    DurationReporter duration_reporter("DUMP TRACES");
-
     const std::string temp_file_pattern = "/data/anr/dumptrace_XXXXXX";
     const size_t buf_size = temp_file_pattern.length() + 1;
     std::unique_ptr<char[]> file_name_buf(new char[buf_size]);
@@ -2554,6 +2593,7 @@ void Dumpstate::Cancel() {
  */
 Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
                                             const std::string& calling_package) {
+    DurationReporter duration_reporter("RUN INTERNAL", /* logcat_only = */true);
     LogDumpOptions(*options_);
     if (!options_->ValidateOptions()) {
         MYLOGE("Invalid options specified\n");
@@ -2714,6 +2754,13 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 
     // Don't buffer stdout
     setvbuf(stdout, nullptr, _IONBF, 0);
+
+    // Enable the parallel run if the client requests to output to a file.
+    EnableParallelRunIfNeeded();
+    // Using scope guard to make sure the dump pool can be shut down correctly.
+    auto scope_guard_to_shutdown_pool = android::base::make_scope_guard([=]() {
+        ShutdownDumpPool();
+    });
 
     // NOTE: there should be no stdout output until now, otherwise it would break the header.
     // In particular, DurationReport objects should be created passing 'title, NULL', so their
@@ -2881,6 +2928,23 @@ void Dumpstate::CleanupTmpFiles() {
     android::os::UnlinkAndLogOnError(path_);
 }
 
+void Dumpstate::EnableParallelRunIfNeeded() {
+    // The thread pool needs to create temporary files to receive dump results.
+    // That's why we only enable it when the bugreport client chooses to output
+    // to a file.
+    if (!PropertiesHelper::IsParallelRun() || !options_->OutputToFile()) {
+        return;
+    }
+    dump_pool_ = std::make_unique<DumpPool>(bugreport_internal_dir_);
+}
+
+void Dumpstate::ShutdownDumpPool() {
+    if (dump_pool_) {
+        dump_pool_->shutdown();
+        dump_pool_ = nullptr;
+    }
+}
+
 Dumpstate::RunStatus Dumpstate::HandleUserConsentDenied() {
     MYLOGD("User denied consent; deleting files and returning\n");
     CleanupTmpFiles();
@@ -2999,8 +3063,9 @@ Dumpstate& Dumpstate::GetInstance() {
     return singleton_;
 }
 
-DurationReporter::DurationReporter(const std::string& title, bool logcat_only, bool verbose)
-    : title_(title), logcat_only_(logcat_only), verbose_(verbose) {
+DurationReporter::DurationReporter(const std::string& title, bool logcat_only, bool verbose,
+        int duration_fd) : title_(title), logcat_only_(logcat_only), verbose_(verbose),
+        duration_fd_(duration_fd) {
     if (!title_.empty()) {
         started_ = Nanotime();
     }
@@ -3014,7 +3079,8 @@ DurationReporter::~DurationReporter() {
         }
         if (!logcat_only_) {
             // Use "Yoda grammar" to make it easier to grep|sort sections.
-            printf("------ %.3fs was the duration of '%s' ------\n", elapsed, title_.c_str());
+            dprintf(duration_fd_, "------ %.3fs was the duration of '%s' ------\n",
+                    elapsed, title_.c_str());
         }
     }
 }
