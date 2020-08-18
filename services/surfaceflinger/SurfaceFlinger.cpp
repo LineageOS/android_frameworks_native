@@ -5493,7 +5493,7 @@ static status_t validateScreenshotPermissions(const CaptureArgs& captureArgs) {
 }
 
 status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
-                                        ScreenCaptureResults& captureResults) {
+                                        const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
     status_t validate = validateScreenshotPermissions(args);
@@ -5531,8 +5531,12 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     auto traverseLayers = [this, args, layerStack](const LayerVector::Visitor& visitor) {
         traverseLayersInLayerStack(layerStack, args.uid, visitor);
     };
-    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               args.pixelFormat, captureResults);
+    ScreenCaptureResults captureResults;
+    status_t status = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+                                          args.pixelFormat, captureResults);
+    captureResults.result = status;
+    captureListener->onScreenCaptureComplete(captureResults);
+    return status;
 }
 
 status_t SurfaceFlinger::setSchedFifo(bool enabled) {
@@ -5575,7 +5579,7 @@ sp<DisplayDevice> SurfaceFlinger::getDisplayByLayerStack(uint64_t layerStack) {
 }
 
 status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
-                                        ScreenCaptureResults& captureResults) {
+                                        const sp<IScreenCaptureListener>& captureListener) {
     ui::LayerStack layerStack;
     wp<DisplayDevice> displayWeak;
     ui::Size size;
@@ -5596,8 +5600,7 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
     }
 
     RenderAreaFuture renderAreaFuture = promise::defer([=] {
-        return DisplayRenderArea::create(displayWeak, Rect(), size,
-                                         captureResults.capturedDataspace,
+        return DisplayRenderArea::create(displayWeak, Rect(), size, dataspace,
                                          false /* useIdentityTransform */,
                                          false /* captureSecureLayers */);
     });
@@ -5606,12 +5609,16 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
         traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, visitor);
     };
 
-    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
-                               ui::PixelFormat::RGBA_8888, captureResults);
+    ScreenCaptureResults captureResults;
+    status_t status = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
+                                          ui::PixelFormat::RGBA_8888, captureResults);
+    captureResults.result = status;
+    captureListener->onScreenCaptureComplete(captureResults);
+    return status;
 }
 
 status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
-                                       ScreenCaptureResults& captureResults) {
+                                       const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
     status_t validate = validateScreenshotPermissions(args);
@@ -5720,8 +5727,12 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         });
     };
 
-    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               args.pixelFormat, captureResults);
+    ScreenCaptureResults captureResults;
+    status_t status = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+                                          args.pixelFormat, captureResults);
+    captureResults.result = status;
+    captureListener->onScreenCaptureComplete(captureResults);
+    return status;
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,

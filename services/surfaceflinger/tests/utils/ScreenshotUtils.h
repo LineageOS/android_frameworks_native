@@ -17,28 +17,50 @@
 
 #include <ui/Rect.h>
 #include <utils/String8.h>
+#include <functional>
+#include <future>
 #include "TransactionUtils.h"
 
 namespace android {
 
 namespace {
 
+class SyncScreenCaptureListener : public BnScreenCaptureListener {
+public:
+    status_t onScreenCaptureComplete(const ScreenCaptureResults& captureResults) override {
+        resultsPromise.set_value(captureResults);
+        return NO_ERROR;
+    }
+
+    ScreenCaptureResults waitForResults() {
+        std::future<ScreenCaptureResults> resultsFuture = resultsPromise.get_future();
+        return resultsFuture.get();
+    }
+
+private:
+    std::promise<ScreenCaptureResults> resultsPromise;
+};
+
 // A ScreenCapture is a screenshot from SurfaceFlinger that can be used to check
 // individual pixel values for testing purposes.
 class ScreenCapture : public RefBase {
 public:
-    static void captureScreen(std::unique_ptr<ScreenCapture>* sc) {
-        captureScreen(sc, SurfaceComposerClient::getInternalDisplayToken());
-    }
-
-    static void captureDisplay(std::unique_ptr<ScreenCapture>* sc,
-                               const DisplayCaptureArgs& captureArgs) {
+    static status_t captureDisplay(DisplayCaptureArgs& captureArgs,
+                                   ScreenCaptureResults& captureResults) {
         const auto sf = ComposerService::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
-        ScreenCaptureResults captureResults;
-        ASSERT_EQ(NO_ERROR, sf->captureDisplay(captureArgs, captureResults));
-        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
+        const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
+        status_t status = sf->captureDisplay(captureArgs, captureListener);
+        if (status != NO_ERROR) {
+            return status;
+        }
+        captureResults = captureListener->waitForResults();
+        return captureResults.result;
+    }
+
+    static void captureScreen(std::unique_ptr<ScreenCapture>* sc) {
+        captureScreen(sc, SurfaceComposerClient::getInternalDisplayToken());
     }
 
     static void captureScreen(std::unique_ptr<ScreenCapture>* sc, sp<IBinder> displayToken) {
@@ -47,13 +69,30 @@ public:
         captureDisplay(sc, args);
     }
 
-    static void captureLayers(std::unique_ptr<ScreenCapture>* sc,
-                              const LayerCaptureArgs& captureArgs) {
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    static void captureDisplay(std::unique_ptr<ScreenCapture>* sc,
+                               DisplayCaptureArgs& captureArgs) {
+        ScreenCaptureResults captureResults;
+        ASSERT_EQ(NO_ERROR, captureDisplay(captureArgs, captureResults));
+        *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
+    }
+
+    static status_t captureLayers(LayerCaptureArgs& captureArgs,
+                                  ScreenCaptureResults& captureResults) {
+        const auto sf = ComposerService::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
+        const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
+        status_t status = sf->captureLayers(captureArgs, captureListener);
+        if (status != NO_ERROR) {
+            return status;
+        }
+        captureResults = captureListener->waitForResults();
+        return captureResults.result;
+    }
+
+    static void captureLayers(std::unique_ptr<ScreenCapture>* sc, LayerCaptureArgs& captureArgs) {
         ScreenCaptureResults captureResults;
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(captureArgs, captureResults));
+        ASSERT_EQ(NO_ERROR, captureLayers(captureArgs, captureResults));
         *sc = std::make_unique<ScreenCapture>(captureResults.buffer);
     }
 

@@ -1,3 +1,23 @@
+/*
+ * Copyright (C) 2020 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <gtest/gtest.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerDebugInfo.h>
@@ -7,8 +27,8 @@
 #include <private/gui/ComposerService.h>
 #include <ui/DisplayConfig.h>
 #include <utils/String8.h>
-
 #include <functional>
+#include "utils/ScreenshotUtils.h"
 
 namespace android {
 
@@ -262,7 +282,7 @@ TEST_F(CredentialsTest, CaptureTest) {
         DisplayCaptureArgs captureArgs;
         captureArgs.displayToken = display;
         ScreenCaptureResults captureResults;
-        return ScreenshotClient::captureDisplay(captureArgs, captureResults);
+        return ScreenCapture::captureDisplay(captureArgs, captureResults);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
@@ -276,7 +296,7 @@ TEST_F(CredentialsTest, CaptureLayersTest) {
         captureArgs.sourceCrop = {0, 0, 1, 1};
 
         ScreenCaptureResults captureResults;
-        return ScreenshotClient::captureLayers(captureArgs, captureResults);
+        return ScreenCapture::captureLayers(captureArgs, captureResults);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
