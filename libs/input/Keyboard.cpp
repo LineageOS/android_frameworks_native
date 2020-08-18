@@ -110,11 +110,11 @@ status_t KeyMap::loadKeyLayout(const InputDeviceIdentifier& deviceIdentifier,
         return NAME_NOT_FOUND;
     }
 
-    status_t status = KeyLayoutMap::load(path, &keyLayoutMap);
-    if (status) {
-        return status;
+    base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(path);
+    if (!ret) {
+        return ret.error().code();
     }
-
+    keyLayoutMap = *ret;
     keyLayoutFile = path;
     return OK;
 }
