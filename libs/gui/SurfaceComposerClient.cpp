@@ -1921,57 +1921,29 @@ status_t SurfaceComposerClient::setGlobalShadowSettings(const half4& ambientColo
 }
 
 // ----------------------------------------------------------------------------
-status_t SyncScreenCaptureListener::onScreenCaptureComplete(
-        const ScreenCaptureResults& captureResults) {
-    resultsPromise.set_value(captureResults);
-    return NO_ERROR;
-}
-
-ScreenCaptureResults SyncScreenCaptureListener::waitForResults() {
-    std::future<ScreenCaptureResults> resultsFuture = resultsPromise.get_future();
-    return resultsFuture.get();
-}
 
 status_t ScreenshotClient::captureDisplay(const DisplayCaptureArgs& captureArgs,
-                                          ScreenCaptureResults& captureResults) {
+                                          const sp<IScreenCaptureListener>& captureListener) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
 
-    sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
-    status_t status = s->captureDisplay(captureArgs, captureListener);
-    if (status != NO_ERROR) {
-        return status;
-    }
-    captureResults = captureListener->waitForResults();
-    return captureResults.result;
+    return s->captureDisplay(captureArgs, captureListener);
 }
 
 status_t ScreenshotClient::captureDisplay(uint64_t displayOrLayerStack,
-                                          ScreenCaptureResults& captureResults) {
+                                          const sp<IScreenCaptureListener>& captureListener) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
 
-    sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
-    status_t status = s->captureDisplay(displayOrLayerStack, captureListener);
-    if (status != NO_ERROR) {
-        return status;
-    }
-    captureResults = captureListener->waitForResults();
-    return captureResults.result;
+    return s->captureDisplay(displayOrLayerStack, captureListener);
 }
 
 status_t ScreenshotClient::captureLayers(const LayerCaptureArgs& captureArgs,
-                                         ScreenCaptureResults& captureResults) {
+                                         const sp<IScreenCaptureListener>& captureListener) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
 
-    sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
-    status_t status = s->captureLayers(captureArgs, captureListener);
-    if (status != NO_ERROR) {
-        return status;
-    }
-    captureResults = captureListener->waitForResults();
-    return captureResults.result;
+    return s->captureLayers(captureArgs, captureListener);
 }
 
 } // namespace android
