@@ -167,8 +167,6 @@ private:
         bool useContentDetection;
         // Whether to use improved content detection.
         bool useContentDetectionV2;
-        // Whether to use improved DispSync implementation.
-        bool useVsyncPredictor;
     };
 
     struct VsyncSchedule {
