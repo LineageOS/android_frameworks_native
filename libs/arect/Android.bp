@@ -22,6 +22,8 @@ ndk_headers {
 
 cc_library_headers {
     name: "libarect_headers",
+    // TODO(b/153609531): remove when no longer needed.
+    native_bridge_supported: true,
     export_include_dirs: ["include"],
 }
 
