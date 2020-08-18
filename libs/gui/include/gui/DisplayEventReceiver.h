@@ -57,16 +57,21 @@ public:
     };
 
     struct Event {
+        // We add __attribute__((aligned(8))) for nsecs_t fields because
+        // we need to make sure all fields are aligned the same with x86
+        // and x64 (long long has different default alignment):
+        //
+        // https://en.wikipedia.org/wiki/Data_structure_alignment
 
         struct Header {
             uint32_t type;
-            PhysicalDisplayId displayId;
+            PhysicalDisplayId displayId __attribute__((aligned(8)));
             nsecs_t timestamp __attribute__((aligned(8)));
         };
 
         struct VSync {
             uint32_t count;
-            nsecs_t expectedVSyncTimestamp;
+            nsecs_t expectedVSyncTimestamp __attribute__((aligned(8)));
         };
 
         struct Hotplug {
@@ -75,7 +80,7 @@ public:
 
         struct Config {
             int32_t configId;
-            nsecs_t vsyncPeriod;
+            nsecs_t vsyncPeriod __attribute__((aligned(8)));
         };
 
         Header header;

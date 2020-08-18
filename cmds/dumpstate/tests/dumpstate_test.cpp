@@ -97,6 +97,10 @@ class DumpstateBaseTest : public Test {
         PropertiesHelper::unroot_ = unroot;
     }
 
+    void SetParallelRun(bool parallel_run) const {
+        PropertiesHelper::parallel_run_ = parallel_run;
+    }
+
     bool IsStandalone() const {
         return calls_ == 1;
     }
@@ -544,6 +548,10 @@ class DumpstateTest : public DumpstateBaseTest {
         ds.options_.reset(new Dumpstate::DumpOptions());
     }
 
+    void TearDown() {
+        ds.ShutdownDumpPool();
+    }
+
     // Runs a command and capture `stdout` and `stderr`.
     int RunCommand(const std::string& title, const std::vector<std::string>& full_command,
                    const CommandOptions& options = CommandOptions::DEFAULT) {
@@ -569,6 +577,10 @@ class DumpstateTest : public DumpstateBaseTest {
         ds.last_reported_percent_progress_ = 0;
         ds.options_->do_progress_updates = true;
         ds.progress_.reset(new Progress(initial_max, progress, 1.2));
+    }
+
+    void EnableParallelRunIfNeeded() {
+        ds.EnableParallelRunIfNeeded();
     }
 
     std::string GetProgressMessage(int progress, int max,
@@ -1007,6 +1019,27 @@ TEST_F(DumpstateTest, DumpFileUpdateProgress) {
     EXPECT_THAT(out, StrEq("I AM LINE1\n"));  // dumpstate adds missing newline
 
     ds.listener_.clear();
+}
+
+TEST_F(DumpstateTest, DumpPool_withOutputToFileAndParallelRunEnabled_notNull) {
+    ds.options_->use_socket = false;
+    SetParallelRun(true);
+    EnableParallelRunIfNeeded();
+    EXPECT_TRUE(ds.options_->OutputToFile());
+    EXPECT_TRUE(ds.dump_pool_);
+}
+
+TEST_F(DumpstateTest, DumpPool_withNotOutputToFile_isNull) {
+    ds.options_->use_socket = true;
+    EnableParallelRunIfNeeded();
+    EXPECT_FALSE(ds.options_->OutputToFile());
+    EXPECT_FALSE(ds.dump_pool_);
+}
+
+TEST_F(DumpstateTest, DumpPool_withParallelRunDisabled_isNull) {
+    SetParallelRun(false);
+    EnableParallelRunIfNeeded();
+    EXPECT_FALSE(ds.dump_pool_);
 }
 
 class DumpstateServiceTest : public DumpstateBaseTest {
@@ -1623,6 +1656,7 @@ TEST_F(DumpstateUtilTest, DumpFileOnDryRun) {
 class DumpPoolTest : public DumpstateBaseTest {
   public:
     void SetUp() {
+        dump_pool_ = std::make_unique<DumpPool>(kTestDataPath);
         DumpstateBaseTest::SetUp();
         CreateOutputFile();
     }
@@ -1662,12 +1696,16 @@ class DumpPoolTest : public DumpstateBaseTest {
         return count;
     }
 
+    void setLogDuration(bool log_duration) {
+        dump_pool_->setLogDuration(log_duration);
+    }
+
+    std::unique_ptr<DumpPool> dump_pool_;
     android::base::unique_fd out_fd_;
     std::string out_path_;
 };
 
-TEST_F(DumpPoolTest, EnqueueTask) {
-    DumpPool pool(kTestDataPath);
+TEST_F(DumpPoolTest, EnqueueTaskWithFd) {
     auto dump_func_1 = [](int out_fd) {
         dprintf(out_fd, "A");
     };
@@ -1678,19 +1716,37 @@ TEST_F(DumpPoolTest, EnqueueTask) {
     auto dump_func_3 = [](int out_fd) {
         dprintf(out_fd, "C");
     };
-    pool.enqueueTask(/* task_name = */"1", dump_func_1, std::placeholders::_1);
-    pool.enqueueTask(/* task_name = */"2", dump_func_2, std::placeholders::_1);
-    pool.enqueueTask(/* task_name = */"3", dump_func_3, std::placeholders::_1);
+    setLogDuration(/* log_duration = */false);
+    dump_pool_->enqueueTaskWithFd(/* task_name = */"1", dump_func_1, std::placeholders::_1);
+    dump_pool_->enqueueTaskWithFd(/* task_name = */"2", dump_func_2, std::placeholders::_1);
+    dump_pool_->enqueueTaskWithFd(/* task_name = */"3", dump_func_3, std::placeholders::_1);
 
-    pool.waitForTask("1", "", out_fd_.get());
-    pool.waitForTask("2", "", out_fd_.get());
-    pool.waitForTask("3", "", out_fd_.get());
+    dump_pool_->waitForTask("1", "", out_fd_.get());
+    dump_pool_->waitForTask("2", "", out_fd_.get());
+    dump_pool_->waitForTask("3", "", out_fd_.get());
+    dump_pool_->shutdown();
 
     std::string result;
     ReadFileToString(out_path_, &result);
     EXPECT_THAT(result, StrEq("A\nB\nC\n"));
     EXPECT_THAT(getTempFileCounts(kTestDataPath), Eq(0));
-    pool.shutdown();
+}
+
+TEST_F(DumpPoolTest, EnqueueTask_withDurationLog) {
+    bool run_1 = false;
+    auto dump_func_1 = [&]() {
+        run_1 = true;
+    };
+
+    dump_pool_->enqueueTask(/* task_name = */"1", dump_func_1);
+    dump_pool_->waitForTask("1", "", out_fd_.get());
+    dump_pool_->shutdown();
+
+    std::string result;
+    ReadFileToString(out_path_, &result);
+    EXPECT_TRUE(run_1);
+    EXPECT_THAT(result, StrEq("------ 0.000s was the duration of '1' ------\n"));
+    EXPECT_THAT(getTempFileCounts(kTestDataPath), Eq(0));
 }
 
 
