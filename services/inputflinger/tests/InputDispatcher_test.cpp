@@ -777,8 +777,7 @@ public:
         mInfo.touchableRegion.clear();
         mInfo.addTouchableRegion(Rect(0, 0, WIDTH, HEIGHT));
         mInfo.visible = true;
-        mInfo.canReceiveKeys = true;
-        mInfo.hasFocus = false;
+        mInfo.focusable = false;
         mInfo.hasWallpaper = false;
         mInfo.paused = false;
         mInfo.ownerPid = INJECTOR_PID;
@@ -788,7 +787,7 @@ public:
 
     virtual bool updateInfo() { return true; }
 
-    void setFocus(bool hasFocus) { mInfo.hasFocus = hasFocus; }
+    void setFocusable(bool focusable) { mInfo.focusable = focusable; }
 
     void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
         mInfo.dispatchingTimeout = timeout;
@@ -1237,7 +1236,7 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedWindow) {
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
     // Display should have only one focused window
-    windowSecond->setFocus(true);
+    windowSecond->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
 
     windowSecond->consumeFocusEvent(true);
@@ -1260,8 +1259,8 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusPriority) {
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
     // Display has two focused windows. Add them to inputWindowsHandles in z-order (top most first)
-    windowTop->setFocus(true);
-    windowSecond->setFocus(true);
+    windowTop->setFocusable(true);
+    windowSecond->setFocusable(true);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
     windowTop->consumeFocusEvent(true);
@@ -1284,8 +1283,8 @@ TEST_F(InputDispatcherTest, SetInputWindow_InputWindowInfo) {
     // Set focused application.
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
-    windowTop->setFocus(true);
-    windowSecond->setFocus(true);
+    windowTop->setFocusable(true);
+    windowSecond->setFocusable(true);
     // Release channel for window is no longer valid.
     windowTop->releaseChannel();
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
@@ -1521,7 +1520,7 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsKeyStream) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
-    window->setFocus(true);
+    window->setFocusable(true);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true);
@@ -1723,7 +1722,7 @@ TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
 
-    window->setFocus(true);
+    window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     window->consumeFocusEvent(true);
@@ -1831,7 +1830,7 @@ TEST_F(InputDispatcherTest, GestureMonitor_DoesNotReceiveKeyEvents) {
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-    window->setFocus(true);
+    window->setFocusable(true);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true);
@@ -1923,31 +1922,31 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
 
     // Set focused application.
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-    window->setFocus(true);
+    window->setFocusable(true);
 
     SCOPED_TRACE("Check default value of touch mode");
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
 
     SCOPED_TRACE("Remove the window to trigger focus loss");
-    window->setFocus(false);
+    window->setFocusable(false);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(false /*hasFocus*/, true /*inTouchMode*/);
 
     SCOPED_TRACE("Disable touch mode");
     mDispatcher->setInTouchMode(false);
-    window->setFocus(true);
+    window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true /*hasFocus*/, false /*inTouchMode*/);
 
     SCOPED_TRACE("Remove the window to trigger focus loss");
-    window->setFocus(false);
+    window->setFocusable(false);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(false /*hasFocus*/, false /*inTouchMode*/);
 
     SCOPED_TRACE("Enable touch mode again");
     mDispatcher->setInTouchMode(true);
-    window->setFocus(true);
+    window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
 
@@ -1960,7 +1959,7 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_KeyEvent) {
             new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-    window->setFocus(true);
+    window->setFocusable(true);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
@@ -2050,7 +2049,7 @@ protected:
         mApp = std::make_shared<FakeApplicationHandle>();
         mWindow = new FakeWindowHandle(mApp, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
 
-        mWindow->setFocus(true);
+        mWindow->setFocusable(true);
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
 
         mWindow->consumeFocusEvent(true);
@@ -2140,7 +2139,7 @@ public:
 
         // Set focus window for primary display, but focused display would be second one.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application1);
-        windowInPrimary->setFocus(true);
+        windowInPrimary->setFocusable(true);
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowInPrimary}}});
         windowInPrimary->consumeFocusEvent(true);
 
@@ -2152,7 +2151,7 @@ public:
         mDispatcher->setFocusedDisplay(SECOND_DISPLAY_ID);
         // Set focus window for second display.
         mDispatcher->setFocusedApplication(SECOND_DISPLAY_ID, application2);
-        windowInSecondary->setFocus(true);
+        windowInSecondary->setFocusable(true);
         mDispatcher->setInputWindows({{SECOND_DISPLAY_ID, {windowInSecondary}}});
         windowInSecondary->consumeFocusEvent(true);
     }
@@ -2364,7 +2363,7 @@ class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-        mFocusedWindow->setFocus(true);
+        mFocusedWindow->setFocusable(true);
 
         // Expect one focus window exist in display.
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mUnfocusedWindow, mFocusedWindow}}});
@@ -2652,7 +2651,7 @@ class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
                 new FakeWindowHandle(mApplication, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
         mWindow->setFrame(Rect(0, 0, 30, 30));
         mWindow->setDispatchingTimeout(30ms);
-        mWindow->setFocus(true);
+        mWindow->setFocusable(true);
         // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
         // window.
         mWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
@@ -2734,7 +2733,7 @@ TEST_F(InputDispatcherSingleWindowAnr, OnKeyDown_BasicAnr) {
 
 // We have a focused application, but no focused window
 TEST_F(InputDispatcherSingleWindowAnr, FocusedApplication_NoFocusedWindow) {
-    mWindow->setFocus(false);
+    mWindow->setFocusable(false);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
     mWindow->consumeFocusEvent(false);
 
@@ -2762,7 +2761,7 @@ TEST_F(InputDispatcherSingleWindowAnr, FocusedApplication_NoFocusedWindow) {
 // If the policy wants to keep waiting on the focused window to be added, make sure
 // that this timeout extension is honored and ANR is raised again.
 TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_ExtendsAnr) {
-    mWindow->setFocus(false);
+    mWindow->setFocusable(false);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
     mWindow->consumeFocusEvent(false);
     const std::chrono::duration timeout = 5ms;
@@ -2790,7 +2789,7 @@ TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_ExtendsAnr) {
 
 // We have a focused application, but no focused window
 TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_DropsFocusedEvents) {
-    mWindow->setFocus(false);
+    mWindow->setFocusable(false);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
     mWindow->consumeFocusEvent(false);
 
@@ -3050,7 +3049,7 @@ class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
-        mFocusedWindow->setFocus(true);
+        mFocusedWindow->setFocusable(true);
 
         // Expect one focus window exist in display.
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mUnfocusedWindow, mFocusedWindow}}});
@@ -3247,8 +3246,8 @@ TEST_F(InputDispatcherMultiWindowAnr, PendingKey_GoesToNewlyFocusedWindow) {
     ASSERT_FALSE(keySequenceNum);
 
     // Switch the focus to the "unfocused" window that we tapped. Expect the key to go there
-    mFocusedWindow->setFocus(false);
-    mUnfocusedWindow->setFocus(true);
+    mFocusedWindow->setFocusable(false);
+    mUnfocusedWindow->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mFocusedWindow, mUnfocusedWindow}}});
 
     // Focus events should precede the key events

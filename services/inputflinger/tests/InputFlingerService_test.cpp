@@ -73,9 +73,8 @@ static const Rect TestInfoTouchableRegionRect = {100 /* left */, 150 /* top */, 
                                                  450 /* bottom */};
 static const Region TestInfoTouchableRegion(TestInfoTouchableRegionRect);
 static constexpr bool TestInfoVisible = false;
-static constexpr bool TestInfoCanReceiveKeys = false;
 static constexpr bool TestInfoTrustedOverlay = true;
-static constexpr bool TestInfoHasFocus = false;
+static constexpr bool TestInfoFocusable = false;
 static constexpr bool TestInfoHasWallpaper = false;
 static constexpr bool TestInfoPaused = false;
 static constexpr int32_t TestInfoOwnerPid = 19;
@@ -295,9 +294,9 @@ void InputFlingerServiceTest::SetUp() {
                          TestInfoFrameTop, 0, 0, 1});
     mInfo.touchableRegion = TestInfoTouchableRegion;
     mInfo.visible = TestInfoVisible;
-    mInfo.canReceiveKeys = TestInfoCanReceiveKeys;
     mInfo.trustedOverlay = TestInfoTrustedOverlay;
-    mInfo.hasFocus = TestInfoHasFocus;
+    mInfo.focusable = TestInfoFocusable;
+
     mInfo.hasWallpaper = TestInfoHasWallpaper;
     mInfo.paused = TestInfoPaused;
     mInfo.ownerPid = TestInfoOwnerPid;
