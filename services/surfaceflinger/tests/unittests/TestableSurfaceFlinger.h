@@ -65,10 +65,6 @@ class Factory final : public surfaceflinger::Factory {
 public:
     ~Factory() = default;
 
-    std::unique_ptr<DispSync> createDispSync(const char*, bool) override {
-        return nullptr;
-    }
-
     std::unique_ptr<HWComposer> createHWComposer(const std::string&) override {
         return nullptr;
     }
