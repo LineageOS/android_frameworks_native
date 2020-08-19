@@ -112,6 +112,8 @@ public:
     virtual void setInputDispatchMode(bool enabled, bool frozen) override;
     virtual void setInputFilterEnabled(bool enabled) override;
     virtual void setInTouchMode(bool inTouchMode) override;
+    virtual void setMaximumObscuringOpacityForTouch(float opacity) override;
+    virtual void setBlockUntrustedTouchesMode(BlockUntrustedTouchesMode mode) override;
 
     virtual bool transferTouchFocus(const sp<IBinder>& fromToken,
                                     const sp<IBinder>& toToken) override;
@@ -296,6 +298,8 @@ private:
     bool mDispatchFrozen GUARDED_BY(mLock);
     bool mInputFilterEnabled GUARDED_BY(mLock);
     bool mInTouchMode GUARDED_BY(mLock);
+    float mMaximumObscuringOpacityForTouch GUARDED_BY(mLock);
+    BlockUntrustedTouchesMode mBlockUntrustedTouchesMode GUARDED_BY(mLock);
 
     std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> mWindowHandlesByDisplay
             GUARDED_BY(mLock);
@@ -446,6 +450,17 @@ private:
     void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);
     bool checkInjectionPermission(const sp<InputWindowHandle>& windowHandle,
                                   const InjectionState* injectionState);
+
+    struct TouchOcclusionInfo {
+        bool hasBlockingOcclusion;
+        float obscuringOpacity;
+        std::string obscuringPackage;
+        int32_t obscuringUid;
+    };
+
+    TouchOcclusionInfo computeTouchOcclusionInfoLocked(const sp<InputWindowHandle>& windowHandle,
+                                                       int32_t x, int32_t y) const REQUIRES(mLock);
+    bool isTouchTrustedLocked(const TouchOcclusionInfo& occlusionInfo) const REQUIRES(mLock);
     bool isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle, int32_t x,
                                        int32_t y) const REQUIRES(mLock);
     bool isWindowObscuredLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);

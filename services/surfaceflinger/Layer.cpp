@@ -2485,6 +2485,7 @@ InputWindowInfo Layer::fillInputInfo() {
     // InputDispatcher, and obviously if they aren't visible they can't occlude
     // anything.
     info.visible = hasInputInfo() ? canReceiveInput() : isVisible();
+    info.alpha = getAlpha();
 
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
