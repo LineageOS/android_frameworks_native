@@ -118,13 +118,6 @@ cc_test {
         //
         // You can either "make dist tests" before flashing, or set this
         // option to false temporarily.
-
-
-        // FIXME: ASAN build is broken for a while, but was not discovered
-        // since new PM silently suppressed ASAN. Temporarily turn off ASAN
-        // to unblock the compiler upgrade process.
-        // address: true,
-        // http://b/139747256
-        address: false,
+        address: true,
     },
 }
