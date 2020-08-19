@@ -100,9 +100,7 @@ Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCal
                   {.supportKernelTimer = sysprop::support_kernel_idle_timer(false),
                    .useContentDetection = sysprop::use_content_detection_for_refresh_rate(false),
                    .useContentDetectionV2 =
-                           base::GetBoolProperty("debug.sf.use_content_detection_v2"s, true),
-                   // TODO(b/140302863): Remove this and use the vsync_reactor system.
-                   .useVsyncPredictor = base::GetBoolProperty("debug.sf.vsync_reactor"s, true)}) {}
+                           base::GetBoolProperty("debug.sf.use_content_detection_v2"s, true)}) {}
 
 Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback,
                      Options options)
@@ -159,12 +157,6 @@ Scheduler::~Scheduler() {
 }
 
 Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(Options options) {
-    if (!options.useVsyncPredictor) {
-        auto sync = std::make_unique<impl::DispSync>("SchedulerDispSync",
-                                                     sysprop::running_without_sync_framework(true));
-        return {std::move(sync), nullptr, nullptr};
-    }
-
     auto clock = std::make_unique<scheduler::SystemClock>();
     auto tracker = createVSyncTracker();
     auto dispatch = createVSyncDispatch(*tracker);

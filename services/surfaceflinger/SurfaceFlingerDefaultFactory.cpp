@@ -46,10 +46,6 @@ namespace android::surfaceflinger {
 
 DefaultFactory::~DefaultFactory() = default;
 
-std::unique_ptr<DispSync> DefaultFactory::createDispSync(const char* name, bool hasSyncFramework) {
-    return std::make_unique<android::impl::DispSync>(name, hasSyncFramework);
-}
-
 std::unique_ptr<HWComposer> DefaultFactory::createHWComposer(const std::string& serviceName) {
     return std::make_unique<android::impl::HWComposer>(serviceName);
 }

@@ -26,7 +26,6 @@ class DefaultFactory : public surfaceflinger::Factory {
 public:
     virtual ~DefaultFactory();
 
-    std::unique_ptr<DispSync> createDispSync(const char* name, bool hasSyncFramework) override;
     std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) override;
     std::unique_ptr<MessageQueue> createMessageQueue() override;
     std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
