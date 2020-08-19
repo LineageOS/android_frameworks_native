@@ -4,6 +4,7 @@ cc_library_shared {
     srcs: [
         "BatterySaverPolicyConfig.cpp",
         "CoolingDevice.cpp",
+        "ParcelDuration.cpp",
         "PowerHalController.cpp",
         "PowerHalLoader.cpp",
         "PowerHalWrapper.cpp",
