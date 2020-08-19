@@ -58,10 +58,9 @@ bool InputWindowInfo::operator==(const InputWindowInfo& info) const {
             info.frameRight == frameRight && info.frameBottom == frameBottom &&
             info.surfaceInset == surfaceInset && info.globalScaleFactor == globalScaleFactor &&
             info.transform == transform && info.touchableRegion.hasSameRects(touchableRegion) &&
-            info.visible == visible && info.canReceiveKeys == canReceiveKeys &&
-            info.trustedOverlay == trustedOverlay && info.hasFocus == hasFocus &&
-            info.hasWallpaper == hasWallpaper && info.paused == paused &&
-            info.ownerPid == ownerPid && info.ownerUid == ownerUid &&
+            info.visible == visible && info.trustedOverlay == trustedOverlay &&
+            info.focusable == focusable && info.hasWallpaper == hasWallpaper &&
+            info.paused == paused && info.ownerPid == ownerPid && info.ownerUid == ownerUid &&
             info.inputFeatures == inputFeatures && info.displayId == displayId &&
             info.portalToDisplayId == portalToDisplayId &&
             info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
@@ -79,6 +78,7 @@ status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {
     }
     parcel->writeInt32(1);
 
+    // clang-format off
     status_t status = parcel->writeStrongBinder(token) ?:
         parcel->writeInt64(dispatchingTimeout.count()) ?:
         parcel->writeInt32(id) ?:
@@ -98,8 +98,7 @@ status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeFloat(transform.dsdy()) ?:
         parcel->writeFloat(transform.ty()) ?:
         parcel->writeBool(visible) ?:
-        parcel->writeBool(canReceiveKeys) ?:
-        parcel->writeBool(hasFocus) ?:
+        parcel->writeBool(focusable) ?:
         parcel->writeBool(hasWallpaper) ?:
         parcel->writeBool(paused) ?:
         parcel->writeBool(trustedOverlay) ?:
@@ -112,7 +111,7 @@ status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->write(touchableRegion) ?:
         parcel->writeBool(replaceTouchableRegionWithCrop) ?:
         parcel->writeStrongBinder(touchableRegionCropHandle.promote());
-
+    // clang-format on
     return status;
 }
 
@@ -135,6 +134,7 @@ status_t InputWindowInfo::readFromParcel(const android::Parcel* parcel) {
     flags = Flags<Flag>(parcel->readInt32());
     type = static_cast<Type>(parcel->readInt32());
     float dsdx, dtdx, tx, dtdy, dsdy, ty;
+    // clang-format off
     status = parcel->readInt32(&frameLeft) ?:
         parcel->readInt32(&frameTop) ?:
         parcel->readInt32(&frameRight) ?:
@@ -148,13 +148,13 @@ status_t InputWindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->readFloat(&dsdy) ?:
         parcel->readFloat(&ty) ?:
         parcel->readBool(&visible) ?:
-        parcel->readBool(&canReceiveKeys) ?:
-        parcel->readBool(&hasFocus) ?:
+        parcel->readBool(&focusable) ?:
         parcel->readBool(&hasWallpaper) ?:
         parcel->readBool(&paused) ?:
         parcel->readBool(&trustedOverlay) ?:
         parcel->readInt32(&ownerPid) ?:
         parcel->readInt32(&ownerUid);
+    // clang-format on
 
     if (status != OK) {
         return status;

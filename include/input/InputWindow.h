@@ -167,8 +167,7 @@ struct InputWindowInfo : public Parcelable {
      */
     Region touchableRegion;
     bool visible = false;
-    bool canReceiveKeys = false;
-    bool hasFocus = false;
+    bool focusable = false;
     bool hasWallpaper = false;
     bool paused = false;
     /* This flag is set when the window is of a trusted type that is allowed to silently
