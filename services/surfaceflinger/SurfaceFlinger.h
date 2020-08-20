@@ -434,15 +434,16 @@ private:
     struct TransactionState {
         TransactionState(int64_t frameTimelineVsyncId, const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
-                         int64_t desiredPresentTime, bool isAutoTimestamp,
-                         const client_cache_t& uncacheBuffer, int64_t postTime, bool privileged,
-                         bool hasListenerCallbacks,
+                         const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
+                         bool isAutoTimestamp, const client_cache_t& uncacheBuffer,
+                         int64_t postTime, bool privileged, bool hasListenerCallbacks,
                          std::vector<ListenerCallbacks> listenerCallbacks, int originPid,
                          int originUid, uint64_t transactionId)
               : frameTimelineVsyncId(frameTimelineVsyncId),
                 states(composerStates),
                 displays(displayStates),
                 flags(transactionFlags),
+                inputWindowCommands(inputWindowCommands),
                 desiredPresentTime(desiredPresentTime),
                 isAutoTimestamp(isAutoTimestamp),
                 buffer(uncacheBuffer),
@@ -458,6 +459,7 @@ private:
         Vector<ComposerState> states;
         Vector<DisplayState> displays;
         uint32_t flags;
+        InputWindowCommands inputWindowCommands;
         const int64_t desiredPresentTime;
         const bool isAutoTimestamp;
         client_cache_t buffer;
@@ -723,6 +725,7 @@ private:
     /*
      * Transactions
      */
+    void flushTransactionQueue();
     void applyTransactionState(int64_t frameTimelineVsyncId, const Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
@@ -730,10 +733,12 @@ private:
                                const client_cache_t& uncacheBuffer, const int64_t postTime,
                                bool privileged, bool hasListenerCallbacks,
                                const std::vector<ListenerCallbacks>& listenerCallbacks,
-                               int originPid, int originUid, uint64_t transactionId,
-                               bool isMainThread = false) REQUIRES(mStateLock);
+                               int originPid, int originUid, uint64_t transactionId)
+            REQUIRES(mStateLock);
     // Returns true if at least one transaction was flushed
     bool flushTransactionQueues();
+    // flush pending transaction that was presented after desiredPresentTime.
+    void flushPendingTransactionQueues();
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
     uint32_t getTransactionFlags(uint32_t flags);
@@ -751,7 +756,7 @@ private:
     void commitOffscreenLayers();
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states,
-                                       bool updateTransactionCounters = false) REQUIRES(mStateLock);
+                                       bool updateTransactionCounters = false);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
@@ -1168,8 +1173,11 @@ private:
     uint32_t mTexturePoolSize = 0;
     std::vector<uint32_t> mTexturePool;
 
-    std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash> mTransactionQueues;
-
+    mutable Mutex mQueueLock;
+    Condition mTransactionQueueCV;
+    std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash>
+            mPendingTransactionQueues GUARDED_BY(mQueueLock);
+    std::vector<TransactionState> mTransactionQueue GUARDED_BY(mQueueLock);
     /*
      * Feature prototyping
      */
@@ -1246,7 +1254,6 @@ private:
     const float mEmulatedDisplayDensity;
 
     sp<os::IInputFlinger> mInputFlinger;
-    InputWindowCommands mPendingInputWindowCommands GUARDED_BY(mStateLock);
     // Should only be accessed by the main thread.
     InputWindowCommands mInputWindowCommands;
 
