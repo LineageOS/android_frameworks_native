@@ -56,6 +56,30 @@ class RunDex2Oat {
     void Exec(int exit_code);
 
   protected:
+    void PrepareBootImageAndBootClasspathFlags(bool use_jitzygote_image);
+    void PrepareInputFileFlags(int zip_fd,
+                               int oat_fd,
+                               int input_vdex_fd,
+                               int output_vdex_fd,
+                               int image_fd,
+                               const char* input_file_name,
+                               const char* output_file_name,
+                               int profile_fd,
+                               int dex_metadata_fd,
+                               int swap_fd,
+                               const char* class_loader_context,
+                               const std::string& class_loader_context_fds);
+    void PrepareCompilerConfigFlags(int input_vdex_fd,
+                                    int output_vdex_fd,
+                                    const char* instruction_set,
+                                    const char* compiler_filter,
+                                    bool debuggable,
+                                    int target_sdk_version,
+                                    bool enable_hidden_api_checks,
+                                    bool generate_compact_dex,
+                                    const char* compilation_reason);
+    void PrepareCompilerRuntimeAndPerfConfigFlags(bool post_bootcomplete, bool for_restore);
+
     virtual std::string GetProperty(const std::string& key, const std::string& default_value);
     virtual bool GetBoolProperty(const std::string& key, bool default_value);
 
