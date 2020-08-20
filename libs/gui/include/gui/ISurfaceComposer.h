@@ -150,13 +150,12 @@ public:
     }
 
     /* open/close transactions. requires ACCESS_SURFACE_FLINGER permission */
-    virtual void setTransactionState(const Vector<ComposerState>& state,
-                                     const Vector<DisplayState>& displays, uint32_t flags,
-                                     const sp<IBinder>& applyToken,
-                                     const InputWindowCommands& inputWindowCommands,
-                                     int64_t desiredPresentTime,
-                                     const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
-                                     const std::vector<ListenerCallbacks>& listenerCallbacks) = 0;
+    virtual status_t setTransactionState(
+            const Vector<ComposerState>& state, const Vector<DisplayState>& displays,
+            uint32_t flags, const sp<IBinder>& applyToken,
+            const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
+            const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
+            const std::vector<ListenerCallbacks>& listenerCallbacks) = 0;
 
     /* signal that we're done booting.
      * Requires ACCESS_SURFACE_FLINGER permission
