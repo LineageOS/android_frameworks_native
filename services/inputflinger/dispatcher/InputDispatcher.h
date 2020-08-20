@@ -178,7 +178,7 @@ private:
     void dropInboundEventLocked(const EventEntry& entry, DropReason dropReason) REQUIRES(mLock);
 
     // Enqueues a focus event.
-    void enqueueFocusEventLocked(const InputWindowHandle& window, bool hasFocus,
+    void enqueueFocusEventLocked(const sp<IBinder>& windowToken, bool hasFocus,
                                  std::string_view reason) REQUIRES(mLock);
 
     // Adds an event to a queue of recent events for debugging purposes.
@@ -300,13 +300,19 @@ private:
             GUARDED_BY(mLock);
     void setInputWindowsLocked(const std::vector<sp<InputWindowHandle>>& inputWindowHandles,
                                int32_t displayId) REQUIRES(mLock);
-    // Get window handles by display, return an empty vector if not found.
-    std::vector<sp<InputWindowHandle>> getWindowHandlesLocked(int32_t displayId) const
+    // Get a reference to window handles by display, return an empty vector if not found.
+    const std::vector<sp<InputWindowHandle>>& getWindowHandlesLocked(int32_t displayId) const
             REQUIRES(mLock);
     sp<InputWindowHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken) const
             REQUIRES(mLock);
+
+    // Same function as above, but faster. Since displayId is provided, this avoids the need
+    // to loop through all displays.
+    sp<InputWindowHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken,
+                                                int displayId) const REQUIRES(mLock);
     std::shared_ptr<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const
             REQUIRES(mLock);
+    sp<InputWindowHandle> getFocusedWindowHandleLocked(int displayId) const REQUIRES(mLock);
     bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
     bool hasResponsiveConnectionLocked(InputWindowHandle& windowHandle) const REQUIRES(mLock);
 
@@ -317,9 +323,11 @@ private:
             const std::vector<sp<InputWindowHandle>>& inputWindowHandles, int32_t displayId)
             REQUIRES(mLock);
 
-    // Focus tracking for keys, trackball, etc.
-    std::unordered_map<int32_t, sp<InputWindowHandle>> mFocusedWindowHandlesByDisplay
-            GUARDED_BY(mLock);
+    // Focus tracking for keys, trackball, etc. A window token can be associated with one or more
+    // InputWindowHandles. If a window is mirrored, the window and its mirror will share the same
+    // token. Focus is tracked by the token per display and the events are dispatched to the
+    // channel associated by this token.
+    std::unordered_map<int32_t, sp<IBinder>> mFocusedWindowTokenByDisplay GUARDED_BY(mLock);
 
     std::unordered_map<int32_t, TouchState> mTouchStatesByDisplay GUARDED_BY(mLock);
 
@@ -486,6 +494,7 @@ private:
     void dumpDispatchStateLocked(std::string& dump) REQUIRES(mLock);
     void dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors);
     void logDispatchStateLocked() REQUIRES(mLock);
+    std::string dumpFocusedWindowsLocked() REQUIRES(mLock);
 
     // Registration.
     void removeMonitorChannelLocked(const InputChannel& inputChannel) REQUIRES(mLock);
@@ -500,11 +509,10 @@ private:
                                        uint32_t seq, bool handled) REQUIRES(mLock);
     void onDispatchCycleBrokenLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
-    void onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
-                              const sp<InputWindowHandle>& newFocus, int32_t displayId,
-                              std::string_view reason) REQUIRES(mLock);
-    void notifyFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
-                                  const sp<InputWindowHandle>& newFocus) REQUIRES(mLock);
+    void onFocusChangedLocked(const sp<IBinder>& oldFocus, const sp<IBinder>& newFocus,
+                              int32_t displayId, std::string_view reason) REQUIRES(mLock);
+    void notifyFocusChangedLocked(const sp<IBinder>& oldFocus, const sp<IBinder>& newFocus)
+            REQUIRES(mLock);
     void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
     void onAnrLocked(const std::shared_ptr<InputApplicationHandle>& application) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)
