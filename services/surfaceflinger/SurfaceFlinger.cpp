@@ -3356,7 +3356,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
     return true;
 }
 
-void SurfaceFlinger::setTransactionState(
+status_t SurfaceFlinger::setTransactionState(
         const Vector<ComposerState>& states, const Vector<DisplayState>& displays, uint32_t flags,
         const sp<IBinder>& applyToken, const InputWindowCommands& inputWindowCommands,
         int64_t desiredPresentTime, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
@@ -3402,12 +3402,13 @@ void SurfaceFlinger::setTransactionState(
                                                hasListenerCallbacks, listenerCallbacks, originPID,
                                                originUID);
         setTransactionFlags(eTransactionFlushNeeded);
-        return;
+        return NO_ERROR;
     }
 
     applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
                           uncacheBuffer, postTime, privileged, hasListenerCallbacks,
                           listenerCallbacks, originPID, originUID, /*isMainThread*/ false);
+    return NO_ERROR;
 }
 
 void SurfaceFlinger::applyTransactionState(
