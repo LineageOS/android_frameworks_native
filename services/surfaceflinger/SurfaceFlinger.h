@@ -433,13 +433,15 @@ private:
     struct TransactionState {
         TransactionState(const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
-                         int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
-                         int64_t postTime, bool privileged, bool hasListenerCallbacks,
+                         const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
+                         const client_cache_t& uncacheBuffer, int64_t postTime, bool privileged,
+                         bool hasListenerCallbacks,
                          std::vector<ListenerCallbacks> listenerCallbacks, int originPID,
                          int originUID)
               : states(composerStates),
                 displays(displayStates),
                 flags(transactionFlags),
+                inputWindowCommands(inputWindowCommands),
                 desiredPresentTime(desiredPresentTime),
                 buffer(uncacheBuffer),
                 postTime(postTime),
@@ -452,6 +454,7 @@ private:
         Vector<ComposerState> states;
         Vector<DisplayState> displays;
         uint32_t flags;
+        InputWindowCommands inputWindowCommands;
         const int64_t desiredPresentTime;
         client_cache_t buffer;
         const int64_t postTime;
@@ -704,6 +707,7 @@ private:
     /*
      * Transactions
      */
+    void flushTransactionQueue();
     void applyTransactionState(const Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
@@ -711,10 +715,9 @@ private:
                                const client_cache_t& uncacheBuffer, const int64_t postTime,
                                bool privileged, bool hasListenerCallbacks,
                                const std::vector<ListenerCallbacks>& listenerCallbacks,
-                               int originPID, int originUID, bool isMainThread = false)
-            REQUIRES(mStateLock);
-    // Returns true if at least one transaction was flushed
-    bool flushTransactionQueues();
+                               int32_t originPID, int32_t originUID) REQUIRES(mStateLock);
+    // flush pending transaction that was presented after desiredPresentTime.
+    void flushPendingTransactionQueues();
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
     uint32_t getTransactionFlags(uint32_t flags);
@@ -1158,8 +1161,10 @@ private:
     uint32_t mTexturePoolSize = 0;
     std::vector<uint32_t> mTexturePool;
 
-    std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash> mTransactionQueues;
-
+    mutable Mutex mQueueLock;
+    std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash>
+            mPendingTransactionQueues GUARDED_BY(mQueueLock);
+    std::vector<TransactionState> mTransactionQueue GUARDED_BY(mQueueLock);
     /*
      * Feature prototyping
      */
@@ -1236,7 +1241,6 @@ private:
     const float mEmulatedDisplayDensity;
 
     sp<os::IInputFlinger> mInputFlinger;
-    InputWindowCommands mPendingInputWindowCommands GUARDED_BY(mStateLock);
     // Should only be accessed by the main thread.
     InputWindowCommands mInputWindowCommands;
 

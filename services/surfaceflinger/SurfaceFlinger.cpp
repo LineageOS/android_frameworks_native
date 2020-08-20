@@ -1896,19 +1896,18 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
 
 bool SurfaceFlinger::handleMessageTransaction() {
     ATRACE_CALL();
+
+    if (getTransactionFlags(eTransactionFlushNeeded)) {
+        flushPendingTransactionQueues();
+        flushTransactionQueue();
+    }
+
     uint32_t transactionFlags = peekTransactionFlags();
-
-    bool flushedATransaction = flushTransactionQueues();
-
     bool runHandleTransaction =
-            (transactionFlags && (transactionFlags != eTransactionFlushNeeded)) ||
-            flushedATransaction ||
-            mForceTraversal;
+            (transactionFlags && (transactionFlags != eTransactionFlushNeeded)) || mForceTraversal;
 
     if (runHandleTransaction) {
         handleTransaction(eTransactionMask);
-    } else {
-        getTransactionFlags(eTransactionFlushNeeded);
     }
 
     if (transactionFlushNeeded()) {
@@ -2777,7 +2776,6 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
         });
     }
 
-    commitInputWindowCommands();
     commitTransaction();
 }
 
@@ -2816,11 +2814,6 @@ void SurfaceFlinger::updateInputWindowInfo() {
     mInputFlinger->setInputWindows(inputInfos,
                                mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
                                                                      : nullptr);
-}
-
-void SurfaceFlinger::commitInputWindowCommands() {
-    mInputWindowCommands.merge(mPendingInputWindowCommands);
-    mPendingInputWindowCommands.clear();
 }
 
 void SurfaceFlinger::updateCursorAsync() {
@@ -3175,50 +3168,52 @@ void SurfaceFlinger::setTraversalNeeded() {
     mForceTraversal = true;
 }
 
-bool SurfaceFlinger::flushTransactionQueues() {
+void SurfaceFlinger::flushPendingTransactionQueues() {
     // to prevent onHandleDestroyed from being called while the lock is held,
     // we must keep a copy of the transactions (specifically the composer
     // states) around outside the scope of the lock
     std::vector<const TransactionState> transactions;
-    bool flushedATransaction = false;
     {
-        Mutex::Autolock _l(mStateLock);
+        Mutex::Autolock _l(mQueueLock);
 
-        auto it = mTransactionQueues.begin();
-        while (it != mTransactionQueues.end()) {
+        auto it = mPendingTransactionQueues.begin();
+        while (it != mPendingTransactionQueues.end()) {
             auto& [applyToken, transactionQueue] = *it;
 
             while (!transactionQueue.empty()) {
                 const auto& transaction = transactionQueue.front();
                 if (!transactionIsReadyToBeApplied(transaction.desiredPresentTime,
                                                    transaction.states)) {
-                    setTransactionFlags(eTransactionFlushNeeded);
                     break;
                 }
                 transactions.push_back(transaction);
-                applyTransactionState(transaction.states, transaction.displays, transaction.flags,
-                                      mPendingInputWindowCommands, transaction.desiredPresentTime,
-                                      transaction.buffer, transaction.postTime,
-                                      transaction.privileged, transaction.hasListenerCallbacks,
-                                      transaction.listenerCallbacks, transaction.originPID,
-                                      transaction.originUID, /*isMainThread*/ true);
                 transactionQueue.pop();
-                flushedATransaction = true;
             }
 
             if (transactionQueue.empty()) {
-                it = mTransactionQueues.erase(it);
+                it = mPendingTransactionQueues.erase(it);
                 mTransactionCV.broadcast();
             } else {
                 it = std::next(it, 1);
             }
         }
     }
-    return flushedATransaction;
+
+    {
+        Mutex::Autolock _l(mStateLock);
+        for (const auto& transaction : transactions) {
+            applyTransactionState(transaction.states, transaction.displays, transaction.flags,
+                                  mInputWindowCommands, transaction.desiredPresentTime,
+                                  transaction.buffer, transaction.postTime, transaction.privileged,
+                                  transaction.hasListenerCallbacks, transaction.listenerCallbacks,
+                                  transaction.originPID, transaction.originUID);
+        }
+    }
 }
 
 bool SurfaceFlinger::transactionFlushNeeded() {
-    return !mTransactionQueues.empty();
+    Mutex::Autolock _l(mQueueLock);
+    return !mPendingTransactionQueues.empty();
 }
 
 
@@ -3253,51 +3248,125 @@ status_t SurfaceFlinger::setTransactionState(
     ATRACE_CALL();
 
     const int64_t postTime = systemTime();
-
     bool privileged = callingThreadHasUnscopedSurfaceFlingerAccess();
+    {
+        Mutex::Autolock _l(mQueueLock);
 
-    Mutex::Autolock _l(mStateLock);
+        // If its TransactionQueue already has a pending TransactionState or if it is pending
+        auto itr = mPendingTransactionQueues.find(applyToken);
+        // if this is an animation frame, wait until prior animation frame has
+        // been applied by SF
+        if (flags & eAnimation) {
+            while (itr != mPendingTransactionQueues.end()) {
+                status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
+                if (CC_UNLIKELY(err != NO_ERROR)) {
+                    ALOGW_IF(err == TIMED_OUT,
+                             "setTransactionState timed out "
+                             "waiting for animation frame to apply");
+                    break;
+                }
+                itr = mPendingTransactionQueues.find(applyToken);
+            }
+        }
 
-    // If its TransactionQueue already has a pending TransactionState or if it is pending
-    auto itr = mTransactionQueues.find(applyToken);
-    // if this is an animation frame, wait until prior animation frame has
-    // been applied by SF
-    if (flags & eAnimation) {
-        while (itr != mTransactionQueues.end()) {
+        // TODO(b/159125966): Remove eEarlyWakeup completly as no client should use this flag
+        if (flags & eEarlyWakeup) {
+            ALOGW("eEarlyWakeup is deprecated. Use eExplicitEarlyWakeup[Start|End]");
+        }
+
+        if (!privileged && (flags & (eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd))) {
+            ALOGE("Only WindowManager is allowed to use eExplicitEarlyWakeup[Start|End] flags");
+            flags &= ~(eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd);
+        }
+
+        const bool pendingTransactions = itr != mPendingTransactionQueues.end();
+        // Expected present time is computed and cached on invalidate, so it may be stale.
+        if (!pendingTransactions) {
+            mExpectedPresentTime = calculateExpectedPresentTime(systemTime());
+        }
+
+        IPCThreadState* ipc = IPCThreadState::self();
+        const int originPID = ipc->getCallingPid();
+        const int originUID = ipc->getCallingUid();
+
+        if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
+            mPendingTransactionQueues[applyToken].emplace(states, displays, flags,
+                                                          inputWindowCommands, desiredPresentTime,
+                                                          uncacheBuffer, postTime, privileged,
+                                                          hasListenerCallbacks, listenerCallbacks,
+                                                          originPID, originUID);
+            setTransactionFlags(eTransactionFlushNeeded);
+            return NO_ERROR;
+        }
+
+        mTransactionQueue.emplace_back(states, displays, flags, inputWindowCommands,
+                                       desiredPresentTime, uncacheBuffer, postTime, privileged,
+                                       hasListenerCallbacks, listenerCallbacks, originPID,
+                                       originUID);
+    }
+
+    {
+        Mutex::Autolock _l(mStateLock);
+
+        const auto schedule = [](uint32_t flags) {
+            if (flags & eEarlyWakeup) return TransactionSchedule::Early;
+            if (flags & eExplicitEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;
+            if (flags & eExplicitEarlyWakeupStart) return TransactionSchedule::EarlyStart;
+            return TransactionSchedule::Late;
+        }(flags);
+
+        // if this is a synchronous transaction, wait for it to take effect
+        // before returning.
+        const bool synchronous = flags & eSynchronous;
+        const bool syncInput = inputWindowCommands.syncInputWindows;
+        if (!synchronous && !syncInput) {
+            setTransactionFlags(eTransactionFlushNeeded, schedule);
+            return NO_ERROR;
+        }
+
+        if (synchronous) {
+            mTransactionPending = true;
+        }
+        if (syncInput) {
+            mPendingSyncInputWindows = true;
+        }
+        setTransactionFlags(eTransactionFlushNeeded, schedule);
+
+        // applyTransactionState can be called by either the main SF thread or by
+        // another process through setTransactionState.  While a given process may wish
+        // to wait on synchronous transactions, the main SF thread should never
+        // be blocked.  Therefore, we only wait if isMainThread is false.
+        while (mTransactionPending || mPendingSyncInputWindows) {
             status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
             if (CC_UNLIKELY(err != NO_ERROR)) {
-                ALOGW_IF(err == TIMED_OUT,
-                         "setTransactionState timed out "
-                         "waiting for animation frame to apply");
+                // just in case something goes wrong in SF, return to the
+                // called after a few seconds.
+                ALOGW_IF(err == TIMED_OUT, "setTransactionState timed out!");
+                mTransactionPending = false;
+                mPendingSyncInputWindows = false;
                 break;
             }
-            itr = mTransactionQueues.find(applyToken);
+        }
+    }
+    return NO_ERROR;
+}
+
+void SurfaceFlinger::flushTransactionQueue() {
+    std::vector<TransactionState> transactionQueue;
+    {
+        Mutex::Autolock _l(mQueueLock);
+        if (!mTransactionQueue.empty()) {
+            transactionQueue.swap(mTransactionQueue);
         }
     }
 
-    const bool pendingTransactions = itr != mTransactionQueues.end();
-    // Expected present time is computed and cached on invalidate, so it may be stale.
-    if (!pendingTransactions) {
-        mExpectedPresentTime = calculateExpectedPresentTime(systemTime());
+    Mutex::Autolock _l(mStateLock);
+    for (const auto& t : transactionQueue) {
+        applyTransactionState(t.states, t.displays, t.flags, t.inputWindowCommands,
+                              t.desiredPresentTime, t.buffer, t.postTime, t.privileged,
+                              t.hasListenerCallbacks, t.listenerCallbacks, t.originPID,
+                              t.originUID);
     }
-
-    IPCThreadState* ipc = IPCThreadState::self();
-    const int originPID = ipc->getCallingPid();
-    const int originUID = ipc->getCallingUid();
-
-    if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
-        mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
-                                               uncacheBuffer, postTime, privileged,
-                                               hasListenerCallbacks, listenerCallbacks, originPID,
-                                               originUID);
-        setTransactionFlags(eTransactionFlushNeeded);
-        return NO_ERROR;
-    }
-
-    applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
-                          uncacheBuffer, postTime, privileged, hasListenerCallbacks,
-                          listenerCallbacks, originPID, originUID, /*isMainThread*/ false);
-    return NO_ERROR;
 }
 
 void SurfaceFlinger::applyTransactionState(
@@ -3305,24 +3374,8 @@ void SurfaceFlinger::applyTransactionState(
         const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
         const client_cache_t& uncacheBuffer, const int64_t postTime, bool privileged,
         bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
-        int originPID, int originUID, bool isMainThread) {
+        int32_t originPID, int32_t originUID) {
     uint32_t transactionFlags = 0;
-
-    if (flags & eAnimation) {
-        // For window updates that are part of an animation we must wait for
-        // previous animation "frames" to be handled.
-        while (!isMainThread && mAnimTransactionPending) {
-            status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
-            if (CC_UNLIKELY(err != NO_ERROR)) {
-                // just in case something goes wrong in SF, return to the
-                // caller after a few seconds.
-                ALOGW_IF(err == TIMED_OUT, "setTransactionState timed out "
-                        "waiting for previous animation frame");
-                mAnimTransactionPending = false;
-                break;
-            }
-        }
-    }
 
     for (const DisplayState& display : displays) {
         transactionFlags |= setDisplayStateLocked(display);
@@ -3379,79 +3432,24 @@ void SurfaceFlinger::applyTransactionState(
         transactionFlags = eTransactionNeeded;
     }
 
-    // If we are on the main thread, we are about to preform a traversal. Clear the traversal bit
-    // so we don't have to wake up again next frame to preform an uneeded traversal.
-    if (isMainThread && (transactionFlags & eTraversalNeeded)) {
+    if (transactionFlags && mInterceptor->isEnabled()) {
+        mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags, originPID,
+                                      originUID);
+    }
+
+    // We are on the main thread, we are about to preform a traversal. Clear the traversal bit
+    // so we don't have to wake up again next frame to preform an unnecessary traversal.
+    if (transactionFlags & eTraversalNeeded) {
         transactionFlags = transactionFlags & (~eTraversalNeeded);
         mForceTraversal = true;
     }
 
-    const auto schedule = [](uint32_t flags) {
-        if (flags & eEarlyWakeup) return TransactionSchedule::Early;
-        if (flags & eExplicitEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;
-        if (flags & eExplicitEarlyWakeupStart) return TransactionSchedule::EarlyStart;
-        return TransactionSchedule::Late;
-    }(flags);
-
     if (transactionFlags) {
-        if (mInterceptor->isEnabled()) {
-            mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags,
-                                          originPID, originUID);
-        }
-
-        // TODO(b/159125966): Remove eEarlyWakeup completly as no client should use this flag
-        if (flags & eEarlyWakeup) {
-            ALOGW("eEarlyWakeup is deprecated. Use eExplicitEarlyWakeup[Start|End]");
-        }
-
-        if (!privileged && (flags & (eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd))) {
-            ALOGE("Only WindowManager is allowed to use eExplicitEarlyWakeup[Start|End] flags");
-            flags &= ~(eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd);
-        }
-
         // this triggers the transaction
-        setTransactionFlags(transactionFlags, schedule);
+        setTransactionFlags(transactionFlags);
 
         if (flags & eAnimation) {
             mAnimTransactionPending = true;
-        }
-
-        // if this is a synchronous transaction, wait for it to take effect
-        // before returning.
-        const bool synchronous = flags & eSynchronous;
-        const bool syncInput = inputWindowCommands.syncInputWindows;
-        if (!synchronous && !syncInput) {
-            return;
-        }
-
-        if (synchronous) {
-            mTransactionPending = true;
-        }
-        if (syncInput) {
-            mPendingSyncInputWindows = true;
-        }
-
-
-        // applyTransactionState can be called by either the main SF thread or by
-        // another process through setTransactionState.  While a given process may wish
-        // to wait on synchronous transactions, the main SF thread should never
-        // be blocked.  Therefore, we only wait if isMainThread is false.
-        while (!isMainThread && (mTransactionPending || mPendingSyncInputWindows)) {
-            status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
-            if (CC_UNLIKELY(err != NO_ERROR)) {
-                // just in case something goes wrong in SF, return to the
-                // called after a few seconds.
-                ALOGW_IF(err == TIMED_OUT, "setTransactionState timed out!");
-                mTransactionPending = false;
-                mPendingSyncInputWindows = false;
-                break;
-            }
-        }
-    } else {
-        // Update VsyncModulator state machine even if transaction is not needed.
-        if (schedule == TransactionSchedule::EarlyStart ||
-            schedule == TransactionSchedule::EarlyEnd) {
-            modulateVsync(&VsyncModulator::setTransactionSchedule, schedule);
         }
     }
 }
@@ -3831,7 +3829,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
 }
 
 uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& inputWindowCommands) {
-    bool hasChanges = mPendingInputWindowCommands.merge(inputWindowCommands);
+    bool hasChanges = mInputWindowCommands.merge(inputWindowCommands);
     return hasChanges ? eTraversalNeeded : 0;
 }
 
@@ -4109,8 +4107,9 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1, {}, false,
-                        {});
+    // This called on the main thread, apply it directly.
+    applyTransactionState(state, displays, 0, mInputWindowCommands, -1, {}, systemTime(), true,
+                          false, {}, getpid(), getuid());
 
     setPowerModeInternal(display, hal::PowerMode::ON);
     const nsecs_t vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
@@ -5274,7 +5273,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
 
 void SurfaceFlinger::repaintEverything() {
     mRepaintEverything = true;
-    signalTransaction();
+    setTransactionFlags(eTransactionNeeded);
 }
 
 void SurfaceFlinger::repaintEverythingForHWC() {
