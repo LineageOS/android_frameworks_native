@@ -135,11 +135,11 @@ int32_t InputEvent::nextId() {
 // --- KeyEvent ---
 
 const char* KeyEvent::getLabel(int32_t keyCode) {
-    return getLabelByKeyCode(keyCode);
+    return InputEventLookup::getLabelByKeyCode(keyCode);
 }
 
 int32_t KeyEvent::getKeyCodeFromLabel(const char* label) {
-    return getKeyCodeByLabel(label);
+    return InputEventLookup::getKeyCodeByLabel(label);
 }
 
 void KeyEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
@@ -692,11 +692,11 @@ bool MotionEvent::isTouchEvent(uint32_t source, int32_t action) {
 }
 
 const char* MotionEvent::getLabel(int32_t axis) {
-    return getAxisLabel(axis);
+    return InputEventLookup::getAxisLabel(axis);
 }
 
 int32_t MotionEvent::getAxisFromLabel(const char* label) {
-    return getAxisByLabel(label);
+    return InputEventLookup::getAxisByLabel(label);
 }
 
 const char* MotionEvent::actionToString(int32_t action) {
