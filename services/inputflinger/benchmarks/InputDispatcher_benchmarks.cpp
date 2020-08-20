@@ -171,8 +171,7 @@ public:
         mInfo.touchableRegion.clear();
         mInfo.addTouchableRegion(mFrame);
         mInfo.visible = true;
-        mInfo.canReceiveKeys = true;
-        mInfo.hasFocus = true;
+        mInfo.focusable = true;
         mInfo.hasWallpaper = false;
         mInfo.paused = false;
         mInfo.ownerPid = INJECTOR_PID;

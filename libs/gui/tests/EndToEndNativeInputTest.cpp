@@ -192,8 +192,7 @@ private:
         mInputInfo.type = InputWindowInfo::Type::BASE_APPLICATION;
         mInputInfo.dispatchingTimeout = 5s;
         mInputInfo.globalScaleFactor = 1.0;
-        mInputInfo.canReceiveKeys = true;
-        mInputInfo.hasFocus = true;
+        mInputInfo.focusable = true;
         mInputInfo.hasWallpaper = false;
         mInputInfo.paused = false;
 

@@ -193,8 +193,8 @@ message InputWindowInfoProto {
 
     uint32 surface_inset = 5;
     bool visible = 6;
-    bool can_receive_keys = 7;
-    bool has_focus = 8;
+    bool can_receive_keys = 7  [deprecated=true];
+    bool focusable = 8;
     bool has_wallpaper = 9;
 
     float global_scale_factor = 10;

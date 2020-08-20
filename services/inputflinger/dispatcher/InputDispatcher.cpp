@@ -3818,7 +3818,7 @@ void InputDispatcher::setInputWindowsLocked(
     bool foundHoveredWindow = false;
     for (const sp<InputWindowHandle>& windowHandle : getWindowHandlesLocked(displayId)) {
         // Set newFocusedWindowHandle to the top most focused window instead of the last one
-        if (!newFocusedWindowHandle && windowHandle->getInfo()->hasFocus &&
+        if (!newFocusedWindowHandle && windowHandle->getInfo()->focusable &&
             windowHandle->getInfo()->visible) {
             newFocusedWindowHandle = windowHandle;
         }
@@ -4221,18 +4221,17 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     const InputWindowInfo* windowInfo = windowHandle->getInfo();
 
                     dump += StringPrintf(INDENT3 "%zu: name='%s', displayId=%d, "
-                                                 "portalToDisplayId=%d, paused=%s, hasFocus=%s, "
-                                                 "hasWallpaper=%s, visible=%s, canReceiveKeys=%s, "
+                                                 "portalToDisplayId=%d, paused=%s, focusable=%s, "
+                                                 "hasWallpaper=%s, visible=%s, "
                                                  "flags=%s, type=0x%08x, "
                                                  "frame=[%d,%d][%d,%d], globalScale=%f, "
                                                  "touchableRegion=",
                                          i, windowInfo->name.c_str(), windowInfo->displayId,
                                          windowInfo->portalToDisplayId,
                                          toString(windowInfo->paused),
-                                         toString(windowInfo->hasFocus),
+                                         toString(windowInfo->focusable),
                                          toString(windowInfo->hasWallpaper),
                                          toString(windowInfo->visible),
-                                         toString(windowInfo->canReceiveKeys),
                                          windowInfo->flags.string().c_str(),
                                          static_cast<int32_t>(windowInfo->type),
                                          windowInfo->frameLeft, windowInfo->frameTop,
