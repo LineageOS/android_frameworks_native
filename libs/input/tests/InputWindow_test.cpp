@@ -55,8 +55,7 @@ TEST(InputWindowInfo, Parcelling) {
     i.globalScaleFactor = 0.3;
     i.transform.set({0.4, -1, 100, 0.5, 0, 40, 0, 0, 1});
     i.visible = false;
-    i.canReceiveKeys = false;
-    i.hasFocus = false;
+    i.focusable = false;
     i.hasWallpaper = false;
     i.paused = false;
     i.ownerPid = 19;
@@ -89,8 +88,7 @@ TEST(InputWindowInfo, Parcelling) {
     ASSERT_EQ(i.globalScaleFactor, i2.globalScaleFactor);
     ASSERT_EQ(i.transform, i2.transform);
     ASSERT_EQ(i.visible, i2.visible);
-    ASSERT_EQ(i.canReceiveKeys, i2.canReceiveKeys);
-    ASSERT_EQ(i.hasFocus, i2.hasFocus);
+    ASSERT_EQ(i.focusable, i2.focusable);
     ASSERT_EQ(i.hasWallpaper, i2.hasWallpaper);
     ASSERT_EQ(i.paused, i2.paused);
     ASSERT_EQ(i.ownerPid, i2.ownerPid);
