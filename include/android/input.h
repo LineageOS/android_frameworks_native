@@ -988,11 +988,9 @@ int64_t AKeyEvent_getDownTime(const AInputEvent* key_event);
 int64_t AKeyEvent_getEventTime(const AInputEvent* key_event);
 
 /**
- * Creates a native AInputEvent* object associated with the specified Java android.view.KeyEvent.
- * The result may be used with generic and KeyEvent-specific AInputEvent_* functions.
- * The object returned by this function must be disposed using {@link AInputEvent_release()}.
- * User must guarantee that lifetime for object referenced by keyEvent is prolongated
- * up to release of returned AInputEvent*.
+ * Creates a native AInputEvent* object that is a copy of the specified Java android.view.KeyEvent.
+ * The result may be used with generic and KeyEvent-specific AInputEvent_* functions. The object
+ * returned by this function must be disposed using {@link AInputEvent_release()}.
  */
 const AInputEvent* AKeyEvent_fromJava(JNIEnv* env, jobject keyEvent);
 
@@ -1312,11 +1310,10 @@ float AMotionEvent_getHistoricalAxisValue(const AInputEvent* motion_event,
         int32_t axis, size_t pointer_index, size_t history_index);
 
 /**
- * Creates a native AInputEvent* object associated with the specified Java android.view.MotionEvent.
- * The result may be used with generic and MotionEvent-specific AInputEvent_* functions.
- * The object returned by this function must be disposed using {@link AInputEvent_release()}.
- * User must guarantee that object referenced by motionEvent won't be recycled and
- * its lifetime is prolongated up to release of returned AInputEvent*.
+ * Creates a native AInputEvent* object that is a copy of the specified Java
+ * android.view.MotionEvent. The result may be used with generic and MotionEvent-specific
+ * AInputEvent_* functions. The object returned by this function must be disposed using
+ * {@link AInputEvent_release()}.
  */
 const AInputEvent* AMotionEvent_fromJava(JNIEnv* env, jobject motionEvent);
 
