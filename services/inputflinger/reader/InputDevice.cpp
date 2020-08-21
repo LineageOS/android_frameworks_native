@@ -108,7 +108,7 @@ void InputDevice::dump(std::string& dump) {
         dump += INDENT2 "Motion Ranges:\n";
         for (size_t i = 0; i < ranges.size(); i++) {
             const InputDeviceInfo::MotionRange& range = ranges[i];
-            const char* label = getAxisLabel(range.axis);
+            const char* label = InputEventLookup::getAxisLabel(range.axis);
             char name[32];
             if (label) {
                 strncpy(name, label, sizeof(name));

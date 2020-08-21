@@ -880,7 +880,7 @@ status_t KeyCharacterMap::Parser::parseMapKey() {
 
     mTokenizer->skipDelimiters(WHITESPACE);
     String8 keyCodeToken = mTokenizer->nextToken(WHITESPACE);
-    int32_t keyCode = getKeyCodeByLabel(keyCodeToken.string());
+    int32_t keyCode = InputEventLookup::getKeyCodeByLabel(keyCodeToken.string());
     if (!keyCode) {
         ALOGE("%s: Expected key code label, got '%s'.", mTokenizer->getLocation().string(),
                 keyCodeToken.string());
@@ -897,7 +897,7 @@ status_t KeyCharacterMap::Parser::parseMapKey() {
 
 status_t KeyCharacterMap::Parser::parseKey() {
     String8 keyCodeToken = mTokenizer->nextToken(WHITESPACE);
-    int32_t keyCode = getKeyCodeByLabel(keyCodeToken.string());
+    int32_t keyCode = InputEventLookup::getKeyCodeByLabel(keyCodeToken.string());
     if (!keyCode) {
         ALOGE("%s: Expected key code label, got '%s'.", mTokenizer->getLocation().string(),
                 keyCodeToken.string());
@@ -1017,7 +1017,7 @@ status_t KeyCharacterMap::Parser::parseKeyProperty() {
             } else if (token == "fallback") {
                 mTokenizer->skipDelimiters(WHITESPACE);
                 token = mTokenizer->nextToken(WHITESPACE);
-                int32_t keyCode = getKeyCodeByLabel(token.string());
+                int32_t keyCode = InputEventLookup::getKeyCodeByLabel(token.string());
                 if (!keyCode) {
                     ALOGE("%s: Invalid key code label for fallback behavior, got '%s'.",
                             mTokenizer->getLocation().string(),
@@ -1034,7 +1034,7 @@ status_t KeyCharacterMap::Parser::parseKeyProperty() {
             } else if (token == "replace") {
                 mTokenizer->skipDelimiters(WHITESPACE);
                 token = mTokenizer->nextToken(WHITESPACE);
-                int32_t keyCode = getKeyCodeByLabel(token.string());
+                int32_t keyCode = InputEventLookup::getKeyCodeByLabel(token.string());
                 if (!keyCode) {
                     ALOGE("%s: Invalid key code label for replace, got '%s'.",
                             mTokenizer->getLocation().string(),
