@@ -116,7 +116,7 @@ struct LayerFECompositionState {
     FloatRect geomLayerBounds;
 
     // length of the shadow in screen space
-    float shadowRadius;
+    float shadowRadius{0.f};
 
     /*
      * Geometry state

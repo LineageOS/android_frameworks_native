@@ -66,42 +66,39 @@ public:
         return interface_cast<ISurfaceComposerClient>(reply.readStrongBinder());
     }
 
-    virtual void setTransactionState(const Vector<ComposerState>& state,
-                                     const Vector<DisplayState>& displays, uint32_t flags,
-                                     const sp<IBinder>& applyToken,
-                                     const InputWindowCommands& commands,
-                                     int64_t desiredPresentTime,
-                                     const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
-                                     const std::vector<ListenerCallbacks>& listenerCallbacks) {
+    virtual status_t setTransactionState(
+            const Vector<ComposerState>& state, const Vector<DisplayState>& displays,
+            uint32_t flags, const sp<IBinder>& applyToken, const InputWindowCommands& commands,
+            int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
+            bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
-        data.writeUint32(static_cast<uint32_t>(state.size()));
+        SAFE_PARCEL(data.writeUint32, static_cast<uint32_t>(state.size()));
         for (const auto& s : state) {
-            s.write(data);
+            SAFE_PARCEL(s.write, data);
         }
 
-        data.writeUint32(static_cast<uint32_t>(displays.size()));
+        SAFE_PARCEL(data.writeUint32, static_cast<uint32_t>(displays.size()));
         for (const auto& d : displays) {
-            d.write(data);
+            SAFE_PARCEL(d.write, data);
         }
 
-        data.writeUint32(flags);
-        data.writeStrongBinder(applyToken);
-        commands.write(data);
-        data.writeInt64(desiredPresentTime);
-        data.writeStrongBinder(uncacheBuffer.token.promote());
-        data.writeUint64(uncacheBuffer.id);
-        data.writeBool(hasListenerCallbacks);
+        SAFE_PARCEL(data.writeUint32, flags);
+        SAFE_PARCEL(data.writeStrongBinder, applyToken);
+        SAFE_PARCEL(commands.write, data);
+        SAFE_PARCEL(data.writeInt64, desiredPresentTime);
+        SAFE_PARCEL(data.writeStrongBinder, uncacheBuffer.token.promote());
+        SAFE_PARCEL(data.writeUint64, uncacheBuffer.id);
+        SAFE_PARCEL(data.writeBool, hasListenerCallbacks);
 
-        if (data.writeVectorSize(listenerCallbacks) == NO_ERROR) {
-            for (const auto& [listener, callbackIds] : listenerCallbacks) {
-                data.writeStrongBinder(listener);
-                data.writeInt64Vector(callbackIds);
-            }
+        SAFE_PARCEL(data.writeVectorSize, listenerCallbacks);
+        for (const auto& [listener, callbackIds] : listenerCallbacks) {
+            SAFE_PARCEL(data.writeStrongBinder, listener);
+            SAFE_PARCEL(data.writeInt64Vector, callbackIds);
         }
 
-        remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
+        return remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
     }
 
     virtual void bootFinished()
@@ -116,45 +113,31 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
-        status_t result = args.write(data);
-        if (result != NO_ERROR) {
-            ALOGE("captureDisplay failed to parcel args: %d", result);
-            return result;
-        }
-        result = remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY, data, &reply);
+        SAFE_PARCEL(args.write, data);
+        status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY, data, &reply);
         if (result != NO_ERROR) {
             ALOGE("captureDisplay failed to transact: %d", result);
             return result;
         }
-        result = reply.readInt32();
-        if (result != NO_ERROR) {
-            ALOGE("captureDisplay failed to readInt32: %d", result);
-            return result;
-        }
 
-        captureResults.read(reply);
-        return result;
+        SAFE_PARCEL(captureResults.read, reply);
+        return NO_ERROR;
     }
 
     virtual status_t captureDisplay(uint64_t displayOrLayerStack,
                                     ScreenCaptureResults& captureResults) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeUint64(displayOrLayerStack);
+        SAFE_PARCEL(data.writeUint64, displayOrLayerStack)
         status_t result =
                 remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY_BY_ID, data, &reply);
         if (result != NO_ERROR) {
             ALOGE("captureDisplay failed to transact: %d", result);
             return result;
         }
-        result = reply.readInt32();
-        if (result != NO_ERROR) {
-            ALOGE("captureDisplay failed to readInt32: %d", result);
-            return result;
-        }
 
-        captureResults.read(reply);
-        return result;
+        SAFE_PARCEL(captureResults.read, reply);
+        return NO_ERROR;
     }
 
     virtual status_t captureLayers(const LayerCaptureArgs& args,
@@ -162,25 +145,16 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
-        status_t result = args.write(data);
-        if (result != NO_ERROR) {
-            ALOGE("captureLayers failed to parcel args: %d", result);
-            return result;
-        }
+        SAFE_PARCEL(args.write, data);
 
-        result = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
+        status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
         if (result != NO_ERROR) {
             ALOGE("captureLayers failed to transact: %d", result);
             return result;
         }
-        result = reply.readInt32();
-        if (result != NO_ERROR) {
-            ALOGE("captureLayers failed to readInt32: %d", result);
-            return result;
-        }
 
-        captureResults.read(reply);
-        return result;
+        SAFE_PARCEL(captureResults.read, reply);
+        return NO_ERROR;
     }
 
     virtual bool authenticateSurfaceTexture(
@@ -1218,59 +1192,56 @@ status_t BnSurfaceComposer::onTransact(
         case SET_TRANSACTION_STATE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
 
-            size_t count = data.readUint32();
-            if (count > data.dataSize()) {
-                return BAD_VALUE;
-            }
+            uint32_t count = 0;
+            SAFE_PARCEL_READ_SIZE(data.readUint32, &count, data.dataSize());
             Vector<ComposerState> state;
             state.setCapacity(count);
             for (size_t i = 0; i < count; i++) {
                 ComposerState s;
-                if (s.read(data) == BAD_VALUE) {
-                    return BAD_VALUE;
-                }
+                SAFE_PARCEL(s.read, data);
                 state.add(s);
             }
 
-            count = data.readUint32();
-            if (count > data.dataSize()) {
-                return BAD_VALUE;
-            }
+            SAFE_PARCEL_READ_SIZE(data.readUint32, &count, data.dataSize());
             DisplayState d;
             Vector<DisplayState> displays;
             displays.setCapacity(count);
             for (size_t i = 0; i < count; i++) {
-                if (d.read(data) == BAD_VALUE) {
-                    return BAD_VALUE;
-                }
+                SAFE_PARCEL(d.read, data);
                 displays.add(d);
             }
 
-            uint32_t stateFlags = data.readUint32();
-            sp<IBinder> applyToken = data.readStrongBinder();
+            uint32_t stateFlags = 0;
+            SAFE_PARCEL(data.readUint32, &stateFlags);
+            sp<IBinder> applyToken;
+            SAFE_PARCEL(data.readStrongBinder, &applyToken);
             InputWindowCommands inputWindowCommands;
-            inputWindowCommands.read(data);
+            SAFE_PARCEL(inputWindowCommands.read, data);
 
-            int64_t desiredPresentTime = data.readInt64();
+            int64_t desiredPresentTime = 0;
+            SAFE_PARCEL(data.readInt64, &desiredPresentTime);
 
             client_cache_t uncachedBuffer;
-            uncachedBuffer.token = data.readStrongBinder();
-            uncachedBuffer.id = data.readUint64();
+            sp<IBinder> tmpBinder;
+            SAFE_PARCEL(data.readNullableStrongBinder, &tmpBinder);
+            uncachedBuffer.token = tmpBinder;
+            SAFE_PARCEL(data.readUint64, &uncachedBuffer.id);
 
-            bool hasListenerCallbacks = data.readBool();
+            bool hasListenerCallbacks = false;
+            SAFE_PARCEL(data.readBool, &hasListenerCallbacks);
 
             std::vector<ListenerCallbacks> listenerCallbacks;
-            int32_t listenersSize = data.readInt32();
+            int32_t listenersSize = 0;
+            SAFE_PARCEL_READ_SIZE(data.readInt32, &listenersSize, data.dataSize());
             for (int32_t i = 0; i < listenersSize; i++) {
-                auto listener = data.readStrongBinder();
+                SAFE_PARCEL(data.readStrongBinder, &tmpBinder);
                 std::vector<CallbackId> callbackIds;
-                data.readInt64Vector(&callbackIds);
-                listenerCallbacks.emplace_back(listener, callbackIds);
+                SAFE_PARCEL(data.readInt64Vector, &callbackIds);
+                listenerCallbacks.emplace_back(tmpBinder, callbackIds);
             }
-            setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands,
-                                desiredPresentTime, uncachedBuffer, hasListenerCallbacks,
-                                listenerCallbacks);
-            return NO_ERROR;
+            return setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands,
+                                       desiredPresentTime, uncachedBuffer, hasListenerCallbacks,
+                                       listenerCallbacks);
         }
         case BOOT_FINISHED: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
@@ -1282,48 +1253,35 @@ status_t BnSurfaceComposer::onTransact(
             DisplayCaptureArgs args;
             ScreenCaptureResults captureResults;
 
-            status_t res = args.read(data);
-            if (res != NO_ERROR) {
-                reply->writeInt32(res);
-                return NO_ERROR;
-            }
-
-            res = captureDisplay(args, captureResults);
-
-            reply->writeInt32(res);
+            SAFE_PARCEL(args.read, data);
+            status_t res = captureDisplay(args, captureResults);
             if (res == NO_ERROR) {
-                captureResults.write(*reply);
+                SAFE_PARCEL(captureResults.write, *reply);
             }
-            return NO_ERROR;
+            return res;
         }
         case CAPTURE_DISPLAY_BY_ID: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            uint64_t displayOrLayerStack = data.readUint64();
+            uint64_t displayOrLayerStack = 0;
+            SAFE_PARCEL(data.readUint64, &displayOrLayerStack);
             ScreenCaptureResults captureResults;
             status_t res = captureDisplay(displayOrLayerStack, captureResults);
-            reply->writeInt32(res);
             if (res == NO_ERROR) {
-                captureResults.write(*reply);
+                SAFE_PARCEL(captureResults.write, *reply);
             }
-            return NO_ERROR;
+            return res;
         }
         case CAPTURE_LAYERS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             LayerCaptureArgs args;
             ScreenCaptureResults captureResults;
 
-            status_t res = args.read(data);
-            if (res != NO_ERROR) {
-                reply->writeInt32(res);
-                return NO_ERROR;
-            }
-
-            res = captureLayers(args, captureResults);
-            reply->writeInt32(res);
+            SAFE_PARCEL(args.read, data);
+            status_t res = captureLayers(args, captureResults);
             if (res == NO_ERROR) {
-                captureResults.write(*reply);
+                SAFE_PARCEL(captureResults.write, *reply);
             }
-            return NO_ERROR;
+            return res;
         }
         case AUTHENTICATE_SURFACE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
