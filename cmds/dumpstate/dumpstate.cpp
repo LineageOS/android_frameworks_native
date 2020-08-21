@@ -2688,6 +2688,15 @@ void Dumpstate::Cancel() {
     }
     tombstone_data_.clear();
     anr_data_.clear();
+
+    // Instead of shutdown the pool, we delete temporary files directly since
+    // shutdown blocking the call.
+    if (dump_pool_) {
+        dump_pool_->deleteTempFiles();
+    }
+    if (zip_entry_tasks_) {
+        zip_entry_tasks_->run(/*do_cancel =*/ true);
+    }
 }
 
 /*
