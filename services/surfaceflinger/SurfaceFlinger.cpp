@@ -3356,7 +3356,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
     return true;
 }
 
-void SurfaceFlinger::setTransactionState(
+status_t SurfaceFlinger::setTransactionState(
         const Vector<ComposerState>& states, const Vector<DisplayState>& displays, uint32_t flags,
         const sp<IBinder>& applyToken, const InputWindowCommands& inputWindowCommands,
         int64_t desiredPresentTime, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
@@ -3402,12 +3402,13 @@ void SurfaceFlinger::setTransactionState(
                                                hasListenerCallbacks, listenerCallbacks, originPID,
                                                originUID);
         setTransactionFlags(eTransactionFlushNeeded);
-        return;
+        return NO_ERROR;
     }
 
     applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
                           uncacheBuffer, postTime, privileged, hasListenerCallbacks,
                           listenerCallbacks, originPID, originUID, /*isMainThread*/ false);
+    return NO_ERROR;
 }
 
 void SurfaceFlinger::applyTransactionState(
@@ -4813,12 +4814,21 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     if (const auto displayId = getInternalDisplayIdLocked();
         displayId && getHwComposer().isConnected(*displayId)) {
         const auto activeConfig = getHwComposer().getActiveConfig(*displayId);
+        std::string fps, xDpi, yDpi;
+        if (activeConfig) {
+            fps = std::to_string(1e9 / getHwComposer().getDisplayVsyncPeriod(*displayId)) + " fps";
+            xDpi = activeConfig->getDpiX();
+            yDpi = activeConfig->getDpiY();
+        } else {
+            fps = "unknown";
+            xDpi = "unknown";
+            yDpi = "unknown";
+        }
         StringAppendF(&result,
-                      "  refresh-rate              : %f fps\n"
-                      "  x-dpi                     : %f\n"
-                      "  y-dpi                     : %f\n",
-                      1e9 / getHwComposer().getDisplayVsyncPeriod(*displayId),
-                      activeConfig->getDpiX(), activeConfig->getDpiY());
+                      "  refresh-rate              : %s\n"
+                      "  x-dpi                     : %s\n"
+                      "  y-dpi                     : %s\n",
+                      fps.c_str(), xDpi.c_str(), yDpi.c_str());
     }
 
     StringAppendF(&result, "  transaction time: %f us\n", inTransactionDuration / 1000.0);

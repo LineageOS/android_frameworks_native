@@ -167,12 +167,6 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
     const int displayWidth = displayBounds.width();
     const int displayHeight = displayBounds.height();
 
-    ui::Transform rotation;
-    if (const auto flags = ui::Transform::toRotationFlags(orientation);
-        flags != ui::Transform::ROT_INVALID) {
-        rotation.set(flags, displayWidth, displayHeight);
-    }
-
     if (!orientedDisplaySpaceRect.isValid()) {
         // the destination frame can be invalid if it has never been set,
         // in that case we assume the whole display frame.
@@ -185,7 +179,7 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
         // It's also invalid to have an empty layerStackSpaceRect, so we handle that
         // case in the same way.
         layerStackSpaceRect = Rect(displayWidth, displayHeight);
-        if (rotation.getOrientation() & ui::Transform::ROT_90) {
+        if (orientation == ui::ROTATION_90 || orientation == ui::ROTATION_270) {
             std::swap(layerStackSpaceRect.right, layerStackSpaceRect.bottom);
         }
     }
@@ -208,13 +202,13 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
     logicalTranslation.set(-sourceX, -sourceY);
     physicalTranslation.set(destX, destY);
 
-    // need to take care of primary display rotation for globalTransform
-    // for case if the panel is not installed aligned with device orientation
-    if (isPrimary()) {
-        if (const auto flags = ui::Transform::toRotationFlags(orientation + mPhysicalOrientation);
-            flags != ui::Transform::ROT_INVALID) {
-            rotation.set(flags, displayWidth, displayHeight);
-        }
+    // We need to take care of display rotation for globalTransform for case if the panel is not
+    // installed aligned with device orientation.
+    const auto transformOrientation = orientation + mPhysicalOrientation;
+    const uint32_t transformOrientationFlags = ui::Transform::toRotationFlags(transformOrientation);
+    ui::Transform rotation;
+    if (transformOrientationFlags != ui::Transform::ROT_INVALID) {
+        rotation.set(transformOrientationFlags, displayWidth, displayHeight);
     }
 
     // The layerStackSpaceRect and orientedDisplaySpaceRect are both in the logical orientation.
@@ -233,16 +227,11 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
     // Make sure the displaySpaceRect is contained in the display bounds
     displaySpaceRect.intersect(displayBounds, &displaySpaceRect);
 
-    uint32_t transformOrientation;
-
     if (isPrimary()) {
         sPrimaryDisplayRotationFlags = ui::Transform::toRotationFlags(orientation);
-        transformOrientation = ui::Transform::toRotationFlags(orientation + mPhysicalOrientation);
-    } else {
-        transformOrientation = ui::Transform::toRotationFlags(orientation);
     }
 
-    getCompositionDisplay()->setProjection(globalTransform, transformOrientation,
+    getCompositionDisplay()->setProjection(globalTransform, transformOrientationFlags,
                                            orientedDisplaySpaceRect, layerStackSpaceRect,
                                            displaySpaceRect, needsFiltering);
 }

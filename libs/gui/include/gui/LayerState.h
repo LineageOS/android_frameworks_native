@@ -16,6 +16,23 @@
 
 #ifndef ANDROID_SF_LAYER_STATE_H
 #define ANDROID_SF_LAYER_STATE_H
+#define SAFE_PARCEL(FUNC, ...)                                                            \
+    {                                                                                     \
+        status_t error = FUNC(__VA_ARGS__);                                               \
+        if (error) {                                                                      \
+            ALOGE("ERROR(%d). Failed to call parcel %s(%s)", error, #FUNC, #__VA_ARGS__); \
+            return error;                                                                 \
+        }                                                                                 \
+    }
+
+#define SAFE_PARCEL_READ_SIZE(FUNC, COUNT, SIZE)                             \
+    {                                                                        \
+        SAFE_PARCEL(FUNC, COUNT);                                            \
+        if (static_cast<unsigned int>(*COUNT) > SIZE) {                      \
+            ALOGE("ERROR(BAD_VALUE). %s was greater than dataSize", #COUNT); \
+            return BAD_VALUE;                                                \
+        }                                                                    \
+    }
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -156,6 +173,8 @@ struct layer_state_t {
         float dtdx{0};
         float dtdy{0};
         float dsdy{0};
+        status_t write(Parcel& output) const;
+        status_t read(const Parcel& input);
     };
     sp<IBinder> surface;
     uint64_t what;
@@ -293,8 +312,8 @@ struct InputWindowCommands {
     // Merges the passed in commands and returns true if there were any changes.
     bool merge(const InputWindowCommands& other);
     void clear();
-    void write(Parcel& output) const;
-    void read(const Parcel& input);
+    status_t write(Parcel& output) const;
+    status_t read(const Parcel& input);
 };
 
 static inline int compare_type(const ComposerState& lhs, const ComposerState& rhs) {
