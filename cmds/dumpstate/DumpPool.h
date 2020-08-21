@@ -134,6 +134,11 @@ class DumpPool {
      */
     void waitForTask(const std::string& task_name, const std::string& title, int out_fd);
 
+    /*
+     * Deletes temporary files created by DumpPool.
+     */
+    void deleteTempFiles();
+
     static const std::string PREFIX_TMPFILE_NAME;
 
   private:
