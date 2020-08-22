@@ -311,6 +311,7 @@ struct InputWindowCommands {
 
     // Merges the passed in commands and returns true if there were any changes.
     bool merge(const InputWindowCommands& other);
+    bool empty() const;
     void clear();
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);

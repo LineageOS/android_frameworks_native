@@ -2915,6 +2915,9 @@ void SurfaceFlinger::updateInputFlinger() {
         setInputWindowsFinished();
     }
 
+    for (const auto& focusRequest : mInputWindowCommands.focusRequests) {
+        mInputFlinger->setFocusedWindow(focusRequest);
+    }
     mInputWindowCommands.clear();
 }
 
@@ -2932,10 +2935,6 @@ void SurfaceFlinger::updateInputWindowInfo() {
     mInputFlinger->setInputWindows(inputInfos,
                                mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
                                                                      : nullptr);
-    for (const auto& focusRequest : mInputWindowCommands.focusRequests) {
-        mInputFlinger->setFocusedWindow(focusRequest);
-    }
-    mInputWindowCommands.focusRequests.clear();
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
@@ -3479,7 +3478,11 @@ void SurfaceFlinger::applyTransactionState(
     }
     transactionFlags |= clientStateFlags;
 
-    transactionFlags |= addInputWindowCommands(inputWindowCommands);
+    if (privileged) {
+        transactionFlags |= addInputWindowCommands(inputWindowCommands);
+    } else if (!inputWindowCommands.empty()) {
+        ALOGE("Only privileged callers are allowed to send input commands.");
+    }
 
     if (uncacheBuffer.isValid()) {
         ClientCache::getInstance().erase(uncacheBuffer);
@@ -3947,7 +3950,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
 }
 
 uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& inputWindowCommands) {
-    const bool hasChanges = mPendingInputWindowCommands.merge(inputWindowCommands);
+    bool hasChanges = mPendingInputWindowCommands.merge(inputWindowCommands);
     return hasChanges ? eTraversalNeeded : 0;
 }
 
