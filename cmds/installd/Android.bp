@@ -242,7 +242,6 @@ cc_binary {
     header_libs: ["dex2oat_headers"],
 
     static_libs: [
-        "libartimagevalues",
         "libdiskusage",
         "libotapreoptparameters",
     ],
