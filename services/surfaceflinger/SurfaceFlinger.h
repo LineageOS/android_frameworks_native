@@ -183,8 +183,15 @@ class SurfaceFlinger : public BnSurfaceComposer,
                        private HWC2::ComposerCallback,
                        private ISchedulerCallback {
 public:
-    SurfaceFlingerBE& getBE() { return mBE; }
-    const SurfaceFlingerBE& getBE() const { return mBE; }
+    struct SkipInitializationTag {};
+
+    SurfaceFlinger(surfaceflinger::Factory&, SkipInitializationTag) ANDROID_API;
+    explicit SurfaceFlinger(surfaceflinger::Factory&) ANDROID_API;
+
+    // set main thread scheduling policy
+    static status_t setSchedFifo(bool enabled) ANDROID_API;
+
+    static char const* getServiceName() ANDROID_API { return "SurfaceFlinger"; }
 
     // This is the phase offset in nanoseconds of the software vsync event
     // relative to the vsync event reported by HWComposer.  The software vsync
@@ -263,23 +270,16 @@ public:
     // overhead that is caused by reading from sysprop.
     static bool useFrameRateApi;
 
-    // set main thread scheduling policy
-    static status_t setSchedFifo(bool enabled) ANDROID_API;
-
-    static char const* getServiceName() ANDROID_API {
-        return "SurfaceFlinger";
-    }
-
-    struct SkipInitializationTag {};
     static constexpr SkipInitializationTag SkipInitialization;
-    SurfaceFlinger(surfaceflinger::Factory&, SkipInitializationTag) ANDROID_API;
-    explicit SurfaceFlinger(surfaceflinger::Factory&) ANDROID_API;
 
     // must be called before clients can connect
     void init() ANDROID_API;
 
     // starts SurfaceFlinger main loop in the current thread
     void run() ANDROID_API;
+
+    SurfaceFlingerBE& getBE() { return mBE; }
+    const SurfaceFlingerBE& getBE() const { return mBE; }
 
     // Schedule an asynchronous or synchronous task on the main thread.
     template <typename F, typename T = std::invoke_result_t<F>>
@@ -334,6 +334,24 @@ public:
     bool mDisableClientCompositionCache = false;
     void setInputWindowsFinished();
 
+protected:
+    // We're reference counted, never destroy SurfaceFlinger directly
+    virtual ~SurfaceFlinger();
+
+    virtual uint32_t setClientStateLocked(
+            const ComposerState& composerState, int64_t desiredPresentTime, int64_t postTime,
+            bool privileged,
+            std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
+            REQUIRES(mStateLock);
+    virtual void commitTransactionLocked();
+
+    // Used internally by computeLayerBounds() to gets the clip rectangle to use for the
+    // root layers on a particular display in layer-coordinate space. The
+    // layers (and effectively their children) will be clipped against this
+    // rectangle. The base behavior is to clip to the visible region of the
+    // display.
+    virtual FloatRect getLayerClipBoundsForDisplay(const DisplayDevice&) const;
+
 private:
     friend class BufferLayer;
     friend class BufferQueueLayer;
@@ -349,20 +367,17 @@ private:
     friend class TestableSurfaceFlinger;
     friend class TransactionApplicationTest;
 
+    using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
+    using VsyncModulator = scheduler::VsyncModulator;
+    using TransactionSchedule = scheduler::TransactionSchedule;
+    using TraverseLayersFunction = std::function<void(const LayerVector::Visitor&)>;
+    using RenderAreaFuture = std::future<std::unique_ptr<RenderArea>>;
+    using DumpArgs = Vector<String16>;
+    using Dumper = std::function<void(const DumpArgs&, bool asProto, std::string&)>;
+
     // This value is specified in number of frames.  Log frame stats at most
     // every half hour.
     enum { LOG_FRAME_STATS_PERIOD =  30*60*60 };
-
-    static const int MAX_TRACING_MEMORY = 100 * 1024 * 1024; // 100MB
-
-protected:
-    // We're reference counted, never destroy SurfaceFlinger directly
-    virtual ~SurfaceFlinger();
-
-private:
-    /* ------------------------------------------------------------------------
-     * Internal data structures
-     */
 
     class State {
     public:
@@ -395,17 +410,99 @@ private:
         void traverseInReverseZOrder(const LayerVector::Visitor& visitor) const;
     };
 
-    /* ------------------------------------------------------------------------
-     * IBinder interface
-     */
+    struct ActiveConfigInfo {
+        HwcConfigIndexType configId;
+        Scheduler::ConfigEvent event = Scheduler::ConfigEvent::None;
+
+        bool operator!=(const ActiveConfigInfo& other) const {
+            return configId != other.configId || event != other.event;
+        }
+    };
+
+    enum class BootStage {
+        BOOTLOADER,
+        BOOTANIMATION,
+        FINISHED,
+    };
+
+    struct HotplugEvent {
+        hal::HWDisplayId hwcDisplayId;
+        hal::Connection connection = hal::Connection::INVALID;
+    };
+
+    struct TransactionState {
+        TransactionState(const Vector<ComposerState>& composerStates,
+                         const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
+                         int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
+                         int64_t postTime, bool privileged, bool hasListenerCallbacks,
+                         std::vector<ListenerCallbacks> listenerCallbacks, int originPID,
+                         int originUID)
+              : states(composerStates),
+                displays(displayStates),
+                flags(transactionFlags),
+                desiredPresentTime(desiredPresentTime),
+                buffer(uncacheBuffer),
+                postTime(postTime),
+                privileged(privileged),
+                hasListenerCallbacks(hasListenerCallbacks),
+                listenerCallbacks(listenerCallbacks),
+                originPID(originPID),
+                originUID(originUID) {}
+
+        Vector<ComposerState> states;
+        Vector<DisplayState> displays;
+        uint32_t flags;
+        const int64_t desiredPresentTime;
+        client_cache_t buffer;
+        const int64_t postTime;
+        bool privileged;
+        bool hasListenerCallbacks;
+        std::vector<ListenerCallbacks> listenerCallbacks;
+        int originPID;
+        int originUID;
+    };
+
+    template <typename F, std::enable_if_t<!std::is_member_function_pointer_v<F>>* = nullptr>
+    static Dumper dumper(F&& dump) {
+        using namespace std::placeholders;
+        return std::bind(std::forward<F>(dump), _3);
+    }
+
+    template <typename F, std::enable_if_t<std::is_member_function_pointer_v<F>>* = nullptr>
+    Dumper dumper(F dump) {
+        using namespace std::placeholders;
+        return std::bind(dump, this, _3);
+    }
+
+    template <typename F>
+    Dumper argsDumper(F dump) {
+        using namespace std::placeholders;
+        return std::bind(dump, this, _1, _3);
+    }
+
+    template <typename F>
+    Dumper protoDumper(F dump) {
+        using namespace std::placeholders;
+        return std::bind(dump, this, _1, _2, _3);
+    }
+
+    template <typename... Args,
+              typename Handler = VsyncModulator::VsyncConfigOpt (VsyncModulator::*)(Args...)>
+    void modulateVsync(Handler handler, Args... args) {
+        if (const auto config = (*mVsyncModulator.*handler)(args...)) {
+            setVsyncConfig(*config);
+        }
+    }
+
+    static const int MAX_TRACING_MEMORY = 100 * 1024 * 1024; // 100MB
+
+    // Implements IBinder.
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;
     status_t dump(int fd, const Vector<String16>& args) override { return priorityDump(fd, args); }
     bool callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermissionCache = true)
             EXCLUDES(mStateLock);
 
-    /* ------------------------------------------------------------------------
-     * ISurfaceComposer interface
-     */
+    // Implements ISurfaceComposer
     sp<ISurfaceComposerClient> createConnection() override;
     sp<IBinder> createDisplay(const String8& displayName, bool secure) override;
     void destroyDisplay(const sp<IBinder>& displayToken) override;
@@ -495,17 +592,14 @@ private:
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
                           int8_t compatibility) override;
     status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) override;
-    /* ------------------------------------------------------------------------
-     * DeathRecipient interface
-     */
+
+    // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 
-    /* ------------------------------------------------------------------------
-     * RefBase interface
-     */
+    // Implements RefBase.
     void onFirstRef() override;
 
-    /* ------------------------------------------------------------------------
+    /*
      * HWC2::ComposerCallback / HWComposer::EventHandler interface
      */
     void onVsyncReceived(int32_t sequenceId, hal::HWDisplayId hwcDisplayId, int64_t timestamp,
@@ -518,7 +612,7 @@ private:
             const hal::VsyncPeriodChangeTimeline& updatedTimeline) override;
     void onSeamlessPossible(int32_t sequenceId, hal::HWDisplayId display) override;
 
-    /* ------------------------------------------------------------------------
+    /*
      * ISchedulerCallback
      */
 
@@ -540,7 +634,7 @@ private:
     // Show spinner with refresh rate overlay
     bool mRefreshRateOverlaySpinner = false;
 
-    /* ------------------------------------------------------------------------
+    /*
      * Message handling
      */
     // Can only be called from the main thread or with mStateLock held
@@ -548,15 +642,6 @@ private:
     // Can only be called from the main thread or with mStateLock held
     void signalLayerUpdate();
     void signalRefresh();
-
-    struct ActiveConfigInfo {
-        HwcConfigIndexType configId;
-        Scheduler::ConfigEvent event = Scheduler::ConfigEvent::None;
-
-        bool operator!=(const ActiveConfigInfo& other) const {
-            return configId != other.configId || event != other.event;
-        }
-    };
 
     // called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
@@ -603,9 +688,6 @@ private:
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
 
-    using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
-    using VsyncModulator = scheduler::VsyncModulator;
-
     void initScheduler(PhysicalDisplayId primaryDisplayId);
     void updatePhaseConfiguration(const RefreshRate&);
     void setVsyncConfig(const VsyncModulator::VsyncConfig&);
@@ -616,11 +698,9 @@ private:
      */
     bool handlePageFlip();
 
-    /* ------------------------------------------------------------------------
+    /*
      * Transactions
      */
-    using TransactionSchedule = scheduler::TransactionSchedule;
-
     void applyTransactionState(const Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
@@ -652,24 +732,7 @@ private:
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
-
-protected:
-    virtual uint32_t setClientStateLocked(
-            const ComposerState& composerState, int64_t desiredPresentTime, int64_t postTime,
-            bool privileged,
-            std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
-            REQUIRES(mStateLock);
-    virtual void commitTransactionLocked();
-
-    // Used internally by computeLayerBounds() to gets the clip rectangle to use for the
-    // root layers on a particular display in layer-coordinate space. The
-    // layers (and effectively their children) will be clipped against this
-    // rectangle. The base behavior is to clip to the visible region of the
-    // display.
-    virtual FloatRect getLayerClipBoundsForDisplay(const DisplayDevice&) const;
-
-private:
-    /* ------------------------------------------------------------------------
+    /*
      * Layer management
      */
     status_t createLayer(const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
@@ -715,14 +778,8 @@ private:
     // Traverse through all the layers and compute and cache its bounds.
     void computeLayerBounds();
 
-    /* ------------------------------------------------------------------------
-     * Boot animation, on/off animations and screen capture
-     */
-
+    // Boot animation, on/off animations and screen capture
     void startBootAnim();
-
-    using TraverseLayersFunction = std::function<void(const LayerVector::Visitor&)>;
-    using RenderAreaFuture = std::future<std::unique_ptr<RenderArea>>;
 
     status_t renderScreenImplLocked(const RenderArea& renderArea,
                                     TraverseLayersFunction traverseLayers,
@@ -739,20 +796,12 @@ private:
     // matching ownerUid
     void traverseLayersInLayerStack(ui::LayerStack, const int32_t uid, const LayerVector::Visitor&);
 
-    sp<StartPropertySetThread> mStartPropertySetThread;
-
-    /* ------------------------------------------------------------------------
-     * Properties
-     */
     void readPersistentProperties();
 
-    /* ------------------------------------------------------------------------
-     * EGL
-     */
     size_t getMaxTextureSize() const;
     size_t getMaxViewportDims() const;
 
-    /* ------------------------------------------------------------------------
+    /*
      * Display and layer stack management
      */
     // called when starting, or restarting after system_server death
@@ -788,7 +837,7 @@ private:
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
 
-    /* ------------------------------------------------------------------------
+    /*
      * H/W composer
      */
 
@@ -814,7 +863,7 @@ private:
     // acquiring mStateLock.
     HWComposer& getHwComposer() const;
 
-    /* ------------------------------------------------------------------------
+    /*
      * Compositing
      */
     void invalidateHwcGeometry();
@@ -828,7 +877,7 @@ private:
 
     void postFrame();
 
-    /* ------------------------------------------------------------------------
+    /*
      * Display management
      */
     sp<DisplayDevice> setupNewDisplayDeviceInternal(
@@ -848,7 +897,7 @@ private:
 
     void dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected);
 
-    /* ------------------------------------------------------------------------
+    /*
      * VSYNC
      */
     nsecs_t getVsyncPeriodFromHWC() const REQUIRES(mStateLock);
@@ -912,33 +961,6 @@ private:
     /*
      * Debugging & dumpsys
      */
-    using DumpArgs = Vector<String16>;
-    using Dumper = std::function<void(const DumpArgs&, bool asProto, std::string&)>;
-
-    template <typename F, std::enable_if_t<!std::is_member_function_pointer_v<F>>* = nullptr>
-    static Dumper dumper(F&& dump) {
-        using namespace std::placeholders;
-        return std::bind(std::forward<F>(dump), _3);
-    }
-
-    template <typename F, std::enable_if_t<std::is_member_function_pointer_v<F>>* = nullptr>
-    Dumper dumper(F dump) {
-        using namespace std::placeholders;
-        return std::bind(dump, this, _3);
-    }
-
-    template <typename F>
-    Dumper argsDumper(F dump) {
-        using namespace std::placeholders;
-        return std::bind(dump, this, _1, _3);
-    }
-
-    template <typename F>
-    Dumper protoDumper(F dump) {
-        using namespace std::placeholders;
-        return std::bind(dump, this, _1, _2, _3);
-    }
-
     void dumpAllLocked(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
 
     void appendSfConfigString(std::string& result) const;
@@ -982,7 +1004,7 @@ private:
 
     void onFrameRateFlexibilityTokenReleased();
 
-    /* ------------------------------------------------------------------------
+    /*
      * VrFlinger
      */
     void resetDisplayState() REQUIRES(mStateLock);
@@ -992,10 +1014,26 @@ private:
 
     void updateColorMatrixLocked();
 
-    /* ------------------------------------------------------------------------
-     * Attributes
+    // Verify that transaction is being called by an approved process:
+    // either AID_GRAPHICS or AID_SYSTEM.
+    status_t CheckTransactCodeCredentials(uint32_t code);
+
+    /*
+     * Generic Layer Metadata
+     */
+    const std::unordered_map<std::string, uint32_t>& getGenericLayerMetadataKeyMap() const;
+
+    /*
+     * Misc
      */
 
+    std::optional<ActiveConfigInfo> getDesiredActiveConfig() EXCLUDES(mActiveConfigLock) {
+        std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        if (mDesiredActiveConfigChanged) return mDesiredActiveConfig;
+        return std::nullopt;
+    }
+
+    sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;
 
     // access must be protected by mStateLock
@@ -1057,17 +1095,8 @@ private:
     // did not change.
     bool mReusedClientComposition = false;
 
-    enum class BootStage {
-        BOOTLOADER,
-        BOOTANIMATION,
-        FINISHED,
-    };
     BootStage mBootStage = BootStage::BOOTLOADER;
 
-    struct HotplugEvent {
-        hal::HWDisplayId hwcDisplayId;
-        hal::Connection connection = hal::Connection::INVALID;
-    };
     std::vector<HotplugEvent> mPendingHotplugEvents GUARDED_BY(mStateLock);
 
     // this may only be written from the main thread with mStateLock held
@@ -1130,40 +1159,9 @@ private:
     uint32_t mTexturePoolSize = 0;
     std::vector<uint32_t> mTexturePool;
 
-    struct TransactionState {
-        TransactionState(const Vector<ComposerState>& composerStates,
-                         const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
-                         int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
-                         int64_t postTime, bool privileged, bool hasListenerCallbacks,
-                         std::vector<ListenerCallbacks> listenerCallbacks, int originPID,
-                         int originUID)
-              : states(composerStates),
-                displays(displayStates),
-                flags(transactionFlags),
-                desiredPresentTime(desiredPresentTime),
-                buffer(uncacheBuffer),
-                postTime(postTime),
-                privileged(privileged),
-                hasListenerCallbacks(hasListenerCallbacks),
-                listenerCallbacks(listenerCallbacks),
-                originPID(originPID),
-                originUID(originUID) {}
-
-        Vector<ComposerState> states;
-        Vector<DisplayState> displays;
-        uint32_t flags;
-        const int64_t desiredPresentTime;
-        client_cache_t buffer;
-        const int64_t postTime;
-        bool privileged;
-        bool hasListenerCallbacks;
-        std::vector<ListenerCallbacks> listenerCallbacks;
-        int originPID;
-        int originUID;
-    };
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IListenerHash> mTransactionQueues;
 
-    /* ------------------------------------------------------------------------
+    /*
      * Feature prototyping
      */
 
@@ -1171,10 +1169,6 @@ private:
     bool mHasPoweredOff = false;
 
     std::atomic<size_t> mNumLayers = 0;
-
-    // Verify that transaction is being called by an approved process:
-    // either AID_GRAPHICS or AID_SYSTEM.
-    status_t CheckTransactCodeCredentials(uint32_t code);
 
     // to linkToDeath
     sp<IBinder> mWindowManager;
@@ -1206,7 +1200,7 @@ private:
     SurfaceFlingerBE mBE;
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
 
-    /* ------------------------------------------------------------------------
+    /*
      * Scheduler
      */
     std::unique_ptr<Scheduler> mScheduler;
@@ -1224,29 +1218,6 @@ private:
 
     std::atomic<nsecs_t> mExpectedPresentTime = 0;
     hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
-
-    template <typename... Args,
-              typename Handler = VsyncModulator::VsyncConfigOpt (VsyncModulator::*)(Args...)>
-    void modulateVsync(Handler handler, Args... args) {
-        if (const auto config = (*mVsyncModulator.*handler)(args...)) {
-            setVsyncConfig(*config);
-        }
-    }
-
-    /* ------------------------------------------------------------------------
-     * Generic Layer Metadata
-     */
-    const std::unordered_map<std::string, uint32_t>& getGenericLayerMetadataKeyMap() const;
-
-    /* ------------------------------------------------------------------------
-     * Misc
-     */
-
-    std::optional<ActiveConfigInfo> getDesiredActiveConfig() EXCLUDES(mActiveConfigLock) {
-        std::lock_guard<std::mutex> lock(mActiveConfigLock);
-        if (mDesiredActiveConfigChanged) return mDesiredActiveConfig;
-        return std::nullopt;
-    }
 
     std::mutex mActiveConfigLock;
     // This bit is set once we start setting the config. We read from this bit during the
