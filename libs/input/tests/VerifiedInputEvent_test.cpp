@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <attestation/HmacKeyManager.h>
 #include <gtest/gtest.h>
 #include <input/Input.h>
 

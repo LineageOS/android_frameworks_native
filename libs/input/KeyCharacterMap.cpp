@@ -24,9 +24,10 @@
 #endif
 
 #include <android/keycodes.h>
+#include <attestation/HmacKeyManager.h>
 #include <input/InputEventLabels.h>
-#include <input/Keyboard.h>
 #include <input/KeyCharacterMap.h>
+#include <input/Keyboard.h>
 
 #include <utils/Log.h>
 #include <utils/Errors.h>

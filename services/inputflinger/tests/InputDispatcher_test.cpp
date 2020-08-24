@@ -294,70 +294,6 @@ private:
     }
 };
 
-// --- HmacKeyManagerTest ---
-
-class HmacKeyManagerTest : public testing::Test {
-protected:
-    HmacKeyManager mHmacKeyManager;
-};
-
-/**
- * Ensure that separate calls to sign the same data are generating the same key.
- * We avoid asserting against INVALID_HMAC. Since the key is random, there is a non-zero chance
- * that a specific key and data combination would produce INVALID_HMAC, which would cause flaky
- * tests.
- */
-TEST_F(HmacKeyManagerTest, GeneratedHmac_IsConsistent) {
-    KeyEvent event = getTestKeyEvent();
-    VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEvent(event);
-
-    std::array<uint8_t, 32> hmac1 = mHmacKeyManager.sign(verifiedEvent);
-    std::array<uint8_t, 32> hmac2 = mHmacKeyManager.sign(verifiedEvent);
-    ASSERT_EQ(hmac1, hmac2);
-}
-
-/**
- * Ensure that changes in VerifiedKeyEvent produce a different hmac.
- */
-TEST_F(HmacKeyManagerTest, GeneratedHmac_ChangesWhenFieldsChange) {
-    KeyEvent event = getTestKeyEvent();
-    VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEvent(event);
-    std::array<uint8_t, 32> initialHmac = mHmacKeyManager.sign(verifiedEvent);
-
-    verifiedEvent.deviceId += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-
-    verifiedEvent.source += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-
-    verifiedEvent.eventTimeNanos += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-
-    verifiedEvent.displayId += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-
-    verifiedEvent.action += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-
-    verifiedEvent.downTimeNanos += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-
-    verifiedEvent.flags += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-
-    verifiedEvent.keyCode += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-
-    verifiedEvent.scanCode += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-
-    verifiedEvent.metaState += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-
-    verifiedEvent.repeatCount += 1;
-    ASSERT_NE(initialHmac, mHmacKeyManager.sign(verifiedEvent));
-}
-
 // --- InputDispatcherTest ---
 
 class InputDispatcherTest : public testing::Test {
@@ -2025,6 +1961,63 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
     EXPECT_EQ(motionArgs.flags & VERIFIED_MOTION_EVENT_FLAGS, verifiedMotion.flags);
     EXPECT_EQ(motionArgs.metaState, verifiedMotion.metaState);
     EXPECT_EQ(motionArgs.buttonState, verifiedMotion.buttonState);
+}
+
+/**
+ * Ensure that separate calls to sign the same data are generating the same key.
+ * We avoid asserting against INVALID_HMAC. Since the key is random, there is a non-zero chance
+ * that a specific key and data combination would produce INVALID_HMAC, which would cause flaky
+ * tests.
+ */
+TEST_F(InputDispatcherTest, GeneratedHmac_IsConsistent) {
+    KeyEvent event = getTestKeyEvent();
+    VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEvent(event);
+
+    std::array<uint8_t, 32> hmac1 = mDispatcher->sign(verifiedEvent);
+    std::array<uint8_t, 32> hmac2 = mDispatcher->sign(verifiedEvent);
+    ASSERT_EQ(hmac1, hmac2);
+}
+
+/**
+ * Ensure that changes in VerifiedKeyEvent produce a different hmac.
+ */
+TEST_F(InputDispatcherTest, GeneratedHmac_ChangesWhenFieldsChange) {
+    KeyEvent event = getTestKeyEvent();
+    VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEvent(event);
+    std::array<uint8_t, 32> initialHmac = mDispatcher->sign(verifiedEvent);
+
+    verifiedEvent.deviceId += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
+
+    verifiedEvent.source += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
+
+    verifiedEvent.eventTimeNanos += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
+
+    verifiedEvent.displayId += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
+
+    verifiedEvent.action += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
+
+    verifiedEvent.downTimeNanos += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
+
+    verifiedEvent.flags += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
+
+    verifiedEvent.keyCode += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
+
+    verifiedEvent.scanCode += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
+
+    verifiedEvent.metaState += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
+
+    verifiedEvent.repeatCount += 1;
+    ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
 }
 
 class InputDispatcherKeyRepeatTest : public InputDispatcherTest {

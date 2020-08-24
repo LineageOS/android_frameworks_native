@@ -21,6 +21,7 @@
 #include <math.h>
 
 #include <android-base/stringprintf.h>
+#include <attestation/HmacKeyManager.h>
 #include <gtest/gtest.h>
 #include <input/VelocityTracker.h>
 

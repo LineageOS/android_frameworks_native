@@ -48,6 +48,9 @@ cc_defaults {
         "libui",
         "libutils",
     ],
+    static_libs: [
+        "libattestation",
+    ],
     header_libs: [
         "libinputdispatcher_headers",
     ],
