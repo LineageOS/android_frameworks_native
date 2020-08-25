@@ -36,9 +36,7 @@ public:
 
     ~BufferStateLayer() override;
 
-    // -----------------------------------------------------------------------
-    // Interface implementation for Layer
-    // -----------------------------------------------------------------------
+    // Implements Layer.
     const char* getType() const override { return "BufferStateLayer"; }
 
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
@@ -117,6 +115,8 @@ protected:
     uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
 
 private:
+    friend class SlotGenerationTest;
+
     bool updateFrameEventHistory(const sp<Fence>& acquireFence, nsecs_t postedTime,
                                  nsecs_t requestedPresentTime);
 
@@ -141,8 +141,6 @@ private:
     // Crop that applies to the buffer
     Rect computeCrop(const State& s);
 
-private:
-    friend class SlotGenerationTest;
     bool willPresentCurrentTransaction() const;
 
     static const std::array<float, 16> IDENTITY_MATRIX;
