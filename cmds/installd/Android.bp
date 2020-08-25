@@ -24,9 +24,6 @@ cc_defaults {
         "view_compiler.cpp",
         ":installd_aidl",
     ],
-    header_libs: [
-        "dex2oat_headers",
-    ],
     shared_libs: [
         "libbase",
         "libbinder",
@@ -238,8 +235,6 @@ cc_binary {
         "utils_default.cpp",
         "view_compiler.cpp",
     ],
-
-    header_libs: ["dex2oat_headers"],
 
     static_libs: [
         "libdiskusage",
