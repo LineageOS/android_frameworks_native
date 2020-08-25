@@ -83,6 +83,7 @@ TEST(LayerStateTest, ParcellingScreenCaptureResults) {
     results.buffer = new GraphicBuffer(100, 200, PIXEL_FORMAT_RGBA_8888, 1, 0);
     results.capturedSecureLayers = true;
     results.capturedDataspace = ui::Dataspace::DISPLAY_P3;
+    results.result = BAD_VALUE;
 
     Parcel p;
     results.write(p);
@@ -98,6 +99,7 @@ TEST(LayerStateTest, ParcellingScreenCaptureResults) {
     ASSERT_EQ(results.buffer->getPixelFormat(), results2.buffer->getPixelFormat());
     ASSERT_EQ(results.capturedSecureLayers, results2.capturedSecureLayers);
     ASSERT_EQ(results.capturedDataspace, results2.capturedDataspace);
+    ASSERT_EQ(results.result, results2.result);
 }
 
 } // namespace test
