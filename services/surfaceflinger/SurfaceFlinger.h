@@ -597,6 +597,9 @@ private:
                           int8_t compatibility) override;
     status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) override;
 
+    status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
+                                   int64_t frameTimelineVsyncId) override;
+
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 

@@ -1150,6 +1150,38 @@ public:
 
         return NO_ERROR;
     }
+
+    virtual status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
+                                           int64_t frameTimelineVsyncId) {
+        Parcel data, reply;
+        status_t err = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (err != NO_ERROR) {
+            ALOGE("setFrameTimelineVsync: failed writing interface token: %s (%d)", strerror(-err),
+                  -err);
+            return err;
+        }
+
+        err = data.writeStrongBinder(IInterface::asBinder(surface));
+        if (err != NO_ERROR) {
+            ALOGE("setFrameTimelineVsync: failed writing strong binder: %s (%d)", strerror(-err),
+                  -err);
+            return err;
+        }
+
+        err = data.writeInt64(frameTimelineVsyncId);
+        if (err != NO_ERROR) {
+            ALOGE("setFrameTimelineVsync: failed writing int64_t: %s (%d)", strerror(-err), -err);
+            return err;
+        }
+
+        err = remote()->transact(BnSurfaceComposer::SET_FRAME_TIMELINE_VSYNC, data, &reply);
+        if (err != NO_ERROR) {
+            ALOGE("setFrameTimelineVsync: failed to transact: %s (%d)", strerror(-err), err);
+            return err;
+        }
+
+        return reply.readInt32();
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1948,6 +1980,33 @@ status_t BnSurfaceComposer::onTransact(
             if (result == NO_ERROR) {
                 reply->writeStrongBinder(token);
             }
+            return NO_ERROR;
+        }
+        case SET_FRAME_TIMELINE_VSYNC: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> binder;
+            status_t err = data.readStrongBinder(&binder);
+            if (err != NO_ERROR) {
+                ALOGE("setFrameTimelineVsync: failed to read strong binder: %s (%d)",
+                      strerror(-err), -err);
+                return err;
+            }
+            sp<IGraphicBufferProducer> surface = interface_cast<IGraphicBufferProducer>(binder);
+            if (!surface) {
+                ALOGE("setFrameTimelineVsync: failed to cast to IGraphicBufferProducer: %s (%d)",
+                      strerror(-err), -err);
+                return err;
+            }
+            int64_t frameTimelineVsyncId;
+            err = data.readInt64(&frameTimelineVsyncId);
+            if (err != NO_ERROR) {
+                ALOGE("setFrameTimelineVsync: failed to read int64_t: %s (%d)", strerror(-err),
+                      -err);
+                return err;
+            }
+
+            status_t result = setFrameTimelineVsync(surface, frameTimelineVsyncId);
+            reply->writeInt32(result);
             return NO_ERROR;
         }
         default: {

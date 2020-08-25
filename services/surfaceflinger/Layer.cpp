@@ -1435,6 +1435,10 @@ bool Layer::setFrameRate(FrameRate frameRate) {
     return true;
 }
 
+void Layer::setFrameTimelineVsync(int64_t frameTimelineVsyncId) {
+    mFrameTimelineVsyncId = frameTimelineVsyncId;
+}
+
 Layer::FrameRate Layer::getFrameRateForLayerTree() const {
     const auto frameRate = getDrawingState().frameRate;
     if (frameRate.rate > 0 || frameRate.type == FrameRateCompatibility::NoVote) {

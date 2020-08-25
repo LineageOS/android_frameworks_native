@@ -868,7 +868,14 @@ public:
         return NO_ERROR;
     }
 
-    status_t acquireFrameRateFlexibilityToken(sp<IBinder>* /*outToken*/) { return NO_ERROR; }
+    status_t acquireFrameRateFlexibilityToken(sp<IBinder>* /*outToken*/) override {
+        return NO_ERROR;
+    }
+
+    status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& /*surface*/,
+                                   int64_t /*frameTimelineVsyncId*/) override {
+        return NO_ERROR;
+    }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }
