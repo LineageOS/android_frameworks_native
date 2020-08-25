@@ -43,6 +43,7 @@ using scheduler::LayerHistory;
 class DispSync;
 class FenceTime;
 class InjectVSyncSource;
+class PredictedVsyncTracer;
 
 namespace scheduler {
 class VSyncDispatch;
@@ -137,6 +138,7 @@ public:
 
     void dump(std::string&) const;
     void dump(ConnectionHandle, std::string&) const;
+    void dumpVSync(std::string&) const;
 
     // Get the appropriate refresh for current conditions.
     std::optional<HwcConfigIndexType> getPreferredConfigId();
@@ -284,6 +286,8 @@ private:
     std::optional<hal::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline
             GUARDED_BY(mVsyncTimelineLock);
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
+
+    const std::unique_ptr<PredictedVsyncTracer> mPredictedVsyncTracer;
 };
 
 } // namespace android

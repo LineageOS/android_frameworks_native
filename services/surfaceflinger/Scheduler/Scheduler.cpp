@@ -95,6 +95,26 @@ const char* toContentDetectionString(bool useContentDetection, bool useContentDe
 
 } // namespace
 
+class PredictedVsyncTracer {
+public:
+    PredictedVsyncTracer(scheduler::VSyncDispatch& dispatch)
+          : mRegistration(dispatch, std::bind(&PredictedVsyncTracer::callback, this),
+                          "PredictedVsyncTracer") {
+        scheduleRegistration();
+    }
+
+private:
+    TracedOrdinal<bool> mParity = {"VSYNC-predicted", 0};
+    scheduler::VSyncCallbackRegistration mRegistration;
+
+    void scheduleRegistration() { mRegistration.schedule({0, 0, 0}); }
+
+    void callback() {
+        mParity = !mParity;
+        scheduleRegistration();
+    }
+};
+
 Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback)
       : Scheduler(configs, callback,
                   {.supportKernelTimer = sysprop::support_kernel_idle_timer(false),
@@ -145,7 +165,11 @@ Scheduler::Scheduler(VsyncSchedule schedule, const scheduler::RefreshRateConfigs
         mVsyncSchedule(std::move(schedule)),
         mLayerHistory(std::move(layerHistory)),
         mSchedulerCallback(schedulerCallback),
-        mRefreshRateConfigs(configs) {
+        mRefreshRateConfigs(configs),
+        mPredictedVsyncTracer(
+                base::GetBoolProperty("debug.sf.show_predicted_vsync", false)
+                        ? std::make_unique<PredictedVsyncTracer>(*mVsyncSchedule.dispatch)
+                        : nullptr) {
     mSchedulerCallback.setVsyncEnabled(false);
 }
 
@@ -163,9 +187,9 @@ Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(Options options) {
 
     // TODO(b/144707443): Tune constants.
     constexpr size_t pendingFenceLimit = 20;
-    auto sync = std::make_unique<scheduler::VSyncReactor>(std::move(clock), *dispatch, *tracker,
-                                                          pendingFenceLimit,
-                                                          options.supportKernelTimer);
+    auto sync =
+            std::make_unique<scheduler::VSyncReactor>(std::move(clock), *tracker, pendingFenceLimit,
+                                                      options.supportKernelTimer);
     return {std::move(sync), std::move(tracker), std::move(dispatch)};
 }
 
@@ -598,6 +622,15 @@ void Scheduler::dump(std::string& result) const {
                   toContentDetectionString(mOptions.useContentDetection,
                                            mOptions.useContentDetectionV2),
                   mLayerHistory ? mLayerHistory->dump().c_str() : "(no layer history)");
+}
+
+void Scheduler::dumpVSync(std::string& s) const {
+    using base::StringAppendF;
+
+    StringAppendF(&s, "VSyncReactor:\n");
+    mVsyncSchedule.sync->dump(s);
+    StringAppendF(&s, "VSyncDispatch:\n");
+    mVsyncSchedule.dispatch->dump(s);
 }
 
 template <class T>
