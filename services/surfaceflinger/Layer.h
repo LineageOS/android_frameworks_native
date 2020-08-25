@@ -55,8 +55,6 @@ using namespace android::surfaceflinger;
 
 namespace android {
 
-// ---------------------------------------------------------------------------
-
 class Client;
 class Colorizer;
 class DisplayDevice;
@@ -72,8 +70,6 @@ struct LayerFECompositionState;
 namespace impl {
 class SurfaceInterceptor;
 }
-
-// ---------------------------------------------------------------------------
 
 struct LayerCreationArgs {
     LayerCreationArgs(SurfaceFlinger*, sp<Client>, std::string name, uint32_t w, uint32_t h,
@@ -106,14 +102,6 @@ class Layer : public virtual RefBase, compositionengine::LayerFE {
     static constexpr int32_t PRIORITY_NOT_FOCUSED_WITH_MODE = 2;
 
 public:
-    mutable bool contentDirty{false};
-    Region surfaceDamageRegion;
-
-    // Layer serial number.  This gives layers an explicit ordering, so we
-    // have a stable sort order when their layer stack and Z-order are
-    // the same.
-    int32_t sequence{sSequence++};
-
     enum { // flags for doTransaction()
         eDontUpdateGeometryState = 0x00000001,
         eVisibleRegion = 0x00000002,
@@ -281,17 +269,56 @@ public:
         ui::Transform::RotationFlags fixedTransformHint;
     };
 
+    /*
+     * Trivial class, used to ensure that mFlinger->onLayerDestroyed(mLayer)
+     * is called.
+     */
+    class LayerCleaner {
+        sp<SurfaceFlinger> mFlinger;
+        sp<Layer> mLayer;
+
+    protected:
+        ~LayerCleaner() {
+            // destroy client resources
+            mFlinger->onHandleDestroyed(mLayer);
+        }
+
+    public:
+        LayerCleaner(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
+              : mFlinger(flinger), mLayer(layer) {}
+    };
+
+    /*
+     * The layer handle is just a BBinder object passed to the client
+     * (remote process) -- we don't keep any reference on our side such that
+     * the dtor is called when the remote side let go of its reference.
+     *
+     * LayerCleaner ensures that mFlinger->onLayerDestroyed() is called for
+     * this layer when the handle is destroyed.
+     */
+    class Handle : public BBinder, public LayerCleaner {
+    public:
+        Handle(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
+              : LayerCleaner(flinger, layer), owner(layer) {}
+
+        wp<Layer> owner;
+    };
+
     explicit Layer(const LayerCreationArgs& args);
     virtual ~Layer();
 
-    void onFirstRef() override;
+    static bool isLayerFocusedBasedOnPriority(int32_t priority);
+    static void miniDumpHeader(std::string& result);
+    static std::string frameRateCompatibilityString(FrameRateCompatibility compatibility);
 
-    InputWindowInfo::Type getWindowType() const { return mWindowType; }
+    // Provide unique string for each class type in the Layer hierarchy
+    virtual const char* getType() const = 0;
 
-    void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
-    bool getPrimaryDisplayOnly() const { return mPrimaryDisplayOnly; }
+    // true if this layer is visible, false otherwise
+    virtual bool isVisible() const = 0;
 
-    // ------------------------------------------------------------------------
+    virtual sp<Layer> createClone() = 0;
+
     // Geometry setting functions.
     //
     // The following group of functions are used to specify the layers
@@ -364,13 +391,9 @@ public:
     virtual void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber);
     virtual bool setOverrideScalingMode(int32_t overrideScalingMode);
     virtual bool setMetadata(const LayerMetadata& data);
-    bool reparentChildren(const sp<IBinder>& newParentHandle);
-    void reparentChildren(const sp<Layer>& newParent);
     virtual void setChildrenDrawingParent(const sp<Layer>&);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
     virtual bool detachChildren();
-    bool attachChildren();
-    bool isLayerDetached() const { return mLayerDetached; }
     virtual bool setColorTransform(const mat4& matrix);
     virtual mat4 getColorTransform() const;
     virtual bool hasColorTransform() const;
@@ -403,22 +426,12 @@ public:
     }
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
     virtual bool setColorSpaceAgnostic(const bool agnostic);
-    bool setShadowRadius(float shadowRadius);
     virtual bool setFrameRateSelectionPriority(int32_t priority);
     virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
     //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
     //  rate priority from its parent.
     virtual int32_t getFrameRateSelectionPriority() const;
-    static bool isLayerFocusedBasedOnPriority(int32_t priority);
-
     virtual ui::Dataspace getDataSpace() const { return ui::Dataspace::UNKNOWN; }
-
-    // Before color management is introduced, contents on Android have to be
-    // desaturated in order to match what they appears like visually.
-    // With color management, these contents will appear desaturated, thus
-    // needed to be saturated so that they match what they are designed for
-    // visually.
-    bool isLegacyDataSpace() const;
 
     virtual sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const;
     virtual compositionengine::LayerFECompositionState* editCompositionState();
@@ -428,6 +441,194 @@ public:
     // one empty rect.
     virtual void useSurfaceDamage() {}
     virtual void useEmptyDamage() {}
+
+    /*
+     * isOpaque - true if this surface is opaque
+     *
+     * This takes into account the buffer format (i.e. whether or not the
+     * pixel format includes an alpha channel) and the "opaque" flag set
+     * on the layer.  It does not examine the current plane alpha value.
+     */
+    virtual bool isOpaque(const Layer::State&) const { return false; }
+
+    /*
+     * Returns whether this layer can receive input.
+     */
+    virtual bool canReceiveInput() const;
+
+    /*
+     * isProtected - true if the layer may contain protected content in the
+     * GRALLOC_USAGE_PROTECTED sense.
+     */
+    virtual bool isProtected() const { return false; }
+
+    /*
+     * isFixedSize - true if content has a fixed size
+     */
+    virtual bool isFixedSize() const { return true; }
+
+    /*
+     * usesSourceCrop - true if content should use a source crop
+     */
+    virtual bool usesSourceCrop() const { return false; }
+
+    // Most layers aren't created from the main thread, and therefore need to
+    // grab the SF state lock to access HWC, but ContainerLayer does, so we need
+    // to avoid grabbing the lock again to avoid deadlock
+    virtual bool isCreatedFromMainThread() const { return false; }
+
+    virtual Geometry getActiveGeometry(const Layer::State& s) const { return s.active_legacy; }
+    virtual uint32_t getActiveWidth(const Layer::State& s) const { return s.active_legacy.w; }
+    virtual uint32_t getActiveHeight(const Layer::State& s) const { return s.active_legacy.h; }
+    virtual ui::Transform getActiveTransform(const Layer::State& s) const {
+        return s.active_legacy.transform;
+    }
+    virtual Region getActiveTransparentRegion(const Layer::State& s) const {
+        return s.activeTransparentRegion_legacy;
+    }
+    virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
+    virtual bool needsFiltering(const DisplayDevice*) const { return false; }
+
+    // True if this layer requires filtering
+    // This method is distinct from needsFiltering() in how the filter
+    // requirement is computed. needsFiltering() compares displayFrame and crop,
+    // where as this method transforms the displayFrame to layer-stack space
+    // first. This method should be used if there is no physical display to
+    // project onto when taking screenshots, as the filtering requirements are
+    // different.
+    // If the parent transform needs to be undone when capturing the layer, then
+    // the inverse parent transform is also required.
+    virtual bool needsFilteringForScreenshots(const DisplayDevice*, const ui::Transform&) const {
+        return false;
+    }
+
+    virtual void updateCloneBufferInfo(){};
+
+    virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
+
+    virtual bool isHdrY410() const { return false; }
+
+    virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
+
+    /*
+     * called after composition.
+     * returns true if the layer latched a new buffer this frame.
+     */
+    virtual bool onPostComposition(const DisplayDevice*,
+                                   const std::shared_ptr<FenceTime>& /*glDoneFence*/,
+                                   const std::shared_ptr<FenceTime>& /*presentFence*/,
+                                   const CompositorTiming&) {
+        return false;
+    }
+
+    // If a buffer was replaced this frame, release the former buffer
+    virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
+
+    virtual void finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& /*glDoneFence*/,
+                                           const CompositorTiming& /*compositorTiming*/) {}
+
+    /*
+     * latchBuffer - called each time the screen is redrawn and returns whether
+     * the visible regions need to be recomputed (this is a fairly heavy
+     * operation, so this should be set only if needed). Typically this is used
+     * to figure out if the content or size of a surface has changed.
+     */
+    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/,
+                             nsecs_t /*expectedPresentTime*/) {
+        return false;
+    }
+
+    virtual bool isBufferLatched() const { return false; }
+
+    virtual void latchAndReleaseBuffer() {}
+
+    /*
+     * returns the rectangle that crops the content of the layer and scales it
+     * to the layer's size.
+     */
+    virtual Rect getBufferCrop() const { return Rect(); }
+
+    /*
+     * Returns the transform applied to the buffer.
+     */
+    virtual uint32_t getBufferTransform() const { return 0; }
+
+    virtual sp<GraphicBuffer> getBuffer() const { return nullptr; }
+
+    virtual ui::Transform::RotationFlags getTransformHint() const { return ui::Transform::ROT_0; }
+
+    /*
+     * Returns if a frame is ready
+     */
+    virtual bool hasReadyFrame() const { return false; }
+
+    virtual int32_t getQueuedFrameCount() const { return 0; }
+
+    virtual void pushPendingState();
+
+    /**
+     * Returns active buffer size in the correct orientation. Buffer size is determined by undoing
+     * any buffer transformations. If the layer has no buffer then return INVALID_RECT.
+     */
+    virtual Rect getBufferSize(const Layer::State&) const { return Rect::INVALID_RECT; }
+
+    /**
+     * Returns the source bounds. If the bounds are not defined, it is inferred from the
+     * buffer size. Failing that, the bounds are determined from the passed in parent bounds.
+     * For the root layer, this is the display viewport size.
+     */
+    virtual FloatRect computeSourceBounds(const FloatRect& parentBounds) const {
+        return parentBounds;
+    }
+    virtual FrameRate getFrameRateForLayerTree() const;
+
+    virtual std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool /*forceFlush*/) {
+        return {};
+    }
+
+    virtual bool getTransformToDisplayInverse() const { return false; }
+
+    // Returns how rounded corners should be drawn for this layer.
+    // This will traverse the hierarchy until it reaches its root, finding topmost rounded
+    // corner definition and converting it into current layer's coordinates.
+    // As of now, only 1 corner radius per display list is supported. Subsequent ones will be
+    // ignored.
+    virtual RoundedCornerState getRoundedCornerState() const;
+
+    virtual void notifyAvailableFrames(nsecs_t /*expectedPresentTime*/) {}
+    virtual PixelFormat getPixelFormat() const { return PIXEL_FORMAT_NONE; }
+    /**
+     * Return whether this layer needs an input info. For most layer types
+     * this is only true if they explicitly set an input-info but BufferLayer
+     * overrides this so we can generate input-info for Buffered layers that don't
+     * have them (for input occlusion detection checks).
+     */
+    virtual bool needsInputInfo() const { return hasInputInfo(); }
+
+    // Implements RefBase.
+    void onFirstRef() override;
+
+    // implements compositionengine::LayerFE
+    const compositionengine::LayerFECompositionState* getCompositionState() const override;
+    bool onPreComposition(nsecs_t) override;
+    void prepareCompositionState(compositionengine::LayerFE::StateSubset subset) override;
+    std::vector<compositionengine::LayerFE::LayerSettings> prepareClientCompositionList(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
+    void onLayerDisplayed(const sp<Fence>& releaseFence) override;
+    const char* getDebugName() const override;
+
+    bool reparentChildren(const sp<IBinder>& newParentHandle);
+    void reparentChildren(const sp<Layer>& newParent);
+    bool attachChildren();
+    bool isLayerDetached() const { return mLayerDetached; }
+    bool setShadowRadius(float shadowRadius);
+
+    // Before color management is introduced, contents on Android have to be
+    // desaturated in order to match what they appears like visually.
+    // With color management, these contents will appear desaturated, thus
+    // needed to be saturated so that they match what they are designed for
+    // visually.
+    bool isLegacyDataSpace() const;
 
     uint32_t getTransactionFlags() const { return mTransactionFlags; }
     uint32_t getTransactionFlags(uint32_t flags);
@@ -464,31 +665,11 @@ public:
     // only used within a single layer.
     uint64_t getCurrentBufferId() const { return getBuffer() ? getBuffer()->getId() : 0; }
 
-    // -----------------------------------------------------------------------
-    // Virtuals
-
-    // Provide unique string for each class type in the Layer hierarchy
-    virtual const char* getType() const = 0;
-
-    /*
-     * isOpaque - true if this surface is opaque
-     *
-     * This takes into account the buffer format (i.e. whether or not the
-     * pixel format includes an alpha channel) and the "opaque" flag set
-     * on the layer.  It does not examine the current plane alpha value.
-     */
-    virtual bool isOpaque(const Layer::State&) const { return false; }
-
     /*
      * isSecure - true if this surface is secure, that is if it prevents
      * screenshots or VNC servers.
      */
     bool isSecure() const;
-
-    /*
-     * isVisible - true if this layer is visible, false otherwise
-     */
-    virtual bool isVisible() const = 0;
 
     /*
      * isHiddenByPolicy - true if this layer has been forced invisible.
@@ -497,32 +678,6 @@ public:
      * policy, but it still can not be visible.
      */
     bool isHiddenByPolicy() const;
-
-    /*
-     * Returns whether this layer can receive input.
-     */
-    virtual bool canReceiveInput() const;
-
-    /*
-     * isProtected - true if the layer may contain protected content in the
-     * GRALLOC_USAGE_PROTECTED sense.
-     */
-    virtual bool isProtected() const { return false; }
-
-    /*
-     * isFixedSize - true if content has a fixed size
-     */
-    virtual bool isFixedSize() const { return true; }
-
-    /*
-     * usesSourceCrop - true if content should use a source crop
-     */
-    virtual bool usesSourceCrop() const { return false; }
-
-    // Most layers aren't created from the main thread, and therefore need to
-    // grab the SF state lock to access HWC, but ContainerLayer does, so we need
-    // to avoid grabbing the lock again to avoid deadlock
-    virtual bool isCreatedFromMainThread() const { return false; }
 
     bool isRemovedFromCurrentState() const;
 
@@ -538,125 +693,18 @@ public:
     void writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet,
                                  uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
 
-    virtual Geometry getActiveGeometry(const Layer::State& s) const { return s.active_legacy; }
-    virtual uint32_t getActiveWidth(const Layer::State& s) const { return s.active_legacy.w; }
-    virtual uint32_t getActiveHeight(const Layer::State& s) const { return s.active_legacy.h; }
-    virtual ui::Transform getActiveTransform(const Layer::State& s) const {
-        return s.active_legacy.transform;
-    }
-    virtual Region getActiveTransparentRegion(const Layer::State& s) const {
-        return s.activeTransparentRegion_legacy;
-    }
-    virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
-    virtual bool needsFiltering(const DisplayDevice*) const { return false; }
-    // True if this layer requires filtering
-    // This method is distinct from needsFiltering() in how the filter
-    // requirement is computed. needsFiltering() compares displayFrame and crop,
-    // where as this method transforms the displayFrame to layer-stack space
-    // first. This method should be used if there is no physical display to
-    // project onto when taking screenshots, as the filtering requirements are
-    // different.
-    // If the parent transform needs to be undone when capturing the layer, then
-    // the inverse parent transform is also required.
-    virtual bool needsFilteringForScreenshots(const DisplayDevice*, const ui::Transform&) const {
-        return false;
-    }
+    InputWindowInfo::Type getWindowType() const { return mWindowType; }
 
-    // This layer is not a clone, but it's the parent to the cloned hierarchy. The
-    // variable mClonedChild represents the top layer that will be cloned so this
-    // layer will be the parent of mClonedChild.
-    // The layers in the cloned hierarchy will match the lifetime of the real layers. That is
-    // if the real layer is destroyed, then the clone layer will also be destroyed.
-    sp<Layer> mClonedChild;
+    void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
+    bool getPrimaryDisplayOnly() const { return mPrimaryDisplayOnly; }
 
-    virtual sp<Layer> createClone() = 0;
     void updateMirrorInfo();
-    virtual void updateCloneBufferInfo(){};
 
-protected:
-    sp<compositionengine::LayerFE> asLayerFE() const;
-    sp<Layer> getClonedFrom() { return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr; }
-    bool isClone() { return mClonedFrom != nullptr; }
-    bool isClonedFromAlive() { return getClonedFrom() != nullptr; }
-
-    virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom);
-
-    void updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
-    void updateClonedChildren(const sp<Layer>& mirrorRoot,
-                              std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
-    void updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
-    void addChildToDrawing(const sp<Layer>&);
-    void updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
-    virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
-            compositionengine::LayerFE::ClientCompositionTargetSettings&);
-    virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareShadowClientComposition(
-            const LayerFE::LayerSettings&, const Rect& layerStackRect,
-            ui::Dataspace outputDataspace);
-    // Modifies the passed in layer settings to clear the contents. If the blackout flag is set,
-    // the settings clears the content with a solid black fill.
-    void prepareClearClientComposition(LayerFE::LayerSettings&, bool blackout) const;
-
-public:
-    /*
-     * compositionengine::LayerFE overrides
-     */
-    const compositionengine::LayerFECompositionState* getCompositionState() const override;
-    bool onPreComposition(nsecs_t) override;
-    void prepareCompositionState(compositionengine::LayerFE::StateSubset subset) override;
-    std::vector<compositionengine::LayerFE::LayerSettings> prepareClientCompositionList(
-            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
-    void onLayerDisplayed(const sp<Fence>& releaseFence) override;
-    const char* getDebugName() const override;
-
-protected:
-    void prepareBasicGeometryCompositionState();
-    void prepareGeometryCompositionState();
-    virtual void preparePerFrameCompositionState();
-    void prepareCursorCompositionState();
-
-public:
-    virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
-
-    virtual bool isHdrY410() const { return false; }
-
-    virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
-
-    /*
-     * called after composition.
-     * returns true if the layer latched a new buffer this frame.
-     */
-    virtual bool onPostComposition(const DisplayDevice*,
-                                   const std::shared_ptr<FenceTime>& /*glDoneFence*/,
-                                   const std::shared_ptr<FenceTime>& /*presentFence*/,
-                                   const CompositorTiming&) {
-        return false;
-    }
-
-    // If a buffer was replaced this frame, release the former buffer
-    virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
-
-    virtual void finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& /*glDoneFence*/,
-                                           const CompositorTiming& /*compositorTiming*/) {}
     /*
      * doTransaction - process the transaction. This is a good place to figure
      * out which attributes of the surface have changed.
      */
     uint32_t doTransaction(uint32_t transactionFlags);
-
-    /*
-     * latchBuffer - called each time the screen is redrawn and returns whether
-     * the visible regions need to be recomputed (this is a fairly heavy
-     * operation, so this should be set only if needed). Typically this is used
-     * to figure out if the content or size of a surface has changed.
-     */
-    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/,
-                             nsecs_t /*expectedPresentTime*/) {
-        return false;
-    }
-
-    virtual bool isBufferLatched() const { return false; }
-
-    virtual void latchAndReleaseBuffer() {}
 
     /*
      * Remove relative z for the layer if its relative parent is not part of the
@@ -685,36 +733,12 @@ public:
      */
     void updateTransformHint(ui::Transform::RotationFlags);
 
-    /*
-     * returns the rectangle that crops the content of the layer and scales it
-     * to the layer's size.
-     */
-    virtual Rect getBufferCrop() const { return Rect(); }
-
-    /*
-     * Returns the transform applied to the buffer.
-     */
-    virtual uint32_t getBufferTransform() const { return 0; }
-
-    virtual sp<GraphicBuffer> getBuffer() const { return nullptr; }
-
-    virtual ui::Transform::RotationFlags getTransformHint() const { return ui::Transform::ROT_0; }
-
-    /*
-     * Returns if a frame is ready
-     */
-    virtual bool hasReadyFrame() const { return false; }
-
-    virtual int32_t getQueuedFrameCount() const { return 0; }
-
-    // -----------------------------------------------------------------------
     inline const State& getDrawingState() const { return mDrawingState; }
     inline const State& getCurrentState() const { return mCurrentState; }
     inline State& getCurrentState() { return mCurrentState; }
 
     LayerDebugInfo getLayerDebugInfo(const DisplayDevice*) const;
 
-    static void miniDumpHeader(std::string& result);
     void miniDump(std::string& result, const DisplayDevice&) const;
     void dumpFrameStats(std::string& result) const;
     void dumpFrameEvents(std::string& result);
@@ -722,16 +746,9 @@ public:
     void clearFrameStats();
     void logFrameStats();
     void getFrameStats(FrameStats* outStats) const;
-
-    virtual std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool /*forceFlush*/) {
-        return {};
-    }
-
     void onDisconnect();
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newEntry,
                                   FrameEventHistoryDelta* outDelta);
-
-    virtual bool getTransformToDisplayInverse() const { return false; }
 
     ui::Transform getTransform() const;
 
@@ -748,13 +765,6 @@ public:
     // the layer(off drawing thread) and the hint should be available before the producer
     // is ready to acquire a buffer.
     ui::Transform::RotationFlags getFixedTransformHint() const;
-
-    // Returns how rounded corners should be drawn for this layer.
-    // This will traverse the hierarchy until it reaches its root, finding topmost rounded
-    // corner definition and converting it into current layer's coordinates.
-    // As of now, only 1 corner radius per display list is supported. Subsequent ones will be
-    // ignored.
-    virtual RoundedCornerState getRoundedCornerState() const;
 
     renderengine::ShadowSettings getShadowSettings(const Rect& layerStackRect) const;
 
@@ -801,22 +811,6 @@ public:
     // SurfaceFlinger to complete a transaction.
     void commitChildList();
     int32_t getZ(LayerVector::StateSet) const;
-    virtual void pushPendingState();
-
-    /**
-     * Returns active buffer size in the correct orientation. Buffer size is determined by undoing
-     * any buffer transformations. If the layer has no buffer then return INVALID_RECT.
-     */
-    virtual Rect getBufferSize(const Layer::State&) const { return Rect::INVALID_RECT; }
-
-    /**
-     * Returns the source bounds. If the bounds are not defined, it is inferred from the
-     * buffer size. Failing that, the bounds are determined from the passed in parent bounds.
-     * For the root layer, this is the display viewport size.
-     */
-    virtual FloatRect computeSourceBounds(const FloatRect& parentBounds) const {
-        return parentBounds;
-    }
 
     /**
      * Returns the cropped buffer size or the layer crop if the layer has no buffer. Return
@@ -827,52 +821,40 @@ public:
     Rect getCroppedBufferSize(const Layer::State& s) const;
 
     bool setFrameRate(FrameRate);
-    virtual FrameRate getFrameRateForLayerTree() const;
-    static std::string frameRateCompatibilityString(FrameRateCompatibility compatibility);
+
+    // Creates a new handle each time, so we only expect
+    // this to be called once.
+    sp<IBinder> getHandle();
+    const std::string& getName() const { return mName; }
+    bool getPremultipledAlpha() const;
+    void setInputInfo(const InputWindowInfo& info);
+
+    InputWindowInfo fillInputInfo();
+    /**
+     * Returns whether this layer has an explicitly set input-info.
+     */
+    bool hasInputInfo() const;
+
+    uid_t getOwnerUid() { return mOwnerUid; }
+
+    // This layer is not a clone, but it's the parent to the cloned hierarchy. The
+    // variable mClonedChild represents the top layer that will be cloned so this
+    // layer will be the parent of mClonedChild.
+    // The layers in the cloned hierarchy will match the lifetime of the real layers. That is
+    // if the real layer is destroyed, then the clone layer will also be destroyed.
+    sp<Layer> mClonedChild;
+
+    mutable bool contentDirty{false};
+    Region surfaceDamageRegion;
+
+    // Layer serial number.  This gives layers an explicit ordering, so we
+    // have a stable sort order when their layer stack and Z-order are
+    // the same.
+    int32_t sequence{sSequence++};
+
+    bool mPendingHWCDestroy{false};
 
 protected:
-    // constant
-    sp<SurfaceFlinger> mFlinger;
-    /*
-     * Trivial class, used to ensure that mFlinger->onLayerDestroyed(mLayer)
-     * is called.
-     */
-    class LayerCleaner {
-        sp<SurfaceFlinger> mFlinger;
-        sp<Layer> mLayer;
-
-    protected:
-        ~LayerCleaner() {
-            // destroy client resources
-            mFlinger->onHandleDestroyed(mLayer);
-        }
-
-    public:
-        LayerCleaner(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
-              : mFlinger(flinger), mLayer(layer) {}
-    };
-
-    friend class impl::SurfaceInterceptor;
-
-    // For unit tests
-    friend class TestableSurfaceFlinger;
-    friend class RefreshRateSelectionTest;
-    friend class SetFrameRateTest;
-
-    virtual void commitTransaction(const State& stateToCommit);
-
-    uint32_t getEffectiveUsage(uint32_t usage) const;
-
-    /**
-     * Setup rounded corners coordinates of this layer, taking into account the layer bounds and
-     * crop coordinates, transforming them into layer space.
-     */
-    void setupRoundedCornersCropCoordinates(Rect win, const FloatRect& roundedCornersCrop) const;
-    void setParent(const sp<Layer>&);
-    LayerVector makeTraversalList(LayerVector::StateSet, bool* outSkipRelativeZUsers);
-    void addZOrderRelative(const wp<Layer>& relative);
-    void removeZOrderRelative(const wp<Layer>& relative);
-
     class SyncPoint {
     public:
         explicit SyncPoint(uint64_t frameNumber, wp<Layer> requestedSyncLayer)
@@ -900,6 +882,63 @@ protected:
         wp<Layer> mRequestedSyncLayer;
     };
 
+    friend class impl::SurfaceInterceptor;
+
+    // For unit tests
+    friend class TestableSurfaceFlinger;
+    friend class RefreshRateSelectionTest;
+    friend class SetFrameRateTest;
+
+    virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom);
+    virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&);
+    virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareShadowClientComposition(
+            const LayerFE::LayerSettings&, const Rect& layerStackRect,
+            ui::Dataspace outputDataspace);
+    virtual void preparePerFrameCompositionState();
+    virtual void commitTransaction(const State& stateToCommit);
+    virtual bool applyPendingStates(State* stateToCommit);
+    virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit);
+
+    // Returns mCurrentScaling mode (originating from the
+    // Client) or mOverrideScalingMode mode (originating from
+    // the Surface Controller) if set.
+    virtual uint32_t getEffectiveScalingMode() const { return 0; }
+
+    sp<compositionengine::LayerFE> asLayerFE() const;
+    sp<Layer> getClonedFrom() { return mClonedFrom != nullptr ? mClonedFrom.promote() : nullptr; }
+    bool isClone() { return mClonedFrom != nullptr; }
+    bool isClonedFromAlive() { return getClonedFrom() != nullptr; }
+
+    void updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
+    void updateClonedChildren(const sp<Layer>& mirrorRoot,
+                              std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
+    void updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
+    void addChildToDrawing(const sp<Layer>&);
+    void updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap);
+
+    // Modifies the passed in layer settings to clear the contents. If the blackout flag is set,
+    // the settings clears the content with a solid black fill.
+    void prepareClearClientComposition(LayerFE::LayerSettings&, bool blackout) const;
+
+    void prepareBasicGeometryCompositionState();
+    void prepareGeometryCompositionState();
+    void prepareCursorCompositionState();
+
+    uint32_t getEffectiveUsage(uint32_t usage) const;
+
+    /**
+     * Setup rounded corners coordinates of this layer, taking into account the layer bounds and
+     * crop coordinates, transforming them into layer space.
+     */
+    void setupRoundedCornersCropCoordinates(Rect win, const FloatRect& roundedCornersCrop) const;
+    void setParent(const sp<Layer>&);
+    LayerVector makeTraversalList(LayerVector::StateSet, bool* outSkipRelativeZUsers);
+    void addZOrderRelative(const wp<Layer>& relative);
+    void removeZOrderRelative(const wp<Layer>& relative);
+    compositionengine::OutputLayer* findOutputLayerForDisplay(const DisplayDevice*) const;
+    bool usingRelativeZ(LayerVector::StateSet) const;
+
     // SyncPoints which will be signaled when the correct frame is at the head
     // of the queue and dropped after the frame has been latched. Protected by
     // mLocalSyncPointMutex.
@@ -914,61 +953,9 @@ protected:
     bool addSyncPoint(const std::shared_ptr<SyncPoint>& point);
 
     void popPendingState(State* stateToCommit);
-    virtual bool applyPendingStates(State* stateToCommit);
-    virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit);
 
-    // Returns mCurrentScaling mode (originating from the
-    // Client) or mOverrideScalingMode mode (originating from
-    // the Surface Controller) if set.
-    virtual uint32_t getEffectiveScalingMode() const { return 0; }
-
-public:
-    /*
-     * The layer handle is just a BBinder object passed to the client
-     * (remote process) -- we don't keep any reference on our side such that
-     * the dtor is called when the remote side let go of its reference.
-     *
-     * LayerCleaner ensures that mFlinger->onLayerDestroyed() is called for
-     * this layer when the handle is destroyed.
-     */
-    class Handle : public BBinder, public LayerCleaner {
-    public:
-        Handle(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
-              : LayerCleaner(flinger, layer), owner(layer) {}
-
-        wp<Layer> owner;
-    };
-
-    // Creates a new handle each time, so we only expect
-    // this to be called once.
-    sp<IBinder> getHandle();
-    const std::string& getName() const { return mName; }
-    virtual void notifyAvailableFrames(nsecs_t /*expectedPresentTime*/) {}
-    virtual PixelFormat getPixelFormat() const { return PIXEL_FORMAT_NONE; }
-    bool getPremultipledAlpha() const;
-
-    bool mPendingHWCDestroy{false};
-    void setInputInfo(const InputWindowInfo& info);
-
-    InputWindowInfo fillInputInfo();
-    /**
-     * Returns whether this layer has an explicitly set input-info.
-     */
-    bool hasInputInfo() const;
-    /**
-     * Return whether this layer needs an input info. For most layer types
-     * this is only true if they explicitly set an input-info but BufferLayer
-     * overrides this so we can generate input-info for Buffered layers that don't
-     * have them (for input occlusion detection checks).
-     */
-    virtual bool needsInputInfo() const { return hasInputInfo(); }
-
-    uid_t getOwnerUid() { return mOwnerUid; }
-
-protected:
-    compositionengine::OutputLayer* findOutputLayerForDisplay(const DisplayDevice*) const;
-
-    bool usingRelativeZ(LayerVector::StateSet) const;
+    // constant
+    sp<SurfaceFlinger> mFlinger;
 
     bool mPremultipliedAlpha{true};
     const std::string mName;
@@ -1041,6 +1028,9 @@ protected:
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}
 
+    // Returns true if the layer can draw shadows on its border.
+    virtual bool canDrawShadows() const { return true; }
+
     Hwc2::IComposerClient::Composition getCompositionType(const DisplayDevice&) const;
     Region getVisibleRegion(const DisplayDevice*) const;
 
@@ -1059,6 +1049,16 @@ private:
                                           const std::vector<Layer*>& layersInTree);
 
     void updateTreeHasFrameRateVote();
+    void setZOrderRelativeOf(const wp<Layer>& relativeOf);
+    void removeRemoteSyncPoints();
+
+    // Find the root of the cloned hierarchy, this means the first non cloned parent.
+    // This will return null if first non cloned parent is not found.
+    sp<Layer> getClonedRoot();
+
+    // Finds the top most layer in the hierarchy. This will find the root Layer where the parent is
+    // null.
+    sp<Layer> getRootLayer();
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling.
@@ -1075,11 +1075,7 @@ private:
     // Layer bounds in screen space.
     FloatRect mScreenBounds;
 
-    void setZOrderRelativeOf(const wp<Layer>& relativeOf);
-
     bool mGetHandleCalled = false;
-
-    void removeRemoteSyncPoints();
 
     // Tracks the process and user id of the caller when creating this layer
     // to help debugging.
@@ -1100,17 +1096,6 @@ private:
     // final shadow radius for this layer. If a shadow is specified for a layer, then effective
     // shadow radius is the set shadow radius, otherwise its the parent's shadow radius.
     float mEffectiveShadowRadius = 0.f;
-
-    // Returns true if the layer can draw shadows on its border.
-    virtual bool canDrawShadows() const { return true; }
-
-    // Find the root of the cloned hierarchy, this means the first non cloned parent.
-    // This will return null if first non cloned parent is not found.
-    sp<Layer> getClonedRoot();
-
-    // Finds the top most layer in the hierarchy. This will find the root Layer where the parent is
-    // null.
-    sp<Layer> getRootLayer();
 };
 
 } // namespace android

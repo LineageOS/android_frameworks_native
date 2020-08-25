@@ -31,7 +31,6 @@
 #include <android-base/macros.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
-#include <art_image_values.h>
 #include <cutils/fs.h>
 #include <cutils/properties.h>
 #include <dex2oat_return_codes.h>

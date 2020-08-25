@@ -21,8 +21,6 @@
 
 namespace android {
 
-// ---------------------------------------------------------------------------
-
 class Colorizer {
     bool mEnabled;
 public:
@@ -59,9 +57,6 @@ public:
     }
 };
 
-// ---------------------------------------------------------------------------
-
-}; // namespace android
-
+} // namespace android
 
 #endif /* ANDROID_SURFACE_FLINGER_COLORIZER_H */

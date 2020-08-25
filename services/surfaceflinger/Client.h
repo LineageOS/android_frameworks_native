@@ -28,12 +28,8 @@
 
 namespace android {
 
-// ---------------------------------------------------------------------------
-
 class Layer;
 class SurfaceFlinger;
-
-// ---------------------------------------------------------------------------
 
 class Client : public BnSurfaceComposerClient
 {
@@ -80,7 +76,6 @@ private:
     mutable Mutex mLock;
 };
 
-// ---------------------------------------------------------------------------
 }; // namespace android
 
 #endif // ANDROID_SF_CLIENT_H
