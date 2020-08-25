@@ -71,7 +71,9 @@ public:
     DispSync& getPrimaryDispSync();
 
     using ConnectionHandle = scheduler::ConnectionHandle;
-    ConnectionHandle createConnection(const char* connectionName, nsecs_t phaseOffsetNs,
+    ConnectionHandle createConnection(const char* connectionName,
+                                      std::chrono::nanoseconds workDuration,
+                                      std::chrono::nanoseconds readyDuration,
                                       impl::EventThread::InterceptVSyncsCallback);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(ConnectionHandle,
@@ -88,17 +90,16 @@ public:
     void onScreenAcquired(ConnectionHandle);
     void onScreenReleased(ConnectionHandle);
 
-    // Modifies phase offset in the event thread.
-    void setPhaseOffset(ConnectionHandle, nsecs_t phaseOffset);
+    // Modifies work duration in the event thread.
+    void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
+                     std::chrono::nanoseconds readyDuration);
 
     void getDisplayStatInfo(DisplayStatInfo* stats);
 
     // Returns injector handle if injection has toggled, or an invalid handle otherwise.
     ConnectionHandle enableVSyncInjection(bool enable);
-
     // Returns false if injection is disabled.
-    bool injectVSync(nsecs_t when, nsecs_t expectedVSyncTime);
-
+    bool injectVSync(nsecs_t when, nsecs_t expectedVSyncTime, nsecs_t deadlineTimestamp);
     void enableHardwareVsync();
     void disableHardwareVsync(bool makeUnavailable);
 
@@ -151,6 +152,11 @@ public:
 
     size_t getEventThreadConnectionCount(ConnectionHandle handle);
 
+    std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name,
+                                                           std::chrono::nanoseconds workDuration,
+                                                           std::chrono::nanoseconds readyDuration,
+                                                           bool traceVsync = true);
+
 private:
     friend class TestableScheduler;
 
@@ -185,8 +191,6 @@ private:
     static VsyncSchedule createVsyncSchedule(Options);
     static std::unique_ptr<LayerHistory> createLayerHistory(const scheduler::RefreshRateConfigs&,
                                                             bool useContentDetectionV2);
-
-    std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name, nsecs_t phaseOffsetNs);
 
     // Create a connection on the given EventThread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);

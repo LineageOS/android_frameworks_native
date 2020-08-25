@@ -43,10 +43,10 @@ float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t st
 class RegionSamplingThread : public IBinder::DeathRecipient {
 public:
     struct TimingTunables {
-        // debug.sf.sampling_offset_ns
-        // When asynchronously collecting sample, the offset, from zero phase in the vsync timeline
-        // at which the sampling should start.
-        std::chrono::nanoseconds mSamplingOffset;
+        // debug.sf.sampling_duration_ns
+        // When asynchronously collecting sample, the duration, at which the sampling should start
+        // before a vsync
+        std::chrono::nanoseconds mSamplingDuration;
         // debug.sf.sampling_period_ns
         // This is the maximum amount of time the luma recieving client
         // should have to wait for a new luma value after a frame is updated. The inverse of this is

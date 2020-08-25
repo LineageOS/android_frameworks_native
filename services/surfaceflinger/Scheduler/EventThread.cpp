@@ -200,9 +200,10 @@ EventThread::~EventThread() {
     mThread.join();
 }
 
-void EventThread::setPhaseOffset(nsecs_t phaseOffset) {
+void EventThread::setDuration(std::chrono::nanoseconds workDuration,
+                              std::chrono::nanoseconds readyDuration) {
     std::lock_guard<std::mutex> lock(mMutex);
-    mVSyncSource->setPhaseOffset(phaseOffset);
+    mVSyncSource->setDuration(workDuration, readyDuration);
 }
 
 sp<EventThreadConnection> EventThread::createEventConnection(
@@ -283,7 +284,8 @@ void EventThread::onScreenAcquired() {
     mCondition.notify_all();
 }
 
-void EventThread::onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp) {
+void EventThread::onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp,
+                               nsecs_t /*deadlineTimestamp*/) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     LOG_FATAL_IF(!mVSyncState);

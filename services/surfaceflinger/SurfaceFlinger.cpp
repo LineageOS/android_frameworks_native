@@ -1452,7 +1452,11 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
 
 status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     Mutex::Autolock lock(mStateLock);
-    return mScheduler->injectVSync(when, calculateExpectedPresentTime(when)) ? NO_ERROR : BAD_VALUE;
+    const auto expectedPresent = calculateExpectedPresentTime(when);
+    return mScheduler->injectVSync(when, /*expectedVSyncTime=*/expectedPresent,
+                                   /*deadlineTimestamp=*/expectedPresent)
+            ? NO_ERROR
+            : BAD_VALUE;
 }
 
 status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) {
@@ -2984,14 +2988,16 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
 
     // start the EventThread
     mScheduler = getFactory().createScheduler(*mRefreshRateConfigs, *this);
+    const auto configs = mVsyncConfiguration->getCurrentConfigs();
     mAppConnectionHandle =
             mScheduler->createConnection("app",
-                                         mVsyncConfiguration->getCurrentConfigs().late.appOffset,
+                                         /*workDuration=*/configs.late.appWorkDuration,
+                                         /*readyDuration=*/configs.late.sfWorkDuration,
                                          impl::EventThread::InterceptVSyncsCallback());
     mSfConnectionHandle =
             mScheduler->createConnection("sf",
-                                         mVsyncConfiguration->getCurrentConfigs().late.sfOffset,
-                                         [this](nsecs_t timestamp) {
+                                         /*workDuration=*/configs.late.sfWorkDuration,
+                                         /*readyDuration=*/0ns, [this](nsecs_t timestamp) {
                                              mInterceptor->saveVSyncEvent(timestamp);
                                          });
 
@@ -3024,8 +3030,12 @@ void SurfaceFlinger::updatePhaseConfiguration(const RefreshRate& refreshRate) {
 }
 
 void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config) {
-    mScheduler->setPhaseOffset(mAppConnectionHandle, config.appOffset);
-    mScheduler->setPhaseOffset(mSfConnectionHandle, config.sfOffset);
+    mScheduler->setDuration(mAppConnectionHandle,
+                            /*workDuration=*/config.appWorkDuration,
+                            /*readyDuration=*/config.sfWorkDuration);
+    mScheduler->setDuration(mSfConnectionHandle,
+                            /*workDuration=*/config.sfWorkDuration,
+                            /*readyDuration=*/0ns);
 }
 
 void SurfaceFlinger::commitTransaction() {
@@ -5170,14 +5180,14 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 mForceFullDamage = n != 0;
                 return NO_ERROR;
             }
-            case 1018: { // Modify Choreographer's phase offset
+            case 1018: { // Modify Choreographer's duration
                 n = data.readInt32();
-                mScheduler->setPhaseOffset(mAppConnectionHandle, static_cast<nsecs_t>(n));
+                mScheduler->setDuration(mAppConnectionHandle, std::chrono::nanoseconds(n), 0ns);
                 return NO_ERROR;
             }
-            case 1019: { // Modify SurfaceFlinger's phase offset
+            case 1019: { // Modify SurfaceFlinger's duration
                 n = data.readInt32();
-                mScheduler->setPhaseOffset(mSfConnectionHandle, static_cast<nsecs_t>(n));
+                mScheduler->setDuration(mSfConnectionHandle, std::chrono::nanoseconds(n), 0ns);
                 return NO_ERROR;
             }
             case 1020: { // Layer updates interceptor

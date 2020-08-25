@@ -38,20 +38,20 @@ nsecs_t SystemClock::now() const {
 class PredictedVsyncTracer {
 public:
     PredictedVsyncTracer(VSyncDispatch& dispatch)
-          : mRegistration(dispatch,
-                          std::bind(&PredictedVsyncTracer::callback, this, std::placeholders::_1,
-                                    std::placeholders::_2),
+          : mRegistration(dispatch, std::bind(&PredictedVsyncTracer::callback, this),
                           "PredictedVsyncTracer") {
-        mRegistration.schedule(0, 0);
+        scheduleRegistration();
     }
 
 private:
     TracedOrdinal<bool> mParity = {"VSYNC-predicted", 0};
     VSyncCallbackRegistration mRegistration;
 
-    void callback(nsecs_t /*vsyncTime*/, nsecs_t /*targetWakeupTim*/) {
+    void scheduleRegistration() { mRegistration.schedule({0, 0, 0}); }
+
+    void callback() {
         mParity = !mParity;
-        mRegistration.schedule(0, 0);
+        scheduleRegistration();
     }
 };
 
@@ -69,96 +69,6 @@ VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, VSyncDispatch& dispatch
 
 VSyncReactor::~VSyncReactor() = default;
 
-// The DispSync interface has a 'repeat this callback at rate' semantic. This object adapts
-// VSyncDispatch's individually-scheduled callbacks so as to meet DispSync's existing semantic
-// for now.
-class CallbackRepeater {
-public:
-    CallbackRepeater(VSyncDispatch& dispatch, DispSync::Callback* cb, const char* name,
-                     nsecs_t period, nsecs_t offset, nsecs_t notBefore)
-          : mName(name),
-            mCallback(cb),
-            mRegistration(dispatch,
-                          std::bind(&CallbackRepeater::callback, this, std::placeholders::_1,
-                                    std::placeholders::_2),
-                          mName),
-            mPeriod(period),
-            mOffset(offset),
-            mLastCallTime(notBefore) {}
-
-    ~CallbackRepeater() {
-        std::lock_guard<std::mutex> lk(mMutex);
-        mRegistration.cancel();
-    }
-
-    void start(nsecs_t offset) {
-        std::lock_guard<std::mutex> lk(mMutex);
-        mStopped = false;
-        mOffset = offset;
-
-        auto const schedule_result = mRegistration.schedule(calculateWorkload(), mLastCallTime);
-        LOG_ALWAYS_FATAL_IF((schedule_result != ScheduleResult::Scheduled),
-                            "Error scheduling callback: rc %X", schedule_result);
-    }
-
-    void setPeriod(nsecs_t period) {
-        std::lock_guard<std::mutex> lk(mMutex);
-        if (period == mPeriod) {
-            return;
-        }
-        mPeriod = period;
-    }
-
-    void stop() {
-        std::lock_guard<std::mutex> lk(mMutex);
-        LOG_ALWAYS_FATAL_IF(mStopped, "DispSyncInterface misuse: callback already stopped");
-        mStopped = true;
-        mRegistration.cancel();
-    }
-
-    void dump(std::string& result) const {
-        std::lock_guard<std::mutex> lk(mMutex);
-        StringAppendF(&result, "\t%s: mPeriod=%.2f last vsync time %.2fms relative to now (%s)\n",
-                      mName.c_str(), mPeriod / 1e6f, (mLastCallTime - systemTime()) / 1e6f,
-                      mStopped ? "stopped" : "running");
-    }
-
-private:
-    void callback(nsecs_t vsynctime, nsecs_t wakeupTime) {
-        {
-            std::lock_guard<std::mutex> lk(mMutex);
-            mLastCallTime = vsynctime;
-        }
-
-        mCallback->onDispSyncEvent(wakeupTime, vsynctime);
-
-        {
-            std::lock_guard<std::mutex> lk(mMutex);
-            if (mStopped) {
-                return;
-            }
-            auto const schedule_result = mRegistration.schedule(calculateWorkload(), vsynctime);
-            LOG_ALWAYS_FATAL_IF((schedule_result != ScheduleResult::Scheduled),
-                                "Error rescheduling callback: rc %X", schedule_result);
-        }
-    }
-
-    // DispSync offsets are defined as time after the vsync before presentation.
-    // VSyncReactor workloads are defined as time before the intended presentation vsync.
-    // Note change in sign between the two defnitions.
-    nsecs_t calculateWorkload() REQUIRES(mMutex) { return mPeriod - mOffset; }
-
-    const std::string mName;
-    DispSync::Callback* const mCallback;
-
-    std::mutex mutable mMutex;
-    VSyncCallbackRegistration mRegistration GUARDED_BY(mMutex);
-    bool mStopped GUARDED_BY(mMutex) = false;
-    nsecs_t mPeriod GUARDED_BY(mMutex);
-    nsecs_t mOffset GUARDED_BY(mMutex);
-    nsecs_t mLastCallTime GUARDED_BY(mMutex);
-};
-
 bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
     if (!fence) {
         return false;
@@ -169,7 +79,7 @@ bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
         return true;
     }
 
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     if (mExternalIgnoreFences || mInternalIgnoreFences) {
         return true;
     }
@@ -207,7 +117,7 @@ bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
 }
 
 void VSyncReactor::setIgnorePresentFences(bool ignoration) {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     mExternalIgnoreFences = ignoration;
     updateIgnorePresentFencesInternal();
 }
@@ -269,8 +179,6 @@ void VSyncReactor::beginResync() {
     mTracker.resetModel();
 }
 
-void VSyncReactor::endResync() {}
-
 bool VSyncReactor::periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_t> HwcVsyncPeriod) {
     if (!mPeriodConfirmationInProgress) {
         return false;
@@ -303,14 +211,11 @@ bool VSyncReactor::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwc
                                    bool* periodFlushed) {
     assert(periodFlushed);
 
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     if (periodConfirmed(timestamp, hwcVsyncPeriod)) {
         ATRACE_NAME("VSR: period confirmed");
         if (mPeriodTransitioningTo) {
             mTracker.setPeriod(*mPeriodTransitioningTo);
-            for (auto& entry : mCallbacks) {
-                entry.second->setPeriod(*mPeriodTransitioningTo);
-            }
             *periodFlushed = true;
         }
 
@@ -339,51 +244,8 @@ bool VSyncReactor::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwc
     return mMoreSamplesNeeded;
 }
 
-status_t VSyncReactor::addEventListener(const char* name, nsecs_t phase,
-                                        DispSync::Callback* callback,
-                                        nsecs_t /* lastCallbackTime */) {
-    std::lock_guard<std::mutex> lk(mMutex);
-    auto it = mCallbacks.find(callback);
-    if (it == mCallbacks.end()) {
-        // TODO (b/146557561): resolve lastCallbackTime semantics in DispSync i/f.
-        static auto constexpr maxListeners = 4;
-        if (mCallbacks.size() >= maxListeners) {
-            ALOGE("callback %s not added, exceeded callback limit of %i (currently %zu)", name,
-                  maxListeners, mCallbacks.size());
-            return NO_MEMORY;
-        }
-
-        auto const period = mTracker.currentPeriod();
-        auto repeater = std::make_unique<CallbackRepeater>(mDispatch, callback, name, period, phase,
-                                                           mClock->now());
-        it = mCallbacks.emplace(std::pair(callback, std::move(repeater))).first;
-    }
-
-    it->second->start(phase);
-    return NO_ERROR;
-}
-
-status_t VSyncReactor::removeEventListener(DispSync::Callback* callback,
-                                           nsecs_t* /* outLastCallback */) {
-    std::lock_guard<std::mutex> lk(mMutex);
-    auto const it = mCallbacks.find(callback);
-    LOG_ALWAYS_FATAL_IF(it == mCallbacks.end(), "callback %p not registered", callback);
-
-    it->second->stop();
-    return NO_ERROR;
-}
-
-status_t VSyncReactor::changePhaseOffset(DispSync::Callback* callback, nsecs_t phase) {
-    std::lock_guard<std::mutex> lk(mMutex);
-    auto const it = mCallbacks.find(callback);
-    LOG_ALWAYS_FATAL_IF(it == mCallbacks.end(), "callback was %p not registered", callback);
-
-    it->second->start(phase);
-    return NO_ERROR;
-}
-
 void VSyncReactor::dump(std::string& result) const {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     StringAppendF(&result, "VsyncReactor in use\n");
     StringAppendF(&result, "Has %zu unfired fences\n", mUnfiredFences.size());
     StringAppendF(&result, "mInternalIgnoreFences=%d mExternalIgnoreFences=%d\n",
@@ -403,17 +265,10 @@ void VSyncReactor::dump(std::string& result) const {
         StringAppendF(&result, "No Last HW vsync\n");
     }
 
-    StringAppendF(&result, "CallbackRepeaters:\n");
-    for (const auto& [callback, repeater] : mCallbacks) {
-        repeater->dump(result);
-    }
-
     StringAppendF(&result, "VSyncTracker:\n");
     mTracker.dump(result);
     StringAppendF(&result, "VSyncDispatch:\n");
     mDispatch.dump(result);
 }
-
-void VSyncReactor::reset() {}
 
 } // namespace android::scheduler
