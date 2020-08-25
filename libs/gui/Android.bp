@@ -62,6 +62,7 @@ cc_library_shared {
         "IGraphicBufferProducer.cpp",
         "IProducerListener.cpp",
         "IRegionSamplingListener.cpp",
+        "IScreenCaptureListener.cpp",
         "ISurfaceComposer.cpp",
         "ISurfaceComposerClient.cpp",
         "ITransactionCompletedListener.cpp",
