@@ -61,7 +61,7 @@ enum class samplingStep {
 
 constexpr auto timeForRegionSampling = 5000000ns;
 constexpr auto maxRegionSamplingSkips = 10;
-constexpr auto defaultRegionSamplingOffset = -3ms;
+constexpr auto defaultRegionSamplingWorkDuration = 3ms;
 constexpr auto defaultRegionSamplingPeriod = 100ms;
 constexpr auto defaultRegionSamplingTimerTimeout = 100ms;
 // TODO: (b/127403193) duration to string conversion could probably be constexpr
@@ -73,9 +73,9 @@ inline std::string toNsString(std::chrono::duration<Rep, Per> t) {
 RegionSamplingThread::EnvironmentTimingTunables::EnvironmentTimingTunables() {
     char value[PROPERTY_VALUE_MAX] = {};
 
-    property_get("debug.sf.region_sampling_offset_ns", value,
-                 toNsString(defaultRegionSamplingOffset).c_str());
-    int const samplingOffsetNsRaw = atoi(value);
+    property_get("debug.sf.region_sampling_duration_ns", value,
+                 toNsString(defaultRegionSamplingWorkDuration).c_str());
+    int const samplingDurationNsRaw = atoi(value);
 
     property_get("debug.sf.region_sampling_period_ns", value,
                  toNsString(defaultRegionSamplingPeriod).c_str());
@@ -87,22 +87,26 @@ RegionSamplingThread::EnvironmentTimingTunables::EnvironmentTimingTunables() {
 
     if ((samplingPeriodNsRaw < 0) || (samplingTimerTimeoutNsRaw < 0)) {
         ALOGW("User-specified sampling tuning options nonsensical. Using defaults");
-        mSamplingOffset = defaultRegionSamplingOffset;
+        mSamplingDuration = defaultRegionSamplingWorkDuration;
         mSamplingPeriod = defaultRegionSamplingPeriod;
         mSamplingTimerTimeout = defaultRegionSamplingTimerTimeout;
     } else {
-        mSamplingOffset = std::chrono::nanoseconds(samplingOffsetNsRaw);
+        mSamplingDuration = std::chrono::nanoseconds(samplingDurationNsRaw);
         mSamplingPeriod = std::chrono::nanoseconds(samplingPeriodNsRaw);
         mSamplingTimerTimeout = std::chrono::nanoseconds(samplingTimerTimeoutNsRaw);
     }
 }
 
-struct SamplingOffsetCallback : DispSync::Callback {
+struct SamplingOffsetCallback : VSyncSource::Callback {
     SamplingOffsetCallback(RegionSamplingThread& samplingThread, Scheduler& scheduler,
-                           std::chrono::nanoseconds targetSamplingOffset)
+                           std::chrono::nanoseconds targetSamplingWorkDuration)
           : mRegionSamplingThread(samplingThread),
-            mScheduler(scheduler),
-            mTargetSamplingOffset(targetSamplingOffset) {}
+            mTargetSamplingWorkDuration(targetSamplingWorkDuration),
+            mVSyncSource(scheduler.makePrimaryDispSyncSource("SamplingThreadDispSyncListener", 0ns,
+                                                             0ns,
+                                                             /*traceVsync=*/false)) {
+        mVSyncSource->setCallback(this);
+    }
 
     ~SamplingOffsetCallback() { stopVsyncListener(); }
 
@@ -114,8 +118,7 @@ struct SamplingOffsetCallback : DispSync::Callback {
         if (mVsyncListening) return;
 
         mPhaseIntervalSetting = Phase::ZERO;
-        mScheduler.getPrimaryDispSync().addEventListener("SamplingThreadDispSyncListener", 0, this,
-                                                         mLastCallbackTime);
+        mVSyncSource->setVSyncEnabled(true);
         mVsyncListening = true;
     }
 
@@ -128,23 +131,24 @@ private:
     void stopVsyncListenerLocked() /*REQUIRES(mMutex)*/ {
         if (!mVsyncListening) return;
 
-        mScheduler.getPrimaryDispSync().removeEventListener(this, &mLastCallbackTime);
+        mVSyncSource->setVSyncEnabled(false);
         mVsyncListening = false;
     }
 
-    void onDispSyncEvent(nsecs_t /*when*/, nsecs_t /*expectedVSyncTimestamp*/) final {
+    void onVSyncEvent(nsecs_t /*when*/, nsecs_t /*expectedVSyncTimestamp*/,
+                      nsecs_t /*deadlineTimestamp*/) final {
         std::unique_lock<decltype(mMutex)> lock(mMutex);
 
         if (mPhaseIntervalSetting == Phase::ZERO) {
             ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForSamplePhase));
             mPhaseIntervalSetting = Phase::SAMPLING;
-            mScheduler.getPrimaryDispSync().changePhaseOffset(this, mTargetSamplingOffset.count());
+            mVSyncSource->setDuration(mTargetSamplingWorkDuration, 0ns);
             return;
         }
 
         if (mPhaseIntervalSetting == Phase::SAMPLING) {
             mPhaseIntervalSetting = Phase::ZERO;
-            mScheduler.getPrimaryDispSync().changePhaseOffset(this, 0);
+            mVSyncSource->setDuration(0ns, 0ns);
             stopVsyncListenerLocked();
             lock.unlock();
             mRegionSamplingThread.notifySamplingOffset();
@@ -153,16 +157,15 @@ private:
     }
 
     RegionSamplingThread& mRegionSamplingThread;
-    Scheduler& mScheduler;
-    const std::chrono::nanoseconds mTargetSamplingOffset;
+    const std::chrono::nanoseconds mTargetSamplingWorkDuration;
     mutable std::mutex mMutex;
-    nsecs_t mLastCallbackTime = 0;
     enum class Phase {
         ZERO,
         SAMPLING
     } mPhaseIntervalSetting /*GUARDED_BY(mMutex) macro doesnt work with unique_lock?*/
             = Phase::ZERO;
     bool mVsyncListening /*GUARDED_BY(mMutex)*/ = false;
+    std::unique_ptr<VSyncSource> mVSyncSource;
 };
 
 RegionSamplingThread::RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& scheduler,
@@ -170,11 +173,12 @@ RegionSamplingThread::RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& s
       : mFlinger(flinger),
         mScheduler(scheduler),
         mTunables(tunables),
-        mIdleTimer(std::chrono::duration_cast<std::chrono::milliseconds>(
-                           mTunables.mSamplingTimerTimeout),
-                   [] {}, [this] { checkForStaleLuma(); }),
+        mIdleTimer(
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                        mTunables.mSamplingTimerTimeout),
+                [] {}, [this] { checkForStaleLuma(); }),
         mPhaseCallback(std::make_unique<SamplingOffsetCallback>(*this, mScheduler,
-                                                                tunables.mSamplingOffset)),
+                                                                tunables.mSamplingDuration)),
         lastSampleTime(0ns) {
     mThread = std::thread([this]() { threadMain(); });
     pthread_setname_np(mThread.native_handle(), "RegionSamplingThread");
@@ -183,7 +187,7 @@ RegionSamplingThread::RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& s
 
 RegionSamplingThread::RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& scheduler)
       : RegionSamplingThread(flinger, scheduler,
-                             TimingTunables{defaultRegionSamplingOffset,
+                             TimingTunables{defaultRegionSamplingWorkDuration,
                                             defaultRegionSamplingPeriod,
                                             defaultRegionSamplingTimerTimeout}) {}
 

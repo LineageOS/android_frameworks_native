@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 //#define LOG_NDEBUG 0
 #include "VSyncPredictor.h"
@@ -54,7 +50,7 @@ inline void VSyncPredictor::traceInt64If(const char* name, int64_t value) const 
     }
 }
 
-inline size_t VSyncPredictor::next(int i) const {
+inline size_t VSyncPredictor::next(size_t i) const {
     return (i + 1) % mTimestamps.size();
 }
 
@@ -69,12 +65,12 @@ bool VSyncPredictor::validate(nsecs_t timestamp) const {
 }
 
 nsecs_t VSyncPredictor::currentPeriod() const {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     return std::get<0>(mRateMap.find(mIdealPeriod)->second);
 }
 
 bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
 
     if (!validate(timestamp)) {
         // VSR could elect to ignore the incongruent timestamp or resetModel(). If ts is ignored,
@@ -138,14 +134,14 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
 
     auto meanTS = scheduler::calculate_mean(vsyncTS);
     auto meanOrdinal = scheduler::calculate_mean(ordinals);
-    for (auto i = 0; i < vsyncTS.size(); i++) {
+    for (size_t i = 0; i < vsyncTS.size(); i++) {
         vsyncTS[i] -= meanTS;
         ordinals[i] -= meanOrdinal;
     }
 
     auto top = 0ll;
     auto bottom = 0ll;
-    for (auto i = 0; i < vsyncTS.size(); i++) {
+    for (size_t i = 0; i < vsyncTS.size(); i++) {
         top += vsyncTS[i] * ordinals[i];
         bottom += ordinals[i] * ordinals[i];
     }
@@ -177,9 +173,9 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
 }
 
 nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
 
-    auto const [slope, intercept] = getVSyncPredictionModel(lk);
+    auto const [slope, intercept] = getVSyncPredictionModel(lock);
 
     if (mTimestamps.empty()) {
         traceInt64If("VSP-mode", 1);
@@ -215,8 +211,8 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
 }
 
 std::tuple<nsecs_t, nsecs_t> VSyncPredictor::getVSyncPredictionModel() const {
-    std::lock_guard<std::mutex> lk(mMutex);
-    return VSyncPredictor::getVSyncPredictionModel(lk);
+    std::lock_guard lock(mMutex);
+    return VSyncPredictor::getVSyncPredictionModel(lock);
 }
 
 std::tuple<nsecs_t, nsecs_t> VSyncPredictor::getVSyncPredictionModel(
@@ -227,7 +223,7 @@ std::tuple<nsecs_t, nsecs_t> VSyncPredictor::getVSyncPredictionModel(
 void VSyncPredictor::setPeriod(nsecs_t period) {
     ATRACE_CALL();
 
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     static constexpr size_t kSizeLimit = 30;
     if (CC_UNLIKELY(mRateMap.size() == kSizeLimit)) {
         mRateMap.erase(mRateMap.begin());
@@ -256,18 +252,18 @@ void VSyncPredictor::clearTimestamps() {
 }
 
 bool VSyncPredictor::needsMoreSamples() const {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     return mTimestamps.size() < kMinimumSamplesForPrediction;
 }
 
 void VSyncPredictor::resetModel() {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     mRateMap[mIdealPeriod] = {mIdealPeriod, 0};
     clearTimestamps();
 }
 
 void VSyncPredictor::dump(std::string& result) const {
-    std::lock_guard<std::mutex> lk(mMutex);
+    std::lock_guard lock(mMutex);
     StringAppendF(&result, "\tmIdealPeriod=%.2f\n", mIdealPeriod / 1e6f);
     StringAppendF(&result, "\tRefresh Rate Map:\n");
     for (const auto& [idealPeriod, periodInterceptTuple] : mRateMap) {
@@ -280,5 +276,3 @@ void VSyncPredictor::dump(std::string& result) const {
 
 } // namespace android::scheduler
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"

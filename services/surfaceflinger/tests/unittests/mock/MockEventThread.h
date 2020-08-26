@@ -35,7 +35,9 @@ public:
     MOCK_METHOD2(onHotplugReceived, void(PhysicalDisplayId, bool));
     MOCK_METHOD3(onConfigChanged, void(PhysicalDisplayId, HwcConfigIndexType, nsecs_t));
     MOCK_CONST_METHOD1(dump, void(std::string&));
-    MOCK_METHOD1(setPhaseOffset, void(nsecs_t phaseOffset));
+    MOCK_METHOD2(setDuration,
+                 void(std::chrono::nanoseconds workDuration,
+                      std::chrono::nanoseconds readyDuration));
     MOCK_METHOD1(registerDisplayEventConnection,
                  status_t(const sp<android::EventThreadConnection> &));
     MOCK_METHOD2(setVsyncRate, void(uint32_t, const sp<android::EventThreadConnection> &));
