@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <dex2oat_return_codes.h>
-
 namespace android {
 namespace installd {
 
@@ -70,48 +68,21 @@ inline const char* get_installd_return_code_name(DexoptReturnCodes code) {
     return nullptr;
 }
 
-inline const char* get_dex2oat_return_code_name(art::dex2oat::ReturnCode code) {
-    switch (code) {
-        case art::dex2oat::ReturnCode::kNoFailure:
-            return "dex2oat success";
-        case art::dex2oat::ReturnCode::kOther:
-            return "unspecified dex2oat error";
-        case art::dex2oat::ReturnCode::kCreateRuntime:
-            return "dex2oat failed to create a runtime";
+inline const char* get_dex2oat_return_code_name(int code) {
+    if (code == 0) {
+        return "dex2oat success";
+    } else {
+        return "dex2oat error";
     }
-    return nullptr;
 }
 
-// Get some slightly descriptive string for the return code. Handles both DexoptReturnCodes (local
-// exit codes) as well as art::dex2oat::ReturnCode.
+// Get some slightly descriptive string for the return code.
 inline const char* get_return_code_name(int code) {
-    // Try to enforce non-overlap (see comment on DexoptReturnCodes)
-    // TODO: How could switch-case checks be used to enforce completeness?
-    switch (code) {
-        case kSetGid:
-        case kSetUid:
-        case kCapSet:
-        case kFlock:
-        case kProfmanExec:
-        case kSetSchedPolicy:
-        case kSetPriority:
-        case kDex2oatExec:
-        case kInstructionSetLength:
-        case kHashValidatePath:
-        case kHashOpenPath:
-        case kHashReadDex:
-        case kHashWrite:
-            break;
-        case static_cast<int>(art::dex2oat::ReturnCode::kNoFailure):
-        case static_cast<int>(art::dex2oat::ReturnCode::kOther):
-        case static_cast<int>(art::dex2oat::ReturnCode::kCreateRuntime):
-            break;
-    }
     const char* value = get_installd_return_code_name(static_cast<DexoptReturnCodes>(code));
     if (value != nullptr) {
         return value;
     }
-    value = get_dex2oat_return_code_name(static_cast<art::dex2oat::ReturnCode>(code));
+    value = get_dex2oat_return_code_name(code);
     return value;
 }
 
