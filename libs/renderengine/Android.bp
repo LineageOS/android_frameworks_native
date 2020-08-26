@@ -74,10 +74,6 @@ filegroup {
 cc_library_static {
     name: "librenderengine",
     defaults: ["librenderengine_defaults"],
-    vendor_available: true,
-    vndk: {
-        enabled: true,
-    },
     double_loadable: true,
     clang: true,
     cflags: [
