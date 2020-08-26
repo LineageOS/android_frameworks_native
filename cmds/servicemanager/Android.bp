@@ -44,6 +44,9 @@ cc_binary {
     cflags: [
         "-DVENDORSERVICEMANAGER=1",
     ],
+    required: [
+        "vndservice",
+    ],
     srcs: ["main.cpp"],
 }
 
