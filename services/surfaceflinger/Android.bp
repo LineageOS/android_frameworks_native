@@ -13,7 +13,10 @@ cc_defaults {
 
 cc_defaults {
     name: "libsurfaceflinger_defaults",
-    defaults: ["surfaceflinger_defaults"],
+    defaults: [
+        "surfaceflinger_defaults",
+        "skia_deps",
+    ],
     cflags: [
         "-DLOG_TAG=\"SurfaceFlinger\"",
         "-DGL_GLEXT_PROTOTYPES",

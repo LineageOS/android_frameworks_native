@@ -31,6 +31,7 @@ cc_defaults {
         "libui",
         "libutils",
     ],
+    whole_static_libs: ["libskia"],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
 }
@@ -71,6 +72,14 @@ filegroup {
     ],
 }
 
+filegroup {
+    name: "librenderengine_skia_sources",
+    srcs: [
+        "skia/SkiaRenderEngine.cpp",
+        "skia/SkiaGLRenderEngine.cpp",
+    ],
+}
+
 cc_library_static {
     name: "librenderengine",
     defaults: ["librenderengine_defaults"],
@@ -84,6 +93,7 @@ cc_library_static {
         ":librenderengine_sources",
         ":librenderengine_gl_sources",
         ":librenderengine_threaded_sources",
+        ":librenderengine_skia_sources",
     ],
     lto: {
         thin: true,
