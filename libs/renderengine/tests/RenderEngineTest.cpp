@@ -81,6 +81,7 @@ struct RenderEngineTest : public ::testing::Test {
         }
         for (uint32_t texName : mTexNames) {
             sRE->deleteTextures(1, &texName);
+            EXPECT_FALSE(sRE->isTextureNameKnownForTesting(texName));
         }
     }
 
@@ -1424,10 +1425,44 @@ TEST_F(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
     if (fd >= 0) {
         sync_wait(fd, -1);
     }
-
     // Only cleanup the first time.
-    EXPECT_TRUE(sRE->cleanupPostRender());
-    EXPECT_FALSE(sRE->cleanupPostRender());
+    EXPECT_TRUE(sRE->cleanupPostRender(
+            renderengine::RenderEngine::CleanupMode::CLEAN_OUTPUT_RESOURCES));
+    EXPECT_FALSE(sRE->cleanupPostRender(
+            renderengine::RenderEngine::CleanupMode::CLEAN_OUTPUT_RESOURCES));
+}
+
+TEST_F(RenderEngineTest, cleanupPostRender_whenCleaningAll_replacesTextureMemory) {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+
+    std::vector<const renderengine::LayerSettings*> layers;
+    renderengine::LayerSettings layer;
+    layer.geometry.boundaries = fullscreenRect().toFloatRect();
+    BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
+    layer.alpha = 1.0;
+    layers.push_back(&layer);
+
+    base::unique_fd fence;
+    sRE->drawLayers(settings, layers, mBuffer->getNativeBuffer(), true, base::unique_fd(), &fence);
+
+    const int fd = fence.get();
+    if (fd >= 0) {
+        sync_wait(fd, -1);
+    }
+
+    uint64_t bufferId = layer.source.buffer.buffer->getId();
+    uint32_t texName = layer.source.buffer.textureName;
+    EXPECT_TRUE(sRE->isImageCachedForTesting(bufferId));
+    EXPECT_EQ(bufferId, sRE->getBufferIdForTextureNameForTesting(texName));
+
+    EXPECT_TRUE(sRE->cleanupPostRender(renderengine::RenderEngine::CleanupMode::CLEAN_ALL));
+
+    // Now check that our view of memory is good.
+    EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
+    EXPECT_EQ(std::nullopt, sRE->getBufferIdForTextureNameForTesting(bufferId));
+    EXPECT_TRUE(sRE->isTextureNameKnownForTesting(texName));
 }
 
 } // namespace android
