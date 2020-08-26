@@ -1325,8 +1325,6 @@ TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
     // The call disable vsyncs
     EXPECT_CALL(mSchedulerCallback, setVsyncEnabled(false)).Times(1);
 
-    // The call ends any display resyncs
-    EXPECT_CALL(*mPrimaryDispSync, endResync()).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation
@@ -3265,16 +3263,11 @@ struct DispSyncIsSupportedVariant {
         EXPECT_CALL(*test->mPrimaryDispSync, setPeriod(DEFAULT_REFRESH_RATE)).Times(1);
         EXPECT_CALL(*test->mPrimaryDispSync, beginResync()).Times(1);
     }
-
-    static void setupEndResyncCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mPrimaryDispSync, endResync()).Times(1);
-    }
 };
 
 struct DispSyncNotSupportedVariant {
     static void setupBeginResyncCallExpectations(DisplayTransactionTest* /* test */) {}
 
-    static void setupEndResyncCallExpectations(DisplayTransactionTest* /* test */) {}
 };
 
 // --------------------------------------------------------------------
@@ -3326,7 +3319,6 @@ struct TransitionOnToOffVariant : public TransitionVariantCommon<PowerMode::ON, 
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::EventThread::setupReleaseAndDisableVsyncCallExpectations(test);
-        Case::DispSync::setupEndResyncCallExpectations(test);
         Case::setupComposerCallExpectations(test, IComposerClient::PowerMode::OFF);
     }
 
@@ -3389,7 +3381,6 @@ struct TransitionOnToDozeSuspendVariant
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::EventThread::setupReleaseAndDisableVsyncCallExpectations(test);
-        Case::DispSync::setupEndResyncCallExpectations(test);
         Case::setupComposerCallExpectations(test, Case::Doze::ACTUAL_POWER_MODE_FOR_DOZE_SUSPEND);
     }
 };

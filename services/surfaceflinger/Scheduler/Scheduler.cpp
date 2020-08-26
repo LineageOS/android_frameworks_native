@@ -95,6 +95,26 @@ const char* toContentDetectionString(bool useContentDetection, bool useContentDe
 
 } // namespace
 
+class PredictedVsyncTracer {
+public:
+    PredictedVsyncTracer(scheduler::VSyncDispatch& dispatch)
+          : mRegistration(dispatch, std::bind(&PredictedVsyncTracer::callback, this),
+                          "PredictedVsyncTracer") {
+        scheduleRegistration();
+    }
+
+private:
+    TracedOrdinal<bool> mParity = {"VSYNC-predicted", 0};
+    scheduler::VSyncCallbackRegistration mRegistration;
+
+    void scheduleRegistration() { mRegistration.schedule({0, 0, 0}); }
+
+    void callback() {
+        mParity = !mParity;
+        scheduleRegistration();
+    }
+};
+
 Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback)
       : Scheduler(configs, callback,
                   {.supportKernelTimer = sysprop::support_kernel_idle_timer(false),
@@ -145,7 +165,11 @@ Scheduler::Scheduler(VsyncSchedule schedule, const scheduler::RefreshRateConfigs
         mVsyncSchedule(std::move(schedule)),
         mLayerHistory(std::move(layerHistory)),
         mSchedulerCallback(schedulerCallback),
-        mRefreshRateConfigs(configs) {
+        mRefreshRateConfigs(configs),
+        mPredictedVsyncTracer(
+                base::GetBoolProperty("debug.sf.show_predicted_vsync", false)
+                        ? std::make_unique<PredictedVsyncTracer>(*mVsyncSchedule.dispatch)
+                        : nullptr) {
     mSchedulerCallback.setVsyncEnabled(false);
 }
 
@@ -163,9 +187,9 @@ Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(Options options) {
 
     // TODO(b/144707443): Tune constants.
     constexpr size_t pendingFenceLimit = 20;
-    auto sync = std::make_unique<scheduler::VSyncReactor>(std::move(clock), *dispatch, *tracker,
-                                                          pendingFenceLimit,
-                                                          options.supportKernelTimer);
+    auto sync =
+            std::make_unique<scheduler::VSyncReactor>(std::move(clock), *tracker, pendingFenceLimit,
+                                                      options.supportKernelTimer);
     return {std::move(sync), std::move(tracker), std::move(dispatch)};
 }
 
@@ -184,16 +208,18 @@ DispSync& Scheduler::getPrimaryDispSync() {
     return *mVsyncSchedule.sync;
 }
 
-std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(const char* name,
-                                                                  nsecs_t phaseOffsetNs) {
-    return std::make_unique<DispSyncSource>(&getPrimaryDispSync(), phaseOffsetNs,
-                                            true /* traceVsync */, name);
+std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
+        const char* name, std::chrono::nanoseconds workDuration,
+        std::chrono::nanoseconds readyDuration, bool traceVsync) {
+    return std::make_unique<scheduler::DispSyncSource>(*mVsyncSchedule.dispatch, workDuration,
+                                                       readyDuration, traceVsync, name);
 }
 
 Scheduler::ConnectionHandle Scheduler::createConnection(
-        const char* connectionName, nsecs_t phaseOffsetNs,
+        const char* connectionName, std::chrono::nanoseconds workDuration,
+        std::chrono::nanoseconds readyDuration,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
-    auto vsyncSource = makePrimaryDispSyncSource(connectionName, phaseOffsetNs);
+    auto vsyncSource = makePrimaryDispSyncSource(connectionName, workDuration, readyDuration);
     auto eventThread = std::make_unique<impl::EventThread>(std::move(vsyncSource),
                                                            std::move(interceptCallback));
     return createConnection(std::move(eventThread));
@@ -286,9 +312,10 @@ void Scheduler::dump(ConnectionHandle handle, std::string& result) const {
     mConnections.at(handle).thread->dump(result);
 }
 
-void Scheduler::setPhaseOffset(ConnectionHandle handle, nsecs_t phaseOffset) {
+void Scheduler::setDuration(ConnectionHandle handle, std::chrono::nanoseconds workDuration,
+                            std::chrono::nanoseconds readyDuration) {
     RETURN_IF_INVALID_HANDLE(handle);
-    mConnections[handle].thread->setPhaseOffset(phaseOffset);
+    mConnections[handle].thread->setDuration(workDuration, readyDuration);
 }
 
 void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats) {
@@ -318,12 +345,12 @@ Scheduler::ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
     return mInjectorConnectionHandle;
 }
 
-bool Scheduler::injectVSync(nsecs_t when, nsecs_t expectedVSyncTime) {
+bool Scheduler::injectVSync(nsecs_t when, nsecs_t expectedVSyncTime, nsecs_t deadlineTimestamp) {
     if (!mInjectVSyncs || !mVSyncInjector) {
         return false;
     }
 
-    mVSyncInjector->onInjectSyncEvent(when, expectedVSyncTime);
+    mVSyncInjector->onInjectSyncEvent(when, expectedVSyncTime, deadlineTimestamp);
     return true;
 }
 
@@ -340,7 +367,6 @@ void Scheduler::disableHardwareVsync(bool makeUnavailable) {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
     if (mPrimaryHWVsyncEnabled) {
         mSchedulerCallback.setVsyncEnabled(false);
-        getPrimaryDispSync().endResync();
         mPrimaryHWVsyncEnabled = false;
     }
     if (makeUnavailable) {
@@ -596,6 +622,15 @@ void Scheduler::dump(std::string& result) const {
                   toContentDetectionString(mOptions.useContentDetection,
                                            mOptions.useContentDetectionV2),
                   mLayerHistory ? mLayerHistory->dump().c_str() : "(no layer history)");
+}
+
+void Scheduler::dumpVSync(std::string& s) const {
+    using base::StringAppendF;
+
+    StringAppendF(&s, "VSyncReactor:\n");
+    mVsyncSchedule.sync->dump(s);
+    StringAppendF(&s, "VSyncDispatch:\n");
+    mVsyncSchedule.dispatch->dump(s);
 }
 
 template <class T>
