@@ -663,7 +663,7 @@ TEST_F(DexoptTest, DexoptPrimaryFailedInvalidFilter) {
                           &status);
     EXPECT_STREQ(status.toString8().c_str(),
                  "Status(-8, EX_SERVICE_SPECIFIC): \'256: Dex2oat invocation for "
-                 "/data/app/com.installd.test.dexopt/base.jar failed: unspecified dex2oat error'");
+                 "/data/app/com.installd.test.dexopt/base.jar failed: dex2oat error'");
 }
 
 TEST_F(DexoptTest, DexoptPrimaryProfileNonPublic) {
