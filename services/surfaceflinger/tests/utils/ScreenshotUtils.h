@@ -50,8 +50,10 @@ public:
         const auto sf = ComposerService::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
+        captureArgs.useRGBColorSpace = true;
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
         status_t status = sf->captureDisplay(captureArgs, captureListener);
+
         if (status != NO_ERROR) {
             return status;
         }
@@ -81,6 +83,7 @@ public:
         const auto sf = ComposerService::getComposerService();
         SurfaceComposerClient::Transaction().apply(true);
 
+        captureArgs.useRGBColorSpace = true;
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
         status_t status = sf->captureLayers(captureArgs, captureListener);
         if (status != NO_ERROR) {
