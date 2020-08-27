@@ -369,6 +369,7 @@ struct ScreenCaptureResults {
     sp<GraphicBuffer> buffer;
     bool capturedSecureLayers{false};
     ui::Dataspace capturedDataspace{ui::Dataspace::V0_SRGB};
+    status_t result = NO_ERROR;
 
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);

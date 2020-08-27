@@ -203,6 +203,20 @@ protected:
         ASSERT_EQ(false, ::testing::Test::HasFailure());
     }
 
+    static status_t captureDisplay(DisplayCaptureArgs& captureArgs,
+                                   ScreenCaptureResults& captureResults) {
+        const auto sf = ComposerService::getComposerService();
+        SurfaceComposerClient::Transaction().apply(true);
+
+        const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
+        status_t status = sf->captureDisplay(captureArgs, captureListener);
+        if (status != NO_ERROR) {
+            return status;
+        }
+        captureResults = captureListener->waitForResults();
+        return captureResults.result;
+    }
+
     sp<SurfaceComposerClient> mClient;
     sp<ISurfaceComposer> mComposer;
 
@@ -306,7 +320,7 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
     adapter.waitForCallbacks();
 
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, mComposer->captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
@@ -383,7 +397,7 @@ TEST_F(BLASTBufferQueueTest, SetCrop_Item) {
 
     adapter.waitForCallbacks();
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, mComposer->captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
 
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
@@ -440,7 +454,7 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
 
     adapter.waitForCallbacks();
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, mComposer->captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
 
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b,
@@ -481,7 +495,7 @@ public:
         ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
         adapter.waitForCallbacks();
-        ASSERT_EQ(NO_ERROR, mComposer->captureDisplay(mCaptureArgs, mCaptureResults));
+        ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
 
         switch (tr) {
             case ui::Transform::ROT_0:
