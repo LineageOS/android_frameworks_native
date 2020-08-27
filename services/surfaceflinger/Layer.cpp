@@ -1445,6 +1445,13 @@ Layer::FrameRate Layer::getFrameRateForLayerTree() const {
 
 void Layer::deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber) {
     ATRACE_CALL();
+    if (mLayerDetached) {
+        // If the layer is detached, then we don't defer this transaction since we will not
+        // commit the pending state while the layer is detached. Adding sync points may cause
+        // the barrier layer to wait for the states to be committed before dequeuing a buffer.
+        return;
+    }
+
     mCurrentState.barrierLayer_legacy = barrierLayer;
     mCurrentState.frameNumber_legacy = frameNumber;
     // We don't set eTransactionNeeded, because just receiving a deferral
