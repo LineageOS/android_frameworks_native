@@ -19,6 +19,7 @@ cc_defaults {
         "execv_helper.cpp",
         "globals.cpp",
         "run_dex2oat.cpp",
+        "unique_file.cpp",
         "utils.cpp",
         "utils_default.cpp",
         "view_compiler.cpp",
@@ -111,15 +112,13 @@ cc_test_host {
     srcs: [
         "run_dex2oat_test.cpp",
         "run_dex2oat.cpp",
+        "unique_file.cpp",
         "execv_helper.cpp",
     ],
     cflags: ["-Wall", "-Werror"],
     shared_libs: [
         "libbase",
         "server_configurable_flags",
-    ],
-    static_libs: [
-        //"libinstalld",
     ],
     test_config: "run_dex2oat_test.xml",
 }
@@ -231,6 +230,7 @@ cc_binary {
         "otapreopt.cpp",
         "otapreopt_utils.cpp",
         "run_dex2oat.cpp",
+        "unique_file.cpp",
         "utils.cpp",
         "utils_default.cpp",
         "view_compiler.cpp",
