@@ -524,11 +524,11 @@ private:
             ISurfaceComposer::ConfigChanged configChanged =
                     ISurfaceComposer::eConfigChangedSuppress) override;
     status_t captureDisplay(const DisplayCaptureArgs& args,
-                            ScreenCaptureResults& captureResults) override;
+                            const sp<IScreenCaptureListener>& captureListener) override;
     status_t captureDisplay(uint64_t displayOrLayerStack,
-                            ScreenCaptureResults& captureResults) override;
+                            const sp<IScreenCaptureListener>& captureListener) override;
     status_t captureLayers(const LayerCaptureArgs& args,
-                           ScreenCaptureResults& captureResults) override;
+                           const sp<IScreenCaptureListener>& captureListener) override;
 
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
     status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*) override;

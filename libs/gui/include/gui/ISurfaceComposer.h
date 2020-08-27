@@ -22,6 +22,7 @@
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
 
+#include <gui/IScreenCaptureListener.h>
 #include <gui/ITransactionCompletedListener.h>
 
 #include <math/vec4.h>
@@ -255,10 +256,10 @@ public:
      * match the size of the output buffer.
      */
     virtual status_t captureDisplay(const DisplayCaptureArgs& args,
-                                    ScreenCaptureResults& captureResults) = 0;
+                                    const sp<IScreenCaptureListener>& captureListener) = 0;
 
     virtual status_t captureDisplay(uint64_t displayOrLayerStack,
-                                    ScreenCaptureResults& captureResults) = 0;
+                                    const sp<IScreenCaptureListener>& captureListener) = 0;
 
     template <class AA>
     struct SpHash {
@@ -271,7 +272,7 @@ public:
      * is a secure window on screen
      */
     virtual status_t captureLayers(const LayerCaptureArgs& args,
-                                   ScreenCaptureResults& captureResults) = 0;
+                                   const sp<IScreenCaptureListener>& captureListener) = 0;
 
     /* Clears the frame statistics for animations.
      *

@@ -84,14 +84,13 @@ TEST_F(ScreenCaptureTest, SetFlagsSecureEUidSystem) {
 
     Transaction().show(layer).setLayer(layer, INT32_MAX).apply(true);
 
-    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
-    ASSERT_EQ(PERMISSION_DENIED, composer->captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureDisplay(mCaptureArgs, mCaptureResults));
 
     UIDFaker f(AID_SYSTEM);
 
     // By default the system can capture screenshots with secure layers but they
     // will be blacked out
-    ASSERT_EQ(NO_ERROR, composer->captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureDisplay(mCaptureArgs, mCaptureResults));
 
     {
         SCOPED_TRACE("as system");
@@ -104,7 +103,7 @@ TEST_F(ScreenCaptureTest, SetFlagsSecureEUidSystem) {
     DisplayCaptureArgs args;
     args.displayToken = mDisplay;
     args.captureSecureLayers = true;
-    ASSERT_EQ(NO_ERROR, composer->captureDisplay(args, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureDisplay(args, mCaptureResults));
     ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
     ScreenCapture sc(mCaptureResults.buffer);
     sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
@@ -307,21 +306,17 @@ TEST_F(ScreenCaptureTest, CaptureBoundlessLayerWithoutSourceCropFails) {
     sp<SurfaceControl> child = createColorLayer("Child layer", Color::RED, mFGSurfaceControl.get());
     SurfaceComposerClient::Transaction().show(child).apply(true);
 
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-
     LayerCaptureArgs args;
     args.layerHandle = child->getHandle();
 
     ScreenCaptureResults captureResults;
-    ASSERT_EQ(BAD_VALUE, sf->captureLayers(args, captureResults));
+    ASSERT_EQ(BAD_VALUE, ScreenCapture::captureLayers(args, captureResults));
 }
 
 TEST_F(ScreenCaptureTest, CaptureBufferLayerWithoutBufferFails) {
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     SurfaceComposerClient::Transaction().show(child).apply(true);
-
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     sp<GraphicBuffer> outBuffer;
 
     LayerCaptureArgs args;
@@ -329,11 +324,11 @@ TEST_F(ScreenCaptureTest, CaptureBufferLayerWithoutBufferFails) {
     args.childrenOnly = false;
 
     ScreenCaptureResults captureResults;
-    ASSERT_EQ(BAD_VALUE, sf->captureLayers(args, captureResults));
+    ASSERT_EQ(BAD_VALUE, ScreenCapture::captureLayers(args, captureResults));
 
     TransactionUtils::fillSurfaceRGBA8(child, Color::RED);
     SurfaceComposerClient::Transaction().apply(true);
-    ASSERT_EQ(NO_ERROR, sf->captureLayers(args, captureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(args, captureResults));
     ScreenCapture sc(captureResults.buffer);
     sc.expectColor(Rect(0, 0, 9, 9), Color::RED);
 }
@@ -482,9 +477,8 @@ TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
     args.layerHandle = redLayerHandle;
 
     ScreenCaptureResults captureResults;
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     // Layer was deleted so captureLayers should fail with NAME_NOT_FOUND
-    ASSERT_EQ(NAME_NOT_FOUND, sf->captureLayers(args, captureResults));
+    ASSERT_EQ(NAME_NOT_FOUND, ScreenCapture::captureLayers(args, captureResults));
 }
 
 TEST_F(ScreenCaptureTest, CaputureSecureLayer) {
@@ -505,15 +499,13 @@ TEST_F(ScreenCaptureTest, CaputureSecureLayer) {
             .setLayer(redLayer, INT32_MAX)
             .apply();
 
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-
     LayerCaptureArgs args;
     args.layerHandle = redLayerHandle;
     args.childrenOnly = false;
     ScreenCaptureResults captureResults;
 
     // Call from outside system with secure layers will result in permission denied
-    ASSERT_EQ(PERMISSION_DENIED, sf->captureLayers(args, captureResults));
+    ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(args, captureResults));
 
     UIDFaker f(AID_SYSTEM);
 
@@ -551,8 +543,7 @@ TEST_F(ScreenCaptureTest, CaptureDisplayWithUid) {
 
     // From non system uid, can't request screenshot without a specified uid.
     UIDFaker f(fakeUid);
-    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
-    ASSERT_EQ(PERMISSION_DENIED, composer->captureDisplay(captureArgs, mCaptureResults));
+    ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureDisplay(captureArgs, mCaptureResults));
 
     // Make screenshot request with current uid set. No layers were created with the current
     // uid so screenshot will be black.
@@ -604,8 +595,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithUid) {
     // From non system uid, can't request screenshot without a specified uid.
     std::unique_ptr<UIDFaker> uidFaker = std::make_unique<UIDFaker>(fakeUid);
 
-    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
-    ASSERT_EQ(PERMISSION_DENIED, composer->captureLayers(captureArgs, mCaptureResults));
+    ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
 
     // Make screenshot request with current uid set. No layers were created with the current
     // uid so screenshot will be black.

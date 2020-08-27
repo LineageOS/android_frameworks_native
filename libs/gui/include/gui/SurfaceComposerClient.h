@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <future>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
@@ -593,10 +594,17 @@ private:
 
 // ---------------------------------------------------------------------------
 
+class SyncScreenCaptureListener : public BnScreenCaptureListener {
+public:
+    status_t onScreenCaptureComplete(const ScreenCaptureResults& captureResults) override;
+    ScreenCaptureResults waitForResults();
+
+private:
+    std::promise<ScreenCaptureResults> resultsPromise;
+};
+
 class ScreenshotClient {
 public:
-    // if cropping isn't required, callers may pass in a default Rect, e.g.:
-    //   capture(display, producer, Rect(), reqWidth, ...);
     static status_t captureDisplay(const DisplayCaptureArgs& captureArgs,
                                    ScreenCaptureResults& captureResults);
     static status_t captureDisplay(uint64_t displayOrLayerStack,

@@ -109,52 +109,33 @@ public:
     }
 
     virtual status_t captureDisplay(const DisplayCaptureArgs& args,
-                                    ScreenCaptureResults& captureResults) {
+                                    const sp<IScreenCaptureListener>& captureListener) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-
         SAFE_PARCEL(args.write, data);
-        status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY, data, &reply);
-        if (result != NO_ERROR) {
-            ALOGE("captureDisplay failed to transact: %d", result);
-            return result;
-        }
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(captureListener));
 
-        SAFE_PARCEL(captureResults.read, reply);
-        return NO_ERROR;
+        return remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY, data, &reply);
     }
 
     virtual status_t captureDisplay(uint64_t displayOrLayerStack,
-                                    ScreenCaptureResults& captureResults) {
+                                    const sp<IScreenCaptureListener>& captureListener) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(data.writeUint64, displayOrLayerStack)
-        status_t result =
-                remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY_BY_ID, data, &reply);
-        if (result != NO_ERROR) {
-            ALOGE("captureDisplay failed to transact: %d", result);
-            return result;
-        }
+        SAFE_PARCEL(data.writeUint64, displayOrLayerStack);
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(captureListener));
 
-        SAFE_PARCEL(captureResults.read, reply);
-        return NO_ERROR;
+        return remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY_BY_ID, data, &reply);
     }
 
     virtual status_t captureLayers(const LayerCaptureArgs& args,
-                                   ScreenCaptureResults& captureResults) {
+                                   const sp<IScreenCaptureListener>& captureListener) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-
         SAFE_PARCEL(args.write, data);
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(captureListener));
 
-        status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
-        if (result != NO_ERROR) {
-            ALOGE("captureLayers failed to transact: %d", result);
-            return result;
-        }
-
-        SAFE_PARCEL(captureResults.read, reply);
-        return NO_ERROR;
+        return remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
     }
 
     virtual bool authenticateSurfaceTexture(
@@ -1251,37 +1232,29 @@ status_t BnSurfaceComposer::onTransact(
         case CAPTURE_DISPLAY: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             DisplayCaptureArgs args;
-            ScreenCaptureResults captureResults;
-
+            sp<IScreenCaptureListener> captureListener;
             SAFE_PARCEL(args.read, data);
-            status_t res = captureDisplay(args, captureResults);
-            if (res == NO_ERROR) {
-                SAFE_PARCEL(captureResults.write, *reply);
-            }
-            return res;
+            SAFE_PARCEL(data.readStrongBinder, &captureListener);
+
+            return captureDisplay(args, captureListener);
         }
         case CAPTURE_DISPLAY_BY_ID: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             uint64_t displayOrLayerStack = 0;
+            sp<IScreenCaptureListener> captureListener;
             SAFE_PARCEL(data.readUint64, &displayOrLayerStack);
-            ScreenCaptureResults captureResults;
-            status_t res = captureDisplay(displayOrLayerStack, captureResults);
-            if (res == NO_ERROR) {
-                SAFE_PARCEL(captureResults.write, *reply);
-            }
-            return res;
+            SAFE_PARCEL(data.readStrongBinder, &captureListener);
+
+            return captureDisplay(displayOrLayerStack, captureListener);
         }
         case CAPTURE_LAYERS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             LayerCaptureArgs args;
-            ScreenCaptureResults captureResults;
-
+            sp<IScreenCaptureListener> captureListener;
             SAFE_PARCEL(args.read, data);
-            status_t res = captureLayers(args, captureResults);
-            if (res == NO_ERROR) {
-                SAFE_PARCEL(captureResults.write, *reply);
-            }
-            return res;
+            SAFE_PARCEL(data.readStrongBinder, &captureListener);
+
+            return captureLayers(args, captureListener);
         }
         case AUTHENTICATE_SURFACE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

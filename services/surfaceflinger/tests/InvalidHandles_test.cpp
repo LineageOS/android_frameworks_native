@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <binder/Binder.h>
 
 #include <gtest/gtest.h>
@@ -22,6 +26,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
 #include <ui/Rect.h>
+#include "utils/ScreenshotUtils.h"
 
 namespace android {
 namespace {
@@ -56,13 +61,11 @@ TEST_F(InvalidHandleTest, createSurfaceInvalidHandle) {
 }
 
 TEST_F(InvalidHandleTest, captureLayersInvalidHandle) {
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-
     LayerCaptureArgs args;
     args.layerHandle = mNotSc->getHandle();
 
     ScreenCaptureResults captureResults;
-    ASSERT_EQ(NAME_NOT_FOUND, sf->captureLayers(args, captureResults));
+    ASSERT_EQ(NAME_NOT_FOUND, ScreenCapture::captureLayers(args, captureResults));
 }
 
 } // namespace
