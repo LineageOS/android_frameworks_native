@@ -71,14 +71,17 @@ void CallbackScheduler::schedule(std::function<void()> callback, std::chrono::mi
 
 void CallbackScheduler::loop() {
     while (true) {
-        std::lock_guard<std::mutex> lock(mMutex);
+        std::unique_lock<std::mutex> lock(mMutex);
         if (mFinished) {
             // Destructor was called, so let the callback thread die.
             break;
         }
         while (!mQueue.empty() && mQueue.top().isExpired()) {
-            mQueue.top().run();
+            DelayedCallback callback = mQueue.top();
             mQueue.pop();
+            lock.unlock();
+            callback.run();
+            lock.lock();
         }
         if (mQueue.empty()) {
             // Wait until a new callback is scheduled.
