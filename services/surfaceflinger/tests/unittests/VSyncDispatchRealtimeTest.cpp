@@ -65,7 +65,7 @@ public:
     bool addVsyncTimestamp(nsecs_t) final { return true; }
 
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t time_point) const final {
-        std::lock_guard<decltype(mMutex)> lk(mMutex);
+        std::lock_guard lock(mMutex);
         auto const normalized_to_base = time_point - mBase;
         auto const floor = (normalized_to_base) % mPeriod;
         if (floor == 0) {
@@ -75,13 +75,13 @@ public:
     }
 
     void set_interval(nsecs_t interval, nsecs_t last_known) {
-        std::lock_guard<decltype(mMutex)> lk(mMutex);
+        std::lock_guard lock(mMutex);
         mPeriod = interval;
         mBase = last_known;
     }
 
     nsecs_t currentPeriod() const final {
-        std::lock_guard<decltype(mMutex)> lk(mMutex);
+        std::lock_guard lock(mMutex);
         return mPeriod;
     }
 
@@ -118,11 +118,11 @@ public:
                  .earliestVsync = systemTime(SYSTEM_TIME_MONOTONIC) + mWorkload + mReadyDuration});
 
         for (auto i = 0u; i < iterations - 1; i++) {
-            std::unique_lock<decltype(mMutex)> lk(mMutex);
-            mCv.wait(lk, [&] { return mCalled; });
+            std::unique_lock lock(mMutex);
+            mCv.wait(lock, [&] { return mCalled; });
             mCalled = false;
             auto last = mLastTarget;
-            lk.unlock();
+            lock.unlock();
 
             onEachFrame(last);
 
@@ -132,8 +132,8 @@ public:
         }
 
         // wait for the last callback.
-        std::unique_lock<decltype(mMutex)> lk(mMutex);
-        mCv.wait(lk, [&] { return mCalled; });
+        std::unique_lock lock(mMutex);
+        mCv.wait(lock, [&] { return mCalled; });
     }
 
     void with_callback_times(std::function<void(std::vector<nsecs_t> const&)> const& fn) const {
@@ -142,7 +142,7 @@ public:
 
 private:
     void callback_called(nsecs_t time) {
-        std::lock_guard<decltype(mMutex)> lk(mMutex);
+        std::lock_guard lock(mMutex);
         mCallbackTimes.push_back(time);
         mCalled = true;
         mLastTarget = time;

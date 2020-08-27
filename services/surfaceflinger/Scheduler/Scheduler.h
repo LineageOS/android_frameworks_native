@@ -40,12 +40,12 @@ namespace android {
 using namespace std::chrono_literals;
 using scheduler::LayerHistory;
 
-class DispSync;
 class FenceTime;
 class InjectVSyncSource;
 class PredictedVsyncTracer;
 
 namespace scheduler {
+class VsyncController;
 class VSyncDispatch;
 class VSyncTracker;
 } // namespace scheduler
@@ -68,8 +68,6 @@ public:
 
     Scheduler(const scheduler::RefreshRateConfigs&, ISchedulerCallback&);
     ~Scheduler();
-
-    DispSync& getPrimaryDispSync();
 
     using ConnectionHandle = scheduler::ConnectionHandle;
     ConnectionHandle createConnection(const char* connectionName,
@@ -95,7 +93,7 @@ public:
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
 
-    void getDisplayStatInfo(DisplayStatInfo* stats);
+    void getDisplayStatInfo(DisplayStatInfo* stats, nsecs_t now);
 
     // Returns injector handle if injection has toggled, or an invalid handle otherwise.
     ConnectionHandle enableVSyncInjection(bool enable);
@@ -112,13 +110,12 @@ public:
     void resyncToHardwareVsync(bool makeAvailable, nsecs_t period);
     void resync();
 
-    // Passes a vsync sample to DispSync. periodFlushed will be true if
-    // DispSync detected that the vsync period changed, and false otherwise.
+    // Passes a vsync sample to VsyncController. periodFlushed will be true if
+    // VsyncController detected that the vsync period changed, and false otherwise.
     void addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
                          bool* periodFlushed);
     void addPresentFence(const std::shared_ptr<FenceTime>&);
     void setIgnorePresentFences(bool ignore);
-    nsecs_t getDispSyncExpectedPresentTime(nsecs_t now);
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
@@ -138,7 +135,7 @@ public:
 
     void dump(std::string&) const;
     void dump(ConnectionHandle, std::string&) const;
-    void dumpVSync(std::string&) const;
+    void dumpVsync(std::string&) const;
 
     // Get the appropriate refresh for current conditions.
     std::optional<HwcConfigIndexType> getPreferredConfigId();
@@ -178,7 +175,7 @@ private:
     };
 
     struct VsyncSchedule {
-        std::unique_ptr<DispSync> sync;
+        std::unique_ptr<scheduler::VsyncController> controller;
         std::unique_ptr<scheduler::VSyncTracker> tracker;
         std::unique_ptr<scheduler::VSyncDispatch> dispatch;
     };
@@ -190,7 +187,7 @@ private:
     Scheduler(VsyncSchedule, const scheduler::RefreshRateConfigs&, ISchedulerCallback&,
               std::unique_ptr<LayerHistory>, Options);
 
-    static VsyncSchedule createVsyncSchedule(Options);
+    static VsyncSchedule createVsyncSchedule(bool supportKernelIdleTimer);
     static std::unique_ptr<LayerHistory> createLayerHistory(const scheduler::RefreshRateConfigs&,
                                                             bool useContentDetectionV2);
 

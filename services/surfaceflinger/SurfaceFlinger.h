@@ -219,7 +219,7 @@ public:
     // If fences from sync Framework are supported.
     static bool hasSyncFramework;
 
-    // The offset in nanoseconds to use when DispSync timestamps present fence
+    // The offset in nanoseconds to use when VsyncController timestamps present fence
     // signaling time.
     static int64_t dispSyncPresentTimeOffset;
 

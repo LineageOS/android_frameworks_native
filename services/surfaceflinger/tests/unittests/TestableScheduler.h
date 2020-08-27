@@ -19,12 +19,13 @@
 #include <gmock/gmock.h>
 #include <gui/ISurfaceComposer.h>
 
-#include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncTracker.h"
-#include "mock/MockDispSync.h"
+#include "Scheduler/VsyncController.h"
+#include "mock/MockVSyncTracker.h"
+#include "mock/MockVsyncController.h"
 
 namespace android {
 
@@ -32,14 +33,16 @@ class TestableScheduler : public Scheduler {
 public:
     TestableScheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback,
                       bool useContentDetectionV2)
-          : TestableScheduler(std::make_unique<mock::DispSync>(), configs, callback,
+          : TestableScheduler(std::make_unique<mock::VsyncController>(),
+                              std::make_unique<mock::VSyncTracker>(), configs, callback,
                               useContentDetectionV2) {}
 
-    TestableScheduler(std::unique_ptr<DispSync> primaryDispSync,
+    TestableScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
+                      std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
                       const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback,
                       bool useContentDetectionV2)
-          : Scheduler({std::move(primaryDispSync), nullptr, nullptr}, configs, callback,
-                      createLayerHistory(configs, useContentDetectionV2),
+          : Scheduler({std::move(vsyncController), std::move(vsyncTracker), nullptr}, configs,
+                      callback, createLayerHistory(configs, useContentDetectionV2),
                       {.supportKernelTimer = false,
                        .useContentDetection = true,
                        .useContentDetectionV2 = useContentDetectionV2}) {}
@@ -95,7 +98,7 @@ public:
         // not report a leaked object, since the Scheduler instance may
         // still be referenced by something despite our best efforts to destroy
         // it after each test is done.
-        mVsyncSchedule.sync.reset();
+        mVsyncSchedule.controller.reset();
         mConnections.clear();
     }
 };

@@ -38,7 +38,7 @@
 #include "DisplayRenderArea.h"
 #include "Layer.h"
 #include "Promise.h"
-#include "Scheduler/DispSync.h"
+#include "Scheduler/VsyncController.h"
 #include "SurfaceFlinger.h"
 
 namespace android {
@@ -249,7 +249,7 @@ void RegionSamplingThread::doSample() {
         // until the next vsync deadline, defer this sampling work
         // to a later frame, when hopefully there will be more time.
         DisplayStatInfo stats;
-        mScheduler.getDisplayStatInfo(&stats);
+        mScheduler.getDisplayStatInfo(&stats, systemTime());
         if (std::chrono::nanoseconds(stats.vsyncTime) - now < timeForRegionSampling) {
             ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForQuietFrame));
             mDiscardedFrames++;

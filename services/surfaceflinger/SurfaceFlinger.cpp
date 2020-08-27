@@ -117,13 +117,13 @@
 #include "Promise.h"
 #include "RefreshRateOverlay.h"
 #include "RegionSamplingThread.h"
-#include "Scheduler/DispSync.h"
 #include "Scheduler/DispSyncSource.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VsyncConfiguration.h"
+#include "Scheduler/VsyncController.h"
 #include "StartPropertySetThread.h"
 #include "SurfaceFlingerProperties.h"
 #include "SurfaceInterceptor.h"
@@ -961,7 +961,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         //
         // Normally it's one full refresh period (to give SF a chance to
         // latch the buffer), but this can be reduced by configuring a
-        // DispSync offset.  Any additional delays introduced by the hardware
+        // VsyncController offset.  Any additional delays introduced by the hardware
         // composer or panel must be accounted for here.
         //
         // We add an additional 1ms to allow for processing time and
@@ -979,7 +979,7 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* st
         return BAD_VALUE;
     }
 
-    mScheduler->getDisplayStatInfo(stats);
+    mScheduler->getDisplayStatInfo(stats, systemTime());
     return NO_ERROR;
 }
 
@@ -1037,7 +1037,7 @@ void SurfaceFlinger::setDesiredActiveConfig(const ActiveConfigInfo& info) {
         // switch.
         mScheduler->resyncToHardwareVsync(true, refreshRate.getVsyncPeriod());
         // As we called to set period, we will call to onRefreshRateChangeCompleted once
-        // DispSync model is locked.
+        // VsyncController model is locked.
         modulateVsync(&VsyncModulator::onRefreshRateChangeInitiated);
 
         updatePhaseConfiguration(refreshRate);
@@ -1824,11 +1824,10 @@ nsecs_t SurfaceFlinger::previousFramePresentTime() {
 
 nsecs_t SurfaceFlinger::calculateExpectedPresentTime(nsecs_t now) const {
     DisplayStatInfo stats;
-    mScheduler->getDisplayStatInfo(&stats);
-    const nsecs_t presentTime = mScheduler->getDispSyncExpectedPresentTime(now);
+    mScheduler->getDisplayStatInfo(&stats, now);
     // Inflate the expected present time if we're targetting the next vsync.
-    return mVsyncModulator->getVsyncConfig().sfOffset > 0 ? presentTime
-                                                          : presentTime + stats.vsyncPeriod;
+    return mVsyncModulator->getVsyncConfig().sfOffset > 0 ? stats.vsyncTime
+                                                          : stats.vsyncTime + stats.vsyncPeriod;
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what, nsecs_t expectedVSyncTime) {
@@ -1874,7 +1873,7 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
     // smaller than a typical frame duration, but should not be so small
     // that it reports reasonable drift as a missed frame.
     DisplayStatInfo stats;
-    mScheduler->getDisplayStatInfo(&stats);
+    mScheduler->getDisplayStatInfo(&stats, systemTime());
     const nsecs_t frameMissedSlop = stats.vsyncPeriod / 2;
     const nsecs_t previousPresentTime = previousFramePresentTime();
     const TracedOrdinal<bool> frameMissed = {"PrevFrameMissed",
@@ -2247,7 +2246,7 @@ void SurfaceFlinger::postComposition()
     getBE().mDisplayTimeline.push(presentFenceTime);
 
     DisplayStatInfo stats;
-    mScheduler->getDisplayStatInfo(&stats);
+    mScheduler->getDisplayStatInfo(&stats, systemTime());
 
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
@@ -4352,7 +4351,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
     } else {
         static const std::unordered_map<std::string, Dumper> dumpers = {
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
-                {"--dispsync"s, dumper([this](std::string& s) { mScheduler->dumpVSync(s); })},
+                {"--dispsync"s, dumper([this](std::string& s) { mScheduler->dumpVsync(s); })},
                 {"--edid"s, argsDumper(&SurfaceFlinger::dumpRawDisplayIdentificationData)},
                 {"--frame-events"s, dumper(&SurfaceFlinger::dumpFrameEventsLocked)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
@@ -4499,7 +4498,7 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
     }
 
     mScheduler->dump(mAppConnectionHandle, result);
-    mScheduler->getPrimaryDispSync().dump(result);
+    mScheduler->dumpVsync(result);
 }
 
 void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
