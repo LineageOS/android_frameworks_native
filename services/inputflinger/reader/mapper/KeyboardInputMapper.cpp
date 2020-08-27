@@ -419,6 +419,25 @@ void KeyboardInputMapper::initializeLedState(LedState& ledState, int32_t led) {
 
 void KeyboardInputMapper::updateLedState(bool reset) {
     mMetaState |= getContext()->getLedMetaState();
+
+    constexpr int32_t META_NUM = 3;
+    const std::array<int32_t, META_NUM> keyCodes = {AKEYCODE_CAPS_LOCK, AKEYCODE_NUM_LOCK,
+                                                    AKEYCODE_SCROLL_LOCK};
+    const std::array<int32_t, META_NUM> metaCodes = {AMETA_CAPS_LOCK_ON, AMETA_NUM_LOCK_ON,
+                                                     AMETA_SCROLL_LOCK_ON};
+    std::array<uint8_t, META_NUM> flags = {0, 0, 0};
+    bool hasKeyLayout =
+            getDeviceContext().markSupportedKeyCodes(META_NUM, keyCodes.data(), flags.data());
+    // If the device doesn't have the physical meta key it shouldn't generate the corresponding
+    // meta state.
+    if (hasKeyLayout) {
+        for (int i = 0; i < META_NUM; i++) {
+            if (!flags[i]) {
+                mMetaState &= ~metaCodes[i];
+            }
+        }
+    }
+
     updateLedStateForModifier(mCapsLockLedState, ALED_CAPS_LOCK, AMETA_CAPS_LOCK_ON, reset);
     updateLedStateForModifier(mNumLockLedState, ALED_NUM_LOCK, AMETA_NUM_LOCK_ON, reset);
     updateLedStateForModifier(mScrollLockLedState, ALED_SCROLL_LOCK, AMETA_SCROLL_LOCK_ON, reset);
