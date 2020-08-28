@@ -460,6 +460,14 @@ private:
 
     status_t openDeviceLocked(const std::string& devicePath);
     void openVideoDeviceLocked(const std::string& devicePath);
+    /**
+     * Try to associate a video device with an input device. If the association succeeds,
+     * the videoDevice is moved into the input device. 'videoDevice' will become null if this
+     * happens.
+     * Return true if the association succeeds.
+     * Return false otherwise.
+     */
+    bool tryAddVideoDevice(Device& device, std::unique_ptr<TouchVideoDevice>& videoDevice);
     void createVirtualKeyboardLocked();
     void addDeviceLocked(std::unique_ptr<Device> device);
     void assignDescriptorLocked(InputDeviceIdentifier& identifier);
