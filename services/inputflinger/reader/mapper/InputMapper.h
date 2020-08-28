@@ -74,6 +74,7 @@ public:
     virtual void updateExternalStylusState(const StylusState& state);
 
     virtual std::optional<int32_t> getAssociatedDisplayId() { return std::nullopt; }
+    virtual void updateLedState(bool reset) {}
 
 protected:
     InputDeviceContext& mDeviceContext;

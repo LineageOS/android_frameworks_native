@@ -25,31 +25,31 @@
 namespace android {
 namespace installd {
 
+class UniqueFile;
+
 class RunDex2Oat {
   public:
     explicit RunDex2Oat(const char* dex2oat_bin, ExecVHelper* execv_helper);
     virtual ~RunDex2Oat();
 
-    void Initialize(int zip_fd,
-                    int oat_fd,
-                    int input_vdex_fd,
-                    int output_vdex_fd,
-                    int image_fd,
-                    const char* input_file_name,
-                    const char* output_file_name,
+    void Initialize(const UniqueFile& output_oat,
+                    const UniqueFile& output_vdex,
+                    const UniqueFile& output_image,
+                    const UniqueFile& input_dex,
+                    const UniqueFile& input_vdex,
+                    const UniqueFile& dex_metadata,
+                    const UniqueFile& profile,
+                    const char* class_loader_context,
+                    const std::string& class_loader_context_fds,
                     int swap_fd,
                     const char* instruction_set,
                     const char* compiler_filter,
                     bool debuggable,
                     bool post_bootcomplete,
                     bool for_restore,
-                    int profile_fd,
-                    const char* class_loader_context,
-                    const std::string& class_loader_context_fds,
                     int target_sdk_version,
                     bool enable_hidden_api_checks,
                     bool generate_compact_dex,
-                    int dex_metadata_fd,
                     bool use_jitzygote_image,
                     const char* compilation_reason);
 
@@ -57,20 +57,18 @@ class RunDex2Oat {
 
   protected:
     void PrepareBootImageAndBootClasspathFlags(bool use_jitzygote_image);
-    void PrepareInputFileFlags(int zip_fd,
-                               int oat_fd,
-                               int input_vdex_fd,
-                               int output_vdex_fd,
-                               int image_fd,
-                               const char* input_file_name,
-                               const char* output_file_name,
-                               int profile_fd,
-                               int dex_metadata_fd,
+    void PrepareInputFileFlags(const UniqueFile& output_oat,
+                               const UniqueFile& output_vdex,
+                               const UniqueFile& output_image,
+                               const UniqueFile& input_dex,
+                               const UniqueFile& input_vdex,
+                               const UniqueFile& dex_metadata,
+                               const UniqueFile& profile,
                                int swap_fd,
                                const char* class_loader_context,
                                const std::string& class_loader_context_fds);
-    void PrepareCompilerConfigFlags(int input_vdex_fd,
-                                    int output_vdex_fd,
+    void PrepareCompilerConfigFlags(const UniqueFile& input_vdex,
+                                    const UniqueFile& output_vdex,
                                     const char* instruction_set,
                                     const char* compiler_filter,
                                     bool debuggable,
