@@ -390,11 +390,14 @@ void KeyboardInputMapper::updateMetaState(int32_t keyCode) {
 bool KeyboardInputMapper::updateMetaStateIfNeeded(int32_t keyCode, bool down) {
     int32_t oldMetaState = mMetaState;
     int32_t newMetaState = android::updateMetaState(keyCode, down, oldMetaState);
-    bool metaStateChanged = oldMetaState != newMetaState;
+    int32_t metaStateChanged = oldMetaState ^ newMetaState;
     if (metaStateChanged) {
         mMetaState = newMetaState;
-        updateLedState(false);
-
+        constexpr int32_t allLedMetaState =
+                AMETA_CAPS_LOCK_ON | AMETA_NUM_LOCK_ON | AMETA_SCROLL_LOCK_ON;
+        if ((metaStateChanged & allLedMetaState) != 0) {
+            getContext()->updateLedMetaState(newMetaState & allLedMetaState);
+        }
         getContext()->updateGlobalMetaState();
     }
 
@@ -415,6 +418,7 @@ void KeyboardInputMapper::initializeLedState(LedState& ledState, int32_t led) {
 }
 
 void KeyboardInputMapper::updateLedState(bool reset) {
+    mMetaState |= getContext()->getLedMetaState();
     updateLedStateForModifier(mCapsLockLedState, ALED_CAPS_LOCK, AMETA_CAPS_LOCK_ON, reset);
     updateLedStateForModifier(mNumLockLedState, ALED_NUM_LOCK, AMETA_NUM_LOCK_ON, reset);
     updateLedStateForModifier(mScrollLockLedState, ALED_SCROLL_LOCK, AMETA_SCROLL_LOCK_ON, reset);

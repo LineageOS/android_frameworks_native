@@ -47,6 +47,7 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
         mEventHub(eventHub),
         mPolicy(policy),
         mGlobalMetaState(0),
+        mLedMetaState(AMETA_NUM_LOCK_ON),
         mGeneration(1),
         mNextInputDeviceId(END_RESERVED_ID),
         mDisableVirtualKeysTimeout(LLONG_MIN),
@@ -351,6 +352,18 @@ void InputReader::updateGlobalMetaStateLocked() {
 
 int32_t InputReader::getGlobalMetaStateLocked() {
     return mGlobalMetaState;
+}
+
+void InputReader::updateLedMetaStateLocked(int32_t metaState) {
+    mLedMetaState = metaState;
+    for (auto& devicePair : mDevices) {
+        std::shared_ptr<InputDevice>& device = devicePair.second;
+        device->updateLedState(false);
+    }
+}
+
+int32_t InputReader::getLedMetaStateLocked() {
+    return mLedMetaState;
 }
 
 void InputReader::notifyExternalStylusPresenceChanged() {
@@ -708,6 +721,16 @@ void InputReader::ContextImpl::updateGlobalMetaState() {
 int32_t InputReader::ContextImpl::getGlobalMetaState() {
     // lock is already held by the input loop
     return mReader->getGlobalMetaStateLocked();
+}
+
+void InputReader::ContextImpl::updateLedMetaState(int32_t metaState) {
+    // lock is already held by the input loop
+    mReader->updateLedMetaStateLocked(metaState);
+}
+
+int32_t InputReader::ContextImpl::getLedMetaState() {
+    // lock is already held by the input loop
+    return mReader->getLedMetaStateLocked();
 }
 
 void InputReader::ContextImpl::disableVirtualKeysUntil(nsecs_t time) {
