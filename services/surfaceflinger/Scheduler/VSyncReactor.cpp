@@ -30,6 +30,8 @@
 namespace android::scheduler {
 using base::StringAppendF;
 
+VsyncController::~VsyncController() = default;
+
 Clock::~Clock() = default;
 nsecs_t SystemClock::now() const {
     return systemTime(SYSTEM_TIME_MONOTONIC);
@@ -44,7 +46,7 @@ VSyncReactor::VSyncReactor(std::unique_ptr<Clock> clock, VSyncTracker& tracker,
 
 VSyncReactor::~VSyncReactor() = default;
 
-bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
+bool VSyncReactor::addPresentFence(const std::shared_ptr<android::FenceTime>& fence) {
     if (!fence) {
         return false;
     }
@@ -91,14 +93,14 @@ bool VSyncReactor::addPresentFence(const std::shared_ptr<FenceTime>& fence) {
     return mMoreSamplesNeeded;
 }
 
-void VSyncReactor::setIgnorePresentFences(bool ignoration) {
+void VSyncReactor::setIgnorePresentFences(bool ignore) {
     std::lock_guard lock(mMutex);
-    mExternalIgnoreFences = ignoration;
+    mExternalIgnoreFences = ignore;
     updateIgnorePresentFencesInternal();
 }
 
-void VSyncReactor::setIgnorePresentFencesInternal(bool ignoration) {
-    mInternalIgnoreFences = ignoration;
+void VSyncReactor::setIgnorePresentFencesInternal(bool ignore) {
+    mInternalIgnoreFences = ignore;
     updateIgnorePresentFencesInternal();
 }
 
@@ -108,16 +110,7 @@ void VSyncReactor::updateIgnorePresentFencesInternal() {
     }
 }
 
-nsecs_t VSyncReactor::computeNextRefresh(int periodOffset, nsecs_t now) const {
-    auto const currentPeriod = periodOffset ? mTracker.currentPeriod() : 0;
-    return mTracker.nextAnticipatedVSyncTimeFrom(now + periodOffset * currentPeriod);
-}
-
-nsecs_t VSyncReactor::expectedPresentTime(nsecs_t now) {
-    return mTracker.nextAnticipatedVSyncTimeFrom(now);
-}
-
-void VSyncReactor::startPeriodTransition(nsecs_t newPeriod) {
+void VSyncReactor::startPeriodTransitionInternal(nsecs_t newPeriod) {
     ATRACE_CALL();
     mPeriodConfirmationInProgress = true;
     mPeriodTransitioningTo = newPeriod;
@@ -132,26 +125,18 @@ void VSyncReactor::endPeriodTransition() {
     mLastHwVsync.reset();
 }
 
-void VSyncReactor::setPeriod(nsecs_t period) {
+void VSyncReactor::startPeriodTransition(nsecs_t period) {
     ATRACE_INT64("VSR-setPeriod", period);
-    std::lock_guard lk(mMutex);
+    std::lock_guard lock(mMutex);
     mLastHwVsync.reset();
 
-    if (!mSupportKernelIdleTimer && period == getPeriod()) {
+    if (!mSupportKernelIdleTimer && period == mTracker.currentPeriod()) {
         endPeriodTransition();
         setIgnorePresentFencesInternal(false);
         mMoreSamplesNeeded = false;
     } else {
-        startPeriodTransition(period);
+        startPeriodTransitionInternal(period);
     }
-}
-
-nsecs_t VSyncReactor::getPeriod() {
-    return mTracker.currentPeriod();
-}
-
-void VSyncReactor::beginResync() {
-    mTracker.resetModel();
 }
 
 bool VSyncReactor::periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_t> HwcVsyncPeriod) {
@@ -164,13 +149,13 @@ bool VSyncReactor::periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_
     }
 
     const bool periodIsChanging =
-            mPeriodTransitioningTo && (*mPeriodTransitioningTo != getPeriod());
+            mPeriodTransitioningTo && (*mPeriodTransitioningTo != mTracker.currentPeriod());
     if (mSupportKernelIdleTimer && !periodIsChanging) {
         // Clear out the Composer-provided period and use the allowance logic below
         HwcVsyncPeriod = {};
     }
 
-    auto const period = mPeriodTransitioningTo ? *mPeriodTransitioningTo : getPeriod();
+    auto const period = mPeriodTransitioningTo ? *mPeriodTransitioningTo : mTracker.currentPeriod();
     static constexpr int allowancePercent = 10;
     static constexpr std::ratio<allowancePercent, 100> allowancePercentRatio;
     auto const allowance = period * allowancePercentRatio.num / allowancePercentRatio.den;
@@ -182,8 +167,8 @@ bool VSyncReactor::periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_
     return std::abs(distance - period) < allowance;
 }
 
-bool VSyncReactor::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
-                                   bool* periodFlushed) {
+bool VSyncReactor::addHwVsyncTimestamp(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
+                                       bool* periodFlushed) {
     assert(periodFlushed);
 
     std::lock_guard lock(mMutex);

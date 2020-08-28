@@ -185,7 +185,7 @@ VSyncDispatchTimerQueue::VSyncDispatchTimerQueue(std::unique_ptr<TimeKeeper> tk,
         mMinVsyncDistance(minVsyncDistance) {}
 
 VSyncDispatchTimerQueue::~VSyncDispatchTimerQueue() {
-    std::lock_guard<decltype(mMutex)> lk(mMutex);
+    std::lock_guard lock(mMutex);
     cancelTimer();
 }
 
@@ -257,7 +257,7 @@ void VSyncDispatchTimerQueue::timerCallback() {
     };
     std::vector<Invocation> invocations;
     {
-        std::lock_guard<decltype(mMutex)> lk(mMutex);
+        std::lock_guard lock(mMutex);
         auto const now = mTimeKeeper->now();
         mLastTimerCallback = now;
         for (auto it = mCallbacks.begin(); it != mCallbacks.end(); it++) {
@@ -289,7 +289,7 @@ void VSyncDispatchTimerQueue::timerCallback() {
 
 VSyncDispatchTimerQueue::CallbackToken VSyncDispatchTimerQueue::registerCallback(
         Callback const& callbackFn, std::string callbackName) {
-    std::lock_guard<decltype(mMutex)> lk(mMutex);
+    std::lock_guard lock(mMutex);
     return CallbackToken{
             mCallbacks
                     .emplace(++mCallbackToken,
@@ -302,7 +302,7 @@ VSyncDispatchTimerQueue::CallbackToken VSyncDispatchTimerQueue::registerCallback
 void VSyncDispatchTimerQueue::unregisterCallback(CallbackToken token) {
     std::shared_ptr<VSyncDispatchTimerQueueEntry> entry = nullptr;
     {
-        std::lock_guard<decltype(mMutex)> lk(mMutex);
+        std::lock_guard lock(mMutex);
         auto it = mCallbacks.find(token);
         if (it != mCallbacks.end()) {
             entry = it->second;
@@ -319,7 +319,7 @@ ScheduleResult VSyncDispatchTimerQueue::schedule(CallbackToken token,
                                                  ScheduleTiming scheduleTiming) {
     auto result = ScheduleResult::Error;
     {
-        std::lock_guard<decltype(mMutex)> lk(mMutex);
+        std::lock_guard lock(mMutex);
 
         auto it = mCallbacks.find(token);
         if (it == mCallbacks.end()) {
@@ -350,7 +350,7 @@ ScheduleResult VSyncDispatchTimerQueue::schedule(CallbackToken token,
 }
 
 CancelResult VSyncDispatchTimerQueue::cancel(CallbackToken token) {
-    std::lock_guard<decltype(mMutex)> lk(mMutex);
+    std::lock_guard lock(mMutex);
 
     auto it = mCallbacks.find(token);
     if (it == mCallbacks.end()) {
@@ -372,7 +372,7 @@ CancelResult VSyncDispatchTimerQueue::cancel(CallbackToken token) {
 }
 
 void VSyncDispatchTimerQueue::dump(std::string& result) const {
-    std::lock_guard<decltype(mMutex)> lk(mMutex);
+    std::lock_guard lock(mMutex);
     StringAppendF(&result, "\tTimer:\n");
     mTimeKeeper->dump(result);
     StringAppendF(&result, "\tmTimerSlack: %.2fms mMinVsyncDistance: %.2fms\n", mTimerSlack / 1e6f,

@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-#include "mock/MockDispSync.h"
+#include "mock/MockVsyncController.h"
 #include <thread>
 
 using namespace std::chrono_literals;
-namespace android {
-namespace mock {
+namespace android::mock {
 
 // Explicit default instantiation is recommended.
-DispSync::DispSync() = default;
-DispSync::~DispSync() = default;
+VsyncController::VsyncController() = default;
+VsyncController::~VsyncController() = default;
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock
