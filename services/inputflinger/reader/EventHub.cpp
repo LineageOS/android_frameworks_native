@@ -979,18 +979,30 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
             mNeedToSendFinishedDeviceScan = true;
         }
 
-        for (auto it = mOpeningDevices.begin(); it != mOpeningDevices.end();) {
-            std::unique_ptr<Device> device = std::move(*it);
+        while (!mOpeningDevices.empty()) {
+            std::unique_ptr<Device> device = std::move(*mOpeningDevices.rbegin());
+            mOpeningDevices.pop_back();
             ALOGV("Reporting device opened: id=%d, name=%s\n", device->id, device->path.c_str());
             event->when = now;
             event->deviceId = device->id == mBuiltInKeyboardId ? 0 : device->id;
             event->type = DEVICE_ADDED;
             event += 1;
-            auto [dev_it, insert] = mDevices.insert_or_assign(device->id, std::move(device));
-            if (!insert) {
+
+            // Try to find a matching video device by comparing device names
+            for (auto it = mUnattachedVideoDevices.begin(); it != mUnattachedVideoDevices.end();
+                 it++) {
+                std::unique_ptr<TouchVideoDevice>& videoDevice = *it;
+                if (tryAddVideoDevice(*device, videoDevice)) {
+                    // videoDevice was transferred to 'device'
+                    it = mUnattachedVideoDevices.erase(it);
+                    break;
+                }
+            }
+
+            auto [dev_it, inserted] = mDevices.insert_or_assign(device->id, std::move(device));
+            if (!inserted) {
                 ALOGW("Device id %d exists, replaced.", device->id);
             }
-            it = mOpeningDevices.erase(it);
             mNeedToSendFinishedDeviceScan = true;
             if (--capacity == 0) {
                 break;
@@ -1536,21 +1548,6 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
         device->setLedForControllerLocked();
     }
 
-    // Find a matching video device by comparing device names
-    // This should be done before registerDeviceForEpollLocked, so that both fds are added to epoll
-    for (std::unique_ptr<TouchVideoDevice>& videoDevice : mUnattachedVideoDevices) {
-        if (device->identifier.name == videoDevice->getName()) {
-            device->videoDevice = std::move(videoDevice);
-            break;
-        }
-    }
-    mUnattachedVideoDevices
-            .erase(std::remove_if(mUnattachedVideoDevices.begin(), mUnattachedVideoDevices.end(),
-                                  [](const std::unique_ptr<TouchVideoDevice>& videoDevice) {
-                                      return videoDevice == nullptr;
-                                  }),
-                   mUnattachedVideoDevices.end());
-
     if (registerDeviceForEpollLocked(*device) != OK) {
         return -1;
     }
@@ -1576,12 +1573,8 @@ void EventHub::openVideoDeviceLocked(const std::string& devicePath) {
     }
     // Transfer ownership of this video device to a matching input device
     for (const auto& [id, device] : mDevices) {
-        if (videoDevice->getName() == device->identifier.name) {
-            device->videoDevice = std::move(videoDevice);
-            if (device->enabled) {
-                registerVideoDeviceForEpollLocked(*device->videoDevice);
-            }
-            return;
+        if (tryAddVideoDevice(*device, videoDevice)) {
+            return; // 'device' now owns 'videoDevice'
         }
     }
 
@@ -1590,6 +1583,18 @@ void EventHub::openVideoDeviceLocked(const std::string& devicePath) {
     ALOGI("Adding video device %s to list of unattached video devices",
           videoDevice->getName().c_str());
     mUnattachedVideoDevices.push_back(std::move(videoDevice));
+}
+
+bool EventHub::tryAddVideoDevice(EventHub::Device& device,
+                                 std::unique_ptr<TouchVideoDevice>& videoDevice) {
+    if (videoDevice->getName() != device.identifier.name) {
+        return false;
+    }
+    device.videoDevice = std::move(videoDevice);
+    if (device.enabled) {
+        registerVideoDeviceForEpollLocked(*device.videoDevice);
+    }
+    return true;
 }
 
 bool EventHub::isDeviceEnabled(int32_t deviceId) {
