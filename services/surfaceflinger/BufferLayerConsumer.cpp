@@ -25,7 +25,7 @@
 
 #include "BufferLayerConsumer.h"
 #include "Layer.h"
-#include "Scheduler/DispSync.h"
+#include "Scheduler/VsyncController.h"
 
 #include <inttypes.h>
 

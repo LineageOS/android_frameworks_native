@@ -39,7 +39,6 @@
 #include <numeric>
 
 #include "../Layer.h"
-#include "DispSync.h"
 #include "DispSyncSource.h"
 #include "EventThread.h"
 #include "InjectVSyncSource.h"
@@ -50,6 +49,7 @@
 #include "VSyncDispatchTimerQueue.h"
 #include "VSyncPredictor.h"
 #include "VSyncReactor.h"
+#include "VsyncController.h"
 
 #define RETURN_IF_INVALID_HANDLE(handle, ...)                        \
     do {                                                             \
@@ -124,7 +124,7 @@ Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCal
 
 Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback,
                      Options options)
-      : Scheduler(createVsyncSchedule(options), configs, callback,
+      : Scheduler(createVsyncSchedule(options.supportKernelTimer), configs, callback,
                   createLayerHistory(configs, options.useContentDetectionV2), options) {
     using namespace sysprop;
 
@@ -180,17 +180,17 @@ Scheduler::~Scheduler() {
     mIdleTimer.reset();
 }
 
-Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(Options options) {
+Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(bool supportKernelTimer) {
     auto clock = std::make_unique<scheduler::SystemClock>();
     auto tracker = createVSyncTracker();
     auto dispatch = createVSyncDispatch(*tracker);
 
     // TODO(b/144707443): Tune constants.
     constexpr size_t pendingFenceLimit = 20;
-    auto sync =
+    auto controller =
             std::make_unique<scheduler::VSyncReactor>(std::move(clock), *tracker, pendingFenceLimit,
-                                                      options.supportKernelTimer);
-    return {std::move(sync), std::move(tracker), std::move(dispatch)};
+                                                      supportKernelTimer);
+    return {std::move(controller), std::move(tracker), std::move(dispatch)};
 }
 
 std::unique_ptr<LayerHistory> Scheduler::createLayerHistory(
@@ -202,10 +202,6 @@ std::unique_ptr<LayerHistory> Scheduler::createLayerHistory(
     }
 
     return std::make_unique<scheduler::impl::LayerHistory>();
-}
-
-DispSync& Scheduler::getPrimaryDispSync() {
-    return *mVsyncSchedule.sync;
 }
 
 std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
@@ -318,9 +314,9 @@ void Scheduler::setDuration(ConnectionHandle handle, std::chrono::nanoseconds wo
     mConnections[handle].thread->setDuration(workDuration, readyDuration);
 }
 
-void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats) {
-    stats->vsyncTime = getPrimaryDispSync().computeNextRefresh(0, systemTime());
-    stats->vsyncPeriod = getPrimaryDispSync().getPeriod();
+void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats, nsecs_t now) {
+    stats->vsyncTime = mVsyncSchedule.tracker->nextAnticipatedVSyncTimeFrom(now);
+    stats->vsyncPeriod = mVsyncSchedule.tracker->currentPeriod();
 }
 
 Scheduler::ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
@@ -357,7 +353,7 @@ bool Scheduler::injectVSync(nsecs_t when, nsecs_t expectedVSyncTime, nsecs_t dea
 void Scheduler::enableHardwareVsync() {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
     if (!mPrimaryHWVsyncEnabled && mHWVsyncAvailable) {
-        getPrimaryDispSync().beginResync();
+        mVsyncSchedule.tracker->resetModel();
         mSchedulerCallback.setVsyncEnabled(true);
         mPrimaryHWVsyncEnabled = true;
     }
@@ -406,10 +402,10 @@ void Scheduler::resync() {
 
 void Scheduler::setVsyncPeriod(nsecs_t period) {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
-    getPrimaryDispSync().setPeriod(period);
+    mVsyncSchedule.controller->startPeriodTransition(period);
 
     if (!mPrimaryHWVsyncEnabled) {
-        getPrimaryDispSync().beginResync();
+        mVsyncSchedule.tracker->resetModel();
         mSchedulerCallback.setVsyncEnabled(true);
         mPrimaryHWVsyncEnabled = true;
     }
@@ -422,8 +418,8 @@ void Scheduler::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsy
     { // Scope for the lock
         std::lock_guard<std::mutex> lock(mHWVsyncLock);
         if (mPrimaryHWVsyncEnabled) {
-            needsHwVsync =
-                    getPrimaryDispSync().addResyncSample(timestamp, hwcVsyncPeriod, periodFlushed);
+            needsHwVsync = mVsyncSchedule.controller->addHwVsyncTimestamp(timestamp, hwcVsyncPeriod,
+                                                                          periodFlushed);
         }
     }
 
@@ -435,7 +431,7 @@ void Scheduler::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsy
 }
 
 void Scheduler::addPresentFence(const std::shared_ptr<FenceTime>& fenceTime) {
-    if (getPrimaryDispSync().addPresentFence(fenceTime)) {
+    if (mVsyncSchedule.controller->addPresentFence(fenceTime)) {
         enableHardwareVsync();
     } else {
         disableHardwareVsync(false);
@@ -443,11 +439,7 @@ void Scheduler::addPresentFence(const std::shared_ptr<FenceTime>& fenceTime) {
 }
 
 void Scheduler::setIgnorePresentFences(bool ignore) {
-    getPrimaryDispSync().setIgnorePresentFences(ignore);
-}
-
-nsecs_t Scheduler::getDispSyncExpectedPresentTime(nsecs_t now) {
-    return getPrimaryDispSync().expectedPresentTime(now);
+    mVsyncSchedule.controller->setIgnorePresentFences(ignore);
 }
 
 void Scheduler::registerLayer(Layer* layer) {
@@ -581,7 +573,7 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
                refreshRate.getFps() <= FPS_THRESHOLD_FOR_KERNEL_TIMER) {
         // Disable HW VSYNC if the timer expired, as we don't need it enabled if
         // we're not pushing frames, and if we're in PERFORMANCE mode then we'll
-        // need to update the DispSync model anyway.
+        // need to update the VsyncController model anyway.
         disableHardwareVsync(false /* makeUnavailable */);
     }
 
@@ -624,11 +616,11 @@ void Scheduler::dump(std::string& result) const {
                   mLayerHistory ? mLayerHistory->dump().c_str() : "(no layer history)");
 }
 
-void Scheduler::dumpVSync(std::string& s) const {
+void Scheduler::dumpVsync(std::string& s) const {
     using base::StringAppendF;
 
     StringAppendF(&s, "VSyncReactor:\n");
-    mVsyncSchedule.sync->dump(s);
+    mVsyncSchedule.controller->dump(s);
     StringAppendF(&s, "VSyncDispatch:\n");
     mVsyncSchedule.dispatch->dump(s);
 }

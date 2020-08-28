@@ -98,11 +98,13 @@ DisplayEventReceiver::Event makeHotplug(PhysicalDisplayId displayId, nsecs_t tim
 }
 
 DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t timestamp,
-                                      uint32_t count, nsecs_t expectedVSyncTimestamp) {
+                                      uint32_t count, nsecs_t expectedVSyncTimestamp,
+                                      nsecs_t deadlineTimestamp) {
     DisplayEventReceiver::Event event;
     event.header = {DisplayEventReceiver::DISPLAY_EVENT_VSYNC, displayId, timestamp};
     event.vsync.count = count;
     event.vsync.expectedVSyncTimestamp = expectedVSyncTimestamp;
+    event.vsync.deadlineTimestamp = deadlineTimestamp;
     return event;
 }
 
@@ -285,12 +287,12 @@ void EventThread::onScreenAcquired() {
 }
 
 void EventThread::onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp,
-                               nsecs_t /*deadlineTimestamp*/) {
+                               nsecs_t deadlineTimestamp) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     LOG_FATAL_IF(!mVSyncState);
     mPendingEvents.push_back(makeVSync(mVSyncState->displayId, timestamp, ++mVSyncState->count,
-                                       expectedVSyncTimestamp));
+                                       expectedVSyncTimestamp, deadlineTimestamp));
     mCondition.notify_all();
 }
 
@@ -412,9 +414,11 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
 
                 LOG_FATAL_IF(!mVSyncState);
                 const auto now = systemTime(SYSTEM_TIME_MONOTONIC);
-                const auto expectedVSyncTime = now + timeout.count();
+                const auto deadlineTimestamp = now + timeout.count();
+                const auto expectedVSyncTime = deadlineTimestamp + timeout.count();
                 mPendingEvents.push_back(makeVSync(mVSyncState->displayId, now,
-                                                   ++mVSyncState->count, expectedVSyncTime));
+                                                   ++mVSyncState->count, expectedVSyncTime,
+                                                   deadlineTimestamp));
             }
         }
     }

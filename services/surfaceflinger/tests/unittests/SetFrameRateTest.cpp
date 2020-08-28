@@ -32,9 +32,9 @@
 #pragma clang diagnostic pop // ignored "-Wconversion"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
-#include "mock/MockDispSync.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
+#include "mock/MockVsyncController.h"
 
 namespace android {
 
@@ -175,14 +175,15 @@ void SetFrameRateTest::setupScheduler() {
             .WillOnce(Return(new EventThreadConnection(sfEventThread.get(), ResyncCallback(),
                                                        ISurfaceComposer::eConfigChangedSuppress)));
 
-    auto primaryDispSync = std::make_unique<mock::DispSync>();
+    auto vsyncController = std::make_unique<mock::VsyncController>();
+    auto vsyncTracker = std::make_unique<mock::VSyncTracker>();
 
-    EXPECT_CALL(*primaryDispSync, computeNextRefresh(0, _)).WillRepeatedly(Return(0));
-    EXPECT_CALL(*primaryDispSync, getPeriod())
+    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+    EXPECT_CALL(*vsyncTracker, currentPeriod())
             .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
-    EXPECT_CALL(*primaryDispSync, expectedPresentTime(_)).WillRepeatedly(Return(0));
-    mFlinger.setupScheduler(std::move(primaryDispSync), std::move(eventThread),
-                            std::move(sfEventThread));
+    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+    mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
+                            std::move(eventThread), std::move(sfEventThread));
 }
 
 void SetFrameRateTest::setupComposer(uint32_t virtualDisplayCount) {
