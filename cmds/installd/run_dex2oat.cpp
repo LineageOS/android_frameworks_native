@@ -30,6 +30,8 @@
 #include <log/log.h>
 #include <server_configurable_flags/get_flags.h>
 
+#include "unique_file.h"
+
 using android::base::Basename;
 using android::base::StringPrintf;
 
@@ -64,35 +66,33 @@ std::vector<std::string> SplitBySpaces(const std::string& str) {
 RunDex2Oat::RunDex2Oat(const char* dex2oat_bin, ExecVHelper* execv_helper)
   : dex2oat_bin_(dex2oat_bin), execv_helper_(execv_helper) {}
 
-void RunDex2Oat::Initialize(int zip_fd,
-                            int oat_fd,
-                            int input_vdex_fd,
-                            int output_vdex_fd,
-                            int image_fd,
-                            const char* input_file_name,
-                            const char* output_file_name,
+void RunDex2Oat::Initialize(const UniqueFile& output_oat,
+                            const UniqueFile& output_vdex,
+                            const UniqueFile& output_image,
+                            const UniqueFile& input_dex,
+                            const UniqueFile& input_vdex,
+                            const UniqueFile& dex_metadata,
+                            const UniqueFile& profile,
+                            const char* class_loader_context,
+                            const std::string& class_loader_context_fds,
                             int swap_fd,
                             const char* instruction_set,
                             const char* compiler_filter,
                             bool debuggable,
                             bool post_bootcomplete,
                             bool for_restore,
-                            int profile_fd,
-                            const char* class_loader_context,
-                            const std::string& class_loader_context_fds,
                             int target_sdk_version,
                             bool enable_hidden_api_checks,
                             bool generate_compact_dex,
-                            int dex_metadata_fd,
                             bool use_jitzygote_image,
                             const char* compilation_reason) {
     PrepareBootImageAndBootClasspathFlags(use_jitzygote_image);
 
-    PrepareInputFileFlags(zip_fd, oat_fd, input_vdex_fd, output_vdex_fd, image_fd, input_file_name,
-                          output_file_name, profile_fd, dex_metadata_fd, swap_fd,
-                          class_loader_context, class_loader_context_fds);
+    PrepareInputFileFlags(output_oat, output_vdex, output_image, input_dex, input_vdex,
+                          dex_metadata, profile, swap_fd, class_loader_context,
+                          class_loader_context_fds);
 
-    PrepareCompilerConfigFlags(input_vdex_fd, output_vdex_fd, instruction_set, compiler_filter,
+    PrepareCompilerConfigFlags(input_vdex, output_vdex, instruction_set, compiler_filter,
                                debuggable, target_sdk_version, enable_hidden_api_checks,
                                generate_compact_dex, compilation_reason);
 
@@ -139,38 +139,36 @@ void RunDex2Oat::PrepareBootImageAndBootClasspathFlags(bool use_jitzygote_image)
     AddArg(updatable_bcp_packages);
 }
 
-void RunDex2Oat::PrepareInputFileFlags(int zip_fd,
-                                       int oat_fd,
-                                       int input_vdex_fd,
-                                       int output_vdex_fd,
-                                       int image_fd,
-                                       const char* input_file_name,
-                                       const char* output_file_name,
-                                       int profile_fd,
-                                       int dex_metadata_fd,
+void RunDex2Oat::PrepareInputFileFlags(const UniqueFile& output_oat,
+                                       const UniqueFile& output_vdex,
+                                       const UniqueFile& output_image,
+                                       const UniqueFile& input_dex,
+                                       const UniqueFile& input_vdex,
+                                       const UniqueFile& dex_metadata,
+                                       const UniqueFile& profile,
                                        int swap_fd,
                                        const char* class_loader_context,
                                        const std::string& class_loader_context_fds) {
-    std::string input_basename = Basename(input_file_name);
-    ALOGV("Running %s in=%s out=%s\n", dex2oat_bin_.c_str(), input_basename.c_str(),
-          output_file_name);
+    std::string input_basename = Basename(input_dex.path());
+    LOG(VERBOSE) << "Running " << dex2oat_bin_ << " in=" << input_basename << " out="
+                 << output_oat.path();
 
-    AddArg(StringPrintf("--zip-fd=%d", zip_fd));
+    AddArg(StringPrintf("--zip-fd=%d", input_dex.fd()));
     AddArg(StringPrintf("--zip-location=%s", input_basename.c_str()));
-    AddArg(StringPrintf("--oat-fd=%d", oat_fd));
-    AddArg(StringPrintf("--oat-location=%s", output_file_name));
-    AddArg(StringPrintf("--input-vdex-fd=%d", input_vdex_fd));
-    AddArg(StringPrintf("--output-vdex-fd=%d", output_vdex_fd));
+    AddArg(StringPrintf("--oat-fd=%d", output_oat.fd()));
+    AddArg(StringPrintf("--oat-location=%s", output_oat.path().c_str()));
+    AddArg(StringPrintf("--input-vdex-fd=%d", input_vdex.fd()));
+    AddArg(StringPrintf("--output-vdex-fd=%d", output_vdex.fd()));
 
-    if (image_fd >= 0) {
-        AddArg(StringPrintf("--app-image-fd=%d", image_fd));
+    if (output_image.fd() >= 0) {
+        AddArg(StringPrintf("--app-image-fd=%d", output_image.fd()));
         AddArg(MapPropertyToArg("dalvik.vm.appimageformat", "--image-format=%s"));
     }
-    if (dex_metadata_fd > -1) {
-        AddArg("--dm-fd=" + std::to_string(dex_metadata_fd));
+    if (dex_metadata.fd() > -1) {
+        AddArg("--dm-fd=" + std::to_string(dex_metadata.fd()));
     }
-    if (profile_fd != -1) {
-        AddArg(StringPrintf("--profile-file-fd=%d", profile_fd));
+    if (profile.fd() != -1) {
+        AddArg(StringPrintf("--profile-file-fd=%d", profile.fd()));
     }
     if (swap_fd >= 0) {
         AddArg(StringPrintf("--swap-fd=%d", swap_fd));
@@ -178,7 +176,7 @@ void RunDex2Oat::PrepareInputFileFlags(int zip_fd,
 
     // Get the directory of the apk to pass as a base classpath directory.
     {
-        std::string apk_dir(input_file_name);
+        std::string apk_dir(input_dex.path());
         size_t dir_index = apk_dir.rfind('/');
         if (dir_index != std::string::npos) {
             apk_dir = apk_dir.substr(0, dir_index);
@@ -195,8 +193,8 @@ void RunDex2Oat::PrepareInputFileFlags(int zip_fd,
     }
 }
 
-void RunDex2Oat::PrepareCompilerConfigFlags(int input_vdex_fd,
-                                            int output_vdex_fd,
+void RunDex2Oat::PrepareCompilerConfigFlags(const UniqueFile& input_vdex,
+                                            const UniqueFile& output_vdex,
                                             const char* instruction_set,
                                             const char* compiler_filter,
                                             bool debuggable,
@@ -206,11 +204,11 @@ void RunDex2Oat::PrepareCompilerConfigFlags(int input_vdex_fd,
                                             const char* compilation_reason) {
     // Disable cdex if update input vdex is true since this combination of options is not
     // supported.
-    const bool disable_cdex = !generate_compact_dex || (input_vdex_fd == output_vdex_fd);
+    const bool disable_cdex = !generate_compact_dex || (input_vdex.fd() == output_vdex.fd());
     if (disable_cdex) {
         AddArg(kDisableCompactDexFlag);
     }
-    
+
     // ISA related
     {
         AddArg(StringPrintf("--instruction-set=%s", instruction_set));
