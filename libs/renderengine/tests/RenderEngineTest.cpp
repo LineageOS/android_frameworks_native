@@ -734,7 +734,7 @@ void RenderEngineTest::fillRedBufferWithoutPremultiplyAlpha() {
 
 void RenderEngineTest::fillBufferWithoutPremultiplyAlpha() {
     fillRedBufferWithoutPremultiplyAlpha();
-    expectBufferColor(fullscreenRect(), 128, 0, 0, 64, 1);
+    expectBufferColor(fullscreenRect(), 128, 0, 0, 128, 1);
 }
 
 void RenderEngineTest::clearLeftRegion() {
