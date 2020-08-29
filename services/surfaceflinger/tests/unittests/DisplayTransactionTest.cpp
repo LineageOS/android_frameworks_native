@@ -45,12 +45,12 @@
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockPowerAdvisor.h"
-#include "mock/MockDispSync.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
 #include "mock/MockNativeWindowSurface.h"
 #include "mock/MockSchedulerCallback.h"
 #include "mock/MockSurfaceInterceptor.h"
+#include "mock/MockVsyncController.h"
 #include "mock/system/window/MockNativeWindow.h"
 
 namespace android {
@@ -155,7 +155,8 @@ public:
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
     mock::SurfaceInterceptor* mSurfaceInterceptor = new mock::SurfaceInterceptor();
 
-    mock::DispSync* mPrimaryDispSync = new mock::DispSync;
+    mock::VsyncController* mVsyncController = new mock::VsyncController;
+    mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker;
     mock::SchedulerCallback mSchedulerCallback;
     mock::EventThread* mEventThread = new mock::EventThread;
     mock::EventThread* mSFEventThread = new mock::EventThread;
@@ -213,7 +214,8 @@ void DisplayTransactionTest::injectMockScheduler() {
             .WillOnce(Return(new EventThreadConnection(mSFEventThread, ResyncCallback(),
                                                        ISurfaceComposer::eConfigChangedSuppress)));
 
-    mFlinger.setupScheduler(std::unique_ptr<DispSync>(mPrimaryDispSync),
+    mFlinger.setupScheduler(std::unique_ptr<scheduler::VsyncController>(mVsyncController),
+                            std::unique_ptr<scheduler::VSyncTracker>(mVSyncTracker),
                             std::unique_ptr<EventThread>(mEventThread),
                             std::unique_ptr<EventThread>(mSFEventThread), &mSchedulerCallback);
 }
@@ -3128,7 +3130,7 @@ TEST_F(DisplayTransactionTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // processing.
     EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
 
-    EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_)).WillRepeatedly(Return(0));
+    EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
 
     // --------------------------------------------------------------------
     // Invocation
@@ -3259,15 +3261,14 @@ struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
 };
 
 struct DispSyncIsSupportedVariant {
-    static void setupBeginResyncCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mPrimaryDispSync, setPeriod(DEFAULT_REFRESH_RATE)).Times(1);
-        EXPECT_CALL(*test->mPrimaryDispSync, beginResync()).Times(1);
+    static void setupResetModelCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mVsyncController, startPeriodTransition(DEFAULT_REFRESH_RATE)).Times(1);
+        EXPECT_CALL(*test->mVSyncTracker, resetModel()).Times(1);
     }
 };
 
 struct DispSyncNotSupportedVariant {
-    static void setupBeginResyncCallExpectations(DisplayTransactionTest* /* test */) {}
-
+    static void setupResetModelCallExpectations(DisplayTransactionTest* /* test */) {}
 };
 
 // --------------------------------------------------------------------
@@ -3290,7 +3291,7 @@ struct TransitionOffToOnVariant : public TransitionVariantCommon<PowerMode::OFF,
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::setupComposerCallExpectations(test, IComposerClient::PowerMode::ON);
         Case::EventThread::setupAcquireAndEnableVsyncCallExpectations(test);
-        Case::DispSync::setupBeginResyncCallExpectations(test);
+        Case::DispSync::setupResetModelCallExpectations(test);
         Case::setupRepaintEverythingCallExpectations(test);
     }
 
@@ -3353,7 +3354,7 @@ struct TransitionDozeSuspendToDozeVariant
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::EventThread::setupAcquireAndEnableVsyncCallExpectations(test);
-        Case::DispSync::setupBeginResyncCallExpectations(test);
+        Case::DispSync::setupResetModelCallExpectations(test);
         Case::setupComposerCallExpectations(test, Case::Doze::ACTUAL_POWER_MODE_FOR_DOZE);
     }
 };
@@ -3371,7 +3372,7 @@ struct TransitionDozeSuspendToOnVariant
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::EventThread::setupAcquireAndEnableVsyncCallExpectations(test);
-        Case::DispSync::setupBeginResyncCallExpectations(test);
+        Case::DispSync::setupResetModelCallExpectations(test);
         Case::setupComposerCallExpectations(test, IComposerClient::PowerMode::ON);
     }
 };

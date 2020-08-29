@@ -34,7 +34,6 @@
 namespace android {
 // ----------------------------------------------------------------------------
 
-class DispSync;
 class Layer;
 class String8;
 

@@ -144,18 +144,18 @@ public:
     operator VSyncDispatch::CallbackToken() const { return mToken; }
 
     void pause(nsecs_t, nsecs_t) {
-        std::unique_lock<std::mutex> lk(mMutex);
+        std::unique_lock lock(mMutex);
         mPause = true;
         mCv.notify_all();
 
-        mCv.wait_for(lk, mPauseAmount, [this] { return !mPause; });
+        mCv.wait_for(lock, mPauseAmount, [this] { return !mPause; });
 
         mResourcePresent = (mResource.lock() != nullptr);
     }
 
     bool waitForPause() {
-        std::unique_lock<std::mutex> lk(mMutex);
-        auto waiting = mCv.wait_for(lk, 10s, [this] { return mPause; });
+        std::unique_lock lock(mMutex);
+        auto waiting = mCv.wait_for(lock, 10s, [this] { return mPause; });
         return waiting;
     }
 
@@ -164,7 +164,7 @@ public:
     bool resourcePresent() { return mResourcePresent; }
 
     void unpause() {
-        std::unique_lock<std::mutex> lk(mMutex);
+        std::unique_lock lock(mMutex);
         mPause = false;
         mCv.notify_all();
     }

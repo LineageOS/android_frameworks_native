@@ -37,10 +37,10 @@
 #include "SurfaceInterceptor.h"
 
 #include "DisplayHardware/ComposerHal.h"
-#include "Scheduler/DispSync.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VsyncConfiguration.h"
+#include "Scheduler/VsyncController.h"
 
 namespace android::surfaceflinger {
 

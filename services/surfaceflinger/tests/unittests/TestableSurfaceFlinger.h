@@ -189,7 +189,8 @@ public:
     }
 
     // The ISchedulerCallback argument can be nullptr for a no-op implementation.
-    void setupScheduler(std::unique_ptr<DispSync> primaryDispSync,
+    void setupScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
+                        std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
                         ISchedulerCallback* callback = nullptr, bool hasMultipleConfigs = false) {
@@ -217,9 +218,9 @@ public:
         mFlinger->mVsyncModulator.emplace(mFlinger->mVsyncConfiguration->getCurrentConfigs());
 
         constexpr bool kUseContentDetectionV2 = false;
-        mScheduler =
-                new TestableScheduler(std::move(primaryDispSync), *mFlinger->mRefreshRateConfigs,
-                                      *(callback ?: this), kUseContentDetectionV2);
+        mScheduler = new TestableScheduler(std::move(vsyncController), std::move(vsyncTracker),
+                                           *mFlinger->mRefreshRateConfigs, *(callback ?: this),
+                                           kUseContentDetectionV2);
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));

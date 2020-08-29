@@ -31,9 +31,9 @@
 
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
-#include "mock/MockDispSync.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
+#include "mock/MockVsyncController.h"
 
 namespace android {
 
@@ -75,11 +75,12 @@ public:
                         new EventThreadConnection(sfEventThread.get(), ResyncCallback(),
                                                   ISurfaceComposer::eConfigChangedSuppress)));
 
-        EXPECT_CALL(*mPrimaryDispSync, computeNextRefresh(0, _)).WillRepeatedly(Return(0));
-        EXPECT_CALL(*mPrimaryDispSync, getPeriod())
+        EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+        EXPECT_CALL(*mVSyncTracker, currentPeriod())
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
 
-        mFlinger.setupScheduler(std::unique_ptr<mock::DispSync>(mPrimaryDispSync),
+        mFlinger.setupScheduler(std::unique_ptr<mock::VsyncController>(mVsyncController),
+                                std::unique_ptr<mock::VSyncTracker>(mVSyncTracker),
                                 std::move(eventThread), std::move(sfEventThread));
     }
 
@@ -89,7 +90,8 @@ public:
     std::unique_ptr<mock::EventThread> mEventThread = std::make_unique<mock::EventThread>();
 
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
-    mock::DispSync* mPrimaryDispSync = new mock::DispSync();
+    mock::VsyncController* mVsyncController = new mock::VsyncController();
+    mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker();
 
     struct TransactionInfo {
         Vector<ComposerState> states;
@@ -123,7 +125,7 @@ public:
         ASSERT_EQ(0, mFlinger.getTransactionQueue().size());
         // called in SurfaceFlinger::signalTransaction
         EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
-        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_)).WillOnce(Return(systemTime()));
+        EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillOnce(Return(systemTime()));
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
                     /*desiredPresentTime*/ -1);
@@ -156,7 +158,7 @@ public:
         // first check will see desired present time has not passed,
         // but afterwards it will look like the desired present time has passed
         nsecs_t time = systemTime();
-        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_))
+        EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_))
                 .WillOnce(Return(time + nsecs_t(5 * 1e8)));
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
@@ -179,7 +181,7 @@ public:
         // called in SurfaceFlinger::signalTransaction
         nsecs_t time = systemTime();
         EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
-        EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_))
+        EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_))
                 .WillOnce(Return(time + nsecs_t(5 * 1e8)));
         // transaction that should go on the pending thread
         TransactionInfo transactionA;
@@ -244,7 +246,7 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
 
     // nsecs_t time = systemTime();
-    EXPECT_CALL(*mPrimaryDispSync, expectedPresentTime(_))
+    EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_))
             .WillOnce(Return(nsecs_t(5 * 1e8)))
             .WillOnce(Return(s2ns(2)));
     TransactionInfo transactionA; // transaction to go on pending queue

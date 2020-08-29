@@ -22,16 +22,13 @@
 #include <utils/Trace.h>
 #include <mutex>
 
-#include "DispSync.h"
 #include "EventThread.h"
+#include "VsyncController.h"
 
 namespace android::scheduler {
 using base::StringAppendF;
 using namespace std::chrono_literals;
 
-// The DispSync interface has a 'repeat this callback at rate' semantic. This object adapts
-// VSyncDispatch's individually-scheduled callbacks so as to meet DispSync's existing semantic
-// for now.
 class CallbackRepeater {
 public:
     CallbackRepeater(VSyncDispatch& dispatch, VSyncDispatch::Callback cb, const char* name,
