@@ -1129,7 +1129,8 @@ void GLESRenderEngine::setupLayerBlending(bool premultipliedAlpha, bool opaque, 
 
     if (color.a < 1.0f || !opaque || cornerRadius > 0.0f) {
         glEnable(GL_BLEND);
-        glBlendFunc(premultipliedAlpha ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glBlendFuncSeparate(premultipliedAlpha ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                            GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     } else {
         glDisable(GL_BLEND);
     }
