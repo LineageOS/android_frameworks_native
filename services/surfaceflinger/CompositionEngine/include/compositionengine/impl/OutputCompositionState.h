@@ -19,7 +19,16 @@
 #include <cstdint>
 
 #include <math/mat4.h>
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <ui/GraphicTypes.h>
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
+
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
@@ -34,6 +43,19 @@ struct OutputCompositionState {
 
     // If false, this output is not considered secure
     bool isSecure{false};
+
+    // If true, the current frame on this output uses client composition
+    bool usesClientComposition{false};
+
+    // If true, the current frame on this output uses device composition
+    bool usesDeviceComposition{false};
+
+    // If true, the client target should be flipped when performing client
+    // composition
+    bool flipClientTarget{false};
+
+    // If true, the current frame reused the buffer from a previous client composition
+    bool reusedClientComposition{false};
 
     // If true, this output displays layers that are internal-only
     bool layerStackInternal{false};
@@ -57,8 +79,11 @@ struct OutputCompositionState {
     // The logical space user viewport rectangle
     Rect viewport;
 
-    // The physical space scissor rectangle
-    Rect scissor;
+    // The physical space source clip rectangle
+    Rect sourceClip;
+
+    // The physical space destination clip rectangle
+    Rect destinationClip;
 
     // If true, RenderEngine filtering should be enabled
     bool needsFiltering{false};
@@ -76,11 +101,8 @@ struct OutputCompositionState {
     // True if the last composition frame had visible layers
     bool lastCompositionHadVisibleLayers{false};
 
-    // The color transform to apply
-    android_color_transform_t colorTransform{HAL_COLOR_TRANSFORM_IDENTITY};
-
-    // The color transform matrix to apply, corresponding with colorTransform.
-    mat4 colorTransformMat;
+    // The color transform matrix to apply
+    mat4 colorTransformMatrix;
 
     // Current active color mode
     ui::ColorMode colorMode{ui::ColorMode::NATIVE};
@@ -88,8 +110,11 @@ struct OutputCompositionState {
     // Current active render intent
     ui::RenderIntent renderIntent{ui::RenderIntent::COLORIMETRIC};
 
-    // Current active dstaspace
+    // Current active dataspace
     ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
+
+    // Current target dataspace
+    ui::Dataspace targetDataspace{ui::Dataspace::UNKNOWN};
 
     // Debugging
     void dump(std::string& result) const;

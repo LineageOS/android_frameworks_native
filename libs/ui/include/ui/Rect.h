@@ -17,6 +17,8 @@
 #ifndef ANDROID_UI_RECT
 #define ANDROID_UI_RECT
 
+#include <ostream>
+
 #include <utils/Flattenable.h>
 #include <utils/Log.h>
 #include <utils/TypeHelpers.h>
@@ -213,6 +215,12 @@ public:
                 static_cast<float>(right), static_cast<float>(bottom)};
     }
 };
+
+// Defining PrintTo helps with Google Tests.
+static inline void PrintTo(const Rect& rect, ::std::ostream* os) {
+    *os << "Rect(" << rect.left << ", " << rect.top << ", " << rect.right << ", " << rect.bottom
+        << ")";
+}
 
 ANDROID_BASIC_TYPES_TRAITS(Rect)
 

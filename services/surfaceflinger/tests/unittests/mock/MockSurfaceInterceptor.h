@@ -39,7 +39,7 @@ public:
                       const Vector<DisplayState>&, uint32_t));
     MOCK_METHOD1(saveSurfaceCreation, void(const sp<const Layer>&));
     MOCK_METHOD1(saveSurfaceDeletion, void(const sp<const Layer>&));
-    MOCK_METHOD4(saveBufferUpdate, void(const sp<const Layer>&, uint32_t, uint32_t, uint64_t));
+    MOCK_METHOD4(saveBufferUpdate, void(int32_t, uint32_t, uint32_t, uint64_t));
     MOCK_METHOD1(saveDisplayCreation, void(const DisplayDeviceState&));
     MOCK_METHOD1(saveDisplayDeletion, void(int32_t));
     MOCK_METHOD2(savePowerModeUpdate, void(int32_t, int32_t));

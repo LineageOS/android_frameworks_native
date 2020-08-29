@@ -1,5 +1,6 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
+package android.surfaceflinger;
 
 message Trace {
     repeated Increment increment = 1;
@@ -46,6 +47,12 @@ message SurfaceChange {
         SecureFlagChange            secure_flag             = 14;
         DeferredTransactionChange   deferred_transaction    = 15;
         CornerRadiusChange          corner_radius           = 16;
+        ReparentChange              reparent                = 17;
+        RelativeParentChange        relative_parent         = 18;
+        DetachChildrenChange        detach_children         = 19;
+        ReparentChildrenChange      reparent_children       = 20;
+        BackgroundBlurRadiusChange  background_blur_radius  = 21;
+        ShadowRadiusChange          shadow_radius           = 22;
     }
 }
 
@@ -65,6 +72,10 @@ message AlphaChange {
 
 message CornerRadiusChange {
     required float corner_radius = 1;
+}
+
+message BackgroundBlurRadiusChange {
+    required float background_blur_radius = 1;
 }
 
 message LayerChange {
@@ -176,4 +187,25 @@ message DisplayDeletion {
 message PowerModeUpdate {
     required int32  id   = 1;
     required int32  mode = 2;
+}
+
+message ReparentChange {
+    required int32 parent_id = 1;
+}
+
+message ReparentChildrenChange {
+    required int32 parent_id = 1;
+}
+
+message RelativeParentChange {
+    required int32 relative_parent_id = 1;
+    required int32 z = 2;
+}
+
+message DetachChildrenChange {
+    required bool detach_children = 1;
+}
+
+message ShadowRadiusChange {
+    required float radius = 1;
 }

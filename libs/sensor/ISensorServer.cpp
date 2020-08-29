@@ -199,6 +199,10 @@ status_t BnSensorServer::onTransact(
             int32_t type = data.readInt32();
             int32_t format = data.readInt32();
             native_handle_t *resource = data.readNativeHandle();
+            // Avoid a crash in native_handle_close if resource is nullptr
+            if (resource == nullptr) {
+                return BAD_VALUE;
+            }
             sp<ISensorEventConnection> ch =
                     createSensorDirectConnection(opPackageName, size, type, format, resource);
             native_handle_close(resource);

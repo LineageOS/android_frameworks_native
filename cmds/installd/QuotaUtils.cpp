@@ -61,6 +61,10 @@ bool InvalidateQuotaMounts() {
         std::getline(in, target, ' ');
         std::getline(in, ignored);
 
+        if (target.compare(0, 13, "/data_mirror/") == 0) {
+            continue;
+        }
+
         if (source.compare(0, 11, "/dev/block/") == 0) {
             struct dqblk dq;
             if (quotactl(QCMD(Q_GETQUOTA, USRQUOTA), source.c_str(), 0,

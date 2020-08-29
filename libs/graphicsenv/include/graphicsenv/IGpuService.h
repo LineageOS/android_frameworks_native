@@ -16,12 +16,11 @@
 
 #pragma once
 
-#include <vector>
-
 #include <binder/IInterface.h>
 #include <cutils/compiler.h>
 #include <graphicsenv/GpuStatsInfo.h>
-#include <graphicsenv/GraphicsEnv.h>
+
+#include <vector>
 
 namespace android {
 
@@ -37,27 +36,25 @@ public:
     virtual void setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
                              int64_t driverBuildTime, const std::string& appPackageName,
-                             const int32_t vulkanVersion, GraphicsEnv::Driver driver,
+                             const int32_t vulkanVersion, GpuStatsInfo::Driver driver,
                              bool isDriverLoaded, int64_t driverLoadingTime) = 0;
 
     // set target stats.
     virtual void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
-                                const GraphicsEnv::Stats stats, const uint64_t value = 0) = 0;
+                                const GpuStatsInfo::Stats stats, const uint64_t value = 0) = 0;
 
-    // get GPU global stats from GpuStats module.
-    virtual status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const = 0;
-
-    // get GPU app stats from GpuStats module.
-    virtual status_t getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const = 0;
+    // setter and getter for updatable driver path.
+    virtual void setUpdatableDriverPath(const std::string& driverPath) = 0;
+    virtual std::string getUpdatableDriverPath() = 0;
 };
 
 class BnGpuService : public BnInterface<IGpuService> {
 public:
     enum IGpuServiceTag {
         SET_GPU_STATS = IBinder::FIRST_CALL_TRANSACTION,
-        GET_GPU_STATS_GLOBAL_INFO,
-        GET_GPU_STATS_APP_INFO,
         SET_TARGET_STATS,
+        SET_UPDATABLE_DRIVER_PATH,
+        GET_UPDATABLE_DRIVER_PATH,
         // Always append new enum to the end.
     };
 

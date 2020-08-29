@@ -22,12 +22,20 @@ LIBNATIVEWINDOW {
     ANativeWindow_getBuffersDataSpace; # introduced=28
     ANativeWindow_getFormat;
     ANativeWindow_getHeight;
+    ANativeWindow_getLastDequeueDuration; # apex # introduced=30
+    ANativeWindow_getLastDequeueStartTime; # apex # introduced=30
+    ANativeWindow_getLastQueueDuration; # apex # introduced=30
     ANativeWindow_getWidth;
     ANativeWindow_lock;
     ANativeWindow_query; # llndk
     ANativeWindow_queryf; # llndk
     ANativeWindow_queueBuffer; # llndk
+    ANativeWindow_setCancelBufferInterceptor; # apex # introduced=30
+    ANativeWindow_setDequeueBufferInterceptor; # apex # introduced=30
+    ANativeWindow_setPerformInterceptor; # apex # introduced=30
+    ANativeWindow_setQueueBufferInterceptor; # apex # introduced=30
     ANativeWindow_release;
+    ANativeWindow_setAutoPrerotation; # llndk
     ANativeWindow_setAutoRefresh; # llndk
     ANativeWindow_setBufferCount; # llndk
     ANativeWindow_setBuffersDataSpace; # introduced=28
@@ -36,9 +44,12 @@ LIBNATIVEWINDOW {
     ANativeWindow_setBuffersGeometry;
     ANativeWindow_setBuffersTimestamp; # llndk
     ANativeWindow_setBuffersTransform;
+    ANativeWindow_setDequeueTimeout; # apex # introduced=30
+    ANativeWindow_setFrameRate; # introduced=30
     ANativeWindow_setSharedBufferMode; # llndk
     ANativeWindow_setSwapInterval; # llndk
     ANativeWindow_setUsage; # llndk
+    ANativeWindow_tryAllocateBuffers; # introduced=30
     ANativeWindow_unlockAndPost;
   local:
     *;

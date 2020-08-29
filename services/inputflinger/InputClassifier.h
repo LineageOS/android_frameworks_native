@@ -202,6 +202,8 @@ private:
 
     void updateLastDownTime(int32_t deviceId, nsecs_t downTime);
 
+    void clearDeviceState(int32_t deviceId);
+
     /**
      * Exit the InputClassifier HAL thread.
      * Useful for tests to ensure proper cleanup.

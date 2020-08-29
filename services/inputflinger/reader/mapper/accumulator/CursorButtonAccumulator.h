@@ -21,14 +21,14 @@
 
 namespace android {
 
-class InputDevice;
+class InputDeviceContext;
 struct RawEvent;
 
 /* Keeps track of the state of mouse or touch pad buttons. */
 class CursorButtonAccumulator {
 public:
     CursorButtonAccumulator();
-    void reset(InputDevice* device);
+    void reset(InputDeviceContext& deviceContext);
 
     void process(const RawEvent* rawEvent);
 

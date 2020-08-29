@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "DispSyncSource.h"
@@ -26,24 +30,20 @@
 #include "EventThread.h"
 
 namespace android {
+using base::StringAppendF;
 
-DispSyncSource::DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset,
-                               nsecs_t offsetThresholdForNextVsync, bool traceVsync,
+DispSyncSource::DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, bool traceVsync,
                                const char* name)
       : mName(name),
+        mValue(base::StringPrintf("VSYNC-%s", name), 0),
         mTraceVsync(traceVsync),
         mVsyncOnLabel(base::StringPrintf("VsyncOn-%s", name)),
-        mVsyncEventLabel(base::StringPrintf("VSYNC-%s", name)),
-        mVsyncOffsetLabel(base::StringPrintf("VsyncOffset-%s", name)),
-        mVsyncNegativeOffsetLabel(base::StringPrintf("VsyncNegativeOffset-%s", name)),
         mDispSync(dispSync),
-        mPhaseOffset(phaseOffset),
-        mOffsetThresholdForNextVsync(offsetThresholdForNextVsync) {}
+        mPhaseOffset(base::StringPrintf("VsyncOffset-%s", name), phaseOffset) {}
 
 void DispSyncSource::setVSyncEnabled(bool enable) {
     std::lock_guard lock(mVsyncMutex);
     if (enable) {
-        tracePhaseOffset();
         status_t err = mDispSync->addEventListener(mName, mPhaseOffset,
                                                    static_cast<DispSync::Callback*>(this),
                                                    mLastCallbackTime);
@@ -70,10 +70,6 @@ void DispSyncSource::setCallback(VSyncSource::Callback* callback) {
 void DispSyncSource::setPhaseOffset(nsecs_t phaseOffset) {
     std::lock_guard lock(mVsyncMutex);
     const nsecs_t period = mDispSync->getPeriod();
-    // Check if offset should be handled as negative
-    if (phaseOffset >= mOffsetThresholdForNextVsync) {
-        phaseOffset -= period;
-    }
 
     // Normalize phaseOffset to [-period, period)
     const int numPeriods = phaseOffset / period;
@@ -83,7 +79,6 @@ void DispSyncSource::setPhaseOffset(nsecs_t phaseOffset) {
     }
 
     mPhaseOffset = phaseOffset;
-    tracePhaseOffset();
 
     // If we're not enabled, we don't need to mess with the listeners
     if (!mEnabled) {
@@ -97,7 +92,7 @@ void DispSyncSource::setPhaseOffset(nsecs_t phaseOffset) {
     }
 }
 
-void DispSyncSource::onDispSyncEvent(nsecs_t when) {
+void DispSyncSource::onDispSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) {
     VSyncSource::Callback* callback;
     {
         std::lock_guard lock(mCallbackMutex);
@@ -106,22 +101,20 @@ void DispSyncSource::onDispSyncEvent(nsecs_t when) {
 
     if (mTraceVsync) {
         mValue = (mValue + 1) % 2;
-        ATRACE_INT(mVsyncEventLabel.c_str(), mValue);
     }
 
     if (callback != nullptr) {
-        callback->onVSyncEvent(when);
+        callback->onVSyncEvent(when, expectedVSyncTimestamp);
     }
 }
 
-void DispSyncSource::tracePhaseOffset() {
-    if (mPhaseOffset > 0) {
-        ATRACE_INT(mVsyncOffsetLabel.c_str(), mPhaseOffset);
-        ATRACE_INT(mVsyncNegativeOffsetLabel.c_str(), 0);
-    } else {
-        ATRACE_INT(mVsyncOffsetLabel.c_str(), 0);
-        ATRACE_INT(mVsyncNegativeOffsetLabel.c_str(), -mPhaseOffset);
-    }
+void DispSyncSource::dump(std::string& result) const {
+    std::lock_guard lock(mVsyncMutex);
+    StringAppendF(&result, "DispSyncSource: %s(%s)\n", mName, mEnabled ? "enabled" : "disabled");
+    mDispSync->dump(result);
 }
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

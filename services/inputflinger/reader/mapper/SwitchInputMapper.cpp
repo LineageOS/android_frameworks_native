@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "Macros.h"
+#include "../Macros.h"
 
 #include "SwitchInputMapper.h"
 
 namespace android {
 
-SwitchInputMapper::SwitchInputMapper(InputDevice* device)
-      : InputMapper(device), mSwitchValues(0), mUpdatedSwitchMask(0) {}
+SwitchInputMapper::SwitchInputMapper(InputDeviceContext& deviceContext)
+      : InputMapper(deviceContext), mSwitchValues(0), mUpdatedSwitchMask(0) {}
 
 SwitchInputMapper::~SwitchInputMapper() {}
 
@@ -56,8 +56,8 @@ void SwitchInputMapper::processSwitch(int32_t switchCode, int32_t switchValue) {
 void SwitchInputMapper::sync(nsecs_t when) {
     if (mUpdatedSwitchMask) {
         uint32_t updatedSwitchValues = mSwitchValues & mUpdatedSwitchMask;
-        NotifySwitchArgs args(mContext->getNextSequenceNum(), when, 0, updatedSwitchValues,
-                              mUpdatedSwitchMask);
+        NotifySwitchArgs args(getContext()->getNextId(), when, 0 /*policyFlags*/,
+                              updatedSwitchValues, mUpdatedSwitchMask);
         getListener()->notifySwitch(&args);
 
         mUpdatedSwitchMask = 0;
@@ -65,7 +65,7 @@ void SwitchInputMapper::sync(nsecs_t when) {
 }
 
 int32_t SwitchInputMapper::getSwitchState(uint32_t sourceMask, int32_t switchCode) {
-    return getEventHub()->getSwitchState(getDeviceId(), switchCode);
+    return getDeviceContext().getSwitchState(switchCode);
 }
 
 void SwitchInputMapper::dump(std::string& dump) {

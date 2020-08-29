@@ -71,6 +71,7 @@ public:
 
     // Dumpable interface
     virtual std::string dump() const override;
+    virtual void dump(util::ProtoOutputStream* proto) const override;
 
     virtual ~SensorList();
 private:

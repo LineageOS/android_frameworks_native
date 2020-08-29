@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_ISURFACE_COMPOSER_H
-#define ANDROID_GUI_ISURFACE_COMPOSER_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -25,12 +24,16 @@
 
 #include <gui/ITransactionCompletedListener.h>
 
+#include <math/vec4.h>
+
 #include <ui/ConfigStoreTypes.h>
 #include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
+#include <ui/PhysicalDisplayId.h>
 #include <ui/PixelFormat.h>
+#include <ui/Rotation.h>
 
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
@@ -42,13 +45,13 @@
 #include <vector>
 
 namespace android {
-// ----------------------------------------------------------------------------
 
 struct client_cache_t;
 struct ComposerState;
-struct DisplayState;
+struct DisplayConfig;
 struct DisplayInfo;
 struct DisplayStatInfo;
+struct DisplayState;
 struct InputWindowCommands;
 class LayerDebugInfo;
 class HdrCapabilities;
@@ -59,6 +62,12 @@ class IRegionSamplingListener;
 class Rect;
 enum class FrameEvent;
 
+namespace ui {
+
+struct DisplayState;
+
+} // namespace ui
+
 /*
  * This class defines the Binder IPC interface for accessing various
  * SurfaceFlinger features.
@@ -67,22 +76,25 @@ class ISurfaceComposer: public IInterface {
 public:
     DECLARE_META_INTERFACE(SurfaceComposer)
 
+    static constexpr size_t MAX_LAYERS = 4096;
+
     // flags for setTransactionState()
     enum {
         eSynchronous = 0x01,
-        eAnimation   = 0x02,
+        eAnimation = 0x02,
 
-        // Indicates that this transaction will likely result in a lot of layers being composed, and
-        // thus, SurfaceFlinger should wake-up earlier to avoid missing frame deadlines. In this
-        // case SurfaceFlinger will wake up at (sf vsync offset - debug.sf.early_phase_offset_ns)
-        eEarlyWakeup = 0x04
-    };
+        // DEPRECATED - use eExplicitEarlyWakeup[Start|End]
+        eEarlyWakeup = 0x04,
 
-    enum Rotation {
-        eRotateNone = 0,
-        eRotate90   = 1,
-        eRotate180  = 2,
-        eRotate270  = 3
+        // Explicit indication that this transaction and others to follow will likely result in a
+        // lot of layers being composed, and thus, SurfaceFlinger should wake-up earlier to avoid
+        // missing frame deadlines. In this case SurfaceFlinger will wake up at
+        // (sf vsync offset - debug.sf.early_phase_offset_ns). SurfaceFlinger will continue to be
+        // in the early configuration until it receives eExplicitEarlyWakeupEnd. These flags are
+        // expected to be used by WindowManager only and are guarded by
+        // android.permission.ACCESS_SURFACE_FLINGER
+        eExplicitEarlyWakeupStart = 0x08,
+        eExplicitEarlyWakeupEnd = 0x10,
     };
 
     enum VsyncSource {
@@ -140,7 +152,7 @@ public:
                                      const sp<IBinder>& applyToken,
                                      const InputWindowCommands& inputWindowCommands,
                                      int64_t desiredPresentTime,
-                                     const client_cache_t& uncacheBuffer,
+                                     const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
                                      const std::vector<ListenerCallbacks>& listenerCallbacks) = 0;
 
     /* signal that we're done booting.
@@ -164,10 +176,6 @@ public:
      */
     virtual void setPowerMode(const sp<IBinder>& display, int mode) = 0;
 
-    /* returns information for each configuration of the given display
-     * intended to be used to get information about built-in displays */
-    virtual status_t getDisplayConfigs(const sp<IBinder>& display,
-            Vector<DisplayInfo>* configs) = 0;
 
     /* returns display statistics for a given display
      * intended to be used by the media framework to properly schedule
@@ -175,13 +183,26 @@ public:
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats) = 0;
 
-    /* indicates which of the configurations returned by getDisplayInfo is
-     * currently active */
-    virtual int getActiveConfig(const sp<IBinder>& display) = 0;
+    /**
+     * Get transactional state of given display.
+     */
+    virtual status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState*) = 0;
 
-    /* specifies which configuration (of those returned by getDisplayInfo)
-     * should be used */
-    virtual status_t setActiveConfig(const sp<IBinder>& display, int id) = 0;
+    /**
+     * Get immutable information about given physical display.
+     */
+    virtual status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo*) = 0;
+
+    /**
+     * Get configurations supported by given physical display.
+     */
+    virtual status_t getDisplayConfigs(const sp<IBinder>& display, Vector<DisplayConfig>*) = 0;
+
+    /**
+     * Get the index into configurations returned by getDisplayConfigs,
+     * corresponding to the active configuration.
+     */
+    virtual int getActiveConfig(const sp<IBinder>& display) = 0;
 
     virtual status_t getDisplayColorModes(const sp<IBinder>& display,
             Vector<ui::ColorMode>* outColorModes) = 0;
@@ -190,6 +211,37 @@ public:
     virtual ui::ColorMode getActiveColorMode(const sp<IBinder>& display) = 0;
     virtual status_t setActiveColorMode(const sp<IBinder>& display,
             ui::ColorMode colorMode) = 0;
+
+    /**
+     * Returns true if the connected display reports support for HDMI 2.1 Auto
+     * Low Latency Mode.
+     * For more information, see the HDMI 2.1 specification.
+     */
+    virtual status_t getAutoLowLatencyModeSupport(const sp<IBinder>& display,
+                                                  bool* outSupport) const = 0;
+
+    /**
+     * Switches Auto Low Latency Mode on/off on the connected display, if it is
+     * available. This should only be called if #getAutoLowLatencyMode returns
+     * true.
+     * For more information, see the HDMI 2.1 specification.
+     */
+    virtual void setAutoLowLatencyMode(const sp<IBinder>& display, bool on) = 0;
+
+    /**
+     * Returns true if the connected display reports support for Game Content Type.
+     * For more information, see the HDMI 1.4 specification.
+     */
+    virtual status_t getGameContentTypeSupport(const sp<IBinder>& display,
+                                               bool* outSupport) const = 0;
+
+    /**
+     * This will start sending infoframes to the connected display with
+     * ContentType=Game (if on=true). This will switch the disply to Game mode.
+     * This should only be called if #getGameContentTypeSupport returns true.
+     * For more information, see the HDMI 1.4 specification.
+     */
+    virtual void setGameContentType(const sp<IBinder>& display, bool on) = 0;
 
     /**
      * Capture the specified screen. This requires READ_FRAME_BUFFER
@@ -215,10 +267,10 @@ public:
      * it) around its center.
      */
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   bool& outCapturedSecureLayers, const ui::Dataspace reqDataspace,
-                                   const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+                                   bool& outCapturedSecureLayers, ui::Dataspace reqDataspace,
+                                   ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                                    uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   Rotation rotation = eRotateNone,
+                                   ui::Rotation rotation = ui::ROTATION_0,
                                    bool captureSecureLayers = false) = 0;
     /**
      * Capture the specified screen. This requires READ_FRAME_BUFFER
@@ -242,8 +294,9 @@ public:
      * it) around its center.
      */
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                                   bool useIdentityTransform, Rotation rotation = eRotateNone) {
+                                   const Rect& sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+                                   bool useIdentityTransform,
+                                   ui::Rotation rotation = ui::ROTATION_0) {
         bool outIgnored;
         return captureScreen(display, outBuffer, outIgnored, ui::Dataspace::V0_SRGB,
                              ui::PixelFormat::RGBA_8888, sourceCrop, reqWidth, reqHeight,
@@ -267,8 +320,7 @@ public:
      */
     virtual status_t captureLayers(
             const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
-            const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
-            const Rect& sourceCrop,
+            ui::Dataspace reqDataspace, ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
             const std::unordered_set<sp<IBinder>, SpHash<IBinder>>& excludeHandles,
             float frameScale = 1.0, bool childrenOnly = false) = 0;
 
@@ -310,7 +362,7 @@ public:
      *
      * Requires the ACCESS_SURFACE_FLINGER permission.
      */
-    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const = 0;
+    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) = 0;
 
     virtual status_t getColorManagement(bool* outGetColorManagement) const = 0;
 
@@ -339,7 +391,7 @@ public:
      */
     virtual status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
                                                       uint8_t componentMask,
-                                                      uint64_t maxFrames) const = 0;
+                                                      uint64_t maxFrames) = 0;
 
     /* Returns statistics on the color profile of the last frame displayed for a given display
      *
@@ -382,21 +434,36 @@ public:
      */
     virtual status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) = 0;
 
-    /*
-     * Sets the allowed display configurations to be used.
-     * The allowedConfigs in a vector of indexes corresponding to the configurations
+    /* Sets the refresh rate boundaries for the display.
+     *
+     * The primary refresh rate range represents display manager's general guidance on the display
+     * configs we'll consider when switching refresh rates. Unless we get an explicit signal from an
+     * app, we should stay within this range.
+     *
+     * The app request refresh rate range allows us to consider more display configs when switching
+     * refresh rates. Although we should generally stay within the primary range, specific
+     * considerations, such as layer frame rate settings specified via the setFrameRate() api, may
+     * cause us to go outside the primary range. We never go outside the app request range. The app
+     * request range will be greater than or equal to the primary refresh rate range, never smaller.
+     *
+     * defaultConfig is used to narrow the list of display configs SurfaceFlinger will consider
+     * switching between. Only configs with a config group and resolution matching defaultConfig
+     * will be considered for switching. The defaultConfig index corresponds to the list of configs
      * returned from getDisplayConfigs().
      */
-    virtual status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
-                                              const std::vector<int32_t>& allowedConfigs) = 0;
+    virtual status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                                  int32_t defaultConfig,
+                                                  float primaryRefreshRateMin,
+                                                  float primaryRefreshRateMax,
+                                                  float appRequestRefreshRateMin,
+                                                  float appRequestRefreshRateMax) = 0;
 
-    /*
-     * Returns the allowed display configurations currently set.
-     * The allowedConfigs in a vector of indexes corresponding to the configurations
-     * returned from getDisplayConfigs().
-     */
-    virtual status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
-                                              std::vector<int32_t>* outAllowedConfigs) = 0;
+    virtual status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                                  int32_t* outDefaultConfig,
+                                                  float* outPrimaryRefreshRateMin,
+                                                  float* outPrimaryRefreshRateMax,
+                                                  float* outAppRequestRefreshRateMin,
+                                                  float* outAppRequestRefreshRateMax) = 0;
     /*
      * Gets whether brightness operations are supported on a display.
      *
@@ -426,8 +493,7 @@ public:
      *      BAD_VALUE         if the brightness is invalid, or
      *      INVALID_OPERATION if brightness operations are not supported.
      */
-    virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken,
-                                          float brightness) const = 0;
+    virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) = 0;
 
     /*
      * Sends a power hint to the composer. This function is asynchronous.
@@ -438,6 +504,42 @@ public:
      * Returns NO_ERROR upon success.
      */
     virtual status_t notifyPowerHint(int32_t hintId) = 0;
+
+    /*
+     * Sets the global configuration for all the shadows drawn by SurfaceFlinger. Shadow follows
+     * material design guidelines.
+     *
+     * ambientColor
+     *      Color to the ambient shadow. The alpha is premultiplied.
+     *
+     * spotColor
+     *      Color to the spot shadow. The alpha is premultiplied. The position of the spot shadow
+     *      depends on the light position.
+     *
+     * lightPosY/lightPosZ
+     *      Position of the light used to cast the spot shadow. The X value is always the display
+     *      width / 2.
+     *
+     * lightRadius
+     *      Radius of the light casting the shadow.
+     */
+    virtual status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
+                                             float lightPosY, float lightPosZ,
+                                             float lightRadius) = 0;
+
+    /*
+     * Sets the intended frame rate for a surface. See ANativeWindow_setFrameRate() for more info.
+     */
+    virtual status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
+                                  int8_t compatibility) = 0;
+
+    /*
+     * Acquire a frame rate flexibility token from SurfaceFlinger. While this token is acquired,
+     * surface flinger will freely switch between frame rates in any way it sees fit, regardless of
+     * the current restrictions applied by DisplayManager. This is useful to get consistent behavior
+     * for tests. Release the token by releasing the returned IBinder reference.
+     */
+    virtual status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -449,7 +551,7 @@ public:
         // Java by ActivityManagerService.
         BOOT_FINISHED = IBinder::FIRST_CALL_TRANSACTION,
         CREATE_CONNECTION,
-        CREATE_GRAPHIC_BUFFER_ALLOC_UNUSED, // unused, fails permissions check
+        GET_DISPLAY_INFO,
         CREATE_DISPLAY_EVENT_CONNECTION,
         CREATE_DISPLAY,
         DESTROY_DISPLAY,
@@ -459,8 +561,7 @@ public:
         GET_SUPPORTED_FRAME_TIMESTAMPS,
         GET_DISPLAY_CONFIGS,
         GET_ACTIVE_CONFIG,
-        SET_ACTIVE_CONFIG,
-        CONNECT_DISPLAY_UNUSED, // unused, fails permissions check
+        GET_DISPLAY_STATE,
         CAPTURE_SCREEN,
         CAPTURE_LAYERS,
         CLEAR_ANIMATION_FRAME_STATS,
@@ -485,12 +586,19 @@ public:
         GET_PHYSICAL_DISPLAY_IDS,
         ADD_REGION_SAMPLING_LISTENER,
         REMOVE_REGION_SAMPLING_LISTENER,
-        SET_ALLOWED_DISPLAY_CONFIGS,
-        GET_ALLOWED_DISPLAY_CONFIGS,
+        SET_DESIRED_DISPLAY_CONFIG_SPECS,
+        GET_DESIRED_DISPLAY_CONFIG_SPECS,
         GET_DISPLAY_BRIGHTNESS_SUPPORT,
         SET_DISPLAY_BRIGHTNESS,
         CAPTURE_SCREEN_BY_ID,
         NOTIFY_POWER_HINT,
+        SET_GLOBAL_SHADOW_SETTINGS,
+        GET_AUTO_LOW_LATENCY_MODE_SUPPORT,
+        SET_AUTO_LOW_LATENCY_MODE,
+        GET_GAME_CONTENT_TYPE_SUPPORT,
+        SET_GAME_CONTENT_TYPE,
+        SET_FRAME_RATE,
+        ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN,
         // Always append new enum to the end.
     };
 
@@ -498,8 +606,4 @@ public:
             Parcel* reply, uint32_t flags = 0);
 };
 
-// ----------------------------------------------------------------------------
-
-}; // namespace android
-
-#endif // ANDROID_GUI_ISURFACE_COMPOSER_H
+} // namespace android

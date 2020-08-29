@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "Macros.h"
+#include "../Macros.h"
 
 #include "KeyboardInputMapper.h"
 
@@ -87,8 +87,9 @@ static int32_t rotateKeyCode(int32_t keyCode, int32_t orientation) {
 
 // --- KeyboardInputMapper ---
 
-KeyboardInputMapper::KeyboardInputMapper(InputDevice* device, uint32_t source, int32_t keyboardType)
-      : InputMapper(device), mSource(source), mKeyboardType(keyboardType) {}
+KeyboardInputMapper::KeyboardInputMapper(InputDeviceContext& deviceContext, uint32_t source,
+                                         int32_t keyboardType)
+      : InputMapper(deviceContext), mSource(source), mKeyboardType(keyboardType) {}
 
 KeyboardInputMapper::~KeyboardInputMapper() {}
 
@@ -114,7 +115,7 @@ void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     InputMapper::populateDeviceInfo(info);
 
     info->setKeyboardType(mKeyboardType);
-    info->setKeyCharacterMap(getEventHub()->getKeyCharacterMap(getDeviceId()));
+    info->setKeyCharacterMap(getDeviceContext().getKeyCharacterMap());
 }
 
 void KeyboardInputMapper::dump(std::string& dump) {
@@ -127,6 +128,22 @@ void KeyboardInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
+std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
+        nsecs_t when, const InputReaderConfiguration* config) {
+    const std::optional<uint8_t> displayPort = getDeviceContext().getAssociatedDisplayPort();
+    if (displayPort) {
+        // Find the viewport that contains the same port
+        return getDeviceContext().getAssociatedViewport();
+    }
+
+    // No associated display defined, try to find default display if orientationAware.
+    if (mParameters.orientationAware) {
+        return config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+    }
+
+    return std::nullopt;
+}
+
 void KeyboardInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
                                     uint32_t changes) {
     InputMapper::configure(when, config, changes);
@@ -137,9 +154,7 @@ void KeyboardInputMapper::configure(nsecs_t when, const InputReaderConfiguration
     }
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
-        if (mParameters.orientationAware) {
-            mViewport = config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
-        }
+        mViewport = findViewport(when, config);
     }
 }
 
@@ -157,7 +172,7 @@ static void mapStemKey(int32_t keyCode, const PropertyMap& config, char const* p
 
 void KeyboardInputMapper::configureParameters() {
     mParameters.orientationAware = false;
-    const PropertyMap& config = getDevice()->getConfiguration();
+    const PropertyMap& config = getDeviceContext().getConfiguration();
     config.tryGetProperty(String8("keyboard.orientationAware"), mParameters.orientationAware);
 
     if (mParameters.orientationAware) {
@@ -169,6 +184,9 @@ void KeyboardInputMapper::configureParameters() {
 
     mParameters.handlesKeyRepeat = false;
     config.tryGetProperty(String8("keyboard.handlesKeyRepeat"), mParameters.handlesKeyRepeat);
+
+    mParameters.doNotWakeByDefault = false;
+    config.tryGetProperty(String8("keyboard.doNotWakeByDefault"), mParameters.doNotWakeByDefault);
 }
 
 void KeyboardInputMapper::dumpParameters(std::string& dump) {
@@ -215,7 +233,7 @@ void KeyboardInputMapper::process(const RawEvent* rawEvent) {
 }
 
 bool KeyboardInputMapper::isKeyboardOrGamepadKey(int32_t scanCode) {
-    return scanCode < BTN_MOUSE || scanCode >= KEY_OK ||
+    return scanCode < BTN_MOUSE || scanCode >= BTN_WHEEL ||
             (scanCode >= BTN_MISC && scanCode < BTN_MOUSE) ||
             (scanCode >= BTN_JOYSTICK && scanCode < BTN_DIGI);
 }
@@ -254,8 +272,8 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, 
     int32_t keyMetaState;
     uint32_t policyFlags;
 
-    if (getEventHub()->mapKey(getDeviceId(), scanCode, usageCode, mMetaState, &keyCode,
-                              &keyMetaState, &policyFlags)) {
+    if (getDeviceContext().mapKey(scanCode, usageCode, mMetaState, &keyCode, &keyMetaState,
+                                  &policyFlags)) {
         keyCode = AKEYCODE_UNKNOWN;
         keyMetaState = mMetaState;
         policyFlags = 0;
@@ -275,11 +293,11 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, 
         } else {
             // key down
             if ((policyFlags & POLICY_FLAG_VIRTUAL) &&
-                mContext->shouldDropVirtualKey(when, getDevice(), keyCode, scanCode)) {
+                getContext()->shouldDropVirtualKey(when, keyCode, scanCode)) {
                 return;
             }
             if (policyFlags & POLICY_FLAG_GESTURE) {
-                mDevice->cancelTouch(when);
+                getDeviceContext().cancelTouch(when);
             }
 
             KeyDown keyDown;
@@ -317,10 +335,12 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, 
 
     // Key down on external an keyboard should wake the device.
     // We don't do this for internal keyboards to prevent them from waking up in your pocket.
-    // For internal keyboards, the key layout file should specify the policy flags for
-    // each wake key individually.
+    // For internal keyboards and devices for which the default wake behavior is explicitly
+    // prevented (e.g. TV remotes), the key layout file should specify the policy flags for each
+    // wake key individually.
     // TODO: Use the input device configuration to control this behavior more finely.
-    if (down && getDevice()->isExternal() && !isMediaKey(keyCode)) {
+    if (down && getDeviceContext().isExternal() && !mParameters.doNotWakeByDefault &&
+        !isMediaKey(keyCode)) {
         policyFlags |= POLICY_FLAG_WAKE;
     }
 
@@ -328,7 +348,7 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, 
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
 
-    NotifyKeyArgs args(mContext->getNextSequenceNum(), when, getDeviceId(), mSource, getDisplayId(),
+    NotifyKeyArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, getDisplayId(),
                        policyFlags, down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
                        AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
     getListener()->notifyKey(&args);
@@ -345,16 +365,16 @@ ssize_t KeyboardInputMapper::findKeyDown(int32_t scanCode) {
 }
 
 int32_t KeyboardInputMapper::getKeyCodeState(uint32_t sourceMask, int32_t keyCode) {
-    return getEventHub()->getKeyCodeState(getDeviceId(), keyCode);
+    return getDeviceContext().getKeyCodeState(keyCode);
 }
 
 int32_t KeyboardInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode) {
-    return getEventHub()->getScanCodeState(getDeviceId(), scanCode);
+    return getDeviceContext().getScanCodeState(scanCode);
 }
 
 bool KeyboardInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
                                                 const int32_t* keyCodes, uint8_t* outFlags) {
-    return getEventHub()->markSupportedKeyCodes(getDeviceId(), numCodes, keyCodes, outFlags);
+    return getDeviceContext().markSupportedKeyCodes(numCodes, keyCodes, outFlags);
 }
 
 int32_t KeyboardInputMapper::getMetaState() {
@@ -388,7 +408,7 @@ void KeyboardInputMapper::resetLedState() {
 }
 
 void KeyboardInputMapper::initializeLedState(LedState& ledState, int32_t led) {
-    ledState.avail = getEventHub()->hasLed(getDeviceId(), led);
+    ledState.avail = getDeviceContext().hasLed(led);
     ledState.on = false;
 }
 
@@ -403,10 +423,17 @@ void KeyboardInputMapper::updateLedStateForModifier(LedState& ledState, int32_t 
     if (ledState.avail) {
         bool desiredState = (mMetaState & modifier) != 0;
         if (reset || ledState.on != desiredState) {
-            getEventHub()->setLedState(getDeviceId(), led, desiredState);
+            getDeviceContext().setLedState(led, desiredState);
             ledState.on = desiredState;
         }
     }
+}
+
+std::optional<int32_t> KeyboardInputMapper::getAssociatedDisplayId() {
+    if (mViewport) {
+        return std::make_optional(mViewport->displayId);
+    }
+    return std::nullopt;
 }
 
 } // namespace android

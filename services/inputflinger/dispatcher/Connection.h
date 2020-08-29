@@ -18,7 +18,6 @@
 #define _UI_INPUT_INPUTDISPATCHER_CONNECTION_H
 
 #include "InputState.h"
-#include "Queue.h"
 
 #include <input/InputTransport.h>
 #include <deque>
@@ -48,25 +47,26 @@ public:
     InputPublisher inputPublisher;
     InputState inputState;
 
-    // True if the socket is full and no further events can be published until
-    // the application consumes some of the input.
-    bool inputPublisherBlocked;
+    // True if this connection is responsive.
+    // If this connection is not responsive, avoid publishing more events to it until the
+    // application consumes some of the input.
+    bool responsive = true;
 
     // Queue of events that need to be published to the connection.
-    Queue<DispatchEntry> outboundQueue;
+    std::deque<DispatchEntry*> outboundQueue;
 
     // Queue of events that have been published to the connection but that have not
     // yet received a "finished" response from the application.
-    Queue<DispatchEntry> waitQueue;
+    std::deque<DispatchEntry*> waitQueue;
 
-    explicit Connection(const sp<InputChannel>& inputChannel, bool monitor);
+    Connection(const sp<InputChannel>& inputChannel, bool monitor, const IdGenerator& idGenerator);
 
     inline const std::string getInputChannelName() const { return inputChannel->getName(); }
 
     const std::string getWindowName() const;
     const char* getStatusLabel() const;
 
-    DispatchEntry* findWaitQueueEntry(uint32_t seq);
+    std::deque<DispatchEntry*>::iterator findWaitQueueEntry(uint32_t seq);
 };
 
 } // namespace android::inputdispatcher

@@ -49,15 +49,16 @@ typedef ::android::hardware::graphics::bufferqueue::V1_0::
 
 typedef ::android::IGraphicBufferProducer BGraphicBufferProducer;
 typedef ::android::IProducerListener BProducerListener;
-using ::android::BnGraphicBufferProducer;
 
 #ifndef LOG
-struct LOG_dummy {
+struct LOG_stub {
     template <typename T>
-    LOG_dummy& operator<< (const T&) { return *this; }
+    LOG_stub& operator<<(const T&) {
+        return *this;
+    }
 };
 
-#define LOG(x)  LOG_dummy()
+#define LOG(x) LOG_stub()
 #endif
 
 // Instantiate only if HGraphicBufferProducer is base of BASE.

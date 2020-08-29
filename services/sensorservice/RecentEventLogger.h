@@ -48,6 +48,7 @@ public:
 
     // Dumpable interface
     virtual std::string dump() const override;
+    virtual void dump(util::ProtoOutputStream* proto) const override;
     virtual void setFormat(std::string format) override;
 
 protected:

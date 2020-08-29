@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Default flags to be used throughout all libraries in inputflinger.
 cc_defaults {
     name: "inputflinger_defaults",
     cflags: [
@@ -23,83 +24,106 @@ cc_defaults {
     ],
 }
 
-cc_library_shared {
-    name: "libinputflinger",
-    defaults: ["inputflinger_defaults"],
+/////////////////////////////////////////////////
+// libinputflinger
+/////////////////////////////////////////////////
 
+filegroup {
+    name: "libinputflinger_sources",
     srcs: [
         "InputClassifier.cpp",
         "InputClassifierConverter.cpp",
         "InputManager.cpp",
     ],
+}
 
+cc_defaults {
+    name: "libinputflinger_defaults",
+    srcs: [":libinputflinger_sources"],
     shared_libs: [
         "android.hardware.input.classifier@1.0",
         "libbase",
-        "libinputflinger_base",
-        "libinputreporter",
-        "libinputreader",
         "libbinder",
+        "libcrypto",
         "libcutils",
         "libhidlbase",
         "libinput",
         "liblog",
+        "libstatslog",
         "libutils",
         "libui",
     ],
+}
 
-    static_libs: [
-        "libinputdispatcher",
+cc_library_shared {
+    name: "libinputflinger",
+    defaults: [
+        "inputflinger_defaults",
+        "libinputflinger_defaults",
     ],
-
     cflags: [
         // TODO(b/23084678): Move inputflinger to its own process and mark it hidden
         //-fvisibility=hidden
     ],
-
+    shared_libs: [
+        // This should consist only of dependencies from inputflinger. Other dependencies should be
+        // in cc_defaults so that they are included in the tests.
+        "libinputflinger_base",
+        "libinputreporter",
+        "libinputreader",
+    ],
+    static_libs: [
+        "libinputdispatcher",
+    ],
+    export_static_lib_headers: [
+        "libinputdispatcher",
+    ],
     export_include_dirs: [
         ".",
         "include",
     ],
-
-    export_static_lib_headers: [
-        "libinputdispatcher",
-    ],
 }
+
+/////////////////////////////////////////////////
+// libinputflinger_base
+/////////////////////////////////////////////////
 
 cc_library_headers {
     name: "libinputflinger_headers",
-    header_libs: ["libinputreporter_headers"],
     export_include_dirs: ["include"],
-    export_header_lib_headers: ["libinputreporter_headers"],
 }
 
-cc_library_shared {
-    name: "libinputflinger_base",
-    defaults: ["inputflinger_defaults"],
-
+filegroup {
+    name: "libinputflinger_base_sources",
     srcs: [
         "InputListener.cpp",
         "InputReaderBase.cpp",
+        "InputThread.cpp",
     ],
+}
 
+cc_defaults {
+    name: "libinputflinger_base_defaults",
+    srcs: [":libinputflinger_base_sources"],
     shared_libs: [
         "libbase",
+        "libcutils",
         "libinput",
         "liblog",
         "libutils",
     ],
-
     header_libs: [
-        "libinputflinger_headers",
-    ],
-
-    export_header_lib_headers: [
         "libinputflinger_headers",
     ],
 }
 
-subdirs = [
-    "host",
-    "tests",
-]
+cc_library_shared {
+    name: "libinputflinger_base",
+    defaults: [
+        "inputflinger_defaults",
+        "libinputflinger_base_defaults",
+    ],
+    export_header_lib_headers: [
+        "libinputflinger_headers",
+    ],
+}

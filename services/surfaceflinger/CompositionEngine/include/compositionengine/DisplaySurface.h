@@ -45,19 +45,19 @@ public:
     // prepareFrame is called after the composition configuration is known but
     // before composition takes place. The DisplaySurface can use the
     // composition type to decide how to manage the flow of buffers between
-    // GLES and HWC for this frame.
+    // GPU and HWC for this frame.
     enum CompositionType {
         COMPOSITION_UNKNOWN = 0,
-        COMPOSITION_GLES = 1,
+        COMPOSITION_GPU = 1,
         COMPOSITION_HWC = 2,
-        COMPOSITION_MIXED = COMPOSITION_GLES | COMPOSITION_HWC
+        COMPOSITION_MIXED = COMPOSITION_GPU | COMPOSITION_HWC
     };
     virtual status_t prepareFrame(CompositionType compositionType) = 0;
 
-    // Inform the surface that GLES composition is complete for this frame, and
+    // Inform the surface that GPU composition is complete for this frame, and
     // the surface should make sure that HWComposer has the correct buffer for
     // this frame. Some implementations may only push a new buffer to
-    // HWComposer if GLES composition took place, others need to push a new
+    // HWComposer if GPU composition took place, others need to push a new
     // buffer on every frame.
     //
     // advanceFrame must be followed by a call to  onFrameCommitted before

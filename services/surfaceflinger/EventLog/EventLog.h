@@ -14,24 +14,21 @@
  * limitations under the License.
  */
 
-#include <stdint.h>
+#pragma once
+
 #include <utils/Errors.h>
 #include <utils/Singleton.h>
 
-#ifndef ANDROID_SF_EVENTLOG_H
-#define ANDROID_SF_EVENTLOG_H
+#include <cstdint>
+#include <string_view>
 
-// ---------------------------------------------------------------------------
 namespace android {
-// ---------------------------------------------------------------------------
-
-class String8;
 
 class EventLog : public Singleton<EventLog> {
 
 public:
-    static void logFrameDurations(const String8& window,
-            const int32_t* durations, size_t numDurations);
+    static void logFrameDurations(const std::string_view& name, const int32_t* durations,
+                                  size_t numDurations);
 
 protected:
     EventLog();
@@ -54,18 +51,13 @@ private:
     public:
         explicit TagBuffer(int32_t tag);
 
-        // starts list of items
         void startList(int8_t count);
-        // terminates the list
         void endList();
-        // write a 32-bit integer
-        void writeInt32(int32_t value);
-        // write a 64-bit integer
-        void writeInt64(int64_t value);
-        // write a C string
-        void writeString8(const String8& value);
 
-        // outputs the the buffer to the log
+        void writeInt32(int32_t);
+        void writeInt64(int64_t);
+        void writeString(const std::string_view&);
+
         void log();
     };
 
@@ -74,12 +66,8 @@ private:
     EventLog& operator =(const EventLog&);
 
     enum { LOGTAG_SF_FRAME_DUR = 60100 };
-    void doLogFrameDurations(const String8& window, const int32_t* durations,
-            size_t numDurations);
+    void doLogFrameDurations(const std::string_view& name, const int32_t* durations,
+                             size_t numDurations);
 };
 
-// ---------------------------------------------------------------------------
-}// namespace android
-// ---------------------------------------------------------------------------
-
-#endif /* ANDROID_SF_EVENTLOG_H */
+} // namespace android

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "Macros.h"
+#include "../Macros.h"
 
 #include "RotaryEncoderInputMapper.h"
 
@@ -22,8 +22,8 @@
 
 namespace android {
 
-RotaryEncoderInputMapper::RotaryEncoderInputMapper(InputDevice* device)
-      : InputMapper(device), mOrientation(DISPLAY_ORIENTATION_0) {
+RotaryEncoderInputMapper::RotaryEncoderInputMapper(InputDeviceContext& deviceContext)
+      : InputMapper(deviceContext), mOrientation(DISPLAY_ORIENTATION_0) {
     mSource = AINPUT_SOURCE_ROTARY_ENCODER;
 }
 
@@ -38,11 +38,11 @@ void RotaryEncoderInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
 
     if (mRotaryEncoderScrollAccumulator.haveRelativeVWheel()) {
         float res = 0.0f;
-        if (!mDevice->getConfiguration().tryGetProperty(String8("device.res"), res)) {
+        if (!getDeviceContext().getConfiguration().tryGetProperty(String8("device.res"), res)) {
             ALOGW("Rotary Encoder device configuration file didn't specify resolution!\n");
         }
-        if (!mDevice->getConfiguration().tryGetProperty(String8("device.scalingFactor"),
-                                                        mScalingFactor)) {
+        if (!getDeviceContext().getConfiguration().tryGetProperty(String8("device.scalingFactor"),
+                                                                  mScalingFactor)) {
             ALOGW("Rotary Encoder device configuration file didn't specify scaling factor,"
                   "default to 1.0!\n");
             mScalingFactor = 1.0f;
@@ -62,7 +62,7 @@ void RotaryEncoderInputMapper::configure(nsecs_t when, const InputReaderConfigur
                                          uint32_t changes) {
     InputMapper::configure(when, config, changes);
     if (!changes) {
-        mRotaryEncoderScrollAccumulator.configure(getDevice());
+        mRotaryEncoderScrollAccumulator.configure(getDeviceContext());
     }
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         std::optional<DisplayViewport> internalViewport =
@@ -76,7 +76,7 @@ void RotaryEncoderInputMapper::configure(nsecs_t when, const InputReaderConfigur
 }
 
 void RotaryEncoderInputMapper::reset(nsecs_t when) {
-    mRotaryEncoderScrollAccumulator.reset(getDevice());
+    mRotaryEncoderScrollAccumulator.reset(getDeviceContext());
 
     InputMapper::reset(when);
 }
@@ -106,7 +106,7 @@ void RotaryEncoderInputMapper::sync(nsecs_t when) {
 
     // Moving the rotary encoder should wake the device (if specified).
     uint32_t policyFlags = 0;
-    if (scrolled && getDevice()->isExternal()) {
+    if (scrolled && getDeviceContext().isExternal()) {
         policyFlags |= POLICY_FLAG_WAKE;
     }
 
@@ -116,15 +116,15 @@ void RotaryEncoderInputMapper::sync(nsecs_t when) {
 
     // Send motion event.
     if (scrolled) {
-        int32_t metaState = mContext->getGlobalMetaState();
+        int32_t metaState = getContext()->getGlobalMetaState();
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_SCROLL, scroll * mScalingFactor);
 
-        NotifyMotionArgs scrollArgs(mContext->getNextSequenceNum(), when, getDeviceId(), mSource,
+        NotifyMotionArgs scrollArgs(getContext()->getNextId(), when, getDeviceId(), mSource,
                                     displayId, policyFlags, AMOTION_EVENT_ACTION_SCROLL, 0, 0,
                                     metaState, /* buttonState */ 0, MotionClassification::NONE,
-                                    AMOTION_EVENT_EDGE_FLAG_NONE,
-                                    /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
-                                    0, 0, 0, /* videoFrames */ {});
+                                    AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                    &pointerCoords, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                    AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
         getListener()->notifyMotion(&scrollArgs);
     }
 

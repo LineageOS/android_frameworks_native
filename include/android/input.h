@@ -158,7 +158,10 @@ enum {
     AINPUT_EVENT_TYPE_KEY = 1,
 
     /** Indicates that the input event is a motion event. */
-    AINPUT_EVENT_TYPE_MOTION = 2
+    AINPUT_EVENT_TYPE_MOTION = 2,
+
+    /** Focus event */
+    AINPUT_EVENT_TYPE_FOCUS = 3,
 };
 
 /**
@@ -790,6 +793,8 @@ enum {
     AMOTION_EVENT_TOOL_TYPE_MOUSE = 3,
     /** eraser */
     AMOTION_EVENT_TOOL_TYPE_ERASER = 4,
+    /** palm */
+    AMOTION_EVENT_TOOL_TYPE_PALM = 5,
 };
 
 /**

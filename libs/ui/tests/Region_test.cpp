@@ -152,5 +152,20 @@ TEST_F(RegionTest, Random_TJunction) {
     }
 }
 
+TEST_F(RegionTest, EqualsToSelf) {
+    Region touchableRegion;
+    touchableRegion.orSelf(Rect(0, 0, 100, 100));
+
+    ASSERT_TRUE(touchableRegion.contains(50, 50));
+
+    // Compiler prevents us from directly calling 'touchableRegion = touchableRegion'
+    Region& referenceTouchableRegion = touchableRegion;
+    touchableRegion = referenceTouchableRegion;
+
+    ASSERT_FALSE(touchableRegion.isEmpty());
+
+    ASSERT_TRUE(touchableRegion.contains(50, 50));
+}
+
 }; // namespace android
 

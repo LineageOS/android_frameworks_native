@@ -71,6 +71,8 @@ struct Description {
     TransferFunction outputTransferFunction = TransferFunction::LINEAR;
 
     float displayMaxLuminance;
+    float maxMasteringLuminance;
+    float maxContentLuminance;
 
     // projection matrix
     mat4 projectionMatrix;
@@ -79,6 +81,9 @@ struct Description {
     mat4 colorMatrix;
     mat4 inputTransformMatrix;
     mat4 outputTransformMatrix;
+
+    // True if this layer will draw a shadow.
+    bool drawShadows = false;
 };
 
 } // namespace renderengine

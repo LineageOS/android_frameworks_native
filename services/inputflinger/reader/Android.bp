@@ -21,10 +21,8 @@ cc_library_headers {
     ],
 }
 
-cc_library_shared {
-    name: "libinputreader",
-    defaults: ["inputflinger_defaults"],
-
+filegroup {
+    name: "libinputreader_sources",
     srcs: [
         "EventHub.cpp",
         "InputDevice.cpp",
@@ -44,29 +42,43 @@ cc_library_shared {
         "mapper/TouchInputMapper.cpp",
         "mapper/VibratorInputMapper.cpp",
         "InputReader.cpp",
-        "InputReaderFactory.cpp",
         "TouchVideoDevice.cpp",
     ],
+}
 
+cc_defaults {
+    name: "libinputreader_defaults",
+    srcs: [":libinputreader_sources"],
     shared_libs: [
         "libbase",
-        "libinputflinger_base",
+        "libcap",
         "libcrypto",
         "libcutils",
         "libinput",
         "liblog",
         "libui",
         "libutils",
-        "libhardware_legacy",
-        "libstatslog",
     ],
-
     header_libs: [
-        "libinputflinger_headers",
         "libinputreader_headers",
     ],
+}
 
+cc_library_shared {
+    name: "libinputreader",
+    defaults: [
+        "inputflinger_defaults",
+        "libinputreader_defaults"
+    ],
+    srcs: [
+        "InputReaderFactory.cpp",
+    ],
+    shared_libs: [
+        // This should consist only of dependencies from inputflinger. Other dependencies should be
+        // in cc_defaults so that they are included in the tests.
+        "libinputflinger_base",
+    ],
     export_header_lib_headers: [
-        "libinputflinger_headers",
+        "libinputreader_headers",
     ],
 }

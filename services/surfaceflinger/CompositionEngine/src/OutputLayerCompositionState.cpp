@@ -17,7 +17,14 @@
 #include <compositionengine/impl/DumpHelpers.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include "DisplayHardware/HWC2.h"
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
 
 namespace android::compositionengine::impl {
 
@@ -42,11 +49,24 @@ void OutputLayerCompositionState::dump(std::string& out) const {
     dumpVal(out, "visibleRegion", visibleRegion);
 
     out.append("      ");
+    dumpVal(out, "visibleNonTransparentRegion", visibleNonTransparentRegion);
+
+    out.append("      ");
+    dumpVal(out, "coveredRegion", coveredRegion);
+
+    out.append("      ");
+    dumpVal(out, "output visibleRegion", outputSpaceVisibleRegion);
+
+    out.append("      ");
+    dumpVal(out, "shadowRegion", shadowRegion);
+
+    out.append("      ");
     dumpVal(out, "forceClientComposition", forceClientComposition);
     dumpVal(out, "clearClientTarget", clearClientTarget);
     dumpVal(out, "displayFrame", displayFrame);
     dumpVal(out, "sourceCrop", sourceCrop);
     dumpVal(out, "bufferTransform", toString(bufferTransform), bufferTransform);
+    dumpVal(out, "dataspace", toString(dataspace), dataspace);
     dumpVal(out, "z-index", z);
 
     if (hwc) {

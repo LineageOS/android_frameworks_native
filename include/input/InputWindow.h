@@ -63,52 +63,53 @@ struct InputWindowInfo {
         FLAG_DISMISS_KEYGUARD = 0x00400000,
         FLAG_SPLIT_TOUCH = 0x00800000,
         FLAG_SLIPPERY = 0x20000000,
-        FLAG_NEEDS_MENU_KEY = 0x40000000,
     };
 
     // Window types from WindowManager.LayoutParams
     enum {
         FIRST_APPLICATION_WINDOW = 1,
-        TYPE_BASE_APPLICATION   = 1,
-        TYPE_APPLICATION        = 2,
+        TYPE_BASE_APPLICATION = 1,
+        TYPE_APPLICATION = 2,
         TYPE_APPLICATION_STARTING = 3,
         LAST_APPLICATION_WINDOW = 99,
-        FIRST_SUB_WINDOW        = 1000,
-        TYPE_APPLICATION_PANEL  = FIRST_SUB_WINDOW,
-        TYPE_APPLICATION_MEDIA  = FIRST_SUB_WINDOW+1,
-        TYPE_APPLICATION_SUB_PANEL = FIRST_SUB_WINDOW+2,
-        TYPE_APPLICATION_ATTACHED_DIALOG = FIRST_SUB_WINDOW+3,
-        TYPE_APPLICATION_MEDIA_OVERLAY  = FIRST_SUB_WINDOW+4,
-        LAST_SUB_WINDOW         = 1999,
-        FIRST_SYSTEM_WINDOW     = 2000,
-        TYPE_STATUS_BAR         = FIRST_SYSTEM_WINDOW,
-        TYPE_SEARCH_BAR         = FIRST_SYSTEM_WINDOW+1,
-        TYPE_PHONE              = FIRST_SYSTEM_WINDOW+2,
-        TYPE_SYSTEM_ALERT       = FIRST_SYSTEM_WINDOW+3,
-        TYPE_KEYGUARD           = FIRST_SYSTEM_WINDOW+4,
-        TYPE_TOAST              = FIRST_SYSTEM_WINDOW+5,
-        TYPE_SYSTEM_OVERLAY     = FIRST_SYSTEM_WINDOW+6,
-        TYPE_PRIORITY_PHONE     = FIRST_SYSTEM_WINDOW+7,
-        TYPE_SYSTEM_DIALOG      = FIRST_SYSTEM_WINDOW+8,
-        TYPE_KEYGUARD_DIALOG    = FIRST_SYSTEM_WINDOW+9,
-        TYPE_SYSTEM_ERROR       = FIRST_SYSTEM_WINDOW+10,
-        TYPE_INPUT_METHOD       = FIRST_SYSTEM_WINDOW+11,
-        TYPE_INPUT_METHOD_DIALOG= FIRST_SYSTEM_WINDOW+12,
-        TYPE_WALLPAPER          = FIRST_SYSTEM_WINDOW+13,
-        TYPE_STATUS_BAR_PANEL   = FIRST_SYSTEM_WINDOW+14,
-        TYPE_SECURE_SYSTEM_OVERLAY = FIRST_SYSTEM_WINDOW+15,
-        TYPE_DRAG               = FIRST_SYSTEM_WINDOW+16,
-        TYPE_STATUS_BAR_SUB_PANEL  = FIRST_SYSTEM_WINDOW+17,
-        TYPE_POINTER            = FIRST_SYSTEM_WINDOW+18,
-        TYPE_NAVIGATION_BAR     = FIRST_SYSTEM_WINDOW+19,
-        TYPE_VOLUME_OVERLAY = FIRST_SYSTEM_WINDOW+20,
-        TYPE_BOOT_PROGRESS = FIRST_SYSTEM_WINDOW+21,
-        TYPE_INPUT_CONSUMER = FIRST_SYSTEM_WINDOW+22,
-        TYPE_NAVIGATION_BAR_PANEL = FIRST_SYSTEM_WINDOW+24,
-        TYPE_MAGNIFICATION_OVERLAY = FIRST_SYSTEM_WINDOW+27,
-        TYPE_ACCESSIBILITY_OVERLAY = FIRST_SYSTEM_WINDOW+32,
-        TYPE_DOCK_DIVIDER = FIRST_SYSTEM_WINDOW+34,
-        LAST_SYSTEM_WINDOW      = 2999,
+        FIRST_SUB_WINDOW = 1000,
+        TYPE_APPLICATION_PANEL = FIRST_SUB_WINDOW,
+        TYPE_APPLICATION_MEDIA = FIRST_SUB_WINDOW + 1,
+        TYPE_APPLICATION_SUB_PANEL = FIRST_SUB_WINDOW + 2,
+        TYPE_APPLICATION_ATTACHED_DIALOG = FIRST_SUB_WINDOW + 3,
+        TYPE_APPLICATION_MEDIA_OVERLAY = FIRST_SUB_WINDOW + 4,
+        LAST_SUB_WINDOW = 1999,
+        FIRST_SYSTEM_WINDOW = 2000,
+        TYPE_STATUS_BAR = FIRST_SYSTEM_WINDOW,
+        TYPE_SEARCH_BAR = FIRST_SYSTEM_WINDOW + 1,
+        TYPE_PHONE = FIRST_SYSTEM_WINDOW + 2,
+        TYPE_SYSTEM_ALERT = FIRST_SYSTEM_WINDOW + 3,
+        TYPE_KEYGUARD = FIRST_SYSTEM_WINDOW + 4,
+        TYPE_TOAST = FIRST_SYSTEM_WINDOW + 5,
+        TYPE_SYSTEM_OVERLAY = FIRST_SYSTEM_WINDOW + 6,
+        TYPE_PRIORITY_PHONE = FIRST_SYSTEM_WINDOW + 7,
+        TYPE_SYSTEM_DIALOG = FIRST_SYSTEM_WINDOW + 8,
+        TYPE_KEYGUARD_DIALOG = FIRST_SYSTEM_WINDOW + 9,
+        TYPE_SYSTEM_ERROR = FIRST_SYSTEM_WINDOW + 10,
+        TYPE_INPUT_METHOD = FIRST_SYSTEM_WINDOW + 11,
+        TYPE_INPUT_METHOD_DIALOG = FIRST_SYSTEM_WINDOW + 12,
+        TYPE_WALLPAPER = FIRST_SYSTEM_WINDOW + 13,
+        TYPE_STATUS_BAR_PANEL = FIRST_SYSTEM_WINDOW + 14,
+        TYPE_SECURE_SYSTEM_OVERLAY = FIRST_SYSTEM_WINDOW + 15,
+        TYPE_DRAG = FIRST_SYSTEM_WINDOW + 16,
+        TYPE_STATUS_BAR_SUB_PANEL = FIRST_SYSTEM_WINDOW + 17,
+        TYPE_POINTER = FIRST_SYSTEM_WINDOW + 18,
+        TYPE_NAVIGATION_BAR = FIRST_SYSTEM_WINDOW + 19,
+        TYPE_VOLUME_OVERLAY = FIRST_SYSTEM_WINDOW + 20,
+        TYPE_BOOT_PROGRESS = FIRST_SYSTEM_WINDOW + 21,
+        TYPE_INPUT_CONSUMER = FIRST_SYSTEM_WINDOW + 22,
+        TYPE_NAVIGATION_BAR_PANEL = FIRST_SYSTEM_WINDOW + 24,
+        TYPE_MAGNIFICATION_OVERLAY = FIRST_SYSTEM_WINDOW + 27,
+        TYPE_ACCESSIBILITY_OVERLAY = FIRST_SYSTEM_WINDOW + 32,
+        TYPE_DOCK_DIVIDER = FIRST_SYSTEM_WINDOW + 34,
+        TYPE_NOTIFICATION_SHADE = FIRST_SYSTEM_WINDOW + 40,
+        TYPE_TRUSTED_APPLICATION_OVERLAY = FIRST_SYSTEM_WINDOW + 42,
+        LAST_SYSTEM_WINDOW = 2999,
     };
 
     enum {
@@ -120,17 +121,21 @@ struct InputWindowInfo {
     /* These values are filled in by the WM and passed through SurfaceFlinger
      * unless specified otherwise.
      */
+    // This value should NOT be used to uniquely identify the window. There may be different
+    // input windows that have the same token.
     sp<IBinder> token;
+    // This uniquely identifies the input window.
+    int32_t id = -1;
     std::string name;
-    int32_t layoutParamsFlags;
-    int32_t layoutParamsType;
-    nsecs_t dispatchingTimeout;
+    int32_t layoutParamsFlags = 0;
+    int32_t layoutParamsType = 0;
+    nsecs_t dispatchingTimeout = -1;
 
     /* These values are filled in by SurfaceFlinger. */
-    int32_t frameLeft;
-    int32_t frameTop;
-    int32_t frameRight;
-    int32_t frameBottom;
+    int32_t frameLeft = -1;
+    int32_t frameTop = -1;
+    int32_t frameRight = -1;
+    int32_t frameBottom = -1;
 
     /*
      * SurfaceFlinger consumes this value to shrink the computed frame. This is
@@ -142,7 +147,7 @@ struct InputWindowInfo {
 
     // A global scaling factor for all windows. Unlike windowScaleX/Y this results
     // in scaling of the TOUCH_MAJOR/TOUCH_MINOR axis.
-    float globalScaleFactor;
+    float globalScaleFactor = 1.0f;
 
     // Scaling factors applied to individual windows.
     float windowXScale = 1.0f;
@@ -153,19 +158,18 @@ struct InputWindowInfo {
      * to absolute coordinates by SurfaceFlinger once the frame is computed.
      */
     Region touchableRegion;
-    bool visible;
-    bool canReceiveKeys;
-    bool hasFocus;
-    bool hasWallpaper;
-    bool paused;
-    int32_t layer;
-    int32_t ownerPid;
-    int32_t ownerUid;
-    int32_t inputFeatures;
-    int32_t displayId;
+    bool visible = false;
+    bool canReceiveKeys = false;
+    bool hasFocus = false;
+    bool hasWallpaper = false;
+    bool paused = false;
+    int32_t ownerPid = -1;
+    int32_t ownerUid = -1;
+    int32_t inputFeatures = 0;
+    int32_t displayId = ADISPLAY_ID_NONE;
     int32_t portalToDisplayId = ADISPLAY_ID_NONE;
     InputApplicationInfo applicationInfo;
-    bool replaceTouchableRegionWithCrop;
+    bool replaceTouchableRegionWithCrop = false;
     wp<IBinder> touchableRegionCropHandle;
 
     void addTouchableRegion(const Rect& region);
@@ -204,16 +208,23 @@ public:
 
     sp<IBinder> getToken() const;
 
+    int32_t getId() const { return mInfo.id; }
+
     sp<IBinder> getApplicationToken() {
         return mInfo.applicationInfo.token;
     }
 
     inline std::string getName() const {
-        return mInfo.token ? mInfo.name : "<invalid>";
+        return !mInfo.name.empty() ? mInfo.name : "<invalid>";
     }
 
     inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
         return mInfo.token ? mInfo.dispatchingTimeout : defaultValue;
+    }
+
+    inline std::chrono::nanoseconds getDispatchingTimeout(
+            std::chrono::nanoseconds defaultValue) const {
+        return mInfo.token ? std::chrono::nanoseconds(mInfo.dispatchingTimeout) : defaultValue;
     }
 
     /**

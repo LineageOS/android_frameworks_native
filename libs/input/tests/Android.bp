@@ -2,19 +2,21 @@
 cc_test {
     name: "libinput_tests",
     srcs: [
+        "IdGenerator_test.cpp",
         "InputChannel_test.cpp",
         "InputDevice_test.cpp",
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
         "InputWindow_test.cpp",
+        "LatencyStatistics_test.cpp",
         "TouchVideoFrame_test.cpp",
         "VelocityTracker_test.cpp",
+        "VerifiedInputEvent_test.cpp",
     ],
     cflags: [
         "-Wall",
         "-Wextra",
         "-Werror",
-        "-Wno-unused-variable",
     ],
     shared_libs: [
         "libinput",

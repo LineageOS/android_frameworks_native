@@ -43,7 +43,7 @@ protected:
     void createDispSync();
     void createDispSyncSource();
 
-    void onVSyncEvent(nsecs_t when) override;
+    void onVSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) override;
 
     std::unique_ptr<mock::DispSync> mDispSync;
     std::unique_ptr<DispSyncSource> mDispSyncSource;
@@ -51,7 +51,6 @@ protected:
     AsyncCallRecorder<void (*)(nsecs_t)> mVSyncEventCallRecorder;
 
     static constexpr std::chrono::nanoseconds mPhaseOffset = 6ms;
-    static constexpr std::chrono::nanoseconds mOffsetThresholdForNextVsync = 16ms;
     static constexpr int mIterations = 100;
 };
 
@@ -67,7 +66,7 @@ DispSyncSourceTest::~DispSyncSourceTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-void DispSyncSourceTest::onVSyncEvent(nsecs_t when) {
+void DispSyncSourceTest::onVSyncEvent(nsecs_t when, nsecs_t /*expectedVSyncTimestamp*/) {
     ALOGD("onVSyncEvent: %" PRId64, when);
 
     mVSyncEventCallRecorder.recordCall(when);
@@ -79,8 +78,7 @@ void DispSyncSourceTest::createDispSync() {
 
 void DispSyncSourceTest::createDispSyncSource() {
     createDispSync();
-    mDispSyncSource = std::make_unique<DispSyncSource>(mDispSync.get(), mPhaseOffset.count(),
-                                                       mOffsetThresholdForNextVsync.count(), true,
+    mDispSyncSource = std::make_unique<DispSyncSource>(mDispSync.get(), mPhaseOffset.count(), true,
                                                        "DispSyncSourceTest");
     mDispSyncSource->setCallback(this);
 }

@@ -25,8 +25,7 @@
 #include "android-base/stringprintf.h"
 #include "utils/Timers.h"
 
-namespace android {
-namespace scheduler {
+namespace android::scheduler {
 
 /**
  * Class to encapsulate statistics about refresh rates that the display is using. When the power
@@ -42,14 +41,15 @@ class RefreshRateStats {
 
 public:
     RefreshRateStats(const RefreshRateConfigs& refreshRateConfigs, TimeStats& timeStats,
-                     int currentConfigMode, int currentPowerMode)
+                     HwcConfigIndexType currentConfigId,
+                     android::hardware::graphics::composer::hal::PowerMode currentPowerMode)
           : mRefreshRateConfigs(refreshRateConfigs),
             mTimeStats(timeStats),
-            mCurrentConfigMode(currentConfigMode),
+            mCurrentConfigMode(currentConfigId),
             mCurrentPowerMode(currentPowerMode) {}
 
     // Sets power mode.
-    void setPowerMode(int mode) {
+    void setPowerMode(android::hardware::graphics::composer::hal::PowerMode mode) {
         if (mCurrentPowerMode == mode) {
             return;
         }
@@ -59,12 +59,12 @@ public:
 
     // Sets config mode. If the mode has changed, it records how much time was spent in the previous
     // mode.
-    void setConfigMode(int mode) {
-        if (mCurrentConfigMode == mode) {
+    void setConfigMode(HwcConfigIndexType configId) {
+        if (mCurrentConfigMode == configId) {
             return;
         }
         flushTime();
-        mCurrentConfigMode = mode;
+        mCurrentConfigMode = configId;
     }
 
     // Returns a map between human readable refresh rate and number of seconds the device spent in
@@ -78,11 +78,11 @@ public:
         std::unordered_map<std::string, int64_t> totalTime;
         // Multiple configs may map to the same name, e.g. "60fps". Add the
         // times for such configs together.
-        for (const auto& [config, time] : mConfigModesTotalTime) {
-            totalTime[mRefreshRateConfigs.getRefreshRateFromConfigId(config).name] = 0;
+        for (const auto& [configId, time] : mConfigModesTotalTime) {
+            totalTime[mRefreshRateConfigs.getRefreshRateFromConfigId(configId).getName()] = 0;
         }
-        for (const auto& [config, time] : mConfigModesTotalTime) {
-            totalTime[mRefreshRateConfigs.getRefreshRateFromConfigId(config).name] += time;
+        for (const auto& [configId, time] : mConfigModesTotalTime) {
+            totalTime[mRefreshRateConfigs.getRefreshRateFromConfigId(configId).getName()] += time;
         }
         totalTime["ScreenOff"] = mScreenOffTime;
         return totalTime;
@@ -90,13 +90,13 @@ public:
 
     // Traverses through the map of config modes and returns how long they've been running in easy
     // to read format.
-    std::string doDump() const {
-        std::ostringstream stream;
-        stream << "+  Refresh rate: running time in seconds\n";
+    void dump(std::string& result) const {
+        std::ostringstream stream("+  Refresh rate: running time in seconds\n");
+
         for (const auto& [name, time] : const_cast<RefreshRateStats*>(this)->getTotalTimes()) {
             stream << name << ": " << getDateFormatFromMs(time) << '\n';
         }
-        return stream.str();
+        result.append(stream.str());
     }
 
 private:
@@ -109,13 +109,14 @@ private:
         mPreviousRecordedTime = currentTime;
 
         uint32_t fps = 0;
-        if (mCurrentPowerMode == HWC_POWER_MODE_NORMAL) {
+        if (mCurrentPowerMode == android::hardware::graphics::composer::hal::PowerMode::ON) {
             // Normal power mode is counted under different config modes.
             if (mConfigModesTotalTime.find(mCurrentConfigMode) == mConfigModesTotalTime.end()) {
                 mConfigModesTotalTime[mCurrentConfigMode] = 0;
             }
             mConfigModesTotalTime[mCurrentConfigMode] += timeElapsedMs;
-            fps = mRefreshRateConfigs.getRefreshRateFromConfigId(mCurrentConfigMode).fps;
+            fps = static_cast<uint32_t>(std::round(
+                    mRefreshRateConfigs.getRefreshRateFromConfigId(mCurrentConfigMode).getFps()));
         } else {
             mScreenOffTime += timeElapsedMs;
         }
@@ -139,14 +140,14 @@ private:
     // Aggregate refresh rate statistics for telemetry.
     TimeStats& mTimeStats;
 
-    int mCurrentConfigMode;
-    int32_t mCurrentPowerMode;
+    HwcConfigIndexType mCurrentConfigMode;
+    android::hardware::graphics::composer::hal::PowerMode mCurrentPowerMode;
 
-    std::unordered_map<int /* config */, int64_t /* duration in ms */> mConfigModesTotalTime;
+    std::unordered_map<HwcConfigIndexType /* configId */, int64_t /* duration in ms */>
+            mConfigModesTotalTime;
     int64_t mScreenOffTime = 0;
 
     nsecs_t mPreviousRecordedTime = systemTime();
 };
 
-} // namespace scheduler
-} // namespace android
+} // namespace android::scheduler

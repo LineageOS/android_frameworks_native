@@ -85,6 +85,8 @@ enum {
   DVR_CONFIGURATION_DATA_DEVICE_METRICS = 1,
   // Request the per device configuration data file.
   DVR_CONFIGURATION_DATA_DEVICE_CONFIG = 2,
+  // Request the edid data for the display.
+  DVR_CONFIGURATION_DATA_DEVICE_EDID = 3,
 };
 
 // dvr_display_manager.h

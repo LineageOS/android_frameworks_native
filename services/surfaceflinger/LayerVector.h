@@ -50,7 +50,7 @@ public:
     using Visitor = std::function<void(Layer*)>;
     void traverseInReverseZOrder(StateSet stateSet, const Visitor& visitor) const;
     void traverseInZOrder(StateSet stateSet, const Visitor& visitor) const;
-
+    void traverse(const Visitor& visitor) const;
 private:
     const StateSet mStateSet;
 };

@@ -17,6 +17,7 @@
 #ifndef _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
 #define _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
 
+#include <input/DisplayViewport.h>
 #include <stdint.h>
 
 #include "EventHub.h"
@@ -65,8 +66,8 @@ static void synthesizeButtonKey(InputReaderContext* context, int32_t action, nse
          (currentButtonState & buttonState)) ||
         (action == AKEY_EVENT_ACTION_UP && (lastButtonState & buttonState) &&
          !(currentButtonState & buttonState))) {
-        NotifyKeyArgs args(context->getNextSequenceNum(), when, deviceId, source, displayId,
-                           policyFlags, action, 0, keyCode, 0, context->getGlobalMetaState(), when);
+        NotifyKeyArgs args(context->getNextId(), when, deviceId, source, displayId, policyFlags,
+                           action, 0, keyCode, 0, context->getGlobalMetaState(), when);
         context->getListener()->notifyKey(&args);
     }
 }

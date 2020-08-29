@@ -46,7 +46,6 @@
 #include <utils/String8.h>
 #include <utils/Trace.h>
 
-extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 #define PROT_CONTENT_EXT_STR "EGL_EXT_protected_content"
 #define EGL_PROTECTED_CONTENT_EXT 0x32C0
 
@@ -281,7 +280,7 @@ status_t GLConsumer::releaseTexImage() {
         mCurrentFenceTime = FenceTime::NO_FENCE;
 
         if (mAttached) {
-            // This binds a dummy buffer (mReleasedTexImage).
+            // This binds a buffer placeholder (mReleasedTexImage).
             status_t result = bindTextureImageLocked();
             if (result != NO_ERROR) {
                 return result;

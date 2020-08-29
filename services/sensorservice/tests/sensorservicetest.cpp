@@ -15,19 +15,20 @@
  */
 
 #include <inttypes.h>
+#include <android/hardware_buffer.h>
 #include <android/sensor.h>
 #include <sensor/Sensor.h>
 #include <sensor/SensorManager.h>
 #include <sensor/SensorEventQueue.h>
 #include <utils/Looper.h>
+#include <vndk/hardware_buffer.h>
 
 using namespace android;
 
 static nsecs_t sStartTime = 0;
 
 
-int receiver(__unused int fd, __unused int events, void* data)
-{
+int receiver(__unused int fd, __unused int events, void* data) {
     sp<SensorEventQueue> q((SensorEventQueue*)data);
     ssize_t n;
     ASensorEvent buffer[8];
@@ -59,10 +60,41 @@ int receiver(__unused int fd, __unused int events, void* data)
     return 1;
 }
 
+void testInvalidSharedMem_NoCrash(SensorManager &mgr) {
+    AHardwareBuffer *hardwareBuffer;
+    char* buffer;
 
-int main()
-{
+    constexpr size_t kEventSize = sizeof(ASensorEvent);
+    constexpr size_t kNEvent = 4096; // enough to contain 1.5 * 800 * 2.2 events
+    constexpr size_t kMemSize = kEventSize * kNEvent;
+    AHardwareBuffer_Desc desc = {
+            .width = static_cast<uint32_t>(kMemSize),
+            .height = 1,
+            .layers = 1,
+            .format = AHARDWAREBUFFER_FORMAT_BLOB,
+            .usage = AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA
+                        | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
+    };
+
+    AHardwareBuffer_allocate(&desc, &hardwareBuffer);
+    AHardwareBuffer_lock(hardwareBuffer, AHARDWAREBUFFER_USAGE_CPU_READ_RARELY,
+                         -1, nullptr, reinterpret_cast<void **>(&buffer));
+
+    const native_handle_t *resourceHandle = AHardwareBuffer_getNativeHandle(hardwareBuffer);
+
+    // Pass in AHardwareBuffer, but with the wrong DIRECT_CHANNEL_TYPE to see
+    // if anything in the Sensor framework crashes
+    int ret = mgr.createDirectChannel(
+            kMemSize, ASENSOR_DIRECT_CHANNEL_TYPE_SHARED_MEMORY, resourceHandle);
+
+    // Should print -22 (BAD_VALUE) and the device runtime shouldn't restart
+    printf("createInvalidDirectChannel=%d\n", ret);
+}
+
+int main() {
     SensorManager& mgr = SensorManager::getInstanceForPackage(String16("Sensor Service Test"));
+
+    testInvalidSharedMem_NoCrash(mgr);
 
     Sensor const* const* list;
     ssize_t count = mgr.getSensorList(&list);

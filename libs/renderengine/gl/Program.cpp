@@ -37,6 +37,8 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
     glBindAttribLocation(programId, position, "position");
     glBindAttribLocation(programId, texCoords, "texCoords");
     glBindAttribLocation(programId, cropCoords, "cropCoords");
+    glBindAttribLocation(programId, shadowColor, "shadowColor");
+    glBindAttribLocation(programId, shadowParams, "shadowParams");
     glLinkProgram(programId);
 
     GLint status;
@@ -65,6 +67,8 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
         mSamplerLoc = glGetUniformLocation(programId, "sampler");
         mColorLoc = glGetUniformLocation(programId, "color");
         mDisplayMaxLuminanceLoc = glGetUniformLocation(programId, "displayMaxLuminance");
+        mMaxMasteringLuminanceLoc = glGetUniformLocation(programId, "maxMasteringLuminance");
+        mMaxContentLuminanceLoc = glGetUniformLocation(programId, "maxContentLuminance");
         mInputTransformMatrixLoc = glGetUniformLocation(programId, "inputTransformMatrix");
         mOutputTransformMatrixLoc = glGetUniformLocation(programId, "outputTransformMatrix");
         mCornerRadiusLoc = glGetUniformLocation(programId, "cornerRadius");
@@ -137,6 +141,12 @@ void Program::setUniforms(const Description& desc) {
     }
     if (mDisplayMaxLuminanceLoc >= 0) {
         glUniform1f(mDisplayMaxLuminanceLoc, desc.displayMaxLuminance);
+    }
+    if (mMaxMasteringLuminanceLoc >= 0) {
+        glUniform1f(mMaxMasteringLuminanceLoc, desc.maxMasteringLuminance);
+    }
+    if (mMaxContentLuminanceLoc >= 0) {
+        glUniform1f(mMaxContentLuminanceLoc, desc.maxContentLuminance);
     }
     if (mCornerRadiusLoc >= 0) {
         glUniform1f(mCornerRadiusLoc, desc.cornerRadius);

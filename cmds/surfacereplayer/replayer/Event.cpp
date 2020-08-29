@@ -17,6 +17,7 @@
 #include "Event.h"
 
 using namespace android;
+using Increment = surfaceflinger::Increment;
 
 Event::Event(Increment::IncrementCase type) : mIncrementType(type) {}
 

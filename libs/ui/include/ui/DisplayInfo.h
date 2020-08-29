@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007 The Android Open Source Project
+ * Copyright 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,39 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_UI_DISPLAY_INFO_H
-#define ANDROID_UI_DISPLAY_INFO_H
+#pragma once
 
-#include <stdint.h>
-#include <sys/types.h>
+#include <optional>
+#include <type_traits>
 
-#include <utils/Timers.h>
+#include <ui/DeviceProductInfo.h>
 
 namespace android {
 
+enum class DisplayConnectionType { Internal, External };
+
+// Immutable information about physical display.
 struct DisplayInfo {
-    uint32_t w{0};
-    uint32_t h{0};
-    float xdpi{0};
-    float ydpi{0};
-    float fps{0};
-    float density{0};
-    uint8_t orientation{0};
-    bool secure{false};
-    nsecs_t appVsyncOffset{0};
-    nsecs_t presentationDeadline{0};
-    uint32_t viewportW{0};
-    uint32_t viewportH{0};
+    DisplayConnectionType connectionType = DisplayConnectionType::Internal;
+    float density = 0.f;
+    bool secure = false;
+    std::optional<DeviceProductInfo> deviceProductInfo;
 };
 
-/* Display orientations as defined in Surface.java and ISurfaceComposer.h. */
-enum {
-    DISPLAY_ORIENTATION_0 = 0,
-    DISPLAY_ORIENTATION_90 = 1,
-    DISPLAY_ORIENTATION_180 = 2,
-    DISPLAY_ORIENTATION_270 = 3
-};
+static_assert(std::is_trivially_copyable_v<DisplayInfo>);
 
-}; // namespace android
-
-#endif // ANDROID_COMPOSER_DISPLAY_INFO_H
+} // namespace android

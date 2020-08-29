@@ -47,7 +47,6 @@ constexpr const char* kXattrCacheTombstone = "user.cache_tombstone";
 std::string create_data_path(const char* volume_uuid);
 
 std::string create_data_app_path(const char* volume_uuid);
-std::string create_data_app_package_path(const char* volume_uuid, const char* package_name);
 
 std::string create_data_user_ce_path(const char* volume_uuid, userid_t userid);
 std::string create_data_user_de_path(const char* volume_uuid, userid_t userid);
@@ -81,6 +80,10 @@ std::string create_data_media_package_path(const char* volume_uuid, userid_t use
 std::string create_data_misc_legacy_path(userid_t userid);
 
 std::string create_data_dalvik_cache_path();
+
+std::string create_system_user_ce_path(userid_t userId);
+
+std::string create_system_user_ce_package_path(userid_t userId, const char* package_name);
 
 std::string create_primary_cur_profile_dir_path(userid_t userid);
 std::string create_primary_current_profile_package_dir_path(

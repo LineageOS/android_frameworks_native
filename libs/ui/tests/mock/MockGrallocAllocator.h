@@ -32,11 +32,11 @@ public:
     ~MockGrallocAllocator() override;
 
     MOCK_METHOD(bool, isLoaded, (), (const, override));
-    MOCK_METHOD(std::string, dumpDebugInfo, (), (const, override));
+    MOCK_METHOD(std::string, dumpDebugInfo, (bool less), (const, override));
     MOCK_METHOD(status_t, allocate,
-                (uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-                 uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
-                 buffer_handle_t* outBufferHandles),
+                (std::string requestorName, uint32_t width, uint32_t height, PixelFormat format,
+                 uint32_t layerCount, uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
+                 buffer_handle_t* outBufferHandles, bool less),
                 (const, override));
 };
 

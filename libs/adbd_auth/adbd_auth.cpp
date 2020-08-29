@@ -83,28 +83,28 @@ public:
         InitFrameworkHandlers();
         epoll_fd_.reset(epoll_create1(EPOLL_CLOEXEC));
         if (epoll_fd_ == -1) {
-            PLOG(FATAL) << "failed to create epoll fd";
+            PLOG(FATAL) << "adbd_auth: failed to create epoll fd";
         }
 
         event_fd_.reset(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
         if (event_fd_ == -1) {
-            PLOG(FATAL) << "failed to create eventfd";
+            PLOG(FATAL) << "adbd_auth: failed to create eventfd";
         }
 
         sock_fd_.reset(android_get_control_socket("adbd"));
         if (sock_fd_ == -1) {
-            PLOG(ERROR) << "failed to get adbd authentication socket";
+            PLOG(ERROR) << "adbd_auth: failed to get adbd authentication socket";
         } else {
             if (fcntl(sock_fd_.get(), F_SETFD, FD_CLOEXEC) != 0) {
-                PLOG(FATAL) << "failed to make adbd authentication socket cloexec";
+                PLOG(FATAL) << "adbd_auth: failed to make adbd authentication socket cloexec";
             }
 
             if (fcntl(sock_fd_.get(), F_SETFL, O_NONBLOCK) != 0) {
-                PLOG(FATAL) << "failed to make adbd authentication socket nonblocking";
+                PLOG(FATAL) << "adbd_auth: failed to make adbd authentication socket nonblocking";
             }
 
             if (listen(sock_fd_.get(), 4) != 0) {
-                PLOG(FATAL) << "failed to listen on adbd authentication socket";
+                PLOG(FATAL) << "adbd_auth: failed to listen on adbd authentication socket";
             }
         }
     }
@@ -146,7 +146,7 @@ public:
             struct epoll_event event;
             event.events = EPOLLIN;
             if (!output_queue_.empty()) {
-                LOG(INFO) << "marking framework writable";
+                LOG(INFO) << "adbd_auth: marking framework writable";
                 event.events |= EPOLLOUT;
             }
             event.data.u64 = kEpollConstFramework;
@@ -155,7 +155,7 @@ public:
     }
 
     void ReplaceFrameworkFd(unique_fd new_fd) REQUIRES(mutex_) {
-        LOG(INFO) << "received new framework fd " << new_fd.get()
+        LOG(INFO) << "adbd_auth: received new framework fd " << new_fd.get()
                   << " (current = " << framework_fd_.get() << ")";
 
         // If we already had a framework fd, clean up after ourselves.
@@ -170,7 +170,7 @@ public:
             struct epoll_event event;
             event.events = EPOLLIN;
             if (!output_queue_.empty()) {
-                LOG(INFO) << "marking framework writable";
+                LOG(INFO) << "adbd_auth: marking framework writable";
                 event.events |= EPOLLOUT;
             }
             event.data.u64 = kEpollConstFramework;
@@ -180,10 +180,10 @@ public:
     }
 
     void HandlePacket(std::string_view packet) EXCLUDES(mutex_) {
-        LOG(INFO) << "received packet: " << packet;
+        LOG(INFO) << "adbd_auth: received packet: " << packet;
 
         if (packet.size() < 2) {
-            LOG(ERROR) << "received packet of invalid length";
+            LOG(ERROR) << "adbd_auth: received packet of invalid length";
             std::lock_guard<std::mutex> lock(mutex_);
             ReplaceFrameworkFd(unique_fd());
         }
@@ -197,7 +197,7 @@ public:
             }
         }
         if (!handled_packet) {
-            LOG(ERROR) << "unhandled packet: " << packet;
+            LOG(ERROR) << "adbd_auth: unhandled packet: " << packet;
             std::lock_guard<std::mutex> lock(mutex_);
             ReplaceFrameworkFd(unique_fd());
         }
@@ -206,12 +206,18 @@ public:
     void AllowUsbDevice(std::string_view buf) EXCLUDES(mutex_) {
         std::lock_guard<std::mutex> lock(mutex_);
         CHECK(buf.empty());
-        CHECK(dispatched_prompt_.has_value());
-        auto& [id, key, arg] = *dispatched_prompt_;
-        keys_.emplace(id, std::move(key));
 
-        callbacks_.key_authorized(arg, id);
-        dispatched_prompt_ = std::nullopt;
+        if (dispatched_prompt_.has_value()) {
+            // It's possible for the framework to send us a response without our having sent a
+            // request to it: e.g. if adbd restarts while we have a pending request.
+            auto& [id, key, arg] = *dispatched_prompt_;
+            keys_.emplace(id, std::move(key));
+
+            callbacks_.key_authorized(arg, id);
+            dispatched_prompt_ = std::nullopt;
+        } else {
+            LOG(WARNING) << "adbd_auth: received authorization for unknown prompt, ignoring";
+        }
 
         // We need to dispatch pending prompts here upon success as well,
         // since we might have multiple queued prompts.
@@ -273,14 +279,14 @@ public:
             iovs[2].iov_base = p->public_key.data();
             iovs[2].iov_len = p->public_key.size();
         } else {
-            LOG(FATAL) << "unhandled packet type?";
+            LOG(FATAL) << "adbd_auth: unhandled packet type?";
         }
 
         output_queue_.pop_front();
 
         ssize_t rc = writev(framework_fd_.get(), iovs, iovcnt);
         if (rc == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
-            PLOG(ERROR) << "failed to write to framework fd";
+            PLOG(ERROR) << "adbd_auth: failed to write to framework fd";
             ReplaceFrameworkFd(unique_fd());
             return false;
         }
@@ -290,7 +296,7 @@ public:
 
     void Run() {
         if (sock_fd_ == -1) {
-            LOG(ERROR) << "adbd authentication socket unavailable, disabling user prompts";
+            LOG(ERROR) << "adbd_auth: socket unavailable, disabling user prompts";
         } else {
             struct epoll_event event;
             event.events = EPOLLIN;
@@ -309,9 +315,9 @@ public:
             struct epoll_event events[3];
             int rc = TEMP_FAILURE_RETRY(epoll_wait(epoll_fd_.get(), events, 3, -1));
             if (rc == -1) {
-                PLOG(FATAL) << "epoll_wait failed";
+                PLOG(FATAL) << "adbd_auth: epoll_wait failed";
             } else if (rc == 0) {
-                LOG(FATAL) << "epoll_wait returned 0";
+                LOG(FATAL) << "adbd_auth: epoll_wait returned 0";
             }
 
             bool restart = false;
@@ -326,7 +332,7 @@ public:
                         unique_fd new_framework_fd(accept4(sock_fd_.get(), nullptr, nullptr,
                                                            SOCK_CLOEXEC | SOCK_NONBLOCK));
                         if (new_framework_fd == -1) {
-                            PLOG(FATAL) << "failed to accept framework fd";
+                            PLOG(FATAL) << "adbd_auth: failed to accept framework fd";
                         }
 
                         LOG(INFO) << "adbd_auth: received a new framework connection";
@@ -344,7 +350,8 @@ public:
                         uint64_t dummy;
                         int rc = TEMP_FAILURE_RETRY(read(event_fd_.get(), &dummy, sizeof(dummy)));
                         if (rc != 8) {
-                            PLOG(FATAL) << "failed to read from eventfd (rc = " << rc << ")";
+                            PLOG(FATAL)
+                                    << "adbd_auth: failed to read from eventfd (rc = " << rc << ")";
                         }
 
                         std::lock_guard<std::mutex> lock(mutex_);
@@ -357,9 +364,9 @@ public:
                         if (event.events & EPOLLIN) {
                             int rc = TEMP_FAILURE_RETRY(read(framework_fd_.get(), buf, sizeof(buf)));
                             if (rc == -1) {
-                                LOG(FATAL) << "failed to read from framework fd";
+                                LOG(FATAL) << "adbd_auth: failed to read from framework fd";
                             } else if (rc == 0) {
-                                LOG(INFO) << "hit EOF on framework fd";
+                                LOG(INFO) << "adbd_auth: hit EOF on framework fd";
                                 std::lock_guard<std::mutex> lock(mutex_);
                                 ReplaceFrameworkFd(unique_fd());
                             } else {
@@ -386,10 +393,10 @@ public:
     void IteratePublicKeys(bool (*callback)(void*, const char*, size_t), void* opaque) {
         for (const auto& path : key_paths) {
             if (access(path, R_OK) == 0) {
-                LOG(INFO) << "Loading keys from " << path;
+                LOG(INFO) << "adbd_auth: loading keys from " << path;
                 std::string content;
                 if (!android::base::ReadFileToString(path, &content)) {
-                    PLOG(ERROR) << "Couldn't read " << path;
+                    PLOG(ERROR) << "adbd_auth: couldn't read " << path;
                     continue;
                 }
                 for (const auto& line : android::base::Split(content, "\n")) {
@@ -405,6 +412,7 @@ public:
         uint64_t id = NextId();
 
         std::lock_guard<std::mutex> lock(mutex_);
+        LOG(INFO) << "adbd_auth: sending prompt with id " << id;
         pending_prompts_.emplace_back(id, public_key, arg);
         DispatchPendingPrompt();
         return id;
@@ -423,7 +431,7 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = keys_.find(id);
         if (it == keys_.end()) {
-            LOG(DEBUG) << "couldn't find public key to notify disconnection, skipping";
+            LOG(DEBUG) << "adbd_auth: couldn't find public key to notify disconnection, skipping";
             return;
         }
         output_queue_.emplace_back(AdbdAuthPacketDisconnected{.public_key = std::move(it->second)});
@@ -446,7 +454,8 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = keys_.find(id);
         if (it == keys_.end()) {
-            LOG(DEBUG) << "couldn't find public key to notify disconnection of tls device, skipping";
+            LOG(DEBUG) << "adbd_auth: couldn't find public key to notify disconnection of tls "
+                          "device, skipping";
             return;
         }
         output_queue_.emplace_back(AdbdPacketTlsDeviceDisconnected{
@@ -461,9 +470,9 @@ public:
         uint64_t value = 1;
         ssize_t rc = write(event_fd_.get(), &value, sizeof(value));
         if (rc == -1) {
-            PLOG(FATAL) << "write to eventfd failed";
+            PLOG(FATAL) << "adbd_auth: write to eventfd failed";
         } else if (rc != sizeof(value)) {
-            LOG(FATAL) << "write to eventfd returned short (" << rc << ")";
+            LOG(FATAL) << "adbd_auth: write to eventfd returned short (" << rc << ")";
         }
     }
 
@@ -516,8 +525,9 @@ AdbdAuthContext* adbd_auth_new(AdbdAuthCallbacks* callbacks) {
     if (callbacks->version == 1) {
         return new AdbdAuthContext(reinterpret_cast<AdbdAuthCallbacksV1*>(callbacks));
     } else {
-      LOG(ERROR) << "received unknown AdbdAuthCallbacks version " << callbacks->version;
-      return nullptr;
+        LOG(ERROR) << "adbd_auth: received unknown AdbdAuthCallbacks version "
+                   << callbacks->version;
+        return nullptr;
     }
 }
 
@@ -545,7 +555,12 @@ void adbd_auth_notify_disconnect(AdbdAuthContext* ctx, uint64_t id) {
 
 void adbd_auth_prompt_user(AdbdAuthContext* ctx, const char* public_key, size_t len,
                            void* opaque) {
-    ctx->PromptUser(std::string_view(public_key, len), opaque);
+    adbd_auth_prompt_user_with_id(ctx, public_key, len, opaque);
+}
+
+uint64_t adbd_auth_prompt_user_with_id(AdbdAuthContext* ctx, const char* public_key, size_t len,
+                                       void* opaque) {
+    return ctx->PromptUser(std::string_view(public_key, len), opaque);
 }
 
 uint64_t adbd_auth_tls_device_connected(AdbdAuthContext* ctx,

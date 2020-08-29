@@ -16,13 +16,13 @@
 
 #pragma once
 
+#include <cutils/compiler.h>
+#include <utils/StrongPointer.h>
+
 #include <cinttypes>
 #include <functional>
 #include <memory>
 #include <string>
-
-#include <cutils/compiler.h>
-#include <utils/StrongPointer.h>
 
 namespace android {
 
@@ -30,7 +30,8 @@ typedef int32_t PixelFormat;
 
 class BufferQueueLayer;
 class BufferStateLayer;
-class ColorLayer;
+class BufferLayerConsumer;
+class EffectLayer;
 class ContainerLayer;
 class DisplayDevice;
 class DispSync;
@@ -39,12 +40,13 @@ class GraphicBuffer;
 class HWComposer;
 class IGraphicBufferConsumer;
 class IGraphicBufferProducer;
+class ISchedulerCallback;
+class Layer;
 class MessageQueue;
 class Scheduler;
 class StartPropertySetThread;
 class SurfaceFlinger;
 class SurfaceInterceptor;
-class TimeStats;
 
 struct DisplayDeviceCreationArgs;
 struct LayerCreationArgs;
@@ -54,8 +56,10 @@ class CompositionEngine;
 } // namespace compositionengine
 
 namespace scheduler {
-class PhaseOffsets;
+class PhaseConfiguration;
+class RefreshRateConfigs;
 } // namespace scheduler
+
 namespace surfaceflinger {
 
 class NativeWindowSurface;
@@ -64,27 +68,35 @@ class NativeWindowSurface;
 // of each interface.
 class Factory {
 public:
-    virtual std::unique_ptr<DispSync> createDispSync(const char* name, bool hasSyncFramework,
-                                                     int64_t dispSyncPresentTimeOffset) = 0;
-    virtual std::unique_ptr<EventControlThread> createEventControlThread(
-            std::function<void(bool)> setVSyncEnabled) = 0;
+    using SetVSyncEnabled = std::function<void(bool)>;
+
+    virtual std::unique_ptr<DispSync> createDispSync(const char* name, bool hasSyncFramework) = 0;
+    virtual std::unique_ptr<EventControlThread> createEventControlThread(SetVSyncEnabled) = 0;
     virtual std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) = 0;
     virtual std::unique_ptr<MessageQueue> createMessageQueue() = 0;
-    virtual std::unique_ptr<scheduler::PhaseOffsets> createPhaseOffsets() = 0;
-    virtual std::unique_ptr<Scheduler> createScheduler(
-            std::function<void(bool)> callback,
-            const scheduler::RefreshRateConfigs& refreshRateConfig) = 0;
+    virtual std::unique_ptr<scheduler::PhaseConfiguration> createPhaseConfiguration(
+            const scheduler::RefreshRateConfigs&) = 0;
+    virtual std::unique_ptr<Scheduler> createScheduler(SetVSyncEnabled,
+                                                       const scheduler::RefreshRateConfigs&,
+                                                       ISchedulerCallback&) = 0;
     virtual std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger*) = 0;
 
     virtual sp<StartPropertySetThread> createStartPropertySetThread(
             bool timestampPropertyValue) = 0;
-    virtual sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&&) = 0;
+    virtual sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&) = 0;
     virtual sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height,
                                                   PixelFormat format, uint32_t layerCount,
                                                   uint64_t usage, std::string requestorName) = 0;
     virtual void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
                                    sp<IGraphicBufferConsumer>* outConsumer,
                                    bool consumerIsSurfaceFlinger) = 0;
+    virtual sp<IGraphicBufferProducer> createMonitoredProducer(const sp<IGraphicBufferProducer>&,
+                                                               const sp<SurfaceFlinger>&,
+                                                               const wp<Layer>&) = 0;
+    virtual sp<BufferLayerConsumer> createBufferLayerConsumer(const sp<IGraphicBufferConsumer>&,
+                                                              renderengine::RenderEngine&,
+                                                              uint32_t tex, Layer*) = 0;
+
     virtual std::unique_ptr<surfaceflinger::NativeWindowSurface> createNativeWindowSurface(
             const sp<IGraphicBufferProducer>&) = 0;
 
@@ -92,10 +104,8 @@ public:
 
     virtual sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs& args) = 0;
     virtual sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) = 0;
-    virtual sp<ColorLayer> createColorLayer(const LayerCreationArgs& args) = 0;
+    virtual sp<EffectLayer> createEffectLayer(const LayerCreationArgs& args) = 0;
     virtual sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) = 0;
-
-    virtual std::shared_ptr<TimeStats> createTimeStats() = 0;
 
 protected:
     ~Factory() = default;

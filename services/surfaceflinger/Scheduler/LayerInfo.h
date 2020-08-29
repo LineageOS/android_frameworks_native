@@ -16,27 +16,37 @@
 
 #pragma once
 
-#include <cinttypes>
-#include <cstdint>
-#include <deque>
-#include <mutex>
-#include <numeric>
-#include <string>
-
-#include <log/log.h>
-
-#include <utils/Mutex.h>
 #include <utils/Timers.h>
+
+#include <chrono>
+#include <deque>
 
 #include "SchedulerUtils.h"
 
 namespace android {
+
+class Layer;
+
 namespace scheduler {
 
-/*
- * This class represents information about individial layers.
- */
+using namespace std::chrono_literals;
+
+// Maximum period between presents for a layer to be considered active.
+constexpr std::chrono::nanoseconds MAX_ACTIVE_LAYER_PERIOD_NS = 1200ms;
+
+// Earliest present time for a layer to be considered active.
+constexpr nsecs_t getActiveLayerThreshold(nsecs_t now) {
+    return now - MAX_ACTIVE_LAYER_PERIOD_NS.count();
+}
+
+// Stores history of present times and refresh rates for a layer.
 class LayerInfo {
+    // Layer is considered frequent if the earliest value in the window of most recent present times
+    // is within a threshold. If a layer is infrequent, its average refresh rate is disregarded in
+    // favor of a low refresh rate.
+    static constexpr size_t FREQUENT_LAYER_WINDOW_SIZE = 3;
+    static constexpr std::chrono::nanoseconds MAX_FREQUENT_LAYER_PERIOD_NS = 250ms;
+
     /**
      * Struct that keeps the information about the refresh rate for last
      * HISTORY_SIZE frames. This is used to better determine the refresh rate
@@ -44,9 +54,9 @@ class LayerInfo {
      */
     class RefreshRateHistory {
     public:
-        explicit RefreshRateHistory(nsecs_t minRefreshDuration)
-              : mMinRefreshDuration(minRefreshDuration) {}
-        void insertRefreshRate(int refreshRate) {
+        explicit RefreshRateHistory(float highRefreshRate) : mHighRefreshRate(highRefreshRate) {}
+
+        void insertRefreshRate(float refreshRate) {
             mElements.push_back(refreshRate);
             if (mElements.size() > HISTORY_SIZE) {
                 mElements.pop_front();
@@ -54,19 +64,16 @@ class LayerInfo {
         }
 
         float getRefreshRateAvg() const {
-            if (mElements.empty()) {
-                return 1e9f / mMinRefreshDuration;
-            }
-
-            return scheduler::calculate_mean(mElements);
+            return mElements.empty() ? mHighRefreshRate : calculate_mean(mElements);
         }
 
         void clearHistory() { mElements.clear(); }
 
     private:
-        std::deque<nsecs_t> mElements;
+        const float mHighRefreshRate;
+
         static constexpr size_t HISTORY_SIZE = 30;
-        const nsecs_t mMinRefreshDuration;
+        std::deque<float> mElements;
     };
 
     /**
@@ -76,6 +83,8 @@ class LayerInfo {
      */
     class PresentTimeHistory {
     public:
+        static constexpr size_t HISTORY_SIZE = 90;
+
         void insertPresentTime(nsecs_t presentTime) {
             mElements.push_back(presentTime);
             if (mElements.size() > HISTORY_SIZE) {
@@ -83,60 +92,45 @@ class LayerInfo {
             }
         }
 
-        // Checks whether the present time that was inserted HISTORY_SIZE ago is within a
-        // certain threshold: TIME_EPSILON_NS.
-        bool isRelevant() const {
+        // Returns whether the earliest present time is within the active threshold.
+        bool isRecentlyActive(nsecs_t now) const {
             if (mElements.size() < 2) {
                 return false;
             }
 
-            // The layer had to publish at least HISTORY_SIZE or HISTORY_TIME of updates
-            if (mElements.size() != HISTORY_SIZE &&
-                mElements.at(mElements.size() - 1) - mElements.at(0) < HISTORY_TIME.count()) {
+            // The layer had to publish at least HISTORY_SIZE or HISTORY_DURATION of updates
+            if (mElements.size() < HISTORY_SIZE &&
+                mElements.back() - mElements.front() < HISTORY_DURATION.count()) {
                 return false;
             }
 
-            // The last update should not be older than OBSOLETE_TIME_EPSILON_NS nanoseconds.
-            const int64_t obsoleteEpsilon =
-                    systemTime() - scheduler::OBSOLETE_TIME_EPSILON_NS.count();
-            if (mElements.at(mElements.size() - 1) < obsoleteEpsilon) {
-                return false;
-            }
-
-            return true;
+            return mElements.back() >= getActiveLayerThreshold(now);
         }
 
-        bool isLowActivityLayer() const {
-            // We want to make sure that we received more than two frames from the layer
-            // in order to check low activity.
-            if (mElements.size() < scheduler::LOW_ACTIVITY_BUFFERS + 1) {
+        bool isFrequent(nsecs_t now) const {
+            // Assume layer is infrequent if too few present times have been recorded.
+            if (mElements.size() < FREQUENT_LAYER_WINDOW_SIZE) {
                 return false;
             }
 
-            const int64_t obsoleteEpsilon =
-                    systemTime() - scheduler::LOW_ACTIVITY_EPSILON_NS.count();
-            // Check the frame before last to determine whether there is low activity.
-            // If that frame is older than LOW_ACTIVITY_EPSILON_NS, the layer is sending
-            // infrequent updates.
-            if (mElements.at(mElements.size() - (scheduler::LOW_ACTIVITY_BUFFERS + 1)) <
-                obsoleteEpsilon) {
-                return true;
-            }
-
-            return false;
+            // Layer is frequent if the earliest value in the window of most recent present times is
+            // within threshold.
+            const auto it = mElements.end() - FREQUENT_LAYER_WINDOW_SIZE;
+            const nsecs_t threshold = now - MAX_FREQUENT_LAYER_PERIOD_NS.count();
+            return *it >= threshold;
         }
 
         void clearHistory() { mElements.clear(); }
 
     private:
         std::deque<nsecs_t> mElements;
-        static constexpr size_t HISTORY_SIZE = 90;
-        static constexpr std::chrono::nanoseconds HISTORY_TIME = 1s;
+        static constexpr std::chrono::nanoseconds HISTORY_DURATION = 1s;
     };
 
+    friend class LayerHistoryTest;
+
 public:
-    LayerInfo(const std::string name, float minRefreshRate, float maxRefreshRate);
-    ~LayerInfo();
+    LayerInfo(float lowRefreshRate, float highRefreshRate);
 
     LayerInfo(const LayerInfo&) = delete;
     LayerInfo& operator=(const LayerInfo&) = delete;
@@ -144,70 +138,32 @@ public:
     // Records the last requested oresent time. It also stores information about when
     // the layer was last updated. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
-    void setLastPresentTime(nsecs_t lastPresentTime);
+    void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now);
 
-    void setHDRContent(bool isHdr) {
-        std::lock_guard lock(mLock);
-        mIsHDR = isHdr;
-    }
+    bool isRecentlyActive(nsecs_t now) const { return mPresentTimeHistory.isRecentlyActive(now); }
+    bool isFrequent(nsecs_t now) const { return mPresentTimeHistory.isFrequent(now); }
 
-    void setVisibility(bool visible) {
-        std::lock_guard lock(mLock);
-        mIsVisible = visible;
-    }
-
-    // Checks the present time history to see whether the layer is relevant.
-    bool isRecentlyActive() const {
-        std::lock_guard lock(mLock);
-        return mPresentTimeHistory.isRelevant();
-    }
-
-    // Calculate the average refresh rate.
-    float getDesiredRefreshRate() const {
-        std::lock_guard lock(mLock);
-
-        if (mPresentTimeHistory.isLowActivityLayer()) {
-            return 1e9f / mLowActivityRefreshDuration;
-        }
-        return mRefreshRateHistory.getRefreshRateAvg();
-    }
-
-    bool getHDRContent() {
-        std::lock_guard lock(mLock);
-        return mIsHDR;
-    }
-
-    bool isVisible() {
-        std::lock_guard lock(mLock);
-        return mIsVisible;
+    float getRefreshRate(nsecs_t now) const {
+        return isFrequent(now) ? mRefreshRateHistory.getRefreshRateAvg() : mLowRefreshRate;
     }
 
     // Return the last updated time. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
-    nsecs_t getLastUpdatedTime() {
-        std::lock_guard lock(mLock);
-        return mLastUpdatedTime;
-    }
-
-    std::string getName() const { return mName; }
+    nsecs_t getLastUpdatedTime() const { return mLastUpdatedTime; }
 
     void clearHistory() {
-        std::lock_guard lock(mLock);
         mRefreshRateHistory.clearHistory();
         mPresentTimeHistory.clearHistory();
     }
 
 private:
-    const std::string mName;
-    const nsecs_t mMinRefreshDuration;
-    const nsecs_t mLowActivityRefreshDuration;
-    mutable std::mutex mLock;
-    nsecs_t mLastUpdatedTime GUARDED_BY(mLock) = 0;
-    nsecs_t mLastPresentTime GUARDED_BY(mLock) = 0;
-    RefreshRateHistory mRefreshRateHistory GUARDED_BY(mLock);
-    PresentTimeHistory mPresentTimeHistory GUARDED_BY(mLock);
-    bool mIsHDR GUARDED_BY(mLock) = false;
-    bool mIsVisible GUARDED_BY(mLock) = false;
+    const float mLowRefreshRate;
+    const float mHighRefreshRate;
+
+    nsecs_t mLastUpdatedTime = 0;
+    nsecs_t mLastPresentTime = 0;
+    RefreshRateHistory mRefreshRateHistory{mHighRefreshRate};
+    PresentTimeHistory mPresentTimeHistory;
 };
 
 } // namespace scheduler

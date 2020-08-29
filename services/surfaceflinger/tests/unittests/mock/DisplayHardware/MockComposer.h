@@ -39,12 +39,13 @@ using android::hardware::graphics::composer::V2_1::Config;
 using android::hardware::graphics::composer::V2_1::Display;
 using android::hardware::graphics::composer::V2_1::Error;
 using android::hardware::graphics::composer::V2_1::IComposer;
-using android::hardware::graphics::composer::V2_1::IComposerCallback;
 using android::hardware::graphics::composer::V2_1::Layer;
-using android::hardware::graphics::composer::V2_3::IComposerClient;
+using android::hardware::graphics::composer::V2_4::IComposerCallback;
+using android::hardware::graphics::composer::V2_4::IComposerClient;
 
 class Composer : public Hwc2::Composer {
 public:
+    using Display = android::hardware::graphics::composer::V2_1::Display;
     Composer();
     ~Composer() override;
 
@@ -71,7 +72,6 @@ public:
     MOCK_METHOD2(getDisplayName, Error(Display, std::string*));
     MOCK_METHOD4(getDisplayRequests,
                  Error(Display, uint32_t*, std::vector<Layer>*, std::vector<uint32_t>*));
-    MOCK_METHOD2(getDisplayType, Error(Display, IComposerClient::DisplayType*));
     MOCK_METHOD2(getDozeSupport, Error(Display, bool*));
     MOCK_METHOD5(getHdrCapabilities, Error(Display, std::vector<Hdr>*, float*, float*, float*));
     MOCK_METHOD1(getPerFrameMetadataKeys,
@@ -118,10 +118,29 @@ public:
     MOCK_METHOD4(setDisplayContentSamplingEnabled, Error(Display, bool, uint8_t, uint64_t));
     MOCK_METHOD4(getDisplayedContentSample,
                  Error(Display, uint64_t, uint64_t, DisplayedFrameStats*));
-    MOCK_METHOD2(getDisplayCapabilities, Error(Display, std::vector<DisplayCapability>*));
     MOCK_METHOD3(setLayerPerFrameMetadataBlobs,
                  Error(Display, Layer, const std::vector<IComposerClient::PerFrameMetadataBlob>&));
     MOCK_METHOD2(setDisplayBrightness, Error(Display, float));
+    MOCK_METHOD0(isVsyncPeriodSwitchSupported, bool());
+    MOCK_METHOD2(getDisplayCapabilities, Error(Display, std::vector<DisplayCapability>*));
+    MOCK_METHOD2(getDisplayConnectionType,
+                 V2_4::Error(Display, IComposerClient::DisplayConnectionType*));
+    MOCK_METHOD3(getSupportedDisplayVsyncPeriods,
+                 V2_4::Error(Display, Config, std::vector<VsyncPeriodNanos>*));
+    MOCK_METHOD2(getDisplayVsyncPeriod, V2_4::Error(Display, VsyncPeriodNanos*));
+    MOCK_METHOD4(setActiveConfigWithConstraints,
+                 V2_4::Error(Display, Config, const IComposerClient::VsyncPeriodChangeConstraints&,
+                             VsyncPeriodChangeTimeline*));
+    MOCK_METHOD2(setAutoLowLatencyMode, V2_4::Error(Display, bool));
+    MOCK_METHOD2(getSupportedContentTypes,
+                 V2_4::Error(Display, std::vector<IComposerClient::ContentType>*));
+    MOCK_METHOD2(setContentType, V2_4::Error(Display, IComposerClient::ContentType));
+    MOCK_METHOD5(setLayerGenericMetadata,
+                 V2_4::Error(Display, Layer, const std::string&, bool,
+                             const std::vector<uint8_t>&));
+    MOCK_METHOD1(getLayerGenericMetadataKeys,
+                 V2_4::Error(std::vector<IComposerClient::LayerGenericMetadataKey>*));
+    MOCK_METHOD2(getClientTargetProperty, Error(Display, IComposerClient::ClientTargetProperty*));
 };
 
 } // namespace mock

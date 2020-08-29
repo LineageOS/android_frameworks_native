@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include "MonitoredProducer.h"
 #include "Layer.h"
 #include "SurfaceFlinger.h"
@@ -34,13 +38,7 @@ MonitoredProducer::~MonitoredProducer() {
     // because we don't know where this destructor is called from. It could be
     // called with the mStateLock held, leading to a dead-lock (it actually
     // happens).
-    sp<LambdaMessage> cleanUpListMessage =
-            new LambdaMessage([flinger = mFlinger, asBinder = wp<IBinder>(onAsBinder())]() {
-                Mutex::Autolock lock(flinger->mStateLock);
-                flinger->mGraphicBufferProducerList.erase(asBinder);
-            });
-
-    mFlinger->postMessageAsync(cleanUpListMessage);
+    mFlinger->removeGraphicBufferProducerAsync(onAsBinder());
 }
 
 status_t MonitoredProducer::requestBuffer(int slot, sp<GraphicBuffer>* buf) {
@@ -154,6 +152,10 @@ status_t MonitoredProducer::getConsumerUsage(uint64_t* outUsage) const {
     return mProducer->getConsumerUsage(outUsage);
 }
 
+status_t MonitoredProducer::setAutoPrerotation(bool autoPrerotation) {
+    return mProducer->setAutoPrerotation(autoPrerotation);
+}
+
 IBinder* MonitoredProducer::onAsBinder() {
     return this;
 }
@@ -164,3 +166,6 @@ sp<Layer> MonitoredProducer::getLayer() const {
 
 // ---------------------------------------------------------------------------
 }; // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

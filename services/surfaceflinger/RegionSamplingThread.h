@@ -27,7 +27,7 @@
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 #include <utils/StrongPointer.h>
-#include "Scheduler/IdleTimer.h"
+#include "Scheduler/OneShotTimer.h"
 
 namespace android {
 
@@ -69,7 +69,7 @@ public:
 
     // Add a listener to receive luma notifications. The luma reported via listener will
     // report the median luma for the layers under the stopLayerHandle, in the samplingArea region.
-    void addListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
+    void addListener(const Rect& samplingArea, const wp<Layer>& stopLayer,
                      const sp<IRegionSamplingListener>& listener);
     // Remove the listener to stop receiving median luma notifications.
     void removeListener(const sp<IRegionSamplingListener>& listener);
@@ -107,7 +107,7 @@ private:
     SurfaceFlinger& mFlinger;
     Scheduler& mScheduler;
     const TimingTunables mTunables;
-    scheduler::IdleTimer mIdleTimer;
+    scheduler::OneShotTimer mIdleTimer;
 
     std::unique_ptr<SamplingOffsetCallback> const mPhaseCallback;
 

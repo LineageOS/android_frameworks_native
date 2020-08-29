@@ -21,7 +21,7 @@
 #include <errno.h>
 #include <inttypes.h>
 
-#include <cutils/properties.h>
+#include <android-base/properties.h>
 #include <log/log.h>
 #include <chrono>
 
@@ -165,7 +165,8 @@ static inline size_t align4(size_t size) {
 }
 
 size_t BlobCache::getFlattenedSize() const {
-    size_t size = align4(sizeof(Header) + PROPERTY_VALUE_MAX);
+    auto buildId = base::GetProperty("ro.build.id", "");
+    size_t size = align4(sizeof(Header) + buildId.size());
     for (const CacheEntry& e :  mCacheEntries) {
         std::shared_ptr<Blob> const& keyBlob = e.getKey();
         std::shared_ptr<Blob> const& valueBlob = e.getValue();
@@ -185,9 +186,9 @@ int BlobCache::flatten(void* buffer, size_t size) const {
     header->mBlobCacheVersion = blobCacheVersion;
     header->mDeviceVersion = blobCacheDeviceVersion;
     header->mNumEntries = mCacheEntries.size();
-    char buildId[PROPERTY_VALUE_MAX];
-    header->mBuildIdLength = property_get("ro.build.id", buildId, "");
-    memcpy(header->mBuildId, buildId, header->mBuildIdLength);
+    auto buildId = base::GetProperty("ro.build.id", "");
+    header->mBuildIdLength = buildId.size();
+    memcpy(header->mBuildId, buildId.c_str(), header->mBuildIdLength);
 
     // Write cache entries
     uint8_t* byteBuffer = reinterpret_cast<uint8_t*>(buffer);
@@ -238,12 +239,11 @@ int BlobCache::unflatten(void const* buffer, size_t size) {
         ALOGE("unflatten: bad magic number: %" PRIu32, header->mMagicNumber);
         return -EINVAL;
     }
-    char buildId[PROPERTY_VALUE_MAX];
-    int len = property_get("ro.build.id", buildId, "");
+    auto buildId = base::GetProperty("ro.build.id", "");
     if (header->mBlobCacheVersion != blobCacheVersion ||
-            header->mDeviceVersion != blobCacheDeviceVersion ||
-            len != header->mBuildIdLength ||
-            strncmp(buildId, header->mBuildId, len)) {
+        header->mDeviceVersion != blobCacheDeviceVersion ||
+        buildId.size() != header->mBuildIdLength ||
+        strncmp(buildId.c_str(), header->mBuildId, buildId.size())) {
         // We treat version mismatches as an empty cache.
         return 0;
     }

@@ -24,11 +24,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/capability.h>
 #include <sys/epoll.h>
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
 #include <sys/limits.h>
-#include <sys/utsname.h>
 #include <unistd.h>
 
 #define LOG_TAG "EventHub"
@@ -36,8 +36,6 @@
 // #define LOG_NDEBUG 0
 
 #include "EventHub.h"
-
-#include <hardware_legacy/power.h>
 
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
@@ -71,7 +69,6 @@ namespace android {
 
 static constexpr bool DEBUG = false;
 
-static const char* WAKE_LOCK_ID = "KeyEvents";
 static const char* DEVICE_PATH = "/dev/input";
 // v4l2 devices go directly into /dev
 static const char* VIDEO_DEVICE_PATH = "/dev";
@@ -92,14 +89,6 @@ static std::string sha1(const std::string& in) {
         out += StringPrintf("%02x", digest[i]);
     }
     return out;
-}
-
-static void getLinuxRelease(int* major, int* minor) {
-    struct utsname info;
-    if (uname(&info) || sscanf(info.release, "%d.%d", major, minor) <= 0) {
-        *major = 0, *minor = 0;
-        ALOGE("Could not get linux version: %s", strerror(errno));
-    }
 }
 
 /**
@@ -246,6 +235,47 @@ bool EventHub::Device::hasValidFd() {
     return !isVirtual && enabled;
 }
 
+/**
+ * Get the capabilities for the current process.
+ * Crashes the system if unable to create / check / destroy the capabilities object.
+ */
+class Capabilities final {
+public:
+    explicit Capabilities() {
+        mCaps = cap_get_proc();
+        LOG_ALWAYS_FATAL_IF(mCaps == nullptr, "Could not get capabilities of the current process");
+    }
+
+    /**
+     * Check whether the current process has a specific capability
+     * in the set of effective capabilities.
+     * Return CAP_SET if the process has the requested capability
+     * Return CAP_CLEAR otherwise.
+     */
+    cap_flag_value_t checkEffectiveCapability(cap_value_t capability) {
+        cap_flag_value_t value;
+        const int result = cap_get_flag(mCaps, capability, CAP_EFFECTIVE, &value);
+        LOG_ALWAYS_FATAL_IF(result == -1, "Could not obtain the requested capability");
+        return value;
+    }
+
+    ~Capabilities() {
+        const int result = cap_free(mCaps);
+        LOG_ALWAYS_FATAL_IF(result == -1, "Could not release the capabilities structure");
+    }
+
+private:
+    cap_t mCaps;
+};
+
+static void ensureProcessCanBlockSuspend() {
+    Capabilities capabilities;
+    const bool canBlockSuspend =
+            capabilities.checkEffectiveCapability(CAP_BLOCK_SUSPEND) == CAP_SET;
+    LOG_ALWAYS_FATAL_IF(!canBlockSuspend,
+                        "Input must be able to block suspend to properly process events");
+}
+
 // --- EventHub ---
 
 const int EventHub::EPOLL_MAX_EVENTS;
@@ -262,7 +292,7 @@ EventHub::EventHub(void)
         mPendingEventCount(0),
         mPendingEventIndex(0),
         mPendingINotify(false) {
-    acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
+    ensureProcessCanBlockSuspend();
 
     mEpollFd = epoll_create1(EPOLL_CLOEXEC);
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance: %s", strerror(errno));
@@ -280,9 +310,8 @@ EventHub::EventHub(void)
         ALOGI("Video device scanning disabled");
     }
 
-    struct epoll_event eventItem;
-    memset(&eventItem, 0, sizeof(eventItem));
-    eventItem.events = EPOLLIN;
+    struct epoll_event eventItem = {};
+    eventItem.events = EPOLLIN | EPOLLWAKEUP;
     eventItem.data.fd = mINotifyFd;
     int result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mINotifyFd, &eventItem);
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add INotify to epoll instance.  errno=%d", errno);
@@ -306,11 +335,6 @@ EventHub::EventHub(void)
     result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mWakeReadPipeFd, &eventItem);
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add wake read pipe to epoll instance.  errno=%d",
                         errno);
-
-    int major, minor;
-    getLinuxRelease(&major, &minor);
-    // EPOLLWAKEUP was introduced in kernel 3.5
-    mUsingEpollWakeup = major > 3 || (major == 3 && minor >= 5);
 }
 
 EventHub::~EventHub(void) {
@@ -326,8 +350,6 @@ EventHub::~EventHub(void) {
     ::close(mINotifyFd);
     ::close(mWakeReadPipeFd);
     ::close(mWakeWritePipeFd);
-
-    release_wake_lock(WAKE_LOCK_ID);
 }
 
 InputDeviceIdentifier EventHub::getDeviceIdentifier(int32_t deviceId) const {
@@ -1018,26 +1040,24 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
             break;
         }
 
-        // Poll for events.  Mind the wake lock dance!
-        // We hold a wake lock at all times except during epoll_wait().  This works due to some
-        // subtle choreography.  When a device driver has pending (unread) events, it acquires
-        // a kernel wake lock.  However, once the last pending event has been read, the device
-        // driver will release the kernel wake lock.  To prevent the system from going to sleep
-        // when this happens, the EventHub holds onto its own user wake lock while the client
-        // is processing events.  Thus the system can only sleep if there are no events
-        // pending or currently being processed.
+        // Poll for events.
+        // When a device driver has pending (unread) events, it acquires
+        // a kernel wake lock.  Once the last pending event has been read, the device
+        // driver will release the kernel wake lock, but the epoll will hold the wakelock,
+        // since we are using EPOLLWAKEUP. The wakelock is released by the epoll when epoll_wait
+        // is called again for the same fd that produced the event.
+        // Thus the system can only sleep if there are no events pending or
+        // currently being processed.
         //
         // The timeout is advisory only.  If the device is asleep, it will not wake just to
         // service the timeout.
         mPendingEventIndex = 0;
 
-        mLock.unlock(); // release lock before poll, must be before release_wake_lock
-        release_wake_lock(WAKE_LOCK_ID);
+        mLock.unlock(); // release lock before poll
 
         int pollResult = epoll_wait(mEpollFd, mPendingEventItems, EPOLL_MAX_EVENTS, timeoutMillis);
 
-        acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
-        mLock.lock(); // reacquire lock after poll, must be after acquire_wake_lock
+        mLock.lock(); // reacquire lock after poll
 
         if (pollResult == 0) {
             // Timed out.
@@ -1298,7 +1318,7 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
     // joystick and gamepad buttons which are handled like keyboards for the most part.
     bool haveKeyboardKeys =
             containsNonZeroByte(device->keyBitmask, 0, sizeof_bit_array(BTN_MISC)) ||
-            containsNonZeroByte(device->keyBitmask, sizeof_bit_array(KEY_OK),
+            containsNonZeroByte(device->keyBitmask, sizeof_bit_array(BTN_WHEEL),
                                 sizeof_bit_array(KEY_MAX + 1));
     bool haveGamepadButtons = containsNonZeroByte(device->keyBitmask, sizeof_bit_array(BTN_MISC),
                                                   sizeof_bit_array(BTN_MOUSE)) ||
@@ -1491,27 +1511,13 @@ void EventHub::configureFd(Device* device) {
         }
     }
 
-    std::string wakeMechanism = "EPOLLWAKEUP";
-    if (!mUsingEpollWakeup) {
-#ifndef EVIOCSSUSPENDBLOCK
-        // uapi headers don't include EVIOCSSUSPENDBLOCK, and future kernels
-        // will use an epoll flag instead, so as long as we want to support
-        // this feature, we need to be prepared to define the ioctl ourselves.
-#define EVIOCSSUSPENDBLOCK _IOW('E', 0x91, int)
-#endif
-        if (ioctl(device->fd, EVIOCSSUSPENDBLOCK, 1)) {
-            wakeMechanism = "<none>";
-        } else {
-            wakeMechanism = "EVIOCSSUSPENDBLOCK";
-        }
-    }
     // Tell the kernel that we want to use the monotonic clock for reporting timestamps
     // associated with input events.  This is important because the input system
     // uses the timestamps extensively and assumes they were recorded using the monotonic
     // clock.
     int clockId = CLOCK_MONOTONIC;
     bool usingClockIoctl = !ioctl(device->fd, EVIOCSCLOCKID, &clockId);
-    ALOGI("wakeMechanism=%s, usingClockIoctl=%s", wakeMechanism.c_str(), toString(usingClockIoctl));
+    ALOGI("usingClockIoctl=%s", toString(usingClockIoctl));
 }
 
 void EventHub::openVideoDeviceLocked(const std::string& devicePath) {

@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include "LayerRejecter.h"
 
 #include <gui/BufferItem.h>
@@ -23,22 +27,16 @@
 
 namespace android {
 
-LayerRejecter::LayerRejecter(Layer::State& front,
-                             Layer::State& current,
-                             bool& recomputeVisibleRegions,
-                             bool stickySet,
-                             const char* name,
-                             int32_t overrideScalingMode,
-                             bool transformToDisplayInverse,
-                             bool& freezePositionUpdates)
-  : mFront(front),
-    mCurrent(current),
-    mRecomputeVisibleRegions(recomputeVisibleRegions),
-    mStickyTransformSet(stickySet),
-    mName(name),
-    mOverrideScalingMode(overrideScalingMode),
-    mTransformToDisplayInverse(transformToDisplayInverse),
-    mFreezeGeometryUpdates(freezePositionUpdates) {}
+LayerRejecter::LayerRejecter(Layer::State& front, Layer::State& current,
+                             bool& recomputeVisibleRegions, bool stickySet, const std::string& name,
+                             int32_t overrideScalingMode, bool transformToDisplayInverse)
+      : mFront(front),
+        mCurrent(current),
+        mRecomputeVisibleRegions(recomputeVisibleRegions),
+        mStickyTransformSet(stickySet),
+        mName(name),
+        mOverrideScalingMode(overrideScalingMode),
+        mTransformToDisplayInverse(transformToDisplayInverse) {}
 
 bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item) {
     if (buf == nullptr) {
@@ -55,7 +53,7 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
     }
 
     if (mTransformToDisplayInverse) {
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
         if (invTransform & ui::Transform::ROT_90) {
             std::swap(bufWidth, bufHeight);
         }
@@ -83,8 +81,6 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
             // recompute visible region
             mRecomputeVisibleRegions = true;
 
-            mFreezeGeometryUpdates = false;
-
             if (mFront.crop_legacy != mFront.requestedCrop_legacy) {
                 mFront.crop_legacy = mFront.requestedCrop_legacy;
                 mCurrent.crop_legacy = mFront.requestedCrop_legacy;
@@ -98,7 +94,7 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
                  "(%4d,%4d) "
                  "}\n"
                  "            requested_legacy={ wh={%4u,%4u} }}\n",
-                 mName, bufWidth, bufHeight, item.mTransform, item.mScalingMode,
+                 mName.c_str(), bufWidth, bufHeight, item.mTransform, item.mScalingMode,
                  mFront.active_legacy.w, mFront.active_legacy.h, mFront.crop_legacy.left,
                  mFront.crop_legacy.top, mFront.crop_legacy.right, mFront.crop_legacy.bottom,
                  mFront.crop_legacy.getWidth(), mFront.crop_legacy.getHeight(),
@@ -110,7 +106,8 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
             // reject this buffer
             ALOGE("[%s] rejecting buffer: "
                   "bufWidth=%d, bufHeight=%d, front.active_legacy.{w=%d, h=%d}",
-                  mName, bufWidth, bufHeight, mFront.active_legacy.w, mFront.active_legacy.h);
+                  mName.c_str(), bufWidth, bufHeight, mFront.active_legacy.w,
+                  mFront.active_legacy.h);
             return true;
         }
     }
@@ -123,7 +120,7 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
     // We latch the transparent region here, instead of above where we latch
     // the rest of the geometry because it is only content but not necessarily
     // resize dependent.
-    if (!mFront.activeTransparentRegion_legacy.isTriviallyEqual(
+    if (!mFront.activeTransparentRegion_legacy.hasSameRects(
                 mFront.requestedTransparentRegion_legacy)) {
         mFront.activeTransparentRegion_legacy = mFront.requestedTransparentRegion_legacy;
 
@@ -143,3 +140,6 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
 }
 
 }  // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
-#include <cutils/properties.h>
 #include <gui/DebugEGLImageTracker.h>
 
 #include <cinttypes>
 #include <unordered_map>
 
+using android::base::GetBoolProperty;
 using android::base::StringAppendF;
 
 std::mutex DebugEGLImageTracker::mInstanceLock;
@@ -57,10 +58,7 @@ private:
 DebugEGLImageTracker *DebugEGLImageTracker::getInstance() {
     std::lock_guard lock(mInstanceLock);
     if (mInstance == nullptr) {
-        char value[PROPERTY_VALUE_MAX];
-        property_get("debug.sf.enable_egl_image_tracker", value, "0");
-        const bool enabled = static_cast<bool>(atoi(value));
-
+        const bool enabled = GetBoolProperty("debug.sf.enable_egl_image_tracker", false);
         if (enabled) {
             mInstance = new DebugEGLImageTrackerImpl();
         } else {

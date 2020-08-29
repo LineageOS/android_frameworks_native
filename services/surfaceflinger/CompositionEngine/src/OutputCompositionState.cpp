@@ -24,6 +24,11 @@ void OutputCompositionState::dump(std::string& out) const {
     dumpVal(out, "isEnabled", isEnabled);
     dumpVal(out, "isSecure", isSecure);
 
+    dumpVal(out, "usesClientComposition", usesClientComposition);
+    dumpVal(out, "usesDeviceComposition", usesDeviceComposition);
+    dumpVal(out, "flipClientTarget", flipClientTarget);
+    dumpVal(out, "reusedClientComposition", reusedClientComposition);
+
     dumpVal(out, "layerStack", layerStackId);
     dumpVal(out, "layerStackInternal", layerStackInternal);
 
@@ -33,9 +38,11 @@ void OutputCompositionState::dump(std::string& out) const {
 
     out.append("\n   ");
 
+    dumpVal(out, "bounds", bounds);
     dumpVal(out, "frame", frame);
     dumpVal(out, "viewport", viewport);
-    dumpVal(out, "scissor", scissor);
+    dumpVal(out, "sourceClip", sourceClip);
+    dumpVal(out, "destinationClip", destinationClip);
     dumpVal(out, "needsFiltering", needsFiltering);
 
     out.append("\n   ");
@@ -43,7 +50,8 @@ void OutputCompositionState::dump(std::string& out) const {
     dumpVal(out, "colorMode", toString(colorMode), colorMode);
     dumpVal(out, "renderIntent", toString(renderIntent), renderIntent);
     dumpVal(out, "dataspace", toString(dataspace), dataspace);
-    dumpVal(out, "colorTransform", colorTransform);
+    dumpVal(out, "colorTransformMatrix", colorTransformMatrix);
+    dumpVal(out, "target dataspace", toString(targetDataspace), targetDataspace);
 
     out.append("\n");
 }

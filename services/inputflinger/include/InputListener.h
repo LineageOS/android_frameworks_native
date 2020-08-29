@@ -22,7 +22,6 @@
 #include <input/Input.h>
 #include <input/TouchVideoFrame.h>
 #include <utils/RefBase.h>
-#include <utils/Vector.h>
 
 namespace android {
 
@@ -31,13 +30,12 @@ class InputListenerInterface;
 
 /* Superclass of all input event argument objects */
 struct NotifyArgs {
-    uint32_t sequenceNum;
+    int32_t id;
     nsecs_t eventTime;
 
-    inline NotifyArgs() : sequenceNum(0), eventTime(0) { }
+    inline NotifyArgs() : id(0), eventTime(0) {}
 
-    inline explicit NotifyArgs(uint32_t sequenceNum, nsecs_t eventTime) :
-            sequenceNum(sequenceNum), eventTime(eventTime) { }
+    inline explicit NotifyArgs(int32_t id, nsecs_t eventTime) : id(id), eventTime(eventTime) {}
 
     virtual ~NotifyArgs() { }
 
@@ -52,7 +50,7 @@ struct NotifyConfigurationChangedArgs : public NotifyArgs {
 
     bool operator==(const NotifyConfigurationChangedArgs& rhs) const;
 
-    NotifyConfigurationChangedArgs(uint32_t sequenceNum, nsecs_t eventTime);
+    NotifyConfigurationChangedArgs(int32_t id, nsecs_t eventTime);
 
     NotifyConfigurationChangedArgs(const NotifyConfigurationChangedArgs& other);
 
@@ -77,9 +75,9 @@ struct NotifyKeyArgs : public NotifyArgs {
 
     inline NotifyKeyArgs() { }
 
-    NotifyKeyArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
-            int32_t displayId, uint32_t policyFlags, int32_t action, int32_t flags, int32_t keyCode,
-            int32_t scanCode, int32_t metaState, nsecs_t downTime);
+    NotifyKeyArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+                  int32_t displayId, uint32_t policyFlags, int32_t action, int32_t flags,
+                  int32_t keyCode, int32_t scanCode, int32_t metaState, nsecs_t downTime);
 
     bool operator==(const NotifyKeyArgs& rhs) const;
 
@@ -107,31 +105,32 @@ struct NotifyMotionArgs : public NotifyArgs {
      */
     MotionClassification classification;
     int32_t edgeFlags;
-    /**
-     * A timestamp in the input device's time base, not the platform's.
-     * The units are microseconds since the last reset.
-     * This can only be compared to other device timestamps from the same device.
-     * This value will overflow after a little over an hour.
-     */
-    uint32_t deviceTimestamp;
+
     uint32_t pointerCount;
     PointerProperties pointerProperties[MAX_POINTERS];
     PointerCoords pointerCoords[MAX_POINTERS];
     float xPrecision;
     float yPrecision;
+    /**
+     * Mouse cursor position when this event is reported relative to the origin of the specified
+     * display. Only valid if this is a mouse event (originates from a mouse or from a trackpad in
+     * gestures enabled mode.
+     */
+    float xCursorPosition;
+    float yCursorPosition;
     nsecs_t downTime;
     std::vector<TouchVideoFrame> videoFrames;
 
     inline NotifyMotionArgs() { }
 
-    NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
-            int32_t displayId, uint32_t policyFlags,
-            int32_t action, int32_t actionButton, int32_t flags,
-            int32_t metaState, int32_t buttonState, MotionClassification classification,
-            int32_t edgeFlags, uint32_t deviceTimestamp, uint32_t pointerCount,
-            const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
-            float xPrecision, float yPrecision, nsecs_t downTime,
-            const std::vector<TouchVideoFrame>& videoFrames);
+    NotifyMotionArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+                     int32_t displayId, uint32_t policyFlags, int32_t action, int32_t actionButton,
+                     int32_t flags, int32_t metaState, int32_t buttonState,
+                     MotionClassification classification, int32_t edgeFlags, uint32_t pointerCount,
+                     const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
+                     float xPrecision, float yPrecision, float xCursorPosition,
+                     float yCursorPosition, nsecs_t downTime,
+                     const std::vector<TouchVideoFrame>& videoFrames);
 
     NotifyMotionArgs(const NotifyMotionArgs& other);
 
@@ -151,8 +150,8 @@ struct NotifySwitchArgs : public NotifyArgs {
 
     inline NotifySwitchArgs() { }
 
-    NotifySwitchArgs(uint32_t sequenceNum, nsecs_t eventTime, uint32_t policyFlags,
-            uint32_t switchValues, uint32_t switchMask);
+    NotifySwitchArgs(int32_t id, nsecs_t eventTime, uint32_t policyFlags, uint32_t switchValues,
+                     uint32_t switchMask);
 
     NotifySwitchArgs(const NotifySwitchArgs& other);
 
@@ -171,7 +170,7 @@ struct NotifyDeviceResetArgs : public NotifyArgs {
 
     inline NotifyDeviceResetArgs() { }
 
-    NotifyDeviceResetArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId);
+    NotifyDeviceResetArgs(int32_t id, nsecs_t eventTime, int32_t deviceId);
 
     NotifyDeviceResetArgs(const NotifyDeviceResetArgs& other);
 

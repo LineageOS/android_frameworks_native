@@ -43,6 +43,27 @@ void BufferQueue::ProxyConsumerListener::onDisconnect() {
     }
 }
 
+void BufferQueue::ProxyConsumerListener::onFrameDequeued(const uint64_t bufferId) {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != nullptr) {
+        listener->onFrameDequeued(bufferId);
+    }
+}
+
+void BufferQueue::ProxyConsumerListener::onFrameCancelled(const uint64_t bufferId) {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != nullptr) {
+        listener->onFrameCancelled(bufferId);
+    }
+}
+
+void BufferQueue::ProxyConsumerListener::onFrameDetached(const uint64_t bufferId) {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != nullptr) {
+        listener->onFrameDetached(bufferId);
+    }
+}
+
 void BufferQueue::ProxyConsumerListener::onFrameAvailable(
         const BufferItem& item) {
     sp<ConsumerListener> listener(mConsumerListener.promote());

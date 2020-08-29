@@ -358,6 +358,7 @@ common::V1_0::MotionEvent notifyMotionArgsToHalMotionEvent(const NotifyMotionArg
     event.displayId = args.displayId;
     event.downTime = args.downTime;
     event.eventTime = args.eventTime;
+    event.deviceTimestamp = 0;
     event.action = getAction(args.action & AMOTION_EVENT_ACTION_MASK);
     event.actionIndex = getActionIndex(args.action);
     event.actionButton = getActionButton(args.actionButton);
@@ -375,7 +376,6 @@ common::V1_0::MotionEvent notifyMotionArgsToHalMotionEvent(const NotifyMotionArg
     event.pointerProperties = pointerProperties;
     event.pointerCoords = pointerCoords;
 
-    event.deviceTimestamp = args.deviceTimestamp;
     event.frames = convertVideoFrames(args.videoFrames);
 
     return event;

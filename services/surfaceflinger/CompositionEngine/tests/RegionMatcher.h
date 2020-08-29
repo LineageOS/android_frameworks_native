@@ -20,24 +20,22 @@
 
 namespace {
 
-// Checks for a region match
-MATCHER_P(RegionEq, expected, "") {
-    std::string buf;
-    buf.append("Regions are not equal\n");
-    expected.dump(buf, "expected region");
-    arg.dump(buf, "actual region");
-    *result_listener << buf;
+using Region = android::Region;
 
-    size_t expectedRectCount = 0;
-    android::Rect const* expectedRects = expected.getArray(&expectedRectCount);
-    size_t actualRectCount = 0;
-    android::Rect const* actualRects = arg.getArray(&actualRectCount);
+struct RegionMatcher : public testing::MatcherInterface<const Region&> {
+    const Region expected;
 
-    if (expectedRectCount != actualRectCount) return false;
-    for (size_t i = 0; i < expectedRectCount; i++) {
-        if (expectedRects[i] != actualRects[i]) return false;
+    explicit RegionMatcher(const Region& expectedValue) : expected(expectedValue) {}
+
+    bool MatchAndExplain(const Region& actual, testing::MatchResultListener*) const override {
+        return expected.hasSameRects(actual);
     }
-    return true;
+
+    void DescribeTo(::std::ostream* os) const override { PrintTo(expected, os); }
+};
+
+testing::Matcher<const Region&> RegionEq(const Region& expected) {
+    return MakeMatcher(new RegionMatcher(expected));
 }
 
 } // namespace

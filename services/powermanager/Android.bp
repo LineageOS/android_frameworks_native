@@ -1,11 +1,25 @@
 cc_library_shared {
     name: "libpowermanager",
 
-    srcs: ["IPowerManager.cpp"],
+    srcs: [
+        "IPowerManager.cpp",
+        "Temperature.cpp",
+        "CoolingDevice.cpp",
+        ":libpowermanager_aidl",
+    ],
+
+    aidl: {
+       local_include_dirs: ["include"],
+       include_dirs: [
+           "frameworks/base/core/java/android/os",
+       ],
+       export_aidl_headers: true
+    },
 
     shared_libs: [
         "libutils",
         "libbinder",
+        "liblog"
     ],
 
     cflags: [
@@ -13,5 +27,29 @@ cc_library_shared {
         "-Werror",
         "-Wunused",
         "-Wunreachable-code",
+    ],
+
+    local_include_dirs: ["include"],
+    export_include_dirs: [
+         "include",
+    ],
+}
+
+cc_test {
+    name: "thermalmanager-test",
+    srcs: ["IThermalManagerTest.cpp",
+          ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wextra",
+    ],
+    shared_libs: [
+        "libbase",
+        "libhidlbase",
+        "liblog",
+        "libpowermanager",
+        "libbinder",
+        "libutils",
     ],
 }

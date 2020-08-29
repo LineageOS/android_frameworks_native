@@ -77,7 +77,9 @@ cc_library_shared {
 
     header_libs: [
         "hwvulkan_headers",
+        "libnativeloader-headers",
         "vulkan_headers",
+        "libsurfaceflinger_headers",
     ],
     export_header_lib_headers: ["vulkan_headers"],
     shared_libs: [
@@ -99,6 +101,7 @@ cc_library_shared {
         "libnativeloader_lazy",
         "libnativewindow",
         "android.hardware.graphics.common@1.0",
+        "libSurfaceFlingerProp",
     ],
     static_libs: ["libgrallocusage"],
 }

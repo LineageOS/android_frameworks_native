@@ -36,7 +36,7 @@ class CursorScrollAccumulator;
 class CursorMotionAccumulator {
 public:
     CursorMotionAccumulator();
-    void reset(InputDevice* device);
+    void reset(InputDeviceContext& deviceContext);
 
     void process(const RawEvent* rawEvent);
     void finishSync();
@@ -53,21 +53,20 @@ private:
 
 class CursorInputMapper : public InputMapper {
 public:
-    explicit CursorInputMapper(InputDevice* device);
+    explicit CursorInputMapper(InputDeviceContext& deviceContext);
     virtual ~CursorInputMapper();
 
-    virtual uint32_t getSources();
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(std::string& dump);
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
-    virtual void reset(nsecs_t when);
-    virtual void process(const RawEvent* rawEvent);
+    virtual uint32_t getSources() override;
+    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    virtual void dump(std::string& dump) override;
+    virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
+                           uint32_t changes) override;
+    virtual void reset(nsecs_t when) override;
+    virtual void process(const RawEvent* rawEvent) override;
 
-    virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
+    virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
 
-    virtual void fadePointer();
-
-    virtual std::optional<int32_t> getAssociatedDisplay();
+    virtual std::optional<int32_t> getAssociatedDisplayId() override;
 
 private:
     // Amount that trackball needs to move in order to generate a key event.
@@ -116,7 +115,6 @@ private:
     void dumpParameters(std::string& dump);
 
     void sync(nsecs_t when);
-    void updatePointerControllerDisplayViewport(const InputReaderConfiguration& config);
 };
 
 } // namespace android

@@ -191,7 +191,8 @@ struct SurfaceInfo {
 enum class ConfigFileType : uint32_t {
   kLensMetrics,
   kDeviceMetrics,
-  kDeviceConfiguration
+  kDeviceConfiguration,
+  kDeviceEdid
 };
 
 struct DisplayProtocol {
@@ -210,6 +211,7 @@ struct DisplayProtocol {
     kOpGetSurfaceInfo,
     kOpCreateQueue,
     kOpSetAttributes,
+    kOpGetDisplayIdentificationPort,
   };
 
   // Aliases.
@@ -220,6 +222,8 @@ struct DisplayProtocol {
   PDX_REMOTE_METHOD(GetMetrics, kOpGetMetrics, Metrics(Void));
   PDX_REMOTE_METHOD(GetConfigurationData, kOpGetConfigurationData,
                     std::string(ConfigFileType config_type));
+  PDX_REMOTE_METHOD(GetDisplayIdentificationPort,
+                    kOpGetDisplayIdentificationPort, uint8_t(Void));
   PDX_REMOTE_METHOD(SetupGlobalBuffer, kOpSetupGlobalBuffer,
                     LocalNativeBufferHandle(DvrGlobalBufferKey key, size_t size,
                                             uint64_t usage));

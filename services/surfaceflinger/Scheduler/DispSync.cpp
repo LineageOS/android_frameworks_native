@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 //#define LOG_NDEBUG 0
 
@@ -64,7 +68,7 @@ public:
     DispSyncThread(const char* name, bool showTraceDetailedInfo)
           : mName(name),
             mStop(false),
-            mModelLocked(false),
+            mModelLocked("DispSync:ModelLocked", false),
             mPeriod(0),
             mPhase(0),
             mReferenceTime(0),
@@ -121,13 +125,11 @@ public:
     void lockModel() {
         Mutex::Autolock lock(mMutex);
         mModelLocked = true;
-        ATRACE_INT("DispSync:ModelLocked", mModelLocked);
     }
 
     void unlockModel() {
         Mutex::Autolock lock(mMutex);
         mModelLocked = false;
-        ATRACE_INT("DispSync:ModelLocked", mModelLocked);
     }
 
     virtual bool threadLoop() {
@@ -198,7 +200,8 @@ public:
                     }
                 }
 
-                callbackInvocations = gatherCallbackInvocationsLocked(now);
+                callbackInvocations =
+                        gatherCallbackInvocationsLocked(now, computeNextRefreshLocked(0, now));
             }
 
             if (callbackInvocations.size() > 0) {
@@ -301,6 +304,11 @@ public:
         return BAD_VALUE;
     }
 
+    nsecs_t computeNextRefresh(int periodOffset, nsecs_t now) const {
+        Mutex::Autolock lock(mMutex);
+        return computeNextRefreshLocked(periodOffset, now);
+    }
+
 private:
     struct EventListener {
         const char* mName;
@@ -313,6 +321,7 @@ private:
     struct CallbackInvocation {
         DispSync::Callback* mCallback;
         nsecs_t mEventTime;
+        nsecs_t mExpectedVSyncTime;
     };
 
     nsecs_t computeNextEventTimeLocked(nsecs_t now) {
@@ -338,7 +347,8 @@ private:
         return duration < (3 * mPeriod) / 5;
     }
 
-    std::vector<CallbackInvocation> gatherCallbackInvocationsLocked(nsecs_t now) {
+    std::vector<CallbackInvocation> gatherCallbackInvocationsLocked(nsecs_t now,
+                                                                    nsecs_t expectedVSyncTime) {
         if (mTraceDetailedInfo) ATRACE_CALL();
         ALOGV("[%s] gatherCallbackInvocationsLocked @ %" PRId64, mName, ns2us(now));
 
@@ -359,6 +369,10 @@ private:
                 CallbackInvocation ci;
                 ci.mCallback = eventListener.mCallback;
                 ci.mEventTime = t;
+                ci.mExpectedVSyncTime = expectedVSyncTime;
+                if (eventListener.mPhase < 0) {
+                    ci.mExpectedVSyncTime += mPeriod;
+                }
                 ALOGV("[%s] [%s] Preparing to fire, latency: %" PRId64, mName, eventListener.mName,
                       t - eventListener.mLastEventTime);
                 callbackInvocations.push_back(ci);
@@ -424,14 +438,23 @@ private:
     void fireCallbackInvocations(const std::vector<CallbackInvocation>& callbacks) {
         if (mTraceDetailedInfo) ATRACE_CALL();
         for (size_t i = 0; i < callbacks.size(); i++) {
-            callbacks[i].mCallback->onDispSyncEvent(callbacks[i].mEventTime);
+            callbacks[i].mCallback->onDispSyncEvent(callbacks[i].mEventTime,
+                                                    callbacks[i].mExpectedVSyncTime);
         }
+    }
+
+    nsecs_t computeNextRefreshLocked(int periodOffset, nsecs_t now) const {
+        nsecs_t phase = mReferenceTime + mPhase;
+        if (mPeriod == 0) {
+            return 0;
+        }
+        return (((now - phase) / mPeriod) + periodOffset + 1) * mPeriod + phase;
     }
 
     const char* const mName;
 
     bool mStop;
-    bool mModelLocked;
+    TracedOrdinal<bool> mModelLocked;
 
     nsecs_t mPeriod;
     nsecs_t mPhase;
@@ -442,7 +465,7 @@ private:
 
     std::vector<EventListener> mEventListeners;
 
-    Mutex mMutex;
+    mutable Mutex mMutex;
     Condition mCond;
 
     // Flag to turn on logging in systrace.
@@ -454,33 +477,24 @@ private:
 
 class ZeroPhaseTracer : public DispSync::Callback {
 public:
-    ZeroPhaseTracer() : mParity(false) {}
+    ZeroPhaseTracer() : mParity("ZERO_PHASE_VSYNC", false) {}
 
-    virtual void onDispSyncEvent(nsecs_t /*when*/) {
+    virtual void onDispSyncEvent(nsecs_t /*when*/, nsecs_t /*expectedVSyncTimestamp*/) {
         mParity = !mParity;
-        ATRACE_INT("ZERO_PHASE_VSYNC", mParity ? 1 : 0);
     }
 
 private:
-    bool mParity;
+    TracedOrdinal<bool> mParity;
 };
 
-DispSync::DispSync(const char* name) : mName(name), mRefreshSkipCount(0) {
+DispSync::DispSync(const char* name, bool hasSyncFramework)
+      : mName(name), mIgnorePresentFences(!hasSyncFramework) {
     // This flag offers the ability to turn on systrace logging from the shell.
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.dispsync_trace_detailed_info", value, "0");
     mTraceDetailedInfo = atoi(value);
+
     mThread = new DispSyncThread(name, mTraceDetailedInfo);
-}
-
-DispSync::~DispSync() {
-    mThread->stop();
-    mThread->requestExitAndWait();
-}
-
-void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
-    mIgnorePresentFences = !hasSyncFramework;
-    mPresentTimeOffset = dispSyncPresentTimeOffset;
     mThread->run("DispSync", PRIORITY_URGENT_DISPLAY + PRIORITY_MORE_FAVORABLE);
 
     // set DispSync to SCHED_FIFO to minimize jitter
@@ -496,6 +510,11 @@ void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
         mZeroPhaseTracer = std::make_unique<ZeroPhaseTracer>();
         addEventListener("ZeroPhaseTracer", 0, mZeroPhaseTracer.get(), 0);
     }
+}
+
+DispSync::~DispSync() {
+    mThread->stop();
+    mThread->requestExitAndWait();
 }
 
 void DispSync::reset() {
@@ -544,7 +563,8 @@ void DispSync::beginResync() {
     resetLocked();
 }
 
-bool DispSync::addResyncSample(nsecs_t timestamp, bool* periodFlushed) {
+bool DispSync::addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> /*hwcVsyncPeriod*/,
+                               bool* periodFlushed) {
     Mutex::Autolock lock(mMutex);
 
     ALOGV("[%s] addResyncSample(%" PRId64 ")", mName, ns2us(timestamp));
@@ -621,13 +641,6 @@ status_t DispSync::addEventListener(const char* name, nsecs_t phase, Callback* c
                                     nsecs_t lastCallbackTime) {
     Mutex::Autolock lock(mMutex);
     return mThread->addEventListener(name, phase, callback, lastCallbackTime);
-}
-
-void DispSync::setRefreshSkipCount(int count) {
-    Mutex::Autolock lock(mMutex);
-    ALOGD("setRefreshSkipCount(%d)", count);
-    mRefreshSkipCount = count;
-    updateModelLocked();
 }
 
 status_t DispSync::removeEventListener(Callback* callback, nsecs_t* outLastCallbackTime) {
@@ -712,9 +725,6 @@ void DispSync::updateModelLocked() {
             ALOGV("[%s] Adjusting mPhase -> %" PRId64, mName, ns2us(mPhase));
         }
 
-        // Artificially inflate the period if requested.
-        mPeriod += mPeriod * mRefreshSkipCount;
-
         mThread->updateModel(mPeriod, mPhase, mReferenceTime);
         mModelUpdated = true;
     }
@@ -724,10 +734,6 @@ void DispSync::updateErrorLocked() {
     if (!mModelUpdated) {
         return;
     }
-
-    // Need to compare present fences against the un-adjusted refresh period,
-    // since they might arrive between two events.
-    nsecs_t period = mPeriod / (1 + mRefreshSkipCount);
 
     int numErrSamples = 0;
     nsecs_t sqErrSum = 0;
@@ -747,9 +753,9 @@ void DispSync::updateErrorLocked() {
             continue;
         }
 
-        nsecs_t sampleErr = (sample - mPhase) % period;
-        if (sampleErr > period / 2) {
-            sampleErr -= period;
+        nsecs_t sampleErr = (sample - mPhase) % mPeriod;
+        if (sampleErr > mPeriod / 2) {
+            sampleErr -= mPeriod;
         }
         sqErrSum += sampleErr * sampleErr;
         numErrSamples++;
@@ -783,9 +789,8 @@ void DispSync::resetErrorLocked() {
     }
 }
 
-nsecs_t DispSync::computeNextRefresh(int periodOffset) const {
+nsecs_t DispSync::computeNextRefresh(int periodOffset, nsecs_t now) const {
     Mutex::Autolock lock(mMutex);
-    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
     nsecs_t phase = mReferenceTime + mPhase;
     if (mPeriod == 0) {
         return 0;
@@ -804,8 +809,7 @@ void DispSync::setIgnorePresentFences(bool ignore) {
 void DispSync::dump(std::string& result) const {
     Mutex::Autolock lock(mMutex);
     StringAppendF(&result, "present fences are %s\n", mIgnorePresentFences ? "ignored" : "used");
-    StringAppendF(&result, "mPeriod: %" PRId64 " ns (%.3f fps; skipCount=%d)\n", mPeriod,
-                  1000000000.0 / mPeriod, mRefreshSkipCount);
+    StringAppendF(&result, "mPeriod: %" PRId64 " ns (%.3f fps)\n", mPeriod, 1000000000.0 / mPeriod);
     StringAppendF(&result, "mPhase: %" PRId64 " ns\n", mPhase);
     StringAppendF(&result, "mError: %" PRId64 " ns (sqrt=%.1f)\n", mError, sqrt(mError));
     StringAppendF(&result, "mNumResyncSamplesSincePresent: %d (limit %d)\n",
@@ -853,7 +857,7 @@ void DispSync::dump(std::string& result) const {
     StringAppendF(&result, "current monotonic time: %" PRId64 "\n", now);
 }
 
-nsecs_t DispSync::expectedPresentTime() {
+nsecs_t DispSync::expectedPresentTime(nsecs_t now) {
     // The HWC doesn't currently have a way to report additional latency.
     // Assume that whatever we submit now will appear right after the flip.
     // For a smart panel this might be 1.  This is expressed in frames,
@@ -862,9 +866,12 @@ nsecs_t DispSync::expectedPresentTime() {
     const uint32_t hwcLatency = 0;
 
     // Ask DispSync when the next refresh will be (CLOCK_MONOTONIC).
-    return computeNextRefresh(hwcLatency);
+    return mThread->computeNextRefresh(hwcLatency, now);
 }
 
 } // namespace impl
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

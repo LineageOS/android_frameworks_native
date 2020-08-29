@@ -112,6 +112,11 @@ public:
             Y410_BT2020_MASK = 1 << Y410_BT2020_SHIFT,
             Y410_BT2020_OFF = 0 << Y410_BT2020_SHIFT,
             Y410_BT2020_ON = 1 << Y410_BT2020_SHIFT,
+
+            SHADOW_SHIFT = 13,
+            SHADOW_MASK = 1 << SHADOW_SHIFT,
+            SHADOW_OFF = 0 << SHADOW_SHIFT,
+            SHADOW_ON = 1 << SHADOW_SHIFT,
         };
 
         inline Key() : mKey(0) {}
@@ -123,6 +128,7 @@ public:
         }
 
         inline bool isTexturing() const { return (mKey & TEXTURE_MASK) != TEXTURE_OFF; }
+        inline bool hasTextureCoords() const { return isTexturing() && !drawShadows(); }
         inline int getTextureTarget() const { return (mKey & TEXTURE_MASK); }
         inline bool isPremultiplied() const { return (mKey & BLEND_MASK) == BLEND_PREMULT; }
         inline bool isOpaque() const { return (mKey & OPACITY_MASK) == OPACITY_OPAQUE; }
@@ -130,6 +136,7 @@ public:
         inline bool hasRoundedCorners() const {
             return (mKey & ROUNDED_CORNERS_MASK) == ROUNDED_CORNERS_ON;
         }
+        inline bool drawShadows() const { return (mKey & SHADOW_MASK) == SHADOW_ON; }
         inline bool hasInputTransformMatrix() const {
             return (mKey & INPUT_TRANSFORM_MATRIX_MASK) == INPUT_TRANSFORM_MATRIX_ON;
         }
@@ -179,7 +186,7 @@ public:
     ~ProgramCache() = default;
 
     // Generate shaders to populate the cache
-    void primeCache(const EGLContext context, bool useColorManagement);
+    void primeCache(const EGLContext context, bool useColorManagement, bool toneMapperShaderOnly);
 
     size_t getSize(const EGLContext context) { return mCaches[context].size(); }
 
