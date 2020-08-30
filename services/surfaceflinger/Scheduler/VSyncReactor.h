@@ -22,8 +22,8 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
-#include "DispSync.h"
 #include "TimeKeeper.h"
+#include "VsyncController.h"
 namespace android::scheduler {
 
 class Clock;
@@ -31,32 +31,26 @@ class VSyncDispatch;
 class VSyncTracker;
 
 // TODO (b/145217110): consider renaming.
-class VSyncReactor : public android::DispSync {
+class VSyncReactor : public VsyncController {
 public:
     VSyncReactor(std::unique_ptr<Clock> clock, VSyncTracker& tracker, size_t pendingFenceLimit,
                  bool supportKernelIdleTimer);
     ~VSyncReactor();
 
-    bool addPresentFence(const std::shared_ptr<FenceTime>& fence) final;
-    void setIgnorePresentFences(bool ignoration) final;
+    bool addPresentFence(const std::shared_ptr<android::FenceTime>& fence) final;
+    void setIgnorePresentFences(bool ignore) final;
 
-    nsecs_t computeNextRefresh(int periodOffset, nsecs_t now) const final;
-    nsecs_t expectedPresentTime(nsecs_t now) final;
+    void startPeriodTransition(nsecs_t period) final;
 
-    void setPeriod(nsecs_t period) final;
-    nsecs_t getPeriod() final;
-
-    // TODO: (b/145626181) remove begin,endResync functions from DispSync i/f when possible.
-    void beginResync() final;
-    bool addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
-                         bool* periodFlushed) final;
+    bool addHwVsyncTimestamp(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
+                             bool* periodFlushed) final;
 
     void dump(std::string& result) const final;
 
 private:
-    void setIgnorePresentFencesInternal(bool ignoration) REQUIRES(mMutex);
+    void setIgnorePresentFencesInternal(bool ignore) REQUIRES(mMutex);
     void updateIgnorePresentFencesInternal() REQUIRES(mMutex);
-    void startPeriodTransition(nsecs_t newPeriod) REQUIRES(mMutex);
+    void startPeriodTransitionInternal(nsecs_t newPeriod) REQUIRES(mMutex);
     void endPeriodTransition() REQUIRES(mMutex);
     bool periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_t> hwcVsyncPeriod)
             REQUIRES(mMutex);
@@ -68,7 +62,7 @@ private:
     mutable std::mutex mMutex;
     bool mInternalIgnoreFences GUARDED_BY(mMutex) = false;
     bool mExternalIgnoreFences GUARDED_BY(mMutex) = false;
-    std::vector<std::shared_ptr<FenceTime>> mUnfiredFences GUARDED_BY(mMutex);
+    std::vector<std::shared_ptr<android::FenceTime>> mUnfiredFences GUARDED_BY(mMutex);
 
     bool mMoreSamplesNeeded GUARDED_BY(mMutex) = false;
     bool mPeriodConfirmationInProgress GUARDED_BY(mMutex) = false;

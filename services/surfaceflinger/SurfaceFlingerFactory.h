@@ -34,7 +34,6 @@ class BufferLayerConsumer;
 class EffectLayer;
 class ContainerLayer;
 class DisplayDevice;
-class DispSync;
 class GraphicBuffer;
 class HWComposer;
 class IGraphicBufferConsumer;
@@ -56,6 +55,7 @@ class CompositionEngine;
 
 namespace scheduler {
 class VsyncConfiguration;
+class VsyncController;
 class RefreshRateConfigs;
 } // namespace scheduler
 

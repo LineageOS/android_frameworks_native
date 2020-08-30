@@ -813,7 +813,7 @@ sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t display
                 "Must provide a valid touch state if adding portal windows or outside targets");
     }
     // Traverse windows from front to back to find touched window.
-    const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
+    const std::vector<sp<InputWindowHandle>>& windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<InputWindowHandle>& windowHandle : windowHandles) {
         const InputWindowInfo* windowInfo = windowHandle->getInfo();
         if (windowInfo->displayId == displayId) {
@@ -1078,7 +1078,7 @@ bool InputDispatcher::dispatchDeviceResetLocked(nsecs_t currentTime, DeviceReset
     return true;
 }
 
-void InputDispatcher::enqueueFocusEventLocked(const InputWindowHandle& window, bool hasFocus,
+void InputDispatcher::enqueueFocusEventLocked(const sp<IBinder>& windowToken, bool hasFocus,
                                               std::string_view reason) {
     if (mPendingEvent != nullptr) {
         // Move the pending event to the front of the queue. This will give the chance
@@ -1088,7 +1088,7 @@ void InputDispatcher::enqueueFocusEventLocked(const InputWindowHandle& window, b
     }
 
     FocusEntry* focusEntry =
-            new FocusEntry(mIdGenerator.nextId(), now(), window.getToken(), hasFocus, reason);
+            new FocusEntry(mIdGenerator.nextId(), now(), windowToken, hasFocus, reason);
 
     // This event should go to the front of the queue, but behind all other focus events
     // Find the last focus event, and insert right after it
@@ -1171,10 +1171,10 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
         if (entry->policyFlags & POLICY_FLAG_PASS_TO_USER) {
             std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
                     &InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible);
-            sp<InputWindowHandle> focusedWindowHandle =
-                    getValueByKey(mFocusedWindowHandlesByDisplay, getTargetDisplayId(*entry));
-            if (focusedWindowHandle != nullptr) {
-                commandEntry->inputChannel = getInputChannelLocked(focusedWindowHandle->getToken());
+            sp<IBinder> focusedWindowToken =
+                    getValueByKey(mFocusedWindowTokenByDisplay, getTargetDisplayId(*entry));
+            if (focusedWindowToken != nullptr) {
+                commandEntry->inputChannel = getInputChannelLocked(focusedWindowToken);
             }
             commandEntry->keyEntry = entry;
             postCommandLocked(std::move(commandEntry));
@@ -1463,8 +1463,7 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
     std::string reason;
 
     int32_t displayId = getTargetDisplayId(entry);
-    sp<InputWindowHandle> focusedWindowHandle =
-            getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
+    sp<InputWindowHandle> focusedWindowHandle = getFocusedWindowHandleLocked(displayId);
     std::shared_ptr<InputApplicationHandle> focusedApplicationHandle =
             getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
 
@@ -1887,7 +1886,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         sp<InputWindowHandle> foregroundWindowHandle =
                 tempTouchState.getFirstForegroundWindowHandle();
         if (foregroundWindowHandle && foregroundWindowHandle->getInfo()->hasWallpaper) {
-            const std::vector<sp<InputWindowHandle>> windowHandles =
+            const std::vector<sp<InputWindowHandle>>& windowHandles =
                     getWindowHandlesLocked(displayId);
             for (const sp<InputWindowHandle>& windowHandle : windowHandles) {
                 const InputWindowInfo* info = windowHandle->getInfo();
@@ -2119,7 +2118,7 @@ static bool canBeObscuredBy(const sp<InputWindowHandle>& windowHandle,
 bool InputDispatcher::isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle,
                                                     int32_t x, int32_t y) const {
     int32_t displayId = windowHandle->getInfo()->displayId;
-    const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
+    const std::vector<sp<InputWindowHandle>>& windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<InputWindowHandle>& otherHandle : windowHandles) {
         if (windowHandle == otherHandle) {
             break; // All future windows are below us. Exit early.
@@ -2135,7 +2134,7 @@ bool InputDispatcher::isWindowObscuredAtPointLocked(const sp<InputWindowHandle>&
 
 bool InputDispatcher::isWindowObscuredLocked(const sp<InputWindowHandle>& windowHandle) const {
     int32_t displayId = windowHandle->getInfo()->displayId;
-    const std::vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
+    const std::vector<sp<InputWindowHandle>>& windowHandles = getWindowHandlesLocked(displayId);
     const InputWindowInfo* windowInfo = windowHandle->getInfo();
     for (const sp<InputWindowHandle>& otherHandle : windowHandles) {
         if (windowHandle == otherHandle) {
@@ -2172,8 +2171,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
         return;
     }
     int32_t displayId = getTargetDisplayId(eventEntry);
-    sp<InputWindowHandle> focusedWindowHandle =
-            getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
+    sp<InputWindowHandle> focusedWindowHandle = getFocusedWindowHandleLocked(displayId);
     if (focusedWindowHandle != nullptr) {
         const InputWindowInfo* info = focusedWindowHandle->getInfo();
         if (info->inputFeatures.test(InputWindowInfo::Feature::DISABLE_USER_ACTIVITY)) {
@@ -2510,30 +2508,22 @@ void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
 }
 
 void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t action,
-                                                      const sp<IBinder>& newToken) {
+                                                      const sp<IBinder>& token) {
     int32_t maskedAction = action & AMOTION_EVENT_ACTION_MASK;
     uint32_t maskedSource = source & AINPUT_SOURCE_CLASS_MASK;
     if (maskedSource != AINPUT_SOURCE_CLASS_POINTER || maskedAction != AMOTION_EVENT_ACTION_DOWN) {
         return;
     }
 
-    sp<InputWindowHandle> inputWindowHandle = getWindowHandleLocked(newToken);
-    if (inputWindowHandle == nullptr) {
-        return;
-    }
-
-    sp<InputWindowHandle> focusedWindowHandle =
-            getValueByKey(mFocusedWindowHandlesByDisplay, mFocusedDisplayId);
-
-    bool hasFocusChanged = !focusedWindowHandle || focusedWindowHandle->getToken() != newToken;
-
-    if (!hasFocusChanged) {
+    sp<IBinder> focusedToken = getValueByKey(mFocusedWindowTokenByDisplay, mFocusedDisplayId);
+    if (focusedToken == token) {
+        // ignore since token is focused
         return;
     }
 
     std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
             &InputDispatcher::doOnPointerDownOutsideFocusLockedInterruptible);
-    commandEntry->newToken = newToken;
+    commandEntry->newToken = token;
     postCommandLocked(std::move(commandEntry));
 }
 
@@ -3639,9 +3629,11 @@ void InputDispatcher::decrementPendingForegroundDispatches(EventEntry* entry) {
     }
 }
 
-std::vector<sp<InputWindowHandle>> InputDispatcher::getWindowHandlesLocked(
+const std::vector<sp<InputWindowHandle>>& InputDispatcher::getWindowHandlesLocked(
         int32_t displayId) const {
-    return getValueByKey(mWindowHandlesByDisplay, displayId);
+    static const std::vector<sp<InputWindowHandle>> EMPTY_WINDOW_HANDLES;
+    auto it = mWindowHandlesByDisplay.find(displayId);
+    return it != mWindowHandlesByDisplay.end() ? it->second : EMPTY_WINDOW_HANDLES;
 }
 
 sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(
@@ -3651,7 +3643,7 @@ sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(
     }
 
     for (auto& it : mWindowHandlesByDisplay) {
-        const std::vector<sp<InputWindowHandle>> windowHandles = it.second;
+        const std::vector<sp<InputWindowHandle>>& windowHandles = it.second;
         for (const sp<InputWindowHandle>& windowHandle : windowHandles) {
             if (windowHandle->getToken() == windowHandleToken) {
                 return windowHandle;
@@ -3661,9 +3653,28 @@ sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(
     return nullptr;
 }
 
+sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(const sp<IBinder>& windowHandleToken,
+                                                             int displayId) const {
+    if (windowHandleToken == nullptr) {
+        return nullptr;
+    }
+
+    for (const sp<InputWindowHandle>& windowHandle : getWindowHandlesLocked(displayId)) {
+        if (windowHandle->getToken() == windowHandleToken) {
+            return windowHandle;
+        }
+    }
+    return nullptr;
+}
+
+sp<InputWindowHandle> InputDispatcher::getFocusedWindowHandleLocked(int displayId) const {
+    sp<IBinder> focusedToken = getValueByKey(mFocusedWindowTokenByDisplay, displayId);
+    return getWindowHandleLocked(focusedToken, displayId);
+}
+
 bool InputDispatcher::hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const {
     for (auto& it : mWindowHandlesByDisplay) {
-        const std::vector<sp<InputWindowHandle>> windowHandles = it.second;
+        const std::vector<sp<InputWindowHandle>>& windowHandles = it.second;
         for (const sp<InputWindowHandle>& handle : windowHandles) {
             if (handle->getId() == windowHandle->getId() &&
                 handle->getToken() == windowHandle->getToken()) {
@@ -3814,13 +3825,13 @@ void InputDispatcher::setInputWindowsLocked(
 
     updateWindowHandlesForDisplayLocked(inputWindowHandles, displayId);
 
-    sp<InputWindowHandle> newFocusedWindowHandle = nullptr;
+    sp<IBinder> newFocusedToken = nullptr;
     bool foundHoveredWindow = false;
     for (const sp<InputWindowHandle>& windowHandle : getWindowHandlesLocked(displayId)) {
-        // Set newFocusedWindowHandle to the top most focused window instead of the last one
-        if (!newFocusedWindowHandle && windowHandle->getInfo()->focusable &&
+        // Set newFocusedToken to the top most focused window instead of the last one
+        if (!newFocusedToken && windowHandle->getInfo()->focusable &&
             windowHandle->getInfo()->visible) {
-            newFocusedWindowHandle = windowHandle;
+            newFocusedToken = windowHandle->getToken();
         }
         if (windowHandle == mLastHoverWindowHandle) {
             foundHoveredWindow = true;
@@ -3831,12 +3842,9 @@ void InputDispatcher::setInputWindowsLocked(
         mLastHoverWindowHandle = nullptr;
     }
 
-    sp<InputWindowHandle> oldFocusedWindowHandle =
-            getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
-
-    if (!haveSameToken(oldFocusedWindowHandle, newFocusedWindowHandle)) {
-        onFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle, displayId,
-                             "setInputWindowsLocked");
+    sp<IBinder> oldFocusedToken = getValueByKey(mFocusedWindowTokenByDisplay, displayId);
+    if (oldFocusedToken != newFocusedToken) {
+        onFocusChangedLocked(oldFocusedToken, newFocusedToken, displayId, "setInputWindowsLocked");
     }
 
     std::unordered_map<int32_t, TouchState>::iterator stateIt =
@@ -3932,11 +3940,11 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
         std::scoped_lock _l(mLock);
 
         if (mFocusedDisplayId != displayId) {
-            sp<InputWindowHandle> oldFocusedWindowHandle =
-                    getValueByKey(mFocusedWindowHandlesByDisplay, mFocusedDisplayId);
-            if (oldFocusedWindowHandle != nullptr) {
+            sp<IBinder> oldFocusedWindowToken =
+                    getValueByKey(mFocusedWindowTokenByDisplay, mFocusedDisplayId);
+            if (oldFocusedWindowToken != nullptr) {
                 std::shared_ptr<InputChannel> inputChannel =
-                        getInputChannelLocked(oldFocusedWindowHandle->getToken());
+                        getInputChannelLocked(oldFocusedWindowToken);
                 if (inputChannel != nullptr) {
                     CancelationOptions
                             options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
@@ -3948,19 +3956,15 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
             mFocusedDisplayId = displayId;
 
             // Find new focused window and validate
-            sp<InputWindowHandle> newFocusedWindowHandle =
-                    getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
-            notifyFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
+            sp<IBinder> newFocusedWindowToken =
+                    getValueByKey(mFocusedWindowTokenByDisplay, displayId);
+            notifyFocusChangedLocked(oldFocusedWindowToken, newFocusedWindowToken);
 
-            if (newFocusedWindowHandle == nullptr) {
+            if (newFocusedWindowToken == nullptr) {
                 ALOGW("Focused display #%" PRId32 " does not have a focused window.", displayId);
-                if (!mFocusedWindowHandlesByDisplay.empty()) {
-                    ALOGE("But another display has a focused window:");
-                    for (auto& it : mFocusedWindowHandlesByDisplay) {
-                        const sp<InputWindowHandle>& windowHandle = it.second;
-                        ALOGE("Display #%" PRId32 " has focused window: '%s'\n", it.first,
-                              windowHandle->getName().c_str());
-                    }
+                if (!mFocusedWindowTokenByDisplay.empty()) {
+                    ALOGE("But another display has a focused window\n%s",
+                          dumpFocusedWindowsLocked().c_str());
                 }
             }
         }
@@ -4145,6 +4149,28 @@ void InputDispatcher::logDispatchStateLocked() {
     }
 }
 
+std::string InputDispatcher::dumpFocusedWindowsLocked() {
+    if (mFocusedWindowTokenByDisplay.empty()) {
+        return INDENT "FocusedWindows: <none>\n";
+    }
+
+    std::string dump;
+    dump += INDENT "FocusedWindows:\n";
+    for (auto& it : mFocusedWindowTokenByDisplay) {
+        const int32_t displayId = it.first;
+        const sp<InputWindowHandle> windowHandle = getFocusedWindowHandleLocked(displayId);
+        if (windowHandle) {
+            dump += StringPrintf(INDENT2 "displayId=%" PRId32 ", name='%s'\n", displayId,
+                                 windowHandle->getName().c_str());
+        } else {
+            dump += StringPrintf(INDENT2 "displayId=%" PRId32
+                                         " has focused token without a window'\n",
+                                 displayId);
+        }
+    }
+    return dump;
+}
+
 void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     dump += StringPrintf(INDENT "DispatchEnabled: %s\n", toString(mDispatchEnabled));
     dump += StringPrintf(INDENT "DispatchFrozen: %s\n", toString(mDispatchFrozen));
@@ -4166,17 +4192,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += StringPrintf(INDENT "FocusedApplications: <none>\n");
     }
 
-    if (!mFocusedWindowHandlesByDisplay.empty()) {
-        dump += StringPrintf(INDENT "FocusedWindows:\n");
-        for (auto& it : mFocusedWindowHandlesByDisplay) {
-            const int32_t displayId = it.first;
-            const sp<InputWindowHandle>& windowHandle = it.second;
-            dump += StringPrintf(INDENT2 "displayId=%" PRId32 ", name='%s'\n", displayId,
-                                 windowHandle->getName().c_str());
-        }
-    } else {
-        dump += StringPrintf(INDENT "FocusedWindows: <none>\n");
-    }
+    dump += dumpFocusedWindowsLocked();
 
     if (!mTouchStatesByDisplay.empty()) {
         dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
@@ -4622,10 +4638,8 @@ void InputDispatcher::onDispatchCycleBrokenLocked(nsecs_t currentTime,
     postCommandLocked(std::move(commandEntry));
 }
 
-void InputDispatcher::notifyFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
-                                               const sp<InputWindowHandle>& newFocus) {
-    sp<IBinder> oldToken = oldFocus != nullptr ? oldFocus->getToken() : nullptr;
-    sp<IBinder> newToken = newFocus != nullptr ? newFocus->getToken() : nullptr;
+void InputDispatcher::notifyFocusChangedLocked(const sp<IBinder>& oldToken,
+                                               const sp<IBinder>& newToken) {
     std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
             &InputDispatcher::doNotifyFocusChangedLockedInterruptible);
     commandEntry->oldToken = oldToken;
@@ -5204,35 +5218,26 @@ bool InputDispatcher::waitForIdle() {
  */
 void InputDispatcher::setFocusedWindow(const FocusRequest& request) {}
 
-void InputDispatcher::onFocusChangedLocked(const sp<InputWindowHandle>& oldFocusedWindowHandle,
-                                           const sp<InputWindowHandle>& newFocusedWindowHandle,
-                                           int32_t displayId, std::string_view reason) {
-    if (oldFocusedWindowHandle) {
-        if (DEBUG_FOCUS) {
-            ALOGD("Focus left window: %s in display %" PRId32,
-                  oldFocusedWindowHandle->getName().c_str(), displayId);
-        }
-        std::shared_ptr<InputChannel> focusedInputChannel =
-                getInputChannelLocked(oldFocusedWindowHandle->getToken());
+void InputDispatcher::onFocusChangedLocked(const sp<IBinder>& oldFocusedToken,
+                                           const sp<IBinder>& newFocusedToken, int32_t displayId,
+                                           std::string_view reason) {
+    if (oldFocusedToken) {
+        std::shared_ptr<InputChannel> focusedInputChannel = getInputChannelLocked(oldFocusedToken);
         if (focusedInputChannel) {
             CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
                                        "focus left window");
             synthesizeCancelationEventsForInputChannelLocked(focusedInputChannel, options);
-            enqueueFocusEventLocked(*oldFocusedWindowHandle, false /*hasFocus*/, reason);
+            enqueueFocusEventLocked(oldFocusedToken, false /*hasFocus*/, reason);
         }
-        mFocusedWindowHandlesByDisplay.erase(displayId);
+        mFocusedWindowTokenByDisplay.erase(displayId);
     }
-    if (newFocusedWindowHandle) {
-        if (DEBUG_FOCUS) {
-            ALOGD("Focus entered window: %s in display %" PRId32,
-                  newFocusedWindowHandle->getName().c_str(), displayId);
-        }
-        mFocusedWindowHandlesByDisplay[displayId] = newFocusedWindowHandle;
-        enqueueFocusEventLocked(*newFocusedWindowHandle, true /*hasFocus*/, reason);
+    if (newFocusedToken) {
+        mFocusedWindowTokenByDisplay[displayId] = newFocusedToken;
+        enqueueFocusEventLocked(newFocusedToken, true /*hasFocus*/, reason);
     }
 
     if (mFocusedDisplayId == displayId) {
-        notifyFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
+        notifyFocusChangedLocked(oldFocusedToken, newFocusedToken);
     }
 }
 } // namespace android::inputdispatcher
