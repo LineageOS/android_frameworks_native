@@ -110,11 +110,11 @@ status_t KeyMap::loadKeyLayout(const InputDeviceIdentifier& deviceIdentifier,
         return NAME_NOT_FOUND;
     }
 
-    status_t status = KeyLayoutMap::load(path, &keyLayoutMap);
-    if (status) {
-        return status;
+    base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(path);
+    if (!ret) {
+        return ret.error().code();
     }
-
+    keyLayoutMap = *ret;
     keyLayoutFile = path;
     return OK;
 }
@@ -127,12 +127,12 @@ status_t KeyMap::loadKeyCharacterMap(const InputDeviceIdentifier& deviceIdentifi
         return NAME_NOT_FOUND;
     }
 
-    status_t status = KeyCharacterMap::load(path,
-            KeyCharacterMap::FORMAT_BASE, &keyCharacterMap);
-    if (status) {
-        return status;
+    base::Result<std::shared_ptr<KeyCharacterMap>> ret =
+            KeyCharacterMap::load(path, KeyCharacterMap::FORMAT_BASE);
+    if (!ret) {
+        return ret.error().code();
     }
-
+    keyCharacterMap = *ret;
     keyCharacterMapFile = path;
     return OK;
 }

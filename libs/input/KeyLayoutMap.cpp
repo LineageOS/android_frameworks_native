@@ -49,37 +49,60 @@ KeyLayoutMap::KeyLayoutMap() {
 KeyLayoutMap::~KeyLayoutMap() {
 }
 
-status_t KeyLayoutMap::load(const std::string& filename, sp<KeyLayoutMap>* outMap) {
-    outMap->clear();
+base::Result<std::shared_ptr<KeyLayoutMap>> KeyLayoutMap::loadContents(const std::string& filename,
+                                                                       const char* contents) {
+    Tokenizer* tokenizer;
+    status_t status = Tokenizer::fromContents(String8(filename.c_str()), contents, &tokenizer);
+    if (status) {
+        ALOGE("Error %d opening key layout map.", status);
+        return Errorf("Error {} opening key layout map file {}.", status, filename.c_str());
+    }
+    std::unique_ptr<Tokenizer> t(tokenizer);
+    auto ret = load(t.get());
+    if (ret) {
+        (*ret)->mLoadFileName = filename;
+    }
+    return ret;
+}
 
+base::Result<std::shared_ptr<KeyLayoutMap>> KeyLayoutMap::load(const std::string& filename) {
     Tokenizer* tokenizer;
     status_t status = Tokenizer::open(String8(filename.c_str()), &tokenizer);
     if (status) {
         ALOGE("Error %d opening key layout map file %s.", status, filename.c_str());
-    } else {
-        sp<KeyLayoutMap> map = new KeyLayoutMap();
-        if (!map.get()) {
-            ALOGE("Error allocating key layout map.");
-            status = NO_MEMORY;
-        } else {
-#if DEBUG_PARSER_PERFORMANCE
-            nsecs_t startTime = systemTime(SYSTEM_TIME_MONOTONIC);
-#endif
-            Parser parser(map.get(), tokenizer);
-            status = parser.parse();
-#if DEBUG_PARSER_PERFORMANCE
-            nsecs_t elapsedTime = systemTime(SYSTEM_TIME_MONOTONIC) - startTime;
-            ALOGD("Parsed key layout map file '%s' %d lines in %0.3fms.",
-                    tokenizer->getFilename().string(), tokenizer->getLineNumber(),
-                    elapsedTime / 1000000.0);
-#endif
-            if (!status) {
-                *outMap = map;
-            }
-        }
-        delete tokenizer;
+        return Errorf("Error {} opening key layout map file {}.", status, filename.c_str());
     }
-    return status;
+    std::unique_ptr<Tokenizer> t(tokenizer);
+    auto ret = load(t.get());
+    if (ret) {
+        (*ret)->mLoadFileName = filename;
+    }
+    return ret;
+}
+
+base::Result<std::shared_ptr<KeyLayoutMap>> KeyLayoutMap::load(Tokenizer* tokenizer) {
+    std::shared_ptr<KeyLayoutMap> map = std::shared_ptr<KeyLayoutMap>(new KeyLayoutMap());
+    status_t status = OK;
+    if (!map.get()) {
+        ALOGE("Error allocating key layout map.");
+        return Errorf("Error allocating key layout map.");
+    } else {
+#if DEBUG_PARSER_PERFORMANCE
+        nsecs_t startTime = systemTime(SYSTEM_TIME_MONOTONIC);
+#endif
+        Parser parser(map.get(), tokenizer);
+        status = parser.parse();
+#if DEBUG_PARSER_PERFORMANCE
+        nsecs_t elapsedTime = systemTime(SYSTEM_TIME_MONOTONIC) - startTime;
+        ALOGD("Parsed key layout map file '%s' %d lines in %0.3fms.",
+              tokenizer->getFilename().string(), tokenizer->getLineNumber(),
+              elapsedTime / 1000000.0);
+#endif
+        if (!status) {
+            return std::move(map);
+        }
+    }
+    return Errorf("Load KeyLayoutMap failed {}.", status);
 }
 
 status_t KeyLayoutMap::mapKey(int32_t scanCode, int32_t usageCode,
