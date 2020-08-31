@@ -515,6 +515,10 @@ void Transform::dump(std::string& out, const char* name, const char* prefix) con
     }
     out += "(" + transformToString(type) + ")\n";
 
+    if (type == IDENTITY) {
+        return;
+    }
+
     for (size_t i = 0; i < 3; i++) {
         StringAppendF(&out, "%s    %.4f  %.4f  %.4f\n", prefix, static_cast<double>(mMatrix[0][i]),
                       static_cast<double>(mMatrix[1][i]), static_cast<double>(mMatrix[2][i]));
