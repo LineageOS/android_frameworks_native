@@ -34,7 +34,7 @@ class KeyCharacterMap;
 class KeyMap {
 public:
     std::string keyLayoutFile;
-    sp<KeyLayoutMap> keyLayoutMap;
+    std::shared_ptr<KeyLayoutMap> keyLayoutMap;
 
     std::string keyCharacterMapFile;
     sp<KeyCharacterMap> keyCharacterMap;
