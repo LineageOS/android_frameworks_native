@@ -240,7 +240,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
 
         if (!changes || (changes & InputReaderConfiguration::CHANGE_KEYBOARD_LAYOUTS)) {
             if (!mClasses.test(InputDeviceClass::VIRTUAL)) {
-                sp<KeyCharacterMap> keyboardLayout =
+                std::shared_ptr<KeyCharacterMap> keyboardLayout =
                         mContext->getPolicy()->getKeyboardLayoutOverlay(mIdentifier);
                 bool shouldBumpGeneration = false;
                 for_each_subdevice(

@@ -226,8 +226,9 @@ public:
     virtual void getVirtualKeyDefinitions(
             int32_t deviceId, std::vector<VirtualKeyDefinition>& outVirtualKeys) const = 0;
 
-    virtual sp<KeyCharacterMap> getKeyCharacterMap(int32_t deviceId) const = 0;
-    virtual bool setKeyboardLayoutOverlay(int32_t deviceId, const sp<KeyCharacterMap>& map) = 0;
+    virtual const std::shared_ptr<KeyCharacterMap> getKeyCharacterMap(int32_t deviceId) const = 0;
+    virtual bool setKeyboardLayoutOverlay(int32_t deviceId,
+                                          std::shared_ptr<KeyCharacterMap> map) = 0;
 
     /* Control the vibrator. */
     virtual void vibrate(int32_t deviceId, const VibrationElement& effect) = 0;
@@ -373,8 +374,10 @@ public:
             int32_t deviceId,
             std::vector<VirtualKeyDefinition>& outVirtualKeys) const override final;
 
-    sp<KeyCharacterMap> getKeyCharacterMap(int32_t deviceId) const override final;
-    bool setKeyboardLayoutOverlay(int32_t deviceId, const sp<KeyCharacterMap>& map) override final;
+    const std::shared_ptr<KeyCharacterMap> getKeyCharacterMap(
+            int32_t deviceId) const override final;
+    bool setKeyboardLayoutOverlay(int32_t deviceId,
+                                  std::shared_ptr<KeyCharacterMap> map) override final;
 
     void vibrate(int32_t deviceId, const VibrationElement& effect) override final;
     void cancelVibrate(int32_t deviceId) override final;
@@ -421,9 +424,6 @@ private:
         std::unique_ptr<VirtualKeyMap> virtualKeyMap;
         KeyMap keyMap;
 
-        sp<KeyCharacterMap> overlayKeyMap;
-        sp<KeyCharacterMap> combinedKeyMap;
-
         bool ffEffectPlaying;
         int16_t ffEffectId; // initially -1
 
@@ -441,7 +441,7 @@ private:
         bool hasValidFd() const;
         const bool isVirtual; // set if fd < 0 is passed to constructor
 
-        const sp<KeyCharacterMap>& getKeyCharacterMap() const;
+        const std::shared_ptr<KeyCharacterMap> getKeyCharacterMap() const;
 
         template <std::size_t N>
         status_t readDeviceBitMask(unsigned long ioctlCode, BitArray<N>& bitArray);
