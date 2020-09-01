@@ -5530,12 +5530,9 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     auto traverseLayers = [this, args, layerStack](const LayerVector::Visitor& visitor) {
         traverseLayersInLayerStack(layerStack, args.uid, visitor);
     };
-    ScreenCaptureResults captureResults;
-    status_t status = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                                          args.pixelFormat, captureResults);
-    captureResults.result = status;
-    captureListener->onScreenCaptureComplete(captureResults);
-    return status;
+
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+                               args.pixelFormat, captureListener);
 }
 
 status_t SurfaceFlinger::setSchedFifo(bool enabled) {
@@ -5608,12 +5605,8 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
         traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, visitor);
     };
 
-    ScreenCaptureResults captureResults;
-    status_t status = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
-                                          ui::PixelFormat::RGBA_8888, captureResults);
-    captureResults.result = status;
-    captureListener->onScreenCaptureComplete(captureResults);
-    return status;
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
+                               ui::PixelFormat::RGBA_8888, captureListener);
 }
 
 status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
@@ -5704,7 +5697,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
                                                  captureSecureLayers);
     });
 
-    auto traverseLayers = [parent, args, &excludeLayers](const LayerVector::Visitor& visitor) {
+    auto traverseLayers = [parent, args, excludeLayers](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
             if (!layer->isVisible()) {
                 return;
@@ -5726,18 +5719,14 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         });
     };
 
-    ScreenCaptureResults captureResults;
-    status_t status = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                                          args.pixelFormat, captureResults);
-    captureResults.result = status;
-    captureListener->onScreenCaptureComplete(captureResults);
-    return status;
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
+                               args.pixelFormat, captureListener);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
                                              ui::Size bufferSize, ui::PixelFormat reqPixelFormat,
-                                             ScreenCaptureResults& captureResults) {
+                                             const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
     // TODO(b/116112787) Make buffer usage a parameter.
@@ -5747,54 +5736,56 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
             getFactory().createGraphicBuffer(bufferSize.getWidth(), bufferSize.getHeight(),
                                              static_cast<android_pixel_format>(reqPixelFormat),
                                              1 /* layerCount */, usage, "screenshot");
-
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                               false /* regionSampling */, captureResults);
+                               false /* regionSampling */, captureListener);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
-                                             const sp<GraphicBuffer>& buffer, bool regionSampling,
-                                             ScreenCaptureResults& captureResults) {
+                                             sp<GraphicBuffer>& buffer, bool regionSampling,
+                                             const sp<IScreenCaptureListener>& captureListener) {
+    ATRACE_CALL();
+
+    if (captureListener == nullptr) {
+        ALOGE("capture screen must provide a capture listener callback");
+        return BAD_VALUE;
+    }
+
     const int uid = IPCThreadState::self()->getCallingUid();
     const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
 
-    status_t result;
-    int syncFd;
+    static_cast<void>(schedule([=, renderAreaFuture = std::move(renderAreaFuture)]() mutable {
+        if (mRefreshPending) {
+            ALOGW("Skipping screenshot for now");
+            captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer, regionSampling,
+                                captureListener);
+            return;
+        }
+        ScreenCaptureResults captureResults;
+        std::unique_ptr<RenderArea> renderArea = renderAreaFuture.get();
+        if (!renderArea) {
+            ALOGW("Skipping screen capture because of invalid render area.");
+            captureResults.result = NO_MEMORY;
+            captureListener->onScreenCaptureComplete(captureResults);
+            return;
+        }
 
-    do {
-        std::tie(result, syncFd) =
-                schedule([&]() -> std::pair<status_t, int> {
-                    if (mRefreshPending) {
-                        ALOGW("Skipping screenshot for now");
-                        return {EAGAIN, -1};
-                    }
-                    std::unique_ptr<RenderArea> renderArea = renderAreaFuture.get();
-                    if (!renderArea) {
-                        ALOGW("Skipping screen capture because of invalid render area.");
-                        return {NO_MEMORY, -1};
-                    }
+        status_t result = NO_ERROR;
+        int syncFd = -1;
+        renderArea->render([&] {
+            result = renderScreenImplLocked(*renderArea, traverseLayers, buffer, forSystem, &syncFd,
+                                            regionSampling, captureResults);
+        });
 
-                    status_t result = NO_ERROR;
-                    int fd = -1;
+        if (result == NO_ERROR) {
+            sync_wait(syncFd, -1);
+            close(syncFd);
+        }
+        captureResults.result = result;
+        captureListener->onScreenCaptureComplete(captureResults);
+    }));
 
-                    Mutex::Autolock lock(mStateLock);
-                    renderArea->render([&] {
-                        result = renderScreenImplLocked(*renderArea, traverseLayers, buffer.get(),
-                                                        forSystem, &fd, regionSampling,
-                                                        captureResults);
-                    });
-
-                    return {result, fd};
-                }).get();
-    } while (result == EAGAIN);
-
-    if (result == NO_ERROR) {
-        sync_wait(syncFd, -1);
-        close(syncFd);
-    }
-
-    return result;
+    return NO_ERROR;
 }
 
 status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,

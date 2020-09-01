@@ -446,9 +446,26 @@ void RegionSamplingThread::captureSample() {
                                    PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
     }
 
-    ScreenCaptureResults captureResults;
+    class SyncScreenCaptureListener : public BnScreenCaptureListener {
+    public:
+        status_t onScreenCaptureComplete(const ScreenCaptureResults& captureResults) override {
+            resultsPromise.set_value(captureResults);
+            return NO_ERROR;
+        }
+
+        ScreenCaptureResults waitForResults() {
+            std::future<ScreenCaptureResults> resultsFuture = resultsPromise.get_future();
+            return resultsFuture.get();
+        }
+
+    private:
+        std::promise<ScreenCaptureResults> resultsPromise;
+    };
+
+    const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
     mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                                 true /* regionSampling */, captureResults);
+                                 true /* regionSampling */, captureListener);
+    ScreenCaptureResults captureResults = captureListener->waitForResults();
 
     std::vector<Descriptor> activeDescriptors;
     for (const auto& descriptor : descriptors) {
