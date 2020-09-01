@@ -178,6 +178,7 @@ struct layer_state_t {
         status_t read(const Parcel& input);
     };
     sp<IBinder> surface;
+    int32_t layerId;
     uint64_t what;
     float x;
     float y;

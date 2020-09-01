@@ -345,7 +345,7 @@ public:
 
     protected:
         std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> mComposerStates;
-        SortedVector<DisplayState > mDisplayStates;
+        SortedVector<DisplayState> mDisplayStates;
         std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
                 mListenerCallbacks;
 
@@ -376,10 +376,7 @@ public:
         InputWindowCommands mInputWindowCommands;
         int mStatus = NO_ERROR;
 
-        layer_state_t* getLayerState(const sp<IBinder>& surfaceHandle);
-        layer_state_t* getLayerState(const sp<SurfaceControl>& sc) {
-            return getLayerState(sc->getHandle());
-        }
+        layer_state_t* getLayerState(const sp<SurfaceControl>& sc);
         DisplayState& getDisplayState(const sp<IBinder>& token);
 
         void cacheBuffers();
