@@ -1655,8 +1655,10 @@ sp<SurfaceControl> SurfaceComposerClient::createWithSurfaceParent(const String8&
         sp<IGraphicBufferProducer> gbp;
 
         uint32_t transformHint = 0;
+        int32_t id = -1;
         err = mClient->createWithSurfaceParent(name, w, h, format, flags, parentGbp,
-                                               std::move(metadata), &handle, &gbp, &transformHint);
+                                               std::move(metadata), &handle, &gbp, &id,
+                                               &transformHint);
         if (outTransformHint) {
             *outTransformHint = transformHint;
         }
@@ -1686,8 +1688,10 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
         }
 
         uint32_t transformHint = 0;
+        int32_t id = -1;
         err = mClient->createSurface(name, w, h, format, flags, parentHandle, std::move(metadata),
-                                     &handle, &gbp, &transformHint);
+                                     &handle, &gbp, &id, &transformHint);
+
         if (outTransformHint) {
             *outTransformHint = transformHint;
         }
@@ -1706,7 +1710,8 @@ sp<SurfaceControl> SurfaceComposerClient::mirrorSurface(SurfaceControl* mirrorFr
 
     sp<IBinder> handle;
     sp<IBinder> mirrorFromHandle = mirrorFromSurface->getHandle();
-    status_t err = mClient->mirrorSurface(mirrorFromHandle, &handle);
+    int32_t layer_id = -1;
+    status_t err = mClient->mirrorSurface(mirrorFromHandle, &handle, &layer_id);
     if (err == NO_ERROR) {
         return new SurfaceControl(this, handle, nullptr, true /* owned */);
     }
