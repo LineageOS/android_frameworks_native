@@ -2057,7 +2057,7 @@ void SurfaceFlinger::onMessageRefresh() {
             refreshArgs.layers.push_back(layerFE);
     });
     refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
-    for (sp<Layer> layer : mLayersWithQueuedFrames) {
+    for (auto layer : mLayersWithQueuedFrames) {
         if (auto layerFE = layer->getCompositionEngineLayerFE())
             refreshArgs.layersWithQueuedFrames.push_back(layerFE);
     }
@@ -2220,7 +2220,7 @@ void SurfaceFlinger::postComposition()
     ALOGV("postComposition");
 
     nsecs_t dequeueReadyTime = systemTime();
-    for (auto& layer : mLayersWithQueuedFrames) {
+    for (auto layer : mLayersWithQueuedFrames) {
         layer->releasePendingBuffer(dequeueReadyTime);
     }
 
@@ -3138,7 +3138,7 @@ bool SurfaceFlinger::handlePageFlip()
         if (layer->hasReadyFrame()) {
             frameQueued = true;
             if (layer->shouldPresentNow(expectedPresentTime)) {
-                mLayersWithQueuedFrames.push_back(layer);
+                mLayersWithQueuedFrames.emplace(layer);
             } else {
                 ATRACE_NAME("!layer->shouldPresentNow()");
                 layer->useEmptyDamage();

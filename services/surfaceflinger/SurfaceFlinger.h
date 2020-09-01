@@ -1080,7 +1080,11 @@ private:
     bool mInputInfoChanged = false;
     bool mGeometryInvalid = false;
     bool mAnimCompositionPending = false;
-    std::vector<sp<Layer>> mLayersWithQueuedFrames;
+
+    // Tracks layers that have pending frames which are candidates for being
+    // latched. Because this contains a set of raw layer pointers, can only be
+    // mutated on the main thread.
+    std::unordered_set<Layer*> mLayersWithQueuedFrames;
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
     std::array<sp<Fence>, 2> mPreviousPresentFences = {Fence::NO_FENCE, Fence::NO_FENCE};
