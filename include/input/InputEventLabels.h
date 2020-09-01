@@ -359,6 +359,9 @@ static const InputEventLabel AXES[] = {
     DEFINE_AXIS(BRAKE),
     DEFINE_AXIS(DISTANCE),
     DEFINE_AXIS(TILT),
+    DEFINE_AXIS(SCROLL),
+    DEFINE_AXIS(RELATIVE_X),
+    DEFINE_AXIS(RELATIVE_Y),
     DEFINE_AXIS(GENERIC_1),
     DEFINE_AXIS(GENERIC_2),
     DEFINE_AXIS(GENERIC_3),
@@ -402,13 +405,12 @@ static const InputEventLabel LEDS[] = {
     { nullptr, 0 }
 };
 
-static const InputEventLabel FLAGS[] = {
-    DEFINE_FLAG(VIRTUAL),
-    DEFINE_FLAG(FUNCTION),
-    DEFINE_FLAG(GESTURE),
+static const InputEventLabel FLAGS[] = {DEFINE_FLAG(VIRTUAL),
+                                        DEFINE_FLAG(FUNCTION),
+                                        DEFINE_FLAG(GESTURE),
+                                        DEFINE_FLAG(WAKE),
 
-    { nullptr, 0 }
-};
+                                        {nullptr, 0}};
 
 static int lookupValueByLabel(const char* literal, const InputEventLabel *list) {
     while (list->literal) {

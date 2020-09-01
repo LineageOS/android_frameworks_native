@@ -16,17 +16,12 @@
 
 #pragma once
 
-#define HWC2_INCLUDE_STRINGIFICATION
-#define HWC2_USE_CPP11
-#include <hardware/hwcomposer2.h>
-#undef HWC2_INCLUDE_STRINGIFICATION
-#undef HWC2_USE_CPP11
-
+#include <atomic>
 #include <unordered_set>
 
-#include <android/hardware/power/1.3/IPower.h>
-#include <utils/StrongPointer.h>
+#include <utils/Mutex.h>
 
+#include "../Scheduler/OneShotTimer.h"
 #include "DisplayIdentification.h"
 
 namespace android {
@@ -36,28 +31,45 @@ class PowerAdvisor {
 public:
     virtual ~PowerAdvisor();
 
+    virtual void onBootFinished() = 0;
     virtual void setExpensiveRenderingExpected(DisplayId displayId, bool expected) = 0;
+    virtual void notifyDisplayUpdateImminent() = 0;
 };
 
 namespace impl {
-
-namespace V1_3 = android::hardware::power::V1_3;
 
 // PowerAdvisor is a wrapper around IPower HAL which takes into account the
 // full state of the system when sending out power hints to things like the GPU.
 class PowerAdvisor final : public Hwc2::PowerAdvisor {
 public:
+    class HalWrapper {
+    public:
+        virtual ~HalWrapper() = default;
+
+        virtual bool setExpensiveRendering(bool enabled) = 0;
+        virtual bool notifyDisplayUpdateImminent() = 0;
+    };
+
     PowerAdvisor();
     ~PowerAdvisor() override;
 
+    void onBootFinished() override;
     void setExpensiveRenderingExpected(DisplayId displayId, bool expected) override;
+    void notifyDisplayUpdateImminent() override;
 
 private:
-    sp<V1_3::IPower> getPowerHal();
+    HalWrapper* getPowerHal() REQUIRES(mPowerHalMutex);
+    bool mReconnectPowerHal GUARDED_BY(mPowerHalMutex) = false;
+    std::mutex mPowerHalMutex;
+
+    std::atomic_bool mBootFinished = false;
 
     std::unordered_set<DisplayId> mExpensiveDisplays;
     bool mNotifiedExpensiveRendering = false;
-    bool mReconnectPowerHal = false;
+
+    const bool mUseUpdateImminentTimer;
+    std::atomic_bool mSendUpdateImminent = true;
+    scheduler::OneShotTimer mUpdateImminentTimer;
 };
 
 } // namespace impl

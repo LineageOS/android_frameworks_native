@@ -66,7 +66,6 @@ filegroup {
     name: "dumpstate_aidl",
     srcs: [
         "binder/android/os/IDumpstateListener.aidl",
-        "binder/android/os/IDumpstateToken.aidl",
         "binder/android/os/IDumpstate.aidl",
     ],
     path: "binder",
@@ -77,6 +76,7 @@ cc_defaults {
     defaults: ["dumpstate_cflag_defaults"],
     shared_libs: [
         "android.hardware.dumpstate@1.0",
+        "android.hardware.dumpstate@1.1",
         "libziparchive",
         "libbase",
         "libbinder",

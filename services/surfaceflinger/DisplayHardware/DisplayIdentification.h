@@ -23,7 +23,11 @@
 #include <string_view>
 #include <vector>
 
-#include <ui/GraphicTypes.h>
+#include <ui/DeviceProductInfo.h>
+#include <ui/PhysicalDisplayId.h>
+
+#define LEGACY_DISPLAY_TYPE_PRIMARY 0
+#define LEGACY_DISPLAY_TYPE_EXTERNAL 1
 
 namespace android {
 
@@ -33,7 +37,7 @@ struct DisplayId {
 
     uint16_t manufacturerId() const;
 
-    static DisplayId fromEdid(uint8_t port, uint16_t manufacturerId, uint32_t displayNameHash);
+    static DisplayId fromEdid(uint8_t port, uint16_t manufacturerId, uint32_t modelHash);
 };
 
 inline bool operator==(DisplayId lhs, DisplayId rhs) {
@@ -53,15 +57,38 @@ using DisplayIdentificationData = std::vector<uint8_t>;
 struct DisplayIdentificationInfo {
     DisplayId id;
     std::string name;
+    std::optional<DeviceProductInfo> deviceProductInfo;
 };
 
-// NUL-terminated plug and play ID.
-using PnpId = std::array<char, 4>;
+struct ExtensionBlock {
+    uint8_t tag;
+    uint8_t revisionNumber;
+};
+
+struct HdmiPhysicalAddress {
+    // The address describes the path from the display sink in the network of connected HDMI
+    // devices. The format of the address is "a.b.c.d". For example, address 2.1.0.0 means we are
+    // connected to port 1 of a device which is connected to port 2 of the sink.
+    uint8_t a, b, c, d;
+};
+
+struct HdmiVendorDataBlock {
+    HdmiPhysicalAddress physicalAddress;
+};
+
+struct Cea861ExtensionBlock : ExtensionBlock {
+    std::optional<HdmiVendorDataBlock> hdmiVendorDataBlock;
+};
 
 struct Edid {
     uint16_t manufacturerId;
+    uint16_t productId;
     PnpId pnpId;
+    uint32_t modelHash;
     std::string_view displayName;
+    uint8_t manufactureOrModelYear;
+    uint8_t manufactureWeek;
+    std::optional<Cea861ExtensionBlock> cea861Block;
 };
 
 bool isEdid(const DisplayIdentificationData&);

@@ -19,17 +19,29 @@
 #include <optional>
 #include <string>
 
+#include <ui/Transform.h>
 #include <utils/StrongPointer.h>
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
+#include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/DisplayIdentification.h"
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
+
 namespace android {
+
+namespace HWC2 {
+class Layer;
+} // namespace HWC2
 
 namespace compositionengine {
 
 class CompositionEngine;
 class Output;
-class Layer;
 class LayerFE;
 
 namespace impl {
@@ -43,11 +55,11 @@ class OutputLayer {
 public:
     virtual ~OutputLayer();
 
+    // Sets the HWC2::Layer associated with this layer
+    virtual void setHwcLayer(std::shared_ptr<HWC2::Layer>) = 0;
+
     // Gets the output which owns this output layer
     virtual const Output& getOutput() const = 0;
-
-    // Gets the display-independent layer which this output layer represents
-    virtual Layer& getLayer() const = 0;
 
     // Gets the front-end layer interface this output layer represents
     virtual LayerFE& getLayerFE() const = 0;
@@ -66,12 +78,41 @@ public:
 
     // Recalculates the state of the output layer from the output-independent
     // layer. If includeGeometry is false, the geometry state can be skipped.
-    virtual void updateCompositionState(bool includeGeometry) = 0;
+    // internalDisplayRotationFlags must be set to the rotation flags for the
+    // internal display, and is used to properly compute the inverse-display
+    // transform, if needed.
+    virtual void updateCompositionState(
+            bool includeGeometry, bool forceClientComposition,
+            ui::Transform::RotationFlags internalDisplayRotationFlags) = 0;
 
     // Writes the geometry state to the HWC, or does nothing if this layer does
     // not use the HWC. If includeGeometry is false, the geometry state can be
     // skipped.
-    virtual void writeStateToHWC(bool includeGeometry) const = 0;
+    virtual void writeStateToHWC(bool includeGeometry) = 0;
+
+    // Updates the cursor position with the HWC
+    virtual void writeCursorPositionToHWC() const = 0;
+
+    // Returns the HWC2::Layer associated with this layer, if it exists
+    virtual HWC2::Layer* getHwcLayer() const = 0;
+
+    // Returns true if the current layer state requires client composition
+    virtual bool requiresClientComposition() const = 0;
+
+    // Returns true if the current layer should be treated as a cursor layer
+    virtual bool isHardwareCursor() const = 0;
+
+    // Applies a HWC device requested composition type change
+    virtual void applyDeviceCompositionTypeChange(Hwc2::IComposerClient::Composition) = 0;
+
+    // Prepares to apply any HWC device layer requests
+    virtual void prepareForDeviceLayerRequests() = 0;
+
+    // Applies a HWC device layer request
+    virtual void applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest request) = 0;
+
+    // Returns true if the composition settings scale pixels
+    virtual bool needsFiltering() const = 0;
 
     // Debugging
     virtual void dump(std::string& result) const = 0;

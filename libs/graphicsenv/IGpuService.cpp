@@ -27,11 +27,11 @@ class BpGpuService : public BpInterface<IGpuService> {
 public:
     explicit BpGpuService(const sp<IBinder>& impl) : BpInterface<IGpuService>(impl) {}
 
-    virtual void setGpuStats(const std::string& driverPackageName,
-                             const std::string& driverVersionName, uint64_t driverVersionCode,
-                             int64_t driverBuildTime, const std::string& appPackageName,
-                             const int32_t vulkanVersion, GraphicsEnv::Driver driver,
-                             bool isDriverLoaded, int64_t driverLoadingTime) {
+    void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
+                     uint64_t driverVersionCode, int64_t driverBuildTime,
+                     const std::string& appPackageName, const int32_t vulkanVersion,
+                     GpuStatsInfo::Driver driver, bool isDriverLoaded,
+                     int64_t driverLoadingTime) override {
         Parcel data, reply;
         data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
 
@@ -48,52 +48,8 @@ public:
         remote()->transact(BnGpuService::SET_GPU_STATS, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
-    virtual status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const {
-        if (!outStats) return UNEXPECTED_NULL;
-
-        Parcel data, reply;
-        status_t status;
-
-        if ((status = data.writeInterfaceToken(IGpuService::getInterfaceDescriptor())) != OK)
-            return status;
-
-        if ((status = remote()->transact(BnGpuService::GET_GPU_STATS_GLOBAL_INFO, data, &reply)) !=
-            OK)
-            return status;
-
-        int32_t result = 0;
-        if ((status = reply.readInt32(&result)) != OK) return status;
-        if (result != OK) return result;
-
-        outStats->clear();
-        return reply.readParcelableVector(outStats);
-    }
-
-    virtual status_t getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const {
-        if (!outStats) return UNEXPECTED_NULL;
-
-        Parcel data, reply;
-        status_t status;
-
-        if ((status = data.writeInterfaceToken(IGpuService::getInterfaceDescriptor())) != OK) {
-            return status;
-        }
-
-        if ((status = remote()->transact(BnGpuService::GET_GPU_STATS_APP_INFO, data, &reply)) !=
-            OK) {
-            return status;
-        }
-
-        int32_t result = 0;
-        if ((status = reply.readInt32(&result)) != OK) return status;
-        if (result != OK) return result;
-
-        outStats->clear();
-        return reply.readParcelableVector(outStats);
-    }
-
-    virtual void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
-                                const GraphicsEnv::Stats stats, const uint64_t value) {
+    void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
+                        const GpuStatsInfo::Stats stats, const uint64_t value) override {
         Parcel data, reply;
         data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
 
@@ -103,6 +59,27 @@ public:
         data.writeUint64(value);
 
         remote()->transact(BnGpuService::SET_TARGET_STATS, data, &reply, IBinder::FLAG_ONEWAY);
+    }
+
+    void setUpdatableDriverPath(const std::string& driverPath) override {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
+        data.writeUtf8AsUtf16(driverPath);
+
+        remote()->transact(BnGpuService::SET_UPDATABLE_DRIVER_PATH, data, &reply,
+                           IBinder::FLAG_ONEWAY);
+    }
+
+    std::string getUpdatableDriverPath() override {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
+
+        status_t error = remote()->transact(BnGpuService::GET_UPDATABLE_DRIVER_PATH, data, &reply);
+        std::string driverPath;
+        if (error == OK) {
+            error = reply.readUtf8FromUtf16(&driverPath);
+        }
+        return driverPath;
     }
 };
 
@@ -145,34 +122,8 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             if ((status = data.readInt64(&driverLoadingTime)) != OK) return status;
 
             setGpuStats(driverPackageName, driverVersionName, driverVersionCode, driverBuildTime,
-                        appPackageName, vulkanVersion, static_cast<GraphicsEnv::Driver>(driver),
+                        appPackageName, vulkanVersion, static_cast<GpuStatsInfo::Driver>(driver),
                         isDriverLoaded, driverLoadingTime);
-
-            return OK;
-        }
-        case GET_GPU_STATS_GLOBAL_INFO: {
-            CHECK_INTERFACE(IGpuService, data, reply);
-
-            std::vector<GpuStatsGlobalInfo> stats;
-            const status_t result = getGpuStatsGlobalInfo(&stats);
-
-            if ((status = reply->writeInt32(result)) != OK) return status;
-            if (result != OK) return result;
-
-            if ((status = reply->writeParcelableVector(stats)) != OK) return status;
-
-            return OK;
-        }
-        case GET_GPU_STATS_APP_INFO: {
-            CHECK_INTERFACE(IGpuService, data, reply);
-
-            std::vector<GpuStatsAppInfo> stats;
-            const status_t result = getGpuStatsAppInfo(&stats);
-
-            if ((status = reply->writeInt32(result)) != OK) return status;
-            if (result != OK) return result;
-
-            if ((status = reply->writeParcelableVector(stats)) != OK) return status;
 
             return OK;
         }
@@ -192,9 +143,24 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             if ((status = data.readUint64(&value)) != OK) return status;
 
             setTargetStats(appPackageName, driverVersionCode,
-                           static_cast<GraphicsEnv::Stats>(stats), value);
+                           static_cast<GpuStatsInfo::Stats>(stats), value);
 
             return OK;
+        }
+        case SET_UPDATABLE_DRIVER_PATH: {
+            CHECK_INTERFACE(IGpuService, data, reply);
+
+            std::string driverPath;
+            if ((status = data.readUtf8FromUtf16(&driverPath)) != OK) return status;
+
+            setUpdatableDriverPath(driverPath);
+            return OK;
+        }
+        case GET_UPDATABLE_DRIVER_PATH: {
+            CHECK_INTERFACE(IGpuService, data, reply);
+
+            std::string driverPath = getUpdatableDriverPath();
+            return reply->writeUtf8AsUtf16(driverPath);
         }
         case SHELL_COMMAND_TRANSACTION: {
             int in = data.readFileDescriptor();

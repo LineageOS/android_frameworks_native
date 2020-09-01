@@ -43,6 +43,7 @@ public:
     static void writeToProto(const InputWindowInfo& inputInfo,
                              const wp<Layer>& touchableRegionBounds,
                              std::function<InputWindowInfoProto*()> getInputWindowInfoProto);
+    static void writeToProto(const mat4 matrix, ColorTransformProto* colorTransformProto);
 };
 
 } // namespace surfaceflinger

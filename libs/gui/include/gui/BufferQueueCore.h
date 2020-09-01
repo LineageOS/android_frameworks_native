@@ -34,12 +34,6 @@
 #include <mutex>
 #include <condition_variable>
 
-#define BQ_LOGV(x, ...) ALOGV("[%s] " x, mConsumerName.string(), ##__VA_ARGS__)
-#define BQ_LOGD(x, ...) ALOGD("[%s] " x, mConsumerName.string(), ##__VA_ARGS__)
-#define BQ_LOGI(x, ...) ALOGI("[%s] " x, mConsumerName.string(), ##__VA_ARGS__)
-#define BQ_LOGW(x, ...) ALOGW("[%s] " x, mConsumerName.string(), ##__VA_ARGS__)
-#define BQ_LOGE(x, ...) ALOGE("[%s] " x, mConsumerName.string(), ##__VA_ARGS__)
-
 #define ATRACE_BUFFER_INDEX(index)                                                         \
     do {                                                                                   \
         if (ATRACE_ENABLED()) {                                                            \
@@ -351,6 +345,14 @@ private:
     OccupancyTracker mOccupancyTracker;
 
     const uint64_t mUniqueId;
+
+    // When buffer size is driven by the consumer and mTransformHint specifies
+    // a 90 or 270 degree rotation, this indicates whether the width and height
+    // used by dequeueBuffer will be additionally swapped.
+    bool mAutoPrerotation;
+
+    // mTransformHintInUse is to cache the mTransformHint used by the producer.
+    uint32_t mTransformHintInUse;
 
 }; // class BufferQueueCore
 

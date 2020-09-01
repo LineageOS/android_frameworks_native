@@ -23,16 +23,24 @@
 #include <compositionengine/DisplaySurface.h>
 #include <compositionengine/RenderSurfaceCreationArgs.h>
 #include <compositionengine/impl/DumpHelpers.h>
+#include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/RenderSurface.h>
+
 #include <log/log.h>
 #include <renderengine/RenderEngine.h>
-#include <sync/sync.h>
 #include <system/window.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 #include <utils/Trace.h>
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include "DisplayHardware/HWComposer.h"
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
 
 namespace android::compositionengine {
 
@@ -42,12 +50,13 @@ namespace impl {
 
 std::unique_ptr<compositionengine::RenderSurface> createRenderSurface(
         const compositionengine::CompositionEngine& compositionEngine,
-        compositionengine::Display& display, compositionengine::RenderSurfaceCreationArgs&& args) {
-    return std::make_unique<RenderSurface>(compositionEngine, display, std::move(args));
+        compositionengine::Display& display,
+        const compositionengine::RenderSurfaceCreationArgs& args) {
+    return std::make_unique<RenderSurface>(compositionEngine, display, args);
 }
 
 RenderSurface::RenderSurface(const CompositionEngine& compositionEngine, Display& display,
-                             RenderSurfaceCreationArgs&& args)
+                             const RenderSurfaceCreationArgs& args)
       : mCompositionEngine(compositionEngine),
         mDisplay(display),
         mNativeWindow(args.nativeWindow),
@@ -85,13 +94,18 @@ const sp<Fence>& RenderSurface::getClientTargetAcquireFence() const {
 }
 
 void RenderSurface::setDisplaySize(const ui::Size& size) {
-    mDisplaySurface->resizeBuffers(size.width, size.height);
+    mDisplaySurface->resizeBuffers(static_cast<uint32_t>(size.width),
+                                   static_cast<uint32_t>(size.height));
     mSize = size;
 }
 
 void RenderSurface::setBufferDataspace(ui::Dataspace dataspace) {
     native_window_set_buffers_data_space(mNativeWindow.get(),
                                          static_cast<android_dataspace>(dataspace));
+}
+
+void RenderSurface::setBufferPixelFormat(ui::PixelFormat pixelFormat) {
+    native_window_set_buffers_format(mNativeWindow.get(), static_cast<int32_t>(pixelFormat));
 }
 
 void RenderSurface::setProtected(bool useProtected) {
@@ -110,32 +124,25 @@ status_t RenderSurface::beginFrame(bool mustRecompose) {
     return mDisplaySurface->beginFrame(mustRecompose);
 }
 
-status_t RenderSurface::prepareFrame() {
-    auto& hwc = mCompositionEngine.getHwComposer();
-    const auto id = mDisplay.getId();
-    if (id) {
-        status_t error = hwc.prepare(*id, mDisplay);
-        if (error != NO_ERROR) {
-            return error;
-        }
-    }
-
+void RenderSurface::prepareFrame(bool usesClientComposition, bool usesDeviceComposition) {
     DisplaySurface::CompositionType compositionType;
-    const bool hasClient = hwc.hasClientComposition(id);
-    const bool hasDevice = hwc.hasDeviceComposition(id);
-    if (hasClient && hasDevice) {
+    if (usesClientComposition && usesDeviceComposition) {
         compositionType = DisplaySurface::COMPOSITION_MIXED;
-    } else if (hasClient) {
-        compositionType = DisplaySurface::COMPOSITION_GLES;
-    } else if (hasDevice) {
+    } else if (usesClientComposition) {
+        compositionType = DisplaySurface::COMPOSITION_GPU;
+    } else if (usesDeviceComposition) {
         compositionType = DisplaySurface::COMPOSITION_HWC;
     } else {
         // Nothing to do -- when turning the screen off we get a frame like
-        // this. Call it a HWC frame since we won't be doing any GLES work but
+        // this. Call it a HWC frame since we won't be doing any GPU work but
         // will do a prepare/set cycle.
         compositionType = DisplaySurface::COMPOSITION_HWC;
     }
-    return mDisplaySurface->prepareFrame(compositionType);
+
+    if (status_t result = mDisplaySurface->prepareFrame(compositionType); result != NO_ERROR) {
+        ALOGE("updateCompositionType failed for %s: %d (%s)", mDisplay.getName().c_str(), result,
+              strerror(-result));
+    }
 }
 
 sp<GraphicBuffer> RenderSurface::dequeueBuffer(base::unique_fd* bufferFence) {
@@ -162,11 +169,10 @@ sp<GraphicBuffer> RenderSurface::dequeueBuffer(base::unique_fd* bufferFence) {
     return mGraphicBuffer;
 }
 
-void RenderSurface::queueBuffer(base::unique_fd&& readyFence) {
-    auto& hwc = mCompositionEngine.getHwComposer();
-    const auto id = mDisplay.getId();
+void RenderSurface::queueBuffer(base::unique_fd readyFence) {
+    auto& state = mDisplay.getState();
 
-    if (hwc.hasClientComposition(id) || hwc.hasFlipClientTargetRequest(id)) {
+    if (state.usesClientComposition || state.flipClientTarget) {
         // hasFlipClientTargetRequest could return true even if we haven't
         // dequeued a buffer before. Try dequeueing one if we don't have a
         // buffer ready.
@@ -213,13 +219,6 @@ void RenderSurface::queueBuffer(base::unique_fd&& readyFence) {
 
 void RenderSurface::onPresentDisplayCompleted() {
     mDisplaySurface->onFrameCommitted();
-}
-
-void RenderSurface::setViewportAndProjection() {
-    auto& renderEngine = mCompositionEngine.getRenderEngine();
-    Rect sourceCrop = Rect(mSize);
-    renderEngine.setViewportAndProjection(mSize.width, mSize.height, sourceCrop,
-                                          ui::Transform::ROT_0);
 }
 
 void RenderSurface::flip() {

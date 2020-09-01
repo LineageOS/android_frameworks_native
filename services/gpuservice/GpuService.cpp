@@ -24,13 +24,12 @@
 #include <binder/Parcel.h>
 #include <binder/PermissionCache.h>
 #include <cutils/properties.h>
+#include <gpustats/GpuStats.h>
 #include <private/android_filesystem_config.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 
 #include <vkjson.h>
-
-#include "gpustats/GpuStats.h"
 
 namespace android {
 
@@ -51,25 +50,36 @@ GpuService::GpuService() : mGpuStats(std::make_unique<GpuStats>()){};
 void GpuService::setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
                              int64_t driverBuildTime, const std::string& appPackageName,
-                             const int32_t vulkanVersion, GraphicsEnv::Driver driver,
+                             const int32_t vulkanVersion, GpuStatsInfo::Driver driver,
                              bool isDriverLoaded, int64_t driverLoadingTime) {
-    mGpuStats->insert(driverPackageName, driverVersionName, driverVersionCode, driverBuildTime,
-                      appPackageName, vulkanVersion, driver, isDriverLoaded, driverLoadingTime);
-}
-
-status_t GpuService::getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const {
-    mGpuStats->pullGlobalStats(outStats);
-    return OK;
-}
-
-status_t GpuService::getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const {
-    mGpuStats->pullAppStats(outStats);
-    return OK;
+    mGpuStats->insertDriverStats(driverPackageName, driverVersionName, driverVersionCode,
+                                 driverBuildTime, appPackageName, vulkanVersion, driver,
+                                 isDriverLoaded, driverLoadingTime);
 }
 
 void GpuService::setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
-                                const GraphicsEnv::Stats stats, const uint64_t value) {
+                                const GpuStatsInfo::Stats stats, const uint64_t value) {
     mGpuStats->insertTargetStats(appPackageName, driverVersionCode, stats, value);
+}
+
+void GpuService::setUpdatableDriverPath(const std::string& driverPath) {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+
+    // only system_server is allowed to set updatable driver path
+    if (uid != AID_SYSTEM) {
+        ALOGE("Permission Denial: can't set updatable driver path from pid=%d, uid=%d\n", pid, uid);
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mLock);
+    mDeveloperDriverPath = driverPath;
+}
+
+std::string GpuService::getUpdatableDriverPath() {
+    std::lock_guard<std::mutex> lock(mLock);
+    return mDeveloperDriverPath;
 }
 
 status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<String16>& args) {
@@ -99,22 +109,27 @@ status_t GpuService::doDump(int fd, const Vector<String16>& args, bool /*asProto
         StringAppendF(&result, "Permission Denial: can't dump gpu from pid=%d, uid=%d\n", pid, uid);
     } else {
         bool dumpAll = true;
-        size_t index = 0;
+        bool dumpDriverInfo = false;
+        bool dumpStats = false;
         size_t numArgs = args.size();
 
         if (numArgs) {
-            if ((index < numArgs) && (args[index] == String16("--gpustats"))) {
-                index++;
-                mGpuStats->dump(args, &result);
-                dumpAll = false;
+            for (size_t index = 0; index < numArgs; ++index) {
+                if (args[index] == String16("--gpustats")) {
+                    dumpStats = true;
+                } else if (args[index] == String16("--gpudriverinfo")) {
+                    dumpDriverInfo = true;
+                }
             }
+            dumpAll = !(dumpDriverInfo || dumpStats);
         }
 
-        if (dumpAll) {
+        if (dumpAll || dumpDriverInfo) {
             dumpGameDriverInfo(&result);
             result.append("\n");
-
-            mGpuStats->dump(Vector<String16>(), &result);
+        }
+        if (dumpAll || dumpStats) {
+            mGpuStats->dump(args, &result);
             result.append("\n");
         }
     }

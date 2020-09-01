@@ -31,13 +31,17 @@
 
 #include <string>
 
+#include <android-base/chrono_utils.h>
+
 #include <binder/IBinder.h>
 #include <input/Input.h>
-#include <utils/Errors.h>
-#include <utils/Timers.h>
-#include <utils/RefBase.h>
-#include <utils/Vector.h>
 #include <utils/BitSet.h>
+#include <utils/Errors.h>
+#include <utils/RefBase.h>
+#include <utils/Timers.h>
+#include <utils/Vector.h>
+
+#include <android-base/unique_fd.h>
 
 namespace android {
 class Parcel;
@@ -56,14 +60,15 @@ class Parcel;
  * in StructLayout_test should be made.
  */
 struct InputMessage {
-    enum {
-        TYPE_KEY = 1,
-        TYPE_MOTION = 2,
-        TYPE_FINISHED = 3,
+    enum class Type : uint32_t {
+        KEY,
+        MOTION,
+        FINISHED,
+        FOCUS,
     };
 
     struct Header {
-        uint32_t type;
+        Type type; // 4 bytes
         // We don't need this field in order to align the body below but we
         // leave it here because InputMessage::size() and other functions
         // compute the size of this structure as sizeof(Header) + sizeof(Body).
@@ -71,14 +76,18 @@ struct InputMessage {
     } header;
 
     // Body *must* be 8 byte aligned.
+    // For keys and motions, rely on the fact that std::array takes up exactly as much space
+    // as the underlying data. This is not guaranteed by C++, but it simplifies the conversions.
+    static_assert(sizeof(std::array<uint8_t, 32>) == 32);
     union Body {
         struct Key {
             uint32_t seq;
-            uint32_t empty1;
+            int32_t eventId;
             nsecs_t eventTime __attribute__((aligned(8)));
             int32_t deviceId;
             int32_t source;
             int32_t displayId;
+            std::array<uint8_t, 32> hmac;
             int32_t action;
             int32_t flags;
             int32_t keyCode;
@@ -88,38 +97,46 @@ struct InputMessage {
             uint32_t empty2;
             nsecs_t downTime __attribute__((aligned(8)));
 
-            inline size_t size() const {
-                return sizeof(Key);
-            }
+            inline size_t size() const { return sizeof(Key); }
         } key;
 
         struct Motion {
             uint32_t seq;
-            uint32_t empty1;
+            int32_t eventId;
             nsecs_t eventTime __attribute__((aligned(8)));
             int32_t deviceId;
             int32_t source;
             int32_t displayId;
+            std::array<uint8_t, 32> hmac;
             int32_t action;
             int32_t actionButton;
             int32_t flags;
             int32_t metaState;
             int32_t buttonState;
             MotionClassification classification; // base type: uint8_t
-            uint8_t empty2[3];
+            uint8_t empty2[3];                   // 3 bytes to fill gap created by classification
             int32_t edgeFlags;
             nsecs_t downTime __attribute__((aligned(8)));
+            float xScale;
+            float yScale;
             float xOffset;
             float yOffset;
             float xPrecision;
             float yPrecision;
+            float xCursorPosition;
+            float yCursorPosition;
             uint32_t pointerCount;
             uint32_t empty3;
-            // Note that PointerCoords requires 8 byte alignment.
+            /**
+             * The "pointers" field must be the last field of the struct InputMessage.
+             * When we send the struct InputMessage across the socket, we are not
+             * writing the entire "pointers" array, but only the pointerCount portion
+             * of it as an optimization. Adding a field after "pointers" would break this.
+             */
             struct Pointer {
                 PointerProperties properties;
                 PointerCoords coords;
-            } pointers[MAX_POINTERS];
+            } pointers[MAX_POINTERS] __attribute__((aligned(8)));
 
             int32_t getActionId() const {
                 uint32_t index = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK)
@@ -135,12 +152,21 @@ struct InputMessage {
 
         struct Finished {
             uint32_t seq;
-            bool handled;
+            uint32_t handled; // actually a bool, but we must maintain 8-byte alignment
 
-            inline size_t size() const {
-                return sizeof(Finished);
-            }
+            inline size_t size() const { return sizeof(Finished); }
         } finished;
+
+        struct Focus {
+            uint32_t seq;
+            int32_t eventId;
+            uint32_t empty1;
+            // The following two fields take up 4 bytes total
+            uint16_t hasFocus;    // actually a bool
+            uint16_t inTouchMode; // actually a bool, but we must maintain 8-byte alignment
+
+            inline size_t size() const { return sizeof(Focus); }
+        } focus;
     } __attribute__((aligned(8))) body;
 
     bool isValid(size_t actualSize) const;
@@ -161,60 +187,73 @@ protected:
     virtual ~InputChannel();
 
 public:
-    InputChannel() = default;
-    InputChannel(const std::string& name, int fd);
+    static sp<InputChannel> create(const std::string& name, android::base::unique_fd fd,
+                                   sp<IBinder> token);
 
-    /* Creates a pair of input channels.
+    /**
+     * Create a pair of input channels.
+     * The two returned input channels are equivalent, and are labeled as "server" and "client"
+     * for convenience. The two input channels share the same token.
      *
-     * Returns OK on success.
+     * Return OK on success.
      */
     static status_t openInputChannelPair(const std::string& name,
             sp<InputChannel>& outServerChannel, sp<InputChannel>& outClientChannel);
 
     inline std::string getName() const { return mName; }
-    inline int getFd() const { return mFd; }
+    inline int getFd() const { return mFd.get(); }
 
-    /* Sends a message to the other endpoint.
+    /* Send a message to the other endpoint.
      *
      * If the channel is full then the message is guaranteed not to have been sent at all.
      * Try again after the consumer has sent a finished signal indicating that it has
      * consumed some of the pending messages from the channel.
      *
-     * Returns OK on success.
-     * Returns WOULD_BLOCK if the channel is full.
-     * Returns DEAD_OBJECT if the channel's peer has been closed.
+     * Return OK on success.
+     * Return WOULD_BLOCK if the channel is full.
+     * Return DEAD_OBJECT if the channel's peer has been closed.
      * Other errors probably indicate that the channel is broken.
      */
     status_t sendMessage(const InputMessage* msg);
 
-    /* Receives a message sent by the other endpoint.
+    /* Receive a message sent by the other endpoint.
      *
      * If there is no message present, try again after poll() indicates that the fd
      * is readable.
      *
-     * Returns OK on success.
-     * Returns WOULD_BLOCK if there is no message present.
-     * Returns DEAD_OBJECT if the channel's peer has been closed.
+     * Return OK on success.
+     * Return WOULD_BLOCK if there is no message present.
+     * Return DEAD_OBJECT if the channel's peer has been closed.
      * Other errors probably indicate that the channel is broken.
      */
     status_t receiveMessage(InputMessage* msg);
 
-    /* Returns a new object that has a duplicate of this channel's fd. */
+    /* Return a new object that has a duplicate of this channel's fd. */
     sp<InputChannel> dup() const;
 
     status_t write(Parcel& out) const;
-    status_t read(const Parcel& from);
+    static sp<InputChannel> read(const Parcel& from);
 
-    sp<IBinder> getToken() const;
-    void setToken(const sp<IBinder>& token);
+    /**
+     * The connection token is used to identify the input connection, i.e.
+     * the pair of input channels that were created simultaneously. Input channels
+     * are always created in pairs, and the token can be used to find the server-side
+     * input channel from the client-side input channel, and vice versa.
+     *
+     * Do not use connection token to check equality of a specific input channel object
+     * to another, because two different (client and server) input channels will share the
+     * same connection token.
+     *
+     * Return the token that identifies this connection.
+     */
+    sp<IBinder> getConnectionToken() const;
 
 private:
-    void setFd(int fd);
-
+    InputChannel(const std::string& name, android::base::unique_fd fd, sp<IBinder> token);
     std::string mName;
-    int mFd = -1;
+    android::base::unique_fd mFd;
 
-    sp<IBinder> mToken = nullptr;
+    sp<IBinder> mToken;
 };
 
 /*
@@ -239,19 +278,10 @@ public:
      * Returns BAD_VALUE if seq is 0.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t publishKeyEvent(
-            uint32_t seq,
-            int32_t deviceId,
-            int32_t source,
-            int32_t displayId,
-            int32_t action,
-            int32_t flags,
-            int32_t keyCode,
-            int32_t scanCode,
-            int32_t metaState,
-            int32_t repeatCount,
-            nsecs_t downTime,
-            nsecs_t eventTime);
+    status_t publishKeyEvent(uint32_t seq, int32_t eventId, int32_t deviceId, int32_t source,
+                             int32_t displayId, std::array<uint8_t, 32> hmac, int32_t action,
+                             int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
+                             int32_t repeatCount, nsecs_t downTime, nsecs_t eventTime);
 
     /* Publishes a motion event to the input channel.
      *
@@ -261,27 +291,25 @@ public:
      * Returns BAD_VALUE if seq is 0 or if pointerCount is less than 1 or greater than MAX_POINTERS.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t publishMotionEvent(
-            uint32_t seq,
-            int32_t deviceId,
-            int32_t source,
-            int32_t displayId,
-            int32_t action,
-            int32_t actionButton,
-            int32_t flags,
-            int32_t edgeFlags,
-            int32_t metaState,
-            int32_t buttonState,
-            MotionClassification classification,
-            float xOffset,
-            float yOffset,
-            float xPrecision,
-            float yPrecision,
-            nsecs_t downTime,
-            nsecs_t eventTime,
-            uint32_t pointerCount,
-            const PointerProperties* pointerProperties,
-            const PointerCoords* pointerCoords);
+    status_t publishMotionEvent(uint32_t seq, int32_t eventId, int32_t deviceId, int32_t source,
+                                int32_t displayId, std::array<uint8_t, 32> hmac, int32_t action,
+                                int32_t actionButton, int32_t flags, int32_t edgeFlags,
+                                int32_t metaState, int32_t buttonState,
+                                MotionClassification classification, float xScale, float yScale,
+                                float xOffset, float yOffset, float xPrecision, float yPrecision,
+                                float xCursorPosition, float yCursorPosition, nsecs_t downTime,
+                                nsecs_t eventTime, uint32_t pointerCount,
+                                const PointerProperties* pointerProperties,
+                                const PointerCoords* pointerCoords);
+
+    /* Publishes a focus event to the input channel.
+     *
+     * Returns OK on success.
+     * Returns WOULD_BLOCK if the channel is full.
+     * Returns DEAD_OBJECT if the channel's peer has been closed.
+     * Other errors probably indicate that the channel is broken.
+     */
+    status_t publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus, bool inTouchMode);
 
     /* Receives the finished signal from the consumer in reply to the original dispatch signal.
      * If a signal was received, returns the message sequence number,
@@ -297,6 +325,7 @@ public:
     status_t receiveFinishedSignal(uint32_t* outSeq, bool* outHandled);
 
 private:
+
     sp<InputChannel> mChannel;
 };
 
@@ -337,8 +366,8 @@ public:
      * Returns NO_MEMORY if the event could not be created.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t consume(InputEventFactoryInterface* factory, bool consumeBatches,
-            nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent);
+    status_t consume(InputEventFactoryInterface* factory, bool consumeBatches, nsecs_t frameTime,
+                     uint32_t* outSeq, InputEvent** outEvent);
 
     /* Sends a finished signal to the publisher to inform it that the message
      * with the specified sequence number has finished being process and whether
@@ -374,6 +403,13 @@ public:
      * whether consume() should be called again later on with consumeBatches == true.
      */
     bool hasPendingBatch() const;
+
+    /* Returns the source of first pending batch if exist.
+     *
+     * Should be called after calling consume() with consumeBatches == false to determine
+     * whether consume() should be called again later on with consumeBatches == true.
+     */
+    int32_t getPendingBatchSource() const;
 
 private:
     // True if touch resampling is enabled.
@@ -509,6 +545,7 @@ private:
     static void rewriteMessage(TouchState& state, InputMessage& msg);
     static void initializeKeyEvent(KeyEvent* event, const InputMessage* msg);
     static void initializeMotionEvent(MotionEvent* event, const InputMessage* msg);
+    static void initializeFocusEvent(FocusEvent* event, const InputMessage* msg);
     static void addSample(MotionEvent* event, const InputMessage* msg);
     static bool canAddSample(const Batch& batch, const InputMessage* msg);
     static ssize_t findSampleNoLaterThan(const Batch& batch, nsecs_t time);

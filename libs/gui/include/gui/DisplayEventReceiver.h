@@ -65,6 +65,7 @@ public:
 
         struct VSync {
             uint32_t count;
+            nsecs_t expectedVSyncTimestamp;
         };
 
         struct Hotplug {
@@ -73,6 +74,7 @@ public:
 
         struct Config {
             int32_t configId;
+            nsecs_t vsyncPeriod;
         };
 
         Header header;
@@ -143,6 +145,12 @@ public:
      * if the vsync rate is > 0.
      */
     status_t requestNextVsync();
+
+    /*
+     * requestLatestConfig() force-requests the current config for the primary
+     * display.
+     */
+    status_t requestLatestConfig();
 
 private:
     sp<IDisplayEventConnection> mEventConnection;

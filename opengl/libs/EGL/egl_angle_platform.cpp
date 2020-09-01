@@ -16,7 +16,6 @@
 
 #if defined(__ANDROID__)
 
-#include <cutils/properties.h>
 #include "Loader.h"
 #include "egl_angle_platform.h"
 

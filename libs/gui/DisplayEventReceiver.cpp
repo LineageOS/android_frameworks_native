@@ -79,6 +79,13 @@ status_t DisplayEventReceiver::requestNextVsync() {
     return NO_INIT;
 }
 
+status_t DisplayEventReceiver::requestLatestConfig() {
+    if (mEventConnection != nullptr) {
+        mEventConnection->requestLatestConfig();
+        return NO_ERROR;
+    }
+    return NO_INIT;
+}
 
 ssize_t DisplayEventReceiver::getEvents(DisplayEventReceiver::Event* events,
         size_t count) {

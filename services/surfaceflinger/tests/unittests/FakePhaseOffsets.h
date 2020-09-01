@@ -20,42 +20,21 @@
 
 #include "Scheduler/PhaseOffsets.h"
 
-namespace android {
-namespace scheduler {
+namespace android::scheduler {
 
-using RefreshRateType = RefreshRateConfigs::RefreshRateType;
+struct FakePhaseOffsets : PhaseConfiguration {
+    static constexpr nsecs_t FAKE_PHASE_OFFSET_NS = 0;
 
-class FakePhaseOffsets : public android::scheduler::PhaseOffsets {
-    nsecs_t FAKE_PHASE_OFFSET_NS = 0;
+    Offsets getOffsetsForRefreshRate(float) const override { return getCurrentOffsets(); }
 
-public:
-    FakePhaseOffsets() = default;
-    ~FakePhaseOffsets() = default;
-
-    nsecs_t getCurrentAppOffset() override { return FAKE_PHASE_OFFSET_NS; }
-    nsecs_t getCurrentSfOffset() override { return FAKE_PHASE_OFFSET_NS; }
-
-    PhaseOffsets::Offsets getOffsetsForRefreshRate(
-            RefreshRateType /*refreshRateType*/) const override {
-        return getCurrentOffsets();
+    Offsets getCurrentOffsets() const override {
+        return {{FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
+                {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
+                {FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS}};
     }
 
-    // Returns early, early GL, and late offsets for Apps and SF.
-    PhaseOffsets::Offsets getCurrentOffsets() const override {
-        return Offsets{{RefreshRateType::DEFAULT, FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
-                       {RefreshRateType::DEFAULT, FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS},
-                       {RefreshRateType::DEFAULT, FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS}};
-    }
-
-    // This function should be called when the device is switching between different
-    // refresh rates, to properly update the offsets.
-    void setRefreshRateType(RefreshRateType /*refreshRateType*/) override {}
-
-    nsecs_t getOffsetThresholdForNextVsync() const override { return FAKE_PHASE_OFFSET_NS; }
-
-    // Returns current offsets in human friendly format.
-    void dump(std::string& /*result*/) const override {}
+    void setRefreshRateFps(float) override {}
+    void dump(std::string&) const override {}
 };
 
-} // namespace scheduler
-} // namespace android
+} // namespace android::scheduler

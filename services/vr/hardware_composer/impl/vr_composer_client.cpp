@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
+#include <android/frameworks/vr/composer/2.0/IVrComposerClient.h>
 #include <hardware/gralloc.h>
 #include <hardware/gralloc1.h>
 #include <log/log.h>
@@ -27,8 +27,7 @@
 namespace android {
 namespace dvr {
 
-using android::hardware::graphics::common::V1_0::PixelFormat;
-using android::frameworks::vr::composer::V1_0::IVrComposerClient;
+using android::frameworks::vr::composer::V2_0::IVrComposerClient;
 
 VrComposerClient::VrComposerClient(dvr::VrHwc& hal)
     : ComposerClient(&hal), mVrHal(hal) {
@@ -51,7 +50,8 @@ VrComposerClient::VrCommandEngine::VrCommandEngine(VrComposerClient& client)
 VrComposerClient::VrCommandEngine::~VrCommandEngine() {}
 
 bool VrComposerClient::VrCommandEngine::executeCommand(
-    IComposerClient::Command command, uint16_t length) {
+    hardware::graphics::composer::V2_1::IComposerClient::Command command,
+    uint16_t length) {
   IVrComposerClient::VrCommand vrCommand =
       static_cast<IVrComposerClient::VrCommand>(command);
   switch (vrCommand) {
@@ -73,7 +73,7 @@ bool VrComposerClient::VrCommandEngine::executeSetLayerInfo(uint16_t length) {
 
   auto err = mVrHal.setLayerInfo(mCurrentDisplay, mCurrentLayer, read(), read());
   if (err != Error::NONE) {
-    mWriter.setError(getCommandLoc(), err);
+    mWriter->setError(getCommandLoc(), err);
   }
 
   return true;
@@ -86,7 +86,7 @@ bool VrComposerClient::VrCommandEngine::executeSetClientTargetMetadata(
 
   auto err = mVrHal.setClientTargetMetadata(mCurrentDisplay, readBufferMetadata());
   if (err != Error::NONE)
-    mWriter.setError(getCommandLoc(), err);
+    mWriter->setError(getCommandLoc(), err);
 
   return true;
 }
@@ -99,7 +99,7 @@ bool VrComposerClient::VrCommandEngine::executeSetLayerBufferMetadata(
   auto err = mVrHal.setLayerBufferMetadata(mCurrentDisplay, mCurrentLayer,
                                            readBufferMetadata());
   if (err != Error::NONE)
-    mWriter.setError(getCommandLoc(), err);
+    mWriter->setError(getCommandLoc(), err);
 
   return true;
 }
@@ -107,12 +107,14 @@ bool VrComposerClient::VrCommandEngine::executeSetLayerBufferMetadata(
 IVrComposerClient::BufferMetadata
 VrComposerClient::VrCommandEngine::readBufferMetadata() {
   IVrComposerClient::BufferMetadata metadata = {
-    .width = read(),
-    .height = read(),
-    .stride = read(),
-    .layerCount = read(),
-    .format = static_cast<PixelFormat>(readSigned()),
-    .usage = read64(),
+      .width = read(),
+      .height = read(),
+      .stride = read(),
+      .layerCount = read(),
+      .format =
+          static_cast<android::hardware::graphics::common::V1_2::PixelFormat>(
+              readSigned()),
+      .usage = read64(),
   };
   return metadata;
 }

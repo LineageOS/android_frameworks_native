@@ -50,8 +50,6 @@ const char kDvrPerformanceProperty[] = "sys.dvr.performance";
 
 const char kRightEyeOffsetProperty[] = "dvr.right_eye_offset_ns";
 
-const char kUseExternalDisplayProperty[] = "persist.vr.use_external_display";
-
 // Surface flinger uses "VSYNC-sf" and "VSYNC-app" for its version of these
 // events. Name ours similarly.
 const char kVsyncTraceEventName[] = "VSYNC-vrflinger";
@@ -138,6 +136,20 @@ HardwareComposer::~HardwareComposer(void) {
   composer_callback_->SetVsyncService(nullptr);
 }
 
+void HardwareComposer::UpdateEdidData(Hwc2::Composer* composer,
+                                      hwc2_display_t hw_id) {
+  const auto error = composer->getDisplayIdentificationData(
+      hw_id, &display_port_, &display_identification_data_);
+  if (error != android::hardware::graphics::composer::V2_1::Error::NONE) {
+    if (error !=
+        android::hardware::graphics::composer::V2_1::Error::UNSUPPORTED) {
+      ALOGI("hardware_composer: identification data error\n");
+    } else {
+      ALOGI("hardware_composer: identification data unsupported\n");
+    }
+  }
+}
+
 bool HardwareComposer::Initialize(
     Hwc2::Composer* composer, hwc2_display_t primary_display_id,
     RequestDisplayCallback request_display_callback) {
@@ -162,6 +174,8 @@ bool HardwareComposer::Initialize(
       !post_thread_event_fd_,
       "HardwareComposer: Failed to create interrupt event fd : %s",
       strerror(errno));
+
+  UpdateEdidData(composer, primary_display_id);
 
   post_thread_ = std::thread(&HardwareComposer::PostThread, this);
 
@@ -932,18 +946,9 @@ bool HardwareComposer::UpdateTargetDisplay() {
       external_display_ = GetDisplayParams(composer_.get(),
           *displays.external_display, /*is_primary*/ false);
 
-      if (property_get_bool(kUseExternalDisplayProperty, false)) {
-        ALOGI("External display connected. Switching to external display.");
-        target_display_ = &(*external_display_);
-        target_display_changed = true;
-      } else {
-        ALOGI("External display connected, but sysprop %s is unset, so"
-              " using primary display.", kUseExternalDisplayProperty);
-        if (was_using_external_display) {
-          target_display_ = &primary_display_;
-          target_display_changed = true;
-        }
-      }
+      ALOGI("External display connected. Switching to external display.");
+      target_display_ = &(*external_display_);
+      target_display_changed = true;
     } else {
       // External display was disconnected
       external_display_ = std::nullopt;
@@ -965,6 +970,9 @@ bool HardwareComposer::UpdateTargetDisplay() {
     else if (target_display_->is_primary && external_display_) {
       EnableDisplay(*external_display_, false);
     }
+
+    // Update the cached edid data for the current display.
+    UpdateEdidData(composer_.get(), target_display_->id);
 
     // Turn the new target display on.
     EnableDisplay(*target_display_, true);
@@ -1157,6 +1165,26 @@ Return<void> HardwareComposer::ComposerCallback::onVsync(Hwc2::Display display,
     vsync_service_->OnVsync(timestamp);
   }
 
+  return Void();
+}
+
+Return<void> HardwareComposer::ComposerCallback::onVsync_2_4(
+    Hwc2::Display /*display*/, int64_t /*timestamp*/,
+    Hwc2::VsyncPeriodNanos /*vsyncPeriodNanos*/) {
+  LOG_ALWAYS_FATAL("Unexpected onVsync_2_4 callback");
+  return Void();
+}
+
+Return<void> HardwareComposer::ComposerCallback::onVsyncPeriodTimingChanged(
+    Hwc2::Display /*display*/,
+    const Hwc2::VsyncPeriodChangeTimeline& /*updatedTimeline*/) {
+  LOG_ALWAYS_FATAL("Unexpected onVsyncPeriodTimingChanged callback");
+  return Void();
+}
+
+Return<void> HardwareComposer::ComposerCallback::onSeamlessPossible(
+    Hwc2::Display /*display*/) {
+  LOG_ALWAYS_FATAL("Unexpected onSeamlessPossible callback");
   return Void();
 }
 

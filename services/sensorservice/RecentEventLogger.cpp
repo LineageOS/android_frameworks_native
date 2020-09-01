@@ -17,6 +17,8 @@
 #include "RecentEventLogger.h"
 #include "SensorServiceUtils.h"
 
+#include <android/util/ProtoOutputStream.h>
+#include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <utils/Timers.h>
 
 #include <inttypes.h>
@@ -82,6 +84,40 @@ std::string RecentEventLogger::dump() const {
         buffer.append("\n");
     }
     return std::string(buffer.string());
+}
+
+/**
+ * Dump debugging information as android.service.SensorEventsProto protobuf message using
+ * ProtoOutputStream.
+ *
+ * See proto definition and some notes about ProtoOutputStream in
+ * frameworks/base/core/proto/android/service/sensor_service.proto
+ */
+void RecentEventLogger::dump(util::ProtoOutputStream* proto) const {
+    using namespace service::SensorEventsProto;
+    std::lock_guard<std::mutex> lk(mLock);
+
+    proto->write(RecentEventsLog::RECENT_EVENTS_COUNT, int(mRecentEvents.size()));
+    for (int i = mRecentEvents.size() - 1; i >= 0; --i) {
+        const auto& ev = mRecentEvents[i];
+        const uint64_t token = proto->start(RecentEventsLog::EVENTS);
+        proto->write(Event::TIMESTAMP_SEC, float(ev.mEvent.timestamp) / 1e9f);
+        proto->write(Event::WALL_TIMESTAMP_MS, ev.mWallTime.tv_sec * 1000LL
+                + ns2ms(ev.mWallTime.tv_nsec));
+
+        if (mMaskData) {
+            proto->write(Event::MASKED, true);
+        } else {
+            if (mSensorType == SENSOR_TYPE_STEP_COUNTER) {
+                proto->write(Event::INT64_DATA, int64_t(ev.mEvent.u64.step_counter));
+            } else {
+                for (size_t k = 0; k < mEventSize; ++k) {
+                    proto->write(Event::FLOAT_ARRAY, ev.mEvent.data[k]);
+                }
+            }
+        }
+        proto->end(token);
+    }
 }
 
 void RecentEventLogger::setFormat(std::string format) {

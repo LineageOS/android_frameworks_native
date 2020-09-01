@@ -24,13 +24,14 @@
 #include <EGL/eglext_angle.h>
 #include <private/EGL/display.h>
 
-#include <cutils/properties.h>
 #include "Loader.h"
 #include "egl_angle_platform.h"
 #include "egl_cache.h"
 #include "egl_object.h"
 #include "egl_tls.h"
 
+#include <SurfaceFlingerProperties.h>
+#include <android-base/properties.h>
 #include <android/dlext.h>
 #include <dlfcn.h>
 #include <graphicsenv/GraphicsEnv.h>
@@ -72,7 +73,7 @@ bool findExtension(const char* exts, const char* name, size_t nameLen) {
 }
 
 bool needsAndroidPEglMitigation() {
-    static const int32_t vndk_version = property_get_int32("ro.vndk.version", -1);
+    static const int32_t vndk_version = base::GetIntProperty("ro.vndk.version", -1);
     return vndk_version <= 28;
 }
 
@@ -133,45 +134,6 @@ EGLDisplay egl_display_t::getFromNativeDisplay(EGLNativeDisplayType disp,
     return sDisplay[uintptr_t(disp)].getPlatformDisplay(disp, attrib_list);
 }
 
-static bool addAnglePlatformAttributes(egl_connection_t* const cnx,
-                                       std::vector<EGLAttrib>& attrs) {
-    intptr_t vendorEGL = (intptr_t)cnx->vendorEGL;
-
-    attrs.reserve(4 * 2);
-
-    attrs.push_back(EGL_PLATFORM_ANGLE_TYPE_ANGLE);
-    attrs.push_back(cnx->angleBackend);
-
-    switch (cnx->angleBackend) {
-        case EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE:
-            ALOGV("%s: Requesting Vulkan ANGLE back-end", __FUNCTION__);
-            char prop[PROPERTY_VALUE_MAX];
-            property_get("debug.angle.validation", prop, "0");
-            attrs.push_back(EGL_PLATFORM_ANGLE_DEBUG_LAYERS_ENABLED_ANGLE);
-            attrs.push_back(atoi(prop));
-            break;
-        case EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE:
-            ALOGV("%s: Requesting Default ANGLE back-end", __FUNCTION__);
-            break;
-        case EGL_PLATFORM_ANGLE_TYPE_OPENGLES_ANGLE:
-            ALOGV("%s: Requesting OpenGL ES ANGLE back-end", __FUNCTION__);
-            // NOTE: This is only valid if the backend is OpenGL
-            attrs.push_back(EGL_PLATFORM_ANGLE_EGL_HANDLE_ANGLE);
-            attrs.push_back(vendorEGL);
-
-            // Context virtualization is only available on GL back-end.
-            // Needed to support threading with GL back-end
-            attrs.push_back(EGL_PLATFORM_ANGLE_CONTEXT_VIRTUALIZATION_ANGLE);
-            attrs.push_back(EGL_FALSE);
-            break;
-        default:
-            ALOGE("%s: Requesting Unknown (%d) ANGLE back-end", __FUNCTION__, cnx->angleBackend);
-            break;
-    }
-
-    return true;
-}
-
 static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_connection_t* const cnx,
                                           const EGLAttrib* attrib_list, EGLint* error) {
     EGLDisplay dpy = EGL_NO_DISPLAY;
@@ -186,11 +148,12 @@ static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_conn
             }
         }
 
-        if (!addAnglePlatformAttributes(cnx, attrs)) {
-            ALOGE("eglGetDisplay(%p) failed: Mismatch display request", display);
-            *error = EGL_BAD_PARAMETER;
-            return EGL_NO_DISPLAY;
-        }
+        attrs.push_back(EGL_PLATFORM_ANGLE_TYPE_ANGLE);
+        attrs.push_back(EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE);
+
+        attrs.push_back(EGL_PLATFORM_ANGLE_DEBUG_LAYERS_ENABLED_ANGLE);
+        attrs.push_back(base::GetBoolProperty("debug.angle.validation", false));
+
         attrs.push_back(EGL_NONE);
 
         dpy = cnx->egl.eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE,
@@ -361,9 +324,7 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
 
         // Note: CDD requires that devices supporting wide color and/or HDR color also support
         // the EGL_KHR_gl_colorspace extension.
-        bool wideColorBoardConfig =
-                getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(
-                        false);
+        bool wideColorBoardConfig = android::sysprop::has_wide_color_display(false);
 
         // Add wide-color extensions if device can support wide-color
         if (wideColorBoardConfig && hasColorSpaceSupport) {
@@ -373,8 +334,7 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
                     "EGL_EXT_gl_colorspace_display_p3_passthrough ");
         }
 
-        bool hasHdrBoardConfig =
-                getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasHDRDisplay>(false);
+        bool hasHdrBoardConfig = android::sysprop::has_HDR_display(false);
 
         if (hasHdrBoardConfig && hasColorSpaceSupport) {
             // hasHDRBoardConfig indicates the system is capable of supporting HDR content.
@@ -410,16 +370,8 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
 
         egl_cache_t::get()->initialize(this);
 
-        char value[PROPERTY_VALUE_MAX];
-        property_get("debug.egl.finish", value, "0");
-        if (atoi(value)) {
-            finishOnSwap = true;
-        }
-
-        property_get("debug.egl.traceGpuCompletion", value, "0");
-        if (atoi(value)) {
-            traceGpuCompletion = true;
-        }
+        finishOnSwap = base::GetBoolProperty("debug.egl.finish", false);
+        traceGpuCompletion = base::GetBoolProperty("debug.egl.traceGpuCompletion", false);
 
         // TODO: If device doesn't provide 1.4 or 1.5 then we'll be
         // changing the behavior from the past where we always advertise

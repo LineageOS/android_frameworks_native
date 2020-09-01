@@ -1,19 +1,14 @@
-#include <algorithm>
-#include <functional>
-#include <limits>
-#include <ostream>
-
 #include <gtest/gtest.h>
-
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
-
 #include <private/android_filesystem_config.h>
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayInfo.h>
+#include <ui/DisplayConfig.h>
 #include <utils/String8.h>
+
+#include <functional>
 
 namespace android {
 
@@ -23,7 +18,6 @@ using ui::ColorMode;
 namespace {
 const String8 DISPLAY_NAME("Credentials Display Test");
 const String8 SURFACE_NAME("Test Surface Name");
-const uint32_t ROTATION = 0;
 const float FRAME_SCALE = 1.0f;
 } // namespace
 
@@ -32,6 +26,10 @@ const float FRAME_SCALE = 1.0f;
  * Methods like EnableVsyncInjections and InjectVsync are not tested since they do not
  * return anything meaningful.
  */
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 class CredentialsTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -64,14 +62,13 @@ protected:
         mDisplay = SurfaceComposerClient::getInternalDisplayToken();
         ASSERT_FALSE(mDisplay == nullptr);
 
-        DisplayInfo info;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(mDisplay, &info));
-        const ssize_t displayWidth = info.w;
-        const ssize_t displayHeight = info.h;
+        DisplayConfig config;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(mDisplay, &config));
 
         // Background surface
         mBGSurfaceControl =
-                mComposerClient->createSurface(SURFACE_NAME, displayWidth, displayHeight,
+                mComposerClient->createSurface(SURFACE_NAME, config.resolution.getWidth(),
+                                               config.resolution.getHeight(),
                                                PIXEL_FORMAT_RGBA_8888, 0);
         ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
@@ -185,10 +182,10 @@ TEST_F(CredentialsTest, AllowedGetterMethodsTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     ASSERT_TRUE(display != nullptr);
 
-    DisplayInfo info;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
+    DisplayConfig config;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
 
-    Vector<DisplayInfo> configs;
+    Vector<DisplayConfig> configs;
     ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
 
     ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveConfig(display));
@@ -215,10 +212,24 @@ TEST_F(CredentialsTest, GetDisplayNativePrimariesTest) {
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, NO_ERROR));
 }
 
-TEST_F(CredentialsTest, SetActiveConfigTest) {
+TEST_F(CredentialsTest, SetDesiredDisplayConfigsTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    int32_t defaultConfig;
+    float primaryFpsMin;
+    float primaryFpsMax;
+    float appRequestFpsMin;
+    float appRequestFpsMax;
+    status_t res =
+            SurfaceComposerClient::getDesiredDisplayConfigSpecs(display, &defaultConfig,
+                                                                &primaryFpsMin, &primaryFpsMax,
+                                                                &appRequestFpsMin,
+                                                                &appRequestFpsMax);
+    ASSERT_EQ(res, NO_ERROR);
     std::function<status_t()> condition = [=]() {
-        return SurfaceComposerClient::setActiveConfig(display, 0);
+        return SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, defaultConfig,
+                                                                   primaryFpsMin, primaryFpsMax,
+                                                                   appRequestFpsMin,
+                                                                   appRequestFpsMax);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
@@ -245,24 +256,13 @@ TEST_F(CredentialsTest, CreateDisplayTest) {
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, false));
 }
 
-TEST_F(CredentialsTest, DISABLED_DestroyDisplayTest) {
-    setupVirtualDisplay();
-
-    DisplayInfo info;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(mVirtualDisplay, &info));
-    SurfaceComposerClient::destroyDisplay(mVirtualDisplay);
-    // This test currently fails. TODO(b/112002626): Find a way to properly create
-    // a display in the test environment, so that destroy display can remove it.
-    ASSERT_EQ(NAME_NOT_FOUND, SurfaceComposerClient::getDisplayInfo(mVirtualDisplay, &info));
-}
-
 TEST_F(CredentialsTest, CaptureTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     std::function<status_t()> condition = [=]() {
         sp<GraphicBuffer> outBuffer;
         return ScreenshotClient::capture(display, ui::Dataspace::V0_SRGB,
                                          ui::PixelFormat::RGBA_8888, Rect(), 0 /*reqWidth*/,
-                                         0 /*reqHeight*/, false, ROTATION, &outBuffer);
+                                         0 /*reqHeight*/, false, ui::ROTATION_0, &outBuffer);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
@@ -274,7 +274,7 @@ TEST_F(CredentialsTest, CaptureLayersTest) {
         sp<GraphicBuffer> outBuffer;
         return ScreenshotClient::captureLayers(mBGSurfaceControl->getHandle(),
                                                ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888,
-                                               Rect(), FRAME_SCALE, &outBuffer);
+                                               Rect(0, 0, 1, 1), FRAME_SCALE, &outBuffer);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
@@ -363,3 +363,6 @@ TEST_F(CredentialsTest, GetActiveColorModeBasicCorrectness) {
 }
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

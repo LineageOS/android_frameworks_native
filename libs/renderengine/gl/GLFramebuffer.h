@@ -20,6 +20,7 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
+#include <GLES2/gl2.h>
 #include <renderengine/Framebuffer.h>
 
 struct ANativeWindowBuffer;
@@ -33,21 +34,29 @@ class GLESRenderEngine;
 class GLFramebuffer : public renderengine::Framebuffer {
 public:
     explicit GLFramebuffer(GLESRenderEngine& engine);
+    explicit GLFramebuffer(GLESRenderEngine& engine, bool multiTarget);
     ~GLFramebuffer() override;
 
     bool setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, bool isProtected,
                                const bool useFramebufferCache) override;
+    void allocateBuffers(uint32_t width, uint32_t height, void* data = nullptr);
     EGLImageKHR getEGLImage() const { return mEGLImage; }
     uint32_t getTextureName() const { return mTextureName; }
     uint32_t getFramebufferName() const { return mFramebufferName; }
     int32_t getBufferHeight() const { return mBufferHeight; }
     int32_t getBufferWidth() const { return mBufferWidth; }
+    GLenum getStatus() const { return mStatus; }
+    void bind() const;
+    void bindAsReadBuffer() const;
+    void bindAsDrawBuffer() const;
+    void unbind() const;
 
 private:
     GLESRenderEngine& mEngine;
     EGLDisplay mEGLDisplay;
     EGLImageKHR mEGLImage;
     bool usingFramebufferCache = false;
+    GLenum mStatus = GL_FRAMEBUFFER_UNSUPPORTED;
     uint32_t mTextureName, mFramebufferName;
 
     int32_t mBufferHeight = 0;

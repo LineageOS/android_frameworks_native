@@ -16,32 +16,27 @@
 
 #pragma once
 
-#include <chrono>
+#include <utils/Timers.h>
 #include <cinttypes>
 #include <numeric>
 #include <unordered_map>
 #include <vector>
 
-namespace android {
-namespace scheduler {
-using namespace std::chrono_literals;
+namespace android::scheduler {
 
-// This number is used to set the size of the arrays in scheduler that hold information
-// about layers.
-static constexpr size_t ARRAY_SIZE = 30;
+// Opaque handle to scheduler connection.
+struct ConnectionHandle {
+    using Id = std::uintptr_t;
+    static constexpr Id INVALID_ID = static_cast<Id>(-1);
 
-// This number is used when we try to determine how long do we keep layer information around
-// before we remove it. It is also used to determine how long the layer stays relevant.
-// This time period captures infrequent updates when playing YouTube video with static image,
-// or waiting idle in messaging app, when cursor is blinking.
-static constexpr std::chrono::nanoseconds OBSOLETE_TIME_EPSILON_NS = 1200ms;
+    Id id = INVALID_ID;
 
-// Layer is considered low activity if the LOW_ACTIVITY_BUFFERS buffers come more than
-// LOW_ACTIVITY_EPSILON_NS  apart.
-// This is helping SF to vote for lower refresh rates when there is not activity
-// in screen.
-static constexpr int LOW_ACTIVITY_BUFFERS = 2;
-static constexpr std::chrono::nanoseconds LOW_ACTIVITY_EPSILON_NS = 250ms;
+    explicit operator bool() const { return id != INVALID_ID; }
+};
+
+inline bool operator==(ConnectionHandle lhs, ConnectionHandle rhs) {
+    return lhs.id == rhs.id;
+}
 
 // Calculates the statistical mean (average) in the data structure (array, vector). The
 // function does not modify the contents of the array.
@@ -76,5 +71,27 @@ auto calculate_mode(const T& v) {
     return static_cast<int>(std::max_element(counts.begin(), counts.end(), compareCounts)->first);
 }
 
-} // namespace scheduler
-} // namespace android
+template <class T, size_t N>
+constexpr size_t arrayLen(T (&)[N]) {
+    return N;
+}
+
+static constexpr size_t max64print = std::numeric_limits<nsecs_t>::digits10 + 1;
+
+template <typename T>
+static inline T round(float f) {
+    return static_cast<T>(std::round(f));
+}
+
+} // namespace android::scheduler
+
+namespace std {
+
+template <>
+struct hash<android::scheduler::ConnectionHandle> {
+    size_t operator()(android::scheduler::ConnectionHandle handle) const {
+        return hash<android::scheduler::ConnectionHandle::Id>()(handle.id);
+    }
+};
+
+} // namespace std

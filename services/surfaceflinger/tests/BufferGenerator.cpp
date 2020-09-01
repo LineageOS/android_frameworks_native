@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <gui/BufferItemConsumer.h>
 #include <gui/Surface.h>
 
@@ -84,7 +88,7 @@ private:
     sp<Surface> mSurface;
 };
 
-/* Used to generate valid fences. It is not possible to create a dummy sync
+/* Used to generate valid fences. It is not possible to create a placeholder sync
  * fence for testing. Egl can generate buffers along with a valid fence.
  * The buffer cannot be guaranteed to be the same format across all devices so
  * a CPU filled buffer is used instead. The Egl fence is used along with the
@@ -379,3 +383,6 @@ void BufferGenerator::setBuffer(const sp<GraphicBuffer>& buffer, int32_t fence,
 }
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

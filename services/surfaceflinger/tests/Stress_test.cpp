@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <gtest/gtest.h>
 
 #include <gui/SurfaceComposerClient.h>
@@ -107,3 +111,6 @@ TEST(LayerProtoStress, mem_info) {
 }
 
 }
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

@@ -17,8 +17,16 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 
 #include <ui/GraphicTypes.h>
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
 
 namespace android {
 
@@ -74,6 +82,13 @@ public:
 
     // Gets the supported HDR capabilities for the profile
     virtual const HdrCapabilities& getHdrCapabilities() const = 0;
+
+    // Returns true if HWC for this profile supports the dataspace
+    virtual bool isDataspaceSupported(ui::Dataspace) const = 0;
+
+    // Returns the target dataspace for picked color mode and dataspace
+    virtual ui::Dataspace getTargetDataspace(ui::ColorMode, ui::Dataspace,
+                                             ui::Dataspace colorSpaceAgnosticDataspace) const = 0;
 
     // Debugging
     virtual void dump(std::string&) const = 0;

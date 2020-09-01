@@ -45,6 +45,13 @@ class IProducerListener;
 class NativeHandle;
 class Surface;
 
+using HGraphicBufferProducerV1_0 =
+        ::android::hardware::graphics::bufferqueue::V1_0::
+        IGraphicBufferProducer;
+using HGraphicBufferProducerV2_0 =
+        ::android::hardware::graphics::bufferqueue::V2_0::
+        IGraphicBufferProducer;
+
 /*
  * This class defines the Binder IPC interface for the producer side of
  * a queue of graphics buffers.  It's used to send graphics data from one
@@ -59,20 +66,15 @@ class Surface;
  *
  * This class was previously called ISurfaceTexture.
  */
-class IGraphicBufferProducer : public IInterface
-{
-public:
-    using HGraphicBufferProducerV1_0 =
-            ::android::hardware::graphics::bufferqueue::V1_0::
-            IGraphicBufferProducer;
-    using HGraphicBufferProducerV2_0 =
-            ::android::hardware::graphics::bufferqueue::V2_0::
-            IGraphicBufferProducer;
-
+#ifndef NO_BINDER
+class IGraphicBufferProducer : public IInterface {
     DECLARE_HYBRID_META_INTERFACE(GraphicBufferProducer,
                                   HGraphicBufferProducerV1_0,
                                   HGraphicBufferProducerV2_0)
-
+#else
+class IGraphicBufferProducer : public RefBase {
+#endif
+public:
     enum {
         // A flag returned by dequeueBuffer when the client needs to call
         // requestBuffer immediately thereafter.
@@ -286,36 +288,6 @@ public:
     virtual status_t attachBuffer(int* outSlot,
             const sp<GraphicBuffer>& buffer) = 0;
 
-    // queueBuffer indicates that the client has finished filling in the
-    // contents of the buffer associated with slot and transfers ownership of
-    // that slot back to the server.
-    //
-    // It is not valid to call queueBuffer on a slot that is not owned
-    // by the client or one for which a buffer associated via requestBuffer
-    // (an attempt to do so will fail with a return value of BAD_VALUE).
-    //
-    // In addition, the input must be described by the client (as documented
-    // below). Any other properties (zero point, etc)
-    // are client-dependent, and should be documented by the client.
-    //
-    // The slot must be in the range of [0, NUM_BUFFER_SLOTS).
-    //
-    // Upon success, the output will be filled with meaningful values
-    // (refer to the documentation below).
-    //
-    // Return of a value other than NO_ERROR means an error has occurred:
-    // * NO_INIT - the buffer queue has been abandoned or the producer is not
-    //             connected.
-    // * BAD_VALUE - one of the below conditions occurred:
-    //              * fence was NULL
-    //              * scaling mode was unknown
-    //              * both in async mode and buffer count was less than the
-    //                max numbers of buffers that can be allocated at once
-    //              * slot index was out of range (see above).
-    //              * the slot was not in the dequeued state
-    //              * the slot was enqueued without requesting a buffer
-    //              * crop rect is out of bounds of the buffer dimensions
-
     struct QueueBufferInput : public Flattenable<QueueBufferInput> {
         friend class Flattenable<QueueBufferInput>;
         explicit inline QueueBufferInput(const Parcel& parcel);
@@ -412,8 +384,38 @@ public:
         uint64_t nextFrameNumber{0};
         FrameEventHistoryDelta frameTimestamps;
         bool bufferReplaced{false};
+        int maxBufferCount{0};
     };
 
+    // queueBuffer indicates that the client has finished filling in the
+    // contents of the buffer associated with slot and transfers ownership of
+    // that slot back to the server.
+    //
+    // It is not valid to call queueBuffer on a slot that is not owned
+    // by the client or one for which a buffer associated via requestBuffer
+    // (an attempt to do so will fail with a return value of BAD_VALUE).
+    //
+    // In addition, the input must be described by the client (as documented
+    // below). Any other properties (zero point, etc)
+    // are client-dependent, and should be documented by the client.
+    //
+    // The slot must be in the range of [0, NUM_BUFFER_SLOTS).
+    //
+    // Upon success, the output will be filled with meaningful values
+    // (refer to the documentation below).
+    //
+    // Return of a value other than NO_ERROR means an error has occurred:
+    // * NO_INIT - the buffer queue has been abandoned or the producer is not
+    //             connected.
+    // * BAD_VALUE - one of the below conditions occurred:
+    //              * fence was NULL
+    //              * scaling mode was unknown
+    //              * both in async mode and buffer count was less than the
+    //                max numbers of buffers that can be allocated at once
+    //              * slot index was out of range (see above).
+    //              * the slot was not in the dequeued state
+    //              * the slot was enqueued without requesting a buffer
+    //              * crop rect is out of bounds of the buffer dimensions
     virtual status_t queueBuffer(int slot, const QueueBufferInput& input,
             QueueBufferOutput* output) = 0;
 
@@ -456,7 +458,7 @@ public:
     // the producer wants to be notified when the consumer releases a buffer
     // back to the BufferQueue. It is also used to detect the death of the
     // producer. If only the latter functionality is desired, there is a
-    // DummyProducerListener class in IProducerListener.h that can be used.
+    // StubProducerListener class in IProducerListener.h that can be used.
     //
     // The api should be one of the NATIVE_WINDOW_API_* values in <window.h>
     //
@@ -629,6 +631,15 @@ public:
     // NATIVE_WINDOW_CONSUMER_USAGE_BITS attribute.
     virtual status_t getConsumerUsage(uint64_t* outUsage) const = 0;
 
+    // Enable/disable the auto prerotation at buffer allocation when the buffer
+    // size is driven by the consumer.
+    //
+    // When buffer size is driven by the consumer and the transform hint
+    // specifies a 90 or 270 degree rotation, if auto prerotation is enabled,
+    // the width and height used for dequeueBuffer will be additionally swapped.
+    virtual status_t setAutoPrerotation(bool autoPrerotation);
+
+#ifndef NO_BINDER
     // Static method exports any IGraphicBufferProducer object to a parcel. It
     // handles null producer as well.
     static status_t exportToParcel(const sp<IGraphicBufferProducer>& producer,
@@ -646,10 +657,11 @@ protected:
     // it writes a strong binder object; for BufferHub, it writes a
     // ProducerQueueParcelable object.
     virtual status_t exportToParcel(Parcel* parcel);
+#endif
 };
 
 // ----------------------------------------------------------------------------
-
+#ifndef NO_BINDER
 class BnGraphicBufferProducer : public BnInterface<IGraphicBufferProducer>
 {
 public:
@@ -658,6 +670,10 @@ public:
                                     Parcel* reply,
                                     uint32_t flags = 0);
 };
+#else
+class BnGraphicBufferProducer : public IGraphicBufferProducer {
+};
+#endif
 
 // ----------------------------------------------------------------------------
 }; // namespace android

@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <iosfwd>
+
 #include <math/mat4.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
@@ -38,9 +40,6 @@ struct DisplaySettings {
     // z=1.
     Rect clip = Rect::INVALID_RECT;
 
-    // Global transform to apply to all layers.
-    mat4 globalTransform = mat4();
-
     // Maximum luminance pulled from the display's HDR capabilities.
     float maxLuminance = 1.0f;
 
@@ -53,14 +52,39 @@ struct DisplaySettings {
     mat4 colorTransform = mat4();
 
     // Region that will be cleared to (0, 0, 0, 1) prior to rendering.
-    // RenderEngine will transform the clearRegion passed in here, by
-    // globalTransform, so that it will be in the same coordinate space as the
-    // rendered layers.
+    // This is specified in layer-stack space.
     Region clearRegion = Region::INVALID_REGION;
 
-    // The orientation of the physical display.
+    // An additional orientation flag to be applied after clipping the output.
+    // By way of example, this may be used for supporting fullscreen screenshot
+    // capture of a device in landscape while the buffer is in portrait
+    // orientation.
     uint32_t orientation = ui::Transform::ROT_0;
 };
+
+static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {
+    return lhs.physicalDisplay == rhs.physicalDisplay && lhs.clip == rhs.clip &&
+            lhs.maxLuminance == rhs.maxLuminance && lhs.outputDataspace == rhs.outputDataspace &&
+            lhs.colorTransform == rhs.colorTransform &&
+            lhs.clearRegion.hasSameRects(rhs.clearRegion) && lhs.orientation == rhs.orientation;
+}
+
+// Defining PrintTo helps with Google Tests.
+static inline void PrintTo(const DisplaySettings& settings, ::std::ostream* os) {
+    *os << "DisplaySettings {";
+    *os << "\n    .physicalDisplay = ";
+    PrintTo(settings.physicalDisplay, os);
+    *os << "\n    .clip = ";
+    PrintTo(settings.clip, os);
+    *os << "\n    .maxLuminance = " << settings.maxLuminance;
+    *os << "\n    .outputDataspace = ";
+    PrintTo(settings.outputDataspace, os);
+    *os << "\n    .colorTransform = " << settings.colorTransform;
+    *os << "\n    .clearRegion = ";
+    PrintTo(settings.clearRegion, os);
+    *os << "\n    .orientation = " << settings.orientation;
+    *os << "\n}";
+}
 
 } // namespace renderengine
 } // namespace android

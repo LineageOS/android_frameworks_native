@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #undef LOG_TAG
 #define LOG_TAG "SurfaceTracing"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -29,24 +33,23 @@
 namespace android {
 
 SurfaceTracing::SurfaceTracing(SurfaceFlinger& flinger)
-      : mFlinger(flinger), mSfLock(flinger.mDrawingStateLock) {}
+      : mFlinger(flinger), mSfLock(flinger.mTracingLock) {}
 
 void SurfaceTracing::mainLoop() {
-    addFirstEntry();
-    bool enabled = true;
+    bool enabled = addFirstEntry();
     while (enabled) {
         LayersTraceProto entry = traceWhenNotified();
         enabled = addTraceToBuffer(entry);
     }
 }
 
-void SurfaceTracing::addFirstEntry() {
+bool SurfaceTracing::addFirstEntry() {
     LayersTraceProto entry;
     {
         std::scoped_lock lock(mSfLock);
         entry = traceLayersLocked("tracing.enable");
     }
-    addTraceToBuffer(entry);
+    return addTraceToBuffer(entry);
 }
 
 LayersTraceProto SurfaceTracing::traceWhenNotified() {
@@ -54,6 +57,8 @@ LayersTraceProto SurfaceTracing::traceWhenNotified() {
     mCanStartTrace.wait(lock);
     android::base::ScopedLockAssertion assumeLock(mSfLock);
     LayersTraceProto entry = traceLayersLocked(mWhere);
+    mTracingInProgress = false;
+    mMissedTraceEntries = 0;
     lock.unlock();
     return entry;
 }
@@ -68,10 +73,17 @@ bool SurfaceTracing::addTraceToBuffer(LayersTraceProto& entry) {
     return mEnabled;
 }
 
-void SurfaceTracing::notify(long compositionTime, const char* where) {
+void SurfaceTracing::notify(const char* where) {
     std::scoped_lock lock(mSfLock);
-    mCompositionTime = compositionTime;
+    notifyLocked(where);
+}
+
+void SurfaceTracing::notifyLocked(const char* where) {
     mWhere = where;
+    if (mTracingInProgress) {
+        mMissedTraceEntries++;
+    }
+    mTracingInProgress = true;
     mCanStartTrace.notify_one();
 }
 
@@ -112,19 +124,26 @@ void SurfaceTracing::LayersTraceBuffer::flush(LayersTraceFileProto* fileProto) {
     }
 }
 
-void SurfaceTracing::enable() {
+bool SurfaceTracing::enable() {
     std::scoped_lock lock(mTraceLock);
 
     if (mEnabled) {
-        return;
+        return false;
     }
+
     mBuffer.reset(mBufferSize);
     mEnabled = true;
     mThread = std::thread(&SurfaceTracing::mainLoop, this);
+    return true;
 }
 
 status_t SurfaceTracing::writeToFile() {
-    mThread.join();
+    std::thread thread;
+    {
+        std::scoped_lock lock(mTraceLock);
+        thread = std::move(mThread);
+    }
+    thread.join();
     return mLastErr;
 }
 
@@ -161,10 +180,24 @@ LayersTraceProto SurfaceTracing::traceLayersLocked(const char* where) {
     ATRACE_CALL();
 
     LayersTraceProto entry;
-    entry.set_elapsed_realtime_nanos(mCompositionTime);
+    entry.set_elapsed_realtime_nanos(elapsedRealtimeNano());
     entry.set_where(where);
     LayersProto layers(mFlinger.dumpDrawingStateProto(mTraceFlags));
+
+    if (flagIsSetLocked(SurfaceTracing::TRACE_EXTRA)) {
+        mFlinger.dumpOffscreenLayersProto(layers);
+    }
     entry.mutable_layers()->Swap(&layers);
+
+    if (mTraceFlags & SurfaceTracing::TRACE_HWC) {
+        std::string hwcDump;
+        mFlinger.dumpHwc(hwcDump);
+        entry.set_hwc_blob(hwcDump);
+    }
+    if (!flagIsSetLocked(SurfaceTracing::TRACE_COMPOSITION)) {
+        entry.set_excludes_composition_state(true);
+    }
+    entry.set_missed_entries(mMissedTraceEntries);
 
     return entry;
 }
@@ -184,8 +217,11 @@ void SurfaceTracing::writeProtoFileLocked() {
         ALOGE("Could not save the proto file! Permission denied");
         mLastErr = PERMISSION_DENIED;
     }
-    if (!android::base::WriteStringToFile(output, kDefaultFileName, S_IRWXU | S_IRGRP, getuid(),
-                                          getgid(), true)) {
+
+    // -rw-r--r--
+    const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    if (!android::base::WriteStringToFile(output, kDefaultFileName, mode, getuid(), getgid(),
+                                          true)) {
         ALOGE("Could not save the proto file! There are missing fields");
         mLastErr = PERMISSION_DENIED;
     }
@@ -202,3 +238,6 @@ void SurfaceTracing::dump(std::string& result) const {
 }
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

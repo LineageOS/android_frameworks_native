@@ -21,19 +21,20 @@
 #include "vkjson.h"
 
 #include <assert.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include <cmath>
+#include <json/json.h>
+
+#include <algorithm>
 #include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <limits>
 #include <memory>
 #include <sstream>
 #include <type_traits>
 #include <utility>
-
-#include <json/json.h>
 
 namespace {
 
@@ -45,6 +46,14 @@ inline bool IsIntegral(double value) {
   return std::trunc(value) == value;
 #endif
 }
+
+// Floating point fields of Vulkan structure use single precision. The string
+// output of max double value in c++ will be larger than Java double's infinity
+// value. Below fake double max/min values are only to serve the safe json text
+// parsing in between C++ and Java, becasue Java json library simply cannot
+// handle infinity.
+static const double SAFE_DOUBLE_MAX = 0.99 * std::numeric_limits<double>::max();
+static const double SAFE_DOUBLE_MIN = -SAFE_DOUBLE_MAX;
 
 template <typename T> struct EnumTraits;
 template <> struct EnumTraits<VkPhysicalDeviceType> {
@@ -582,6 +591,13 @@ inline bool Iterate(Visitor* visitor,
 }
 
 template <typename Visitor>
+inline bool Iterate(Visitor* visitor,
+                    VkJsonExtShaderFloat16Int8Features* features) {
+  return visitor->Visit("shaderFloat16Int8FeaturesKHR",
+                        &features->shader_float16_int8_features_khr);
+}
+
+template <typename Visitor>
 inline bool Iterate(Visitor* visitor, VkMemoryType* type) {
   return
     visitor->Visit("propertyFlags", &type->propertyFlags) &&
@@ -679,6 +695,13 @@ inline bool Iterate(Visitor* visitor,
   return visitor->Visit("variablePointersStorageBuffer",
                         &features->variablePointersStorageBuffer) &&
          visitor->Visit("variablePointers", &features->variablePointers);
+}
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor,
+                    VkPhysicalDeviceShaderFloat16Int8FeaturesKHR* features) {
+  return visitor->Visit("shaderFloat16", &features->shaderFloat16) &&
+         visitor->Visit("shaderInt8", &features->shaderInt8);
 }
 
 template <typename Visitor>
@@ -815,6 +838,10 @@ inline bool Iterate(Visitor* visitor, VkJsonDevice* device) {
         ret &= visitor->Visit("VK_KHR_variable_pointers",
                             &device->ext_variable_pointer_features);
       }
+      if (device->ext_shader_float16_int8_features.reported) {
+        ret &= visitor->Visit("VK_KHR_shader_float16_int8",
+                              &device->ext_shader_float16_int8_features);
+      }
   }
   return ret;
 }
@@ -851,7 +878,8 @@ Json::Value ToJsonValue(const T& value);
 
 template <typename T, typename = EnableForArithmetic<T>>
 inline Json::Value ToJsonValue(const T& value) {
-  return Json::Value(static_cast<double>(value));
+  return Json::Value(
+      std::clamp(static_cast<double>(value), SAFE_DOUBLE_MIN, SAFE_DOUBLE_MAX));
 }
 
 inline Json::Value ToJsonValue(const uint64_t& value) {

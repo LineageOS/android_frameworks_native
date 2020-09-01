@@ -28,8 +28,6 @@
 #include <utils/Log.h>
 #include <utils/Thread.h>
 
-extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
-
 namespace android {
 
 class SurfaceTextureClientTest : public ::testing::Test {
@@ -56,7 +54,7 @@ protected:
         mANW = mSTC;
 
         // We need a valid GL context so we can test updateTexImage()
-        // This initializes EGL and create a dummy GL context with a
+        // This initializes EGL and create a GL context placeholder with a
         // pbuffer render target.
         mEglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
         ASSERT_EQ(EGL_SUCCESS, eglGetError());

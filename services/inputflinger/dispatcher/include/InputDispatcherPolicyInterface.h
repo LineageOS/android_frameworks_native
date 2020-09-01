@@ -47,7 +47,7 @@ public:
 
     /* Notifies the system that an application is not responding.
      * Returns a new timeout to continue waiting, or 0 to abort dispatch. */
-    virtual nsecs_t notifyANR(const sp<InputApplicationHandle>& inputApplicationHandle,
+    virtual nsecs_t notifyAnr(const sp<InputApplicationHandle>& inputApplicationHandle,
                               const sp<IBinder>& token, const std::string& reason) = 0;
 
     /* Notifies the system that an input channel is unrecoverably broken. */

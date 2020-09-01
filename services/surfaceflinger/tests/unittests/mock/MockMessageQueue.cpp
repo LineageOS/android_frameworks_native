@@ -16,12 +16,15 @@
 
 #include "mock/MockMessageQueue.h"
 
-namespace android {
-namespace mock {
+namespace android::mock {
 
-// Explicit default instantiation is recommended.
-MessageQueue::MessageQueue() = default;
+MessageQueue::MessageQueue() {
+    ON_CALL(*this, postMessage).WillByDefault([](sp<MessageHandler>&& handler) {
+        // Execute task to prevent broken promise exception on destruction.
+        handler->handleMessage(Message());
+    });
+}
+
 MessageQueue::~MessageQueue() = default;
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock

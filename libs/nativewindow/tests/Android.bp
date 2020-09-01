@@ -15,13 +15,22 @@
 //
 
 cc_test {
-    name: "AHardwareBufferTest",
+    name: "libnativewindow_test",
+    test_suites: [
+        "device-tests",
+    ],
     shared_libs: [
+        "libgui",
+        "liblog",
         "libnativewindow",
+        "libsync",
+        "libutils",
         "android.hardware.graphics.common@1.0",
     ],
     srcs: [
         "AHardwareBufferTest.cpp",
-        "c_compatibility.c"],
+        "ANativeWindowTest.cpp",
+        "c_compatibility.c",
+    ],
     cflags: ["-Wall", "-Werror"],
 }

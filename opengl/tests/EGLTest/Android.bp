@@ -25,6 +25,7 @@ cc_test {
         "liblog",
         "libutils",
         "libnativewindow",
+        "libSurfaceFlingerProp",
     ],
 
     include_dirs: [
@@ -34,5 +35,6 @@ cc_test {
 
     header_libs: [
         "bionic_libc_platform_headers",
+        "libsurfaceflinger_headers",
     ],
 }

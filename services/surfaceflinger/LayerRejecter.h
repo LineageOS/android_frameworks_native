@@ -14,36 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_LAYER_REJECTER_H
-#define ANDROID_LAYER_REJECTER_H
+#pragma once
 
 #include "Layer.h"
 #include "BufferLayerConsumer.h"
 
 namespace android {
-    class LayerRejecter : public BufferLayerConsumer::BufferRejecter {
-    public:
-        LayerRejecter(Layer::State &front,
-                      Layer::State &current,
-                      bool &recomputeVisibleRegions,
-                      bool stickySet,
-                      const char *name,
-                      int32_t overrideScalingMode,
-                      bool transformToDisplayInverse,
-                      bool &freezePositionUpdates);
 
-        virtual bool reject(const sp<GraphicBuffer> &buf, const BufferItem &item);
+class LayerRejecter : public BufferLayerConsumer::BufferRejecter {
+public:
+    LayerRejecter(Layer::State& front, Layer::State& current, bool& recomputeVisibleRegions,
+                  bool stickySet, const std::string& name, int32_t overrideScalingMode,
+                  bool transformToDisplayInverse);
 
-    private:
-        Layer::State &mFront;
-        Layer::State &mCurrent;
-        bool &mRecomputeVisibleRegions;
-        bool mStickyTransformSet;
-        const char *mName;
-        int32_t mOverrideScalingMode;
-        bool mTransformToDisplayInverse;
-        bool &mFreezeGeometryUpdates;
-    };
-}  // namespace android
+    virtual bool reject(const sp<GraphicBuffer>&, const BufferItem&);
 
-#endif  // ANDROID_LAYER_REJECTER_H
+private:
+    Layer::State& mFront;
+    Layer::State& mCurrent;
+    bool& mRecomputeVisibleRegions;
+    const bool mStickyTransformSet;
+    const std::string& mName;
+    const int32_t mOverrideScalingMode;
+    const bool mTransformToDisplayInverse;
+};
+
+} // namespace android

@@ -19,30 +19,49 @@
 #include <gmock/gmock.h>
 #include <gui/ISurfaceComposer.h>
 
+#include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
-#include "Scheduler/RefreshRateConfigs.h"
+#include "Scheduler/LayerHistory.h"
 #include "Scheduler/Scheduler.h"
 
 namespace android {
 
-class TestableScheduler : public Scheduler {
+class TestableScheduler : public Scheduler, private ISchedulerCallback {
 public:
-    TestableScheduler(const scheduler::RefreshRateConfigs& refreshRateConfig)
-          : Scheduler([](bool) {}, refreshRateConfig) {}
+    TestableScheduler(const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2)
+          : Scheduler([](bool) {}, configs, *this, useContentDetectionV2, true) {
+        if (mUseContentDetectionV2) {
+            mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>(configs);
+        } else {
+            mLayerHistory = std::make_unique<scheduler::impl::LayerHistory>();
+        }
+    }
 
-    // Creates EventThreadConnection with the given eventThread. Creates Scheduler::Connection
-    // and adds it to the list of connectins. Returns the ConnectionHandle for the
-    // Scheduler::Connection. This allows plugging in mock::EventThread.
-    sp<Scheduler::ConnectionHandle> addConnection(std::unique_ptr<EventThread> eventThread) {
-        sp<EventThreadConnection> eventThreadConnection =
-                new EventThreadConnection(eventThread.get(), ResyncCallback(),
-                                          ISurfaceComposer::eConfigChangedSuppress);
-        const int64_t id = sNextId++;
-        mConnections.emplace(id,
-                             std::make_unique<Scheduler::Connection>(new ConnectionHandle(id),
-                                                                     eventThreadConnection,
-                                                                     std::move(eventThread)));
-        return mConnections[id]->handle;
+    TestableScheduler(std::unique_ptr<DispSync> primaryDispSync,
+                      std::unique_ptr<EventControlThread> eventControlThread,
+                      const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2)
+          : Scheduler(std::move(primaryDispSync), std::move(eventControlThread), configs, *this,
+                      useContentDetectionV2, true) {
+        if (mUseContentDetectionV2) {
+            mLayerHistory = std::make_unique<scheduler::impl::LayerHistoryV2>(configs);
+        } else {
+            mLayerHistory = std::make_unique<scheduler::impl::LayerHistory>();
+        }
+    }
+
+    // Used to inject mock event thread.
+    ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
+        return Scheduler::createConnection(std::move(eventThread));
+    }
+
+    size_t layerHistorySize() const NO_THREAD_SAFETY_ANALYSIS {
+        if (mUseContentDetectionV2) {
+            return static_cast<scheduler::impl::LayerHistoryV2*>(mLayerHistory.get())
+                    ->mLayerInfos.size();
+        } else {
+            return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get())
+                    ->mLayerInfos.size();
+        }
     }
 
     /* ------------------------------------------------------------------------
@@ -53,6 +72,12 @@ public:
     auto& mutableEventControlThread() { return mEventControlThread; }
     auto& mutablePrimaryDispSync() { return mPrimaryDispSync; }
     auto& mutableHWVsyncAvailable() { return mHWVsyncAvailable; }
+    auto mutableLayerHistory() {
+        return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get());
+    }
+    auto mutableLayerHistoryV2() {
+        return static_cast<scheduler::impl::LayerHistoryV2*>(mLayerHistory.get());
+    }
 
     ~TestableScheduler() {
         // All these pointer and container clears help ensure that GMock does
@@ -62,7 +87,12 @@ public:
         mutableEventControlThread().reset();
         mutablePrimaryDispSync().reset();
         mConnections.clear();
-    };
+    }
+
+private:
+    void changeRefreshRate(const RefreshRate&, ConfigEvent) override {}
+    void repaintEverythingForHWC() override {}
+    void kernelTimerChanged(bool /*expired*/) override {}
 };
 
 } // namespace android

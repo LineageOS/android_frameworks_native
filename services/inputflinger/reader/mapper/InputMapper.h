@@ -39,16 +39,15 @@ namespace android {
  */
 class InputMapper {
 public:
-    explicit InputMapper(InputDevice* device);
+    explicit InputMapper(InputDeviceContext& deviceContext);
     virtual ~InputMapper();
 
-    inline InputDevice* getDevice() { return mDevice; }
-    inline int32_t getDeviceId() { return mDevice->getId(); }
-    inline const std::string getDeviceName() { return mDevice->getName(); }
-    inline InputReaderContext* getContext() { return mContext; }
-    inline InputReaderPolicyInterface* getPolicy() { return mContext->getPolicy(); }
-    inline InputListenerInterface* getListener() { return mContext->getListener(); }
-    inline EventHubInterface* getEventHub() { return mContext->getEventHub(); }
+    inline int32_t getDeviceId() { return mDeviceContext.getId(); }
+    inline InputDeviceContext& getDeviceContext() { return mDeviceContext; }
+    inline const std::string getDeviceName() { return mDeviceContext.getName(); }
+    inline InputReaderContext* getContext() { return mDeviceContext.getContext(); }
+    inline InputReaderPolicyInterface* getPolicy() { return getContext()->getPolicy(); }
+    inline InputListenerInterface* getListener() { return getContext()->getListener(); }
 
     virtual uint32_t getSources() = 0;
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
@@ -72,12 +71,10 @@ public:
 
     virtual void updateExternalStylusState(const StylusState& state);
 
-    virtual void fadePointer();
-    virtual std::optional<int32_t> getAssociatedDisplay() { return std::nullopt; }
+    virtual std::optional<int32_t> getAssociatedDisplayId() { return std::nullopt; }
 
 protected:
-    InputDevice* mDevice;
-    InputReaderContext* mContext;
+    InputDeviceContext& mDeviceContext;
 
     status_t getAbsoluteAxisInfo(int32_t axis, RawAbsoluteAxisInfo* axisInfo);
     void bumpGeneration();

@@ -82,15 +82,13 @@ status_t BnInputFlinger::onTransact(
     }
     case REGISTER_INPUT_CHANNEL_TRANSACTION: {
         CHECK_INTERFACE(IInputFlinger, data, reply);
-        sp<InputChannel> channel = new InputChannel();
-        channel->read(data);
+        sp<InputChannel> channel = InputChannel::read(data);
         registerInputChannel(channel);
         break;
     }
     case UNREGISTER_INPUT_CHANNEL_TRANSACTION: {
         CHECK_INTERFACE(IInputFlinger, data, reply);
-        sp<InputChannel> channel = new InputChannel();
-        channel->read(data);
+        sp<InputChannel> channel = InputChannel::read(data);
         unregisterInputChannel(channel);
         break;
     }

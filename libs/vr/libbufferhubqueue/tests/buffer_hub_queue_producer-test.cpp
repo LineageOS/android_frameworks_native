@@ -108,7 +108,7 @@ class BufferHubQueueProducerTest : public ::testing::Test {
   void ConnectProducer() {
     IGraphicBufferProducer::QueueBufferOutput output;
     // Can connect the first time.
-    ASSERT_EQ(OK, mProducer->connect(kDummyListener, kTestApi,
+    ASSERT_EQ(OK, mProducer->connect(kStubListener, kTestApi,
                                      kTestControlledByApp, &output));
   }
 
@@ -140,7 +140,7 @@ class BufferHubQueueProducerTest : public ::testing::Test {
     return QueueBufferInputBuilder().build();
   }
 
-  const sp<IProducerListener> kDummyListener{new DummyProducerListener};
+  const sp<IProducerListener> kStubListener{new StubProducerListener};
 
   sp<BufferHubProducer> mProducer;
   sp<Surface> mSurface;
@@ -150,11 +150,11 @@ TEST_F(BufferHubQueueProducerTest, ConnectFirst_ReturnsError) {
   IGraphicBufferProducer::QueueBufferOutput output;
 
   // NULL output returns BAD_VALUE
-  EXPECT_EQ(BAD_VALUE, mProducer->connect(kDummyListener, kTestApi,
+  EXPECT_EQ(BAD_VALUE, mProducer->connect(kStubListener, kTestApi,
                                           kTestControlledByApp, nullptr));
 
   // Invalid API returns bad value
-  EXPECT_EQ(BAD_VALUE, mProducer->connect(kDummyListener, kTestApiInvalid,
+  EXPECT_EQ(BAD_VALUE, mProducer->connect(kStubListener, kTestApiInvalid,
                                           kTestControlledByApp, &output));
 }
 
@@ -163,7 +163,7 @@ TEST_F(BufferHubQueueProducerTest, ConnectAgain_ReturnsError) {
 
   // Can't connect when there is already a producer connected.
   IGraphicBufferProducer::QueueBufferOutput output;
-  EXPECT_EQ(BAD_VALUE, mProducer->connect(kDummyListener, kTestApi,
+  EXPECT_EQ(BAD_VALUE, mProducer->connect(kStubListener, kTestApi,
                                           kTestControlledByApp, &output));
 }
 
@@ -554,18 +554,18 @@ TEST_F(BufferHubQueueProducerTest, TakeAsParcelable) {
   ProducerQueueParcelable producer_parcelable;
   EXPECT_EQ(mProducer->TakeAsParcelable(&producer_parcelable), BAD_VALUE);
 
-  // Create a valid dummy producer parcelable.
-  auto dummy_channel_parcelable =
+  // Create a valid fake producer parcelable.
+  auto fake_channel_parcelable =
       std::make_unique<pdx::default_transport::ChannelParcelable>(
           LocalHandle(0), LocalHandle(0), LocalHandle(0));
-  EXPECT_TRUE(dummy_channel_parcelable->IsValid());
-  ProducerQueueParcelable dummy_producer_parcelable(
-      std::move(dummy_channel_parcelable));
-  EXPECT_TRUE(dummy_producer_parcelable.IsValid());
+  EXPECT_TRUE(fake_channel_parcelable->IsValid());
+  ProducerQueueParcelable fake_producer_parcelable(
+      std::move(fake_channel_parcelable));
+  EXPECT_TRUE(fake_producer_parcelable.IsValid());
 
   // Disconnect producer can be taken out, but only to an invalid parcelable.
   ASSERT_EQ(mProducer->disconnect(kTestApi), OK);
-  EXPECT_EQ(mProducer->TakeAsParcelable(&dummy_producer_parcelable), BAD_VALUE);
+  EXPECT_EQ(mProducer->TakeAsParcelable(&fake_producer_parcelable), BAD_VALUE);
   EXPECT_FALSE(producer_parcelable.IsValid());
   EXPECT_EQ(mProducer->TakeAsParcelable(&producer_parcelable), OK);
   EXPECT_TRUE(producer_parcelable.IsValid());
@@ -583,7 +583,7 @@ TEST_F(BufferHubQueueProducerTest, TakeAsParcelable) {
 
   // But connect to API will fail.
   IGraphicBufferProducer::QueueBufferOutput output;
-  EXPECT_EQ(mProducer->connect(kDummyListener, kTestApi, kTestControlledByApp,
+  EXPECT_EQ(mProducer->connect(kStubListener, kTestApi, kTestControlledByApp,
                                &output),
             BAD_VALUE);
 
@@ -592,8 +592,8 @@ TEST_F(BufferHubQueueProducerTest, TakeAsParcelable) {
   sp<BufferHubProducer> new_producer =
       BufferHubProducer::Create(std::move(producer_parcelable));
   ASSERT_TRUE(new_producer != nullptr);
-  EXPECT_EQ(new_producer->connect(kDummyListener, kTestApi,
-                                  kTestControlledByApp, &output),
+  EXPECT_EQ(new_producer->connect(kStubListener, kTestApi, kTestControlledByApp,
+                                  &output),
             OK);
 }
 

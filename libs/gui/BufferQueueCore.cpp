@@ -28,7 +28,6 @@
 
 #include <inttypes.h>
 
-#include <cutils/properties.h>
 #include <cutils/atomic.h>
 
 #include <gui/BufferItem.h>
@@ -42,6 +41,23 @@
 
 namespace android {
 
+// Macros for include BufferQueueCore information in log messages
+#define BQ_LOGV(x, ...)                                                                           \
+    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+          mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
+#define BQ_LOGD(x, ...)                                                                           \
+    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+          mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
+#define BQ_LOGI(x, ...)                                                                           \
+    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+          mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
+#define BQ_LOGW(x, ...)                                                                           \
+    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+          mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
+#define BQ_LOGE(x, ...)                                                                           \
+    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+          mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
+
 static String8 getUniqueName() {
     static volatile int32_t counter = 0;
     return String8::format("unnamed-%d-%d", getpid(),
@@ -54,52 +70,68 @@ static uint64_t getUniqueId() {
     return id | counter++;
 }
 
-BufferQueueCore::BufferQueueCore() :
-    mMutex(),
-    mIsAbandoned(false),
-    mConsumerControlledByApp(false),
-    mConsumerName(getUniqueName()),
-    mConsumerListener(),
-    mConsumerUsageBits(0),
-    mConsumerIsProtected(false),
-    mConnectedApi(NO_CONNECTED_API),
-    mLinkedToDeath(),
-    mConnectedProducerListener(),
-    mBufferReleasedCbEnabled(false),
-    mSlots(),
-    mQueue(),
-    mFreeSlots(),
-    mFreeBuffers(),
-    mUnusedSlots(),
-    mActiveBuffers(),
-    mDequeueCondition(),
-    mDequeueBufferCannotBlock(false),
-    mQueueBufferCanDrop(false),
-    mLegacyBufferDrop(true),
-    mDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888),
-    mDefaultWidth(1),
-    mDefaultHeight(1),
-    mDefaultBufferDataSpace(HAL_DATASPACE_UNKNOWN),
-    mMaxBufferCount(BufferQueueDefs::NUM_BUFFER_SLOTS),
-    mMaxAcquiredBufferCount(1),
-    mMaxDequeuedBufferCount(1),
-    mBufferHasBeenQueued(false),
-    mFrameCounter(0),
-    mTransformHint(0),
-    mIsAllocating(false),
-    mIsAllocatingCondition(),
-    mAllowAllocation(true),
-    mBufferAge(0),
-    mGenerationNumber(0),
-    mAsyncMode(false),
-    mSharedBufferMode(false),
-    mAutoRefresh(false),
-    mSharedBufferSlot(INVALID_BUFFER_SLOT),
-    mSharedBufferCache(Rect::INVALID_RECT, 0, NATIVE_WINDOW_SCALING_MODE_FREEZE,
-            HAL_DATASPACE_UNKNOWN),
-    mLastQueuedSlot(INVALID_BUFFER_SLOT),
-    mUniqueId(getUniqueId())
-{
+static status_t getProcessName(int pid, String8& name) {
+    FILE* fp = fopen(String8::format("/proc/%d/cmdline", pid), "r");
+    if (NULL != fp) {
+        const size_t size = 64;
+        char proc_name[size];
+        char* result = fgets(proc_name, size, fp);
+        fclose(fp);
+        if (result != nullptr) {
+            name = proc_name;
+            return NO_ERROR;
+        }
+    }
+    return INVALID_OPERATION;
+}
+
+BufferQueueCore::BufferQueueCore()
+      : mMutex(),
+        mIsAbandoned(false),
+        mConsumerControlledByApp(false),
+        mConsumerName(getUniqueName()),
+        mConsumerListener(),
+        mConsumerUsageBits(0),
+        mConsumerIsProtected(false),
+        mConnectedApi(NO_CONNECTED_API),
+        mLinkedToDeath(),
+        mConnectedProducerListener(),
+        mBufferReleasedCbEnabled(false),
+        mSlots(),
+        mQueue(),
+        mFreeSlots(),
+        mFreeBuffers(),
+        mUnusedSlots(),
+        mActiveBuffers(),
+        mDequeueCondition(),
+        mDequeueBufferCannotBlock(false),
+        mQueueBufferCanDrop(false),
+        mLegacyBufferDrop(true),
+        mDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888),
+        mDefaultWidth(1),
+        mDefaultHeight(1),
+        mDefaultBufferDataSpace(HAL_DATASPACE_UNKNOWN),
+        mMaxBufferCount(BufferQueueDefs::NUM_BUFFER_SLOTS),
+        mMaxAcquiredBufferCount(1),
+        mMaxDequeuedBufferCount(1),
+        mBufferHasBeenQueued(false),
+        mFrameCounter(0),
+        mTransformHint(0),
+        mIsAllocating(false),
+        mIsAllocatingCondition(),
+        mAllowAllocation(true),
+        mBufferAge(0),
+        mGenerationNumber(0),
+        mAsyncMode(false),
+        mSharedBufferMode(false),
+        mAutoRefresh(false),
+        mSharedBufferSlot(INVALID_BUFFER_SLOT),
+        mSharedBufferCache(Rect::INVALID_RECT, 0, NATIVE_WINDOW_SCALING_MODE_FREEZE,
+                           HAL_DATASPACE_UNKNOWN),
+        mLastQueuedSlot(INVALID_BUFFER_SLOT),
+        mUniqueId(getUniqueId()),
+        mAutoPrerotation(false),
+        mTransformHintInUse(0) {
     int numStartingBuffers = getMaxBufferCountLocked();
     for (int s = 0; s < numStartingBuffers; s++) {
         mFreeSlots.insert(s);
@@ -124,10 +156,26 @@ void BufferQueueCore::dumpState(const String8& prefix, String8* outResult) const
                             mQueueBufferCanDrop, mLegacyBufferDrop);
     outResult->appendFormat("%s  default-size=[%dx%d] default-format=%d ", prefix.string(),
                             mDefaultWidth, mDefaultHeight, mDefaultBufferFormat);
-    outResult->appendFormat("transform-hint=%02x frame-counter=%" PRIu64, mTransformHint,
-                            mFrameCounter);
+    outResult->appendFormat("%s  transform-hint=%02x frame-counter=%" PRIu64 "\n", prefix.string(),
+                            mTransformHint, mFrameCounter);
+    outResult->appendFormat("%s  mTransformHintInUse=%02x mAutoPrerotation=%d\n", prefix.string(),
+                            mTransformHintInUse, mAutoPrerotation);
 
-    outResult->appendFormat("\n%sFIFO(%zu):\n", prefix.string(), mQueue.size());
+    outResult->appendFormat("%sFIFO(%zu):\n", prefix.string(), mQueue.size());
+
+    outResult->appendFormat("%s(mConsumerName=%s, ", prefix.string(), mConsumerName.string());
+
+    outResult->appendFormat("mConnectedApi=%d, mConsumerUsageBits=%" PRIu64 ", ", mConnectedApi,
+                            mConsumerUsageBits);
+
+    String8 producerProcName = String8("\?\?\?");
+    String8 consumerProcName = String8("\?\?\?");
+    int32_t pid = getpid();
+    getProcessName(mConnectedPid, producerProcName);
+    getProcessName(pid, consumerProcName);
+    outResult->appendFormat("mId=%" PRIx64 ", producer=[%d:%s], consumer=[%d:%s])\n", mUniqueId,
+                            mConnectedPid, producerProcName.string(), pid,
+                            consumerProcName.string());
     Fifo::const_iterator current(mQueue.begin());
     while (current != mQueue.end()) {
         double timestamp = current->mTimestamp / 1e9;

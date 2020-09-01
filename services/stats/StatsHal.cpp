@@ -112,9 +112,39 @@ hardware::Return<void> StatsHal::reportSpeechDspStat(
 }
 
 hardware::Return<void> StatsHal::reportVendorAtom(const VendorAtom& vendorAtom) {
-  ALOGW("reportVendorAtom unsupported");
-  std::string reverDomainName = vendorAtom.reverseDomainName;
-  return hardware::Void();
+    std::string reverseDomainName = (std::string) vendorAtom.reverseDomainName;
+    if (vendorAtom.atomId < 100000 || vendorAtom.atomId >= 200000) {
+        ALOGE("Atom ID %ld is not a valid vendor atom ID", (long) vendorAtom.atomId);
+        return hardware::Void();
+    }
+    if (reverseDomainName.length() > 50) {
+        ALOGE("Vendor atom reverse domain name %s is too long.", reverseDomainName.c_str());
+        return hardware::Void();
+    }
+    AStatsEvent* event = AStatsEvent_obtain();
+    AStatsEvent_setAtomId(event, vendorAtom.atomId);
+    AStatsEvent_writeString(event, vendorAtom.reverseDomainName.c_str());
+    for (int i = 0; i < (int)vendorAtom.values.size(); i++) {
+        switch (vendorAtom.values[i].getDiscriminator()) {
+            case VendorAtom::Value::hidl_discriminator::intValue:
+                AStatsEvent_writeInt32(event, vendorAtom.values[i].intValue());
+                break;
+            case VendorAtom::Value::hidl_discriminator::longValue:
+                AStatsEvent_writeInt64(event, vendorAtom.values[i].longValue());
+                break;
+            case VendorAtom::Value::hidl_discriminator::floatValue:
+                AStatsEvent_writeFloat(event, vendorAtom.values[i].floatValue());
+                break;
+            case VendorAtom::Value::hidl_discriminator::stringValue:
+                AStatsEvent_writeString(event, vendorAtom.values[i].stringValue().c_str());
+                break;
+        }
+    }
+    AStatsEvent_build(event);
+    AStatsEvent_write(event);
+    AStatsEvent_release(event);
+
+    return hardware::Void();
 }
 
 }  // namespace implementation

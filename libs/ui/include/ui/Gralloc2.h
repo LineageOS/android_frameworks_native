@@ -61,9 +61,6 @@ public:
 
     int unlock(buffer_handle_t bufferHandle) const override;
 
-    status_t isSupported(uint32_t width, uint32_t height, android::PixelFormat format,
-                         uint32_t layerCount, uint64_t usage, bool* outSupported) const override;
-
 private:
     // Determines whether the passed info is compatible with the mapper.
     status_t validateBufferDescriptorInfo(
@@ -81,11 +78,12 @@ public:
 
     bool isLoaded() const override;
 
-    std::string dumpDebugInfo() const override;
+    std::string dumpDebugInfo(bool less = true) const override;
 
-    status_t allocate(uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-                      uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
-                      buffer_handle_t* outBufferHandles) const override;
+    status_t allocate(std::string requestorName, uint32_t width, uint32_t height,
+                      PixelFormat format, uint32_t layerCount, uint64_t usage, uint32_t bufferCount,
+                      uint32_t* outStride, buffer_handle_t* outBufferHandles,
+                      bool importBuffers = true) const override;
 
 private:
     const Gralloc2Mapper& mMapper;

@@ -191,7 +191,7 @@ void MotionClassifier::processEvents() {
             case ClassifierEventType::DEVICE_RESET: {
                 const int32_t deviceId = *(event.getDeviceId());
                 halResponseOk = mService->resetDevice(deviceId).isOk();
-                setClassification(deviceId, MotionClassification::NONE);
+                clearDeviceState(deviceId);
                 break;
             }
             case ClassifierEventType::HAL_RESET: {
@@ -217,7 +217,7 @@ void MotionClassifier::enqueueEvent(ClassifierEvent&& event) {
     bool eventAdded = mEvents.push(std::move(event));
     if (!eventAdded) {
         // If the queue is full, suspect the HAL is slow in processing the events.
-        ALOGE("Dropped event with eventTime %" PRId64, event.args->eventTime);
+        ALOGE("Could not add the event to the queue. Resetting");
         reset();
     }
 }
@@ -260,6 +260,12 @@ void MotionClassifier::updateLastDownTime(int32_t deviceId, nsecs_t downTime) {
     std::scoped_lock lock(mLock);
     mLastDownTimes[deviceId] = downTime;
     mClassifications[deviceId] = MotionClassification::NONE;
+}
+
+void MotionClassifier::clearDeviceState(int32_t deviceId) {
+    std::scoped_lock lock(mLock);
+    mClassifications.erase(deviceId);
+    mLastDownTimes.erase(deviceId);
 }
 
 MotionClassification MotionClassifier::classify(const NotifyMotionArgs& args) {
@@ -408,7 +414,6 @@ void InputClassifier::setMotionClassifier(
 void InputClassifier::dump(std::string& dump) {
     std::scoped_lock lock(mLock);
     dump += "Input Classifier State:\n";
-
     dump += INDENT1 "Motion Classifier:\n";
     if (mMotionClassifier) {
         mMotionClassifier->dump(dump);

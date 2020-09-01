@@ -20,8 +20,8 @@
 
 #include <GLES/gl.h>
 #include <GLES/glext.h>
-#include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#include <GLES3/gl3.h>
 #include <gui/DebugEGLImageTracker.h>
 #include <nativebase/nativebase.h>
 #include <utils/Trace.h>
@@ -66,6 +66,47 @@ bool GLFramebuffer::setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, boo
         mBufferHeight = nativeBuffer->height;
     }
     return true;
+}
+
+void GLFramebuffer::allocateBuffers(uint32_t width, uint32_t height, void* data) {
+    ATRACE_CALL();
+
+    glBindTexture(GL_TEXTURE_2D, mTextureName);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+
+    mBufferHeight = height;
+    mBufferWidth = width;
+    mEngine.checkErrors("Allocating Fbo texture");
+
+    bind();
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mTextureName, 0);
+    mStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    unbind();
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    if (mStatus != GL_FRAMEBUFFER_COMPLETE) {
+        ALOGE("Frame buffer is not complete. Error %d", mStatus);
+    }
+}
+
+void GLFramebuffer::bind() const {
+    glBindFramebuffer(GL_FRAMEBUFFER, mFramebufferName);
+}
+
+void GLFramebuffer::bindAsReadBuffer() const {
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, mFramebufferName);
+}
+
+void GLFramebuffer::bindAsDrawBuffer() const {
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mFramebufferName);
+}
+
+void GLFramebuffer::unbind() const {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 } // namespace gl

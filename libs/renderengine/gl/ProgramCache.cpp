@@ -77,9 +77,38 @@ Formatter& dedent(Formatter& f) {
     return f;
 }
 
-void ProgramCache::primeCache(EGLContext context, bool useColorManagement) {
+void ProgramCache::primeCache(
+        EGLContext context, bool useColorManagement, bool toneMapperShaderOnly) {
     auto& cache = mCaches[context];
     uint32_t shaderCount = 0;
+
+    if (toneMapperShaderOnly) {
+        Key shaderKey;
+        // base settings used by HDR->SDR tonemap only
+        shaderKey.set(Key::BLEND_MASK | Key::INPUT_TRANSFORM_MATRIX_MASK |
+                      Key::OUTPUT_TRANSFORM_MATRIX_MASK | Key::OUTPUT_TF_MASK |
+                      Key::OPACITY_MASK | Key::ALPHA_MASK |
+                      Key::ROUNDED_CORNERS_MASK | Key::TEXTURE_MASK,
+                      Key::BLEND_NORMAL | Key::INPUT_TRANSFORM_MATRIX_ON |
+                      Key::OUTPUT_TRANSFORM_MATRIX_ON | Key::OUTPUT_TF_SRGB |
+                      Key::OPACITY_OPAQUE | Key::ALPHA_EQ_ONE |
+                      Key::ROUNDED_CORNERS_OFF | Key::TEXTURE_EXT);
+        for (int i = 0; i < 4; i++) {
+            // Cache input transfer for HLG & ST2084
+            shaderKey.set(Key::INPUT_TF_MASK, (i & 1) ?
+                    Key::INPUT_TF_HLG : Key::INPUT_TF_ST2084);
+
+            // Cache Y410 input on or off
+            shaderKey.set(Key::Y410_BT2020_MASK, (i & 2) ?
+                    Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
+            if (cache.count(shaderKey) == 0) {
+                cache.emplace(shaderKey, generateProgram(shaderKey));
+                shaderCount++;
+            }
+        }
+        return;
+    }
+
     uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK | Key::ALPHA_MASK | Key::TEXTURE_MASK
         | Key::ROUNDED_CORNERS_MASK;
     // Prime the cache for all combinations of the above masks,
@@ -145,16 +174,15 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
             .set(Key::OPACITY_MASK,
                  description.isOpaque ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT)
             .set(Key::Key::INPUT_TRANSFORM_MATRIX_MASK,
-                 description.hasInputTransformMatrix()
-                         ? Key::INPUT_TRANSFORM_MATRIX_ON : Key::INPUT_TRANSFORM_MATRIX_OFF)
+                 description.hasInputTransformMatrix() ? Key::INPUT_TRANSFORM_MATRIX_ON
+                                                       : Key::INPUT_TRANSFORM_MATRIX_OFF)
             .set(Key::Key::OUTPUT_TRANSFORM_MATRIX_MASK,
                  description.hasOutputTransformMatrix() || description.hasColorMatrix()
                          ? Key::OUTPUT_TRANSFORM_MATRIX_ON
                          : Key::OUTPUT_TRANSFORM_MATRIX_OFF)
             .set(Key::ROUNDED_CORNERS_MASK,
-                 description.cornerRadius > 0
-                         ? Key::ROUNDED_CORNERS_ON : Key::ROUNDED_CORNERS_OFF);
-
+                 description.cornerRadius > 0 ? Key::ROUNDED_CORNERS_ON : Key::ROUNDED_CORNERS_OFF)
+            .set(Key::SHADOW_MASK, description.drawShadows ? Key::SHADOW_ON : Key::SHADOW_OFF);
     needs.set(Key::Y410_BT2020_MASK,
               description.isY410BT2020 ? Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
 
@@ -310,9 +338,9 @@ void ProgramCache::generateToneMappingProcess(Formatter& fs, const Key& needs) {
                 default:
                     fs << R"__SHADER__(
                         highp vec3 ToneMap(highp vec3 color) {
-                            const float maxMasteringLumi = 1000.0;
-                            const float maxContentLumi = 1000.0;
-                            const float maxInLumi = min(maxMasteringLumi, maxContentLumi);
+                            float maxMasteringLumi = maxMasteringLuminance;
+                            float maxContentLumi = maxContentLuminance;
+                            float maxInLumi = min(maxMasteringLumi, maxContentLumi);
                             float maxOutLumi = displayMaxLuminance;
 
                             float nits = color.y;
@@ -522,7 +550,7 @@ void ProgramCache::generateOETF(Formatter& fs, const Key& needs) {
 
 String8 ProgramCache::generateVertexShader(const Key& needs) {
     Formatter vs;
-    if (needs.isTexturing()) {
+    if (needs.hasTextureCoords()) {
         vs << "attribute vec4 texCoords;"
            << "varying vec2 outTexCoords;";
     }
@@ -530,15 +558,25 @@ String8 ProgramCache::generateVertexShader(const Key& needs) {
         vs << "attribute lowp vec4 cropCoords;";
         vs << "varying lowp vec2 outCropCoords;";
     }
+    if (needs.drawShadows()) {
+        vs << "attribute lowp vec4 shadowColor;";
+        vs << "varying lowp vec4 outShadowColor;";
+        vs << "attribute lowp vec4 shadowParams;";
+        vs << "varying lowp vec3 outShadowParams;";
+    }
     vs << "attribute vec4 position;"
        << "uniform mat4 projection;"
        << "uniform mat4 texture;"
        << "void main(void) {" << indent << "gl_Position = projection * position;";
-    if (needs.isTexturing()) {
+    if (needs.hasTextureCoords()) {
         vs << "outTexCoords = (texture * texCoords).st;";
     }
     if (needs.hasRoundedCorners()) {
         vs << "outCropCoords = cropCoords.st;";
+    }
+    if (needs.drawShadows()) {
+        vs << "outShadowColor = shadowColor;";
+        vs << "outShadowParams = shadowParams.xyz;";
     }
     vs << dedent << "}";
     return vs.getString();
@@ -554,11 +592,13 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     fs << "precision mediump float;";
 
     if (needs.getTextureTarget() == Key::TEXTURE_EXT) {
-        fs << "uniform samplerExternalOES sampler;"
-           << "varying vec2 outTexCoords;";
+        fs << "uniform samplerExternalOES sampler;";
     } else if (needs.getTextureTarget() == Key::TEXTURE_2D) {
-        fs << "uniform sampler2D sampler;"
-           << "varying vec2 outTexCoords;";
+        fs << "uniform sampler2D sampler;";
+    }
+
+    if (needs.hasTextureCoords()) {
+        fs << "varying vec2 outTexCoords;";
     }
 
     if (needs.hasRoundedCorners()) {
@@ -585,6 +625,24 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
             )__SHADER__";
     }
 
+    if (needs.drawShadows()) {
+        fs << R"__SHADER__(
+            varying lowp vec4 outShadowColor;
+            varying lowp vec3 outShadowParams;
+
+            /**
+             * Returns the shadow color.
+             */
+            vec4 getShadowColor()
+            {
+                lowp float d = length(outShadowParams.xy);
+                vec2 uv = vec2(outShadowParams.z * (1.0 - d), 0.5);
+                lowp float factor = texture2D(sampler, uv).a;
+                return outShadowColor * factor;
+            }
+            )__SHADER__";
+    }
+
     if (needs.getTextureTarget() == Key::TEXTURE_OFF || needs.hasAlpha()) {
         fs << "uniform vec4 color;";
     }
@@ -604,9 +662,10 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     }
 
     if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF())) {
-        // Currently, display maximum luminance is needed when doing tone mapping.
         if (needs.needsToneMapping()) {
             fs << "uniform float displayMaxLuminance;";
+            fs << "uniform float maxMasteringLuminance;";
+            fs << "uniform float maxContentLuminance;";
         }
 
         if (needs.hasInputTransformMatrix()) {
@@ -647,25 +706,29 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     }
 
     fs << "void main(void) {" << indent;
-    if (needs.isTexturing()) {
-        fs << "gl_FragColor = texture2D(sampler, outTexCoords);";
-        if (needs.isY410BT2020()) {
-            fs << "gl_FragColor.rgb = convertY410BT2020(gl_FragColor.rgb);";
-        }
+    if (needs.drawShadows()) {
+        fs << "gl_FragColor = getShadowColor();";
     } else {
-        fs << "gl_FragColor.rgb = color.rgb;";
-        fs << "gl_FragColor.a = 1.0;";
-    }
-    if (needs.isOpaque()) {
-        fs << "gl_FragColor.a = 1.0;";
-    }
-    if (needs.hasAlpha()) {
-        // modulate the current alpha value with alpha set
-        if (needs.isPremultiplied()) {
-            // ... and the color too if we're premultiplied
-            fs << "gl_FragColor *= color.a;";
+        if (needs.isTexturing()) {
+            fs << "gl_FragColor = texture2D(sampler, outTexCoords);";
+            if (needs.isY410BT2020()) {
+                fs << "gl_FragColor.rgb = convertY410BT2020(gl_FragColor.rgb);";
+            }
         } else {
-            fs << "gl_FragColor.a *= color.a;";
+            fs << "gl_FragColor.rgb = color.rgb;";
+            fs << "gl_FragColor.a = 1.0;";
+        }
+        if (needs.isOpaque()) {
+            fs << "gl_FragColor.a = 1.0;";
+        }
+        if (needs.hasAlpha()) {
+            // modulate the current alpha value with alpha set
+            if (needs.isPremultiplied()) {
+                // ... and the color too if we're premultiplied
+                fs << "gl_FragColor *= color.a;";
+            } else {
+                fs << "gl_FragColor.a *= color.a;";
+            }
         }
     }
 

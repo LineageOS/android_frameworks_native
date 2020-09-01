@@ -47,10 +47,14 @@ public:
     virtual void disconnect() = 0;
 
     // Creates a render color mode for the display
-    virtual void createDisplayColorProfile(DisplayColorProfileCreationArgs&&) = 0;
+    virtual void createDisplayColorProfile(const DisplayColorProfileCreationArgs&) = 0;
 
     // Creates a render surface for the display
-    virtual void createRenderSurface(RenderSurfaceCreationArgs&&) = 0;
+    virtual void createRenderSurface(const RenderSurfaceCreationArgs&) = 0;
+
+    // Creates a cache to cache duplicate client composition requests and skip
+    // similar requests if needed.
+    virtual void createClientCompositionCache(uint32_t cacheSize) = 0;
 
 protected:
     ~Display() = default;

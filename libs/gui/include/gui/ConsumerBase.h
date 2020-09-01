@@ -45,6 +45,9 @@ public:
         // See IConsumerListener::onFrame{Available,Replaced}
         virtual void onFrameAvailable(const BufferItem& item) = 0;
         virtual void onFrameReplaced(const BufferItem& /* item */) {}
+        virtual void onFrameDequeued(const uint64_t){};
+        virtual void onFrameCancelled(const uint64_t){};
+        virtual void onFrameDetached(const uint64_t){};
     };
 
     ~ConsumerBase() override;
@@ -141,6 +144,9 @@ protected:
     // classes if they want the notification.
     virtual void onFrameAvailable(const BufferItem& item) override;
     virtual void onFrameReplaced(const BufferItem& item) override;
+    virtual void onFrameDequeued(const uint64_t bufferId) override;
+    virtual void onFrameCancelled(const uint64_t bufferId) override;
+    virtual void onFrameDetached(const uint64_t bufferId) override;
     virtual void onBuffersReleased() override;
     virtual void onSidebandStreamChanged() override;
 

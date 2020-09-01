@@ -21,15 +21,15 @@
 
 namespace android {
 
-class InputDevice;
+class InputDeviceContext;
 struct RawEvent;
 
 /* Keeps track of the state of touch, stylus and tool buttons. */
 class TouchButtonAccumulator {
 public:
     TouchButtonAccumulator();
-    void configure(InputDevice* device);
-    void reset(InputDevice* device);
+    void configure(InputDeviceContext& deviceContext);
+    void reset(InputDeviceContext& deviceContext);
 
     void process(const RawEvent* rawEvent);
 

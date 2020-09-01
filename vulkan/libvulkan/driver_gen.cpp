@@ -16,11 +16,10 @@
 
 // WARNING: This file is generated. See ../README.md for instructions.
 
+#include <log/log.h>
 #include <string.h>
 
 #include <algorithm>
-
-#include <log/log.h>
 
 #include "driver.h"
 
@@ -30,23 +29,6 @@ namespace driver {
 namespace {
 
 // clang-format off
-
-VKAPI_ATTR VkResult checkedBindImageMemory2(VkDevice device, uint32_t bindInfoCount, const VkBindImageMemoryInfo* pBindInfos) {
-    if (GetData(device).hook_extensions[ProcHook::EXTENSION_CORE_1_1]) {
-        return BindImageMemory2(device, bindInfoCount, pBindInfos);
-    } else {
-        Logger(device).Err(device, "VK_VERSION_1_0 not enabled. vkBindImageMemory2 not executed.");
-        return VK_SUCCESS;
-    }
-}
-
-VKAPI_ATTR void checkedGetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2* pQueueInfo, VkQueue* pQueue) {
-    if (GetData(device).hook_extensions[ProcHook::EXTENSION_CORE_1_1]) {
-        GetDeviceQueue2(device, pQueueInfo, pQueue);
-    } else {
-        Logger(device).Err(device, "VK_VERSION_1_0 not enabled. vkGetDeviceQueue2 not executed.");
-    }
-}
 
 VKAPI_ATTR VkResult checkedCreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSwapchainKHR* pSwapchain) {
     if (GetData(device).hook_extensions[ProcHook::KHR_swapchain]) {
@@ -92,6 +74,24 @@ VKAPI_ATTR VkResult checkedQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR
     }
 }
 
+VKAPI_ATTR VkResult checkedBindImageMemory2(VkDevice device, uint32_t bindInfoCount, const VkBindImageMemoryInfo* pBindInfos) {
+    if (GetData(device).hook_extensions[ProcHook::EXTENSION_CORE_1_1]) {
+        return BindImageMemory2(device, bindInfoCount, pBindInfos);
+    } else {
+        Logger(device).Err(device, "VK_VERSION_1_1 not enabled. vkBindImageMemory2 not executed.");
+        return VK_SUCCESS;
+    }
+}
+
+VKAPI_ATTR VkResult checkedBindImageMemory2KHR(VkDevice device, uint32_t bindInfoCount, const VkBindImageMemoryInfo* pBindInfos) {
+    if (GetData(device).hook_extensions[ProcHook::KHR_bind_memory2]) {
+        return BindImageMemory2KHR(device, bindInfoCount, pBindInfos);
+    } else {
+        Logger(device).Err(device, "VK_KHR_bind_memory2 not enabled. vkBindImageMemory2KHR not executed.");
+        return VK_SUCCESS;
+    }
+}
+
 VKAPI_ATTR VkResult checkedGetDeviceGroupPresentCapabilitiesKHR(VkDevice device, VkDeviceGroupPresentCapabilitiesKHR* pDeviceGroupPresentCapabilities) {
     if (GetData(device).hook_extensions[ProcHook::KHR_swapchain]) {
         return GetDeviceGroupPresentCapabilitiesKHR(device, pDeviceGroupPresentCapabilities);
@@ -119,6 +119,23 @@ VKAPI_ATTR VkResult checkedAcquireNextImage2KHR(VkDevice device, const VkAcquire
     }
 }
 
+VKAPI_ATTR void checkedSetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pMetadata) {
+    if (GetData(device).hook_extensions[ProcHook::EXT_hdr_metadata]) {
+        SetHdrMetadataEXT(device, swapchainCount, pSwapchains, pMetadata);
+    } else {
+        Logger(device).Err(device, "VK_EXT_hdr_metadata not enabled. vkSetHdrMetadataEXT not executed.");
+    }
+}
+
+VKAPI_ATTR VkResult checkedGetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR swapchain) {
+    if (GetData(device).hook_extensions[ProcHook::KHR_shared_presentable_image]) {
+        return GetSwapchainStatusKHR(device, swapchain);
+    } else {
+        Logger(device).Err(device, "VK_KHR_shared_presentable_image not enabled. vkGetSwapchainStatusKHR not executed.");
+        return VK_SUCCESS;
+    }
+}
+
 VKAPI_ATTR VkResult checkedGetRefreshCycleDurationGOOGLE(VkDevice device, VkSwapchainKHR swapchain, VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties) {
     if (GetData(device).hook_extensions[ProcHook::GOOGLE_display_timing]) {
         return GetRefreshCycleDurationGOOGLE(device, swapchain, pDisplayTimingProperties);
@@ -137,29 +154,11 @@ VKAPI_ATTR VkResult checkedGetPastPresentationTimingGOOGLE(VkDevice device, VkSw
     }
 }
 
-VKAPI_ATTR void checkedSetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pMetadata) {
-    if (GetData(device).hook_extensions[ProcHook::EXT_hdr_metadata]) {
-        SetHdrMetadataEXT(device, swapchainCount, pSwapchains, pMetadata);
+VKAPI_ATTR void checkedGetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2* pQueueInfo, VkQueue* pQueue) {
+    if (GetData(device).hook_extensions[ProcHook::EXTENSION_CORE_1_1]) {
+        GetDeviceQueue2(device, pQueueInfo, pQueue);
     } else {
-        Logger(device).Err(device, "VK_EXT_hdr_metadata not enabled. vkSetHdrMetadataEXT not executed.");
-    }
-}
-
-VKAPI_ATTR VkResult checkedGetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR swapchain) {
-    if (GetData(device).hook_extensions[ProcHook::KHR_shared_presentable_image]) {
-        return GetSwapchainStatusKHR(device, swapchain);
-    } else {
-        Logger(device).Err(device, "VK_KHR_shared_presentable_image not enabled. vkGetSwapchainStatusKHR not executed.");
-        return VK_SUCCESS;
-    }
-}
-
-VKAPI_ATTR VkResult checkedBindImageMemory2KHR(VkDevice device, uint32_t bindInfoCount, const VkBindImageMemoryInfoKHR* pBindInfos) {
-    if (GetData(device).hook_extensions[ProcHook::KHR_bind_memory2]) {
-        return BindImageMemory2KHR(device, bindInfoCount, pBindInfos);
-    } else {
-        Logger(device).Err(device, "VK_KHR_bind_memory2 not enabled. vkBindImageMemory2KHR not executed.");
-        return VK_SUCCESS;
+        Logger(device).Err(device, "VK_VERSION_1_1 not enabled. vkGetDeviceQueue2 not executed.");
     }
 }
 
@@ -462,6 +461,13 @@ const ProcHook g_proc_hooks[] = {
         nullptr,
     },
     {
+        "vkQueueSubmit",
+        ProcHook::DEVICE,
+        ProcHook::EXTENSION_CORE_1_0,
+        reinterpret_cast<PFN_vkVoidFunction>(QueueSubmit),
+        nullptr,
+    },
+    {
         "vkSetHdrMetadataEXT",
         ProcHook::DEVICE,
         ProcHook::EXT_hdr_metadata,
@@ -491,14 +497,14 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     if (strcmp(name, "VK_EXT_swapchain_colorspace") == 0) return ProcHook::EXT_swapchain_colorspace;
     if (strcmp(name, "VK_GOOGLE_display_timing") == 0) return ProcHook::GOOGLE_display_timing;
     if (strcmp(name, "VK_KHR_android_surface") == 0) return ProcHook::KHR_android_surface;
+    if (strcmp(name, "VK_KHR_get_surface_capabilities2") == 0) return ProcHook::KHR_get_surface_capabilities2;
     if (strcmp(name, "VK_KHR_incremental_present") == 0) return ProcHook::KHR_incremental_present;
     if (strcmp(name, "VK_KHR_shared_presentable_image") == 0) return ProcHook::KHR_shared_presentable_image;
     if (strcmp(name, "VK_KHR_surface") == 0) return ProcHook::KHR_surface;
     if (strcmp(name, "VK_KHR_swapchain") == 0) return ProcHook::KHR_swapchain;
-    if (strcmp(name, "VK_KHR_get_surface_capabilities2") == 0) return ProcHook::KHR_get_surface_capabilities2;
-    if (strcmp(name, "VK_KHR_get_physical_device_properties2") == 0) return ProcHook::KHR_get_physical_device_properties2;
     if (strcmp(name, "VK_ANDROID_external_memory_android_hardware_buffer") == 0) return ProcHook::ANDROID_external_memory_android_hardware_buffer;
     if (strcmp(name, "VK_KHR_bind_memory2") == 0) return ProcHook::KHR_bind_memory2;
+    if (strcmp(name, "VK_KHR_get_physical_device_properties2") == 0) return ProcHook::KHR_get_physical_device_properties2;
     // clang-format on
     return ProcHook::EXTENSION_UNKNOWN;
 }
@@ -534,12 +540,12 @@ bool InitDriverTable(VkInstance instance,
     INIT_PROC(true, instance, GetPhysicalDeviceProperties);
     INIT_PROC(true, instance, CreateDevice);
     INIT_PROC(true, instance, EnumerateDeviceExtensionProperties);
-    INIT_PROC(false, instance, EnumeratePhysicalDeviceGroups);
-    INIT_PROC(false, instance, GetPhysicalDeviceProperties2);
     INIT_PROC_EXT(EXT_debug_report, true, instance, CreateDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DestroyDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DebugReportMessageEXT);
+    INIT_PROC(false, instance, GetPhysicalDeviceProperties2);
     INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceProperties2KHR);
+    INIT_PROC(false, instance, EnumeratePhysicalDeviceGroups);
     // clang-format on
 
     return success;
@@ -555,16 +561,17 @@ bool InitDriverTable(VkDevice dev,
     INIT_PROC(true, dev, GetDeviceProcAddr);
     INIT_PROC(true, dev, DestroyDevice);
     INIT_PROC(true, dev, GetDeviceQueue);
+    INIT_PROC(true, dev, QueueSubmit);
     INIT_PROC(true, dev, CreateImage);
     INIT_PROC(true, dev, DestroyImage);
     INIT_PROC(true, dev, AllocateCommandBuffers);
     INIT_PROC(false, dev, BindImageMemory2);
+    INIT_PROC_EXT(KHR_bind_memory2, true, dev, BindImageMemory2KHR);
     INIT_PROC(false, dev, GetDeviceQueue2);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsageANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage2ANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, AcquireImageANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, QueueSignalReleaseImageANDROID);
-    INIT_PROC_EXT(KHR_bind_memory2, true, dev, BindImageMemory2KHR);
     // clang-format on
 
     return success;
@@ -572,5 +579,3 @@ bool InitDriverTable(VkDevice dev,
 
 }  // namespace driver
 }  // namespace vulkan
-
-// clang-format on

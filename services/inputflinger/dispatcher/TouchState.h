@@ -49,7 +49,6 @@ struct TouchState {
                            BitSet32 pointerIds);
     void addPortalWindow(const sp<android::InputWindowHandle>& windowHandle);
     void addGestureMonitors(const std::vector<TouchedMonitor>& monitors);
-    void removeWindow(const sp<android::InputWindowHandle>& windowHandle);
     void removeWindowByToken(const sp<IBinder>& token);
     void filterNonAsIsTouchWindows();
     void filterNonMonitors();

@@ -34,23 +34,23 @@ namespace android {
 class HWComposer;
 class IProducerListener;
 
-/* This DisplaySurface implementation supports virtual displays, where GLES
+/* This DisplaySurface implementation supports virtual displays, where GPU
  * and/or HWC compose into a buffer that is then passed to an arbitrary
  * consumer (the sink) running in another process.
  *
  * The simplest case is when the virtual display will never use the h/w
  * composer -- either the h/w composer doesn't support writing to buffers, or
  * there are more virtual displays than it supports simultaneously. In this
- * case, the GLES driver works directly with the output buffer queue, and
+ * case, the GPU driver works directly with the output buffer queue, and
  * calls to the VirtualDisplay from SurfaceFlinger and DisplayHardware do
  * nothing.
  *
  * If h/w composer might be used, then each frame will fall into one of three
- * configurations: GLES-only, HWC-only, and MIXED composition. In all of these,
+ * configurations: GPU-only, HWC-only, and MIXED composition. In all of these,
  * we must provide a FB target buffer and output buffer for the HWC set() call.
  *
- * In GLES-only composition, the GLES driver is given a buffer from the sink to
- * render into. When the GLES driver queues the buffer to the
+ * In GPU-only composition, the GPU driver is given a buffer from the sink to
+ * render into. When the GPU driver queues the buffer to the
  * VirtualDisplaySurface, the VirtualDisplaySurface holds onto it instead of
  * immediately queueing it to the sink. The buffer is used as both the FB
  * target and output buffer for HWC, though on these frames the HWC doesn't
@@ -65,7 +65,7 @@ class IProducerListener;
  *
  * On MIXED frames, things become more complicated, since some h/w composer
  * implementations can't read from and write to the same buffer. This class has
- * an internal BufferQueue that it uses as a scratch buffer pool. The GLES
+ * an internal BufferQueue that it uses as a scratch buffer pool. The GPU
  * driver is given a scratch buffer to render into. When it finishes rendering,
  * the buffer is queued and then immediately acquired by the
  * VirtualDisplaySurface. The scratch buffer is then used as the FB target
@@ -99,7 +99,7 @@ private:
     virtual ~VirtualDisplaySurface();
 
     //
-    // IGraphicBufferProducer interface, used by the GLES driver.
+    // IGraphicBufferProducer interface, used by the GPU driver.
     //
     virtual status_t requestBuffer(int pslot, sp<GraphicBuffer>* outBuf);
     virtual status_t setMaxDequeuedBufferCount(int maxDequeuedBuffers);
@@ -144,7 +144,7 @@ private:
 
     // Both the sink and scratch buffer pools have their own set of slots
     // ("source slots", or "sslot"). We have to merge these into the single
-    // set of slots used by the GLES producer ("producer slots" or "pslot") and
+    // set of slots used by the graphics producer ("producer slots" or "pslot") and
     // internally in the VirtualDisplaySurface. To minimize the number of times
     // a producer slot switches which source it comes from, we map source slot
     // numbers to producer slot numbers differently for each source.
@@ -166,12 +166,12 @@ private:
 
     // To avoid buffer reallocations, we track the buffer usage and format
     // we used on the previous frame and use it again on the new frame. If
-    // the composition type changes or the GLES driver starts requesting
+    // the composition type changes or the GPU driver starts requesting
     // different usage/format, we'll get a new buffer.
     uint32_t mOutputFormat;
     uint64_t mOutputUsage;
 
-    // Since we present a single producer interface to the GLES driver, but
+    // Since we present a single producer interface to the GPU driver, but
     // are internally muxing between the sink and scratch producers, we have
     // to keep track of which source last returned each producer slot from
     // dequeueBuffer. Each bit in mProducerSlotSource corresponds to a producer
@@ -181,7 +181,7 @@ private:
     sp<GraphicBuffer> mProducerBuffers[BufferQueueDefs::NUM_BUFFER_SLOTS];
 
     // The QueueBufferOutput with the latest info from the sink, and with the
-    // transform hint cleared. Since we defer queueBuffer from the GLES driver
+    // transform hint cleared. Since we defer queueBuffer from the GPU driver
     // to the sink, we have to return the previous version.
     // Moves instead of copies are performed to avoid duplicate
     // FrameEventHistoryDeltas.
@@ -195,7 +195,7 @@ private:
     // Intra-frame state
     //
 
-    // Composition type and GLES buffer source for the current frame.
+    // Composition type and graphics buffer source for the current frame.
     // Valid after prepareFrame(), cleared in onFrameCommitted.
     CompositionType mCompositionType;
 
@@ -221,13 +221,13 @@ private:
     // +-----------+-------------------+-------------+
     // | IDLE      | beginFrame        || BEGUN      |
     // | BEGUN     | prepareFrame      || PREPARED   |
-    // | PREPARED  | dequeueBuffer [1] || GLES       |
+    // | PREPARED  | dequeueBuffer [1] || GPU        |
     // | PREPARED  | advanceFrame [2]  || HWC        |
-    // | GLES      | queueBuffer       || GLES_DONE  |
-    // | GLES_DONE | advanceFrame      || HWC        |
+    // | GPU       | queueBuffer       || GPU_DONE   |
+    // | GPU_DONE  | advanceFrame      || HWC        |
     // | HWC       | onFrameCommitted  || IDLE       |
     // +-----------+-------------------++------------+
-    // [1] COMPOSITION_GLES and COMPOSITION_MIXED frames.
+    // [1] COMPOSITION_GPU and COMPOSITION_MIXED frames.
     // [2] COMPOSITION_HWC frames.
     //
     enum DbgState {
@@ -236,12 +236,12 @@ private:
         // output buffer dequeued, framebuffer source not yet known
         DBG_STATE_BEGUN,
         // output buffer dequeued, framebuffer source known but not provided
-        // to GLES yet.
+        // to GPU yet.
         DBG_STATE_PREPARED,
-        // GLES driver has a buffer dequeued
-        DBG_STATE_GLES,
-        // GLES driver has queued the buffer, we haven't sent it to HWC yet
-        DBG_STATE_GLES_DONE,
+        // GPU driver has a buffer dequeued
+        DBG_STATE_GPU,
+        // GPU driver has queued the buffer, we haven't sent it to HWC yet
+        DBG_STATE_GPU_DONE,
         // HWC has the buffer for this frame
         DBG_STATE_HWC,
     };

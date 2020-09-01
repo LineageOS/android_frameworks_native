@@ -15,6 +15,9 @@
  */
 
 /**
+ * Structures and functions to receive and process sensor events in
+ * native code.
+ *
  * @addtogroup Sensor
  * @{
  */
@@ -40,12 +43,6 @@
  *   - DO NOT MODIFY CONSTANTS OR FUNCTIONAL MACROS
  *   - DO NOT CHANGE THE SIGNATURE OF FUNCTIONS IN ANY WAY
  *   - DO NOT CHANGE THE LAYOUT OR SIZE OF STRUCTURES
- */
-
-/**
- * Structures and functions to receive and process sensor events in
- * native code.
- *
  */
 
 #include <android/looper.h>
@@ -245,6 +242,13 @@ enum {
      * {@link ASENSOR_TYPE_ACCELEROMETER_UNCALIBRATED}
      */
     ASENSOR_TYPE_ACCELEROMETER_UNCALIBRATED = 35,
+    /**
+     * {@link ASENSOR_TYPE_HINGE_ANGLE}
+     * reporting-mode: on-change
+     *
+     * The hinge angle sensor value is returned in degrees.
+     */
+    ASENSOR_TYPE_HINGE_ANGLE = 36,
 };
 
 /**

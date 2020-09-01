@@ -61,6 +61,11 @@ public:
         return mInfo.token ? mInfo.dispatchingTimeout : defaultValue;
     }
 
+    inline std::chrono::nanoseconds getDispatchingTimeout(
+            std::chrono::nanoseconds defaultValue) const {
+        return mInfo.token ? std::chrono::nanoseconds(mInfo.dispatchingTimeout) : defaultValue;
+    }
+
     inline sp<IBinder> getApplicationToken() const {
         return mInfo.token;
     }
