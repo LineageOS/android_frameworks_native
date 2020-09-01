@@ -108,11 +108,11 @@ public:
     inline void setKeyboardType(int32_t keyboardType) { mKeyboardType = keyboardType; }
     inline int32_t getKeyboardType() const { return mKeyboardType; }
 
-    inline void setKeyCharacterMap(const sp<KeyCharacterMap>& value) {
+    inline void setKeyCharacterMap(const std::shared_ptr<KeyCharacterMap> value) {
         mKeyCharacterMap = value;
     }
 
-    inline sp<KeyCharacterMap> getKeyCharacterMap() const {
+    inline const std::shared_ptr<KeyCharacterMap> getKeyCharacterMap() const {
         return mKeyCharacterMap;
     }
 
@@ -136,7 +136,7 @@ private:
     bool mHasMic;
     uint32_t mSources;
     int32_t mKeyboardType;
-    sp<KeyCharacterMap> mKeyCharacterMap;
+    std::shared_ptr<KeyCharacterMap> mKeyCharacterMap;
     bool mHasVibrator;
     bool mHasButtonUnderPad;
 

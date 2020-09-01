@@ -23,12 +23,12 @@
 #include <binder/IBinder.h>
 #endif
 
+#include <android-base/result.h>
 #include <input/Input.h>
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/Tokenizer.h>
 #include <utils/Unicode.h>
-#include <utils/RefBase.h>
 
 // Maximum number of keys supported by KeyCharacterMaps
 #define MAX_KEYS 8192
@@ -42,7 +42,7 @@ namespace android {
  *
  * This object is immutable after it has been loaded.
  */
-class KeyCharacterMap : public RefBase {
+class KeyCharacterMap {
 public:
     enum KeyboardType {
         KEYBOARD_TYPE_UNKNOWN = 0,
@@ -74,18 +74,18 @@ public:
     };
 
     /* Loads a key character map from a file. */
-    static status_t load(const std::string& filename, Format format, sp<KeyCharacterMap>* outMap);
+    static base::Result<std::shared_ptr<KeyCharacterMap>> load(const std::string& filename,
+                                                               Format format);
 
     /* Loads a key character map from its string contents. */
-    static status_t loadContents(const std::string& filename,
-            const char* contents, Format format, sp<KeyCharacterMap>* outMap);
+    static base::Result<std::shared_ptr<KeyCharacterMap>> loadContents(const std::string& filename,
+                                                                       const char* contents,
+                                                                       Format format);
 
-    /* Combines a base key character map and an overlay. */
-    static sp<KeyCharacterMap> combine(const sp<KeyCharacterMap>& base,
-            const sp<KeyCharacterMap>& overlay);
+    const std::string getLoadFileName() const;
 
-    /* Returns an empty key character map. */
-    static sp<KeyCharacterMap> empty();
+    /* Combines this key character map with an overlay. */
+    void combine(const KeyCharacterMap& overlay);
 
     /* Gets the keyboard type. */
     int32_t getKeyboardType() const;
@@ -136,13 +136,14 @@ public:
 
 #ifdef __ANDROID__
     /* Reads a key map from a parcel. */
-    static sp<KeyCharacterMap> readFromParcel(Parcel* parcel);
+    static std::shared_ptr<KeyCharacterMap> readFromParcel(Parcel* parcel);
 
     /* Writes a key map to a parcel. */
     void writeToParcel(Parcel* parcel) const;
 #endif
 
-protected:
+    KeyCharacterMap(const KeyCharacterMap& other);
+
     virtual ~KeyCharacterMap();
 
 private:
@@ -224,16 +225,14 @@ private:
         status_t parseCharacterLiteral(char16_t* outCharacter);
     };
 
-    static sp<KeyCharacterMap> sEmpty;
-
     KeyedVector<int32_t, Key*> mKeys;
     int mType;
+    std::string mLoadFileName;
 
     KeyedVector<int32_t, int32_t> mKeysByScanCode;
     KeyedVector<int32_t, int32_t> mKeysByUsageCode;
 
     KeyCharacterMap();
-    KeyCharacterMap(const KeyCharacterMap& other);
 
     bool getKey(int32_t keyCode, const Key** outKey) const;
     bool getKeyBehavior(int32_t keyCode, int32_t metaState,
@@ -242,7 +241,7 @@ private:
 
     bool findKey(char16_t ch, int32_t* outKeyCode, int32_t* outMetaState) const;
 
-    static status_t load(Tokenizer* tokenizer, Format format, sp<KeyCharacterMap>* outMap);
+    static base::Result<std::shared_ptr<KeyCharacterMap>> load(Tokenizer* tokenizer, Format format);
 
     static void addKey(Vector<KeyEvent>& outEvents,
             int32_t deviceId, int32_t keyCode, int32_t metaState, bool down, nsecs_t time);

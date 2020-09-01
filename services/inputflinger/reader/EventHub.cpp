@@ -216,10 +216,7 @@ bool EventHub::Device::hasValidFd() const {
     return !isVirtual && enabled;
 }
 
-const sp<KeyCharacterMap>& EventHub::Device::getKeyCharacterMap() const {
-    if (combinedKeyMap != nullptr) {
-        return combinedKeyMap;
-    }
+const std::shared_ptr<KeyCharacterMap> EventHub::Device::getKeyCharacterMap() const {
     return keyMap.keyCharacterMap;
 }
 
@@ -661,8 +658,8 @@ status_t EventHub::mapKey(int32_t deviceId, int32_t scanCode, int32_t usageCode,
 
     if (device != nullptr) {
         // Check the key character map first.
-        sp<KeyCharacterMap> kcm = device->getKeyCharacterMap();
-        if (kcm != nullptr) {
+        const std::shared_ptr<KeyCharacterMap> kcm = device->getKeyCharacterMap();
+        if (kcm) {
             if (!kcm->mapKey(scanCode, usageCode, outKeycode)) {
                 *outFlags = 0;
                 status = NO_ERROR;
@@ -677,7 +674,7 @@ status_t EventHub::mapKey(int32_t deviceId, int32_t scanCode, int32_t usageCode,
         }
 
         if (status == NO_ERROR) {
-            if (kcm != nullptr) {
+            if (kcm) {
                 kcm->tryRemapKey(*outKeycode, metaState, outKeycode, outMetaState);
             } else {
                 *outMetaState = metaState;
@@ -754,7 +751,7 @@ void EventHub::getVirtualKeyDefinitions(int32_t deviceId,
     }
 }
 
-sp<KeyCharacterMap> EventHub::getKeyCharacterMap(int32_t deviceId) const {
+const std::shared_ptr<KeyCharacterMap> EventHub::getKeyCharacterMap(int32_t deviceId) const {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr) {
@@ -763,15 +760,13 @@ sp<KeyCharacterMap> EventHub::getKeyCharacterMap(int32_t deviceId) const {
     return nullptr;
 }
 
-bool EventHub::setKeyboardLayoutOverlay(int32_t deviceId, const sp<KeyCharacterMap>& map) {
+bool EventHub::setKeyboardLayoutOverlay(int32_t deviceId, std::shared_ptr<KeyCharacterMap> map) {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device != nullptr) {
-        if (map != device->overlayKeyMap) {
-            device->overlayKeyMap = map;
-            device->combinedKeyMap = KeyCharacterMap::combine(device->keyMap.keyCharacterMap, map);
-            return true;
-        }
+    if (device != nullptr && map != nullptr && device->keyMap.keyCharacterMap != nullptr) {
+        device->keyMap.keyCharacterMap->combine(*map);
+        device->keyMap.keyCharacterMapFile = device->keyMap.keyCharacterMap->getLoadFileName();
+        return true;
     }
     return false;
 }
@@ -1853,8 +1848,6 @@ void EventHub::dump(std::string& dump) {
                                  device->keyMap.keyCharacterMapFile.c_str());
             dump += StringPrintf(INDENT3 "ConfigurationFile: %s\n",
                                  device->configurationFile.c_str());
-            dump += StringPrintf(INDENT3 "HaveKeyboardLayoutOverlay: %s\n",
-                                 toString(device->overlayKeyMap != nullptr));
             dump += INDENT3 "VideoDevice: ";
             if (device->videoDevice) {
                 dump += device->videoDevice->dump() + "\n";
