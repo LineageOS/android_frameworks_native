@@ -59,6 +59,9 @@ cc_defaults {
         "libutils",
         "libui",
     ],
+    static_libs: [
+        "libattestation",
+    ],
 }
 
 cc_library_shared {

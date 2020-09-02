@@ -53,8 +53,6 @@ static constexpr bool DEBUG_FOCUS = false;
 #include <input/InputWindow.h>
 #include <log/log.h>
 #include <log/log_event_list.h>
-#include <openssl/hmac.h>
-#include <openssl/rand.h>
 #include <powermanager/PowerManager.h>
 #include <statslog.h>
 #include <unistd.h>
@@ -342,53 +340,6 @@ static void addGestureMonitors(const std::vector<Monitor>& monitors,
     for (const Monitor& monitor : monitors) {
         outTouchedMonitors.emplace_back(monitor, xOffset, yOffset);
     }
-}
-
-static std::array<uint8_t, 128> getRandomKey() {
-    std::array<uint8_t, 128> key;
-    if (RAND_bytes(key.data(), key.size()) != 1) {
-        LOG_ALWAYS_FATAL("Can't generate HMAC key");
-    }
-    return key;
-}
-
-// --- HmacKeyManager ---
-
-HmacKeyManager::HmacKeyManager() : mHmacKey(getRandomKey()) {}
-
-std::array<uint8_t, 32> HmacKeyManager::sign(const VerifiedInputEvent& event) const {
-    size_t size;
-    switch (event.type) {
-        case VerifiedInputEvent::Type::KEY: {
-            size = sizeof(VerifiedKeyEvent);
-            break;
-        }
-        case VerifiedInputEvent::Type::MOTION: {
-            size = sizeof(VerifiedMotionEvent);
-            break;
-        }
-    }
-    const uint8_t* start = reinterpret_cast<const uint8_t*>(&event);
-    return sign(start, size);
-}
-
-std::array<uint8_t, 32> HmacKeyManager::sign(const uint8_t* data, size_t size) const {
-    // SHA256 always generates 32-bytes result
-    std::array<uint8_t, 32> hash;
-    unsigned int hashLen = 0;
-    uint8_t* result =
-            HMAC(EVP_sha256(), mHmacKey.data(), mHmacKey.size(), data, size, hash.data(), &hashLen);
-    if (result == nullptr) {
-        ALOGE("Could not sign the data using HMAC");
-        return INVALID_HMAC;
-    }
-
-    if (hashLen != hash.size()) {
-        ALOGE("HMAC-SHA256 has unexpected length");
-        return INVALID_HMAC;
-    }
-
-    return hash;
 }
 
 // --- InputDispatcher ---
@@ -2682,6 +2633,22 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
     }
 }
 
+std::array<uint8_t, 32> InputDispatcher::sign(const VerifiedInputEvent& event) const {
+    size_t size;
+    switch (event.type) {
+        case VerifiedInputEvent::Type::KEY: {
+            size = sizeof(VerifiedKeyEvent);
+            break;
+        }
+        case VerifiedInputEvent::Type::MOTION: {
+            size = sizeof(VerifiedMotionEvent);
+            break;
+        }
+    }
+    const uint8_t* start = reinterpret_cast<const uint8_t*>(&event);
+    return mHmacKeyManager.sign(start, size);
+}
+
 const std::array<uint8_t, 32> InputDispatcher::getSignature(
         const MotionEntry& motionEntry, const DispatchEntry& dispatchEntry) const {
     int32_t actionMasked = dispatchEntry.resolvedAction & AMOTION_EVENT_ACTION_MASK;
@@ -2691,7 +2658,7 @@ const std::array<uint8_t, 32> InputDispatcher::getSignature(
         VerifiedMotionEvent verifiedEvent = verifiedMotionEventFromMotionEntry(motionEntry);
         verifiedEvent.actionMasked = actionMasked;
         verifiedEvent.flags = dispatchEntry.resolvedFlags & VERIFIED_MOTION_EVENT_FLAGS;
-        return mHmacKeyManager.sign(verifiedEvent);
+        return sign(verifiedEvent);
     }
     return INVALID_HMAC;
 }
@@ -2701,7 +2668,7 @@ const std::array<uint8_t, 32> InputDispatcher::getSignature(
     VerifiedKeyEvent verifiedEvent = verifiedKeyEventFromKeyEntry(keyEntry);
     verifiedEvent.flags = dispatchEntry.resolvedFlags & VERIFIED_KEY_EVENT_FLAGS;
     verifiedEvent.action = dispatchEntry.resolvedAction;
-    return mHmacKeyManager.sign(verifiedEvent);
+    return sign(verifiedEvent);
 }
 
 void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
@@ -3549,7 +3516,7 @@ std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const Inpu
             const KeyEvent& keyEvent = static_cast<const KeyEvent&>(event);
             VerifiedKeyEvent verifiedKeyEvent = verifiedKeyEventFromKeyEvent(keyEvent);
             result = std::make_unique<VerifiedKeyEvent>(verifiedKeyEvent);
-            calculatedHmac = mHmacKeyManager.sign(verifiedKeyEvent);
+            calculatedHmac = sign(verifiedKeyEvent);
             break;
         }
         case AINPUT_EVENT_TYPE_MOTION: {
@@ -3557,7 +3524,7 @@ std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const Inpu
             VerifiedMotionEvent verifiedMotionEvent =
                     verifiedMotionEventFromMotionEvent(motionEvent);
             result = std::make_unique<VerifiedMotionEvent>(verifiedMotionEvent);
-            calculatedHmac = mHmacKeyManager.sign(verifiedMotionEvent);
+            calculatedHmac = sign(verifiedMotionEvent);
             break;
         }
         default: {
