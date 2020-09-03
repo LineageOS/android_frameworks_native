@@ -501,6 +501,10 @@ HalResult<Capabilities> HidlHalWrapperV1_3::getCapabilitiesInternal() {
     }
     if (externalControlResult.withDefault(false)) {
         capabilities |= Capabilities::EXTERNAL_CONTROL;
+
+        if (amplitudeResult.withDefault(false)) {
+            capabilities |= Capabilities::EXTERNAL_AMPLITUDE_CONTROL;
+        }
     }
 
     return HalResult<Capabilities>::fromReturn(externalControlResult, capabilities);

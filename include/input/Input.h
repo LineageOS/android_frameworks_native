@@ -312,11 +312,6 @@ private:
  */
 constexpr float AMOTION_EVENT_INVALID_CURSOR_POSITION = std::numeric_limits<float>::quiet_NaN();
 
-/**
- * Invalid value of HMAC - SHA256. Any events with this HMAC value will be marked as not verified.
- */
-constexpr std::array<uint8_t, 32> INVALID_HMAC = {0};
-
 /*
  * Pointer coordinate data.
  */
