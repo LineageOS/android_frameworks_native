@@ -65,6 +65,10 @@ extern "C" {
  * another process. File descriptors may also be sent to other processes over a Unix domain
  * socket with sendmsg and SCM_RIGHTS. See sendmsg(3) and cmsg(3) man pages for more information.
  *
+ * If you intend to share this file descriptor with a child process after
+ * calling exec(3), note that you will need to use fcntl(2) with FD_SETFD
+ * to clear the FD_CLOEXEC flag for this to work on all versions of Android.
+ *
  * Available since API level 26.
  *
  * \param name an optional name.
