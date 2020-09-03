@@ -51,7 +51,7 @@ protected:
         if (!result.isOk()) {
             return false;
         }
-        return (result.value() | query) == query;
+        return (result.value() & query) == query;
     }
 };
 
