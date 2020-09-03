@@ -379,7 +379,7 @@ InputDispatcher::~InputDispatcher() {
 
     while (!mConnectionsByFd.empty()) {
         sp<Connection> connection = mConnectionsByFd.begin()->second;
-        unregisterInputChannel(*connection->inputChannel);
+        unregisterInputChannel(connection->inputChannel->getConnectionToken());
     }
 }
 
@@ -2793,7 +2793,7 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
         }
 
         // Unregister the channel.
-        d->unregisterInputChannelLocked(*connection->inputChannel, notify);
+        d->unregisterInputChannelLocked(connection->inputChannel->getConnectionToken(), notify);
         return 0; // remove the callback
     }             // release lock
 }
@@ -3313,7 +3313,6 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t injec
           "syncMode=%d, timeout=%lld, policyFlags=0x%08x",
           event->getType(), injectorPid, injectorUid, syncMode, timeout.count(), policyFlags);
 #endif
-
     nsecs_t endTime = now() + std::chrono::duration_cast<std::chrono::nanoseconds>(timeout).count();
 
     policyFlags |= POLICY_FLAG_INJECTED;
@@ -4429,15 +4428,11 @@ status_t InputDispatcher::registerInputMonitor(const std::shared_ptr<InputChanne
     return OK;
 }
 
-status_t InputDispatcher::unregisterInputChannel(const InputChannel& inputChannel) {
-#if DEBUG_REGISTRATION
-    ALOGD("channel '%s' ~ unregisterInputChannel", inputChannel.getName().c_str());
-#endif
-
+status_t InputDispatcher::unregisterInputChannel(const sp<IBinder>& connectionToken) {
     { // acquire lock
         std::scoped_lock _l(mLock);
 
-        status_t status = unregisterInputChannelLocked(inputChannel, false /*notify*/);
+        status_t status = unregisterInputChannelLocked(connectionToken, false /*notify*/);
         if (status) {
             return status;
         }
@@ -4449,23 +4444,22 @@ status_t InputDispatcher::unregisterInputChannel(const InputChannel& inputChanne
     return OK;
 }
 
-status_t InputDispatcher::unregisterInputChannelLocked(const InputChannel& inputChannel,
+status_t InputDispatcher::unregisterInputChannelLocked(const sp<IBinder>& connectionToken,
                                                        bool notify) {
-    sp<Connection> connection = getConnectionLocked(inputChannel.getConnectionToken());
+    sp<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
-        ALOGW("Attempted to unregister already unregistered input channel '%s'",
-              inputChannel.getName().c_str());
+        ALOGW("Attempted to unregister already unregistered input channel");
         return BAD_VALUE;
     }
 
     removeConnectionLocked(connection);
-    mInputChannelsByToken.erase(inputChannel.getConnectionToken());
+    mInputChannelsByToken.erase(connectionToken);
 
     if (connection->monitor) {
-        removeMonitorChannelLocked(inputChannel);
+        removeMonitorChannelLocked(connectionToken);
     }
 
-    mLooper->removeFd(inputChannel.getFd());
+    mLooper->removeFd(connection->inputChannel->getFd());
 
     nsecs_t currentTime = now();
     abortBrokenDispatchCycleLocked(currentTime, connection, notify);
@@ -4474,19 +4468,19 @@ status_t InputDispatcher::unregisterInputChannelLocked(const InputChannel& input
     return OK;
 }
 
-void InputDispatcher::removeMonitorChannelLocked(const InputChannel& inputChannel) {
-    removeMonitorChannelLocked(inputChannel, mGlobalMonitorsByDisplay);
-    removeMonitorChannelLocked(inputChannel, mGestureMonitorsByDisplay);
+void InputDispatcher::removeMonitorChannelLocked(const sp<IBinder>& connectionToken) {
+    removeMonitorChannelLocked(connectionToken, mGlobalMonitorsByDisplay);
+    removeMonitorChannelLocked(connectionToken, mGestureMonitorsByDisplay);
 }
 
 void InputDispatcher::removeMonitorChannelLocked(
-        const InputChannel& inputChannel,
+        const sp<IBinder>& connectionToken,
         std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay) {
     for (auto it = monitorsByDisplay.begin(); it != monitorsByDisplay.end();) {
         std::vector<Monitor>& monitors = it->second;
         const size_t numMonitors = monitors.size();
         for (size_t i = 0; i < numMonitors; i++) {
-            if (*monitors[i].inputChannel == inputChannel) {
+            if (monitors[i].inputChannel->getConnectionToken() == connectionToken) {
                 monitors.erase(monitors.begin() + i);
                 break;
             }
