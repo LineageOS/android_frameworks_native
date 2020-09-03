@@ -23,9 +23,9 @@
 
 #include <input/DisplayViewport.h>
 #include <input/InputDevice.h>
+#include <stdint.h>
 #include <utils/PropertyMap.h>
 
-#include <stdint.h>
 #include <optional>
 #include <vector>
 
