@@ -18,6 +18,7 @@ cc_benchmark {
         "libutils",
     ],
     static_libs: [
+        "libattestation",
         "libinputdispatcher",
     ],
 }

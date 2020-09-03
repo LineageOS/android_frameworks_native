@@ -17,6 +17,7 @@
 #include <array>
 #include <math.h>
 
+#include <attestation/HmacKeyManager.h>
 #include <binder/Parcel.h>
 #include <gtest/gtest.h>
 #include <input/Input.h>

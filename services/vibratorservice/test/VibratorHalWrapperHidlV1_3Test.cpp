@@ -118,7 +118,8 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesSuccessful) {
 
     auto result = mWrapper->getCapabilities();
     ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL | vibrator::Capabilities::EXTERNAL_CONTROL,
+    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL | vibrator::Capabilities::EXTERNAL_CONTROL |
+                      vibrator::Capabilities::EXTERNAL_AMPLITUDE_CONTROL,
               result.value());
 }
 

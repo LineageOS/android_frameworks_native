@@ -31,6 +31,7 @@
 #include "TouchState.h"
 #include "TouchedWindow.h"
 
+#include <attestation/HmacKeyManager.h>
 #include <input/Input.h>
 #include <input/InputApplication.h>
 #include <input/InputTransport.h>
@@ -57,16 +58,6 @@
 namespace android::inputdispatcher {
 
 class Connection;
-
-class HmacKeyManager {
-public:
-    HmacKeyManager();
-    std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
-
-private:
-    std::array<uint8_t, 32> sign(const uint8_t* data, size_t size) const;
-    const std::array<uint8_t, 128> mHmacKey;
-};
 
 /* Dispatches events to input targets.  Some functions of the input dispatcher, such as
  * identifying input targets, are controlled by a separate policy object.
@@ -132,6 +123,8 @@ public:
                                           int32_t displayId, bool isGestureMonitor) override;
     virtual status_t unregisterInputChannel(const InputChannel& inputChannel) override;
     virtual status_t pilferPointers(const sp<IBinder>& token) override;
+
+    std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
 
 private:
     enum class DropReason {
