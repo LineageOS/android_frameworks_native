@@ -104,6 +104,7 @@ private:
     /* location of transform matrix */
     GLint mInputTransformMatrixLoc;
     GLint mOutputTransformMatrixLoc;
+    GLint mDisplayColorMatrixLoc;
 
     /* location of corner radius uniform */
     GLint mCornerRadiusLoc;
