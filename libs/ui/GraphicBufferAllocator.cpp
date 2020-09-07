@@ -83,20 +83,17 @@ void GraphicBufferAllocator::dump(std::string& result, bool less) const {
     KeyedVector<buffer_handle_t, alloc_rec_t>& list(sAllocList);
     uint64_t total = 0;
     result.append("GraphicBufferAllocator buffers:\n");
-    const size_t c = list.size();
-    for (size_t i=0 ; i<c ; i++) {
+    const size_t count = list.size();
+    StringAppendF(&result, "%10s | %11s | %18s | %s | %8s | %10s | %s\n", "Handle", "Size",
+                  "W (Stride) x H", "Layers", "Format", "Usage", "Requestor");
+    for (size_t i = 0; i < count; i++) {
         const alloc_rec_t& rec(list.valueAt(i));
-        if (rec.size) {
-            StringAppendF(&result,
-                          "%10p: %7.2f KiB | %4u (%4u) x %4u | %4u | %8X | 0x%" PRIx64 " | %s\n",
-                          list.keyAt(i), static_cast<double>(rec.size) / 1024.0, rec.width, rec.stride, rec.height,
-                          rec.layerCount, rec.format, rec.usage, rec.requestorName.c_str());
-        } else {
-            StringAppendF(&result,
-                          "%10p: unknown     | %4u (%4u) x %4u | %4u | %8X | 0x%" PRIx64 " | %s\n",
-                          list.keyAt(i), rec.width, rec.stride, rec.height, rec.layerCount,
-                          rec.format, rec.usage, rec.requestorName.c_str());
-        }
+        std::string sizeStr = (rec.size)
+                ? base::StringPrintf("%7.2f KiB", static_cast<double>(rec.size) / 1024.0)
+                : "unknown";
+        StringAppendF(&result, "%10p | %11s | %4u (%4u) x %4u | %6u | %8X | 0x%8" PRIx64 " | %s\n",
+                      list.keyAt(i), sizeStr.c_str(), rec.width, rec.stride, rec.height,
+                      rec.layerCount, rec.format, rec.usage, rec.requestorName.c_str());
         total += rec.size;
     }
     StringAppendF(&result, "Total allocated by GraphicBufferAllocator (estimate): %.2f KB\n",
