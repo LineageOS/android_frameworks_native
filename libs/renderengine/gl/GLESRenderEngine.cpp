@@ -114,6 +114,28 @@ namespace android {
 namespace renderengine {
 namespace gl {
 
+class BindNativeBufferAsFramebuffer {
+public:
+    BindNativeBufferAsFramebuffer(GLESRenderEngine& engine, ANativeWindowBuffer* buffer,
+                                  const bool useFramebufferCache)
+          : mEngine(engine), mFramebuffer(mEngine.getFramebufferForDrawing()), mStatus(NO_ERROR) {
+        mStatus = mFramebuffer->setNativeWindowBuffer(buffer, mEngine.isProtected(),
+                                                      useFramebufferCache)
+                ? mEngine.bindFrameBuffer(mFramebuffer)
+                : NO_MEMORY;
+    }
+    ~BindNativeBufferAsFramebuffer() {
+        mFramebuffer->setNativeWindowBuffer(nullptr, false, /*arbitrary*/ true);
+        mEngine.unbindFrameBuffer(mFramebuffer);
+    }
+    status_t getStatus() const { return mStatus; }
+
+private:
+    GLESRenderEngine& mEngine;
+    Framebuffer* mFramebuffer;
+    status_t mStatus;
+};
+
 using base::StringAppendF;
 using ui::Dataspace;
 

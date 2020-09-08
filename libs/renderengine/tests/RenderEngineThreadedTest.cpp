@@ -93,26 +93,6 @@ TEST_F(RenderEngineThreadedTest, unbindExternalTextureBuffer) {
     mThreadedRE->unbindExternalTextureBuffer(0x0);
 }
 
-TEST_F(RenderEngineThreadedTest, bindFrameBuffer_returnsBadValue) {
-    std::unique_ptr<renderengine::Framebuffer> framebuffer;
-    EXPECT_CALL(*mRenderEngine, bindFrameBuffer(framebuffer.get())).WillOnce(Return(BAD_VALUE));
-    status_t result = mThreadedRE->bindFrameBuffer(framebuffer.get());
-    ASSERT_EQ(BAD_VALUE, result);
-}
-
-TEST_F(RenderEngineThreadedTest, bindFrameBuffer_returnsNoError) {
-    std::unique_ptr<renderengine::Framebuffer> framebuffer;
-    EXPECT_CALL(*mRenderEngine, bindFrameBuffer(framebuffer.get())).WillOnce(Return(NO_ERROR));
-    status_t result = mThreadedRE->bindFrameBuffer(framebuffer.get());
-    ASSERT_EQ(NO_ERROR, result);
-}
-
-TEST_F(RenderEngineThreadedTest, unbindFrameBuffer) {
-    std::unique_ptr<renderengine::Framebuffer> framebuffer;
-    EXPECT_CALL(*mRenderEngine, unbindFrameBuffer(framebuffer.get()));
-    mThreadedRE->unbindFrameBuffer(framebuffer.get());
-}
-
 TEST_F(RenderEngineThreadedTest, getMaxTextureSize_returns20) {
     size_t size = 20;
     EXPECT_CALL(*mRenderEngine, getMaxTextureSize()).WillOnce(Return(size));
