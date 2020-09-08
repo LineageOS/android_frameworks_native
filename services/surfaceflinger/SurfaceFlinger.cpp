@@ -4824,9 +4824,10 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
         const auto activeConfig = getHwComposer().getActiveConfig(*displayId);
         std::string fps, xDpi, yDpi;
         if (activeConfig) {
-            fps = std::to_string(1e9 / getHwComposer().getDisplayVsyncPeriod(*displayId)) + " fps";
-            xDpi = activeConfig->getDpiX();
-            yDpi = activeConfig->getDpiY();
+            fps = base::StringPrintf("%.2f Hz",
+                                     1e9f / getHwComposer().getDisplayVsyncPeriod(*displayId));
+            xDpi = base::StringPrintf("%.2f", activeConfig->getDpiX());
+            yDpi = base::StringPrintf("%.2f", activeConfig->getDpiY());
         } else {
             fps = "unknown";
             xDpi = "unknown";
