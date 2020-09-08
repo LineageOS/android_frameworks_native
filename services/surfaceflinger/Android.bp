@@ -186,18 +186,22 @@ filegroup {
     ],
 }
 
-cc_defaults {
-    name: "libsurfaceflinger_binary",
-    defaults: [
-        "surfaceflinger_defaults",
-        "libsurfaceflinger_production_defaults",
+cc_library_shared {
+    // Please use libsurfaceflinger_defaults to configure how the sources are
+    // built, so the same settings can be used elsewhere.
+    name: "libsurfaceflinger",
+    defaults: ["libsurfaceflinger_production_defaults"],
+    srcs: [
+        ":libsurfaceflinger_sources",
+
+        // Note: SurfaceFlingerFactory is not in the default sources so that it
+        // can be easily replaced.
+        "SurfaceFlingerFactory.cpp",
     ],
     cflags: [
-        "-DLOG_TAG=\"SurfaceFlinger\"",
         "-DUSE_VR_COMPOSER=1",
     ],
     // VrComposer is not used when building surfaceflinger for vendors
-    // TODO: Is this ever built for vendors?
     target: {
         vendor: {
             cflags: [
@@ -205,6 +209,15 @@ cc_defaults {
             ],
         },
     },
+    logtags: ["EventLog/EventLogTags.logtags"],
+}
+
+cc_defaults {
+    name: "libsurfaceflinger_binary",
+    defaults: ["surfaceflinger_defaults"],
+    cflags: [
+        "-DLOG_TAG=\"SurfaceFlinger\"",
+    ],
     shared_libs: [
         "android.frameworks.displayservice@1.0",
         "android.hardware.configstore-utils",
@@ -226,18 +239,12 @@ cc_defaults {
         "libserviceutils",
         "libtrace_proto",
     ],
-    logtags: ["EventLog/EventLogTags.logtags"],
+    ldflags: ["-Wl,--export-dynamic"],
 }
 
 filegroup {
     name: "surfaceflinger_binary_sources",
-    srcs: [
-        ":libsurfaceflinger_sources",
-        // Note: SurfaceFlingerFactory is not in the default sources so that it
-        // can be easily replaced.
-        "SurfaceFlingerFactory.cpp",
-        "main_surfaceflinger.cpp"
-    ],
+    srcs: ["main_surfaceflinger.cpp"],
 }
 
 cc_binary {
@@ -246,6 +253,7 @@ cc_binary {
     init_rc: ["surfaceflinger.rc"],
     srcs: [":surfaceflinger_binary_sources"],
     shared_libs: [
+        "libsurfaceflinger",
         "libSurfaceFlingerProp",
     ],
 }
