@@ -29,6 +29,7 @@
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <cutils/properties.h>
 #include <gui/IRegionSamplingListener.h>
+#include <gui/SyncScreenCaptureListener.h>
 #include <ui/DisplayStatInfo.h>
 #include <utils/Trace.h>
 
@@ -445,22 +446,6 @@ void RegionSamplingThread::captureSample() {
         buffer = new GraphicBuffer(sampledBounds.getWidth(), sampledBounds.getHeight(),
                                    PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
     }
-
-    class SyncScreenCaptureListener : public BnScreenCaptureListener {
-    public:
-        status_t onScreenCaptureComplete(const ScreenCaptureResults& captureResults) override {
-            resultsPromise.set_value(captureResults);
-            return NO_ERROR;
-        }
-
-        ScreenCaptureResults waitForResults() {
-            std::future<ScreenCaptureResults> resultsFuture = resultsPromise.get_future();
-            return resultsFuture.get();
-        }
-
-    private:
-        std::promise<ScreenCaptureResults> resultsPromise;
-    };
 
     const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
     mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
