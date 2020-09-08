@@ -19,8 +19,8 @@
 
 #include <input/DisplayViewport.h>
 #include <input/InputDevice.h>
+#include <input/PropertyMap.h>
 #include <stdint.h>
-#include <utils/PropertyMap.h>
 
 #include <optional>
 #include <unordered_map>
