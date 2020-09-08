@@ -20,8 +20,8 @@
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
+#include <input/PropertyMap.h>
 #include <utils/Errors.h>
-#include <utils/PropertyMap.h>
 
 namespace android {
 
