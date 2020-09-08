@@ -29,8 +29,8 @@
 
 #include <hardware/input.h>
 #include <input/InputDevice.h>
+#include <input/PropertyMap.h>
 #include <utils/Log.h>
-#include <utils/PropertyMap.h>
 #include <utils/String8.h>
 
 #define INDENT2 "    "
