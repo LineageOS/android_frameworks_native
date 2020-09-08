@@ -44,7 +44,6 @@ class Region;
 
 namespace renderengine {
 
-class BindNativeBufferAsFramebuffer;
 class Image;
 class Mesh;
 class Texture;
@@ -90,10 +89,8 @@ public:
     virtual void dump(std::string& result) = 0;
 
     virtual bool useNativeFenceSync() const = 0;
-    virtual bool useWaitSync() const = 0;
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
-    virtual void bindExternalTextureImage(uint32_t texName, const Image& image) = 0;
     // Legacy public method used by devices that don't support native fence
     // synchronization in their GPU driver, as this method provides implicit
     // synchronization for latching buffers.
@@ -116,10 +113,6 @@ public:
     // a buffer should never occur before binding the buffer if the caller
     // called {bind, cache}ExternalTextureBuffer before calling unbind.
     virtual void unbindExternalTextureBuffer(uint64_t bufferId) = 0;
-    // When binding a native buffer, it must be done before setViewportAndProjection
-    // Returns NO_ERROR when binds successfully, NO_MEMORY when there's no memory for allocation.
-    virtual status_t bindFrameBuffer(Framebuffer* framebuffer) = 0;
-    virtual void unbindFrameBuffer(Framebuffer* framebuffer) = 0;
 
     enum class CleanupMode {
         CLEAN_OUTPUT_RESOURCES,
@@ -187,13 +180,6 @@ public:
                                 base::unique_fd&& bufferFence, base::unique_fd* drawFence) = 0;
 
 protected:
-    // Gets a framebuffer to render to. This framebuffer may or may not be
-    // cached depending on the implementation.
-    //
-    // Note that this method does not transfer ownership, so the caller most not
-    // live longer than RenderEngine.
-    virtual Framebuffer* getFramebufferForDrawing() = 0;
-    friend class BindNativeBufferAsFramebuffer;
     friend class threaded::RenderEngineThreaded;
 };
 
@@ -280,28 +266,6 @@ private:
     RenderEngine::RenderEngineType renderEngineType = RenderEngine::RenderEngineType::GLES;
 };
 
-class BindNativeBufferAsFramebuffer {
-public:
-    BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer,
-                                  const bool useFramebufferCache)
-          : mEngine(engine), mFramebuffer(mEngine.getFramebufferForDrawing()), mStatus(NO_ERROR) {
-        mStatus = mFramebuffer->setNativeWindowBuffer(buffer, mEngine.isProtected(),
-                                                      useFramebufferCache)
-                ? mEngine.bindFrameBuffer(mFramebuffer)
-                : NO_MEMORY;
-    }
-    ~BindNativeBufferAsFramebuffer() {
-        mFramebuffer->setNativeWindowBuffer(nullptr, false, /*arbitrary*/ true);
-        mEngine.unbindFrameBuffer(mFramebuffer);
-    }
-    status_t getStatus() const { return mStatus; }
-
-private:
-    RenderEngine& mEngine;
-    Framebuffer* mFramebuffer;
-    status_t mStatus;
-};
-
 namespace impl {
 
 // impl::RenderEngine contains common implementation that is graphics back-end agnostic.
@@ -310,7 +274,6 @@ public:
     virtual ~RenderEngine() = 0;
 
     bool useNativeFenceSync() const override;
-    bool useWaitSync() const override;
 
 protected:
     RenderEngine(const RenderEngineCreationArgs& args);

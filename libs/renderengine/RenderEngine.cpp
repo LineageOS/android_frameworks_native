@@ -62,10 +62,6 @@ bool RenderEngine::useNativeFenceSync() const {
     return SyncFeatures::getInstance().useNativeFenceSync();
 }
 
-bool RenderEngine::useWaitSync() const {
-    return SyncFeatures::getInstance().useWaitSync();
-}
-
 } // namespace impl
 } // namespace renderengine
 } // namespace android
