@@ -90,6 +90,7 @@ cc_test {
     shared_libs: [
         "libprotoutil",
         "libstatssocket",
+        "libsurfaceflinger",
         "libtimestats",
         "libtimestats_proto",
     ],
