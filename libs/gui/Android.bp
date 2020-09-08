@@ -55,7 +55,6 @@ cc_library_shared {
         "DisplayEventDispatcher.cpp",
         "DisplayEventReceiver.cpp",
         "GLConsumer.cpp",
-        "GuiConfig.cpp",
         "IConsumerListener.cpp",
         "IDisplayEventConnection.cpp",
         "IGraphicBufferConsumer.cpp",

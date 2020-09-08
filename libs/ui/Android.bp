@@ -120,7 +120,6 @@ cc_library_shared {
         "PixelFormat.cpp",
         "PublicFormat.cpp",
         "Size.cpp",
-        "UiConfig.cpp",
     ],
 
     include_dirs: [

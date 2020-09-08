@@ -71,15 +71,7 @@ bool SyncFeatures::useNativeFenceSync() const {
     return mHasNativeFenceSync;
 }
 bool SyncFeatures::useFenceSync() const {
-#ifdef DONT_USE_FENCE_SYNC
-    // on some devices it's better to not use EGL_KHR_fence_sync
-    // even if they have it
-    return false;
-#else
-    // currently we shall only attempt to use EGL_KHR_fence_sync if
-    // USE_FENCE_SYNC is set in our makefile
     return !mHasNativeFenceSync && mHasFenceSync;
-#endif
 }
 bool SyncFeatures::useWaitSync() const {
     return (useNativeFenceSync() || useFenceSync()) && mHasWaitSync;
