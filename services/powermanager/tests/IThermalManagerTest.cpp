@@ -86,12 +86,14 @@ void IThermalServiceTest::SetUp() {
     EXPECT_NE(binder, nullptr);
     mThermalSvc = interface_cast<IThermalService>(binder);
     EXPECT_NE(mThermalSvc, nullptr);
+    // Lock mutex for operation, so listener will only be processed after wait_for is called
+    std::unique_lock<std::mutex> lock(mMutex);
     bool success = false;
     binder::Status ret = mThermalSvc->registerThermalStatusListener(this, &success);
+    // Check the result
     ASSERT_TRUE(success);
     ASSERT_TRUE(ret.isOk());
     // Wait for listener called after registration, shouldn't timeout
-    std::unique_lock<std::mutex> lock(mMutex);
     EXPECT_NE(mCondition.wait_for(lock, 1s), std::cv_status::timeout);
 }
 
@@ -111,6 +113,7 @@ class IThermalListenerTest : public IThermalServiceTest, public testing::WithPar
 
 TEST_P(IThermalListenerTest, TestListener) {
     int level = GetParam();
+    // Lock mutex for operation, so listener will only be processed after wait_for is called
     std::unique_lock<std::mutex> lock(mMutex);
     // Set the override thermal status
     setThermalOverride(level);
