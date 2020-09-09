@@ -451,15 +451,10 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
 GLESRenderEngine::~GLESRenderEngine() {
     // Destroy the image manager first.
     mImageManager = nullptr;
+    cleanFramebufferCache();
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     unbindFrameBuffer(mDrawingBuffer.get());
     mDrawingBuffer = nullptr;
-    while (!mFramebufferImageCache.empty()) {
-        EGLImageKHR expired = mFramebufferImageCache.front().second;
-        mFramebufferImageCache.pop_front();
-        eglDestroyImageKHR(mEGLDisplay, expired);
-        DEBUG_EGL_IMAGE_TRACKER_DESTROY();
-    }
     eglDestroyImageKHR(mEGLDisplay, mPlaceholderImage);
     mImageCache.clear();
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -965,11 +960,26 @@ bool GLESRenderEngine::cleanupPostRender(CleanupMode mode) {
     // Bind the texture to placeholder so that backing image data can be freed.
     GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(getFramebufferForDrawing());
     glFramebuffer->allocateBuffers(1, 1, mPlaceholderDrawBuffer);
+
     // Release the cached fence here, so that we don't churn reallocations when
     // we could no-op repeated calls of this method instead.
     mLastDrawFence = nullptr;
     mPriorResourcesCleaned = true;
     return true;
+}
+
+void GLESRenderEngine::cleanFramebufferCache() {
+    std::lock_guard<std::mutex> lock(mFramebufferImageCacheMutex);
+    // Bind the texture to placeholder so that backing image data can be freed.
+    GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(getFramebufferForDrawing());
+    glFramebuffer->allocateBuffers(1, 1, mPlaceholderDrawBuffer);
+
+    while (!mFramebufferImageCache.empty()) {
+        EGLImageKHR expired = mFramebufferImageCache.front().second;
+        mFramebufferImageCache.pop_front();
+        eglDestroyImageKHR(mEGLDisplay, expired);
+        DEBUG_EGL_IMAGE_TRACKER_DESTROY();
+    }
 }
 
 void GLESRenderEngine::checkErrors() const {

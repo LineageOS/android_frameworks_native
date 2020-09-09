@@ -2684,6 +2684,7 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
     const sp<IBinder> drawingBinder = IInterface::asBinder(drawingState.surface);
     if (currentBinder != drawingBinder || currentState.sequenceId != drawingState.sequenceId) {
         // changing the surface is like destroying and recreating the DisplayDevice
+        getRenderEngine().cleanFramebufferCache();
         if (const auto display = getDisplayDeviceLocked(displayToken)) {
             display->disconnect();
         }
