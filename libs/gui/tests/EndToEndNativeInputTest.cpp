@@ -533,4 +533,73 @@ TEST_F(InputSurfacesTest, can_be_focused) {
 
     surface->assertFocusChange(true);
 }
+
+TEST_F(InputSurfacesTest, rotate_surface) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(10, 10);
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, 1, -1, 0); // 90 degrees
+    });
+    injectTap(8, 11);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, -1, 0, 0, -1); // 180 degrees
+    });
+    injectTap(9, 8);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, -1, 1, 0); // 270 degrees
+    });
+    injectTap(12, 9);
+    surface->expectTap(1, 2);
+}
+
+TEST_F(InputSurfacesTest, rotate_surface_with_scale) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(10, 10);
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, 2, -4, 0); // 90 degrees
+    });
+    injectTap(2, 12);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, -2, 0, 0, -4); // 180 degrees
+    });
+    injectTap(8, 2);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, -2, 4, 0); // 270 degrees
+    });
+    injectTap(18, 8);
+    surface->expectTap(1, 2);
+}
+
+TEST_F(InputSurfacesTest, rotate_surface_with_scale_and_insets) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->mInputInfo.surfaceInset = 5;
+    surface->showAt(100, 100);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, 2, -4, 0); // 90 degrees
+    });
+    injectTap(40, 120);
+    surface->expectTap(5, 10);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, -2, 0, 0, -4); // 180 degrees
+    });
+    injectTap(80, 40);
+    surface->expectTap(5, 10);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, -2, 4, 0); // 270 degrees
+    });
+    injectTap(160, 80);
+    surface->expectTap(5, 10);
+}
+
 } // namespace android::test
