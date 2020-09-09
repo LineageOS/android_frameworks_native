@@ -451,7 +451,7 @@ private:
             HdrCapabilities* outCapabilities) const;
     virtual status_t enableVSyncInjections(bool enable);
     virtual status_t injectVSync(nsecs_t when);
-    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const;
+    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers);
 
 
     /* ------------------------------------------------------------------------
