@@ -207,7 +207,7 @@ TEST_F(CredentialsTest, AllowedGetterMethodsTest) {
     Vector<DisplayConfig> configs;
     ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
 
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveConfig(display));
+    ASSERT_TRUE(SurfaceComposerClient::getActiveConfig(display) >= 0);
 
     ASSERT_NE(static_cast<ui::ColorMode>(BAD_VALUE),
               SurfaceComposerClient::getActiveColorMode(display));
