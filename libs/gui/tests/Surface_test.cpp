@@ -774,7 +774,7 @@ public:
         return NO_ERROR;
     }
     status_t injectVSync(nsecs_t /*when*/) override { return NO_ERROR; }
-    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* /*layers*/) const override {
+    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* /*layers*/) override {
         return NO_ERROR;
     }
     status_t getCompositionPreference(

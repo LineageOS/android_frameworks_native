@@ -448,7 +448,7 @@ private:
                                 HdrCapabilities* outCapabilities) const override;
     status_t enableVSyncInjections(bool enable) override;
     status_t injectVSync(nsecs_t when) override;
-    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const override;
+    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) override;
     status_t getColorManagement(bool* outGetColorManagement) const override;
     status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
                                       ui::Dataspace* outWideColorGamutDataspace,
