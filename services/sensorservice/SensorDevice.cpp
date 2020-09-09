@@ -145,13 +145,7 @@ void SensorDevice::initializeSensorList() {
                     convertToSensor(convertToOldSensorInfo(list[i]), &sensor);
 
                     if (sensor.type < static_cast<int>(SensorType::DEVICE_PRIVATE_BASE)) {
-                        if(sensor.resolution == 0) {
-                            // Don't crash here or the device will go into a crashloop.
-                            ALOGW("%s must have a non-zero resolution", sensor.name);
-                            // For simple algos, map their resolution to 1 if it's not specified
-                            sensor.resolution =
-                                    SensorDeviceUtils::defaultResolutionForType(sensor.type);
-                        }
+                        sensor.resolution = SensorDeviceUtils::resolutionForSensor(sensor);
 
                         // Some sensors don't have a default resolution and will be left at 0.
                         // Don't crash in this case since CTS will verify that devices don't go to
@@ -165,6 +159,9 @@ void SensorDevice::initializeSensorList() {
                                 SensorDeviceUtils::quantizeValue(
                                         &sensor.maxRange, promotedResolution);
                             }
+                        } else {
+                            // Don't crash here or the device will go into a crashloop.
+                            ALOGW("%s should have a non-zero resolution", sensor.name);
                         }
                     }
 
