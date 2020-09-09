@@ -424,6 +424,7 @@ private:
     static AppOpsManager sAppOpsManager;
     static std::map<String16, int> sPackageTargetVersion;
     static Mutex sPackageTargetVersionLock;
+    static String16 sSensorInterfaceDescriptorPrefix;
 };
 
 } // namespace android
