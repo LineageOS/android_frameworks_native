@@ -1365,11 +1365,13 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInput
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFocusedWindow(
-        const sp<IBinder>& token, const sp<IBinder>& focusedToken, nsecs_t timestampNanos) {
+        const sp<IBinder>& token, const sp<IBinder>& focusedToken, nsecs_t timestampNanos,
+        int32_t displayId) {
     FocusRequest request;
     request.token = token;
     request.focusedToken = focusedToken;
     request.timestamp = timestampNanos;
+    request.displayId = displayId;
     return setFocusedWindow(request);
 }
 
