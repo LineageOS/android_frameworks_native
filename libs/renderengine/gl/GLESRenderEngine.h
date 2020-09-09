@@ -60,13 +60,10 @@ public:
     void primeCache() const override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
-    void bindExternalTextureImage(uint32_t texName, const Image& image) override;
     status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
                                        const sp<Fence>& fence) EXCLUDES(mRenderingMutex);
     void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
     void unbindExternalTextureBuffer(uint64_t bufferId) EXCLUDES(mRenderingMutex);
-    status_t bindFrameBuffer(Framebuffer* framebuffer) override;
-    void unbindFrameBuffer(Framebuffer* framebuffer) override;
 
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
@@ -102,13 +99,15 @@ public:
     std::shared_ptr<ImageManager::Barrier> unbindExternalTextureBufferForTesting(uint64_t bufferId);
 
 protected:
-    Framebuffer* getFramebufferForDrawing() override;
+    Framebuffer* getFramebufferForDrawing();
     void dump(std::string& result) override EXCLUDES(mRenderingMutex)
             EXCLUDES(mFramebufferImageCacheMutex);
     size_t getMaxTextureSize() const override;
     size_t getMaxViewportDims() const override;
 
 private:
+    friend class BindNativeBufferAsFramebuffer;
+
     enum GlesVersion {
         GLES_VERSION_1_0 = 0x10000,
         GLES_VERSION_1_1 = 0x10001,
@@ -133,6 +132,9 @@ private:
     status_t cacheExternalTextureBufferInternal(const sp<GraphicBuffer>& buffer)
             EXCLUDES(mRenderingMutex);
     void unbindExternalTextureBufferInternal(uint64_t bufferId) EXCLUDES(mRenderingMutex);
+    status_t bindFrameBuffer(Framebuffer* framebuffer);
+    void unbindFrameBuffer(Framebuffer* framebuffer);
+    void bindExternalTextureImage(uint32_t texName, const Image& image);
 
     // A data space is considered HDR data space if it has BT2020 color space
     // with PQ or HLG transfer function.

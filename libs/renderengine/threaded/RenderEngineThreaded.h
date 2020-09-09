@@ -46,16 +46,12 @@ public:
     void dump(std::string& result) override;
 
     bool useNativeFenceSync() const override;
-    bool useWaitSync() const override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
-    void bindExternalTextureImage(uint32_t texName, const Image& image) override;
     status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
                                        const sp<Fence>& fence) override;
     void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
     void unbindExternalTextureBuffer(uint64_t bufferId) override;
-    status_t bindFrameBuffer(Framebuffer* framebuffer) override;
-    void unbindFrameBuffer(Framebuffer* framebuffer) override;
     size_t getMaxTextureSize() const override;
     size_t getMaxViewportDims() const override;
 
@@ -68,9 +64,6 @@ public:
                         const std::vector<const LayerSettings*>& layers,
                         const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
-
-protected:
-    Framebuffer* getFramebufferForDrawing() override;
 
 private:
     void threadMain(CreateInstanceFactory factory);

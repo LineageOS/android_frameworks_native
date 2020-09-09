@@ -28,6 +28,7 @@
 #include <input/KeyCharacterMap.h>
 #include <input/KeyLayoutMap.h>
 #include <input/Keyboard.h>
+#include <input/PropertyMap.h>
 #include <input/VirtualKeyMap.h>
 #include <linux/input.h>
 #include <sys/epoll.h>
@@ -37,7 +38,6 @@
 #include <utils/List.h>
 #include <utils/Log.h>
 #include <utils/Mutex.h>
-#include <utils/PropertyMap.h>
 
 #include "TouchVideoDevice.h"
 #include "VibrationElement.h"
