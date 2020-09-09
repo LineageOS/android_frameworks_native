@@ -390,6 +390,11 @@ private:
      * Used to raise an ANR when we have no focused window.
      */
     std::shared_ptr<InputApplicationHandle> mAwaitedFocusedApplication GUARDED_BY(mLock);
+    /**
+     * The displayId that the focused application is associated with.
+     */
+    int32_t mAwaitedApplicationDisplayId GUARDED_BY(mLock);
+    void processNoFocusedWindowAnrLocked() REQUIRES(mLock);
 
     /**
      * This map will store the pending focus requests that cannot be currently processed. This can
