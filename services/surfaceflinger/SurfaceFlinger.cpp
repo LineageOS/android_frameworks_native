@@ -52,7 +52,6 @@
 #include <errno.h>
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
-#include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
 #include <gui/LayerDebugInfo.h>
@@ -75,7 +74,6 @@
 #include <ui/DisplayState.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/PixelFormat.h>
-#include <ui/UiConfig.h>
 #include <utils/StopWatch.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
@@ -4725,8 +4723,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     result.append("Build configuration:");
     colorizer.reset(result);
     appendSfConfigString(result);
-    appendUiConfigString(result);
-    appendGuiConfigString(result);
     result.append("\n");
 
     result.append("\nDisplay identification data:\n");
