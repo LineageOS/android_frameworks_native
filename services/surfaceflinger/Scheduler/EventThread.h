@@ -50,8 +50,11 @@ class TokenManager;
 using ResyncCallback = std::function<void()>;
 
 enum class VSyncRequest {
-    None = -1,
-    Single = 0,
+    None = -2,
+    // Single wakes up for the next two frames to avoid scheduler overhead
+    Single = -1,
+    // SingleSuppressCallback only wakes up for the next frame
+    SingleSuppressCallback = 0,
     Periodic = 1,
     // Subsequent values are periods.
 };
