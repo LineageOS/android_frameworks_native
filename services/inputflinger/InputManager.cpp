@@ -132,8 +132,8 @@ binder::Status InputManager::registerInputChannel(const InputChannel& channel) {
     return binder::Status::ok();
 }
 
-binder::Status InputManager::unregisterInputChannel(const InputChannel& channel) {
-    mDispatcher->unregisterInputChannel(channel);
+binder::Status InputManager::unregisterInputChannel(const sp<IBinder>& connectionToken) {
+    mDispatcher->unregisterInputChannel(connectionToken);
     return binder::Status::ok();
 }
 

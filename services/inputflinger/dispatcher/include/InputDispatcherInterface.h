@@ -176,7 +176,7 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t unregisterInputChannel(const InputChannel& inputChannel) = 0;
+    virtual status_t unregisterInputChannel(const sp<IBinder>& connectionToken) = 0;
 
     /* Allows an input monitor steal the current pointer stream away from normal input windows.
      *
