@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "546ba725_c61572a8",
+        "filename": "services/inputflinger/Android.bp",
+        "patchSetId": 5
+      },
+      "lineNbr": 63,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2020-09-10T20:00:40Z",
+      "side": 0,
+      "message": "Unnecessary.",
+      "revId": "bdeb588641cdfc2c337ff84fd4e82b08d46f1f06",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
