@@ -328,6 +328,18 @@ protected:
             ALOGE("%s", to.c_str());
         }
     }
+
+    void setFocusedWindow(const sp<InputWindowHandle>& window,
+                          const sp<InputWindowHandle>& focusedWindow = nullptr) {
+        FocusRequest request;
+        request.token = window->getToken();
+        if (focusedWindow) {
+            request.focusedToken = focusedWindow->getToken();
+        }
+        request.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
+        request.displayId = window->getInfo()->displayId;
+        mDispatcher->setFocusedWindow(request);
+    }
 };
 
 
@@ -724,6 +736,8 @@ public:
     virtual bool updateInfo() { return true; }
 
     void setFocusable(bool focusable) { mInfo.focusable = focusable; }
+
+    void setVisible(bool visible) { mInfo.visible = visible; }
 
     void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
         mInfo.dispatchingTimeout = timeout;
@@ -1161,80 +1175,6 @@ TEST_F(InputDispatcherTest, SetInputWindow_MultiWindowsTouch) {
     windowSecond->assertNoEvents();
 }
 
-TEST_F(InputDispatcherTest, SetInputWindow_FocusedWindow) {
-    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> windowTop = new FakeWindowHandle(application, mDispatcher, "Top",
-            ADISPLAY_ID_DEFAULT);
-    sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second",
-            ADISPLAY_ID_DEFAULT);
-
-    // Set focused application.
-    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-
-    // Display should have only one focused window
-    windowSecond->setFocusable(true);
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
-
-    windowSecond->consumeFocusEvent(true);
-    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
-            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
-
-    // Focused window should receive event.
-    windowTop->assertNoEvents();
-    windowSecond->consumeKeyDown(ADISPLAY_ID_NONE);
-}
-
-TEST_F(InputDispatcherTest, SetInputWindow_FocusPriority) {
-    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> windowTop = new FakeWindowHandle(application, mDispatcher, "Top",
-            ADISPLAY_ID_DEFAULT);
-    sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second",
-            ADISPLAY_ID_DEFAULT);
-
-    // Set focused application.
-    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-
-    // Display has two focused windows. Add them to inputWindowsHandles in z-order (top most first)
-    windowTop->setFocusable(true);
-    windowSecond->setFocusable(true);
-
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
-    windowTop->consumeFocusEvent(true);
-    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
-            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
-
-    // Top focused window should receive event.
-    windowTop->consumeKeyDown(ADISPLAY_ID_NONE);
-    windowSecond->assertNoEvents();
-}
-
-TEST_F(InputDispatcherTest, SetInputWindow_InputWindowInfo) {
-    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-
-    sp<FakeWindowHandle> windowTop = new FakeWindowHandle(application, mDispatcher, "Top",
-            ADISPLAY_ID_DEFAULT);
-    sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second",
-            ADISPLAY_ID_DEFAULT);
-
-    // Set focused application.
-    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
-
-    windowTop->setFocusable(true);
-    windowSecond->setFocusable(true);
-    // Release channel for window is no longer valid.
-    windowTop->releaseChannel();
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
-    windowSecond->consumeFocusEvent(true);
-
-    // Test inject a key down, should dispatch to a valid window.
-    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
-            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
-
-    // Top window is invalid, so it should not receive any input event.
-    windowTop->assertNoEvents();
-    windowSecond->consumeKeyDown(ADISPLAY_ID_NONE);
-}
-
 TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> windowLeft =
@@ -1459,6 +1399,8 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsKeyStream) {
     window->setFocusable(true);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+
     window->consumeFocusEvent(true);
 
     NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
@@ -1660,6 +1602,7 @@ TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {
 
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
 
     window->consumeFocusEvent(true);
 
@@ -1769,6 +1712,8 @@ TEST_F(InputDispatcherTest, GestureMonitor_DoesNotReceiveKeyEvents) {
     window->setFocusable(true);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+
     window->consumeFocusEvent(true);
 
     FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "GM_1", ADISPLAY_ID_DEFAULT,
@@ -1862,6 +1807,8 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
 
     SCOPED_TRACE("Check default value of touch mode");
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
 
     SCOPED_TRACE("Remove the window to trigger focus loss");
@@ -1873,6 +1820,7 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
     mDispatcher->setInTouchMode(false);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
     window->consumeFocusEvent(true /*hasFocus*/, false /*inTouchMode*/);
 
     SCOPED_TRACE("Remove the window to trigger focus loss");
@@ -1884,6 +1832,7 @@ TEST_F(InputDispatcherTest, TouchModeState_IsSentToApps) {
     mDispatcher->setInTouchMode(true);
     window->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
 
     window->assertNoEvents();
@@ -1898,6 +1847,8 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_KeyEvent) {
     window->setFocusable(true);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+
     window->consumeFocusEvent(true /*hasFocus*/, true /*inTouchMode*/);
 
     NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN);
@@ -2020,6 +1971,151 @@ TEST_F(InputDispatcherTest, GeneratedHmac_ChangesWhenFieldsChange) {
     ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
 }
 
+TEST_F(InputDispatcherTest, SetFocusedWindow) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> windowTop =
+            new FakeWindowHandle(application, mDispatcher, "Top", ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> windowSecond =
+            new FakeWindowHandle(application, mDispatcher, "Second", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    // Top window is also focusable but is not granted focus.
+    windowTop->setFocusable(true);
+    windowSecond->setFocusable(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
+    setFocusedWindow(windowSecond);
+
+    windowSecond->consumeFocusEvent(true);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+
+    // Focused window should receive event.
+    windowSecond->consumeKeyDown(ADISPLAY_ID_NONE);
+    windowTop->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, SetFocusedWindow_DropRequestInvalidChannel) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    window->setFocusable(true);
+    // Release channel for window is no longer valid.
+    window->releaseChannel();
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+
+    // Test inject a key down, should timeout.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_TIMED_OUT";
+
+    // window channel is invalid, so it should not receive any input event.
+    window->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, SetFocusedWindow_DropRequestNoFocusableWindow) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    // Window is not focusable.
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    setFocusedWindow(window);
+
+    // Test inject a key down, should timeout.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_TIMED_OUT";
+
+    // window is invalid, so it should not receive any input event.
+    window->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, SetFocusedWindow_CheckFocusedToken) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> windowTop =
+            new FakeWindowHandle(application, mDispatcher, "Top", ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> windowSecond =
+            new FakeWindowHandle(application, mDispatcher, "Second", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    windowTop->setFocusable(true);
+    windowSecond->setFocusable(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
+    setFocusedWindow(windowTop);
+    windowTop->consumeFocusEvent(true);
+
+    setFocusedWindow(windowSecond, windowTop);
+    windowSecond->consumeFocusEvent(true);
+    windowTop->consumeFocusEvent(false);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+
+    // Focused window should receive event.
+    windowSecond->consumeKeyDown(ADISPLAY_ID_NONE);
+}
+
+TEST_F(InputDispatcherTest, SetFocusedWindow_DropRequestFocusTokenNotFocused) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> windowTop =
+            new FakeWindowHandle(application, mDispatcher, "Top", ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> windowSecond =
+            new FakeWindowHandle(application, mDispatcher, "Second", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    windowTop->setFocusable(true);
+    windowSecond->setFocusable(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowTop, windowSecond}}});
+    setFocusedWindow(windowSecond, windowTop);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_TIMED_OUT";
+
+    // Event should be dropped.
+    windowTop->assertNoEvents();
+    windowSecond->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, SetFocusedWindow_DeferInvisibleWindow) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> previousFocusedWindow =
+            new FakeWindowHandle(application, mDispatcher, "previousFocusedWindow",
+                                 ADISPLAY_ID_DEFAULT);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    window->setFocusable(true);
+    previousFocusedWindow->setFocusable(true);
+    window->setVisible(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window, previousFocusedWindow}}});
+    setFocusedWindow(previousFocusedWindow);
+    previousFocusedWindow->consumeFocusEvent(true);
+
+    // Requesting focus on invisible window takes focus from currently focused window.
+    setFocusedWindow(window);
+    previousFocusedWindow->consumeFocusEvent(false);
+
+    // Injected key goes to pending queue.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /* repeatCount */,
+                        ADISPLAY_ID_DEFAULT, INPUT_EVENT_INJECTION_SYNC_NONE));
+
+    // Window does not get focus event or key down.
+    window->assertNoEvents();
+
+    // Window becomes visible.
+    window->setVisible(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // Window receives focus event.
+    window->consumeFocusEvent(true);
+    // Focused window receives key down.
+    window->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+}
+
 class InputDispatcherKeyRepeatTest : public InputDispatcherTest {
 protected:
     static constexpr nsecs_t KEY_REPEAT_TIMEOUT = 40 * 1000000; // 40 ms
@@ -2044,7 +2140,7 @@ protected:
 
         mWindow->setFocusable(true);
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
-
+        setFocusedWindow(mWindow);
         mWindow->consumeFocusEvent(true);
     }
 
@@ -2134,6 +2230,7 @@ public:
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application1);
         windowInPrimary->setFocusable(true);
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowInPrimary}}});
+        setFocusedWindow(windowInPrimary);
         windowInPrimary->consumeFocusEvent(true);
 
         application2 = std::make_shared<FakeApplicationHandle>();
@@ -2146,6 +2243,7 @@ public:
         mDispatcher->setFocusedApplication(SECOND_DISPLAY_ID, application2);
         windowInSecondary->setFocusable(true);
         mDispatcher->setInputWindows({{SECOND_DISPLAY_ID, {windowInSecondary}}});
+        setFocusedWindow(windowInSecondary);
         windowInSecondary->consumeFocusEvent(true);
     }
 
@@ -2263,6 +2361,23 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, MonitorKeyEvent_MultiDisplay) {
     monitorInSecondary.consumeKeyDown(ADISPLAY_ID_NONE);
 }
 
+TEST_F(InputDispatcherFocusOnTwoDisplaysTest, CanFocusWindowOnUnfocusedDisplay) {
+    sp<FakeWindowHandle> secondWindowInPrimary =
+            new FakeWindowHandle(application1, mDispatcher, "D_1_W2", ADISPLAY_ID_DEFAULT);
+    secondWindowInPrimary->setFocusable(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {windowInPrimary, secondWindowInPrimary}}});
+    setFocusedWindow(secondWindowInPrimary);
+    windowInPrimary->consumeFocusEvent(false);
+    secondWindowInPrimary->consumeFocusEvent(true);
+
+    // Test inject a key down.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher, ADISPLAY_ID_DEFAULT))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    windowInPrimary->assertNoEvents();
+    windowInSecondary->assertNoEvents();
+    secondWindowInPrimary->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+}
+
 class InputFilterTest : public InputDispatcherTest {
 protected:
     static constexpr int32_t SECOND_DISPLAY_ID = 1;
@@ -2360,6 +2475,7 @@ class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
 
         // Expect one focus window exist in display.
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mUnfocusedWindow, mFocusedWindow}}});
+        setFocusedWindow(mFocusedWindow);
         mFocusedWindow->consumeFocusEvent(true);
     }
 
@@ -2653,6 +2769,7 @@ class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
 
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
+        setFocusedWindow(mWindow);
         mWindow->consumeFocusEvent(true);
     }
 
@@ -3046,6 +3163,7 @@ class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
 
         // Expect one focus window exist in display.
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mUnfocusedWindow, mFocusedWindow}}});
+        setFocusedWindow(mFocusedWindow);
         mFocusedWindow->consumeFocusEvent(true);
     }
 
@@ -3242,6 +3360,7 @@ TEST_F(InputDispatcherMultiWindowAnr, PendingKey_GoesToNewlyFocusedWindow) {
     mFocusedWindow->setFocusable(false);
     mUnfocusedWindow->setFocusable(true);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mFocusedWindow, mUnfocusedWindow}}});
+    setFocusedWindow(mUnfocusedWindow);
 
     // Focus events should precede the key events
     mUnfocusedWindow->consumeFocusEvent(true);
@@ -3379,4 +3498,147 @@ TEST_F(InputDispatcherMultiWindowOcclusionTests,
     mBottomWindow->assertNoEvents();
 }
 
+class InputDispatcherMirrorWindowFocusTests : public InputDispatcherTest {
+protected:
+    std::shared_ptr<FakeApplicationHandle> mApp;
+    sp<FakeWindowHandle> mWindow;
+    sp<FakeWindowHandle> mMirror;
+
+    virtual void SetUp() override {
+        InputDispatcherTest::SetUp();
+        mApp = std::make_shared<FakeApplicationHandle>();
+        mWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
+        mMirror = new FakeWindowHandle(mApp, mDispatcher, "TestWindowMirror", ADISPLAY_ID_DEFAULT,
+                                       mWindow->getToken());
+        mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApp);
+        mWindow->setFocusable(true);
+        mMirror->setFocusable(true);
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mMirror}}});
+    }
+};
+
+TEST_F(InputDispatcherMirrorWindowFocusTests, CanGetFocus) {
+    // Request focus on a mirrored window
+    setFocusedWindow(mMirror);
+
+    // window gets focused
+    mWindow->consumeFocusEvent(true);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+}
+
+// A focused & mirrored window remains focused only if the window and its mirror are both
+// focusable.
+TEST_F(InputDispatcherMirrorWindowFocusTests, FocusedIfAllWindowsFocusable) {
+    setFocusedWindow(mMirror);
+
+    // window gets focused
+    mWindow->consumeFocusEvent(true);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyUp(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyUp(ADISPLAY_ID_NONE);
+
+    mMirror->setFocusable(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mMirror}}});
+
+    // window loses focus since one of the windows associated with the token in not focusable
+    mWindow->consumeFocusEvent(false);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_TIMED_OUT";
+    mWindow->assertNoEvents();
+}
+
+// A focused & mirrored window remains focused until the window and its mirror both become
+// invisible.
+TEST_F(InputDispatcherMirrorWindowFocusTests, FocusedIfAnyWindowVisible) {
+    setFocusedWindow(mMirror);
+
+    // window gets focused
+    mWindow->consumeFocusEvent(true);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyUp(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyUp(ADISPLAY_ID_NONE);
+
+    mMirror->setVisible(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mMirror}}});
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyUp(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyUp(ADISPLAY_ID_NONE);
+
+    mWindow->setVisible(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mMirror}}});
+
+    // window loses focus only after all windows associated with the token become invisible.
+    mWindow->consumeFocusEvent(false);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_TIMED_OUT";
+    mWindow->assertNoEvents();
+}
+
+// A focused & mirrored window remains focused until both windows are removed.
+TEST_F(InputDispatcherMirrorWindowFocusTests, FocusedWhileWindowsAlive) {
+    setFocusedWindow(mMirror);
+
+    // window gets focused
+    mWindow->consumeFocusEvent(true);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyUp(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyUp(ADISPLAY_ID_NONE);
+
+    // single window is removed but the window token remains focused
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mMirror}}});
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyUp(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    mWindow->consumeKeyUp(ADISPLAY_ID_NONE);
+
+    // Both windows are removed
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {}}});
+    mWindow->consumeFocusEvent(false);
+
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_TIMED_OUT";
+    mWindow->assertNoEvents();
+}
+
+// Focus request can be pending until one window becomes visible.
+TEST_F(InputDispatcherMirrorWindowFocusTests, DeferFocusWhenInvisible) {
+    // Request focus on an invisible mirror.
+    mWindow->setVisible(false);
+    mMirror->setVisible(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mMirror}}});
+    setFocusedWindow(mMirror);
+
+    // Injected key goes to pending queue.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED,
+              injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /* repeatCount */,
+                        ADISPLAY_ID_DEFAULT, INPUT_EVENT_INJECTION_SYNC_NONE));
+
+    mMirror->setVisible(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mMirror}}});
+
+    // window gets focused
+    mWindow->consumeFocusEvent(true);
+    // window gets the pending key event
+    mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+}
 } // namespace android::inputdispatcher

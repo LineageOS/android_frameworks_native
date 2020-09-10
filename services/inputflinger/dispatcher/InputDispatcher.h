@@ -136,6 +136,14 @@ private:
         STALE,
     };
 
+    enum class FocusResult {
+        OK,
+        NO_WINDOW,
+        NOT_FOCUSABLE,
+        NOT_VISIBLE,
+    };
+    static const char* typeToString(FocusResult result);
+
     std::unique_ptr<InputThread> mThread;
 
     sp<InputDispatcherPolicyInterface> mPolicy;
@@ -308,6 +316,9 @@ private:
     sp<InputWindowHandle> getFocusedWindowHandleLocked(int displayId) const REQUIRES(mLock);
     bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
     bool hasResponsiveConnectionLocked(InputWindowHandle& windowHandle) const REQUIRES(mLock);
+    FocusResult handleFocusRequestLocked(const FocusRequest&) REQUIRES(mLock);
+    FocusResult checkTokenFocusableLocked(const sp<IBinder>& token, int32_t displayId) const
+            REQUIRES(mLock);
 
     /*
      * Validate and update InputWindowHandles for a given display.
@@ -379,6 +390,14 @@ private:
      * Used to raise an ANR when we have no focused window.
      */
     std::shared_ptr<InputApplicationHandle> mAwaitedFocusedApplication GUARDED_BY(mLock);
+
+    /**
+     * This map will store the pending focus requests that cannot be currently processed. This can
+     * happen if the window requested to be focused is not currently visible. Such a window might
+     * become visible later, and these requests would be processed at that time.
+     */
+    std::unordered_map<int32_t /* displayId */, FocusRequest> mPendingFocusRequests
+            GUARDED_BY(mLock);
 
     // Optimization: AnrTracker is used to quickly find which connection is due for a timeout next.
     // AnrTracker must be kept in-sync with all responsive connection.waitQueues.

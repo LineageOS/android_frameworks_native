@@ -36,4 +36,8 @@ parcelable FocusRequest {
      * from another source such as pointer down.
      */
     long timestamp;
+    /**
+     * Display id associated with this request.
+     */
+     int displayId;
 }
