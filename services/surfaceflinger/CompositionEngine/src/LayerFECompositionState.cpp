@@ -75,10 +75,6 @@ void LayerFECompositionState::dump(std::string& out) const {
     dumpVal(out, "alpha", alpha);
     dumpVal(out, "backgroundBlurRadius", backgroundBlurRadius);
 
-    out.append("\n      ");
-    dumpVal(out, "type", type);
-    dumpVal(out, "appId", appId);
-
     if (!metadata.empty()) {
         out.append("\n      metadata {");
         for (const auto& [key, entry] : metadata) {
