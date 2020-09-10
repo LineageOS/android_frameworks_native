@@ -155,7 +155,7 @@ public:
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     Hwc2::mock::Composer* mComposer = nullptr;
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
-    mock::SurfaceInterceptor* mSurfaceInterceptor = new mock::SurfaceInterceptor();
+    sp<mock::SurfaceInterceptor> mSurfaceInterceptor = new mock::SurfaceInterceptor;
 
     mock::VsyncController* mVsyncController = new mock::VsyncController;
     mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker;
@@ -194,7 +194,7 @@ DisplayTransactionTest::DisplayTransactionTest() {
     injectMockScheduler();
     mFlinger.mutableEventQueue().reset(mMessageQueue);
     mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
-    mFlinger.mutableInterceptor().reset(mSurfaceInterceptor);
+    mFlinger.mutableInterceptor() = mSurfaceInterceptor;
 
     injectMockComposer(0);
 }

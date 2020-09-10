@@ -21,6 +21,8 @@
 
 #include <mutex>
 
+#include <binder/IBinder.h>
+
 #include <gui/LayerState.h>
 
 #include <utils/KeyedVector.h>
@@ -48,7 +50,7 @@ using DisplayChange = surfaceflinger::DisplayChange;
 
 constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.pb";
 
-class SurfaceInterceptor {
+class SurfaceInterceptor : public IBinder::DeathRecipient {
 public:
     virtual ~SurfaceInterceptor();
 
@@ -57,6 +59,8 @@ public:
                         const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays) = 0;
     virtual void disable() = 0;
     virtual bool isEnabled() = 0;
+
+    virtual void binderDied(const wp<IBinder>& who) = 0;
 
     // Intercept display and surface transactions
     virtual void saveTransaction(
@@ -94,6 +98,8 @@ public:
                 const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays) override;
     void disable() override;
     bool isEnabled() override;
+
+    void binderDied(const wp<IBinder>& who) override;
 
     // Intercept display and surface transactions
     void saveTransaction(const Vector<ComposerState>& stateUpdates,
