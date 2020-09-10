@@ -493,6 +493,14 @@ bool InputWindowCommands::merge(const InputWindowCommands& other) {
     return changes;
 }
 
+bool InputWindowCommands::empty() const {
+    bool empty = true;
+#ifndef NO_INPUT
+    empty = focusRequests.empty() && !syncInputWindows;
+#endif
+    return empty;
+}
+
 void InputWindowCommands::clear() {
 #ifndef NO_INPUT
     focusRequests.clear();
@@ -541,6 +549,7 @@ status_t CaptureArgs::write(Parcel& output) const {
     SAFE_PARCEL(output.writeFloat, frameScale);
     SAFE_PARCEL(output.writeBool, captureSecureLayers);
     SAFE_PARCEL(output.writeInt32, uid);
+    SAFE_PARCEL(output.writeBool, useRGBColorSpace);
     return NO_ERROR;
 }
 
@@ -552,7 +561,7 @@ status_t CaptureArgs::read(const Parcel& input) {
     SAFE_PARCEL(input.readFloat, &frameScale);
     SAFE_PARCEL(input.readBool, &captureSecureLayers);
     SAFE_PARCEL(input.readInt32, &uid);
-
+    SAFE_PARCEL(input.readBool, &useRGBColorSpace);
     return NO_ERROR;
 }
 

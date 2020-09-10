@@ -2055,7 +2055,7 @@ void SurfaceFlinger::onMessageRefresh() {
             refreshArgs.layers.push_back(layerFE);
     });
     refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
-    for (sp<Layer> layer : mLayersWithQueuedFrames) {
+    for (auto layer : mLayersWithQueuedFrames) {
         if (auto layerFE = layer->getCompositionEngineLayerFE())
             refreshArgs.layersWithQueuedFrames.push_back(layerFE);
     }
@@ -2218,7 +2218,7 @@ void SurfaceFlinger::postComposition()
     ALOGV("postComposition");
 
     nsecs_t dequeueReadyTime = systemTime();
-    for (auto& layer : mLayersWithQueuedFrames) {
+    for (auto layer : mLayersWithQueuedFrames) {
         layer->releasePendingBuffer(dequeueReadyTime);
     }
 
@@ -2913,6 +2913,9 @@ void SurfaceFlinger::updateInputFlinger() {
         setInputWindowsFinished();
     }
 
+    for (const auto& focusRequest : mInputWindowCommands.focusRequests) {
+        mInputFlinger->setFocusedWindow(focusRequest);
+    }
     mInputWindowCommands.clear();
 }
 
@@ -2930,10 +2933,6 @@ void SurfaceFlinger::updateInputWindowInfo() {
     mInputFlinger->setInputWindows(inputInfos,
                                mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
                                                                      : nullptr);
-    for (const auto& focusRequest : mInputWindowCommands.focusRequests) {
-        mInputFlinger->setFocusedWindow(focusRequest);
-    }
-    mInputWindowCommands.focusRequests.clear();
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
@@ -3136,7 +3135,7 @@ bool SurfaceFlinger::handlePageFlip()
         if (layer->hasReadyFrame()) {
             frameQueued = true;
             if (layer->shouldPresentNow(expectedPresentTime)) {
-                mLayersWithQueuedFrames.push_back(layer);
+                mLayersWithQueuedFrames.emplace(layer);
             } else {
                 ATRACE_NAME("!layer->shouldPresentNow()");
                 layer->useEmptyDamage();
@@ -3477,7 +3476,11 @@ void SurfaceFlinger::applyTransactionState(
     }
     transactionFlags |= clientStateFlags;
 
-    transactionFlags |= addInputWindowCommands(inputWindowCommands);
+    if (privileged) {
+        transactionFlags |= addInputWindowCommands(inputWindowCommands);
+    } else if (!inputWindowCommands.empty()) {
+        ALOGE("Only privileged callers are allowed to send input commands.");
+    }
 
     if (uncacheBuffer.isValid()) {
         ClientCache::getInstance().erase(uncacheBuffer);
@@ -3945,7 +3948,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
 }
 
 uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& inputWindowCommands) {
-    const bool hasChanges = mPendingInputWindowCommands.merge(inputWindowCommands);
+    bool hasChanges = mPendingInputWindowCommands.merge(inputWindowCommands);
     return hasChanges ? eTraversalNeeded : 0;
 }
 
@@ -5515,8 +5518,16 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
             reqSize = display->getLayerStackSpaceRect().getSize();
         }
 
-        const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
-        dataspace = pickDataspaceFromColorMode(colorMode);
+        // The dataspace is depended on the color mode of display, that could use non-native mode
+        // (ex. displayP3) to enhance the content, but some cases are checking native RGB in bytes,
+        // and failed if display is not in native mode. This provide a way to force using native
+        // colors when capture.
+        if (args.useRGBColorSpace) {
+            dataspace = Dataspace::V0_SRGB;
+        } else {
+            const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
+            dataspace = pickDataspaceFromColorMode(colorMode);
+        }
     }
 
     RenderAreaFuture renderAreaFuture = promise::defer([=] {
@@ -5673,8 +5684,16 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
         layerStackSpaceRect = display->getLayerStackSpaceRect();
 
-        const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
-        dataspace = pickDataspaceFromColorMode(colorMode);
+        // The dataspace is depended on the color mode of display, that could use non-native mode
+        // (ex. displayP3) to enhance the content, but some cases are checking native RGB in bytes,
+        // and failed if display is not in native mode. This provide a way to force using native
+        // colors when capture.
+        if (args.useRGBColorSpace) {
+            dataspace = Dataspace::V0_SRGB;
+        } else {
+            const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
+            dataspace = pickDataspaceFromColorMode(colorMode);
+        }
 
         captureSecureLayers = args.captureSecureLayers && display->isSecure();
     } // mStateLock

@@ -311,6 +311,7 @@ struct InputWindowCommands {
 
     // Merges the passed in commands and returns true if there were any changes.
     bool merge(const InputWindowCommands& other);
+    bool empty() const;
     void clear();
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
@@ -341,6 +342,12 @@ struct CaptureArgs {
     float frameScale{1};
     bool captureSecureLayers{false};
     int32_t uid{UNSET_UID};
+    // True to force using RGB color as the capture result.
+    // The display may use non-RGB dataspace (ex. displayP3) that could cause pixel data could be
+    // different from RGB (byte per color), and failed when checking colors.
+    // NOTE: This should only be used for testing since in normal cases, we want the screen
+    // capture's colorspace to match the display's colorspace
+    bool useRGBColorSpace{false};
 
     virtual status_t write(Parcel& output) const;
     virtual status_t read(const Parcel& input);
