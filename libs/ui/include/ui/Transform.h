@@ -61,9 +61,13 @@ public:
     };
 
     // query the transform
-    bool        preserveRects() const;
-    uint32_t    getType() const;
-    uint32_t    getOrientation() const;
+    bool preserveRects() const;
+
+    // Returns if bilinear filtering is needed after applying this transform to avoid aliasing.
+    bool needsBilinearFiltering() const;
+
+    uint32_t getType() const;
+    uint32_t getOrientation() const;
     bool operator==(const Transform& other) const;
 
     const vec3& operator [] (size_t i) const;  // returns column i
