@@ -106,6 +106,7 @@
 #include "DisplayRenderArea.h"
 #include "EffectLayer.h"
 #include "Effects/Daltonizer.h"
+#include "FrameTimeline/FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
 #include "Layer.h"
 #include "LayerRenderArea.h"
@@ -332,6 +333,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInterceptor(mFactory.createSurfaceInterceptor(this)),
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(std::make_unique<FrameTracer>()),
+        mFrameTimeline(std::make_shared<frametimeline::impl::FrameTimeline>()),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
