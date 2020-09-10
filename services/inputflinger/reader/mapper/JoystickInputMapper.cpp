@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#include "Macros.h"
+#include "../Macros.h"
 
 #include "JoystickInputMapper.h"
 
 namespace android {
 
-JoystickInputMapper::JoystickInputMapper(InputDevice* device) : InputMapper(device) {}
+JoystickInputMapper::JoystickInputMapper(InputDeviceContext& deviceContext)
+      : InputMapper(deviceContext) {}
 
 JoystickInputMapper::~JoystickInputMapper() {}
 
@@ -112,7 +113,8 @@ void JoystickInputMapper::configure(nsecs_t when, const InputReaderConfiguration
     if (!changes) { // first time only
         // Collect all axes.
         for (int32_t abs = 0; abs <= ABS_MAX; abs++) {
-            if (!(getAbsAxisUsage(abs, getDevice()->getClasses()) & INPUT_DEVICE_CLASS_JOYSTICK)) {
+            if (!(getAbsAxisUsage(abs, getDeviceContext().getDeviceClasses()) &
+                  INPUT_DEVICE_CLASS_JOYSTICK)) {
                 continue; // axis must be claimed by a different device
             }
 
@@ -121,7 +123,7 @@ void JoystickInputMapper::configure(nsecs_t when, const InputReaderConfiguration
             if (rawAxisInfo.valid) {
                 // Map axis.
                 AxisInfo axisInfo;
-                bool explicitlyMapped = !getEventHub()->mapAxis(getDeviceId(), abs, &axisInfo);
+                bool explicitlyMapped = !getDeviceContext().mapAxis(abs, &axisInfo);
                 if (!explicitlyMapped) {
                     // Axis is not explicitly mapped, will choose a generic axis later.
                     axisInfo.mode = AxisInfo::MODE_NORMAL;
@@ -304,7 +306,7 @@ void JoystickInputMapper::sync(nsecs_t when, bool force) {
         return;
     }
 
-    int32_t metaState = mContext->getGlobalMetaState();
+    int32_t metaState = getContext()->getGlobalMetaState();
     int32_t buttonState = 0;
 
     PointerProperties pointerProperties;
@@ -331,12 +333,12 @@ void JoystickInputMapper::sync(nsecs_t when, bool force) {
     // TODO: Use the input device configuration to control this behavior more finely.
     uint32_t policyFlags = 0;
 
-    NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
-                          AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_NONE, policyFlags,
-                          AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState,
-                          MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
-                          /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords, 0, 0, 0,
-                          /* videoFrames */ {});
+    NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), AINPUT_SOURCE_JOYSTICK,
+                          ADISPLAY_ID_NONE, policyFlags, AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState,
+                          buttonState, MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                          &pointerProperties, &pointerCoords, 0, 0,
+                          AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                          AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
     getListener()->notifyMotion(&args);
 }
 

@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #define LOG_NDEBUG 0
 #undef LOG_TAG
 #define LOG_TAG "FakeHwcUtil"
@@ -25,8 +29,8 @@
 #include "SurfaceFlinger.h" // Get the name of the service...
 
 #include <binder/IServiceManager.h>
-
 #include <cutils/properties.h>
+#include <hidl/ServiceManagement.h>
 
 #include <iomanip>
 #include <thread>
@@ -167,7 +171,9 @@ void FakeHwcEnvironment::SetUp() {
     }
     // TODO: Try registering the mock as the default service instead.
     property_set("debug.sf.hwc_service_name", "mock");
-    // This allows the SurfaceFlinger to load a HIDL service not listed in manifest files.
+
+    // This allows tests/SF to register/load a HIDL service not listed in manifest files.
+    android::hardware::details::setTrebleTestingOverride(true);
     property_set("debug.sf.treble_testing_override", "true");
 }
 
@@ -177,7 +183,11 @@ void FakeHwcEnvironment::TearDown() {
     // Wait for mock call signaling teardown?
     property_set("debug.sf.nobootanimation", "0");
     property_set("debug.sf.hwc_service_name", "default");
+    system("setenforce 1");
     ALOGI("Test env tear down - done");
 }
 
 } // namespace sftest
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

@@ -103,18 +103,6 @@ static std::string resolve_ce_path_by_inode_or_fallback(const std::string& root_
 }
 
 /**
- * Create the path name where package app contents should be stored for
- * the given volume UUID and package name.  An empty UUID is assumed to
- * be internal storage.
- */
-std::string create_data_app_package_path(const char* volume_uuid,
-        const char* package_name) {
-    check_package_name(package_name);
-    return StringPrintf("%s/%s",
-            create_data_app_path(volume_uuid).c_str(), package_name);
-}
-
-/**
  * Create the path name where package data should be stored for the given
  * volume UUID, package name, and user ID. An empty UUID is assumed to be
  * internal storage.
@@ -279,6 +267,15 @@ std::string create_primary_reference_profile_package_dir_path(const std::string&
 
 std::string create_data_dalvik_cache_path() {
     return "/data/dalvik-cache";
+}
+
+std::string create_system_user_ce_path(userid_t userId) {
+    return StringPrintf("%s/system_ce/%u", create_data_path(nullptr).c_str(), userId);
+}
+
+std::string create_system_user_ce_package_path(userid_t userId, const char* package_name) {
+    check_package_name(package_name);
+    return StringPrintf("%s/%s", create_system_user_ce_path(userId).c_str(), package_name);
 }
 
 // Keep profile paths in sync with ActivityThread and LoadedApk.

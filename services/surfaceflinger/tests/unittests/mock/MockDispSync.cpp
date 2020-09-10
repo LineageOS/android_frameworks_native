@@ -17,6 +17,7 @@
 #include "mock/MockDispSync.h"
 #include <thread>
 
+using namespace std::chrono_literals;
 namespace android {
 namespace mock {
 
@@ -54,8 +55,9 @@ status_t DispSync::changePhaseOffset(Callback* callback, nsecs_t phase) {
 void DispSync::triggerCallback() {
     if (mCallback.callback == nullptr) return;
 
-    mCallback.callback->onDispSyncEvent(
-            std::chrono::steady_clock::now().time_since_epoch().count());
+    const std::chrono::nanoseconds now = std::chrono::steady_clock::now().time_since_epoch();
+    const auto expectedVSyncTime = now + 16ms;
+    mCallback.callback->onDispSyncEvent(now.count(), expectedVSyncTime.count());
 }
 
 } // namespace mock

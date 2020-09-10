@@ -176,12 +176,14 @@ static std::vector<MotionEvent> createMotionEventStream(
         EXPECT_EQ(pointerIndex, pointerCount);
 
         MotionEvent event;
-        event.initialize(0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID,
-                action, 0 /*actionButton*/, 0 /*flags*/,
-                AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
-                MotionClassification::NONE,
-                0 /*xOffset*/, 0 /*yOffset*/, 0 /*xPrecision*/, 0 /*yPrecision*/,
-                0 /*downTime*/, entry.eventTime.count(), pointerCount, properties, coords);
+        event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN,
+                         DISPLAY_ID, INVALID_HMAC, action, 0 /*actionButton*/, 0 /*flags*/,
+                         AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
+                         MotionClassification::NONE, 1 /*xScale*/, 1 /*yScale*/, 0 /*xOffset*/,
+                         0 /*yOffset*/, 0 /*xPrecision*/, 0 /*yPrecision*/,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, 0 /*downTime*/,
+                         entry.eventTime.count(), pointerCount, properties, coords);
 
         events.emplace_back(event);
     }

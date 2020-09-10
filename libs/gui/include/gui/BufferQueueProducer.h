@@ -22,10 +22,15 @@
 
 namespace android {
 
+class IBinder;
 struct BufferSlot;
 
+#ifndef NO_BINDER
 class BufferQueueProducer : public BnGraphicBufferProducer,
                             private IBinder::DeathRecipient {
+#else
+class BufferQueueProducer : public BnGraphicBufferProducer {
+#endif
 public:
     friend class BufferQueue; // Needed to access binderDied
 
@@ -189,6 +194,9 @@ public:
 
     // See IGraphicBufferProducer::getConsumerUsage
     virtual status_t getConsumerUsage(uint64_t* outUsage) const override;
+
+    // See IGraphicBufferProducer::setAutoPrerotation
+    virtual status_t setAutoPrerotation(bool autoPrerotation);
 
 private:
     // This is required by the IBinder::DeathRecipient interface

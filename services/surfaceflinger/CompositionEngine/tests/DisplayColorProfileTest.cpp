@@ -19,35 +19,6 @@
 #include <compositionengine/mock/CompositionEngine.h>
 #include <gtest/gtest.h>
 
-namespace android::hardware::graphics::common::V1_1 {
-
-// Note: These operator overloads need to be defined in the same namespace as
-// the values they print.
-
-std::ostream& operator<<(std::ostream& os, const RenderIntent& value) {
-    return os << toString(value) << " (" << static_cast<std::underlying_type_t<Dataspace>>(value)
-              << ")";
-}
-
-} // namespace android::hardware::graphics::common::V1_1
-
-namespace android::hardware::graphics::common::V1_2 {
-
-// Note: These operator overloads need to be defined in the same namespace as
-// the values they print.
-
-std::ostream& operator<<(std::ostream& os, const Dataspace& value) {
-    return os << toString(value) << " (" << static_cast<std::underlying_type_t<Dataspace>>(value)
-              << ")";
-}
-
-std::ostream& operator<<(std::ostream& os, const ColorMode& value) {
-    return os << toString(value) << " (" << static_cast<std::underlying_type_t<Dataspace>>(value)
-              << ")";
-}
-
-} // namespace android::hardware::graphics::common::V1_2
-
 namespace android::compositionengine {
 namespace {
 
@@ -636,6 +607,67 @@ TEST_F(DisplayColorProfileTest, getBestColorModeReturnsExpectedModesWhenOutputHa
     };
 
     checkGetBestColorMode(profile, expectedResults);
+}
+
+/*
+ * RenderSurface::isDataspaceSupported()
+ */
+
+TEST_F(DisplayColorProfileTest, isDataspaceSupportedWorksForProfileWithNoHdrSupport) {
+    auto profile = ProfileFactory::createProfileWithNoColorModeSupport();
+
+    EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::UNKNOWN));
+    EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::V0_SRGB));
+    EXPECT_FALSE(profile.isDataspaceSupported(Dataspace::BT2020_PQ));
+    EXPECT_FALSE(profile.isDataspaceSupported(Dataspace::BT2020_ITU_PQ));
+    EXPECT_FALSE(profile.isDataspaceSupported(Dataspace::BT2020_HLG));
+    EXPECT_FALSE(profile.isDataspaceSupported(Dataspace::BT2020_ITU_HLG));
+}
+
+TEST_F(DisplayColorProfileTest, isDataspaceSupportedWorksForProfileWithHdr10Support) {
+    auto profile = ProfileFactory::createProfileWithSRGBColorModeSupport();
+
+    EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::UNKNOWN));
+    EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::V0_SRGB));
+    EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::BT2020_PQ));
+    EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::BT2020_ITU_PQ));
+    EXPECT_FALSE(profile.isDataspaceSupported(Dataspace::BT2020_HLG));
+    EXPECT_FALSE(profile.isDataspaceSupported(Dataspace::BT2020_ITU_HLG));
+}
+
+TEST_F(DisplayColorProfileTest, isDataspaceSupportedWorksForProfileWithHlgSupport) {
+    auto profile = ProfileFactory::createProfileWithBT2100PQSupport();
+
+    EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::UNKNOWN));
+    EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::V0_SRGB));
+    EXPECT_FALSE(profile.isDataspaceSupported(Dataspace::BT2020_PQ));
+    EXPECT_FALSE(profile.isDataspaceSupported(Dataspace::BT2020_ITU_PQ));
+    EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::BT2020_HLG));
+    EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::BT2020_ITU_HLG));
+}
+
+/*
+ * RenderSurface::getTargetDataspace()
+ */
+
+TEST_F(DisplayColorProfileTest, getTargetDataspaceWorks) {
+    auto profile = ProfileFactory::createProfileWithNoColorModeSupport();
+
+    // For a non-HDR colorspace with no colorSpaceAgnosticDataspace override,
+    // the input dataspace should be returned.
+    EXPECT_EQ(Dataspace::DISPLAY_P3,
+              profile.getTargetDataspace(ColorMode::DISPLAY_P3, Dataspace::DISPLAY_P3,
+                                         Dataspace::UNKNOWN));
+
+    // If colorSpaceAgnosticDataspace is set, its value should be returned
+    EXPECT_EQ(Dataspace::V0_SRGB,
+              profile.getTargetDataspace(ColorMode::DISPLAY_P3, Dataspace::DISPLAY_P3,
+                                         Dataspace::V0_SRGB));
+
+    // For an HDR colorspace, Dataspace::UNKNOWN should be returned.
+    EXPECT_EQ(Dataspace::UNKNOWN,
+              profile.getTargetDataspace(ColorMode::BT2100_PQ, Dataspace::BT2020_PQ,
+                                         Dataspace::UNKNOWN));
 }
 
 } // namespace

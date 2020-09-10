@@ -93,15 +93,6 @@ void TouchState::addGestureMonitors(const std::vector<TouchedMonitor>& newMonito
                            std::end(newMonitors));
 }
 
-void TouchState::removeWindow(const sp<InputWindowHandle>& windowHandle) {
-    for (size_t i = 0; i < windows.size(); i++) {
-        if (windows[i].windowHandle == windowHandle) {
-            windows.erase(windows.begin() + i);
-            return;
-        }
-    }
-}
-
 void TouchState::removeWindowByToken(const sp<IBinder>& token) {
     for (size_t i = 0; i < windows.size(); i++) {
         if (windows[i].windowHandle->getToken() == token) {

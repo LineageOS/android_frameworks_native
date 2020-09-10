@@ -21,16 +21,15 @@
 #include <gui/HdrMetadata.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
-
+#include <system/window.h>
 #include <ui/ANativeObjectBase.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Region.h>
-
 #include <utils/Condition.h>
 #include <utils/Mutex.h>
 #include <utils/RefBase.h>
 
-#include <system/window.h>
+#include <shared_mutex>
 
 namespace android {
 
@@ -179,8 +178,7 @@ public:
     status_t getUniqueId(uint64_t* outId) const;
     status_t getConsumerUsage(uint64_t* outUsage) const;
 
-    // Returns the CLOCK_MONOTONIC start time of the last dequeueBuffer call
-    nsecs_t getLastDequeueStartTime() const;
+    status_t setFrameRate(float frameRate, int8_t compatibility);
 
 protected:
     virtual ~Surface();
@@ -204,6 +202,14 @@ private:
     static int hook_queueBuffer(ANativeWindow* window,
             ANativeWindowBuffer* buffer, int fenceFd);
     static int hook_setSwapInterval(ANativeWindow* window, int interval);
+
+    static int cancelBufferInternal(ANativeWindow* window, ANativeWindowBuffer* buffer,
+                                    int fenceFd);
+    static int dequeueBufferInternal(ANativeWindow* window, ANativeWindowBuffer** buffer,
+                                     int* fenceFd);
+    static int performInternal(ANativeWindow* window, int operation, va_list args);
+    static int queueBufferInternal(ANativeWindow* window, ANativeWindowBuffer* buffer, int fenceFd);
+    static int queryInternal(const ANativeWindow* window, int what, int* value);
 
     static int hook_cancelBuffer_DEPRECATED(ANativeWindow* window,
             ANativeWindowBuffer* buffer);
@@ -246,6 +252,18 @@ private:
     int dispatchGetWideColorSupport(va_list args);
     int dispatchGetHdrSupport(va_list args);
     int dispatchGetConsumerUsage64(va_list args);
+    int dispatchSetAutoPrerotation(va_list args);
+    int dispatchGetLastDequeueStartTime(va_list args);
+    int dispatchSetDequeueTimeout(va_list args);
+    int dispatchGetLastDequeueDuration(va_list args);
+    int dispatchGetLastQueueDuration(va_list args);
+    int dispatchSetFrameRate(va_list args);
+    int dispatchAddCancelInterceptor(va_list args);
+    int dispatchAddDequeueInterceptor(va_list args);
+    int dispatchAddPerformInterceptor(va_list args);
+    int dispatchAddQueueInterceptor(va_list args);
+    int dispatchAddQueryInterceptor(va_list args);
+    int dispatchGetLastQueuedBuffer(va_list args);
     bool transformToDisplayInverse();
 
 protected:
@@ -281,6 +299,7 @@ public:
     virtual int setAsyncMode(bool async);
     virtual int setSharedBufferMode(bool sharedBufferMode);
     virtual int setAutoRefresh(bool autoRefresh);
+    virtual int setAutoPrerotation(bool autoPrerotation);
     virtual int setBuffersDimensions(uint32_t width, uint32_t height);
     virtual int lock(ANativeWindow_Buffer* outBuffer, ARect* inOutDirtyBounds);
     virtual int unlockAndPost();
@@ -450,6 +469,20 @@ protected:
     // member variables are accessed.
     mutable Mutex mMutex;
 
+    // mInterceptorMutex is the mutex guarding interceptors.
+    mutable std::shared_mutex mInterceptorMutex;
+
+    ANativeWindow_cancelBufferInterceptor mCancelInterceptor = nullptr;
+    void* mCancelInterceptorData = nullptr;
+    ANativeWindow_dequeueBufferInterceptor mDequeueInterceptor = nullptr;
+    void* mDequeueInterceptorData = nullptr;
+    ANativeWindow_performInterceptor mPerformInterceptor = nullptr;
+    void* mPerformInterceptorData = nullptr;
+    ANativeWindow_queueBufferInterceptor mQueueInterceptor = nullptr;
+    void* mQueueInterceptorData = nullptr;
+    ANativeWindow_queryInterceptor mQueryInterceptor = nullptr;
+    void* mQueryInterceptorData = nullptr;
+
     // must be used from the lock/unlock thread
     sp<GraphicBuffer>           mLockedBuffer;
     sp<GraphicBuffer>           mPostedBuffer;
@@ -474,6 +507,7 @@ protected:
     // Caches the values that have been passed to the producer.
     bool mSharedBufferMode;
     bool mAutoRefresh;
+    bool mAutoPrerotation;
 
     // If in shared buffer mode and auto refresh is enabled, store the shared
     // buffer slot and return it for all calls to queue/dequeue without going
@@ -506,6 +540,7 @@ protected:
 
     bool mReportRemovedBuffers = false;
     std::vector<sp<GraphicBuffer>> mRemovedBuffers;
+    int mMaxBufferCount;
 
     sp<IProducerListener> mListenerProxy;
     status_t getAndFlushBuffersFromSlots(const std::vector<int32_t>& slots,

@@ -62,7 +62,6 @@ cc_library {
     ],
 
     shared_libs: [
-        "libhardware",
         "libcutils",
         "liblog",
         "libutils",

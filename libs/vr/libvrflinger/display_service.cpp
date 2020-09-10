@@ -18,6 +18,8 @@
 #include <private/dvr/trusted_uids.h>
 #include <private/dvr/types.h>
 
+#include "DisplayHardware/DisplayIdentification.h"
+
 using android::dvr::display::DisplayProtocol;
 using android::pdx::Channel;
 using android::pdx::ErrorStatus;
@@ -139,6 +141,11 @@ Status<void> DisplayService::HandleMessage(pdx::Message& message) {
           *this, &DisplayService::OnGetConfigurationData, message);
       return {};
 
+    case DisplayProtocol::GetDisplayIdentificationPort::Opcode:
+      DispatchRemoteMethod<DisplayProtocol::GetDisplayIdentificationPort>(
+          *this, &DisplayService::OnGetDisplayIdentificationPort, message);
+      return {};
+
     case DisplayProtocol::CreateSurface::Opcode:
       DispatchRemoteMethod<DisplayProtocol::CreateSurface>(
           *this, &DisplayService::OnCreateSurface, message);
@@ -194,6 +201,7 @@ Status<display::Metrics> DisplayService::OnGetMetrics(
 pdx::Status<std::string> DisplayService::OnGetConfigurationData(
     pdx::Message& /*message*/, display::ConfigFileType config_type) {
   std::string property_name;
+  DisplayIdentificationData display_identification_data;
   switch (config_type) {
     case display::ConfigFileType::kLensMetrics:
       property_name = kDvrLensMetricsProperty;
@@ -204,6 +212,14 @@ pdx::Status<std::string> DisplayService::OnGetConfigurationData(
     case display::ConfigFileType::kDeviceConfiguration:
       property_name = kDvrDeviceConfigProperty;
       break;
+    case display::ConfigFileType::kDeviceEdid:
+      display_identification_data =
+          hardware_composer_.GetCurrentDisplayIdentificationData();
+      if (display_identification_data.size() == 0) {
+        return ErrorStatus(ENOENT);
+      }
+      return std::string(display_identification_data.begin(),
+                         display_identification_data.end());
     default:
       return ErrorStatus(EINVAL);
   }
@@ -218,6 +234,11 @@ pdx::Status<std::string> DisplayService::OnGetConfigurationData(
   }
 
   return std::move(data);
+}
+
+pdx::Status<uint8_t> DisplayService::OnGetDisplayIdentificationPort(
+    pdx::Message& /*message*/) {
+  return hardware_composer_.GetCurrentDisplayPort();
 }
 
 // Creates a new DisplaySurface and associates it with this channel. This may

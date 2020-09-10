@@ -28,68 +28,6 @@
 
 namespace android {
 
-/**
- * Basic statistics information.
- * Keep track of min, max, average, and standard deviation of the received samples.
- * Used to report latency information about input events.
- */
-struct LatencyStatistics {
-    float min;
-    float max;
-    // Sum of all samples
-    float sum;
-    // Sum of squares of all samples
-    float sum2;
-    // The number of samples
-    size_t count;
-    // The last time statistics were reported.
-    nsecs_t lastReportTime;
-
-    LatencyStatistics() { reset(systemTime(SYSTEM_TIME_MONOTONIC)); }
-
-    inline void addValue(float x) {
-        if (x < min) {
-            min = x;
-        }
-        if (x > max) {
-            max = x;
-        }
-        sum += x;
-        sum2 += x * x;
-        count++;
-    }
-
-    // Get the average value. Should not be called if no samples have been added.
-    inline float mean() {
-        if (count == 0) {
-            return 0;
-        }
-        return sum / count;
-    }
-
-    // Get the standard deviation. Should not be called if no samples have been added.
-    inline float stdev() {
-        if (count == 0) {
-            return 0;
-        }
-        float average = mean();
-        return sqrt(sum2 / count - average * average);
-    }
-
-    /**
-     * Reset internal state. The variable 'when' is the time when the data collection started.
-     * Call this to start a new data collection window.
-     */
-    inline void reset(nsecs_t when) {
-        max = 0;
-        min = std::numeric_limits<float>::max();
-        sum = 0;
-        sum2 = 0;
-        count = 0;
-        lastReportTime = when;
-    }
-};
-
 /* Raw axis information from the driver. */
 struct RawPointerAxes {
     RawAbsoluteAxisInfo x;
@@ -194,26 +132,26 @@ struct CookedPointerData {
 
 class TouchInputMapper : public InputMapper {
 public:
-    explicit TouchInputMapper(InputDevice* device);
+    explicit TouchInputMapper(InputDeviceContext& deviceContext);
     virtual ~TouchInputMapper();
 
-    virtual uint32_t getSources();
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(std::string& dump);
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
-    virtual void reset(nsecs_t when);
-    virtual void process(const RawEvent* rawEvent);
+    virtual uint32_t getSources() override;
+    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    virtual void dump(std::string& dump) override;
+    virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
+                           uint32_t changes) override;
+    virtual void reset(nsecs_t when) override;
+    virtual void process(const RawEvent* rawEvent) override;
 
-    virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
-    virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
+    virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode) override;
+    virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
     virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-                                       const int32_t* keyCodes, uint8_t* outFlags);
+                                       const int32_t* keyCodes, uint8_t* outFlags) override;
 
-    virtual void fadePointer();
-    virtual void cancelTouch(nsecs_t when);
-    virtual void timeoutExpired(nsecs_t when);
-    virtual void updateExternalStylusState(const StylusState& state);
-    virtual std::optional<int32_t> getAssociatedDisplay();
+    virtual void cancelTouch(nsecs_t when) override;
+    virtual void timeoutExpired(nsecs_t when) override;
+    virtual void updateExternalStylusState(const StylusState& state) override;
+    virtual std::optional<int32_t> getAssociatedDisplayId() override;
 
 protected:
     CursorButtonAccumulator mCursorButtonAccumulator;
@@ -358,7 +296,6 @@ protected:
 
     struct RawState {
         nsecs_t when;
-        uint32_t deviceTimestamp;
 
         // Raw pointer sample data.
         RawPointerData rawPointerData;
@@ -371,7 +308,6 @@ protected:
 
         void copyFrom(const RawState& other) {
             when = other.when;
-            deviceTimestamp = other.deviceTimestamp;
             rawPointerData.copyFrom(other.rawPointerData);
             buttonState = other.buttonState;
             rawVScroll = other.rawVScroll;
@@ -380,7 +316,6 @@ protected:
 
         void clear() {
             when = 0;
-            deviceTimestamp = 0;
             rawPointerData.clear();
             buttonState = 0;
             rawVScroll = 0;
@@ -389,7 +324,6 @@ protected:
     };
 
     struct CookedState {
-        uint32_t deviceTimestamp;
         // Cooked pointer sample data.
         CookedPointerData cookedPointerData;
 
@@ -401,7 +335,6 @@ protected:
         int32_t buttonState;
 
         void copyFrom(const CookedState& other) {
-            deviceTimestamp = other.deviceTimestamp;
             cookedPointerData.copyFrom(other.cookedPointerData);
             fingerIdBits = other.fingerIdBits;
             stylusIdBits = other.stylusIdBits;
@@ -410,7 +343,6 @@ protected:
         }
 
         void clear() {
-            deviceTimestamp = 0;
             cookedPointerData.clear();
             fingerIdBits.clear();
             stylusIdBits.clear();
@@ -475,12 +407,16 @@ private:
     // The surface orientation, width and height set by configureSurface().
     // The width and height are derived from the viewport but are specified
     // in the natural orientation.
+    // They could be used for calculating diagonal, scaling factors, and virtual keys.
+    int32_t mRawSurfaceWidth;
+    int32_t mRawSurfaceHeight;
+
     // The surface origin specifies how the surface coordinates should be translated
     // to align with the logical display coordinate space.
-    int32_t mSurfaceWidth;
-    int32_t mSurfaceHeight;
     int32_t mSurfaceLeft;
     int32_t mSurfaceTop;
+    int32_t mSurfaceRight;
+    int32_t mSurfaceBottom;
 
     // Similar to the surface coordinates, but in the raw display coordinate space rather than in
     // the logical coordinate space.
@@ -759,9 +695,6 @@ private:
     VelocityControl mWheelXVelocityControl;
     VelocityControl mWheelYVelocityControl;
 
-    // Latency statistics for touch events
-    struct LatencyStatistics mStatistics;
-
     std::optional<DisplayViewport> findViewport();
 
     void resetExternalStylus();
@@ -811,10 +744,9 @@ private:
     // it is the first / last pointer to go down / up.
     void dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32_t source, int32_t action,
                         int32_t actionButton, int32_t flags, int32_t metaState, int32_t buttonState,
-                        int32_t edgeFlags, uint32_t deviceTimestamp,
-                        const PointerProperties* properties, const PointerCoords* coords,
-                        const uint32_t* idToIndex, BitSet32 idBits, int32_t changedId,
-                        float xPrecision, float yPrecision, nsecs_t downTime);
+                        int32_t edgeFlags, const PointerProperties* properties,
+                        const PointerCoords* coords, const uint32_t* idToIndex, BitSet32 idBits,
+                        int32_t changedId, float xPrecision, float yPrecision, nsecs_t downTime);
 
     // Updates pointer coords and properties for pointers with specified ids that have moved.
     // Returns true if any of them changed.
@@ -828,9 +760,8 @@ private:
 
     static void assignPointerIds(const RawState* last, RawState* current);
 
-    void reportEventForStatistics(nsecs_t evdevTime);
-
     const char* modeToString(DeviceMode deviceMode);
+    void rotateAndScale(float& x, float& y);
 };
 
 } // namespace android

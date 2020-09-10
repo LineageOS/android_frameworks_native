@@ -54,17 +54,14 @@ public:
     // Overriden from Layer
     // -----------------------------------------------------------------------
 public:
-    std::shared_ptr<compositionengine::Layer> getCompositionLayer() const override;
+    sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const override;
+    compositionengine::LayerFECompositionState* editCompositionState() override;
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
     // one empty rect.
     void useSurfaceDamage() override;
     void useEmptyDamage() override;
-
-    // getTypeId - Provide unique string for each class type in the Layer
-    // hierarchy
-    const char* getTypeId() const override { return "BufferLayer"; }
 
     bool isOpaque(const Layer::State& s) const override;
 
@@ -82,53 +79,59 @@ public:
 
     bool isHdrY410() const override;
 
-    void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
-                         const Rect& viewport, int32_t supportedPerFrameMetadata,
-                         const ui::Dataspace targetDataspace) override;
-
-    bool onPreComposition(nsecs_t refreshStartTime) override;
-    bool onPostComposition(const std::optional<DisplayId>& displayId,
-                           const std::shared_ptr<FenceTime>& glDoneFence,
+    bool onPostComposition(const DisplayDevice*, const std::shared_ptr<FenceTime>& glDoneFence,
                            const std::shared_ptr<FenceTime>& presentFence,
-                           const CompositorTiming& compositorTiming) override;
+                           const CompositorTiming&) override;
 
     // latchBuffer - called each time the screen is redrawn and returns whether
     // the visible regions need to be recomputed (this is a fairly heavy
     // operation, so this should be set only if needed). Typically this is used
     // to figure out if the content or size of a surface has changed.
-    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) override;
+    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                     nsecs_t expectedPresentTime) override;
 
     bool isBufferLatched() const override { return mRefreshPending; }
 
-    void notifyAvailableFrames() override;
+    void notifyAvailableFrames(nsecs_t expectedPresentTime) override;
 
     bool hasReadyFrame() const override;
 
     // Returns the current scaling mode, unless mOverrideScalingMode
     // is set, in which case, it returns mOverrideScalingMode
     uint32_t getEffectiveScalingMode() const override;
-    // -----------------------------------------------------------------------
+
+    // Calls latchBuffer if the buffer has a frame queued and then releases the buffer.
+    // This is used if the buffer is just latched and releases to free up the buffer
+    // and will not be shown on screen.
+    // Should only be called on the main thread.
+    void latchAndReleaseBuffer() override;
+
+    bool getTransformToDisplayInverse() const override;
+
+    Rect getBufferCrop() const override;
+
+    uint32_t getBufferTransform() const override;
+
+    ui::Dataspace getDataSpace() const override;
+
+    sp<GraphicBuffer> getBuffer() const override;
+
+    ui::Transform::RotationFlags getTransformHint() const override { return mTransformHint; }
 
     // -----------------------------------------------------------------------
     // Functions that must be implemented by derived classes
     // -----------------------------------------------------------------------
 private:
     virtual bool fenceHasSignaled() const = 0;
-    virtual bool framePresentTimeIsCurrent() const = 0;
+    virtual bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const = 0;
 
-    virtual nsecs_t getDesiredPresentTime() = 0;
-    virtual std::shared_ptr<FenceTime> getCurrentFenceTime() const = 0;
+    PixelFormat getPixelFormat() const;
 
-    virtual void getDrawingTransformMatrix(float *matrix) = 0;
-    virtual uint32_t getDrawingTransform() const = 0;
-    virtual ui::Dataspace getDrawingDataSpace() const = 0;
-    virtual Rect getDrawingCrop() const = 0;
-    virtual uint32_t getDrawingScalingMode() const = 0;
-    virtual Region getDrawingSurfaceDamage() const = 0;
-    virtual const HdrMetadata& getDrawingHdrMetadata() const = 0;
-    virtual int getDrawingApi() const = 0;
+    // Computes the transform matrix using the setFilteringEnabled to determine whether the
+    // transform matrix should be computed for use with bilinear filtering.
+    void getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]);
 
-    virtual uint64_t getFrameNumber() const = 0;
+    virtual uint64_t getFrameNumber(nsecs_t expectedPresentTime) const = 0;
 
     virtual bool getAutoRefresh() const = 0;
     virtual bool getSidebandStreamChanged() const = 0;
@@ -138,60 +141,93 @@ private:
 
     virtual bool hasFrameUpdate() const = 0;
 
-    virtual void setFilteringEnabled(bool enabled) = 0;
-
     virtual status_t bindTextureImage() = 0;
-    virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) = 0;
+    virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                                    nsecs_t expectedPresentTime) = 0;
 
     virtual status_t updateActiveBuffer() = 0;
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
-    virtual void setHwcLayerBuffer(const sp<const DisplayDevice>& displayDevice) = 0;
+    // We generate InputWindowHandles for all non-cursor buffered layers regardless of whether they
+    // have an InputChannel. This is to enable the InputDispatcher to do PID based occlusion
+    // detection.
+    bool needsInputInfo() const override { return !mPotentialCursor; }
 
 protected:
+    struct BufferInfo {
+        nsecs_t mDesiredPresentTime;
+        std::shared_ptr<FenceTime> mFenceTime;
+        sp<Fence> mFence;
+        uint32_t mTransform{0};
+        ui::Dataspace mDataspace{ui::Dataspace::UNKNOWN};
+        Rect mCrop;
+        uint32_t mScaleMode{NATIVE_WINDOW_SCALING_MODE_FREEZE};
+        Region mSurfaceDamage;
+        HdrMetadata mHdrMetadata;
+        int mApi;
+        PixelFormat mPixelFormat{PIXEL_FORMAT_NONE};
+        bool mTransformToDisplayInverse{false};
+
+        sp<GraphicBuffer> mBuffer;
+        int mBufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
+
+        bool mFrameLatencyNeeded{false};
+    };
+
+    BufferInfo mBufferInfo;
+    virtual void gatherBufferInfo() = 0;
+
+    std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
+            compositionengine::LayerFE::ClientCompositionTargetSettings&) override;
+
+    /*
+     * compositionengine::LayerFE overrides
+     */
+    const compositionengine::LayerFECompositionState* getCompositionState() const override;
+    bool onPreComposition(nsecs_t) override;
+    void preparePerFrameCompositionState() override;
+
     // Loads the corresponding system property once per process
     static bool latchUnsignaledBuffers();
 
     // Check all of the local sync points to ensure that all transactions
     // which need to have been applied prior to the frame which is about to
     // be latched have signaled
-    bool allTransactionsSignaled();
+    bool allTransactionsSignaled(nsecs_t expectedPresentTime);
 
     static bool getOpacityForFormat(uint32_t format);
 
-    // from GLES
+    // from graphics API
     const uint32_t mTextureName;
 
     bool mRefreshPending{false};
 
-    // prepareClientLayer - constructs a RenderEngine layer for GPU composition.
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                            bool useIdentityTransform, Region& clearRegion,
-                            const bool supportProtectedContent,
-                            renderengine::LayerSettings& layer) override;
+    ui::Dataspace translateDataspace(ui::Dataspace dataspace);
+    void setInitialValuesForClone(const sp<Layer>& clonedFrom);
+    void updateCloneBufferInfo() override;
+    uint64_t mPreviousFrameNumber = 0;
+
+    virtual uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
+
+    void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;
+
+    // Transform hint provided to the producer. This must be accessed holding
+    /// the mStateLock.
+    ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
 
 private:
     // Returns true if this layer requires filtering
-    bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const;
-
-    uint64_t getHeadFrameNumber() const;
-
-    uint32_t mCurrentScalingMode{NATIVE_WINDOW_SCALING_MODE_FREEZE};
-
-    bool mTransformToDisplayInverse{false};
-
-    // main thread.
-    bool mBufferLatched{false}; // TODO: Use mActiveBuffer?
+    bool needsFiltering(const DisplayDevice*) const override;
+    bool needsFilteringForScreenshots(const DisplayDevice*,
+                                      const ui::Transform& inverseParentTransform) const override;
 
     // BufferStateLayers can return Rect::INVALID_RECT if the layer does not have a display frame
     // and its parent layer is not bounded
     Rect getBufferSize(const State& s) const override;
 
-    std::shared_ptr<compositionengine::Layer> mCompositionLayer;
+    std::unique_ptr<compositionengine::LayerFECompositionState> mCompositionState;
 
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
-
-    PixelFormat getPixelFormat() const;
 };
 
 } // namespace android

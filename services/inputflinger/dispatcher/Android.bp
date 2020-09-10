@@ -12,31 +12,60 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-cc_library_static {
-    name: "libinputdispatcher",
-    defaults: ["inputflinger_defaults"],
+cc_library_headers {
+    name: "libinputdispatcher_headers",
+    export_include_dirs: [
+        "include",
+    ],
+}
+
+filegroup {
+    name: "libinputdispatcher_sources",
     srcs: [
+        "AnrTracker.cpp",
         "Connection.cpp",
         "Entry.cpp",
         "InjectionState.cpp",
         "InputDispatcher.cpp",
         "InputDispatcherFactory.cpp",
-        "InputDispatcherThread.cpp",
         "InputState.cpp",
         "InputTarget.cpp",
         "Monitor.cpp",
-        "TouchState.cpp"
+        "TouchState.cpp",
     ],
+}
+
+cc_defaults {
+    name: "libinputdispatcher_defaults",
+    srcs: [":libinputdispatcher_sources"],
     shared_libs: [
         "libbase",
+        "libcrypto",
         "libcutils",
         "libinput",
-        "libinputreporter",
-        "libinputflinger_base",
         "liblog",
+        "libstatslog",
         "libui",
         "libutils",
     ],
+    header_libs: [
+        "libinputdispatcher_headers",
+    ],
+}
 
-    export_include_dirs: ["include"],
+cc_library_static {
+    name: "libinputdispatcher",
+    defaults: [
+        "inputflinger_defaults",
+        "libinputdispatcher_defaults",
+    ],
+    shared_libs: [
+        // This should consist only of dependencies from inputflinger. Other dependencies should be
+        // in cc_defaults so that they are included in the tests.
+        "libinputreporter",
+        "libinputflinger_base",
+    ],
+    export_header_lib_headers: [
+        "libinputdispatcher_headers",
+    ],
 }

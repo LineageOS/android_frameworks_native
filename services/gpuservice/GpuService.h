@@ -46,12 +46,12 @@ private:
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
                      uint64_t driverVersionCode, int64_t driverBuildTime,
                      const std::string& appPackageName, const int32_t vulkanVersion,
-                     GraphicsEnv::Driver driver, bool isDriverLoaded,
+                     GpuStatsInfo::Driver driver, bool isDriverLoaded,
                      int64_t driverLoadingTime) override;
-    status_t getGpuStatsGlobalInfo(std::vector<GpuStatsGlobalInfo>* outStats) const override;
-    status_t getGpuStatsAppInfo(std::vector<GpuStatsAppInfo>* outStats) const override;
     void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
-                        const GraphicsEnv::Stats stats, const uint64_t value) override;
+                        const GpuStatsInfo::Stats stats, const uint64_t value) override;
+    void setUpdatableDriverPath(const std::string& driverPath) override;
+    std::string getUpdatableDriverPath() override;
 
     /*
      * IBinder interface
@@ -75,6 +75,8 @@ private:
      * Attributes
      */
     std::unique_ptr<GpuStats> mGpuStats;
+    std::mutex mLock;
+    std::string mDeveloperDriverPath;
 };
 
 } // namespace android

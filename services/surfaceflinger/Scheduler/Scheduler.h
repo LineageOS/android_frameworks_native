@@ -16,114 +16,104 @@
 
 #pragma once
 
-#include <cstdint>
+#include <atomic>
 #include <functional>
 #include <memory>
+#include <mutex>
+#include <optional>
+#include <unordered_map>
 
-#include <ui/DisplayStatInfo.h>
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #include <ui/GraphicTypes.h>
+#pragma clang diagnostic pop
 
-#include "DispSync.h"
 #include "EventControlThread.h"
 #include "EventThread.h"
-#include "IdleTimer.h"
-#include "InjectVSyncSource.h"
 #include "LayerHistory.h"
+#include "OneShotTimer.h"
 #include "RefreshRateConfigs.h"
 #include "SchedulerUtils.h"
 
 namespace android {
 
-class EventControlThread;
+using namespace std::chrono_literals;
+using scheduler::LayerHistory;
 
-class Scheduler {
+class DispSync;
+class FenceTime;
+class InjectVSyncSource;
+struct DisplayStateInfo;
+
+class ISchedulerCallback {
 public:
-    // Enum to keep track of whether we trigger event to notify choreographer of config changes.
-    enum class ConfigEvent { None, Changed };
+    virtual ~ISchedulerCallback() = default;
+    virtual void changeRefreshRate(const scheduler::RefreshRateConfigs::RefreshRate&,
+                                   scheduler::RefreshRateConfigEvent) = 0;
+    virtual void repaintEverythingForHWC() = 0;
+    virtual void kernelTimerChanged(bool expired) = 0;
+};
 
-    // logical or operator with the semantics of at least one of the events is Changed
-    friend ConfigEvent operator|(const ConfigEvent& first, const ConfigEvent& second) {
-        if (first == ConfigEvent::Changed) return ConfigEvent::Changed;
-        if (second == ConfigEvent::Changed) return ConfigEvent::Changed;
-        return ConfigEvent::None;
-    }
+class IPhaseOffsetControl {
+public:
+    virtual ~IPhaseOffsetControl() = default;
+    virtual void setPhaseOffset(scheduler::ConnectionHandle, nsecs_t phaseOffset) = 0;
+};
 
-    using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
-    using ChangeRefreshRateCallback = std::function<void(RefreshRateType, ConfigEvent)>;
+class Scheduler : public IPhaseOffsetControl {
+public:
+    using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
+    using ConfigEvent = scheduler::RefreshRateConfigEvent;
 
-    // Enum to indicate whether to start the transaction early, or at vsync time.
-    enum class TransactionStart { EARLY, NORMAL };
-
-    /* The scheduler handle is a BBinder object passed to the client from which we can extract
-     * an ID for subsequent operations.
-     */
-    class ConnectionHandle : public BBinder {
-    public:
-        ConnectionHandle(int64_t id) : id(id) {}
-
-        ~ConnectionHandle() = default;
-
-        const int64_t id;
+    // Indicates whether to start the transaction early, or at vsync time.
+    enum class TransactionStart {
+        Early,      // DEPRECATED. Start the transaction early. Times out on its own
+        EarlyStart, // Start the transaction early and keep this config until EarlyEnd
+        EarlyEnd,   // End the early config started at EarlyStart
+        Normal      // Start the transaction at the normal time
     };
 
-    class Connection {
-    public:
-        Connection(sp<ConnectionHandle> handle, sp<EventThreadConnection> eventConnection,
-                   std::unique_ptr<EventThread> eventThread)
-              : handle(handle), eventConnection(eventConnection), thread(std::move(eventThread)) {}
-
-        ~Connection() = default;
-
-        sp<ConnectionHandle> handle;
-        sp<EventThreadConnection> eventConnection;
-        const std::unique_ptr<EventThread> thread;
-    };
-
-    explicit Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function,
-                       const scheduler::RefreshRateConfigs& refreshRateConfig);
+    Scheduler(impl::EventControlThread::SetVSyncEnabledFunction,
+              const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback,
+              bool useContentDetectionV2, bool useContentDetection);
 
     virtual ~Scheduler();
 
-    /** Creates an EventThread connection. */
-    sp<ConnectionHandle> createConnection(const char* connectionName, nsecs_t phaseOffsetNs,
-                                          nsecs_t offsetThresholdForNextVsync,
-                                          impl::EventThread::InterceptVSyncsCallback);
+    DispSync& getPrimaryDispSync();
 
-    sp<IDisplayEventConnection> createDisplayEventConnection(
-            const sp<ConnectionHandle>& handle, ISurfaceComposer::ConfigChanged configChanged);
+    using ConnectionHandle = scheduler::ConnectionHandle;
+    ConnectionHandle createConnection(const char* connectionName, nsecs_t phaseOffsetNs,
+                                      impl::EventThread::InterceptVSyncsCallback);
 
-    // Getter methods.
-    EventThread* getEventThread(const sp<ConnectionHandle>& handle);
+    sp<IDisplayEventConnection> createDisplayEventConnection(ConnectionHandle,
+                                                             ISurfaceComposer::ConfigChanged);
 
-    // Provides access to the DispSync object for the primary display.
-    void withPrimaryDispSync(std::function<void(DispSync&)> const& fn);
+    sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
-    sp<EventThreadConnection> getEventConnection(const sp<ConnectionHandle>& handle);
+    void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
+    void onPrimaryDisplayConfigChanged(ConnectionHandle, PhysicalDisplayId,
+                                       HwcConfigIndexType configId, nsecs_t vsyncPeriod)
+            EXCLUDES(mFeatureStateLock);
+    void onNonPrimaryDisplayConfigChanged(ConnectionHandle, PhysicalDisplayId,
+                                          HwcConfigIndexType configId, nsecs_t vsyncPeriod);
+    void onScreenAcquired(ConnectionHandle);
+    void onScreenReleased(ConnectionHandle);
 
-    // Should be called when receiving a hotplug event.
-    void hotplugReceived(const sp<ConnectionHandle>& handle, PhysicalDisplayId displayId,
-                         bool connected);
-
-    // Should be called after the screen is turned on.
-    void onScreenAcquired(const sp<ConnectionHandle>& handle);
-
-    // Should be called before the screen is turned off.
-    void onScreenReleased(const sp<ConnectionHandle>& handle);
-
-    // Should be called when display config changed
-    void onConfigChanged(const sp<ConnectionHandle>& handle, PhysicalDisplayId displayId,
-                         int32_t configId);
-
-    // Should be called when dumpsys command is received.
-    void dump(const sp<ConnectionHandle>& handle, std::string& result) const;
-
-    // Offers ability to modify phase offset in the event thread.
-    void setPhaseOffset(const sp<ConnectionHandle>& handle, nsecs_t phaseOffset);
+    // Modifies phase offset in the event thread.
+    void setPhaseOffset(ConnectionHandle, nsecs_t phaseOffset) override;
 
     void getDisplayStatInfo(DisplayStatInfo* stats);
 
+    // Returns injector handle if injection has toggled, or an invalid handle otherwise.
+    ConnectionHandle enableVSyncInjection(bool enable);
+
+    // Returns false if injection is disabled.
+    bool injectVSync(nsecs_t when, nsecs_t expectedVSyncTime);
+
     void enableHardwareVsync();
     void disableHardwareVsync(bool makeUnavailable);
+
     // Resyncs the scheduler to hardware vsync.
     // If makeAvailable is true, then hardware vsync will be turned on.
     // Otherwise, if hardware vsync is not already enabled then this method will
@@ -131,176 +121,164 @@ public:
     // The period is the vsync period from the current display configuration.
     void resyncToHardwareVsync(bool makeAvailable, nsecs_t period);
     void resync();
-    void setRefreshSkipCount(int count);
+
     // Passes a vsync sample to DispSync. periodFlushed will be true if
     // DispSync detected that the vsync period changed, and false otherwise.
-    void addResyncSample(const nsecs_t timestamp, bool* periodFlushed);
-    void addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
+    void addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
+                         bool* periodFlushed);
+    void addPresentFence(const std::shared_ptr<FenceTime>&);
     void setIgnorePresentFences(bool ignore);
-    nsecs_t getDispSyncExpectedPresentTime();
-    // Registers the layer in the scheduler, and returns the handle for future references.
-    std::unique_ptr<scheduler::LayerHistory::LayerHandle> registerLayer(std::string const& name,
-                                                                        int windowType);
+    nsecs_t getDispSyncExpectedPresentTime(nsecs_t now);
 
-    // Stores present time for a layer.
-    void addLayerPresentTimeAndHDR(
-            const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle,
-            nsecs_t presentTime, bool isHDR);
-    // Stores visibility for a layer.
-    void setLayerVisibility(
-            const std::unique_ptr<scheduler::LayerHistory::LayerHandle>& layerHandle, bool visible);
-    // Updates FPS based on the most content presented.
-    void updateFpsBasedOnContent();
-    // Callback that gets invoked when Scheduler wants to change the refresh rate.
-    void setChangeRefreshRateCallback(const ChangeRefreshRateCallback&& changeRefreshRateCallback);
+    // Layers are registered on creation, and unregistered when the weak reference expires.
+    void registerLayer(Layer*);
+    void recordLayerHistory(Layer*, nsecs_t presentTime, LayerHistory::LayerUpdateType updateType);
+    void setConfigChangePending(bool pending);
 
-    // Returns whether idle timer is enabled or not
-    bool isIdleTimerEnabled() { return mSetIdleTimerMs > 0; }
+    // Detects content using layer history, and selects a matching refresh rate.
+    void chooseRefreshRateForContent();
 
-    // Function that resets the idle timer.
+    bool isIdleTimerEnabled() const { return mIdleTimer.has_value(); }
     void resetIdleTimer();
 
     // Function that resets the touch timer.
     void notifyTouchEvent();
 
-    // Function that sets whether display power mode is normal or not.
     void setDisplayPowerState(bool normal);
 
-    // Returns relevant information about Scheduler for dumpsys purposes.
-    std::string doDump();
+    void dump(std::string&) const;
+    void dump(ConnectionHandle, std::string&) const;
 
-    // calls DispSync::dump() on primary disp sync
-    void dumpPrimaryDispSync(std::string& result) const;
+    // Get the appropriate refresh for current conditions.
+    std::optional<HwcConfigIndexType> getPreferredConfigId();
 
-protected:
-    virtual std::unique_ptr<EventThread> makeEventThread(
-            const char* connectionName, DispSync* dispSync, nsecs_t phaseOffsetNs,
-            nsecs_t offsetThresholdForNextVsync,
-            impl::EventThread::InterceptVSyncsCallback interceptCallback);
+    // Notifies the scheduler about a refresh rate timeline change.
+    void onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline);
+
+    // Notifies the scheduler when the display was refreshed
+    void onDisplayRefreshed(nsecs_t timestamp);
+
+    // Notifies the scheduler when the display size has changed. Called from SF's main thread
+    void onPrimaryDisplayAreaChanged(uint32_t displayArea);
+
+    size_t getEventThreadConnectionCount(ConnectionHandle handle);
 
 private:
     friend class TestableScheduler;
 
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
-    enum class ContentFeatureState { CONTENT_DETECTION_ON, CONTENT_DETECTION_OFF };
-    enum class IdleTimerState { EXPIRED, RESET };
-    enum class TouchState { INACTIVE, ACTIVE };
-    enum class DisplayPowerTimerState { EXPIRED, RESET };
+    enum class ContentDetectionState { Off, On };
+    enum class TimerState { Reset, Expired };
+    enum class TouchState { Inactive, Active };
 
-    // Creates a connection on the given EventThread and forwards the given callbacks.
+    // Used by tests to inject mocks.
+    Scheduler(std::unique_ptr<DispSync>, std::unique_ptr<EventControlThread>,
+              const scheduler::RefreshRateConfigs&, ISchedulerCallback& schedulerCallback,
+              bool useContentDetectionV2, bool useContentDetection);
+
+    std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name, nsecs_t phaseOffsetNs);
+
+    // Create a connection on the given EventThread.
+    ConnectionHandle createConnection(std::unique_ptr<EventThread>);
     sp<EventThreadConnection> createConnectionInternal(EventThread*,
                                                        ISurfaceComposer::ConfigChanged);
 
-    nsecs_t calculateAverage() const;
-    void updateFrameSkipping(const int64_t skipCount);
+    // Update feature state machine to given state when corresponding timer resets or expires.
+    void kernelIdleTimerCallback(TimerState);
+    void idleTimerCallback(TimerState);
+    void touchTimerCallback(TimerState);
+    void displayPowerTimerCallback(TimerState);
 
-    // Function that is called when the timer resets.
-    void resetTimerCallback();
-    // Function that is called when the timer expires.
-    void expiredTimerCallback();
-    // Function that is called when the timer resets when paired with a display
-    // driver timeout in the kernel. This enables hardware vsync when we move
-    // out from idle.
-    void resetKernelTimerCallback();
-    // Function that is called when the timer expires when paired with a display
-    // driver timeout in the kernel. This disables hardware vsync when we move
-    // into idle.
-    void expiredKernelTimerCallback();
-    // Function that is called when the touch timer resets.
-    void resetTouchTimerCallback();
-    // Function that is called when the touch timer expires.
-    void expiredTouchTimerCallback();
-    // Function that is called when the display power timer resets.
-    void resetDisplayPowerTimerCallback();
-    // Function that is called when the display power timer expires.
-    void expiredDisplayPowerTimerCallback();
-    // Sets vsync period.
-    void setVsyncPeriod(const nsecs_t period);
     // handles various timer features to change the refresh rate.
     template <class T>
-    void handleTimerStateChanged(T* currentState, T newState, bool eventOnContentDetection);
-    // Calculate the new refresh rate type
-    RefreshRateType calculateRefreshRateType() REQUIRES(mFeatureStateLock);
-    // Acquires a lock and calls the ChangeRefreshRateCallback() with given parameters.
-    void changeRefreshRate(RefreshRateType refreshRateType, ConfigEvent configEvent);
+    bool handleTimerStateChanged(T* currentState, T newState);
 
-    // Helper function to calculate error frames
-    float getErrorFrames(float contentFps, float configFps);
+    void setVsyncPeriod(nsecs_t period);
 
-    // If fences from sync Framework are supported.
-    const bool mHasSyncFramework;
+    // This function checks whether individual features that are affecting the refresh rate
+    // selection were initialized, prioritizes them, and calculates the HwcConfigIndexType
+    // for the suggested refresh rate.
+    HwcConfigIndexType calculateRefreshRateConfigIndexType(
+            scheduler::RefreshRateConfigs::GlobalSignals* consideredSignals = nullptr)
+            REQUIRES(mFeatureStateLock);
 
-    // The offset in nanoseconds to use, when DispSync timestamps present fence
-    // signaling time.
-    nsecs_t mDispSyncPresentTimeOffset;
+    void dispatchCachedReportedConfig() REQUIRES(mFeatureStateLock);
 
-    // Each connection has it's own ID. This variable keeps track of the count.
-    static std::atomic<int64_t> sNextId;
+    // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
+    struct Connection {
+        sp<EventThreadConnection> connection;
+        std::unique_ptr<EventThread> thread;
+    };
 
-    // Connections are stored in a map <connection ID, connection> for easy retrieval.
-    std::unordered_map<int64_t, std::unique_ptr<Connection>> mConnections;
+    ConnectionHandle::Id mNextConnectionHandleId = 0;
+    std::unordered_map<ConnectionHandle, Connection> mConnections;
+
+    bool mInjectVSyncs = false;
+    InjectVSyncSource* mVSyncInjector = nullptr;
+    ConnectionHandle mInjectorConnectionHandle;
 
     std::mutex mHWVsyncLock;
-    bool mPrimaryHWVsyncEnabled GUARDED_BY(mHWVsyncLock);
-    bool mHWVsyncAvailable GUARDED_BY(mHWVsyncLock);
+    bool mPrimaryHWVsyncEnabled GUARDED_BY(mHWVsyncLock) = false;
+    bool mHWVsyncAvailable GUARDED_BY(mHWVsyncLock) = false;
 
     std::atomic<nsecs_t> mLastResyncTime = 0;
+
+    // Whether to use idle timer callbacks that support the kernel timer.
+    const bool mSupportKernelTimer;
 
     std::unique_ptr<DispSync> mPrimaryDispSync;
     std::unique_ptr<EventControlThread> mEventControlThread;
 
-    // TODO(b/113612090): The following set of variables needs to be revised. For now, this is
-    // a proof of concept. We turn on frame skipping if the difference between the timestamps
-    // is between 32 and 34ms. We expect this currently for 30fps videos, so we render them at 30Hz.
-    nsecs_t mPreviousFrameTimestamp = 0;
-    // Keeping track of whether we are skipping the refresh count. If we want to
-    // simulate 30Hz rendering, we skip every other frame, and this variable is set
-    // to 1.
-    int64_t mSkipCount = 0;
-    std::array<int64_t, scheduler::ARRAY_SIZE> mTimeDifferences{};
-    size_t mCounter = 0;
+    // Used to choose refresh rate if content detection is enabled.
+    std::unique_ptr<LayerHistory> mLayerHistory;
 
-    // Historical information about individual layers. Used for predicting the refresh rate.
-    scheduler::LayerHistory mLayerHistory;
-
-    // Timer that records time between requests for next vsync. If the time is higher than a given
-    // interval, a callback is fired. Set this variable to >0 to use this feature.
-    int64_t mSetIdleTimerMs = 0;
-    std::unique_ptr<scheduler::IdleTimer> mIdleTimer;
-    // Enables whether to use idle timer callbacks that support the kernel
-    // timer.
-    bool mSupportKernelTimer;
-
+    // Timer that records time between requests for next vsync.
+    std::optional<scheduler::OneShotTimer> mIdleTimer;
     // Timer used to monitor touch events.
-    int64_t mSetTouchTimerMs = 0;
-    std::unique_ptr<scheduler::IdleTimer> mTouchTimer;
-
+    std::optional<scheduler::OneShotTimer> mTouchTimer;
     // Timer used to monitor display power mode.
-    int64_t mSetDisplayPowerTimerMs = 0;
-    std::unique_ptr<scheduler::IdleTimer> mDisplayPowerTimer;
+    std::optional<scheduler::OneShotTimer> mDisplayPowerTimer;
 
-    std::mutex mCallbackLock;
-    ChangeRefreshRateCallback mChangeRefreshRateCallback GUARDED_BY(mCallbackLock);
+    ISchedulerCallback& mSchedulerCallback;
 
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
     std::mutex mFeatureStateLock;
-    ContentFeatureState mCurrentContentFeatureState GUARDED_BY(mFeatureStateLock) =
-            ContentFeatureState::CONTENT_DETECTION_OFF;
-    IdleTimerState mCurrentIdleTimerState GUARDED_BY(mFeatureStateLock) = IdleTimerState::RESET;
-    TouchState mCurrentTouchState GUARDED_BY(mFeatureStateLock) = TouchState::INACTIVE;
-    DisplayPowerTimerState mDisplayPowerTimerState GUARDED_BY(mFeatureStateLock) =
-            DisplayPowerTimerState::EXPIRED;
-    uint32_t mContentRefreshRate GUARDED_BY(mFeatureStateLock);
-    RefreshRateType mRefreshRateType GUARDED_BY(mFeatureStateLock);
-    bool mIsHDRContent GUARDED_BY(mFeatureStateLock) = false;
-    bool mIsDisplayPowerStateNormal GUARDED_BY(mFeatureStateLock) = true;
+
+    struct {
+        ContentDetectionState contentDetectionV1 = ContentDetectionState::Off;
+        TimerState idleTimer = TimerState::Reset;
+        TouchState touch = TouchState::Inactive;
+        TimerState displayPowerTimer = TimerState::Expired;
+
+        std::optional<HwcConfigIndexType> configId;
+        LayerHistory::Summary contentRequirements;
+
+        bool isDisplayPowerStateNormal = true;
+
+        // Used to cache the last parameters of onPrimaryDisplayConfigChanged
+        struct ConfigChangedParams {
+            ConnectionHandle handle;
+            PhysicalDisplayId displayId;
+            HwcConfigIndexType configId;
+            nsecs_t vsyncPeriod;
+        };
+
+        std::optional<ConfigChangedParams> cachedConfigChangedParams;
+    } mFeatures GUARDED_BY(mFeatureStateLock);
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
 
-    // Global config to force HDR content to work on DEFAULT refreshRate
-    static constexpr bool mForceHDRContentToDefaultRefreshRate = false;
+    std::mutex mVsyncTimelineLock;
+    std::optional<hal::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline
+            GUARDED_BY(mVsyncTimelineLock);
+    static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
+
+    // This variable indicates whether to use the content detection feature at all.
+    const bool mUseContentDetection;
+    // This variable indicates whether to use V2 version of the content detection.
+    const bool mUseContentDetectionV2;
 };
 
 } // namespace android

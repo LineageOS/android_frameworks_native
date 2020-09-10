@@ -16,27 +16,19 @@
 
 #include "LayerInfo.h"
 
-#include <cinttypes>
-#include <cstdint>
-#include <numeric>
-#include <string>
+#include <algorithm>
+#include <utility>
 
-namespace android {
-namespace scheduler {
+namespace android::scheduler {
 
-LayerInfo::LayerInfo(const std::string name, float minRefreshRate, float maxRefreshRate)
-      : mName(name),
-        mMinRefreshDuration(1e9f / maxRefreshRate),
-        mLowActivityRefreshDuration(1e9f / minRefreshRate),
-        mRefreshRateHistory(mMinRefreshDuration) {}
+LayerInfo::LayerInfo(float lowRefreshRate, float highRefreshRate)
+      : mLowRefreshRate(lowRefreshRate), mHighRefreshRate(highRefreshRate) {}
 
-LayerInfo::~LayerInfo() = default;
-
-void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime) {
-    std::lock_guard lock(mLock);
+void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now) {
+    lastPresentTime = std::max(lastPresentTime, static_cast<nsecs_t>(0));
 
     // Buffers can come with a present time far in the future. That keeps them relevant.
-    mLastUpdatedTime = std::max(lastPresentTime, systemTime());
+    mLastUpdatedTime = std::max(lastPresentTime, now);
     mPresentTimeHistory.insertPresentTime(mLastUpdatedTime);
 
     if (mLastPresentTime == 0) {
@@ -45,14 +37,13 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime) {
         return;
     }
 
-    const nsecs_t timeDiff = lastPresentTime - mLastPresentTime;
+    const nsecs_t period = lastPresentTime - mLastPresentTime;
     mLastPresentTime = lastPresentTime;
     // Ignore time diff that are too high - those are stale values
-    if (timeDiff > OBSOLETE_TIME_EPSILON_NS.count()) return;
-    const nsecs_t refreshDuration = std::max(timeDiff, mMinRefreshDuration);
-    const int fps = 1e9f / refreshDuration;
+    if (period > MAX_ACTIVE_LAYER_PERIOD_NS.count()) return;
+
+    const float fps = std::min(1e9f / period, mHighRefreshRate);
     mRefreshRateHistory.insertRefreshRate(fps);
 }
 
-} // namespace scheduler
-} // namespace android
+} // namespace android::scheduler

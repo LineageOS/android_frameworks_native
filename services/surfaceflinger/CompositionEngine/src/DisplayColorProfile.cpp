@@ -64,6 +64,12 @@ const std::array<RenderIntent, 2> sHdrRenderIntents = {
         RenderIntent::TONE_MAP_COLORIMETRIC,
 };
 
+// Returns true if the given colorMode is considered an HDR color mode
+bool isHdrColorMode(const ColorMode colorMode) {
+    return std::any_of(std::begin(sHdrColorModes), std::end(sHdrColorModes),
+                       [colorMode](ColorMode hdrColorMode) { return hdrColorMode == colorMode; });
+}
+
 // map known color mode to dataspace
 Dataspace colorModeToDataspace(ColorMode mode) {
     switch (mode) {
@@ -90,13 +96,7 @@ std::vector<ColorMode> getColorModeCandidates(ColorMode mode) {
     candidates.push_back(mode);
 
     // check if mode is HDR
-    bool isHdr = false;
-    for (auto hdrMode : sHdrColorModes) {
-        if (hdrMode == mode) {
-            isHdr = true;
-            break;
-        }
-    }
+    bool isHdr = isHdrColorMode(mode);
 
     // add other HDR candidates when mode is HDR
     if (isHdr) {
@@ -184,11 +184,11 @@ RenderIntent getHwcRenderIntent(const std::vector<RenderIntent>& hwcIntents, Ren
 } // anonymous namespace
 
 std::unique_ptr<compositionengine::DisplayColorProfile> createDisplayColorProfile(
-        DisplayColorProfileCreationArgs&& args) {
-    return std::make_unique<DisplayColorProfile>(std::move(args));
+        const DisplayColorProfileCreationArgs& args) {
+    return std::make_unique<DisplayColorProfile>(args);
 }
 
-DisplayColorProfile::DisplayColorProfile(DisplayColorProfileCreationArgs&& args)
+DisplayColorProfile::DisplayColorProfile(const DisplayColorProfileCreationArgs& args)
       : mHasWideColorGamut(args.hasWideColorGamut),
         mSupportedPerFrameMetadata(args.supportedPerFrameMetadata) {
     populateColorModes(args.hwcColorModes);
@@ -374,6 +374,32 @@ void DisplayColorProfile::getBestColorMode(Dataspace dataspace, RenderIntent int
         *outMode = ColorMode::NATIVE;
         *outIntent = RenderIntent::COLORIMETRIC;
     }
+}
+
+bool DisplayColorProfile::isDataspaceSupported(Dataspace dataspace) const {
+    switch (dataspace) {
+        case Dataspace::BT2020_PQ:
+        case Dataspace::BT2020_ITU_PQ:
+            return hasHDR10Support();
+
+        case Dataspace::BT2020_HLG:
+        case Dataspace::BT2020_ITU_HLG:
+            return hasHLGSupport();
+
+        default:
+            return true;
+    }
+}
+
+ui::Dataspace DisplayColorProfile::getTargetDataspace(ColorMode mode, Dataspace dataspace,
+                                                      Dataspace colorSpaceAgnosticDataspace) const {
+    if (isHdrColorMode(mode)) {
+        return Dataspace::UNKNOWN;
+    }
+    if (colorSpaceAgnosticDataspace != ui::Dataspace::UNKNOWN) {
+        return colorSpaceAgnosticDataspace;
+    }
+    return dataspace;
 }
 
 void DisplayColorProfile::dump(std::string& out) const {

@@ -23,14 +23,14 @@ namespace android {
 
 class SwitchInputMapper : public InputMapper {
 public:
-    explicit SwitchInputMapper(InputDevice* device);
+    explicit SwitchInputMapper(InputDeviceContext& deviceContext);
     virtual ~SwitchInputMapper();
 
-    virtual uint32_t getSources();
-    virtual void process(const RawEvent* rawEvent);
+    virtual uint32_t getSources() override;
+    virtual void process(const RawEvent* rawEvent) override;
 
-    virtual int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
-    virtual void dump(std::string& dump);
+    virtual int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode) override;
+    virtual void dump(std::string& dump) override;
 
 private:
     uint32_t mSwitchValues;

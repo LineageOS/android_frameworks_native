@@ -44,7 +44,7 @@ class SurfaceComposerClient;
 class SurfaceControl : public RefBase
 {
 public:
-    static sp<SurfaceControl> readFromParcel(Parcel* parcel);
+    static sp<SurfaceControl> readFromParcel(const Parcel* parcel);
     void writeToParcel(Parcel* parcel);
 
     static bool isValid(const sp<SurfaceControl>& surface) {
@@ -58,10 +58,6 @@ public:
     static bool isSameSurface(
             const sp<SurfaceControl>& lhs, const sp<SurfaceControl>& rhs);
 
-    // Release the handles assosciated with the SurfaceControl, without reparenting
-    // them off-screen. At the moment if this isn't executed before ~SurfaceControl
-    // is called then the destructor will reparent the layer off-screen for you.
-    void        release();
     // Reparent off-screen and release. This is invoked by the destructor.
     void destroy();
 
@@ -81,11 +77,15 @@ public:
     status_t getLayerFrameStats(FrameStats* outStats) const;
 
     sp<SurfaceComposerClient> getClient() const;
-    
+
+    uint32_t getTransformHint() const;
+
+    void setTransformHint(uint32_t hint);
+
     explicit SurfaceControl(const sp<SurfaceControl>& other);
 
     SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                   const sp<IGraphicBufferProducer>& gbp, bool owned);
+                   const sp<IGraphicBufferProducer>& gbp, uint32_t transformHint = 0);
 
 private:
     // can't be copied
@@ -105,7 +105,7 @@ private:
     sp<IGraphicBufferProducer>  mGraphicBufferProducer;
     mutable Mutex               mLock;
     mutable sp<Surface>         mSurfaceData;
-    bool                        mOwned;
+    uint32_t mTransformHint;
 };
 
 }; // namespace android

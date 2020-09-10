@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 //#define LOG_NDEBUG 0
 #undef LOG_TAG
 #define LOG_TAG "BufferLayer"
@@ -22,17 +26,15 @@
 #include "BufferLayer.h"
 
 #include <compositionengine/CompositionEngine.h>
-#include <compositionengine/Display.h>
-#include <compositionengine/Layer.h>
-#include <compositionengine/LayerCreationArgs.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
-#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <cutils/compiler.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
+#include <gui/GLConsumer.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 #include <renderengine/RenderEngine.h>
@@ -50,17 +52,20 @@
 
 #include "Colorizer.h"
 #include "DisplayDevice.h"
+#include "FrameTracer/FrameTracer.h"
 #include "LayerRejecter.h"
 #include "TimeStats/TimeStats.h"
 
 namespace android {
 
+static constexpr float defaultMaxMasteringLuminance = 1000.0;
+static constexpr float defaultMaxContentLuminance = 1000.0;
+
 BufferLayer::BufferLayer(const LayerCreationArgs& args)
       : Layer(args),
-        mTextureName(args.flinger->getNewTexture()),
-        mCompositionLayer{mFlinger->getCompositionEngine().createLayer(
-                compositionengine::LayerCreationArgs{this})} {
-    ALOGV("Creating Layer %s", args.name.string());
+        mTextureName(args.textureName),
+        mCompositionState{mFlinger->getCompositionEngine().createLayerFECompositionState()} {
+    ALOGV("Creating Layer %s", getDebugName());
 
     mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
 
@@ -69,15 +74,23 @@ BufferLayer::BufferLayer(const LayerCreationArgs& args)
 }
 
 BufferLayer::~BufferLayer() {
-    mFlinger->deleteTextureAsync(mTextureName);
-    mFlinger->mTimeStats->onDestroy(getSequence());
+    if (!isClone()) {
+        // The original layer and the clone layer share the same texture. Therefore, only one of
+        // the layers, in this case the original layer, needs to handle the deletion. The original
+        // layer and the clone should be removed at the same time so there shouldn't be any issue
+        // with the clone layer trying to use the deleted texture.
+        mFlinger->deleteTextureAsync(mTextureName);
+    }
+    const int32_t layerId = getSequence();
+    mFlinger->mTimeStats->onDestroy(layerId);
+    mFlinger->mFrameTracer->onDestroy(layerId);
 }
 
 void BufferLayer::useSurfaceDamage() {
     if (mFlinger->mForceFullDamage) {
         surfaceDamageRegion = Region::INVALID_REGION;
     } else {
-        surfaceDamageRegion = getDrawingSurfaceDamage();
+        surfaceDamageRegion = mBufferInfo.mSurfaceDamage;
     }
 }
 
@@ -88,7 +101,7 @@ void BufferLayer::useEmptyDamage() {
 bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if ((mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
+    if ((mSidebandStream == nullptr) && (mBufferInfo.mBuffer == nullptr)) {
         return false;
     }
 
@@ -98,11 +111,8 @@ bool BufferLayer::isOpaque(const Layer::State& s) const {
 }
 
 bool BufferLayer::isVisible() const {
-    bool visible = !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
-            (mActiveBuffer != nullptr || mSidebandStream != nullptr);
-    mFlinger->mScheduler->setLayerVisibility(mSchedulerLayerHandle, visible);
-
-    return visible;
+    return !isHiddenByPolicy() && getAlpha() > 0.0f &&
+            (mBufferInfo.mBuffer != nullptr || mSidebandStream != nullptr);
 }
 
 bool BufferLayer::isFixedSize() const {
@@ -131,14 +141,17 @@ static constexpr mat4 inverseOrientation(uint32_t transform) {
     return inverse(tr);
 }
 
-bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                                     bool useIdentityTransform, Region& clearRegion,
-                                     const bool supportProtectedContent,
-                                     renderengine::LayerSettings& layer) {
+std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareClientComposition(
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
     ATRACE_CALL();
-    Layer::prepareClientLayer(renderArea, clip, useIdentityTransform, clearRegion,
-                              supportProtectedContent, layer);
-    if (CC_UNLIKELY(mActiveBuffer == 0)) {
+
+    std::optional<compositionengine::LayerFE::LayerSettings> result =
+            Layer::prepareClientComposition(targetSettings);
+    if (!result) {
+        return result;
+    }
+
+    if (CC_UNLIKELY(mBufferInfo.mBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
         // SurfaceView because the WindowManager can't know when the client
@@ -155,199 +168,150 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
                 finished = true;
                 return;
             }
-            under.orSelf(layer->visibleRegion);
+
+            under.orSelf(layer->getScreenBounds());
         });
         // if not everything below us is covered, we plug the holes!
-        Region holes(clip.subtract(under));
+        Region holes(targetSettings.clip.subtract(under));
         if (!holes.isEmpty()) {
-            clearRegion.orSelf(holes);
+            targetSettings.clearRegion.orSelf(holes);
         }
-        return false;
+        return std::nullopt;
     }
-    bool blackOutLayer =
-            (isProtected() && !supportProtectedContent) || (isSecure() && !renderArea.isSecure());
+    bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
+            (isSecure() && !targetSettings.isSecure);
+    compositionengine::LayerFE::LayerSettings& layer = *result;
+    if (blackOutLayer) {
+        prepareClearClientComposition(layer, true /* blackout */);
+        return layer;
+    }
+
     const State& s(getDrawingState());
-    if (!blackOutLayer) {
-        layer.source.buffer.buffer = mActiveBuffer;
-        layer.source.buffer.isOpaque = isOpaque(s);
-        layer.source.buffer.fence = mActiveBufferFence;
-        layer.source.buffer.textureName = mTextureName;
-        layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
-        layer.source.buffer.isY410BT2020 = isHdrY410();
-        // TODO: we could be more subtle with isFixedSize()
-        const bool useFiltering = needsFiltering(renderArea.getDisplayDevice()) ||
-                renderArea.needsFiltering() || isFixedSize();
+    layer.source.buffer.buffer = mBufferInfo.mBuffer;
+    layer.source.buffer.isOpaque = isOpaque(s);
+    layer.source.buffer.fence = mBufferInfo.mFence;
+    layer.source.buffer.textureName = mTextureName;
+    layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
+    layer.source.buffer.isY410BT2020 = isHdrY410();
+    bool hasSmpte2086 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::SMPTE2086;
+    bool hasCta861_3 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::CTA861_3;
+    layer.source.buffer.maxMasteringLuminance = hasSmpte2086
+            ? mBufferInfo.mHdrMetadata.smpte2086.maxLuminance
+            : defaultMaxMasteringLuminance;
+    layer.source.buffer.maxContentLuminance = hasCta861_3
+            ? mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel
+            : defaultMaxContentLuminance;
+    layer.frameNumber = mCurrentFrameNumber;
+    layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getId() : 0;
 
-        // Query the texture matrix given our current filtering mode.
-        float textureMatrix[16];
-        setFilteringEnabled(useFiltering);
-        getDrawingTransformMatrix(textureMatrix);
+    // TODO: we could be more subtle with isFixedSize()
+    const bool useFiltering = targetSettings.needsFiltering || mNeedsFiltering || isFixedSize();
 
-        if (getTransformToDisplayInverse()) {
-            /*
-             * the code below applies the primary display's inverse transform to
-             * the texture transform
-             */
-            uint32_t transform = DisplayDevice::getPrimaryDisplayOrientationTransform();
-            mat4 tr = inverseOrientation(transform);
+    // Query the texture matrix given our current filtering mode.
+    float textureMatrix[16];
+    getDrawingTransformMatrix(useFiltering, textureMatrix);
 
-            /**
-             * TODO(b/36727915): This is basically a hack.
-             *
-             * Ensure that regardless of the parent transformation,
-             * this buffer is always transformed from native display
-             * orientation to display orientation. For example, in the case
-             * of a camera where the buffer remains in native orientation,
-             * we want the pixels to always be upright.
-             */
-            sp<Layer> p = mDrawingParent.promote();
-            if (p != nullptr) {
-                const auto parentTransform = p->getTransform();
-                tr = tr * inverseOrientation(parentTransform.getOrientation());
-            }
+    if (getTransformToDisplayInverse()) {
+        /*
+         * the code below applies the primary display's inverse transform to
+         * the texture transform
+         */
+        uint32_t transform = DisplayDevice::getPrimaryDisplayRotationFlags();
+        mat4 tr = inverseOrientation(transform);
 
-            // and finally apply it to the original texture matrix
-            const mat4 texTransform(mat4(static_cast<const float*>(textureMatrix)) * tr);
-            memcpy(textureMatrix, texTransform.asArray(), sizeof(textureMatrix));
+        /**
+         * TODO(b/36727915): This is basically a hack.
+         *
+         * Ensure that regardless of the parent transformation,
+         * this buffer is always transformed from native display
+         * orientation to display orientation. For example, in the case
+         * of a camera where the buffer remains in native orientation,
+         * we want the pixels to always be upright.
+         */
+        sp<Layer> p = mDrawingParent.promote();
+        if (p != nullptr) {
+            const auto parentTransform = p->getTransform();
+            tr = tr * inverseOrientation(parentTransform.getOrientation());
         }
 
-        const Rect win{getBounds()};
-        float bufferWidth = getBufferSize(s).getWidth();
-        float bufferHeight = getBufferSize(s).getHeight();
-
-        // BufferStateLayers can have a "buffer size" of [0, 0, -1, -1] when no display frame has
-        // been set and there is no parent layer bounds. In that case, the scale is meaningless so
-        // ignore them.
-        if (!getBufferSize(s).isValid()) {
-            bufferWidth = float(win.right) - float(win.left);
-            bufferHeight = float(win.bottom) - float(win.top);
-        }
-
-        const float scaleHeight = (float(win.bottom) - float(win.top)) / bufferHeight;
-        const float scaleWidth = (float(win.right) - float(win.left)) / bufferWidth;
-        const float translateY = float(win.top) / bufferHeight;
-        const float translateX = float(win.left) / bufferWidth;
-
-        // Flip y-coordinates because GLConsumer expects OpenGL convention.
-        mat4 tr = mat4::translate(vec4(.5, .5, 0, 1)) * mat4::scale(vec4(1, -1, 1, 1)) *
-                mat4::translate(vec4(-.5, -.5, 0, 1)) *
-                mat4::translate(vec4(translateX, translateY, 0, 1)) *
-                mat4::scale(vec4(scaleWidth, scaleHeight, 1.0, 1.0));
-
-        layer.source.buffer.useTextureFiltering = useFiltering;
-        layer.source.buffer.textureTransform = mat4(static_cast<const float*>(textureMatrix)) * tr;
-    } else {
-        // If layer is blacked out, force alpha to 1 so that we draw a black color
-        // layer.
-        layer.source.buffer.buffer = nullptr;
-        layer.alpha = 1.0;
+        // and finally apply it to the original texture matrix
+        const mat4 texTransform(mat4(static_cast<const float*>(textureMatrix)) * tr);
+        memcpy(textureMatrix, texTransform.asArray(), sizeof(textureMatrix));
     }
 
-    return true;
+    const Rect win{getBounds()};
+    float bufferWidth = getBufferSize(s).getWidth();
+    float bufferHeight = getBufferSize(s).getHeight();
+
+    // BufferStateLayers can have a "buffer size" of [0, 0, -1, -1] when no display frame has
+    // been set and there is no parent layer bounds. In that case, the scale is meaningless so
+    // ignore them.
+    if (!getBufferSize(s).isValid()) {
+        bufferWidth = float(win.right) - float(win.left);
+        bufferHeight = float(win.bottom) - float(win.top);
+    }
+
+    const float scaleHeight = (float(win.bottom) - float(win.top)) / bufferHeight;
+    const float scaleWidth = (float(win.right) - float(win.left)) / bufferWidth;
+    const float translateY = float(win.top) / bufferHeight;
+    const float translateX = float(win.left) / bufferWidth;
+
+    // Flip y-coordinates because GLConsumer expects OpenGL convention.
+    mat4 tr = mat4::translate(vec4(.5, .5, 0, 1)) * mat4::scale(vec4(1, -1, 1, 1)) *
+            mat4::translate(vec4(-.5, -.5, 0, 1)) *
+            mat4::translate(vec4(translateX, translateY, 0, 1)) *
+            mat4::scale(vec4(scaleWidth, scaleHeight, 1.0, 1.0));
+
+    layer.source.buffer.useTextureFiltering = useFiltering;
+    layer.source.buffer.textureTransform = mat4(static_cast<const float*>(textureMatrix)) * tr;
+
+    return layer;
 }
 
 bool BufferLayer::isHdrY410() const {
     // pixel format is HDR Y410 masquerading as RGBA_1010102
-    return (mCurrentDataSpace == ui::Dataspace::BT2020_ITU_PQ &&
-            getDrawingApi() == NATIVE_WINDOW_API_MEDIA &&
-            getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
+    return (mBufferInfo.mDataspace == ui::Dataspace::BT2020_ITU_PQ &&
+            mBufferInfo.mApi == NATIVE_WINDOW_API_MEDIA &&
+            mBufferInfo.mPixelFormat == HAL_PIXEL_FORMAT_RGBA_1010102);
 }
 
-PixelFormat BufferLayer::getPixelFormat() const {
-    if (!mActiveBuffer) {
-        return PIXEL_FORMAT_NONE;
-    }
-    return mActiveBuffer->format;
+sp<compositionengine::LayerFE> BufferLayer::getCompositionEngineLayerFE() const {
+    return asLayerFE();
 }
 
-void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice,
-                                  const ui::Transform& transform, const Rect& viewport,
-                                  int32_t supportedPerFrameMetadata,
-                                  const ui::Dataspace targetDataspace) {
-    RETURN_IF_NO_HWC_LAYER(displayDevice);
+compositionengine::LayerFECompositionState* BufferLayer::editCompositionState() {
+    return mCompositionState.get();
+}
 
-    // Apply this display's projection's viewport to the visible region
-    // before giving it to the HWC HAL.
-    Region visible = transform.transform(visibleRegion.intersect(viewport));
+const compositionengine::LayerFECompositionState* BufferLayer::getCompositionState() const {
+    return mCompositionState.get();
+}
 
-    const auto outputLayer = findOutputLayerForDisplay(displayDevice);
-    LOG_FATAL_IF(!outputLayer || !outputLayer->getState().hwc);
-
-    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
-    auto error = hwcLayer->setVisibleRegion(visible);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        visible.dump(LOG_TAG);
-    }
-    outputLayer->editState().visibleRegion = visible;
-
-    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
-
-    error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set surface damage: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        surfaceDamageRegion.dump(LOG_TAG);
-    }
-    layerCompositionState.surfaceDamage = surfaceDamageRegion;
+void BufferLayer::preparePerFrameCompositionState() {
+    Layer::preparePerFrameCompositionState();
 
     // Sideband layers
-    if (layerCompositionState.sidebandStream.get()) {
-        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::SIDEBAND);
-        ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = hwcLayer->setSidebandStream(layerCompositionState.sidebandStream->handle());
-        if (error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
-                  layerCompositionState.sidebandStream->handle(), to_string(error).c_str(),
-                  static_cast<int32_t>(error));
-        }
-        layerCompositionState.compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
+    auto* compositionState = editCompositionState();
+    if (compositionState->sidebandStream.get()) {
+        compositionState->compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
         return;
-    }
-
-    // Device or Cursor layers
-    if (mPotentialCursor) {
-        ALOGV("[%s] Requesting Cursor composition", mName.string());
-        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::CURSOR);
     } else {
-        ALOGV("[%s] Requesting Device composition", mName.string());
-        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::DEVICE);
+        // Normal buffer layers
+        compositionState->hdrMetadata = mBufferInfo.mHdrMetadata;
+        compositionState->compositionType = mPotentialCursor
+                ? Hwc2::IComposerClient::Composition::CURSOR
+                : Hwc2::IComposerClient::Composition::DEVICE;
     }
 
-    ui::Dataspace dataspace = isColorSpaceAgnostic() && targetDataspace != ui::Dataspace::UNKNOWN
-            ? targetDataspace
-            : mCurrentDataSpace;
-    error = hwcLayer->setDataspace(dataspace);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), dataspace,
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    const HdrMetadata& metadata = getDrawingHdrMetadata();
-    error = hwcLayer->setPerFrameMetadata(supportedPerFrameMetadata, metadata);
-    if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
-        ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    error = hwcLayer->setColorTransform(getColorTransform());
-    if (error == HWC2::Error::Unsupported) {
-        // If per layer color transform is not supported, we use GPU composition.
-        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::CLIENT);
-    } else if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to setColorTransform: %s (%d)", mName.string(),
-                to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-    layerCompositionState.dataspace = mCurrentDataSpace;
-    layerCompositionState.colorTransform = getColorTransform();
-    layerCompositionState.hdrMetadata = metadata;
-
-    setHwcLayerBuffer(displayDevice);
+    compositionState->buffer = mBufferInfo.mBuffer;
+    compositionState->bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
+            ? 0
+            : mBufferInfo.mBufferSlot;
+    compositionState->acquireFence = mBufferInfo.mFence;
 }
 
 bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
-    if (mBufferLatched) {
+    if (mBufferInfo.mBuffer != nullptr) {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addPreComposition(mCurrentFrameNumber, refreshStartTime);
     }
@@ -355,29 +319,38 @@ bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
     return hasReadyFrame();
 }
 
-bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
+bool BufferLayer::onPostComposition(const DisplayDevice* display,
                                     const std::shared_ptr<FenceTime>& glDoneFence,
                                     const std::shared_ptr<FenceTime>& presentFence,
                                     const CompositorTiming& compositorTiming) {
     // mFrameLatencyNeeded is true when a new frame was latched for the
     // composition.
-    if (!mFrameLatencyNeeded) return false;
+    if (!mBufferInfo.mFrameLatencyNeeded) return false;
 
     // Update mFrameEventHistory.
     {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addPostComposition(mCurrentFrameNumber, glDoneFence, presentFence,
                                               compositorTiming);
+        finalizeFrameEventHistory(glDoneFence, compositorTiming);
     }
 
     // Update mFrameTracker.
-    nsecs_t desiredPresentTime = getDesiredPresentTime();
+    nsecs_t desiredPresentTime = mBufferInfo.mDesiredPresentTime;
     mFrameTracker.setDesiredPresentTime(desiredPresentTime);
 
-    const int32_t layerID = getSequence();
-    mFlinger->mTimeStats->setDesiredTime(layerID, mCurrentFrameNumber, desiredPresentTime);
+    const int32_t layerId = getSequence();
+    mFlinger->mTimeStats->setDesiredTime(layerId, mCurrentFrameNumber, desiredPresentTime);
 
-    std::shared_ptr<FenceTime> frameReadyFence = getCurrentFenceTime();
+    const auto outputLayer = findOutputLayerForDisplay(display);
+    if (outputLayer && outputLayer->requiresClientComposition()) {
+        nsecs_t clientCompositionTimestamp = outputLayer->getState().clientCompositionTimestamp;
+        mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(), mCurrentFrameNumber,
+                                               clientCompositionTimestamp,
+                                               FrameTracer::FrameEvent::FALLBACK_COMPOSITION);
+    }
+
+    std::shared_ptr<FenceTime> frameReadyFence = mBufferInfo.mFenceTime;
     if (frameReadyFence->isValid()) {
         mFrameTracker.setFrameReadyFence(std::move(frameReadyFence));
     } else {
@@ -387,22 +360,37 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
     }
 
     if (presentFence->isValid()) {
-        mFlinger->mTimeStats->setPresentFence(layerID, mCurrentFrameNumber, presentFence);
+        mFlinger->mTimeStats->setPresentFence(layerId, mCurrentFrameNumber, presentFence);
+        mFlinger->mFrameTracer->traceFence(layerId, getCurrentBufferId(), mCurrentFrameNumber,
+                                           presentFence, FrameTracer::FrameEvent::PRESENT_FENCE);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
-    } else if (displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
+    } else if (!display) {
+        // Do nothing.
+    } else if (const auto displayId = display->getId();
+               displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
         const nsecs_t actualPresentTime = mFlinger->getHwComposer().getRefreshTimestamp(*displayId);
-        mFlinger->mTimeStats->setPresentTime(layerID, mCurrentFrameNumber, actualPresentTime);
+        mFlinger->mTimeStats->setPresentTime(layerId, mCurrentFrameNumber, actualPresentTime);
+        mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(), mCurrentFrameNumber,
+                                               actualPresentTime,
+                                               FrameTracer::FrameEvent::PRESENT_FENCE);
         mFrameTracker.setActualPresentTime(actualPresentTime);
     }
 
     mFrameTracker.advanceFrame();
-    mFrameLatencyNeeded = false;
+    mBufferInfo.mFrameLatencyNeeded = false;
     return true;
 }
 
-bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) {
+void BufferLayer::gatherBufferInfo() {
+    mBufferInfo.mPixelFormat =
+            !mBufferInfo.mBuffer ? PIXEL_FORMAT_NONE : mBufferInfo.mBuffer->format;
+    mBufferInfo.mFrameLatencyNeeded = true;
+}
+
+bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                              nsecs_t expectedPresentTime) {
     ATRACE_CALL();
 
     bool refreshRequired = latchSidebandStream(recomputeVisibleRegions);
@@ -435,14 +423,15 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) 
     // Capture the old state of the layer for comparisons later
     const State& s(getDrawingState());
     const bool oldOpacity = isOpaque(s);
-    sp<GraphicBuffer> oldBuffer = mActiveBuffer;
 
-    if (!allTransactionsSignaled()) {
+    BufferInfo oldBufferInfo = mBufferInfo;
+
+    if (!allTransactionsSignaled(expectedPresentTime)) {
         mFlinger->setTransactionFlags(eTraversalNeeded);
         return false;
     }
 
-    status_t err = updateTexImage(recomputeVisibleRegions, latchTime);
+    status_t err = updateTexImage(recomputeVisibleRegions, latchTime, expectedPresentTime);
     if (err != NO_ERROR) {
         return false;
     }
@@ -452,65 +441,32 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) 
         return false;
     }
 
-    mBufferLatched = true;
-
     err = updateFrameNumber(latchTime);
     if (err != NO_ERROR) {
         return false;
     }
 
+    gatherBufferInfo();
+
     mRefreshPending = true;
-    mFrameLatencyNeeded = true;
-    if (oldBuffer == nullptr) {
+    if (oldBufferInfo.mBuffer == nullptr) {
         // the first time we receive a buffer, we need to trigger a
         // geometry invalidation.
         recomputeVisibleRegions = true;
     }
 
-    ui::Dataspace dataSpace = getDrawingDataSpace();
-    // translate legacy dataspaces to modern dataspaces
-    switch (dataSpace) {
-        case ui::Dataspace::SRGB:
-            dataSpace = ui::Dataspace::V0_SRGB;
-            break;
-        case ui::Dataspace::SRGB_LINEAR:
-            dataSpace = ui::Dataspace::V0_SRGB_LINEAR;
-            break;
-        case ui::Dataspace::JFIF:
-            dataSpace = ui::Dataspace::V0_JFIF;
-            break;
-        case ui::Dataspace::BT601_625:
-            dataSpace = ui::Dataspace::V0_BT601_625;
-            break;
-        case ui::Dataspace::BT601_525:
-            dataSpace = ui::Dataspace::V0_BT601_525;
-            break;
-        case ui::Dataspace::BT709:
-            dataSpace = ui::Dataspace::V0_BT709;
-            break;
-        default:
-            break;
-    }
-    mCurrentDataSpace = dataSpace;
-
-    Rect crop(getDrawingCrop());
-    const uint32_t transform(getDrawingTransform());
-    const uint32_t scalingMode(getDrawingScalingMode());
-    const bool transformToDisplayInverse(getTransformToDisplayInverse());
-    if ((crop != mCurrentCrop) || (transform != mCurrentTransform) ||
-        (scalingMode != mCurrentScalingMode) ||
-        (transformToDisplayInverse != mTransformToDisplayInverse)) {
-        mCurrentCrop = crop;
-        mCurrentTransform = transform;
-        mCurrentScalingMode = scalingMode;
-        mTransformToDisplayInverse = transformToDisplayInverse;
+    if ((mBufferInfo.mCrop != oldBufferInfo.mCrop) ||
+        (mBufferInfo.mTransform != oldBufferInfo.mTransform) ||
+        (mBufferInfo.mScaleMode != oldBufferInfo.mScaleMode) ||
+        (mBufferInfo.mTransformToDisplayInverse != oldBufferInfo.mTransformToDisplayInverse)) {
         recomputeVisibleRegions = true;
     }
 
-    if (oldBuffer != nullptr) {
-        uint32_t bufWidth = mActiveBuffer->getWidth();
-        uint32_t bufHeight = mActiveBuffer->getHeight();
-        if (bufWidth != uint32_t(oldBuffer->width) || bufHeight != uint32_t(oldBuffer->height)) {
+    if (oldBufferInfo.mBuffer != nullptr) {
+        uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+        uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
+        if (bufWidth != uint32_t(oldBufferInfo.mBuffer->width) ||
+            bufHeight != uint32_t(oldBufferInfo.mBuffer->height)) {
             recomputeVisibleRegions = true;
         }
     }
@@ -547,10 +503,10 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) 
 }
 
 // transaction
-void BufferLayer::notifyAvailableFrames() {
-    const auto headFrameNumber = getHeadFrameNumber();
+void BufferLayer::notifyAvailableFrames(nsecs_t expectedPresentTime) {
+    const auto headFrameNumber = getHeadFrameNumber(expectedPresentTime);
     const bool headFenceSignaled = fenceHasSignaled();
-    const bool presentTimeIsCurrent = framePresentTimeIsCurrent();
+    const bool presentTimeIsCurrent = framePresentTimeIsCurrent(expectedPresentTime);
     Mutex::Autolock lock(mLocalSyncPointMutex);
     for (auto& point : mLocalSyncPoints) {
         if (headFrameNumber >= point->getFrameNumber() && headFenceSignaled &&
@@ -575,11 +531,11 @@ uint32_t BufferLayer::getEffectiveScalingMode() const {
         return mOverrideScalingMode;
     }
 
-    return mCurrentScalingMode;
+    return mBufferInfo.mScaleMode;
 }
 
 bool BufferLayer::isProtected() const {
-    const sp<GraphicBuffer>& buffer(mActiveBuffer);
+    const sp<GraphicBuffer>& buffer(mBufferInfo.mBuffer);
     return (buffer != 0) && (buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
@@ -598,8 +554,8 @@ bool BufferLayer::latchUnsignaledBuffers() {
 }
 
 // h/w composer set-up
-bool BufferLayer::allTransactionsSignaled() {
-    auto headFrameNumber = getHeadFrameNumber();
+bool BufferLayer::allTransactionsSignaled(nsecs_t expectedPresentTime) {
+    const auto headFrameNumber = getHeadFrameNumber(expectedPresentTime);
     bool matchingFramesFound = false;
     bool allTransactionsApplied = true;
     Mutex::Autolock lock(mLocalSyncPointMutex);
@@ -646,28 +602,51 @@ bool BufferLayer::getOpacityForFormat(uint32_t format) {
     return true;
 }
 
-bool BufferLayer::needsFiltering(const sp<const DisplayDevice>& displayDevice) const {
-    // If we are not capturing based on the state of a known display device, we
-    // only return mNeedsFiltering
-    if (displayDevice == nullptr) {
-        return mNeedsFiltering;
-    }
-
-    const auto outputLayer = findOutputLayerForDisplay(displayDevice);
+bool BufferLayer::needsFiltering(const DisplayDevice* display) const {
+    const auto outputLayer = findOutputLayerForDisplay(display);
     if (outputLayer == nullptr) {
-        return mNeedsFiltering;
+        return false;
     }
 
+    // We need filtering if the sourceCrop rectangle size does not match the
+    // displayframe rectangle size (not a 1:1 render)
     const auto& compositionState = outputLayer->getState();
     const auto displayFrame = compositionState.displayFrame;
     const auto sourceCrop = compositionState.sourceCrop;
-    return mNeedsFiltering || sourceCrop.getHeight() != displayFrame.getHeight() ||
+    return sourceCrop.getHeight() != displayFrame.getHeight() ||
             sourceCrop.getWidth() != displayFrame.getWidth();
 }
 
-uint64_t BufferLayer::getHeadFrameNumber() const {
+bool BufferLayer::needsFilteringForScreenshots(const DisplayDevice* display,
+                                               const ui::Transform& inverseParentTransform) const {
+    const auto outputLayer = findOutputLayerForDisplay(display);
+    if (outputLayer == nullptr) {
+        return false;
+    }
+
+    // We need filtering if the sourceCrop rectangle size does not match the
+    // viewport rectangle size (not a 1:1 render)
+    const auto& compositionState = outputLayer->getState();
+    const ui::Transform& displayTransform = display->getTransform();
+    const ui::Transform inverseTransform = inverseParentTransform * displayTransform.inverse();
+    // Undo the transformation of the displayFrame so that we're back into
+    // layer-stack space.
+    const Rect frame = inverseTransform.transform(compositionState.displayFrame);
+    const FloatRect sourceCrop = compositionState.sourceCrop;
+
+    int32_t frameHeight = frame.getHeight();
+    int32_t frameWidth = frame.getWidth();
+    // If the display transform had a rotational component then undo the
+    // rotation so that the orientation matches the source crop.
+    if (displayTransform.getOrientation() & ui::Transform::ROT_90) {
+        std::swap(frameHeight, frameWidth);
+    }
+    return sourceCrop.getHeight() != frameHeight || sourceCrop.getWidth() != frameWidth;
+}
+
+uint64_t BufferLayer::getHeadFrameNumber(nsecs_t expectedPresentTime) const {
     if (hasFrameUpdate()) {
-        return getFrameNumber();
+        return getFrameNumber(expectedPresentTime);
     } else {
         return mCurrentFrameNumber;
     }
@@ -681,30 +660,26 @@ Rect BufferLayer::getBufferSize(const State& s) const {
         return Rect(getActiveWidth(s), getActiveHeight(s));
     }
 
-    if (mActiveBuffer == nullptr) {
+    if (mBufferInfo.mBuffer == nullptr) {
         return Rect::INVALID_RECT;
     }
 
-    uint32_t bufWidth = mActiveBuffer->getWidth();
-    uint32_t bufHeight = mActiveBuffer->getHeight();
+    uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
 
     // Undo any transformations on the buffer and return the result.
-    if (mCurrentTransform & ui::Transform::ROT_90) {
+    if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
         std::swap(bufWidth, bufHeight);
     }
 
     if (getTransformToDisplayInverse()) {
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
         if (invTransform & ui::Transform::ROT_90) {
             std::swap(bufWidth, bufHeight);
         }
     }
 
     return Rect(bufWidth, bufHeight);
-}
-
-std::shared_ptr<compositionengine::Layer> BufferLayer::getCompositionLayer() const {
-    return mCompositionLayer;
 }
 
 FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const {
@@ -717,26 +692,152 @@ FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const 
         return FloatRect(0, 0, getActiveWidth(s), getActiveHeight(s));
     }
 
-    if (mActiveBuffer == nullptr) {
+    if (mBufferInfo.mBuffer == nullptr) {
         return parentBounds;
     }
 
-    uint32_t bufWidth = mActiveBuffer->getWidth();
-    uint32_t bufHeight = mActiveBuffer->getHeight();
+    uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
 
     // Undo any transformations on the buffer and return the result.
-    if (mCurrentTransform & ui::Transform::ROT_90) {
+    if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
         std::swap(bufWidth, bufHeight);
     }
 
     if (getTransformToDisplayInverse()) {
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
         if (invTransform & ui::Transform::ROT_90) {
             std::swap(bufWidth, bufHeight);
         }
     }
 
     return FloatRect(0, 0, bufWidth, bufHeight);
+}
+
+void BufferLayer::latchAndReleaseBuffer() {
+    mRefreshPending = false;
+    if (hasReadyFrame()) {
+        bool ignored = false;
+        latchBuffer(ignored, systemTime(), 0 /* expectedPresentTime */);
+    }
+    releasePendingBuffer(systemTime());
+}
+
+PixelFormat BufferLayer::getPixelFormat() const {
+    return mBufferInfo.mPixelFormat;
+}
+
+bool BufferLayer::getTransformToDisplayInverse() const {
+    return mBufferInfo.mTransformToDisplayInverse;
+}
+
+Rect BufferLayer::getBufferCrop() const {
+    // this is the crop rectangle that applies to the buffer
+    // itself (as opposed to the window)
+    if (!mBufferInfo.mCrop.isEmpty()) {
+        // if the buffer crop is defined, we use that
+        return mBufferInfo.mCrop;
+    } else if (mBufferInfo.mBuffer != nullptr) {
+        // otherwise we use the whole buffer
+        return mBufferInfo.mBuffer->getBounds();
+    } else {
+        // if we don't have a buffer yet, we use an empty/invalid crop
+        return Rect();
+    }
+}
+
+uint32_t BufferLayer::getBufferTransform() const {
+    return mBufferInfo.mTransform;
+}
+
+ui::Dataspace BufferLayer::getDataSpace() const {
+    return mBufferInfo.mDataspace;
+}
+
+ui::Dataspace BufferLayer::translateDataspace(ui::Dataspace dataspace) {
+    ui::Dataspace updatedDataspace = dataspace;
+    // translate legacy dataspaces to modern dataspaces
+    switch (dataspace) {
+        case ui::Dataspace::SRGB:
+            updatedDataspace = ui::Dataspace::V0_SRGB;
+            break;
+        case ui::Dataspace::SRGB_LINEAR:
+            updatedDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+            break;
+        case ui::Dataspace::JFIF:
+            updatedDataspace = ui::Dataspace::V0_JFIF;
+            break;
+        case ui::Dataspace::BT601_625:
+            updatedDataspace = ui::Dataspace::V0_BT601_625;
+            break;
+        case ui::Dataspace::BT601_525:
+            updatedDataspace = ui::Dataspace::V0_BT601_525;
+            break;
+        case ui::Dataspace::BT709:
+            updatedDataspace = ui::Dataspace::V0_BT709;
+            break;
+        default:
+            break;
+    }
+
+    return updatedDataspace;
+}
+
+sp<GraphicBuffer> BufferLayer::getBuffer() const {
+    return mBufferInfo.mBuffer;
+}
+
+void BufferLayer::getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]) {
+    GLConsumer::computeTransformMatrix(outMatrix, mBufferInfo.mBuffer, mBufferInfo.mCrop,
+                                       mBufferInfo.mTransform, filteringEnabled);
+}
+
+void BufferLayer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {
+    Layer::setInitialValuesForClone(clonedFrom);
+
+    sp<BufferLayer> bufferClonedFrom = static_cast<BufferLayer*>(clonedFrom.get());
+    mPremultipliedAlpha = bufferClonedFrom->mPremultipliedAlpha;
+    mPotentialCursor = bufferClonedFrom->mPotentialCursor;
+    mProtectedByApp = bufferClonedFrom->mProtectedByApp;
+
+    updateCloneBufferInfo();
+}
+
+void BufferLayer::updateCloneBufferInfo() {
+    if (!isClone() || !isClonedFromAlive()) {
+        return;
+    }
+
+    sp<BufferLayer> clonedFrom = static_cast<BufferLayer*>(getClonedFrom().get());
+    mBufferInfo = clonedFrom->mBufferInfo;
+    mSidebandStream = clonedFrom->mSidebandStream;
+    surfaceDamageRegion = clonedFrom->surfaceDamageRegion;
+    mCurrentFrameNumber = clonedFrom->mCurrentFrameNumber.load();
+    mPreviousFrameNumber = clonedFrom->mPreviousFrameNumber;
+
+    // After buffer info is updated, the drawingState from the real layer needs to be copied into
+    // the cloned. This is because some properties of drawingState can change when latchBuffer is
+    // called. However, copying the drawingState would also overwrite the cloned layer's relatives
+    // and touchableRegionCrop. Therefore, temporarily store the relatives so they can be set in
+    // the cloned drawingState again.
+    wp<Layer> tmpZOrderRelativeOf = mDrawingState.zOrderRelativeOf;
+    SortedVector<wp<Layer>> tmpZOrderRelatives = mDrawingState.zOrderRelatives;
+    wp<Layer> tmpTouchableRegionCrop = mDrawingState.touchableRegionCrop;
+    InputWindowInfo tmpInputInfo = mDrawingState.inputInfo;
+
+    mDrawingState = clonedFrom->mDrawingState;
+
+    mDrawingState.touchableRegionCrop = tmpTouchableRegionCrop;
+    mDrawingState.zOrderRelativeOf = tmpZOrderRelativeOf;
+    mDrawingState.zOrderRelatives = tmpZOrderRelatives;
+    mDrawingState.inputInfo = tmpInputInfo;
+}
+
+void BufferLayer::setTransformHint(ui::Transform::RotationFlags displayTransformHint) {
+    mTransformHint = getFixedTransformHint();
+    if (mTransformHint == ui::Transform::ROT_INVALID) {
+        mTransformHint = displayTransformHint;
+    }
 }
 
 } // namespace android
@@ -748,3 +849,6 @@ FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const 
 #if defined(__gl2_h_)
 #error "don't include gl2/gl2.h in this file"
 #endif
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

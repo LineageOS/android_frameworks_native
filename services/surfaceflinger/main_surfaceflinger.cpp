@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <sys/resource.h>
 
 #include <sched.h>
@@ -27,6 +31,7 @@
 #include <binder/ProcessState.h>
 #include <configstore/Utils.h>
 #include <displayservice/DisplayService.h>
+#include <errno.h>
 #include <hidl/LegacySupport.h>
 #include <processgroup/sched_policy.h>
 #include "SurfaceFlinger.h"
@@ -110,10 +115,8 @@ int main(int, char**) {
 
     startDisplayService(); // dependency on SF getting registered above
 
-    struct sched_param param = {0};
-    param.sched_priority = 2;
-    if (sched_setscheduler(0, SCHED_FIFO, &param) != 0) {
-        ALOGE("Couldn't set SCHED_FIFO");
+    if (SurfaceFlinger::setSchedFifo(true) != NO_ERROR) {
+        ALOGW("Couldn't set to SCHED_FIFO: %s", strerror(errno));
     }
 
     // run surface flinger in this thread
@@ -121,3 +124,6 @@ int main(int, char**) {
 
     return 0;
 }
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

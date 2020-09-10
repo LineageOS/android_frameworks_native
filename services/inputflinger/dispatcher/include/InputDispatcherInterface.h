@@ -19,6 +19,7 @@
 
 #include <InputListener.h>
 #include <input/ISetInputWindowsListener.h>
+#include <unordered_map>
 
 namespace android {
 
@@ -63,12 +64,23 @@ public:
     /* Called by the heatbeat to ensures that the dispatcher has not deadlocked. */
     virtual void monitor() = 0;
 
-    /* Runs a single iteration of the dispatch loop.
-     * Nominally processes one queued event, a timeout, or a response from an input consumer.
-     *
-     * This method should only be called on the input dispatcher thread.
+    /**
+     * Wait until dispatcher is idle. That means, there are no further events to be processed,
+     * and all of the policy callbacks have been completed.
+     * Return true if the dispatcher is idle.
+     * Return false if the timeout waiting for the dispatcher to become idle has expired.
      */
-    virtual void dispatchOnce() = 0;
+    virtual bool waitForIdle() = 0;
+
+    /* Make the dispatcher start processing events.
+     *
+     * The dispatcher will start consuming events from the InputListenerInterface
+     * in the order that they were received.
+     */
+    virtual status_t start() = 0;
+
+    /* Makes the dispatcher stop processing events. */
+    virtual status_t stop() = 0;
 
     /* Injects an input event and optionally waits for sync.
      * The synchronization mode determines whether the method blocks while waiting for
@@ -78,16 +90,23 @@ public:
      * This method may be called on any thread (usually by the input manager).
      */
     virtual int32_t injectInputEvent(const InputEvent* event, int32_t injectorPid,
-                                     int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
-                                     uint32_t policyFlags) = 0;
+                                     int32_t injectorUid, int32_t syncMode,
+                                     std::chrono::milliseconds timeout, uint32_t policyFlags) = 0;
 
-    /* Sets the list of input windows.
+    /*
+     * Check whether InputEvent actually happened by checking the signature of the event.
+     *
+     * Return nullptr if the event cannot be verified.
+     */
+    virtual std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) = 0;
+
+    /* Sets the list of input windows per display.
      *
      * This method may be called on any thread (usually by the input manager).
      */
     virtual void setInputWindows(
-            const std::vector<sp<InputWindowHandle> >& inputWindowHandles, int32_t displayId,
-            const sp<ISetInputWindowsListener>& setInputWindowsListener = nullptr) = 0;
+            const std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>>&
+                    handlesPerDisplay) = 0;
 
     /* Sets the focused application on the given display.
      *
@@ -116,6 +135,14 @@ public:
      */
     virtual void setInputFilterEnabled(bool enabled) = 0;
 
+    /**
+     * Set the touch mode state.
+     * Touch mode is a global state that apps may enter / exit based on specific
+     * user interactions with input devices.
+     * If true, the device is in touch mode.
+     */
+    virtual void setInTouchMode(bool inTouchMode) = 0;
+
     /* Transfers touch focus from one window to another window.
      *
      * Returns true on success.  False if the window did not actually have touch focus.
@@ -126,8 +153,7 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel,
-                                          int32_t displayId) = 0;
+    virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel) = 0;
 
     /* Registers input channels to be used to monitor input events.
      *

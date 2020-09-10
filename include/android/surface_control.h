@@ -149,7 +149,7 @@ int64_t ASurfaceTransactionStats_getLatchTime(ASurfaceTransactionStats* surface_
 /**
  * Returns a sync fence that signals when the transaction has been presented.
  * The recipient of the callback takes ownership of the fence and is responsible for closing
- * it.
+ * it. If a device does not support present fences, a -1 will be returned.
  *
  * Available since API level 29.
  */
@@ -406,6 +406,36 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
                                                  __INTRODUCED_IN(29);
 
 #endif // __ANDROID_API__ >= 29
+
+#if __ANDROID_API__ >= 30
+
+/**
+ * Sets the intended frame rate for |surface_control|.
+ *
+ * On devices that are capable of running the display at different refresh rates, the system may
+ * choose a display refresh rate to better match this surface's frame rate. Usage of this API won't
+ * directly affect the application's frame production pipeline. However, because the system may
+ * change the display refresh rate, calls to this function may result in changes to Choreographer
+ * callback timings, and changes to the time interval at which the system releases buffers back to
+ * the application.
+ *
+ * |frameRate| is the intended frame rate of this surface, in frames per second. 0 is a special
+ * value that indicates the app will accept the system's choice for the display frame rate, which is
+ * the default behavior if this function isn't called. The frameRate param does <em>not</em> need to
+ * be a valid refresh rate for this device's display - e.g., it's fine to pass 30fps to a device
+ * that can only run the display at 60fps.
+ *
+ * |compatibility| The frame rate compatibility of this surface. The compatibility value may
+ * influence the system's choice of display frame rate. To specify a compatibility use the
+ * ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* enum.
+ *
+ * Available since API level 30.
+ */
+void ASurfaceTransaction_setFrameRate(ASurfaceTransaction* transaction,
+                                      ASurfaceControl* surface_control, float frameRate,
+                                      int8_t compatibility) __INTRODUCED_IN(30);
+
+#endif // __ANDROID_API__ >= 30
 
 __END_DECLS
 

@@ -489,7 +489,7 @@ bool clearUidTimes(uint32_t uid) {
         if (deleteMapEntry(gTisMapFd, &key) && errno != ENOENT) return false;
     }
 
-    concurrent_val_t czeros = {.policy = {0}, .active = {0}};
+    concurrent_val_t czeros = { .active = {0}, .policy = {0}, };
     std::vector<concurrent_val_t> cvals(gNCpus, czeros);
     for (key.bucket = 0; key.bucket <= (gNCpus - 1) / CPUS_PER_ENTRY; ++key.bucket) {
         if (writeToMapEntry(gConcurrentMapFd, &key, cvals.data(), BPF_EXIST) && errno != ENOENT)

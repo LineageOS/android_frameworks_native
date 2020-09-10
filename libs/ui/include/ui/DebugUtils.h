@@ -23,6 +23,7 @@
 
 namespace android {
 class Rect;
+struct DeviceProductInfo;
 }
 
 std::string decodeStandard(android_dataspace dataspace);
@@ -34,3 +35,4 @@ std::string decodeColorTransform(android_color_transform colorTransform);
 std::string decodePixelFormat(android::PixelFormat format);
 std::string decodeRenderIntent(android::ui::RenderIntent renderIntent);
 std::string to_string(const android::Rect& rect);
+std::string toString(const android::DeviceProductInfo&);

@@ -18,12 +18,13 @@
 
 namespace android {
 
-SingleTouchInputMapper::SingleTouchInputMapper(InputDevice* device) : TouchInputMapper(device) {}
+SingleTouchInputMapper::SingleTouchInputMapper(InputDeviceContext& deviceContext)
+      : TouchInputMapper(deviceContext) {}
 
 SingleTouchInputMapper::~SingleTouchInputMapper() {}
 
 void SingleTouchInputMapper::reset(nsecs_t when) {
-    mSingleTouchMotionAccumulator.reset(getDevice());
+    mSingleTouchMotionAccumulator.reset(getDeviceContext());
 
     TouchInputMapper::reset(when);
 }

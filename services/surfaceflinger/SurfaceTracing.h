@@ -16,11 +16,11 @@
 
 #pragma once
 
+#include <android-base/thread_annotations.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <utils/Errors.h>
 #include <utils/StrongPointer.h>
 
-#include <android-base/thread_annotations.h>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -42,11 +42,12 @@ constexpr auto operator""_MB(unsigned long long const num) {
 class SurfaceTracing {
 public:
     explicit SurfaceTracing(SurfaceFlinger& flinger);
-    void enable();
+    bool enable();
     bool disable();
     status_t writeToFile();
     bool isEnabled() const;
-    void notify(long compositionTime, const char* where);
+    void notify(const char* where);
+    void notifyLocked(const char* where) NO_THREAD_SAFETY_ANALYSIS /* REQUIRES(mSfLock) */;
 
     void setBufferSize(size_t bufferSizeInByte);
     void writeToFileAsync();
@@ -55,13 +56,18 @@ public:
     enum : uint32_t {
         TRACE_CRITICAL = 1 << 0,
         TRACE_INPUT = 1 << 1,
-        TRACE_EXTRA = 1 << 2,
+        TRACE_COMPOSITION = 1 << 2,
+        TRACE_EXTRA = 1 << 3,
+        TRACE_HWC = 1 << 4,
         TRACE_ALL = 0xffffffff
     };
     void setTraceFlags(uint32_t flags);
+    bool flagIsSetLocked(uint32_t flags) NO_THREAD_SAFETY_ANALYSIS /* REQUIRES(mSfLock) */ {
+        return (mTraceFlags & flags) == flags;
+    }
 
 private:
-    static constexpr auto kDefaultBufferCapInByte = 100_MB;
+    static constexpr auto kDefaultBufferCapInByte = 5_MB;
     static constexpr auto kDefaultFileName = "/data/misc/wmtrace/layers_trace.pb";
 
     class LayersTraceBuffer { // ring buffer
@@ -81,10 +87,8 @@ private:
         std::queue<LayersTraceProto> mStorage;
     };
 
-    long mCompositionTime;
-
     void mainLoop();
-    void addFirstEntry();
+    bool addFirstEntry();
     LayersTraceProto traceWhenNotified();
     LayersTraceProto traceLayersLocked(const char* where) REQUIRES(mSfLock);
 
@@ -92,14 +96,16 @@ private:
     bool addTraceToBuffer(LayersTraceProto& entry);
     void writeProtoFileLocked() REQUIRES(mTraceLock);
 
-    const SurfaceFlinger& mFlinger;
+    SurfaceFlinger& mFlinger;
     status_t mLastErr = NO_ERROR;
     std::thread mThread;
     std::condition_variable mCanStartTrace;
 
     std::mutex& mSfLock;
-    uint32_t mTraceFlags GUARDED_BY(mSfLock) = TRACE_ALL;
+    uint32_t mTraceFlags GUARDED_BY(mSfLock) = TRACE_CRITICAL | TRACE_INPUT;
     const char* mWhere GUARDED_BY(mSfLock) = "";
+    uint32_t mMissedTraceEntries GUARDED_BY(mSfLock) = 0;
+    bool mTracingInProgress GUARDED_BY(mSfLock) = false;
 
     mutable std::mutex mTraceLock;
     LayersTraceBuffer mBuffer GUARDED_BY(mTraceLock);

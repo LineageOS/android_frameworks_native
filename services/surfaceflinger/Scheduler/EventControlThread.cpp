@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <pthread.h>
 #include <sched.h>
 #include <sys/resource.h>
@@ -31,7 +35,7 @@ EventControlThread::~EventControlThread() = default;
 namespace impl {
 
 EventControlThread::EventControlThread(EventControlThread::SetVSyncEnabledFunction function)
-      : mSetVSyncEnabled(function) {
+      : mSetVSyncEnabled(std::move(function)) {
     pthread_setname_np(mThread.native_handle(), "EventControlThread");
 
     pid_t tid = pthread_gettid_np(mThread.native_handle());
@@ -73,3 +77,6 @@ void EventControlThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
 
 } // namespace impl
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

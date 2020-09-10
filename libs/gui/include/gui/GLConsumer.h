@@ -499,7 +499,7 @@ private:
     // protects static initialization
     static Mutex sStaticInitLock;
 
-    // mReleasedTexImageBuffer is a dummy buffer used when in single buffer
+    // mReleasedTexImageBuffer is a buffer placeholder used when in single buffer
     // mode and releaseTexImage() has been called
     static sp<GraphicBuffer> sReleasedTexImageBuffer;
     sp<EglImage> mReleasedTexImage;

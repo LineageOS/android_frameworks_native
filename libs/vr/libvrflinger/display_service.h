@@ -80,6 +80,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   pdx::Status<display::Metrics> OnGetMetrics(pdx::Message& message);
   pdx::Status<std::string> OnGetConfigurationData(
       pdx::Message& message, display::ConfigFileType config_type);
+  pdx::Status<uint8_t> OnGetDisplayIdentificationPort(pdx::Message& message);
   pdx::Status<display::SurfaceInfo> OnCreateSurface(
       pdx::Message& message, const display::SurfaceAttributes& attributes);
   pdx::Status<BorrowedNativeBufferHandle> OnSetupGlobalBuffer(

@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include "LayerVector.h"
 #include "Layer.h"
 
@@ -64,7 +68,7 @@ void LayerVector::traverseInZOrder(StateSet stateSet, const Visitor& visitor) co
         const auto& layer = (*this)[i];
         auto& state = (stateSet == StateSet::Current) ? layer->getCurrentState()
                                                       : layer->getDrawingState();
-        if (state.zOrderRelativeOf != nullptr) {
+        if (state.isRelativeOf) {
             continue;
         }
         layer->traverseInZOrder(stateSet, visitor);
@@ -76,10 +80,21 @@ void LayerVector::traverseInReverseZOrder(StateSet stateSet, const Visitor& visi
         const auto& layer = (*this)[i];
         auto& state = (stateSet == StateSet::Current) ? layer->getCurrentState()
                                                       : layer->getDrawingState();
-        if (state.zOrderRelativeOf != nullptr) {
+        if (state.isRelativeOf) {
             continue;
         }
         layer->traverseInReverseZOrder(stateSet, visitor);
      }
 }
+
+void LayerVector::traverse(const Visitor& visitor) const {
+    for (auto i = static_cast<int64_t>(size()) - 1; i >= 0; i--) {
+        const auto& layer = (*this)[i];
+        layer->traverse(mStateSet, visitor);
+    }
+}
+
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

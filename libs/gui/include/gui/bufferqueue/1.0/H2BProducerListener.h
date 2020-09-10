@@ -34,7 +34,12 @@ using HProducerListener = ::android::hardware::graphics::bufferqueue::V1_0::
 using BProducerListener = ::android::IProducerListener;
 
 class H2BProducerListener
+#ifndef NO_BINDER
       : public H2BConverter<HProducerListener, BnProducerListener> {
+#else
+      : public BProducerListener {
+    sp<HProducerListener> mBase;
+#endif
 public:
     H2BProducerListener(sp<HProducerListener> const& base);
     virtual void onBufferReleased() override;

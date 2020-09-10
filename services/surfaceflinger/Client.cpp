@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -75,17 +79,18 @@ sp<Layer> Client::getLayerUser(const sp<IBinder>& handle) const
 status_t Client::createSurface(const String8& name, uint32_t w, uint32_t h, PixelFormat format,
                                uint32_t flags, const sp<IBinder>& parentHandle,
                                LayerMetadata metadata, sp<IBinder>* handle,
-                               sp<IGraphicBufferProducer>* gbp) {
+                               sp<IGraphicBufferProducer>* gbp, uint32_t* outTransformHint) {
     // We rely on createLayer to check permissions.
     return mFlinger->createLayer(name, this, w, h, format, flags, std::move(metadata), handle, gbp,
-                                 parentHandle);
+                                 parentHandle, nullptr, outTransformHint);
 }
 
 status_t Client::createWithSurfaceParent(const String8& name, uint32_t w, uint32_t h,
                                          PixelFormat format, uint32_t flags,
                                          const sp<IGraphicBufferProducer>& parent,
                                          LayerMetadata metadata, sp<IBinder>* handle,
-                                         sp<IGraphicBufferProducer>* gbp) {
+                                         sp<IGraphicBufferProducer>* gbp,
+                                         uint32_t* outTransformHint) {
     if (mFlinger->authenticateSurfaceTexture(parent) == false) {
         ALOGE("failed to authenticate surface texture");
         return BAD_VALUE;
@@ -98,7 +103,11 @@ status_t Client::createWithSurfaceParent(const String8& name, uint32_t w, uint32
     }
 
     return mFlinger->createLayer(name, this, w, h, format, flags, std::move(metadata), handle, gbp,
-                                 nullptr, layer);
+                                 nullptr, layer, outTransformHint);
+}
+
+status_t Client::mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle) {
+    return mFlinger->mirrorLayer(this, mirrorFromHandle, outHandle);
 }
 
 status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {
@@ -121,3 +130,6 @@ status_t Client::getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outSt
 
 // ---------------------------------------------------------------------------
 }; // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

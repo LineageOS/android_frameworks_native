@@ -31,15 +31,15 @@ public:
     MOCK_METHOD0(reset, void());
     MOCK_METHOD1(addPresentFence, bool(const std::shared_ptr<FenceTime>&));
     MOCK_METHOD0(beginResync, void());
-    MOCK_METHOD2(addResyncSample, bool(nsecs_t, bool*));
+    MOCK_METHOD3(addResyncSample, bool(nsecs_t, std::optional<nsecs_t>, bool*));
     MOCK_METHOD0(endResync, void());
     MOCK_METHOD1(setPeriod, void(nsecs_t));
     MOCK_METHOD0(getPeriod, nsecs_t());
     MOCK_METHOD0(getIntendedPeriod, nsecs_t());
     MOCK_METHOD1(setRefreshSkipCount, void(int));
-    MOCK_CONST_METHOD1(computeNextRefresh, nsecs_t(int));
+    MOCK_CONST_METHOD2(computeNextRefresh, nsecs_t(int, nsecs_t));
     MOCK_METHOD1(setIgnorePresentFences, void(bool));
-    MOCK_METHOD0(expectedPresentTime, nsecs_t());
+    MOCK_METHOD1(expectedPresentTime, nsecs_t(nsecs_t));
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
 

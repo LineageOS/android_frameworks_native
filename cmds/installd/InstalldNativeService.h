@@ -88,13 +88,23 @@ public:
             int32_t userId, int32_t flags, const std::vector<int32_t>& appIds,
             std::vector<int64_t>* _aidl_return);
 
+    binder::Status getAppCrates(const std::optional<std::string>& uuid,
+            const std::vector<std::string>& packageNames,
+            int32_t userId,
+            std::optional<std::vector<std::optional<android::os::storage::CrateMetadata>>>*
+                    _aidl_return);
+    binder::Status getUserCrates(
+            const std::optional<std::string>& uuid, int32_t userId,
+            std::optional<std::vector<std::optional<android::os::storage::CrateMetadata>>>*
+                    _aidl_return);
+
     binder::Status setAppQuota(const std::optional<std::string>& uuid,
             int32_t userId, int32_t appId, int64_t cacheQuota);
 
     binder::Status moveCompleteApp(const std::optional<std::string>& fromUuid,
             const std::optional<std::string>& toUuid, const std::string& packageName,
-            const std::string& dataAppName, int32_t appId, const std::string& seInfo,
-            int32_t targetSdkVersion);
+            int32_t appId, const std::string& seInfo,
+            int32_t targetSdkVersion, const std::string& fromCodePath);
 
     binder::Status dexopt(const std::string& apkPath, int32_t uid,
             const std::optional<std::string>& packageName, const std::string& instructionSet,
@@ -126,9 +136,6 @@ public:
     binder::Status destroyProfileSnapshot(const std::string& packageName,
             const std::string& profileName);
 
-    binder::Status idmap(const std::string& targetApkPath, const std::string& overlayApkPath,
-            int32_t uid);
-    binder::Status removeIdmap(const std::string& overlayApkPath);
     binder::Status rmPackageDir(const std::string& packageDir);
     binder::Status freeCache(const std::optional<std::string>& uuid, int64_t targetFreeBytes,
             int64_t cacheReservedBytes, int32_t flags);
@@ -155,6 +162,8 @@ public:
     binder::Status invalidateMounts();
     binder::Status isQuotaSupported(const std::optional<std::string>& volumeUuid,
             bool* _aidl_return);
+    binder::Status tryMountDataMirror(const std::optional<std::string>& volumeUuid);
+    binder::Status onPrivateVolumeRemoved(const std::optional<std::string>& volumeUuid);
 
     binder::Status prepareAppProfile(const std::string& packageName,
             int32_t userId, int32_t appId, const std::string& profileName,

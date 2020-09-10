@@ -43,15 +43,15 @@ class InputDispatcherThread;
 /*
  * The input manager is the core of the system event processing.
  *
- * The input manager uses two threads.
+ * The input manager has two components.
  *
- * 1. The InputReaderThread (called "InputReader") reads and preprocesses raw input events,
- *    applies policy, and posts messages to a queue managed by the DispatcherThread.
- * 2. The InputDispatcherThread (called "InputDispatcher") thread waits for new events on the
+ * 1. The InputReader class starts a thread that reads and preprocesses raw input events, applies
+ *    policy, and posts messages to a queue managed by the InputDispatcherThread.
+ * 2. The InputDispatcher class starts a thread that waits for new events on the
  *    queue and asynchronously dispatches them to applications.
  *
- * By design, the InputReaderThread class and InputDispatcherThread class do not share any
- * internal state.  Moreover, all communication is done one way from the InputReaderThread
+ * By design, the InputReader class and InputDispatcher class do not share any
+ * internal state.  Moreover, all communication is done one way from the InputReader
  * into the InputDispatcherThread and never the reverse.  Both classes may interact with the
  * InputDispatchPolicy, however.
  *
@@ -65,10 +65,10 @@ protected:
     virtual ~InputManagerInterface() { }
 
 public:
-    /* Starts the input manager threads. */
+    /* Starts the input threads. */
     virtual status_t start() = 0;
 
-    /* Stops the input manager threads and waits for them to exit. */
+    /* Stops the input threads and waits for them to exit. */
     virtual status_t stop() = 0;
 
     /* Gets the input reader. */
@@ -104,14 +104,10 @@ public:
 
 private:
     sp<InputReaderInterface> mReader;
-    sp<InputReaderThread> mReaderThread;
 
     sp<InputClassifierInterface> mClassifier;
 
     sp<InputDispatcherInterface> mDispatcher;
-    sp<InputDispatcherThread> mDispatcherThread;
-
-    void initialize();
 };
 
 } // namespace android

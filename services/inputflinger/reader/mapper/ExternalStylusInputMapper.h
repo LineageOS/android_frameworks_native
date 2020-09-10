@@ -27,16 +27,16 @@ namespace android {
 
 class ExternalStylusInputMapper : public InputMapper {
 public:
-    explicit ExternalStylusInputMapper(InputDevice* device);
+    explicit ExternalStylusInputMapper(InputDeviceContext& deviceContext);
     virtual ~ExternalStylusInputMapper() = default;
 
-    virtual uint32_t getSources();
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(std::string& dump);
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
-    virtual void reset(nsecs_t when);
-    virtual void process(const RawEvent* rawEvent);
-    virtual void sync(nsecs_t when);
+    virtual uint32_t getSources() override;
+    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    virtual void dump(std::string& dump) override;
+    virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
+                           uint32_t changes) override;
+    virtual void reset(nsecs_t when) override;
+    virtual void process(const RawEvent* rawEvent) override;
 
 private:
     SingleTouchMotionAccumulator mSingleTouchMotionAccumulator;
@@ -44,6 +44,8 @@ private:
     TouchButtonAccumulator mTouchButtonAccumulator;
 
     StylusState mStylusState;
+
+    void sync(nsecs_t when);
 };
 
 } // namespace android

@@ -7,10 +7,23 @@ package android.surfaceflinger;
 // Contains a list of all layers.
 message LayersProto {
   repeated LayerProto layers = 1;
-  SizeProto resolution = 2;
-  string color_mode = 3;
-  string color_transform = 4;
-  int32 global_transform = 5;
+}
+
+// Must match definition in the IComposerClient HAL
+enum HwcCompositionType {
+    // Invalid composition type
+    INVALID = 0;
+    // Layer was composited by the client into the client target buffer
+    CLIENT = 1;
+    // Layer was composited by the device through hardware overlays
+    DEVICE = 2;
+    // Layer was composited by the device using a color
+    SOLID_COLOR = 3;
+    // Similar to DEVICE, but the layer position may have been asynchronously set
+    // through setCursorPosition
+    CURSOR = 4;
+    // Layer was composited by the device via a sideband stream.
+    SIDEBAND = 5;
 }
 
 // Information about each layer.
@@ -77,7 +90,7 @@ message LayerProto {
   int32 window_type = 33 [deprecated=true];
   int32 app_id = 34 [deprecated=true];
   // The layer's composition type
-  int32 hwc_composition_type = 35;
+  HwcCompositionType hwc_composition_type = 35;
   // If it's a buffer layer, indicate if the content is protected
   bool is_protected = 36;
   // Current frame number being rendered.
@@ -98,6 +111,18 @@ message LayerProto {
   FloatRectProto screen_bounds = 46;
 
   InputWindowInfoProto input_window_info = 47;
+
+  // Crop used to draw the rounded corner.
+  FloatRectProto corner_radius_crop = 48;
+
+  // length of the shadow to draw around the layer, it may be set on the
+  // layer or set by a parent layer.
+  float shadow_radius = 49;
+  ColorTransformProto color_transform = 50;
+
+  bool is_relative_of = 51;
+  // Layer's background blur radius in pixels.
+  int32 background_blur_radius = 52;
 }
 
 message PositionProto {
@@ -177,4 +202,9 @@ message InputWindowInfoProto {
     uint32 crop_layer_id = 13;
     bool replace_touchable_region_with_crop = 14;
     RectProto touchable_region_crop = 15;
+}
+
+message ColorTransformProto {
+  // This will be a 4x4 matrix of float values
+  repeated float val = 1;
 }

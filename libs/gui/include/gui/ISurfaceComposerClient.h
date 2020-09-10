@@ -33,7 +33,7 @@ public:
     DECLARE_META_INTERFACE(SurfaceComposerClient)
 
     // flags for createSurface()
-    enum { // (keep in sync with Surface.java)
+    enum { // (keep in sync with SurfaceControl.java)
         eHidden = 0x00000004,
         eDestroyBackbuffer = 0x00000020,
         eSecure = 0x00000080,
@@ -42,9 +42,10 @@ public:
         eProtectedByApp = 0x00000800,
         eProtectedByDRM = 0x00001000,
         eCursorWindow = 0x00002000,
+        eNoColorFill = 0x00004000,
 
         eFXSurfaceBufferQueue = 0x00000000,
-        eFXSurfaceColor = 0x00020000,
+        eFXSurfaceEffect = 0x00020000,
         eFXSurfaceBufferState = 0x00040000,
         eFXSurfaceContainer = 0x00080000,
         eFXSurfaceMask = 0x000F0000,
@@ -56,7 +57,7 @@ public:
     virtual status_t createSurface(const String8& name, uint32_t w, uint32_t h, PixelFormat format,
                                    uint32_t flags, const sp<IBinder>& parent,
                                    LayerMetadata metadata, sp<IBinder>* handle,
-                                   sp<IGraphicBufferProducer>* gbp) = 0;
+                                   sp<IGraphicBufferProducer>* gbp, uint32_t* outTransformHint) = 0;
 
     /*
      * Requires ACCESS_SURFACE_FLINGER permission
@@ -65,7 +66,8 @@ public:
                                              PixelFormat format, uint32_t flags,
                                              const sp<IGraphicBufferProducer>& parent,
                                              LayerMetadata metadata, sp<IBinder>* handle,
-                                             sp<IGraphicBufferProducer>* gbp) = 0;
+                                             sp<IGraphicBufferProducer>* gbp,
+                                             uint32_t* outTransformHint) = 0;
 
     /*
      * Requires ACCESS_SURFACE_FLINGER permission
@@ -76,6 +78,8 @@ public:
      * Requires ACCESS_SURFACE_FLINGER permission
      */
     virtual status_t getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const = 0;
+
+    virtual status_t mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle) = 0;
 };
 
 class BnSurfaceComposerClient : public SafeBnInterface<ISurfaceComposerClient> {

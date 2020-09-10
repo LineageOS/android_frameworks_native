@@ -21,6 +21,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <android-base/thread_annotations.h>
 
@@ -30,24 +31,12 @@
 
 namespace android {
 
-struct CallbackIdsHash {
-    // CallbackId vectors have several properties that let us get away with this simple hash.
-    // 1) CallbackIds are never 0 so if something has gone wrong and our CallbackId vector is
-    // empty we can still hash 0.
-    // 2) CallbackId vectors for the same listener either are identical or contain none of the
-    // same members. It is sufficient to just check the first CallbackId in the vectors. If
-    // they match, they are the same. If they do not match, they are not the same.
-    std::size_t operator()(const std::vector<CallbackId>& callbackIds) const {
-        return std::hash<CallbackId>{}((callbackIds.empty()) ? 0 : callbackIds.front());
-    }
-};
-
 class CallbackHandle : public RefBase {
 public:
-    CallbackHandle(const sp<ITransactionCompletedListener>& transactionListener,
-                   const std::vector<CallbackId>& ids, const sp<IBinder>& sc);
+    CallbackHandle(const sp<IBinder>& transactionListener, const std::vector<CallbackId>& ids,
+                   const sp<IBinder>& sc);
 
-    sp<ITransactionCompletedListener> listener;
+    sp<IBinder> listener;
     std::vector<CallbackId> callbackIds;
     wp<IBinder> surfaceControl;
 
@@ -55,6 +44,12 @@ public:
     sp<Fence> previousReleaseFence;
     nsecs_t acquireTime = -1;
     nsecs_t latchTime = -1;
+    uint32_t transformHint = 0;
+    std::shared_ptr<FenceTime> gpuCompositionDoneFence{FenceTime::NO_FENCE};
+    CompositorTiming compositorTiming;
+    nsecs_t refreshStartTime = 0;
+    nsecs_t dequeueReadyTime = 0;
+    uint64_t frameNumber = 0;
 };
 
 class TransactionCompletedThread {
@@ -64,10 +59,12 @@ public:
     void run();
 
     // Adds listener and callbackIds in case there are no SurfaceControls that are supposed
-    // to be included in the callback. This functions should be call before attempting to add any
-    // callback handles.
-    status_t addCallback(const sp<ITransactionCompletedListener>& transactionListener,
-                         const std::vector<CallbackId>& callbackIds);
+    // to be included in the callback. This functions should be call before attempting to register
+    // any callback handles.
+    status_t startRegistration(const ListenerCallbacks& listenerCallbacks);
+    // Ends the registration. After this is called, no more CallbackHandles will be registered.
+    // It is safe to send a callback if the Transaction doesn't have any Pending callback handles.
+    status_t endRegistration(const ListenerCallbacks& listenerCallbacks);
 
     // Informs the TransactionCompletedThread that there is a Transaction with a CallbackHandle
     // that needs to be latched and presented this frame. This function should be called once the
@@ -76,11 +73,11 @@ public:
     // presented.
     status_t registerPendingCallbackHandle(const sp<CallbackHandle>& handle);
     // Notifies the TransactionCompletedThread that a pending CallbackHandle has been presented.
-    status_t addPresentedCallbackHandles(const std::deque<sp<CallbackHandle>>& handles);
+    status_t finalizePendingCallbackHandles(const std::deque<sp<CallbackHandle>>& handles);
 
     // Adds the Transaction CallbackHandle from a layer that does not need to be relatched and
     // presented this frame.
-    status_t addUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
+    status_t registerUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
 
     void addPresentFence(const sp<Fence>& presentFence);
 
@@ -89,7 +86,10 @@ public:
 private:
     void threadMain();
 
-    status_t findTransactionStats(const sp<ITransactionCompletedListener>& listener,
+    bool isRegisteringTransaction(const sp<IBinder>& transactionListener,
+                                  const std::vector<CallbackId>& callbackIds) REQUIRES(mMutex);
+
+    status_t findTransactionStats(const sp<IBinder>& listener,
                                   const std::vector<CallbackId>& callbackIds,
                                   TransactionStats** outTransactionStats) REQUIRES(mMutex);
 
@@ -106,13 +106,6 @@ private:
     };
     sp<ThreadDeathRecipient> mDeathRecipient;
 
-    struct ITransactionCompletedListenerHash {
-        std::size_t operator()(const sp<ITransactionCompletedListener>& listener) const {
-            return std::hash<IBinder*>{}((listener) ? IInterface::asBinder(listener).get()
-                                                    : nullptr);
-        }
-    };
-
     // Protects the creation and destruction of mThread
     std::mutex mThreadMutex;
 
@@ -121,13 +114,16 @@ private:
     std::mutex mMutex;
     std::condition_variable_any mConditionVariable;
 
+    std::unordered_set<ListenerCallbacks, ListenerCallbacksHash> mRegisteringTransactions
+            GUARDED_BY(mMutex);
+
     std::unordered_map<
-            sp<ITransactionCompletedListener>,
+            sp<IBinder>,
             std::unordered_map<std::vector<CallbackId>, uint32_t /*count*/, CallbackIdsHash>,
-            ITransactionCompletedListenerHash>
+            IListenerHash>
             mPendingTransactions GUARDED_BY(mMutex);
-    std::unordered_map<sp<ITransactionCompletedListener>, std::deque<TransactionStats>,
-                       ITransactionCompletedListenerHash>
+
+    std::unordered_map<sp<IBinder>, std::deque<TransactionStats>, IListenerHash>
             mCompletedTransactions GUARDED_BY(mMutex);
 
     bool mRunning GUARDED_BY(mMutex) = false;

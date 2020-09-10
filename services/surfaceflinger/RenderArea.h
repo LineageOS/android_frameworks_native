@@ -17,18 +17,21 @@ class DisplayDevice;
 // physical render area.
 class RenderArea {
 public:
+    using RotationFlags = ui::Transform::RotationFlags;
+
     enum class CaptureFill {CLEAR, OPAQUE};
 
     static float getCaptureFillValue(CaptureFill captureFill);
 
     RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
-               ui::Dataspace reqDataSpace,
-               ui::Transform::orientation_flags rotation = ui::Transform::ROT_0)
+               ui::Dataspace reqDataSpace, const Rect& displayViewport,
+               RotationFlags rotation = ui::Transform::ROT_0)
           : mReqWidth(reqWidth),
             mReqHeight(reqHeight),
             mReqDataSpace(reqDataSpace),
             mCaptureFill(captureFill),
-            mRotationFlags(rotation) {}
+            mRotationFlags(rotation),
+            mDisplayViewport(displayViewport) {}
 
     virtual ~RenderArea() = default;
 
@@ -58,34 +61,37 @@ public:
     // render area.  It can be larger than the logical render area.  It can
     // also be optionally rotated.
     //
-    // Layers are first clipped to the source crop (in addition to being
-    // clipped to the logical render area already).  The source crop and the
-    // layers are then rotated around the center of the source crop, and
-    // scaled to the physical render area linearly.
+    // The source crop is specified in layer space (when rendering a layer and
+    // its children), or in layer-stack space (when rendering all layers visible
+    // on the display).
     virtual Rect getSourceCrop() const = 0;
 
     // Returns the rotation of the source crop and the layers.
-    ui::Transform::orientation_flags getRotationFlags() const { return mRotationFlags; };
+    RotationFlags getRotationFlags() const { return mRotationFlags; }
 
     // Returns the size of the physical render area.
-    int getReqWidth() const { return mReqWidth; };
-    int getReqHeight() const { return mReqHeight; };
+    int getReqWidth() const { return static_cast<int>(mReqWidth); }
+    int getReqHeight() const { return static_cast<int>(mReqHeight); }
 
     // Returns the composition data space of the render area.
     ui::Dataspace getReqDataSpace() const { return mReqDataSpace; }
 
     // Returns the fill color of the physical render area.  Regions not
     // covered by any rendered layer should be filled with this color.
-    CaptureFill getCaptureFill() const { return mCaptureFill; };
+    CaptureFill getCaptureFill() const { return mCaptureFill; }
 
-    virtual const sp<const DisplayDevice> getDisplayDevice() const = 0;
+    virtual sp<const DisplayDevice> getDisplayDevice() const = 0;
+
+    // Returns the source display viewport.
+    const Rect& getDisplayViewport() const { return mDisplayViewport; }
 
 private:
     const uint32_t mReqWidth;
     const uint32_t mReqHeight;
     const ui::Dataspace mReqDataSpace;
     const CaptureFill mCaptureFill;
-    const ui::Transform::orientation_flags mRotationFlags;
+    const RotationFlags mRotationFlags;
+    const Rect mDisplayViewport;
 };
 
 } // namespace android

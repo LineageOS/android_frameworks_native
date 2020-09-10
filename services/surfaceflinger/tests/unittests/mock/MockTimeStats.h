@@ -28,13 +28,23 @@ public:
     TimeStats();
     ~TimeStats() override;
 
+    MOCK_METHOD0(onBootFinished, void());
     MOCK_METHOD3(parseArgs, void(bool, const Vector<String16>&, std::string&));
     MOCK_METHOD0(isEnabled, bool());
     MOCK_METHOD0(miniDump, std::string());
     MOCK_METHOD0(incrementTotalFrames, void());
     MOCK_METHOD0(incrementMissedFrames, void());
     MOCK_METHOD0(incrementClientCompositionFrames, void());
+    MOCK_METHOD0(incrementClientCompositionReusedFrames, void());
+    MOCK_METHOD0(incrementRefreshRateSwitches, void());
+    MOCK_METHOD0(incrementCompositionStrategyChanges, void());
+    MOCK_METHOD1(recordDisplayEventConnectionCount, void(int32_t));
+    MOCK_METHOD2(recordFrameDuration, void(nsecs_t, nsecs_t));
+    MOCK_METHOD2(recordRenderEngineDuration, void(nsecs_t, nsecs_t));
+    MOCK_METHOD2(recordRenderEngineDuration, void(nsecs_t, const std::shared_ptr<FenceTime>&));
     MOCK_METHOD4(setPostTime, void(int32_t, uint64_t, const std::string&, nsecs_t));
+    MOCK_METHOD2(incrementLatchSkipped, void(int32_t layerId, LatchSkipReason reason));
+    MOCK_METHOD1(incrementBadDesiredPresent, void(int32_t layerId));
     MOCK_METHOD3(setLatchTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setDesiredTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setAcquireTime, void(int32_t, uint64_t, nsecs_t));
@@ -43,7 +53,8 @@ public:
     MOCK_METHOD3(setPresentFence, void(int32_t, uint64_t, const std::shared_ptr<FenceTime>&));
     MOCK_METHOD1(onDestroy, void(int32_t));
     MOCK_METHOD2(removeTimeRecord, void(int32_t, uint64_t));
-    MOCK_METHOD1(setPowerMode, void(int32_t));
+    MOCK_METHOD1(setPowerMode,
+                 void(hardware::graphics::composer::V2_4::IComposerClient::PowerMode));
     MOCK_METHOD2(recordRefreshRate, void(uint32_t, nsecs_t));
     MOCK_METHOD1(setPresentFenceGlobal, void(const std::shared_ptr<FenceTime>&));
 };

@@ -27,6 +27,7 @@
 
 #include <android-base/macros.h>
 #include <android-base/unique_fd.h>
+#include <android/hardware/dumpstate/1.1/types.h>
 #include <android/os/BnIncidentAuthListener.h>
 #include <android/os/IDumpstate.h>
 #include <android/os/IDumpstateListener.h>
@@ -215,6 +216,9 @@ class Dumpstate {
     /* Checkes whether dumpstate is generating a zipped bugreport. */
     bool IsZipping() const;
 
+    /* Initialize dumpstate fields before starting bugreport generation */
+    void Initialize();
+
     /*
      * Forks a command, waits for it to finish, and returns its status.
      *
@@ -328,10 +332,18 @@ class Dumpstate {
 
     struct DumpOptions;
 
-    /* Main entry point for running a complete bugreport. */
+    /*
+     * Main entry point for running a complete bugreport.
+     *
+     * Initialize() dumpstate before calling this method.
+     *
+     */
     RunStatus Run(int32_t calling_uid, const std::string& calling_package);
 
     RunStatus ParseCommandlineAndRun(int argc, char* argv[]);
+
+    /* Deletes in-progress files */
+    void Cancel();
 
     /* Sets runtime options. */
     void SetOptions(std::unique_ptr<DumpOptions> options);
@@ -344,6 +356,11 @@ class Dumpstate {
     bool IsUserConsentDenied() const;
 
     /*
+     * Returns true if dumpstate is called by bugreporting API
+     */
+    bool CalledByApi() const;
+
+    /*
      * Structure to hold options that determine the behavior of dumpstate.
      */
     struct DumpOptions {
@@ -353,34 +370,43 @@ class Dumpstate {
         // Writes bugreport content to a socket; only flatfile format is supported.
         bool use_socket = false;
         bool use_control_socket = false;
-        bool do_fb = false;
-        bool do_broadcast = false;
+        bool do_screenshot = false;
+        bool is_screenshot_copied = false;
         bool is_remote_mode = false;
         bool show_header_only = false;
         bool do_start_service = false;
         bool telephony_only = false;
         bool wifi_only = false;
+        // Trimmed-down version of dumpstate to only include whitelisted logs.
+        bool limited_only = false;
         // Whether progress updates should be published.
         bool do_progress_updates = false;
-        // File descriptor to output zip file.
+        // The mode we'll use when calling IDumpstateDevice::dumpstateBoard.
+        // TODO(b/148168577) get rid of the AIDL values, replace them with the HAL values instead.
+        // The HAL is actually an API surface that can be validated, while the AIDL is not (@hide).
+        ::android::hardware::dumpstate::V1_1::DumpstateMode dumpstate_hal_mode =
+            ::android::hardware::dumpstate::V1_1::DumpstateMode::DEFAULT;
+        // File descriptor to output zip file. Takes precedence over out_dir.
         android::base::unique_fd bugreport_fd;
         // File descriptor to screenshot file.
         android::base::unique_fd screenshot_fd;
-        // TODO: rename to MODE.
-        // Extra options passed as system property.
-        std::string extra_options;
+        // Custom output directory.
+        std::string out_dir;
+        // Bugreport mode of the bugreport.
+        std::string bugreport_mode;
         // Command-line arguments as string
         std::string args;
         // Notification title and description
         std::string notification_title;
         std::string notification_description;
 
-        /* Initializes options from commandline arguments and system properties. */
+        /* Initializes options from commandline arguments. */
         RunStatus Initialize(int argc, char* argv[]);
 
         /* Initializes options from the requested mode. */
         void Initialize(BugreportMode bugreport_mode, const android::base::unique_fd& bugreport_fd,
-                        const android::base::unique_fd& screenshot_fd);
+                        const android::base::unique_fd& screenshot_fd,
+                        bool is_screenshot_requested);
 
         /* Returns true if the options set so far are consistent. */
         bool ValidateOptions() const;
@@ -390,6 +416,12 @@ class Dumpstate {
             // If we are not writing to socket, we will write to a file. If bugreport_fd is
             // specified, it is preferred. If not bugreport is written to /bugreports.
             return !use_socket;
+        }
+
+        /* Returns if options specified require writing to custom file location */
+        bool OutputToCustomFile() {
+            // Custom location is only honored in limited mode.
+            return limited_only && !out_dir.empty() && bugreport_fd.get() == -1;
         }
     };
 
@@ -451,8 +483,6 @@ class Dumpstate {
 
     // Binder object listening to progress.
     android::sp<android::os::IDumpstateListener> listener_;
-    std::string listener_name_;
-    bool report_section_;
 
     // List of open tombstone dump files.
     std::vector<DumpData> tombstone_data_;
@@ -485,16 +515,24 @@ class Dumpstate {
   private:
     RunStatus RunInternal(int32_t calling_uid, const std::string& calling_package);
 
-    void CheckUserConsent(int32_t calling_uid, const android::String16& calling_package);
+    RunStatus DumpstateDefaultAfterCritical();
+
+    void MaybeTakeEarlyScreenshot();
+
+    void onUiIntensiveBugreportDumpsFinished(int32_t calling_uid,
+                                             const std::string& calling_package);
+
+    void MaybeCheckUserConsent(int32_t calling_uid, const std::string& calling_package);
 
     // Removes the in progress files output files (tmp file, zip/txt file, screenshot),
     // but leaves the log file alone.
-    void CleanupFiles();
+    void CleanupTmpFiles();
 
     RunStatus HandleUserConsentDenied();
 
-    // Copies bugreport artifacts over to the caller's directories provided there is user consent.
-    RunStatus CopyBugreportIfUserConsented();
+    // Copies bugreport artifacts over to the caller's directories provided there is user consent or
+    // called by Shell.
+    RunStatus CopyBugreportIfUserConsented(int32_t calling_uid);
 
     // Used by GetInstance() only.
     explicit Dumpstate(const std::string& version = VERSION_CURRENT);

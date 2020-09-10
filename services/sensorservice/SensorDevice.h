@@ -18,8 +18,9 @@
 #define ANDROID_SENSOR_DEVICE_H
 
 #include "SensorDeviceUtils.h"
+#include "SensorService.h"
 #include "SensorServiceUtils.h"
-#include "SensorsWrapper.h"
+#include "ISensorsWrapper.h"
 
 #include <fmq/MessageQueue.h>
 #include <sensor/SensorEventQueue.h>
@@ -112,9 +113,11 @@ public:
 
     using Result = ::android::hardware::sensors::V1_0::Result;
     hardware::Return<void> onDynamicSensorsConnected(
-            const hardware::hidl_vec<hardware::sensors::V1_0::SensorInfo> &dynamicSensorsAdded);
+            const hardware::hidl_vec<hardware::sensors::V2_1::SensorInfo> &dynamicSensorsAdded);
     hardware::Return<void> onDynamicSensorsDisconnected(
             const hardware::hidl_vec<int32_t> &dynamicSensorHandlesRemoved);
+
+    void setUidStateForConnection(void* ident, SensorService::UidState state);
 
     bool isReconnecting() const {
         return mReconnecting;
@@ -123,11 +126,12 @@ public:
     bool isSensorActive(int handle) const;
 
     // Dumpable
-    virtual std::string dump() const;
+    virtual std::string dump() const override;
+    virtual void dump(util::ProtoOutputStream* proto) const override;
 private:
     friend class Singleton<SensorDevice>;
 
-    sp<SensorServiceUtil::ISensorsWrapper> mSensors;
+    sp<::android::hardware::sensors::V2_1::implementation::ISensorsWrapperBase> mSensors;
     Vector<sensor_t> mSensorList;
     std::unordered_map<int32_t, sensor_t*> mConnectedDynamicSensors;
 
@@ -178,6 +182,13 @@ private:
         // the removed ident. If index >=0, ident is present and successfully removed.
         ssize_t removeBatchParamsForIdent(void* ident);
 
+        bool hasBatchParamsForIdent(void* ident) const {
+            return batchParams.indexOfKey(ident) >= 0;
+        }
+
+        /**
+         * @return The number of active clients of this sensor.
+         */
         int numActiveClients() const;
     };
     DefaultKeyedVector<int, Info> mActivationCount;
@@ -186,8 +197,26 @@ private:
     SensorServiceUtil::RingBuffer<HidlTransportErrorLog> mHidlTransportErrors;
     int mTotalHidlTransportErrors;
 
-    // Use this vector to determine which client is activated or deactivated.
-    SortedVector<void *> mDisabledClients;
+    /**
+     * Enums describing the reason why a client was disabled.
+     */
+    enum DisabledReason : uint8_t {
+        // UID becomes idle (e.g. app goes to background).
+        DISABLED_REASON_UID_IDLE = 0,
+
+        // Sensors are restricted for all clients.
+        DISABLED_REASON_SERVICE_RESTRICTED,
+        DISABLED_REASON_MAX,
+    };
+
+    static_assert(DisabledReason::DISABLED_REASON_MAX < sizeof(uint8_t) * CHAR_BIT);
+
+    // Use this map to determine which client is activated or deactivated.
+    std::unordered_map<void *, uint8_t> mDisabledClients;
+
+    void addDisabledReasonForIdentLocked(void* ident, DisabledReason reason);
+    void removeDisabledReasonForIdentLocked(void* ident, DisabledReason reason);
+
     SensorDevice();
     bool connectHidlService();
     void initializeSensorList();
@@ -204,12 +233,17 @@ private:
     };
     HalConnectionStatus connectHidlServiceV1_0();
     HalConnectionStatus connectHidlServiceV2_0();
+    HalConnectionStatus connectHidlServiceV2_1();
+    HalConnectionStatus initializeHidlServiceV2_X();
 
     ssize_t pollHal(sensors_event_t* buffer, size_t count);
     ssize_t pollFmq(sensors_event_t* buffer, size_t count);
     status_t activateLocked(void* ident, int handle, int enabled);
     status_t batchLocked(void* ident, int handle, int flags, int64_t samplingPeriodNs,
                          int64_t maxBatchReportLatencyNs);
+
+    status_t updateBatchParamsLocked(int handle, Info& info);
+    status_t doActivateHardwareLocked(int handle, bool enable);
 
     void handleHidlDeath(const std::string &detail);
     template<typename T>
@@ -222,24 +256,27 @@ private:
     //TODO(b/67425500): remove waiter after bug is resolved.
     sp<SensorDeviceUtils::HidlServiceRegistrationWaiter> mRestartWaiter;
 
-    bool isClientDisabled(void* ident);
-    bool isClientDisabledLocked(void* ident);
+    bool isClientDisabled(void* ident) const;
+    bool isClientDisabledLocked(void* ident) const;
+    std::vector<void *> getDisabledClientsLocked() const;
 
-    using Event = hardware::sensors::V1_0::Event;
-    using SensorInfo = hardware::sensors::V1_0::SensorInfo;
+    bool clientHasNoAccessLocked(void* ident) const;
+
+    using Event = hardware::sensors::V2_1::Event;
+    using SensorInfo = hardware::sensors::V2_1::SensorInfo;
 
     void convertToSensorEvent(const Event &src, sensors_event_t *dst);
 
-    void convertToSensorEvents(
+    void convertToSensorEventsAndQuantize(
             const hardware::hidl_vec<Event> &src,
             const hardware::hidl_vec<SensorInfo> &dynamicSensorsAdded,
             sensors_event_t *dst);
 
+    float getResolutionForSensor(int sensorHandle);
+
     bool mIsDirectReportSupported;
 
-    typedef hardware::MessageQueue<Event, hardware::kSynchronizedReadWrite> EventMessageQueue;
     typedef hardware::MessageQueue<uint32_t, hardware::kSynchronizedReadWrite> WakeLockQueue;
-    std::unique_ptr<EventMessageQueue> mEventQueue;
     std::unique_ptr<WakeLockQueue> mWakeLockQueue;
 
     hardware::EventFlag* mEventQueueFlag;

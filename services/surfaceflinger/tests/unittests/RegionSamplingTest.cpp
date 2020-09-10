@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #undef LOG_TAG
 #define LOG_TAG "RegionSamplingTest"
 
@@ -69,16 +73,16 @@ TEST_F(RegionSamplingTest, calculate_mean_mixed_values) {
         n++;
         return pixel;
     });
+
     EXPECT_THAT(sampleArea(buffer.data(), kWidth, kHeight, kStride, kOrientation, whole_area),
-                testing::FloatNear(0.083f, 0.01f));
+                testing::FloatNear(0.16f, 0.01f));
 }
 
 TEST_F(RegionSamplingTest, bimodal_tiebreaker) {
     std::generate(buffer.begin(), buffer.end(),
                   [n = 0]() mutable { return (n++ % 2) ? kBlack : kWhite; });
-    // presently there's no tiebreaking strategy in place, accept either of the means
     EXPECT_THAT(sampleArea(buffer.data(), kWidth, kHeight, kStride, kOrientation, whole_area),
-                testing::AnyOf(testing::FloatEq(1.0), testing::FloatEq(0.0f)));
+                testing::FloatEq(0.5f));
 }
 
 TEST_F(RegionSamplingTest, bounds_checking) {
@@ -137,3 +141,6 @@ TEST_F(RegionSamplingTest, orientation_90) {
 }
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"
