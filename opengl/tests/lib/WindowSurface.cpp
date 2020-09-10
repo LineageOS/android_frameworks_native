@@ -16,10 +16,13 @@
 
 #include <WindowSurface.h>
 
-#include <gui/SurfaceComposerClient.h>
+#include <utility>
+
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
-#include <ui/DisplayInfo.h>
+#include <gui/SurfaceComposerClient.h>
+#include <ui/DisplayConfig.h>
+#include <ui/DisplayState.h>
 
 using namespace android;
 
@@ -33,29 +36,33 @@ WindowSurface::WindowSurface() {
         return;
     }
 
-    // Get main display parameters.
-    const auto mainDpy = SurfaceComposerClient::getInternalDisplayToken();
-    if (mainDpy == nullptr) {
+    const auto displayToken = SurfaceComposerClient::getInternalDisplayToken();
+    if (displayToken == nullptr) {
         fprintf(stderr, "ERROR: no display\n");
         return;
     }
 
-    DisplayInfo mainDpyInfo;
-    err = SurfaceComposerClient::getDisplayInfo(mainDpy, &mainDpyInfo);
+    DisplayConfig displayConfig;
+    err = SurfaceComposerClient::getActiveDisplayConfig(displayToken, &displayConfig);
     if (err != NO_ERROR) {
-        fprintf(stderr, "ERROR: unable to get display characteristics\n");
+        fprintf(stderr, "ERROR: unable to get active display config\n");
         return;
     }
 
-    uint32_t width, height;
-    if (mainDpyInfo.orientation != DISPLAY_ORIENTATION_0 &&
-            mainDpyInfo.orientation != DISPLAY_ORIENTATION_180) {
-        // rotated
-        width = mainDpyInfo.h;
-        height = mainDpyInfo.w;
-    } else {
-        width = mainDpyInfo.w;
-        height = mainDpyInfo.h;
+    ui::DisplayState displayState;
+    err = SurfaceComposerClient::getDisplayState(displayToken, &displayState);
+    if (err != NO_ERROR) {
+        fprintf(stderr, "ERROR: unable to get display state\n");
+        return;
+    }
+
+    const ui::Size& resolution = displayConfig.resolution;
+    auto width = resolution.getWidth();
+    auto height = resolution.getHeight();
+
+    if (displayState.orientation == ui::ROTATION_90 ||
+        displayState.orientation == ui::ROTATION_270) {
+        std::swap(width, height);
     }
 
     sp<SurfaceControl> sc = surfaceComposerClient->createSurface(

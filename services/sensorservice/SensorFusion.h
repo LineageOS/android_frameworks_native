@@ -90,7 +90,9 @@ public:
     float getPowerUsage(int mode=FUSION_9AXIS) const;
     int32_t getMinDelay() const;
 
-    void dump(String8& result);
+    void dump(String8& result) const;
+    void dump(util::ProtoOutputStream* proto) const;
+    void dumpFusion(FUSION_MODE mode, util::ProtoOutputStream* proto) const;
 };
 
 

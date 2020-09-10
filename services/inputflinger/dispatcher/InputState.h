@@ -24,14 +24,13 @@
 
 namespace android::inputdispatcher {
 
-// Sequence number for synthesized or injected events.
-constexpr uint32_t SYNTHESIZED_EVENT_SEQUENCE_NUM = 0;
+static constexpr int32_t INVALID_POINTER_INDEX = -1;
 
 /* Tracks dispatched key and motion event state so that cancellation events can be
  * synthesized when events are dropped. */
 class InputState {
 public:
-    InputState();
+    explicit InputState(const IdGenerator& idGenerator);
     ~InputState();
 
     // Returns true if there is no state to be canceled.
@@ -44,22 +43,25 @@ public:
     // Records tracking information for a key event that has just been published.
     // Returns true if the event should be delivered, false if it is inconsistent
     // and should be skipped.
-    bool trackKey(const KeyEntry* entry, int32_t action, int32_t flags);
+    bool trackKey(const KeyEntry& entry, int32_t action, int32_t flags);
 
     // Records tracking information for a motion event that has just been published.
     // Returns true if the event should be delivered, false if it is inconsistent
     // and should be skipped.
-    bool trackMotion(const MotionEntry* entry, int32_t action, int32_t flags);
+    bool trackMotion(const MotionEntry& entry, int32_t action, int32_t flags);
 
     // Synthesizes cancelation events for the current state and resets the tracked state.
-    void synthesizeCancelationEvents(nsecs_t currentTime, std::vector<EventEntry*>& outEvents,
-                                     const CancelationOptions& options);
+    std::vector<EventEntry*> synthesizeCancelationEvents(nsecs_t currentTime,
+                                                         const CancelationOptions& options);
+
+    // Synthesizes down events for the current state.
+    std::vector<EventEntry*> synthesizePointerDownEvents(nsecs_t currentTime);
 
     // Clears the current state.
     void clear();
 
-    // Copies pointer-related parts of the input state to another instance.
-    void copyPointerStateTo(InputState& other) const;
+    // Merges pointer-related parts of the input state into another instance.
+    void mergePointerStateTo(InputState& other);
 
     // Gets the fallback key associated with a keycode.
     // Returns -1 if none.
@@ -94,25 +96,32 @@ private:
         int32_t flags;
         float xPrecision;
         float yPrecision;
+        float xCursorPosition;
+        float yCursorPosition;
         nsecs_t downTime;
         uint32_t pointerCount;
         PointerProperties pointerProperties[MAX_POINTERS];
         PointerCoords pointerCoords[MAX_POINTERS];
+        // Track for which pointers the target doesn't know about.
+        int32_t firstNewPointerIdx = INVALID_POINTER_INDEX;
         bool hovering;
         uint32_t policyFlags;
 
-        void setPointers(const MotionEntry* entry);
+        void setPointers(const MotionEntry& entry);
+        void mergePointerStateTo(MotionMemento& other) const;
     };
+
+    const IdGenerator& mIdGenerator; // InputDispatcher owns it so we won't have dangling reference.
 
     std::vector<KeyMemento> mKeyMementos;
     std::vector<MotionMemento> mMotionMementos;
     KeyedVector<int32_t, int32_t> mFallbackKeys;
 
-    ssize_t findKeyMemento(const KeyEntry* entry) const;
-    ssize_t findMotionMemento(const MotionEntry* entry, bool hovering) const;
+    ssize_t findKeyMemento(const KeyEntry& entry) const;
+    ssize_t findMotionMemento(const MotionEntry& entry, bool hovering) const;
 
-    void addKeyMemento(const KeyEntry* entry, int32_t flags);
-    void addMotionMemento(const MotionEntry* entry, int32_t flags, bool hovering);
+    void addKeyMemento(const KeyEntry& entry, int32_t flags);
+    void addMotionMemento(const MotionEntry& entry, int32_t flags, bool hovering);
 
     static bool shouldCancelKey(const KeyMemento& memento, const CancelationOptions& options);
     static bool shouldCancelMotion(const MotionMemento& memento, const CancelationOptions& options);

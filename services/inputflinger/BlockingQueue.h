@@ -45,10 +45,7 @@ public:
     T pop() {
         std::unique_lock lock(mLock);
         android::base::ScopedLockAssertion assumeLock(mLock);
-        mHasElements.wait(lock, [this]{
-                android::base::ScopedLockAssertion assumeLock(mLock);
-                return !this->mQueue.empty();
-        });
+        mHasElements.wait(lock, [this]() REQUIRES(mLock) { return !this->mQueue.empty(); });
         T t = std::move(mQueue.front());
         mQueue.erase(mQueue.begin());
         return t;

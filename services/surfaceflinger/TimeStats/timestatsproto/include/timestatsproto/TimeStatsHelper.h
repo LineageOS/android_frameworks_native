@@ -46,6 +46,8 @@ public:
         std::string packageName;
         int32_t totalFrames = 0;
         int32_t droppedFrames = 0;
+        int32_t lateAcquireFrames = 0;
+        int32_t badDesiredPresentFrames = 0;
         std::unordered_map<std::string, Histogram> deltas;
 
         std::string toString() const;
@@ -59,8 +61,14 @@ public:
         int32_t totalFrames = 0;
         int32_t missedFrames = 0;
         int32_t clientCompositionFrames = 0;
+        int32_t clientCompositionReusedFrames = 0;
+        int32_t refreshRateSwitches = 0;
+        int32_t compositionStrategyChanges = 0;
+        int32_t displayEventConnectionsCount = 0;
         int64_t displayOnTime = 0;
         Histogram presentToPresent;
+        Histogram frameDuration;
+        Histogram renderEngineTiming;
         std::unordered_map<std::string, TimeStatsLayer> stats;
         std::unordered_map<uint32_t, nsecs_t> refreshRateStats;
 

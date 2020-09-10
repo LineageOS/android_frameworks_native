@@ -72,6 +72,16 @@ struct VkJsonExtVariablePointerFeatures {
   VkPhysicalDeviceVariablePointerFeaturesKHR variable_pointer_features_khr;
 };
 
+struct VkJsonExtShaderFloat16Int8Features {
+  VkJsonExtShaderFloat16Int8Features() {
+    reported = false;
+    memset(&shader_float16_int8_features_khr, 0,
+           sizeof(VkPhysicalDeviceShaderFloat16Int8FeaturesKHR));
+  }
+  bool reported;
+  VkPhysicalDeviceShaderFloat16Int8FeaturesKHR shader_float16_int8_features_khr;
+};
+
 struct VkJsonDevice {
   VkJsonDevice() {
     memset(&properties, 0, sizeof(VkPhysicalDeviceProperties));
@@ -101,6 +111,7 @@ struct VkJsonDevice {
   VkPhysicalDeviceFeatures features;
   VkJsonExtDriverProperties ext_driver_properties;
   VkJsonExtVariablePointerFeatures ext_variable_pointer_features;
+  VkJsonExtShaderFloat16Int8Features ext_shader_float16_int8_features;
   VkPhysicalDeviceMemoryProperties memory;
   std::vector<VkQueueFamilyProperties> queues;
   std::vector<VkExtensionProperties> extensions;

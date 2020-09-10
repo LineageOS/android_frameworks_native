@@ -16,11 +16,9 @@
 
 #include <stdlib.h>
 
-#include <hardware/gralloc.h>
-
 #include <EGL/egl.h>
 
-#include <cutils/properties.h>
+#include <android-base/properties.h>
 
 #include <log/log.h>
 
@@ -60,9 +58,7 @@ static int gl_no_context() {
         } else {
             LOG_ALWAYS_FATAL(error);
         }
-        char value[PROPERTY_VALUE_MAX];
-        property_get("debug.egl.callstack", value, "0");
-        if (atoi(value)) {
+        if (base::GetBoolProperty("debug.egl.callstack", false)) {
             CallStack::log(LOG_TAG);
         }
     }
@@ -172,10 +168,6 @@ egl_connection_t* egl_get_connection() {
 
 // ----------------------------------------------------------------------------
 
-// this mutex protects:
-//    d->disp[]
-//    egl_init_drivers_locked()
-//
 static EGLBoolean egl_init_drivers_locked() {
     if (sEarlyInitState) {
         // initialized by static ctor. should be set here.
@@ -202,6 +194,9 @@ static EGLBoolean egl_init_drivers_locked() {
     return cnx->dso ? EGL_TRUE : EGL_FALSE;
 }
 
+
+// this mutex protects driver load logic as a critical section since it accesses to global variable
+// like gEGLImpl
 static pthread_mutex_t sInitDriverMutex = PTHREAD_MUTEX_INITIALIZER;
 
 EGLBoolean egl_init_drivers() {
@@ -227,9 +222,7 @@ void gl_unimplemented() {
     pthread_mutex_unlock(&sLogPrintMutex);
     if (printLog) {
         ALOGE("called unimplemented OpenGL ES API");
-        char value[PROPERTY_VALUE_MAX];
-        property_get("debug.egl.callstack", value, "0");
-        if (atoi(value)) {
+        if (base::GetBoolProperty("debug.egl.callstack", false)) {
             CallStack::log(LOG_TAG);
         }
     }

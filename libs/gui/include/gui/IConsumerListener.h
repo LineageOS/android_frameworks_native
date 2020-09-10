@@ -43,6 +43,17 @@ public:
     // onDisconnect is called when a producer disconnects from the BufferQueue.
     virtual void onDisconnect() {} /* Asynchronous */
 
+    // onFrameDequeued is called when a call to the BufferQueueProducer::dequeueBuffer successfully
+    // returns a slot from the BufferQueue.
+    virtual void onFrameDequeued(const uint64_t) {}
+
+    // onFrameCancelled is called when the client calls cancelBuffer, thereby releasing the slot
+    // back to the BufferQueue.
+    virtual void onFrameCancelled(const uint64_t) {}
+
+    // onFrameDetached is called after a successful detachBuffer() call while in asynchronous mode.
+    virtual void onFrameDetached(const uint64_t) {}
+
     // onFrameAvailable is called from queueBuffer each time an additional frame becomes available
     // for consumption. This means that frames that are queued while in asynchronous mode only
     // trigger the callback if no previous frames are pending. Frames queued while in synchronous
@@ -81,6 +92,7 @@ public:
                                           FrameEventHistoryDelta* /*outDelta*/) {}
 };
 
+#ifndef NO_BINDER
 class IConsumerListener : public ConsumerListener, public IInterface {
 public:
     DECLARE_META_INTERFACE(ConsumerListener)
@@ -93,5 +105,12 @@ public:
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                         uint32_t flags = 0) override;
 };
+
+#else
+class IConsumerListener : public ConsumerListener {
+};
+class BnConsumerListener : public IConsumerListener {
+};
+#endif
 
 } // namespace android

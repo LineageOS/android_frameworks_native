@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #undef LOG_TAG
 #define LOG_TAG "HwcComposer"
 
-#include <inttypes.h>
 #include <log/log.h>
+
+#include <algorithm>
+#include <cinttypes>
 
 #include "ComposerHal.h"
 
@@ -93,6 +99,7 @@ private:
 
 // assume NO_RESOURCES when Status::isOk returns false
 constexpr Error kDefaultError = Error::NO_RESOURCES;
+constexpr V2_4::Error kDefaultError_2_4 = static_cast<V2_4::Error>(kDefaultError);
 
 template<typename T, typename U>
 T unwrapRet(Return<T>& ret, const U& default_val)
@@ -110,6 +117,7 @@ Error unwrapRet(Return<Error>& ret)
 
 namespace impl {
 
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 Composer::CommandWriter::CommandWriter(uint32_t initialMaxSize)
     : CommandWriterBase(initialMaxSize) {}
 
@@ -160,6 +168,7 @@ void Composer::CommandWriter::writeBufferMetadata(
     writeSigned(static_cast<int32_t>(metadata.format));
     write64(metadata.usage);
 }
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
 Composer::Composer(const std::string& serviceName)
     : mWriter(kWriterInitialSize),
@@ -171,7 +180,16 @@ Composer::Composer(const std::string& serviceName)
         LOG_ALWAYS_FATAL("failed to get hwcomposer service");
     }
 
-    if (sp<IComposer> composer_2_3 = IComposer::castFrom(mComposer)) {
+    if (sp<IComposer> composer_2_4 = IComposer::castFrom(mComposer)) {
+        composer_2_4->createClient_2_4([&](const auto& tmpError, const auto& tmpClient) {
+            if (tmpError == V2_4::Error::NONE) {
+                mClient = tmpClient;
+                mClient_2_2 = tmpClient;
+                mClient_2_3 = tmpClient;
+                mClient_2_4 = tmpClient;
+            }
+        });
+    } else if (sp<V2_3::IComposer> composer_2_3 = V2_3::IComposer::castFrom(mComposer)) {
         composer_2_3->createClient_2_3([&](const auto& tmpError, const auto& tmpClient) {
             if (tmpError == Error::NONE) {
                 mClient = tmpClient;
@@ -198,12 +216,14 @@ Composer::Composer(const std::string& serviceName)
         LOG_ALWAYS_FATAL("failed to create composer client");
     }
 
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
     if (mIsUsingVrComposer) {
         sp<IVrComposerClient> vrClient = IVrComposerClient::castFrom(mClient);
         if (vrClient == nullptr) {
             LOG_ALWAYS_FATAL("failed to create vr composer client");
         }
     }
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 }
 
 Composer::~Composer() = default;
@@ -231,7 +251,12 @@ std::string Composer::dumpDebugInfo()
 void Composer::registerCallback(const sp<IComposerCallback>& callback)
 {
     android::hardware::setMinSchedulerPolicy(callback, SCHED_FIFO, 2);
-    auto ret = mClient->registerCallback(callback);
+    auto ret = [&]() {
+        if (mClient_2_4) {
+            return mClient_2_4->registerCallback_2_4(callback);
+        }
+        return mClient->registerCallback(callback);
+    }();
     if (!ret.isOk()) {
         ALOGE("failed to register IComposerCallback");
     }
@@ -397,15 +422,28 @@ Error Composer::getDisplayAttribute(Display display, Config config,
         IComposerClient::Attribute attribute, int32_t* outValue)
 {
     Error error = kDefaultError;
-    mClient->getDisplayAttribute(display, config, attribute,
-            [&](const auto& tmpError, const auto& tmpValue) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
+    if (mClient_2_4) {
+        mClient_2_4->getDisplayAttribute_2_4(display, config, attribute,
+                                             [&](const auto& tmpError, const auto& tmpValue) {
+                                                 error = static_cast<Error>(tmpError);
+                                                 if (error != Error::NONE) {
+                                                     return;
+                                                 }
 
-                *outValue = tmpValue;
-            });
+                                                 *outValue = tmpValue;
+                                             });
+    } else {
+        mClient->getDisplayAttribute(display, config,
+                                     static_cast<V2_1::IComposerClient::Attribute>(attribute),
+                                     [&](const auto& tmpError, const auto& tmpValue) {
+                                         error = tmpError;
+                                         if (error != Error::NONE) {
+                                             return;
+                                         }
+
+                                         *outValue = tmpValue;
+                                     });
+    }
 
     return error;
 }
@@ -450,23 +488,6 @@ Error Composer::getDisplayRequests(Display display,
     mReader.takeDisplayRequests(display, outDisplayRequestMask,
             outLayers, outLayerRequestMasks);
     return Error::NONE;
-}
-
-Error Composer::getDisplayType(Display display,
-        IComposerClient::DisplayType* outType)
-{
-    Error error = kDefaultError;
-    mClient->getDisplayType(display,
-            [&](const auto& tmpError, const auto& tmpType) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
-
-                *outType = tmpType;
-            });
-
-    return error;
 }
 
 Error Composer::getDozeSupport(Display display, bool* outSupport)
@@ -565,17 +586,20 @@ Error Composer::setClientTarget(Display display, uint32_t slot,
         const std::vector<IComposerClient::Rect>& damage)
 {
     mWriter.selectDisplay(display);
+
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
     if (mIsUsingVrComposer && target.get()) {
         IVrComposerClient::BufferMetadata metadata = {
-            .width = target->getWidth(),
-            .height = target->getHeight(),
-            .stride = target->getStride(),
-            .layerCount = target->getLayerCount(),
-            .format = static_cast<types::V1_0::PixelFormat>(target->getPixelFormat()),
-            .usage = target->getUsage(),
+                .width = target->getWidth(),
+                .height = target->getHeight(),
+                .stride = target->getStride(),
+                .layerCount = target->getLayerCount(),
+                .format = static_cast<types::V1_2::PixelFormat>(target->getPixelFormat()),
+                .usage = target->getUsage(),
         };
         mWriter.setClientTargetMetadata(metadata);
     }
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
     const native_handle_t* handle = nullptr;
     if (target.get()) {
@@ -695,17 +719,20 @@ Error Composer::setLayerBuffer(Display display, Layer layer,
 {
     mWriter.selectDisplay(display);
     mWriter.selectLayer(layer);
+
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
     if (mIsUsingVrComposer && buffer.get()) {
         IVrComposerClient::BufferMetadata metadata = {
-            .width = buffer->getWidth(),
-            .height = buffer->getHeight(),
-            .stride = buffer->getStride(),
-            .layerCount = buffer->getLayerCount(),
-            .format = static_cast<types::V1_0::PixelFormat>(buffer->getPixelFormat()),
-            .usage = buffer->getUsage(),
+                .width = buffer->getWidth(),
+                .height = buffer->getHeight(),
+                .stride = buffer->getStride(),
+                .layerCount = buffer->getLayerCount(),
+                .format = static_cast<types::V1_2::PixelFormat>(buffer->getPixelFormat()),
+                .usage = buffer->getUsage(),
         };
         mWriter.setLayerBufferMetadata(metadata);
     }
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
     const native_handle_t* handle = nullptr;
     if (buffer.get()) {
@@ -823,6 +850,7 @@ Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z)
     return Error::NONE;
 }
 
+#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 Error Composer::setLayerInfo(Display display, Layer layer, uint32_t type,
                              uint32_t appId)
 {
@@ -833,6 +861,15 @@ Error Composer::setLayerInfo(Display display, Layer layer, uint32_t type,
     }
     return Error::NONE;
 }
+#else
+Error Composer::setLayerInfo(Display display, Layer layer, uint32_t, uint32_t) {
+    if (mIsUsingVrComposer) {
+        mWriter.selectDisplay(display);
+        mWriter.selectLayer(layer);
+    }
+    return Error::NONE;
+}
+#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
 Error Composer::execute()
 {
@@ -1093,23 +1130,6 @@ Error Composer::getDisplayedContentSamplingAttributes(Display display, PixelForm
     return error;
 }
 
-Error Composer::getDisplayCapabilities(Display display,
-                                       std::vector<DisplayCapability>* outCapabilities) {
-    if (!mClient_2_3) {
-        return Error::UNSUPPORTED;
-    }
-    Error error = kDefaultError;
-    mClient_2_3->getDisplayCapabilities(display,
-                                        [&](const auto& tmpError, const auto& tmpCapabilities) {
-                                            error = tmpError;
-                                            if (error != Error::NONE) {
-                                                return;
-                                            }
-                                            *outCapabilities = tmpCapabilities;
-                                        });
-    return error;
-}
-
 Error Composer::setDisplayContentSamplingEnabled(Display display, bool enabled,
                                                  uint8_t componentMask, uint64_t maxFrames) {
     if (!mClient_2_3) {
@@ -1167,6 +1187,179 @@ Error Composer::setDisplayBrightness(Display display, float brightness) {
     return mClient_2_3->setDisplayBrightness(display, brightness);
 }
 
+// Composer HAL 2.4
+
+Error Composer::getDisplayCapabilities(Display display,
+                                       std::vector<DisplayCapability>* outCapabilities) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+
+    V2_4::Error error = kDefaultError_2_4;
+    if (mClient_2_4) {
+        mClient_2_4->getDisplayCapabilities_2_4(display,
+                                                [&](const auto& tmpError, const auto& tmpCaps) {
+                                                    error = tmpError;
+                                                    if (error != V2_4::Error::NONE) {
+                                                        return;
+                                                    }
+                                                    *outCapabilities = tmpCaps;
+                                                });
+    } else {
+        mClient_2_3
+                ->getDisplayCapabilities(display, [&](const auto& tmpError, const auto& tmpCaps) {
+                    error = static_cast<V2_4::Error>(tmpError);
+                    if (error != V2_4::Error::NONE) {
+                        return;
+                    }
+
+                    outCapabilities->resize(tmpCaps.size());
+                    std::transform(tmpCaps.begin(), tmpCaps.end(), outCapabilities->begin(),
+                                   [](auto cap) { return static_cast<DisplayCapability>(cap); });
+                });
+    }
+
+    return static_cast<Error>(error);
+}
+
+V2_4::Error Composer::getDisplayConnectionType(Display display,
+                                               IComposerClient::DisplayConnectionType* outType) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError_2_4;
+    mClient_2_4->getDisplayConnectionType(display, [&](const auto& tmpError, const auto& tmpType) {
+        error = tmpError;
+        if (error != V2_4::Error::NONE) {
+            return;
+        }
+
+        *outType = tmpType;
+    });
+
+    return error;
+}
+
+V2_4::Error Composer::getDisplayVsyncPeriod(Display display, VsyncPeriodNanos* outVsyncPeriod) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError_2_4;
+    mClient_2_4->getDisplayVsyncPeriod(display,
+                                       [&](const auto& tmpError, const auto& tmpVsyncPeriod) {
+                                           error = tmpError;
+                                           if (error != Error::NONE) {
+                                               return;
+                                           }
+
+                                           *outVsyncPeriod = tmpVsyncPeriod;
+                                       });
+
+    return error;
+}
+
+V2_4::Error Composer::setActiveConfigWithConstraints(
+        Display display, Config config,
+        const IComposerClient::VsyncPeriodChangeConstraints& vsyncPeriodChangeConstraints,
+        VsyncPeriodChangeTimeline* outTimeline) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError_2_4;
+    mClient_2_4->setActiveConfigWithConstraints(display, config, vsyncPeriodChangeConstraints,
+                                                [&](const auto& tmpError, const auto& tmpTimeline) {
+                                                    error = tmpError;
+                                                    if (error != Error::NONE) {
+                                                        return;
+                                                    }
+
+                                                    *outTimeline = tmpTimeline;
+                                                });
+
+    return error;
+}
+
+V2_4::Error Composer::setAutoLowLatencyMode(Display display, bool on) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    return mClient_2_4->setAutoLowLatencyMode(display, on);
+}
+
+V2_4::Error Composer::getSupportedContentTypes(
+        Display displayId, std::vector<IComposerClient::ContentType>* outSupportedContentTypes) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError_2_4;
+    mClient_2_4->getSupportedContentTypes(displayId,
+                                          [&](const auto& tmpError,
+                                              const auto& tmpSupportedContentTypes) {
+                                              error = tmpError;
+                                              if (error != Error::NONE) {
+                                                  return;
+                                              }
+
+                                              *outSupportedContentTypes = tmpSupportedContentTypes;
+                                          });
+    return error;
+}
+
+V2_4::Error Composer::setContentType(Display display, IComposerClient::ContentType contentType) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+
+    return mClient_2_4->setContentType(display, contentType);
+}
+
+V2_4::Error Composer::setLayerGenericMetadata(Display display, Layer layer, const std::string& key,
+                                              bool mandatory, const std::vector<uint8_t>& value) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerGenericMetadata(key, mandatory, value);
+    return Error::NONE;
+}
+
+V2_4::Error Composer::getLayerGenericMetadataKeys(
+        std::vector<IComposerClient::LayerGenericMetadataKey>* outKeys) {
+    using Error = V2_4::Error;
+    if (!mClient_2_4) {
+        return Error::UNSUPPORTED;
+    }
+    Error error = kDefaultError_2_4;
+    mClient_2_4->getLayerGenericMetadataKeys([&](const auto& tmpError, const auto& tmpKeys) {
+        error = tmpError;
+        if (error != Error::NONE) {
+            return;
+        }
+
+        *outKeys = tmpKeys;
+    });
+    return error;
+}
+
+Error Composer::getClientTargetProperty(
+        Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty) {
+    mReader.takeClientTargetProperty(display, outClientTargetProperty);
+    return Error::NONE;
+}
+
 CommandReader::~CommandReader()
 {
     resetData();
@@ -1180,8 +1373,7 @@ Error CommandReader::parse()
     uint16_t length = 0;
 
     while (!isEmpty()) {
-        auto command_2_1 = reinterpret_cast<V2_1::IComposerClient::Command*>(&command);
-        if (!beginCommand(command_2_1, &length)) {
+        if (!beginCommand(&command, &length)) {
             break;
         }
 
@@ -1207,6 +1399,9 @@ Error CommandReader::parse()
             break;
         case IComposerClient::Command ::SET_PRESENT_OR_VALIDATE_DISPLAY_RESULT:
             parsed = parseSetPresentOrValidateDisplayResult(length);
+            break;
+        case IComposerClient::Command::SET_CLIENT_TARGET_PROPERTY:
+            parsed = parseSetClientTargetProperty(length);
             break;
         default:
             parsed = false;
@@ -1345,6 +1540,15 @@ bool CommandReader::parseSetPresentOrValidateDisplayResult(uint16_t length)
     return true;
 }
 
+bool CommandReader::parseSetClientTargetProperty(uint16_t length) {
+    if (length != CommandWriterBase::kSetClientTargetPropertyLength || !mCurrentReturnData) {
+        return false;
+    }
+    mCurrentReturnData->clientTargetProperty.pixelFormat = static_cast<PixelFormat>(readSigned());
+    mCurrentReturnData->clientTargetProperty.dataspace = static_cast<Dataspace>(readSigned());
+    return true;
+}
+
 void CommandReader::resetData()
 {
     mErrors.clear();
@@ -1464,8 +1668,24 @@ void CommandReader::takePresentOrValidateStage(Display display, uint32_t* state)
     *state = data.presentOrValidateState;
 }
 
+void CommandReader::takeClientTargetProperty(
+        Display display, IComposerClient::ClientTargetProperty* outClientTargetProperty) {
+    auto found = mReturnData.find(display);
+
+    // If not found, return the default values.
+    if (found == mReturnData.end()) {
+        outClientTargetProperty->pixelFormat = PixelFormat::RGBA_8888;
+        outClientTargetProperty->dataspace = Dataspace::UNKNOWN;
+        return;
+    }
+
+    ReturnData& data = found->second;
+    *outClientTargetProperty = data.clientTargetProperty;
+}
+
 } // namespace impl
-
 } // namespace Hwc2
-
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

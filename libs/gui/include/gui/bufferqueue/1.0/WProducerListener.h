@@ -20,7 +20,6 @@
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
 
-#include <binder/IBinder.h>
 #include <gui/IProducerListener.h>
 
 #include <android/hardware/graphics/bufferqueue/1.0/IProducerListener.h>
@@ -55,6 +54,7 @@ public:
     LWProducerListener(sp<HProducerListener> const& base);
     void onBufferReleased() override;
     bool needsReleaseNotify() override;
+    void onBuffersDiscarded(const std::vector<int32_t>& slots) override;
 };
 
 }  // namespace android

@@ -39,8 +39,14 @@ struct ComposerState;
 struct DisplayDeviceState;
 struct DisplayState;
 struct layer_state_t;
+using Transaction = surfaceflinger::Transaction;
+using Trace = surfaceflinger::Trace;
+using Rectangle = surfaceflinger::Rectangle;
+using SurfaceChange = surfaceflinger::SurfaceChange;
+using Increment = surfaceflinger::Increment;
+using DisplayChange = surfaceflinger::DisplayChange;
 
-constexpr auto DEFAULT_FILENAME = "/data/SurfaceTrace.dat";
+constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.pb";
 
 class SurfaceInterceptor {
 public:
@@ -61,7 +67,7 @@ public:
     // Intercept surface data
     virtual void saveSurfaceCreation(const sp<const Layer>& layer) = 0;
     virtual void saveSurfaceDeletion(const sp<const Layer>& layer) = 0;
-    virtual void saveBufferUpdate(const sp<const Layer>& layer, uint32_t width, uint32_t height,
+    virtual void saveBufferUpdate(int32_t layerId, uint32_t width, uint32_t height,
                                   uint64_t frameNumber) = 0;
 
     // Intercept display data
@@ -96,7 +102,7 @@ public:
     // Intercept surface data
     void saveSurfaceCreation(const sp<const Layer>& layer) override;
     void saveSurfaceDeletion(const sp<const Layer>& layer) override;
-    void saveBufferUpdate(const sp<const Layer>& layer, uint32_t width, uint32_t height,
+    void saveBufferUpdate(int32_t layerId, uint32_t width, uint32_t height,
                           uint64_t frameNumber) override;
 
     // Intercept display data
@@ -116,14 +122,15 @@ private:
     void addInitialDisplayStateLocked(Increment* increment, const DisplayDeviceState& display);
 
     status_t writeProtoFileLocked();
-    const sp<const Layer> getLayer(const wp<const IBinder>& weakHandle);
-    const std::string getLayerName(const sp<const Layer>& layer);
-    int32_t getLayerId(const sp<const Layer>& layer);
+    const sp<const Layer> getLayer(const wp<const IBinder>& weakHandle) const;
+    int32_t getLayerId(const sp<const Layer>& layer) const;
+    int32_t getLayerIdFromWeakRef(const wp<const Layer>& layer) const;
+    int32_t getLayerIdFromHandle(const sp<const IBinder>& weakHandle) const;
 
     Increment* createTraceIncrementLocked();
     void addSurfaceCreationLocked(Increment* increment, const sp<const Layer>& layer);
     void addSurfaceDeletionLocked(Increment* increment, const sp<const Layer>& layer);
-    void addBufferUpdateLocked(Increment* increment, const sp<const Layer>& layer, uint32_t width,
+    void addBufferUpdateLocked(Increment* increment, int32_t layerId, uint32_t width,
             uint32_t height, uint64_t frameNumber);
     void addVSyncUpdateLocked(Increment* increment, nsecs_t timestamp);
     void addDisplayCreationLocked(Increment* increment, const DisplayDeviceState& info);
@@ -141,10 +148,12 @@ private:
             const layer_state_t::matrix22_t& matrix);
     void addTransparentRegionLocked(Transaction* transaction, int32_t layerId,
             const Region& transRegion);
-    void addFlagsLocked(Transaction* transaction, int32_t layerId, uint8_t flags);
+    void addFlagsLocked(Transaction* transaction, int32_t layerId, uint8_t flags, uint8_t mask);
     void addLayerStackLocked(Transaction* transaction, int32_t layerId, uint32_t layerStack);
     void addCropLocked(Transaction* transaction, int32_t layerId, const Rect& rect);
     void addCornerRadiusLocked(Transaction* transaction, int32_t layerId, float cornerRadius);
+    void addBackgroundBlurRadiusLocked(Transaction* transaction, int32_t layerId,
+                                       int32_t backgroundBlurRadius);
     void addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
             const sp<const Layer>& layer, uint64_t frameNumber);
     void addOverrideScalingModeLocked(Transaction* transaction, int32_t layerId,
@@ -153,6 +162,12 @@ private:
     void addTransactionLocked(Increment* increment, const Vector<ComposerState>& stateUpdates,
             const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays,
             const Vector<DisplayState>& changedDisplays, uint32_t transactionFlags);
+    void addReparentLocked(Transaction* transaction, int32_t layerId, int32_t parentId);
+    void addReparentChildrenLocked(Transaction* transaction, int32_t layerId, int32_t parentId);
+    void addDetachChildrenLocked(Transaction* transaction, int32_t layerId, bool detached);
+    void addRelativeParentLocked(Transaction* transaction, int32_t layerId, int32_t parentId,
+                                 int z);
+    void addShadowRadiusLocked(Transaction* transaction, int32_t layerId, float shadowRadius);
 
     // Add display transactions to the trace
     DisplayChange* createDisplayChangeLocked(Transaction* transaction, int32_t sequenceId);
@@ -176,6 +191,7 @@ private:
 };
 
 } // namespace impl
+
 } // namespace android
 
 #endif // ANDROID_SURFACEINTERCEPTOR_H

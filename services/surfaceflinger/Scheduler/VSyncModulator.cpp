@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "VSyncModulator.h"
@@ -21,39 +25,61 @@
 #include <cutils/properties.h>
 #include <utils/Trace.h>
 
+#include <chrono>
 #include <cinttypes>
 #include <mutex>
 
-namespace android {
+namespace android::scheduler {
 
-using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
-VSyncModulator::VSyncModulator() {
+VSyncModulator::VSyncModulator(IPhaseOffsetControl& phaseOffsetControl,
+                               Scheduler::ConnectionHandle appConnectionHandle,
+                               Scheduler::ConnectionHandle sfConnectionHandle,
+                               const OffsetsConfig& config)
+      : mPhaseOffsetControl(phaseOffsetControl),
+        mAppConnectionHandle(appConnectionHandle),
+        mSfConnectionHandle(sfConnectionHandle),
+        mOffsetsConfig(config) {
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.vsync_trace_detailed_info", value, "0");
     mTraceDetailedInfo = atoi(value);
-    // Populate the offset map with some default offsets.
-    const Offsets defaultOffsets = {RefreshRateType::DEFAULT, 0, 0};
-    setPhaseOffsets(defaultOffsets, defaultOffsets, defaultOffsets, 0);
 }
 
-void VSyncModulator::setPhaseOffsets(Offsets early, Offsets earlyGl, Offsets late,
-                                     nsecs_t thresholdForNextVsync) {
+void VSyncModulator::setPhaseOffsets(const OffsetsConfig& config) {
     std::lock_guard<std::mutex> lock(mMutex);
-    mOffsetMap.insert_or_assign(OffsetType::Early, early);
-    mOffsetMap.insert_or_assign(OffsetType::EarlyGl, earlyGl);
-    mOffsetMap.insert_or_assign(OffsetType::Late, late);
-    mThresholdForNextVsync = thresholdForNextVsync;
+    mOffsetsConfig = config;
     updateOffsetsLocked();
 }
 
 void VSyncModulator::setTransactionStart(Scheduler::TransactionStart transactionStart) {
-    if (transactionStart == Scheduler::TransactionStart::EARLY) {
+    switch (transactionStart) {
+        case Scheduler::TransactionStart::EarlyStart:
+            ALOGW_IF(mExplicitEarlyWakeup, "Already in TransactionStart::EarlyStart");
+            mExplicitEarlyWakeup = true;
+            break;
+        case Scheduler::TransactionStart::EarlyEnd:
+            ALOGW_IF(!mExplicitEarlyWakeup, "Not in TransactionStart::EarlyStart");
+            mExplicitEarlyWakeup = false;
+            break;
+        case Scheduler::TransactionStart::Normal:
+        case Scheduler::TransactionStart::Early:
+            // Non explicit don't change the explicit early wakeup state
+            break;
+    }
+
+    if (mTraceDetailedInfo) {
+        ATRACE_INT("mExplicitEarlyWakeup", mExplicitEarlyWakeup);
+    }
+
+    if (!mExplicitEarlyWakeup &&
+        (transactionStart == Scheduler::TransactionStart::Early ||
+         transactionStart == Scheduler::TransactionStart::EarlyEnd)) {
         mRemainingEarlyFrameCount = MIN_EARLY_FRAME_COUNT_TRANSACTION;
+        mEarlyTxnStartTime = std::chrono::steady_clock::now();
     }
 
     // An early transaction stays an early transaction.
     if (transactionStart == mTransactionStart ||
-        mTransactionStart == Scheduler::TransactionStart::EARLY) {
+        mTransactionStart == Scheduler::TransactionStart::EarlyEnd) {
         return;
     }
     mTransactionStart = transactionStart;
@@ -61,8 +87,9 @@ void VSyncModulator::setTransactionStart(Scheduler::TransactionStart transaction
 }
 
 void VSyncModulator::onTransactionHandled() {
-    if (mTransactionStart == Scheduler::TransactionStart::NORMAL) return;
-    mTransactionStart = Scheduler::TransactionStart::NORMAL;
+    mTxnAppliedTime = std::chrono::steady_clock::now();
+    if (mTransactionStart == Scheduler::TransactionStart::Normal) return;
+    mTransactionStart = Scheduler::TransactionStart::Normal;
     updateOffsets();
 }
 
@@ -84,9 +111,15 @@ void VSyncModulator::onRefreshRateChangeCompleted() {
 
 void VSyncModulator::onRefreshed(bool usedRenderEngine) {
     bool updateOffsetsNeeded = false;
-    if (mRemainingEarlyFrameCount > 0) {
-        mRemainingEarlyFrameCount--;
-        updateOffsetsNeeded = true;
+
+    // Apply a margin to account for potential data races
+    // This might make us stay in early offsets for one
+    // additional frame but it's better to be conservative here.
+    if ((mEarlyTxnStartTime.load() + MARGIN_FOR_TX_APPLY) < mTxnAppliedTime.load()) {
+        if (mRemainingEarlyFrameCount > 0) {
+            mRemainingEarlyFrameCount--;
+            updateOffsetsNeeded = true;
+        }
     }
     if (usedRenderEngine) {
         mRemainingRenderEngineUsageCount = MIN_EARLY_GL_FRAME_COUNT_TRANSACTION;
@@ -100,25 +133,21 @@ void VSyncModulator::onRefreshed(bool usedRenderEngine) {
     }
 }
 
-VSyncModulator::Offsets VSyncModulator::getOffsets() {
+VSyncModulator::Offsets VSyncModulator::getOffsets() const {
     std::lock_guard<std::mutex> lock(mMutex);
     return mOffsets;
 }
 
-VSyncModulator::Offsets VSyncModulator::getNextOffsets() {
-    return mOffsetMap.at(getNextOffsetType());
-}
-
-VSyncModulator::OffsetType VSyncModulator::getNextOffsetType() {
+const VSyncModulator::Offsets& VSyncModulator::getNextOffsets() const {
     // Early offsets are used if we're in the middle of a refresh rate
     // change, or if we recently begin a transaction.
-    if (mTransactionStart == Scheduler::TransactionStart::EARLY || mRemainingEarlyFrameCount > 0 ||
-        mRefreshRateChangePending) {
-        return OffsetType::Early;
+    if (mExplicitEarlyWakeup || mTransactionStart == Scheduler::TransactionStart::EarlyEnd ||
+        mRemainingEarlyFrameCount > 0 || mRefreshRateChangePending) {
+        return mOffsetsConfig.early;
     } else if (mRemainingRenderEngineUsageCount > 0) {
-        return OffsetType::EarlyGl;
+        return mOffsetsConfig.earlyGl;
     } else {
-        return OffsetType::Late;
+        return mOffsetsConfig.late;
     }
 }
 
@@ -128,37 +157,27 @@ void VSyncModulator::updateOffsets() {
 }
 
 void VSyncModulator::updateOffsetsLocked() {
-    const Offsets desired = getNextOffsets();
+    const Offsets& offsets = getNextOffsets();
 
-    if (mSfConnectionHandle != nullptr) {
-        mScheduler->setPhaseOffset(mSfConnectionHandle, desired.sf);
-    }
+    mPhaseOffsetControl.setPhaseOffset(mSfConnectionHandle, offsets.sf);
+    mPhaseOffsetControl.setPhaseOffset(mAppConnectionHandle, offsets.app);
 
-    if (mAppConnectionHandle != nullptr) {
-        mScheduler->setPhaseOffset(mAppConnectionHandle, desired.app);
-    }
+    mOffsets = offsets;
 
-    flushOffsets();
-}
-
-void VSyncModulator::flushOffsets() {
-    OffsetType type = getNextOffsetType();
-    mOffsets = mOffsetMap.at(type);
     if (!mTraceDetailedInfo) {
         return;
     }
-    ATRACE_INT("Vsync-EarlyOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::DEFAULT && type == OffsetType::Early);
-    ATRACE_INT("Vsync-EarlyGLOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::DEFAULT && type == OffsetType::EarlyGl);
-    ATRACE_INT("Vsync-LateOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::DEFAULT && type == OffsetType::Late);
-    ATRACE_INT("Vsync-HighFpsEarlyOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::PERFORMANCE && type == OffsetType::Early);
-    ATRACE_INT("Vsync-HighFpsEarlyGLOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::PERFORMANCE && type == OffsetType::EarlyGl);
-    ATRACE_INT("Vsync-HighFpsLateOffsetsOn",
-               mOffsets.fpsMode == RefreshRateType::PERFORMANCE && type == OffsetType::Late);
+
+    const bool isEarly = &offsets == &mOffsetsConfig.early;
+    const bool isEarlyGl = &offsets == &mOffsetsConfig.earlyGl;
+    const bool isLate = &offsets == &mOffsetsConfig.late;
+
+    ATRACE_INT("Vsync-EarlyOffsetsOn", isEarly);
+    ATRACE_INT("Vsync-EarlyGLOffsetsOn", isEarlyGl);
+    ATRACE_INT("Vsync-LateOffsetsOn", isLate);
 }
 
-} // namespace android
+} // namespace android::scheduler
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

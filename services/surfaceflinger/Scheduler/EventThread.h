@@ -16,7 +16,12 @@
 
 #pragma once
 
+#include <android-base/thread_annotations.h>
+#include <gui/DisplayEventReceiver.h>
+#include <gui/IDisplayEventConnection.h>
+#include <private/gui/BitTube.h>
 #include <sys/types.h>
+#include <utils/Errors.h>
 
 #include <condition_variable>
 #include <cstdint>
@@ -26,13 +31,7 @@
 #include <thread>
 #include <vector>
 
-#include <android-base/thread_annotations.h>
-
-#include <gui/DisplayEventReceiver.h>
-#include <gui/IDisplayEventConnection.h>
-#include <private/gui/BitTube.h>
-
-#include <utils/Errors.h>
+#include "HwcStrongTypes.h"
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -58,13 +57,17 @@ public:
     class Callback {
     public:
         virtual ~Callback() {}
-        virtual void onVSyncEvent(nsecs_t when) = 0;
+        virtual void onVSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) = 0;
     };
 
     virtual ~VSyncSource() {}
+
+    virtual const char* getName() const = 0;
     virtual void setVSyncEnabled(bool enable) = 0;
     virtual void setCallback(Callback* callback) = 0;
     virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
+
+    virtual void dump(std::string& result) const = 0;
 };
 
 class EventThreadConnection : public BnDisplayEventConnection {
@@ -78,12 +81,19 @@ public:
     status_t stealReceiveChannel(gui::BitTube* outChannel) override;
     status_t setVsyncRate(uint32_t rate) override;
     void requestNextVsync() override; // asynchronous
+    void requestLatestConfig() override; // asynchronous
 
     // Called in response to requestNextVsync.
     const ResyncCallback resyncCallback;
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
-    const ISurfaceComposer::ConfigChanged configChanged;
+    ISurfaceComposer::ConfigChanged mConfigChanged =
+            ISurfaceComposer::ConfigChanged::eConfigChangedSuppress;
+    // Store whether we need to force dispatching a config change separately -
+    // if mConfigChanged ever changes before the config change is dispatched
+    // then we still need to propagate an initial config to the app if we
+    // haven't already.
+    bool mForcedConfigChangeDispatch = false;
 
 private:
     virtual void onFirstRef();
@@ -107,7 +117,8 @@ public:
     virtual void onHotplugReceived(PhysicalDisplayId displayId, bool connected) = 0;
 
     // called when SF changes the active config and apps needs to be notified about the change
-    virtual void onConfigChanged(PhysicalDisplayId displayId, int32_t configId) = 0;
+    virtual void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId,
+                                 nsecs_t vsyncPeriod) = 0;
 
     virtual void dump(std::string& result) const = 0;
 
@@ -118,6 +129,13 @@ public:
     virtual void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) = 0;
     // Requests the next vsync. If resetIdleTimer is set to true, it resets the idle timer.
     virtual void requestNextVsync(const sp<EventThreadConnection>& connection) = 0;
+    // Dispatches the most recent configuration
+    // Usage of this method assumes that only the primary internal display
+    // supports multiple display configurations.
+    virtual void requestLatestConfig(const sp<EventThreadConnection>& connection) = 0;
+
+    // Retrieves the number of event connections tracked by this EventThread.
+    virtual size_t getEventThreadConnectionCount() = 0;
 };
 
 namespace impl {
@@ -126,9 +144,7 @@ class EventThread : public android::EventThread, private VSyncSource::Callback {
 public:
     using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
 
-    // TODO(b/128863962): Once the Scheduler is complete this constructor will become obsolete.
-    EventThread(VSyncSource*, InterceptVSyncsCallback, const char* threadName);
-    EventThread(std::unique_ptr<VSyncSource>, InterceptVSyncsCallback, const char* threadName);
+    EventThread(std::unique_ptr<VSyncSource>, InterceptVSyncsCallback);
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
@@ -137,6 +153,7 @@ public:
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
     void requestNextVsync(const sp<EventThreadConnection>& connection) override;
+    void requestLatestConfig(const sp<EventThreadConnection>& connection) override;
 
     // called before the screen is turned off from main thread
     void onScreenReleased() override;
@@ -146,20 +163,19 @@ public:
 
     void onHotplugReceived(PhysicalDisplayId displayId, bool connected) override;
 
-    void onConfigChanged(PhysicalDisplayId displayId, int32_t configId) override;
+    void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId,
+                         nsecs_t vsyncPeriod) override;
 
     void dump(std::string& result) const override;
 
     void setPhaseOffset(nsecs_t phaseOffset) override;
 
+    size_t getEventThreadConnectionCount() override;
+
 private:
     friend EventThreadTest;
 
     using DisplayEventConsumers = std::vector<sp<EventThreadConnection>>;
-
-    // TODO(b/128863962): Once the Scheduler is complete this constructor will become obsolete.
-    EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSrc,
-                InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
 
     void threadMain(std::unique_lock<std::mutex>& lock) REQUIRES(mMutex);
 
@@ -172,11 +188,9 @@ private:
             REQUIRES(mMutex);
 
     // Implements VSyncSource::Callback
-    void onVSyncEvent(nsecs_t timestamp) override;
+    void onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp) override;
 
-    // TODO(b/128863962): Once the Scheduler is complete this pointer will become obsolete.
-    VSyncSource* mVSyncSource GUARDED_BY(mMutex) = nullptr;
-    std::unique_ptr<VSyncSource> mVSyncSourceUnique GUARDED_BY(mMutex) = nullptr;
+    const std::unique_ptr<VSyncSource> mVSyncSource GUARDED_BY(mMutex);
 
     const InterceptVSyncsCallback mInterceptVSyncsCallback;
     const char* const mThreadName;
@@ -187,6 +201,7 @@ private:
 
     std::vector<wp<EventThreadConnection>> mDisplayEventConnections GUARDED_BY(mMutex);
     std::deque<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
+    DisplayEventReceiver::Event mLastConfigChangeEvent GUARDED_BY(mMutex);
 
     // VSYNC state of connected display.
     struct VSyncState {

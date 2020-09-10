@@ -33,21 +33,45 @@ using android::base::StringPrintf;
 
 namespace android {
 
-// --- InputReaderThread ---
-
-InputReaderThread::InputReaderThread(const sp<InputReaderInterface>& reader) :
-        Thread(/*canCallJava*/ true), mReader(reader) {
-}
-
-InputReaderThread::~InputReaderThread() {
-}
-
-bool InputReaderThread::threadLoop() {
-    mReader->loopOnce();
-    return true;
-}
-
 // --- InputReaderConfiguration ---
+
+std::string InputReaderConfiguration::changesToString(uint32_t changes) {
+    if (changes == 0) {
+        return "<none>";
+    }
+    std::string result;
+    if (changes & CHANGE_POINTER_SPEED) {
+        result += "POINTER_SPEED | ";
+    }
+    if (changes & CHANGE_POINTER_GESTURE_ENABLEMENT) {
+        result += "POINTER_GESTURE_ENABLEMENT | ";
+    }
+    if (changes & CHANGE_DISPLAY_INFO) {
+        result += "DISPLAY_INFO | ";
+    }
+    if (changes & CHANGE_SHOW_TOUCHES) {
+        result += "SHOW_TOUCHES | ";
+    }
+    if (changes & CHANGE_KEYBOARD_LAYOUTS) {
+        result += "KEYBOARD_LAYOUTS | ";
+    }
+    if (changes & CHANGE_DEVICE_ALIAS) {
+        result += "DEVICE_ALIAS | ";
+    }
+    if (changes & CHANGE_TOUCH_AFFINE_TRANSFORMATION) {
+        result += "TOUCH_AFFINE_TRANSFORMATION | ";
+    }
+    if (changes & CHANGE_EXTERNAL_STYLUS_PRESENCE) {
+        result += "EXTERNAL_STYLUS_PRESENCE | ";
+    }
+    if (changes & CHANGE_ENABLED_STATE) {
+        result += "ENABLED_STATE | ";
+    }
+    if (changes & CHANGE_MUST_REOPEN) {
+        result += "MUST_REOPEN | ";
+    }
+    return result;
+}
 
 std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewportByUniqueId(
         const std::string& uniqueDisplayId) const {
@@ -76,8 +100,10 @@ std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewportByTyp
     std::optional<DisplayViewport> result = std::nullopt;
     for (const DisplayViewport& currentViewport : mDisplays) {
         // Return the first match
-        if (currentViewport.type == type && !result) {
-            result = std::make_optional(currentViewport);
+        if (currentViewport.type == type) {
+            if (!result) {
+                result = std::make_optional(currentViewport);
+            }
             count++;
         }
     }

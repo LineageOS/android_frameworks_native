@@ -92,6 +92,12 @@ Then to restore the default version:
 adb shell setprop dumpstate.version default
 ```
 
+## To set Bugreport API workflow for bugreport
+
+```
+adb shell setprop settings_call_bugreport_api true
+```
+
 ## Code style and formatting
 
 Use the style defined at the

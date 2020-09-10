@@ -20,35 +20,33 @@
 
 #include "DispSync.h"
 #include "EventThread.h"
+#include "TracedOrdinal.h"
 
 namespace android {
 
 class DispSyncSource final : public VSyncSource, private DispSync::Callback {
 public:
-    DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, nsecs_t offsetThresholdForNextVsync,
-                   bool traceVsync, const char* name);
+    DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, bool traceVsync, const char* name);
 
     ~DispSyncSource() override = default;
 
     // The following methods are implementation of VSyncSource.
+    const char* getName() const override { return mName; }
     void setVSyncEnabled(bool enable) override;
     void setCallback(VSyncSource::Callback* callback) override;
     void setPhaseOffset(nsecs_t phaseOffset) override;
 
+    void dump(std::string&) const override;
+
 private:
     // The following method is the implementation of the DispSync::Callback.
-    virtual void onDispSyncEvent(nsecs_t when);
-
-    void tracePhaseOffset() REQUIRES(mVsyncMutex);
+    void onDispSyncEvent(nsecs_t when, nsecs_t expectedVSyncTimestamp) override;
 
     const char* const mName;
-    int mValue = 0;
+    TracedOrdinal<int> mValue;
 
     const bool mTraceVsync;
     const std::string mVsyncOnLabel;
-    const std::string mVsyncEventLabel;
-    const std::string mVsyncOffsetLabel;
-    const std::string mVsyncNegativeOffsetLabel;
     nsecs_t mLastCallbackTime GUARDED_BY(mVsyncMutex) = 0;
 
     DispSync* mDispSync;
@@ -56,9 +54,8 @@ private:
     std::mutex mCallbackMutex;
     VSyncSource::Callback* mCallback GUARDED_BY(mCallbackMutex) = nullptr;
 
-    std::mutex mVsyncMutex;
-    nsecs_t mPhaseOffset GUARDED_BY(mVsyncMutex);
-    const nsecs_t mOffsetThresholdForNextVsync;
+    mutable std::mutex mVsyncMutex;
+    TracedOrdinal<nsecs_t> mPhaseOffset GUARDED_BY(mVsyncMutex);
     bool mEnabled GUARDED_BY(mVsyncMutex) = false;
 };
 

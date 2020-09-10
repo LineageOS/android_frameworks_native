@@ -24,6 +24,22 @@
 namespace android::inputdispatcher {
 
 /*
+ * Information about each pointer for an InputTarget. This includes offset and scale so
+ * all pointers can be normalized to a single offset and scale.
+ *
+ * These values are ignored for KeyEvents
+ */
+struct PointerInfo {
+    // The x and y offset to add to a MotionEvent as it is delivered.
+    float xOffset = 0.0f;
+    float yOffset = 0.0f;
+
+    // Scaling factor to apply to MotionEvent as it is delivered.
+    float windowXScale = 1.0f;
+    float windowYScale = 1.0f;
+};
+
+/*
  * An input target specifies how an input event is to be dispatched to a particular window
  * including the window's input channel, control flags, a timeout, and an X / Y offset to
  * be added to input event coordinates to compensate for the absolute position of the
@@ -93,21 +109,39 @@ struct InputTarget {
     sp<InputChannel> inputChannel;
 
     // Flags for the input target.
-    int32_t flags;
-
-    // The x and y offset to add to a MotionEvent as it is delivered.
-    // (ignored for KeyEvents)
-    float xOffset, yOffset;
+    int32_t flags = 0;
 
     // Scaling factor to apply to MotionEvent as it is delivered.
     // (ignored for KeyEvents)
-    float globalScaleFactor;
-    float windowXScale = 1.0f;
-    float windowYScale = 1.0f;
+    float globalScaleFactor = 1.0f;
 
     // The subset of pointer ids to include in motion events dispatched to this input target
     // if FLAG_SPLIT is set.
     BitSet32 pointerIds;
+    // The data is stored by the pointerId. Use the bit position of pointerIds to look up
+    // PointerInfo per pointerId.
+    PointerInfo pointerInfos[MAX_POINTERS];
+
+    void addPointers(BitSet32 pointerIds, float xOffset, float yOffset, float windowXScale,
+                     float windowYScale);
+    void setDefaultPointerInfo(float xOffset, float yOffset, float windowXScale,
+                               float windowYScale);
+
+    /**
+     * Returns whether the default pointer information should be used. This will be true when the
+     * InputTarget doesn't have any bits set in the pointerIds bitset. This can happen for monitors
+     * and non splittable windows since we want all pointers for the EventEntry to go to this
+     * target.
+     */
+    bool useDefaultPointerInfo() const;
+
+    /**
+     * Returns the default PointerInfo object. This should be used when useDefaultPointerInfo is
+     * true.
+     */
+    const PointerInfo& getDefaultPointerInfo() const;
+
+    std::string getPointerInfoString() const;
 };
 
 std::string dispatchModeToString(int32_t dispatchMode);

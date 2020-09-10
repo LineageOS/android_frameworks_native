@@ -44,7 +44,13 @@ public:
         texCoords = 1,
 
         /* Crop coordinates, in pixels */
-        cropCoords = 2
+        cropCoords = 2,
+
+        /* Shadow color */
+        shadowColor = 3,
+
+        /* Shadow params */
+        shadowParams = 4,
     };
 
     Program(const ProgramCache::Key& needs, const char* vertex, const char* fragment);
@@ -90,6 +96,10 @@ private:
 
     /* location of display luminance uniform */
     GLint mDisplayMaxLuminanceLoc;
+    /* location of max mastering luminance uniform */
+    GLint mMaxMasteringLuminanceLoc;
+    /* location of max content luminance uniform */
+    GLint mMaxContentLuminanceLoc;
 
     /* location of transform matrix */
     GLint mInputTransformMatrixLoc;

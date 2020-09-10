@@ -51,6 +51,7 @@ public:
     virtual void onBuffersDiscarded(const std::vector<int32_t>& slots) = 0; // Asynchronous
 };
 
+#ifndef NO_BINDER
 class IProducerListener : public ProducerListener, public IInterface
 {
 public:
@@ -73,10 +74,15 @@ public:
     virtual void onBuffersDiscarded(const std::vector<int32_t>& slots);
 };
 
-class DummyProducerListener : public BnProducerListener
-{
+#else
+class IProducerListener : public ProducerListener {
+};
+class BnProducerListener : public IProducerListener {
+};
+#endif
+class StubProducerListener : public BnProducerListener {
 public:
-    virtual ~DummyProducerListener();
+    virtual ~StubProducerListener();
     virtual void onBufferReleased() {}
     virtual bool needsReleaseNotify() { return false; }
 };

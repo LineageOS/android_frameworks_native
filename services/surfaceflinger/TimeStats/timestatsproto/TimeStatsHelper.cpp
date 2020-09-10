@@ -83,9 +83,13 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     StringAppendF(&result, "packageName = %s\n", packageName.c_str());
     StringAppendF(&result, "totalFrames = %d\n", totalFrames);
     StringAppendF(&result, "droppedFrames = %d\n", droppedFrames);
+    StringAppendF(&result, "lateAcquireFrames = %d\n", lateAcquireFrames);
+    StringAppendF(&result, "badDesiredPresentFrames = %d\n", badDesiredPresentFrames);
     const auto iter = deltas.find("present2present");
     if (iter != deltas.end()) {
-        StringAppendF(&result, "averageFPS = %.3f\n", 1000.0 / iter->second.averageTime());
+        const float averageTime = iter->second.averageTime();
+        const float averageFPS = averageTime < 1.0f ? 0.0f : 1000.0f / averageTime;
+        StringAppendF(&result, "averageFPS = %.3f\n", averageFPS);
     }
     for (const auto& ele : deltas) {
         StringAppendF(&result, "%s histogram is as below:\n", ele.first.c_str());
@@ -102,6 +106,9 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     StringAppendF(&result, "totalFrames = %d\n", totalFrames);
     StringAppendF(&result, "missedFrames = %d\n", missedFrames);
     StringAppendF(&result, "clientCompositionFrames = %d\n", clientCompositionFrames);
+    StringAppendF(&result, "clientCompositionReusedFrames = %d\n", clientCompositionReusedFrames);
+    StringAppendF(&result, "refreshRateSwitches = %d\n", refreshRateSwitches);
+    StringAppendF(&result, "compositionStrategyChanges = %d\n", compositionStrategyChanges);
     StringAppendF(&result, "displayOnTime = %" PRId64 " ms\n", displayOnTime);
     StringAppendF(&result, "displayConfigStats is as below:\n");
     for (const auto& [fps, duration] : refreshRateStats) {
@@ -111,6 +118,16 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     StringAppendF(&result, "totalP2PTime = %" PRId64 " ms\n", presentToPresent.totalTime());
     StringAppendF(&result, "presentToPresent histogram is as below:\n");
     result.append(presentToPresent.toString());
+    const float averageFrameDuration = frameDuration.averageTime();
+    StringAppendF(&result, "averageFrameDuration = %.3f ms\n",
+                  std::isnan(averageFrameDuration) ? 0.0f : averageFrameDuration);
+    StringAppendF(&result, "frameDuration histogram is as below:\n");
+    result.append(frameDuration.toString());
+    const float averageRenderEngineTiming = renderEngineTiming.averageTime();
+    StringAppendF(&result, "averageRenderEngineTiming = %.3f ms\n",
+                  std::isnan(averageRenderEngineTiming) ? 0.0f : averageRenderEngineTiming);
+    StringAppendF(&result, "renderEngineTiming histogram is as below:\n");
+    result.append(renderEngineTiming.toString());
     const auto dumpStats = generateDumpStats(maxLayers);
     for (const auto& ele : dumpStats) {
         result.append(ele->toString());
@@ -155,6 +172,16 @@ SFTimeStatsGlobalProto TimeStatsHelper::TimeStatsGlobal::toProto(
     }
     for (const auto& histEle : presentToPresent.hist) {
         SFTimeStatsHistogramBucketProto* histProto = globalProto.add_present_to_present();
+        histProto->set_time_millis(histEle.first);
+        histProto->set_frame_count(histEle.second);
+    }
+    for (const auto& histEle : frameDuration.hist) {
+        SFTimeStatsHistogramBucketProto* histProto = globalProto.add_frame_duration();
+        histProto->set_time_millis(histEle.first);
+        histProto->set_frame_count(histEle.second);
+    }
+    for (const auto& histEle : renderEngineTiming.hist) {
+        SFTimeStatsHistogramBucketProto* histProto = globalProto.add_render_engine_timing();
         histProto->set_time_millis(histEle.first);
         histProto->set_frame_count(histEle.second);
     }

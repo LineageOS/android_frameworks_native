@@ -35,10 +35,14 @@ class Fence;
 class GraphicBuffer;
 class IConsumerListener;
 class NativeHandle;
-
+#ifndef NO_BINDER
 class IGraphicBufferConsumer : public IInterface {
 public:
     DECLARE_META_INTERFACE(GraphicBufferConsumer)
+#else
+class IGraphicBufferConsumer : public RefBase {
+public:
+#endif
 
     enum {
         // Returned by releaseBuffer, after which the consumer must free any references to the
@@ -282,6 +286,7 @@ public:
     }
 };
 
+#ifndef NO_BINDER
 class BnGraphicBufferConsumer : public SafeBnInterface<IGraphicBufferConsumer> {
 public:
     BnGraphicBufferConsumer()
@@ -290,5 +295,9 @@ public:
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                         uint32_t flags = 0) override;
 };
+#else
+class BnGraphicBufferConsumer : public IGraphicBufferConsumer {
+};
+#endif
 
 } // namespace android

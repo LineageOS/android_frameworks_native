@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_TRANSFORM_H
-#define ANDROID_TRANSFORM_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <ostream>
 #include <string>
 
 #include <hardware/hardware.h>
@@ -27,6 +27,7 @@
 #include <math/vec3.h>
 #include <ui/Point.h>
 #include <ui/Rect.h>
+#include <ui/Rotation.h>
 
 namespace android {
 
@@ -38,16 +39,16 @@ class Transform {
 public:
     Transform();
     Transform(const Transform&  other);
-    explicit Transform(uint32_t orientation);
+    explicit Transform(uint32_t orientation, int w = 0, int h = 0);
     ~Transform();
 
-    enum orientation_flags {
-        ROT_0   = 0x00000000,
-        FLIP_H  = HAL_TRANSFORM_FLIP_H,
-        FLIP_V  = HAL_TRANSFORM_FLIP_V,
-        ROT_90  = HAL_TRANSFORM_ROT_90,
-        ROT_180 = FLIP_H|FLIP_V,
-        ROT_270 = ROT_180|ROT_90,
+    enum RotationFlags : uint32_t {
+        ROT_0 = 0,
+        FLIP_H = HAL_TRANSFORM_FLIP_H,
+        FLIP_V = HAL_TRANSFORM_FLIP_V,
+        ROT_90 = HAL_TRANSFORM_ROT_90,
+        ROT_180 = FLIP_H | FLIP_V,
+        ROT_270 = ROT_180 | ROT_90,
         ROT_INVALID = 0x80
     };
 
@@ -63,6 +64,7 @@ public:
     bool        preserveRects() const;
     uint32_t    getType() const;
     uint32_t    getOrientation() const;
+    bool operator==(const Transform& other) const;
 
     const vec3& operator [] (size_t i) const;  // returns column i
     float   tx() const;
@@ -98,6 +100,8 @@ public:
     void dump(std::string& result, const char* name) const;
     void dump(const char* name) const;
 
+    static RotationFlags toRotationFlags(Rotation);
+
 private:
     struct mat33 {
         vec3 v[3];
@@ -115,7 +119,26 @@ private:
     mutable uint32_t    mType;
 };
 
+inline void PrintTo(const Transform& t, ::std::ostream* os) {
+    std::string out;
+    t.dump(out, "ui::Transform");
+    *os << out;
+}
+
+inline Transform::RotationFlags Transform::toRotationFlags(Rotation rotation) {
+    switch (rotation) {
+        case ROTATION_0:
+            return ROT_0;
+        case ROTATION_90:
+            return ROT_90;
+        case ROTATION_180:
+            return ROT_180;
+        case ROTATION_270:
+            return ROT_270;
+        default:
+            return ROT_INVALID;
+    }
+}
+
 }  // namespace ui
 }  // namespace android
-
-#endif /* ANDROID_TRANSFORM_H */

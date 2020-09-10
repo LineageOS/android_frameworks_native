@@ -21,6 +21,7 @@
 
 #include <vulkan/vk_android_native_buffer.h>
 #include <vulkan/vulkan.h>
+
 #include <bitset>
 
 namespace vulkan {
@@ -39,14 +40,14 @@ struct ProcHook {
         EXT_swapchain_colorspace,
         GOOGLE_display_timing,
         KHR_android_surface,
+        KHR_get_surface_capabilities2,
         KHR_incremental_present,
         KHR_shared_presentable_image,
         KHR_surface,
         KHR_swapchain,
-        KHR_get_surface_capabilities2,
-        KHR_get_physical_device_properties2,
         ANDROID_external_memory_android_hardware_buffer,
         KHR_bind_memory2,
+        KHR_get_physical_device_properties2,
 
         EXTENSION_CORE_1_0,
         EXTENSION_CORE_1_1,
@@ -70,12 +71,12 @@ struct InstanceDriverTable {
     PFN_vkGetPhysicalDeviceProperties GetPhysicalDeviceProperties;
     PFN_vkCreateDevice CreateDevice;
     PFN_vkEnumerateDeviceExtensionProperties EnumerateDeviceExtensionProperties;
-    PFN_vkEnumeratePhysicalDeviceGroups EnumeratePhysicalDeviceGroups;
-    PFN_vkGetPhysicalDeviceProperties2 GetPhysicalDeviceProperties2;
     PFN_vkCreateDebugReportCallbackEXT CreateDebugReportCallbackEXT;
     PFN_vkDestroyDebugReportCallbackEXT DestroyDebugReportCallbackEXT;
     PFN_vkDebugReportMessageEXT DebugReportMessageEXT;
+    PFN_vkGetPhysicalDeviceProperties2 GetPhysicalDeviceProperties2;
     PFN_vkGetPhysicalDeviceProperties2KHR GetPhysicalDeviceProperties2KHR;
+    PFN_vkEnumeratePhysicalDeviceGroups EnumeratePhysicalDeviceGroups;
     // clang-format on
 };
 
@@ -84,16 +85,17 @@ struct DeviceDriverTable {
     PFN_vkGetDeviceProcAddr GetDeviceProcAddr;
     PFN_vkDestroyDevice DestroyDevice;
     PFN_vkGetDeviceQueue GetDeviceQueue;
+    PFN_vkQueueSubmit QueueSubmit;
     PFN_vkCreateImage CreateImage;
     PFN_vkDestroyImage DestroyImage;
     PFN_vkAllocateCommandBuffers AllocateCommandBuffers;
     PFN_vkBindImageMemory2 BindImageMemory2;
+    PFN_vkBindImageMemory2KHR BindImageMemory2KHR;
     PFN_vkGetDeviceQueue2 GetDeviceQueue2;
     PFN_vkGetSwapchainGrallocUsageANDROID GetSwapchainGrallocUsageANDROID;
     PFN_vkGetSwapchainGrallocUsage2ANDROID GetSwapchainGrallocUsage2ANDROID;
     PFN_vkAcquireImageANDROID AcquireImageANDROID;
     PFN_vkQueueSignalReleaseImageANDROID QueueSignalReleaseImageANDROID;
-    PFN_vkBindImageMemory2KHR BindImageMemory2KHR;
     // clang-format on
 };
 

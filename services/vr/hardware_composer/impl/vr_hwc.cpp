@@ -27,7 +27,7 @@
 #include "vr_composer_client.h"
 
 using namespace android::hardware::graphics::common::V1_0;
-using namespace android::hardware::graphics::composer::V2_1;
+using namespace android::hardware::graphics::composer::V2_3;
 
 using android::base::StringPrintf;
 using android::hardware::hidl_handle;
@@ -36,11 +36,11 @@ using android::hardware::hidl_vec;
 using android::hardware::Return;
 using android::hardware::Void;
 
+namespace types = android::hardware::graphics::common;
+
 namespace android {
 namespace dvr {
 namespace {
-
-using android::hardware::graphics::common::V1_0::PixelFormat;
 
 const Display kDefaultDisplayId = 1;
 const Config kDefaultConfigId = 1;
@@ -269,7 +269,8 @@ void VrHwc::registerEventCallback(EventCallback* callback) {
   // onHotplug() call, so it's important to release mutex_ here.
   lock.unlock();
   event_callback_->onHotplug(kDefaultDisplayId,
-                             IComposerCallback::Connection::CONNECTED);
+                             hardware::graphics::composer::V2_1::
+                                 IComposerCallback::Connection::CONNECTED);
   lock.lock();
   UpdateVsyncCallbackEnabledLocked();
 }
@@ -281,15 +282,6 @@ void VrHwc::unregisterEventCallback() {
 }
 
 uint32_t VrHwc::getMaxVirtualDisplayCount() { return 1; }
-
-Error VrHwc::createVirtualDisplay(uint32_t width, uint32_t height,
-                                  PixelFormat* format, Display* outDisplay) {
-  *format = PixelFormat::RGBA_8888;
-  *outDisplay = display_count_;
-  displays_[display_count_].reset(new HwcDisplay(width, height));
-  display_count_++;
-  return Error::NONE;
-}
 
 Error VrHwc::destroyVirtualDisplay(Display display) {
   std::lock_guard<std::mutex> guard(mutex_);
@@ -329,24 +321,6 @@ Error VrHwc::getActiveConfig(Display display, Config* outConfig) {
   if (!FindDisplay(display))
     return Error::BAD_DISPLAY;
   *outConfig = kDefaultConfigId;
-  return Error::NONE;
-}
-
-Error VrHwc::getClientTargetSupport(Display display, uint32_t /* width */,
-                                    uint32_t /* height */,
-                                    PixelFormat /* format */,
-                                    Dataspace /* dataspace */) {
-  std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
-    return Error::BAD_DISPLAY;
-
-  return Error::NONE;
-}
-
-Error VrHwc::getColorModes(Display /* display */,
-                           hidl_vec<ColorMode>* outModes) {
-  std::vector<ColorMode> color_modes(1, ColorMode::NATIVE);
-  *outModes = hidl_vec<ColorMode>(color_modes);
   return Error::NONE;
 }
 
@@ -441,17 +415,6 @@ Error VrHwc::getDozeSupport(Display display, bool* outSupport) {
   return Error::NONE;
 }
 
-Error VrHwc::getHdrCapabilities(Display /* display */,
-                                hidl_vec<Hdr>* /* outTypes */,
-                                float* outMaxLuminance,
-                                float* outMaxAverageLuminance,
-                                float* outMinLuminance) {
-  *outMaxLuminance = 0;
-  *outMaxAverageLuminance = 0;
-  *outMinLuminance = 0;
-  return Error::NONE;
-}
-
 Error VrHwc::setActiveConfig(Display display, Config config) {
   std::lock_guard<std::mutex> guard(mutex_);
   auto display_ptr = FindDisplay(display);
@@ -461,47 +424,6 @@ Error VrHwc::setActiveConfig(Display display, Config config) {
     return Error::BAD_CONFIG;
 
   display_ptr->set_active_config(config);
-  return Error::NONE;
-}
-
-Error VrHwc::setColorMode(Display display, ColorMode mode) {
-  std::lock_guard<std::mutex> guard(mutex_);
-  auto display_ptr = FindDisplay(display);
-  if (!display_ptr)
-    return Error::BAD_DISPLAY;
-
-  if (mode < ColorMode::NATIVE || mode > ColorMode::DISPLAY_P3)
-    return Error::BAD_PARAMETER;
-
-  display_ptr->set_color_mode(mode);
-  return Error::NONE;
-}
-
-Error VrHwc::setPowerMode(Display display, IComposerClient::PowerMode mode) {
-  bool dozeSupported = false;
-
-  Error dozeSupportError = getDozeSupport(display, &dozeSupported);
-
-  if (dozeSupportError != Error::NONE)
-    return dozeSupportError;
-
-  std::lock_guard<std::mutex> guard(mutex_);
-  auto display_ptr = FindDisplay(display);
-  if (!display_ptr)
-    return Error::BAD_DISPLAY;
-
-  if (mode < IComposerClient::PowerMode::OFF ||
-      mode > IComposerClient::PowerMode::DOZE_SUSPEND) {
-    return Error::BAD_PARAMETER;
-  }
-
-  if (!dozeSupported &&
-      (mode == IComposerClient::PowerMode::DOZE ||
-       mode == IComposerClient::PowerMode::DOZE_SUSPEND)) {
-    return Error::UNSUPPORTED;
-  }
-
-  display_ptr->set_power_mode(mode);
   return Error::NONE;
 }
 
@@ -956,6 +878,23 @@ Return<void> VrHwc::createClient(createClient_cb hidl_cb) {
   return Void();
 }
 
+Return<void> VrHwc::createClient_2_3(IComposer::createClient_2_3_cb hidl_cb) {
+  std::lock_guard<std::mutex> guard(mutex_);
+
+  Error status = Error::NONE;
+  sp<VrComposerClient> client;
+  if (!client_.promote().get()) {
+    client = new VrComposerClient(*this);
+  } else {
+    ALOGE("Already have a client");
+    status = Error::NO_RESOURCES;
+  }
+
+  client_ = client;
+  hidl_cb(status, client);
+  return Void();
+}
+
 void VrHwc::ForceDisplaysRefresh() {
   std::lock_guard<std::mutex> guard(mutex_);
   if (event_callback_ != nullptr) {
@@ -994,6 +933,26 @@ void VrHwc::UpdateVsyncCallbackEnabledLocked() {
   vsync_callback_->SetEventCallback(send_vsync ? event_callback_ : nullptr);
 }
 
+Return<void> VrHwc::debug(const hidl_handle& fd,
+                          const hidl_vec<hidl_string>& args) {
+  std::string result;
+
+  {
+    std::lock_guard<std::mutex> guard(mutex_);
+    for (const auto& pair : displays_) {
+      result += StringPrintf("Display id: %d\n", static_cast<int>(pair.first));
+      pair.second->dumpDebugInfo(&result);
+    }
+    result += "\n";
+  }
+
+  FILE* out = fdopen(dup(fd->data[0]), "w");
+  fprintf(out, "%s", result.c_str());
+  fclose(out);
+
+  return Void();
+}
+
 void HwcLayer::dumpDebugInfo(std::string* result) const {
   if (!result) {
     return;
@@ -1022,6 +981,197 @@ status_t VrHwc::VsyncCallback::onVsync(int64_t vsync_timestamp) {
 void VrHwc::VsyncCallback::SetEventCallback(EventCallback* callback) {
   std::lock_guard<std::mutex> guard(mutex_);
   callback_ = callback;
+}
+
+// composer::V2_2::ComposerHal
+Error VrHwc::setReadbackBuffer(Display display,
+                               const native_handle_t* bufferHandle,
+                               android::base::unique_fd fenceFd) {
+  return Error::NONE;
+}
+
+Error VrHwc::getReadbackBufferFence(Display display,
+                                    android::base::unique_fd* outFenceFd) {
+  return Error::NONE;
+}
+
+Error VrHwc::createVirtualDisplay_2_2(uint32_t width, uint32_t height,
+                                      types::V1_1::PixelFormat* format,
+                                      Display* outDisplay) {
+  *format = types::V1_1::PixelFormat::RGBA_8888;
+  *outDisplay = display_count_;
+  displays_[display_count_].reset(new HwcDisplay(width, height));
+  display_count_++;
+  return Error::NONE;
+}
+
+Error VrHwc::setPowerMode_2_2(Display display,
+                              IComposerClient::PowerMode mode) {
+  bool dozeSupported = false;
+
+  Error dozeSupportError = getDozeSupport(display, &dozeSupported);
+
+  if (dozeSupportError != Error::NONE)
+    return dozeSupportError;
+
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
+
+  if (mode < IComposerClient::PowerMode::OFF ||
+      mode > IComposerClient::PowerMode::DOZE_SUSPEND) {
+    return Error::BAD_PARAMETER;
+  }
+
+  if (!dozeSupported && (mode == IComposerClient::PowerMode::DOZE ||
+                         mode == IComposerClient::PowerMode::DOZE_SUSPEND)) {
+    return Error::UNSUPPORTED;
+  }
+
+  display_ptr->set_power_mode(mode);
+  return Error::NONE;
+}
+
+Error VrHwc::setLayerFloatColor(Display display, Layer layer,
+                                IComposerClient::FloatColor color) {
+  return Error::NONE;
+}
+
+Error VrHwc::getRenderIntents(Display display, types::V1_1::ColorMode mode,
+                              std::vector<RenderIntent>* outIntents) {
+  return Error::NONE;
+}
+
+std::array<float, 16> VrHwc::getDataspaceSaturationMatrix(
+    types::V1_1::Dataspace dataspace) {
+  return {};
+}
+
+// composer::V2_3::ComposerHal
+Error VrHwc::getHdrCapabilities_2_3(Display /*display*/,
+                                    hidl_vec<Hdr>* /*outTypes*/,
+                                    float* outMaxLuminance,
+                                    float* outMaxAverageLuminance,
+                                    float* outMinLuminance) {
+  *outMaxLuminance = 0;
+  *outMaxAverageLuminance = 0;
+  *outMinLuminance = 0;
+  return Error::NONE;
+}
+
+Error VrHwc::setLayerPerFrameMetadata_2_3(
+    Display display, Layer layer,
+    const std::vector<IComposerClient::PerFrameMetadata>& metadata) {
+  return Error::NONE;
+}
+
+Error VrHwc::getPerFrameMetadataKeys_2_3(
+    Display display,
+    std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) {
+  return Error::NONE;
+}
+
+Error VrHwc::setColorMode_2_3(Display display, ColorMode mode,
+                              RenderIntent intent) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
+
+  if (mode < ColorMode::NATIVE || mode > ColorMode::DISPLAY_P3)
+    return Error::BAD_PARAMETER;
+
+  display_ptr->set_color_mode(mode);
+  return Error::NONE;
+}
+
+Error VrHwc::getRenderIntents_2_3(Display display, ColorMode mode,
+                                  std::vector<RenderIntent>* outIntents) {
+  return Error::NONE;
+}
+
+Error VrHwc::getColorModes_2_3(Display display, hidl_vec<ColorMode>* outModes) {
+  return Error::NONE;
+}
+
+Error VrHwc::getClientTargetSupport_2_3(Display display, uint32_t width,
+                                        uint32_t height, PixelFormat format,
+                                        Dataspace dataspace) {
+  return Error::NONE;
+}
+
+Error VrHwc::getReadbackBufferAttributes_2_3(Display display,
+                                             PixelFormat* outFormat,
+                                             Dataspace* outDataspace) {
+  return Error::NONE;
+}
+
+Error VrHwc::getDisplayIdentificationData(Display display, uint8_t* outPort,
+                                          std::vector<uint8_t>* outData) {
+  int error = 0;
+  auto display_client = display::DisplayClient::Create(&error);
+  if (!display_client) {
+    ALOGE("Could not connect to display service : %s(%d)", strerror(error),
+          error);
+    return Error::BAD_CONFIG;
+  }
+  auto edid_data = display_client->GetConfigurationData(
+      display::ConfigFileType::kDeviceEdid);
+  auto display_identification_port =
+      display_client->GetDisplayIdentificationPort();
+  *outPort = display_identification_port.get();
+
+  std::copy(edid_data.get().begin(), edid_data.get().end(),
+            std::back_inserter(*outData));
+  return Error::NONE;
+}
+
+Error VrHwc::setLayerColorTransform(Display display, Layer layer,
+                                    const float* matrix) {
+  return Error::NONE;
+}
+
+Error VrHwc::getDisplayedContentSamplingAttributes(
+    Display display, PixelFormat& format, Dataspace& dataspace,
+    hidl_bitfield<IComposerClient::FormatColorComponent>& componentMask) {
+  return Error::NONE;
+}
+
+Error VrHwc::setDisplayedContentSamplingEnabled(
+    Display display, IComposerClient::DisplayedContentSampling enable,
+    hidl_bitfield<IComposerClient::FormatColorComponent> componentMask,
+    uint64_t maxFrames) {
+  return Error::NONE;
+}
+
+Error VrHwc::getDisplayedContentSample(Display display, uint64_t maxFrames,
+                                       uint64_t timestamp, uint64_t& frameCount,
+                                       hidl_vec<uint64_t>& sampleComponent0,
+                                       hidl_vec<uint64_t>& sampleComponent1,
+                                       hidl_vec<uint64_t>& sampleComponent2,
+                                       hidl_vec<uint64_t>& sampleComponent3) {
+  return Error::NONE;
+}
+
+Error VrHwc::getDisplayCapabilities(
+    Display display,
+    std::vector<IComposerClient::DisplayCapability>* outCapabilities) {
+  return Error::NONE;
+}
+
+Error VrHwc::setLayerPerFrameMetadataBlobs(
+    Display display, Layer layer,
+    std::vector<IComposerClient::PerFrameMetadataBlob>& blobs) {
+  return Error::NONE;
+}
+
+Error VrHwc::getDisplayBrightnessSupport(Display display, bool* outSupport) {
+  return Error::NONE;
+}
+
+Error VrHwc::setDisplayBrightness(Display display, float brightness) {
+  return Error::NONE;
 }
 
 }  // namespace dvr

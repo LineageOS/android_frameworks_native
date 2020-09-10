@@ -23,93 +23,126 @@ namespace android {
 
 // --- TestInputListener ---
 
-TestInputListener::TestInputListener() { }
+TestInputListener::TestInputListener(std::chrono::milliseconds eventHappenedTimeout,
+                                     std::chrono::milliseconds eventDidNotHappenTimeout)
+      : mEventHappenedTimeout(eventHappenedTimeout),
+        mEventDidNotHappenTimeout(eventDidNotHappenTimeout) {}
 
 TestInputListener::~TestInputListener() { }
 
 void TestInputListener::assertNotifyConfigurationChangedWasCalled(
         NotifyConfigurationChangedArgs* outEventArgs) {
-    ASSERT_FALSE(mNotifyConfigurationChangedArgsQueue.empty())
-            << "Expected notifyConfigurationChanged() to have been called.";
-    if (outEventArgs) {
-        *outEventArgs = *mNotifyConfigurationChangedArgsQueue.begin();
-    }
-    mNotifyConfigurationChangedArgsQueue.erase(mNotifyConfigurationChangedArgsQueue.begin());
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<NotifyConfigurationChangedArgs>(outEventArgs,
+                                                         "Expected notifyConfigurationChanged() "
+                                                         "to have been called."));
 }
 
 void TestInputListener::assertNotifyConfigurationChangedWasNotCalled() {
-    ASSERT_TRUE(mNotifyConfigurationChangedArgsQueue.empty())
-            << "Expected notifyConfigurationChanged() to not have been called.";
+    ASSERT_NO_FATAL_FAILURE(assertNotCalled<NotifyConfigurationChangedArgs>(
+            "notifyConfigurationChanged() should not be called."));
 }
 
 void TestInputListener::assertNotifyDeviceResetWasCalled(
         NotifyDeviceResetArgs* outEventArgs) {
-    ASSERT_FALSE(mNotifyDeviceResetArgsQueue.empty())
-            << "Expected notifyDeviceReset() to have been called.";
-    if (outEventArgs) {
-        *outEventArgs = *mNotifyDeviceResetArgsQueue.begin();
-    }
-    mNotifyDeviceResetArgsQueue.erase(mNotifyDeviceResetArgsQueue.begin());
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<
+                    NotifyDeviceResetArgs>(outEventArgs,
+                                           "Expected notifyDeviceReset() to have been called."));
 }
 
 void TestInputListener::assertNotifyDeviceResetWasNotCalled() {
-    ASSERT_TRUE(mNotifyDeviceResetArgsQueue.empty())
-            << "Expected notifyDeviceReset() to not have been called.";
+    ASSERT_NO_FATAL_FAILURE(
+            assertNotCalled<NotifyDeviceResetArgs>("notifyDeviceReset() should not be called."));
 }
 
 void TestInputListener::assertNotifyKeyWasCalled(NotifyKeyArgs* outEventArgs) {
-    ASSERT_FALSE(mNotifyKeyArgsQueue.empty()) << "Expected notifyKey() to have been called.";
-    if (outEventArgs) {
-        *outEventArgs = *mNotifyKeyArgsQueue.begin();
-    }
-    mNotifyKeyArgsQueue.erase(mNotifyKeyArgsQueue.begin());
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<NotifyKeyArgs>(outEventArgs, "Expected notifyKey() to have been called."));
 }
 
 void TestInputListener::assertNotifyKeyWasNotCalled() {
-    ASSERT_TRUE(mNotifyKeyArgsQueue.empty()) << "Expected notifyKey() to not have been called.";
+    ASSERT_NO_FATAL_FAILURE(assertNotCalled<NotifyKeyArgs>("notifyKey() should not be called."));
 }
 
 void TestInputListener::assertNotifyMotionWasCalled(NotifyMotionArgs* outEventArgs) {
-    ASSERT_FALSE(mNotifyMotionArgsQueue.empty()) << "Expected notifyMotion() to have been called.";
-    if (outEventArgs) {
-        *outEventArgs = *mNotifyMotionArgsQueue.begin();
-    }
-    mNotifyMotionArgsQueue.erase(mNotifyMotionArgsQueue.begin());
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<NotifyMotionArgs>(outEventArgs,
+                                           "Expected notifyMotion() to have been called."));
 }
 
 void TestInputListener::assertNotifyMotionWasNotCalled() {
-    ASSERT_TRUE(mNotifyMotionArgsQueue.empty())
-            << "Expected notifyMotion() to not have been called.";
+    ASSERT_NO_FATAL_FAILURE(
+            assertNotCalled<NotifySwitchArgs>("notifySwitch() should not be called."));
 }
 
 void TestInputListener::assertNotifySwitchWasCalled(NotifySwitchArgs* outEventArgs) {
-    ASSERT_FALSE(mNotifySwitchArgsQueue.empty())
-            << "Expected notifySwitch() to have been called.";
-    if (outEventArgs) {
-        *outEventArgs = *mNotifySwitchArgsQueue.begin();
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<NotifySwitchArgs>(outEventArgs,
+                                           "Expected notifySwitch() to have been called."));
+}
+
+template <class NotifyArgsType>
+void TestInputListener::assertCalled(NotifyArgsType* outEventArgs, std::string message) {
+    std::unique_lock<std::mutex> lock(mLock);
+    base::ScopedLockAssertion assumeLocked(mLock);
+
+    std::vector<NotifyArgsType>& queue = std::get<std::vector<NotifyArgsType>>(mQueues);
+    if (queue.empty()) {
+        const bool eventReceived =
+                mCondition.wait_for(lock, mEventHappenedTimeout,
+                                    [&queue]() REQUIRES(mLock) { return !queue.empty(); });
+        if (!eventReceived) {
+            FAIL() << "Timed out waiting for event: " << message.c_str();
+        }
     }
-    mNotifySwitchArgsQueue.erase(mNotifySwitchArgsQueue.begin());
+    if (outEventArgs) {
+        *outEventArgs = *queue.begin();
+    }
+    queue.erase(queue.begin());
+}
+
+template <class NotifyArgsType>
+void TestInputListener::assertNotCalled(std::string message) {
+    std::unique_lock<std::mutex> lock(mLock);
+    base::ScopedLockAssertion assumeLocked(mLock);
+
+    std::vector<NotifyArgsType>& queue = std::get<std::vector<NotifyArgsType>>(mQueues);
+    const bool eventReceived =
+            mCondition.wait_for(lock, mEventDidNotHappenTimeout,
+                                [&queue]() REQUIRES(mLock) { return !queue.empty(); });
+    if (eventReceived) {
+        FAIL() << "Unexpected event: " << message.c_str();
+    }
+}
+
+template <class NotifyArgsType>
+void TestInputListener::notify(const NotifyArgsType* args) {
+    std::scoped_lock<std::mutex> lock(mLock);
+
+    std::vector<NotifyArgsType>& queue = std::get<std::vector<NotifyArgsType>>(mQueues);
+    queue.push_back(*args);
+    mCondition.notify_all();
 }
 
 void TestInputListener::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
-    mNotifyConfigurationChangedArgsQueue.push_back(*args);
+    notify<NotifyConfigurationChangedArgs>(args);
 }
 
 void TestInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
-    mNotifyDeviceResetArgsQueue.push_back(*args);
+    notify<NotifyDeviceResetArgs>(args);
 }
 
 void TestInputListener::notifyKey(const NotifyKeyArgs* args) {
-    mNotifyKeyArgsQueue.push_back(*args);
+    notify<NotifyKeyArgs>(args);
 }
 
 void TestInputListener::notifyMotion(const NotifyMotionArgs* args) {
-    mNotifyMotionArgsQueue.push_back(*args);
+    notify<NotifyMotionArgs>(args);
 }
 
 void TestInputListener::notifySwitch(const NotifySwitchArgs* args) {
-        mNotifySwitchArgsQueue.push_back(*args);
-    }
-
+    notify<NotifySwitchArgs>(args);
+}
 
 } // namespace android

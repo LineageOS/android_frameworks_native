@@ -63,6 +63,9 @@ public:
         void onFrameReplaced(const BufferItem& item) override;
         void onBuffersReleased() override;
         void onSidebandStreamChanged() override;
+        void onFrameDequeued(const uint64_t bufferId) override;
+        void onFrameCancelled(const uint64_t bufferId) override;
+        void onFrameDetached(const uint64_t bufferID) override;
         void addAndGetFrameTimestamps(
                 const NewFrameEventsEntry* newTimestamps,
                 FrameEventHistoryDelta* outDelta) override;

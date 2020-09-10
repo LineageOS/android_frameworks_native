@@ -24,12 +24,16 @@
  */
 
 #include <android/input.h>
+#include <math.h>
+#include <stdint.h>
 #include <utils/BitSet.h>
 #include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 #include <utils/Vector.h>
-#include <stdint.h>
+#include <array>
+#include <limits>
+#include <queue>
 
 /*
  * Additional private constants not defined in ndk/ui/input.h.
@@ -68,6 +72,19 @@ enum {
     /* Motion event is inconsistent with previously sent motion events. */
     AMOTION_EVENT_FLAG_TAINTED = 0x80000000,
 };
+
+/**
+ * Allowed VerifiedKeyEvent flags. All other flags from KeyEvent do not get verified.
+ * These values must be kept in sync with VerifiedKeyEvent.java
+ */
+constexpr int32_t VERIFIED_KEY_EVENT_FLAGS = AKEY_EVENT_FLAG_CANCELED;
+
+/**
+ * Allowed VerifiedMotionEventFlags. All other flags from MotionEvent do not get verified.
+ * These values must be kept in sync with VerifiedMotionEvent.java
+ */
+constexpr int32_t VERIFIED_MOTION_EVENT_FLAGS =
+        AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED | AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
 
 enum {
     /* Used when a motion event is not associated with any display.
@@ -164,6 +181,8 @@ namespace android {
 class Parcel;
 #endif
 
+const char* inputEventTypeToString(int32_t type);
+
 /*
  * Flags that flow alongside events in the input dispatch system to help with certain
  * policy decisions such as waking from device sleep.
@@ -245,6 +264,50 @@ enum class MotionClassification : uint8_t {
  * String representation of MotionClassification
  */
 const char* motionClassificationToString(MotionClassification classification);
+
+/**
+ * Generator of unique numbers used to identify input events.
+ *
+ * Layout of ID:
+ *     |--------------------------|---------------------------|
+ *     |   2 bits for source      | 30 bits for random number |
+ *     |--------------------------|---------------------------|
+ */
+class IdGenerator {
+private:
+    static constexpr uint32_t SOURCE_SHIFT = 30;
+
+public:
+    // Used to divide integer space to ensure no conflict among these sources./
+    enum class Source : int32_t {
+        INPUT_READER = 0x0 << SOURCE_SHIFT,
+        INPUT_DISPATCHER = 0x1 << SOURCE_SHIFT,
+        OTHER = 0x3 << SOURCE_SHIFT, // E.g. app injected events
+    };
+    IdGenerator(Source source);
+
+    int32_t nextId() const;
+
+    // Extract source from given id.
+    static inline Source getSource(int32_t id) { return static_cast<Source>(SOURCE_MASK & id); }
+
+private:
+    const Source mSource;
+
+    static constexpr int32_t SOURCE_MASK = 0x3 << SOURCE_SHIFT;
+};
+
+/**
+ * Invalid value for cursor position. Used for non-mouse events, tests and injected events. Don't
+ * use it for direct comparison with any other value, because NaN isn't equal to itself according to
+ * IEEE 754. Use isnan() instead to check if a cursor position is valid.
+ */
+constexpr float AMOTION_EVENT_INVALID_CURSOR_POSITION = std::numeric_limits<float>::quiet_NaN();
+
+/**
+ * Invalid value of HMAC - SHA256. Any events with this HMAC value will be marked as not verified.
+ */
+constexpr std::array<uint8_t, 32> INVALID_HMAC = {0};
 
 /*
  * Pointer coordinate data.
@@ -334,24 +397,33 @@ public:
 
     virtual int32_t getType() const = 0;
 
+    inline int32_t getId() const { return mId; }
+
     inline int32_t getDeviceId() const { return mDeviceId; }
 
-    inline int32_t getSource() const { return mSource; }
+    inline uint32_t getSource() const { return mSource; }
 
-    inline void setSource(int32_t source) { mSource = source; }
+    inline void setSource(uint32_t source) { mSource = source; }
 
     inline int32_t getDisplayId() const { return mDisplayId; }
 
     inline void setDisplayId(int32_t displayId) { mDisplayId = displayId; }
 
+    inline std::array<uint8_t, 32> getHmac() const { return mHmac; }
+
+    static int32_t nextId();
 
 protected:
-    void initialize(int32_t deviceId, int32_t source, int32_t displayId);
+    void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
+                    std::array<uint8_t, 32> hmac);
+
     void initialize(const InputEvent& from);
 
+    int32_t mId;
     int32_t mDeviceId;
-    int32_t mSource;
+    uint32_t mSource;
     int32_t mDisplayId;
+    std::array<uint8_t, 32> mHmac;
 };
 
 /*
@@ -384,19 +456,13 @@ public:
     static const char* getLabel(int32_t keyCode);
     static int32_t getKeyCodeFromLabel(const char* label);
 
-    void initialize(
-            int32_t deviceId,
-            int32_t source,
-            int32_t displayId,
-            int32_t action,
-            int32_t flags,
-            int32_t keyCode,
-            int32_t scanCode,
-            int32_t metaState,
-            int32_t repeatCount,
-            nsecs_t downTime,
-            nsecs_t eventTime);
+    void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
+                    std::array<uint8_t, 32> hmac, int32_t action, int32_t flags, int32_t keyCode,
+                    int32_t scanCode, int32_t metaState, int32_t repeatCount, nsecs_t downTime,
+                    nsecs_t eventTime);
     void initialize(const KeyEvent& from);
+
+    static const char* actionToString(int32_t action);
 
 protected:
     int32_t mAction;
@@ -451,6 +517,10 @@ public:
 
     inline void setActionButton(int32_t button) { mActionButton = button; }
 
+    inline float getXScale() const { return mXScale; }
+
+    inline float getYScale() const { return mYScale; }
+
     inline float getXOffset() const { return mXOffset; }
 
     inline float getYOffset() const { return mYOffset; }
@@ -458,6 +528,18 @@ public:
     inline float getXPrecision() const { return mXPrecision; }
 
     inline float getYPrecision() const { return mYPrecision; }
+
+    inline float getRawXCursorPosition() const { return mRawXCursorPosition; }
+
+    float getXCursorPosition() const;
+
+    inline float getRawYCursorPosition() const { return mRawYCursorPosition; }
+
+    float getYCursorPosition() const;
+
+    void setCursorPosition(float x, float y);
+
+    static inline bool isValidCursorPosition(float x, float y) { return !isnan(x) && !isnan(y); }
 
     inline nsecs_t getDownTime() const { return mDownTime; }
 
@@ -600,26 +682,14 @@ public:
 
     ssize_t findPointerIndex(int32_t pointerId) const;
 
-    void initialize(
-            int32_t deviceId,
-            int32_t source,
-            int32_t displayId,
-            int32_t action,
-            int32_t actionButton,
-            int32_t flags,
-            int32_t edgeFlags,
-            int32_t metaState,
-            int32_t buttonState,
-            MotionClassification classification,
-            float xOffset,
-            float yOffset,
-            float xPrecision,
-            float yPrecision,
-            nsecs_t downTime,
-            nsecs_t eventTime,
-            size_t pointerCount,
-            const PointerProperties* pointerProperties,
-            const PointerCoords* pointerCoords);
+    void initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
+                    std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
+                    int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
+                    MotionClassification classification, float xScale, float yScale, float xOffset,
+                    float yOffset, float xPrecision, float yPrecision, float rawXCursorPosition,
+                    float rawYCursorPosition, nsecs_t downTime, nsecs_t eventTime,
+                    size_t pointerCount, const PointerProperties* pointerProperties,
+                    const PointerCoords* pointerCoords);
 
     void copyFrom(const MotionEvent* other, bool keepHistory);
 
@@ -640,7 +710,7 @@ public:
     status_t writeToParcel(Parcel* parcel) const;
 #endif
 
-    static bool isTouchEvent(int32_t source, int32_t action);
+    static bool isTouchEvent(uint32_t source, int32_t action);
     inline bool isTouchEvent() const {
         return isTouchEvent(mSource, mAction);
     }
@@ -657,6 +727,8 @@ public:
     static const char* getLabel(int32_t axis);
     static int32_t getAxisFromLabel(const char* label);
 
+    static const char* actionToString(int32_t action);
+
 protected:
     int32_t mAction;
     int32_t mActionButton;
@@ -665,15 +737,90 @@ protected:
     int32_t mMetaState;
     int32_t mButtonState;
     MotionClassification mClassification;
+    float mXScale;
+    float mYScale;
     float mXOffset;
     float mYOffset;
     float mXPrecision;
     float mYPrecision;
+    float mRawXCursorPosition;
+    float mRawYCursorPosition;
     nsecs_t mDownTime;
     Vector<PointerProperties> mPointerProperties;
     Vector<nsecs_t> mSampleEventTimes;
     Vector<PointerCoords> mSamplePointerCoords;
 };
+
+/*
+ * Focus events.
+ */
+class FocusEvent : public InputEvent {
+public:
+    virtual ~FocusEvent() {}
+
+    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_FOCUS; }
+
+    inline bool getHasFocus() const { return mHasFocus; }
+
+    inline bool getInTouchMode() const { return mInTouchMode; }
+
+    void initialize(int32_t id, bool hasFocus, bool inTouchMode);
+
+    void initialize(const FocusEvent& from);
+
+protected:
+    bool mHasFocus;
+    bool mInTouchMode;
+};
+
+/**
+ * Base class for verified events.
+ * Do not create a VerifiedInputEvent explicitly.
+ * Use helper functions to create them from InputEvents.
+ */
+struct __attribute__((__packed__)) VerifiedInputEvent {
+    enum class Type : int32_t {
+        KEY = AINPUT_EVENT_TYPE_KEY,
+        MOTION = AINPUT_EVENT_TYPE_MOTION,
+    };
+
+    Type type;
+    int32_t deviceId;
+    nsecs_t eventTimeNanos;
+    uint32_t source;
+    int32_t displayId;
+};
+
+/**
+ * Same as KeyEvent, but only contains the data that can be verified.
+ * If you update this class, you must also update VerifiedKeyEvent.java
+ */
+struct __attribute__((__packed__)) VerifiedKeyEvent : public VerifiedInputEvent {
+    int32_t action;
+    nsecs_t downTimeNanos;
+    int32_t flags;
+    int32_t keyCode;
+    int32_t scanCode;
+    int32_t metaState;
+    int32_t repeatCount;
+};
+
+/**
+ * Same as MotionEvent, but only contains the data that can be verified.
+ * If you update this class, you must also update VerifiedMotionEvent.java
+ */
+struct __attribute__((__packed__)) VerifiedMotionEvent : public VerifiedInputEvent {
+    float rawX;
+    float rawY;
+    int32_t actionMasked;
+    nsecs_t downTimeNanos;
+    int32_t flags;
+    int32_t metaState;
+    int32_t buttonState;
+};
+
+VerifiedKeyEvent verifiedKeyEventFromKeyEvent(const KeyEvent& event);
+VerifiedMotionEvent verifiedMotionEventFromMotionEvent(const MotionEvent& event);
 
 /*
  * Input event factory.
@@ -687,6 +834,7 @@ public:
 
     virtual KeyEvent* createKeyEvent() = 0;
     virtual MotionEvent* createMotionEvent() = 0;
+    virtual FocusEvent* createFocusEvent() = 0;
 };
 
 /*
@@ -698,12 +846,14 @@ public:
     PreallocatedInputEventFactory() { }
     virtual ~PreallocatedInputEventFactory() { }
 
-    virtual KeyEvent* createKeyEvent() { return & mKeyEvent; }
-    virtual MotionEvent* createMotionEvent() { return & mMotionEvent; }
+    virtual KeyEvent* createKeyEvent() override { return &mKeyEvent; }
+    virtual MotionEvent* createMotionEvent() override { return &mMotionEvent; }
+    virtual FocusEvent* createFocusEvent() override { return &mFocusEvent; }
 
 private:
     KeyEvent mKeyEvent;
     MotionEvent mMotionEvent;
+    FocusEvent mFocusEvent;
 };
 
 /*
@@ -714,16 +864,18 @@ public:
     explicit PooledInputEventFactory(size_t maxPoolSize = 20);
     virtual ~PooledInputEventFactory();
 
-    virtual KeyEvent* createKeyEvent();
-    virtual MotionEvent* createMotionEvent();
+    virtual KeyEvent* createKeyEvent() override;
+    virtual MotionEvent* createMotionEvent() override;
+    virtual FocusEvent* createFocusEvent() override;
 
     void recycle(InputEvent* event);
 
 private:
     const size_t mMaxPoolSize;
 
-    Vector<KeyEvent*> mKeyEventPool;
-    Vector<MotionEvent*> mMotionEventPool;
+    std::queue<std::unique_ptr<KeyEvent>> mKeyEventPool;
+    std::queue<std::unique_ptr<MotionEvent>> mMotionEventPool;
+    std::queue<std::unique_ptr<FocusEvent>> mFocusEventPool;
 };
 
 } // namespace android

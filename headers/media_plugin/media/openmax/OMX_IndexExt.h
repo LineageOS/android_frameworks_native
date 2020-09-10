@@ -89,6 +89,7 @@ typedef enum OMX_INDEXEXTTYPE {
     OMX_IndexParamVideoVp9,                         /**< reference: OMX_VIDEO_PARAM_VP9TYPE */
     OMX_IndexParamVideoAndroidVp9Encoder,           /**< reference: OMX_VIDEO_PARAM_ANDROID_VP9ENCODERTYPE */
     OMX_IndexParamVideoAndroidImageGrid,            /**< reference: OMX_VIDEO_PARAM_ANDROID_IMAGEGRIDTYPE */
+    OMX_IndexParamVideoAndroidRequiresSwRenderer,   /**< reference: OMX_PARAM_U32TYPE */
     OMX_IndexExtVideoEndUnused,
 
     /* Image & Video common configurations */
@@ -101,6 +102,7 @@ typedef enum OMX_INDEXEXTTYPE {
     OMX_IndexConfigOperatingRate,                   /**< reference: OMX_PARAM_U32TYPE in Q16 format for video and in Hz for audio */
     OMX_IndexParamConsumerUsageBits,                /**< reference: OMX_PARAM_U32TYPE */
     OMX_IndexConfigLatency,                         /**< reference: OMX_PARAM_U32TYPE */
+    OMX_IndexConfigLowLatency,                      /**< reference: OMX_CONFIG_BOOLEANTYPE */
     OMX_IndexExtOtherEndUnused,
 
     /* Time configurations */

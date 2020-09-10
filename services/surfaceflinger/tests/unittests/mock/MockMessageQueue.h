@@ -21,8 +21,7 @@
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
 
-namespace android {
-namespace mock {
+namespace android::mock {
 
 class MessageQueue : public android::MessageQueue {
 public:
@@ -30,13 +29,11 @@ public:
     ~MessageQueue() override;
 
     MOCK_METHOD1(init, void(const sp<SurfaceFlinger>&));
-    MOCK_METHOD2(setEventThread, void(android::EventThread*, ResyncCallback));
     MOCK_METHOD1(setEventConnection, void(const sp<EventThreadConnection>& connection));
     MOCK_METHOD0(waitMessage, void());
-    MOCK_METHOD2(postMessage, status_t(const sp<MessageBase>&, nsecs_t));
+    MOCK_METHOD1(postMessage, void(sp<MessageHandler>&&));
     MOCK_METHOD0(invalidate, void());
     MOCK_METHOD0(refresh, void());
 };
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock

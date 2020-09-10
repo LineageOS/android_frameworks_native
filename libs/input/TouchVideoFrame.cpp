@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <input/DisplayViewport.h>
 #include <input/TouchVideoFrame.h>
 
 namespace android {

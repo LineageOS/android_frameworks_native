@@ -67,6 +67,26 @@ prop {
     prop_name: "ro.surface_flinger.max_frame_buffer_acquired_buffers"
 }
 
+# Controls the maximum width in pixels that the graphics pipeline can support for GPU fallback
+# composition. For example, 8k displays with 4k GPUs, or 4k displays with 2k GPUs.
+prop {
+    api_name: "max_graphics_width"
+    type: Integer
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.max_graphics_width"
+}
+
+# Controls the maximum height in pixels that the graphics pipeline can support for GPU fallback
+# composition. For example, 8k displays with 4k GPUs, or 4k displays with 2k GPUs.
+prop {
+    api_name: "max_graphics_height"
+    type: Integer
+    scope: System
+    access: Readonly
+    prop_name: "ro.surface_flinger.max_graphics_height"
+}
+
 # hasWideColorDisplay indicates that the device has
 # or can support a wide-color display, e.g. color space
 # greater than sRGB. Typical display may have same
@@ -311,11 +331,9 @@ prop {
     scope: Public
     access: Readonly
     prop_name: "ro.surface_flinger.refresh_rate_switching"
+    deprecated: true
 }
 
-# setIdleTimerMs indicates what is considered a timeout in milliseconds for Scheduler. This value is
-# used by the Scheduler to trigger inactivity callbacks that will switch the display to a lower
-# refresh rate. Setting this property to 0 means there is no timer.
 prop {
     api_name: "set_idle_timer_ms"
     type: Integer
@@ -347,14 +365,26 @@ prop {
     prop_name: "ro.surface_flinger.set_display_power_timer_ms"
 }
 
+# useContentDetectionForRefreshRate indicates whether Scheduler should detect content FPS, and try
+# to adjust the screen refresh rate based on that.
+prop {
+    api_name: "use_content_detection_for_refresh_rate"
+    type: Boolean
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.use_content_detection_for_refresh_rate"
+}
+
 # useSmart90ForVideo indicates whether Scheduler should detect content FPS, and try to adjust the
 # screen refresh rate based on that.
+# Replaced by useContentDetectionForRefreshRate
 prop {
     api_name: "use_smart_90_for_video"
     type: Boolean
     scope: Public
     access: Readonly
     prop_name: "ro.surface_flinger.use_smart_90_for_video"
+    deprecated: true
 }
 
 prop {
@@ -373,4 +403,35 @@ prop {
     scope: Public
     access: Readonly
     prop_name: "ro.surface_flinger.support_kernel_idle_timer"
+}
+
+# Indicates whether background blurs are supported.
+prop {
+    api_name: "supports_background_blur"
+    type: Boolean
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.supports_background_blur"
+}
+
+# Indicates whether Scheduler should use frame rate API when adjusting the
+# display refresh rate.
+prop {
+    api_name: "use_frame_rate_api"
+    type: Boolean
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.use_frame_rate_api"
+}
+
+# Sets the timeout used to rate limit DISPLAY_UPDATE_IMMINENT Power HAL notifications.
+# SurfaceFlinger wakeups will trigger this boost whenever they are separated by more than this
+# duration (specified in milliseconds). A value of 0 disables the rate limit, and will result in
+# Power HAL notifications every time SF wakes up.
+prop {
+    api_name: "display_update_imminent_timeout_ms"
+    type: Integer
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.display_update_imminent_timeout_ms"
 }

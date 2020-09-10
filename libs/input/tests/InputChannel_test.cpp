@@ -22,11 +22,12 @@
 #include <time.h>
 #include <errno.h>
 
+#include <binder/Binder.h>
 #include <gtest/gtest.h>
 #include <input/InputTransport.h>
-#include <utils/Timers.h>
 #include <utils/StopWatch.h>
 #include <utils/StrongPointer.h>
+#include <utils/Timers.h>
 
 namespace android {
 
@@ -43,20 +44,27 @@ TEST_F(InputChannelTest, ConstructorAndDestructor_TakesOwnershipOfFileDescriptor
     // of a pipe and to check for EPIPE on the other end after the channel is destroyed.
     Pipe pipe;
 
-    sp<InputChannel> inputChannel = new InputChannel("channel name", pipe.sendFd);
+    android::base::unique_fd sendFd(pipe.sendFd);
 
+    sp<InputChannel> inputChannel =
+            InputChannel::create("channel name", std::move(sendFd), new BBinder());
+
+    EXPECT_NE(inputChannel, nullptr) << "channel should be successfully created";
     EXPECT_STREQ("channel name", inputChannel->getName().c_str())
             << "channel should have provided name";
-    EXPECT_EQ(pipe.sendFd, inputChannel->getFd())
-            << "channel should have provided fd";
+    EXPECT_NE(-1, inputChannel->getFd()) << "channel should have valid fd";
 
-    inputChannel.clear(); // destroys input channel
+    // InputChannel should be the owner of the file descriptor now
+    ASSERT_FALSE(sendFd.ok());
+}
 
-    EXPECT_EQ(-EPIPE, pipe.readSignal())
-            << "channel should have closed fd when destroyed";
+TEST_F(InputChannelTest, SetAndGetToken) {
+    Pipe pipe;
+    sp<IBinder> token = new BBinder();
+    sp<InputChannel> channel =
+            InputChannel::create("test channel", android::base::unique_fd(pipe.sendFd), token);
 
-    // clean up fds of Pipe endpoints that were closed so we don't try to close them again
-    pipe.sendFd = -1;
+    EXPECT_EQ(token, channel->getConnectionToken());
 }
 
 TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
@@ -77,7 +85,7 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
     // Server->Client communication
     InputMessage serverMsg;
     memset(&serverMsg, 0, sizeof(InputMessage));
-    serverMsg.header.type = InputMessage::TYPE_KEY;
+    serverMsg.header.type = InputMessage::Type::KEY;
     serverMsg.body.key.action = AKEY_EVENT_ACTION_DOWN;
     EXPECT_EQ(OK, serverChannel->sendMessage(&serverMsg))
             << "server channel should be able to send message to client channel";
@@ -93,7 +101,7 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
     // Client->Server communication
     InputMessage clientReply;
     memset(&clientReply, 0, sizeof(InputMessage));
-    clientReply.header.type = InputMessage::TYPE_FINISHED;
+    clientReply.header.type = InputMessage::Type::FINISHED;
     clientReply.body.finished.seq = 0x11223344;
     clientReply.body.finished.handled = true;
     EXPECT_EQ(OK, clientChannel->sendMessage(&clientReply))
@@ -152,7 +160,7 @@ TEST_F(InputChannelTest, SendSignal_WhenPeerClosed_ReturnsAnError) {
     serverChannel.clear(); // close server channel
 
     InputMessage msg;
-    msg.header.type = InputMessage::TYPE_KEY;
+    msg.header.type = InputMessage::Type::KEY;
     EXPECT_EQ(DEAD_OBJECT, clientChannel->sendMessage(&msg))
             << "sendMessage should have returned DEAD_OBJECT";
 }
@@ -171,7 +179,7 @@ TEST_F(InputChannelTest, SendAndReceive_MotionClassification) {
     };
 
     InputMessage serverMsg = {}, clientMsg;
-    serverMsg.header.type = InputMessage::TYPE_MOTION;
+    serverMsg.header.type = InputMessage::Type::MOTION;
     serverMsg.body.motion.seq = 1;
     serverMsg.body.motion.pointerCount = 1;
 

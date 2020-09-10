@@ -46,8 +46,10 @@
 #include "GLExtensions.h"
 #include "GLFramebuffer.h"
 #include "GLImage.h"
+#include "GLShadowVertexGenerator.h"
 #include "Program.h"
 #include "ProgramCache.h"
+#include "filters/BlurFilter.h"
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
@@ -145,52 +147,6 @@ static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs, EG
     return NAME_NOT_FOUND;
 }
 
-class EGLAttributeVector {
-    struct Attribute;
-    class Adder;
-    friend class Adder;
-    KeyedVector<Attribute, EGLint> mList;
-    struct Attribute {
-        Attribute() : v(0){};
-        explicit Attribute(EGLint v) : v(v) {}
-        EGLint v;
-        bool operator<(const Attribute& other) const {
-            // this places EGL_NONE at the end
-            EGLint lhs(v);
-            EGLint rhs(other.v);
-            if (lhs == EGL_NONE) lhs = 0x7FFFFFFF;
-            if (rhs == EGL_NONE) rhs = 0x7FFFFFFF;
-            return lhs < rhs;
-        }
-    };
-    class Adder {
-        friend class EGLAttributeVector;
-        EGLAttributeVector& v;
-        EGLint attribute;
-        Adder(EGLAttributeVector& v, EGLint attribute) : v(v), attribute(attribute) {}
-
-    public:
-        void operator=(EGLint value) {
-            if (attribute != EGL_NONE) {
-                v.mList.add(Attribute(attribute), value);
-            }
-        }
-        operator EGLint() const { return v.mList[attribute]; }
-    };
-
-public:
-    EGLAttributeVector() { mList.add(Attribute(EGL_NONE), EGL_NONE); }
-    void remove(EGLint attribute) {
-        if (attribute != EGL_NONE) {
-            mList.removeItem(Attribute(attribute));
-        }
-    }
-    Adder operator[](EGLint attribute) { return Adder(*this, attribute); }
-    EGLint operator[](EGLint attribute) const { return mList[attribute]; }
-    // cast-operator to (EGLint const*)
-    operator EGLint const*() const { return &mList.keyAt(0).v; }
-};
-
 static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint renderableType,
                                 EGLConfig* config) {
     // select our EGLConfig. It must support EGL_RECORDABLE_ANDROID if
@@ -199,16 +155,33 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint render
     EGLint wantedAttribute;
     EGLint wantedAttributeValue;
 
-    EGLAttributeVector attribs;
+    std::vector<EGLint> attribs;
     if (renderableType) {
-        attribs[EGL_RENDERABLE_TYPE] = renderableType;
-        attribs[EGL_RECORDABLE_ANDROID] = EGL_TRUE;
-        attribs[EGL_SURFACE_TYPE] = EGL_WINDOW_BIT | EGL_PBUFFER_BIT;
-        attribs[EGL_FRAMEBUFFER_TARGET_ANDROID] = EGL_TRUE;
-        attribs[EGL_RED_SIZE] = 8;
-        attribs[EGL_GREEN_SIZE] = 8;
-        attribs[EGL_BLUE_SIZE] = 8;
-        attribs[EGL_ALPHA_SIZE] = 8;
+        const ui::PixelFormat pixelFormat = static_cast<ui::PixelFormat>(format);
+        const bool is1010102 = pixelFormat == ui::PixelFormat::RGBA_1010102;
+
+        // Default to 8 bits per channel.
+        const EGLint tmpAttribs[] = {
+                EGL_RENDERABLE_TYPE,
+                renderableType,
+                EGL_RECORDABLE_ANDROID,
+                EGL_TRUE,
+                EGL_SURFACE_TYPE,
+                EGL_WINDOW_BIT | EGL_PBUFFER_BIT,
+                EGL_FRAMEBUFFER_TARGET_ANDROID,
+                EGL_TRUE,
+                EGL_RED_SIZE,
+                is1010102 ? 10 : 8,
+                EGL_GREEN_SIZE,
+                is1010102 ? 10 : 8,
+                EGL_BLUE_SIZE,
+                is1010102 ? 10 : 8,
+                EGL_ALPHA_SIZE,
+                is1010102 ? 2 : 8,
+                EGL_NONE,
+        };
+        std::copy(tmpAttribs, tmpAttribs + (sizeof(tmpAttribs) / sizeof(EGLint)),
+                  std::back_inserter(attribs));
         wantedAttribute = EGL_NONE;
         wantedAttributeValue = EGL_NONE;
     } else {
@@ -217,7 +190,8 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint render
         wantedAttributeValue = format;
     }
 
-    err = selectConfigForAttribute(display, attribs, wantedAttribute, wantedAttributeValue, config);
+    err = selectConfigForAttribute(display, attribs.data(), wantedAttribute, wantedAttributeValue,
+                                   config);
     if (err == NO_ERROR) {
         EGLint caveat;
         if (eglGetConfigAttrib(display, *config, EGL_CONFIG_CAVEAT, &caveat))
@@ -227,30 +201,39 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint render
     return err;
 }
 
-std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32_t featureFlags,
-                                                           uint32_t imageCacheSize) {
+std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCreationArgs& args) {
     // initialize EGL for the default display
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (!eglInitialize(display, nullptr, nullptr)) {
         LOG_ALWAYS_FATAL("failed to initialize EGL");
     }
 
+    const auto eglVersion = eglQueryStringImplementationANDROID(display, EGL_VERSION);
+    if (!eglVersion) {
+        checkGlError(__FUNCTION__, __LINE__);
+        LOG_ALWAYS_FATAL("eglQueryStringImplementationANDROID(EGL_VERSION) failed");
+    }
+
+    const auto eglExtensions = eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS);
+    if (!eglExtensions) {
+        checkGlError(__FUNCTION__, __LINE__);
+        LOG_ALWAYS_FATAL("eglQueryStringImplementationANDROID(EGL_EXTENSIONS) failed");
+    }
+
     GLExtensions& extensions = GLExtensions::getInstance();
-    extensions.initWithEGLStrings(eglQueryStringImplementationANDROID(display, EGL_VERSION),
-                                  eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS));
+    extensions.initWithEGLStrings(eglVersion, eglExtensions);
 
     // The code assumes that ES2 or later is available if this extension is
     // supported.
     EGLConfig config = EGL_NO_CONFIG;
     if (!extensions.hasNoConfigContext()) {
-        config = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
+        config = chooseEglConfig(display, args.pixelFormat, /*logConfig*/ true);
     }
 
-    bool useContextPriority = extensions.hasContextPriority() &&
-            (featureFlags & RenderEngine::USE_HIGH_PRIORITY_CONTEXT);
+    bool useContextPriority =
+            extensions.hasContextPriority() && args.contextPriority == ContextPriority::HIGH;
     EGLContext protectedContext = EGL_NO_CONTEXT;
-    if ((featureFlags & RenderEngine::ENABLE_PROTECTED_CONTEXT) &&
-        extensions.hasProtectedContent()) {
+    if (args.enableProtectedContext && extensions.hasProtectedContent()) {
         protectedContext = createEglContext(display, config, nullptr, useContextPriority,
                                             Protection::PROTECTED);
         ALOGE_IF(protectedContext == EGL_NO_CONTEXT, "Can't create protected context");
@@ -262,25 +245,29 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32
     // if can't create a GL context, we can only abort.
     LOG_ALWAYS_FATAL_IF(ctxt == EGL_NO_CONTEXT, "EGLContext creation failed");
 
-    EGLSurface dummy = EGL_NO_SURFACE;
+    EGLSurface stub = EGL_NO_SURFACE;
     if (!extensions.hasSurfacelessContext()) {
-        dummy = createDummyEglPbufferSurface(display, config, hwcFormat, Protection::UNPROTECTED);
-        LOG_ALWAYS_FATAL_IF(dummy == EGL_NO_SURFACE, "can't create dummy pbuffer");
+        stub = createStubEglPbufferSurface(display, config, args.pixelFormat,
+                                           Protection::UNPROTECTED);
+        LOG_ALWAYS_FATAL_IF(stub == EGL_NO_SURFACE, "can't create stub pbuffer");
     }
-    EGLBoolean success = eglMakeCurrent(display, dummy, dummy, ctxt);
-    LOG_ALWAYS_FATAL_IF(!success, "can't make dummy pbuffer current");
+    EGLBoolean success = eglMakeCurrent(display, stub, stub, ctxt);
+    LOG_ALWAYS_FATAL_IF(!success, "can't make stub pbuffer current");
     extensions.initWithGLStrings(glGetString(GL_VENDOR), glGetString(GL_RENDERER),
                                  glGetString(GL_VERSION), glGetString(GL_EXTENSIONS));
 
-    EGLSurface protectedDummy = EGL_NO_SURFACE;
+    EGLSurface protectedStub = EGL_NO_SURFACE;
     if (protectedContext != EGL_NO_CONTEXT && !extensions.hasSurfacelessContext()) {
-        protectedDummy =
-                createDummyEglPbufferSurface(display, config, hwcFormat, Protection::PROTECTED);
-        ALOGE_IF(protectedDummy == EGL_NO_SURFACE, "can't create protected dummy pbuffer");
+        protectedStub = createStubEglPbufferSurface(display, config, args.pixelFormat,
+                                                    Protection::PROTECTED);
+        ALOGE_IF(protectedStub == EGL_NO_SURFACE, "can't create protected stub pbuffer");
     }
 
     // now figure out what version of GL did we actually get
     GlesVersion version = parseGlesVersion(extensions.getVersion());
+
+    LOG_ALWAYS_FATAL_IF(args.supportsBackgroundBlur && version < GLES_VERSION_3_0,
+        "Blurs require OpenGL ES 3.0. Please unset ro.surface_flinger.supports_background_blur");
 
     // initialize the renderer while GL is current
     std::unique_ptr<GLESRenderEngine> engine;
@@ -291,9 +278,8 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32
             break;
         case GLES_VERSION_2_0:
         case GLES_VERSION_3_0:
-            engine = std::make_unique<GLESRenderEngine>(featureFlags, display, config, ctxt, dummy,
-                                                        protectedContext, protectedDummy,
-                                                        imageCacheSize);
+            engine = std::make_unique<GLESRenderEngine>(args, display, config, ctxt, stub,
+                                                        protectedContext, protectedStub);
             break;
     }
 
@@ -347,20 +333,20 @@ EGLConfig GLESRenderEngine::chooseEglConfig(EGLDisplay display, int format, bool
     return config;
 }
 
-GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EGLConfig config,
-                                   EGLContext ctxt, EGLSurface dummy, EGLContext protectedContext,
-                                   EGLSurface protectedDummy, uint32_t imageCacheSize)
-      : renderengine::impl::RenderEngine(featureFlags),
+GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
+                                   EGLConfig config, EGLContext ctxt, EGLSurface stub,
+                                   EGLContext protectedContext, EGLSurface protectedStub)
+      : renderengine::impl::RenderEngine(args),
         mEGLDisplay(display),
         mEGLConfig(config),
         mEGLContext(ctxt),
-        mDummySurface(dummy),
+        mStubSurface(stub),
         mProtectedEGLContext(protectedContext),
-        mProtectedDummySurface(protectedDummy),
+        mProtectedStubSurface(protectedStub),
         mVpWidth(0),
         mVpHeight(0),
-        mFramebufferImageCacheSize(imageCacheSize),
-        mUseColorManagement(featureFlags & USE_COLOR_MANAGEMENT) {
+        mFramebufferImageCacheSize(args.imageCacheSize),
+        mUseColorManagement(args.useColorManagement) {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
     glGetIntegerv(GL_MAX_VIEWPORT_DIMS, mMaxViewportDims);
 
@@ -369,23 +355,14 @@ GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EG
 
     // Initialize protected EGL Context.
     if (mProtectedEGLContext != EGL_NO_CONTEXT) {
-        EGLBoolean success = eglMakeCurrent(display, mProtectedDummySurface, mProtectedDummySurface,
+        EGLBoolean success = eglMakeCurrent(display, mProtectedStubSurface, mProtectedStubSurface,
                                             mProtectedEGLContext);
         ALOGE_IF(!success, "can't make protected context current");
         glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
         glPixelStorei(GL_PACK_ALIGNMENT, 4);
-        success = eglMakeCurrent(display, mDummySurface, mDummySurface, mEGLContext);
+        success = eglMakeCurrent(display, mStubSurface, mStubSurface, mEGLContext);
         LOG_ALWAYS_FATAL_IF(!success, "can't make default context current");
     }
-
-    const uint16_t protTexData[] = {0};
-    glGenTextures(1, &mProtectedTexName);
-    glBindTexture(GL_TEXTURE_2D, mProtectedTexName);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, protTexData);
 
     // mColorBlindnessCorrection = M;
 
@@ -423,6 +400,12 @@ GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EG
         mTraceGpuCompletion = true;
         mFlushTracer = std::make_unique<FlushTracer>(this);
     }
+
+    if (args.supportsBackgroundBlur) {
+        mBlurFilter = new BlurFilter(*this);
+        checkErrors("BlurFilter creation");
+    }
+
     mImageManager = std::make_unique<ImageManager>(this);
     mImageManager->initThread();
     mDrawingBuffer = createFramebuffer();
@@ -459,11 +442,8 @@ Framebuffer* GLESRenderEngine::getFramebufferForDrawing() {
 
 void GLESRenderEngine::primeCache() const {
     ProgramCache::getInstance().primeCache(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
-                                           mFeatureFlags & USE_COLOR_MANAGEMENT);
-}
-
-bool GLESRenderEngine::isCurrent() const {
-    return mEGLDisplay == eglGetCurrentDisplay() && mEGLContext == eglGetCurrentContext();
+                                           mArgs.useColorManagement,
+                                           mArgs.precacheToneMapperShaderOnly);
 }
 
 base::unique_fd GLESRenderEngine::flush() {
@@ -572,7 +552,10 @@ void GLESRenderEngine::fillRegionWithColor(const Region& region, float red, floa
                                            float alpha) {
     size_t c;
     Rect const* r = region.getArray(&c);
-    Mesh mesh(Mesh::TRIANGLES, c * 6, 2);
+    Mesh mesh = Mesh::Builder()
+                        .setPrimitive(Mesh::TRIANGLES)
+                        .setVertices(c * 6 /* count */, 2 /* size */)
+                        .build();
     Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
     for (size_t i = 0; i < c; i++, r++) {
         position[i * 6 + 0].x = r->left;
@@ -793,33 +776,65 @@ void GLESRenderEngine::handleRoundedCorners(const DisplaySettings& display,
     // top rectangle and the bottom rectangle, and turn off blending for the middle rectangle.
     FloatRect bounds = layer.geometry.roundedCornersCrop;
 
-    // Firstly, we need to convert the coordination from layer native coordination space to
-    // device coordination space.
-    const auto transformMatrix = display.globalTransform * layer.geometry.positionTransform;
-    const vec4 leftTopCoordinate(bounds.left, bounds.top, 1.0, 1.0);
-    const vec4 rightBottomCoordinate(bounds.right, bounds.bottom, 1.0, 1.0);
-    const vec4 leftTopCoordinateInBuffer = transformMatrix * leftTopCoordinate;
-    const vec4 rightBottomCoordinateInBuffer = transformMatrix * rightBottomCoordinate;
-    bounds = FloatRect(leftTopCoordinateInBuffer[0], leftTopCoordinateInBuffer[1],
-                       rightBottomCoordinateInBuffer[0], rightBottomCoordinateInBuffer[1]);
-
-    // Secondly, if the display is rotated, we need to undo the rotation on coordination and
-    // align the (left, top) and (right, bottom) coordination with the device coordination
-    // space.
+    // Explicitly compute the transform from the clip rectangle to the physical
+    // display. Normally, this is done in glViewport but we explicitly compute
+    // it here so that we can get the scissor bounds correct.
+    const Rect& source = display.clip;
+    const Rect& destination = display.physicalDisplay;
+    // Here we compute the following transform:
+    // 1. Translate the top left corner of the source clip to (0, 0)
+    // 2. Rotate the clip rectangle about the origin in accordance with the
+    // orientation flag
+    // 3. Translate the top left corner back to the origin.
+    // 4. Scale the clip rectangle to the destination rectangle dimensions
+    // 5. Translate the top left corner to the destination rectangle's top left
+    // corner.
+    const mat4 translateSource = mat4::translate(vec4(-source.left, -source.top, 0, 1));
+    mat4 rotation;
+    int displacementX = 0;
+    int displacementY = 0;
+    float destinationWidth = static_cast<float>(destination.getWidth());
+    float destinationHeight = static_cast<float>(destination.getHeight());
+    float sourceWidth = static_cast<float>(source.getWidth());
+    float sourceHeight = static_cast<float>(source.getHeight());
+    const float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
     switch (display.orientation) {
         case ui::Transform::ROT_90:
-            std::swap(bounds.left, bounds.right);
+            rotation = mat4::rotate(rot90InRadians, vec3(0, 0, 1));
+            displacementX = source.getHeight();
+            std::swap(sourceHeight, sourceWidth);
             break;
         case ui::Transform::ROT_180:
-            std::swap(bounds.left, bounds.right);
-            std::swap(bounds.top, bounds.bottom);
+            rotation = mat4::rotate(rot90InRadians * 2.0f, vec3(0, 0, 1));
+            displacementY = source.getHeight();
+            displacementX = source.getWidth();
             break;
         case ui::Transform::ROT_270:
-            std::swap(bounds.top, bounds.bottom);
+            rotation = mat4::rotate(rot90InRadians * 3.0f, vec3(0, 0, 1));
+            displacementY = source.getWidth();
+            std::swap(sourceHeight, sourceWidth);
             break;
         default:
             break;
     }
+
+    const mat4 intermediateTranslation = mat4::translate(vec4(displacementX, displacementY, 0, 1));
+    const mat4 scale = mat4::scale(
+            vec4(destinationWidth / sourceWidth, destinationHeight / sourceHeight, 1, 1));
+    const mat4 translateDestination =
+            mat4::translate(vec4(destination.left, destination.top, 0, 1));
+    const mat4 globalTransform =
+            translateDestination * scale * intermediateTranslation * rotation * translateSource;
+
+    const mat4 transformMatrix = globalTransform * layer.geometry.positionTransform;
+    const vec4 leftTopCoordinate(bounds.left, bounds.top, 1.0, 1.0);
+    const vec4 rightBottomCoordinate(bounds.right, bounds.bottom, 1.0, 1.0);
+    const vec4 leftTopCoordinateInBuffer = transformMatrix * leftTopCoordinate;
+    const vec4 rightBottomCoordinateInBuffer = transformMatrix * rightBottomCoordinate;
+    bounds = FloatRect(std::min(leftTopCoordinateInBuffer[0], rightBottomCoordinateInBuffer[0]),
+                       std::min(leftTopCoordinateInBuffer[1], rightBottomCoordinateInBuffer[1]),
+                       std::max(leftTopCoordinateInBuffer[0], rightBottomCoordinateInBuffer[0]),
+                       std::max(leftTopCoordinateInBuffer[1], rightBottomCoordinateInBuffer[1]));
 
     // Finally, we cut the layer into 3 parts, with top and bottom parts having rounded corners
     // and the middle part without rounded corners.
@@ -832,11 +847,14 @@ void GLESRenderEngine::handleRoundedCorners(const DisplaySettings& display,
     drawMesh(mesh);
 
     // The middle part of the layer can turn off blending.
-    const Rect middleRect(bounds.left, bounds.top + radius, bounds.right, bounds.bottom - radius);
-    setScissor(middleRect);
-    mState.cornerRadius = 0.0;
-    disableBlending();
-    drawMesh(mesh);
+    if (topRect.bottom < bottomRect.top) {
+        const Rect middleRect(bounds.left, bounds.top + radius, bounds.right,
+                              bounds.bottom - radius);
+        setScissor(middleRect);
+        mState.cornerRadius = 0.0;
+        disableBlending();
+        drawMesh(mesh);
+    }
     disableScissor();
 }
 
@@ -856,26 +874,52 @@ status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureName, 0);
 
     uint32_t glStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-
     ALOGE_IF(glStatus != GL_FRAMEBUFFER_COMPLETE_OES, "glCheckFramebufferStatusOES error %d",
              glStatus);
 
     return glStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
 }
 
-void GLESRenderEngine::unbindFrameBuffer(Framebuffer* /* framebuffer */) {
+void GLESRenderEngine::unbindFrameBuffer(Framebuffer* /*framebuffer*/) {
     ATRACE_CALL();
 
     // back to main framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+bool GLESRenderEngine::cleanupPostRender() {
+    ATRACE_CALL();
+
+    if (mPriorResourcesCleaned ||
+        (mLastDrawFence != nullptr && mLastDrawFence->getStatus() != Fence::Status::Signaled)) {
+        // If we don't have a prior frame needing cleanup, then don't do anything.
+        return false;
+    }
+
+    // Bind the texture to placeholder so that backing image data can be freed.
+    GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(getFramebufferForDrawing());
+    glFramebuffer->allocateBuffers(1, 1, mPlaceholderDrawBuffer);
+    // Release the cached fence here, so that we don't churn reallocations when
+    // we could no-op repeated calls of this method instead.
+    mLastDrawFence = nullptr;
+    mPriorResourcesCleaned = true;
+    return true;
+}
+
 void GLESRenderEngine::checkErrors() const {
+    checkErrors(nullptr);
+}
+
+void GLESRenderEngine::checkErrors(const char* tag) const {
     do {
         // there could be more than one error flag
         GLenum error = glGetError();
         if (error == GL_NO_ERROR) break;
-        ALOGE("GL error 0x%04x", int(error));
+        if (tag == nullptr) {
+            ALOGE("GL error 0x%04x", int(error));
+        } else {
+            ALOGE("GL error: %s -> 0x%04x", tag, int(error));
+        }
     } while (true);
 }
 
@@ -890,7 +934,7 @@ bool GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
     if (useProtectedContext && mProtectedEGLContext == EGL_NO_CONTEXT) {
         return false;
     }
-    const EGLSurface surface = useProtectedContext ? mProtectedDummySurface : mDummySurface;
+    const EGLSurface surface = useProtectedContext ? mProtectedStubSurface : mStubSurface;
     const EGLContext context = useProtectedContext ? mProtectedEGLContext : mEGLContext;
     const bool success = eglMakeCurrent(mEGLDisplay, surface, surface, context) == EGL_TRUE;
     if (success) {
@@ -937,7 +981,7 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
 }
 
 status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
-                                      const std::vector<LayerSettings>& layers,
+                                      const std::vector<const LayerSettings*>& layers,
                                       ANativeWindowBuffer* const buffer,
                                       const bool useFramebufferCache, base::unique_fd&& bufferFence,
                                       base::unique_fd* drawFence) {
@@ -947,9 +991,13 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         return NO_ERROR;
     }
 
-    if (bufferFence.get() >= 0 && !waitFence(std::move(bufferFence))) {
-        ATRACE_NAME("Waiting before draw");
-        sync_wait(bufferFence.get(), -1);
+    if (bufferFence.get() >= 0) {
+        // Duplicate the fence for passing to waitFence.
+        base::unique_fd bufferFenceDup(dup(bufferFence.get()));
+        if (bufferFenceDup < 0 || !waitFence(std::move(bufferFenceDup))) {
+            ATRACE_NAME("Waiting before draw");
+            sync_wait(bufferFence.get(), -1);
+        }
     }
 
     if (buffer == nullptr) {
@@ -957,13 +1005,38 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         return BAD_VALUE;
     }
 
-    BindNativeBufferAsFramebuffer fbo(*this, buffer, useFramebufferCache);
+    std::unique_ptr<BindNativeBufferAsFramebuffer> fbo;
+    // Gathering layers that requested blur, we'll need them to decide when to render to an
+    // offscreen buffer, and when to render to the native buffer.
+    std::deque<const LayerSettings*> blurLayers;
+    if (CC_LIKELY(mBlurFilter != nullptr)) {
+        for (auto layer : layers) {
+            if (layer->backgroundBlurRadius > 0) {
+                blurLayers.push_back(layer);
+            }
+        }
+    }
+    const auto blurLayersSize = blurLayers.size();
 
-    if (fbo.getStatus() != NO_ERROR) {
-        ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
-              buffer->handle);
-        checkErrors();
-        return fbo.getStatus();
+    if (blurLayersSize == 0) {
+        fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this, buffer, useFramebufferCache);
+        if (fbo->getStatus() != NO_ERROR) {
+            ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
+                  buffer->handle);
+            checkErrors();
+            return fbo->getStatus();
+        }
+        setViewportAndProjection(display.physicalDisplay, display.clip);
+    } else {
+        setViewportAndProjection(display.physicalDisplay, display.clip);
+        auto status =
+                mBlurFilter->setAsDrawTarget(display, blurLayers.front()->backgroundBlurRadius);
+        if (status != NO_ERROR) {
+            ALOGE("Failed to prepare blur filter! Aborting GPU composition for buffer (%p).",
+                  buffer->handle);
+            checkErrors();
+            return status;
+        }
     }
 
     // clear the entire buffer, sometimes when we reuse buffers we'd persist
@@ -973,53 +1046,96 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     // opaque layers.
     clearWithColor(0.0, 0.0, 0.0, 0.0);
 
-    setViewportAndProjection(display.physicalDisplay, display.clip);
-
     setOutputDataSpace(display.outputDataspace);
     setDisplayMaxLuminance(display.maxLuminance);
 
-    mat4 projectionMatrix = mState.projectionMatrix * display.globalTransform;
-    mState.projectionMatrix = projectionMatrix;
+    const mat4 projectionMatrix =
+            ui::Transform(display.orientation).asMatrix4() * mState.projectionMatrix;
     if (!display.clearRegion.isEmpty()) {
         glDisable(GL_BLEND);
         fillRegionWithColor(display.clearRegion, 0.0, 0.0, 0.0, 1.0);
     }
 
-    Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2, 2);
-    for (auto layer : layers) {
-        mState.projectionMatrix = projectionMatrix * layer.geometry.positionTransform;
+    Mesh mesh = Mesh::Builder()
+                        .setPrimitive(Mesh::TRIANGLE_FAN)
+                        .setVertices(4 /* count */, 2 /* size */)
+                        .setTexCoords(2 /* size */)
+                        .setCropCoords(2 /* size */)
+                        .build();
+    for (auto const layer : layers) {
+        if (blurLayers.size() > 0 && blurLayers.front() == layer) {
+            blurLayers.pop_front();
 
-        const FloatRect bounds = layer.geometry.boundaries;
+            auto status = mBlurFilter->prepare();
+            if (status != NO_ERROR) {
+                ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
+                      buffer->handle);
+                checkErrors("Can't render first blur pass");
+                return status;
+            }
+
+            if (blurLayers.size() == 0) {
+                // Done blurring, time to bind the native FBO and render our blur onto it.
+                fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this, buffer,
+                                                                      useFramebufferCache);
+                status = fbo->getStatus();
+                setViewportAndProjection(display.physicalDisplay, display.clip);
+            } else {
+                // There's still something else to blur, so let's keep rendering to our FBO
+                // instead of to the display.
+                status = mBlurFilter->setAsDrawTarget(display,
+                                                      blurLayers.front()->backgroundBlurRadius);
+            }
+            if (status != NO_ERROR) {
+                ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
+                      buffer->handle);
+                checkErrors("Can't bind native framebuffer");
+                return status;
+            }
+
+            status = mBlurFilter->render(blurLayersSize > 1);
+            if (status != NO_ERROR) {
+                ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
+                      buffer->handle);
+                checkErrors("Can't render blur filter");
+                return status;
+            }
+        }
+
+        mState.maxMasteringLuminance = layer->source.buffer.maxMasteringLuminance;
+        mState.maxContentLuminance = layer->source.buffer.maxContentLuminance;
+        mState.projectionMatrix = projectionMatrix * layer->geometry.positionTransform;
+
+        const FloatRect bounds = layer->geometry.boundaries;
         Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
         position[0] = vec2(bounds.left, bounds.top);
         position[1] = vec2(bounds.left, bounds.bottom);
         position[2] = vec2(bounds.right, bounds.bottom);
         position[3] = vec2(bounds.right, bounds.top);
 
-        setupLayerCropping(layer, mesh);
-        setColorTransform(display.colorTransform * layer.colorTransform);
+        setupLayerCropping(*layer, mesh);
+        setColorTransform(display.colorTransform * layer->colorTransform);
 
         bool usePremultipliedAlpha = true;
         bool disableTexture = true;
         bool isOpaque = false;
-
-        if (layer.source.buffer.buffer != nullptr) {
+        if (layer->source.buffer.buffer != nullptr) {
             disableTexture = false;
-            isOpaque = layer.source.buffer.isOpaque;
+            isOpaque = layer->source.buffer.isOpaque;
 
-            sp<GraphicBuffer> gBuf = layer.source.buffer.buffer;
-            bindExternalTextureBuffer(layer.source.buffer.textureName, gBuf,
-                                      layer.source.buffer.fence);
+            sp<GraphicBuffer> gBuf = layer->source.buffer.buffer;
+            bindExternalTextureBuffer(layer->source.buffer.textureName, gBuf,
+                                      layer->source.buffer.fence);
 
-            usePremultipliedAlpha = layer.source.buffer.usePremultipliedAlpha;
-            Texture texture(Texture::TEXTURE_EXTERNAL, layer.source.buffer.textureName);
-            mat4 texMatrix = layer.source.buffer.textureTransform;
+            usePremultipliedAlpha = layer->source.buffer.usePremultipliedAlpha;
+            Texture texture(Texture::TEXTURE_EXTERNAL, layer->source.buffer.textureName);
+            mat4 texMatrix = layer->source.buffer.textureTransform;
 
             texture.setMatrix(texMatrix.asArray());
-            texture.setFiltering(layer.source.buffer.useTextureFiltering);
+            texture.setFiltering(layer->source.buffer.useTextureFiltering);
 
             texture.setDimensions(gBuf->getWidth(), gBuf->getHeight());
-            setSourceY410BT2020(layer.source.buffer.isY410BT2020);
+            setSourceY410BT2020(layer->source.buffer.isY410BT2020);
 
             renderengine::Mesh::VertexArray<vec2> texCoords(mesh.getTexCoordArray<vec2>());
             texCoords[0] = vec2(0.0, 0.0);
@@ -1029,28 +1145,32 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             setupLayerTexturing(texture);
         }
 
-        const half3 solidColor = layer.source.solidColor;
-        const half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer.alpha);
+        const half3 solidColor = layer->source.solidColor;
+        const half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer->alpha);
         // Buffer sources will have a black solid color ignored in the shader,
         // so in that scenario the solid color passed here is arbitrary.
         setupLayerBlending(usePremultipliedAlpha, isOpaque, disableTexture, color,
-                           layer.geometry.roundedCornersRadius);
-        if (layer.disableBlending) {
+                           layer->geometry.roundedCornersRadius);
+        if (layer->disableBlending) {
             glDisable(GL_BLEND);
         }
-        setSourceDataSpace(layer.sourceDataspace);
+        setSourceDataSpace(layer->sourceDataspace);
 
+        if (layer->shadow.length > 0.0f) {
+            handleShadow(layer->geometry.boundaries, layer->geometry.roundedCornersRadius,
+                         layer->shadow);
+        }
         // We only want to do a special handling for rounded corners when having rounded corners
         // is the only reason it needs to turn on blending, otherwise, we handle it like the
         // usual way since it needs to turn on blending anyway.
-        if (layer.geometry.roundedCornersRadius > 0.0 && color.a >= 1.0f && isOpaque) {
-            handleRoundedCorners(display, layer, mesh);
+        else if (layer->geometry.roundedCornersRadius > 0.0 && color.a >= 1.0f && isOpaque) {
+            handleRoundedCorners(display, *layer, mesh);
         } else {
             drawMesh(mesh);
         }
 
         // Cleanup if there's a buffer source
-        if (layer.source.buffer.buffer != nullptr) {
+        if (layer->source.buffer.buffer != nullptr) {
             disableBlending();
             setSourceY410BT2020(false);
             disableTexturing();
@@ -1071,37 +1191,16 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             // us bad parameters, or we messed up our shader generation).
             return INVALID_OPERATION;
         }
+        mLastDrawFence = nullptr;
+    } else {
+        // The caller takes ownership of drawFence, so we need to duplicate the
+        // fd here.
+        mLastDrawFence = new Fence(dup(drawFence->get()));
     }
+    mPriorResourcesCleaned = false;
 
     checkErrors();
     return NO_ERROR;
-}
-
-void GLESRenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
-                                                ui::Transform::orientation_flags rotation) {
-    setViewportAndProjection(Rect(vpw, vph), sourceCrop);
-
-    if (rotation == ui::Transform::ROT_0) {
-        return;
-    }
-
-    // Apply custom rotation to the projection.
-    float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
-    mat4 m = mState.projectionMatrix;
-    switch (rotation) {
-        case ui::Transform::ROT_90:
-            m = mat4::rotate(rot90InRadians, vec3(0, 0, 1)) * m;
-            break;
-        case ui::Transform::ROT_180:
-            m = mat4::rotate(rot90InRadians * 2.0f, vec3(0, 0, 1)) * m;
-            break;
-        case ui::Transform::ROT_270:
-            m = mat4::rotate(rot90InRadians * 3.0f, vec3(0, 0, 1)) * m;
-            break;
-        default:
-            break;
-    }
-    mState.projectionMatrix = m;
 }
 
 void GLESRenderEngine::setViewportAndProjection(Rect viewport, Rect clip) {
@@ -1168,14 +1267,6 @@ void GLESRenderEngine::setupLayerTexturing(const Texture& texture) {
     mState.textureEnabled = true;
 }
 
-void GLESRenderEngine::setupLayerBlackedOut() {
-    glBindTexture(GL_TEXTURE_2D, mProtectedTexName);
-    Texture texture(Texture::TEXTURE_2D, mProtectedTexName);
-    texture.setDimensions(1, 1); // FIXME: we should get that from somewhere
-    mState.texture = texture;
-    mState.textureEnabled = true;
-}
-
 void GLESRenderEngine::setColorTransform(const mat4& colorTransform) {
     mState.colorMatrix = colorTransform;
 }
@@ -1217,13 +1308,23 @@ void GLESRenderEngine::drawMesh(const Mesh& mesh) {
                               mesh.getByteStride(), mesh.getCropCoords());
     }
 
+    if (mState.drawShadows) {
+        glEnableVertexAttribArray(Program::shadowColor);
+        glVertexAttribPointer(Program::shadowColor, mesh.getShadowColorSize(), GL_FLOAT, GL_FALSE,
+                              mesh.getByteStride(), mesh.getShadowColor());
+
+        glEnableVertexAttribArray(Program::shadowParams);
+        glVertexAttribPointer(Program::shadowParams, mesh.getShadowParamsSize(), GL_FLOAT, GL_FALSE,
+                              mesh.getByteStride(), mesh.getShadowParams());
+    }
+
+    Description managedState = mState;
     // By default, DISPLAY_P3 is the only supported wide color output. However,
     // when HDR content is present, hardware composer may be able to handle
     // BT2020 data space, in that case, the output data space is set to be
     // BT2020_HLG or BT2020_PQ respectively. In GPU fall back we need
     // to respect this and convert non-HDR content to HDR format.
     if (mUseColorManagement) {
-        Description managedState = mState;
         Dataspace inputStandard = static_cast<Dataspace>(mDataSpace & Dataspace::STANDARD_MASK);
         Dataspace inputTransfer = static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK);
         Dataspace outputStandard =
@@ -1314,25 +1415,23 @@ void GLESRenderEngine::drawMesh(const Mesh& mesh) {
             managedState.outputTransferFunction =
                     Description::dataSpaceToTransferFunction(outputTransfer);
         }
+    }
 
-        ProgramCache::getInstance().useProgram(mInProtectedContext ? mProtectedEGLContext
-                                                                   : mEGLContext,
-                                               managedState);
+    ProgramCache::getInstance().useProgram(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
+                                           managedState);
 
-        glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
-
-        if (outputDebugPPMs) {
-            static uint64_t managedColorFrameCount = 0;
-            std::ostringstream out;
-            out << "/data/texture_out" << managedColorFrameCount++;
-            writePPM(out.str().c_str(), mVpWidth, mVpHeight);
-        }
+    if (mState.drawShadows) {
+        glDrawElements(mesh.getPrimitive(), mesh.getIndexCount(), GL_UNSIGNED_SHORT,
+                       mesh.getIndices());
     } else {
-        ProgramCache::getInstance().useProgram(mInProtectedContext ? mProtectedEGLContext
-                                                                   : mEGLContext,
-                                               mState);
-
         glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
+    }
+
+    if (mUseColorManagement && outputDebugPPMs) {
+        static uint64_t managedColorFrameCount = 0;
+        std::ostringstream out;
+        out << "/data/texture_out" << managedColorFrameCount++;
+        writePPM(out.str().c_str(), mVpWidth, mVpHeight);
     }
 
     if (mesh.getTexCoordsSize()) {
@@ -1341,6 +1440,11 @@ void GLESRenderEngine::drawMesh(const Mesh& mesh) {
 
     if (mState.cornerRadius > 0.0f) {
         glDisableVertexAttribArray(Program::cropCoords);
+    }
+
+    if (mState.drawShadows) {
+        glDisableVertexAttribArray(Program::shadowColor);
+        glDisableVertexAttribArray(Program::shadowParams);
     }
 }
 
@@ -1459,11 +1563,11 @@ EGLContext GLESRenderEngine::createEglContext(EGLDisplay display, EGLConfig conf
     return context;
 }
 
-EGLSurface GLESRenderEngine::createDummyEglPbufferSurface(EGLDisplay display, EGLConfig config,
-                                                          int hwcFormat, Protection protection) {
-    EGLConfig dummyConfig = config;
-    if (dummyConfig == EGL_NO_CONFIG) {
-        dummyConfig = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
+EGLSurface GLESRenderEngine::createStubEglPbufferSurface(EGLDisplay display, EGLConfig config,
+                                                         int hwcFormat, Protection protection) {
+    EGLConfig stubConfig = config;
+    if (stubConfig == EGL_NO_CONFIG) {
+        stubConfig = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
     }
     std::vector<EGLint> attributes;
     attributes.reserve(7);
@@ -1477,7 +1581,7 @@ EGLSurface GLESRenderEngine::createDummyEglPbufferSurface(EGLDisplay display, EG
     }
     attributes.push_back(EGL_NONE);
 
-    return eglCreatePbufferSurface(display, dummyConfig, attributes.data());
+    return eglCreatePbufferSurface(display, stubConfig, attributes.data());
 }
 
 bool GLESRenderEngine::isHdrDataSpace(const Dataspace dataSpace) const {
@@ -1574,6 +1678,36 @@ void GLESRenderEngine::FlushTracer::loop() {
             mEngine->waitSync(entry.mSync, 0);
         }
     }
+}
+
+void GLESRenderEngine::handleShadow(const FloatRect& casterRect, float casterCornerRadius,
+                                    const ShadowSettings& settings) {
+    ATRACE_CALL();
+    const float casterZ = settings.length / 2.0f;
+    const GLShadowVertexGenerator shadows(casterRect, casterCornerRadius, casterZ,
+                                          settings.casterIsTranslucent, settings.ambientColor,
+                                          settings.spotColor, settings.lightPos,
+                                          settings.lightRadius);
+
+    // setup mesh for both shadows
+    Mesh mesh = Mesh::Builder()
+                        .setPrimitive(Mesh::TRIANGLES)
+                        .setVertices(shadows.getVertexCount(), 2 /* size */)
+                        .setShadowAttrs()
+                        .setIndices(shadows.getIndexCount())
+                        .build();
+
+    Mesh::VertexArray<vec2> position = mesh.getPositionArray<vec2>();
+    Mesh::VertexArray<vec4> shadowColor = mesh.getShadowColorArray<vec4>();
+    Mesh::VertexArray<vec3> shadowParams = mesh.getShadowParamsArray<vec3>();
+    shadows.fillVertices(position, shadowColor, shadowParams);
+    shadows.fillIndices(mesh.getIndicesArray());
+
+    mState.cornerRadius = 0.0f;
+    mState.drawShadows = true;
+    setupLayerTexturing(mShadowTexture.getTexture());
+    drawMesh(mesh);
+    mState.drawShadows = false;
 }
 
 } // namespace gl

@@ -25,15 +25,15 @@ CursorButtonAccumulator::CursorButtonAccumulator() {
     clearButtons();
 }
 
-void CursorButtonAccumulator::reset(InputDevice* device) {
-    mBtnLeft = device->isKeyPressed(BTN_LEFT);
-    mBtnRight = device->isKeyPressed(BTN_RIGHT);
-    mBtnMiddle = device->isKeyPressed(BTN_MIDDLE);
-    mBtnBack = device->isKeyPressed(BTN_BACK);
-    mBtnSide = device->isKeyPressed(BTN_SIDE);
-    mBtnForward = device->isKeyPressed(BTN_FORWARD);
-    mBtnExtra = device->isKeyPressed(BTN_EXTRA);
-    mBtnTask = device->isKeyPressed(BTN_TASK);
+void CursorButtonAccumulator::reset(InputDeviceContext& deviceContext) {
+    mBtnLeft = deviceContext.isKeyPressed(BTN_LEFT);
+    mBtnRight = deviceContext.isKeyPressed(BTN_RIGHT);
+    mBtnMiddle = deviceContext.isKeyPressed(BTN_MIDDLE);
+    mBtnBack = deviceContext.isKeyPressed(BTN_BACK);
+    mBtnSide = deviceContext.isKeyPressed(BTN_SIDE);
+    mBtnForward = deviceContext.isKeyPressed(BTN_FORWARD);
+    mBtnExtra = deviceContext.isKeyPressed(BTN_EXTRA);
+    mBtnTask = deviceContext.isKeyPressed(BTN_TASK);
 }
 
 void CursorButtonAccumulator::clearButtons() {

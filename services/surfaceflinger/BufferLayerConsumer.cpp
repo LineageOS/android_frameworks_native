@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #undef LOG_TAG
 #define LOG_TAG "BufferLayerConsumer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -403,8 +407,17 @@ Rect BufferLayerConsumer::getCurrentCrop() const {
 }
 
 Rect BufferLayerConsumer::getCurrentCropLocked() const {
+    uint32_t width = mDefaultWidth;
+    uint32_t height = mDefaultHeight;
+    // If the buffer comes with a rotated bit for 90 (or 270) degrees, switch width/height in order
+    // to scale and crop correctly.
+    if (mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
+        width = mDefaultHeight;
+        height = mDefaultWidth;
+    }
+
     return (mCurrentScalingMode == NATIVE_WINDOW_SCALING_MODE_SCALE_CROP)
-            ? GLConsumer::scaleDownCrop(mCurrentCrop, mDefaultWidth, mDefaultHeight)
+            ? GLConsumer::scaleDownCrop(mCurrentCrop, width, height)
             : mCurrentCrop;
 }
 
@@ -428,30 +441,6 @@ std::shared_ptr<FenceTime> BufferLayerConsumer::getCurrentFenceTime() const {
     return mCurrentFenceTime;
 }
 
-status_t BufferLayerConsumer::doFenceWaitLocked() const {
-    if (mCurrentFence->isValid()) {
-        if (mRE.useWaitSync()) {
-            base::unique_fd fenceFd(mCurrentFence->dup());
-            if (fenceFd == -1) {
-                BLC_LOGE("doFenceWait: error dup'ing fence fd: %d", errno);
-                return -errno;
-            }
-            if (!mRE.waitFence(std::move(fenceFd))) {
-                BLC_LOGE("doFenceWait: failed to wait on fence fd");
-                return UNKNOWN_ERROR;
-            }
-        } else {
-            status_t err = mCurrentFence->waitForever("BufferLayerConsumer::doFenceWaitLocked");
-            if (err != NO_ERROR) {
-                BLC_LOGE("doFenceWait: error waiting for fence: %d", err);
-                return err;
-            }
-        }
-    }
-
-    return NO_ERROR;
-}
-
 void BufferLayerConsumer::freeBufferLocked(int slotIndex) {
     BLC_LOGV("freeBufferLocked: slotIndex=%d", slotIndex);
     std::lock_guard<std::mutex> lock(mImagesMutex);
@@ -463,10 +452,14 @@ void BufferLayerConsumer::freeBufferLocked(int slotIndex) {
 }
 
 void BufferLayerConsumer::onDisconnect() {
-    sp<Layer> l = mLayer.promote();
-    if (l.get()) {
-        l->onDisconnect();
+    Mutex::Autolock lock(mMutex);
+
+    if (mAbandoned) {
+        // Nothing to do if we're already abandoned.
+        return;
     }
+
+    mLayer->onDisconnect();
 }
 
 void BufferLayerConsumer::onSidebandStreamChanged() {
@@ -500,10 +493,14 @@ void BufferLayerConsumer::onBufferAvailable(const BufferItem& item) {
 
 void BufferLayerConsumer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                                    FrameEventHistoryDelta* outDelta) {
-    sp<Layer> l = mLayer.promote();
-    if (l.get()) {
-        l->addAndGetFrameTimestamps(newTimestamps, outDelta);
+    Mutex::Autolock lock(mMutex);
+
+    if (mAbandoned) {
+        // Nothing to do if we're already abandoned.
+        return;
     }
+
+    mLayer->addAndGetFrameTimestamps(newTimestamps, outDelta);
 }
 
 void BufferLayerConsumer::abandonLocked() {
@@ -543,3 +540,6 @@ BufferLayerConsumer::Image::~Image() {
     }
 }
 }; // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

@@ -16,7 +16,7 @@
 
 #include "MockHWC2.h"
 
-namespace HWC2 {
+namespace android::HWC2 {
 
 // This will go away once HWC2::Layer is moved into the "backend" library
 Layer::~Layer() = default;
@@ -29,4 +29,4 @@ Layer::Layer() = default;
 Layer::~Layer() = default;
 
 } // namespace mock
-} // namespace HWC2
+} // namespace android::HWC2

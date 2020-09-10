@@ -73,6 +73,7 @@ enum {
     GET_UNIQUE_ID,
     GET_CONSUMER_USAGE,
     SET_LEGACY_BUFFER_DROP,
+    SET_AUTO_PREROTATION,
 };
 
 class BpGraphicBufferProducer : public BpInterface<IGraphicBufferProducer>
@@ -547,6 +548,17 @@ public:
         }
         return actualResult;
     }
+
+    virtual status_t setAutoPrerotation(bool autoPrerotation) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
+        data.writeBool(autoPrerotation);
+        status_t result = remote()->transact(SET_AUTO_PREROTATION, data, &reply);
+        if (result == NO_ERROR) {
+            result = reply.readInt32();
+        }
+        return result;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -675,6 +687,10 @@ public:
     status_t getConsumerUsage(uint64_t* outUsage) const override {
         return mBase->getConsumerUsage(outUsage);
     }
+
+    status_t setAutoPrerotation(bool autoPrerotation) override {
+        return mBase->setAutoPrerotation(autoPrerotation);
+    }
 };
 
 IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer,
@@ -685,6 +701,12 @@ IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer,
 status_t IGraphicBufferProducer::setLegacyBufferDrop(bool drop) {
     // No-op for IGBP other than BufferQueue.
     (void) drop;
+    return INVALID_OPERATION;
+}
+
+status_t IGraphicBufferProducer::setAutoPrerotation(bool autoPrerotation) {
+    // No-op for IGBP other than BufferQueue.
+    (void)autoPrerotation;
     return INVALID_OPERATION;
 }
 
@@ -1050,6 +1072,13 @@ status_t BnGraphicBufferProducer::onTransact(
             reply->writeInt32(result);
             return NO_ERROR;
         }
+        case SET_AUTO_PREROTATION: {
+            CHECK_INTERFACE(IGraphicBuffer, data, reply);
+            bool autoPrerotation = data.readBool();
+            status_t result = setAutoPrerotation(autoPrerotation);
+            reply->writeInt32(result);
+            return NO_ERROR;
+        }
     }
     return BBinder::onTransact(code, data, reply, flags);
 }
@@ -1060,135 +1089,5 @@ IGraphicBufferProducer::QueueBufferInput::QueueBufferInput(const Parcel& parcel)
     parcel.read(*this);
 }
 
-constexpr size_t IGraphicBufferProducer::QueueBufferInput::minFlattenedSize() {
-    return sizeof(timestamp) +
-            sizeof(isAutoTimestamp) +
-            sizeof(dataSpace) +
-            sizeof(crop) +
-            sizeof(scalingMode) +
-            sizeof(transform) +
-            sizeof(stickyTransform) +
-            sizeof(getFrameTimestamps);
-}
-
-size_t IGraphicBufferProducer::QueueBufferInput::getFlattenedSize() const {
-    return minFlattenedSize() +
-            fence->getFlattenedSize() +
-            surfaceDamage.getFlattenedSize() +
-            hdrMetadata.getFlattenedSize();
-}
-
-size_t IGraphicBufferProducer::QueueBufferInput::getFdCount() const {
-    return fence->getFdCount();
-}
-
-status_t IGraphicBufferProducer::QueueBufferInput::flatten(
-        void*& buffer, size_t& size, int*& fds, size_t& count) const
-{
-    if (size < getFlattenedSize()) {
-        return NO_MEMORY;
-    }
-
-    FlattenableUtils::write(buffer, size, timestamp);
-    FlattenableUtils::write(buffer, size, isAutoTimestamp);
-    FlattenableUtils::write(buffer, size, dataSpace);
-    FlattenableUtils::write(buffer, size, crop);
-    FlattenableUtils::write(buffer, size, scalingMode);
-    FlattenableUtils::write(buffer, size, transform);
-    FlattenableUtils::write(buffer, size, stickyTransform);
-    FlattenableUtils::write(buffer, size, getFrameTimestamps);
-
-    status_t result = fence->flatten(buffer, size, fds, count);
-    if (result != NO_ERROR) {
-        return result;
-    }
-    result = surfaceDamage.flatten(buffer, size);
-    if (result != NO_ERROR) {
-        return result;
-    }
-    FlattenableUtils::advance(buffer, size, surfaceDamage.getFlattenedSize());
-    return hdrMetadata.flatten(buffer, size);
-}
-
-status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
-        void const*& buffer, size_t& size, int const*& fds, size_t& count)
-{
-    if (size < minFlattenedSize()) {
-        return NO_MEMORY;
-    }
-
-    FlattenableUtils::read(buffer, size, timestamp);
-    FlattenableUtils::read(buffer, size, isAutoTimestamp);
-    FlattenableUtils::read(buffer, size, dataSpace);
-    FlattenableUtils::read(buffer, size, crop);
-    FlattenableUtils::read(buffer, size, scalingMode);
-    FlattenableUtils::read(buffer, size, transform);
-    FlattenableUtils::read(buffer, size, stickyTransform);
-    FlattenableUtils::read(buffer, size, getFrameTimestamps);
-
-    fence = new Fence();
-    status_t result = fence->unflatten(buffer, size, fds, count);
-    if (result != NO_ERROR) {
-        return result;
-    }
-    result = surfaceDamage.unflatten(buffer, size);
-    if (result != NO_ERROR) {
-        return result;
-    }
-    FlattenableUtils::advance(buffer, size, surfaceDamage.getFlattenedSize());
-    return hdrMetadata.unflatten(buffer, size);
-}
-
-// ----------------------------------------------------------------------------
-constexpr size_t IGraphicBufferProducer::QueueBufferOutput::minFlattenedSize() {
-    return sizeof(width) +
-            sizeof(height) +
-            sizeof(transformHint) +
-            sizeof(numPendingBuffers) +
-            sizeof(nextFrameNumber) +
-            sizeof(bufferReplaced);
-}
-
-size_t IGraphicBufferProducer::QueueBufferOutput::getFlattenedSize() const {
-    return minFlattenedSize() + frameTimestamps.getFlattenedSize();
-}
-
-size_t IGraphicBufferProducer::QueueBufferOutput::getFdCount() const {
-    return frameTimestamps.getFdCount();
-}
-
-status_t IGraphicBufferProducer::QueueBufferOutput::flatten(
-        void*& buffer, size_t& size, int*& fds, size_t& count) const
-{
-    if (size < getFlattenedSize()) {
-        return NO_MEMORY;
-    }
-
-    FlattenableUtils::write(buffer, size, width);
-    FlattenableUtils::write(buffer, size, height);
-    FlattenableUtils::write(buffer, size, transformHint);
-    FlattenableUtils::write(buffer, size, numPendingBuffers);
-    FlattenableUtils::write(buffer, size, nextFrameNumber);
-    FlattenableUtils::write(buffer, size, bufferReplaced);
-
-    return frameTimestamps.flatten(buffer, size, fds, count);
-}
-
-status_t IGraphicBufferProducer::QueueBufferOutput::unflatten(
-        void const*& buffer, size_t& size, int const*& fds, size_t& count)
-{
-    if (size < minFlattenedSize()) {
-        return NO_MEMORY;
-    }
-
-    FlattenableUtils::read(buffer, size, width);
-    FlattenableUtils::read(buffer, size, height);
-    FlattenableUtils::read(buffer, size, transformHint);
-    FlattenableUtils::read(buffer, size, numPendingBuffers);
-    FlattenableUtils::read(buffer, size, nextFrameNumber);
-    FlattenableUtils::read(buffer, size, bufferReplaced);
-
-    return frameTimestamps.unflatten(buffer, size, fds, count);
-}
 
 }; // namespace android

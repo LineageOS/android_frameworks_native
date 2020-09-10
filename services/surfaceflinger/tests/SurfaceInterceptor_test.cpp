@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <frameworks/native/cmds/surfacereplayer/proto/src/trace.pb.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
-
 #include <gtest/gtest.h>
-
-#include <android/native_window.h>
-
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
-
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayInfo.h>
+#include <ui/DisplayConfig.h>
 
 #include <fstream>
 #include <random>
@@ -36,6 +35,9 @@
 namespace android {
 
 using Transaction = SurfaceComposerClient::Transaction;
+using SurfaceChange = surfaceflinger::SurfaceChange;
+using Trace = surfaceflinger::Trace;
+using Increment = surfaceflinger::Increment;
 
 constexpr int32_t SCALING_UPDATE = 1;
 constexpr uint32_t BUFFER_UPDATES = 18;
@@ -43,18 +45,23 @@ constexpr uint32_t LAYER_UPDATE = INT_MAX - 2;
 constexpr uint32_t SIZE_UPDATE = 134;
 constexpr uint32_t STACK_UPDATE = 1;
 constexpr uint64_t DEFERRED_UPDATE = 0;
+constexpr int32_t RELATIVE_Z = 42;
 constexpr float ALPHA_UPDATE = 0.29f;
 constexpr float CORNER_RADIUS_UPDATE = 0.2f;
+constexpr int BACKGROUND_BLUR_RADIUS_UPDATE = 24;
 constexpr float POSITION_UPDATE = 121;
 const Rect CROP_UPDATE(16, 16, 32, 32);
+const float SHADOW_RADIUS_UPDATE = 35.0f;
 
 const String8 DISPLAY_NAME("SurfaceInterceptor Display Test");
-constexpr auto TEST_SURFACE_NAME = "BG Interceptor Test Surface";
-constexpr auto UNIQUE_TEST_SURFACE_NAME = "BG Interceptor Test Surface#0";
+constexpr auto TEST_BG_SURFACE_NAME = "BG Interceptor Test Surface";
+constexpr auto TEST_FG_SURFACE_NAME = "FG Interceptor Test Surface";
+constexpr auto UNIQUE_TEST_BG_SURFACE_NAME = "BG Interceptor Test Surface#0";
+constexpr auto UNIQUE_TEST_FG_SURFACE_NAME = "FG Interceptor Test Surface#0";
 constexpr auto LAYER_NAME = "Layer Create and Delete Test";
 constexpr auto UNIQUE_LAYER_NAME = "Layer Create and Delete Test#0";
 
-constexpr auto DEFAULT_FILENAME = "/data/SurfaceTrace.dat";
+constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/transaction_trace.pb";
 
 // Fill an RGBA_8888 formatted surface with a single color.
 static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g, uint8_t b) {
@@ -136,12 +143,16 @@ protected:
     void TearDown() override {
         mComposerClient->dispose();
         mBGSurfaceControl.clear();
+        mFGSurfaceControl.clear();
         mComposerClient.clear();
+        system("setenforce 1");
     }
 
     sp<SurfaceComposerClient> mComposerClient;
     sp<SurfaceControl> mBGSurfaceControl;
+    sp<SurfaceControl> mFGSurfaceControl;
     int32_t mBGLayerId;
+    int32_t mFGLayerId;
 
 public:
     using TestTransactionAction = void (SurfaceInterceptorTest::*)(Transaction&);
@@ -169,6 +180,8 @@ public:
     bool layerUpdateFound(const SurfaceChange& change, bool foundLayer);
     bool cropUpdateFound(const SurfaceChange& change, bool foundCrop);
     bool cornerRadiusUpdateFound(const SurfaceChange& change, bool foundCornerRadius);
+    bool backgroundBlurRadiusUpdateFound(const SurfaceChange& change,
+                                         bool foundBackgroundBlurRadius);
     bool matrixUpdateFound(const SurfaceChange& change, bool foundMatrix);
     bool scalingModeUpdateFound(const SurfaceChange& change, bool foundScalingMode);
     bool transparentRegionHintUpdateFound(const SurfaceChange& change, bool foundTransparentRegion);
@@ -177,6 +190,11 @@ public:
     bool opaqueFlagUpdateFound(const SurfaceChange& change, bool foundOpaqueFlag);
     bool secureFlagUpdateFound(const SurfaceChange& change, bool foundSecureFlag);
     bool deferredTransactionUpdateFound(const SurfaceChange& change, bool foundDeferred);
+    bool reparentUpdateFound(const SurfaceChange& change, bool found);
+    bool relativeParentUpdateFound(const SurfaceChange& change, bool found);
+    bool detachChildrenUpdateFound(const SurfaceChange& change, bool found);
+    bool reparentChildrenUpdateFound(const SurfaceChange& change, bool found);
+    bool shadowRadiusUpdateFound(const SurfaceChange& change, bool found);
     bool surfaceUpdateFound(const Trace& trace, SurfaceChange::SurfaceChangeCase changeCase);
 
     // Find all of the updates in the single trace
@@ -201,6 +219,7 @@ public:
     void layerUpdate(Transaction&);
     void cropUpdate(Transaction&);
     void cornerRadiusUpdate(Transaction&);
+    void backgroundBlurRadiusUpdate(Transaction&);
     void matrixUpdate(Transaction&);
     void overrideScalingModeUpdate(Transaction&);
     void transparentRegionHintUpdate(Transaction&);
@@ -209,6 +228,11 @@ public:
     void opaqueFlagUpdate(Transaction&);
     void secureFlagUpdate(Transaction&);
     void deferredTransactionUpdate(Transaction&);
+    void reparentUpdate(Transaction&);
+    void relativeParentUpdate(Transaction&);
+    void detachChildrenUpdate(Transaction&);
+    void reparentChildrenUpdate(Transaction&);
+    void shadowRadiusUpdate(Transaction&);
     void surfaceCreation(Transaction&);
     void displayCreation(Transaction&);
     void displayDeletion(Transaction&);
@@ -243,28 +267,37 @@ void SurfaceInterceptorTest::setupBackgroundSurface() {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     ASSERT_FALSE(display == nullptr);
 
-    DisplayInfo info;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
-
-    ssize_t displayWidth = info.w;
-    ssize_t displayHeight = info.h;
+    DisplayConfig config;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+    const ui::Size& resolution = config.resolution;
 
     // Background surface
-    mBGSurfaceControl = mComposerClient->createSurface(
-            String8(TEST_SURFACE_NAME), displayWidth, displayHeight,
-            PIXEL_FORMAT_RGBA_8888, 0);
+    mBGSurfaceControl =
+            mComposerClient->createSurface(String8(TEST_BG_SURFACE_NAME), resolution.getWidth(),
+                                           resolution.getHeight(), PIXEL_FORMAT_RGBA_8888, 0);
     ASSERT_TRUE(mBGSurfaceControl != nullptr);
     ASSERT_TRUE(mBGSurfaceControl->isValid());
 
+    // Foreground surface
+    mFGSurfaceControl =
+            mComposerClient->createSurface(String8(TEST_FG_SURFACE_NAME), resolution.getWidth(),
+                                           resolution.getHeight(), PIXEL_FORMAT_RGBA_8888, 0);
+    ASSERT_TRUE(mFGSurfaceControl != nullptr);
+    ASSERT_TRUE(mFGSurfaceControl->isValid());
+
     Transaction t;
     t.setDisplayLayerStack(display, 0);
-    ASSERT_EQ(NO_ERROR, t.setLayer(mBGSurfaceControl, INT_MAX-3)
-            .show(mBGSurfaceControl)
-            .apply());
+    ASSERT_EQ(NO_ERROR,
+              t.setLayer(mBGSurfaceControl, INT_MAX - 3)
+                      .show(mBGSurfaceControl)
+                      .setLayer(mFGSurfaceControl, INT_MAX - 3)
+                      .show(mFGSurfaceControl)
+                      .apply());
 }
 
 void SurfaceInterceptorTest::preProcessTrace(const Trace& trace) {
-    mBGLayerId = getSurfaceId(trace, UNIQUE_TEST_SURFACE_NAME);
+    mBGLayerId = getSurfaceId(trace, UNIQUE_TEST_BG_SURFACE_NAME);
+    mFGLayerId = getSurfaceId(trace, UNIQUE_TEST_FG_SURFACE_NAME);
 }
 
 void SurfaceInterceptorTest::captureTest(TestTransactionAction action,
@@ -322,6 +355,10 @@ void SurfaceInterceptorTest::cornerRadiusUpdate(Transaction& t) {
     t.setCornerRadius(mBGSurfaceControl, CORNER_RADIUS_UPDATE);
 }
 
+void SurfaceInterceptorTest::backgroundBlurRadiusUpdate(Transaction& t) {
+    t.setBackgroundBlurRadius(mBGSurfaceControl, BACKGROUND_BLUR_RADIUS_UPDATE);
+}
+
 void SurfaceInterceptorTest::layerUpdate(Transaction& t) {
     t.setLayer(mBGSurfaceControl, LAYER_UPDATE);
 }
@@ -364,6 +401,26 @@ void SurfaceInterceptorTest::deferredTransactionUpdate(Transaction& t) {
                                    DEFERRED_UPDATE);
 }
 
+void SurfaceInterceptorTest::reparentUpdate(Transaction& t) {
+    t.reparent(mBGSurfaceControl, mFGSurfaceControl->getHandle());
+}
+
+void SurfaceInterceptorTest::relativeParentUpdate(Transaction& t) {
+    t.setRelativeLayer(mBGSurfaceControl, mFGSurfaceControl->getHandle(), RELATIVE_Z);
+}
+
+void SurfaceInterceptorTest::detachChildrenUpdate(Transaction& t) {
+    t.detachChildren(mBGSurfaceControl);
+}
+
+void SurfaceInterceptorTest::reparentChildrenUpdate(Transaction& t) {
+    t.reparentChildren(mBGSurfaceControl, mFGSurfaceControl->getHandle());
+}
+
+void SurfaceInterceptorTest::shadowRadiusUpdate(Transaction& t) {
+    t.setShadowRadius(mBGSurfaceControl, SHADOW_RADIUS_UPDATE);
+}
+
 void SurfaceInterceptorTest::displayCreation(Transaction&) {
     sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, true);
     SurfaceComposerClient::destroyDisplay(testDisplay);
@@ -379,6 +436,7 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::sizeUpdate);
     runInTransaction(&SurfaceInterceptorTest::alphaUpdate);
     runInTransaction(&SurfaceInterceptorTest::cornerRadiusUpdate);
+    runInTransaction(&SurfaceInterceptorTest::backgroundBlurRadiusUpdate);
     runInTransaction(&SurfaceInterceptorTest::layerUpdate);
     runInTransaction(&SurfaceInterceptorTest::cropUpdate);
     runInTransaction(&SurfaceInterceptorTest::matrixUpdate);
@@ -389,6 +447,11 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::opaqueFlagUpdate);
     runInTransaction(&SurfaceInterceptorTest::secureFlagUpdate);
     runInTransaction(&SurfaceInterceptorTest::deferredTransactionUpdate);
+    runInTransaction(&SurfaceInterceptorTest::reparentUpdate);
+    runInTransaction(&SurfaceInterceptorTest::reparentChildrenUpdate);
+    runInTransaction(&SurfaceInterceptorTest::detachChildrenUpdate);
+    runInTransaction(&SurfaceInterceptorTest::relativeParentUpdate);
+    runInTransaction(&SurfaceInterceptorTest::shadowRadiusUpdate);
 }
 
 void SurfaceInterceptorTest::surfaceCreation(Transaction&) {
@@ -449,6 +512,18 @@ bool SurfaceInterceptorTest::cornerRadiusUpdateFound(const SurfaceChange &change
         [] () { FAIL(); }();
     }
     return foundCornerRadius;
+}
+
+bool SurfaceInterceptorTest::backgroundBlurRadiusUpdateFound(const SurfaceChange& change,
+                                                             bool foundBackgroundBlur) {
+    bool hasBackgroundBlur(change.background_blur_radius().background_blur_radius() ==
+                           BACKGROUND_BLUR_RADIUS_UPDATE);
+    if (hasBackgroundBlur && !foundBackgroundBlur) {
+        foundBackgroundBlur = true;
+    } else if (hasBackgroundBlur && foundBackgroundBlur) {
+        []() { FAIL(); }();
+    }
+    return foundBackgroundBlur;
 }
 
 bool SurfaceInterceptorTest::layerUpdateFound(const SurfaceChange& change, bool foundLayer) {
@@ -569,6 +644,57 @@ bool SurfaceInterceptorTest::deferredTransactionUpdateFound(const SurfaceChange&
     return foundDeferred;
 }
 
+bool SurfaceInterceptorTest::reparentUpdateFound(const SurfaceChange& change, bool found) {
+    bool hasId(change.reparent().parent_id() == mFGLayerId);
+    if (hasId && !found) {
+        found = true;
+    } else if (hasId && found) {
+        []() { FAIL(); }();
+    }
+    return found;
+}
+
+bool SurfaceInterceptorTest::relativeParentUpdateFound(const SurfaceChange& change, bool found) {
+    bool hasId(change.relative_parent().relative_parent_id() == mFGLayerId);
+    if (hasId && !found) {
+        found = true;
+    } else if (hasId && found) {
+        []() { FAIL(); }();
+    }
+    return found;
+}
+
+bool SurfaceInterceptorTest::detachChildrenUpdateFound(const SurfaceChange& change, bool found) {
+    bool detachChildren(change.detach_children().detach_children());
+    if (detachChildren && !found) {
+        found = true;
+    } else if (detachChildren && found) {
+        []() { FAIL(); }();
+    }
+    return found;
+}
+
+bool SurfaceInterceptorTest::reparentChildrenUpdateFound(const SurfaceChange& change, bool found) {
+    bool hasId(change.reparent_children().parent_id() == mFGLayerId);
+    if (hasId && !found) {
+        found = true;
+    } else if (hasId && found) {
+        []() { FAIL(); }();
+    }
+    return found;
+}
+
+bool SurfaceInterceptorTest::shadowRadiusUpdateFound(const SurfaceChange& change,
+                                                     bool foundShadowRadius) {
+    bool hasShadowRadius(change.shadow_radius().radius() == SHADOW_RADIUS_UPDATE);
+    if (hasShadowRadius && !foundShadowRadius) {
+        foundShadowRadius = true;
+    } else if (hasShadowRadius && foundShadowRadius) {
+        []() { FAIL(); }();
+    }
+    return foundShadowRadius;
+}
+
 bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
         SurfaceChange::SurfaceChangeCase changeCase) {
     bool foundUpdate = false;
@@ -596,6 +722,9 @@ bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
                         case SurfaceChange::SurfaceChangeCase::kCornerRadius:
                             foundUpdate = cornerRadiusUpdateFound(change, foundUpdate);
                             break;
+                        case SurfaceChange::SurfaceChangeCase::kBackgroundBlurRadius:
+                            foundUpdate = backgroundBlurRadiusUpdateFound(change, foundUpdate);
+                            break;
                         case SurfaceChange::SurfaceChangeCase::kMatrix:
                             foundUpdate = matrixUpdateFound(change, foundUpdate);
                             break;
@@ -619,6 +748,21 @@ bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
                             break;
                         case SurfaceChange::SurfaceChangeCase::kDeferredTransaction:
                             foundUpdate = deferredTransactionUpdateFound(change, foundUpdate);
+                            break;
+                        case SurfaceChange::SurfaceChangeCase::kReparent:
+                            foundUpdate = reparentUpdateFound(change, foundUpdate);
+                            break;
+                        case SurfaceChange::SurfaceChangeCase::kReparentChildren:
+                            foundUpdate = reparentChildrenUpdateFound(change, foundUpdate);
+                            break;
+                        case SurfaceChange::SurfaceChangeCase::kRelativeParent:
+                            foundUpdate = relativeParentUpdateFound(change, foundUpdate);
+                            break;
+                        case SurfaceChange::SurfaceChangeCase::kDetachChildren:
+                            foundUpdate = detachChildrenUpdateFound(change, foundUpdate);
+                            break;
+                        case SurfaceChange::SurfaceChangeCase::kShadowRadius:
+                            foundUpdate = shadowRadiusUpdateFound(change, foundUpdate);
                             break;
                         case SurfaceChange::SurfaceChangeCase::SURFACECHANGE_NOT_SET:
                             break;
@@ -644,6 +788,10 @@ void SurfaceInterceptorTest::assertAllUpdatesFound(const Trace& trace) {
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kOpaqueFlag));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kSecureFlag));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kDeferredTransaction));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kReparent));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kReparentChildren));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kRelativeParent));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kDetachChildren));
 }
 
 bool SurfaceInterceptorTest::surfaceCreationFound(const Increment& increment, bool foundSurface) {
@@ -759,6 +907,11 @@ TEST_F(SurfaceInterceptorTest, InterceptCornerRadiusUpdateWorks) {
             SurfaceChange::SurfaceChangeCase::kCornerRadius);
 }
 
+TEST_F(SurfaceInterceptorTest, InterceptBackgroundBlurRadiusUpdateWorks) {
+    captureTest(&SurfaceInterceptorTest::backgroundBlurRadiusUpdate,
+                SurfaceChange::SurfaceChangeCase::kBackgroundBlurRadius);
+}
+
 TEST_F(SurfaceInterceptorTest, InterceptMatrixUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::matrixUpdate, SurfaceChange::SurfaceChangeCase::kMatrix);
 }
@@ -796,6 +949,31 @@ TEST_F(SurfaceInterceptorTest, InterceptSecureFlagUpdateWorks) {
 TEST_F(SurfaceInterceptorTest, InterceptDeferredTransactionUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::deferredTransactionUpdate,
             SurfaceChange::SurfaceChangeCase::kDeferredTransaction);
+}
+
+TEST_F(SurfaceInterceptorTest, InterceptReparentUpdateWorks) {
+    captureTest(&SurfaceInterceptorTest::reparentUpdate,
+                SurfaceChange::SurfaceChangeCase::kReparent);
+}
+
+TEST_F(SurfaceInterceptorTest, InterceptReparentChildrenUpdateWorks) {
+    captureTest(&SurfaceInterceptorTest::reparentChildrenUpdate,
+                SurfaceChange::SurfaceChangeCase::kReparentChildren);
+}
+
+TEST_F(SurfaceInterceptorTest, InterceptRelativeParentUpdateWorks) {
+    captureTest(&SurfaceInterceptorTest::relativeParentUpdate,
+                SurfaceChange::SurfaceChangeCase::kRelativeParent);
+}
+
+TEST_F(SurfaceInterceptorTest, InterceptDetachChildrenUpdateWorks) {
+    captureTest(&SurfaceInterceptorTest::detachChildrenUpdate,
+                SurfaceChange::SurfaceChangeCase::kDetachChildren);
+}
+
+TEST_F(SurfaceInterceptorTest, InterceptShadowRadiusUpdateWorks) {
+    captureTest(&SurfaceInterceptorTest::shadowRadiusUpdate,
+                SurfaceChange::SurfaceChangeCase::kShadowRadius);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptAllUpdatesWorks) {
@@ -861,5 +1039,7 @@ TEST_F(SurfaceInterceptorTest, InterceptSimultaneousUpdatesWorks) {
     ASSERT_TRUE(bufferUpdatesFound(capturedTrace));
     ASSERT_TRUE(singleIncrementFound(capturedTrace, Increment::IncrementCase::kSurfaceCreation));
 }
-
 }
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

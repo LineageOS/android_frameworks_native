@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <android/looper.h>
 #include <gui/DisplayEventReceiver.h>
 #include <utils/Looper.h>
@@ -82,3 +86,6 @@ int main(int /*argc*/, char** /*argv*/)
 
     return 0;
 }
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

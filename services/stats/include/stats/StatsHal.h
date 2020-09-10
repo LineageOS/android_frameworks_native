@@ -17,6 +17,8 @@
 #include <android/frameworks/stats/1.0/IStats.h>
 #include <android/frameworks/stats/1.0/types.h>
 
+#include <stats_event.h>
+
 using namespace android::frameworks::stats::V1_0;
 
 namespace android {

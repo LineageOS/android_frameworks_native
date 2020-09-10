@@ -33,7 +33,7 @@ namespace impl {
 
 class DisplayColorProfile : public compositionengine::DisplayColorProfile {
 public:
-    DisplayColorProfile(DisplayColorProfileCreationArgs&&);
+    DisplayColorProfile(const DisplayColorProfileCreationArgs&);
     ~DisplayColorProfile() override;
 
     bool isValid() const override;
@@ -54,6 +54,8 @@ public:
     bool hasDolbyVisionSupport() const override;
 
     const HdrCapabilities& getHdrCapabilities() const override;
+    bool isDataspaceSupported(ui::Dataspace) const override;
+    ui::Dataspace getTargetDataspace(ui::ColorMode, ui::Dataspace, ui::Dataspace) const override;
 
     void dump(std::string&) const override;
 
@@ -89,7 +91,7 @@ private:
 };
 
 std::unique_ptr<compositionengine::DisplayColorProfile> createDisplayColorProfile(
-        DisplayColorProfileCreationArgs&&);
+        const DisplayColorProfileCreationArgs&);
 
 } // namespace impl
 } // namespace android::compositionengine

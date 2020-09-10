@@ -23,17 +23,18 @@ namespace android {
 
 class VibratorInputMapper : public InputMapper {
 public:
-    explicit VibratorInputMapper(InputDevice* device);
+    explicit VibratorInputMapper(InputDeviceContext& deviceContext);
     virtual ~VibratorInputMapper();
 
-    virtual uint32_t getSources();
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void process(const RawEvent* rawEvent);
+    virtual uint32_t getSources() override;
+    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    virtual void process(const RawEvent* rawEvent) override;
 
-    virtual void vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat, int32_t token);
-    virtual void cancelVibrate(int32_t token);
-    virtual void timeoutExpired(nsecs_t when);
-    virtual void dump(std::string& dump);
+    virtual void vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat,
+                         int32_t token) override;
+    virtual void cancelVibrate(int32_t token) override;
+    virtual void timeoutExpired(nsecs_t when) override;
+    virtual void dump(std::string& dump) override;
 
 private:
     bool mVibrating;

@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 //#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #undef LOG_TAG
@@ -21,15 +25,18 @@
 
 #include "RegionSamplingThread.h"
 
-#include <cutils/properties.h>
-#include <gui/IRegionSamplingListener.h>
-#include <utils/Trace.h>
-#include <string>
-
 #include <compositionengine/Display.h>
 #include <compositionengine/impl/OutputCompositionState.h>
+#include <cutils/properties.h>
+#include <gui/IRegionSamplingListener.h>
+#include <ui/DisplayStatInfo.h>
+#include <utils/Trace.h>
+
+#include <string>
+
 #include "DisplayDevice.h"
 #include "Layer.h"
+#include "Scheduler/DispSync.h"
 #include "SurfaceFlinger.h"
 
 namespace android {
@@ -105,9 +112,8 @@ struct SamplingOffsetCallback : DispSync::Callback {
         if (mVsyncListening) return;
 
         mPhaseIntervalSetting = Phase::ZERO;
-        mScheduler.withPrimaryDispSync([this](android::DispSync& sync) {
-            sync.addEventListener("SamplingThreadDispSyncListener", 0, this, mLastCallbackTime);
-        });
+        mScheduler.getPrimaryDispSync().addEventListener("SamplingThreadDispSyncListener", 0, this,
+                                                         mLastCallbackTime);
         mVsyncListening = true;
     }
 
@@ -120,28 +126,23 @@ private:
     void stopVsyncListenerLocked() /*REQUIRES(mMutex)*/ {
         if (!mVsyncListening) return;
 
-        mScheduler.withPrimaryDispSync([this](android::DispSync& sync) {
-            sync.removeEventListener(this, &mLastCallbackTime);
-        });
+        mScheduler.getPrimaryDispSync().removeEventListener(this, &mLastCallbackTime);
         mVsyncListening = false;
     }
 
-    void onDispSyncEvent(nsecs_t /* when */) final {
+    void onDispSyncEvent(nsecs_t /*when*/, nsecs_t /*expectedVSyncTimestamp*/) final {
         std::unique_lock<decltype(mMutex)> lock(mMutex);
 
         if (mPhaseIntervalSetting == Phase::ZERO) {
             ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForSamplePhase));
             mPhaseIntervalSetting = Phase::SAMPLING;
-            mScheduler.withPrimaryDispSync([this](android::DispSync& sync) {
-                sync.changePhaseOffset(this, mTargetSamplingOffset.count());
-            });
+            mScheduler.getPrimaryDispSync().changePhaseOffset(this, mTargetSamplingOffset.count());
             return;
         }
 
         if (mPhaseIntervalSetting == Phase::SAMPLING) {
             mPhaseIntervalSetting = Phase::ZERO;
-            mScheduler.withPrimaryDispSync(
-                    [this](android::DispSync& sync) { sync.changePhaseOffset(this, 0); });
+            mScheduler.getPrimaryDispSync().changePhaseOffset(this, 0);
             stopVsyncListenerLocked();
             lock.unlock();
             mRegionSamplingThread.notifySamplingOffset();
@@ -198,13 +199,8 @@ RegionSamplingThread::~RegionSamplingThread() {
     }
 }
 
-void RegionSamplingThread::addListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
+void RegionSamplingThread::addListener(const Rect& samplingArea, const wp<Layer>& stopLayer,
                                        const sp<IRegionSamplingListener>& listener) {
-    wp<Layer> stopLayer;
-    if (stopLayerHandle != nullptr && stopLayerHandle->localBinder() != nullptr) {
-        stopLayer = static_cast<Layer::Handle*>(stopLayerHandle.get())->owner;
-    }
-
     sp<IBinder> asBinder = IInterface::asBinder(listener);
     asBinder->linkToDeath(this);
     std::lock_guard lock(mSamplingMutex);
@@ -272,16 +268,6 @@ void RegionSamplingThread::binderDied(const wp<IBinder>& who) {
     mDescriptors.erase(who);
 }
 
-namespace {
-// Using Rec. 709 primaries
-inline float getLuma(float r, float g, float b) {
-    constexpr auto rec709_red_primary = 0.2126f;
-    constexpr auto rec709_green_primary = 0.7152f;
-    constexpr auto rec709_blue_primary = 0.0722f;
-    return rec709_red_primary * r + rec709_green_primary * g + rec709_blue_primary * b;
-}
-} // anonymous namespace
-
 float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t stride,
                  uint32_t orientation, const Rect& sample_area) {
     if (!sample_area.isValid() || (sample_area.getWidth() > width) ||
@@ -302,30 +288,23 @@ float sampleArea(const uint32_t* data, int32_t width, int32_t height, int32_t st
         std::swap(area.left, area.right);
     }
 
-    std::array<int32_t, 256> brightnessBuckets = {};
-    const int32_t majoritySampleNum = area.getWidth() * area.getHeight() / 2;
+    const uint32_t pixelCount = (area.bottom - area.top) * (area.right - area.left);
+    uint32_t accumulatedLuma = 0;
 
+    // Calculates luma with approximation of Rec. 709 primaries
     for (int32_t row = area.top; row < area.bottom; ++row) {
         const uint32_t* rowBase = data + row * stride;
         for (int32_t column = area.left; column < area.right; ++column) {
             uint32_t pixel = rowBase[column];
-            const float r = pixel & 0xFF;
-            const float g = (pixel >> 8) & 0xFF;
-            const float b = (pixel >> 16) & 0xFF;
-            const uint8_t luma = std::round(getLuma(r, g, b));
-            ++brightnessBuckets[luma];
-            if (brightnessBuckets[luma] > majoritySampleNum) return luma / 255.0f;
+            const uint32_t r = pixel & 0xFF;
+            const uint32_t g = (pixel >> 8) & 0xFF;
+            const uint32_t b = (pixel >> 16) & 0xFF;
+            const uint32_t luma = (r * 7 + b * 2 + g * 23) >> 5;
+            accumulatedLuma += luma;
         }
     }
 
-    int32_t accumulated = 0;
-    size_t bucket = 0;
-    for (; bucket < brightnessBuckets.size(); bucket++) {
-        accumulated += brightnessBuckets[bucket];
-        if (accumulated > majoritySampleNum) break;
-    }
-
-    return bucket / 255.0f;
+    return accumulatedLuma / (255.0f * pixelCount);
 }
 
 std::vector<float> RegionSamplingThread::sampleBuffer(
@@ -358,19 +337,7 @@ void RegionSamplingThread::captureSample() {
     }
 
     const auto device = mFlinger.getDefaultDisplayDevice();
-    const auto orientation = [](uint32_t orientation) {
-        switch (orientation) {
-            default:
-            case DisplayState::eOrientationDefault:
-                return ui::Transform::ROT_0;
-            case DisplayState::eOrientation90:
-                return ui::Transform::ROT_90;
-            case DisplayState::eOrientation180:
-                return ui::Transform::ROT_180;
-            case DisplayState::eOrientation270:
-                return ui::Transform::ROT_270;
-        }
-    }(device->getOrientation());
+    const auto orientation = ui::Transform::toRotationFlags(device->getOrientation());
 
     std::vector<RegionSamplingThread::Descriptor> descriptors;
     Region sampleRegion;
@@ -440,7 +407,7 @@ void RegionSamplingThread::captureSample() {
             }
             if (!intersectsAnyArea) return;
 
-            ALOGV("Traversing [%s] [%d, %d, %d, %d]", layer->getName().string(), bounds.left,
+            ALOGV("Traversing [%s] [%d, %d, %d, %d]", layer->getDebugName(), bounds.left,
                   bounds.top, bounds.right, bounds.bottom);
             visitor(layer);
         };
@@ -458,7 +425,8 @@ void RegionSamplingThread::captureSample() {
     }
 
     bool ignored;
-    mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false, ignored);
+    mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false /* identityTransform */,
+                                 true /* regionSampling */, ignored);
 
     std::vector<Descriptor> activeDescriptors;
     for (const auto& descriptor : descriptors) {
@@ -505,3 +473,6 @@ void RegionSamplingThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
 }
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

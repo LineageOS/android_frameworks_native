@@ -28,22 +28,14 @@ public:
     explicit ContainerLayer(const LayerCreationArgs&);
     ~ContainerLayer() override;
 
-    const char* getTypeId() const override { return "ContainerLayer"; }
+    const char* getType() const override { return "ContainerLayer"; }
     bool isVisible() const override;
-
-    void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
-                         const Rect& viewport, int32_t supportedPerFrameMetadata,
-                         const ui::Dataspace targetDataspace) override;
 
     bool isCreatedFromMainThread() const override { return true; }
 
-    bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
-
 protected:
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                            bool useIdentityTransform, Region& clearRegion,
-                            const bool supportProtectedContent,
-                            renderengine::LayerSettings& layer) override;
+    bool canDrawShadows() const override { return false; }
+    sp<Layer> createClone() override;
 };
 
 } // namespace android

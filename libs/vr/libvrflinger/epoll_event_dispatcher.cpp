@@ -68,8 +68,8 @@ pdx::Status<void> EpollEventDispatcher::RemoveEventHandler(int fd) {
   ALOGD_IF(TRACE, "EpollEventDispatcher::RemoveEventHandler: fd=%d", fd);
   std::lock_guard<std::mutex> lock(lock_);
 
-  epoll_event dummy;  // See BUGS in man 2 epoll_ctl.
-  if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_DEL, fd, &dummy) < 0) {
+  epoll_event ee;  // See BUGS in man 2 epoll_ctl.
+  if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_DEL, fd, &ee) < 0) {
     const int error = errno;
     ALOGE("Failed to remove fd from epoll set because: %s", strerror(error));
     return pdx::ErrorStatus(error);

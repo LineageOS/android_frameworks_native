@@ -254,11 +254,6 @@ private:
     // mCurrentTextureImage must not be nullptr.
     void computeCurrentTransformMatrixLocked();
 
-    // doFenceWaitLocked inserts a wait command into the RenderEngine command
-    // stream to ensure that it is safe for future RenderEngine commands to
-    // access the current texture buffer.
-    status_t doFenceWaitLocked() const;
-
     // getCurrentCropLocked returns the cropping rectangle of the current buffer.
     Rect getCurrentCropLocked() const;
 
@@ -336,8 +331,8 @@ private:
     // construction time.
     const uint32_t mTexName;
 
-    // The layer for this BufferLayerConsumer
-    const wp<Layer> mLayer;
+    // The layer for this BufferLayerConsumer. Always check mAbandoned before accessing.
+    Layer* mLayer GUARDED_BY(mMutex);
 
     wp<ContentsChangedListener> mContentsChangedListener;
 

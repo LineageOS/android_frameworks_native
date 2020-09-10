@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include "LayerProtoHelper.h"
 
 namespace android {
@@ -155,5 +159,16 @@ void LayerProtoHelper::writeToProto(
     }
 }
 
+void LayerProtoHelper::writeToProto(const mat4 matrix, ColorTransformProto* colorTransformProto) {
+    for (int i = 0; i < mat4::ROW_SIZE; i++) {
+        for (int j = 0; j < mat4::COL_SIZE; j++) {
+            colorTransformProto->add_val(matrix[i][j]);
+        }
+    }
+}
+
 } // namespace surfaceflinger
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

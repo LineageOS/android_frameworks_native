@@ -63,6 +63,12 @@ public:
     // Sets the dataspace used for rendering the surface
     virtual void setBufferDataspace(ui::Dataspace) = 0;
 
+    // Sets the pixel format used for rendering the surface.
+    // Changing the pixel format of the buffer will result in buffer
+    // reallocation as well as some reconfiguration of the graphics context,
+    // which are both expensive operations.
+    virtual void setBufferPixelFormat(ui::PixelFormat) = 0;
+
     // Configures the protected rendering on the surface
     virtual void setProtected(bool useProtected) = 0;
 
@@ -71,21 +77,17 @@ public:
     virtual status_t beginFrame(bool mustRecompose) = 0;
 
     // Prepares the frame for rendering
-    virtual status_t prepareFrame() = 0;
+    virtual void prepareFrame(bool usesClientComposition, bool usesDeviceComposition) = 0;
 
     // Allocates a buffer as scratch space for GPU composition
     virtual sp<GraphicBuffer> dequeueBuffer(base::unique_fd* bufferFence) = 0;
 
     // Queues the drawn buffer for consumption by HWC. readyFence is the fence
     // which will fire when the buffer is ready for consumption.
-    virtual void queueBuffer(base::unique_fd&& readyFence) = 0;
+    virtual void queueBuffer(base::unique_fd readyFence) = 0;
 
     // Called after the HWC calls are made to present the display
     virtual void onPresentDisplayCompleted() = 0;
-
-    // Called to set the viewport and projection state for rendering into this
-    // surface
-    virtual void setViewportAndProjection() = 0;
 
     // Called after the surface has been rendering to signal the surface should
     // be made ready for displaying

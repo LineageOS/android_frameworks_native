@@ -20,12 +20,13 @@
 
 namespace android::inputdispatcher {
 
-Connection::Connection(const sp<InputChannel>& inputChannel, bool monitor)
+Connection::Connection(const sp<InputChannel>& inputChannel, bool monitor,
+                       const IdGenerator& idGenerator)
       : status(STATUS_NORMAL),
         inputChannel(inputChannel),
         monitor(monitor),
         inputPublisher(inputChannel),
-        inputPublisherBlocked(false) {}
+        inputState(idGenerator) {}
 
 Connection::~Connection() {}
 
@@ -52,13 +53,13 @@ const char* Connection::getStatusLabel() const {
     }
 }
 
-DispatchEntry* Connection::findWaitQueueEntry(uint32_t seq) {
-    for (DispatchEntry* entry = waitQueue.head; entry != nullptr; entry = entry->next) {
-        if (entry->seq == seq) {
-            return entry;
+std::deque<DispatchEntry*>::iterator Connection::findWaitQueueEntry(uint32_t seq) {
+    for (std::deque<DispatchEntry*>::iterator it = waitQueue.begin(); it != waitQueue.end(); it++) {
+        if ((*it)->seq == seq) {
+            return it;
         }
     }
-    return nullptr;
+    return waitQueue.end();
 }
 
 } // namespace android::inputdispatcher

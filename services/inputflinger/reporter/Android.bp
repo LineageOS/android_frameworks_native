@@ -17,25 +17,33 @@ cc_library_headers {
     export_include_dirs: ["."],
 }
 
-cc_library_shared {
-    name: "libinputreporter",
-    defaults: ["inputflinger_defaults"],
-
+filegroup {
+    name: "libinputreporter_sources",
     srcs: [
-        "InputReporter.cpp",
+            "InputReporter.cpp",
     ],
+}
 
+cc_defaults {
+    name: "libinputreporter_defaults",
+    srcs: [":libinputreporter_sources"],
     shared_libs: [
         "liblog",
         "libutils",
     ],
-
     header_libs: [
-        "libinputflinger_headers",
+        "libinputreporter_headers",
     ],
+}
 
+cc_library_shared {
+    name: "libinputreporter",
+    defaults: [
+        "inputflinger_defaults",
+        "libinputreporter_defaults",
+    ],
     export_header_lib_headers: [
-        "libinputflinger_headers",
+        "libinputreporter_headers",
     ],
 }
 

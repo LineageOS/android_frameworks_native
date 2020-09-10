@@ -33,14 +33,16 @@ public:
     MOCK_METHOD0(onScreenReleased, void());
     MOCK_METHOD0(onScreenAcquired, void());
     MOCK_METHOD2(onHotplugReceived, void(PhysicalDisplayId, bool));
-    MOCK_METHOD2(onConfigChanged, void(PhysicalDisplayId, int32_t));
+    MOCK_METHOD3(onConfigChanged, void(PhysicalDisplayId, HwcConfigIndexType, nsecs_t));
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_METHOD1(setPhaseOffset, void(nsecs_t phaseOffset));
     MOCK_METHOD1(registerDisplayEventConnection,
                  status_t(const sp<android::EventThreadConnection> &));
     MOCK_METHOD2(setVsyncRate, void(uint32_t, const sp<android::EventThreadConnection> &));
     MOCK_METHOD1(requestNextVsync, void(const sp<android::EventThreadConnection> &));
+    MOCK_METHOD1(requestLatestConfig, void(const sp<android::EventThreadConnection> &));
     MOCK_METHOD1(pauseVsyncCallback, void(bool));
+    MOCK_METHOD0(getEventThreadConnectionCount, size_t());
 };
 
 } // namespace mock

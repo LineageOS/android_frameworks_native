@@ -62,8 +62,26 @@ status_t Fence::waitForever(const char* logname) {
     int warningTimeout = 3000;
     int err = sync_wait(mFenceFd, warningTimeout);
     if (err < 0 && errno == ETIME) {
-        ALOGE("%s: fence %d didn't signal in %u ms", logname, mFenceFd.get(),
-                warningTimeout);
+        ALOGE("waitForever: %s: fence %d didn't signal in %u ms", logname, mFenceFd.get(),
+              warningTimeout);
+
+        struct sync_file_info* finfo = sync_file_info(mFenceFd);
+        if (finfo) {
+            // status: active(0) signaled(1) error(<0)
+            ALOGI("waitForever: fence(%s) status(%d)", finfo->name, finfo->status);
+
+            struct sync_fence_info* pinfo = sync_get_fence_info(finfo);
+            for (uint32_t i = 0; i < finfo->num_fences; i++) {
+                uint64_t ts_sec = pinfo[i].timestamp_ns / 1000000000LL;
+                uint64_t ts_usec = (pinfo[i].timestamp_ns % 1000000000LL) / 1000LL;
+
+                ALOGI("waitForever: sync point: timeline(%s) drv(%s) status(%d) timestamp(%" PRIu64
+                      ".%06" PRIu64 ")",
+                      pinfo[i].obj_name, pinfo[i].driver_name, pinfo[i].status, ts_sec, ts_usec);
+            }
+            sync_file_info_free(finfo);
+        }
+
         err = sync_wait(mFenceFd, TIMEOUT_NEVER);
     }
     return err < 0 ? -errno : status_t(NO_ERROR);

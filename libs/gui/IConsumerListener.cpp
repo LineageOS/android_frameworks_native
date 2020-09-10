@@ -28,7 +28,10 @@ enum class Tag : uint32_t {
     ON_FRAME_REPLACED,
     ON_BUFFERS_RELEASED,
     ON_SIDEBAND_STREAM_CHANGED,
-    LAST = ON_SIDEBAND_STREAM_CHANGED,
+    ON_FRAME_DEQUEUED,
+    ON_FRAME_CANCELLED,
+    ON_FRAME_DETACHED,
+    LAST = ON_FRAME_DETACHED,
 };
 
 } // Anonymous namespace
@@ -42,6 +45,21 @@ public:
 
     void onDisconnect() override {
         callRemoteAsync<decltype(&IConsumerListener::onDisconnect)>(Tag::ON_DISCONNECT);
+    }
+
+    void onFrameDequeued(const uint64_t bufferId) override {
+        callRemoteAsync<decltype(&IConsumerListener::onFrameDequeued)>(Tag::ON_FRAME_DEQUEUED,
+                                                                       bufferId);
+    }
+
+    void onFrameDetached(const uint64_t bufferId) override {
+        callRemoteAsync<decltype(&IConsumerListener::onFrameDetached)>(Tag::ON_FRAME_DETACHED,
+                                                                       bufferId);
+    }
+
+    void onFrameCancelled(const uint64_t bufferId) override {
+        callRemoteAsync<decltype(&IConsumerListener::onFrameCancelled)>(Tag::ON_FRAME_CANCELLED,
+                                                                        bufferId);
     }
 
     void onFrameAvailable(const BufferItem& item) override {
@@ -72,7 +90,6 @@ public:
 // Out-of-line virtual method definitions to trigger vtable emission in this translation unit (see
 // clang warning -Wweak-vtables)
 BpConsumerListener::~BpConsumerListener() = default;
-ConsumerListener::~ConsumerListener() = default;
 
 IMPLEMENT_META_INTERFACE(ConsumerListener, "android.gui.IConsumerListener");
 
@@ -93,6 +110,12 @@ status_t BnConsumerListener::onTransact(uint32_t code, const Parcel& data, Parce
             return callLocalAsync(data, reply, &IConsumerListener::onBuffersReleased);
         case Tag::ON_SIDEBAND_STREAM_CHANGED:
             return callLocalAsync(data, reply, &IConsumerListener::onSidebandStreamChanged);
+        case Tag::ON_FRAME_DEQUEUED:
+            return callLocalAsync(data, reply, &IConsumerListener::onFrameDequeued);
+        case Tag::ON_FRAME_CANCELLED:
+            return callLocalAsync(data, reply, &IConsumerListener::onFrameCancelled);
+        case Tag::ON_FRAME_DETACHED:
+            return callLocalAsync(data, reply, &IConsumerListener::onFrameDetached);
     }
 }
 

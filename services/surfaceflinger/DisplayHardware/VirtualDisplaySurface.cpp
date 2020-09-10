@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 // #define LOG_NDEBUG 0
 #include "VirtualDisplaySurface.h"
 
@@ -42,13 +46,14 @@ static const char* dbgCompositionTypeStr(compositionengine::DisplaySurface::Comp
     switch (type) {
         case compositionengine::DisplaySurface::COMPOSITION_UNKNOWN:
             return "UNKNOWN";
-        case compositionengine::DisplaySurface::COMPOSITION_GLES:
-            return "GLES";
+        case compositionengine::DisplaySurface::COMPOSITION_GPU:
+            return "GPU";
         case compositionengine::DisplaySurface::COMPOSITION_HWC:
             return "HWC";
         case compositionengine::DisplaySurface::COMPOSITION_MIXED:
             return "MIXED";
-        default:                                  return "<INVALID>";
+        default:
+            return "<INVALID>";
     }
 }
 
@@ -92,7 +97,7 @@ VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc,
     mSinkBufferHeight = sinkHeight;
 
     // Pick the buffer format to request from the sink when not rendering to it
-    // with GLES. If the consumer needs CPU access, use the default format
+    // with GPU. If the consumer needs CPU access, use the default format
     // set by the consumer. Otherwise allow gralloc to decide the format based
     // on usage bits.
     int sinkUsage;
@@ -143,10 +148,10 @@ status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
     mDbgState = DBG_STATE_PREPARED;
 
     mCompositionType = compositionType;
-    if (mForceHwcCopy && mCompositionType == COMPOSITION_GLES) {
+    if (mForceHwcCopy && mCompositionType == COMPOSITION_GPU) {
         // Some hardware can do RGB->YUV conversion more efficiently in hardware
         // controlled by HWC than in hardware controlled by the video encoder.
-        // Forcing GLES-composed frames to go through an extra copy by the HWC
+        // Forcing GPU-composed frames to go through an extra copy by the HWC
         // allows the format conversion to happen there, rather than passing RGB
         // directly to the consumer.
         //
@@ -161,18 +166,17 @@ status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
         mDbgLastCompositionType = mCompositionType;
     }
 
-    if (mCompositionType != COMPOSITION_GLES &&
-            (mOutputFormat != mDefaultOutputFormat ||
-             mOutputUsage != GRALLOC_USAGE_HW_COMPOSER)) {
-        // We must have just switched from GLES-only to MIXED or HWC
-        // composition. Stop using the format and usage requested by the GLES
+    if (mCompositionType != COMPOSITION_GPU &&
+        (mOutputFormat != mDefaultOutputFormat || mOutputUsage != GRALLOC_USAGE_HW_COMPOSER)) {
+        // We must have just switched from GPU-only to MIXED or HWC
+        // composition. Stop using the format and usage requested by the GPU
         // driver; they may be suboptimal when HWC is writing to the output
         // buffer. For example, if the output is going to a video encoder, and
         // HWC can write directly to YUV, some hardware can skip a
         // memory-to-memory RGB-to-YUV conversion step.
         //
-        // If we just switched *to* GLES-only mode, we'll change the
-        // format/usage and get a new buffer when the GLES driver calls
+        // If we just switched *to* GPU-only mode, we'll change the
+        // format/usage and get a new buffer when the GPU driver calls
         // dequeueBuffer().
         mOutputFormat = mDefaultOutputFormat;
         mOutputUsage = GRALLOC_USAGE_HW_COMPOSER;
@@ -192,17 +196,16 @@ status_t VirtualDisplaySurface::advanceFrame() {
                 "Unexpected advanceFrame() in %s state on HWC frame",
                 dbgStateStr());
     } else {
-        VDS_LOGW_IF(mDbgState != DBG_STATE_GLES_DONE,
-                "Unexpected advanceFrame() in %s state on GLES/MIXED frame",
-                dbgStateStr());
+        VDS_LOGW_IF(mDbgState != DBG_STATE_GPU_DONE,
+                    "Unexpected advanceFrame() in %s state on GPU/MIXED frame", dbgStateStr());
     }
     mDbgState = DBG_STATE_HWC;
 
     if (mOutputProducerSlot < 0 ||
             (mCompositionType != COMPOSITION_HWC && mFbProducerSlot < 0)) {
         // Last chance bailout if something bad happened earlier. For example,
-        // in a GLES configuration, if the sink disappears then dequeueBuffer
-        // will fail, the GLES driver won't queue a buffer, but SurfaceFlinger
+        // in a graphics API configuration, if the sink disappears then dequeueBuffer
+        // will fail, the GPU driver won't queue a buffer, but SurfaceFlinger
         // will soldier on. So we end up here without a buffer. There should
         // be lots of scary messages in the log just before this.
         VDS_LOGE("advanceFrame: no buffer, bailing out");
@@ -302,9 +305,8 @@ status_t VirtualDisplaySurface::requestBuffer(int pslot,
         return mSource[SOURCE_SINK]->requestBuffer(pslot, outBuf);
     }
 
-    VDS_LOGW_IF(mDbgState != DBG_STATE_GLES,
-            "Unexpected requestBuffer pslot=%d in %s state",
-            pslot, dbgStateStr());
+    VDS_LOGW_IF(mDbgState != DBG_STATE_GPU, "Unexpected requestBuffer pslot=%d in %s state", pslot,
+                dbgStateStr());
 
     *outBuf = mProducerBuffers[pslot];
     return NO_ERROR;
@@ -374,7 +376,7 @@ status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence, uint
 
     VDS_LOGW_IF(mDbgState != DBG_STATE_PREPARED,
             "Unexpected dequeueBuffer() in %s state", dbgStateStr());
-    mDbgState = DBG_STATE_GLES;
+    mDbgState = DBG_STATE_GPU;
 
     VDS_LOGV("dequeueBuffer %dx%d fmt=%d usage=%#" PRIx64, w, h, format, usage);
 
@@ -385,18 +387,18 @@ status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence, uint
 
         if (mOutputProducerSlot < 0) {
             // Last chance bailout if something bad happened earlier. For example,
-            // in a GLES configuration, if the sink disappears then dequeueBuffer
-            // will fail, the GLES driver won't queue a buffer, but SurfaceFlinger
+            // in a graphics API configuration, if the sink disappears then dequeueBuffer
+            // will fail, the GPU driver won't queue a buffer, but SurfaceFlinger
             // will soldier on. So we end up here without a buffer. There should
             // be lots of scary messages in the log just before this.
             VDS_LOGE("dequeueBuffer: no buffer, bailing out");
             return NO_MEMORY;
         }
 
-        // We already dequeued the output buffer. If the GLES driver wants
+        // We already dequeued the output buffer. If the GPU driver wants
         // something incompatible, we have to cancel and get a new one. This
         // will mean that HWC will see a different output buffer between
-        // prepare and set, but since we're in GLES-only mode already it
+        // prepare and set, but since we're in GPU-only mode already it
         // shouldn't matter.
 
         usage |= GRALLOC_USAGE_HW_COMPOSER;
@@ -458,10 +460,9 @@ status_t VirtualDisplaySurface::queueBuffer(int pslot,
         return mSource[SOURCE_SINK]->queueBuffer(pslot, input, output);
     }
 
-    VDS_LOGW_IF(mDbgState != DBG_STATE_GLES,
-            "Unexpected queueBuffer(pslot=%d) in %s state", pslot,
-            dbgStateStr());
-    mDbgState = DBG_STATE_GLES_DONE;
+    VDS_LOGW_IF(mDbgState != DBG_STATE_GPU, "Unexpected queueBuffer(pslot=%d) in %s state", pslot,
+                dbgStateStr());
+    mDbgState = DBG_STATE_GPU_DONE;
 
     VDS_LOGV("queueBuffer pslot=%d", pslot);
 
@@ -488,11 +489,11 @@ status_t VirtualDisplaySurface::queueBuffer(int pslot,
         mFbFence = mSlots[item.mSlot].mFence;
 
     } else {
-        LOG_FATAL_IF(mCompositionType != COMPOSITION_GLES,
-                "Unexpected queueBuffer in state %s for compositionType %s",
-                dbgStateStr(), dbgCompositionTypeStr(mCompositionType));
+        LOG_FATAL_IF(mCompositionType != COMPOSITION_GPU,
+                     "Unexpected queueBuffer in state %s for compositionType %s", dbgStateStr(),
+                     dbgCompositionTypeStr(mCompositionType));
 
-        // Extract the GLES release fence for HWC to acquire
+        // Extract the GPU release fence for HWC to acquire
         int64_t timestamp;
         bool isAutoTimestamp;
         android_dataspace dataSpace;
@@ -517,9 +518,8 @@ status_t VirtualDisplaySurface::cancelBuffer(int pslot,
         return mSource[SOURCE_SINK]->cancelBuffer(mapProducer2SourceSlot(SOURCE_SINK, pslot), fence);
     }
 
-    VDS_LOGW_IF(mDbgState != DBG_STATE_GLES,
-            "Unexpected cancelBuffer(pslot=%d) in %s state", pslot,
-            dbgStateStr());
+    VDS_LOGW_IF(mDbgState != DBG_STATE_GPU, "Unexpected cancelBuffer(pslot=%d) in %s state", pslot,
+                dbgStateStr());
     VDS_LOGV("cancelBuffer pslot=%d", pslot);
     Source source = fbSourceForCompositionType(mCompositionType);
     return mSource[source]->cancelBuffer(
@@ -641,8 +641,8 @@ status_t VirtualDisplaySurface::refreshOutputBuffer() {
         return result;
     mOutputProducerSlot = mapSource2ProducerSlot(SOURCE_SINK, sslot);
 
-    // On GLES-only frames, we don't have the right output buffer acquire fence
-    // until after GLES calls queueBuffer(). So here we just set the buffer
+    // On GPU-only frames, we don't have the right output buffer acquire fence
+    // until after GPU calls queueBuffer(). So here we just set the buffer
     // (for use in HWC prepare) but not the fence; we'll call this again with
     // the proper fence once we have it.
     result = mHwc.setOutputBuffer(*mDisplayId, Fence::NO_FENCE,
@@ -672,12 +672,18 @@ VirtualDisplaySurface::fbSourceForCompositionType(CompositionType type) {
 
 const char* VirtualDisplaySurface::dbgStateStr() const {
     switch (mDbgState) {
-        case DBG_STATE_IDLE:      return "IDLE";
-        case DBG_STATE_PREPARED:  return "PREPARED";
-        case DBG_STATE_GLES:      return "GLES";
-        case DBG_STATE_GLES_DONE: return "GLES_DONE";
-        case DBG_STATE_HWC:       return "HWC";
-        default:                  return "INVALID";
+        case DBG_STATE_IDLE:
+            return "IDLE";
+        case DBG_STATE_PREPARED:
+            return "PREPARED";
+        case DBG_STATE_GPU:
+            return "GPU";
+        case DBG_STATE_GPU_DONE:
+            return "GPU_DONE";
+        case DBG_STATE_HWC:
+            return "HWC";
+        default:
+            return "INVALID";
     }
 }
 
@@ -692,3 +698,6 @@ const char* VirtualDisplaySurface::dbgSourceStr(Source s) {
 // ---------------------------------------------------------------------------
 } // namespace android
 // ---------------------------------------------------------------------------
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

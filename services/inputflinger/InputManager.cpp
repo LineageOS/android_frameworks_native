@@ -20,7 +20,6 @@
 
 #include "InputManager.h"
 #include "InputDispatcherFactory.h"
-#include "InputDispatcherThread.h"
 #include "InputReaderFactory.h"
 
 #include <binder/IPCThreadState.h>
@@ -38,30 +37,24 @@ InputManager::InputManager(
     mDispatcher = createInputDispatcher(dispatcherPolicy);
     mClassifier = new InputClassifier(mDispatcher);
     mReader = createInputReader(readerPolicy, mClassifier);
-    initialize();
 }
 
 InputManager::~InputManager() {
     stop();
 }
 
-void InputManager::initialize() {
-    mReaderThread = new InputReaderThread(mReader);
-    mDispatcherThread = new InputDispatcherThread(mDispatcher);
-}
-
 status_t InputManager::start() {
-    status_t result = mDispatcherThread->run("InputDispatcher", PRIORITY_URGENT_DISPLAY);
+    status_t result = mDispatcher->start();
     if (result) {
         ALOGE("Could not start InputDispatcher thread due to error %d.", result);
         return result;
     }
 
-    result = mReaderThread->run("InputReader", PRIORITY_URGENT_DISPLAY);
+    result = mReader->start();
     if (result) {
-        ALOGE("Could not start InputReader thread due to error %d.", result);
+        ALOGE("Could not start InputReader due to error %d.", result);
 
-        mDispatcherThread->requestExit();
+        mDispatcher->stop();
         return result;
     }
 
@@ -69,17 +62,21 @@ status_t InputManager::start() {
 }
 
 status_t InputManager::stop() {
-    status_t result = mReaderThread->requestExitAndWait();
+    status_t status = OK;
+
+    status_t result = mReader->stop();
     if (result) {
-        ALOGW("Could not stop InputReader thread due to error %d.", result);
+        ALOGW("Could not stop InputReader due to error %d.", result);
+        status = result;
     }
 
-    result = mDispatcherThread->requestExitAndWait();
+    result = mDispatcher->stop();
     if (result) {
         ALOGW("Could not stop InputDispatcher thread due to error %d.", result);
+        status = result;
     }
 
-    return OK;
+    return status;
 }
 
 sp<InputReaderInterface> InputManager::getReader() {
@@ -114,8 +111,10 @@ void InputManager::setInputWindows(const std::vector<InputWindowInfo>& infos,
         handlesPerDisplay.emplace(info.displayId, std::vector<sp<InputWindowHandle>>());
         handlesPerDisplay[info.displayId].push_back(new BinderWindowHandle(info));
     }
-    for (auto const& i : handlesPerDisplay) {
-        mDispatcher->setInputWindows(i.second, i.first, setInputWindowsListener);
+    mDispatcher->setInputWindows(handlesPerDisplay);
+
+    if (setInputWindowsListener) {
+        setInputWindowsListener->onSetInputWindowsFinished();
     }
 }
 
@@ -128,7 +127,7 @@ void InputManager::registerInputChannel(const sp<InputChannel>& channel) {
                 "from non shell/root entity (PID: %d)", ipc->getCallingPid());
         return;
     }
-    mDispatcher->registerInputChannel(channel, false);
+    mDispatcher->registerInputChannel(channel);
 }
 
 void InputManager::unregisterInputChannel(const sp<InputChannel>& channel) {

@@ -14,179 +14,173 @@
  * limitations under the License.
  */
 
+#undef LOG_TAG
+#define LOG_TAG "LayerHistory"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "LayerHistory.h"
-
-#include <cinttypes>
-#include <cstdint>
-#include <limits>
-#include <numeric>
-#include <string>
-#include <unordered_map>
 
 #include <cutils/properties.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
 
+#include <algorithm>
+#include <cmath>
+#include <string>
+#include <utility>
+
+#include "../Layer.h"
+#include "LayerInfo.h"
 #include "SchedulerUtils.h"
 
-namespace android {
-namespace scheduler {
+namespace android::scheduler::impl {
 
-std::atomic<int64_t> LayerHistory::sNextId = 0;
+namespace {
 
-LayerHistory::LayerHistory() {
+bool isLayerActive(const Layer& layer, const LayerInfo& info, nsecs_t threshold) {
+    if (layer.getFrameRateForLayerTree().rate > 0) {
+        return layer.isVisible();
+    }
+    return layer.isVisible() && info.getLastUpdatedTime() >= threshold;
+}
+
+bool traceEnabled() {
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sf.layer_history_trace", value, "0");
-    mTraceEnabled = bool(atoi(value));
+    return atoi(value);
 }
 
+bool useFrameRatePriority() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("debug.sf.use_frame_rate_priority", value, "1");
+    return atoi(value);
+}
+
+void trace(const wp<Layer>& weak, int fps) {
+    const auto layer = weak.promote();
+    if (!layer) return;
+
+    const auto& name = layer->getName();
+    const auto tag = "LFPS " + name;
+    ATRACE_INT(tag.c_str(), fps);
+    ALOGD("%s: %s @ %d Hz", __FUNCTION__, name.c_str(), fps);
+}
+} // namespace
+
+LayerHistory::LayerHistory()
+      : mTraceEnabled(traceEnabled()), mUseFrameRatePriority(useFrameRatePriority()) {}
 LayerHistory::~LayerHistory() = default;
 
-std::unique_ptr<LayerHistory::LayerHandle> LayerHistory::createLayer(const std::string name,
-                                                                     float minRefreshRate,
-                                                                     float maxRefreshRate) {
-    const int64_t id = sNextId++;
-
+void LayerHistory::registerLayer(Layer* layer, float lowRefreshRate, float highRefreshRate,
+                                 LayerVoteType /*type*/) {
+    auto info = std::make_unique<LayerInfo>(lowRefreshRate, highRefreshRate);
     std::lock_guard lock(mLock);
-    mInactiveLayerInfos.emplace(id,
-                                std::make_shared<LayerInfo>(name, minRefreshRate, maxRefreshRate));
-    return std::make_unique<LayerHistory::LayerHandle>(*this, id);
+    mLayerInfos.emplace_back(layer, std::move(info));
 }
 
-void LayerHistory::destroyLayer(const int64_t id) {
+void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
+                          LayerUpdateType /*updateType*/) {
     std::lock_guard lock(mLock);
-    auto it = mActiveLayerInfos.find(id);
-    if (it != mActiveLayerInfos.end()) {
-        mActiveLayerInfos.erase(it);
-    }
 
-    it = mInactiveLayerInfos.find(id);
-    if (it != mInactiveLayerInfos.end()) {
-        mInactiveLayerInfos.erase(it);
+    const auto it = std::find_if(mLayerInfos.begin(), mLayerInfos.end(),
+                                 [layer](const auto& pair) { return pair.first == layer; });
+    LOG_FATAL_IF(it == mLayerInfos.end(), "%s: unknown layer %p", __FUNCTION__, layer);
+
+    const auto& info = it->second;
+    info->setLastPresentTime(presentTime, now);
+
+    // Activate layer if inactive.
+    if (const auto end = activeLayers().end(); it >= end) {
+        std::iter_swap(it, end);
+        mActiveLayersEnd++;
     }
 }
 
-void LayerHistory::insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs_t presentTime,
-                          bool isHdr) {
-    std::shared_ptr<LayerInfo> layerInfo;
-    {
-        std::lock_guard lock(mLock);
-        auto layerInfoIterator = mInactiveLayerInfos.find(layerHandle->mId);
-        if (layerInfoIterator != mInactiveLayerInfos.end()) {
-            layerInfo = layerInfoIterator->second;
-            mInactiveLayerInfos.erase(layerInfoIterator);
-            mActiveLayerInfos.insert({layerHandle->mId, layerInfo});
+LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
+    ATRACE_CALL();
+    std::lock_guard lock(mLock);
+
+    partitionLayers(now);
+
+    LayerHistory::Summary summary;
+    for (const auto& [weakLayer, info] : activeLayers()) {
+        const bool recent = info->isRecentlyActive(now);
+        auto layer = weakLayer.promote();
+        // Only use the layer if the reference still exists.
+        if (layer || CC_UNLIKELY(mTraceEnabled)) {
+            const auto layerFocused =
+                    Layer::isLayerFocusedBasedOnPriority(layer->getFrameRateSelectionPriority());
+            // Check if frame rate was set on layer.
+            const auto frameRate = layer->getFrameRateForLayerTree();
+            if (frameRate.rate > 0.f) {
+                const auto voteType = [&]() {
+                    switch (frameRate.type) {
+                        case Layer::FrameRateCompatibility::Default:
+                            return LayerVoteType::ExplicitDefault;
+                        case Layer::FrameRateCompatibility::ExactOrMultiple:
+                            return LayerVoteType::ExplicitExactOrMultiple;
+                        case Layer::FrameRateCompatibility::NoVote:
+                            return LayerVoteType::NoVote;
+                    }
+                }();
+                summary.push_back({layer->getName(), voteType, frameRate.rate, /* weight */ 1.0f,
+                                   layerFocused});
+            } else if (recent) {
+                summary.push_back({layer->getName(), LayerVoteType::Heuristic,
+                                   info->getRefreshRate(now),
+                                   /* weight */ 1.0f, layerFocused});
+            }
+
+            if (CC_UNLIKELY(mTraceEnabled)) {
+                trace(weakLayer, round<int>(frameRate.rate));
+            }
+        }
+    }
+
+    return summary;
+}
+
+void LayerHistory::partitionLayers(nsecs_t now) {
+    const nsecs_t threshold = getActiveLayerThreshold(now);
+
+    // Collect expired and inactive layers after active layers.
+    size_t i = 0;
+    while (i < mActiveLayersEnd) {
+        auto& [weak, info] = mLayerInfos[i];
+        if (const auto layer = weak.promote(); layer && isLayerActive(*layer, *info, threshold)) {
+            i++;
+            continue;
+        }
+
+        if (CC_UNLIKELY(mTraceEnabled)) {
+            trace(weak, 0);
+        }
+
+        info->clearHistory();
+        std::swap(mLayerInfos[i], mLayerInfos[--mActiveLayersEnd]);
+    }
+
+    // Collect expired layers after inactive layers.
+    size_t end = mLayerInfos.size();
+    while (i < end) {
+        if (mLayerInfos[i].first.promote()) {
+            i++;
         } else {
-            layerInfoIterator = mActiveLayerInfos.find(layerHandle->mId);
-            if (layerInfoIterator != mActiveLayerInfos.end()) {
-                layerInfo = layerInfoIterator->second;
-            } else {
-                ALOGW("Inserting information about layer that is not registered: %" PRId64,
-                      layerHandle->mId);
-                return;
-            }
+            std::swap(mLayerInfos[i], mLayerInfos[--end]);
         }
     }
-    layerInfo->setLastPresentTime(presentTime);
-    layerInfo->setHDRContent(isHdr);
+
+    mLayerInfos.erase(mLayerInfos.begin() + static_cast<long>(end), mLayerInfos.end());
 }
 
-void LayerHistory::setVisibility(const std::unique_ptr<LayerHandle>& layerHandle, bool visible) {
-    std::shared_ptr<LayerInfo> layerInfo;
-    {
-        std::lock_guard lock(mLock);
-        auto layerInfoIterator = mInactiveLayerInfos.find(layerHandle->mId);
-        if (layerInfoIterator != mInactiveLayerInfos.end()) {
-            layerInfo = layerInfoIterator->second;
-            if (visible) {
-                mInactiveLayerInfos.erase(layerInfoIterator);
-                mActiveLayerInfos.insert({layerHandle->mId, layerInfo});
-            }
-        } else {
-            layerInfoIterator = mActiveLayerInfos.find(layerHandle->mId);
-            if (layerInfoIterator != mActiveLayerInfos.end()) {
-                layerInfo = layerInfoIterator->second;
-            } else {
-                ALOGW("Inserting information about layer that is not registered: %" PRId64,
-                      layerHandle->mId);
-                return;
-            }
-        }
-    }
-    layerInfo->setVisibility(visible);
-}
-
-std::pair<float, bool> LayerHistory::getDesiredRefreshRateAndHDR() {
-    bool isHDR = false;
-    float newRefreshRate = 0.f;
+void LayerHistory::clear() {
     std::lock_guard lock(mLock);
 
-    removeIrrelevantLayers();
-
-    // Iterate through all layers that have been recently updated, and find the max refresh rate.
-    for (const auto& [layerId, layerInfo] : mActiveLayerInfos) {
-        const float layerRefreshRate = layerInfo->getDesiredRefreshRate();
-        if (mTraceEnabled) {
-            // Store the refresh rate in traces for easy debugging.
-            std::string layerName = "LFPS " + layerInfo->getName();
-            ATRACE_INT(layerName.c_str(), std::round(layerRefreshRate));
-            ALOGD("%s: %f", layerName.c_str(), std::round(layerRefreshRate));
-        }
-        if (layerInfo->isRecentlyActive() && layerRefreshRate > newRefreshRate) {
-            newRefreshRate = layerRefreshRate;
-        }
-        isHDR |= layerInfo->getHDRContent();
-    }
-    if (mTraceEnabled) {
-        ALOGD("LayerHistory DesiredRefreshRate: %.2f", newRefreshRate);
+    for (const auto& [layer, info] : activeLayers()) {
+        info->clearHistory();
     }
 
-    return {newRefreshRate, isHDR};
+    mActiveLayersEnd = 0;
 }
-
-void LayerHistory::removeIrrelevantLayers() {
-    const int64_t obsoleteEpsilon = systemTime() - scheduler::OBSOLETE_TIME_EPSILON_NS.count();
-    // Iterator pointing to first element in map
-    auto it = mActiveLayerInfos.begin();
-    while (it != mActiveLayerInfos.end()) {
-        // If last updated was before the obsolete time, remove it.
-        // Keep HDR layer around as long as they are visible.
-        if (!it->second->isVisible() ||
-            (!it->second->getHDRContent() && it->second->getLastUpdatedTime() < obsoleteEpsilon)) {
-            // erase() function returns the iterator of the next
-            // to last deleted element.
-            if (mTraceEnabled) {
-                ALOGD("Layer %s obsolete", it->second->getName().c_str());
-                // Make sure to update systrace to indicate that the layer was erased.
-                std::string layerName = "LFPS " + it->second->getName();
-                ATRACE_INT(layerName.c_str(), 0);
-            }
-            auto id = it->first;
-            auto layerInfo = it->second;
-            layerInfo->clearHistory();
-            mInactiveLayerInfos.insert({id, layerInfo});
-            it = mActiveLayerInfos.erase(it);
-        } else {
-            ++it;
-        }
-    }
-}
-
-void LayerHistory::clearHistory() {
-    std::lock_guard lock(mLock);
-
-    auto it = mActiveLayerInfos.begin();
-    while (it != mActiveLayerInfos.end()) {
-        auto id = it->first;
-        auto layerInfo = it->second;
-        layerInfo->clearHistory();
-        mInactiveLayerInfos.insert({id, layerInfo});
-        it = mActiveLayerInfos.erase(it);
-    }
-}
-
-} // namespace scheduler
-} // namespace android
+} // namespace android::scheduler::impl

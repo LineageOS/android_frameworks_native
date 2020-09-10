@@ -32,6 +32,7 @@
 #include <cutils/properties.h>
 #include <graphicsenv/IGpuService.h>
 #include <log/log.h>
+#include <nativeloader/dlext_namespaces.h>
 #include <sys/prctl.h>
 #include <utils/Trace.h>
 
@@ -39,21 +40,12 @@
 #include <string>
 #include <thread>
 
-// TODO(b/37049319) Get this from a header once one exists
-extern "C" {
-android_namespace_t* android_get_exported_namespace(const char*);
-android_namespace_t* android_create_namespace(const char* name, const char* ld_library_path,
-                                              const char* default_library_path, uint64_t type,
-                                              const char* permitted_when_isolated_path,
-                                              android_namespace_t* parent);
-bool android_link_namespaces(android_namespace_t* from, android_namespace_t* to,
-                             const char* shared_libs_sonames);
-
-enum {
-    ANDROID_NAMESPACE_TYPE_ISOLATED = 1,
-    ANDROID_NAMESPACE_TYPE_SHARED = 2,
-};
-}
+// TODO(b/159240322): Extend this to x86 ABI.
+#if defined(__LP64__)
+#define UPDATABLE_DRIVER_ABI "arm64-v8a"
+#else
+#define UPDATABLE_DRIVER_ABI "armeabi-v7a"
+#endif // defined(__LP64__)
 
 // TODO(ianelliott@): Get the following from an ANGLE header:
 #define CURRENT_ANGLE_API_VERSION 2 // Current API verion we are targetting
@@ -155,17 +147,23 @@ void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string path,
 void GraphicsEnv::hintActivityLaunch() {
     ATRACE_CALL();
 
+    {
+        std::lock_guard<std::mutex> lock(mStatsLock);
+        if (mActivityLaunched) return;
+        mActivityLaunched = true;
+    }
+
     std::thread trySendGpuStatsThread([this]() {
         // If there's already graphics driver preloaded in the process, just send
         // the stats info to GpuStats directly through async binder.
         std::lock_guard<std::mutex> lock(mStatsLock);
         if (mGpuStats.glDriverToSend) {
             mGpuStats.glDriverToSend = false;
-            sendGpuStatsLocked(GraphicsEnv::Api::API_GL, true, mGpuStats.glDriverLoadingTime);
+            sendGpuStatsLocked(GpuStatsInfo::Api::API_GL, true, mGpuStats.glDriverLoadingTime);
         }
         if (mGpuStats.vkDriverToSend) {
             mGpuStats.vkDriverToSend = false;
-            sendGpuStatsLocked(GraphicsEnv::Api::API_VK, true, mGpuStats.vkDriverLoadingTime);
+            sendGpuStatsLocked(GpuStatsInfo::Api::API_VK, true, mGpuStats.vkDriverLoadingTime);
         }
     });
     trySendGpuStatsThread.detach();
@@ -196,34 +194,34 @@ void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
     mGpuStats.vulkanVersion = vulkanVersion;
 }
 
-void GraphicsEnv::setDriverToLoad(GraphicsEnv::Driver driver) {
+void GraphicsEnv::setDriverToLoad(GpuStatsInfo::Driver driver) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStatsLock);
     switch (driver) {
-        case GraphicsEnv::Driver::GL:
-        case GraphicsEnv::Driver::GL_UPDATED:
-        case GraphicsEnv::Driver::ANGLE: {
-            if (mGpuStats.glDriverToLoad == GraphicsEnv::Driver::NONE ||
-                mGpuStats.glDriverToLoad == GraphicsEnv::Driver::GL) {
+        case GpuStatsInfo::Driver::GL:
+        case GpuStatsInfo::Driver::GL_UPDATED:
+        case GpuStatsInfo::Driver::ANGLE: {
+            if (mGpuStats.glDriverToLoad == GpuStatsInfo::Driver::NONE ||
+                mGpuStats.glDriverToLoad == GpuStatsInfo::Driver::GL) {
                 mGpuStats.glDriverToLoad = driver;
                 break;
             }
 
-            if (mGpuStats.glDriverFallback == GraphicsEnv::Driver::NONE) {
+            if (mGpuStats.glDriverFallback == GpuStatsInfo::Driver::NONE) {
                 mGpuStats.glDriverFallback = driver;
             }
             break;
         }
-        case Driver::VULKAN:
-        case Driver::VULKAN_UPDATED: {
-            if (mGpuStats.vkDriverToLoad == GraphicsEnv::Driver::NONE ||
-                mGpuStats.vkDriverToLoad == GraphicsEnv::Driver::VULKAN) {
+        case GpuStatsInfo::Driver::VULKAN:
+        case GpuStatsInfo::Driver::VULKAN_UPDATED: {
+            if (mGpuStats.vkDriverToLoad == GpuStatsInfo::Driver::NONE ||
+                mGpuStats.vkDriverToLoad == GpuStatsInfo::Driver::VULKAN) {
                 mGpuStats.vkDriverToLoad = driver;
                 break;
             }
 
-            if (mGpuStats.vkDriverFallback == GraphicsEnv::Driver::NONE) {
+            if (mGpuStats.vkDriverFallback == GpuStatsInfo::Driver::NONE) {
                 mGpuStats.vkDriverFallback = driver;
             }
             break;
@@ -233,17 +231,16 @@ void GraphicsEnv::setDriverToLoad(GraphicsEnv::Driver driver) {
     }
 }
 
-void GraphicsEnv::setDriverLoaded(GraphicsEnv::Api api, bool isDriverLoaded,
+void GraphicsEnv::setDriverLoaded(GpuStatsInfo::Api api, bool isDriverLoaded,
                                   int64_t driverLoadingTime) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStatsLock);
-    const bool doNotSend = mGpuStats.appPackageName.empty();
-    if (api == GraphicsEnv::Api::API_GL) {
-        if (doNotSend) mGpuStats.glDriverToSend = true;
+    if (api == GpuStatsInfo::Api::API_GL) {
+        mGpuStats.glDriverToSend = true;
         mGpuStats.glDriverLoadingTime = driverLoadingTime;
     } else {
-        if (doNotSend) mGpuStats.vkDriverToSend = true;
+        mGpuStats.vkDriverToSend = true;
         mGpuStats.vkDriverLoadingTime = driverLoadingTime;
     }
 
@@ -251,7 +248,7 @@ void GraphicsEnv::setDriverLoaded(GraphicsEnv::Api api, bool isDriverLoaded,
 }
 
 static sp<IGpuService> getGpuService() {
-    const sp<IBinder> binder = defaultServiceManager()->checkService(String16("gpu"));
+    static const sp<IBinder> binder = defaultServiceManager()->checkService(String16("gpu"));
     if (!binder) {
         ALOGE("Failed to get gpu service");
         return nullptr;
@@ -260,10 +257,18 @@ static sp<IGpuService> getGpuService() {
     return interface_cast<IGpuService>(binder);
 }
 
-void GraphicsEnv::setTargetStats(const Stats stats, const uint64_t value) {
+bool GraphicsEnv::readyToSendGpuStatsLocked() {
+    // Only send stats for processes having at least one activity launched and that process doesn't
+    // skip the GraphicsEnvironment setup.
+    return mActivityLaunched && !mGpuStats.appPackageName.empty();
+}
+
+void GraphicsEnv::setTargetStats(const GpuStatsInfo::Stats stats, const uint64_t value) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStatsLock);
+    if (!readyToSendGpuStatsLocked()) return;
+
     const sp<IGpuService> gpuService = getGpuService();
     if (gpuService) {
         gpuService->setTargetStats(mGpuStats.appPackageName, mGpuStats.driverVersionCode, stats,
@@ -271,12 +276,11 @@ void GraphicsEnv::setTargetStats(const Stats stats, const uint64_t value) {
     }
 }
 
-void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Api api, bool isDriverLoaded,
+void GraphicsEnv::sendGpuStatsLocked(GpuStatsInfo::Api api, bool isDriverLoaded,
                                      int64_t driverLoadingTime) {
     ATRACE_CALL();
 
-    // Do not sendGpuStats for those skipping the GraphicsEnvironment setup
-    if (mGpuStats.appPackageName.empty()) return;
+    if (!readyToSendGpuStatsLocked()) return;
 
     ALOGV("sendGpuStats:\n"
           "\tdriverPackageName[%s]\n"
@@ -292,16 +296,16 @@ void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Api api, bool isDriverLoaded,
           mGpuStats.driverVersionCode, mGpuStats.driverBuildTime, mGpuStats.appPackageName.c_str(),
           mGpuStats.vulkanVersion, static_cast<int32_t>(api), isDriverLoaded, driverLoadingTime);
 
-    GraphicsEnv::Driver driver = GraphicsEnv::Driver::NONE;
+    GpuStatsInfo::Driver driver = GpuStatsInfo::Driver::NONE;
     bool isIntendedDriverLoaded = false;
-    if (api == GraphicsEnv::Api::API_GL) {
+    if (api == GpuStatsInfo::Api::API_GL) {
         driver = mGpuStats.glDriverToLoad;
         isIntendedDriverLoaded =
-                isDriverLoaded && (mGpuStats.glDriverFallback == GraphicsEnv::Driver::NONE);
+                isDriverLoaded && (mGpuStats.glDriverFallback == GpuStatsInfo::Driver::NONE);
     } else {
         driver = mGpuStats.vkDriverToLoad;
         isIntendedDriverLoaded =
-                isDriverLoaded && (mGpuStats.vkDriverFallback == GraphicsEnv::Driver::NONE);
+                isDriverLoaded && (mGpuStats.vkDriverFallback == GpuStatsInfo::Driver::NONE);
     }
 
     const sp<IGpuService> gpuService = getGpuService();
@@ -311,6 +315,13 @@ void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Api api, bool isDriverLoaded,
                                 mGpuStats.appPackageName, mGpuStats.vulkanVersion, driver,
                                 isIntendedDriverLoaded, driverLoadingTime);
     }
+}
+
+bool GraphicsEnv::setInjectLayersPrSetDumpable() {
+    if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) == -1) {
+        return false;
+    }
+    return true;
 }
 
 void* GraphicsEnv::loadLibrary(std::string name) {
@@ -580,7 +591,28 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
     }
 
     if (mDriverPath.empty()) {
-        return nullptr;
+        // For an application process, driver path is empty means this application is not opted in
+        // to use updatable driver. Application process doesn't have the ability to set up
+        // environment variables and hence before `getenv` call will return.
+        // For a process that is not an application process, if it's run from an environment,
+        // for example shell, where environment variables can be set, then it can opt into using
+        // udpatable driver by setting UPDATABLE_GFX_DRIVER to 1. By setting to 1 the developer
+        // driver will be used currently.
+        // TODO(b/159240322) Support the production updatable driver.
+        const char* id = getenv("UPDATABLE_GFX_DRIVER");
+        if (id == nullptr || std::strcmp(id, "1")) {
+            return nullptr;
+        }
+        const sp<IGpuService> gpuService = getGpuService();
+        if (!gpuService) {
+            return nullptr;
+        }
+        mDriverPath = gpuService->getUpdatableDriverPath();
+        if (mDriverPath.empty()) {
+            return nullptr;
+        }
+        mDriverPath.append(UPDATABLE_DRIVER_ABI);
+        ALOGI("Driver path is setup via UPDATABLE_GFX_DRIVER: %s", mDriverPath.c_str());
     }
 
     auto vndkNamespace = android_get_exported_namespace("vndk");
@@ -600,6 +632,10 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
     }
 
     return mDriverNamespace;
+}
+
+std::string GraphicsEnv::getDriverPath() const {
+    return mDriverPath;
 }
 
 android_namespace_t* GraphicsEnv::getAngleNamespace() {

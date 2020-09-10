@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include <errno.h>
-#include <stdint.h>
-#include <sys/types.h>
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 
 #include <binder/IPCThreadState.h>
 
@@ -31,26 +31,7 @@
 #include "MessageQueue.h"
 #include "SurfaceFlinger.h"
 
-namespace android {
-
-// ---------------------------------------------------------------------------
-
-MessageBase::MessageBase() : MessageHandler() {}
-
-MessageBase::~MessageBase() {}
-
-void MessageBase::handleMessage(const Message&) {
-    this->handler();
-    barrier.open();
-};
-
-// ---------------------------------------------------------------------------
-
-MessageQueue::~MessageQueue() = default;
-
-// ---------------------------------------------------------------------------
-
-namespace impl {
+namespace android::impl {
 
 void MessageQueue::Handler::dispatchRefresh() {
     if ((android_atomic_or(eventMaskRefresh, &mEventMask) & eventMaskRefresh) == 0) {
@@ -58,8 +39,9 @@ void MessageQueue::Handler::dispatchRefresh() {
     }
 }
 
-void MessageQueue::Handler::dispatchInvalidate() {
+void MessageQueue::Handler::dispatchInvalidate(nsecs_t expectedVSyncTimestamp) {
     if ((android_atomic_or(eventMaskInvalidate, &mEventMask) & eventMaskInvalidate) == 0) {
+        mExpectedVSyncTime = expectedVSyncTimestamp;
         mQueue.mLooper->sendMessage(this, Message(MessageQueue::INVALIDATE));
     }
 }
@@ -68,11 +50,11 @@ void MessageQueue::Handler::handleMessage(const Message& message) {
     switch (message.what) {
         case INVALIDATE:
             android_atomic_and(~eventMaskInvalidate, &mEventMask);
-            mQueue.mFlinger->onMessageReceived(message.what);
+            mQueue.mFlinger->onMessageReceived(message.what, mExpectedVSyncTime);
             break;
         case REFRESH:
             android_atomic_and(~eventMaskRefresh, &mEventMask);
-            mQueue.mFlinger->onMessageReceived(message.what);
+            mQueue.mFlinger->onMessageReceived(message.what, mExpectedVSyncTime);
             break;
     }
 }
@@ -83,24 +65,6 @@ void MessageQueue::init(const sp<SurfaceFlinger>& flinger) {
     mFlinger = flinger;
     mLooper = new Looper(true);
     mHandler = new Handler(*this);
-}
-
-void MessageQueue::setEventThread(android::EventThread* eventThread,
-                                  ResyncCallback resyncCallback) {
-    if (mEventThread == eventThread) {
-        return;
-    }
-
-    if (mEventTube.getFd() >= 0) {
-        mLooper->removeFd(mEventTube.getFd());
-    }
-
-    mEventThread = eventThread;
-    mEvents = eventThread->createEventConnection(std::move(resyncCallback),
-                                                 ISurfaceComposer::eConfigChangedSuppress);
-    mEvents->stealReceiveChannel(&mEventTube);
-    mLooper->addFd(mEventTube.getFd(), 0, Looper::EVENT_INPUT, MessageQueue::cb_eventReceiver,
-                   this);
 }
 
 void MessageQueue::setEventConnection(const sp<EventThreadConnection>& connection) {
@@ -136,14 +100,8 @@ void MessageQueue::waitMessage() {
     } while (true);
 }
 
-status_t MessageQueue::postMessage(const sp<MessageBase>& messageHandler, nsecs_t relTime) {
-    const Message dummyMessage;
-    if (relTime > 0) {
-        mLooper->sendMessageDelayed(relTime, messageHandler, dummyMessage);
-    } else {
-        mLooper->sendMessage(messageHandler, dummyMessage);
-    }
-    return NO_ERROR;
+void MessageQueue::postMessage(sp<MessageHandler>&& handler) {
+    mLooper->sendMessage(handler, Message());
 }
 
 void MessageQueue::invalidate() {
@@ -165,7 +123,7 @@ int MessageQueue::eventReceiver(int /*fd*/, int /*events*/) {
     while ((n = DisplayEventReceiver::getEvents(&mEventTube, buffer, 8)) > 0) {
         for (int i = 0; i < n; i++) {
             if (buffer[i].header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
-                mHandler->dispatchInvalidate();
+                mHandler->dispatchInvalidate(buffer[i].vsync.expectedVSyncTimestamp);
                 break;
             }
         }
@@ -173,7 +131,7 @@ int MessageQueue::eventReceiver(int /*fd*/, int /*events*/) {
     return 1;
 }
 
-// ---------------------------------------------------------------------------
+} // namespace android::impl
 
-} // namespace impl
-} // namespace android
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

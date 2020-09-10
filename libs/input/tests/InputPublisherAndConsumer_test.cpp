@@ -38,6 +38,7 @@ protected:
     virtual void SetUp() {
         status_t result = InputChannel::openInputChannelPair("channel name",
                 serverChannel, clientChannel);
+        ASSERT_EQ(OK, result);
 
         mPublisher = new InputPublisher(serverChannel);
         mConsumer = new InputConsumer(clientChannel);
@@ -60,6 +61,7 @@ protected:
 
     void PublishAndConsumeKeyEvent();
     void PublishAndConsumeMotionEvent();
+    void PublishAndConsumeFocusEvent();
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
@@ -71,9 +73,13 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
     status_t status;
 
     constexpr uint32_t seq = 15;
+    int32_t eventId = InputEvent::nextId();
     constexpr int32_t deviceId = 1;
-    constexpr int32_t source = AINPUT_SOURCE_KEYBOARD;
+    constexpr uint32_t source = AINPUT_SOURCE_KEYBOARD;
     constexpr int32_t displayId = ADISPLAY_ID_DEFAULT;
+    constexpr std::array<uint8_t, 32> hmac = {31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21,
+                                              20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10,
+                                              9,  8,  7,  6,  5,  4,  3,  2,  1,  0};
     constexpr int32_t action = AKEY_EVENT_ACTION_DOWN;
     constexpr int32_t flags = AKEY_EVENT_FLAG_FROM_SYSTEM;
     constexpr int32_t keyCode = AKEYCODE_ENTER;
@@ -83,8 +89,9 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
     constexpr nsecs_t downTime = 3;
     constexpr nsecs_t eventTime = 4;
 
-    status = mPublisher->publishKeyEvent(seq, deviceId, source, displayId, action, flags,
-            keyCode, scanCode, metaState, repeatCount, downTime, eventTime);
+    status = mPublisher->publishKeyEvent(seq, eventId, deviceId, source, displayId, hmac, action,
+                                         flags, keyCode, scanCode, metaState, repeatCount, downTime,
+                                         eventTime);
     ASSERT_EQ(OK, status)
             << "publisher publishKeyEvent should return OK";
 
@@ -101,9 +108,11 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
 
     KeyEvent* keyEvent = static_cast<KeyEvent*>(event);
     EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, keyEvent->getId());
     EXPECT_EQ(deviceId, keyEvent->getDeviceId());
     EXPECT_EQ(source, keyEvent->getSource());
     EXPECT_EQ(displayId, keyEvent->getDisplayId());
+    EXPECT_EQ(hmac, keyEvent->getHmac());
     EXPECT_EQ(action, keyEvent->getAction());
     EXPECT_EQ(flags, keyEvent->getFlags());
     EXPECT_EQ(keyCode, keyEvent->getKeyCode());
@@ -132,9 +141,13 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     status_t status;
 
     constexpr uint32_t seq = 15;
+    int32_t eventId = InputEvent::nextId();
     constexpr int32_t deviceId = 1;
-    constexpr int32_t source = AINPUT_SOURCE_TOUCHSCREEN;
+    constexpr uint32_t source = AINPUT_SOURCE_TOUCHSCREEN;
     constexpr int32_t displayId = ADISPLAY_ID_DEFAULT;
+    constexpr std::array<uint8_t, 32> hmac = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
+                                              11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                                              22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
     constexpr int32_t action = AMOTION_EVENT_ACTION_MOVE;
     constexpr int32_t actionButton = 0;
     constexpr int32_t flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
@@ -142,10 +155,14 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     constexpr int32_t metaState = AMETA_ALT_LEFT_ON | AMETA_ALT_ON;
     constexpr int32_t buttonState = AMOTION_EVENT_BUTTON_PRIMARY;
     constexpr MotionClassification classification = MotionClassification::AMBIGUOUS_GESTURE;
+    constexpr float xScale = 2;
+    constexpr float yScale = 3;
     constexpr float xOffset = -10;
     constexpr float yOffset = -20;
     constexpr float xPrecision = 0.25;
     constexpr float yPrecision = 0.5;
+    constexpr float xCursorPosition = 1.3;
+    constexpr float yCursorPosition = 50.6;
     constexpr nsecs_t downTime = 3;
     constexpr size_t pointerCount = 3;
     constexpr nsecs_t eventTime = 4;
@@ -168,10 +185,12 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 3.5 * i);
     }
 
-    status = mPublisher->publishMotionEvent(seq, deviceId, source, displayId, action, actionButton,
-            flags, edgeFlags, metaState, buttonState, classification,
-            xOffset, yOffset, xPrecision, yPrecision, downTime, eventTime, pointerCount,
-            pointerProperties, pointerCoords);
+    status = mPublisher->publishMotionEvent(seq, eventId, deviceId, source, displayId, hmac, action,
+                                            actionButton, flags, edgeFlags, metaState, buttonState,
+                                            classification, xScale, yScale, xOffset, yOffset,
+                                            xPrecision, yPrecision, xCursorPosition,
+                                            yCursorPosition, downTime, eventTime, pointerCount,
+                                            pointerProperties, pointerCoords);
     ASSERT_EQ(OK, status)
             << "publisher publishMotionEvent should return OK";
 
@@ -188,17 +207,27 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
 
     MotionEvent* motionEvent = static_cast<MotionEvent*>(event);
     EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, motionEvent->getId());
     EXPECT_EQ(deviceId, motionEvent->getDeviceId());
     EXPECT_EQ(source, motionEvent->getSource());
     EXPECT_EQ(displayId, motionEvent->getDisplayId());
+    EXPECT_EQ(hmac, motionEvent->getHmac());
     EXPECT_EQ(action, motionEvent->getAction());
     EXPECT_EQ(flags, motionEvent->getFlags());
     EXPECT_EQ(edgeFlags, motionEvent->getEdgeFlags());
     EXPECT_EQ(metaState, motionEvent->getMetaState());
     EXPECT_EQ(buttonState, motionEvent->getButtonState());
     EXPECT_EQ(classification, motionEvent->getClassification());
+    EXPECT_EQ(xScale, motionEvent->getXScale());
+    EXPECT_EQ(yScale, motionEvent->getYScale());
+    EXPECT_EQ(xOffset, motionEvent->getXOffset());
+    EXPECT_EQ(yOffset, motionEvent->getYOffset());
     EXPECT_EQ(xPrecision, motionEvent->getXPrecision());
     EXPECT_EQ(yPrecision, motionEvent->getYPrecision());
+    EXPECT_EQ(xCursorPosition, motionEvent->getRawXCursorPosition());
+    EXPECT_EQ(yCursorPosition, motionEvent->getRawYCursorPosition());
+    EXPECT_EQ(xCursorPosition * xScale + xOffset, motionEvent->getXCursorPosition());
+    EXPECT_EQ(yCursorPosition * yScale + yOffset, motionEvent->getYCursorPosition());
     EXPECT_EQ(downTime, motionEvent->getDownTime());
     EXPECT_EQ(eventTime, motionEvent->getEventTime());
     EXPECT_EQ(pointerCount, motionEvent->getPointerCount());
@@ -213,10 +242,10 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
                 motionEvent->getRawX(i));
         EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y),
                 motionEvent->getRawY(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X) + xOffset,
-                motionEvent->getX(i));
-        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y) + yOffset,
-                motionEvent->getY(i));
+        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_X) * xScale + xOffset,
+                  motionEvent->getX(i));
+        EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_Y) * yScale + yOffset,
+                  motionEvent->getY(i));
         EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_PRESSURE),
                 motionEvent->getPressure(i));
         EXPECT_EQ(pointerCoords[i].getAxisValue(AMOTION_EVENT_AXIS_SIZE),
@@ -248,12 +277,55 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
             << "publisher receiveFinishedSignal should have set handled to consumer's reply";
 }
 
+void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
+    status_t status;
+
+    constexpr uint32_t seq = 15;
+    int32_t eventId = InputEvent::nextId();
+    constexpr bool hasFocus = true;
+    constexpr bool inTouchMode = true;
+
+    status = mPublisher->publishFocusEvent(seq, eventId, hasFocus, inTouchMode);
+    ASSERT_EQ(OK, status) << "publisher publishKeyEvent should return OK";
+
+    uint32_t consumeSeq;
+    InputEvent* event;
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    ASSERT_EQ(OK, status) << "consumer consume should return OK";
+
+    ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
+    ASSERT_EQ(AINPUT_EVENT_TYPE_FOCUS, event->getType())
+            << "consumer should have returned a focus event";
+
+    FocusEvent* focusEvent = static_cast<FocusEvent*>(event);
+    EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, focusEvent->getId());
+    EXPECT_EQ(hasFocus, focusEvent->getHasFocus());
+    EXPECT_EQ(inTouchMode, focusEvent->getInTouchMode());
+
+    status = mConsumer->sendFinishedSignal(seq, true);
+    ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
+
+    uint32_t finishedSeq = 0;
+    bool handled = false;
+    status = mPublisher->receiveFinishedSignal(&finishedSeq, &handled);
+    ASSERT_EQ(OK, status) << "publisher receiveFinishedSignal should return OK";
+    ASSERT_EQ(seq, finishedSeq)
+            << "publisher receiveFinishedSignal should have returned the original sequence number";
+    ASSERT_TRUE(handled)
+            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
+}
+
 TEST_F(InputPublisherAndConsumerTest, PublishKeyEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
+}
+
+TEST_F(InputPublisherAndConsumerTest, PublishFocusEvent_EndToEnd) {
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeFocusEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZero_ReturnsError) {
@@ -266,9 +338,12 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZer
         pointerCoords[i].clear();
     }
 
-    status = mPublisher->publishMotionEvent(0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            MotionClassification::NONE, 0, 0, 0, 0, 0, 0,
-            pointerCount, pointerProperties, pointerCoords);
+    status = mPublisher->publishMotionEvent(0, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
+                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
+                                            1 /* yScale */, 0, 0, 0, 0,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                            pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
 }
@@ -279,9 +354,12 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessTha
     PointerProperties pointerProperties[pointerCount];
     PointerCoords pointerCoords[pointerCount];
 
-    status = mPublisher->publishMotionEvent(1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            MotionClassification::NONE, 0, 0, 0, 0, 0, 0,
-            pointerCount, pointerProperties, pointerCoords);
+    status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
+                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
+                                            1 /* yScale */, 0, 0, 0, 0,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                            pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
 }
@@ -297,9 +375,12 @@ TEST_F(InputPublisherAndConsumerTest,
         pointerCoords[i].clear();
     }
 
-    status = mPublisher->publishMotionEvent(1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            MotionClassification::NONE, 0, 0, 0, 0, 0, 0,
-            pointerCount, pointerProperties, pointerCoords);
+    status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
+                                            0, 0, 0, MotionClassification::NONE, 1 /* xScale */,
+                                            1 /* yScale */, 0, 0, 0, 0,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                            pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
 }
@@ -308,6 +389,7 @@ TEST_F(InputPublisherAndConsumerTest, PublishMultipleEvents_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeFocusEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
 }

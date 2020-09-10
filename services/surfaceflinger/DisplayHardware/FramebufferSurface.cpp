@@ -15,6 +15,10 @@
  ** limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 // #define LOG_NDEBUG 0
 #undef LOG_TAG
 #define LOG_TAG "FramebufferSurface"
@@ -53,9 +57,12 @@ using ui::Dataspace;
  */
 
 FramebufferSurface::FramebufferSurface(HWComposer& hwc, DisplayId displayId,
-                                       const sp<IGraphicBufferConsumer>& consumer)
+                                       const sp<IGraphicBufferConsumer>& consumer,
+                                       uint32_t maxWidth, uint32_t maxHeight)
       : ConsumerBase(consumer),
         mDisplayId(displayId),
+        mMaxWidth(maxWidth),
+        mMaxHeight(maxHeight),
         mCurrentBufferSlot(-1),
         mCurrentBuffer(),
         mCurrentFence(Fence::NO_FENCE),
@@ -71,14 +78,16 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, DisplayId displayId,
                                        GRALLOC_USAGE_HW_RENDER |
                                        GRALLOC_USAGE_HW_COMPOSER);
     const auto& activeConfig = mHwc.getActiveConfig(displayId);
-    mConsumer->setDefaultBufferSize(activeConfig->getWidth(),
-            activeConfig->getHeight());
+    ui::Size limitedSize =
+            limitFramebufferSize(activeConfig->getWidth(), activeConfig->getHeight());
+    mConsumer->setDefaultBufferSize(limitedSize.width, limitedSize.height);
     mConsumer->setMaxAcquiredBufferCount(
             SurfaceFlinger::maxFrameBufferAcquiredBuffers - 1);
 }
 
-void FramebufferSurface::resizeBuffers(const uint32_t width, const uint32_t height) {
-    mConsumer->setDefaultBufferSize(width, height);
+void FramebufferSurface::resizeBuffers(uint32_t width, uint32_t height) {
+    ui::Size limitedSize = limitFramebufferSize(width, height);
+    mConsumer->setDefaultBufferSize(limitedSize.width, limitedSize.height);
 }
 
 status_t FramebufferSurface::beginFrame(bool /*mustRecompose*/) {
@@ -173,6 +182,26 @@ void FramebufferSurface::onFrameCommitted() {
     }
 }
 
+ui::Size FramebufferSurface::limitFramebufferSize(uint32_t width, uint32_t height) {
+    ui::Size framebufferSize(width, height);
+    bool wasLimited = true;
+    if (width > mMaxWidth && mMaxWidth != 0) {
+        float aspectRatio = float(width) / float(height);
+        framebufferSize.height = mMaxWidth / aspectRatio;
+        framebufferSize.width = mMaxWidth;
+        wasLimited = true;
+    }
+    if (height > mMaxHeight && mMaxHeight != 0) {
+        float aspectRatio = float(width) / float(height);
+        framebufferSize.height = mMaxHeight;
+        framebufferSize.width = mMaxHeight * aspectRatio;
+        wasLimited = true;
+    }
+    ALOGI_IF(wasLimited, "framebuffer size has been limited to [%dx%d] from [%dx%d]",
+             framebufferSize.width, framebufferSize.height, width, height);
+    return framebufferSize;
+}
+
 void FramebufferSurface::dumpAsString(String8& result) const {
     Mutex::Autolock lock(mMutex);
     result.appendFormat("  FramebufferSurface: dataspace: %s(%d)\n",
@@ -193,3 +222,6 @@ const sp<Fence>& FramebufferSurface::getClientTargetAcquireFence() const {
 // ----------------------------------------------------------------------------
 }; // namespace android
 // ----------------------------------------------------------------------------
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

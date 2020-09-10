@@ -19,7 +19,6 @@
 #include <inttypes.h>
 #include <log/log.h>
 #include <system/window.h>
-#include <ui/BufferHubBuffer.h>
 
 namespace android {
 
@@ -697,7 +696,7 @@ String8 BufferHubProducer::getConsumerName() const {
     // relationship, thus |getConsumerName| from the producer side does not
     // make any sense.
     ALOGE("BufferHubProducer::getConsumerName not supported.");
-    return String8("BufferHubQueue::DummyConsumer");
+    return String8("BufferHubQueue::StubConsumer");
 }
 
 status_t BufferHubProducer::setSharedBufferMode(bool shared_buffer_mode) {

@@ -39,7 +39,7 @@ public:
         sp<SurfaceComposerClient> client = new SurfaceComposerClient;
 
         mButton = client->createSurface(String8(name), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                        ISurfaceComposerClient::eFXSurfaceColor);
+                                        ISurfaceComposerClient::eFXSurfaceEffect);
 
         const int32_t width = samplingArea.getWidth();
         const int32_t height = samplingArea.getHeight();
@@ -55,7 +55,7 @@ public:
                 .apply();
 
         mButtonBlend = client->createSurface(String8(name) + "Blend", 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                             ISurfaceComposerClient::eFXSurfaceColor);
+                                             ISurfaceComposerClient::eFXSurfaceEffect);
 
         SurfaceComposerClient::Transaction{}
                 .setLayer(mButtonBlend, 0x7ffffffe)
@@ -73,7 +73,7 @@ public:
         if (HIGHLIGHT_SAMPLING_AREA) {
             mSamplingArea =
                     client->createSurface(String8("SamplingArea"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                          ISurfaceComposerClient::eFXSurfaceColor);
+                                          ISurfaceComposerClient::eFXSurfaceEffect);
 
             SurfaceComposerClient::Transaction{}
                     .setLayer(mSamplingArea, 0x7ffffffd)

@@ -32,7 +32,11 @@ namespace utils {
 using ::android::hardware::Return;
 
 H2BProducerListener::H2BProducerListener(sp<HProducerListener> const& base)
+#ifndef NO_BINDER
       : CBase{base} {
+#else
+      : mBase(base) {
+#endif
 }
 
 void H2BProducerListener::onBufferReleased() {

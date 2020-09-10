@@ -16,76 +16,187 @@
 
 #pragma once
 
-#include <array>
-#include <cinttypes>
-#include <cstdint>
-#include <numeric>
-#include <string>
-#include <unordered_map>
-
+#include <android-base/thread_annotations.h>
+#include <utils/RefBase.h>
 #include <utils/Timers.h>
 
-#include "LayerInfo.h"
-#include "SchedulerUtils.h"
+#include <memory>
+#include <mutex>
+#include <utility>
+#include <vector>
+
+#include "RefreshRateConfigs.h"
 
 namespace android {
+
+class Layer;
+class TestableScheduler;
+
 namespace scheduler {
 
-/*
- * This class represents information about layers that are considered current. We keep an
- * unordered map between layer name and LayerInfo.
- */
+class LayerHistoryTest;
+class LayerHistoryTestV2;
+class LayerInfo;
+class LayerInfoV2;
+
 class LayerHistory {
 public:
-    // Handle for each layer we keep track of.
-    class LayerHandle {
-    public:
-        LayerHandle(LayerHistory& lh, int64_t id) : mId(id), mLayerHistory(lh) {}
-        ~LayerHandle() { mLayerHistory.destroyLayer(mId); }
+    using LayerVoteType = RefreshRateConfigs::LayerVoteType;
 
-        const int64_t mId;
+    virtual ~LayerHistory() = default;
 
-    private:
-        LayerHistory& mLayerHistory;
+    // Layers are unregistered when the weak reference expires.
+    virtual void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate,
+                               LayerVoteType type) = 0;
+
+    // Sets the display size. Client is responsible for synchronization.
+    virtual void setDisplayArea(uint32_t displayArea) = 0;
+
+    // Sets whether a config change is pending to be applied
+    virtual void setConfigChangePending(bool pending) = 0;
+
+    // Represents which layer activity is recorded
+    enum class LayerUpdateType {
+        Buffer,       // a new buffer queued
+        AnimationTX,  // a new transaction with eAnimation flag set
+        SetFrameRate, // setFrameRate API was called
     };
 
-    LayerHistory();
-    ~LayerHistory();
+    // Marks the layer as active, and records the given state to its history.
+    virtual void record(Layer*, nsecs_t presentTime, nsecs_t now, LayerUpdateType updateType) = 0;
 
-    // When the layer is first created, register it.
-    std::unique_ptr<LayerHandle> createLayer(const std::string name, float minRefreshRate,
-                                             float maxRefreshRate);
+    using Summary = std::vector<RefreshRateConfigs::LayerRequirement>;
 
-    // Method for inserting layers and their requested present time into the unordered map.
-    void insert(const std::unique_ptr<LayerHandle>& layerHandle, nsecs_t presentTime, bool isHdr);
-    // Method for setting layer visibility
-    void setVisibility(const std::unique_ptr<LayerHandle>& layerHandle, bool visible);
+    // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
+    virtual Summary summarize(nsecs_t now) = 0;
 
-    // Returns the desired refresh rate, which is a max refresh rate of all the current
-    // layers. See go/content-fps-detection-in-scheduler for more information.
-    std::pair<float, bool> getDesiredRefreshRateAndHDR();
-
-    // Clears all layer history.
-    void clearHistory();
-
-    // Removes the handle and the object from the map.
-    void destroyLayer(const int64_t id);
-
-private:
-    // Removes the layers that have been idle for a given amount of time from mLayerInfos.
-    void removeIrrelevantLayers() REQUIRES(mLock);
-
-    // Information about currently active layers.
-    std::mutex mLock;
-    std::unordered_map<int64_t, std::shared_ptr<LayerInfo>> mActiveLayerInfos GUARDED_BY(mLock);
-    std::unordered_map<int64_t, std::shared_ptr<LayerInfo>> mInactiveLayerInfos GUARDED_BY(mLock);
-
-    // Each layer has it's own ID. This variable keeps track of the count.
-    static std::atomic<int64_t> sNextId;
-
-    // Flag whether to log layer FPS in systrace
-    bool mTraceEnabled = false;
+    virtual void clear() = 0;
 };
 
+namespace impl {
+// Records per-layer history of scheduling-related information (primarily present time),
+// heuristically categorizes layers as active or inactive, and summarizes stats about
+// active layers (primarily maximum refresh rate). See go/content-fps-detection-in-scheduler.
+class LayerHistory : public android::scheduler::LayerHistory {
+public:
+    LayerHistory();
+    virtual ~LayerHistory();
+
+    // Layers are unregistered when the weak reference expires.
+    void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate,
+                       LayerVoteType type) override;
+
+    void setDisplayArea(uint32_t /*displayArea*/) override {}
+
+    void setConfigChangePending(bool /*pending*/) override {}
+
+    // Marks the layer as active, and records the given state to its history.
+    void record(Layer*, nsecs_t presentTime, nsecs_t now, LayerUpdateType updateType) override;
+
+    // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
+    android::scheduler::LayerHistory::Summary summarize(nsecs_t now) override;
+
+    void clear() override;
+
+private:
+    friend class android::scheduler::LayerHistoryTest;
+    friend TestableScheduler;
+
+    using LayerPair = std::pair<wp<Layer>, std::unique_ptr<LayerInfo>>;
+    using LayerInfos = std::vector<LayerPair>;
+
+    struct ActiveLayers {
+        LayerInfos& infos;
+        const size_t index;
+
+        auto begin() { return infos.begin(); }
+        auto end() { return begin() + static_cast<long>(index); }
+    };
+
+    ActiveLayers activeLayers() REQUIRES(mLock) { return {mLayerInfos, mActiveLayersEnd}; }
+
+    // Iterates over layers in a single pass, swapping pairs such that active layers precede
+    // inactive layers, and inactive layers precede expired layers. Removes expired layers by
+    // truncating after inactive layers.
+    void partitionLayers(nsecs_t now) REQUIRES(mLock);
+
+    mutable std::mutex mLock;
+
+    // Partitioned such that active layers precede inactive layers. For fast lookup, the few active
+    // layers are at the front, and weak pointers are stored in contiguous memory to hit the cache.
+    LayerInfos mLayerInfos GUARDED_BY(mLock);
+    size_t mActiveLayersEnd GUARDED_BY(mLock) = 0;
+
+    // Whether to emit systrace output and debug logs.
+    const bool mTraceEnabled;
+
+    // Whether to use priority sent from WindowManager to determine the relevancy of the layer.
+    const bool mUseFrameRatePriority;
+};
+
+class LayerHistoryV2 : public android::scheduler::LayerHistory {
+public:
+    LayerHistoryV2(const scheduler::RefreshRateConfigs&);
+    virtual ~LayerHistoryV2();
+
+    // Layers are unregistered when the weak reference expires.
+    void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate,
+                       LayerVoteType type) override;
+
+    // Sets the display size. Client is responsible for synchronization.
+    void setDisplayArea(uint32_t displayArea) override { mDisplayArea = displayArea; }
+
+    void setConfigChangePending(bool pending) override { mConfigChangePending = pending; }
+
+    // Marks the layer as active, and records the given state to its history.
+    void record(Layer*, nsecs_t presentTime, nsecs_t now, LayerUpdateType updateType) override;
+
+    // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
+    android::scheduler::LayerHistory::Summary summarize(nsecs_t /*now*/) override;
+
+    void clear() override;
+
+private:
+    friend android::scheduler::LayerHistoryTestV2;
+    friend TestableScheduler;
+
+    using LayerPair = std::pair<wp<Layer>, std::unique_ptr<LayerInfoV2>>;
+    using LayerInfos = std::vector<LayerPair>;
+
+    struct ActiveLayers {
+        LayerInfos& infos;
+        const size_t index;
+
+        auto begin() { return infos.begin(); }
+        auto end() { return begin() + static_cast<long>(index); }
+    };
+
+    ActiveLayers activeLayers() REQUIRES(mLock) { return {mLayerInfos, mActiveLayersEnd}; }
+
+    // Iterates over layers in a single pass, swapping pairs such that active layers precede
+    // inactive layers, and inactive layers precede expired layers. Removes expired layers by
+    // truncating after inactive layers.
+    void partitionLayers(nsecs_t now) REQUIRES(mLock);
+
+    mutable std::mutex mLock;
+
+    // Partitioned such that active layers precede inactive layers. For fast lookup, the few active
+    // layers are at the front, and weak pointers are stored in contiguous memory to hit the cache.
+    LayerInfos mLayerInfos GUARDED_BY(mLock);
+    size_t mActiveLayersEnd GUARDED_BY(mLock) = 0;
+
+    uint32_t mDisplayArea = 0;
+
+    // Whether to emit systrace output and debug logs.
+    const bool mTraceEnabled;
+
+    // Whether to use priority sent from WindowManager to determine the relevancy of the layer.
+    const bool mUseFrameRatePriority;
+
+    // Whether a config change is in progress or not
+    std::atomic<bool> mConfigChangePending = false;
+};
+
+} // namespace impl
 } // namespace scheduler
 } // namespace android

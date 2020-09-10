@@ -13,6 +13,7 @@ cc_defaults {
     srcs: [
         "CacheItem.cpp",
         "CacheTracker.cpp",
+        "CrateManager.cpp",
         "InstalldNativeService.cpp",
         "QuotaUtils.cpp",
         "dexopt.cpp",
@@ -185,6 +186,7 @@ filegroup {
     name: "installd_aidl",
     srcs: [
         "binder/android/os/IInstalld.aidl",
+        "binder/android/os/storage/CrateMetadata.aidl",
     ],
     path: "binder",
 }

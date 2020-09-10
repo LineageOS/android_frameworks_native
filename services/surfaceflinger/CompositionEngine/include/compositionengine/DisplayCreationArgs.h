@@ -18,8 +18,14 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
+
+#include <ui/DisplayInfo.h>
+#include <ui/PixelFormat.h>
+#include <ui/Size.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
+#include "DisplayHardware/PowerAdvisor.h"
 
 namespace android::compositionengine {
 
@@ -29,43 +35,83 @@ class CompositionEngine;
  * A parameter object for creating Display instances
  */
 struct DisplayCreationArgs {
-    // True if this display is secure
+    struct Physical {
+        DisplayId id;
+        DisplayConnectionType type;
+    };
+
+    // Required for physical displays. Gives the HWC display id for the existing
+    // display along with the connection type.
+    std::optional<Physical> physical;
+
+    // Size of the display in pixels
+    ui::Size pixels = ui::Size::INVALID;
+
+    // Pixel format of the display
+    ui::PixelFormat pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_UNKNOWN);
+
+    // True if virtual displays should be created with the HWC API if possible
+    bool useHwcVirtualDisplays = false;
+
+    // True if this display should be considered secure
     bool isSecure = false;
 
-    // True if this display is a virtual display
-    bool isVirtual = false;
+    // Gives the initial layer stack id to be used for the display
+    uint32_t layerStackId = ~0u;
 
-    // Identifies the display to the HWC, if composition is supported by it
-    std::optional<DisplayId> displayId;
+    // Optional pointer to the power advisor interface, if one is needed for
+    // this display.
+    Hwc2::PowerAdvisor* powerAdvisor = nullptr;
+
+    // Debugging. Human readable name for the display.
+    std::string name;
 };
 
 /**
  * A helper for setting up a DisplayCreationArgs value in-line.
  * Prefer this builder over raw structure initialization.
- *
- * Instead of:
- *
- *   DisplayCreationArgs{false, false, displayId}
- *
- * Prefer:
- *
- *  DisplayCreationArgsBuilder().setIsSecure(false).setIsVirtual(false)
- *      .setDisplayId(displayId).build();
  */
 class DisplayCreationArgsBuilder {
 public:
     DisplayCreationArgs build() { return std::move(mArgs); }
 
+    DisplayCreationArgsBuilder& setPhysical(DisplayCreationArgs::Physical physical) {
+        mArgs.physical = physical;
+        return *this;
+    }
+
+    DisplayCreationArgsBuilder& setPixels(ui::Size pixels) {
+        mArgs.pixels = pixels;
+        return *this;
+    }
+
+    DisplayCreationArgsBuilder& setPixelFormat(ui::PixelFormat pixelFormat) {
+        mArgs.pixelFormat = pixelFormat;
+        return *this;
+    }
+
+    DisplayCreationArgsBuilder& setUseHwcVirtualDisplays(bool useHwcVirtualDisplays) {
+        mArgs.useHwcVirtualDisplays = useHwcVirtualDisplays;
+        return *this;
+    }
+
     DisplayCreationArgsBuilder& setIsSecure(bool isSecure) {
         mArgs.isSecure = isSecure;
         return *this;
     }
-    DisplayCreationArgsBuilder& setIsVirtual(bool isVirtual) {
-        mArgs.isVirtual = isVirtual;
+
+    DisplayCreationArgsBuilder& setLayerStackId(uint32_t layerStackId) {
+        mArgs.layerStackId = layerStackId;
         return *this;
     }
-    DisplayCreationArgsBuilder& setDisplayId(std::optional<DisplayId> displayId) {
-        mArgs.displayId = displayId;
+
+    DisplayCreationArgsBuilder& setPowerAdvisor(Hwc2::PowerAdvisor* powerAdvisor) {
+        mArgs.powerAdvisor = powerAdvisor;
+        return *this;
+    }
+
+    DisplayCreationArgsBuilder& setName(std::string name) {
+        mArgs.name = std::move(name);
         return *this;
     }
 

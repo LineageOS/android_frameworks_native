@@ -249,6 +249,24 @@ Return<void> B2HGraphicBufferProducer::query(int32_t what, query_cb _hidl_cb) {
     return {};
 }
 
+struct Obituary : public hardware::hidl_death_recipient {
+    wp<B2HGraphicBufferProducer> producer;
+    sp<HProducerListener> listener;
+    HConnectionType apiType;
+    Obituary(const wp<B2HGraphicBufferProducer>& p,
+             const sp<HProducerListener>& l,
+             HConnectionType t)
+        : producer(p), listener(l), apiType(t) {}
+
+    void serviceDied(uint64_t /* cookie */,
+            const wp<::android::hidl::base::V1_0::IBase>& /* who */) override {
+        sp<B2HGraphicBufferProducer> dr = producer.promote();
+        if (dr != nullptr) {
+            (void)dr->disconnect(apiType);
+        }
+    }
+};
+
 Return<void> B2HGraphicBufferProducer::connect(
         sp<HProducerListener> const& hListener,
         HConnectionType hConnectionType,
@@ -270,6 +288,12 @@ Return<void> B2HGraphicBufferProducer::connect(
                                &bOutput),
                 &hStatus) &&
             b2h(bOutput, &hOutput);
+#ifdef NO_BINDER
+    if (converted && hListener != nullptr) {
+        mObituary = new Obituary(this, hListener, hConnectionType);
+        hListener->linkToDeath(mObituary, 0);
+    }
+#endif // NO_BINDER
     _hidl_cb(converted ? hStatus : HStatus::UNKNOWN_ERROR, hOutput);
     return {};
 }
@@ -282,6 +306,12 @@ Return<HStatus> B2HGraphicBufferProducer::disconnect(
     }
     HStatus hStatus{};
     bool converted = b2h(mBase->disconnect(bConnectionType), &hStatus);
+#ifdef NO_BINDER
+    if (mObituary != nullptr) {
+        mObituary->listener->unlinkToDeath(mObituary);
+        mObituary.clear();
+    }
+#endif // NO_BINDER
     return {converted ? hStatus : HStatus::UNKNOWN_ERROR};
 }
 

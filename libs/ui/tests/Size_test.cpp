@@ -19,7 +19,17 @@
 #include <cmath>
 #include <cstdlib>
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic error "-Wimplicit-int-float-conversion"
+#pragma clang diagnostic error "-Wconversion"
+#endif // __clang__
+
 #include <ui/Size.h>
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif // __clang__
 
 #include <gtest/gtest.h>
 
@@ -176,8 +186,33 @@ TEST(SizeTest, Int8RangeIsNotClamped) {
 
 TEST(SizeTest, FloatRangeIsClamped) {
     ClampTest(std::numeric_limits<float>::max(), std::numeric_limits<int32_t>::max());
+    ClampTest(nexttowardf(std::numeric_limits<int32_t>::max(), std::numeric_limits<float>::max()),
+              std::numeric_limits<int32_t>::max());
+    ClampTest(static_cast<float>(std::numeric_limits<int32_t>::max()),
+              std::numeric_limits<int32_t>::max());
+    ClampTest(nexttowardf(std::numeric_limits<int32_t>::max(), 0),
+              static_cast<int32_t>(nexttowardf(std::numeric_limits<int32_t>::max(), 0)));
     ClampTest(float(0), int32_t(0));
+    ClampTest(nexttowardf(std::numeric_limits<int32_t>::lowest(), 0),
+              static_cast<int32_t>(nexttowardf(std::numeric_limits<int32_t>::lowest(), 0)));
+    ClampTest(static_cast<float>(std::numeric_limits<int32_t>::lowest()),
+              std::numeric_limits<int32_t>::lowest());
+    ClampTest(nexttowardf(std::numeric_limits<int32_t>::lowest(),
+                          std::numeric_limits<float>::lowest()),
+              std::numeric_limits<int32_t>::lowest());
     ClampTest(std::numeric_limits<float>::lowest(), std::numeric_limits<int32_t>::lowest());
+}
+
+TEST(SizeTest, Uint32RangeIsClamped) {
+    ClampTest(std::numeric_limits<uint32_t>::max(), std::numeric_limits<int32_t>::max());
+    ClampTest(std::numeric_limits<uint32_t>::max() - 1, std::numeric_limits<int32_t>::max());
+    ClampTest(static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) + 1,
+              std::numeric_limits<int32_t>::max());
+    ClampTest(static_cast<uint32_t>(std::numeric_limits<int32_t>::max()),
+              std::numeric_limits<int32_t>::max());
+    ClampTest(static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) - 1,
+              std::numeric_limits<int32_t>::max() - 1);
+    ClampTest(uint32_t(0), int32_t(0));
 }
 
 } // namespace ui

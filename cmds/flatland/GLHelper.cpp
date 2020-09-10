@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
-
-#include <ui/DisplayInfo.h>
-#include <gui/SurfaceComposerClient.h>
-
 #include "GLHelper.h"
 
- namespace android {
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#include <gui/SurfaceComposerClient.h>
+#include <ui/DisplayConfig.h>
+
+namespace android {
 
 GLHelper::GLHelper() :
     mDisplay(EGL_NO_DISPLAY),
@@ -228,15 +227,15 @@ bool GLHelper::computeWindowScale(uint32_t w, uint32_t h, float* scale) {
         return false;
     }
 
-    DisplayInfo info;
-    status_t err = mSurfaceComposerClient->getDisplayInfo(dpy, &info);
+    DisplayConfig config;
+    status_t err = mSurfaceComposerClient->getActiveDisplayConfig(dpy, &config);
     if (err != NO_ERROR) {
-        fprintf(stderr, "SurfaceComposer::getDisplayInfo failed: %#x\n", err);
+        fprintf(stderr, "SurfaceComposer::getActiveDisplayConfig failed: %#x\n", err);
         return false;
     }
 
-    float scaleX = float(info.w) / float(w);
-    float scaleY = float(info.h) / float(h);
+    float scaleX = static_cast<float>(config.resolution.getWidth()) / w;
+    float scaleY = static_cast<float>(config.resolution.getHeight()) / h;
     *scale = scaleX < scaleY ? scaleX : scaleY;
 
     return true;
