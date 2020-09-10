@@ -5035,9 +5035,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1036 are currently used for backdoors. The code
+    // Numbers from 1000 to 1037 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1036) {
+    if (code >= 1000 && code <= 1037) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5377,6 +5377,23 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 } else {
                     mDebugFrameRateFlexibilityToken = nullptr;
                 }
+                return NO_ERROR;
+            }
+            // Inject a hotplug connected event for the primary display. This will deallocate and
+            // reallocate the display state including framebuffers.
+            case 1037: {
+                const auto token = getInternalDisplayToken();
+
+                sp<DisplayDevice> display;
+                {
+                    Mutex::Autolock lock(mStateLock);
+                    display = getDisplayDeviceLocked(token);
+                }
+                const auto hwcId =
+                        getHwComposer().fromPhysicalDisplayId(PhysicalDisplayId(*display->getId()));
+
+                onHotplugReceived(getBE().mComposerSequenceId, *hwcId, hal::Connection::CONNECTED);
+
                 return NO_ERROR;
             }
         }
