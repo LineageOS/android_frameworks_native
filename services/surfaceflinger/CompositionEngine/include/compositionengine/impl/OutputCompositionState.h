@@ -64,13 +64,11 @@ struct OutputCompositionState {
     uint32_t layerStackId{~0u};
 
     // The common space for all layers in the layer stack. layerStackSpace.content is the Rect
-    // which gets projected on the display. The content in this space is always in a single
-    // orientation.
+    // which gets projected on the display. The orientation of this space is always ROTATION_0.
     ProjectionSpace layerStackSpace;
 
     // Oriented physical display space. It will have the same size as displaySpace oriented to
-    // match the orientation of layerStackSpace. The content in this space is always in a single
-    // orientation.
+    // match the orientation of layerStackSpace. The orientation of this space is always ROTATION_0.
     ProjectionSpace orientedDisplaySpace;
 
     // The space of the physical display. It is as big as the currently active display mode. The
@@ -79,9 +77,6 @@ struct OutputCompositionState {
 
     // Transformation from layerStackSpace to displaySpace
     ui::Transform transform;
-
-    // The physical orientation of the display, expressed as ui::Transform orientation flags.
-    uint32_t orientation{0};
 
     // If true, RenderEngine filtering should be enabled
     bool needsFiltering{false};
