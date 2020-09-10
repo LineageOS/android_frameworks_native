@@ -15,15 +15,31 @@
  */
 #pragma once
 
-#include <gui/SyncScreenCaptureListener.h>
 #include <ui/Rect.h>
 #include <utils/String8.h>
 #include <functional>
+#include <future>
 #include "TransactionUtils.h"
 
 namespace android {
 
 namespace {
+
+class SyncScreenCaptureListener : public BnScreenCaptureListener {
+public:
+    status_t onScreenCaptureComplete(const ScreenCaptureResults& captureResults) override {
+        resultsPromise.set_value(captureResults);
+        return NO_ERROR;
+    }
+
+    ScreenCaptureResults waitForResults() {
+        std::future<ScreenCaptureResults> resultsFuture = resultsPromise.get_future();
+        return resultsFuture.get();
+    }
+
+private:
+    std::promise<ScreenCaptureResults> resultsPromise;
+};
 
 // A ScreenCapture is a screenshot from SurfaceFlinger that can be used to check
 // individual pixel values for testing purposes.
