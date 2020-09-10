@@ -130,16 +130,6 @@ struct LayerFECompositionState {
     Rect geomContentCrop;
     Rect geomCrop;
 
-    /*
-     * Extra metadata
-     */
-
-    // The type for this layer
-    int type{0};
-
-    // The appId for this layer
-    int appId{0};
-
     GenericLayerMetadataMap metadata;
 
     /*

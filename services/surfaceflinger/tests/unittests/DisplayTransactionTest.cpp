@@ -1298,55 +1298,6 @@ TEST_F(DisplayTransactionTest, destroyDisplayHandlesUnknownDisplay) {
 }
 
 /* ------------------------------------------------------------------------
- * SurfaceFlinger::resetDisplayState
- */
-
-TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
-    using Case = NonHwcVirtualDisplayCase;
-
-    // --------------------------------------------------------------------
-    // Preconditions
-
-    // vsync is enabled and available
-    mFlinger.scheduler()->mutablePrimaryHWVsyncEnabled() = true;
-    mFlinger.scheduler()->mutableHWVsyncAvailable() = true;
-
-    // A display exists
-    auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
-    existing.inject();
-
-    // --------------------------------------------------------------------
-    // Call Expectations
-
-    // The call disable vsyncs
-    EXPECT_CALL(*mEventControlThread, setVsyncEnabled(false)).Times(1);
-
-    // The call ends any display resyncs
-    EXPECT_CALL(*mPrimaryDispSync, endResync()).Times(1);
-
-    // --------------------------------------------------------------------
-    // Invocation
-
-    mFlinger.resetDisplayState();
-
-    // --------------------------------------------------------------------
-    // Postconditions
-
-    // vsyncs should be off and not available.
-    EXPECT_FALSE(mFlinger.scheduler()->mutablePrimaryHWVsyncEnabled());
-    EXPECT_FALSE(mFlinger.scheduler()->mutableHWVsyncAvailable());
-
-    // The display should have been removed from the display map.
-    EXPECT_FALSE(hasDisplayDevice(existing.token()));
-
-    // The display should still exist in the current state
-    EXPECT_TRUE(hasCurrentDisplayState(existing.token()));
-
-    // The display should have been removed from the drawing state
-    EXPECT_FALSE(hasDrawingDisplayState(existing.token()));
-}
-
-/* ------------------------------------------------------------------------
  * DisplayDevice::GetBestColorMode
  */
 class GetBestColorModeTest : public DisplayTransactionTest {
@@ -2019,8 +1970,6 @@ void HandleTransactionLockedTest::processesHotplugConnectCommon() {
     // --------------------------------------------------------------------
     // Call Expectations
 
-    EXPECT_CALL(*mComposer, isUsingVrComposer()).WillOnce(Return(false));
-
     setupCommonCallExpectationsForConnectProcessing<Case>();
 
     // --------------------------------------------------------------------
@@ -2082,7 +2031,6 @@ void HandleTransactionLockedTest::processesHotplugDisconnectCommon() {
     // --------------------------------------------------------------------
     // Call Expectations
 
-    EXPECT_CALL(*mComposer, isUsingVrComposer()).WillRepeatedly(Return(false));
     EXPECT_CALL(*mComposer, getDisplayIdentificationData(Case::Display::HWC_DISPLAY_ID, _, _))
             .Times(0);
 
@@ -2139,18 +2087,7 @@ TEST_F(HandleTransactionLockedTest, ignoresHotplugConnectIfPrimaryAndExternalAlr
                             SetArgPointee<2>(TertiaryDisplay::GET_IDENTIFICATION_DATA()),
                             Return(Error::NONE)));
 
-    EXPECT_CALL(*mComposer, isUsingVrComposer()).WillRepeatedly(Return(false));
-
     ignoresHotplugConnectCommon<SimpleTertiaryDisplayCase>();
-}
-
-TEST_F(HandleTransactionLockedTest, ignoresHotplugConnectIfExternalForVrComposer) {
-    // Inject a primary display.
-    PrimaryDisplayVariant::injectHwcDisplay(this);
-
-    EXPECT_CALL(*mComposer, isUsingVrComposer()).WillRepeatedly(Return(true));
-
-    ignoresHotplugConnectCommon<SimpleExternalDisplayCase>();
 }
 
 TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectPrimaryDisplay) {
@@ -2176,8 +2113,6 @@ TEST_F(HandleTransactionLockedTest, processesHotplugConnectThenDisconnectPrimary
 
     // --------------------------------------------------------------------
     // Call Expectations
-
-    EXPECT_CALL(*mComposer, isUsingVrComposer()).WillRepeatedly(Return(false));
 
     setupCommonCallExpectationsForConnectProcessing<Case>();
     setupCommonCallExpectationsForDisconnectProcessing<Case>();
@@ -2224,8 +2159,6 @@ TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectThenConnectPrimary
 
     // --------------------------------------------------------------------
     // Call Expectations
-
-    EXPECT_CALL(*mComposer, isUsingVrComposer()).WillRepeatedly(Return(false));
 
     setupCommonCallExpectationsForConnectProcessing<Case>();
     setupCommonCallExpectationsForDisconnectProcessing<Case>();
@@ -2383,11 +2316,6 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayRemoval) {
     auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
     existing.inject();
     mFlinger.mutableCurrentState().displays.removeItem(existing.token());
-
-    // --------------------------------------------------------------------
-    // Call Expectations
-
-    EXPECT_CALL(*mComposer, isUsingVrComposer()).WillRepeatedly(Return(false));
 
     // --------------------------------------------------------------------
     // Invocation

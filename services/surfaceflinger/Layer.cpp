@@ -492,9 +492,6 @@ void Layer::prepareGeometryCompositionState() {
     compositionState->geomUsesSourceCrop = usesSourceCrop();
     compositionState->isSecure = isSecure();
 
-    compositionState->type = type;
-    compositionState->appId = appId;
-
     compositionState->metadata.clear();
     const auto& supportedMetadata = mFlinger->getHwComposer().getSupportedLayerGenericMetadata();
     for (const auto& [key, mandatory] : supportedMetadata) {
