@@ -155,7 +155,7 @@ public:
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
-    ~InputSurface() { mInputFlinger->unregisterInputChannel(*mServerChannel); }
+    ~InputSurface() { mInputFlinger->unregisterInputChannel(mServerChannel->getConnectionToken()); }
 
     void doTransaction(std::function<void(SurfaceComposerClient::Transaction&,
                     const sp<SurfaceControl>&)> transactionBody) {
