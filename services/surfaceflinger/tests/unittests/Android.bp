@@ -41,6 +41,7 @@ cc_test {
         "DisplayIdentificationTest.cpp",
         "DisplayTransactionTest.cpp",
         "EventThreadTest.cpp",
+        "FrameTimelineTest.cpp",
         "HWComposerTest.cpp",
         "OneShotTimerTest.cpp",
         "LayerHistoryTest.cpp",
@@ -82,6 +83,7 @@ cc_test {
         "libgmock",
         "libcompositionengine",
         "libcompositionengine_mocks",
+        "libframetimeline",
         "libgui_mocks",
         "libperfetto_client_experimental",
         "librenderengine_mocks",
@@ -90,7 +92,6 @@ cc_test {
     shared_libs: [
         "libprotoutil",
         "libstatssocket",
-        "libsurfaceflinger",
         "libtimestats",
         "libtimestats_proto",
     ],

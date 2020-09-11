@@ -121,7 +121,7 @@ public:
     virtual void setFocusedWindow(const FocusRequest&) override;
     virtual status_t registerInputMonitor(const std::shared_ptr<InputChannel>& inputChannel,
                                           int32_t displayId, bool isGestureMonitor) override;
-    virtual status_t unregisterInputChannel(const InputChannel& inputChannel) override;
+    virtual status_t unregisterInputChannel(const sp<IBinder>& connectionToken) override;
     virtual status_t pilferPointers(const sp<IBinder>& token) override;
 
     std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
@@ -509,11 +509,11 @@ private:
     std::string dumpFocusedWindowsLocked() REQUIRES(mLock);
 
     // Registration.
-    void removeMonitorChannelLocked(const InputChannel& inputChannel) REQUIRES(mLock);
+    void removeMonitorChannelLocked(const sp<IBinder>& connectionToken) REQUIRES(mLock);
     void removeMonitorChannelLocked(
-            const InputChannel& inputChannel,
+            const sp<IBinder>& connectionToken,
             std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay) REQUIRES(mLock);
-    status_t unregisterInputChannelLocked(const InputChannel& inputChannel, bool notify)
+    status_t unregisterInputChannelLocked(const sp<IBinder>& connectionToken, bool notify)
             REQUIRES(mLock);
 
     // Interesting events that we might like to log or tell the framework about.

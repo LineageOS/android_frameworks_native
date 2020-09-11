@@ -1,0 +1,16 @@
+cc_library_static {
+    name: "libframetimeline",
+    defaults: ["surfaceflinger_defaults"],
+    srcs: [
+        "FrameTimeline.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libcutils",
+        "liblog",
+        "libgui",
+        "libui",
+        "libutils",
+    ],
+    export_include_dirs: ["."],
+}
