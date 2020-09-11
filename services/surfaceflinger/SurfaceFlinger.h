@@ -98,6 +98,10 @@ class RenderArea;
 class TimeStats;
 class FrameTracer;
 
+namespace frametimeline {
+class FrameTimeline;
+}
+
 namespace os {
     class IInputFlinger;
 }
@@ -1128,6 +1132,7 @@ private:
 
     const std::shared_ptr<TimeStats> mTimeStats;
     const std::unique_ptr<FrameTracer> mFrameTracer;
+    const std::shared_ptr<frametimeline::FrameTimeline> mFrameTimeline;
     bool mUseHwcVirtualDisplays = false;
     // If blurs should be enabled on this device.
     bool mSupportsBlur = false;
