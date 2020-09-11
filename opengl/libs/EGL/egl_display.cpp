@@ -74,7 +74,8 @@ int egl_get_init_count(EGLDisplay dpy) {
     return eglDisplay ? eglDisplay->getRefsCount() : 0;
 }
 
-egl_display_t egl_display_t::sDisplay[NUM_DISPLAYS];
+std::map<EGLDisplay, std::unique_ptr<egl_display_t>> egl_display_t::displayMap;
+std::mutex egl_display_t::displayMapLock;
 
 egl_display_t::egl_display_t()
       : magic('_dpy'),
@@ -93,11 +94,12 @@ egl_display_t* egl_display_t::get(EGLDisplay dpy) {
         return nullptr;
     }
 
-    uintptr_t index = uintptr_t(dpy) - 1U;
-    if (index >= NUM_DISPLAYS || !sDisplay[index].isValid()) {
+    const std::lock_guard<std::mutex> lock(displayMapLock);
+    auto search = displayMap.find(dpy);
+    if (search == displayMap.end() || !search->second->isValid()) {
         return nullptr;
     }
-    return &sDisplay[index];
+    return search->second.get();
 }
 
 void egl_display_t::addObject(egl_object_t* object) {
@@ -125,7 +127,7 @@ EGLDisplay egl_display_t::getFromNativeDisplay(EGLNativeDisplayType disp,
                                                const EGLAttrib* attrib_list) {
     if (uintptr_t(disp) >= NUM_DISPLAYS) return nullptr;
 
-    return sDisplay[uintptr_t(disp)].getPlatformDisplay(disp, attrib_list);
+    return getPlatformDisplay(disp, attrib_list);
 }
 
 static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_connection_t* const cnx,
@@ -170,7 +172,6 @@ static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_conn
 
 EGLDisplay egl_display_t::getPlatformDisplay(EGLNativeDisplayType display,
                                              const EGLAttrib* attrib_list) {
-    std::lock_guard<std::mutex> _l(lock);
     ATRACE_CALL();
 
     // get our driver loader
@@ -206,13 +207,20 @@ EGLDisplay egl_display_t::getPlatformDisplay(EGLNativeDisplayType display,
             }
         }
 
-        disp.dpy = dpy;
         if (dpy == EGL_NO_DISPLAY) {
             loader.close(cnx);
+        } else {
+            const std::lock_guard<std::mutex> lock(displayMapLock);
+            if (displayMap.find(dpy) == displayMap.end()) {
+                auto d = std::make_unique<egl_display_t>();
+                d->disp.dpy = dpy;
+                displayMap[dpy] = std::move(d);
+            }
+            return dpy;
         }
     }
 
-    return EGLDisplay(uintptr_t(display) + 1U);
+    return nullptr;
 }
 
 EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
