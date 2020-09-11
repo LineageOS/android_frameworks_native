@@ -233,10 +233,7 @@ filegroup {
     name: "surfaceflinger_binary_sources",
     srcs: [
         ":libsurfaceflinger_sources",
-        // Note: SurfaceFlingerFactory is not in the default sources so that it
-        // can be easily replaced.
-        "SurfaceFlingerFactory.cpp",
-        "main_surfaceflinger.cpp"
+        "main_surfaceflinger.cpp",
     ],
 }
 
@@ -244,7 +241,12 @@ cc_binary {
     name: "surfaceflinger",
     defaults: ["libsurfaceflinger_binary"],
     init_rc: ["surfaceflinger.rc"],
-    srcs: [":surfaceflinger_binary_sources"],
+    srcs: [
+        ":surfaceflinger_binary_sources",
+        // Note: SurfaceFlingerFactory is not in the filegroup so that it
+        // can be easily replaced.
+        "SurfaceFlingerFactory.cpp",
+    ],
     shared_libs: [
         "libSurfaceFlingerProp",
     ],
