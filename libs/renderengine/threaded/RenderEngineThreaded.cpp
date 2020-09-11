@@ -322,6 +322,21 @@ status_t RenderEngineThreaded::drawLayers(const DisplaySettings& display,
     return resultFuture.get();
 }
 
+void RenderEngineThreaded::cleanFramebufferCache() {
+    std::promise<void> resultPromise;
+    std::future<void> resultFuture = resultPromise.get_future();
+    {
+        std::lock_guard lock(mThreadMutex);
+        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
+            ATRACE_NAME("REThreaded::cleanFramebufferCache");
+            instance.cleanFramebufferCache();
+            resultPromise.set_value();
+        });
+    }
+    mCondition.notify_one();
+    resultFuture.wait();
+}
+
 } // namespace threaded
 } // namespace renderengine
 } // namespace android

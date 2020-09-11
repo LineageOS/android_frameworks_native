@@ -65,6 +65,8 @@ public:
                         const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
 
+    void cleanFramebufferCache() override;
+
 private:
     void threadMain(CreateInstanceFactory factory);
 
