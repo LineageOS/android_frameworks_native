@@ -22,8 +22,7 @@
 #include <ui/Transform.h>
 #include <utils/String8.h>
 
-namespace android {
-namespace ui {
+namespace android::ui {
 
 Transform::Transform() {
     reset();
@@ -57,8 +56,7 @@ bool Transform::operator==(const Transform& other) const {
             mMatrix[2][2] == other.mMatrix[2][2];
 }
 
-Transform Transform::operator * (const Transform& rhs) const
-{
+Transform Transform::operator*(const Transform& rhs) const {
     if (CC_LIKELY(mType == IDENTITY))
         return rhs;
 
@@ -150,8 +148,7 @@ void Transform::reset() {
     }
 }
 
-void Transform::set(float tx, float ty)
-{
+void Transform::set(float tx, float ty) {
     mMatrix[2][0] = tx;
     mMatrix[2][1] = ty;
     mMatrix[2][2] = 1.0f;
@@ -163,8 +160,7 @@ void Transform::set(float tx, float ty)
     }
 }
 
-void Transform::set(float a, float b, float c, float d)
-{
+void Transform::set(float a, float b, float c, float d) {
     mat33& M(mMatrix);
     M[0][0] = a;    M[1][0] = b;
     M[0][1] = c;    M[1][1] = d;
@@ -172,8 +168,7 @@ void Transform::set(float a, float b, float c, float d)
     mType = UNKNOWN_TYPE;
 }
 
-status_t Transform::set(uint32_t flags, float w, float h)
-{
+status_t Transform::set(uint32_t flags, float w, float h) {
     if (flags & ROT_INVALID) {
         // that's not allowed!
         reset();
@@ -245,13 +240,11 @@ vec2 Transform::transform(float x, float y) const {
     return transform(vec2(x, y));
 }
 
-Rect Transform::makeBounds(int w, int h) const
-{
+Rect Transform::makeBounds(int w, int h) const {
     return transform( Rect(w, h) );
 }
 
-Rect Transform::transform(const Rect& bounds, bool roundOutwards) const
-{
+Rect Transform::transform(const Rect& bounds, bool roundOutwards) const {
     Rect r;
     vec2 lt( bounds.left,  bounds.top    );
     vec2 rt( bounds.right, bounds.top    );
@@ -278,8 +271,7 @@ Rect Transform::transform(const Rect& bounds, bool roundOutwards) const
     return r;
 }
 
-FloatRect Transform::transform(const FloatRect& bounds) const
-{
+FloatRect Transform::transform(const FloatRect& bounds) const {
     vec2 lt(bounds.left, bounds.top);
     vec2 rt(bounds.right, bounds.top);
     vec2 lb(bounds.left, bounds.bottom);
@@ -299,8 +291,7 @@ FloatRect Transform::transform(const FloatRect& bounds) const
     return r;
 }
 
-Region Transform::transform(const Region& reg) const
-{
+Region Transform::transform(const Region& reg) const {
     Region out;
     if (CC_UNLIKELY(type() > TRANSLATE)) {
         if (CC_LIKELY(preserveRects())) {
@@ -320,8 +311,7 @@ Region Transform::transform(const Region& reg) const
     return out;
 }
 
-uint32_t Transform::type() const
-{
+uint32_t Transform::type() const {
     if (mType & UNKNOWN_TYPE) {
         // recompute what this transform is
 
@@ -416,14 +406,16 @@ uint32_t Transform::getType() const {
     return type() & 0xFF;
 }
 
-uint32_t Transform::getOrientation() const
-{
+uint32_t Transform::getOrientation() const {
     return (type() >> 8) & 0xFF;
 }
 
-bool Transform::preserveRects() const
-{
+bool Transform::preserveRects() const {
     return (getOrientation() & ROT_INVALID) ? false : true;
+}
+
+bool Transform::needsBilinearFiltering() const {
+    return (!preserveRects() || getType() >= ui::Transform::SCALE);
 }
 
 mat4 Transform::asMatrix4() const {
@@ -531,5 +523,4 @@ void Transform::dump(const char* name, const char* prefix) const {
     ALOGD("%s", out.c_str());
 }
 
-}  // namespace ui
-}  // namespace android
+} // namespace android::ui

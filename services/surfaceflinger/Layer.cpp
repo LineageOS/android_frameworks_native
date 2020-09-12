@@ -1001,8 +1001,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         this->contentDirty = true;
 
         // we may use linear filtering, if the matrix scales us
-        const uint8_t type = getActiveTransform(c).getType();
-        mNeedsFiltering = (!getActiveTransform(c).preserveRects() || type >= ui::Transform::SCALE);
+        mNeedsFiltering = getActiveTransform(c).needsBilinearFiltering();
     }
 
     if (mCurrentState.inputInfoChanged) {

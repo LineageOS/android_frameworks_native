@@ -241,17 +241,14 @@ TEST_F(OutputTest, setProjectionTriviallyWorks) {
     const Rect frame{1, 2, 3, 4};
     const Rect viewport{5, 6, 7, 8};
     const Rect destinationClip{13, 14, 15, 16};
-    const bool needsFiltering = true;
 
-    mOutput->setProjection(transform, orientation, frame, viewport, destinationClip,
-                           needsFiltering);
+    mOutput->setProjection(transform, orientation, frame, viewport, destinationClip);
 
     EXPECT_THAT(mOutput->getState().transform, transform);
     EXPECT_EQ(orientation, mOutput->getState().orientation);
     EXPECT_EQ(frame, mOutput->getState().orientedDisplaySpace.content);
     EXPECT_EQ(viewport, mOutput->getState().layerStackSpace.content);
     EXPECT_EQ(destinationClip, mOutput->getState().displaySpace.content);
-    EXPECT_EQ(needsFiltering, mOutput->getState().needsFiltering);
 }
 
 /*
