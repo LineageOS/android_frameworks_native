@@ -173,13 +173,13 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     // set up two deferred transactions on different frames
     asTransaction([&](Transaction& t) {
         t.setAlpha(mFGSurfaceControl, 0.75);
-        t.deferTransactionUntil_legacy(mFGSurfaceControl, mSyncSurfaceControl->getHandle(),
+        t.deferTransactionUntil_legacy(mFGSurfaceControl, mSyncSurfaceControl,
                                        mSyncSurfaceControl->getSurface()->getNextFrameNumber());
     });
 
     asTransaction([&](Transaction& t) {
         t.setPosition(mFGSurfaceControl, 128, 128);
-        t.deferTransactionUntil_legacy(mFGSurfaceControl, mSyncSurfaceControl->getHandle(),
+        t.deferTransactionUntil_legacy(mFGSurfaceControl, mSyncSurfaceControl,
                                        mSyncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
     });
 
@@ -480,9 +480,8 @@ TEST_F(ChildLayerTest, ReparentChildren) {
         mCapture->expectFGColor(84, 84);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.reparentChildren(mFGSurfaceControl, mBGSurfaceControl->getHandle());
-    });
+    asTransaction(
+            [&](Transaction& t) { t.reparentChildren(mFGSurfaceControl, mBGSurfaceControl); });
 
     {
         mCapture = screenshot();
@@ -516,7 +515,7 @@ TEST_F(ChildLayerTest, ChildrenSurviveParentDestruction) {
         mCapture->expectFGColor(64, 64);
     }
 
-    asTransaction([&](Transaction& t) { t.reparent(mGrandChild, mFGSurfaceControl->getHandle()); });
+    asTransaction([&](Transaction& t) { t.reparent(mGrandChild, mFGSurfaceControl); });
 
     {
         SCOPED_TRACE("After reparenting grandchild");
@@ -531,9 +530,7 @@ TEST_F(ChildLayerTest, ChildrenRelativeZSurvivesParentDestruction) {
     TransactionUtils::fillSurfaceRGBA8(mGrandChild, 111, 111, 111);
 
     // draw grand child behind the foreground surface
-    asTransaction([&](Transaction& t) {
-        t.setRelativeLayer(mGrandChild, mFGSurfaceControl->getHandle(), -1);
-    });
+    asTransaction([&](Transaction& t) { t.setRelativeLayer(mGrandChild, mFGSurfaceControl, -1); });
 
     {
         SCOPED_TRACE("Child visible");
@@ -543,7 +540,7 @@ TEST_F(ChildLayerTest, ChildrenRelativeZSurvivesParentDestruction) {
 
     asTransaction([&](Transaction& t) {
         t.reparent(mChild, nullptr);
-        t.reparentChildren(mChild, mFGSurfaceControl->getHandle());
+        t.reparentChildren(mChild, mFGSurfaceControl);
     });
 
     {
@@ -739,7 +736,7 @@ TEST_F(ChildLayerTest, Bug36858924) {
 
     // Show the child layer in a deferred transaction
     asTransaction([&](Transaction& t) {
-        t.deferTransactionUntil_legacy(mChild, mFGSurfaceControl->getHandle(),
+        t.deferTransactionUntil_legacy(mChild, mFGSurfaceControl,
                                        mFGSurfaceControl->getSurface()->getNextFrameNumber());
         t.show(mChild);
     });
@@ -776,7 +773,7 @@ TEST_F(ChildLayerTest, Reparent) {
         mCapture->expectFGColor(84, 84);
     }
 
-    asTransaction([&](Transaction& t) { t.reparent(mChild, mBGSurfaceControl->getHandle()); });
+    asTransaction([&](Transaction& t) { t.reparent(mChild, mBGSurfaceControl); });
 
     {
         mCapture = screenshot();
@@ -838,7 +835,7 @@ TEST_F(ChildLayerTest, ReparentFromNoParent) {
         mCapture->checkPixel(10, 10, 63, 195, 63);
     }
 
-    asTransaction([&](Transaction& t) { t.reparent(newSurface, mFGSurfaceControl->getHandle()); });
+    asTransaction([&](Transaction& t) { t.reparent(newSurface, mFGSurfaceControl); });
 
     {
         mCapture = screenshot();
@@ -869,7 +866,7 @@ TEST_F(ChildLayerTest, ChildLayerRelativeLayer) {
 
     Transaction t;
     t.setLayer(relative, INT32_MAX)
-            .setRelativeLayer(mChild, relative->getHandle(), 1)
+            .setRelativeLayer(mChild, relative, 1)
             .setPosition(mFGSurfaceControl, 0, 0)
             .apply(true);
 

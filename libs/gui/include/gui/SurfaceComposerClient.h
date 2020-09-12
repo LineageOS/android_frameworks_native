@@ -424,7 +424,7 @@ public:
         // If the relative is removed, the Surface will have no layer and be
         // invisible, until the next time set(Relative)Layer is called.
         Transaction& setRelativeLayer(const sp<SurfaceControl>& sc,
-                const sp<IBinder>& relativeTo, int32_t z);
+                                      const sp<SurfaceControl>& relativeTo, int32_t z);
         Transaction& setFlags(const sp<SurfaceControl>& sc,
                 uint32_t flags, uint32_t mask);
         Transaction& setTransparentRegionHint(const sp<SurfaceControl>& sc,
@@ -444,7 +444,8 @@ public:
         // by handle is removed, then we will apply this transaction regardless of
         // what frame number has been reached.
         Transaction& deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
-                                                  const sp<IBinder>& handle, uint64_t frameNumber);
+                                                  const sp<SurfaceControl>& barrierSurfaceControl,
+                                                  uint64_t frameNumber);
         // A variant of deferTransactionUntil_legacy which identifies the Layer we wait for by
         // Surface instead of Handle. Useful for clients which may not have the
         // SurfaceControl for some of their Surfaces. Otherwise behaves identically.
@@ -453,13 +454,12 @@ public:
                                                   uint64_t frameNumber);
         // Reparents all children of this layer to the new parent handle.
         Transaction& reparentChildren(const sp<SurfaceControl>& sc,
-                const sp<IBinder>& newParentHandle);
+                                      const sp<SurfaceControl>& newParent);
 
         /// Reparents the current layer to the new parent handle. The new parent must not be null.
         // This can be used instead of reparentChildren if the caller wants to
         // only re-parent a specific child.
-        Transaction& reparent(const sp<SurfaceControl>& sc,
-                const sp<IBinder>& newParentHandle);
+        Transaction& reparent(const sp<SurfaceControl>& sc, const sp<SurfaceControl>& newParent);
 
         Transaction& setColor(const sp<SurfaceControl>& sc, const half3& color);
 

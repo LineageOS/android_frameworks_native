@@ -70,10 +70,7 @@ TEST_F(RelativeZTest, LayerRemoved) {
     sp<SurfaceControl> childLayer =
             createColorLayer("Child layer", Color::BLUE, mBackgroundLayer.get());
 
-    Transaction{}
-            .setRelativeLayer(childLayer, mForegroundLayer->getHandle(), 1)
-            .show(childLayer)
-            .apply();
+    Transaction{}.setRelativeLayer(childLayer, mForegroundLayer, 1).show(childLayer).apply();
 
     {
         // The childLayer should be in front of the FG control.
@@ -88,7 +85,7 @@ TEST_F(RelativeZTest, LayerRemoved) {
     // Background layer (RED)
     //   Child layer (WHITE)
     // Foregroud layer (GREEN)
-    Transaction{}.reparent(childLayer, mBackgroundLayer->getHandle()).apply();
+    Transaction{}.reparent(childLayer, mBackgroundLayer).apply();
 
     {
         // The relative z info for child layer should be reset, leaving FG control on top.
@@ -118,7 +115,7 @@ TEST_F(RelativeZTest, LayerRemovedOffscreenRelativeParent) {
             createColorLayer("child level 3", Color::GREEN, childLevel2a.get());
 
     Transaction{}
-            .setRelativeLayer(childLevel3, childLevel2b->getHandle(), 1)
+            .setRelativeLayer(childLevel3, childLevel2b, 1)
             .show(childLevel2a)
             .show(childLevel2b)
             .show(childLevel3)
@@ -140,7 +137,7 @@ TEST_F(RelativeZTest, LayerRemovedOffscreenRelativeParent) {
     //     child level 2 back (BLUE)
     //       child level 3 (GREEN) (relative to child level 2b)
     //     child level 2 front (BLACK)
-    Transaction{}.reparent(childLevel1, mForegroundLayer->getHandle()).apply();
+    Transaction{}.reparent(childLevel1, mForegroundLayer).apply();
 
     {
         // Nothing should change at this point since relative z info was preserved.
@@ -162,7 +159,7 @@ TEST_F(RelativeZTest, LayerAndRelativeRemoved) {
             createColorLayer("Relative layer", Color::WHITE, mForegroundLayer.get());
 
     Transaction{}
-            .setRelativeLayer(childLayer, relativeToLayer->getHandle(), 1)
+            .setRelativeLayer(childLayer, relativeToLayer, 1)
             .show(childLayer)
             .show(relativeToLayer)
             .apply();
@@ -199,7 +196,7 @@ TEST_F(RelativeZTest, LayerAndRelativeRemoved) {
     // Background layer (RED)
     // Foregroud layer (GREEN)
     //   Child layer (BLUE)
-    Transaction{}.reparent(childLayer, mForegroundLayer->getHandle()).apply();
+    Transaction{}.reparent(childLayer, mForegroundLayer).apply();
 
     {
         // The relative z info for child layer should be reset, leaving the child layer on top.
@@ -230,7 +227,7 @@ TEST_F(RelativeZTest, LayerWithRelativeReparentedToOffscreen) {
             createColorLayer("child level 2b", Color::BLACK, childLevel1b.get());
 
     Transaction{}
-            .setRelativeLayer(childLevel1a, childLevel2b->getHandle(), 1)
+            .setRelativeLayer(childLevel1a, childLevel2b, 1)
             .show(childLevel1a)
             .show(childLevel1b)
             .show(childLevel2a)
@@ -250,7 +247,7 @@ TEST_F(RelativeZTest, LayerWithRelativeReparentedToOffscreen) {
 
     // // Background layer (RED)
     // // Foregroud layer (GREEN)
-    Transaction{}.reparent(childLevel1a, childLevel2a->getHandle()).apply();
+    Transaction{}.reparent(childLevel1a, childLevel2a).apply();
 
     {
         // The childLevel1a and childLevel1b are no longer on screen
@@ -264,7 +261,7 @@ TEST_F(RelativeZTest, LayerWithRelativeReparentedToOffscreen) {
     //     child level 2a (BLUE)
     //       child level 1a (testLayerColor) (relative to child level 2b)
     //     child level 2b (BLACK)
-    Transaction{}.reparent(childLevel1b, mForegroundLayer->getHandle()).apply();
+    Transaction{}.reparent(childLevel1b, mForegroundLayer).apply();
 
     {
         // Nothing should change at this point since relative z info was preserved.
