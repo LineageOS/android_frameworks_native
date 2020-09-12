@@ -216,10 +216,6 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
     // physical translation and finally rotate to the physical orientation.
     ui::Transform globalTransform = rotation * physicalTranslation * scale * logicalTranslation;
 
-    const uint8_t type = globalTransform.getType();
-    const bool needsFiltering =
-            (!globalTransform.preserveRects() || (type >= ui::Transform::SCALE));
-
     Rect displaySpaceRect = globalTransform.transform(layerStackSpaceRect);
     if (displaySpaceRect.isEmpty()) {
         displaySpaceRect = displayBounds;
@@ -233,7 +229,7 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
 
     getCompositionDisplay()->setProjection(globalTransform, transformOrientationFlags,
                                            orientedDisplaySpaceRect, layerStackSpaceRect,
-                                           displaySpaceRect, needsFiltering);
+                                           displaySpaceRect);
 }
 
 ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
