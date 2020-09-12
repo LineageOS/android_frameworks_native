@@ -60,6 +60,7 @@ public:
                  status_t(const DisplaySettings&, const std::vector<const LayerSettings*>&,
                           const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
                           base::unique_fd*));
+    MOCK_METHOD0(cleanFramebufferCache, void());
 };
 
 } // namespace mock

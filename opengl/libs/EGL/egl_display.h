@@ -23,6 +23,8 @@
 #include <stdint.h>
 
 #include <condition_variable>
+#include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_set>
@@ -40,9 +42,11 @@ bool findExtension(const char* exts, const char* name, size_t nameLen = 0);
 bool needsAndroidPEglMitigation();
 
 class EGLAPI egl_display_t { // marked as EGLAPI for testing purposes
-    static egl_display_t sDisplay[NUM_DISPLAYS];
+    static std::map<EGLDisplay, std::unique_ptr<egl_display_t>> displayMap;
+    static std::mutex displayMapLock;
     EGLDisplay getDisplay(EGLNativeDisplayType display);
-    EGLDisplay getPlatformDisplay(EGLNativeDisplayType display, const EGLAttrib* attrib_list);
+    static EGLDisplay getPlatformDisplay(EGLNativeDisplayType display,
+                                         const EGLAttrib* attrib_list);
     void loseCurrentImpl(egl_context_t* cur_c);
 
 public:

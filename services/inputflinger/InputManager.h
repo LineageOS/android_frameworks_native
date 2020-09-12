@@ -109,7 +109,7 @@ public:
             const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
 
     binder::Status registerInputChannel(const InputChannel& channel) override;
-    binder::Status unregisterInputChannel(const InputChannel& channel) override;
+    binder::Status unregisterInputChannel(const sp<IBinder>& connectionToken) override;
     binder::Status setFocusedWindow(const FocusRequest&) override;
 
 private:

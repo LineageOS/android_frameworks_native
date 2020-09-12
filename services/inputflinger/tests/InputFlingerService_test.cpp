@@ -148,7 +148,7 @@ public:
             const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
 
     binder::Status registerInputChannel(const InputChannel& channel) override;
-    binder::Status unregisterInputChannel(const InputChannel& channel) override;
+    binder::Status unregisterInputChannel(const sp<IBinder>& connectionToken) override;
     binder::Status setFocusedWindow(const FocusRequest&) override;
 
 private:
@@ -220,13 +220,13 @@ binder::Status TestInputManager::registerInputChannel(const InputChannel& channe
     return binder::Status::ok();
 }
 
-binder::Status TestInputManager::unregisterInputChannel(const InputChannel& channel) {
+binder::Status TestInputManager::unregisterInputChannel(const sp<IBinder>& connectionToken) {
     AutoMutex _l(mLock);
-    // check Fd flags
-    checkFdFlags(channel.getFd());
 
     auto it = std::find_if(mInputChannels.begin(), mInputChannels.end(),
-                           [&](std::shared_ptr<InputChannel>& c) { return *c == channel; });
+                           [&](std::shared_ptr<InputChannel>& c) {
+                               return c->getConnectionToken() == connectionToken;
+                           });
     if (it != mInputChannels.end()) {
         mInputChannels.erase(it);
     }
@@ -380,7 +380,7 @@ TEST_F(InputFlingerServiceTest, InputWindow_RegisterInputChannel) {
     ASSERT_EQ(channels.size(), 1UL);
     EXPECT_EQ(channels[0], *serverChannel);
 
-    mService->unregisterInputChannel(*serverChannel);
+    mService->unregisterInputChannel(serverChannel->getConnectionToken());
     mQuery->getInputChannels(&channels);
     EXPECT_EQ(channels.size(), 0UL);
 }
@@ -397,15 +397,15 @@ TEST_F(InputFlingerServiceTest, InputWindow_RegisterInputChannelInvalid) {
     EXPECT_EQ(channels.size(), 0UL);
 
     mService->registerInputChannel(InputChannel());
-    mService->unregisterInputChannel(*clientChannel);
+    mService->unregisterInputChannel(clientChannel->getConnectionToken());
 
     mService->registerInputChannel(*serverChannel);
     mService->registerInputChannel(*clientChannel);
     mQuery->getInputChannels(&channels);
     EXPECT_EQ(channels.size(), 2UL);
 
-    mService->unregisterInputChannel(*clientChannel);
-    mService->unregisterInputChannel(*serverChannel);
+    mService->unregisterInputChannel(clientChannel->getConnectionToken());
+    mService->unregisterInputChannel(serverChannel->getConnectionToken());
     mQuery->getInputChannels(&channels);
     EXPECT_EQ(channels.size(), 0UL);
 }

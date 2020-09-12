@@ -31,7 +31,7 @@ interface IInputFlinger
     oneway void setInputWindows(in InputWindowInfo[] inputHandles,
             in @nullable ISetInputWindowsListener setInputWindowsListener);
     void registerInputChannel(in InputChannel channel);
-    void unregisterInputChannel(in InputChannel channel);
+    void unregisterInputChannel(in IBinder connectionToken);
     /**
      * Sets focus to the window identified by the token. This must be called
      * after updating any input window handles.
