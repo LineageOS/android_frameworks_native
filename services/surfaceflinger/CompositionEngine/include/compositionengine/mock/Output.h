@@ -36,8 +36,8 @@ public:
     MOCK_CONST_METHOD0(getDisplayId, std::optional<DisplayId>());
 
     MOCK_METHOD1(setCompositionEnabled, void(bool));
-    MOCK_METHOD6(setProjection,
-                 void(const ui::Transform&, uint32_t, const Rect&, const Rect&, const Rect&, bool));
+    MOCK_METHOD5(setProjection,
+                 void(const ui::Transform&, uint32_t, const Rect&, const Rect&, const Rect&));
     MOCK_METHOD1(setDisplaySpaceSize, void(const ui::Size&));
     MOCK_METHOD2(setLayerStackFilter, void(uint32_t, bool));
 

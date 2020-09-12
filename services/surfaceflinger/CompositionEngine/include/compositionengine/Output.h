@@ -165,8 +165,7 @@ public:
     // Sets the projection state to use
     virtual void setProjection(const ui::Transform&, uint32_t orientation,
                                const Rect& orientedDisplaySpaceRect,
-                               const Rect& layerStackSpaceRect, const Rect& displaySpaceRect,
-                               bool needsFiltering) = 0;
+                               const Rect& layerStackSpaceRect, const Rect& displaySpaceRect) = 0;
     // Sets the bounds to use
     virtual void setDisplaySpaceSize(const ui::Size&) = 0;
 
