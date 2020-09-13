@@ -107,7 +107,7 @@ void Output::setCompositionEnabled(bool enabled) {
 
 void Output::setProjection(const ui::Transform& transform, uint32_t orientation,
                            const Rect& orientedDisplaySpaceRect, const Rect& layerStackSpaceRect,
-                           const Rect& displaySpaceRect, bool needsFiltering) {
+                           const Rect& displaySpaceRect) {
     auto& outputState = editState();
     outputState.transform = transform;
     outputState.orientation = orientation;
@@ -123,7 +123,7 @@ void Output::setProjection(const ui::Transform& transform, uint32_t orientation,
 
     outputState.layerStackSpace.content = layerStackSpaceRect;
     outputState.layerStackSpace.bounds = layerStackSpaceRect;
-    outputState.needsFiltering = needsFiltering;
+    outputState.needsFiltering = transform.needsBilinearFiltering();
 
     dirtyEntireOutput();
 }

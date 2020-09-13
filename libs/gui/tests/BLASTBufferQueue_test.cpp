@@ -25,7 +25,6 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
 #include <gui/SurfaceComposerClient.h>
-#include <gui/SyncScreenCaptureListener.h>
 #include <private/gui/ComposerService.h>
 #include <ui/DisplayConfig.h>
 #include <ui/GraphicBuffer.h>

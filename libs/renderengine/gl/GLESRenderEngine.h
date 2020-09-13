@@ -135,6 +135,7 @@ private:
     status_t bindFrameBuffer(Framebuffer* framebuffer);
     void unbindFrameBuffer(Framebuffer* framebuffer);
     void bindExternalTextureImage(uint32_t texName, const Image& image);
+    void cleanFramebufferCache() EXCLUDES(mFramebufferImageCacheMutex) override;
 
     // A data space is considered HDR data space if it has BT2020 color space
     // with PQ or HLG transfer function.

@@ -178,6 +178,7 @@ public:
                                 const std::vector<const LayerSettings*>& layers,
                                 const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
                                 base::unique_fd&& bufferFence, base::unique_fd* drawFence) = 0;
+    virtual void cleanFramebufferCache() = 0;
 
 protected:
     friend class threaded::RenderEngineThreaded;
