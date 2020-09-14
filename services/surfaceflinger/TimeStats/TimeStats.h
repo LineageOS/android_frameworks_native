@@ -17,6 +17,7 @@
 #pragma once
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
+#include <cstdint>
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
@@ -85,7 +86,7 @@ public:
                                             const std::shared_ptr<FenceTime>& readyFence) = 0;
 
     virtual void setPostTime(int32_t layerId, uint64_t frameNumber, const std::string& layerName,
-                             nsecs_t postTime) = 0;
+                             uid_t uid, nsecs_t postTime) = 0;
     virtual void setLatchTime(int32_t layerId, uint64_t frameNumber, nsecs_t latchTime) = 0;
     // Reasons why latching a particular buffer may be skipped
     enum class LatchSkipReason {
@@ -108,6 +109,40 @@ public:
     virtual void setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime) = 0;
     virtual void setPresentFence(int32_t layerId, uint64_t frameNumber,
                                  const std::shared_ptr<FenceTime>& presentFence) = 0;
+
+    // Subset of jank metadata tracked by FrameTimeline for the purpose of funneling to telemetry.
+    enum JankType {
+        // No Jank
+        None = 0x0,
+        // Jank not related to SurfaceFlinger or the App
+        Display = 0x1,
+        // SF took too long on the CPU
+        SurfaceFlingerDeadlineMissed = 0x2,
+        // SF took too long on the GPU
+        SurfaceFlingerGpuDeadlineMissed = 0x4,
+        // Either App or GPU took too long on the frame
+        AppDeadlineMissed = 0x8,
+        // Predictions live for 120ms, if prediction is expired for a frame, there is definitely a
+        // jank
+        // associated with the App if this is for a SurfaceFrame, and SF for a DisplayFrame.
+        PredictionExpired = 0x10,
+        // Latching a buffer early might cause an early present of the frame
+        SurfaceFlingerEarlyLatch = 0x20,
+    };
+
+    // Increments janky frames, tracked globally. Because FrameTimeline is the infrastructure
+    // responsible for computing jank in the system, this is expected to be called from
+    // FrameTimeline, rather than directly from SurfaceFlinger or individual layers. If there are no
+    // jank reasons, then total frames are incremented but jank is not, for accurate accounting of
+    // janky frames.
+    virtual void incrementJankyFrames(int32_t reasons) = 0;
+    // Increments janky frames, blamed to the provided {uid, layerName} key, with JankMetadata as
+    // supplementary reasons for the jank. Because FrameTimeline is the infrastructure responsible
+    // for computing jank in the system, this is expected to be called from FrameTimeline, rather
+    // than directly from SurfaceFlinger or individual layers.
+    // If there are no jank reasons, then total frames are incremented but jank is not, for accurate
+    // accounting of janky frames.
+    virtual void incrementJankyFrames(uid_t uid, const std::string& layerName, int32_t reasons) = 0;
     // Clean up the layer record
     virtual void onDestroy(int32_t layerId) = 0;
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
@@ -142,6 +177,7 @@ class TimeStats : public android::TimeStats {
     };
 
     struct LayerRecord {
+        uid_t uid;
         std::string layerName;
         // This is the index in timeRecords, at which the timestamps for that
         // specific frame are still not fully received. This is not waiting for
@@ -241,7 +277,7 @@ public:
     void recordRenderEngineDuration(nsecs_t startTime,
                                     const std::shared_ptr<FenceTime>& readyFence) override;
 
-    void setPostTime(int32_t layerId, uint64_t frameNumber, const std::string& layerName,
+    void setPostTime(int32_t layerId, uint64_t frameNumber, const std::string& layerName, uid_t uid,
                      nsecs_t postTime) override;
     void setLatchTime(int32_t layerId, uint64_t frameNumber, nsecs_t latchTime) override;
     void incrementLatchSkipped(int32_t layerId, LatchSkipReason reason) override;
@@ -253,6 +289,8 @@ public:
     void setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime) override;
     void setPresentFence(int32_t layerId, uint64_t frameNumber,
                          const std::shared_ptr<FenceTime>& presentFence) override;
+    void incrementJankyFrames(int32_t reasons) override;
+    void incrementJankyFrames(uid_t uid, const std::string& layerName, int32_t reasons) override;
     // Clean up the layer record
     void onDestroy(int32_t layerId) override;
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
@@ -276,6 +314,7 @@ private:
     void flushAvailableRecordsToStatsLocked(int32_t layerId);
     void flushPowerTimeLocked();
     void flushAvailableGlobalRecordsToStatsLocked();
+    bool canAddNewAggregatedStats(uid_t uid, const std::string& layerName);
 
     void enable();
     void disable();

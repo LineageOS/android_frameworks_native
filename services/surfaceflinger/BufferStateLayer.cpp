@@ -276,7 +276,7 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
 
     const int32_t layerId = getSequence();
     mFlinger->mTimeStats->setPostTime(layerId, mCurrentState.frameNumber, getName().c_str(),
-                                      postTime);
+                                      mOwnerUid, postTime);
     desiredPresentTime = desiredPresentTime <= 0 ? 0 : desiredPresentTime;
     mCurrentState.desiredPresentTime = desiredPresentTime;
 

@@ -331,7 +331,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInterceptor(mFactory.createSurfaceInterceptor()),
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(std::make_unique<FrameTracer>()),
-        mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>()),
+        mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>(mTimeStats)),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
