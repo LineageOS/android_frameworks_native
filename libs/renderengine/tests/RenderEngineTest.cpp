@@ -1242,31 +1242,6 @@ TEST_F(RenderEngineTest, drawLayers_fillsBufferAndCachesImages) {
     EXPECT_EQ(NO_ERROR, barrier->result);
 }
 
-TEST_F(RenderEngineTest, bindExternalBuffer_withNullBuffer) {
-    status_t result = sRE->bindExternalTextureBuffer(0, nullptr, nullptr);
-    ASSERT_EQ(BAD_VALUE, result);
-}
-
-TEST_F(RenderEngineTest, bindExternalBuffer_cachesImages) {
-    sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
-    uint32_t texName;
-    sRE->genTextures(1, &texName);
-    mTexNames.push_back(texName);
-
-    sRE->bindExternalTextureBuffer(texName, buf, nullptr);
-    uint64_t bufferId = buf->getId();
-    EXPECT_TRUE(sRE->isImageCachedForTesting(bufferId));
-    std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
-            sRE->unbindExternalTextureBufferForTesting(bufferId);
-    std::lock_guard<std::mutex> lock(barrier->mutex);
-    ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
-                                            [&]() REQUIRES(barrier->mutex) {
-                                                return barrier->isOpen;
-                                            }));
-    EXPECT_EQ(NO_ERROR, barrier->result);
-    EXPECT_FALSE(sRE->isImageCachedForTesting(bufferId));
-}
-
 TEST_F(RenderEngineTest, cacheExternalBuffer_withNullBuffer) {
     std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
             sRE->cacheExternalTextureBufferForTesting(nullptr);

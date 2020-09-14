@@ -60,8 +60,6 @@ public:
     void primeCache() const override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
-    status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
-                                       const sp<Fence>& fence) EXCLUDES(mRenderingMutex);
     void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
     void unbindExternalTextureBuffer(uint64_t bufferId) EXCLUDES(mRenderingMutex);
 
@@ -135,6 +133,8 @@ private:
     status_t bindFrameBuffer(Framebuffer* framebuffer);
     void unbindFrameBuffer(Framebuffer* framebuffer);
     void bindExternalTextureImage(uint32_t texName, const Image& image);
+    void bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
+                                   const sp<Fence>& fence) EXCLUDES(mRenderingMutex);
     void cleanFramebufferCache() EXCLUDES(mFramebufferImageCacheMutex) override;
 
     // A data space is considered HDR data space if it has BT2020 color space
