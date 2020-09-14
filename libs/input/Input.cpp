@@ -376,7 +376,7 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
         mSamplePointerCoords = other->mSamplePointerCoords;
     } else {
         mSampleEventTimes.clear();
-        mSampleEventTimes.push(other->getEventTime());
+        mSampleEventTimes.push_back(other->getEventTime());
         mSamplePointerCoords.clear();
         size_t pointerCount = other->getPointerCount();
         size_t historySize = other->getHistorySize();
@@ -388,7 +388,7 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
 void MotionEvent::addSample(
         int64_t eventTime,
         const PointerCoords* pointerCoords) {
-    mSampleEventTimes.push(eventTime);
+    mSampleEventTimes.push_back(eventTime);
     mSamplePointerCoords.appendArray(pointerCoords, getPointerCount());
 }
 
@@ -599,7 +599,7 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mPointerProperties.clear();
     mPointerProperties.setCapacity(pointerCount);
     mSampleEventTimes.clear();
-    mSampleEventTimes.setCapacity(sampleCount);
+    mSampleEventTimes.reserve(sampleCount);
     mSamplePointerCoords.clear();
     mSamplePointerCoords.setCapacity(sampleCount * pointerCount);
 
@@ -612,7 +612,7 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
 
     while (sampleCount > 0) {
         sampleCount--;
-        mSampleEventTimes.push(parcel->readInt64());
+        mSampleEventTimes.push_back(parcel->readInt64());
         for (size_t i = 0; i < pointerCount; i++) {
             mSamplePointerCoords.push();
             status_t status = mSamplePointerCoords.editTop().readFromParcel(parcel);
@@ -663,7 +663,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
 
     const PointerCoords* pc = mSamplePointerCoords.array();
     for (size_t h = 0; h < sampleCount; h++) {
-        parcel->writeInt64(mSampleEventTimes.itemAt(h));
+        parcel->writeInt64(mSampleEventTimes[h]);
         for (size_t i = 0; i < pointerCount; i++) {
             status_t status = (pc++)->writeToParcel(parcel);
             if (status) {
