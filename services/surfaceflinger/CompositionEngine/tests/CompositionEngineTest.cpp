@@ -30,6 +30,7 @@ namespace android::compositionengine {
 namespace {
 
 using ::testing::_;
+using ::testing::DoAll;
 using ::testing::InSequence;
 using ::testing::Ref;
 using ::testing::Return;
