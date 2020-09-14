@@ -72,7 +72,7 @@ prop {
 prop {
     api_name: "max_graphics_width"
     type: Integer
-    scope: System
+    scope: Public
     access: Readonly
     prop_name: "ro.surface_flinger.max_graphics_width"
 }
@@ -82,7 +82,7 @@ prop {
 prop {
     api_name: "max_graphics_height"
     type: Integer
-    scope: System
+    scope: Public
     access: Readonly
     prop_name: "ro.surface_flinger.max_graphics_height"
 }
