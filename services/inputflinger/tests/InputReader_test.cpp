@@ -7652,6 +7652,20 @@ TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
     ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
 
+    InputDeviceInfo deviceInfo;
+    mDevice->getDeviceInfo(&deviceInfo);
+
+    const InputDeviceInfo::MotionRange* relRangeX =
+            deviceInfo.getMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, AINPUT_SOURCE_TOUCHPAD);
+    ASSERT_NE(relRangeX, nullptr);
+    ASSERT_EQ(relRangeX->min, -(RAW_X_MAX - RAW_X_MIN));
+    ASSERT_EQ(relRangeX->max, RAW_X_MAX - RAW_X_MIN);
+    const InputDeviceInfo::MotionRange* relRangeY =
+            deviceInfo.getMotionRange(AMOTION_EVENT_AXIS_RELATIVE_Y, AINPUT_SOURCE_TOUCHPAD);
+    ASSERT_NE(relRangeY, nullptr);
+    ASSERT_EQ(relRangeY->min, -(RAW_Y_MAX - RAW_Y_MIN));
+    ASSERT_EQ(relRangeY->max, RAW_Y_MAX - RAW_Y_MIN);
+
     // run captured pointer tests - note that this is unscaled, so input listener events should be
     //                              identical to what the hardware sends (accounting for any
     //                              calibration).
