@@ -18,7 +18,6 @@
 
 #include <stdint.h>
 #include <sys/types.h>
-#include <future>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
@@ -594,23 +593,14 @@ private:
 
 // ---------------------------------------------------------------------------
 
-class SyncScreenCaptureListener : public BnScreenCaptureListener {
-public:
-    status_t onScreenCaptureComplete(const ScreenCaptureResults& captureResults) override;
-    ScreenCaptureResults waitForResults();
-
-private:
-    std::promise<ScreenCaptureResults> resultsPromise;
-};
-
 class ScreenshotClient {
 public:
     static status_t captureDisplay(const DisplayCaptureArgs& captureArgs,
-                                   ScreenCaptureResults& captureResults);
+                                   const sp<IScreenCaptureListener>& captureListener);
     static status_t captureDisplay(uint64_t displayOrLayerStack,
-                                   ScreenCaptureResults& captureResults);
+                                   const sp<IScreenCaptureListener>& captureListener);
     static status_t captureLayers(const LayerCaptureArgs& captureArgs,
-                                  ScreenCaptureResults& captureResults);
+                                  const sp<IScreenCaptureListener>& captureListener);
 };
 
 // ---------------------------------------------------------------------------
