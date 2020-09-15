@@ -2624,14 +2624,14 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 
     // Update the velocity tracker.
     {
-        VelocityTracker::Position positions[MAX_POINTERS];
-        uint32_t count = 0;
-        for (BitSet32 idBits(mCurrentCookedState.fingerIdBits); !idBits.isEmpty(); count++) {
+        std::vector<VelocityTracker::Position> positions;
+        for (BitSet32 idBits(mCurrentCookedState.fingerIdBits); !idBits.isEmpty();) {
             uint32_t id = idBits.clearFirstMarkedBit();
             const RawPointerData::Pointer& pointer =
                     mCurrentRawState.rawPointerData.pointerForId(id);
-            positions[count].x = pointer.x * mPointerXMovementScale;
-            positions[count].y = pointer.y * mPointerYMovementScale;
+            float x = pointer.x * mPointerXMovementScale;
+            float y = pointer.y * mPointerYMovementScale;
+            positions.push_back({x, y});
         }
         mPointerGesture.velocityTracker.addMovement(when, mCurrentCookedState.fingerIdBits,
                                                     positions);
