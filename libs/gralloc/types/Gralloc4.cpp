@@ -706,35 +706,35 @@ status_t encodePlaneLayout(const PlaneLayout& input, OutputHidlVec* output) {
         return err;
     }
 
-    err = encodeInteger<int64_t>(static_cast<int32_t>(input.offsetInBytes), output);
+    err = encodeInteger<int64_t>(static_cast<int64_t>(input.offsetInBytes), output);
     if (err) {
         return err;
     }
-    err = encodeInteger<int64_t>(static_cast<int32_t>(input.sampleIncrementInBits), output);
+    err = encodeInteger<int64_t>(static_cast<int64_t>(input.sampleIncrementInBits), output);
     if (err) {
         return err;
     }
-    err = encodeInteger<int64_t>(static_cast<int32_t>(input.strideInBytes), output);
+    err = encodeInteger<int64_t>(static_cast<int64_t>(input.strideInBytes), output);
     if (err) {
         return err;
     }
-    err = encodeInteger<int64_t>(static_cast<int32_t>(input.widthInSamples), output);
+    err = encodeInteger<int64_t>(static_cast<int64_t>(input.widthInSamples), output);
     if (err) {
         return err;
     }
-    err = encodeInteger<int64_t>(static_cast<int32_t>(input.heightInSamples), output);
+    err = encodeInteger<int64_t>(static_cast<int64_t>(input.heightInSamples), output);
     if (err) {
         return err;
     }
-    err = encodeInteger<int64_t>(static_cast<int32_t>(input.totalSizeInBytes), output);
+    err = encodeInteger<int64_t>(static_cast<int64_t>(input.totalSizeInBytes), output);
     if (err) {
         return err;
     }
-    err = encodeInteger<int64_t>(static_cast<int32_t>(input.horizontalSubsampling), output);
+    err = encodeInteger<int64_t>(static_cast<int64_t>(input.horizontalSubsampling), output);
     if (err) {
         return err;
     }
-    return encodeInteger<int64_t>(static_cast<int32_t>(input.verticalSubsampling), output);
+    return encodeInteger<int64_t>(static_cast<int64_t>(input.verticalSubsampling), output);
 }
 
 status_t decodePlaneLayout(InputHidlVec* input, PlaneLayout* output) {
