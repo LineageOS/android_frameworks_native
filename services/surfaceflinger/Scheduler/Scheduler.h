@@ -50,6 +50,10 @@ class VSyncDispatch;
 class VSyncTracker;
 } // namespace scheduler
 
+namespace frametimeline {
+class TokenManager;
+} // namespace frametimeline
+
 struct ISchedulerCallback {
     virtual void setVsyncEnabled(bool) = 0;
     virtual void changeRefreshRate(const scheduler::RefreshRateConfigs::RefreshRate&,
@@ -70,7 +74,7 @@ public:
     ~Scheduler();
 
     using ConnectionHandle = scheduler::ConnectionHandle;
-    ConnectionHandle createConnection(const char* connectionName,
+    ConnectionHandle createConnection(const char* connectionName, frametimeline::TokenManager*,
                                       std::chrono::nanoseconds workDuration,
                                       std::chrono::nanoseconds readyDuration,
                                       impl::EventThread::InterceptVSyncsCallback);

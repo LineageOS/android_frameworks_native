@@ -333,7 +333,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInterceptor(mFactory.createSurfaceInterceptor(this)),
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(std::make_unique<FrameTracer>()),
-        mFrameTimeline(std::make_shared<frametimeline::impl::FrameTimeline>()),
+        mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>()),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
@@ -1830,11 +1830,11 @@ nsecs_t SurfaceFlinger::calculateExpectedPresentTime(nsecs_t now) const {
                                                           : stats.vsyncTime + stats.vsyncPeriod;
 }
 
-void SurfaceFlinger::onMessageReceived(int32_t what, nsecs_t expectedVSyncTime) {
+void SurfaceFlinger::onMessageReceived(int32_t what, int64_t vsyncId, nsecs_t expectedVSyncTime) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
-            onMessageInvalidate(expectedVSyncTime);
+            onMessageInvalidate(vsyncId, expectedVSyncTime);
             break;
         }
         case MessageQueue::REFRESH: {
@@ -1844,7 +1844,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what, nsecs_t expectedVSyncTime) 
     }
 }
 
-void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
+void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTime) {
     ATRACE_CALL();
 
     const nsecs_t frameStart = systemTime();
@@ -1975,6 +1975,8 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
     {
         ConditionalLockGuard<std::mutex> lock(mTracingLock, mTracingEnabled);
 
+        mFrameTimeline->setSfWakeUp(vsyncId, frameStart);
+
         refreshNeeded = handleMessageTransaction();
         refreshNeeded |= handleMessageInvalidate();
         if (mTracingEnabled) {
@@ -2101,6 +2103,9 @@ void SurfaceFlinger::onMessageRefresh() {
 
     postFrame();
     postComposition();
+
+    mFrameTimeline->setSfPresent(systemTime(),
+                                 std::make_shared<FenceTime>(mPreviousPresentFences[0]));
 
     const bool prevFrameHadDeviceComposition = mHadDeviceComposition;
 
@@ -2989,12 +2994,12 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
     mScheduler = getFactory().createScheduler(*mRefreshRateConfigs, *this);
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
     mAppConnectionHandle =
-            mScheduler->createConnection("app",
+            mScheduler->createConnection("app", mFrameTimeline->getTokenManager(),
                                          /*workDuration=*/configs.late.appWorkDuration,
                                          /*readyDuration=*/configs.late.sfWorkDuration,
                                          impl::EventThread::InterceptVSyncsCallback());
     mSfConnectionHandle =
-            mScheduler->createConnection("sf",
+            mScheduler->createConnection("sf", mFrameTimeline->getTokenManager(),
                                          /*workDuration=*/configs.late.sfWorkDuration,
                                          /*readyDuration=*/0ns, [this](nsecs_t timestamp) {
                                              mInterceptor->saveVSyncEvent(timestamp);
@@ -4365,6 +4370,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
                 {"--vsync"s, dumper(&SurfaceFlinger::dumpVSync)},
                 {"--wide-color"s, dumper(&SurfaceFlinger::dumpWideColorInfo)},
+                {"--frametimeline"s, dumper([this](std::string& s) { mFrameTimeline->dump(s); })},
         };
 
         const auto flag = args.empty() ? ""s : std::string(String8(args[0]));

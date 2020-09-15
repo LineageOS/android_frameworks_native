@@ -35,6 +35,7 @@
 #include "TimeStats/TimeStats.h"
 
 namespace android {
+using PresentState = frametimeline::SurfaceFrame::PresentState;
 
 BufferQueueLayer::BufferQueueLayer(const LayerCreationArgs& args) : BufferLayer(args) {}
 
@@ -109,7 +110,7 @@ bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
 
     Mutex::Autolock lock(mQueueItemLock);
 
-    const int64_t addedTime = mQueueItems[0].mTimestamp;
+    const int64_t addedTime = mQueueItems[0].item.mTimestamp;
 
     // Ignore timestamps more than a second in the future
     const bool isPlausible = addedTime < (expectedPresentTime + s2ns(1));
@@ -136,7 +137,7 @@ bool BufferQueueLayer::fenceHasSignaled() const {
     }
 
     Mutex::Autolock lock(mQueueItemLock);
-    if (mQueueItems[0].mIsDroppable) {
+    if (mQueueItems[0].item.mIsDroppable) {
         // Even though this buffer's fence may not have signaled yet, it could
         // be replaced by another buffer before it has a chance to, which means
         // that it's possible to get into a situation where a buffer is never
@@ -144,7 +145,7 @@ bool BufferQueueLayer::fenceHasSignaled() const {
         return true;
     }
     const bool fenceSignaled =
-            mQueueItems[0].mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
+            mQueueItems[0].item.mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
     if (!fenceSignaled) {
         mFlinger->mTimeStats->incrementLatchSkipped(getSequence(),
                                                     TimeStats::LatchSkipReason::LateAcquire);
@@ -159,12 +160,12 @@ bool BufferQueueLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) co
     }
 
     Mutex::Autolock lock(mQueueItemLock);
-    return mQueueItems[0].mTimestamp <= expectedPresentTime;
+    return mQueueItems[0].item.mTimestamp <= expectedPresentTime;
 }
 
 uint64_t BufferQueueLayer::getFrameNumber(nsecs_t expectedPresentTime) const {
     Mutex::Autolock lock(mQueueItemLock);
-    uint64_t frameNumber = mQueueItems[0].mFrameNumber;
+    uint64_t frameNumber = mQueueItems[0].item.mFrameNumber;
 
     // The head of the queue will be dropped if there are signaled and timely frames behind it
     if (isRemovedFromCurrentState()) {
@@ -173,23 +174,23 @@ uint64_t BufferQueueLayer::getFrameNumber(nsecs_t expectedPresentTime) const {
 
     for (int i = 1; i < mQueueItems.size(); i++) {
         const bool fenceSignaled =
-                mQueueItems[i].mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
+                mQueueItems[i].item.mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
         if (!fenceSignaled) {
             break;
         }
 
         // We don't drop frames without explicit timestamps
-        if (mQueueItems[i].mIsAutoTimestamp) {
+        if (mQueueItems[i].item.mIsAutoTimestamp) {
             break;
         }
 
-        const nsecs_t desiredPresent = mQueueItems[i].mTimestamp;
+        const nsecs_t desiredPresent = mQueueItems[i].item.mTimestamp;
         if (desiredPresent < expectedPresentTime - BufferQueueConsumer::MAX_REASONABLE_NSEC ||
             desiredPresent > expectedPresentTime) {
             break;
         }
 
-        frameNumber = mQueueItems[i].mFrameNumber;
+        frameNumber = mQueueItems[i].item.mFrameNumber;
     }
 
     return frameNumber;
@@ -258,11 +259,11 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         Mutex::Autolock lock(mQueueItemLock);
         for (int i = 0; i < mQueueItems.size(); i++) {
             bool fenceSignaled =
-                    mQueueItems[i].mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
+                    mQueueItems[i].item.mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
             if (!fenceSignaled) {
                 break;
             }
-            lastSignaledFrameNumber = mQueueItems[i].mFrameNumber;
+            lastSignaledFrameNumber = mQueueItems[i].item.mFrameNumber;
         }
     }
     const uint64_t maxFrameNumberToAcquire =
@@ -280,9 +281,13 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         // and return early
         if (queuedBuffer) {
             Mutex::Autolock lock(mQueueItemLock);
-            mConsumer->mergeSurfaceDamage(mQueueItems[0].mSurfaceDamage);
-            mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].mFrameNumber);
-            mQueueItems.removeAt(0);
+            mConsumer->mergeSurfaceDamage(mQueueItems[0].item.mSurfaceDamage);
+            mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].item.mFrameNumber);
+            if (mQueueItems[0].surfaceFrame) {
+                mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mQueueItems[0].surfaceFrame),
+                                                          PresentState::Dropped);
+            }
+            mQueueItems.erase(mQueueItems.begin());
             mQueuedFrames--;
         }
         return BAD_VALUE;
@@ -293,6 +298,12 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         // early.
         if (queuedBuffer) {
             Mutex::Autolock lock(mQueueItemLock);
+            for (auto& [item, surfaceFrame] : mQueueItems) {
+                if (surfaceFrame) {
+                    mFlinger->mFrameTimeline->addSurfaceFrame(std::move(surfaceFrame),
+                                                              PresentState::Dropped);
+                }
+            }
             mQueueItems.clear();
             mQueuedFrames = 0;
             mFlinger->mTimeStats->onDestroy(layerId);
@@ -316,19 +327,29 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
 
         // Remove any stale buffers that have been dropped during
         // updateTexImage
-        while (mQueueItems[0].mFrameNumber != currentFrameNumber) {
-            mConsumer->mergeSurfaceDamage(mQueueItems[0].mSurfaceDamage);
-            mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].mFrameNumber);
-            mQueueItems.removeAt(0);
+        while (mQueueItems[0].item.mFrameNumber != currentFrameNumber) {
+            mConsumer->mergeSurfaceDamage(mQueueItems[0].item.mSurfaceDamage);
+            mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].item.mFrameNumber);
+            if (mQueueItems[0].surfaceFrame) {
+                mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mQueueItems[0].surfaceFrame),
+                                                          PresentState::Dropped);
+            }
+            mQueueItems.erase(mQueueItems.begin());
             mQueuedFrames--;
         }
 
-        uint64_t bufferID = mQueueItems[0].mGraphicBuffer->getId();
+        uint64_t bufferID = mQueueItems[0].item.mGraphicBuffer->getId();
         mFlinger->mTimeStats->setLatchTime(layerId, currentFrameNumber, latchTime);
         mFlinger->mFrameTracer->traceTimestamp(layerId, bufferID, currentFrameNumber, latchTime,
                                                FrameTracer::FrameEvent::LATCH);
 
-        mQueueItems.removeAt(0);
+        if (mQueueItems[0].surfaceFrame) {
+            mQueueItems[0].surfaceFrame->setActualEndTime(
+                    mQueueItems[0].item.mFenceTime->getSignalTime());
+            mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mQueueItems[0].surfaceFrame),
+                                                      PresentState::Presented);
+        }
+        mQueueItems.erase(mQueueItems.begin());
     }
 
     // Decrement the queued-frames count.  Signal another event if we
@@ -420,7 +441,11 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
             }
         }
 
-        mQueueItems.push_back(item);
+        auto surfaceFrame =
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mName, mFrameTimelineVsyncId);
+        surfaceFrame->setActualQueueTime(systemTime());
+
+        mQueueItems.push_back({item, std::move(surfaceFrame)});
         mQueuedFrames++;
 
         // Wake up any pending callbacks
@@ -453,7 +478,12 @@ void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
             ALOGE("Can't replace a frame on an empty queue");
             return;
         }
-        mQueueItems.editItemAt(mQueueItems.size() - 1) = item;
+
+        auto surfaceFrame =
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mName, mFrameTimelineVsyncId);
+        surfaceFrame->setActualQueueTime(systemTime());
+        mQueueItems[mQueueItems.size() - 1].item = item;
+        mQueueItems[mQueueItems.size() - 1].surfaceFrame = std::move(surfaceFrame);
 
         // Wake up any pending callbacks
         mLastFrameNumberReceived = item.mFrameNumber;

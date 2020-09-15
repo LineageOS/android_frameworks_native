@@ -1024,6 +1024,7 @@ protected:
     // Can only be accessed with the SF state lock held.
     bool mChildrenChanged{false};
 
+    // Can only be accessed with the SF state lock held.
     std::optional<int64_t> mFrameTimelineVsyncId;
 
     // Window types from WindowManager.LayoutParams

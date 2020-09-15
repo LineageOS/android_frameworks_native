@@ -40,6 +40,7 @@
 #include <utils/Trace.h>
 
 #include "EventThread.h"
+#include "FrameTimeline.h"
 #include "HwcStrongTypes.h"
 
 using namespace std::chrono_literals;
@@ -166,8 +167,10 @@ EventThread::~EventThread() = default;
 namespace impl {
 
 EventThread::EventThread(std::unique_ptr<VSyncSource> vsyncSource,
+                         android::frametimeline::TokenManager* tokenManager,
                          InterceptVSyncsCallback interceptVSyncsCallback)
       : mVSyncSource(std::move(vsyncSource)),
+        mTokenManager(tokenManager),
         mInterceptVSyncsCallback(std::move(interceptVSyncsCallback)),
         mThreadName(mVSyncSource->getName()) {
     mVSyncSource->setCallback(this);
@@ -292,9 +295,16 @@ void EventThread::onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp
     std::lock_guard<std::mutex> lock(mMutex);
 
     LOG_FATAL_IF(!mVSyncState);
-    // TODO(b/162890590): use TokenManager to populate vsyncId
+    const int64_t vsyncId = [&] {
+        if (mTokenManager != nullptr) {
+            return mTokenManager->generateTokenForPredictions(
+                    {timestamp, deadlineTimestamp, expectedVSyncTimestamp});
+        }
+        return static_cast<int64_t>(0);
+    }();
+
     mPendingEvents.push_back(makeVSync(mVSyncState->displayId, timestamp, ++mVSyncState->count,
-                                       expectedVSyncTimestamp, deadlineTimestamp, /*vsyncId=*/0));
+                                       expectedVSyncTimestamp, deadlineTimestamp, vsyncId));
     mCondition.notify_all();
 }
 
