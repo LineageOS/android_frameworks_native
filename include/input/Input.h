@@ -722,7 +722,7 @@ public:
     inline const PointerProperties* getPointerProperties() const {
         return mPointerProperties.array();
     }
-    inline const nsecs_t* getSampleEventTimes() const { return mSampleEventTimes.array(); }
+    inline const nsecs_t* getSampleEventTimes() const { return mSampleEventTimes.data(); }
     inline const PointerCoords* getSamplePointerCoords() const {
             return mSamplePointerCoords.array();
     }
@@ -747,7 +747,7 @@ protected:
     float mRawYCursorPosition;
     nsecs_t mDownTime;
     Vector<PointerProperties> mPointerProperties;
-    Vector<nsecs_t> mSampleEventTimes;
+    std::vector<nsecs_t> mSampleEventTimes;
     Vector<PointerCoords> mSamplePointerCoords;
 };
 
