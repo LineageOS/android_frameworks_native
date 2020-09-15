@@ -289,13 +289,12 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
         pointerIndex[i] = idBits.getIndexOfBit(event->getPointerId(i));
     }
 
-    nsecs_t eventTime;
     std::vector<Position> positions;
     positions.resize(pointerCount);
 
     size_t historySize = event->getHistorySize();
-    for (size_t h = 0; h < historySize; h++) {
-        eventTime = event->getHistoricalEventTime(h);
+    for (size_t h = 0; h <= historySize; h++) {
+        nsecs_t eventTime = event->getHistoricalEventTime(h);
         for (size_t i = 0; i < pointerCount; i++) {
             uint32_t index = pointerIndex[i];
             positions[index].x = event->getHistoricalX(i, h);
@@ -303,14 +302,6 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
         }
         addMovement(eventTime, idBits, positions);
     }
-
-    eventTime = event->getEventTime();
-    for (size_t i = 0; i < pointerCount; i++) {
-        uint32_t index = pointerIndex[i];
-        positions[index].x = event->getX(i);
-        positions[index].y = event->getY(i);
-    }
-    addMovement(eventTime, idBits, positions);
 }
 
 bool VelocityTracker::getVelocity(uint32_t id, float* outVx, float* outVy) const {
