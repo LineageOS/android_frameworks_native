@@ -244,10 +244,25 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeString8(displayName);
-        data.writeInt32(secure ? 1 : 0);
-        remote()->transact(BnSurfaceComposer::CREATE_DISPLAY, data, &reply);
-        return reply.readStrongBinder();
+        status_t status = data.writeString8(displayName);
+        if (status) {
+            return nullptr;
+        }
+        status = data.writeBool(secure);
+        if (status) {
+            return nullptr;
+        }
+
+        status = remote()->transact(BnSurfaceComposer::CREATE_DISPLAY, data, &reply);
+        if (status) {
+            return nullptr;
+        }
+        sp<IBinder> display;
+        status = reply.readNullableStrongBinder(&display);
+        if (status) {
+            return nullptr;
+        }
+        return display;
     }
 
     virtual void destroyDisplay(const sp<IBinder>& display)
@@ -1295,10 +1310,12 @@ status_t BnSurfaceComposer::onTransact(
         }
         case CREATE_DISPLAY: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            String8 displayName = data.readString8();
-            bool secure = bool(data.readInt32());
-            sp<IBinder> display(createDisplay(displayName, secure));
-            reply->writeStrongBinder(display);
+            String8 displayName;
+            SAFE_PARCEL(data.readString8, &displayName);
+            bool secure = false;
+            SAFE_PARCEL(data.readBool, &secure);
+            sp<IBinder> display = createDisplay(displayName, secure);
+            SAFE_PARCEL(reply->writeStrongBinder, display);
             return NO_ERROR;
         }
         case DESTROY_DISPLAY: {

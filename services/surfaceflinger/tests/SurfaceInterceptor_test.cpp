@@ -422,7 +422,7 @@ void SurfaceInterceptorTest::shadowRadiusUpdate(Transaction& t) {
 }
 
 void SurfaceInterceptorTest::displayCreation(Transaction&) {
-    sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, true);
+    sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, false);
     SurfaceComposerClient::destroyDisplay(testDisplay);
 }
 
@@ -819,7 +819,7 @@ bool SurfaceInterceptorTest::surfaceDeletionFound(const Increment& increment,
 
 bool SurfaceInterceptorTest::displayCreationFound(const Increment& increment, bool foundDisplay) {
     bool isMatch(increment.display_creation().name() == DISPLAY_NAME.string() &&
-            increment.display_creation().is_secure());
+                 !increment.display_creation().is_secure());
     if (isMatch && !foundDisplay) {
         foundDisplay = true;
     } else if (isMatch && foundDisplay) {

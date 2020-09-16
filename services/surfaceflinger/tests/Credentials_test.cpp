@@ -98,26 +98,6 @@ protected:
                   t.setLayer(mBGSurfaceControl, INT_MAX - 3).show(mBGSurfaceControl).apply());
     }
 
-    void setupVirtualDisplay() {
-        mVirtualDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, true);
-        const ssize_t displayWidth = 100;
-        const ssize_t displayHeight = 100;
-
-        // Background surface
-        mVirtualSurfaceControl =
-                mComposerClient->createSurface(SURFACE_NAME, displayWidth, displayHeight,
-                                               PIXEL_FORMAT_RGBA_8888, 0);
-        ASSERT_TRUE(mVirtualSurfaceControl != nullptr);
-        ASSERT_TRUE(mVirtualSurfaceControl->isValid());
-
-        Transaction t;
-        t.setDisplayLayerStack(mVirtualDisplay, 0);
-        ASSERT_EQ(NO_ERROR,
-                  t.setLayer(mVirtualSurfaceControl, INT_MAX - 3)
-                          .show(mVirtualSurfaceControl)
-                          .apply());
-    }
-
     /**
      * Sets UID to imitate Graphic's process.
      */
@@ -164,6 +144,10 @@ protected:
 
         // Check as a non-supported user.
         setBinUID();
+        ASSERT_EQ(unprivilegedValue, condition());
+
+        // Check as shell since shell has some additional permissions
+        seteuid(AID_SHELL);
         ASSERT_EQ(unprivilegedValue, condition());
     }
 };
@@ -262,11 +246,31 @@ TEST_F(CredentialsTest, SetActiveColorModeTest) {
 }
 
 TEST_F(CredentialsTest, CreateDisplayTest) {
+    // Only graphics and system processes can create a secure display.
     std::function<bool()> condition = [=]() {
         sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, true);
         return testDisplay.get() != nullptr;
     };
-    ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, false));
+
+    // Check with root.
+    seteuid(AID_ROOT);
+    ASSERT_FALSE(condition());
+
+    // Check as a Graphics user.
+    setGraphicsUID();
+    ASSERT_TRUE(condition());
+
+    // Check as a system user.
+    setSystemUID();
+    ASSERT_TRUE(condition());
+
+    // Check as a non-supported user.
+    setBinUID();
+    ASSERT_FALSE(condition());
+
+    // Check as shell since shell has some additional permissions
+    seteuid(AID_SHELL);
+    ASSERT_FALSE(condition());
 
     condition = [=]() {
         sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, false);
