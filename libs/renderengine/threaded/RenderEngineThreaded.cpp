@@ -116,21 +116,6 @@ void RenderEngineThreaded::dump(std::string& result) {
     result.assign(resultFuture.get());
 }
 
-bool RenderEngineThreaded::useNativeFenceSync() const {
-    std::promise<bool> resultPromise;
-    std::future<bool> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& /*instance*/) {
-            ATRACE_NAME("REThreaded::useNativeFenceSync");
-            bool returnValue = SyncFeatures::getInstance().useNativeFenceSync();
-            resultPromise.set_value(returnValue);
-        });
-    }
-    mCondition.notify_one();
-    return resultFuture.get();
-}
-
 void RenderEngineThreaded::genTextures(size_t count, uint32_t* names) {
     std::promise<void> resultPromise;
     std::future<void> resultFuture = resultPromise.get_future();

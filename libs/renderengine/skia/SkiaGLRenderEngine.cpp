@@ -193,7 +193,7 @@ std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
 
     // initialize the renderer while GL is current
     std::unique_ptr<SkiaGLRenderEngine> engine =
-            std::make_unique<SkiaGLRenderEngine>(args, display, config, ctxt, placeholder,
+            std::make_unique<SkiaGLRenderEngine>(display, config, ctxt, placeholder,
                                                  protectedContext, protectedPlaceholder);
 
     ALOGI("OpenGL ES informations:");
@@ -246,11 +246,10 @@ EGLConfig SkiaGLRenderEngine::chooseEglConfig(EGLDisplay display, int format, bo
     return config;
 }
 
-SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
-                                       EGLConfig config, EGLContext ctxt, EGLSurface placeholder,
-                                       EGLContext protectedContext, EGLSurface protectedPlaceholder)
-      : renderengine::skia::SkiaRenderEngine(args),
-        mEGLDisplay(display),
+SkiaGLRenderEngine::SkiaGLRenderEngine(EGLDisplay display, EGLConfig config, EGLContext ctxt,
+                                       EGLSurface placeholder, EGLContext protectedContext,
+                                       EGLSurface protectedPlaceholder)
+      : mEGLDisplay(display),
         mEGLConfig(config),
         mEGLContext(ctxt),
         mPlaceholderSurface(placeholder),

@@ -48,7 +48,7 @@ namespace gl {
 class GLImage;
 class BlurFilter;
 
-class GLESRenderEngine : public impl::RenderEngine {
+class GLESRenderEngine : public RenderEngine {
 public:
     static std::unique_ptr<GLESRenderEngine> create(const RenderEngineCreationArgs& args);
 
@@ -230,6 +230,10 @@ private:
     // Whether device supports color management, currently color management
     // supports sRGB, DisplayP3 color spaces.
     const bool mUseColorManagement = false;
+
+    // Whether only shaders performing tone mapping from HDR to SDR will be generated on
+    // primeCache().
+    const bool mPrecacheToneMapperShaderOnly = false;
 
     // Cache of GL images that we'll store per GraphicBuffer ID
     std::unordered_map<uint64_t, std::unique_ptr<Image>> mImageCache GUARDED_BY(mRenderingMutex);
