@@ -1026,6 +1026,7 @@ TEST_F(DumpstateTest, DumpPool_withOutputToFileAndParallelRunEnabled_notNull) {
     SetParallelRun(true);
     EnableParallelRunIfNeeded();
     EXPECT_TRUE(ds.options_->OutputToFile());
+    EXPECT_TRUE(ds.zip_entry_tasks_);
     EXPECT_TRUE(ds.dump_pool_);
 }
 
@@ -1033,12 +1034,14 @@ TEST_F(DumpstateTest, DumpPool_withNotOutputToFile_isNull) {
     ds.options_->use_socket = true;
     EnableParallelRunIfNeeded();
     EXPECT_FALSE(ds.options_->OutputToFile());
+    EXPECT_FALSE(ds.zip_entry_tasks_);
     EXPECT_FALSE(ds.dump_pool_);
 }
 
 TEST_F(DumpstateTest, DumpPool_withParallelRunDisabled_isNull) {
     SetParallelRun(false);
     EnableParallelRunIfNeeded();
+    EXPECT_FALSE(ds.zip_entry_tasks_);
     EXPECT_FALSE(ds.dump_pool_);
 }
 
@@ -1747,6 +1750,57 @@ TEST_F(DumpPoolTest, EnqueueTask_withDurationLog) {
     EXPECT_TRUE(run_1);
     EXPECT_THAT(result, StrEq("------ 0.000s was the duration of '1' ------\n"));
     EXPECT_THAT(getTempFileCounts(kTestDataPath), Eq(0));
+}
+
+class TaskQueueTest : public DumpstateBaseTest {
+public:
+    void SetUp() {
+        DumpstateBaseTest::SetUp();
+    }
+
+    TaskQueue task_queue_;
+};
+
+TEST_F(TaskQueueTest, runTask) {
+    bool is_task1_run = false;
+    bool is_task2_run = false;
+    auto task_1 = [&](bool task_cancelled) {
+        if (task_cancelled) {
+            return;
+        }
+        is_task1_run = true;
+    };
+    auto task_2 = [&](bool task_cancelled) {
+        if (task_cancelled) {
+            return;
+        }
+        is_task2_run = true;
+    };
+    task_queue_.add(task_1, std::placeholders::_1);
+    task_queue_.add(task_2, std::placeholders::_1);
+
+    task_queue_.run(/* do_cancel = */false);
+
+    EXPECT_TRUE(is_task1_run);
+    EXPECT_TRUE(is_task2_run);
+}
+
+TEST_F(TaskQueueTest, runTask_withCancelled) {
+    bool is_task1_cancelled = false;
+    bool is_task2_cancelled = false;
+    auto task_1 = [&](bool task_cancelled) {
+        is_task1_cancelled = task_cancelled;
+    };
+    auto task_2 = [&](bool task_cancelled) {
+        is_task2_cancelled = task_cancelled;
+    };
+    task_queue_.add(task_1, std::placeholders::_1);
+    task_queue_.add(task_2, std::placeholders::_1);
+
+    task_queue_.run(/* do_cancel = */true);
+
+    EXPECT_TRUE(is_task1_cancelled);
+    EXPECT_TRUE(is_task2_cancelled);
 }
 
 
