@@ -509,6 +509,15 @@ sp<ISurfaceComposerClient> SurfaceFlinger::createConnection() {
 }
 
 sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secure) {
+    // onTransact already checks for some permissions, but adding an additional check here.
+    // This is to ensure that only system and graphics can request to create a secure
+    // display. Secure displays can show secure content so we add an additional restriction on it.
+    const int uid = IPCThreadState::self()->getCallingUid();
+    if (secure && uid != AID_GRAPHICS && uid != AID_SYSTEM) {
+        ALOGE("Only privileged processes can create a secure display");
+        return nullptr;
+    }
+
     class DisplayToken : public BBinder {
         sp<SurfaceFlinger> flinger;
         virtual ~DisplayToken() {

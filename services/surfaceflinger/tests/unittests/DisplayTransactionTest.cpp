@@ -24,6 +24,7 @@
 #include <type_traits>
 
 #include <android/hardware/power/Boost.h>
+#include <binder/IPCThreadState.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/impl/Display.h>
@@ -37,6 +38,7 @@
 #include <gui/mock/GraphicBufferConsumer.h>
 #include <gui/mock/GraphicBufferProducer.h>
 #include <log/log.h>
+#include <private/android_filesystem_config.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <ui/DebugUtils.h>
 
@@ -1230,8 +1232,12 @@ TEST_F(DisplayTransactionTest, createDisplaySetsCurrentStateForSecureDisplay) {
 
     // --------------------------------------------------------------------
     // Invocation
-
+    int64_t oldId = IPCThreadState::self()->clearCallingIdentity();
+    // Set the calling identity to graphics so captureDisplay with secure is allowed.
+    IPCThreadState::self()->restoreCallingIdentity(static_cast<int64_t>(AID_GRAPHICS) << 32 |
+                                                   AID_GRAPHICS);
     sp<IBinder> displayToken = mFlinger.createDisplay(name, true);
+    IPCThreadState::self()->restoreCallingIdentity(oldId);
 
     // --------------------------------------------------------------------
     // Postconditions
