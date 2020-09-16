@@ -187,7 +187,6 @@ private:
 
     virtual bool hasFrameUpdate() const = 0;
 
-    virtual status_t bindTextureImage() = 0;
     virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
                                     nsecs_t expectedPresentTime) = 0;
 
