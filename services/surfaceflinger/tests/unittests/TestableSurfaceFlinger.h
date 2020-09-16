@@ -362,6 +362,10 @@ public:
 
     auto flushTransactionQueues() { return mFlinger->flushTransactionQueues(); };
 
+    auto onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) {
+        return mFlinger->onTransact(code, data, reply, flags);
+    }
+
     /* ------------------------------------------------------------------------
      * Read-only access to private data to assert post-conditions.
      */
