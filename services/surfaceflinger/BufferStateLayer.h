@@ -129,7 +129,6 @@ private:
 
     bool hasFrameUpdate() const override;
 
-    status_t bindTextureImage() override;
     status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
                             nsecs_t expectedPresentTime) override;
 
