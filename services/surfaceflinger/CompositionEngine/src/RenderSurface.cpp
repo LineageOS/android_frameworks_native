@@ -42,14 +42,13 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
 
-// Uncomment to enable RE-SK workarounds; b/b/168499446
-//#define USE_SKIA_WORKAROUNDS
-
 namespace android::compositionengine {
 
 RenderSurface::~RenderSurface() = default;
 
 namespace impl {
+
+constexpr auto DEFAULT_USAGE = GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
 
 std::unique_ptr<compositionengine::RenderSurface> createRenderSurface(
         const compositionengine::CompositionEngine& compositionEngine,
@@ -84,11 +83,7 @@ void RenderSurface::initialize() {
     ALOGE_IF(status != NO_ERROR, "Unable to connect BQ producer: %d", status);
     status = native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ format to RGBA888: %d", status);
-#ifdef USE_SKIA_WORKAROUNDS
-    status = native_window_set_usage(window, GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE);
-#else
-    status = native_window_set_usage(window, GRALLOC_USAGE_HW_RENDER);
-#endif
+    status = native_window_set_usage(window, DEFAULT_USAGE);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for GPU rendering: %d", status);
 }
 
@@ -116,13 +111,10 @@ void RenderSurface::setBufferPixelFormat(ui::PixelFormat pixelFormat) {
 }
 
 void RenderSurface::setProtected(bool useProtected) {
-    uint64_t usageFlags = GRALLOC_USAGE_HW_RENDER;
+    uint64_t usageFlags = DEFAULT_USAGE;
     if (useProtected) {
         usageFlags |= GRALLOC_USAGE_PROTECTED;
     }
-#ifdef USE_SKIA_WORKAROUNDS
-    usageFlags |= GRALLOC_USAGE_HW_TEXTURE;
-#endif
     const int status = native_window_set_usage(mNativeWindow.get(), usageFlags);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for protected content: %d", status);
     if (status == NO_ERROR) {
