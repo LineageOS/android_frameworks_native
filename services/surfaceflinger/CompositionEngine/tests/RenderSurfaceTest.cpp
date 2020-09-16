@@ -82,7 +82,8 @@ TEST_F(RenderSurfaceTest, initializeConfiguresNativeWindow) {
     EXPECT_CALL(*mNativeWindow, connect(NATIVE_WINDOW_API_EGL)).WillOnce(Return(NO_ERROR));
     EXPECT_CALL(*mNativeWindow, setBuffersFormat(HAL_PIXEL_FORMAT_RGBA_8888))
             .WillOnce(Return(NO_ERROR));
-    EXPECT_CALL(*mNativeWindow, setUsage(GRALLOC_USAGE_HW_RENDER)).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(*mNativeWindow, setUsage(GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE))
+            .WillOnce(Return(NO_ERROR));
 
     mSurface.initialize();
 }
@@ -136,7 +137,9 @@ TEST_F(RenderSurfaceTest, setBufferDataspaceAppliesChange) {
 
 TEST_F(RenderSurfaceTest, setProtectedTrueEnablesProtection) {
     EXPECT_FALSE(mSurface.isProtected());
-    EXPECT_CALL(*mNativeWindow, setUsage(GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_PROTECTED))
+    EXPECT_CALL(*mNativeWindow,
+                setUsage(GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE |
+                         GRALLOC_USAGE_PROTECTED))
             .WillOnce(Return(NO_ERROR));
 
     mSurface.setProtected(true);
@@ -145,7 +148,8 @@ TEST_F(RenderSurfaceTest, setProtectedTrueEnablesProtection) {
 
 TEST_F(RenderSurfaceTest, setProtectedFalseDisablesProtection) {
     EXPECT_FALSE(mSurface.isProtected());
-    EXPECT_CALL(*mNativeWindow, setUsage(GRALLOC_USAGE_HW_RENDER)).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(*mNativeWindow, setUsage(GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE))
+            .WillOnce(Return(NO_ERROR));
 
     mSurface.setProtected(false);
     EXPECT_FALSE(mSurface.isProtected());
@@ -153,9 +157,12 @@ TEST_F(RenderSurfaceTest, setProtectedFalseDisablesProtection) {
 
 TEST_F(RenderSurfaceTest, setProtectedEnableAndDisable) {
     EXPECT_FALSE(mSurface.isProtected());
-    EXPECT_CALL(*mNativeWindow, setUsage(GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_PROTECTED))
+    EXPECT_CALL(*mNativeWindow,
+                setUsage(GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE |
+                         GRALLOC_USAGE_PROTECTED))
             .WillOnce(Return(NO_ERROR));
-    EXPECT_CALL(*mNativeWindow, setUsage(GRALLOC_USAGE_HW_RENDER)).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(*mNativeWindow, setUsage(GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE))
+            .WillOnce(Return(NO_ERROR));
 
     mSurface.setProtected(true);
     EXPECT_TRUE(mSurface.isProtected());
@@ -165,7 +172,9 @@ TEST_F(RenderSurfaceTest, setProtectedEnableAndDisable) {
 
 TEST_F(RenderSurfaceTest, setProtectedEnableWithError) {
     EXPECT_FALSE(mSurface.isProtected());
-    EXPECT_CALL(*mNativeWindow, setUsage(GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_PROTECTED))
+    EXPECT_CALL(*mNativeWindow,
+                setUsage(GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE |
+                         GRALLOC_USAGE_PROTECTED))
             .WillOnce(Return(INVALID_OPERATION));
     mSurface.setProtected(true);
     EXPECT_FALSE(mSurface.isProtected());
