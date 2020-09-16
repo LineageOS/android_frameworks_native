@@ -35,20 +35,12 @@ public:
     RenderEngine();
     ~RenderEngine() override;
 
-    MOCK_METHOD0(getFramebufferForDrawing, Framebuffer*());
     MOCK_CONST_METHOD0(primeCache, void());
     MOCK_METHOD1(dump, void(std::string&));
-    MOCK_CONST_METHOD0(useNativeFenceSync, bool());
-    MOCK_CONST_METHOD0(useWaitSync, bool());
-    MOCK_CONST_METHOD0(isCurrent, bool());
     MOCK_METHOD2(genTextures, void(size_t, uint32_t*));
     MOCK_METHOD2(deleteTextures, void(size_t, uint32_t const*));
     MOCK_METHOD1(cacheExternalTextureBuffer, void(const sp<GraphicBuffer>&));
-    MOCK_METHOD3(bindExternalTextureBuffer,
-                 status_t(uint32_t, const sp<GraphicBuffer>&, const sp<Fence>&));
     MOCK_METHOD1(unbindExternalTextureBuffer, void(uint64_t));
-    MOCK_METHOD1(bindFrameBuffer, status_t(renderengine::Framebuffer*));
-    MOCK_METHOD1(unbindFrameBuffer, void(renderengine::Framebuffer*));
     MOCK_METHOD1(drawMesh, void(const renderengine::Mesh&));
     MOCK_CONST_METHOD0(getMaxTextureSize, size_t());
     MOCK_CONST_METHOD0(getMaxViewportDims, size_t());
