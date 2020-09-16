@@ -19,13 +19,16 @@ cc_test {
         "-Wextra",
         "-Werror",
     ],
-    shared_libs: [
+    static_libs: [
         "libinput",
-        "libcutils",
-        "libutils",
-        "libbinder",
-        "libui",
+    ],
+    shared_libs: [
         "libbase",
+        "libbinder",
+        "libcutils",
+        "liblog",
+        "libui",
+        "libutils",
     ]
 }
 

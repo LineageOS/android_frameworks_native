@@ -73,6 +73,7 @@ public:
     enum class RenderEngineType {
         GLES = 1,
         THREADED = 2,
+        SKIA_GL = 3,
     };
 
     static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
