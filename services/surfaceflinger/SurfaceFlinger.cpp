@@ -328,7 +328,7 @@ SurfaceFlingerBE::SurfaceFlingerBE() : mHwcServiceName(getHwcServiceName()) {}
 
 SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
       : mFactory(factory),
-        mInterceptor(mFactory.createSurfaceInterceptor(this)),
+        mInterceptor(mFactory.createSurfaceInterceptor()),
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(std::make_unique<FrameTracer>()),
         mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>()),
@@ -3686,20 +3686,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
     }
     if (what & layer_state_t::eDeferTransaction_legacy) {
-        if (s.barrierSurfaceControl_legacy != nullptr) {
-            layer->deferTransactionUntil_legacy(s.barrierSurfaceControl_legacy->getHandle(),
-                                                s.barrierFrameNumber);
-        } else if (s.barrierGbp_legacy != nullptr) {
-            const sp<IGraphicBufferProducer>& gbp = s.barrierGbp_legacy;
-            if (authenticateSurfaceTextureLocked(gbp)) {
-                const auto& otherLayer =
-                    (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
-                layer->deferTransactionUntil_legacy(otherLayer, s.barrierFrameNumber);
-            } else {
-                ALOGE("Attempt to defer transaction to to an"
-                        " unrecognized GraphicBufferProducer");
-            }
-        }
+        layer->deferTransactionUntil_legacy(s.barrierSurfaceControl_legacy->getHandle(),
+                                            s.barrierFrameNumber);
         // We don't trigger a traversal here because if no other state is
         // changed, we don't want this to cause any more work
     }

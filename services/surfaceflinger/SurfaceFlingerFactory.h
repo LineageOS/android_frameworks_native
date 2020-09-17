@@ -73,7 +73,7 @@ public:
             const scheduler::RefreshRateConfigs&) = 0;
     virtual std::unique_ptr<Scheduler> createScheduler(const scheduler::RefreshRateConfigs&,
                                                        ISchedulerCallback&) = 0;
-    virtual sp<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger*) = 0;
+    virtual sp<SurfaceInterceptor> createSurfaceInterceptor() = 0;
 
     virtual sp<StartPropertySetThread> createStartPropertySetThread(
             bool timestampPropertyValue) = 0;

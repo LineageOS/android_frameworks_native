@@ -87,7 +87,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, reparentSurfaceControl);
     SAFE_PARCEL(output.writeUint64, barrierFrameNumber);
     SAFE_PARCEL(output.writeInt32, overrideScalingMode);
-    SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(barrierGbp_legacy));
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, relativeLayerSurfaceControl);
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, parentSurfaceControlForChild);
     SAFE_PARCEL(output.writeFloat, color.r);
@@ -179,10 +178,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint64, &barrierFrameNumber);
     SAFE_PARCEL(input.readInt32, &overrideScalingMode);
 
-    sp<IBinder> tmpBinder;
-    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
-    barrierGbp_legacy = interface_cast<IGraphicBufferProducer>(tmpBinder);
-
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &relativeLayerSurfaceControl);
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &parentSurfaceControlForChild);
 
@@ -230,6 +225,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, &colorTransform, 16 * sizeof(float));
     SAFE_PARCEL(input.readFloat, &cornerRadius);
     SAFE_PARCEL(input.readUint32, &backgroundBlurRadius);
+    sp<IBinder> tmpBinder;
     SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
     cachedBuffer.token = tmpBinder;
     SAFE_PARCEL(input.readUint64, &cachedBuffer.id);
@@ -383,7 +379,6 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eDeferTransaction_legacy) {
         what |= eDeferTransaction_legacy;
         barrierSurfaceControl_legacy = other.barrierSurfaceControl_legacy;
-        barrierGbp_legacy = other.barrierGbp_legacy;
         barrierFrameNumber = other.barrierFrameNumber;
     }
     if (other.what & eOverrideScalingModeChanged) {

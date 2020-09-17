@@ -165,8 +165,6 @@ struct layer_state_t {
     uint64_t barrierFrameNumber;
     int32_t overrideScalingMode;
 
-    sp<IGraphicBufferProducer> barrierGbp_legacy;
-
     sp<SurfaceControl> relativeLayerSurfaceControl;
 
     sp<SurfaceControl> parentSurfaceControlForChild;

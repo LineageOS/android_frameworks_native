@@ -40,11 +40,6 @@ SurfaceInterceptor::~SurfaceInterceptor() = default;
 
 namespace impl {
 
-SurfaceInterceptor::SurfaceInterceptor(SurfaceFlinger* flinger)
-    :   mFlinger(flinger)
-{
-}
-
 void SurfaceInterceptor::addTransactionTraceListener(
         const sp<gui::ITransactionTraceListener>& listener) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
@@ -476,13 +471,6 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
             otherLayer = static_cast<Layer::Handle*>(
                                  state.barrierSurfaceControl_legacy->getHandle().get())
                                  ->owner.promote();
-        } else if (state.barrierGbp_legacy != nullptr) {
-            auto const& gbp = state.barrierGbp_legacy;
-            if (mFlinger->authenticateSurfaceTextureLocked(gbp)) {
-                otherLayer = (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
-            } else {
-                ALOGE("Attempt to defer transaction to to an unrecognized GraphicBufferProducer");
-            }
         }
         addDeferTransactionLocked(transaction, layerId, otherLayer, state.barrierFrameNumber);
     }
