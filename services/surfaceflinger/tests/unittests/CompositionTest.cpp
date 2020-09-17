@@ -339,8 +339,6 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mComposer, presentDisplay(HWC_DISPLAY, _)).Times(1);
         EXPECT_CALL(*test->mComposer, getReleaseFences(HWC_DISPLAY, _, _)).Times(1);
 
-        EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
-
         EXPECT_CALL(*test->mDisplaySurface, onFrameCommitted()).Times(1);
         EXPECT_CALL(*test->mDisplaySurface, advanceFrame()).Times(1);
 
@@ -449,8 +447,6 @@ struct PoweredOffDisplaySetupVariant : public BaseDisplayVariant<PoweredOffDispl
 
     template <typename Case>
     static void setupCommonCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
-
         // TODO: This seems like an unnecessary call if display is powered off.
         EXPECT_CALL(*test->mComposer,
                     setColorTransform(HWC_DISPLAY, _, Hwc2::ColorTransform::IDENTITY))
@@ -465,8 +461,6 @@ struct PoweredOffDisplaySetupVariant : public BaseDisplayVariant<PoweredOffDispl
     static void setupHwcForcedClientCompositionCallExpectations(CompositionTest*) {}
 
     static void setupRECompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
-
         // TODO: This seems like an unnecessary call if display is powered off.
         EXPECT_CALL(*test->mDisplaySurface, getClientTargetAcquireFence())
                 .WillRepeatedly(ReturnRef(test->mClientTargetAcquireFence));
@@ -549,7 +543,6 @@ struct BaseLayerProperties {
         enqueueBuffer(test, layer);
         Mock::VerifyAndClearExpectations(test->mMessageQueue);
 
-        EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
         bool ignoredRecomputeVisibleRegions;
         layer->latchBuffer(ignoredRecomputeVisibleRegions, 0, 0);
         Mock::VerifyAndClear(test->mRenderEngine);

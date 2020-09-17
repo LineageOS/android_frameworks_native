@@ -36,8 +36,8 @@ namespace skia {
 class SkiaGLRenderEngine : public skia::SkiaRenderEngine {
 public:
     static std::unique_ptr<SkiaGLRenderEngine> create(const RenderEngineCreationArgs& args);
-    SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display, EGLConfig config,
-                       EGLContext ctxt, EGLSurface placeholder, EGLContext protectedContext,
+    SkiaGLRenderEngine(EGLDisplay display, EGLConfig config, EGLContext ctxt,
+                       EGLSurface placeholder, EGLContext protectedContext,
                        EGLSurface protectedPlaceholder);
     ~SkiaGLRenderEngine() override{};
 

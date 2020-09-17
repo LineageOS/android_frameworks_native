@@ -33,20 +33,14 @@ class BlurFilter;
 
 // TODO: Put common skia stuff here that can be shared between the GL & Vulkan backends
 // Currently mostly just handles all the no-op / missing APIs
-class SkiaRenderEngine : public impl::RenderEngine {
+class SkiaRenderEngine : public RenderEngine {
 public:
     static std::unique_ptr<SkiaRenderEngine> create(const RenderEngineCreationArgs& args);
-    SkiaRenderEngine(const RenderEngineCreationArgs& args) : RenderEngine(args){};
     ~SkiaRenderEngine() override {}
 
     virtual void primeCache() const override{};
     virtual void genTextures(size_t /*count*/, uint32_t* /*names*/) override{};
     virtual void deleteTextures(size_t /*count*/, uint32_t const* /*names*/) override{};
-    virtual status_t bindExternalTextureBuffer(uint32_t /*texName*/,
-                                               const sp<GraphicBuffer>& /*buffer*/,
-                                               const sp<Fence>& /*fence*/) {
-        return 0;
-    }; // EXCLUDES(mRenderingMutex);
     virtual void cacheExternalTextureBuffer(const sp<GraphicBuffer>& /*buffer*/){};
     virtual void unbindExternalTextureBuffer(uint64_t /*bufferId*/){};
 
