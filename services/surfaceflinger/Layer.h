@@ -822,6 +822,8 @@ public:
 
     bool setFrameRate(FrameRate);
 
+    void setFrameTimelineVsync(int64_t frameTimelineVsyncId);
+
     // Creates a new handle each time, so we only expect
     // this to be called once.
     sp<IBinder> getHandle();
@@ -1021,6 +1023,8 @@ protected:
     bool mLayerDetached{false};
     // Can only be accessed with the SF state lock held.
     bool mChildrenChanged{false};
+
+    std::optional<int64_t> mFrameTimelineVsyncId;
 
     // Window types from WindowManager.LayoutParams
     const InputWindowInfo::Type mWindowType;
