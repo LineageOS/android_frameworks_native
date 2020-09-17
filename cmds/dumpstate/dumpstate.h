@@ -36,6 +36,7 @@
 
 #include "DumpstateUtil.h"
 #include "DumpPool.h"
+#include "TaskQueue.h"
 
 // Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
 // std::vector<std::string>
@@ -229,11 +230,13 @@ class Dumpstate {
      * |full_command| array containing the command (first entry) and its arguments.
      * Must contain at least one element.
      * |options| optional argument defining the command's behavior.
+     * |out_fd| A fd to support the DumpPool to output results to a temporary
+     * file. Using STDOUT_FILENO if it's not running in the parallel task.
      */
     int RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
                    const android::os::dumpstate::CommandOptions& options =
                        android::os::dumpstate::CommandOptions::DEFAULT,
-                   bool verbose_duration = false);
+                   bool verbose_duration = false, int out_fd = STDOUT_FILENO);
 
     /*
      * Runs `dumpsys` with the given arguments, automatically setting its timeout
@@ -246,10 +249,12 @@ class Dumpstate {
      * |options| optional argument defining the command's behavior.
      * |dumpsys_timeout| when > 0, defines the value passed to `dumpsys -T` (otherwise it uses the
      * timeout from `options`)
+     * |out_fd| A fd to support the DumpPool to output results to a temporary
+     * file. Using STDOUT_FILENO if it's not running in the parallel task.
      */
     void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
                     const android::os::dumpstate::CommandOptions& options = DEFAULT_DUMPSYS,
-                    long dumpsys_timeout_ms = 0);
+                    long dumpsys_timeout_ms = 0, int out_fd = STDOUT_FILENO);
 
     /*
      * Prints the contents of a file.
@@ -306,7 +311,12 @@ class Dumpstate {
     // Returns OK in all other cases.
     RunStatus DumpTraces(const char** path);
 
-    void DumpstateBoard();
+    /*
+     * |out_fd| A fd to support the DumpPool to output results to a temporary file.
+     * Dumpstate can pick up later and output to the bugreport. Using STDOUT_FILENO
+     * if it's not running in the parallel task.
+     */
+    void DumpstateBoard(int out_fd = STDOUT_FILENO);
 
     /*
      * Updates the overall progress of the bugreport generation by the given weight increment.
@@ -363,6 +373,18 @@ class Dumpstate {
     bool CalledByApi() const;
 
     /*
+     * Enqueues a task to the dumpstate's TaskQueue if the parallel run is enabled,
+     * otherwise invokes it immediately. The task adds file at path entry_path
+     * as a zip file entry with name entry_name. Unlinks entry_path when done.
+     *
+     * All enqueued tasks will be executed in the dumpstate's FinishZipFile method
+     * before the zip file is finished. Tasks will be cancelled in dumpstate's
+     * ShutdownDumpPool method if they have never been called.
+     */
+    void EnqueueAddZipEntryAndCleanupIfNeeded(const std::string& entry_name,
+            const std::string& entry_path);
+
+    /*
      * Structure to hold options that determine the behavior of dumpstate.
      */
     struct DumpOptions {
@@ -376,7 +398,6 @@ class Dumpstate {
         bool is_screenshot_copied = false;
         bool is_remote_mode = false;
         bool show_header_only = false;
-        bool do_start_service = false;
         bool telephony_only = false;
         bool wifi_only = false;
         // Trimmed-down version of dumpstate to only include whitelisted logs.
@@ -495,6 +516,10 @@ class Dumpstate {
     // A thread pool to execute dump tasks simultaneously if the parallel run is enabled.
     std::unique_ptr<android::os::dumpstate::DumpPool> dump_pool_;
 
+    // A task queue to collect adding zip entry tasks inside dump tasks if the
+    // parallel run is enabled.
+    std::unique_ptr<android::os::dumpstate::TaskQueue> zip_entry_tasks_;
+
     // A callback to IncidentCompanion service, which checks user consent for sharing the
     // bugreport with the calling app. If the user has not responded yet to the dialog it will
     // be neither confirmed nor denied.
@@ -547,6 +572,8 @@ class Dumpstate {
     explicit Dumpstate(const std::string& version = VERSION_CURRENT);
 
     android::sp<ConsentCallback> consent_callback_;
+
+    std::recursive_mutex mutex_;
 
     DISALLOW_COPY_AND_ASSIGN(Dumpstate);
 };

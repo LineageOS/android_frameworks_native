@@ -45,11 +45,8 @@ public:
 
     void dump(std::string& result) override;
 
-    bool useNativeFenceSync() const override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
-    status_t bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
-                                       const sp<Fence>& fence) override;
     void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
     void unbindExternalTextureBuffer(uint64_t bufferId) override;
     size_t getMaxTextureSize() const override;

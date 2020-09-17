@@ -356,8 +356,7 @@ EGLConfig GLESRenderEngine::chooseEglConfig(EGLDisplay display, int format, bool
 GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
                                    EGLConfig config, EGLContext ctxt, EGLSurface stub,
                                    EGLContext protectedContext, EGLSurface protectedStub)
-      : renderengine::impl::RenderEngine(args),
-        mEGLDisplay(display),
+      : mEGLDisplay(display),
         mEGLConfig(config),
         mEGLContext(ctxt),
         mStubSurface(stub),
@@ -366,7 +365,8 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
         mVpWidth(0),
         mVpHeight(0),
         mFramebufferImageCacheSize(args.imageCacheSize),
-        mUseColorManagement(args.useColorManagement) {
+        mUseColorManagement(args.useColorManagement),
+        mPrecacheToneMapperShaderOnly(args.precacheToneMapperShaderOnly) {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
     glGetIntegerv(GL_MAX_VIEWPORT_DIMS, mMaxViewportDims);
 
@@ -475,8 +475,7 @@ Framebuffer* GLESRenderEngine::getFramebufferForDrawing() {
 
 void GLESRenderEngine::primeCache() const {
     ProgramCache::getInstance().primeCache(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
-                                           mArgs.useColorManagement,
-                                           mArgs.precacheToneMapperShaderOnly);
+                                           mUseColorManagement, mPrecacheToneMapperShaderOnly);
 }
 
 base::unique_fd GLESRenderEngine::flush() {
@@ -639,13 +638,8 @@ void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& i
     }
 }
 
-status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName,
-                                                     const sp<GraphicBuffer>& buffer,
-                                                     const sp<Fence>& bufferFence) {
-    if (buffer == nullptr) {
-        return BAD_VALUE;
-    }
-
+void GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, const sp<GraphicBuffer>& buffer,
+                                                 const sp<Fence>& bufferFence) {
     ATRACE_CALL();
 
     bool found = false;
@@ -661,7 +655,8 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName,
     if (!found) {
         status_t cacheResult = mImageManager->cache(buffer);
         if (cacheResult != NO_ERROR) {
-            return cacheResult;
+            ALOGE("Error with caching buffer: %d", cacheResult);
+            return;
         }
     }
 
@@ -678,7 +673,7 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName,
             // We failed creating the image if we got here, so bail out.
             ALOGE("Failed to create an EGLImage when rendering");
             bindExternalTextureImage(texName, *createImage());
-            return NO_INIT;
+            return;
         }
 
         bindExternalTextureImage(texName, *cachedImage->second);
@@ -691,22 +686,22 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName,
             base::unique_fd fenceFd(bufferFence->dup());
             if (fenceFd == -1) {
                 ALOGE("error dup'ing fence fd: %d", errno);
-                return -errno;
+                return;
             }
             if (!waitFence(std::move(fenceFd))) {
                 ALOGE("failed to wait on fence fd");
-                return UNKNOWN_ERROR;
+                return;
             }
         } else {
             status_t err = bufferFence->waitForever("RenderEngine::bindExternalTextureBuffer");
             if (err != NO_ERROR) {
                 ALOGE("error waiting for fence: %d", err);
-                return err;
+                return;
             }
         }
     }
 
-    return NO_ERROR;
+    return;
 }
 
 void GLESRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {

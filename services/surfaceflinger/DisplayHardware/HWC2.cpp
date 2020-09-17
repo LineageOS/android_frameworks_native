@@ -977,12 +977,6 @@ Error Layer::setZOrder(uint32_t z)
     return static_cast<Error>(intError);
 }
 
-Error Layer::setInfo(uint32_t type, uint32_t appId)
-{
-  auto intError = mComposer.setLayerInfo(mDisplayId, mId, type, appId);
-  return static_cast<Error>(intError);
-}
-
 // Composer HAL 2.3
 Error Layer::setColorTransform(const android::mat4& matrix) {
     if (matrix == mColorMatrix) {

@@ -94,9 +94,6 @@ public:
     status_t updateTexImage(BufferRejecter* rejecter, nsecs_t expectedPresentTime,
                             bool* autoRefresh, bool* queuedBuffer, uint64_t maxFrameNumber);
 
-    // See BufferLayerConsumer::bindTextureImageLocked().
-    status_t bindTextureImage();
-
     // setReleaseFence stores a fence that will signal when the current buffer
     // is no longer being read. This fence will be returned to the producer
     // when the current buffer is released by updateTexImage(). Multiple
@@ -213,10 +210,6 @@ protected:
     status_t updateAndReleaseLocked(const BufferItem& item,
                                     PendingRelease* pendingRelease = nullptr)
             EXCLUDES(mImagesMutex);
-
-    // Binds mTexName and the current buffer to TEXTURE_EXTERNAL target.
-    // If the bind succeeds, this calls doFenceWait.
-    status_t bindTextureImageLocked();
 
 private:
     // Utility class for managing GraphicBuffer references into renderengine

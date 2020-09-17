@@ -442,7 +442,8 @@ void RegionSamplingThread::captureSample() {
         mCachedBuffer->getHeight() == sampledBounds.getHeight()) {
         buffer = mCachedBuffer;
     } else {
-        const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER;
+        const uint32_t usage =
+                GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
         buffer = new GraphicBuffer(sampledBounds.getWidth(), sampledBounds.getHeight(),
                                    PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
     }

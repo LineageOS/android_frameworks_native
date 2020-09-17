@@ -116,21 +116,6 @@ void RenderEngineThreaded::dump(std::string& result) {
     result.assign(resultFuture.get());
 }
 
-bool RenderEngineThreaded::useNativeFenceSync() const {
-    std::promise<bool> resultPromise;
-    std::future<bool> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& /*instance*/) {
-            ATRACE_NAME("REThreaded::useNativeFenceSync");
-            bool returnValue = SyncFeatures::getInstance().useNativeFenceSync();
-            resultPromise.set_value(returnValue);
-        });
-    }
-    mCondition.notify_one();
-    return resultFuture.get();
-}
-
 void RenderEngineThreaded::genTextures(size_t count, uint32_t* names) {
     std::promise<void> resultPromise;
     std::future<void> resultFuture = resultPromise.get_future();
@@ -159,24 +144,6 @@ void RenderEngineThreaded::deleteTextures(size_t count, uint32_t const* names) {
     }
     mCondition.notify_one();
     resultFuture.wait();
-}
-
-status_t RenderEngineThreaded::bindExternalTextureBuffer(uint32_t texName,
-                                                         const sp<GraphicBuffer>& buffer,
-                                                         const sp<Fence>& fence) {
-    std::promise<status_t> resultPromise;
-    std::future<status_t> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push(
-                [&resultPromise, texName, &buffer, &fence](renderengine::RenderEngine& instance) {
-                    ATRACE_NAME("REThreaded::bindExternalTextureBuffer");
-                    status_t status = instance.bindExternalTextureBuffer(texName, buffer, fence);
-                    resultPromise.set_value(status);
-                });
-    }
-    mCondition.notify_one();
-    return resultFuture.get();
 }
 
 void RenderEngineThreaded::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {

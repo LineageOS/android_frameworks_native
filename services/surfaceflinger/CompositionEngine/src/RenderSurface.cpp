@@ -48,6 +48,8 @@ RenderSurface::~RenderSurface() = default;
 
 namespace impl {
 
+constexpr auto DEFAULT_USAGE = GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
+
 std::unique_ptr<compositionengine::RenderSurface> createRenderSurface(
         const compositionengine::CompositionEngine& compositionEngine,
         compositionengine::Display& display,
@@ -81,7 +83,7 @@ void RenderSurface::initialize() {
     ALOGE_IF(status != NO_ERROR, "Unable to connect BQ producer: %d", status);
     status = native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ format to RGBA888: %d", status);
-    status = native_window_set_usage(window, GRALLOC_USAGE_HW_RENDER);
+    status = native_window_set_usage(window, DEFAULT_USAGE);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for GPU rendering: %d", status);
 }
 
@@ -109,7 +111,7 @@ void RenderSurface::setBufferPixelFormat(ui::PixelFormat pixelFormat) {
 }
 
 void RenderSurface::setProtected(bool useProtected) {
-    uint64_t usageFlags = GRALLOC_USAGE_HW_RENDER;
+    uint64_t usageFlags = DEFAULT_USAGE;
     if (useProtected) {
         usageFlags |= GRALLOC_USAGE_PROTECTED;
     }

@@ -18,9 +18,10 @@
 
 #include <cutils/properties.h>
 #include <log/log.h>
-#include <private/gui/SyncFeatures.h>
 #include "gl/GLESRenderEngine.h"
 #include "threaded/RenderEngineThreaded.h"
+
+#include "skia/SkiaGLRenderEngine.h"
 
 namespace android {
 namespace renderengine {
@@ -37,12 +38,17 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
     if (strcmp(prop, "threaded") == 0) {
         renderEngineType = RenderEngineType::THREADED;
     }
+    if (strcmp(prop, "skiagl") == 0) {
+        renderEngineType = RenderEngineType::SKIA_GL;
+    }
 
     switch (renderEngineType) {
         case RenderEngineType::THREADED:
             ALOGD("Threaded RenderEngine with GLES Backend");
             return renderengine::threaded::RenderEngineThreaded::create(
                     [args]() { return android::renderengine::gl::GLESRenderEngine::create(args); });
+        case RenderEngineType::SKIA_GL:
+            return renderengine::skia::SkiaGLRenderEngine::create(args);
         case RenderEngineType::GLES:
         default:
             ALOGD("RenderEngine with GLES Backend");
@@ -52,16 +58,5 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
 
 RenderEngine::~RenderEngine() = default;
 
-namespace impl {
-
-RenderEngine::RenderEngine(const RenderEngineCreationArgs& args) : mArgs(args) {}
-
-RenderEngine::~RenderEngine() = default;
-
-bool RenderEngine::useNativeFenceSync() const {
-    return SyncFeatures::getInstance().useNativeFenceSync();
-}
-
-} // namespace impl
 } // namespace renderengine
 } // namespace android

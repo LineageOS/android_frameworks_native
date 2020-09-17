@@ -153,23 +153,7 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, nsecs_t e
     if (err != NO_ERROR) {
         return err;
     }
-
-    if (!mRE.useNativeFenceSync()) {
-        // Bind the new buffer to the GL texture.
-        //
-        // Older devices require the "implicit" synchronization provided
-        // by glEGLImageTargetTexture2DOES, which this method calls.  Newer
-        // devices will either call this in Layer::onDraw, or (if it's not
-        // a GL-composited layer) not at all.
-        err = bindTextureImageLocked();
-    }
-
     return err;
-}
-
-status_t BufferLayerConsumer::bindTextureImage() {
-    Mutex::Autolock lock(mMutex);
-    return bindTextureImageLocked();
 }
 
 void BufferLayerConsumer::setReleaseFence(const sp<Fence>& fence) {
@@ -290,17 +274,6 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     computeCurrentTransformMatrixLocked();
 
     return err;
-}
-
-status_t BufferLayerConsumer::bindTextureImageLocked() {
-    ATRACE_CALL();
-
-    if (mCurrentTextureBuffer != nullptr && mCurrentTextureBuffer->graphicBuffer() != nullptr) {
-        return mRE.bindExternalTextureBuffer(mTexName, mCurrentTextureBuffer->graphicBuffer(),
-                                             mCurrentFence);
-    }
-
-    return NO_INIT;
 }
 
 void BufferLayerConsumer::getTransformMatrix(float mtx[16]) {

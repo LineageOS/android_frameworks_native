@@ -13,14 +13,16 @@ cc_defaults {
 
 cc_defaults {
     name: "libsurfaceflinger_defaults",
-    defaults: ["surfaceflinger_defaults"],
+    defaults: [
+        "surfaceflinger_defaults",
+        "skia_deps",
+    ],
     cflags: [
         "-DLOG_TAG=\"SurfaceFlinger\"",
         "-DGL_GLEXT_PROTOTYPES",
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
     shared_libs: [
-        "android.frameworks.vr.composer@2.0",
         "android.hardware.configstore-utils",
         "android.hardware.configstore@1.0",
         "android.hardware.configstore@1.1",
@@ -58,14 +60,6 @@ cc_defaults {
         "libutils",
         "libSurfaceFlingerProp",
     ],
-    // VrComposer is not used when building surfaceflinger for vendors
-    target: {
-        vendor: {
-            exclude_shared_libs: [
-                "android.frameworks.vr.composer@2.0",
-            ],
-        },
-    },
     static_libs: [
         "libcompositionengine",
         "libframetimeline",
@@ -73,7 +67,6 @@ cc_defaults {
         "librenderengine",
         "libserviceutils",
         "libtrace_proto",
-        "libvrflinger",
     ],
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
@@ -195,17 +188,7 @@ cc_defaults {
     ],
     cflags: [
         "-DLOG_TAG=\"SurfaceFlinger\"",
-        "-DUSE_VR_COMPOSER=1",
     ],
-    // VrComposer is not used when building surfaceflinger for vendors
-    // TODO: Is this ever built for vendors?
-    target: {
-        vendor: {
-            cflags: [
-                "-DUSE_VR_COMPOSER=0",
-            ],
-        },
-    },
     shared_libs: [
         "android.frameworks.displayservice@1.0",
         "android.hardware.configstore-utils",

@@ -192,6 +192,20 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
         info->addMotionRange(mOrientedRanges.y);
         info->addMotionRange(mOrientedRanges.pressure);
 
+        if (mDeviceMode == DeviceMode::UNSCALED && mSource == AINPUT_SOURCE_TOUCHPAD) {
+            // Populate RELATIVE_X and RELATIVE_Y motion ranges for touchpad capture mode.
+            //
+            // RELATIVE_X and RELATIVE_Y motion ranges should be the largest possible relative
+            // motion, i.e. the hardware dimensions, as the finger could move completely across the
+            // touchpad in one sample cycle.
+            const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
+            const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
+            info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, mSource, -x.max, x.max, x.flat,
+                                 x.fuzz, x.resolution);
+            info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_Y, mSource, -y.max, y.max, y.flat,
+                                 y.fuzz, y.resolution);
+        }
+
         if (mOrientedRanges.haveSize) {
             info->addMotionRange(mOrientedRanges.size);
         }
