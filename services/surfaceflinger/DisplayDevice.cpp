@@ -156,7 +156,8 @@ void DisplayDevice::setLayerStack(ui::LayerStack stack) {
 }
 
 void DisplayDevice::setDisplaySize(int width, int height) {
-    mCompositionDisplay->setDisplaySpaceSize(ui::Size(width, height));
+    LOG_FATAL_IF(!isVirtual(), "Changing the display size is supported only for virtual displays.");
+    mCompositionDisplay->setDisplaySize(ui::Size(width, height));
 }
 
 void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpaceRect,

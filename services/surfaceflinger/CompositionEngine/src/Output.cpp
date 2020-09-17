@@ -69,6 +69,19 @@ Reversed<T> reversed(const T& c) {
     return Reversed<T>(c);
 }
 
+struct ScaleVector {
+    float x;
+    float y;
+};
+
+// Returns a ScaleVector (x, y) such that from.scale(x, y) = to',
+// where to' will have the same size as "to". In the case where "from" and "to"
+// start at the origin to'=to.
+ScaleVector getScale(const Rect& from, const Rect& to) {
+    return {.x = static_cast<float>(to.width()) / from.width(),
+            .y = static_cast<float>(to.height()) / from.height()};
+}
+
 } // namespace
 
 std::shared_ptr<Output> createOutput(
@@ -110,9 +123,10 @@ void Output::setProjection(ui::Rotation orientation, const Rect& layerStackSpace
     auto& outputState = editState();
 
     outputState.displaySpace.orientation = orientation;
-    // outputState.displaySpace.bounds should be already set from setDisplaySpaceSize().
+    LOG_FATAL_IF(outputState.displaySpace.bounds == Rect::INVALID_RECT,
+                 "The display bounds are unknown.");
 
-    // Compute the orientedDisplaySpace bounds
+    // Compute orientedDisplaySpace
     ui::Size orientedSize = outputState.displaySpace.bounds.getSize();
     if (orientation == ui::ROTATION_90 || orientation == ui::ROTATION_270) {
         std::swap(orientedSize.width, orientedSize.height);
@@ -129,17 +143,51 @@ void Output::setProjection(ui::Rotation orientation, const Rect& layerStackSpace
     }
     outputState.displaySpace.content = rotation.transform(orientedDisplaySpaceRect);
 
+    // Compute framebufferSpace
+    outputState.framebufferSpace.orientation = orientation;
+    LOG_FATAL_IF(outputState.framebufferSpace.bounds == Rect::INVALID_RECT,
+                 "The framebuffer bounds are unknown.");
+    const auto scale =
+            getScale(outputState.framebufferSpace.bounds, outputState.displaySpace.bounds);
+    outputState.framebufferSpace.content = outputState.displaySpace.content.scale(scale.x, scale.y);
+
+    // Compute layerStackSpace
     outputState.layerStackSpace.content = layerStackSpaceRect;
     outputState.layerStackSpace.bounds = layerStackSpaceRect;
+
     outputState.transform = outputState.layerStackSpace.getTransform(outputState.displaySpace);
     outputState.needsFiltering = outputState.transform.needsBilinearFiltering();
-
     dirtyEntireOutput();
 }
 
-void Output::setDisplaySpaceSize(const ui::Size& size) {
+void Output::setDisplaySize(const ui::Size& size) {
     mRenderSurface->setDisplaySize(size);
-    editState().displaySpace.bounds = Rect(mRenderSurface->getSize());
+
+    auto& state = editState();
+
+    // Update framebuffer space
+    const Rect newBounds(size);
+    ScaleVector scale;
+    scale = getScale(state.framebufferSpace.bounds, newBounds);
+    state.framebufferSpace.bounds = newBounds;
+    state.framebufferSpace.content.scaleSelf(scale.x, scale.y);
+
+    // Update display space
+    scale = getScale(state.displaySpace.bounds, newBounds);
+    state.displaySpace.bounds = newBounds;
+    state.displaySpace.content.scaleSelf(scale.x, scale.y);
+    state.transform = state.layerStackSpace.getTransform(state.displaySpace);
+
+    // Update oriented display space
+    const auto orientation = state.displaySpace.orientation;
+    ui::Size orientedSize = size;
+    if (orientation == ui::ROTATION_90 || orientation == ui::ROTATION_270) {
+        std::swap(orientedSize.width, orientedSize.height);
+    }
+    const Rect newOrientedBounds(orientedSize);
+    scale = getScale(state.orientedDisplaySpace.bounds, newOrientedBounds);
+    state.orientedDisplaySpace.bounds = newOrientedBounds;
+    state.orientedDisplaySpace.content.scaleSelf(scale.x, scale.y);
 
     dirtyEntireOutput();
 }
@@ -247,8 +295,7 @@ compositionengine::RenderSurface* Output::getRenderSurface() const {
 
 void Output::setRenderSurface(std::unique_ptr<compositionengine::RenderSurface> surface) {
     mRenderSurface = std::move(surface);
-    editState().displaySpace.bounds = Rect(mRenderSurface->getSize());
-
+    editState().framebufferSpace.bounds = Rect(mRenderSurface->getSize());
     dirtyEntireOutput();
 }
 
@@ -877,7 +924,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     ALOGV("hasClientComposition");
 
     renderengine::DisplaySettings clientCompositionDisplay;
-    clientCompositionDisplay.physicalDisplay = outputState.displaySpace.content;
+    clientCompositionDisplay.physicalDisplay = outputState.framebufferSpace.content;
     clientCompositionDisplay.clip = outputState.layerStackSpace.content;
     clientCompositionDisplay.orientation =
             ui::Transform::toRotationFlags(outputState.displaySpace.orientation);
