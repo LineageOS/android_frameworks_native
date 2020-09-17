@@ -508,13 +508,6 @@ bool BufferStateLayer::hasFrameUpdate() const {
     return mCurrentStateModified && (c.buffer != nullptr || c.bgColorLayer != nullptr);
 }
 
-status_t BufferStateLayer::bindTextureImage() {
-    const State& s(getDrawingState());
-    auto& engine(mFlinger->getRenderEngine());
-
-    return engine.bindExternalTextureBuffer(mTextureName, s.buffer, s.acquireFence);
-}
-
 status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,
                                           nsecs_t /*expectedPresentTime*/) {
     const State& s(getDrawingState());
@@ -557,20 +550,6 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     for (auto& handle : mDrawingState.callbackHandles) {
         handle->latchTime = latchTime;
         handle->frameNumber = mDrawingState.frameNumber;
-    }
-
-    if (!SyncFeatures::getInstance().useNativeFenceSync()) {
-        // Bind the new buffer to the GL texture.
-        //
-        // Older devices require the "implicit" synchronization provided
-        // by glEGLImageTargetTexture2DOES, which this method calls.  Newer
-        // devices will either call this in Layer::onDraw, or (if it's not
-        // a GL-composited layer) not at all.
-        status_t err = bindTextureImage();
-        if (err != NO_ERROR) {
-            mFlinger->mTimeStats->onDestroy(layerId);
-            return BAD_VALUE;
-        }
     }
 
     mFlinger->mTimeStats->setAcquireFence(layerId, mDrawingState.frameNumber,
