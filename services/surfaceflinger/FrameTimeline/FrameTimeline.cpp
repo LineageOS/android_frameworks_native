@@ -20,6 +20,7 @@
 
 #include "FrameTimeline.h"
 #include <android-base/stringprintf.h>
+#include <utils/Trace.h>
 #include <cinttypes>
 
 namespace android::frametimeline::impl {
@@ -27,6 +28,7 @@ namespace android::frametimeline::impl {
 using base::StringAppendF;
 
 int64_t TokenManager::generateTokenForPredictions(TimelineItem&& predictions) {
+    ATRACE_CALL();
     std::lock_guard<std::mutex> lock(mMutex);
     const int64_t assignedToken = mCurrentToken++;
     mPredictions[assignedToken] = predictions;
@@ -88,18 +90,34 @@ TimelineItem SurfaceFrame::getActuals() {
     return mActuals;
 }
 
-void SurfaceFrame::setActuals(frametimeline::TimelineItem&& actuals) {
+nsecs_t SurfaceFrame::getActualQueueTime() {
     std::lock_guard<std::mutex> lock(mMutex);
-    mActuals = actuals;
+    return mActualQueueTime;
 }
 
-void SurfaceFrame::setPresentTime(nsecs_t presentTime) {
+void SurfaceFrame::setActualStartTime(nsecs_t actualStartTime) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mActuals.startTime = actualStartTime;
+}
+
+void SurfaceFrame::setActualQueueTime(nsecs_t actualQueueTime) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mActualQueueTime = actualQueueTime;
+}
+void SurfaceFrame::setActualEndTime(nsecs_t actualEndTime) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mActuals.endTime = actualEndTime;
+}
+
+void SurfaceFrame::setActualPresentTime(nsecs_t presentTime) {
     std::lock_guard<std::mutex> lock(mMutex);
     mActuals.presentTime = presentTime;
 }
 
 void SurfaceFrame::dump(std::string& result) {
     std::lock_guard<std::mutex> lock(mMutex);
+    StringAppendF(&result, "Present State : %d\n", static_cast<int>(mPresentState));
+    StringAppendF(&result, "Prediction State : %d\n", static_cast<int>(mPredictionState));
     StringAppendF(&result, "Predicted Start Time : %" PRId64 "\n", mPredictions.startTime);
     StringAppendF(&result, "Actual Start Time : %" PRId64 "\n", mActuals.startTime);
     StringAppendF(&result, "Actual Queue Time : %" PRId64 "\n", mActualQueueTime);
@@ -120,6 +138,7 @@ FrameTimeline::DisplayFrame::DisplayFrame()
 
 std::unique_ptr<android::frametimeline::SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
         const std::string& layerName, std::optional<int64_t> token) {
+    ATRACE_CALL();
     if (!token) {
         return std::make_unique<impl::SurfaceFrame>(layerName, PredictionState::None,
                                                     TimelineItem());
@@ -136,6 +155,7 @@ std::unique_ptr<android::frametimeline::SurfaceFrame> FrameTimeline::createSurfa
 void FrameTimeline::addSurfaceFrame(
         std::unique_ptr<android::frametimeline::SurfaceFrame> surfaceFrame,
         SurfaceFrame::PresentState state) {
+    ATRACE_CALL();
     surfaceFrame->setPresentState(state);
     std::unique_ptr<impl::SurfaceFrame> implSurfaceFrame(
             static_cast<impl::SurfaceFrame*>(surfaceFrame.release()));
@@ -144,18 +164,21 @@ void FrameTimeline::addSurfaceFrame(
 }
 
 void FrameTimeline::setSfWakeUp(int64_t token, nsecs_t wakeUpTime) {
+    ATRACE_CALL();
     const std::optional<TimelineItem> prediction = mTokenManager.getPredictionsForToken(token);
     std::lock_guard<std::mutex> lock(mMutex);
     if (!prediction) {
         mCurrentDisplayFrame->predictionState = PredictionState::Expired;
     } else {
         mCurrentDisplayFrame->surfaceFlingerPredictions = *prediction;
+        mCurrentDisplayFrame->predictionState = PredictionState::Valid;
     }
     mCurrentDisplayFrame->surfaceFlingerActuals.startTime = wakeUpTime;
 }
 
 void FrameTimeline::setSfPresent(nsecs_t sfPresentTime,
                                  const std::shared_ptr<FenceTime>& presentFence) {
+    ATRACE_CALL();
     std::lock_guard<std::mutex> lock(mMutex);
     mCurrentDisplayFrame->surfaceFlingerActuals.endTime = sfPresentTime;
     mPendingPresentFences.emplace_back(std::make_pair(presentFence, mCurrentDisplayFrame));
@@ -179,7 +202,7 @@ void FrameTimeline::flushPendingPresentFences() {
             for (auto& surfaceFrame : displayFrame->surfaceFrames) {
                 if (surfaceFrame->getPresentState() == SurfaceFrame::PresentState::Presented) {
                     // Only presented SurfaceFrames need to be updated
-                    surfaceFrame->setPresentTime(signalTime);
+                    surfaceFrame->setActualPresentTime(signalTime);
                 }
             }
         }
@@ -204,6 +227,8 @@ void FrameTimeline::dump(std::string& result) {
     StringAppendF(&result, "Number of display frames : %d\n", (int)mDisplayFrames.size());
     for (const auto& displayFrame : mDisplayFrames) {
         StringAppendF(&result, "---Display Frame---\n");
+        StringAppendF(&result, "Prediction State : %d\n",
+                      static_cast<int>(displayFrame->predictionState));
         StringAppendF(&result, "Predicted SF wake time : %" PRId64 "\n",
                       displayFrame->surfaceFlingerPredictions.startTime);
         StringAppendF(&result, "Actual SF wake time : %" PRId64 "\n",

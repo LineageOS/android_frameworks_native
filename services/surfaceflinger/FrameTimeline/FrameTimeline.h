@@ -51,7 +51,7 @@ public:
 
     // Generates a token for the given set of predictions. Stores the predictions for 120ms and
     // destroys it later.
-    virtual int64_t generateTokenForPredictions(TimelineItem&& prediction);
+    virtual int64_t generateTokenForPredictions(TimelineItem&& prediction) = 0;
 };
 
 enum class PredictionState {
@@ -76,15 +76,18 @@ public:
 
     virtual TimelineItem getPredictions() = 0;
     virtual TimelineItem getActuals() = 0;
+    virtual nsecs_t getActualQueueTime() = 0;
     virtual PresentState getPresentState() = 0;
     virtual PredictionState getPredictionState() = 0;
 
     virtual void setPresentState(PresentState state) = 0;
-    virtual void setActuals(TimelineItem&& actuals) = 0;
 
-    // There is no prediction for Queue time and it is not a part of TimelineItem. Set it
-    // separately.
+    // Actual timestamps of the app are set individually at different functions.
+    // Start time (if the app provides) and Queue time are accessible after queueing the frame,
+    // whereas End time is available only during latch.
+    virtual void setActualStartTime(nsecs_t actualStartTime) = 0;
     virtual void setActualQueueTime(nsecs_t actualQueueTime) = 0;
+    virtual void setActualEndTime(nsecs_t actualEndTime) = 0;
 };
 
 /*
@@ -94,7 +97,7 @@ public:
 class FrameTimeline {
 public:
     virtual ~FrameTimeline() = default;
-    virtual TokenManager& getTokenManager() = 0;
+    virtual TokenManager* getTokenManager() = 0;
 
     // Create a new surface frame, set the predictions based on a token and return it to the caller.
     // Sets the PredictionState of SurfaceFrame.
@@ -115,6 +118,8 @@ public:
     // that vsync.
     virtual void setSfPresent(nsecs_t sfPresentTime,
                               const std::shared_ptr<FenceTime>& presentFence) = 0;
+
+    virtual void dump(std::string& result) = 0;
 };
 
 namespace impl {
@@ -151,14 +156,15 @@ public:
 
     TimelineItem getPredictions() override { return mPredictions; };
     TimelineItem getActuals() override;
+    nsecs_t getActualQueueTime() override;
     PresentState getPresentState() override;
     PredictionState getPredictionState() override;
-    void setActuals(TimelineItem&& actuals) override;
-    void setActualQueueTime(nsecs_t actualQueueTime) override {
-        mActualQueueTime = actualQueueTime;
-    };
+
+    void setActualStartTime(nsecs_t actualStartTime) override;
+    void setActualQueueTime(nsecs_t actualQueueTime) override;
+    void setActualEndTime(nsecs_t actualEndTime) override;
     void setPresentState(PresentState state) override;
-    void setPresentTime(nsecs_t presentTime);
+    void setActualPresentTime(nsecs_t presentTime);
     void dump(std::string& result);
 
 private:
@@ -176,7 +182,7 @@ public:
     FrameTimeline();
     ~FrameTimeline() = default;
 
-    frametimeline::TokenManager& getTokenManager() override { return mTokenManager; }
+    frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
     std::unique_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForToken(
             const std::string& layerName, std::optional<int64_t> token) override;
     void addSurfaceFrame(std::unique_ptr<frametimeline::SurfaceFrame> surfaceFrame,
@@ -184,7 +190,7 @@ public:
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime) override;
     void setSfPresent(nsecs_t sfPresentTime,
                       const std::shared_ptr<FenceTime>& presentFence) override;
-    void dump(std::string& result);
+    void dump(std::string& result) override;
 
 private:
     // Friend class for testing
