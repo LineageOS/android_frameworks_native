@@ -356,8 +356,7 @@ EGLConfig GLESRenderEngine::chooseEglConfig(EGLDisplay display, int format, bool
 GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
                                    EGLConfig config, EGLContext ctxt, EGLSurface stub,
                                    EGLContext protectedContext, EGLSurface protectedStub)
-      : renderengine::impl::RenderEngine(args),
-        mEGLDisplay(display),
+      : mEGLDisplay(display),
         mEGLConfig(config),
         mEGLContext(ctxt),
         mStubSurface(stub),
@@ -366,7 +365,8 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
         mVpWidth(0),
         mVpHeight(0),
         mFramebufferImageCacheSize(args.imageCacheSize),
-        mUseColorManagement(args.useColorManagement) {
+        mUseColorManagement(args.useColorManagement),
+        mPrecacheToneMapperShaderOnly(args.precacheToneMapperShaderOnly) {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
     glGetIntegerv(GL_MAX_VIEWPORT_DIMS, mMaxViewportDims);
 
@@ -475,8 +475,7 @@ Framebuffer* GLESRenderEngine::getFramebufferForDrawing() {
 
 void GLESRenderEngine::primeCache() const {
     ProgramCache::getInstance().primeCache(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
-                                           mArgs.useColorManagement,
-                                           mArgs.precacheToneMapperShaderOnly);
+                                           mUseColorManagement, mPrecacheToneMapperShaderOnly);
 }
 
 base::unique_fd GLESRenderEngine::flush() {

@@ -89,7 +89,6 @@ public:
     // dump the extension strings. always call the base class.
     virtual void dump(std::string& result) = 0;
 
-    virtual bool useNativeFenceSync() const = 0;
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
     // Caches Image resources for this buffer, but does not bind the buffer to
@@ -263,21 +262,6 @@ private:
     RenderEngine::RenderEngineType renderEngineType = RenderEngine::RenderEngineType::GLES;
 };
 
-namespace impl {
-
-// impl::RenderEngine contains common implementation that is graphics back-end agnostic.
-class RenderEngine : public renderengine::RenderEngine {
-public:
-    virtual ~RenderEngine() = 0;
-
-    bool useNativeFenceSync() const override;
-
-protected:
-    RenderEngine(const RenderEngineCreationArgs& args);
-    const RenderEngineCreationArgs mArgs;
-};
-
-} // namespace impl
 } // namespace renderengine
 } // namespace android
 

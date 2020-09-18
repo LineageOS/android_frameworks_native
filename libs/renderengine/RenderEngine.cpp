@@ -18,7 +18,6 @@
 
 #include <cutils/properties.h>
 #include <log/log.h>
-#include <private/gui/SyncFeatures.h>
 #include "gl/GLESRenderEngine.h"
 #include "threaded/RenderEngineThreaded.h"
 
@@ -59,16 +58,5 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
 
 RenderEngine::~RenderEngine() = default;
 
-namespace impl {
-
-RenderEngine::RenderEngine(const RenderEngineCreationArgs& args) : mArgs(args) {}
-
-RenderEngine::~RenderEngine() = default;
-
-bool RenderEngine::useNativeFenceSync() const {
-    return SyncFeatures::getInstance().useNativeFenceSync();
-}
-
-} // namespace impl
 } // namespace renderengine
 } // namespace android

@@ -190,8 +190,6 @@ public:
 
     virtual status_t setActiveColorMode(DisplayId, ui::ColorMode mode, ui::RenderIntent) = 0;
 
-    virtual bool isUsingVrComposer() const = 0;
-
     // Composer 2.4
     virtual DisplayConnectionType getDisplayConnectionType(DisplayId) const = 0;
     virtual bool isVsyncPeriodSwitchSupported(DisplayId) const = 0;
@@ -323,8 +321,6 @@ public:
     std::vector<ui::ColorMode> getColorModes(DisplayId) const override;
 
     status_t setActiveColorMode(DisplayId, ui::ColorMode, ui::RenderIntent) override;
-
-    bool isUsingVrComposer() const override;
 
     // Composer 2.4
     DisplayConnectionType getDisplayConnectionType(DisplayId) const override;

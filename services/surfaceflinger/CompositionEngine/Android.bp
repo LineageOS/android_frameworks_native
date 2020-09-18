@@ -6,7 +6,6 @@ cc_defaults {
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],
     shared_libs: [
-        "android.frameworks.vr.composer@2.0",
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.composer@2.1",
         "android.hardware.graphics.composer@2.2",

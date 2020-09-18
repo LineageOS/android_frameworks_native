@@ -504,9 +504,6 @@ void Layer::prepareGeometryCompositionState() {
     compositionState->geomUsesSourceCrop = usesSourceCrop();
     compositionState->isSecure = isSecure();
 
-    compositionState->type = type;
-    compositionState->appId = appId;
-
     compositionState->metadata.clear();
     const auto& supportedMetadata = mFlinger->getHwComposer().getSupportedLayerGenericMetadata();
     for (const auto& [key, mandatory] : supportedMetadata) {
@@ -2426,7 +2423,15 @@ InputWindowInfo Layer::fillInputInfo() {
     xSurfaceInset = (xSurfaceInset >= 0) ? std::min(xSurfaceInset, layerBounds.getWidth() / 2) : 0;
     ySurfaceInset = (ySurfaceInset >= 0) ? std::min(ySurfaceInset, layerBounds.getHeight() / 2) : 0;
 
-    layerBounds.inset(xSurfaceInset, ySurfaceInset, xSurfaceInset, ySurfaceInset);
+    // inset while protecting from overflow TODO(b/161235021): What is going wrong
+    // in the overflow scenario?
+    {
+    int32_t tmp;
+    if (!__builtin_add_overflow(layerBounds.left, xSurfaceInset, &tmp)) layerBounds.left = tmp;
+    if (!__builtin_sub_overflow(layerBounds.right, xSurfaceInset, &tmp)) layerBounds.right = tmp;
+    if (!__builtin_add_overflow(layerBounds.top, ySurfaceInset, &tmp)) layerBounds.top = tmp;
+    if (!__builtin_sub_overflow(layerBounds.bottom, ySurfaceInset, &tmp)) layerBounds.bottom = tmp;
+    }
 
     // Input coordinate should match the layer bounds.
     info.frameLeft = layerBounds.left;
