@@ -364,6 +364,17 @@ const char* InputDispatcher::typeToString(InputDispatcher::FocusResult result) {
     }
 }
 
+template <typename T>
+static bool sharedPointersEqual(const std::shared_ptr<T>& lhs, const std::shared_ptr<T>& rhs) {
+    if (lhs == nullptr && rhs == nullptr) {
+        return true;
+    }
+    if (lhs == nullptr || rhs == nullptr) {
+        return false;
+    }
+    return *lhs == *rhs;
+}
+
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
@@ -3885,31 +3896,26 @@ void InputDispatcher::setFocusedApplication(
         ALOGD("setFocusedApplication displayId=%" PRId32 " %s", displayId,
               inputApplicationHandle ? inputApplicationHandle->getName().c_str() : "<nullptr>");
     }
-    if (inputApplicationHandle != nullptr &&
-        inputApplicationHandle->getApplicationToken() != nullptr) {
-        // acquire lock
+    { // acquire lock
         std::scoped_lock _l(mLock);
 
         std::shared_ptr<InputApplicationHandle> oldFocusedApplicationHandle =
                 getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
 
-        // If oldFocusedApplicationHandle already exists
-        if (oldFocusedApplicationHandle != nullptr) {
-            // If a new focused application handle is different from the old one and
-            // old focus application info is awaited focused application info.
-            if (*oldFocusedApplicationHandle != *inputApplicationHandle &&
-                mAwaitedFocusedApplication != nullptr &&
-                *oldFocusedApplicationHandle == *mAwaitedFocusedApplication) {
-                resetNoFocusedWindowTimeoutLocked();
-            }
-            // Erase the old application from container first
-            mFocusedApplicationHandlesByDisplay.erase(displayId);
-            // Should already get freed after removed from container but just double check.
-            oldFocusedApplicationHandle.reset();
+        if (sharedPointersEqual(oldFocusedApplicationHandle, inputApplicationHandle)) {
+            return; // This application is already focused. No need to wake up or change anything.
         }
 
         // Set the new application handle.
-        mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
+        if (inputApplicationHandle != nullptr) {
+            mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
+        } else {
+            mFocusedApplicationHandlesByDisplay.erase(displayId);
+        }
+
+        // No matter what the old focused application was, stop waiting on it because it is
+        // no longer focused.
+        resetNoFocusedWindowTimeoutLocked();
     } // release lock
 
     // Wake up poll loop since it may need to make new input dispatching choices.
@@ -4234,6 +4240,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                                  "hasWallpaper=%s, visible=%s, "
                                                  "flags=%s, type=0x%08x, "
                                                  "frame=[%d,%d][%d,%d], globalScale=%f, "
+                                                 "applicationInfo=%s, "
                                                  "touchableRegion=",
                                          i, windowInfo->name.c_str(), windowInfo->displayId,
                                          windowInfo->portalToDisplayId,
@@ -4245,7 +4252,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          static_cast<int32_t>(windowInfo->type),
                                          windowInfo->frameLeft, windowInfo->frameTop,
                                          windowInfo->frameRight, windowInfo->frameBottom,
-                                         windowInfo->globalScaleFactor);
+                                         windowInfo->globalScaleFactor,
+                                         windowInfo->applicationInfo.name.c_str());
                     dumpRegion(dump, windowInfo->touchableRegion);
                     dump += StringPrintf(", inputFeatures=%s",
                                          windowInfo->inputFeatures.string().c_str());

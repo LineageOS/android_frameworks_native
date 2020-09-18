@@ -2810,6 +2810,26 @@ TEST_F(InputDispatcherSingleWindowAnr, WhenKeyIsConsumed_NoAnr) {
     mFakePolicy->assertNotifyAnrWasNotCalled();
 }
 
+TEST_F(InputDispatcherSingleWindowAnr, WhenFocusedApplicationChanges_NoAnr) {
+    mWindow->setFocusable(false);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow}}});
+    mWindow->consumeFocusEvent(false);
+
+    int32_t result =
+            injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /*repeatCount*/, ADISPLAY_ID_DEFAULT,
+                      INPUT_EVENT_INJECTION_SYNC_NONE, 10ms /*injectionTimeout*/);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, result);
+    // Key will not go to window because we have no focused window.
+    // The 'no focused window' ANR timer should start instead.
+
+    // Now, the focused application goes away.
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, nullptr);
+    // The key should get dropped and there should be no ANR.
+
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mFakePolicy->assertNotifyAnrWasNotCalled();
+}
+
 // Send an event to the app and have the app not respond right away.
 // When ANR is raised, policy will tell the dispatcher to cancel the events for that window.
 // So InputDispatcher will enqueue ACTION_CANCEL event as well.
