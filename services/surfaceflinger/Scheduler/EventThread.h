@@ -41,6 +41,10 @@ class EventThread;
 class EventThreadTest;
 class SurfaceFlinger;
 
+namespace frametimeline {
+class TokenManager;
+} // namespace frametimeline
+
 // ---------------------------------------------------------------------------
 
 using ResyncCallback = std::function<void()>;
@@ -137,7 +141,8 @@ class EventThread : public android::EventThread, private VSyncSource::Callback {
 public:
     using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
 
-    EventThread(std::unique_ptr<VSyncSource>, InterceptVSyncsCallback);
+    EventThread(std::unique_ptr<VSyncSource>, frametimeline::TokenManager*,
+                InterceptVSyncsCallback);
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
@@ -185,6 +190,7 @@ private:
                       nsecs_t deadlineTimestamp) override;
 
     const std::unique_ptr<VSyncSource> mVSyncSource GUARDED_BY(mMutex);
+    frametimeline::TokenManager* const mTokenManager;
 
     const InterceptVSyncsCallback mInterceptVSyncsCallback;
     const char* const mThreadName;

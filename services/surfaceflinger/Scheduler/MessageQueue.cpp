@@ -39,8 +39,9 @@ void MessageQueue::Handler::dispatchRefresh() {
     }
 }
 
-void MessageQueue::Handler::dispatchInvalidate(nsecs_t expectedVSyncTimestamp) {
+void MessageQueue::Handler::dispatchInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTimestamp) {
     if ((android_atomic_or(eventMaskInvalidate, &mEventMask) & eventMaskInvalidate) == 0) {
+        mVsyncId = vsyncId;
         mExpectedVSyncTime = expectedVSyncTimestamp;
         mQueue.mLooper->sendMessage(this, Message(MessageQueue::INVALIDATE));
     }
@@ -50,11 +51,11 @@ void MessageQueue::Handler::handleMessage(const Message& message) {
     switch (message.what) {
         case INVALIDATE:
             android_atomic_and(~eventMaskInvalidate, &mEventMask);
-            mQueue.mFlinger->onMessageReceived(message.what, mExpectedVSyncTime);
+            mQueue.mFlinger->onMessageReceived(message.what, mVsyncId, mExpectedVSyncTime);
             break;
         case REFRESH:
             android_atomic_and(~eventMaskRefresh, &mEventMask);
-            mQueue.mFlinger->onMessageReceived(message.what, mExpectedVSyncTime);
+            mQueue.mFlinger->onMessageReceived(message.what, mVsyncId, mExpectedVSyncTime);
             break;
     }
 }
@@ -123,7 +124,8 @@ int MessageQueue::eventReceiver(int /*fd*/, int /*events*/) {
     while ((n = DisplayEventReceiver::getEvents(&mEventTube, buffer, 8)) > 0) {
         for (int i = 0; i < n; i++) {
             if (buffer[i].header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
-                mHandler->dispatchInvalidate(buffer[i].vsync.expectedVSyncTimestamp);
+                mHandler->dispatchInvalidate(buffer[i].vsync.vsyncId,
+                                             buffer[i].vsync.expectedVSyncTimestamp);
                 break;
             }
         }
