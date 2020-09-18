@@ -265,6 +265,7 @@ private:
     int dispatchAddQueueInterceptor(va_list args);
     int dispatchAddQueryInterceptor(va_list args);
     int dispatchGetLastQueuedBuffer(va_list args);
+    int dispatchSetFrameTimelineVsync(va_list args);
     bool transformToDisplayInverse();
 
 protected:
