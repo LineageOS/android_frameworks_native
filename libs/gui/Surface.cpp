@@ -1207,6 +1207,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER:
         res = dispatchGetLastQueuedBuffer(args);
         break;
+    case NATIVE_WINDOW_SET_FRAME_TIMELINE_VSYNC:
+        res = dispatchSetFrameTimelineVsync(args);
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -1511,6 +1514,14 @@ int Surface::dispatchGetLastQueuedBuffer(va_list args) {
         *fence = -1;
     }
     return result;
+}
+
+int Surface::dispatchSetFrameTimelineVsync(va_list args) {
+    ATRACE_CALL();
+    auto frameTimelineVsyncId = static_cast<int64_t>(va_arg(args, int64_t));
+
+    ALOGV("Surface::dispatchSetFrameTimelineVsync");
+    return composerService()->setFrameTimelineVsync(mGraphicBufferProducer, frameTimelineVsyncId);
 }
 
 bool Surface::transformToDisplayInverse() {

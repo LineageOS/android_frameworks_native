@@ -4867,7 +4867,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // captureLayers and captureDisplay will handle the permission check in the function
         case CAPTURE_LAYERS:
         case CAPTURE_DISPLAY:
-        case SET_DISPLAY_BRIGHTNESS: {
+        case SET_DISPLAY_BRIGHTNESS:
+        case SET_FRAME_TIMELINE_VSYNC: {
             return OK;
         }
 
@@ -6191,6 +6192,19 @@ void SurfaceFlinger::onFrameRateFlexibilityTokenReleased() {
             LOG_ALWAYS_FATAL_IF(result < 0, "Failed releasing frame rate flexibility token");
         }
     }));
+}
+
+status_t SurfaceFlinger::setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
+                                               int64_t frameTimelineVsyncId) {
+    Mutex::Autolock lock(mStateLock);
+    if (!authenticateSurfaceTextureLocked(surface)) {
+        ALOGE("Attempt to set frame timeline vsync on an unrecognized IGraphicBufferProducer");
+        return BAD_VALUE;
+    }
+
+    sp<Layer> layer = (static_cast<MonitoredProducer*>(surface.get()))->getLayer();
+    layer->setFrameTimelineVsync(frameTimelineVsyncId);
+    return NO_ERROR;
 }
 
 void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {

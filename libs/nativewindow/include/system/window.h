@@ -255,6 +255,7 @@ enum {
     NATIVE_WINDOW_ALLOCATE_BUFFERS                = 45,    /* private */
     NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER          = 46,    /* private */
     NATIVE_WINDOW_SET_QUERY_INTERCEPTOR           = 47,    /* private */
+    NATIVE_WINDOW_SET_FRAME_TIMELINE_VSYNC        = 48,    /* private */
     // clang-format on
 };
 
@@ -1020,6 +1021,12 @@ static inline int native_window_set_frame_rate(struct ANativeWindow* window, flo
                                                int8_t compatibility) {
     return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate,
                            (int)compatibility);
+}
+
+static inline int native_window_set_frame_timeline_vsync(struct ANativeWindow* window,
+                                                         int64_t frameTimelineVsyncId) {
+    return window->perform(window, NATIVE_WINDOW_SET_FRAME_TIMELINE_VSYNC,
+                           frameTimelineVsyncId);
 }
 
 // ------------------------------------------------------------------------------------------------

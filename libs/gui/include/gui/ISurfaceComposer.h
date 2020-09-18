@@ -479,6 +479,13 @@ public:
      * for tests. Release the token by releasing the returned IBinder reference.
      */
     virtual status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) = 0;
+
+    /*
+     * Sets the frame timeline vsync id received from choreographer that corresponds to next
+     * buffer submitted on that surface.
+     */
+    virtual status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
+                                           int64_t frameTimelineVsyncId) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -538,6 +545,7 @@ public:
         SET_GAME_CONTENT_TYPE,
         SET_FRAME_RATE,
         ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN,
+        SET_FRAME_TIMELINE_VSYNC,
         // Always append new enum to the end.
     };
 
