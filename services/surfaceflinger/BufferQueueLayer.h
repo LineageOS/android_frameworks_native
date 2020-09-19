@@ -22,6 +22,10 @@
 
 namespace android {
 
+namespace frametimeline {
+class SurfaceFrame;
+}
+
 /*
  * A new BufferQueue and a new BufferLayerConsumer are created when the
  * BufferLayer is first referenced.
@@ -125,7 +129,14 @@ private:
     // Local copy of the queued contents of the incoming BufferQueue
     mutable Mutex mQueueItemLock;
     Condition mQueueItemCondition;
-    Vector<BufferItem> mQueueItems;
+
+    struct BufferData {
+        BufferData(BufferItem item, std::unique_ptr<frametimeline::SurfaceFrame> surfaceFrame)
+              : item(item), surfaceFrame(std::move(surfaceFrame)) {}
+        BufferItem item;
+        std::unique_ptr<frametimeline::SurfaceFrame> surfaceFrame;
+    };
+    std::vector<BufferData> mQueueItems;
     std::atomic<uint64_t> mLastFrameNumberReceived{0};
 
     bool mAutoRefresh{false};

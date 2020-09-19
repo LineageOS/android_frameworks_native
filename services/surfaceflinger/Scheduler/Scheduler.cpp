@@ -31,6 +31,7 @@
 #include <utils/Timers.h>
 #include <utils/Trace.h>
 
+#include <FrameTimeline/FrameTimeline.h>
 #include <algorithm>
 #include <cinttypes>
 #include <cstdint>
@@ -212,11 +213,11 @@ std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
 }
 
 Scheduler::ConnectionHandle Scheduler::createConnection(
-        const char* connectionName, std::chrono::nanoseconds workDuration,
-        std::chrono::nanoseconds readyDuration,
+        const char* connectionName, frametimeline::TokenManager* tokenManager,
+        std::chrono::nanoseconds workDuration, std::chrono::nanoseconds readyDuration,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     auto vsyncSource = makePrimaryDispSyncSource(connectionName, workDuration, readyDuration);
-    auto eventThread = std::make_unique<impl::EventThread>(std::move(vsyncSource),
+    auto eventThread = std::make_unique<impl::EventThread>(std::move(vsyncSource), tokenManager,
                                                            std::move(interceptCallback));
     return createConnection(std::move(eventThread));
 }
@@ -332,6 +333,7 @@ Scheduler::ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
 
         auto eventThread =
                 std::make_unique<impl::EventThread>(std::move(vsyncSource),
+                                                    /*tokenManager=*/nullptr,
                                                     impl::EventThread::InterceptVSyncsCallback());
 
         mInjectorConnectionHandle = createConnection(std::move(eventThread));
