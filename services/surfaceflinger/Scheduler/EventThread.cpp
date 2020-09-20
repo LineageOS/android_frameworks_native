@@ -40,6 +40,7 @@
 #include <utils/Trace.h>
 
 #include "EventThread.h"
+#include "FrameTimeline.h"
 #include "HwcStrongTypes.h"
 
 using namespace std::chrono_literals;
@@ -99,12 +100,13 @@ DisplayEventReceiver::Event makeHotplug(PhysicalDisplayId displayId, nsecs_t tim
 
 DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t timestamp,
                                       uint32_t count, nsecs_t expectedVSyncTimestamp,
-                                      nsecs_t deadlineTimestamp) {
+                                      nsecs_t deadlineTimestamp, int64_t vsyncId) {
     DisplayEventReceiver::Event event;
     event.header = {DisplayEventReceiver::DISPLAY_EVENT_VSYNC, displayId, timestamp};
     event.vsync.count = count;
     event.vsync.expectedVSyncTimestamp = expectedVSyncTimestamp;
     event.vsync.deadlineTimestamp = deadlineTimestamp;
+    event.vsync.vsyncId = vsyncId;
     return event;
 }
 
@@ -165,8 +167,10 @@ EventThread::~EventThread() = default;
 namespace impl {
 
 EventThread::EventThread(std::unique_ptr<VSyncSource> vsyncSource,
+                         android::frametimeline::TokenManager* tokenManager,
                          InterceptVSyncsCallback interceptVSyncsCallback)
       : mVSyncSource(std::move(vsyncSource)),
+        mTokenManager(tokenManager),
         mInterceptVSyncsCallback(std::move(interceptVSyncsCallback)),
         mThreadName(mVSyncSource->getName()) {
     mVSyncSource->setCallback(this);
@@ -291,8 +295,16 @@ void EventThread::onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp
     std::lock_guard<std::mutex> lock(mMutex);
 
     LOG_FATAL_IF(!mVSyncState);
+    const int64_t vsyncId = [&] {
+        if (mTokenManager != nullptr) {
+            return mTokenManager->generateTokenForPredictions(
+                    {timestamp, deadlineTimestamp, expectedVSyncTimestamp});
+        }
+        return static_cast<int64_t>(0);
+    }();
+
     mPendingEvents.push_back(makeVSync(mVSyncState->displayId, timestamp, ++mVSyncState->count,
-                                       expectedVSyncTimestamp, deadlineTimestamp));
+                                       expectedVSyncTimestamp, deadlineTimestamp, vsyncId));
     mCondition.notify_all();
 }
 
@@ -416,9 +428,10 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
                 const auto now = systemTime(SYSTEM_TIME_MONOTONIC);
                 const auto deadlineTimestamp = now + timeout.count();
                 const auto expectedVSyncTime = deadlineTimestamp + timeout.count();
+                // TODO(b/162890590): use TokenManager to populate vsyncId
                 mPendingEvents.push_back(makeVSync(mVSyncState->displayId, now,
                                                    ++mVSyncState->count, expectedVSyncTime,
-                                                   deadlineTimestamp));
+                                                   deadlineTimestamp, /*vsyncId=*/0));
             }
         }
     }

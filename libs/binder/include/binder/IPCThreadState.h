@@ -32,6 +32,8 @@ namespace android {
 class IPCThreadState
 {
 public:
+    using CallRestriction = ProcessState::CallRestriction;
+
     static  IPCThreadState*     self();
     static  IPCThreadState*     selfOrNull();  // self(), but won't instantiate
 
@@ -49,6 +51,9 @@ public:
     // returns: 0 in case of success, a value < 0 in case of error
     static  status_t            freeze(pid_t pid, bool enabled, uint32_t timeout_ms);
 
+    // Provide information about the state of a frozen process
+    static  status_t            getProcessFreezeInfo(pid_t pid, bool *sync_received,
+                                                    bool *async_received);
             sp<ProcessState>    process();
             
             status_t            clearLastError();
@@ -95,6 +100,9 @@ public:
 
             void                setLastTransactionBinderFlags(int32_t flags);
             int32_t             getLastTransactionBinderFlags() const;
+
+            void                setCallRestriction(CallRestriction restriction);
+            CallRestriction     getCallRestriction() const;
 
             int64_t             clearCallingIdentity();
             // Restores PID/UID (not SID)
@@ -154,7 +162,6 @@ public:
             // This constant needs to be kept in sync with Binder.UNSET_WORKSOURCE from the Java
             // side.
             static const int32_t kUnsetWorkSource = -1;
-
 private:
                                 IPCThreadState();
                                 ~IPCThreadState();
@@ -201,8 +208,7 @@ private:
             bool                mPropagateWorkSource;
             int32_t             mStrictModePolicy;
             int32_t             mLastTransactionBinderFlags;
-
-            ProcessState::CallRestriction mCallRestriction;
+            CallRestriction     mCallRestriction;
 };
 
 } // namespace android

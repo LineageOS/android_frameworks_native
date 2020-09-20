@@ -141,6 +141,7 @@ EventThreadTest::~EventThreadTest() {
 
 void EventThreadTest::createThread(std::unique_ptr<VSyncSource> source) {
     mThread = std::make_unique<impl::EventThread>(std::move(source),
+                                                  /*tokenManager=*/nullptr,
                                                   mInterceptVSyncCallRecorder.getInvocable());
 
     // EventThread should register itself as VSyncSource callback.

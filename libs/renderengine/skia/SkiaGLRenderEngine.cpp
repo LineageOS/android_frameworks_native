@@ -394,6 +394,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                       display.clip.bottom));
     canvas->drawColor(0, SkBlendMode::kSrc);
     for (const auto& layer : layers) {
+        SkPaint paint;
+        const auto& bounds = layer->geometry.boundaries;
+        const auto dest = SkRect::MakeLTRB(bounds.left, bounds.top, bounds.right, bounds.bottom);
+
         if (layer->source.buffer.buffer) {
             ATRACE_NAME("DrawImage");
             const auto& item = layer->source.buffer;
@@ -408,14 +412,26 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                                  : kUnpremul_SkAlphaType);
                 mImageCache.insert({item.buffer->getId(), image});
             }
-            const auto& bounds = layer->geometry.boundaries;
-            SkRect dest = SkRect::MakeLTRB(bounds.left, bounds.top, bounds.right, bounds.bottom);
-            canvas->drawImageRect(image, dest, nullptr);
+
+            SkMatrix matrix;
+            if (layer->geometry.roundedCornersRadius > 0) {
+                const auto roundedRect = getRoundedRect(layer);
+                matrix.setTranslate(roundedRect.getBounds().left() - dest.left(),
+                                    roundedRect.getBounds().top() - dest.top());
+            } else {
+                matrix.setIdentity();
+            }
+            paint.setShader(image->makeShader(matrix));
         } else {
             ATRACE_NAME("DrawColor");
-            SkPaint paint;
             const auto color = layer->source.solidColor;
             paint.setColor(SkColor4f{.fR = color.r, .fG = color.g, .fB = color.b, layer->alpha});
+        }
+
+        if (layer->geometry.roundedCornersRadius > 0) {
+            canvas->drawRRect(getRoundedRect(layer), paint);
+        } else {
+            canvas->drawRect(dest, paint);
         }
     }
     {
@@ -446,6 +462,13 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
     // checkErrors();
     return NO_ERROR;
+}
+
+inline SkRRect SkiaGLRenderEngine::getRoundedRect(const LayerSettings* layer) {
+    const auto& crop = layer->geometry.roundedCornersCrop;
+    const auto rect = SkRect::MakeLTRB(crop.left, crop.top, crop.right, crop.bottom);
+    const auto cornerRadius = layer->geometry.roundedCornersRadius;
+    return SkRRect::MakeRectXY(rect, cornerRadius, cornerRadius);
 }
 
 size_t SkiaGLRenderEngine::getMaxTextureSize() const {

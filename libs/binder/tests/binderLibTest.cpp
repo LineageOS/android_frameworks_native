@@ -432,6 +432,15 @@ TEST_F(BinderLibTest, Freeze) {
     EXPECT_EQ(-EAGAIN, IPCThreadState::self()->freeze(pid, 1, 0));
     EXPECT_EQ(NO_ERROR, IPCThreadState::self()->freeze(pid, 1, 1000));
     EXPECT_EQ(FAILED_TRANSACTION, m_server->transact(BINDER_LIB_TEST_NOP_TRANSACTION, data, &reply));
+
+    bool sync_received, async_received;
+
+    EXPECT_EQ(NO_ERROR, IPCThreadState::self()->getProcessFreezeInfo(pid, &sync_received,
+                &async_received));
+
+    EXPECT_EQ(sync_received, 1);
+    EXPECT_EQ(async_received, 0);
+
     EXPECT_EQ(NO_ERROR, IPCThreadState::self()->freeze(pid, 0, 0));
     EXPECT_EQ(NO_ERROR, m_server->transact(BINDER_LIB_TEST_NOP_TRANSACTION, data, &reply));
 }
@@ -597,6 +606,12 @@ TEST_F(BinderLibTest, AddServer)
 {
     sp<IBinder> server = addServer();
     ASSERT_TRUE(server != nullptr);
+}
+
+TEST_F(BinderLibTest, AddManagerToManager) {
+    sp<IServiceManager> sm = defaultServiceManager();
+    sp<IBinder> binder = IInterface::asBinder(sm);
+    EXPECT_EQ(NO_ERROR, sm->addService(String16("binderLibTest-manager"), binder));
 }
 
 TEST_F(BinderLibTest, DeathNotificationStrongRef)

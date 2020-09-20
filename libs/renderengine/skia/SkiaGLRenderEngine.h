@@ -60,6 +60,7 @@ private:
                                        Protection protection);
     static EGLSurface createPlaceholderEglPbufferSurface(EGLDisplay display, EGLConfig config,
                                                          int hwcFormat, Protection protection);
+    inline SkRRect getRoundedRect(const LayerSettings* layer);
 
     base::unique_fd flush();
     bool waitFence(base::unique_fd fenceFd);

@@ -37,6 +37,7 @@
 #include "BufferLayerConsumer.h"
 #include "Client.h"
 #include "DisplayHardware/HWComposer.h"
+#include "FrameTimeline.h"
 #include "FrameTracker.h"
 #include "Layer.h"
 #include "LayerVector.h"

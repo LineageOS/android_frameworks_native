@@ -303,7 +303,7 @@ public:
     // called on the main thread by MessageQueue when an internal message
     // is received
     // TODO: this should be made accessible only to MessageQueue
-    void onMessageReceived(int32_t what, nsecs_t expectedVSyncTime);
+    void onMessageReceived(int32_t what, int64_t vsyncId, nsecs_t expectedVSyncTime);
 
     renderengine::RenderEngine& getRenderEngine() const;
 
@@ -593,6 +593,9 @@ private:
                           int8_t compatibility) override;
     status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) override;
 
+    status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
+                                   int64_t frameTimelineVsyncId) override;
+
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 
@@ -668,7 +671,7 @@ private:
 
     // Handle the INVALIDATE message queue event, latching new buffers and applying
     // incoming transactions
-    void onMessageInvalidate(nsecs_t expectedVSyncTime);
+    void onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTime);
 
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
@@ -1119,7 +1122,7 @@ private:
 
     const std::shared_ptr<TimeStats> mTimeStats;
     const std::unique_ptr<FrameTracer> mFrameTracer;
-    const std::shared_ptr<frametimeline::FrameTimeline> mFrameTimeline;
+    const std::unique_ptr<frametimeline::FrameTimeline> mFrameTimeline;
     bool mUseHwcVirtualDisplays = false;
     // If blurs should be enabled on this device.
     bool mSupportsBlur = false;

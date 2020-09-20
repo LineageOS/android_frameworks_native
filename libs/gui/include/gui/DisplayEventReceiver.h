@@ -73,6 +73,7 @@ public:
             uint32_t count;
             nsecs_t expectedVSyncTimestamp __attribute__((aligned(8)));
             nsecs_t deadlineTimestamp __attribute__((aligned(8)));
+            int64_t vsyncId;
         };
 
         struct Hotplug {
