@@ -116,12 +116,12 @@ public:
     virtual bool transferTouchFocus(const sp<IBinder>& fromToken,
                                     const sp<IBinder>& toToken) override;
 
-    virtual status_t registerInputChannel(
-            const std::shared_ptr<InputChannel>& inputChannel) override;
+    virtual base::Result<std::unique_ptr<InputChannel>> createInputChannel(
+            const std::string& name) override;
     virtual void setFocusedWindow(const FocusRequest&) override;
-    virtual status_t registerInputMonitor(const std::shared_ptr<InputChannel>& inputChannel,
-                                          int32_t displayId, bool isGestureMonitor) override;
-    virtual status_t unregisterInputChannel(const sp<IBinder>& connectionToken) override;
+    virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(
+            int32_t displayId, bool isGestureMonitor, const std::string& name) override;
+    virtual status_t removeInputChannel(const sp<IBinder>& connectionToken) override;
     virtual status_t pilferPointers(const sp<IBinder>& token) override;
 
     std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
