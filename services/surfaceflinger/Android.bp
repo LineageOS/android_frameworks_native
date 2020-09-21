@@ -108,11 +108,11 @@ cc_defaults {
     defaults: ["libsurfaceflinger_defaults"],
     cflags: [
         "-fvisibility=hidden",
-        "-fwhole-program-vtables", // requires ThinLTO
     ],
     lto: {
         thin: true,
     },
+    whole_program_vtables: true, // Requires ThinLTO
     // TODO(b/131771163): Fix broken fuzzer support with LTO.
     sanitize: {
         fuzzer: false,
