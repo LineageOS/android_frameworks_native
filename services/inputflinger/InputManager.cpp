@@ -31,6 +31,25 @@
 
 namespace android {
 
+static int32_t exceptionCodeFromStatusT(status_t status) {
+    switch (status) {
+        case OK:
+            return binder::Status::EX_NONE;
+        case INVALID_OPERATION:
+            return binder::Status::EX_UNSUPPORTED_OPERATION;
+        case BAD_VALUE:
+        case BAD_TYPE:
+        case NAME_NOT_FOUND:
+            return binder::Status::EX_ILLEGAL_ARGUMENT;
+        case NO_INIT:
+            return binder::Status::EX_ILLEGAL_STATE;
+        case PERMISSION_DENIED:
+            return binder::Status::EX_SECURITY;
+        default:
+            return binder::Status::EX_TRANSACTION_FAILED;
+    }
+}
+
 InputManager::InputManager(
         const sp<InputReaderPolicyInterface>& readerPolicy,
         const sp<InputDispatcherPolicyInterface>& dispatcherPolicy) {
@@ -119,7 +138,7 @@ binder::Status InputManager::setInputWindows(
 }
 
 // Used by tests only.
-binder::Status InputManager::registerInputChannel(const InputChannel& channel) {
+binder::Status InputManager::createInputChannel(const std::string& name, InputChannel* outChannel) {
     IPCThreadState* ipc = IPCThreadState::self();
     const int uid = ipc->getCallingUid();
     if (uid != AID_SHELL && uid != AID_ROOT) {
@@ -128,12 +147,17 @@ binder::Status InputManager::registerInputChannel(const InputChannel& channel) {
         return binder::Status::ok();
     }
 
-    mDispatcher->registerInputChannel(channel.dup());
+    base::Result<std::unique_ptr<InputChannel>> channel = mDispatcher->createInputChannel(name);
+    if (!channel) {
+        return binder::Status::fromExceptionCode(exceptionCodeFromStatusT(channel.error().code()),
+                                                 channel.error().message().c_str());
+    }
+    (*channel)->copyTo(*outChannel);
     return binder::Status::ok();
 }
 
-binder::Status InputManager::unregisterInputChannel(const sp<IBinder>& connectionToken) {
-    mDispatcher->unregisterInputChannel(connectionToken);
+binder::Status InputManager::removeInputChannel(const sp<IBinder>& connectionToken) {
+    mDispatcher->removeInputChannel(connectionToken);
     return binder::Status::ok();
 }
 
