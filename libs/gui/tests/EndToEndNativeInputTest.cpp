@@ -68,10 +68,12 @@ class InputSurface {
 public:
     InputSurface(const sp<SurfaceControl> &sc, int width, int height) {
         mSurfaceControl = sc;
+        std::unique_ptr<InputChannel> clientChannel;
+        InputChannel::openInputChannelPair("testchannels", mServerChannel, clientChannel);
+        mClientChannel = std::move(clientChannel);
 
         mInputFlinger = getInputFlinger();
-        mClientChannel = std::make_shared<InputChannel>();
-        mInputFlinger->createInputChannel("testchannels", mClientChannel.get());
+        mInputFlinger->registerInputChannel(*mServerChannel);
 
         populateInputInfo(width, height);
 
@@ -153,7 +155,7 @@ public:
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
-    ~InputSurface() { mInputFlinger->removeInputChannel(mClientChannel->getConnectionToken()); }
+    ~InputSurface() { mInputFlinger->unregisterInputChannel(mServerChannel->getConnectionToken()); }
 
     void doTransaction(std::function<void(SurfaceComposerClient::Transaction&,
                     const sp<SurfaceControl>&)> transactionBody) {
@@ -190,7 +192,7 @@ private:
     }
 
     void populateInputInfo(int width, int height) {
-        mInputInfo.token = mClientChannel->getConnectionToken();
+        mInputInfo.token = mServerChannel->getConnectionToken();
         mInputInfo.name = "Test info";
         mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
         mInputInfo.type = InputWindowInfo::Type::BASE_APPLICATION;
@@ -217,6 +219,7 @@ private:
     }
 public:
     sp<SurfaceControl> mSurfaceControl;
+    std::unique_ptr<InputChannel> mServerChannel;
     std::shared_ptr<InputChannel> mClientChannel;
     sp<IInputFlinger> mInputFlinger;
 

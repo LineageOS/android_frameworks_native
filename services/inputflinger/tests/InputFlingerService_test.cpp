@@ -135,6 +135,7 @@ protected:
 
 public:
     TestInputManager(){};
+    void checkFdFlags(const android::base::unique_fd& fd);
 
     binder::Status getInputWindows(std::vector<::android::InputWindowInfo>* inputHandles);
     binder::Status getInputChannels(std::vector<::android::InputChannel>* channels);
@@ -146,11 +147,9 @@ public:
             const std::vector<InputWindowInfo>& handles,
             const sp<ISetInputWindowsListener>& setInputWindowsListener) override;
 
-    binder::Status createInputChannel(const std::string& name, InputChannel* outChannel) override;
-    binder::Status removeInputChannel(const sp<IBinder>& connectionToken) override;
+    binder::Status registerInputChannel(const InputChannel& channel) override;
+    binder::Status unregisterInputChannel(const sp<IBinder>& connectionToken) override;
     binder::Status setFocusedWindow(const FocusRequest&) override;
-
-    void reset();
 
 private:
     mutable Mutex mLock;
@@ -165,7 +164,6 @@ public:
     binder::Status getInputWindows(std::vector<::android::InputWindowInfo>* inputHandles) override;
     binder::Status getInputChannels(std::vector<::android::InputChannel>* channels) override;
     binder::Status getLastFocusRequest(FocusRequest*) override;
-    binder::Status resetInputManager() override;
 
 private:
     sp<android::TestInputManager> mManager;
@@ -182,11 +180,6 @@ binder::Status TestInputQuery::getInputChannels(std::vector<::android::InputChan
 
 binder::Status TestInputQuery::getLastFocusRequest(FocusRequest* request) {
     return mManager->getLastFocusRequest(request);
-}
-
-binder::Status TestInputQuery::resetInputManager() {
-    mManager->reset();
-    return binder::Status::ok();
 }
 
 binder::Status SetInputWindowsListener::onSetInputWindowsFinished() {
@@ -211,21 +204,23 @@ binder::Status TestInputManager::setInputWindows(
     return binder::Status::ok();
 }
 
-binder::Status TestInputManager::createInputChannel(const std::string& name,
-                                                    InputChannel* outChannel) {
+void TestInputManager::checkFdFlags(const android::base::unique_fd& fd) {
+    const int result = fcntl(fd, F_GETFL);
+    EXPECT_NE(result, -1);
+    EXPECT_EQ(result & O_NONBLOCK, O_NONBLOCK);
+}
+
+binder::Status TestInputManager::registerInputChannel(const InputChannel& channel) {
     AutoMutex _l(mLock);
-    std::unique_ptr<InputChannel> serverChannel;
-    std::unique_ptr<InputChannel> clientChannel;
-    InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
+    // check Fd flags
+    checkFdFlags(channel.getFd());
 
-    clientChannel->copyTo(*outChannel);
-
-    mInputChannels.emplace_back(std::move(serverChannel));
+    mInputChannels.push_back(channel.dup());
 
     return binder::Status::ok();
 }
 
-binder::Status TestInputManager::removeInputChannel(const sp<IBinder>& connectionToken) {
+binder::Status TestInputManager::unregisterInputChannel(const sp<IBinder>& connectionToken) {
     AutoMutex _l(mLock);
 
     auto it = std::find_if(mInputChannels.begin(), mInputChannels.end(),
@@ -276,12 +271,6 @@ binder::Status TestInputManager::setFocusedWindow(const FocusRequest& request) {
     return binder::Status::ok();
 }
 
-void TestInputManager::reset() {
-    mHandlesPerDisplay.clear();
-    mInputChannels.clear();
-    mFocusRequest = FocusRequest();
-}
-
 void InputFlingerServiceTest::SetUp() {
     mSetInputWindowsListener = new SetInputWindowsListener([&]() {
         std::unique_lock<std::mutex> lock(mLock);
@@ -327,9 +316,7 @@ void InputFlingerServiceTest::SetUp() {
     InitializeInputFlinger();
 }
 
-void InputFlingerServiceTest::TearDown() {
-    mQuery->resetInputManager();
-}
+void InputFlingerServiceTest::TearDown() {}
 
 void InputFlingerServiceTest::verifyInputWindowInfo(const InputWindowInfo& info) const {
     EXPECT_EQ(mInfo, info);
@@ -380,33 +367,45 @@ TEST_F(InputFlingerServiceTest, InputWindow_SetInputWindows) {
 }
 
 /**
- *  Test InputFlinger service interface createInputChannel
+ *  Test InputFlinger service interface registerInputChannel
  */
-TEST_F(InputFlingerServiceTest, CreateInputChannelReturnsUnblockedFd) {
-    // Test that the unblocked file descriptor flag is kept across processes over binder
-    // transactions.
+TEST_F(InputFlingerServiceTest, InputWindow_RegisterInputChannel) {
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
 
-    InputChannel channel;
-    ASSERT_TRUE(mService->createInputChannel("testchannels", &channel).isOk());
-
-    const base::unique_fd& fd = channel.getFd();
-    ASSERT_TRUE(fd.ok());
-
-    const int result = fcntl(fd, F_GETFL);
-    EXPECT_NE(result, -1);
-    EXPECT_EQ(result & O_NONBLOCK, O_NONBLOCK);
-}
-
-TEST_F(InputFlingerServiceTest, InputWindow_CreateInputChannel) {
-    InputChannel channel;
-    ASSERT_TRUE(mService->createInputChannel("testchannels", &channel).isOk());
+    InputChannel::openInputChannelPair("testchannels", serverChannel, clientChannel);
+    mService->registerInputChannel(*serverChannel);
 
     std::vector<::android::InputChannel> channels;
     mQuery->getInputChannels(&channels);
     ASSERT_EQ(channels.size(), 1UL);
-    EXPECT_EQ(channels[0].getConnectionToken(), channel.getConnectionToken());
+    EXPECT_EQ(channels[0], *serverChannel);
 
-    mService->removeInputChannel(channel.getConnectionToken());
+    mService->unregisterInputChannel(serverChannel->getConnectionToken());
+    mQuery->getInputChannels(&channels);
+    EXPECT_EQ(channels.size(), 0UL);
+}
+
+/**
+ *  Test InputFlinger service interface registerInputChannel with invalid cases
+ */
+TEST_F(InputFlingerServiceTest, InputWindow_RegisterInputChannelInvalid) {
+    std::unique_ptr<InputChannel> serverChannel, clientChannel;
+    InputChannel::openInputChannelPair("testchannels", serverChannel, clientChannel);
+
+    std::vector<::android::InputChannel> channels;
+    mQuery->getInputChannels(&channels);
+    EXPECT_EQ(channels.size(), 0UL);
+
+    mService->registerInputChannel(InputChannel());
+    mService->unregisterInputChannel(clientChannel->getConnectionToken());
+
+    mService->registerInputChannel(*serverChannel);
+    mService->registerInputChannel(*clientChannel);
+    mQuery->getInputChannels(&channels);
+    EXPECT_EQ(channels.size(), 2UL);
+
+    mService->unregisterInputChannel(clientChannel->getConnectionToken());
+    mService->unregisterInputChannel(serverChannel->getConnectionToken());
     mQuery->getInputChannels(&channels);
     EXPECT_EQ(channels.size(), 0UL);
 }

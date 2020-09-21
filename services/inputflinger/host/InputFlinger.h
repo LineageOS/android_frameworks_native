@@ -48,10 +48,8 @@ public:
                                    const sp<ISetInputWindowsListener>&) {
         return binder::Status::ok();
     }
-    binder::Status createInputChannel(const std::string&, InputChannel*) {
-        return binder::Status::ok();
-    }
-    binder::Status removeInputChannel(const sp<IBinder>&) { return binder::Status::ok(); }
+    binder::Status registerInputChannel(const InputChannel&) { return binder::Status::ok(); }
+    binder::Status unregisterInputChannel(const sp<IBinder>&) { return binder::Status::ok(); }
     binder::Status setFocusedWindow(const FocusRequest&) { return binder::Status::ok(); }
 
 private:
