@@ -45,6 +45,11 @@ SurfaceInterceptor::SurfaceInterceptor(SurfaceFlinger* flinger)
 {
 }
 
+void SurfaceInterceptor::binderDied(const wp<IBinder>& who) {
+    // TODO: Implement
+    (void)who;
+}
+
 void SurfaceInterceptor::enable(const SortedVector<sp<Layer>>& layers,
         const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays)
 {
