@@ -1354,6 +1354,29 @@ TEST_F(InputReaderTest, GetInputDevices) {
     ASSERT_EQ(size_t(0), inputDevices[0].getMotionRanges().size());
 }
 
+TEST_F(InputReaderTest, GetMergedInputDevices) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    constexpr int32_t eventHubIds[2] = {END_RESERVED_ID, END_RESERVED_ID + 1};
+    // Add two subdevices to device
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
+    // Must add at least one mapper or the device will be ignored!
+    device->addMapper<FakeInputMapper>(eventHubIds[0], AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubIds[1], AINPUT_SOURCE_KEYBOARD);
+
+    // Push same device instance for next device to be added, so they'll have same identifier.
+    mReader->pushNextDevice(device);
+    mReader->pushNextDevice(device);
+    ASSERT_NO_FATAL_FAILURE(
+            addDevice(eventHubIds[0], "fake1", InputDeviceClass::KEYBOARD, nullptr));
+    ASSERT_NO_FATAL_FAILURE(
+            addDevice(eventHubIds[1], "fake2", InputDeviceClass::KEYBOARD, nullptr));
+
+    // Two devices will be merged to one input device as they have same identifier
+    std::vector<InputDeviceInfo> inputDevices;
+    mReader->getInputDevices(inputDevices);
+    ASSERT_EQ(1U, inputDevices.size());
+}
+
 TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
     constexpr Flags<InputDeviceClass> deviceClass(InputDeviceClass::KEYBOARD);
