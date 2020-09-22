@@ -377,20 +377,14 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
 }
 
 std::unique_ptr<InputChannel> InputChannel::dup() const {
-    android::base::unique_fd newFd(::dup(getFd()));
-    if (!newFd.ok()) {
-        ALOGE("Could not duplicate fd %i for channel %s: %s", getFd().get(), getName().c_str(),
-              strerror(errno));
-        const bool hitFdLimit = errno == EMFILE || errno == ENFILE;
-        // If this process is out of file descriptors, then throwing that might end up exploding
-        // on the other side of a binder call, which isn't really helpful.
-        // Better to just crash here and hope that the FD leak is slow.
-        // Other failures could be client errors, so we still propagate those back to the caller.
-        LOG_ALWAYS_FATAL_IF(hitFdLimit, "Too many open files, could not duplicate input channel %s",
-                            getName().c_str());
-        return nullptr;
-    }
+    base::unique_fd newFd(dupFd());
     return InputChannel::create(getName(), std::move(newFd), getConnectionToken());
+}
+
+void InputChannel::copyTo(InputChannel& outChannel) const {
+    outChannel.mName = getName();
+    outChannel.mFd = dupFd();
+    outChannel.mToken = getConnectionToken();
 }
 
 status_t InputChannel::writeToParcel(android::Parcel* parcel) const {
@@ -413,6 +407,23 @@ status_t InputChannel::readFromParcel(const android::Parcel* parcel) {
 
 sp<IBinder> InputChannel::getConnectionToken() const {
     return mToken;
+}
+
+base::unique_fd InputChannel::dupFd() const {
+    android::base::unique_fd newFd(::dup(getFd()));
+    if (!newFd.ok()) {
+        ALOGE("Could not duplicate fd %i for channel %s: %s", getFd().get(), getName().c_str(),
+              strerror(errno));
+        const bool hitFdLimit = errno == EMFILE || errno == ENFILE;
+        // If this process is out of file descriptors, then throwing that might end up exploding
+        // on the other side of a binder call, which isn't really helpful.
+        // Better to just crash here and hope that the FD leak is slow.
+        // Other failures could be client errors, so we still propagate those back to the caller.
+        LOG_ALWAYS_FATAL_IF(hitFdLimit, "Too many open files, could not duplicate input channel %s",
+                            getName().c_str());
+        return {};
+    }
+    return newFd;
 }
 
 // --- InputPublisher ---
