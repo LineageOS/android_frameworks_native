@@ -1112,7 +1112,7 @@ private:
     volatile nsecs_t mDebugInTransaction = 0;
     bool mForceFullDamage = false;
     bool mPropagateBackpressureClientComposition = false;
-    std::unique_ptr<SurfaceInterceptor> mInterceptor;
+    sp<SurfaceInterceptor> mInterceptor;
 
     SurfaceTracing mTracing{*this};
     std::mutex mTracingLock;
