@@ -3887,23 +3887,6 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
 
     std::string uniqueName = getUniqueLayerName(name.string());
 
-    bool primaryDisplayOnly = false;
-
-    // window type is WINDOW_TYPE_DONT_SCREENSHOT from SurfaceControl.java
-    // TODO b/64227542
-    if (metadata.has(METADATA_WINDOW_TYPE)) {
-        int32_t windowType = metadata.getInt32(METADATA_WINDOW_TYPE, 0);
-        if (windowType == 441731) {
-            using U = std::underlying_type_t<InputWindowInfo::Type>;
-            // TODO(b/129481165): This static assert can be safely removed once conversion warnings
-            // are re-enabled.
-            static_assert(std::is_same_v<U, int32_t>);
-            metadata.setInt32(METADATA_WINDOW_TYPE,
-                              static_cast<U>(InputWindowInfo::Type::NAVIGATION_BAR_PANEL));
-            primaryDisplayOnly = true;
-        }
-    }
-
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
             result = createBufferQueueLayer(client, std::move(uniqueName), w, h, flags,
@@ -3942,10 +3925,6 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
 
     if (result != NO_ERROR) {
         return result;
-    }
-
-    if (primaryDisplayOnly) {
-        layer->setPrimaryDisplayOnly();
     }
 
     bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();

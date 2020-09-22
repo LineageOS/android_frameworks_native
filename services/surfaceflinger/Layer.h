@@ -695,8 +695,7 @@ public:
 
     InputWindowInfo::Type getWindowType() const { return mWindowType; }
 
-    void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
-    bool getPrimaryDisplayOnly() const { return mPrimaryDisplayOnly; }
+    bool getPrimaryDisplayOnly() const;
 
     void updateMirrorInfo();
 
@@ -962,8 +961,6 @@ protected:
     bool mPremultipliedAlpha{true};
     const std::string mName;
     const std::string mTransactionName{"TX - " + mName};
-
-    bool mPrimaryDisplayOnly = false;
 
     // These are only accessed by the main thread or the tracing thread.
     State mDrawingState;
