@@ -416,13 +416,15 @@ void LeastSquaresVelocityTrackerStrategy::addMovement(
  * http://en.wikipedia.org/wiki/Numerical_methods_for_linear_least_squares
  * http://en.wikipedia.org/wiki/Gram-Schmidt
  */
-static bool solveLeastSquares(const float* x, const float* y,
-        const float* w, uint32_t m, uint32_t n, float* outB, float* outDet) {
+static bool solveLeastSquares(const std::vector<float>& x, const std::vector<float>& y,
+                              const std::vector<float>& w, uint32_t n, float* outB, float* outDet) {
+    const size_t m = x.size();
 #if DEBUG_STRATEGY
     ALOGD("solveLeastSquares: m=%d, n=%d, x=%s, y=%s, w=%s", int(m), int(n),
             vectorToString(x, m).c_str(), vectorToString(y, m).c_str(),
             vectorToString(w, m).c_str());
 #endif
+    LOG_ALWAYS_FATAL_IF(m != y.size() || m != w.size(), "Mismatched vector sizes");
 
     // Expand the X vector to a matrix A, pre-multiplied by the weights.
     float a[n][m]; // column-major order
@@ -539,7 +541,9 @@ static bool solveLeastSquares(const float* x, const float* y,
  * the default implementation
  */
 static std::optional<std::array<float, 3>> solveUnweightedLeastSquaresDeg2(
-        const float* x, const float* y, size_t count) {
+        const std::vector<float>& x, const std::vector<float>& y) {
+    const size_t count = x.size();
+    LOG_ALWAYS_FATAL_IF(count != y.size(), "Mismatching array sizes");
     // Solving y = a*x^2 + b*x + c
     float sxi = 0, sxiyi = 0, syi = 0, sxi2 = 0, sxi3 = 0, sxi2yi = 0, sxi4 = 0;
 
@@ -591,11 +595,11 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
     outEstimator->clear();
 
     // Iterate over movement samples in reverse time order and collect samples.
-    float x[HISTORY_SIZE];
-    float y[HISTORY_SIZE];
-    float w[HISTORY_SIZE];
-    float time[HISTORY_SIZE];
-    uint32_t m = 0;
+    std::vector<float> x;
+    std::vector<float> y;
+    std::vector<float> w;
+    std::vector<float> time;
+
     uint32_t index = mIndex;
     const Movement& newestMovement = mMovements[mIndex];
     do {
@@ -610,13 +614,14 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
         }
 
         const VelocityTracker::Position& position = movement.getPosition(id);
-        x[m] = position.x;
-        y[m] = position.y;
-        w[m] = chooseWeight(index);
-        time[m] = -age * 0.000000001f;
+        x.push_back(position.x);
+        y.push_back(position.y);
+        w.push_back(chooseWeight(index));
+        time.push_back(-age * 0.000000001f);
         index = (index == 0 ? HISTORY_SIZE : index) - 1;
-    } while (++m < HISTORY_SIZE);
+    } while (x.size() < HISTORY_SIZE);
 
+    const size_t m = x.size();
     if (m == 0) {
         return false; // no data
     }
@@ -629,8 +634,8 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
 
     if (degree == 2 && mWeighting == WEIGHTING_NONE) {
         // Optimize unweighted, quadratic polynomial fit
-        std::optional<std::array<float, 3>> xCoeff = solveUnweightedLeastSquaresDeg2(time, x, m);
-        std::optional<std::array<float, 3>> yCoeff = solveUnweightedLeastSquaresDeg2(time, y, m);
+        std::optional<std::array<float, 3>> xCoeff = solveUnweightedLeastSquaresDeg2(time, x);
+        std::optional<std::array<float, 3>> yCoeff = solveUnweightedLeastSquaresDeg2(time, y);
         if (xCoeff && yCoeff) {
             outEstimator->time = newestMovement.eventTime;
             outEstimator->degree = 2;
@@ -645,8 +650,8 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
         // General case for an Nth degree polynomial fit
         float xdet, ydet;
         uint32_t n = degree + 1;
-        if (solveLeastSquares(time, x, w, m, n, outEstimator->xCoeff, &xdet)
-                && solveLeastSquares(time, y, w, m, n, outEstimator->yCoeff, &ydet)) {
+        if (solveLeastSquares(time, x, w, n, outEstimator->xCoeff, &xdet) &&
+            solveLeastSquares(time, y, w, n, outEstimator->yCoeff, &ydet)) {
             outEstimator->time = newestMovement.eventTime;
             outEstimator->degree = degree;
             outEstimator->confidence = xdet * ydet;
