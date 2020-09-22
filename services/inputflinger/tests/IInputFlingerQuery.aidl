@@ -26,4 +26,5 @@ interface IInputFlingerQuery
     void getInputWindows(out InputWindowInfo[] inputHandles);
     void getInputChannels(out InputChannel[] channels);
     void getLastFocusRequest(out FocusRequest request);
+    void resetInputManager();
 }
