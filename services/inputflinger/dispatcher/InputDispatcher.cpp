@@ -28,8 +28,8 @@
 // Log debug messages about the dispatch cycle.
 #define DEBUG_DISPATCH_CYCLE 0
 
-// Log debug messages about channel creation
-#define DEBUG_CHANNEL_CREATION 0
+// Log debug messages about registrations.
+#define DEBUG_REGISTRATION 0
 
 // Log debug messages about input event injection.
 #define DEBUG_INJECTION 0
@@ -351,16 +351,6 @@ static void addGestureMonitors(const std::vector<Monitor>& monitors,
     }
 }
 
-static status_t openInputChannelPair(const std::string& name,
-                                     std::shared_ptr<InputChannel>& serverChannel,
-                                     std::unique_ptr<InputChannel>& clientChannel) {
-    std::unique_ptr<InputChannel> uniqueServerChannel;
-    status_t result = InputChannel::openInputChannelPair(name, uniqueServerChannel, clientChannel);
-
-    serverChannel = std::move(uniqueServerChannel);
-    return result;
-}
-
 const char* InputDispatcher::typeToString(InputDispatcher::FocusResult result) {
     switch (result) {
         case InputDispatcher::FocusResult::OK:
@@ -422,7 +412,7 @@ InputDispatcher::~InputDispatcher() {
 
     while (!mConnectionsByFd.empty()) {
         sp<Connection> connection = mConnectionsByFd.begin()->second;
-        removeInputChannel(connection->inputChannel->getConnectionToken());
+        unregisterInputChannel(connection->inputChannel->getConnectionToken());
     }
 }
 
@@ -4413,72 +4403,67 @@ void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>
     }
 }
 
-base::Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(
-        const std::string& name) {
-#if DEBUG_CHANNEL_CREATION
-    ALOGD("channel '%s' ~ createInputChannel", name.c_str());
+status_t InputDispatcher::registerInputChannel(const std::shared_ptr<InputChannel>& inputChannel) {
+#if DEBUG_REGISTRATION
+    ALOGD("channel '%s' ~ registerInputChannel", inputChannel->getName().c_str());
 #endif
-
-    std::shared_ptr<InputChannel> serverChannel;
-    std::unique_ptr<InputChannel> clientChannel;
-    status_t result = openInputChannelPair(name, serverChannel, clientChannel);
-
-    if (result) {
-        return base::Error(result) << "Failed to open input channel pair with name " << name;
-    }
 
     { // acquire lock
         std::scoped_lock _l(mLock);
-        sp<Connection> connection = new Connection(serverChannel, false /*monitor*/, mIdGenerator);
+        sp<Connection> existingConnection = getConnectionLocked(inputChannel->getConnectionToken());
+        if (existingConnection != nullptr) {
+            ALOGW("Attempted to register already registered input channel '%s'",
+                  inputChannel->getName().c_str());
+            return BAD_VALUE;
+        }
 
-        int fd = serverChannel->getFd();
+        sp<Connection> connection = new Connection(inputChannel, false /*monitor*/, mIdGenerator);
+
+        int fd = inputChannel->getFd();
         mConnectionsByFd[fd] = connection;
-        mInputChannelsByToken[serverChannel->getConnectionToken()] = serverChannel;
+        mInputChannelsByToken[inputChannel->getConnectionToken()] = inputChannel;
 
         mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
     } // release lock
 
     // Wake the looper because some connections have changed.
     mLooper->wake();
-    return clientChannel;
+    return OK;
 }
 
-base::Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(
-        int32_t displayId, bool isGestureMonitor, const std::string& name) {
-    std::shared_ptr<InputChannel> serverChannel;
-    std::unique_ptr<InputChannel> clientChannel;
-    status_t result = openInputChannelPair(name, serverChannel, clientChannel);
-    if (result) {
-        return base::Error(result) << "Failed to open input channel pair with name " << name;
-    }
-
+status_t InputDispatcher::registerInputMonitor(const std::shared_ptr<InputChannel>& inputChannel,
+                                               int32_t displayId, bool isGestureMonitor) {
     { // acquire lock
         std::scoped_lock _l(mLock);
 
         if (displayId < 0) {
-            return base::Error(BAD_VALUE) << "Attempted to create input monitor with name " << name
-                                          << " without a specified display.";
+            ALOGW("Attempted to register input monitor without a specified display.");
+            return BAD_VALUE;
         }
 
-        sp<Connection> connection = new Connection(serverChannel, true /*monitor*/, mIdGenerator);
+        if (inputChannel->getConnectionToken() == nullptr) {
+            ALOGW("Attempted to register input monitor without an identifying token.");
+            return BAD_VALUE;
+        }
 
-        const int fd = serverChannel->getFd();
+        sp<Connection> connection = new Connection(inputChannel, true /*monitor*/, mIdGenerator);
+
+        const int fd = inputChannel->getFd();
         mConnectionsByFd[fd] = connection;
-        mInputChannelsByToken[serverChannel->getConnectionToken()] = serverChannel;
+        mInputChannelsByToken[inputChannel->getConnectionToken()] = inputChannel;
 
         auto& monitorsByDisplay =
                 isGestureMonitor ? mGestureMonitorsByDisplay : mGlobalMonitorsByDisplay;
-        monitorsByDisplay[displayId].emplace_back(serverChannel);
+        monitorsByDisplay[displayId].emplace_back(inputChannel);
 
         mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
     }
-
     // Wake the looper because some connections have changed.
     mLooper->wake();
-    return clientChannel;
+    return OK;
 }
 
-status_t InputDispatcher::removeInputChannel(const sp<IBinder>& connectionToken) {
+status_t InputDispatcher::unregisterInputChannel(const sp<IBinder>& connectionToken) {
     { // acquire lock
         std::scoped_lock _l(mLock);
 
