@@ -22,6 +22,7 @@
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
 
+#include <android/gui/ITransactionTraceListener.h>
 #include <gui/IScreenCaptureListener.h>
 #include <gui/ITransactionCompletedListener.h>
 
@@ -486,6 +487,12 @@ public:
      */
     virtual status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
                                            int64_t frameTimelineVsyncId) = 0;
+
+    /*
+     * Adds a TransactionTraceListener to listen for transaction tracing state updates.
+     */
+    virtual status_t addTransactionTraceListener(
+            const sp<gui::ITransactionTraceListener>& listener) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -546,6 +553,7 @@ public:
         SET_FRAME_RATE,
         ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN,
         SET_FRAME_TIMELINE_VSYNC,
+        ADD_TRANSACTION_TRACE_LISTENER,
         // Always append new enum to the end.
     };
 
