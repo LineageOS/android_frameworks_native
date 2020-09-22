@@ -193,7 +193,11 @@ void VelocityTracker::clearPointers(BitSet32 idBits) {
     mStrategy->clearPointers(idBits);
 }
 
-void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits, const Position* positions) {
+void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits,
+                                  const std::vector<VelocityTracker::Position>& positions) {
+    LOG_ALWAYS_FATAL_IF(idBits.count() != positions.size(),
+                        "Mismatching number of pointers, idBits=%" PRIu32 ", positions=%zu",
+                        idBits.count(), positions.size());
     while (idBits.count() > MAX_POINTERS) {
         idBits.clearLastMarkedBit();
     }
@@ -286,7 +290,8 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
     }
 
     nsecs_t eventTime;
-    Position positions[pointerCount];
+    std::vector<Position> positions;
+    positions.resize(pointerCount);
 
     size_t historySize = event->getHistorySize();
     for (size_t h = 0; h < historySize; h++) {
@@ -346,8 +351,9 @@ void LeastSquaresVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
     mMovements[mIndex].idBits = remainingIdBits;
 }
 
-void LeastSquaresVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idBits,
-        const VelocityTracker::Position* positions) {
+void LeastSquaresVelocityTrackerStrategy::addMovement(
+        nsecs_t eventTime, BitSet32 idBits,
+        const std::vector<VelocityTracker::Position>& positions) {
     if (mMovements[mIndex].eventTime != eventTime) {
         // When ACTION_POINTER_DOWN happens, we will first receive ACTION_MOVE with the coordinates
         // of the existing pointers, and then ACTION_POINTER_DOWN with the coordinates that include
@@ -758,8 +764,9 @@ void IntegratingVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
     mPointerIdBits.value &= ~idBits.value;
 }
 
-void IntegratingVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idBits,
-        const VelocityTracker::Position* positions) {
+void IntegratingVelocityTrackerStrategy::addMovement(
+        nsecs_t eventTime, BitSet32 idBits,
+        const std::vector<VelocityTracker::Position>& positions) {
     uint32_t index = 0;
     for (BitSet32 iterIdBits(idBits); !iterIdBits.isEmpty();) {
         uint32_t id = iterIdBits.clearFirstMarkedBit();
@@ -876,8 +883,9 @@ void LegacyVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
     mMovements[mIndex].idBits = remainingIdBits;
 }
 
-void LegacyVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idBits,
-        const VelocityTracker::Position* positions) {
+void LegacyVelocityTrackerStrategy::addMovement(
+        nsecs_t eventTime, BitSet32 idBits,
+        const std::vector<VelocityTracker::Position>& positions) {
     if (++mIndex == HISTORY_SIZE) {
         mIndex = 0;
     }
@@ -990,8 +998,9 @@ void ImpulseVelocityTrackerStrategy::clearPointers(BitSet32 idBits) {
     mMovements[mIndex].idBits = remainingIdBits;
 }
 
-void ImpulseVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idBits,
-        const VelocityTracker::Position* positions) {
+void ImpulseVelocityTrackerStrategy::addMovement(
+        nsecs_t eventTime, BitSet32 idBits,
+        const std::vector<VelocityTracker::Position>& positions) {
     if (mMovements[mIndex].eventTime != eventTime) {
         // When ACTION_POINTER_DOWN happens, we will first receive ACTION_MOVE with the coordinates
         // of the existing pointers, and then ACTION_POINTER_DOWN with the coordinates that include
