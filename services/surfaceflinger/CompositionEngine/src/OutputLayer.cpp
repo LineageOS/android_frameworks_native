@@ -133,7 +133,8 @@ FloatRect OutputLayer::calculateOutputSourceCrop() const {
          * the code below applies the primary display's inverse transform to the
          * buffer
          */
-        uint32_t invTransformOrient = outputState.orientation;
+        uint32_t invTransformOrient =
+                ui::Transform::toRotationFlags(outputState.displaySpace.orientation);
         // calculate the inverse transform
         if (invTransformOrient & HAL_TRANSFORM_ROT_90) {
             invTransformOrient ^= HAL_TRANSFORM_FLIP_V | HAL_TRANSFORM_FLIP_H;
