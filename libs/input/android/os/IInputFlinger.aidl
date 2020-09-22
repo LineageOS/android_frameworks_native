@@ -30,8 +30,8 @@ interface IInputFlinger
     // shouldn't be a concern.
     oneway void setInputWindows(in InputWindowInfo[] inputHandles,
             in @nullable ISetInputWindowsListener setInputWindowsListener);
-    InputChannel createInputChannel(in @utf8InCpp String name);
-    void removeInputChannel(in IBinder connectionToken);
+    void registerInputChannel(in InputChannel channel);
+    void unregisterInputChannel(in IBinder connectionToken);
     /**
      * Sets focus to the window identified by the token. This must be called
      * after updating any input window handles.
