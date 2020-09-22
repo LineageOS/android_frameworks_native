@@ -76,9 +76,10 @@ struct client_cache_t {
  */
 struct layer_state_t {
     enum {
-        eLayerHidden = 0x01, // SURFACE_HIDDEN in SurfaceControl.java
-        eLayerOpaque = 0x02, // SURFACE_OPAQUE
-        eLayerSecure = 0x80, // SECURE
+        eLayerHidden = 0x01,         // SURFACE_HIDDEN in SurfaceControl.java
+        eLayerOpaque = 0x02,         // SURFACE_OPAQUE
+        eLayerSkipScreenshot = 0x40, // SKIP_SCREENSHOT
+        eLayerSecure = 0x80,         // SECURE
     };
 
     enum {

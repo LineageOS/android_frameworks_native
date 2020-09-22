@@ -89,6 +89,8 @@ Layer::Layer(const LayerCreationArgs& args)
     if (args.flags & ISurfaceComposerClient::eHidden) layerFlags |= layer_state_t::eLayerHidden;
     if (args.flags & ISurfaceComposerClient::eOpaque) layerFlags |= layer_state_t::eLayerOpaque;
     if (args.flags & ISurfaceComposerClient::eSecure) layerFlags |= layer_state_t::eLayerSecure;
+    if (args.flags & ISurfaceComposerClient::eSkipScreenshot)
+        layerFlags |= layer_state_t::eLayerSkipScreenshot;
 
     mCurrentState.active_legacy.w = args.w;
     mCurrentState.active_legacy.h = args.h;
@@ -2656,6 +2658,16 @@ Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t comp
             LOG_ALWAYS_FATAL("Invalid frame rate compatibility value %d", compatibility);
             return FrameRateCompatibility::Default;
     }
+}
+
+bool Layer::getPrimaryDisplayOnly() const {
+    const State& s(mDrawingState);
+    if (s.flags & layer_state_t::eLayerSkipScreenshot) {
+        return true;
+    }
+
+    sp<Layer> parent = mDrawingParent.promote();
+    return parent == nullptr ? false : parent->getPrimaryDisplayOnly();
 }
 
 // ---------------------------------------------------------------------------

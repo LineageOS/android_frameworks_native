@@ -572,6 +572,97 @@ TEST_F(ScreenCaptureTest, CaptureDisplayWithUid) {
     mCapture->expectBorder(Rect(128, 128, 160, 160), Color::BLACK);
 }
 
+TEST_F(ScreenCaptureTest, CaptureDisplayPrimaryDisplayOnly) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test layer", 0, 0, ISurfaceComposerClient::eFXSurfaceEffect));
+
+    const Color layerColor = Color::RED;
+    const Rect bounds = Rect(10, 10, 40, 40);
+
+    Transaction()
+            .show(layer)
+            .hide(mFGSurfaceControl)
+            .setLayerStack(layer, 0)
+            .setLayer(layer, INT32_MAX)
+            .setColor(layer, {layerColor.r / 255, layerColor.g / 255, layerColor.b / 255})
+            .setCrop_legacy(layer, bounds)
+            .apply();
+
+    DisplayCaptureArgs captureArgs;
+    captureArgs.displayToken = mDisplay;
+
+    {
+        ScreenCapture::captureDisplay(&mCapture, captureArgs);
+        mCapture->expectColor(bounds, layerColor);
+        mCapture->expectBorder(bounds, {63, 63, 195, 255});
+    }
+
+    Transaction()
+            .setFlags(layer, layer_state_t::eLayerSkipScreenshot,
+                      layer_state_t::eLayerSkipScreenshot)
+            .apply();
+
+    {
+        // Can't screenshot test layer since it now has flag
+        // eLayerSkipScreenshot
+        ScreenCapture::captureDisplay(&mCapture, captureArgs);
+        mCapture->expectColor(bounds, {63, 63, 195, 255});
+        mCapture->expectBorder(bounds, {63, 63, 195, 255});
+    }
+}
+
+TEST_F(ScreenCaptureTest, CaptureDisplayChildPrimaryDisplayOnly) {
+    sp<SurfaceControl> layer;
+    sp<SurfaceControl> childLayer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test layer", 0, 0, ISurfaceComposerClient::eFXSurfaceEffect));
+    ASSERT_NO_FATAL_FAILURE(childLayer = createLayer("test layer", 0, 0,
+                                                     ISurfaceComposerClient::eFXSurfaceEffect,
+                                                     layer.get()));
+
+    const Color layerColor = Color::RED;
+    const Color childColor = Color::BLUE;
+    const Rect bounds = Rect(10, 10, 40, 40);
+    const Rect childBounds = Rect(20, 20, 30, 30);
+
+    Transaction()
+            .show(layer)
+            .show(childLayer)
+            .hide(mFGSurfaceControl)
+            .setLayerStack(layer, 0)
+            .setLayer(layer, INT32_MAX)
+            .setColor(layer, {layerColor.r / 255, layerColor.g / 255, layerColor.b / 255})
+            .setColor(childLayer, {childColor.r / 255, childColor.g / 255, childColor.b / 255})
+            .setCrop_legacy(layer, bounds)
+            .setCrop_legacy(childLayer, childBounds)
+            .apply();
+
+    DisplayCaptureArgs captureArgs;
+    captureArgs.displayToken = mDisplay;
+
+    {
+        ScreenCapture::captureDisplay(&mCapture, captureArgs);
+        mCapture->expectColor(childBounds, childColor);
+        mCapture->expectBorder(childBounds, layerColor);
+        mCapture->expectBorder(bounds, {63, 63, 195, 255});
+    }
+
+    Transaction()
+            .setFlags(layer, layer_state_t::eLayerSkipScreenshot,
+                      layer_state_t::eLayerSkipScreenshot)
+            .apply();
+
+    {
+        // Can't screenshot child layer since the parent has the flag
+        // eLayerSkipScreenshot
+        ScreenCapture::captureDisplay(&mCapture, captureArgs);
+        mCapture->expectColor(childBounds, {63, 63, 195, 255});
+        mCapture->expectBorder(childBounds, {63, 63, 195, 255});
+        mCapture->expectBorder(bounds, {63, 63, 195, 255});
+    }
+}
+
 TEST_F(ScreenCaptureTest, CaptureLayerWithUid) {
     uid_t fakeUid = 12345;
 
