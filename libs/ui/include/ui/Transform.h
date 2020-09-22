@@ -111,7 +111,7 @@ public:
     void dump(std::string& result, const char* name, const char* prefix = "") const;
     void dump(const char* name, const char* prefix = "") const;
 
-    static RotationFlags toRotationFlags(Rotation);
+    static constexpr RotationFlags toRotationFlags(Rotation);
 
 private:
     struct mat33 {
@@ -136,7 +136,7 @@ inline void PrintTo(const Transform& t, ::std::ostream* os) {
     *os << out;
 }
 
-inline Transform::RotationFlags Transform::toRotationFlags(Rotation rotation) {
+inline constexpr Transform::RotationFlags Transform::toRotationFlags(Rotation rotation) {
     switch (rotation) {
         case ROTATION_0:
             return ROT_0;

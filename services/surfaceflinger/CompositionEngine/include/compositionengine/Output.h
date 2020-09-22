@@ -163,9 +163,8 @@ public:
     virtual void setCompositionEnabled(bool) = 0;
 
     // Sets the projection state to use
-    virtual void setProjection(const ui::Transform&, uint32_t orientation,
-                               const Rect& orientedDisplaySpaceRect,
-                               const Rect& layerStackSpaceRect, const Rect& displaySpaceRect) = 0;
+    virtual void setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
+                               const Rect& orientedDisplaySpaceRect) = 0;
     // Sets the bounds to use
     virtual void setDisplaySpaceSize(const ui::Size&) = 0;
 

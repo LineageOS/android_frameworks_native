@@ -95,8 +95,9 @@ cc_test {
         "tests/MockHWC2.cpp",
         "tests/MockHWComposer.cpp",
         "tests/MockPowerAdvisor.cpp",
-        "tests/OutputTest.cpp",
         "tests/OutputLayerTest.cpp",
+        "tests/OutputTest.cpp",
+        "tests/ProjectionSpaceTest.cpp",
         "tests/RenderSurfaceTest.cpp",
     ],
     static_libs: [

@@ -105,25 +105,34 @@ void Output::setCompositionEnabled(bool enabled) {
     dirtyEntireOutput();
 }
 
-void Output::setProjection(const ui::Transform& transform, uint32_t orientation,
-                           const Rect& orientedDisplaySpaceRect, const Rect& layerStackSpaceRect,
-                           const Rect& displaySpaceRect) {
+void Output::setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
+                           const Rect& orientedDisplaySpaceRect) {
     auto& outputState = editState();
-    outputState.transform = transform;
-    outputState.orientation = orientation;
-    outputState.displaySpace.content = displaySpaceRect;
-    // outputState.displaySpace.bounds should be already set from setDisplaySpaceSize().
-    outputState.orientedDisplaySpace.content = orientedDisplaySpaceRect;
 
+    outputState.displaySpace.orientation = orientation;
+    // outputState.displaySpace.bounds should be already set from setDisplaySpaceSize().
+
+    // Compute the orientedDisplaySpace bounds
     ui::Size orientedSize = outputState.displaySpace.bounds.getSize();
-    if (orientation == ui::Transform::ROT_90 || orientation == ui::Transform::ROT_270) {
+    if (orientation == ui::ROTATION_90 || orientation == ui::ROTATION_270) {
         std::swap(orientedSize.width, orientedSize.height);
     }
     outputState.orientedDisplaySpace.bounds = Rect(orientedSize);
+    outputState.orientedDisplaySpace.content = orientedDisplaySpaceRect;
+
+    // Compute displaySpace.content
+    const uint32_t transformOrientationFlags = ui::Transform::toRotationFlags(orientation);
+    ui::Transform rotation;
+    if (transformOrientationFlags != ui::Transform::ROT_INVALID) {
+        const auto displaySize = outputState.displaySpace.bounds;
+        rotation.set(transformOrientationFlags, displaySize.width(), displaySize.height());
+    }
+    outputState.displaySpace.content = rotation.transform(orientedDisplaySpaceRect);
 
     outputState.layerStackSpace.content = layerStackSpaceRect;
     outputState.layerStackSpace.bounds = layerStackSpaceRect;
-    outputState.needsFiltering = transform.needsBilinearFiltering();
+    outputState.transform = outputState.layerStackSpace.getTransform(outputState.displaySpace);
+    outputState.needsFiltering = outputState.transform.needsBilinearFiltering();
 
     dirtyEntireOutput();
 }
@@ -870,7 +879,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     renderengine::DisplaySettings clientCompositionDisplay;
     clientCompositionDisplay.physicalDisplay = outputState.displaySpace.content;
     clientCompositionDisplay.clip = outputState.layerStackSpace.content;
-    clientCompositionDisplay.orientation = outputState.orientation;
+    clientCompositionDisplay.orientation =
+            ui::Transform::toRotationFlags(outputState.displaySpace.orientation);
     clientCompositionDisplay.outputDataspace = mDisplayColorProfile->hasWideColorGamut()
             ? outputState.dataspace
             : ui::Dataspace::UNKNOWN;
