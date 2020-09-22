@@ -17,6 +17,7 @@
 #ifndef ANDROID_SENSOR_EVENT_CONNECTION_H
 #define ANDROID_SENSOR_EVENT_CONNECTION_H
 
+#include <stdatomic.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -165,8 +166,8 @@ private:
     int mTotalAcksNeeded, mTotalAcksReceived;
 #endif
 
-    mutable Mutex mDestroyLock;
-    bool mDestroyed;
+    // Used to track if this object was inappropriately used after destroy().
+    std::atomic_bool mDestroyed;
 };
 
 } // namepsace android
