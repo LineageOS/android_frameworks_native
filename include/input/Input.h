@@ -141,14 +141,6 @@ enum {
 #define MAX_CONTROLLER_LEDS 4
 
 /*
- * SystemUiVisibility constants from View.
- */
-enum {
-    ASYSTEM_UI_VISIBILITY_STATUS_BAR_VISIBLE = 0,
-    ASYSTEM_UI_VISIBILITY_STATUS_BAR_HIDDEN = 0x00000001,
-};
-
-/*
  * Maximum number of pointers supported per motion event.
  * Smallest number of pointers is 1.
  * (We want at least 10 but some touch controllers obstensibly configured for 10 pointers
