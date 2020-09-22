@@ -578,10 +578,18 @@ public:
 
     float getAxisValue(int32_t axis, size_t pointerIndex) const;
 
+    /**
+     * Get the X coordinate of the latest sample in this MotionEvent for pointer 'pointerIndex'.
+     * Identical to calling getHistoricalX(pointerIndex, getHistorySize()).
+     */
     inline float getX(size_t pointerIndex) const {
         return getAxisValue(AMOTION_EVENT_AXIS_X, pointerIndex);
     }
 
+    /**
+     * Get the Y coordinate of the latest sample in this MotionEvent for pointer 'pointerIndex'.
+     * Identical to calling getHistoricalX(pointerIndex, getHistorySize()).
+     */
     inline float getY(size_t pointerIndex) const {
         return getAxisValue(AMOTION_EVENT_AXIS_Y, pointerIndex);
     }
