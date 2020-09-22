@@ -596,6 +596,9 @@ private:
     status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
                                    int64_t frameTimelineVsyncId) override;
 
+    status_t addTransactionTraceListener(
+            const sp<gui::ITransactionTraceListener>& listener) override;
+
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 
