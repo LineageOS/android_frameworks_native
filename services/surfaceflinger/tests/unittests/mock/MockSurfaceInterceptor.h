@@ -33,6 +33,8 @@ public:
                       const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>&));
     MOCK_METHOD0(disable, void());
     MOCK_METHOD0(isEnabled, bool());
+    MOCK_METHOD1(addTransactionTraceListener, void(const sp<gui::ITransactionTraceListener>&));
+    MOCK_METHOD1(binderDied, void(const wp<IBinder>&));
     MOCK_METHOD6(saveTransaction,
                  void(const Vector<ComposerState>&,
                       const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>&,

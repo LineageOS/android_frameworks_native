@@ -236,19 +236,15 @@ TEST_F(OutputTest, setCompositionEnabledSetsDisabledAndDirtiesEntireOutput) {
  */
 
 TEST_F(OutputTest, setProjectionTriviallyWorks) {
-    const ui::Transform transform{ui::Transform::ROT_180};
-    const int32_t orientation = 123;
+    const ui::Rotation orientation = ui::ROTATION_90;
     const Rect frame{1, 2, 3, 4};
     const Rect viewport{5, 6, 7, 8};
-    const Rect destinationClip{13, 14, 15, 16};
 
-    mOutput->setProjection(transform, orientation, frame, viewport, destinationClip);
+    mOutput->setProjection(orientation, viewport, frame);
 
-    EXPECT_THAT(mOutput->getState().transform, transform);
-    EXPECT_EQ(orientation, mOutput->getState().orientation);
+    EXPECT_EQ(orientation, mOutput->getState().displaySpace.orientation);
     EXPECT_EQ(frame, mOutput->getState().orientedDisplaySpace.content);
     EXPECT_EQ(viewport, mOutput->getState().layerStackSpace.content);
-    EXPECT_EQ(destinationClip, mOutput->getState().displaySpace.content);
 }
 
 /*
@@ -2783,8 +2779,8 @@ struct OutputComposeSurfacesTest : public testing::Test {
         mOutput.mState.orientedDisplaySpace.content = kDefaultOutputFrame;
         mOutput.mState.layerStackSpace.content = kDefaultOutputViewport;
         mOutput.mState.displaySpace.content = kDefaultOutputDestinationClip;
-        mOutput.mState.transform = ui::Transform{kDefaultOutputOrientation};
-        mOutput.mState.orientation = kDefaultOutputOrientation;
+        mOutput.mState.transform = ui::Transform{kDefaultOutputOrientationFlags};
+        mOutput.mState.displaySpace.orientation = kDefaultOutputOrientation;
         mOutput.mState.dataspace = kDefaultOutputDataspace;
         mOutput.mState.colorTransformMatrix = kDefaultColorTransformMat;
         mOutput.mState.isSecure = false;
@@ -2819,7 +2815,9 @@ struct OutputComposeSurfacesTest : public testing::Test {
     // Call this member function to start using the mini-DSL defined above.
     [[nodiscard]] auto verify() { return ExecuteState::make(this); }
 
-    static constexpr uint32_t kDefaultOutputOrientation = TR_IDENT;
+    static constexpr ui::Rotation kDefaultOutputOrientation = ui::ROTATION_0;
+    static constexpr uint32_t kDefaultOutputOrientationFlags =
+            ui::Transform::toRotationFlags(kDefaultOutputOrientation);
     static constexpr ui::Dataspace kDefaultOutputDataspace = ui::Dataspace::UNKNOWN;
     static constexpr ui::Dataspace kExpensiveOutputDataspace = ui::Dataspace::DISPLAY_P3;
     static constexpr float kDefaultMaxLuminance = 0.9f;
@@ -3116,7 +3114,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
-                                            Region::INVALID_REGION, kDefaultOutputOrientation})
+                                            Region::INVALID_REGION, kDefaultOutputOrientationFlags})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3127,7 +3125,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
             .andIfSkipColorTransform(false)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
-                                            Region::INVALID_REGION, kDefaultOutputOrientation})
+                                            Region::INVALID_REGION, kDefaultOutputOrientationFlags})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3139,7 +3137,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace,
                                             kDefaultColorTransformMat, Region::INVALID_REGION,
-                                            kDefaultOutputOrientation})
+                                            kDefaultOutputOrientationFlags})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3151,7 +3149,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace,
                                             kDefaultColorTransformMat, Region::INVALID_REGION,
-                                            kDefaultOutputOrientation})
+                                            kDefaultOutputOrientationFlags})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3163,7 +3161,7 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
             .andIfSkipColorTransform(true)
             .thenExpectDisplaySettingsUsed({kDefaultOutputDestinationClip, kDefaultOutputViewport,
                                             kDefaultMaxLuminance, kDefaultOutputDataspace, mat4(),
-                                            Region::INVALID_REGION, kDefaultOutputOrientation})
+                                            Region::INVALID_REGION, kDefaultOutputOrientationFlags})
             .execute()
             .expectAFenceWasReturned();
 }
@@ -3409,8 +3407,9 @@ struct GenerateClientCompositionRequestsTest_ThreeLayers
         mOutput.mState.orientedDisplaySpace.content = kDisplayFrame;
         mOutput.mState.layerStackSpace.content = kDisplayViewport;
         mOutput.mState.displaySpace.content = kDisplayDestinationClip;
-        mOutput.mState.transform = ui::Transform{kDisplayOrientation};
-        mOutput.mState.orientation = kDisplayOrientation;
+        mOutput.mState.transform =
+                ui::Transform{ui::Transform::toRotationFlags(kDisplayOrientation)};
+        mOutput.mState.displaySpace.orientation = kDisplayOrientation;
         mOutput.mState.needsFiltering = false;
         mOutput.mState.isSecure = false;
 
@@ -3434,7 +3433,7 @@ struct GenerateClientCompositionRequestsTest_ThreeLayers
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(mLayers.size()));
     }
 
-    static constexpr uint32_t kDisplayOrientation = TR_IDENT;
+    static constexpr ui::Rotation kDisplayOrientation = ui::ROTATION_0;
     static constexpr ui::Dataspace kDisplayDataspace = ui::Dataspace::UNKNOWN;
 
     static const Rect kDisplayFrame;
@@ -3918,14 +3917,14 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
     const Rect kPortraitFrame(0, 0, 1000, 2000);
     const Rect kPortraitViewport(0, 0, 2000, 1000);
     const Rect kPortraitDestinationClip(0, 0, 1000, 2000);
-    const uint32_t kPortraitOrientation = TR_ROT_90;
+    const ui::Rotation kPortraitOrientation = ui::ROTATION_90;
     constexpr ui::Dataspace kOutputDataspace = ui::Dataspace::DISPLAY_P3;
 
     mOutput.mState.orientedDisplaySpace.content = kPortraitFrame;
     mOutput.mState.layerStackSpace.content = kPortraitViewport;
     mOutput.mState.displaySpace.content = kPortraitDestinationClip;
-    mOutput.mState.transform = ui::Transform{kPortraitOrientation};
-    mOutput.mState.orientation = kPortraitOrientation;
+    mOutput.mState.transform = ui::Transform{ui::Transform::toRotationFlags(kPortraitOrientation)};
+    mOutput.mState.displaySpace.orientation = kPortraitOrientation;
     mOutput.mState.needsFiltering = false;
     mOutput.mState.isSecure = true;
 

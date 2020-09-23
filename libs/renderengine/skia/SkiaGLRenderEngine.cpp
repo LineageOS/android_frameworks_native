@@ -389,7 +389,17 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         return BAD_VALUE;
     }
     auto canvas = surface->getCanvas();
+    canvas->save();
 
+    // Before doing any drawing, let's make sure that we'll start at the origin of the display.
+    // Some displays don't start at 0,0 for example when we're mirroring the screen. Also, virtual
+    // displays might have different scaling when compared to the physical screen.
+    canvas->translate(display.physicalDisplay.left, display.physicalDisplay.top);
+    const auto scaleX = static_cast<SkScalar>(display.physicalDisplay.width()) /
+            static_cast<SkScalar>(display.clip.width());
+    const auto scaleY = static_cast<SkScalar>(display.physicalDisplay.height()) /
+            static_cast<SkScalar>(display.clip.height());
+    canvas->scale(scaleX, scaleY);
     canvas->clipRect(SkRect::MakeLTRB(display.clip.left, display.clip.top, display.clip.right,
                                       display.clip.bottom));
     canvas->drawColor(0, SkBlendMode::kSrc);
@@ -428,16 +438,22 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             paint.setColor(SkColor4f{.fR = color.r, .fG = color.g, .fB = color.b, layer->alpha});
         }
 
+        // Layers have a local transform matrix that should be applied to them.
+        canvas->save();
+        canvas->concat(getSkM44(layer->geometry.positionTransform));
+
         if (layer->geometry.roundedCornersRadius > 0) {
             canvas->drawRRect(getRoundedRect(layer), paint);
         } else {
             canvas->drawRect(dest, paint);
         }
+        canvas->restore();
     }
     {
         ATRACE_NAME("flush surface");
         surface->flush();
     }
+    canvas->restore();
 
     if (drawFence != nullptr) {
         *drawFence = flush();
@@ -469,6 +485,13 @@ inline SkRRect SkiaGLRenderEngine::getRoundedRect(const LayerSettings* layer) {
     const auto rect = SkRect::MakeLTRB(crop.left, crop.top, crop.right, crop.bottom);
     const auto cornerRadius = layer->geometry.roundedCornersRadius;
     return SkRRect::MakeRectXY(rect, cornerRadius, cornerRadius);
+}
+
+inline SkM44 SkiaGLRenderEngine::getSkM44(const mat4& matrix) {
+    return SkM44(matrix[0][0], matrix[1][0], matrix[2][0], matrix[3][0],
+                 matrix[0][1], matrix[1][1], matrix[2][1], matrix[3][1],
+                 matrix[0][2], matrix[1][2], matrix[2][2], matrix[3][2],
+                 matrix[0][3], matrix[1][3], matrix[2][3], matrix[3][3]);
 }
 
 size_t SkiaGLRenderEngine::getMaxTextureSize() const {

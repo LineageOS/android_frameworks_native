@@ -83,8 +83,8 @@ public:
         return nullptr;
     }
 
-    std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger* flinger) override {
-        return std::make_unique<android::impl::SurfaceInterceptor>(flinger);
+    sp<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger* flinger) override {
+        return new android::impl::SurfaceInterceptor(flinger);
     }
 
     sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override {
@@ -424,7 +424,7 @@ public:
         mutableCurrentState().displays.clear();
         mutableDrawingState().displays.clear();
         mutableEventQueue().reset();
-        mutableInterceptor().reset();
+        mutableInterceptor().clear();
         mFlinger->mScheduler.reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
         mFlinger->mCompositionEngine->setRenderEngine(

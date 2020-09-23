@@ -32,7 +32,7 @@ public:
             const scheduler::RefreshRateConfigs&) override;
     std::unique_ptr<Scheduler> createScheduler(const scheduler::RefreshRateConfigs&,
                                                ISchedulerCallback&) override;
-    std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger*) override;
+    sp<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger*) override;
     sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override;
     sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&) override;
     sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height, PixelFormat format,

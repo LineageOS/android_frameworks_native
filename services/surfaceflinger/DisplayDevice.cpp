@@ -163,6 +163,10 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
                                   Rect orientedDisplaySpaceRect) {
     mOrientation = orientation;
 
+    if (isPrimary()) {
+        sPrimaryDisplayRotationFlags = ui::Transform::toRotationFlags(orientation);
+    }
+
     const Rect& displayBounds = getCompositionDisplay()->getState().displaySpace.bounds;
     const int displayWidth = displayBounds.width();
     const int displayHeight = displayBounds.height();
@@ -184,52 +188,11 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
         }
     }
 
-    ui::Transform logicalTranslation, physicalTranslation, scale;
-    const float sourceWidth = layerStackSpaceRect.width();
-    const float sourceHeight = layerStackSpaceRect.height();
-    const float destWidth = orientedDisplaySpaceRect.width();
-    const float destHeight = orientedDisplaySpaceRect.height();
-    if (sourceWidth != destWidth || sourceHeight != destHeight) {
-        const float scaleX = destWidth / sourceWidth;
-        const float scaleY = destHeight / sourceHeight;
-        scale.set(scaleX, 0, 0, scaleY);
-    }
-
-    const float sourceX = layerStackSpaceRect.left;
-    const float sourceY = layerStackSpaceRect.top;
-    const float destX = orientedDisplaySpaceRect.left;
-    const float destY = orientedDisplaySpaceRect.top;
-    logicalTranslation.set(-sourceX, -sourceY);
-    physicalTranslation.set(destX, destY);
-
     // We need to take care of display rotation for globalTransform for case if the panel is not
     // installed aligned with device orientation.
     const auto transformOrientation = orientation + mPhysicalOrientation;
-    const uint32_t transformOrientationFlags = ui::Transform::toRotationFlags(transformOrientation);
-    ui::Transform rotation;
-    if (transformOrientationFlags != ui::Transform::ROT_INVALID) {
-        rotation.set(transformOrientationFlags, displayWidth, displayHeight);
-    }
-
-    // The layerStackSpaceRect and orientedDisplaySpaceRect are both in the logical orientation.
-    // Apply the logical translation, scale to physical size, apply the
-    // physical translation and finally rotate to the physical orientation.
-    ui::Transform globalTransform = rotation * physicalTranslation * scale * logicalTranslation;
-
-    Rect displaySpaceRect = globalTransform.transform(layerStackSpaceRect);
-    if (displaySpaceRect.isEmpty()) {
-        displaySpaceRect = displayBounds;
-    }
-    // Make sure the displaySpaceRect is contained in the display bounds
-    displaySpaceRect.intersect(displayBounds, &displaySpaceRect);
-
-    if (isPrimary()) {
-        sPrimaryDisplayRotationFlags = ui::Transform::toRotationFlags(orientation);
-    }
-
-    getCompositionDisplay()->setProjection(globalTransform, transformOrientationFlags,
-                                           orientedDisplaySpaceRect, layerStackSpaceRect,
-                                           displaySpaceRect);
+    getCompositionDisplay()->setProjection(transformOrientation, layerStackSpaceRect,
+                                           orientedDisplaySpaceRect);
 }
 
 ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {

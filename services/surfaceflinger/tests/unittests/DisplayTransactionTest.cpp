@@ -155,7 +155,7 @@ public:
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     Hwc2::mock::Composer* mComposer = nullptr;
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
-    mock::SurfaceInterceptor* mSurfaceInterceptor = new mock::SurfaceInterceptor();
+    sp<mock::SurfaceInterceptor> mSurfaceInterceptor = new mock::SurfaceInterceptor;
 
     mock::VsyncController* mVsyncController = new mock::VsyncController;
     mock::VSyncTracker* mVSyncTracker = new mock::VSyncTracker;
@@ -194,7 +194,7 @@ DisplayTransactionTest::DisplayTransactionTest() {
     injectMockScheduler();
     mFlinger.mutableEventQueue().reset(mMessageQueue);
     mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
-    mFlinger.mutableInterceptor().reset(mSurfaceInterceptor);
+    mFlinger.mutableInterceptor() = mSurfaceInterceptor;
 
     injectMockComposer(0);
 }
@@ -1481,7 +1481,7 @@ public:
         EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_0, mHardwareDisplaySize.width,
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
-        EXPECT_EQ(TRANSFORM_FLAGS_ROT_0, compositionState.orientation);
+        EXPECT_EQ(ui::ROTATION_0, compositionState.displaySpace.orientation);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.orientedDisplaySpace.content);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.layerStackSpace.content);
@@ -1493,7 +1493,7 @@ public:
         EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_90, mHardwareDisplaySize.width,
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
-        EXPECT_EQ(TRANSFORM_FLAGS_ROT_90, compositionState.orientation);
+        EXPECT_EQ(ui::ROTATION_90, compositionState.displaySpace.orientation);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
         // For 90, the orientedDisplaySpaceRect and layerStackSpaceRect have the hardware display
         // size width and height swapped
@@ -1508,7 +1508,7 @@ public:
         EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_180, mHardwareDisplaySize.width,
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
-        EXPECT_EQ(TRANSFORM_FLAGS_ROT_180, compositionState.orientation);
+        EXPECT_EQ(ui::ROTATION_180, compositionState.displaySpace.orientation);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.orientedDisplaySpace.content);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.layerStackSpace.content);
         EXPECT_EQ(false, compositionState.needsFiltering);
@@ -1519,7 +1519,7 @@ public:
         EXPECT_EQ(ui::Transform(TRANSFORM_FLAGS_ROT_270, mHardwareDisplaySize.width,
                                 mHardwareDisplaySize.height),
                   compositionState.transform);
-        EXPECT_EQ(TRANSFORM_FLAGS_ROT_270, compositionState.orientation);
+        EXPECT_EQ(ui::ROTATION_270, compositionState.displaySpace.orientation);
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
         // For 270, the orientedDisplaySpaceRect and layerStackSpaceRect have the hardware display
         // size width and height swapped
