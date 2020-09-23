@@ -443,12 +443,18 @@ AChoreographer* AChoreographer_routeGetInstance() {
 }
 void AChoreographer_routePostFrameCallback(AChoreographer* choreographer,
                                            AChoreographer_frameCallback callback, void* data) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     return AChoreographer_postFrameCallback(choreographer, callback, data);
+#pragma clang diagnostic pop
 }
 void AChoreographer_routePostFrameCallbackDelayed(AChoreographer* choreographer,
                                                   AChoreographer_frameCallback callback, void* data,
                                                   long delayMillis) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     return AChoreographer_postFrameCallbackDelayed(choreographer, callback, data, delayMillis);
+#pragma clang diagnostic pop
 }
 void AChoreographer_routePostFrameCallback64(AChoreographer* choreographer,
                                              AChoreographer_frameCallback64 callback, void* data) {
