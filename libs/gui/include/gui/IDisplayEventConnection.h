@@ -51,11 +51,6 @@ public:
      * requestNextVsync() schedules the next vsync event. It has no effect if the vsync rate is > 0.
      */
     virtual void requestNextVsync() = 0; // Asynchronous
-
-    /*
-     * requestLatestConfig() requests the config for the primary display.
-     */
-    virtual void requestLatestConfig() = 0; // Asynchronous
 };
 
 class BnDisplayEventConnection : public SafeBnInterface<IDisplayEventConnection> {
