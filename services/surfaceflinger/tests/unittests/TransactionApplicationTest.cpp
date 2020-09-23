@@ -122,7 +122,7 @@ public:
     }
 
     void NotPlacedOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
-        ASSERT_EQ(0, mFlinger.getTransactionQueue().size());
+        ASSERT_EQ(0, mFlinger.getPendingTransactionQueue().size());
         // called in SurfaceFlinger::signalTransaction
         EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
         EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillOnce(Return(systemTime()));
@@ -146,12 +146,12 @@ public:
         } else {
             EXPECT_LE(returnedTime, applicationTime + s2ns(5));
         }
-        auto transactionQueue = mFlinger.getTransactionQueue();
+        auto transactionQueue = mFlinger.getPendingTransactionQueue();
         EXPECT_EQ(0, transactionQueue.size());
     }
 
     void PlaceOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
-        ASSERT_EQ(0, mFlinger.getTransactionQueue().size());
+        ASSERT_EQ(0, mFlinger.getPendingTransactionQueue().size());
         // called in SurfaceFlinger::signalTransaction
         EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
 
@@ -172,12 +172,12 @@ public:
         nsecs_t returnedTime = systemTime();
         EXPECT_LE(returnedTime, applicationSentTime + s2ns(5));
         // This transaction should have been placed on the transaction queue
-        auto transactionQueue = mFlinger.getTransactionQueue();
+        auto transactionQueue = mFlinger.getPendingTransactionQueue();
         EXPECT_EQ(1, transactionQueue.size());
     }
 
     void BlockedByPriorTransaction(uint32_t flags, bool syncInputWindows) {
-        ASSERT_EQ(0, mFlinger.getTransactionQueue().size());
+        ASSERT_EQ(0, mFlinger.getPendingTransactionQueue().size());
         // called in SurfaceFlinger::signalTransaction
         nsecs_t time = systemTime();
         EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
@@ -222,7 +222,7 @@ public:
         }
 
         // check that there is one binder on the pending queue.
-        auto transactionQueue = mFlinger.getTransactionQueue();
+        auto transactionQueue = mFlinger.getPendingTransactionQueue();
         EXPECT_EQ(1, transactionQueue.size());
 
         auto& [applyToken, transactionStates] = *(transactionQueue.begin());
@@ -241,7 +241,7 @@ public:
 };
 
 TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
-    ASSERT_EQ(0, mFlinger.getTransactionQueue().size());
+    ASSERT_EQ(0, mFlinger.getPendingTransactionQueue().size());
     // called in SurfaceFlinger::signalTransaction
     EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
 
@@ -257,7 +257,7 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
                                  transactionA.desiredPresentTime, transactionA.uncacheBuffer,
                                  mHasListenerCallbacks, mCallbacks);
 
-    auto& transactionQueue = mFlinger.getTransactionQueue();
+    auto& transactionQueue = mFlinger.getPendingTransactionQueue();
     ASSERT_EQ(1, transactionQueue.size());
 
     auto& [applyToken, transactionStates] = *(transactionQueue.begin());
@@ -275,9 +275,9 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
                                  empty.inputWindowCommands, empty.desiredPresentTime,
                                  empty.uncacheBuffer, mHasListenerCallbacks, mCallbacks);
 
-    // flush transaction queue should flush as desiredPresentTime has
+    // flush pending transaction queue should flush as desiredPresentTime has
     // passed
-    mFlinger.flushTransactionQueues();
+    mFlinger.flushPendingTransactionQueues();
 
     EXPECT_EQ(0, transactionQueue.size());
 }
