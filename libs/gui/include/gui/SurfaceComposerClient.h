@@ -373,6 +373,9 @@ public:
         // The desired present time does not affect this ordering.
         int64_t mDesiredPresentTime = -1;
 
+        // The vsync Id provided by Choreographer.getVsyncId
+        int64_t mFrameTimelineVsyncId = ISurfaceComposer::INVALID_VSYNC_ID;
+
         InputWindowCommands mInputWindowCommands;
         int mStatus = NO_ERROR;
 
@@ -537,6 +540,10 @@ public:
         // the layer orientation, the graphic producer may not need to allocate
         // a buffer of a different size.
         Transaction& setFixedTransformHint(const sp<SurfaceControl>& sc, int32_t transformHint);
+
+        // Sets the frame timeline vsync id received from choreographer that corresponds
+        // to the transaction.
+        Transaction& setFrameTimelineVsync(int64_t frameTimelineVsyncId);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);

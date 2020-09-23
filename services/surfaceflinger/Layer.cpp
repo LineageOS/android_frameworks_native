@@ -62,6 +62,7 @@
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWComposer.h"
 #include "EffectLayer.h"
+#include "FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
 #include "LayerProtoHelper.h"
 #include "LayerRejecter.h"
@@ -76,6 +77,7 @@ namespace android {
 
 using base::StringAppendF;
 using namespace android::flag_operators;
+using PresentState = frametimeline::SurfaceFrame::PresentState;
 
 std::atomic<int32_t> Layer::sSequence{1};
 
@@ -124,6 +126,8 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.shadowRadius = 0.f;
     mCurrentState.treeHasFrameRateVote = false;
     mCurrentState.fixedTransformHint = ui::Transform::ROT_INVALID;
+    mCurrentState.frameTimelineVsyncId = ISurfaceComposer::INVALID_VSYNC_ID;
+    mCurrentState.postTime = -1;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -823,8 +827,8 @@ void Layer::pushPendingState() {
 
 void Layer::popPendingState(State* stateToCommit) {
     ATRACE_CALL();
-    *stateToCommit = mPendingStates[0];
 
+    *stateToCommit = mPendingStates[0];
     mPendingStates.removeAt(0);
     ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
 }
@@ -879,6 +883,20 @@ bool Layer::applyPendingStates(State* stateToCommit) {
     if (!mPendingStates.empty()) {
         setTransactionFlags(eTransactionNeeded);
         mFlinger->setTraversalNeeded();
+    }
+
+    if (stateUpdateAvailable) {
+        const auto vsyncId =
+                stateToCommit->frameTimelineVsyncId == ISurfaceComposer::INVALID_VSYNC_ID
+                ? std::nullopt
+                : std::make_optional(stateToCommit->frameTimelineVsyncId);
+
+        auto surfaceFrame =
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mTransactionName, vsyncId);
+        surfaceFrame->setActualQueueTime(stateToCommit->postTime);
+        surfaceFrame->setActualEndTime(stateToCommit->postTime);
+
+        mSurfaceFrame = std::move(surfaceFrame);
     }
 
     mCurrentState.modified = false;
@@ -1018,6 +1036,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
 
 void Layer::commitTransaction(const State& stateToCommit) {
     mDrawingState = stateToCommit;
+    mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mSurfaceFrame), PresentState::Presented);
 }
 
 uint32_t Layer::getTransactionFlags(uint32_t flags) {
@@ -1434,8 +1453,12 @@ bool Layer::setFrameRate(FrameRate frameRate) {
     return true;
 }
 
-void Layer::setFrameTimelineVsync(int64_t frameTimelineVsyncId) {
-    mFrameTimelineVsyncId = frameTimelineVsyncId;
+void Layer::setFrameTimelineVsyncForTransaction(int64_t frameTimelineVsyncId, nsecs_t postTime) {
+    mCurrentState.sequence++;
+    mCurrentState.frameTimelineVsyncId = frameTimelineVsyncId;
+    mCurrentState.postTime = postTime;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
 }
 
 Layer::FrameRate Layer::getFrameRateForLayerTree() const {

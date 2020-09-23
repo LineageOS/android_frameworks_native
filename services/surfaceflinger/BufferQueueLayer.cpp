@@ -381,6 +381,10 @@ status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
+void BufferQueueLayer::setFrameTimelineVsyncForBuffer(int64_t frameTimelineVsyncId) {
+    mFrameTimelineVsyncId = frameTimelineVsyncId;
+}
+
 // -----------------------------------------------------------------------
 // Interface implementation for BufferLayerConsumer::ContentsChangedListener
 // -----------------------------------------------------------------------

@@ -339,8 +339,8 @@ protected:
     virtual ~SurfaceFlinger();
 
     virtual uint32_t setClientStateLocked(
-            const ComposerState& composerState, int64_t desiredPresentTime, int64_t postTime,
-            bool privileged,
+            int64_t frameTimelineVsyncId, const ComposerState& composerState,
+            int64_t desiredPresentTime, int64_t postTime, bool privileged,
             std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
             REQUIRES(mStateLock);
     virtual void commitTransactionLocked();
@@ -431,13 +431,14 @@ private:
     };
 
     struct TransactionState {
-        TransactionState(const Vector<ComposerState>& composerStates,
+        TransactionState(int64_t frameTimelineVsyncId, const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
                          int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
                          int64_t postTime, bool privileged, bool hasListenerCallbacks,
                          std::vector<ListenerCallbacks> listenerCallbacks, int originPid,
                          int originUid, uint64_t transactionId)
-              : states(composerStates),
+              : frameTimelineVsyncId(frameTimelineVsyncId),
+                states(composerStates),
                 displays(displayStates),
                 flags(transactionFlags),
                 desiredPresentTime(desiredPresentTime),
@@ -450,6 +451,7 @@ private:
                 originUid(originUid),
                 id(transactionId) {}
 
+        int64_t frameTimelineVsyncId;
         Vector<ComposerState> states;
         Vector<DisplayState> displays;
         uint32_t flags;
@@ -510,7 +512,7 @@ private:
     void destroyDisplay(const sp<IBinder>& displayToken) override;
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override;
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override;
-    status_t setTransactionState(const Vector<ComposerState>& state,
+    status_t setTransactionState(int64_t frameTimelineVsyncId, const Vector<ComposerState>& state,
                                  const Vector<DisplayState>& displays, uint32_t flags,
                                  const sp<IBinder>& applyToken,
                                  const InputWindowCommands& inputWindowCommands,
@@ -710,7 +712,7 @@ private:
     /*
      * Transactions
      */
-    void applyTransactionState(const Vector<ComposerState>& state,
+    void applyTransactionState(int64_t frameTimelineVsyncId, const Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime,

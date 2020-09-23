@@ -71,6 +71,10 @@ namespace impl {
 class SurfaceInterceptor;
 }
 
+namespace frametimeline {
+class SurfaceFrame;
+} // namespace frametimeline
+
 struct LayerCreationArgs {
     LayerCreationArgs(SurfaceFlinger*, sp<Client>, std::string name, uint32_t w, uint32_t h,
                       uint32_t flags, LayerMetadata);
@@ -267,6 +271,12 @@ public:
         // a buffer of a different size. ui::Transform::ROT_INVALID means the
         // a fixed transform hint is not set.
         ui::Transform::RotationFlags fixedTransformHint;
+
+        // The vsync id that was used to start the transaction
+        int64_t frameTimelineVsyncId;
+
+        // When the transaction was posted
+        nsecs_t postTime;
     };
 
     /*
@@ -821,7 +831,8 @@ public:
 
     bool setFrameRate(FrameRate);
 
-    void setFrameTimelineVsync(int64_t frameTimelineVsyncId);
+    virtual void setFrameTimelineVsyncForBuffer(int64_t /*frameTimelineVsyncId*/) {}
+    void setFrameTimelineVsyncForTransaction(int64_t frameTimelineVsyncId, nsecs_t postTime);
 
     // Creates a new handle each time, so we only expect
     // this to be called once.
@@ -1021,11 +1032,11 @@ protected:
     // Can only be accessed with the SF state lock held.
     bool mChildrenChanged{false};
 
-    // Can only be accessed with the SF state lock held.
-    std::optional<int64_t> mFrameTimelineVsyncId;
-
     // Window types from WindowManager.LayoutParams
     const InputWindowInfo::Type mWindowType;
+
+    // Can only be accessed with the SF state lock held.
+    std::unique_ptr<frametimeline::SurfaceFrame> mSurfaceFrame;
 
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}

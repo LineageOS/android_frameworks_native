@@ -3195,7 +3195,8 @@ bool SurfaceFlinger::flushTransactionQueues() {
                     break;
                 }
                 transactions.push_back(transaction);
-                applyTransactionState(transaction.states, transaction.displays, transaction.flags,
+                applyTransactionState(transaction.frameTimelineVsyncId, transaction.states,
+                                      transaction.displays, transaction.flags,
                                       mPendingInputWindowCommands, transaction.desiredPresentTime,
                                       transaction.buffer, transaction.postTime,
                                       transaction.privileged, transaction.hasListenerCallbacks,
@@ -3245,9 +3246,10 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
 }
 
 status_t SurfaceFlinger::setTransactionState(
-        const Vector<ComposerState>& states, const Vector<DisplayState>& displays, uint32_t flags,
-        const sp<IBinder>& applyToken, const InputWindowCommands& inputWindowCommands,
-        int64_t desiredPresentTime, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
+        int64_t frameTimelineVsyncId, const Vector<ComposerState>& states,
+        const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
+        const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
+        const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
         const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) {
     ATRACE_CALL();
 
@@ -3285,22 +3287,24 @@ status_t SurfaceFlinger::setTransactionState(
     const int originUid = ipc->getCallingUid();
 
     if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
-        mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
-                                               uncacheBuffer, postTime, privileged,
-                                               hasListenerCallbacks, listenerCallbacks, originPid,
-                                               originUid, transactionId);
+        mTransactionQueues[applyToken].emplace(frameTimelineVsyncId, states, displays, flags,
+                                               desiredPresentTime, uncacheBuffer, postTime,
+                                               privileged, hasListenerCallbacks, listenerCallbacks,
+                                               originPid, originUid, transactionId);
         setTransactionFlags(eTransactionFlushNeeded);
         return NO_ERROR;
     }
 
-    applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
-                          uncacheBuffer, postTime, privileged, hasListenerCallbacks,
-                          listenerCallbacks, originPid, originUid, /*isMainThread*/ false);
+    applyTransactionState(frameTimelineVsyncId, states, displays, flags, inputWindowCommands,
+                          desiredPresentTime, uncacheBuffer, postTime, privileged,
+                          hasListenerCallbacks, listenerCallbacks, originPid, originUid,
+                          /*isMainThread*/ false);
     return NO_ERROR;
 }
 
 void SurfaceFlinger::applyTransactionState(
-        const Vector<ComposerState>& states, const Vector<DisplayState>& displays, uint32_t flags,
+        int64_t frameTimelineVsyncId, const Vector<ComposerState>& states,
+        const Vector<DisplayState>& displays, uint32_t flags,
         const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
         const client_cache_t& uncacheBuffer, const int64_t postTime, bool privileged,
         bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
@@ -3338,8 +3342,9 @@ void SurfaceFlinger::applyTransactionState(
     std::unordered_set<ListenerCallbacks, ListenerCallbacksHash> listenerCallbacksWithSurfaces;
     uint32_t clientStateFlags = 0;
     for (const ComposerState& state : states) {
-        clientStateFlags |= setClientStateLocked(state, desiredPresentTime, postTime, privileged,
-                                                 listenerCallbacksWithSurfaces);
+        clientStateFlags |=
+                setClientStateLocked(frameTimelineVsyncId, state, desiredPresentTime, postTime,
+                                     privileged, listenerCallbacksWithSurfaces);
         if ((flags & eAnimation) && state.state.surface) {
             if (const auto layer = fromHandleLocked(state.state.surface).promote(); layer) {
                 mScheduler->recordLayerHistory(layer.get(), desiredPresentTime,
@@ -3516,8 +3521,8 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermis
 }
 
 uint32_t SurfaceFlinger::setClientStateLocked(
-        const ComposerState& composerState, int64_t desiredPresentTime, int64_t postTime,
-        bool privileged,
+        int64_t frameTimelineVsyncId, const ComposerState& composerState,
+        int64_t desiredPresentTime, int64_t postTime, bool privileged,
         std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks) {
     const layer_state_t& s = composerState.state;
 
@@ -3823,6 +3828,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTraversalNeeded;
         }
     }
+
+    layer->setFrameTimelineVsyncForTransaction(frameTimelineVsyncId, postTime);
+
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
     // Do not put anything that updates layer state or modifies flags after
     // setTransactionCompletedListener
@@ -4087,7 +4095,8 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1, {}, false, {},
+    setTransactionState(ISurfaceComposer::INVALID_VSYNC_ID, state, displays, 0, nullptr,
+                        mPendingInputWindowCommands, -1, {}, false, {},
                         0 /* Undefined transactionId */);
 
     setPowerModeInternal(display, hal::PowerMode::ON);
@@ -6193,7 +6202,7 @@ status_t SurfaceFlinger::setFrameTimelineVsync(const sp<IGraphicBufferProducer>&
         return BAD_VALUE;
     }
 
-    layer->setFrameTimelineVsync(frameTimelineVsyncId);
+    layer->setFrameTimelineVsyncForBuffer(frameTimelineVsyncId);
     return NO_ERROR;
 }
 
