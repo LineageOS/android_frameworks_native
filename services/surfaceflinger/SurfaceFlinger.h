@@ -596,6 +596,9 @@ private:
     status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
                                    int64_t frameTimelineVsyncId) override;
 
+    status_t addTransactionTraceListener(
+            const sp<gui::ITransactionTraceListener>& listener) override;
+
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 
@@ -1112,7 +1115,7 @@ private:
     volatile nsecs_t mDebugInTransaction = 0;
     bool mForceFullDamage = false;
     bool mPropagateBackpressureClientComposition = false;
-    std::unique_ptr<SurfaceInterceptor> mInterceptor;
+    sp<SurfaceInterceptor> mInterceptor;
 
     SurfaceTracing mTracing{*this};
     std::mutex mTracingLock;

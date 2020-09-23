@@ -96,7 +96,7 @@ public:
     // are included in the movement.
     // The positions array contains position information for each pointer in order by
     // increasing id.  Its size should be equal to the number of one bits in idBits.
-    void addMovement(nsecs_t eventTime, BitSet32 idBits, const Position* positions);
+    void addMovement(nsecs_t eventTime, BitSet32 idBits, const std::vector<Position>& positions);
 
     // Adds movement information for all pointers in a MotionEvent, including historical samples.
     void addMovement(const MotionEvent* event);
@@ -149,7 +149,7 @@ public:
     virtual void clear() = 0;
     virtual void clearPointers(BitSet32 idBits) = 0;
     virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-            const VelocityTracker::Position* positions) = 0;
+                             const std::vector<VelocityTracker::Position>& positions) = 0;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const = 0;
 };
 
@@ -180,8 +180,8 @@ public:
 
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
-    virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-            const VelocityTracker::Position* positions);
+    void addMovement(nsecs_t eventTime, BitSet32 idBits,
+                     const std::vector<VelocityTracker::Position>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:
@@ -223,8 +223,8 @@ public:
 
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
-    virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-            const VelocityTracker::Position* positions);
+    void addMovement(nsecs_t eventTime, BitSet32 idBits,
+                     const std::vector<VelocityTracker::Position>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:
@@ -257,8 +257,8 @@ public:
 
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
-    virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-            const VelocityTracker::Position* positions);
+    void addMovement(nsecs_t eventTime, BitSet32 idBits,
+                     const std::vector<VelocityTracker::Position>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:
@@ -292,8 +292,8 @@ public:
 
     virtual void clear();
     virtual void clearPointers(BitSet32 idBits);
-    virtual void addMovement(nsecs_t eventTime, BitSet32 idBits,
-            const VelocityTracker::Position* positions);
+    void addMovement(nsecs_t eventTime, BitSet32 idBits,
+                     const std::vector<VelocityTracker::Position>& positions) override;
     virtual bool getEstimator(uint32_t id, VelocityTracker::Estimator* outEstimator) const;
 
 private:

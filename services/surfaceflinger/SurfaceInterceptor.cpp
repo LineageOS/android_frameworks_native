@@ -45,6 +45,24 @@ SurfaceInterceptor::SurfaceInterceptor(SurfaceFlinger* flinger)
 {
 }
 
+void SurfaceInterceptor::addTransactionTraceListener(
+        const sp<gui::ITransactionTraceListener>& listener) {
+    sp<IBinder> asBinder = IInterface::asBinder(listener);
+
+    std::scoped_lock lock(mListenersMutex);
+
+    asBinder->linkToDeath(this);
+
+    listener->onToggled(mEnabled); // notifies of current state
+
+    mTraceToggledListeners.emplace(asBinder, listener);
+}
+
+void SurfaceInterceptor::binderDied(const wp<IBinder>& who) {
+    std::scoped_lock lock(mListenersMutex);
+    mTraceToggledListeners.erase(who);
+}
+
 void SurfaceInterceptor::enable(const SortedVector<sp<Layer>>& layers,
         const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays)
 {
@@ -52,8 +70,14 @@ void SurfaceInterceptor::enable(const SortedVector<sp<Layer>>& layers,
         return;
     }
     ATRACE_CALL();
+    {
+        std::scoped_lock lock(mListenersMutex);
+        for (const auto& [_, listener] : mTraceToggledListeners) {
+            listener->onToggled(true);
+        }
+    }
     mEnabled = true;
-    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
+    std::scoped_lock<std::mutex> protoGuard(mTraceMutex);
     saveExistingDisplaysLocked(displays);
     saveExistingSurfacesLocked(layers);
 }
@@ -63,8 +87,14 @@ void SurfaceInterceptor::disable() {
         return;
     }
     ATRACE_CALL();
-    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
+    {
+        std::scoped_lock lock(mListenersMutex);
+        for (const auto& [_, listener] : mTraceToggledListeners) {
+            listener->onToggled(false);
+        }
+    }
     mEnabled = false;
+    std::scoped_lock<std::mutex> protoGuard(mTraceMutex);
     status_t err(writeProtoFileLocked());
     ALOGE_IF(err == PERMISSION_DENIED, "Could not save the proto file! Permission denied");
     ALOGE_IF(err == NOT_ENOUGH_DATA, "Could not save the proto file! There are missing fields");

@@ -677,8 +677,7 @@ public:
     NewFrameEventsEntry mNewFrameEntryOverride = { 0, 0, 0, nullptr };
 };
 
-
-class FakeSurfaceComposer : public ISurfaceComposer{
+class FakeSurfaceComposer : public ISurfaceComposer {
 public:
     ~FakeSurfaceComposer() override {}
 
@@ -875,6 +874,11 @@ public:
 
     status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& /*surface*/,
                                    int64_t /*frameTimelineVsyncId*/) override {
+        return NO_ERROR;
+    }
+
+    status_t addTransactionTraceListener(
+            const sp<gui::ITransactionTraceListener>& /*listener*/) override {
         return NO_ERROR;
     }
 

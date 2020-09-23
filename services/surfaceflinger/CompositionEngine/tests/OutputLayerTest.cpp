@@ -21,6 +21,7 @@
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/Output.h>
 #include <gtest/gtest.h>
+#include <log/log.h>
 
 #include "MockHWC2.h"
 #include "MockHWComposer.h"
@@ -53,6 +54,22 @@ MATCHER_P(ColorEq, expected, "") {
     *result_listener << "actual " << arg.r << " " << arg.g << " " << arg.b << " " << arg.a << "\n";
 
     return expected.r == arg.r && expected.g == arg.g && expected.b == arg.b && expected.a == arg.a;
+}
+
+ui::Rotation toRotation(uint32_t rotationFlag) {
+    switch (rotationFlag) {
+        case ui::Transform::RotationFlags::ROT_0:
+            return ui::ROTATION_0;
+        case ui::Transform::RotationFlags::ROT_90:
+            return ui::ROTATION_90;
+        case ui::Transform::RotationFlags::ROT_180:
+            return ui::ROTATION_180;
+        case ui::Transform::RotationFlags::ROT_270:
+            return ui::ROTATION_270;
+        default:
+            LOG_FATAL("Unexpected rotation flag %d", rotationFlag);
+            return ui::Rotation(-1);
+    }
 }
 
 struct OutputLayerTest : public testing::Test {
@@ -209,7 +226,7 @@ TEST_F(OutputLayerSourceCropTest, calculateOutputSourceCropWorksWithATransformed
 
         mLayerFEState.geomBufferUsesDisplayInverseTransform = entry.bufferInvDisplay;
         mLayerFEState.geomBufferTransform = entry.buffer;
-        mOutputState.orientation = entry.display;
+        mOutputState.displaySpace.orientation = toRotation(entry.display);
 
         EXPECT_THAT(calculateOutputSourceCrop(), entry.expected) << "entry " << i;
     }
@@ -358,7 +375,7 @@ TEST_F(OutputLayerTest, calculateOutputRelativeBufferTransformTestsNeeded) {
 
         mLayerFEState.geomLayerTransform.set(entry.layer, 1920, 1080);
         mLayerFEState.geomBufferTransform = entry.buffer;
-        mOutputState.orientation = entry.display;
+        mOutputState.displaySpace.orientation = toRotation(entry.display);
         mOutputState.transform = ui::Transform{entry.display};
 
         const auto actual = mOutputLayer.calculateOutputRelativeBufferTransform(entry.display);
@@ -470,7 +487,7 @@ TEST_F(OutputLayerTest,
 
         mLayerFEState.geomLayerTransform.set(entry.layer, 1920, 1080);
         mLayerFEState.geomBufferTransform = entry.buffer;
-        mOutputState.orientation = entry.display;
+        mOutputState.displaySpace.orientation = toRotation(entry.display);
         mOutputState.transform = ui::Transform{entry.display};
 
         const auto actual = mOutputLayer.calculateOutputRelativeBufferTransform(entry.internal);
@@ -853,7 +870,7 @@ TEST_F(OutputLayerTest, displayInstallOrientationBufferTransformSetTo90) {
     // This test simulates a scenario where displayInstallOrientation is set to
     // ROT_90. This only has an effect on the transform; orientation stays 0 (see
     // DisplayDevice::setProjection).
-    mOutputState.orientation = TR_IDENT;
+    mOutputState.displaySpace.orientation = ui::ROTATION_0;
     mOutputState.transform = ui::Transform{TR_ROT_90};
     // Buffers are pre-rotated based on the transform hint (ROT_90); their
     // geomBufferTransform is set to the inverse transform.
