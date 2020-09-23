@@ -136,6 +136,7 @@ private:
     void dispatchHotplug(nsecs_t timestamp, PhysicalDisplayId displayId, bool connected) override;
     void dispatchConfigChanged(nsecs_t timestamp, PhysicalDisplayId displayId, int32_t configId,
                                nsecs_t vsyncPeriod) override;
+    void dispatchNullEvent(nsecs_t, PhysicalDisplayId) override;
 
     void scheduleCallbacks();
 
@@ -170,7 +171,7 @@ Choreographer* Choreographer::getForThread() {
 
 Choreographer::Choreographer(const sp<Looper>& looper)
       : DisplayEventDispatcher(looper, ISurfaceComposer::VsyncSource::eVsyncSourceApp,
-                               ISurfaceComposer::ConfigChanged::eConfigChangedDispatch),
+                               ISurfaceComposer::ConfigChanged::eConfigChangedSuppress),
         mLooper(looper),
         mThreadId(std::this_thread::get_id()) {
     std::lock_guard<std::mutex> _l(gChoreographers.lock);
@@ -294,8 +295,14 @@ void Choreographer::scheduleLatestConfigRequest() {
     } else {
         // If the looper thread is detached from Choreographer, then refresh rate
         // changes will be handled in AChoreographer_handlePendingEvents, so we
-        // need to redispatch a config from SF
-        requestLatestConfig();
+        // need to wake up the looper thread by writing to the write-end of the
+        // socket the looper is listening on.
+        // Fortunately, these events are small so sending packets across the
+        // socket should be atomic across processes.
+        DisplayEventReceiver::Event event;
+        event.header = DisplayEventReceiver::Event::Header{DisplayEventReceiver::DISPLAY_EVENT_NULL,
+                                                           PhysicalDisplayId(0), systemTime()};
+        injectEvent(event);
     }
 }
 
@@ -374,28 +381,15 @@ void Choreographer::dispatchHotplug(nsecs_t, PhysicalDisplayId displayId, bool c
 // displays. When multi-display choreographer is properly supported, then
 // PhysicalDisplayId should no longer be ignored.
 void Choreographer::dispatchConfigChanged(nsecs_t, PhysicalDisplayId displayId, int32_t configId,
-                                          nsecs_t vsyncPeriod) {
+                                          nsecs_t) {
     ALOGV("choreographer %p ~ received config change event "
           "(displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT ", configId=%d).",
           this, displayId, configId);
+}
 
-    const nsecs_t lastPeriod = mLatestVsyncPeriod;
-    std::vector<RefreshRateCallback> callbacks{};
-    {
-        std::lock_guard<std::mutex> _l{mLock};
-        for (auto& cb : mRefreshRateCallbacks) {
-            callbacks.push_back(cb);
-            cb.firstCallbackFired = true;
-        }
-    }
-
-    for (auto& cb : callbacks) {
-        if (!cb.firstCallbackFired || (vsyncPeriod > 0 && vsyncPeriod != lastPeriod)) {
-            cb.callback(vsyncPeriod, cb.data);
-        }
-    }
-
-    mLatestVsyncPeriod = vsyncPeriod;
+void Choreographer::dispatchNullEvent(nsecs_t, PhysicalDisplayId) {
+    ALOGV("choreographer %p ~ received null event.", this);
+    handleRefreshRateUpdates();
 }
 
 void Choreographer::handleMessage(const Message& message) {

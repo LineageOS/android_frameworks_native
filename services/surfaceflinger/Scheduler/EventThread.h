@@ -81,19 +81,13 @@ public:
     status_t stealReceiveChannel(gui::BitTube* outChannel) override;
     status_t setVsyncRate(uint32_t rate) override;
     void requestNextVsync() override; // asynchronous
-    void requestLatestConfig() override; // asynchronous
 
     // Called in response to requestNextVsync.
     const ResyncCallback resyncCallback;
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
-    ISurfaceComposer::ConfigChanged mConfigChanged =
+    const ISurfaceComposer::ConfigChanged mConfigChanged =
             ISurfaceComposer::ConfigChanged::eConfigChangedSuppress;
-    // Store whether we need to force dispatching a config change separately -
-    // if mConfigChanged ever changes before the config change is dispatched
-    // then we still need to propagate an initial config to the app if we
-    // haven't already.
-    bool mForcedConfigChangeDispatch = false;
 
 private:
     virtual void onFirstRef();
@@ -129,10 +123,6 @@ public:
     virtual void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) = 0;
     // Requests the next vsync. If resetIdleTimer is set to true, it resets the idle timer.
     virtual void requestNextVsync(const sp<EventThreadConnection>& connection) = 0;
-    // Dispatches the most recent configuration
-    // Usage of this method assumes that only the primary internal display
-    // supports multiple display configurations.
-    virtual void requestLatestConfig(const sp<EventThreadConnection>& connection) = 0;
 
     // Retrieves the number of event connections tracked by this EventThread.
     virtual size_t getEventThreadConnectionCount() = 0;
@@ -153,7 +143,6 @@ public:
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
     void requestNextVsync(const sp<EventThreadConnection>& connection) override;
-    void requestLatestConfig(const sp<EventThreadConnection>& connection) override;
 
     // called before the screen is turned off from main thread
     void onScreenReleased() override;
@@ -201,7 +190,6 @@ private:
 
     std::vector<wp<EventThreadConnection>> mDisplayEventConnections GUARDED_BY(mMutex);
     std::deque<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
-    DisplayEventReceiver::Event mLastConfigChangeEvent GUARDED_BY(mMutex);
 
     // VSYNC state of connected display.
     struct VSyncState {
