@@ -489,7 +489,7 @@ private:
             REQUIRES(mLock);
     void onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
                               const sp<InputWindowHandle>& newFocus) REQUIRES(mLock);
-    void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
+    void onAnrLocked(const Connection& connection) REQUIRES(mLock);
     void onAnrLocked(const sp<InputApplicationHandle>& application) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)
             REQUIRES(mLock);
