@@ -517,7 +517,7 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     connection->responsive = false;
     // Stop waking up for this unresponsive connection
     mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
-    onAnrLocked(connection);
+    onAnrLocked(*connection);
     return LONG_LONG_MIN;
 }
 
@@ -4670,12 +4670,12 @@ void InputDispatcher::notifyFocusChangedLocked(const sp<IBinder>& oldToken,
     postCommandLocked(std::move(commandEntry));
 }
 
-void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
+void InputDispatcher::onAnrLocked(const Connection& connection) {
     // Since we are allowing the policy to extend the timeout, maybe the waitQueue
     // is already healthy again. Don't raise ANR in this situation
-    if (connection->waitQueue.empty()) {
+    if (connection.waitQueue.empty()) {
         ALOGI("Not raising ANR because the connection %s has recovered",
-              connection->inputChannel->getName().c_str());
+              connection.inputChannel->getName().c_str());
         return;
     }
     /**
@@ -4686,21 +4686,21 @@ void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
      * processes the events linearly. So providing information about the oldest entry seems to be
      * most useful.
      */
-    DispatchEntry* oldestEntry = *connection->waitQueue.begin();
+    DispatchEntry* oldestEntry = *connection.waitQueue.begin();
     const nsecs_t currentWait = now() - oldestEntry->deliveryTime;
     std::string reason =
             android::base::StringPrintf("%s is not responding. Waited %" PRId64 "ms for %s",
-                                        connection->inputChannel->getName().c_str(),
+                                        connection.inputChannel->getName().c_str(),
                                         ns2ms(currentWait),
                                         oldestEntry->eventEntry->getDescription().c_str());
 
-    updateLastAnrStateLocked(getWindowHandleLocked(connection->inputChannel->getConnectionToken()),
+    updateLastAnrStateLocked(getWindowHandleLocked(connection.inputChannel->getConnectionToken()),
                              reason);
 
     std::unique_ptr<CommandEntry> commandEntry =
             std::make_unique<CommandEntry>(&InputDispatcher::doNotifyAnrLockedInterruptible);
     commandEntry->inputApplicationHandle = nullptr;
-    commandEntry->inputChannel = connection->inputChannel;
+    commandEntry->inputChannel = connection.inputChannel;
     commandEntry->reason = std::move(reason);
     postCommandLocked(std::move(commandEntry));
 }
@@ -4800,15 +4800,15 @@ void InputDispatcher::doNotifyAnrLockedInterruptible(CommandEntry* commandEntry)
 void InputDispatcher::extendAnrTimeoutsLocked(
         const std::shared_ptr<InputApplicationHandle>& application,
         const sp<IBinder>& connectionToken, std::chrono::nanoseconds timeoutExtension) {
+    if (connectionToken == nullptr && application != nullptr) {
+        // The ANR happened because there's no focused window
+        mNoFocusedWindowTimeoutTime = now() + timeoutExtension.count();
+        mAwaitedFocusedApplication = application;
+    }
+
     sp<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
-        if (mNoFocusedWindowTimeoutTime.has_value() && application != nullptr) {
-            // Maybe ANR happened because there's no focused window?
-            mNoFocusedWindowTimeoutTime = now() + timeoutExtension.count();
-            mAwaitedFocusedApplication = application;
-        } else {
-            // It's also possible that the connection already disappeared. No action necessary.
-        }
+        // It's possible that the connection already disappeared. No action necessary.
         return;
     }
 

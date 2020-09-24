@@ -525,7 +525,7 @@ private:
                               int32_t displayId, std::string_view reason) REQUIRES(mLock);
     void notifyFocusChangedLocked(const sp<IBinder>& oldFocus, const sp<IBinder>& newFocus)
             REQUIRES(mLock);
-    void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
+    void onAnrLocked(const Connection& connection) REQUIRES(mLock);
     void onAnrLocked(const std::shared_ptr<InputApplicationHandle>& application) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)
             REQUIRES(mLock);
