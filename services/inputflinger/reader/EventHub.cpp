@@ -280,14 +280,14 @@ void EventHub::Device::loadConfigurationLocked() {
     if (configurationFile.empty()) {
         ALOGD("No input device configuration file found for device '%s'.", identifier.name.c_str());
     } else {
-        PropertyMap* propertyMap;
-        status_t status = PropertyMap::load(String8(configurationFile.c_str()), &propertyMap);
-        if (status) {
+        android::base::Result<std::unique_ptr<PropertyMap>> propertyMap =
+                PropertyMap::load(configurationFile.c_str());
+        if (!propertyMap.ok()) {
             ALOGE("Error loading input device configuration file for device '%s'.  "
                   "Using default configuration.",
                   identifier.name.c_str());
         } else {
-            configuration = std::unique_ptr<PropertyMap>(propertyMap);
+            configuration = std::move(*propertyMap);
         }
     }
 }
