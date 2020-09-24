@@ -184,11 +184,11 @@ protected:
 // -------------------------------------------------------------------------------------------------
 
 TEST_F(VibratorHalControllerTest, TestInit) {
-    mController->init();
+    ASSERT_TRUE(mController->init());
     ASSERT_EQ(1, mConnectCounter);
 
     // Noop when wrapper was already initialized.
-    mController->init();
+    ASSERT_TRUE(mController->init());
     ASSERT_EQ(1, mConnectCounter);
 }
 
@@ -339,6 +339,7 @@ TEST_F(VibratorHalControllerTest, TestNoVibratorReturnsUnsupportedAndAttemptsToR
             std::make_unique<vibrator::HalController>(std::move(failingHalConnector), nullptr);
     ASSERT_EQ(0, mConnectCounter);
 
+    ASSERT_FALSE(mController->init());
     ASSERT_TRUE(mController->ping().isUnsupported());
     ASSERT_TRUE(mController->on(10ms, []() {}).isUnsupported());
     ASSERT_TRUE(mController->off().isUnsupported());
@@ -356,7 +357,7 @@ TEST_F(VibratorHalControllerTest, TestNoVibratorReturnsUnsupportedAndAttemptsToR
                         .isUnsupported());
 
     // One connection attempt per api call.
-    ASSERT_EQ(12, mConnectCounter);
+    ASSERT_EQ(13, mConnectCounter);
 }
 
 TEST_F(VibratorHalControllerTest, TestScheduledCallbackSurvivesReconnection) {
