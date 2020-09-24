@@ -140,9 +140,12 @@ public:
           : mCallbackScheduler(std::move(scheduler)) {}
     virtual ~HalWrapper() = default;
 
-    virtual HalResult<void> ping() = 0;
+    /* reloads wrapped HAL service instance without waiting. This can be used to reconnect when the
+     * service restarts, to rapidly retry after a failure.
+     */
     virtual void tryReconnect() = 0;
 
+    virtual HalResult<void> ping() = 0;
     virtual HalResult<void> on(std::chrono::milliseconds timeout,
                                const std::function<void()>& completionCallback) = 0;
     virtual HalResult<void> off() = 0;
