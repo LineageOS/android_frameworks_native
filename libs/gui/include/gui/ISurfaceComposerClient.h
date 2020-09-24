@@ -36,6 +36,7 @@ public:
     enum { // (keep in sync with SurfaceControl.java)
         eHidden = 0x00000004,
         eDestroyBackbuffer = 0x00000020,
+        eSkipScreenshot = 0x00000040,
         eSecure = 0x00000080,
         eNonPremultiplied = 0x00000100,
         eOpaque = 0x00000400,

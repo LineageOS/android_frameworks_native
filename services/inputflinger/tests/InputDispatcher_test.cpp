@@ -2141,8 +2141,9 @@ protected:
         mWindow->consumeFocusEvent(true);
     }
 
-    void sendAndConsumeKeyDown() {
+    void sendAndConsumeKeyDown(int32_t deviceId) {
         NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ADISPLAY_ID_DEFAULT);
+        keyArgs.deviceId = deviceId;
         keyArgs.policyFlags |= POLICY_FLAG_TRUSTED; // Otherwise it won't generate repeat event
         mDispatcher->notifyKey(&keyArgs);
 
@@ -2164,8 +2165,9 @@ protected:
         EXPECT_EQ(repeatCount, repeatKeyEvent->getRepeatCount());
     }
 
-    void sendAndConsumeKeyUp() {
+    void sendAndConsumeKeyUp(int32_t deviceId) {
         NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT);
+        keyArgs.deviceId = deviceId;
         keyArgs.policyFlags |= POLICY_FLAG_TRUSTED; // Unless it won't generate repeat event
         mDispatcher->notifyKey(&keyArgs);
 
@@ -2176,21 +2178,59 @@ protected:
 };
 
 TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_ReceivesKeyRepeat) {
-    sendAndConsumeKeyDown();
+    sendAndConsumeKeyDown(1 /* deviceId */);
+    for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
+        expectKeyRepeatOnce(repeatCount);
+    }
+}
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_ReceivesKeyRepeatFromTwoDevices) {
+    sendAndConsumeKeyDown(1 /* deviceId */);
+    for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
+        expectKeyRepeatOnce(repeatCount);
+    }
+    sendAndConsumeKeyDown(2 /* deviceId */);
+    /* repeatCount will start from 1 for deviceId 2 */
     for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
         expectKeyRepeatOnce(repeatCount);
     }
 }
 
 TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_StopsKeyRepeatAfterUp) {
-    sendAndConsumeKeyDown();
+    sendAndConsumeKeyDown(1 /* deviceId */);
     expectKeyRepeatOnce(1 /*repeatCount*/);
-    sendAndConsumeKeyUp();
+    sendAndConsumeKeyUp(1 /* deviceId */);
+    mWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_KeyRepeatAfterStaleDeviceKeyUp) {
+    sendAndConsumeKeyDown(1 /* deviceId */);
+    expectKeyRepeatOnce(1 /*repeatCount*/);
+    sendAndConsumeKeyDown(2 /* deviceId */);
+    expectKeyRepeatOnce(1 /*repeatCount*/);
+    // Stale key up from device 1.
+    sendAndConsumeKeyUp(1 /* deviceId */);
+    // Device 2 is still down, keep repeating
+    expectKeyRepeatOnce(2 /*repeatCount*/);
+    expectKeyRepeatOnce(3 /*repeatCount*/);
+    // Device 2 key up
+    sendAndConsumeKeyUp(2 /* deviceId */);
+    mWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_KeyRepeatStopsAfterRepeatingKeyUp) {
+    sendAndConsumeKeyDown(1 /* deviceId */);
+    expectKeyRepeatOnce(1 /*repeatCount*/);
+    sendAndConsumeKeyDown(2 /* deviceId */);
+    expectKeyRepeatOnce(1 /*repeatCount*/);
+    // Device 2 which holds the key repeating goes up, expect the repeating to stop.
+    sendAndConsumeKeyUp(2 /* deviceId */);
+    // Device 1 still holds key down, but the repeating was already stopped
     mWindow->assertNoEvents();
 }
 
 TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseEventIdFromInputDispatcher) {
-    sendAndConsumeKeyDown();
+    sendAndConsumeKeyDown(1 /* deviceId */);
     for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
         InputEvent* repeatEvent = mWindow->consume();
         ASSERT_NE(nullptr, repeatEvent) << "Didn't receive event with repeat count " << repeatCount;
@@ -2200,7 +2240,7 @@ TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseEventIdFrom
 }
 
 TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseUniqueEventId) {
-    sendAndConsumeKeyDown();
+    sendAndConsumeKeyDown(1 /* deviceId */);
 
     std::unordered_set<int32_t> idSet;
     for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {

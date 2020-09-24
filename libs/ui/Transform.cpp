@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#undef LOG_TAG
+#define LOG_TAG "Transform"
+
 #include <math.h>
 
 #include <android-base/stringprintf.h>
@@ -132,7 +135,7 @@ float Transform::dsdy() const {
 }
 
 float Transform::getScaleX() const {
-    return sqrt(dsdx() * dsdx()) + (dtdx() * dtdx());
+    return sqrt((dsdx() * dsdx()) + (dtdx() * dtdx()));
 }
 
 float Transform::getScaleY() const {

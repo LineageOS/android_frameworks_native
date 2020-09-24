@@ -513,7 +513,7 @@ private:
     void removeMonitorChannelLocked(
             const sp<IBinder>& connectionToken,
             std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay) REQUIRES(mLock);
-    status_t unregisterInputChannelLocked(const sp<IBinder>& connectionToken, bool notify)
+    status_t removeInputChannelLocked(const sp<IBinder>& connectionToken, bool notify)
             REQUIRES(mLock);
 
     // Interesting events that we might like to log or tell the framework about.

@@ -89,6 +89,8 @@ Layer::Layer(const LayerCreationArgs& args)
     if (args.flags & ISurfaceComposerClient::eHidden) layerFlags |= layer_state_t::eLayerHidden;
     if (args.flags & ISurfaceComposerClient::eOpaque) layerFlags |= layer_state_t::eLayerOpaque;
     if (args.flags & ISurfaceComposerClient::eSecure) layerFlags |= layer_state_t::eLayerSecure;
+    if (args.flags & ISurfaceComposerClient::eSkipScreenshot)
+        layerFlags |= layer_state_t::eLayerSkipScreenshot;
 
     mCurrentState.active_legacy.w = args.w;
     mCurrentState.active_legacy.h = args.h;
@@ -2416,40 +2418,64 @@ InputWindowInfo Layer::fillInputInfo() {
     const float xScale = t.getScaleX();
     const float yScale = t.getScaleY();
     if (xScale != 1.0f || yScale != 1.0f) {
-        info.touchableRegion.scaleSelf(xScale, yScale);
         xSurfaceInset = std::round(xSurfaceInset * xScale);
         ySurfaceInset = std::round(ySurfaceInset * yScale);
     }
 
-    layerBounds = t.transform(layerBounds);
+    Rect transformedLayerBounds = t.transform(layerBounds);
 
     // clamp inset to layer bounds
-    xSurfaceInset = (xSurfaceInset >= 0) ? std::min(xSurfaceInset, layerBounds.getWidth() / 2) : 0;
-    ySurfaceInset = (ySurfaceInset >= 0) ? std::min(ySurfaceInset, layerBounds.getHeight() / 2) : 0;
+    xSurfaceInset = (xSurfaceInset >= 0)
+            ? std::min(xSurfaceInset, transformedLayerBounds.getWidth() / 2)
+            : 0;
+    ySurfaceInset = (ySurfaceInset >= 0)
+            ? std::min(ySurfaceInset, transformedLayerBounds.getHeight() / 2)
+            : 0;
 
     // inset while protecting from overflow TODO(b/161235021): What is going wrong
     // in the overflow scenario?
     {
     int32_t tmp;
-    if (!__builtin_add_overflow(layerBounds.left, xSurfaceInset, &tmp)) layerBounds.left = tmp;
-    if (!__builtin_sub_overflow(layerBounds.right, xSurfaceInset, &tmp)) layerBounds.right = tmp;
-    if (!__builtin_add_overflow(layerBounds.top, ySurfaceInset, &tmp)) layerBounds.top = tmp;
-    if (!__builtin_sub_overflow(layerBounds.bottom, ySurfaceInset, &tmp)) layerBounds.bottom = tmp;
+    if (!__builtin_add_overflow(transformedLayerBounds.left, xSurfaceInset, &tmp))
+        transformedLayerBounds.left = tmp;
+    if (!__builtin_sub_overflow(transformedLayerBounds.right, xSurfaceInset, &tmp))
+        transformedLayerBounds.right = tmp;
+    if (!__builtin_add_overflow(transformedLayerBounds.top, ySurfaceInset, &tmp))
+        transformedLayerBounds.top = tmp;
+    if (!__builtin_sub_overflow(transformedLayerBounds.bottom, ySurfaceInset, &tmp))
+        transformedLayerBounds.bottom = tmp;
     }
 
     // Input coordinate should match the layer bounds.
-    info.frameLeft = layerBounds.left;
-    info.frameTop = layerBounds.top;
-    info.frameRight = layerBounds.right;
-    info.frameBottom = layerBounds.bottom;
+    info.frameLeft = transformedLayerBounds.left;
+    info.frameTop = transformedLayerBounds.top;
+    info.frameRight = transformedLayerBounds.right;
+    info.frameBottom = transformedLayerBounds.bottom;
 
+    // Compute the correct transform to send to input. This will allow it to transform the
+    // input coordinates from display space into window space. Therefore, it needs to use the
+    // final layer frame to create the inverse transform. Since surface insets are added later,
+    // along with the overflow, the best way to ensure we get the correct transform is to use
+    // the final frame calculated.
+    // 1. Take the original transform set on the window and get the inverse transform. This is
+    //    used to get the final bounds in display space (ignorning the transform). Apply the
+    //    inverse transform on the layerBounds to get the untransformed frame (in display space)
+    // 2. Take the top and left of the untransformed frame to get the real position on screen.
+    //    Apply the layer transform on top/left so it includes any scale or rotation. These will
+    //    be the new translation values for the transform.
+    // 3. Update the translation of the original transform to the new translation values.
+    // 4. Send the inverse transform to input so the coordinates can be transformed back into
+    //    window space.
+    ui::Transform inverseTransform = t.inverse();
+    Rect nonTransformedBounds = inverseTransform.transform(transformedLayerBounds);
+    vec2 translation = t.transform(nonTransformedBounds.left, nonTransformedBounds.top);
     ui::Transform inputTransform(t);
-    inputTransform.set(layerBounds.left, layerBounds.top);
+    inputTransform.set(translation.x, translation.y);
     info.transform = inputTransform.inverse();
 
     // Position the touchable region relative to frame screen location and restrict it to frame
     // bounds.
-    info.touchableRegion = info.touchableRegion.translate(info.frameLeft, info.frameTop);
+    info.touchableRegion = inputTransform.transform(info.touchableRegion);
     // For compatibility reasons we let layers which can receive input
     // receive input before they have actually submitted a buffer. Because
     // of this we use canReceiveInput instead of isVisible to check the
@@ -2656,6 +2682,16 @@ Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t comp
             LOG_ALWAYS_FATAL("Invalid frame rate compatibility value %d", compatibility);
             return FrameRateCompatibility::Default;
     }
+}
+
+bool Layer::getPrimaryDisplayOnly() const {
+    const State& s(mDrawingState);
+    if (s.flags & layer_state_t::eLayerSkipScreenshot) {
+        return true;
+    }
+
+    sp<Layer> parent = mDrawingParent.promote();
+    return parent == nullptr ? false : parent->getPrimaryDisplayOnly();
 }
 
 // ---------------------------------------------------------------------------

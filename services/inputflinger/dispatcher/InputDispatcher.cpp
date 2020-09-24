@@ -1118,11 +1118,17 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
             (entry->policyFlags & POLICY_FLAG_TRUSTED) &&
             (!(entry->policyFlags & POLICY_FLAG_DISABLE_KEY_REPEAT))) {
             if (mKeyRepeatState.lastKeyEntry &&
-                mKeyRepeatState.lastKeyEntry->keyCode == entry->keyCode) {
+                mKeyRepeatState.lastKeyEntry->keyCode == entry->keyCode &&
                 // We have seen two identical key downs in a row which indicates that the device
                 // driver is automatically generating key repeats itself.  We take note of the
                 // repeat here, but we disable our own next key repeat timer since it is clear that
                 // we will not need to synthesize key repeats ourselves.
+                mKeyRepeatState.lastKeyEntry->deviceId == entry->deviceId) {
+                // Make sure we don't get key down from a different device. If a different
+                // device Id has same key pressed down, the new device Id will replace the
+                // current one to hold the key repeat with repeat count reset.
+                // In the future when got a KEY_UP on the device id, drop it and do not
+                // stop the key repeat on current device.
                 entry->repeatCount = mKeyRepeatState.lastKeyEntry->repeatCount + 1;
                 resetKeyRepeatLocked();
                 mKeyRepeatState.nextRepeatTime = LONG_LONG_MAX; // don't generate repeats ourselves
@@ -1133,6 +1139,12 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
             }
             mKeyRepeatState.lastKeyEntry = entry;
             entry->refCount += 1;
+        } else if (entry->action == AKEY_EVENT_ACTION_UP && mKeyRepeatState.lastKeyEntry &&
+                   mKeyRepeatState.lastKeyEntry->deviceId != entry->deviceId) {
+            // The stale device releases the key, reset staleDeviceId.
+#if DEBUG_INBOUND_EVENT_DETAILS
+            ALOGD("deviceId=%d got KEY_UP as stale", entry->deviceId);
+#endif
         } else if (!entry->syntheticRepeat) {
             resetKeyRepeatLocked();
         }
@@ -2835,8 +2847,8 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
             }
         }
 
-        // Unregister the channel.
-        d->unregisterInputChannelLocked(connection->inputChannel->getConnectionToken(), notify);
+        // Remove the channel.
+        d->removeInputChannelLocked(connection->inputChannel->getConnectionToken(), notify);
         return 0; // remove the callback
     }             // release lock
 }
@@ -4482,7 +4494,7 @@ status_t InputDispatcher::removeInputChannel(const sp<IBinder>& connectionToken)
     { // acquire lock
         std::scoped_lock _l(mLock);
 
-        status_t status = unregisterInputChannelLocked(connectionToken, false /*notify*/);
+        status_t status = removeInputChannelLocked(connectionToken, false /*notify*/);
         if (status) {
             return status;
         }
@@ -4494,8 +4506,8 @@ status_t InputDispatcher::removeInputChannel(const sp<IBinder>& connectionToken)
     return OK;
 }
 
-status_t InputDispatcher::unregisterInputChannelLocked(const sp<IBinder>& connectionToken,
-                                                       bool notify) {
+status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connectionToken,
+                                                   bool notify) {
     sp<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
         ALOGW("Attempted to unregister already unregistered input channel");
