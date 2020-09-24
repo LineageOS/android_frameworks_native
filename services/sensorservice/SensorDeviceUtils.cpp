@@ -91,6 +91,7 @@ float defaultResolutionForType(int type) {
         case SensorTypeV2_1::WRIST_TILT_GESTURE:
         case SensorTypeV2_1::STATIONARY_DETECT:
         case SensorTypeV2_1::MOTION_DETECT:
+        case SensorTypeV2_1::PROXIMITY:
             return 1.0f;
         default:
             // fall through and return 0 for all other types
