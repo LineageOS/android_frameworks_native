@@ -62,6 +62,8 @@ std::string toString(VSyncRequest request) {
             return "VSyncRequest::None";
         case VSyncRequest::Single:
             return "VSyncRequest::Single";
+        case VSyncRequest::SingleSuppressCallback:
+            return "VSyncRequest::SingleSuppressCallback";
         default:
             return StringPrintf("VSyncRequest::Periodic{period=%d}", vsyncPeriod(request));
     }
@@ -267,6 +269,8 @@ void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection) 
     if (connection->vsyncRequest == VSyncRequest::None) {
         connection->vsyncRequest = VSyncRequest::Single;
         mCondition.notify_all();
+    } else if (connection->vsyncRequest == VSyncRequest::SingleSuppressCallback) {
+        connection->vsyncRequest = VSyncRequest::Single;
     }
 }
 
@@ -451,8 +455,11 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
             switch (connection->vsyncRequest) {
                 case VSyncRequest::None:
                     return false;
-                case VSyncRequest::Single:
+                case VSyncRequest::SingleSuppressCallback:
                     connection->vsyncRequest = VSyncRequest::None;
+                    return false;
+                case VSyncRequest::Single:
+                    connection->vsyncRequest = VSyncRequest::SingleSuppressCallback;
                     return true;
                 case VSyncRequest::Periodic:
                     return true;
