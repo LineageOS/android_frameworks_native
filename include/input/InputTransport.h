@@ -246,6 +246,8 @@ public:
     /* Return a new object that has a duplicate of this channel's fd. */
     std::unique_ptr<InputChannel> dup() const;
 
+    void copyTo(InputChannel& outChannel) const;
+
     status_t readFromParcel(const android::Parcel* parcel) override;
     status_t writeToParcel(android::Parcel* parcel) const override;
 
@@ -277,6 +279,8 @@ public:
     }
 
 private:
+    base::unique_fd dupFd() const;
+
     std::string mName;
     android::base::unique_fd mFd;
 

@@ -116,12 +116,12 @@ public:
     virtual bool transferTouchFocus(const sp<IBinder>& fromToken,
                                     const sp<IBinder>& toToken) override;
 
-    virtual status_t registerInputChannel(
-            const std::shared_ptr<InputChannel>& inputChannel) override;
+    virtual base::Result<std::unique_ptr<InputChannel>> createInputChannel(
+            const std::string& name) override;
     virtual void setFocusedWindow(const FocusRequest&) override;
-    virtual status_t registerInputMonitor(const std::shared_ptr<InputChannel>& inputChannel,
-                                          int32_t displayId, bool isGestureMonitor) override;
-    virtual status_t unregisterInputChannel(const sp<IBinder>& connectionToken) override;
+    virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(
+            int32_t displayId, bool isGestureMonitor, const std::string& name) override;
+    virtual status_t removeInputChannel(const sp<IBinder>& connectionToken) override;
     virtual status_t pilferPointers(const sp<IBinder>& token) override;
 
     std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
@@ -513,7 +513,7 @@ private:
     void removeMonitorChannelLocked(
             const sp<IBinder>& connectionToken,
             std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay) REQUIRES(mLock);
-    status_t unregisterInputChannelLocked(const sp<IBinder>& connectionToken, bool notify)
+    status_t removeInputChannelLocked(const sp<IBinder>& connectionToken, bool notify)
             REQUIRES(mLock);
 
     // Interesting events that we might like to log or tell the framework about.
@@ -525,7 +525,7 @@ private:
                               int32_t displayId, std::string_view reason) REQUIRES(mLock);
     void notifyFocusChangedLocked(const sp<IBinder>& oldFocus, const sp<IBinder>& newFocus)
             REQUIRES(mLock);
-    void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
+    void onAnrLocked(const Connection& connection) REQUIRES(mLock);
     void onAnrLocked(const std::shared_ptr<InputApplicationHandle>& application) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)
             REQUIRES(mLock);

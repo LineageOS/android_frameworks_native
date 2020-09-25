@@ -68,12 +68,10 @@ class InputSurface {
 public:
     InputSurface(const sp<SurfaceControl> &sc, int width, int height) {
         mSurfaceControl = sc;
-        std::unique_ptr<InputChannel> clientChannel;
-        InputChannel::openInputChannelPair("testchannels", mServerChannel, clientChannel);
-        mClientChannel = std::move(clientChannel);
 
         mInputFlinger = getInputFlinger();
-        mInputFlinger->registerInputChannel(*mServerChannel);
+        mClientChannel = std::make_shared<InputChannel>();
+        mInputFlinger->createInputChannel("testchannels", mClientChannel.get());
 
         populateInputInfo(width, height);
 
@@ -155,7 +153,7 @@ public:
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
-    ~InputSurface() { mInputFlinger->unregisterInputChannel(mServerChannel->getConnectionToken()); }
+    ~InputSurface() { mInputFlinger->removeInputChannel(mClientChannel->getConnectionToken()); }
 
     void doTransaction(std::function<void(SurfaceComposerClient::Transaction&,
                     const sp<SurfaceControl>&)> transactionBody) {
@@ -192,7 +190,7 @@ private:
     }
 
     void populateInputInfo(int width, int height) {
-        mInputInfo.token = mServerChannel->getConnectionToken();
+        mInputInfo.token = mClientChannel->getConnectionToken();
         mInputInfo.name = "Test info";
         mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
         mInputInfo.type = InputWindowInfo::Type::BASE_APPLICATION;
@@ -219,7 +217,6 @@ private:
     }
 public:
     sp<SurfaceControl> mSurfaceControl;
-    std::unique_ptr<InputChannel> mServerChannel;
     std::shared_ptr<InputChannel> mClientChannel;
     sp<IInputFlinger> mInputFlinger;
 
@@ -536,4 +533,73 @@ TEST_F(InputSurfacesTest, can_be_focused) {
 
     surface->assertFocusChange(true);
 }
+
+TEST_F(InputSurfacesTest, rotate_surface) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(10, 10);
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, 1, -1, 0); // 90 degrees
+    });
+    injectTap(8, 11);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, -1, 0, 0, -1); // 180 degrees
+    });
+    injectTap(9, 8);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, -1, 1, 0); // 270 degrees
+    });
+    injectTap(12, 9);
+    surface->expectTap(1, 2);
+}
+
+TEST_F(InputSurfacesTest, rotate_surface_with_scale) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(10, 10);
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, 2, -4, 0); // 90 degrees
+    });
+    injectTap(2, 12);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, -2, 0, 0, -4); // 180 degrees
+    });
+    injectTap(8, 2);
+    surface->expectTap(1, 2);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, -2, 4, 0); // 270 degrees
+    });
+    injectTap(18, 8);
+    surface->expectTap(1, 2);
+}
+
+TEST_F(InputSurfacesTest, rotate_surface_with_scale_and_insets) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->mInputInfo.surfaceInset = 5;
+    surface->showAt(100, 100);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, 2, -4, 0); // 90 degrees
+    });
+    injectTap(40, 120);
+    surface->expectTap(5, 10);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, -2, 0, 0, -4); // 180 degrees
+    });
+    injectTap(80, 40);
+    surface->expectTap(5, 10);
+
+    surface->doTransaction([](auto &t, auto &sc) {
+        t.setMatrix(sc, 0, -2, 4, 0); // 270 degrees
+    });
+    injectTap(160, 80);
+    surface->expectTap(5, 10);
+}
+
 } // namespace android::test

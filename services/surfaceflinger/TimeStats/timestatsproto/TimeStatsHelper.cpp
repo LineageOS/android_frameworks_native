@@ -112,7 +112,7 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     StringAppendF(&result, "displayOnTime = %" PRId64 " ms\n", displayOnTime);
     StringAppendF(&result, "displayConfigStats is as below:\n");
     for (const auto& [fps, duration] : refreshRateStats) {
-        StringAppendF(&result, "%dfps=%ldms ", fps, ns2ms(duration));
+        StringAppendF(&result, "%dfps = %ldms\n", fps, ns2ms(duration));
     }
     result.back() = '\n';
     StringAppendF(&result, "totalP2PTime = %" PRId64 " ms\n", presentToPresent.totalTime());

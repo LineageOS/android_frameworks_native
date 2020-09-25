@@ -60,11 +60,17 @@ private:
                                        Protection protection);
     static EGLSurface createPlaceholderEglPbufferSurface(EGLDisplay display, EGLConfig config,
                                                          int hwcFormat, Protection protection);
+    inline SkRect getSkRect(const FloatRect& layer);
+    inline SkRect getSkRect(const Rect& layer);
     inline SkRRect getRoundedRect(const LayerSettings* layer);
+    inline SkColor getSkColor(const vec4& color);
     inline SkM44 getSkM44(const mat4& matrix);
+    inline SkPoint3 getSkPoint3(const vec3& vector);
 
     base::unique_fd flush();
     bool waitFence(base::unique_fd fenceFd);
+    void drawShadow(SkCanvas* canvas, const SkRect& casterRect, float casterCornerRadius,
+                    const ShadowSettings& shadowSettings);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;

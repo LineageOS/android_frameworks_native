@@ -51,11 +51,19 @@ public:
             mConnectedHal(nullptr) {}
     virtual ~HalController() = default;
 
-    void init();
+    /* Connects to the newest HAL version available, possibly waiting for the registered service to
+     * become available. This will automatically be called at the first API usage if it was not
+     * manually called beforehand. Calling this manually during the setup phase can avoid slowing
+     * the first API call later on. Returns true if any HAL version is available, false otherwise.
+     */
+    virtual bool init();
 
-    HalResult<void> ping() final override;
-    void tryReconnect() final override;
+    /* reloads HAL service instance without waiting. This relies on the HAL version found by init()
+     * to rapidly reconnect to the specific HAL service, or defers to init() if it was never called.
+     */
+    virtual void tryReconnect() override;
 
+    virtual HalResult<void> ping() override;
     HalResult<void> on(std::chrono::milliseconds timeout,
                        const std::function<void()>& completionCallback) final override;
     HalResult<void> off() final override;

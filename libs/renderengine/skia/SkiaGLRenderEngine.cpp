@@ -35,6 +35,7 @@
 
 #include <SkCanvas.h>
 #include <SkImage.h>
+#include <SkShadowUtils.h>
 #include <SkSurface.h>
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
@@ -400,13 +401,12 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     const auto scaleY = static_cast<SkScalar>(display.physicalDisplay.height()) /
             static_cast<SkScalar>(display.clip.height());
     canvas->scale(scaleX, scaleY);
-    canvas->clipRect(SkRect::MakeLTRB(display.clip.left, display.clip.top, display.clip.right,
-                                      display.clip.bottom));
+    canvas->clipRect(getSkRect(display.clip));
     canvas->drawColor(0, SkBlendMode::kSrc);
     for (const auto& layer : layers) {
         SkPaint paint;
         const auto& bounds = layer->geometry.boundaries;
-        const auto dest = SkRect::MakeLTRB(bounds.left, bounds.top, bounds.right, bounds.bottom);
+        const auto dest = getSkRect(bounds);
 
         if (layer->source.buffer.buffer) {
             ATRACE_NAME("DrawImage");
@@ -441,6 +441,13 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         // Layers have a local transform matrix that should be applied to them.
         canvas->save();
         canvas->concat(getSkM44(layer->geometry.positionTransform));
+
+        if (layer->shadow.length > 0) {
+            const auto rect = layer->geometry.roundedCornersRadius > 0
+                    ? getSkRect(layer->geometry.roundedCornersCrop)
+                    : dest;
+            drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
+        }
 
         if (layer->geometry.roundedCornersRadius > 0) {
             canvas->drawRRect(getRoundedRect(layer), paint);
@@ -480,11 +487,22 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     return NO_ERROR;
 }
 
+inline SkRect SkiaGLRenderEngine::getSkRect(const FloatRect& rect) {
+    return SkRect::MakeLTRB(rect.left, rect.top, rect.right, rect.bottom);
+}
+
+inline SkRect SkiaGLRenderEngine::getSkRect(const Rect& rect) {
+    return SkRect::MakeLTRB(rect.left, rect.top, rect.right, rect.bottom);
+}
+
 inline SkRRect SkiaGLRenderEngine::getRoundedRect(const LayerSettings* layer) {
-    const auto& crop = layer->geometry.roundedCornersCrop;
-    const auto rect = SkRect::MakeLTRB(crop.left, crop.top, crop.right, crop.bottom);
+    const auto rect = getSkRect(layer->geometry.roundedCornersCrop);
     const auto cornerRadius = layer->geometry.roundedCornersRadius;
     return SkRRect::MakeRectXY(rect, cornerRadius, cornerRadius);
+}
+
+inline SkColor SkiaGLRenderEngine::getSkColor(const vec4& color) {
+    return SkColorSetARGB(color.a * 255, color.r * 255, color.g * 255, color.b * 255);
 }
 
 inline SkM44 SkiaGLRenderEngine::getSkM44(const mat4& matrix) {
@@ -494,12 +512,32 @@ inline SkM44 SkiaGLRenderEngine::getSkM44(const mat4& matrix) {
                  matrix[0][3], matrix[1][3], matrix[2][3], matrix[3][3]);
 }
 
+inline SkPoint3 SkiaGLRenderEngine::getSkPoint3(const vec3& vector) {
+    return SkPoint3::Make(vector.x, vector.y, vector.z);
+}
+
 size_t SkiaGLRenderEngine::getMaxTextureSize() const {
     return mGrContext->maxTextureSize();
 }
 
 size_t SkiaGLRenderEngine::getMaxViewportDims() const {
     return mGrContext->maxRenderTargetSize();
+}
+
+void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRect& casterRect, float cornerRadius,
+                                    const ShadowSettings& settings) {
+    ATRACE_CALL();
+    const float casterZ = settings.length / 2.0f;
+    const auto shadowShape = cornerRadius > 0
+            ? SkPath::RRect(SkRRect::MakeRectXY(casterRect, cornerRadius, cornerRadius))
+            : SkPath::Rect(casterRect);
+    const auto flags =
+            settings.casterIsTranslucent ? kTransparentOccluder_ShadowFlag : kNone_ShadowFlag;
+
+    SkShadowUtils::DrawShadow(canvas, shadowShape, SkPoint3::Make(0, 0, casterZ),
+                              getSkPoint3(settings.lightPos), settings.lightRadius,
+                              getSkColor(settings.ambientColor), getSkColor(settings.spotColor),
+                              flags);
 }
 
 EGLContext SkiaGLRenderEngine::createEglContext(EGLDisplay display, EGLConfig config,

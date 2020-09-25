@@ -28,8 +28,8 @@
 // Log debug messages about the dispatch cycle.
 #define DEBUG_DISPATCH_CYCLE 0
 
-// Log debug messages about registrations.
-#define DEBUG_REGISTRATION 0
+// Log debug messages about channel creation
+#define DEBUG_CHANNEL_CREATION 0
 
 // Log debug messages about input event injection.
 #define DEBUG_INJECTION 0
@@ -351,6 +351,16 @@ static void addGestureMonitors(const std::vector<Monitor>& monitors,
     }
 }
 
+static status_t openInputChannelPair(const std::string& name,
+                                     std::shared_ptr<InputChannel>& serverChannel,
+                                     std::unique_ptr<InputChannel>& clientChannel) {
+    std::unique_ptr<InputChannel> uniqueServerChannel;
+    status_t result = InputChannel::openInputChannelPair(name, uniqueServerChannel, clientChannel);
+
+    serverChannel = std::move(uniqueServerChannel);
+    return result;
+}
+
 const char* InputDispatcher::typeToString(InputDispatcher::FocusResult result) {
     switch (result) {
         case InputDispatcher::FocusResult::OK:
@@ -412,7 +422,7 @@ InputDispatcher::~InputDispatcher() {
 
     while (!mConnectionsByFd.empty()) {
         sp<Connection> connection = mConnectionsByFd.begin()->second;
-        unregisterInputChannel(connection->inputChannel->getConnectionToken());
+        removeInputChannel(connection->inputChannel->getConnectionToken());
     }
 }
 
@@ -507,7 +517,7 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     connection->responsive = false;
     // Stop waking up for this unresponsive connection
     mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
-    onAnrLocked(connection);
+    onAnrLocked(*connection);
     return LONG_LONG_MIN;
 }
 
@@ -1108,11 +1118,17 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
             (entry->policyFlags & POLICY_FLAG_TRUSTED) &&
             (!(entry->policyFlags & POLICY_FLAG_DISABLE_KEY_REPEAT))) {
             if (mKeyRepeatState.lastKeyEntry &&
-                mKeyRepeatState.lastKeyEntry->keyCode == entry->keyCode) {
+                mKeyRepeatState.lastKeyEntry->keyCode == entry->keyCode &&
                 // We have seen two identical key downs in a row which indicates that the device
                 // driver is automatically generating key repeats itself.  We take note of the
                 // repeat here, but we disable our own next key repeat timer since it is clear that
                 // we will not need to synthesize key repeats ourselves.
+                mKeyRepeatState.lastKeyEntry->deviceId == entry->deviceId) {
+                // Make sure we don't get key down from a different device. If a different
+                // device Id has same key pressed down, the new device Id will replace the
+                // current one to hold the key repeat with repeat count reset.
+                // In the future when got a KEY_UP on the device id, drop it and do not
+                // stop the key repeat on current device.
                 entry->repeatCount = mKeyRepeatState.lastKeyEntry->repeatCount + 1;
                 resetKeyRepeatLocked();
                 mKeyRepeatState.nextRepeatTime = LONG_LONG_MAX; // don't generate repeats ourselves
@@ -1123,6 +1139,12 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
             }
             mKeyRepeatState.lastKeyEntry = entry;
             entry->refCount += 1;
+        } else if (entry->action == AKEY_EVENT_ACTION_UP && mKeyRepeatState.lastKeyEntry &&
+                   mKeyRepeatState.lastKeyEntry->deviceId != entry->deviceId) {
+            // The stale device releases the key, reset staleDeviceId.
+#if DEBUG_INBOUND_EVENT_DETAILS
+            ALOGD("deviceId=%d got KEY_UP as stale", entry->deviceId);
+#endif
         } else if (!entry->syntheticRepeat) {
             resetKeyRepeatLocked();
         }
@@ -2825,8 +2847,8 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
             }
         }
 
-        // Unregister the channel.
-        d->unregisterInputChannelLocked(connection->inputChannel->getConnectionToken(), notify);
+        // Remove the channel.
+        d->removeInputChannelLocked(connection->inputChannel->getConnectionToken(), notify);
         return 0; // remove the callback
     }             // release lock
 }
@@ -4403,71 +4425,76 @@ void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>
     }
 }
 
-status_t InputDispatcher::registerInputChannel(const std::shared_ptr<InputChannel>& inputChannel) {
-#if DEBUG_REGISTRATION
-    ALOGD("channel '%s' ~ registerInputChannel", inputChannel->getName().c_str());
+base::Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(
+        const std::string& name) {
+#if DEBUG_CHANNEL_CREATION
+    ALOGD("channel '%s' ~ createInputChannel", name.c_str());
 #endif
+
+    std::shared_ptr<InputChannel> serverChannel;
+    std::unique_ptr<InputChannel> clientChannel;
+    status_t result = openInputChannelPair(name, serverChannel, clientChannel);
+
+    if (result) {
+        return base::Error(result) << "Failed to open input channel pair with name " << name;
+    }
 
     { // acquire lock
         std::scoped_lock _l(mLock);
-        sp<Connection> existingConnection = getConnectionLocked(inputChannel->getConnectionToken());
-        if (existingConnection != nullptr) {
-            ALOGW("Attempted to register already registered input channel '%s'",
-                  inputChannel->getName().c_str());
-            return BAD_VALUE;
-        }
+        sp<Connection> connection = new Connection(serverChannel, false /*monitor*/, mIdGenerator);
 
-        sp<Connection> connection = new Connection(inputChannel, false /*monitor*/, mIdGenerator);
-
-        int fd = inputChannel->getFd();
+        int fd = serverChannel->getFd();
         mConnectionsByFd[fd] = connection;
-        mInputChannelsByToken[inputChannel->getConnectionToken()] = inputChannel;
+        mInputChannelsByToken[serverChannel->getConnectionToken()] = serverChannel;
 
         mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
     } // release lock
 
     // Wake the looper because some connections have changed.
     mLooper->wake();
-    return OK;
+    return clientChannel;
 }
 
-status_t InputDispatcher::registerInputMonitor(const std::shared_ptr<InputChannel>& inputChannel,
-                                               int32_t displayId, bool isGestureMonitor) {
+base::Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(
+        int32_t displayId, bool isGestureMonitor, const std::string& name) {
+    std::shared_ptr<InputChannel> serverChannel;
+    std::unique_ptr<InputChannel> clientChannel;
+    status_t result = openInputChannelPair(name, serverChannel, clientChannel);
+    if (result) {
+        return base::Error(result) << "Failed to open input channel pair with name " << name;
+    }
+
     { // acquire lock
         std::scoped_lock _l(mLock);
 
         if (displayId < 0) {
-            ALOGW("Attempted to register input monitor without a specified display.");
-            return BAD_VALUE;
+            return base::Error(BAD_VALUE) << "Attempted to create input monitor with name " << name
+                                          << " without a specified display.";
         }
 
-        if (inputChannel->getConnectionToken() == nullptr) {
-            ALOGW("Attempted to register input monitor without an identifying token.");
-            return BAD_VALUE;
-        }
+        sp<Connection> connection = new Connection(serverChannel, true /*monitor*/, mIdGenerator);
 
-        sp<Connection> connection = new Connection(inputChannel, true /*monitor*/, mIdGenerator);
-
-        const int fd = inputChannel->getFd();
+        const int fd = serverChannel->getFd();
         mConnectionsByFd[fd] = connection;
-        mInputChannelsByToken[inputChannel->getConnectionToken()] = inputChannel;
+        mInputChannelsByToken[serverChannel->getConnectionToken()] = serverChannel;
 
         auto& monitorsByDisplay =
                 isGestureMonitor ? mGestureMonitorsByDisplay : mGlobalMonitorsByDisplay;
-        monitorsByDisplay[displayId].emplace_back(inputChannel);
+        monitorsByDisplay[displayId].emplace_back(serverChannel);
 
         mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
     }
+
     // Wake the looper because some connections have changed.
     mLooper->wake();
-    return OK;
+    return clientChannel;
 }
 
-status_t InputDispatcher::unregisterInputChannel(const sp<IBinder>& connectionToken) {
+status_t InputDispatcher::removeInputChannel(const sp<IBinder>& connectionToken) {
     { // acquire lock
         std::scoped_lock _l(mLock);
 
-        status_t status = unregisterInputChannelLocked(connectionToken, false /*notify*/);
+        status_t status = removeInputChannelLocked(connectionToken, false /*notify*/);
         if (status) {
             return status;
         }
@@ -4479,8 +4506,8 @@ status_t InputDispatcher::unregisterInputChannel(const sp<IBinder>& connectionTo
     return OK;
 }
 
-status_t InputDispatcher::unregisterInputChannelLocked(const sp<IBinder>& connectionToken,
-                                                       bool notify) {
+status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connectionToken,
+                                                   bool notify) {
     sp<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
         ALOGW("Attempted to unregister already unregistered input channel");
@@ -4643,12 +4670,12 @@ void InputDispatcher::notifyFocusChangedLocked(const sp<IBinder>& oldToken,
     postCommandLocked(std::move(commandEntry));
 }
 
-void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
+void InputDispatcher::onAnrLocked(const Connection& connection) {
     // Since we are allowing the policy to extend the timeout, maybe the waitQueue
     // is already healthy again. Don't raise ANR in this situation
-    if (connection->waitQueue.empty()) {
+    if (connection.waitQueue.empty()) {
         ALOGI("Not raising ANR because the connection %s has recovered",
-              connection->inputChannel->getName().c_str());
+              connection.inputChannel->getName().c_str());
         return;
     }
     /**
@@ -4659,21 +4686,21 @@ void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
      * processes the events linearly. So providing information about the oldest entry seems to be
      * most useful.
      */
-    DispatchEntry* oldestEntry = *connection->waitQueue.begin();
+    DispatchEntry* oldestEntry = *connection.waitQueue.begin();
     const nsecs_t currentWait = now() - oldestEntry->deliveryTime;
     std::string reason =
             android::base::StringPrintf("%s is not responding. Waited %" PRId64 "ms for %s",
-                                        connection->inputChannel->getName().c_str(),
+                                        connection.inputChannel->getName().c_str(),
                                         ns2ms(currentWait),
                                         oldestEntry->eventEntry->getDescription().c_str());
 
-    updateLastAnrStateLocked(getWindowHandleLocked(connection->inputChannel->getConnectionToken()),
+    updateLastAnrStateLocked(getWindowHandleLocked(connection.inputChannel->getConnectionToken()),
                              reason);
 
     std::unique_ptr<CommandEntry> commandEntry =
             std::make_unique<CommandEntry>(&InputDispatcher::doNotifyAnrLockedInterruptible);
     commandEntry->inputApplicationHandle = nullptr;
-    commandEntry->inputChannel = connection->inputChannel;
+    commandEntry->inputChannel = connection.inputChannel;
     commandEntry->reason = std::move(reason);
     postCommandLocked(std::move(commandEntry));
 }
@@ -4773,15 +4800,15 @@ void InputDispatcher::doNotifyAnrLockedInterruptible(CommandEntry* commandEntry)
 void InputDispatcher::extendAnrTimeoutsLocked(
         const std::shared_ptr<InputApplicationHandle>& application,
         const sp<IBinder>& connectionToken, std::chrono::nanoseconds timeoutExtension) {
+    if (connectionToken == nullptr && application != nullptr) {
+        // The ANR happened because there's no focused window
+        mNoFocusedWindowTimeoutTime = now() + timeoutExtension.count();
+        mAwaitedFocusedApplication = application;
+    }
+
     sp<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
-        if (mNoFocusedWindowTimeoutTime.has_value() && application != nullptr) {
-            // Maybe ANR happened because there's no focused window?
-            mNoFocusedWindowTimeoutTime = now() + timeoutExtension.count();
-            mAwaitedFocusedApplication = application;
-        } else {
-            // It's also possible that the connection already disappeared. No action necessary.
-        }
+        // It's possible that the connection already disappeared. No action necessary.
         return;
     }
 

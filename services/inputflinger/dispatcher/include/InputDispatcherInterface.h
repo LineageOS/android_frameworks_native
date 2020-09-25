@@ -18,6 +18,7 @@
 #define _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERINTERFACE_H
 
 #include <InputListener.h>
+#include <android-base/result.h>
 #include <android/FocusRequest.h>
 #include <android/os/ISetInputWindowsListener.h>
 #include <input/InputApplication.h>
@@ -155,13 +156,16 @@ public:
      */
     virtual void setFocusedWindow(const FocusRequest&) = 0;
 
-    /* Registers input channels that may be used as targets for input events.
+    /**
+     * Creates an input channel that may be used as targets for input events.
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t registerInputChannel(const std::shared_ptr<InputChannel>& inputChannel) = 0;
+    virtual base::Result<std::unique_ptr<InputChannel>> createInputChannel(
+            const std::string& name) = 0;
 
-    /* Registers input channels to be used to monitor input events.
+    /**
+     * Creates an input channel to be used to monitor input events.
      *
      * Each monitor must target a specific display and will only receive input events sent to that
      * display. If the monitor is a gesture monitor, it will only receive pointer events on the
@@ -169,14 +173,14 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t registerInputMonitor(const std::shared_ptr<InputChannel>& inputChannel,
-                                          int32_t displayId, bool gestureMonitor) = 0;
+    virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(
+            int32_t displayId, bool gestureMonitor, const std::string& name) = 0;
 
-    /* Unregister input channels that will no longer receive input events.
+    /* Removes input channels that will no longer receive input events.
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t unregisterInputChannel(const sp<IBinder>& connectionToken) = 0;
+    virtual status_t removeInputChannel(const sp<IBinder>& connectionToken) = 0;
 
     /* Allows an input monitor steal the current pointer stream away from normal input windows.
      *

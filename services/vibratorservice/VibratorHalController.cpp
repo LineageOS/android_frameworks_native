@@ -46,8 +46,6 @@ namespace vibrator {
 
 // -------------------------------------------------------------------------------------------------
 
-static constexpr int MAX_RETRIES = 1;
-
 std::shared_ptr<HalWrapper> HalConnector::connect(std::shared_ptr<CallbackScheduler> scheduler) {
     static bool gHalExists = true;
     if (!gHalExists) {
@@ -89,6 +87,8 @@ std::shared_ptr<HalWrapper> HalConnector::connect(std::shared_ptr<CallbackSchedu
 
 // -------------------------------------------------------------------------------------------------
 
+static constexpr int MAX_RETRIES = 1;
+
 template <typename T>
 HalResult<T> HalController::processHalResult(HalResult<T> result, const char* functionName) {
     if (result.isFailed()) {
@@ -126,11 +126,12 @@ HalResult<T> HalController::apply(HalController::hal_fn<T>& halFn, const char* f
 
 // -------------------------------------------------------------------------------------------------
 
-void HalController::init() {
+bool HalController::init() {
     std::lock_guard<std::mutex> lock(mConnectedHalMutex);
     if (mConnectedHal == nullptr) {
         mConnectedHal = mHalConnector->connect(mCallbackScheduler);
     }
+    return mConnectedHal != nullptr;
 }
 
 HalResult<void> HalController::ping() {
