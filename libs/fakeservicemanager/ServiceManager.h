@@ -46,6 +46,8 @@ public:
 
     bool isDeclared(const String16& name) override;
 
+    Vector<String16> getDeclaredInstances(const String16& iface) override;
+
 private:
     std::map<String16, sp<IBinder>> mNameToService;
 };
