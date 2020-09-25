@@ -21,6 +21,8 @@
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
+#include "NullableOStream.h"
+
 namespace android {
 namespace lshal {
 
@@ -28,7 +30,10 @@ namespace lshal {
  * written to the "write"-end of the pair to the specified output stream "os".
  */
 struct PipeRelay {
-    explicit PipeRelay(std::ostream &os);
+    explicit PipeRelay(std::ostream& os,
+                       const NullableOStream<std::ostream>& err,
+                       const std::string& interfaceName,
+                       const std::string& instanceName);
     ~PipeRelay();
 
     status_t initCheck() const;
