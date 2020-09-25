@@ -141,7 +141,7 @@ Status Lshal::emitDebugInfo(
         }
     }
 
-    PipeRelay relay(out);
+    PipeRelay relay(out, err, interfaceName, instanceName);
 
     if (relay.initCheck() != OK) {
         std::string msg = "PipeRelay::initCheck() FAILED w/ " + std::to_string(relay.initCheck());
