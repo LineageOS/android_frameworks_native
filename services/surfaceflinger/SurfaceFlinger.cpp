@@ -4232,7 +4232,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
                 {"--vsync"s, dumper(&SurfaceFlinger::dumpVSync)},
                 {"--wide-color"s, dumper(&SurfaceFlinger::dumpWideColorInfo)},
-                {"--frametimeline"s, dumper([this](std::string& s) { mFrameTimeline->dump(s); })},
+                {"--frametimeline"s, argsDumper(&SurfaceFlinger::dumpFrameTimeline)},
         };
 
         const auto flag = args.empty() ? ""s : std::string(String8(args[0]));
@@ -4313,6 +4313,10 @@ void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
 
 void SurfaceFlinger::dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const {
     mTimeStats->parseArgs(asProto, args, result);
+}
+
+void SurfaceFlinger::dumpFrameTimeline(const DumpArgs& args, std::string& result) const {
+    mFrameTimeline->parseArgs(args, result);
 }
 
 // This should only be called from the main thread.  Otherwise it would need

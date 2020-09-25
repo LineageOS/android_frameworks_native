@@ -978,6 +978,7 @@ private:
     void dumpStatsLocked(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
     void clearStatsLocked(const DumpArgs& args, std::string& result);
     void dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const;
+    void dumpFrameTimeline(const DumpArgs& args, std::string& result) const;
     void logFrameStats();
 
     void dumpVSync(std::string& result) const REQUIRES(mStateLock);
