@@ -30,42 +30,23 @@ class ServiceManager : public IServiceManager {
 public:
     ServiceManager();
 
-    /**
-     * Equivalent of checkService.
-     */
     sp<IBinder> getService( const String16& name) const override;
 
-    /**
-     * Retrieve an existing service, non-blocking.
-     */
     sp<IBinder> checkService( const String16& name) const override;
 
-    /**
-     * Register a service.
-     */
     status_t addService(const String16& name, const sp<IBinder>& service,
                         bool allowIsolated = false,
                         int dumpsysFlags = DUMP_FLAG_PRIORITY_DEFAULT) override;
 
-    /**
-     * Return list of all existing services.
-     */
     Vector<String16> listServices(int dumpsysFlags = 0) override;
 
     IBinder* onAsBinder() override;
 
-    /**
-     * Effectively no-oped in this implementation - equivalent to checkService.
-     */
     sp<IBinder> waitForService(const String16& name) override;
 
-    /**
-     * Check if a service is declared (e.g. VINTF manifest).
-     *
-     * If this returns true, waitForService should always be able to return the
-     * service.
-     */
-     bool isDeclared(const String16& name) override;
+    bool isDeclared(const String16& name) override;
+
+    Vector<String16> getDeclaredInstances(const String16& iface) override;
 
 private:
     std::map<String16, sp<IBinder>> mNameToService;

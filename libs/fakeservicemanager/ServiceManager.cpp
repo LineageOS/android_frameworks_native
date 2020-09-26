@@ -61,4 +61,16 @@ bool ServiceManager::isDeclared(const String16& name) {
     return mNameToService.find(name) != mNameToService.end();
 }
 
+Vector<String16> ServiceManager::getDeclaredInstances(const String16& name) {
+    Vector<String16> out;
+    const String16 prefix = name + String16("/");
+    for (const auto& [registeredName, service] : mNameToService) {
+        (void) service;
+        if (registeredName.startsWith(prefix)) {
+            out.add(String16(registeredName.string() + prefix.size()));
+        }
+    }
+    return out;
+}
+
 }  // namespace android
