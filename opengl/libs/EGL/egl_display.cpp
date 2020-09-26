@@ -143,6 +143,16 @@ static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_conn
                 attrs.push_back(attr[1]);
             }
         }
+        const auto& eglFeatures = GraphicsEnv::getInstance().getAngleEglFeatures();
+        std::vector<const char*> features;
+        if (eglFeatures.size() > 0) {
+            for (const std::string& eglFeature : eglFeatures) {
+                features.push_back(eglFeature.c_str());
+            }
+            features.push_back(0);
+            attrs.push_back(EGL_FEATURE_OVERRIDES_ENABLED_ANGLE);
+            attrs.push_back(reinterpret_cast<EGLAttrib>(features.data()));
+        }
 
         attrs.push_back(EGL_PLATFORM_ANGLE_TYPE_ANGLE);
         attrs.push_back(EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE);
