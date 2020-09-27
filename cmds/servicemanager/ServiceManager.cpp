@@ -37,6 +37,27 @@ using ::android::internal::Stability;
 namespace android {
 
 #ifndef VENDORSERVICEMANAGER
+struct ManifestWithDescription {
+    std::shared_ptr<const vintf::HalManifest> manifest;
+    const char* description;
+};
+// func true -> stop search and forEachManifest will return true
+static bool forEachManifest(const std::function<bool(const ManifestWithDescription&)>& func) {
+    for (const ManifestWithDescription& mwd : {
+            ManifestWithDescription{ vintf::VintfObject::GetDeviceHalManifest(), "device" },
+            ManifestWithDescription{ vintf::VintfObject::GetFrameworkHalManifest(), "framework" },
+        }) {
+        if (mwd.manifest == nullptr) {
+          LOG(ERROR) << "NULL VINTF MANIFEST!: " << mwd.description;
+          // note, we explicitly do not retry here, so that we can detect VINTF
+          // or other bugs (b/151696835)
+          continue;
+        }
+        if (func(mwd)) return true;
+    }
+    return false;
+}
+
 static bool isVintfDeclared(const std::string& name) {
     size_t firstSlash = name.find('/');
     size_t lastDot = name.rfind('.', firstSlash);
@@ -49,31 +70,41 @@ static bool isVintfDeclared(const std::string& name) {
     const std::string iface = name.substr(lastDot+1, firstSlash-lastDot-1);
     const std::string instance = name.substr(firstSlash+1);
 
-    struct ManifestWithDescription {
-        std::shared_ptr<const vintf::HalManifest> manifest;
-        const char* description;
-    };
-    for (const ManifestWithDescription& mwd : {
-            ManifestWithDescription{ vintf::VintfObject::GetDeviceHalManifest(), "device" },
-            ManifestWithDescription{ vintf::VintfObject::GetFrameworkHalManifest(), "framework" },
-        }) {
-        if (mwd.manifest == nullptr) {
-          LOG(ERROR) << "NULL VINTF MANIFEST!: " << mwd.description;
-          // note, we explicitly do not retry here, so that we can detect VINTF
-          // or other bugs (b/151696835)
-          continue;
-        }
+    bool found = forEachManifest([&] (const ManifestWithDescription& mwd) {
         if (mwd.manifest->hasAidlInstance(package, iface, instance)) {
             LOG(INFO) << "Found " << name << " in " << mwd.description << " VINTF manifest.";
             return true;
         }
+        return false;  // continue
+    });
+
+    if (!found) {
+        // Although it is tested, explicitly rebuilding qualified name, in case it
+        // becomes something unexpected.
+        LOG(ERROR) << "Could not find " << package << "." << iface << "/" << instance
+                   << " in the VINTF manifest.";
     }
 
-    // Although it is tested, explicitly rebuilding qualified name, in case it
-    // becomes something unexpected.
-    LOG(ERROR) << "Could not find " << package << "." << iface << "/" << instance
-               << " in the VINTF manifest.";
-    return false;
+    return found;
+}
+
+static std::vector<std::string> getVintfInstances(const std::string& interface) {
+    size_t lastDot = interface.rfind('.');
+    if (lastDot == std::string::npos) {
+        LOG(ERROR) << "VINTF interfaces require names in Java package format (e.g. some.package.foo.IFoo) but got: " << interface;
+        return {};
+    }
+    const std::string package = interface.substr(0, lastDot);
+    const std::string iface = interface.substr(lastDot+1);
+
+    std::vector<std::string> ret;
+    (void)forEachManifest([&](const ManifestWithDescription& mwd) {
+        auto instances = mwd.manifest->getAidlInstances(package, iface);
+        ret.insert(ret.end(), instances.begin(), instances.end());
+        return false;  // continue
+    });
+
+    return ret;
 }
 
 static bool meetsDeclarationRequirements(const sp<IBinder>& binder, const std::string& name) {
@@ -328,6 +359,30 @@ Status ServiceManager::isDeclared(const std::string& name, bool* outReturn) {
 #ifndef VENDORSERVICEMANAGER
     *outReturn = isVintfDeclared(name);
 #endif
+    return Status::ok();
+}
+
+binder::Status ServiceManager::getDeclaredInstances(const std::string& interface, std::vector<std::string>* outReturn) {
+    auto ctx = mAccess->getCallingContext();
+
+    std::vector<std::string> allInstances;
+#ifndef VENDORSERVICEMANAGER
+    allInstances = getVintfInstances(interface);
+#endif
+
+    outReturn->clear();
+
+    for (const std::string& instance : allInstances) {
+        // TODO(b/169275998): allow checking policy only once for the interface
+        if (mAccess->canFind(ctx, interface + "/" + instance)) {
+            outReturn->push_back(instance);
+        }
+    }
+
+    if (outReturn->size() == 0 && allInstances.size() != 0) {
+        return Status::fromExceptionCode(Status::EX_SECURITY);
+    }
+
     return Status::ok();
 }
 
