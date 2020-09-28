@@ -229,6 +229,7 @@ Scheduler::ConnectionHandle Scheduler::createConnection(std::unique_ptr<EventThr
     auto connection =
             createConnectionInternal(eventThread.get(), ISurfaceComposer::eConfigChangedSuppress);
 
+    std::lock_guard<std::mutex> lock(mConnectionsLock);
     mConnections.emplace(handle, Connection{connection, std::move(eventThread)});
     return handle;
 }
@@ -240,29 +241,47 @@ sp<EventThreadConnection> Scheduler::createConnectionInternal(
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
         ConnectionHandle handle, ISurfaceComposer::ConfigChanged configChanged) {
+    std::lock_guard<std::mutex> lock(mConnectionsLock);
     RETURN_IF_INVALID_HANDLE(handle, nullptr);
     return createConnectionInternal(mConnections[handle].thread.get(), configChanged);
 }
 
 sp<EventThreadConnection> Scheduler::getEventConnection(ConnectionHandle handle) {
+    std::lock_guard<std::mutex> lock(mConnectionsLock);
     RETURN_IF_INVALID_HANDLE(handle, nullptr);
     return mConnections[handle].connection;
 }
 
 void Scheduler::onHotplugReceived(ConnectionHandle handle, PhysicalDisplayId displayId,
                                   bool connected) {
-    RETURN_IF_INVALID_HANDLE(handle);
-    mConnections[handle].thread->onHotplugReceived(displayId, connected);
+    android::EventThread* thread;
+    {
+        std::lock_guard<std::mutex> lock(mConnectionsLock);
+        RETURN_IF_INVALID_HANDLE(handle);
+        thread = mConnections[handle].thread.get();
+    }
+
+    thread->onHotplugReceived(displayId, connected);
 }
 
 void Scheduler::onScreenAcquired(ConnectionHandle handle) {
-    RETURN_IF_INVALID_HANDLE(handle);
-    mConnections[handle].thread->onScreenAcquired();
+    android::EventThread* thread;
+    {
+        std::lock_guard<std::mutex> lock(mConnectionsLock);
+        RETURN_IF_INVALID_HANDLE(handle);
+        thread = mConnections[handle].thread.get();
+    }
+    thread->onScreenAcquired();
 }
 
 void Scheduler::onScreenReleased(ConnectionHandle handle) {
-    RETURN_IF_INVALID_HANDLE(handle);
-    mConnections[handle].thread->onScreenReleased();
+    android::EventThread* thread;
+    {
+        std::lock_guard<std::mutex> lock(mConnectionsLock);
+        RETURN_IF_INVALID_HANDLE(handle);
+        thread = mConnections[handle].thread.get();
+    }
+    thread->onScreenReleased();
 }
 
 void Scheduler::onPrimaryDisplayConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
@@ -274,6 +293,16 @@ void Scheduler::onPrimaryDisplayConfigChanged(ConnectionHandle handle, PhysicalD
 }
 
 void Scheduler::dispatchCachedReportedConfig() {
+    // Check optional fields first.
+    if (!mFeatures.configId.has_value()) {
+        ALOGW("No config ID found, not dispatching cached config.");
+        return;
+    }
+    if (!mFeatures.cachedConfigChangedParams.has_value()) {
+        ALOGW("No config changed params found, not dispatching cached config.");
+        return;
+    }
+
     const auto configId = *mFeatures.configId;
     const auto vsyncPeriod =
             mRefreshRateConfigs.getRefreshRateFromConfigId(configId).getVsyncPeriod();
@@ -295,24 +324,40 @@ void Scheduler::dispatchCachedReportedConfig() {
 void Scheduler::onNonPrimaryDisplayConfigChanged(ConnectionHandle handle,
                                                  PhysicalDisplayId displayId,
                                                  HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
-    RETURN_IF_INVALID_HANDLE(handle);
-    mConnections[handle].thread->onConfigChanged(displayId, configId, vsyncPeriod);
+    android::EventThread* thread;
+    {
+        std::lock_guard<std::mutex> lock(mConnectionsLock);
+        RETURN_IF_INVALID_HANDLE(handle);
+        thread = mConnections[handle].thread.get();
+    }
+    thread->onConfigChanged(displayId, configId, vsyncPeriod);
 }
 
 size_t Scheduler::getEventThreadConnectionCount(ConnectionHandle handle) {
+    std::lock_guard<std::mutex> lock(mConnectionsLock);
     RETURN_IF_INVALID_HANDLE(handle, 0);
     return mConnections[handle].thread->getEventThreadConnectionCount();
 }
 
 void Scheduler::dump(ConnectionHandle handle, std::string& result) const {
-    RETURN_IF_INVALID_HANDLE(handle);
-    mConnections.at(handle).thread->dump(result);
+    android::EventThread* thread;
+    {
+        std::lock_guard<std::mutex> lock(mConnectionsLock);
+        RETURN_IF_INVALID_HANDLE(handle);
+        thread = mConnections.at(handle).thread.get();
+    }
+    thread->dump(result);
 }
 
 void Scheduler::setDuration(ConnectionHandle handle, std::chrono::nanoseconds workDuration,
                             std::chrono::nanoseconds readyDuration) {
-    RETURN_IF_INVALID_HANDLE(handle);
-    mConnections[handle].thread->setDuration(workDuration, readyDuration);
+    android::EventThread* thread;
+    {
+        std::lock_guard<std::mutex> lock(mConnectionsLock);
+        RETURN_IF_INVALID_HANDLE(handle);
+        thread = mConnections[handle].thread.get();
+    }
+    thread->setDuration(workDuration, readyDuration);
 }
 
 void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats, nsecs_t now) {
