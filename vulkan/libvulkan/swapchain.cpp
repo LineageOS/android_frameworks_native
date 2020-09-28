@@ -258,7 +258,11 @@ struct Swapchain {
     bool shared;
 
     struct Image {
-        Image() : image(VK_NULL_HANDLE), dequeue_fence(-1), dequeued(false) {}
+        Image()
+            : image(VK_NULL_HANDLE),
+              dequeue_fence(-1),
+              release_fence(-1),
+              dequeued(false) {}
         VkImage image;
         android::sp<ANativeWindowBuffer> buffer;
         // The fence is only valid when the buffer is dequeued, and should be
@@ -266,6 +270,10 @@ struct Swapchain {
         // closed: either by closing it explicitly when queueing the buffer,
         // or by passing ownership e.g. to ANativeWindow::cancelBuffer().
         int dequeue_fence;
+        // This fence is a dup of the sync fd returned from the driver via
+        // vkQueueSignalReleaseImageANDROID upon vkQueuePresentKHR. We must
+        // ensure it is closed upon re-presenting or releasing the image.
+        int release_fence;
         bool dequeued;
     } images[android::BufferQueueDefs::NUM_BUFFER_SLOTS];
 
@@ -280,10 +288,19 @@ Swapchain* SwapchainFromHandle(VkSwapchainKHR handle) {
     return reinterpret_cast<Swapchain*>(handle);
 }
 
+static bool IsFencePending(int fd) {
+    if (fd < 0)
+        return false;
+
+    errno = 0;
+    return sync_wait(fd, 0 /* timeout */) == -1 && errno == ETIME;
+}
+
 void ReleaseSwapchainImage(VkDevice device,
                            ANativeWindow* window,
                            int release_fence,
-                           Swapchain::Image& image) {
+                           Swapchain::Image& image,
+                           bool defer_if_pending) {
     ATRACE_CALL();
 
     ALOG_ASSERT(release_fence == -1 || image.dequeued,
@@ -319,8 +336,16 @@ void ReleaseSwapchainImage(VkDevice device,
                 close(release_fence);
             }
         }
-
+        release_fence = -1;
         image.dequeued = false;
+    }
+
+    if (defer_if_pending && IsFencePending(image.release_fence))
+        return;
+
+    if (image.release_fence >= 0) {
+        close(image.release_fence);
+        image.release_fence = -1;
     }
 
     if (image.image) {
@@ -338,7 +363,8 @@ void OrphanSwapchain(VkDevice device, Swapchain* swapchain) {
         return;
     for (uint32_t i = 0; i < swapchain->num_images; i++) {
         if (!swapchain->images[i].dequeued)
-            ReleaseSwapchainImage(device, nullptr, -1, swapchain->images[i]);
+            ReleaseSwapchainImage(device, nullptr, -1, swapchain->images[i],
+                                  true);
     }
     swapchain->surface.swapchain_handle = VK_NULL_HANDLE;
     swapchain->timing.clear();
@@ -998,7 +1024,7 @@ static void DestroySwapchainInternal(VkDevice device,
     }
 
     for (uint32_t i = 0; i < swapchain->num_images; i++) {
-        ReleaseSwapchainImage(device, window, -1, swapchain->images[i]);
+        ReleaseSwapchainImage(device, window, -1, swapchain->images[i], false);
     }
 
     if (active) {
@@ -1630,6 +1656,9 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
             ALOGE("QueueSignalReleaseImageANDROID failed: %d", result);
             swapchain_result = result;
         }
+        if (img.release_fence >= 0)
+            close(img.release_fence);
+        img.release_fence = fence < 0 ? -1 : dup(fence);
 
         if (swapchain.surface.swapchain_handle ==
             present_info->pSwapchains[sc]) {
@@ -1763,7 +1792,7 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                     WorstPresentResult(swapchain_result, VK_SUBOPTIMAL_KHR);
             }
         } else {
-            ReleaseSwapchainImage(device, nullptr, fence, img);
+            ReleaseSwapchainImage(device, nullptr, fence, img, true);
             swapchain_result = VK_ERROR_OUT_OF_DATE_KHR;
         }
 
