@@ -39,6 +39,8 @@ void OutputCompositionState::dump(std::string& out) const {
     out.append("\n   ");
     dumpVal(out, "layerStackSpace", to_string(layerStackSpace));
     out.append("\n   ");
+    dumpVal(out, "framebufferSpace", to_string(framebufferSpace));
+    out.append("\n   ");
     dumpVal(out, "orientedDisplaySpace", to_string(orientedDisplaySpace));
     out.append("\n   ");
     dumpVal(out, "displaySpace", to_string(displaySpace));

@@ -55,6 +55,7 @@ void Display::setConfiguration(const compositionengine::DisplayCreationArgs& arg
     mPowerAdvisor = args.powerAdvisor;
 
     editState().isSecure = args.isSecure;
+    editState().displaySpace.bounds = Rect(args.pixels);
 
     setLayerStackFilter(args.layerStackId,
                         args.physical ? args.physical->type == DisplayConnectionType::Internal
