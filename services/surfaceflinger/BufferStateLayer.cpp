@@ -162,8 +162,8 @@ bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
     mCurrentStateModified = mCurrentState.modified;
     bool stateUpdateAvailable = Layer::applyPendingStates(stateToCommit);
     if (stateUpdateAvailable && mCallbackHandleAcquireTime != -1) {
-        // Update the actual end time if we have a buffer
-        mSurfaceFrame->setActualEndTime(mCallbackHandleAcquireTime);
+        // Update the acquire fence time if we have a buffer
+        mSurfaceFrame->setAcquireFenceTime(mCallbackHandleAcquireTime);
     }
     mCurrentStateModified = stateUpdateAvailable && mCurrentStateModified;
     mCurrentState.modified = false;

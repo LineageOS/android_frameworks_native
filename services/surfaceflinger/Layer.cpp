@@ -894,7 +894,10 @@ bool Layer::applyPendingStates(State* stateToCommit) {
         auto surfaceFrame =
                 mFlinger->mFrameTimeline->createSurfaceFrameForToken(mTransactionName, vsyncId);
         surfaceFrame->setActualQueueTime(stateToCommit->postTime);
-        surfaceFrame->setActualEndTime(stateToCommit->postTime);
+        // For transactions we set the acquire fence time to the post time as we
+        // don't have a buffer. For BufferStateLayer it is overridden in
+        // BufferStateLayer::applyPendingStates
+        surfaceFrame->setAcquireFenceTime(stateToCommit->postTime);
 
         mSurfaceFrame = std::move(surfaceFrame);
     }

@@ -20,6 +20,7 @@
 
 #include "FrameTimeline.h"
 #include <android-base/stringprintf.h>
+#include <utils/Log.h>
 #include <utils/Trace.h>
 #include <cinttypes>
 
@@ -104,9 +105,9 @@ void SurfaceFrame::setActualQueueTime(nsecs_t actualQueueTime) {
     std::lock_guard<std::mutex> lock(mMutex);
     mActualQueueTime = actualQueueTime;
 }
-void SurfaceFrame::setActualEndTime(nsecs_t actualEndTime) {
+void SurfaceFrame::setAcquireFenceTime(nsecs_t acquireFenceTime) {
     std::lock_guard<std::mutex> lock(mMutex);
-    mActuals.endTime = actualEndTime;
+    mActuals.endTime = std::max(acquireFenceTime, mActualQueueTime);
 }
 
 void SurfaceFrame::setActualPresentTime(nsecs_t presentTime) {
