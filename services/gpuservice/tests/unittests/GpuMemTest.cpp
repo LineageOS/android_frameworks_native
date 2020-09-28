@@ -60,7 +60,7 @@ public:
 
     void SetUp() override {
         SKIP_IF_BPF_NOT_SUPPORTED;
-        ASSERT_EQ(0, bpf::setrlimitForTest());
+        bpf::setrlimitForTest();
 
         mGpuMem = std::make_unique<GpuMem>();
         mTestableGpuMem = TestableGpuMem(mGpuMem.get());
