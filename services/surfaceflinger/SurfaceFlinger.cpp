@@ -6189,6 +6189,11 @@ status_t SurfaceFlinger::setFrameTimelineVsync(const sp<IGraphicBufferProducer>&
     }
 
     sp<Layer> layer = (static_cast<MonitoredProducer*>(surface.get()))->getLayer();
+    if (layer == nullptr) {
+        ALOGE("Attempt to set frame timeline vsync on a layer that no longer exists");
+        return BAD_VALUE;
+    }
+
     layer->setFrameTimelineVsync(frameTimelineVsyncId);
     return NO_ERROR;
 }
