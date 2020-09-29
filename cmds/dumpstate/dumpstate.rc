@@ -11,7 +11,7 @@ service dumpstate /system/bin/dumpstate -s
 
 # dumpstatez generates a zipped bugreport but also uses a socket to print the file location once
 # it is finished.
-service dumpstatez /system/bin/dumpstate -S -d -z
+service dumpstatez /system/bin/dumpstate -S
     socket dumpstate stream 0660 shell log
     class main
     disabled
