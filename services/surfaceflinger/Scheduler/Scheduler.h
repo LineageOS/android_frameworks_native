@@ -228,7 +228,8 @@ private:
     };
 
     ConnectionHandle::Id mNextConnectionHandleId = 0;
-    std::unordered_map<ConnectionHandle, Connection> mConnections;
+    mutable std::mutex mConnectionsLock;
+    std::unordered_map<ConnectionHandle, Connection> mConnections GUARDED_BY(mConnectionsLock);
 
     bool mInjectVSyncs = false;
     InjectVSyncSource* mVSyncInjector = nullptr;

@@ -248,20 +248,46 @@ TEST_F(OutputTest, setProjectionTriviallyWorks) {
 }
 
 /*
- * Output::setDisplaySpaceSize()
+ * Output::setDisplaySize()
  */
 
-TEST_F(OutputTest, setBoundsSetsSizeAndDirtiesEntireOutput) {
-    const ui::Size displaySize{200, 400};
+TEST_F(OutputTest, setDisplaySpaceSizeUpdatesOutputStateAndDirtiesEntireOutput) {
+    mOutput->editState().layerStackSpace.content = Rect(0, 0, 2000, 1000);
+    mOutput->editState().layerStackSpace.bounds = Rect(0, 0, 2000, 1000);
+    mOutput->editState().orientedDisplaySpace.content = Rect(0, 0, 1800, 900);
+    mOutput->editState().orientedDisplaySpace.bounds = Rect(0, 0, 2000, 1000);
+    mOutput->editState().framebufferSpace.content = Rect(0, 0, 900, 1800);
+    mOutput->editState().framebufferSpace.bounds = Rect(0, 0, 1000, 2000);
+    mOutput->editState().framebufferSpace.orientation = ui::ROTATION_90;
+    mOutput->editState().displaySpace.content = Rect(0, 0, 900, 1800);
+    mOutput->editState().displaySpace.bounds = Rect(0, 0, 1000, 2000);
+    mOutput->editState().displaySpace.orientation = ui::ROTATION_90;
 
-    EXPECT_CALL(*mRenderSurface, setDisplaySize(displaySize)).Times(1);
-    EXPECT_CALL(*mRenderSurface, getSize()).WillOnce(ReturnRef(displaySize));
+    const ui::Size newDisplaySize{500, 1000};
 
-    mOutput->setDisplaySpaceSize(displaySize);
+    EXPECT_CALL(*mRenderSurface, setDisplaySize(newDisplaySize)).Times(1);
 
-    EXPECT_EQ(Rect(displaySize), mOutput->getState().displaySpace.bounds);
+    mOutput->setDisplaySize(newDisplaySize);
 
-    EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(Rect(displaySize))));
+    const auto state = mOutput->getState();
+
+    const Rect displayRect(newDisplaySize);
+    EXPECT_EQ(ui::ROTATION_0, state.layerStackSpace.orientation);
+    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.layerStackSpace.content);
+    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.layerStackSpace.bounds);
+    EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.orientation);
+    EXPECT_EQ(Rect(0, 0, 900, 450), state.orientedDisplaySpace.content);
+    EXPECT_EQ(Rect(0, 0, 1000, 500), state.orientedDisplaySpace.bounds);
+    EXPECT_EQ(displayRect, state.displaySpace.bounds);
+    EXPECT_EQ(Rect(0, 0, 450, 900), state.displaySpace.content);
+    EXPECT_EQ(ui::ROTATION_90, state.displaySpace.orientation);
+    EXPECT_EQ(displayRect, state.framebufferSpace.bounds);
+    EXPECT_EQ(Rect(0, 0, 450, 900), state.framebufferSpace.content);
+    EXPECT_EQ(ui::ROTATION_90, state.framebufferSpace.orientation);
+
+    EXPECT_EQ(state.displaySpace.content, state.transform.transform(state.layerStackSpace.content));
+
+    EXPECT_THAT(state.dirtyRegion, RegionEq(Region(displayRect)));
 }
 
 /*
@@ -422,7 +448,7 @@ TEST_F(OutputTest, setRenderSurfaceResetsBounds) {
 
     mOutput->setRenderSurface(std::unique_ptr<RenderSurface>(renderSurface));
 
-    EXPECT_EQ(Rect(newDisplaySize), mOutput->getState().displaySpace.bounds);
+    EXPECT_EQ(Rect(newDisplaySize), mOutput->getState().framebufferSpace.bounds);
 }
 
 /*
@@ -2778,9 +2804,10 @@ struct OutputComposeSurfacesTest : public testing::Test {
 
         mOutput.mState.orientedDisplaySpace.content = kDefaultOutputFrame;
         mOutput.mState.layerStackSpace.content = kDefaultOutputViewport;
+        mOutput.mState.framebufferSpace.content = kDefaultOutputDestinationClip;
         mOutput.mState.displaySpace.content = kDefaultOutputDestinationClip;
-        mOutput.mState.transform = ui::Transform{kDefaultOutputOrientationFlags};
         mOutput.mState.displaySpace.orientation = kDefaultOutputOrientation;
+        mOutput.mState.transform = ui::Transform{kDefaultOutputOrientationFlags};
         mOutput.mState.dataspace = kDefaultOutputDataspace;
         mOutput.mState.colorTransformMatrix = kDefaultColorTransformMat;
         mOutput.mState.isSecure = false;

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <Scheduler/Scheduler.h>
 #include <gmock/gmock.h>
 #include <gui/ISurfaceComposer.h>
 
@@ -91,6 +92,22 @@ public:
     bool isTouchActive() {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
         return mFeatures.touch == Scheduler::TouchState::Active;
+    }
+
+    void dispatchCachedReportedConfig() {
+        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        return Scheduler::dispatchCachedReportedConfig();
+    }
+
+    void clearOptionalFieldsInFeatures() {
+        std::lock_guard<std::mutex> lock(mFeatureStateLock);
+        mFeatures.cachedConfigChangedParams.reset();
+    }
+
+    void onNonPrimaryDisplayConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
+                                          HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
+        return Scheduler::onNonPrimaryDisplayConfigChanged(handle, displayId, configId,
+                                                           vsyncPeriod);
     }
 
     ~TestableScheduler() {

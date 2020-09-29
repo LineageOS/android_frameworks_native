@@ -40,7 +40,7 @@ public:
     void setCompositionEnabled(bool) override;
     void setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
                        const Rect& orientedDisplaySpaceRect) override;
-    void setDisplaySpaceSize(const ui::Size&) override;
+    void setDisplaySize(const ui::Size&) override;
     void setLayerStackFilter(uint32_t layerStackId, bool isInternal) override;
 
     void setColorTransform(const compositionengine::CompositionRefreshArgs&) override;

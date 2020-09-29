@@ -166,7 +166,7 @@ public:
     virtual void setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
                                const Rect& orientedDisplaySpaceRect) = 0;
     // Sets the bounds to use
-    virtual void setDisplaySpaceSize(const ui::Size&) = 0;
+    virtual void setDisplaySize(const ui::Size&) = 0;
 
     // Sets the layer stack filtering settings for this output. See
     // belongsInOutput for full details.
