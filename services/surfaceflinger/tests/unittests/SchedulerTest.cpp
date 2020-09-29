@@ -175,4 +175,25 @@ TEST_F(SchedulerTest, noLayerHistory) {
     mScheduler.chooseRefreshRateForContent();
 }
 
+TEST_F(SchedulerTest, testDispatchCachedReportedConfig) {
+    // If the optional fields are cleared, the function should return before
+    // onConfigChange is called.
+    mScheduler.clearOptionalFieldsInFeatures();
+    EXPECT_NO_FATAL_FAILURE(mScheduler.dispatchCachedReportedConfig());
+    EXPECT_CALL(*mEventThread, onConfigChanged(_, _, _)).Times(0);
+}
+
+TEST_F(SchedulerTest, onNonPrimaryDisplayConfigChanged_invalidParameters) {
+    HwcConfigIndexType configId = HwcConfigIndexType(111);
+    nsecs_t vsyncPeriod = 111111;
+
+    // If the handle is incorrect, the function should return before
+    // onConfigChange is called.
+    Scheduler::ConnectionHandle invalidHandle = {.id = 123};
+    EXPECT_NO_FATAL_FAILURE(mScheduler.onNonPrimaryDisplayConfigChanged(invalidHandle,
+                                                                        PHYSICAL_DISPLAY_ID,
+                                                                        configId, vsyncPeriod));
+    EXPECT_CALL(*mEventThread, onConfigChanged(_, _, _)).Times(0);
+}
+
 } // namespace android

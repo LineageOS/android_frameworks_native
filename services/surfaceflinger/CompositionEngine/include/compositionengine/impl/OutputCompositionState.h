@@ -39,7 +39,7 @@ namespace android {
 namespace compositionengine::impl {
 
 struct OutputCompositionState {
-    // If false, composition will not per performed for this display
+    // If false, composition will not be performed for this display
     bool isEnabled{false};
 
     // If false, this output is not considered secure
@@ -70,6 +70,11 @@ struct OutputCompositionState {
     // Oriented physical display space. It will have the same size as displaySpace oriented to
     // match the orientation of layerStackSpace. The orientation of this space is always ROTATION_0.
     ProjectionSpace orientedDisplaySpace;
+
+    // The space of the framebuffer. Its bounds match the size of the framebuffer and its
+    // orientation matches the orientation of the display. Typically the framebuffer space will
+    // be identical to the physical display space.
+    ProjectionSpace framebufferSpace;
 
     // The space of the physical display. It is as big as the currently active display mode. The
     // content in this space can be rotated.
