@@ -28,6 +28,7 @@
 #include <SkSurface.h>
 
 #include "SkiaRenderEngine.h"
+#include "filters/BlurFilter.h"
 
 namespace android {
 namespace renderengine {
@@ -36,8 +37,8 @@ namespace skia {
 class SkiaGLRenderEngine : public skia::SkiaRenderEngine {
 public:
     static std::unique_ptr<SkiaGLRenderEngine> create(const RenderEngineCreationArgs& args);
-    SkiaGLRenderEngine(EGLDisplay display, EGLConfig config, EGLContext ctxt,
-                       EGLSurface placeholder, EGLContext protectedContext,
+    SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display, EGLConfig config,
+                       EGLContext ctxt, EGLSurface placeholder, EGLContext protectedContext,
                        EGLSurface protectedPlaceholder);
     ~SkiaGLRenderEngine() override{};
 
@@ -78,6 +79,7 @@ private:
     EGLSurface mPlaceholderSurface;
     EGLContext mProtectedEGLContext;
     EGLSurface mProtectedPlaceholderSurface;
+    BlurFilter* mBlurFilter = nullptr;
 
     // Cache of GL images that we'll store per GraphicBuffer ID
     std::unordered_map<uint64_t, sk_sp<SkImage>> mImageCache GUARDED_BY(mRenderingMutex);
