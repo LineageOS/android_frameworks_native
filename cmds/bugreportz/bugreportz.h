@@ -19,4 +19,8 @@
 // Ownership of the socket is not transferred.
 int bugreportz(int s, bool show_progress);
 
+// Calls dumpstate using the given socket and write the file content to stdout
+// instead of file location. Ownership of the socket is not transferred.
+int bugreportz_stream(int s);
+
 #endif  // BUGREPORTZ_H
