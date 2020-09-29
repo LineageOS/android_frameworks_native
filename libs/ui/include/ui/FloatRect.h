@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <math/HashCombine.h>
 #include <ostream>
 
 namespace android {
@@ -60,3 +61,13 @@ static inline void PrintTo(const FloatRect& rect, ::std::ostream* os) {
 }
 
 }  // namespace android
+
+namespace std {
+
+template <>
+struct hash<android::FloatRect> {
+    size_t operator()(const android::FloatRect& rect) const {
+        return android::hashCombine(rect.left, rect.top, rect.right, rect.bottom);
+    }
+};
+} // namespace std
