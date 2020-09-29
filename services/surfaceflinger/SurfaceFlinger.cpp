@@ -1982,7 +1982,7 @@ void SurfaceFlinger::onMessageRefresh() {
     mFrameTimeline->setSfPresent(systemTime(),
                                  std::make_shared<FenceTime>(mPreviousPresentFences[0]));
 
-    const bool prevFrameHadDeviceComposition = mHadDeviceComposition;
+    const bool prevFrameHadClientComposition = mHadClientComposition;
 
     mHadClientComposition = std::any_of(displays.cbegin(), displays.cend(), [](const auto& pair) {
         const auto& state = pair.second->getCompositionDisplay()->getState();
@@ -1997,9 +1997,8 @@ void SurfaceFlinger::onMessageRefresh() {
                 const auto& state = pair.second->getCompositionDisplay()->getState();
                 return state.reusedClientComposition;
             });
-
-    // Only report a strategy change if we move in and out of composition with hw overlays
-    if (prevFrameHadDeviceComposition != mHadDeviceComposition) {
+    // Only report a strategy change if we move in and out of client composition
+    if (prevFrameHadClientComposition != mHadClientComposition) {
         mTimeStats->incrementCompositionStrategyChanges();
     }
 
