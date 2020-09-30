@@ -270,6 +270,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
     t->setDesiredPresentTime(bufferItem.mTimestamp);
+    t->setFrameNumber(mSurfaceControl, bufferItem.mFrameNumber);
 
     if (applyTransaction) {
         t->apply();

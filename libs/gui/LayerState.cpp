@@ -45,7 +45,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, crop_legacy);
     SAFE_PARCEL(output.writeStrongBinder, barrierHandle_legacy);
     SAFE_PARCEL(output.writeStrongBinder, reparentHandle);
-    SAFE_PARCEL(output.writeUint64, frameNumber_legacy);
+    SAFE_PARCEL(output.writeUint64, barrierFrameNumber);
     SAFE_PARCEL(output.writeInt32, overrideScalingMode);
     SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(barrierGbp_legacy));
     SAFE_PARCEL(output.writeStrongBinder, relativeLayerHandle);
@@ -108,6 +108,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeFloat, frameRate);
     SAFE_PARCEL(output.writeByte, frameRateCompatibility);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
+    SAFE_PARCEL(output.writeUint64, frameNumber);
     return NO_ERROR;
 }
 
@@ -134,7 +135,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, crop_legacy);
     SAFE_PARCEL(input.readNullableStrongBinder, &barrierHandle_legacy);
     SAFE_PARCEL(input.readNullableStrongBinder, &reparentHandle);
-    SAFE_PARCEL(input.readUint64, &frameNumber_legacy);
+    SAFE_PARCEL(input.readUint64, &barrierFrameNumber);
     SAFE_PARCEL(input.readInt32, &overrideScalingMode);
 
     sp<IBinder> tmpBinder;
@@ -213,6 +214,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readByte, &frameRateCompatibility);
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
+    SAFE_PARCEL(input.readUint64, &frameNumber);
     return NO_ERROR;
 }
 
@@ -340,7 +342,7 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eDeferTransaction_legacy;
         barrierHandle_legacy = other.barrierHandle_legacy;
         barrierGbp_legacy = other.barrierGbp_legacy;
-        frameNumber_legacy = other.frameNumber_legacy;
+        barrierFrameNumber = other.barrierFrameNumber;
     }
     if (other.what & eOverrideScalingModeChanged) {
         what |= eOverrideScalingModeChanged;
@@ -455,6 +457,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eFixedTransformHintChanged) {
         what |= eFixedTransformHintChanged;
         fixedTransformHint = other.fixedTransformHint;
+    }
+    if (other.what & eFrameNumberChanged) {
+        what |= eFrameNumberChanged;
+        frameNumber = other.frameNumber;
     }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "

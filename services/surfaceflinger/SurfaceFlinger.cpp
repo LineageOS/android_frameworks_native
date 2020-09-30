@@ -3681,13 +3681,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eDeferTransaction_legacy) {
         if (s.barrierHandle_legacy != nullptr) {
-            layer->deferTransactionUntil_legacy(s.barrierHandle_legacy, s.frameNumber_legacy);
+            layer->deferTransactionUntil_legacy(s.barrierHandle_legacy, s.barrierFrameNumber);
         } else if (s.barrierGbp_legacy != nullptr) {
             const sp<IGraphicBufferProducer>& gbp = s.barrierGbp_legacy;
             if (authenticateSurfaceTextureLocked(gbp)) {
                 const auto& otherLayer =
                     (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
-                layer->deferTransactionUntil_legacy(otherLayer, s.frameNumber_legacy);
+                layer->deferTransactionUntil_legacy(otherLayer, s.barrierFrameNumber);
             } else {
                 ALOGE("Attempt to defer transaction to to an"
                         " unrecognized GraphicBufferProducer");
@@ -3818,8 +3818,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         buffer = s.buffer;
     }
     if (buffer) {
-        if (layer->setBuffer(buffer, s.acquireFence, postTime, desiredPresentTime,
-                             s.cachedBuffer)) {
+        const bool frameNumberChanged = what & layer_state_t::eFrameNumberChanged;
+        const uint64_t frameNumber = frameNumberChanged
+                ? s.frameNumber
+                : layer->getHeadFrameNumber(-1 /* expectedPresentTime */) + 1;
+
+        if (layer->setBuffer(buffer, s.acquireFence, postTime, desiredPresentTime, s.cachedBuffer,
+                             frameNumber)) {
             flags |= eTraversalNeeded;
         }
     }
