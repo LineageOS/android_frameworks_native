@@ -30,7 +30,6 @@
 #include <input/InputTransport.h>
 
 #include <android/os/BnInputFlinger.h>
-#include <android/os/IInputFlinger.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
