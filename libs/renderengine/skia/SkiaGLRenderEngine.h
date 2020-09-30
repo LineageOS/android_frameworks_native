@@ -17,16 +17,19 @@
 #ifndef SF_SKIAGLRENDERENGINE_H_
 #define SF_SKIAGLRENDERENGINE_H_
 
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <GLES2/gl2.h>
+#include <GrDirectContext.h>
+#include <SkSurface.h>
+#include <android-base/thread_annotations.h>
+#include <renderengine/RenderEngine.h>
 #include <sys/types.h>
+
 #include <mutex>
 #include <unordered_map>
 
-#include <android-base/thread_annotations.h>
-#include <renderengine/RenderEngine.h>
-
-#include <GrDirectContext.h>
-#include <SkSurface.h>
-
+#include "EGL/egl.h"
 #include "SkiaRenderEngine.h"
 #include "filters/BlurFilter.h"
 
@@ -80,6 +83,8 @@ private:
     EGLContext mProtectedEGLContext;
     EGLSurface mProtectedPlaceholderSurface;
     BlurFilter* mBlurFilter = nullptr;
+
+    const bool mUseColorManagement;
 
     // Cache of GL images that we'll store per GraphicBuffer ID
     std::unordered_map<uint64_t, sk_sp<SkImage>> mImageCache GUARDED_BY(mRenderingMutex);
