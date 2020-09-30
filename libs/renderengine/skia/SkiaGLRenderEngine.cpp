@@ -15,6 +15,7 @@
  */
 
 //#define LOG_NDEBUG 0
+#include <cstdint>
 #undef LOG_TAG
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -338,6 +339,19 @@ static bool hasUsage(const AHardwareBuffer_Desc& desc, uint64_t usage) {
     return !!(desc.usage & usage);
 }
 
+static float toDegrees(uint32_t transform) {
+    switch (transform) {
+        case ui::Transform::ROT_90:
+            return 90.0;
+        case ui::Transform::ROT_180:
+            return 180.0;
+        case ui::Transform::ROT_270:
+            return 270.0;
+        default:
+            return 0.0;
+    }
+}
+
 void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     mImageCache.erase(bufferId);
@@ -395,20 +409,39 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         ALOGE("Failed to make surface");
         return BAD_VALUE;
     }
+
     auto canvas = surface->getCanvas();
+    // Clear the entire canvas with a transparent black to prevent ghost images.
+    canvas->clear(SK_ColorTRANSPARENT);
     canvas->save();
 
     // Before doing any drawing, let's make sure that we'll start at the origin of the display.
     // Some displays don't start at 0,0 for example when we're mirroring the screen. Also, virtual
     // displays might have different scaling when compared to the physical screen.
+
+    canvas->clipRect(getSkRect(display.physicalDisplay));
     canvas->translate(display.physicalDisplay.left, display.physicalDisplay.top);
+
+    const auto clipWidth = display.clip.width();
+    const auto clipHeight = display.clip.height();
+    auto rotatedClipWidth = clipWidth;
+    auto rotatedClipHeight = clipHeight;
+    // Scale is contingent on the rotation result.
+    if (display.orientation & ui::Transform::ROT_90) {
+        std::swap(rotatedClipWidth, rotatedClipHeight);
+    }
     const auto scaleX = static_cast<SkScalar>(display.physicalDisplay.width()) /
-            static_cast<SkScalar>(display.clip.width());
+            static_cast<SkScalar>(rotatedClipWidth);
     const auto scaleY = static_cast<SkScalar>(display.physicalDisplay.height()) /
-            static_cast<SkScalar>(display.clip.height());
+            static_cast<SkScalar>(rotatedClipHeight);
     canvas->scale(scaleX, scaleY);
-    canvas->clipRect(getSkRect(display.clip));
-    canvas->drawColor(0, SkBlendMode::kSrc);
+
+    // Canvas rotation is done by centering the clip window at the origin, rotating, translating
+    // back so that the top left corner of the clip is at (0, 0).
+    canvas->translate(rotatedClipWidth / 2, rotatedClipHeight / 2);
+    canvas->rotate(toDegrees(display.orientation));
+    canvas->translate(-clipWidth / 2, -clipHeight / 2);
+    canvas->translate(-display.clip.left, -display.clip.top);
     for (const auto& layer : layers) {
         SkPaint paint;
         const auto& bounds = layer->geometry.boundaries;
@@ -422,6 +455,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         if (layer->source.buffer.buffer) {
             ATRACE_NAME("DrawImage");
             const auto& item = layer->source.buffer;
+            const auto bufferWidth = item.buffer->getBounds().width();
+            const auto bufferHeight = item.buffer->getBounds().height();
             sk_sp<SkImage> image;
             auto iter = mImageCache.find(item.buffer->getId());
             if (iter != mImageCache.end()) {
@@ -442,6 +477,38 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             } else {
                 matrix.setIdentity();
             }
+
+            auto texMatrix = getSkM44(item.textureTransform).asM33();
+            // textureTansform was intended to be passed directly into a shader, so when
+            // building the total matrix with the textureTransform we need to first
+            // normalize it, then apply the textureTransform, then scale back up.
+            matrix.postScale(1.0f / bufferWidth, 1.0f / bufferHeight);
+
+            auto rotatedBufferWidth = bufferWidth;
+            auto rotatedBufferHeight = bufferHeight;
+
+            // Swap the buffer width and height if we're rotating, so that we
+            // scale back up by the correct factors post-rotation.
+            if (texMatrix.getSkewX() <= -0.5f || texMatrix.getSkewX() >= 0.5f) {
+                std::swap(rotatedBufferWidth, rotatedBufferHeight);
+                // TODO: clean this up.
+                // GLESRenderEngine specifies its texture coordinates in
+                // CW orientation under OpenGL conventions, when they probably should have
+                // been CCW instead. The net result is that orientation
+                // transforms are applied in the reverse
+                // direction to render the correct result, because SurfaceFlinger uses the inverse
+                // of the display transform to correct for that. But this means that
+                // the tex transform passed by SkiaGLRenderEngine will rotate
+                // individual layers in the reverse orientation. Hack around it
+                // by injected a 180 degree rotation, but ultimately this is
+                // a bug in how SurfaceFlinger invokes the RenderEngine
+                // interface, so the proper fix should live there, and GLESRenderEngine
+                // should be fixed accordingly.
+                matrix.postRotate(180, 0.5, 0.5);
+            }
+
+            matrix.postConcat(texMatrix);
+            matrix.postScale(rotatedBufferWidth, rotatedBufferHeight);
             paint.setShader(image->makeShader(matrix));
         } else {
             ATRACE_NAME("DrawColor");
