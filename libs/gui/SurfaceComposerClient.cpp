@@ -348,8 +348,17 @@ void removeDeadBufferCallback(void* /*context*/, uint64_t graphicBufferId) {
 
 // ---------------------------------------------------------------------------
 
+// Initialize transaction id counter used to generate transaction ids
+// Transactions will start counting at 1, 0 is used for invalid transactions
+std::atomic<uint32_t> SurfaceComposerClient::Transaction::idCounter = 1;
+
+SurfaceComposerClient::Transaction::Transaction() {
+    mId = generateId();
+}
+
 SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
-      : mForceSynchronous(other.mForceSynchronous),
+      : mId(other.mId),
+        mForceSynchronous(other.mForceSynchronous),
         mTransactionNestCount(other.mTransactionNestCount),
         mAnimation(other.mAnimation),
         mEarlyWakeup(other.mEarlyWakeup),
@@ -370,6 +379,10 @@ SurfaceComposerClient::Transaction::createFromParcel(const Parcel* parcel) {
         return transaction;
     }
     return nullptr;
+}
+
+int64_t SurfaceComposerClient::Transaction::generateId() {
+    return (((int64_t)getpid()) << 32) | idCounter++;
 }
 
 status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel) {
@@ -582,7 +595,8 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     uncacheBuffer.id = cacheId;
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
-    sf->setTransactionState({}, {}, 0, applyToken, {}, -1, uncacheBuffer, false, {});
+    sf->setTransactionState({}, {}, 0, applyToken, {}, -1, uncacheBuffer, false, {},
+                            0 /* Undefined transactionId */);
 }
 
 void SurfaceComposerClient::Transaction::cacheBuffers() {
@@ -709,11 +723,14 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
     mExplicitEarlyWakeupStart = false;
     mExplicitEarlyWakeupEnd = false;
 
+    uint64_t transactionId = mId;
+    mId = generateId();
+
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
     sf->setTransactionState(composerStates, displayStates, flags, applyToken, mInputWindowCommands,
                             mDesiredPresentTime,
                             {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/,
-                            hasListenerCallbacks, listenerCallbacks);
+                            hasListenerCallbacks, listenerCallbacks, transactionId);
     mInputWindowCommands.clear();
     mStatus = NO_ERROR;
     return NO_ERROR;

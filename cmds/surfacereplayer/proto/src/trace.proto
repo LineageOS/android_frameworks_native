@@ -25,9 +25,10 @@ message Transaction {
     repeated SurfaceChange surface_change = 1;
     repeated DisplayChange display_change = 2;
 
-    required bool   synchronous = 3;
-    required bool   animation   = 4;
-    optional Origin origin      = 5;
+    required bool   synchronous      = 3;
+    required bool   animation        = 4;
+    optional Origin origin           = 5;
+    optional uint64 id               = 6;
 }
 
 message SurfaceChange {

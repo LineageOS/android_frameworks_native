@@ -354,10 +354,12 @@ public:
                              const InputWindowCommands& inputWindowCommands,
                              int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
                              bool hasListenerCallbacks,
-                             std::vector<ListenerCallbacks>& listenerCallbacks) {
+                             std::vector<ListenerCallbacks>& listenerCallbacks,
+                             uint64_t transactionId) {
         return mFlinger->setTransactionState(states, displays, flags, applyToken,
                                              inputWindowCommands, desiredPresentTime, uncacheBuffer,
-                                             hasListenerCallbacks, listenerCallbacks);
+                                             hasListenerCallbacks, listenerCallbacks,
+                                             transactionId);
     }
 
     auto flushTransactionQueues() { return mFlinger->flushTransactionQueues(); };

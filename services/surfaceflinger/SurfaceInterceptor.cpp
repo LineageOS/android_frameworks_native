@@ -527,13 +527,13 @@ void SurfaceInterceptor::addDisplayChangesLocked(Transaction* transaction,
 void SurfaceInterceptor::addTransactionLocked(
         Increment* increment, const Vector<ComposerState>& stateUpdates,
         const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,
-        const Vector<DisplayState>& changedDisplays, uint32_t transactionFlags, int originPID,
-        int originUID) {
+        const Vector<DisplayState>& changedDisplays, uint32_t transactionFlags, int originPid,
+        int originUid, uint64_t transactionId) {
     Transaction* transaction(increment->mutable_transaction());
     transaction->set_synchronous(transactionFlags & BnSurfaceComposer::eSynchronous);
     transaction->set_animation(transactionFlags & BnSurfaceComposer::eAnimation);
-    setTransactionOriginLocked(transaction, originPID, originUID);
-
+    setTransactionOriginLocked(transaction, originPid, originUid);
+    transaction->set_id(transactionId);
     for (const auto& compState: stateUpdates) {
         addSurfaceChangesLocked(transaction, compState.state);
     }
@@ -655,14 +655,15 @@ void SurfaceInterceptor::addPowerModeUpdateLocked(Increment* increment, int32_t 
 void SurfaceInterceptor::saveTransaction(
         const Vector<ComposerState>& stateUpdates,
         const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,
-        const Vector<DisplayState>& changedDisplays, uint32_t flags, int originPID, int originUID) {
+        const Vector<DisplayState>& changedDisplays, uint32_t flags, int originPid, int originUid,
+        uint64_t transactionId) {
     if (!mEnabled || (stateUpdates.size() <= 0 && changedDisplays.size() <= 0)) {
         return;
     }
     ATRACE_CALL();
     std::lock_guard<std::mutex> protoGuard(mTraceMutex);
     addTransactionLocked(createTraceIncrementLocked(), stateUpdates, displays, changedDisplays,
-                         flags, originPID, originUID);
+                         flags, originPid, originUid, transactionId);
 }
 
 void SurfaceInterceptor::saveSurfaceCreation(const sp<const Layer>& layer) {
