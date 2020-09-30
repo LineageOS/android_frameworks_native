@@ -29,12 +29,14 @@
 #include <utils/Trace.h>
 #include "../gl/GLExtensions.h"
 #include "SkiaGLRenderEngine.h"
+#include "filters/BlurFilter.h"
 
 #include <GrContextOptions.h>
 #include <gl/GrGLInterface.h>
 
 #include <SkCanvas.h>
 #include <SkImage.h>
+#include <SkImageFilters.h>
 #include <SkShadowUtils.h>
 #include <SkSurface.h>
 
@@ -194,7 +196,7 @@ std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
 
     // initialize the renderer while GL is current
     std::unique_ptr<SkiaGLRenderEngine> engine =
-            std::make_unique<SkiaGLRenderEngine>(display, config, ctxt, placeholder,
+            std::make_unique<SkiaGLRenderEngine>(args, display, config, ctxt, placeholder,
                                                  protectedContext, protectedPlaceholder);
 
     ALOGI("OpenGL ES informations:");
@@ -247,9 +249,9 @@ EGLConfig SkiaGLRenderEngine::chooseEglConfig(EGLDisplay display, int format, bo
     return config;
 }
 
-SkiaGLRenderEngine::SkiaGLRenderEngine(EGLDisplay display, EGLConfig config, EGLContext ctxt,
-                                       EGLSurface placeholder, EGLContext protectedContext,
-                                       EGLSurface protectedPlaceholder)
+SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
+                                       EGLConfig config, EGLContext ctxt, EGLSurface placeholder,
+                                       EGLContext protectedContext, EGLSurface protectedPlaceholder)
       : mEGLDisplay(display),
         mEGLConfig(config),
         mEGLContext(ctxt),
@@ -273,6 +275,10 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(EGLDisplay display, EGLConfig config, EGL
     options.fPreferExternalImagesOverES3 = true;
     options.fDisableDistanceFieldPaths = true;
     mGrContext = GrDirectContext::MakeGL(std::move(glInterface), options);
+
+    if (args.supportsBackgroundBlur) {
+        mBlurFilter = new BlurFilter();
+    }
 }
 
 base::unique_fd SkiaGLRenderEngine::flush() {
@@ -407,6 +413,11 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         SkPaint paint;
         const auto& bounds = layer->geometry.boundaries;
         const auto dest = getSkRect(bounds);
+
+        if (layer->backgroundBlurRadius > 0) {
+            ATRACE_NAME("BackgroundBlur");
+            mBlurFilter->draw(canvas, surface, layer->backgroundBlurRadius);
+        }
 
         if (layer->source.buffer.buffer) {
             ATRACE_NAME("DrawImage");
