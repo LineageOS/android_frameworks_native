@@ -72,7 +72,8 @@ public:
             const Vector<ComposerState>& state, const Vector<DisplayState>& displays,
             uint32_t flags, const sp<IBinder>& applyToken, const InputWindowCommands& commands,
             int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
-            bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks) {
+            bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
+            uint64_t transactionId) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
@@ -99,6 +100,8 @@ public:
             SAFE_PARCEL(data.writeStrongBinder, listener);
             SAFE_PARCEL(data.writeInt64Vector, callbackIds);
         }
+
+        SAFE_PARCEL(data.writeUint64, transactionId);
 
         return remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
     }
@@ -1278,9 +1281,13 @@ status_t BnSurfaceComposer::onTransact(
                 SAFE_PARCEL(data.readInt64Vector, &callbackIds);
                 listenerCallbacks.emplace_back(tmpBinder, callbackIds);
             }
+
+            uint64_t transactionId = -1;
+            SAFE_PARCEL(data.readUint64, &transactionId);
+
             return setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands,
                                        desiredPresentTime, uncachedBuffer, hasListenerCallbacks,
-                                       listenerCallbacks);
+                                       listenerCallbacks, transactionId);
         }
         case BOOT_FINISHED: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

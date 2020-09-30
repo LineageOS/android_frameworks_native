@@ -157,7 +157,7 @@ public:
             uint32_t flags, const sp<IBinder>& applyToken,
             const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
             const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
-            const std::vector<ListenerCallbacks>& listenerCallbacks) = 0;
+            const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) = 0;
 
     /* signal that we're done booting.
      * Requires ACCESS_SURFACE_FLINGER permission

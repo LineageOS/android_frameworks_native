@@ -68,8 +68,8 @@ public:
     virtual void saveTransaction(
             const Vector<ComposerState>& stateUpdates,
             const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,
-            const Vector<DisplayState>& changedDisplays, uint32_t flags, int originPID,
-            int originUID) = 0;
+            const Vector<DisplayState>& changedDisplays, uint32_t flags, int originPid,
+            int originUid, uint64_t transactionId) = 0;
 
     // Intercept surface data
     virtual void saveSurfaceCreation(const sp<const Layer>& layer) = 0;
@@ -107,8 +107,8 @@ public:
     // Intercept display and surface transactions
     void saveTransaction(const Vector<ComposerState>& stateUpdates,
                          const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,
-                         const Vector<DisplayState>& changedDisplays, uint32_t flags, int originPID,
-                         int originUID) override;
+                         const Vector<DisplayState>& changedDisplays, uint32_t flags, int originPid,
+                         int originUid, uint64_t transactionId) override;
 
     // Intercept surface data
     void saveSurfaceCreation(const sp<const Layer>& layer) override;
@@ -173,7 +173,8 @@ private:
     void addTransactionLocked(Increment* increment, const Vector<ComposerState>& stateUpdates,
                               const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,
                               const Vector<DisplayState>& changedDisplays,
-                              uint32_t transactionFlags, int originPID, int originUID);
+                              uint32_t transactionFlags, int originPid, int originUid,
+                              uint64_t transactionId);
     void addReparentLocked(Transaction* transaction, int32_t layerId, int32_t parentId);
     void addReparentChildrenLocked(Transaction* transaction, int32_t layerId, int32_t parentId);
     void addDetachChildrenLocked(Transaction* transaction, int32_t layerId, bool detached);
