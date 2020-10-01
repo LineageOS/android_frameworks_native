@@ -169,42 +169,35 @@ void SurfaceControl::setTransformHint(uint32_t hint) {
     mTransformHint = hint;
 }
 
-void SurfaceControl::writeToParcel(Parcel* parcel)
-{
-    parcel->writeStrongBinder(ISurfaceComposerClient::asBinder(mClient->getClient()));
-    parcel->writeStrongBinder(mHandle);
-    parcel->writeStrongBinder(IGraphicBufferProducer::asBinder(mGraphicBufferProducer));
-    parcel->writeUint32(mTransformHint);
+status_t SurfaceControl::writeToParcel(Parcel& parcel) {
+    SAFE_PARCEL(parcel.writeStrongBinder, ISurfaceComposerClient::asBinder(mClient->getClient()));
+    SAFE_PARCEL(parcel.writeStrongBinder, mHandle);
+    SAFE_PARCEL(parcel.writeStrongBinder, IGraphicBufferProducer::asBinder(mGraphicBufferProducer));
+    SAFE_PARCEL(parcel.writeUint32, mTransformHint);
+
+    return NO_ERROR;
 }
 
-sp<SurfaceControl> SurfaceControl::readFromParcel(const Parcel* parcel) {
-    bool invalidParcel = false;
-    status_t status;
+status_t SurfaceControl::readFromParcel(const Parcel& parcel,
+                                        sp<SurfaceControl>* outSurfaceControl) {
     sp<IBinder> client;
-    if ((status = parcel->readStrongBinder(&client)) != OK) {
-        ALOGE("Failed to read client: %s", statusToString(status).c_str());
-        invalidParcel = true;
-    }
     sp<IBinder> handle;
-    if ((status = parcel->readStrongBinder(&handle)) != OK) {
-        ALOGE("Failed to read handle: %s", statusToString(status).c_str());
-        invalidParcel = true;
-    }
     sp<IBinder> gbp;
-    if ((status = parcel->readNullableStrongBinder(&gbp)) != OK) {
-        ALOGE("Failed to read gbp: %s", statusToString(status).c_str());
-        invalidParcel = true;
-    }
-    uint32_t transformHint = parcel->readUint32();
+    uint32_t transformHint;
 
-    if (invalidParcel) {
-        return nullptr;
-    }
+    SAFE_PARCEL(parcel.readStrongBinder, &client);
+    SAFE_PARCEL(parcel.readStrongBinder, &handle);
+    SAFE_PARCEL(parcel.readNullableStrongBinder, &gbp);
+    SAFE_PARCEL(parcel.readUint32, &transformHint);
+
     // We aren't the original owner of the surface.
-    return new SurfaceControl(new SurfaceComposerClient(
-                                      interface_cast<ISurfaceComposerClient>(client)),
-                              handle.get(), interface_cast<IGraphicBufferProducer>(gbp),
+    *outSurfaceControl =
+            new SurfaceControl(new SurfaceComposerClient(
+                                       interface_cast<ISurfaceComposerClient>(client)),
+                               handle.get(), interface_cast<IGraphicBufferProducer>(gbp),
                                transformHint);
+
+    return NO_ERROR;
 }
 
 // ----------------------------------------------------------------------------
