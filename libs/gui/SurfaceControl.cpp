@@ -200,5 +200,27 @@ status_t SurfaceControl::readFromParcel(const Parcel& parcel,
     return NO_ERROR;
 }
 
+status_t SurfaceControl::readNullableFromParcel(const Parcel& parcel,
+                                                sp<SurfaceControl>* outSurfaceControl) {
+    bool isNotNull;
+    SAFE_PARCEL(parcel.readBool, &isNotNull);
+    if (isNotNull) {
+        SAFE_PARCEL(SurfaceControl::readFromParcel, parcel, outSurfaceControl);
+    }
+
+    return NO_ERROR;
+}
+
+status_t SurfaceControl::writeNullableToParcel(Parcel& parcel,
+                                               const sp<SurfaceControl>& surfaceControl) {
+    auto isNotNull = surfaceControl != nullptr;
+    SAFE_PARCEL(parcel.writeBool, isNotNull);
+    if (isNotNull) {
+        SAFE_PARCEL(surfaceControl->writeToParcel, parcel);
+    }
+
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 }; // namespace android
