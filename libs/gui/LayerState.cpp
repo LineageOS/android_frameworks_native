@@ -31,6 +31,7 @@ namespace android {
 status_t layer_state_t::write(Parcel& output) const
 {
     SAFE_PARCEL(output.writeStrongBinder, surface);
+    SAFE_PARCEL(output.writeInt32, layerId);
     SAFE_PARCEL(output.writeUint64, what);
     SAFE_PARCEL(output.writeFloat, x);
     SAFE_PARCEL(output.writeFloat, y);
@@ -115,6 +116,7 @@ status_t layer_state_t::write(Parcel& output) const
 status_t layer_state_t::read(const Parcel& input)
 {
     SAFE_PARCEL(input.readNullableStrongBinder, &surface);
+    SAFE_PARCEL(input.readInt32, &layerId);
     SAFE_PARCEL(input.readUint64, &what);
     SAFE_PARCEL(input.readFloat, &x);
     SAFE_PARCEL(input.readFloat, &y);

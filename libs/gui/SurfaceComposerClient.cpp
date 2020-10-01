@@ -443,12 +443,14 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> composerStates;
     composerStates.reserve(count);
     for (size_t i = 0; i < count; i++) {
-        sp<IBinder> surfaceControlHandle = parcel->readStrongBinder();
+        sp<IBinder> surfaceControlHandle;
+        SAFE_PARCEL(parcel->readStrongBinder, &surfaceControlHandle);
 
         ComposerState composerState;
         if (composerState.read(*parcel) == BAD_VALUE) {
             return BAD_VALUE;
         }
+
         composerStates[surfaceControlHandle] = composerState;
     }
 
@@ -512,8 +514,8 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     }
 
     parcel->writeUint32(static_cast<uint32_t>(mComposerStates.size()));
-    for (auto const& [surfaceHandle, composerState] : mComposerStates) {
-        parcel->writeStrongBinder(surfaceHandle);
+    for (auto const& [handle, composerState] : mComposerStates) {
+        SAFE_PARCEL(parcel->writeStrongBinder, handle);
         composerState.write(*parcel);
     }
 
@@ -522,11 +524,11 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Transaction&& other) {
-    for (auto const& [surfaceHandle, composerState] : other.mComposerStates) {
-        if (mComposerStates.count(surfaceHandle) == 0) {
-            mComposerStates[surfaceHandle] = composerState;
+    for (auto const& [handle, composerState] : other.mComposerStates) {
+        if (mComposerStates.count(handle) == 0) {
+            mComposerStates[handle] = composerState;
         } else {
-            mComposerStates[surfaceHandle].state.merge(composerState.state);
+            mComposerStates[handle].state.merge(composerState.state);
         }
     }
 
@@ -606,7 +608,7 @@ void SurfaceComposerClient::Transaction::cacheBuffers() {
 
     size_t count = 0;
     for (auto& [handle, cs] : mComposerStates) {
-        layer_state_t* s = getLayerState(handle);
+        layer_state_t* s = &(mComposerStates[handle].state);
         if (!(s->what & layer_state_t::eBufferChanged)) {
             continue;
         } else if (s->what & layer_state_t::eCachedBufferChanged) {
@@ -779,11 +781,16 @@ void SurfaceComposerClient::Transaction::setExplicitEarlyWakeupEnd() {
     mExplicitEarlyWakeupEnd = true;
 }
 
-layer_state_t* SurfaceComposerClient::Transaction::getLayerState(const sp<IBinder>& handle) {
+layer_state_t* SurfaceComposerClient::Transaction::getLayerState(const sp<SurfaceControl>& sc) {
+    auto handle = sc->getHandle();
+
     if (mComposerStates.count(handle) == 0) {
         // we don't have it, add an initialized layer_state to our list
         ComposerState s;
+
         s.state.surface = handle;
+        s.state.layerId = sc->getLayerId();
+
         mComposerStates[handle] = s;
     }
 
@@ -1678,7 +1685,7 @@ sp<SurfaceControl> SurfaceComposerClient::createWithSurfaceParent(const String8&
         }
         ALOGE_IF(err, "SurfaceComposerClient::createWithSurfaceParent error %s", strerror(-err));
         if (err == NO_ERROR) {
-            return new SurfaceControl(this, handle, gbp, transformHint);
+            return new SurfaceControl(this, handle, gbp, id, transformHint);
         }
     }
     return nullptr;
@@ -1711,7 +1718,7 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
         }
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
-            *outSurface = new SurfaceControl(this, handle, gbp, transformHint);
+            *outSurface = new SurfaceControl(this, handle, gbp, id, transformHint);
         }
     }
     return err;
@@ -1727,7 +1734,7 @@ sp<SurfaceControl> SurfaceComposerClient::mirrorSurface(SurfaceControl* mirrorFr
     int32_t layer_id = -1;
     status_t err = mClient->mirrorSurface(mirrorFromHandle, &handle, &layer_id);
     if (err == NO_ERROR) {
-        return new SurfaceControl(this, handle, nullptr, true /* owned */);
+        return new SurfaceControl(this, handle, nullptr, layer_id, true /* owned */);
     }
     return nullptr;
 }
