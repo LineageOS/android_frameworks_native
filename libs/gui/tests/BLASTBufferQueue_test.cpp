@@ -44,7 +44,7 @@ using android::hardware::graphics::common::V1_2::BufferUsage;
 class BLASTBufferQueueHelper {
 public:
     BLASTBufferQueueHelper(const sp<SurfaceControl>& sc, int width, int height) {
-        mBlastBufferQueueAdapter = new BLASTBufferQueue(sc, width, height);
+        mBlastBufferQueueAdapter = new BLASTBufferQueue("TestBLASTBufferQueue", sc, width, height);
     }
 
     void update(const sp<SurfaceControl>& sc, int width, int height) {
