@@ -148,7 +148,7 @@ void Output::setProjection(ui::Rotation orientation, const Rect& layerStackSpace
     LOG_FATAL_IF(outputState.framebufferSpace.bounds == Rect::INVALID_RECT,
                  "The framebuffer bounds are unknown.");
     const auto scale =
-            getScale(outputState.framebufferSpace.bounds, outputState.displaySpace.bounds);
+            getScale(outputState.displaySpace.bounds, outputState.framebufferSpace.bounds);
     outputState.framebufferSpace.content = outputState.displaySpace.content.scale(scale.x, scale.y);
 
     // Compute layerStackSpace

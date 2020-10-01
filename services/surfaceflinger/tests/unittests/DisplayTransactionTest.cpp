@@ -1448,7 +1448,7 @@ public:
         });
     }
 
-    ui::Size SwapWH(const ui::Size size) const { return ui::Size(size.height, size.width); }
+    ui::Size swapWH(const ui::Size size) const { return ui::Size(size.height, size.width); }
 
     void setProjectionForRotation0() {
         // A logical rotation of 0 uses the SurfaceFlinger display size
@@ -1459,8 +1459,8 @@ public:
     void setProjectionForRotation90() {
         // A logical rotation of 90 uses the SurfaceFlinger display size with
         // the width/height swapped.
-        mDisplayDevice->setProjection(ui::ROTATION_90, Rect(SwapWH(mFlingerDisplaySize)),
-                                      Rect(SwapWH(mFlingerDisplaySize)));
+        mDisplayDevice->setProjection(ui::ROTATION_90, Rect(swapWH(mFlingerDisplaySize)),
+                                      Rect(swapWH(mFlingerDisplaySize)));
     }
 
     void setProjectionForRotation180() {
@@ -1472,8 +1472,8 @@ public:
     void setProjectionForRotation270() {
         // A logical rotation of 270 uses the SurfaceFlinger display size with
         // the width/height swapped.
-        mDisplayDevice->setProjection(ui::ROTATION_270, Rect(SwapWH(mFlingerDisplaySize)),
-                                      Rect(SwapWH(mFlingerDisplaySize)));
+        mDisplayDevice->setProjection(ui::ROTATION_270, Rect(swapWH(mFlingerDisplaySize)),
+                                      Rect(swapWH(mFlingerDisplaySize)));
     }
 
     void expectStateForHardwareTransform0() {
@@ -1497,9 +1497,9 @@ public:
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
         // For 90, the orientedDisplaySpaceRect and layerStackSpaceRect have the hardware display
         // size width and height swapped
-        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)),
+        EXPECT_EQ(Rect(swapWH(mHardwareDisplaySize)),
                   compositionState.orientedDisplaySpace.content);
-        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.layerStackSpace.content);
+        EXPECT_EQ(Rect(swapWH(mHardwareDisplaySize)), compositionState.layerStackSpace.content);
         EXPECT_EQ(false, compositionState.needsFiltering);
     }
 
@@ -1523,9 +1523,9 @@ public:
         EXPECT_EQ(Rect(mHardwareDisplaySize), compositionState.displaySpace.content);
         // For 270, the orientedDisplaySpaceRect and layerStackSpaceRect have the hardware display
         // size width and height swapped
-        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)),
+        EXPECT_EQ(Rect(swapWH(mHardwareDisplaySize)),
                   compositionState.orientedDisplaySpace.content);
-        EXPECT_EQ(Rect(SwapWH(mHardwareDisplaySize)), compositionState.layerStackSpace.content);
+        EXPECT_EQ(Rect(swapWH(mHardwareDisplaySize)), compositionState.layerStackSpace.content);
         EXPECT_EQ(false, compositionState.needsFiltering);
     }
 

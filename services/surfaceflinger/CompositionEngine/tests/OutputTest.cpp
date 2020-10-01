@@ -235,16 +235,75 @@ TEST_F(OutputTest, setCompositionEnabledSetsDisabledAndDirtiesEntireOutput) {
  * Output::setProjection()
  */
 
-TEST_F(OutputTest, setProjectionTriviallyWorks) {
+TEST_F(OutputTest, setProjectionWorks) {
+    const Rect displayRect{0, 0, 1000, 2000};
+    mOutput->editState().displaySpace.bounds = displayRect;
+    mOutput->editState().framebufferSpace.bounds = displayRect;
+
     const ui::Rotation orientation = ui::ROTATION_90;
-    const Rect frame{1, 2, 3, 4};
-    const Rect viewport{5, 6, 7, 8};
+    const Rect frame{50, 60, 100, 100};
+    const Rect viewport{10, 20, 30, 40};
 
     mOutput->setProjection(orientation, viewport, frame);
 
     EXPECT_EQ(orientation, mOutput->getState().displaySpace.orientation);
     EXPECT_EQ(frame, mOutput->getState().orientedDisplaySpace.content);
     EXPECT_EQ(viewport, mOutput->getState().layerStackSpace.content);
+
+    const auto state = mOutput->getState();
+    EXPECT_EQ(ui::ROTATION_0, state.layerStackSpace.orientation);
+    EXPECT_EQ(viewport, state.layerStackSpace.content);
+    EXPECT_EQ(viewport, state.layerStackSpace.bounds);
+
+    EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.orientation);
+    EXPECT_EQ(frame, state.orientedDisplaySpace.content);
+    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.orientedDisplaySpace.bounds);
+
+    EXPECT_EQ(displayRect, state.displaySpace.bounds);
+    EXPECT_EQ(Rect(900, 50, 940, 100), state.displaySpace.content);
+    EXPECT_EQ(orientation, state.displaySpace.orientation);
+
+    EXPECT_EQ(displayRect, state.framebufferSpace.bounds);
+    EXPECT_EQ(Rect(900, 50, 940, 100), state.framebufferSpace.content);
+    EXPECT_EQ(orientation, state.framebufferSpace.orientation);
+
+    EXPECT_EQ(state.displaySpace.content, state.transform.transform(state.layerStackSpace.content));
+}
+
+TEST_F(OutputTest, setProjectionWithSmallFramebufferWorks) {
+    const Rect displayRect{0, 0, 1000, 2000};
+    const Rect framebufferRect{0, 0, 500, 1000};
+    mOutput->editState().displaySpace.bounds = displayRect;
+    mOutput->editState().framebufferSpace.bounds = framebufferRect;
+
+    const ui::Rotation orientation = ui::ROTATION_90;
+    const Rect frame{50, 60, 100, 100};
+    const Rect viewport{10, 20, 30, 40};
+
+    mOutput->setProjection(orientation, viewport, frame);
+
+    EXPECT_EQ(orientation, mOutput->getState().displaySpace.orientation);
+    EXPECT_EQ(frame, mOutput->getState().orientedDisplaySpace.content);
+    EXPECT_EQ(viewport, mOutput->getState().layerStackSpace.content);
+
+    const auto state = mOutput->getState();
+    EXPECT_EQ(ui::ROTATION_0, state.layerStackSpace.orientation);
+    EXPECT_EQ(viewport, state.layerStackSpace.content);
+    EXPECT_EQ(viewport, state.layerStackSpace.bounds);
+
+    EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.orientation);
+    EXPECT_EQ(frame, state.orientedDisplaySpace.content);
+    EXPECT_EQ(Rect(0, 0, 2000, 1000), state.orientedDisplaySpace.bounds);
+
+    EXPECT_EQ(displayRect, state.displaySpace.bounds);
+    EXPECT_EQ(Rect(900, 50, 940, 100), state.displaySpace.content);
+    EXPECT_EQ(orientation, state.displaySpace.orientation);
+
+    EXPECT_EQ(framebufferRect, state.framebufferSpace.bounds);
+    EXPECT_EQ(Rect(450, 25, 470, 50), state.framebufferSpace.content);
+    EXPECT_EQ(orientation, state.framebufferSpace.orientation);
+
+    EXPECT_EQ(state.displaySpace.content, state.transform.transform(state.layerStackSpace.content));
 }
 
 /*
@@ -275,12 +334,15 @@ TEST_F(OutputTest, setDisplaySpaceSizeUpdatesOutputStateAndDirtiesEntireOutput) 
     EXPECT_EQ(ui::ROTATION_0, state.layerStackSpace.orientation);
     EXPECT_EQ(Rect(0, 0, 2000, 1000), state.layerStackSpace.content);
     EXPECT_EQ(Rect(0, 0, 2000, 1000), state.layerStackSpace.bounds);
+
     EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.orientation);
     EXPECT_EQ(Rect(0, 0, 900, 450), state.orientedDisplaySpace.content);
     EXPECT_EQ(Rect(0, 0, 1000, 500), state.orientedDisplaySpace.bounds);
+
     EXPECT_EQ(displayRect, state.displaySpace.bounds);
     EXPECT_EQ(Rect(0, 0, 450, 900), state.displaySpace.content);
     EXPECT_EQ(ui::ROTATION_90, state.displaySpace.orientation);
+
     EXPECT_EQ(displayRect, state.framebufferSpace.bounds);
     EXPECT_EQ(Rect(0, 0, 450, 900), state.framebufferSpace.content);
     EXPECT_EQ(ui::ROTATION_90, state.framebufferSpace.orientation);
