@@ -39,6 +39,13 @@ struct TimelineItem {
     nsecs_t startTime;
     nsecs_t endTime;
     nsecs_t presentTime;
+
+    bool operator==(const TimelineItem& other) const {
+        return startTime == other.startTime && endTime == other.endTime &&
+                presentTime == other.presentTime;
+    }
+
+    bool operator!=(const TimelineItem& other) const { return !(*this == other); }
 };
 
 /*

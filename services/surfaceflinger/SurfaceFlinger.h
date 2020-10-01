@@ -494,7 +494,8 @@ private:
               typename Handler = VsyncModulator::VsyncConfigOpt (VsyncModulator::*)(Args...)>
     void modulateVsync(Handler handler, Args... args) {
         if (const auto config = (*mVsyncModulator.*handler)(args...)) {
-            setVsyncConfig(*config);
+            const auto vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
+            setVsyncConfig(*config, vsyncPeriod);
         }
     }
 
@@ -701,7 +702,7 @@ private:
 
     void initScheduler(PhysicalDisplayId primaryDisplayId);
     void updatePhaseConfiguration(const RefreshRate&);
-    void setVsyncConfig(const VsyncModulator::VsyncConfig&);
+    void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
      * region. Returns whether a new buffer has been latched, i.e., whether it
