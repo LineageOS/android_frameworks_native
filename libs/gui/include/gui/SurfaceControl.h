@@ -47,6 +47,10 @@ public:
     static status_t readFromParcel(const Parcel& parcel, sp<SurfaceControl>* outSurfaceControl);
     status_t writeToParcel(Parcel& parcel);
 
+    static status_t readNullableFromParcel(const Parcel& parcel,
+                                           sp<SurfaceControl>* outSurfaceControl);
+    static status_t writeNullableToParcel(Parcel& parcel, const sp<SurfaceControl>& surfaceControl);
+
     static bool isValid(const sp<SurfaceControl>& surface) {
         return (surface != nullptr) && surface->isValid();
     }
