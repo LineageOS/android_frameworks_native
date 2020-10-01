@@ -339,11 +339,17 @@ public:
     };
 
     class Transaction : public Parcelable {
+    private:
+        static std::atomic<uint32_t> idCounter;
+        int64_t generateId();
+
     protected:
         std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> mComposerStates;
         SortedVector<DisplayState > mDisplayStates;
         std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
                 mListenerCallbacks;
+
+        uint64_t mId;
 
         uint32_t mForceSynchronous = 0;
         uint32_t mTransactionNestCount = 0;
@@ -380,7 +386,7 @@ public:
         void registerSurfaceControlForCallback(const sp<SurfaceControl>& sc);
 
     public:
-        Transaction() = default;
+        Transaction();
         virtual ~Transaction() = default;
         Transaction(Transaction const& other);
 

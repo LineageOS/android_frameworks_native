@@ -101,6 +101,7 @@ public:
         InputWindowCommands inputWindowCommands;
         int64_t desiredPresentTime = -1;
         client_cache_t uncacheBuffer;
+        int64_t id = -1;
     };
 
     void checkEqual(TransactionInfo info, SurfaceFlinger::TransactionState state) {
@@ -133,7 +134,7 @@ public:
         mFlinger.setTransactionState(transaction.states, transaction.displays, transaction.flags,
                                      transaction.applyToken, transaction.inputWindowCommands,
                                      transaction.desiredPresentTime, transaction.uncacheBuffer,
-                                     mHasListenerCallbacks, mCallbacks);
+                                     mHasListenerCallbacks, mCallbacks, transaction.id);
 
         // This transaction should not have been placed on the transaction queue.
         // If transaction is synchronous or syncs input windows, SF
@@ -167,7 +168,7 @@ public:
         mFlinger.setTransactionState(transaction.states, transaction.displays, transaction.flags,
                                      transaction.applyToken, transaction.inputWindowCommands,
                                      transaction.desiredPresentTime, transaction.uncacheBuffer,
-                                     mHasListenerCallbacks, mCallbacks);
+                                     mHasListenerCallbacks, mCallbacks, transaction.id);
 
         nsecs_t returnedTime = systemTime();
         EXPECT_LE(returnedTime, applicationSentTime + s2ns(5));
@@ -198,7 +199,7 @@ public:
         mFlinger.setTransactionState(transactionA.states, transactionA.displays, transactionA.flags,
                                      transactionA.applyToken, transactionA.inputWindowCommands,
                                      transactionA.desiredPresentTime, transactionA.uncacheBuffer,
-                                     mHasListenerCallbacks, mCallbacks);
+                                     mHasListenerCallbacks, mCallbacks, transactionA.id);
 
         // This thread should not have been blocked by the above transaction
         // (5s is the timeout period that applyTransactionState waits for SF to
@@ -209,7 +210,7 @@ public:
         mFlinger.setTransactionState(transactionB.states, transactionB.displays, transactionB.flags,
                                      transactionB.applyToken, transactionB.inputWindowCommands,
                                      transactionB.desiredPresentTime, transactionB.uncacheBuffer,
-                                     mHasListenerCallbacks, mCallbacks);
+                                     mHasListenerCallbacks, mCallbacks, transactionB.id);
 
         // this thread should have been blocked by the above transaction
         // if this is an animation, this thread should be blocked for 5s
@@ -255,7 +256,7 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     mFlinger.setTransactionState(transactionA.states, transactionA.displays, transactionA.flags,
                                  transactionA.applyToken, transactionA.inputWindowCommands,
                                  transactionA.desiredPresentTime, transactionA.uncacheBuffer,
-                                 mHasListenerCallbacks, mCallbacks);
+                                 mHasListenerCallbacks, mCallbacks, transactionA.id);
 
     auto& transactionQueue = mFlinger.getTransactionQueue();
     ASSERT_EQ(1, transactionQueue.size());
@@ -273,7 +274,7 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     empty.applyToken = sp<IBinder>();
     mFlinger.setTransactionState(empty.states, empty.displays, empty.flags, empty.applyToken,
                                  empty.inputWindowCommands, empty.desiredPresentTime,
-                                 empty.uncacheBuffer, mHasListenerCallbacks, mCallbacks);
+                                 empty.uncacheBuffer, mHasListenerCallbacks, mCallbacks, empty.id);
 
     // flush transaction queue should flush as desiredPresentTime has
     // passed

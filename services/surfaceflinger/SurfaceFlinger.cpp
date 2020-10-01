@@ -3199,8 +3199,8 @@ bool SurfaceFlinger::flushTransactionQueues() {
                                       mPendingInputWindowCommands, transaction.desiredPresentTime,
                                       transaction.buffer, transaction.postTime,
                                       transaction.privileged, transaction.hasListenerCallbacks,
-                                      transaction.listenerCallbacks, transaction.originPID,
-                                      transaction.originUID, /*isMainThread*/ true);
+                                      transaction.listenerCallbacks, transaction.originPid,
+                                      transaction.originUid, transaction.id, /*isMainThread*/ true);
                 transactionQueue.pop();
                 flushedATransaction = true;
             }
@@ -3248,7 +3248,7 @@ status_t SurfaceFlinger::setTransactionState(
         const Vector<ComposerState>& states, const Vector<DisplayState>& displays, uint32_t flags,
         const sp<IBinder>& applyToken, const InputWindowCommands& inputWindowCommands,
         int64_t desiredPresentTime, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
-        const std::vector<ListenerCallbacks>& listenerCallbacks) {
+        const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) {
     ATRACE_CALL();
 
     const int64_t postTime = systemTime();
@@ -3281,21 +3281,21 @@ status_t SurfaceFlinger::setTransactionState(
     }
 
     IPCThreadState* ipc = IPCThreadState::self();
-    const int originPID = ipc->getCallingPid();
-    const int originUID = ipc->getCallingUid();
+    const int originPid = ipc->getCallingPid();
+    const int originUid = ipc->getCallingUid();
 
     if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
         mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
                                                uncacheBuffer, postTime, privileged,
-                                               hasListenerCallbacks, listenerCallbacks, originPID,
-                                               originUID);
+                                               hasListenerCallbacks, listenerCallbacks, originPid,
+                                               originUid, transactionId);
         setTransactionFlags(eTransactionFlushNeeded);
         return NO_ERROR;
     }
 
     applyTransactionState(states, displays, flags, inputWindowCommands, desiredPresentTime,
                           uncacheBuffer, postTime, privileged, hasListenerCallbacks,
-                          listenerCallbacks, originPID, originUID, /*isMainThread*/ false);
+                          listenerCallbacks, originPid, originUid, /*isMainThread*/ false);
     return NO_ERROR;
 }
 
@@ -3304,7 +3304,7 @@ void SurfaceFlinger::applyTransactionState(
         const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
         const client_cache_t& uncacheBuffer, const int64_t postTime, bool privileged,
         bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
-        int originPID, int originUID, bool isMainThread) {
+        int originPid, int originUid, uint64_t transactionId, bool isMainThread) {
     uint32_t transactionFlags = 0;
 
     if (flags & eAnimation) {
@@ -3395,7 +3395,7 @@ void SurfaceFlinger::applyTransactionState(
     if (transactionFlags) {
         if (mInterceptor->isEnabled()) {
             mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags,
-                                          originPID, originUID);
+                                          originPid, originUid, transactionId);
         }
 
         // TODO(b/159125966): Remove eEarlyWakeup completly as no client should use this flag
@@ -4087,8 +4087,8 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1, {}, false,
-                        {});
+    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1, {}, false, {},
+                        0 /* Undefined transactionId */);
 
     setPowerModeInternal(display, hal::PowerMode::ON);
     const nsecs_t vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();

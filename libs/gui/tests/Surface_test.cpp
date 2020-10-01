@@ -695,12 +695,15 @@ public:
     void destroyDisplay(const sp<IBinder>& /*display */) override {}
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override { return {}; }
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId) const override { return nullptr; }
-    status_t setTransactionState(
-            const Vector<ComposerState>& /*state*/, const Vector<DisplayState>& /*displays*/,
-            uint32_t /*flags*/, const sp<IBinder>& /*applyToken*/,
-            const InputWindowCommands& /*inputWindowCommands*/, int64_t /*desiredPresentTime*/,
-            const client_cache_t& /*cachedBuffer*/, bool /*hasListenerCallbacks*/,
-            const std::vector<ListenerCallbacks>& /*listenerCallbacks*/) override {
+    status_t setTransactionState(const Vector<ComposerState>& /*state*/,
+                                 const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
+                                 const sp<IBinder>& /*applyToken*/,
+                                 const InputWindowCommands& /*inputWindowCommands*/,
+                                 int64_t /*desiredPresentTime*/,
+                                 const client_cache_t& /*cachedBuffer*/,
+                                 bool /*hasListenerCallbacks*/,
+                                 const std::vector<ListenerCallbacks>& /*listenerCallbacks*/,
+                                 uint64_t /*transactionId*/) override {
         return NO_ERROR;
     }
 
