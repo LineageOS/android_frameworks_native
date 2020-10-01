@@ -1017,7 +1017,7 @@ SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(const sp<Surfac
     }
     s->what |= layer_state_t::eDeferTransaction_legacy;
     s->barrierHandle_legacy = handle;
-    s->frameNumber_legacy = frameNumber;
+    s->barrierFrameNumber = frameNumber;
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -1034,7 +1034,7 @@ SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(const sp<Surfac
     }
     s->what |= layer_state_t::eDeferTransaction_legacy;
     s->barrierGbp_legacy = barrierSurface->getIGraphicBufferProducer();
-    s->frameNumber_legacy = frameNumber;
+    s->barrierFrameNumber = frameNumber;
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -1321,6 +1321,20 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::notifyPr
     }
 
     s->what |= layer_state_t::eProducerDisconnect;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameNumber(
+        const sp<SurfaceControl>& sc, uint64_t frameNumber) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eFrameNumberChanged;
+    s->frameNumber = frameNumber;
+
     return *this;
 }
 

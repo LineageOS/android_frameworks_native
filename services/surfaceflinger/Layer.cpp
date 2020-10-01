@@ -800,10 +800,10 @@ void Layer::pushPendingState() {
             // to be applied as per normal (no synchronization).
             mCurrentState.barrierLayer_legacy = nullptr;
         } else {
-            auto syncPoint = std::make_shared<SyncPoint>(mCurrentState.frameNumber_legacy, this);
+            auto syncPoint = std::make_shared<SyncPoint>(mCurrentState.barrierFrameNumber, this);
             if (barrierLayer->addSyncPoint(syncPoint)) {
                 std::stringstream ss;
-                ss << "Adding sync point " << mCurrentState.frameNumber_legacy;
+                ss << "Adding sync point " << mCurrentState.barrierFrameNumber;
                 ATRACE_NAME(ss.str().c_str());
                 mRemoteSyncPoints.push_back(std::move(syncPoint));
             } else {
@@ -844,7 +844,7 @@ bool Layer::applyPendingStates(State* stateToCommit) {
             }
 
             if (mRemoteSyncPoints.front()->getFrameNumber() !=
-                mPendingStates[0].frameNumber_legacy) {
+                mPendingStates[0].barrierFrameNumber) {
                 ALOGE("[%s] Unexpected sync point frame number found", getDebugName());
 
                 // Signal our end of the sync point and then dispose of it
@@ -1463,13 +1463,13 @@ void Layer::deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t
     }
 
     mCurrentState.barrierLayer_legacy = barrierLayer;
-    mCurrentState.frameNumber_legacy = frameNumber;
+    mCurrentState.barrierFrameNumber = frameNumber;
     // We don't set eTransactionNeeded, because just receiving a deferral
     // request without any other state updates shouldn't actually induce a delay
     mCurrentState.modified = true;
     pushPendingState();
     mCurrentState.barrierLayer_legacy = nullptr;
-    mCurrentState.frameNumber_legacy = 0;
+    mCurrentState.barrierFrameNumber = 0;
     mCurrentState.modified = false;
 }
 
@@ -2234,7 +2234,7 @@ LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags,
 
 void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
                                      const DisplayDevice* display) {
-    ui::Transform transform = getTransform();
+    const ui::Transform transform = getTransform();
 
     if (traceFlags & SurfaceTracing::TRACE_CRITICAL) {
         for (const auto& pendingState : mPendingStatesSnapshot) {
@@ -2242,7 +2242,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
             if (barrierLayer != nullptr) {
                 BarrierLayerProto* barrierLayerProto = layerInfo->add_barrier_layer();
                 barrierLayerProto->set_id(barrierLayer->sequence);
-                barrierLayerProto->set_frame_number(pendingState.frameNumber_legacy);
+                barrierLayerProto->set_frame_number(pendingState.barrierFrameNumber);
             }
         }
 

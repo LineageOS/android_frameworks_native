@@ -148,7 +148,7 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
     if (layer->mCurrentState.barrierLayer_legacy != nullptr) {
         addDeferTransactionLocked(transaction, layerId,
                                   layer->mCurrentState.barrierLayer_legacy.promote(),
-                                  layer->mCurrentState.frameNumber_legacy);
+                                  layer->mCurrentState.barrierFrameNumber);
     }
     addOverrideScalingModeLocked(transaction, layerId, layer->getEffectiveScalingMode());
     addFlagsLocked(transaction, layerId, layer->mCurrentState.flags,
@@ -483,7 +483,7 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
                 ALOGE("Attempt to defer transaction to to an unrecognized GraphicBufferProducer");
             }
         }
-        addDeferTransactionLocked(transaction, layerId, otherLayer, state.frameNumber_legacy);
+        addDeferTransactionLocked(transaction, layerId, otherLayer, state.barrierFrameNumber);
     }
     if (state.what & layer_state_t::eOverrideScalingModeChanged) {
         addOverrideScalingModeLocked(transaction, layerId, state.overrideScalingMode);

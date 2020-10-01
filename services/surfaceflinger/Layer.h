@@ -187,7 +187,7 @@ public:
         // If set, defers this state update until the identified Layer
         // receives a frame with the given frameNumber
         wp<Layer> barrierLayer_legacy;
-        uint64_t frameNumber_legacy;
+        uint64_t barrierFrameNumber;
 
         // the transparentRegion hint is a bit special, it's latched only
         // when we receive a buffer -- this is because it's "content"
@@ -406,7 +406,7 @@ public:
     virtual bool setFrame(const Rect& /*frame*/) { return false; };
     virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, const sp<Fence>& /*acquireFence*/,
                            nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
-                           const client_cache_t& /*clientCacheId*/) {
+                           const client_cache_t& /*clientCacheId*/, uint64_t /* frameNumber */) {
         return false;
     };
     virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
@@ -509,6 +509,8 @@ public:
     virtual bool isHdrY410() const { return false; }
 
     virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
+
+    virtual uint64_t getHeadFrameNumber(nsecs_t /* expectedPresentTime */) const { return 0; }
 
     /*
      * called after composition.
