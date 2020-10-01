@@ -1,0 +1,12 @@
+{
+  "presubmit": [
+    {
+      "name": "CtsWindowManagerDeviceTestCases",
+      "options": [
+        {
+          "include-filter": "android.server.wm.WindowInputTests"
+        }
+      ]
+    }
+  ]
+}

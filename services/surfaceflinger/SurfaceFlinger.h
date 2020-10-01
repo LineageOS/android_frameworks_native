@@ -435,8 +435,8 @@ private:
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
                          int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
                          int64_t postTime, bool privileged, bool hasListenerCallbacks,
-                         std::vector<ListenerCallbacks> listenerCallbacks, int originPID,
-                         int originUID)
+                         std::vector<ListenerCallbacks> listenerCallbacks, int originPid,
+                         int originUid, uint64_t transactionId)
               : states(composerStates),
                 displays(displayStates),
                 flags(transactionFlags),
@@ -446,8 +446,9 @@ private:
                 privileged(privileged),
                 hasListenerCallbacks(hasListenerCallbacks),
                 listenerCallbacks(listenerCallbacks),
-                originPID(originPID),
-                originUID(originUID) {}
+                originPid(originPid),
+                originUid(originUid),
+                id(transactionId) {}
 
         Vector<ComposerState> states;
         Vector<DisplayState> displays;
@@ -458,8 +459,9 @@ private:
         bool privileged;
         bool hasListenerCallbacks;
         std::vector<ListenerCallbacks> listenerCallbacks;
-        int originPID;
-        int originUID;
+        int originPid;
+        int originUid;
+        uint64_t id;
     };
 
     template <typename F, std::enable_if_t<!std::is_member_function_pointer_v<F>>* = nullptr>
@@ -514,7 +516,8 @@ private:
                                  const InputWindowCommands& inputWindowCommands,
                                  int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
                                  bool hasListenerCallbacks,
-                                 const std::vector<ListenerCallbacks>& listenerCallbacks) override;
+                                 const std::vector<ListenerCallbacks>& listenerCallbacks,
+                                 uint64_t transactionId) override;
     void bootFinished() override;
     bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& bufferProducer) const override;
@@ -714,8 +717,8 @@ private:
                                const client_cache_t& uncacheBuffer, const int64_t postTime,
                                bool privileged, bool hasListenerCallbacks,
                                const std::vector<ListenerCallbacks>& listenerCallbacks,
-                               int originPID, int originUID, bool isMainThread = false)
-            REQUIRES(mStateLock);
+                               int originPid, int originUid, uint64_t transactionId,
+                               bool isMainThread = false) REQUIRES(mStateLock);
     // Returns true if at least one transaction was flushed
     bool flushTransactionQueues();
     // Returns true if there is at least one transaction that needs to be flushed
