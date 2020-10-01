@@ -46,11 +46,12 @@ namespace android {
 // ============================================================================
 
 SurfaceControl::SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                               const sp<IGraphicBufferProducer>& gbp,
+                               const sp<IGraphicBufferProducer>& gbp, int32_t layerId,
                                uint32_t transform)
       : mClient(client),
         mHandle(handle),
         mGraphicBufferProducer(gbp),
+        mLayerId(layerId),
         mTransformHint(transform) {}
 
 SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
@@ -58,6 +59,7 @@ SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
     mHandle = other->mHandle;
     mGraphicBufferProducer = other->mGraphicBufferProducer;
     mTransformHint = other->mTransformHint;
+    mLayerId = other->mLayerId;
 }
 
 SurfaceControl::~SurfaceControl()
@@ -148,6 +150,10 @@ sp<IBinder> SurfaceControl::getHandle() const
     return mHandle;
 }
 
+int32_t SurfaceControl::getLayerId() const {
+    return mLayerId;
+}
+
 sp<IGraphicBufferProducer> SurfaceControl::getIGraphicBufferProducer() const
 {
     Mutex::Autolock _l(mLock);
@@ -173,6 +179,7 @@ status_t SurfaceControl::writeToParcel(Parcel& parcel) {
     SAFE_PARCEL(parcel.writeStrongBinder, ISurfaceComposerClient::asBinder(mClient->getClient()));
     SAFE_PARCEL(parcel.writeStrongBinder, mHandle);
     SAFE_PARCEL(parcel.writeStrongBinder, IGraphicBufferProducer::asBinder(mGraphicBufferProducer));
+    SAFE_PARCEL(parcel.writeInt32, mLayerId);
     SAFE_PARCEL(parcel.writeUint32, mTransformHint);
 
     return NO_ERROR;
@@ -183,18 +190,20 @@ status_t SurfaceControl::readFromParcel(const Parcel& parcel,
     sp<IBinder> client;
     sp<IBinder> handle;
     sp<IBinder> gbp;
+    int32_t layerId;
     uint32_t transformHint;
 
     SAFE_PARCEL(parcel.readStrongBinder, &client);
     SAFE_PARCEL(parcel.readStrongBinder, &handle);
     SAFE_PARCEL(parcel.readNullableStrongBinder, &gbp);
+    SAFE_PARCEL(parcel.readInt32, &layerId);
     SAFE_PARCEL(parcel.readUint32, &transformHint);
 
     // We aren't the original owner of the surface.
     *outSurfaceControl =
             new SurfaceControl(new SurfaceComposerClient(
                                        interface_cast<ISurfaceComposerClient>(client)),
-                               handle.get(), interface_cast<IGraphicBufferProducer>(gbp),
+                               handle.get(), interface_cast<IGraphicBufferProducer>(gbp), layerId,
                                transformHint);
 
     return NO_ERROR;
