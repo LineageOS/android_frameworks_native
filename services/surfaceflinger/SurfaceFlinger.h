@@ -748,7 +748,7 @@ private:
                          PixelFormat format, uint32_t flags, LayerMetadata metadata,
                          sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp,
                          const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer = nullptr,
-                         uint32_t* outTransformHint = nullptr);
+                         int32_t* outId = nullptr, uint32_t* outTransformHint = nullptr);
 
     status_t createBufferQueueLayer(const sp<Client>& client, std::string name, uint32_t w,
                                     uint32_t h, uint32_t flags, LayerMetadata metadata,
@@ -768,7 +768,7 @@ private:
                                   sp<IBinder>* outHandle, sp<Layer>* outLayer);
 
     status_t mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
-                         sp<IBinder>* outHandle);
+                         sp<IBinder>* outHandle, int32_t* outId);
 
     std::string getUniqueLayerName(const char* name);
 
