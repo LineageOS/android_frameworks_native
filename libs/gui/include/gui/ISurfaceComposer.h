@@ -109,6 +109,9 @@ public:
 
     enum ConfigChanged { eConfigChangedSuppress = 0, eConfigChangedDispatch = 1 };
 
+    // Needs to be in sync with android.graphics.FrameInfo.INVALID_VSYNC_ID in java
+    static constexpr int64_t INVALID_VSYNC_ID = -1;
+
     /*
      * Create a connection with SurfaceFlinger.
      */
@@ -153,8 +156,8 @@ public:
 
     /* open/close transactions. requires ACCESS_SURFACE_FLINGER permission */
     virtual status_t setTransactionState(
-            const Vector<ComposerState>& state, const Vector<DisplayState>& displays,
-            uint32_t flags, const sp<IBinder>& applyToken,
+            int64_t frameTimelineVsyncId, const Vector<ComposerState>& state,
+            const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
             const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
             const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
             const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) = 0;
