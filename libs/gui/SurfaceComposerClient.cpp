@@ -431,7 +431,7 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
         }
         for (size_t j = 0; j < numSurfaces; j++) {
             sp<SurfaceControl> surface;
-            surface = SurfaceControl::readFromParcel(parcel);
+            SAFE_PARCEL(SurfaceControl::readFromParcel, *parcel, &surface);
             listenerCallbacks[listener].surfaceControls.insert(surface);
         }
     }
@@ -507,7 +507,7 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
         }
         parcel->writeUint32(static_cast<uint32_t>(callbackInfo.surfaceControls.size()));
         for (auto surfaceControl : callbackInfo.surfaceControls) {
-            surfaceControl->writeToParcel(parcel);
+            SAFE_PARCEL(surfaceControl->writeToParcel, *parcel);
         }
     }
 
