@@ -69,14 +69,15 @@ public:
     }
 
     virtual status_t setTransactionState(
-            const Vector<ComposerState>& state, const Vector<DisplayState>& displays,
-            uint32_t flags, const sp<IBinder>& applyToken, const InputWindowCommands& commands,
-            int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
-            bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
-            uint64_t transactionId) {
+            int64_t frameTimelineVsyncId, const Vector<ComposerState>& state,
+            const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
+            const InputWindowCommands& commands, int64_t desiredPresentTime,
+            const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
+            const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
+        SAFE_PARCEL(data.writeInt64, frameTimelineVsyncId);
         SAFE_PARCEL(data.writeUint32, static_cast<uint32_t>(state.size()));
         for (const auto& s : state) {
             SAFE_PARCEL(s.write, data);
@@ -1234,6 +1235,8 @@ status_t BnSurfaceComposer::onTransact(
         case SET_TRANSACTION_STATE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
 
+            int64_t frameTimelineVsyncId;
+            SAFE_PARCEL(data.readInt64, &frameTimelineVsyncId);
             uint32_t count = 0;
             SAFE_PARCEL_READ_SIZE(data.readUint32, &count, data.dataSize());
             Vector<ComposerState> state;
@@ -1285,9 +1288,10 @@ status_t BnSurfaceComposer::onTransact(
             uint64_t transactionId = -1;
             SAFE_PARCEL(data.readUint64, &transactionId);
 
-            return setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands,
-                                       desiredPresentTime, uncachedBuffer, hasListenerCallbacks,
-                                       listenerCallbacks, transactionId);
+            return setTransactionState(frameTimelineVsyncId, state, displays, stateFlags,
+                                       applyToken, inputWindowCommands, desiredPresentTime,
+                                       uncachedBuffer, hasListenerCallbacks, listenerCallbacks,
+                                       transactionId);
         }
         case BOOT_FINISHED: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

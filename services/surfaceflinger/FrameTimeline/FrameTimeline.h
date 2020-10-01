@@ -19,6 +19,7 @@
 #include <deque>
 #include <mutex>
 
+#include <gui/ISurfaceComposer.h>
 #include <ui/FenceTime.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
@@ -128,7 +129,7 @@ using namespace std::chrono_literals;
 
 class TokenManager : public android::frametimeline::TokenManager {
 public:
-    TokenManager() : mCurrentToken(0) {}
+    TokenManager() : mCurrentToken(ISurfaceComposer::INVALID_VSYNC_ID + 1) {}
     ~TokenManager() = default;
 
     int64_t generateTokenForPredictions(TimelineItem&& predictions) override;
