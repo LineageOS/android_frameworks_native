@@ -499,6 +499,8 @@ private:
     }
 
     static const int MAX_TRACING_MEMORY = 100 * 1024 * 1024; // 100MB
+    // Maximum allowed number of display frames that can be set through backdoor
+    static const int MAX_ALLOWED_DISPLAY_FRAMES = 2048;
 
     // Implements IBinder.
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;

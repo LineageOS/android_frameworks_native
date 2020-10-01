@@ -285,7 +285,9 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
     dumpTable(result, mPredictions, mActuals, indent, mPredictionState, baseTime);
 }
 
-FrameTimeline::FrameTimeline() : mCurrentDisplayFrame(std::make_shared<DisplayFrame>()) {}
+FrameTimeline::FrameTimeline()
+      : mCurrentDisplayFrame(std::make_shared<DisplayFrame>()),
+        mMaxDisplayFrames(kDefaultMaxDisplayFrames) {}
 
 FrameTimeline::DisplayFrame::DisplayFrame()
       : surfaceFlingerPredictions(TimelineItem()),
@@ -438,7 +440,7 @@ void FrameTimeline::flushPendingPresentFences() {
 }
 
 void FrameTimeline::finalizeCurrentDisplayFrame() {
-    while (mDisplayFrames.size() >= kMaxDisplayFrames) {
+    while (mDisplayFrames.size() >= mMaxDisplayFrames) {
         // We maintain only a fixed number of frames' data. Pop older frames
         mDisplayFrames.pop_front();
     }
@@ -528,6 +530,19 @@ void FrameTimeline::parseArgs(const Vector<String16>& args, std::string& result)
     if (argsMap.count("-all")) {
         dumpAll(result);
     }
+}
+
+void FrameTimeline::setMaxDisplayFrames(uint32_t size) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    // The size can either increase or decrease, clear everything, to be consistent
+    mDisplayFrames.clear();
+    mPendingPresentFences.clear();
+    mMaxDisplayFrames = size;
+}
+
+void FrameTimeline::reset() {
+    setMaxDisplayFrames(kDefaultMaxDisplayFrames);
 }
 
 } // namespace android::frametimeline::impl

@@ -163,6 +163,12 @@ public:
     //         or contain janky Surface Frames.
     // -all : Dumps the entire list of DisplayFrames and the SurfaceFrames contained within
     virtual void parseArgs(const Vector<String16>& args, std::string& result) = 0;
+
+    // Sets the max number of display frames that can be stored. Called by SF backdoor.
+    virtual void setMaxDisplayFrames(uint32_t size);
+
+    // Restores the max number of display frames to default. Called by SF backdoor.
+    virtual void reset() = 0;
 };
 
 namespace impl {
@@ -240,6 +246,8 @@ public:
     void setSfPresent(nsecs_t sfPresentTime,
                       const std::shared_ptr<FenceTime>& presentFence) override;
     void parseArgs(const Vector<String16>& args, std::string& result) override;
+    void setMaxDisplayFrames(uint32_t size) override;
+    void reset() override;
 
 private:
     // Friend class for testing
@@ -284,7 +292,8 @@ private:
     std::shared_ptr<DisplayFrame> mCurrentDisplayFrame GUARDED_BY(mMutex);
     TokenManager mTokenManager;
     std::mutex mMutex;
-    static constexpr uint32_t kMaxDisplayFrames = 64;
+    uint32_t mMaxDisplayFrames;
+    static constexpr uint32_t kDefaultMaxDisplayFrames = 64;
     // The initial container size for the vector<SurfaceFrames> inside display frame. Although this
     // number doesn't represent any bounds on the number of surface frames that can go in a display
     // frame, this is a good starting size for the vector so that we can avoid the internal vector

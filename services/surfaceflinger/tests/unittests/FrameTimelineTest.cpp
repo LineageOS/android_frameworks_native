@@ -43,7 +43,7 @@ public:
     void SetUp() override {
         mFrameTimeline = std::make_unique<impl::FrameTimeline>();
         mTokenManager = &mFrameTimeline->mTokenManager;
-        maxDisplayFrames = mFrameTimeline->kMaxDisplayFrames;
+        maxDisplayFrames = &mFrameTimeline->mMaxDisplayFrames;
         maxTokenRetentionTime = mTokenManager->kMaxRetentionTime;
     }
 
@@ -71,10 +71,15 @@ public:
         return mTokenManager->mPredictions;
     }
 
+    uint32_t getNumberOfDisplayFrames() {
+        std::lock_guard<std::mutex> lock(mFrameTimeline->mMutex);
+        return static_cast<uint32_t>(mFrameTimeline->mDisplayFrames.size());
+    }
+
     std::unique_ptr<impl::FrameTimeline> mFrameTimeline;
     impl::TokenManager* mTokenManager;
     FenceToFenceTimeMap fenceFactory;
-    uint64_t maxDisplayFrames;
+    uint32_t* maxDisplayFrames;
     nsecs_t maxTokenRetentionTime;
 };
 
@@ -178,7 +183,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_presentedFramesUpdated) {
 TEST_F(FrameTimelineTest, displayFramesSlidingWindowMovesAfterLimit) {
     // Insert kMaxDisplayFrames' count of DisplayFrames to fill the deque
     int frameTimeFactor = 0;
-    for (size_t i = 0; i < maxDisplayFrames; i++) {
+    for (size_t i = 0; i < *maxDisplayFrames; i++) {
         auto presentFence = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
         int64_t surfaceFrameToken = mTokenManager->generateTokenForPredictions(
                 {10 + frameTimeFactor, 20 + frameTimeFactor, 30 + frameTimeFactor});
@@ -233,4 +238,47 @@ TEST_F(FrameTimelineTest, surfaceFrameEndTimeAcquireFenceBeforeQueue) {
     EXPECT_EQ(surfaceFrame->getActuals().endTime, 456);
 }
 
+TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
+    auto presentFence = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    presentFence->signalForTest(2);
+
+    // Size shouldn't exceed maxDisplayFrames - 64
+    for (size_t i = 0; i < *maxDisplayFrames + 10; i++) {
+        auto surfaceFrame = mFrameTimeline->createSurfaceFrameForToken("layer1", std::nullopt);
+        int64_t sfToken = mTokenManager->generateTokenForPredictions({22, 26, 30});
+        mFrameTimeline->setSfWakeUp(sfToken, 22);
+        mFrameTimeline->addSurfaceFrame(std::move(surfaceFrame),
+                                        SurfaceFrame::PresentState::Presented);
+        mFrameTimeline->setSfPresent(27, presentFence);
+    }
+    EXPECT_EQ(getNumberOfDisplayFrames(), *maxDisplayFrames);
+
+    // Increase the size to 256
+    mFrameTimeline->setMaxDisplayFrames(256);
+    EXPECT_EQ(*maxDisplayFrames, 256);
+
+    for (size_t i = 0; i < *maxDisplayFrames + 10; i++) {
+        auto surfaceFrame = mFrameTimeline->createSurfaceFrameForToken("layer1", std::nullopt);
+        int64_t sfToken = mTokenManager->generateTokenForPredictions({22, 26, 30});
+        mFrameTimeline->setSfWakeUp(sfToken, 22);
+        mFrameTimeline->addSurfaceFrame(std::move(surfaceFrame),
+                                        SurfaceFrame::PresentState::Presented);
+        mFrameTimeline->setSfPresent(27, presentFence);
+    }
+    EXPECT_EQ(getNumberOfDisplayFrames(), *maxDisplayFrames);
+
+    // Shrink the size to 128
+    mFrameTimeline->setMaxDisplayFrames(128);
+    EXPECT_EQ(*maxDisplayFrames, 128);
+
+    for (size_t i = 0; i < *maxDisplayFrames + 10; i++) {
+        auto surfaceFrame = mFrameTimeline->createSurfaceFrameForToken("layer1", std::nullopt);
+        int64_t sfToken = mTokenManager->generateTokenForPredictions({22, 26, 30});
+        mFrameTimeline->setSfWakeUp(sfToken, 22);
+        mFrameTimeline->addSurfaceFrame(std::move(surfaceFrame),
+                                        SurfaceFrame::PresentState::Presented);
+        mFrameTimeline->setSfPresent(27, presentFence);
+    }
+    EXPECT_EQ(getNumberOfDisplayFrames(), *maxDisplayFrames);
+}
 } // namespace android::frametimeline
