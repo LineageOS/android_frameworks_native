@@ -166,8 +166,8 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                                            const std::vector<SurfaceControlStats>& stats) {
     std::unique_lock _lock{mMutex};
     ATRACE_CALL();
-
     BQA_LOGV("transactionCallback");
+    mInitialCallbackReceived = true;
 
     if (!stats.empty()) {
         mTransformHint = stats[0].transformHint;
@@ -185,7 +185,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
         if (!stats.empty()) {
             mPendingReleaseItem.releaseFence = stats[0].previousReleaseFence;
         } else {
-            ALOGE("Warning: no SurfaceControlStats returned in BLASTBufferQueue callback");
+            BQA_LOGE("Warning: no SurfaceControlStats returned in BLASTBufferQueue callback");
             mPendingReleaseItem.releaseFence = nullptr;
         }
         mBufferItemConsumer->releaseBuffer(mPendingReleaseItem.item,
@@ -198,7 +198,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
     }
 
     if (mSubmitted.empty()) {
-        ALOGE("ERROR: callback with no corresponding submitted buffer item");
+        BQA_LOGE("ERROR: callback with no corresponding submitted buffer item");
     }
     mPendingReleaseItem.item = std::move(mSubmitted.front());
     mSubmitted.pop();
@@ -213,12 +213,18 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     ATRACE_CALL();
     BQA_LOGV("processNextBufferLocked useNextTransaction=%s", toString(useNextTransaction));
 
-    if (mNumFrameAvailable == 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1) {
+    // Wait to acquire a buffer if there are no frames available or we have acquired the maximum
+    // number of buffers.
+    // As a special case, we wait for the first callback before acquiring the second buffer so we
+    // can ensure the first buffer is presented if multiple buffers are queued in succession.
+    if (mNumFrameAvailable == 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1 ||
+        (!mInitialCallbackReceived && mNumAcquired == 1)) {
+        BQA_LOGV("processNextBufferLocked waiting for frame available or callback");
         return;
     }
 
     if (mSurfaceControl == nullptr) {
-        ALOGE("ERROR : surface control is null");
+        BQA_LOGE("ERROR : surface control is null");
         return;
     }
 
@@ -241,6 +247,13 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     mNumFrameAvailable--;
 
     if (buffer == nullptr) {
+        mBufferItemConsumer->releaseBuffer(bufferItem, Fence::NO_FENCE);
+        return;
+    }
+
+    if (rejectBuffer(bufferItem)) {
+        BQA_LOGE("rejecting buffer: configured width=%d, height=%d, buffer{w=%d, h=%d}", mWidth,
+                 mHeight, buffer->getWidth(), buffer->getHeight());
         mBufferItemConsumer->releaseBuffer(bufferItem, Fence::NO_FENCE);
         return;
     }
@@ -311,4 +324,13 @@ void BLASTBufferQueue::setNextTransaction(SurfaceComposerClient::Transaction* t)
     mNextTransaction = t;
 }
 
+bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) const {
+    if (item.mScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE) {
+        // Only reject buffers if scaling mode is freeze.
+        return false;
+    }
+
+    // reject buffers if the buffer size doesn't match.
+    return item.mGraphicBuffer->getWidth() != mWidth || item.mGraphicBuffer->getHeight() != mHeight;
+}
 } // namespace android
