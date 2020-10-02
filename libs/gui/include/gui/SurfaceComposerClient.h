@@ -446,12 +446,6 @@ public:
         Transaction& deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
                                                   const sp<SurfaceControl>& barrierSurfaceControl,
                                                   uint64_t frameNumber);
-        // A variant of deferTransactionUntil_legacy which identifies the Layer we wait for by
-        // Surface instead of Handle. Useful for clients which may not have the
-        // SurfaceControl for some of their Surfaces. Otherwise behaves identically.
-        Transaction& deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
-                                                  const sp<Surface>& barrierSurface,
-                                                  uint64_t frameNumber);
         // Reparents all children of this layer to the new parent handle.
         Transaction& reparentChildren(const sp<SurfaceControl>& sc,
                                       const sp<SurfaceControl>& newParent);

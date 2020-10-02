@@ -92,7 +92,7 @@ namespace impl {
  */
 class SurfaceInterceptor final : public android::SurfaceInterceptor {
 public:
-    explicit SurfaceInterceptor(SurfaceFlinger* const flinger);
+    SurfaceInterceptor() = default;
     ~SurfaceInterceptor() override = default;
 
     // Both vectors are used to capture the current state of SF as the initial snapshot in the trace
@@ -202,7 +202,6 @@ private:
     std::string mOutputFileName {DEFAULT_FILENAME};
     std::mutex mTraceMutex {};
     Trace mTrace {};
-    SurfaceFlinger* const mFlinger;
     std::mutex mListenersMutex;
     std::map<wp<IBinder>, sp<gui::ITransactionTraceListener>> mTraceToggledListeners
             GUARDED_BY(mListenersMutex);
