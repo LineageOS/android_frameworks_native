@@ -54,10 +54,10 @@ TEST_P(LayerTypeTransactionTest, SetRelativeZNegative) {
     ASSERT_NO_FATAL_FAILURE(layerB = createLayer("test B", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerB, Color::BLUE, 32, 32));
 
-    Transaction().reparent(layerB, parent->getHandle()).apply();
+    Transaction().reparent(layerB, parent).apply();
 
     // layerR = mLayerZBase, layerG = layerR - 1, layerB = -2
-    Transaction().setRelativeLayer(layerG, layerR->getHandle(), -1).setLayer(layerB, -2).apply();
+    Transaction().setRelativeLayer(layerG, layerR, -1).setLayer(layerB, -2).apply();
 
     std::unique_ptr<ScreenCapture> screenshot;
     // only layerB is in this range
@@ -88,10 +88,7 @@ TEST_P(LayerTypeTransactionTest, SetLayerAndRelative) {
             .setCrop_legacy(childLayer, Rect(0, 0, 20, 30))
             .apply();
 
-    Transaction()
-            .setRelativeLayer(childLayer, parent->getHandle(), -1)
-            .setLayer(childLayer, 1)
-            .apply();
+    Transaction().setRelativeLayer(childLayer, parent, -1).setLayer(childLayer, 1).apply();
 
     {
         SCOPED_TRACE("setLayer above");
@@ -101,10 +98,7 @@ TEST_P(LayerTypeTransactionTest, SetLayerAndRelative) {
         screenshot->expectColor(Rect(0, 0, 20, 30), Color::RED);
     }
 
-    Transaction()
-            .setLayer(childLayer, 1)
-            .setRelativeLayer(childLayer, parent->getHandle(), -1)
-            .apply();
+    Transaction().setLayer(childLayer, 1).setRelativeLayer(childLayer, parent, -1).apply();
 
     {
         SCOPED_TRACE("setRelative below");
@@ -141,7 +135,7 @@ TEST_P(LayerTypeTransactionTest, HideRelativeParentHidesLayer) {
             .setLayer(relativeParent, mLayerZBase)
             .apply();
 
-    Transaction().setRelativeLayer(childLayer, relativeParent->getHandle(), 1).apply();
+    Transaction().setRelativeLayer(childLayer, relativeParent, 1).apply();
 
     {
         SCOPED_TRACE("setLayer above");

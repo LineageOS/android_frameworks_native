@@ -61,7 +61,7 @@ TEST_F(DetachChildren, RelativesAreNotDetached) {
     TransactionUtils::fillSurfaceRGBA8(relative, relativeColor);
 
     Transaction{}
-            .setRelativeLayer(relative, mMainSurface->getHandle(), 1)
+            .setRelativeLayer(relative, mMainSurface, 1)
             .setPosition(relative, relBounds.left, relBounds.top)
             .apply();
 
@@ -204,7 +204,7 @@ TEST_F(DetachChildren, DetachChildrenThenAttach) {
             .setLayer(newParentSurface, INT32_MAX - 1)
             .show(newParentSurface)
             .setPosition(newParentSurface, newParentBounds.left, newParentBounds.top)
-            .reparent(childNewClient, newParentSurface->getHandle())
+            .reparent(childNewClient, newParentSurface)
             .apply();
     {
         mCapture = screenshot();
@@ -238,7 +238,7 @@ TEST_F(DetachChildren, DetachChildrenWithDeferredTransaction) {
     }
 
     Transaction()
-            .deferTransactionUntil_legacy(childNewClient, mMainSurface->getHandle(),
+            .deferTransactionUntil_legacy(childNewClient, mMainSurface,
                                           mMainSurface->getSurface()->getNextFrameNumber())
             .apply();
     Transaction().detachChildren(mMainSurface).apply();
@@ -290,7 +290,7 @@ TEST_F(DetachChildren, DeferredTransactionOnDetachedChildren) {
     Transaction().detachChildren(mMainSurface).apply();
     Transaction()
             .setCrop_legacy(childNewClient, {0, 0, childBounds.width(), childBounds.height()})
-            .deferTransactionUntil_legacy(childNewClient, mMainSurface->getHandle(),
+            .deferTransactionUntil_legacy(childNewClient, mMainSurface,
                                           mMainSurface->getSurface()->getNextFrameNumber())
             .apply();
 
@@ -352,7 +352,7 @@ TEST_F(DetachChildren, ReparentParentLayerOfDetachedChildren) {
         mCapture->expectColor(mMainSurfaceBounds, Color::BLACK);
     }
 
-    Transaction().reparent(mMainSurface, mBlackBgSurface->getHandle()).apply();
+    Transaction().reparent(mMainSurface, mBlackBgSurface).apply();
     {
         mCapture = screenshot();
         mCapture->expectBorder(childBounds, mMainSurfaceColor);

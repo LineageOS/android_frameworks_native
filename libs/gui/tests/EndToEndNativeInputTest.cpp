@@ -381,7 +381,7 @@ TEST_F(InputSurfacesTest, input_respects_cropped_surface_insets) {
 
     childSurface->doTransaction([&](auto &t, auto &sc) {
         t.setPosition(sc, -5, -5);
-        t.reparent(sc, parentSurface->mSurfaceControl->getHandle());
+        t.reparent(sc, parentSurface->mSurfaceControl);
     });
 
     injectTap(106, 106);
