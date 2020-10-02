@@ -19,6 +19,7 @@
 #include <deque>
 #include <mutex>
 
+#include <gui/ISurfaceComposer.h>
 #include <ui/FenceTime.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
@@ -84,10 +85,10 @@ public:
 
     // Actual timestamps of the app are set individually at different functions.
     // Start time (if the app provides) and Queue time are accessible after queueing the frame,
-    // whereas End time is available only during latch.
+    // whereas Acquire Fence time is available only during latch.
     virtual void setActualStartTime(nsecs_t actualStartTime) = 0;
     virtual void setActualQueueTime(nsecs_t actualQueueTime) = 0;
-    virtual void setActualEndTime(nsecs_t actualEndTime) = 0;
+    virtual void setAcquireFenceTime(nsecs_t acquireFenceTime) = 0;
 };
 
 /*
@@ -128,7 +129,7 @@ using namespace std::chrono_literals;
 
 class TokenManager : public android::frametimeline::TokenManager {
 public:
-    TokenManager() : mCurrentToken(0) {}
+    TokenManager() : mCurrentToken(ISurfaceComposer::INVALID_VSYNC_ID + 1) {}
     ~TokenManager() = default;
 
     int64_t generateTokenForPredictions(TimelineItem&& predictions) override;
@@ -162,7 +163,7 @@ public:
 
     void setActualStartTime(nsecs_t actualStartTime) override;
     void setActualQueueTime(nsecs_t actualQueueTime) override;
-    void setActualEndTime(nsecs_t actualEndTime) override;
+    void setAcquireFenceTime(nsecs_t acquireFenceTime) override;
     void setPresentState(PresentState state) override;
     void setActualPresentTime(nsecs_t presentTime);
     void dump(std::string& result);

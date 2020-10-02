@@ -161,6 +161,10 @@ void BufferStateLayer::pushPendingState() {
 bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
     mCurrentStateModified = mCurrentState.modified;
     bool stateUpdateAvailable = Layer::applyPendingStates(stateToCommit);
+    if (stateUpdateAvailable && mCallbackHandleAcquireTime != -1) {
+        // Update the acquire fence time if we have a buffer
+        mSurfaceFrame->setAcquireFenceTime(mCallbackHandleAcquireTime);
+    }
     mCurrentStateModified = stateUpdateAvailable && mCurrentStateModified;
     mCurrentState.modified = false;
     return stateUpdateAvailable;
@@ -258,12 +262,12 @@ bool BufferStateLayer::addFrameEvent(const sp<Fence>& acquireFence, nsecs_t post
 
 bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence,
                                  nsecs_t postTime, nsecs_t desiredPresentTime,
-                                 const client_cache_t& clientCacheId) {
+                                 const client_cache_t& clientCacheId, uint64_t frameNumber) {
     if (mCurrentState.buffer) {
         mReleasePreviousBuffer = true;
     }
 
-    mCurrentState.frameNumber++;
+    mCurrentState.frameNumber = frameNumber;
 
     mCurrentState.buffer = buffer;
     mCurrentState.clientCacheId = clientCacheId;

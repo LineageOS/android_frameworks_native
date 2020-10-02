@@ -46,11 +46,12 @@ namespace android {
 // ============================================================================
 
 SurfaceControl::SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                               const sp<IGraphicBufferProducer>& gbp,
+                               const sp<IGraphicBufferProducer>& gbp, int32_t layerId,
                                uint32_t transform)
       : mClient(client),
         mHandle(handle),
         mGraphicBufferProducer(gbp),
+        mLayerId(layerId),
         mTransformHint(transform) {}
 
 SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
@@ -58,6 +59,7 @@ SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
     mHandle = other->mHandle;
     mGraphicBufferProducer = other->mGraphicBufferProducer;
     mTransformHint = other->mTransformHint;
+    mLayerId = other->mLayerId;
 }
 
 SurfaceControl::~SurfaceControl()
@@ -148,6 +150,10 @@ sp<IBinder> SurfaceControl::getHandle() const
     return mHandle;
 }
 
+int32_t SurfaceControl::getLayerId() const {
+    return mLayerId;
+}
+
 sp<IGraphicBufferProducer> SurfaceControl::getIGraphicBufferProducer() const
 {
     Mutex::Autolock _l(mLock);
@@ -169,42 +175,60 @@ void SurfaceControl::setTransformHint(uint32_t hint) {
     mTransformHint = hint;
 }
 
-void SurfaceControl::writeToParcel(Parcel* parcel)
-{
-    parcel->writeStrongBinder(ISurfaceComposerClient::asBinder(mClient->getClient()));
-    parcel->writeStrongBinder(mHandle);
-    parcel->writeStrongBinder(IGraphicBufferProducer::asBinder(mGraphicBufferProducer));
-    parcel->writeUint32(mTransformHint);
+status_t SurfaceControl::writeToParcel(Parcel& parcel) {
+    SAFE_PARCEL(parcel.writeStrongBinder, ISurfaceComposerClient::asBinder(mClient->getClient()));
+    SAFE_PARCEL(parcel.writeStrongBinder, mHandle);
+    SAFE_PARCEL(parcel.writeStrongBinder, IGraphicBufferProducer::asBinder(mGraphicBufferProducer));
+    SAFE_PARCEL(parcel.writeInt32, mLayerId);
+    SAFE_PARCEL(parcel.writeUint32, mTransformHint);
+
+    return NO_ERROR;
 }
 
-sp<SurfaceControl> SurfaceControl::readFromParcel(const Parcel* parcel) {
-    bool invalidParcel = false;
-    status_t status;
+status_t SurfaceControl::readFromParcel(const Parcel& parcel,
+                                        sp<SurfaceControl>* outSurfaceControl) {
     sp<IBinder> client;
-    if ((status = parcel->readStrongBinder(&client)) != OK) {
-        ALOGE("Failed to read client: %s", statusToString(status).c_str());
-        invalidParcel = true;
-    }
     sp<IBinder> handle;
-    if ((status = parcel->readStrongBinder(&handle)) != OK) {
-        ALOGE("Failed to read handle: %s", statusToString(status).c_str());
-        invalidParcel = true;
-    }
     sp<IBinder> gbp;
-    if ((status = parcel->readNullableStrongBinder(&gbp)) != OK) {
-        ALOGE("Failed to read gbp: %s", statusToString(status).c_str());
-        invalidParcel = true;
-    }
-    uint32_t transformHint = parcel->readUint32();
+    int32_t layerId;
+    uint32_t transformHint;
 
-    if (invalidParcel) {
-        return nullptr;
-    }
+    SAFE_PARCEL(parcel.readStrongBinder, &client);
+    SAFE_PARCEL(parcel.readStrongBinder, &handle);
+    SAFE_PARCEL(parcel.readNullableStrongBinder, &gbp);
+    SAFE_PARCEL(parcel.readInt32, &layerId);
+    SAFE_PARCEL(parcel.readUint32, &transformHint);
+
     // We aren't the original owner of the surface.
-    return new SurfaceControl(new SurfaceComposerClient(
-                                      interface_cast<ISurfaceComposerClient>(client)),
-                              handle.get(), interface_cast<IGraphicBufferProducer>(gbp),
+    *outSurfaceControl =
+            new SurfaceControl(new SurfaceComposerClient(
+                                       interface_cast<ISurfaceComposerClient>(client)),
+                               handle.get(), interface_cast<IGraphicBufferProducer>(gbp), layerId,
                                transformHint);
+
+    return NO_ERROR;
+}
+
+status_t SurfaceControl::readNullableFromParcel(const Parcel& parcel,
+                                                sp<SurfaceControl>* outSurfaceControl) {
+    bool isNotNull;
+    SAFE_PARCEL(parcel.readBool, &isNotNull);
+    if (isNotNull) {
+        SAFE_PARCEL(SurfaceControl::readFromParcel, parcel, outSurfaceControl);
+    }
+
+    return NO_ERROR;
+}
+
+status_t SurfaceControl::writeNullableToParcel(Parcel& parcel,
+                                               const sp<SurfaceControl>& surfaceControl) {
+    auto isNotNull = surfaceControl != nullptr;
+    SAFE_PARCEL(parcel.writeBool, isNotNull);
+    if (isNotNull) {
+        SAFE_PARCEL(surfaceControl->writeToParcel, parcel);
+    }
+
+    return NO_ERROR;
 }
 
 // ----------------------------------------------------------------------------
