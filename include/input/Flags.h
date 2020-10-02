@@ -22,6 +22,7 @@
 #include <string>
 #include <type_traits>
 
+#include "NamedEnum.h"
 #include "utils/BitSet.h"
 
 #ifndef __UI_INPUT_FLAGS_H
@@ -30,38 +31,6 @@
 namespace android {
 
 namespace details {
-template <typename F, F V>
-constexpr std::optional<std::string_view> enum_value_name() {
-    // Should look something like (but all on one line):
-    //   std::optional<std::string_view>
-    //   android::details::enum_value_name()
-    //   [F = android::test::TestFlags, V = android::test::TestFlags::ONE]
-    std::string_view view = __PRETTY_FUNCTION__;
-    size_t templateStart = view.rfind("[");
-    size_t templateEnd = view.rfind("]");
-    if (templateStart == std::string::npos || templateEnd == std::string::npos) {
-        return std::nullopt;
-    }
-
-    // Extract the template parameters without the enclosing braces.
-    // Example (cont'd): F = android::test::TestFlags, V = android::test::TestFlags::ONE
-    view = view.substr(templateStart + 1, templateEnd - templateStart - 1);
-    size_t valStart = view.rfind("V = ");
-    if (valStart == std::string::npos) {
-        return std::nullopt;
-    }
-
-    // Example (cont'd): V = android::test::TestFlags::ONE
-    view = view.substr(valStart);
-    size_t nameStart = view.rfind("::");
-    if (nameStart == std::string::npos) {
-        return std::nullopt;
-    }
-
-    // Chop off the initial "::"
-    nameStart += 2;
-    return view.substr(nameStart);
-}
 
 template <typename F>
 inline constexpr auto flag_count = sizeof(F) * __CHAR_BIT__;
