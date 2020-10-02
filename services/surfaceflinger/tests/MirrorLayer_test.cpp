@@ -68,7 +68,7 @@ TEST_F(MirrorLayerTest, MirrorColorLayer) {
 
     // Add mirrorLayer as child of mParentLayer so it's shown on the display
     Transaction()
-            .reparent(mirrorLayer, mParentLayer->getHandle())
+            .reparent(mirrorLayer, mParentLayer)
             .setPosition(mirrorLayer, 500, 500)
             .show(mirrorLayer)
             .apply();
@@ -127,7 +127,7 @@ TEST_F(MirrorLayerTest, MirrorColorLayer) {
     }
 
     // Add grandchild layer to offscreen layer
-    Transaction().reparent(grandchild, mChildLayer->getHandle()).apply();
+    Transaction().reparent(grandchild, mChildLayer).apply();
     {
         SCOPED_TRACE("Added Grandchild Layer");
         auto shot = screenshot();
@@ -138,7 +138,7 @@ TEST_F(MirrorLayerTest, MirrorColorLayer) {
     }
 
     // Add child layer
-    Transaction().reparent(mChildLayer, mParentLayer->getHandle()).apply();
+    Transaction().reparent(mChildLayer, mParentLayer).apply();
     {
         SCOPED_TRACE("Added Child Layer");
         auto shot = screenshot();
@@ -157,7 +157,7 @@ TEST_F(MirrorLayerTest, MirrorBufferLayer) {
 
     sp<SurfaceControl> mirrorLayer = mClient->mirrorSurface(mChildLayer.get());
     Transaction()
-            .reparent(mirrorLayer, mParentLayer->getHandle())
+            .reparent(mirrorLayer, mParentLayer)
             .setPosition(mirrorLayer, 500, 500)
             .show(mirrorLayer)
             .apply();

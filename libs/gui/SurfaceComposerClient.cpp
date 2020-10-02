@@ -875,8 +875,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLayer
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setRelativeLayer(const sp<SurfaceControl>& sc, const sp<IBinder>& relativeTo,
-        int32_t z) {
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setRelativeLayer(
+        const sp<SurfaceControl>& sc, const sp<SurfaceControl>& relativeTo, int32_t z) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
@@ -884,7 +884,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setRelat
     }
     s->what |= layer_state_t::eRelativeLayerChanged;
     s->what &= ~layer_state_t::eLayerChanged;
-    s->relativeLayerHandle = relativeTo;
+    s->relativeLayerSurfaceControl = relativeTo;
     s->z = z;
 
     registerSurfaceControlForCallback(sc);
@@ -1028,16 +1028,16 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBackg
 }
 
 SurfaceComposerClient::Transaction&
-SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
-                                                                 const sp<IBinder>& handle,
-                                                                 uint64_t frameNumber) {
+SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(
+        const sp<SurfaceControl>& sc, const sp<SurfaceControl>& barrierSurfaceControl,
+        uint64_t frameNumber) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
     s->what |= layer_state_t::eDeferTransaction_legacy;
-    s->barrierHandle_legacy = handle;
+    s->barrierSurfaceControl_legacy = barrierSurfaceControl;
     s->barrierFrameNumber = frameNumber;
 
     registerSurfaceControlForCallback(sc);
@@ -1062,30 +1062,28 @@ SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(const sp<Surfac
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::reparentChildren(
-        const sp<SurfaceControl>& sc,
-        const sp<IBinder>& newParentHandle) {
+        const sp<SurfaceControl>& sc, const sp<SurfaceControl>& newParent) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
     s->what |= layer_state_t::eReparentChildren;
-    s->reparentHandle = newParentHandle;
+    s->reparentSurfaceControl = newParent;
 
     registerSurfaceControlForCallback(sc);
     return *this;
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::reparent(
-        const sp<SurfaceControl>& sc,
-        const sp<IBinder>& newParentHandle) {
+        const sp<SurfaceControl>& sc, const sp<SurfaceControl>& newParent) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
     s->what |= layer_state_t::eReparent;
-    s->parentHandleForChild = newParentHandle;
+    s->parentSurfaceControlForChild = newParent;
 
     registerSurfaceControlForCallback(sc);
     return *this;

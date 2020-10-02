@@ -584,9 +584,7 @@ void Replayer::setDeferredTransaction(SurfaceComposerClient::Transaction& t,
         return;
     }
 
-    auto handle = mLayers[dtc.layer_id()]->getHandle();
-
-    t.deferTransactionUntil_legacy(mLayers[id], handle, dtc.frame_number());
+    t.deferTransactionUntil_legacy(mLayers[id], mLayers[dtc.layer_id()], dtc.frame_number());
 }
 
 void Replayer::setDisplaySurface(SurfaceComposerClient::Transaction& t,
@@ -706,11 +704,11 @@ status_t Replayer::loadSurfaceComposerClient() {
 
 void Replayer::setReparentChange(SurfaceComposerClient::Transaction& t,
         layer_id id, const ReparentChange& c) {
-    sp<IBinder> newParentHandle = nullptr;
+    sp<SurfaceControl> newSurfaceControl = nullptr;
     if (mLayers.count(c.parent_id()) != 0 && mLayers[c.parent_id()] != nullptr) {
-        newParentHandle = mLayers[c.parent_id()]->getHandle();
+        newSurfaceControl = mLayers[c.parent_id()];
     }
-    t.reparent(mLayers[id], newParentHandle);
+    t.reparent(mLayers[id], newSurfaceControl);
 }
 
 void Replayer::setRelativeParentChange(SurfaceComposerClient::Transaction& t,
@@ -719,7 +717,7 @@ void Replayer::setRelativeParentChange(SurfaceComposerClient::Transaction& t,
         ALOGE("Layer %d not found in set relative parent transaction", c.relative_parent_id());
         return;
     }
-    t.setRelativeLayer(mLayers[id], mLayers[c.relative_parent_id()]->getHandle(), c.z());
+    t.setRelativeLayer(mLayers[id], mLayers[c.relative_parent_id()], c.z());
 }
 
 void Replayer::setDetachChildrenChange(SurfaceComposerClient::Transaction& t,
@@ -733,7 +731,7 @@ void Replayer::setReparentChildrenChange(SurfaceComposerClient::Transaction& t,
         ALOGE("Layer %d not found in reparent children transaction", c.parent_id());
         return;
     }
-    t.reparentChildren(mLayers[id], mLayers[c.parent_id()]->getHandle());
+    t.reparentChildren(mLayers[id], mLayers[c.parent_id()]);
 }
 
 void Replayer::setShadowRadiusChange(SurfaceComposerClient::Transaction& t,

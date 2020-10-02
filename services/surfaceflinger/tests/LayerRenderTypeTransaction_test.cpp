@@ -211,16 +211,13 @@ void LayerRenderTypeTransactionTest::setRelativeZBasicHelper(uint32_t layerType)
 
     switch (layerType) {
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
-            Transaction()
-                    .setPosition(layerG, 16, 16)
-                    .setRelativeLayer(layerG, layerR->getHandle(), 1)
-                    .apply();
+            Transaction().setPosition(layerG, 16, 16).setRelativeLayer(layerG, layerR, 1).apply();
             break;
         case ISurfaceComposerClient::eFXSurfaceBufferState:
             Transaction()
                     .setFrame(layerR, Rect(0, 0, 32, 32))
                     .setFrame(layerG, Rect(16, 16, 48, 48))
-                    .setRelativeLayer(layerG, layerR->getHandle(), 1)
+                    .setRelativeLayer(layerG, layerR, 1)
                     .apply();
             break;
         default:
@@ -233,7 +230,7 @@ void LayerRenderTypeTransactionTest::setRelativeZBasicHelper(uint32_t layerType)
         shot->expectColor(Rect(16, 16, 48, 48), Color::GREEN);
     }
 
-    Transaction().setRelativeLayer(layerG, layerR->getHandle(), -1).apply();
+    Transaction().setRelativeLayer(layerG, layerR, -1).apply();
     {
         SCOPED_TRACE("layerG below");
         auto shot = getScreenCapture();
@@ -266,7 +263,7 @@ void LayerRenderTypeTransactionTest::setRelativeZGroupHelper(uint32_t layerType)
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
             Transaction()
                     .setPosition(layerG, 8, 8)
-                    .setRelativeLayer(layerG, layerR->getHandle(), 3)
+                    .setRelativeLayer(layerG, layerR, 3)
                     .setPosition(layerB, 16, 16)
                     .setLayer(layerB, mLayerZBase + 2)
                     .apply();
@@ -275,7 +272,7 @@ void LayerRenderTypeTransactionTest::setRelativeZGroupHelper(uint32_t layerType)
             Transaction()
                     .setFrame(layerR, Rect(0, 0, 32, 32))
                     .setFrame(layerG, Rect(8, 8, 40, 40))
-                    .setRelativeLayer(layerG, layerR->getHandle(), 3)
+                    .setRelativeLayer(layerG, layerR, 3)
                     .setFrame(layerB, Rect(16, 16, 48, 48))
                     .setLayer(layerB, mLayerZBase + 2)
                     .apply();
@@ -303,7 +300,7 @@ void LayerRenderTypeTransactionTest::setRelativeZGroupHelper(uint32_t layerType)
     }
 
     // layerR = 4, layerG = layerR - 3, layerB = 2
-    Transaction().setRelativeLayer(layerG, layerR->getHandle(), -3).apply();
+    Transaction().setRelativeLayer(layerG, layerR, -3).apply();
     {
         SCOPED_TRACE("layerB < (layerG < layerR)");
         auto shot = getScreenCapture();
@@ -810,7 +807,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorWithParentAlpha_Bug74220420) {
     // channel) should be less than one
     const uint8_t tolerance = 1;
     Transaction()
-            .reparent(colorLayer, parentLayer->getHandle())
+            .reparent(colorLayer, parentLayer)
             .setColor(colorLayer, color)
             .setAlpha(parentLayer, alpha)
             .setLayer(parentLayer, mLayerZBase + 1)
@@ -1225,7 +1222,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetFrameDefaultBSParent_BufferState) {
             child = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
     ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(child, Color::BLUE, 10, 10));
 
-    Transaction().reparent(child, parent->getHandle()).apply();
+    Transaction().reparent(child, parent).apply();
 
     // A layer will default to the frame of its parent
     auto shot = getScreenCapture();
@@ -1242,7 +1239,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetFrameDefaultBQParent_BufferState) {
             child = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
     ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(child, Color::BLUE, 10, 10));
 
-    Transaction().reparent(child, parent->getHandle()).apply();
+    Transaction().reparent(child, parent).apply();
 
     // A layer will default to the frame of its parent
     auto shot = getScreenCapture();
@@ -1272,7 +1269,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetFrameOutsideBounds_BufferState) {
             parent = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
     ASSERT_NO_FATAL_FAILURE(
             child = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
-    Transaction().reparent(child, parent->getHandle()).apply();
+    Transaction().reparent(child, parent).apply();
 
     ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(parent, Color::RED, 32, 32));
     Transaction().setFrame(parent, Rect(0, 0, 32, 32)).apply();

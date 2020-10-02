@@ -3298,7 +3298,7 @@ status_t SurfaceFlinger::setTransactionState(
     applyTransactionState(frameTimelineVsyncId, states, displays, flags, inputWindowCommands,
                           desiredPresentTime, uncacheBuffer, postTime, privileged,
                           hasListenerCallbacks, listenerCallbacks, originPid, originUid,
-                          /*isMainThread*/ false);
+                          transactionId, /*isMainThread*/ false);
     return NO_ERROR;
 }
 
@@ -3591,7 +3591,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         const auto& p = layer->getParent();
         if (p == nullptr) {
             ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
-            if (layer->setRelativeLayer(s.relativeLayerHandle, s.z) && idx >= 0) {
+            if (layer->setRelativeLayer(s.relativeLayerSurfaceControl->getHandle(), s.z) &&
+                idx >= 0) {
                 mCurrentState.layersSortedByZ.removeAt(idx);
                 mCurrentState.layersSortedByZ.add(layer);
                 // we need traversal (state changed)
@@ -3599,7 +3600,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
         } else {
-            if (p->setChildRelativeLayer(layer, s.relativeLayerHandle, s.z)) {
+            if (p->setChildRelativeLayer(layer, s.relativeLayerSurfaceControl->getHandle(), s.z)) {
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
         }
@@ -3685,8 +3686,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
     }
     if (what & layer_state_t::eDeferTransaction_legacy) {
-        if (s.barrierHandle_legacy != nullptr) {
-            layer->deferTransactionUntil_legacy(s.barrierHandle_legacy, s.barrierFrameNumber);
+        if (s.barrierSurfaceControl_legacy != nullptr) {
+            layer->deferTransactionUntil_legacy(s.barrierSurfaceControl_legacy->getHandle(),
+                                                s.barrierFrameNumber);
         } else if (s.barrierGbp_legacy != nullptr) {
             const sp<IGraphicBufferProducer>& gbp = s.barrierGbp_legacy;
             if (authenticateSurfaceTextureLocked(gbp)) {
@@ -3702,7 +3704,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         // changed, we don't want this to cause any more work
     }
     if (what & layer_state_t::eReparentChildren) {
-        if (layer->reparentChildren(s.reparentHandle)) {
+        if (layer->reparentChildren(s.reparentSurfaceControl->getHandle())) {
             flags |= eTransactionNeeded|eTraversalNeeded;
         }
     }
@@ -3789,7 +3791,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     // lose its relative z order.
     if (what & layer_state_t::eReparent) {
         bool hadParent = layer->hasParent();
-        if (layer->reparent(s.parentHandleForChild)) {
+        auto parentHandle = (s.parentSurfaceControlForChild)
+                ? s.parentSurfaceControlForChild->getHandle()
+                : nullptr;
+        if (layer->reparent(parentHandle)) {
             if (!hadParent) {
                 mCurrentState.layersSortedByZ.remove(layer);
             }
