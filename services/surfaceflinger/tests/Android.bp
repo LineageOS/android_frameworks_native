@@ -34,6 +34,7 @@ cc_test {
         "LayerUpdate_test.cpp",
         "MirrorLayer_test.cpp",
         "MultiDisplayLayerBounds_test.cpp",
+        "RefreshRateOverlay_test.cpp",
         "RelativeZ_test.cpp",
         "ScreenCapture_test.cpp",
         "SetFrameRate_test.cpp",

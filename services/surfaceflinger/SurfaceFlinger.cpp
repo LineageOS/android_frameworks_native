@@ -3942,7 +3942,9 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     mInterceptor->saveSurfaceCreation(layer);
 
     setTransactionFlags(eTransactionNeeded);
-    *outId = layer->sequence;
+    if (outId) {
+        *outId = layer->sequence;
+    }
     return result;
 }
 
