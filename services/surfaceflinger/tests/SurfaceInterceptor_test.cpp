@@ -51,6 +51,7 @@ constexpr int BACKGROUND_BLUR_RADIUS_UPDATE = 24;
 constexpr float POSITION_UPDATE = 121;
 const Rect CROP_UPDATE(16, 16, 32, 32);
 const float SHADOW_RADIUS_UPDATE = 35.0f;
+std::vector<BlurRegion> BLUR_REGIONS_UPDATE;
 
 const String8 DISPLAY_NAME("SurfaceInterceptor Display Test");
 constexpr auto TEST_BG_SURFACE_NAME = "BG Interceptor Test Surface";
@@ -181,6 +182,7 @@ public:
     bool cornerRadiusUpdateFound(const SurfaceChange& change, bool foundCornerRadius);
     bool backgroundBlurRadiusUpdateFound(const SurfaceChange& change,
                                          bool foundBackgroundBlurRadius);
+    bool blurRegionsUpdateFound(const SurfaceChange& change, bool foundBlurRegions);
     bool matrixUpdateFound(const SurfaceChange& change, bool foundMatrix);
     bool scalingModeUpdateFound(const SurfaceChange& change, bool foundScalingMode);
     bool transparentRegionHintUpdateFound(const SurfaceChange& change, bool foundTransparentRegion);
@@ -219,6 +221,7 @@ public:
     void cropUpdate(Transaction&);
     void cornerRadiusUpdate(Transaction&);
     void backgroundBlurRadiusUpdate(Transaction&);
+    void blurRegionsUpdate(Transaction&);
     void matrixUpdate(Transaction&);
     void transparentRegionHintUpdate(Transaction&);
     void layerStackUpdate(Transaction&);
@@ -357,6 +360,12 @@ void SurfaceInterceptorTest::backgroundBlurRadiusUpdate(Transaction& t) {
     t.setBackgroundBlurRadius(mBGSurfaceControl, BACKGROUND_BLUR_RADIUS_UPDATE);
 }
 
+void SurfaceInterceptorTest::blurRegionsUpdate(Transaction& t) {
+    BLUR_REGIONS_UPDATE.empty();
+    BLUR_REGIONS_UPDATE.push_back(BlurRegion());
+    t.setBlurRegions(mBGSurfaceControl, BLUR_REGIONS_UPDATE);
+}
+
 void SurfaceInterceptorTest::layerUpdate(Transaction& t) {
     t.setLayer(mBGSurfaceControl, LAYER_UPDATE);
 }
@@ -430,6 +439,7 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::alphaUpdate);
     runInTransaction(&SurfaceInterceptorTest::cornerRadiusUpdate);
     runInTransaction(&SurfaceInterceptorTest::backgroundBlurRadiusUpdate);
+    runInTransaction(&SurfaceInterceptorTest::blurRegionsUpdate);
     runInTransaction(&SurfaceInterceptorTest::layerUpdate);
     runInTransaction(&SurfaceInterceptorTest::cropUpdate);
     runInTransaction(&SurfaceInterceptorTest::matrixUpdate);
@@ -516,6 +526,17 @@ bool SurfaceInterceptorTest::backgroundBlurRadiusUpdateFound(const SurfaceChange
         []() { FAIL(); }();
     }
     return foundBackgroundBlur;
+}
+
+bool SurfaceInterceptorTest::blurRegionsUpdateFound(const SurfaceChange& change,
+                                                    bool foundBlurRegions) {
+    bool hasBlurRegions(change.blur_regions().blur_regions_size() == BLUR_REGIONS_UPDATE.size());
+    if (hasBlurRegions && !foundBlurRegions) {
+        foundBlurRegions = true;
+    } else if (hasBlurRegions && foundBlurRegions) {
+        []() { FAIL(); }();
+    }
+    return foundBlurRegions;
 }
 
 bool SurfaceInterceptorTest::layerUpdateFound(const SurfaceChange& change, bool foundLayer) {
@@ -706,6 +727,9 @@ bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
                         case SurfaceChange::SurfaceChangeCase::kBackgroundBlurRadius:
                             foundUpdate = backgroundBlurRadiusUpdateFound(change, foundUpdate);
                             break;
+                        case SurfaceChange::SurfaceChangeCase::kBlurRegions:
+                            foundUpdate = blurRegionsUpdateFound(change, foundUpdate);
+                            break;
                         case SurfaceChange::SurfaceChangeCase::kMatrix:
                             foundUpdate = matrixUpdateFound(change, foundUpdate);
                             break;
@@ -887,6 +911,11 @@ TEST_F(SurfaceInterceptorTest, InterceptCornerRadiusUpdateWorks) {
 TEST_F(SurfaceInterceptorTest, InterceptBackgroundBlurRadiusUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::backgroundBlurRadiusUpdate,
                 SurfaceChange::SurfaceChangeCase::kBackgroundBlurRadius);
+}
+
+TEST_F(SurfaceInterceptorTest, InterceptBlurRegionsUpdateWorks) {
+    captureTest(&SurfaceInterceptorTest::blurRegionsUpdate,
+                SurfaceChange::SurfaceChangeCase::kBlurRegions);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptMatrixUpdateWorks) {

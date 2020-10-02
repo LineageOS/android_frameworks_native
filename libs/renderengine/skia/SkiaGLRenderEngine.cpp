@@ -23,6 +23,14 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
+#include <sync/sync.h>
+#include <ui/BlurRegion.h>
+#include <ui/GraphicBuffer.h>
+#include <utils/Trace.h>
+#include "../gl/GLExtensions.h"
+#include "SkiaGLRenderEngine.h"
+#include "filters/BlurFilter.h"
+
 #include <GrContextOptions.h>
 #include <SkCanvas.h>
 #include <SkColorFilter.h>
@@ -500,10 +508,25 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         SkPaint paint;
         const auto& bounds = layer->geometry.boundaries;
         const auto dest = getSkRect(bounds);
+        std::unordered_map<uint32_t, sk_sp<SkSurface>> cachedBlurs;
 
-        if (layer->backgroundBlurRadius > 0) {
-            ATRACE_NAME("BackgroundBlur");
-            mBlurFilter->draw(canvas, surface, layer->backgroundBlurRadius);
+        if (mBlurFilter) {
+            if (layer->backgroundBlurRadius > 0) {
+                ATRACE_NAME("BackgroundBlur");
+                auto blurredSurface =
+                        mBlurFilter->draw(canvas, surface, layer->backgroundBlurRadius);
+                cachedBlurs[layer->backgroundBlurRadius] = blurredSurface;
+            }
+            if (layer->blurRegions.size() > 0) {
+                for (auto region : layer->blurRegions) {
+                    if (cachedBlurs[region.blurRadius]) {
+                        continue;
+                    }
+                    ATRACE_NAME("BlurRegion");
+                    auto blurredSurface = mBlurFilter->generate(canvas, surface, region.blurRadius);
+                    cachedBlurs[region.blurRadius] = blurredSurface;
+                }
+            }
         }
 
         if (layer->source.buffer.buffer) {
@@ -571,7 +594,11 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         } else {
             ATRACE_NAME("DrawColor");
             const auto color = layer->source.solidColor;
-            paint.setColor(SkColor4f{.fR = color.r, .fG = color.g, .fB = color.b, layer->alpha});
+            paint.setShader(SkShaders::Color(SkColor4f{.fR = color.r,
+                                                       .fG = color.g,
+                                                       .fB = color.b,
+                                                       layer->alpha},
+                                             nullptr));
         }
 
         paint.setColorFilter(SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform)));
@@ -579,6 +606,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         // Layers have a local transform matrix that should be applied to them.
         canvas->save();
         canvas->concat(getSkM44(layer->geometry.positionTransform));
+
+        for (const auto effectRegion : layer->blurRegions) {
+            drawBlurRegion(canvas, effectRegion, dest, cachedBlurs[effectRegion.blurRadius]);
+        }
 
         if (layer->shadow.length > 0) {
             const auto rect = layer->geometry.roundedCornersRadius > 0
@@ -592,6 +623,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         } else {
             canvas->drawRect(dest, paint);
         }
+
         canvas->restore();
     }
     {
@@ -676,6 +708,34 @@ void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRect& casterRect, 
                               getSkPoint3(settings.lightPos), settings.lightRadius,
                               getSkColor(settings.ambientColor), getSkColor(settings.spotColor),
                               flags);
+}
+
+void SkiaGLRenderEngine::drawBlurRegion(SkCanvas* canvas, const BlurRegion& effectRegion,
+                                        const SkRect& layerBoundaries,
+                                        sk_sp<SkSurface> blurredSurface) {
+    ATRACE_CALL();
+    SkPaint paint;
+    paint.setAlpha(static_cast<int>(effectRegion.alpha * 255));
+    const auto rect = SkRect::MakeLTRB(effectRegion.left, effectRegion.top, effectRegion.right,
+                                       effectRegion.bottom);
+
+    const auto matrix = mBlurFilter->getShaderMatrix(
+            SkMatrix::MakeTrans(layerBoundaries.left(), layerBoundaries.top()));
+    paint.setShader(blurredSurface->makeImageSnapshot()->makeShader(matrix));
+
+    if (effectRegion.cornerRadiusTL > 0 || effectRegion.cornerRadiusTR > 0 ||
+        effectRegion.cornerRadiusBL > 0 || effectRegion.cornerRadiusBR > 0) {
+        const SkVector radii[4] =
+                {SkVector::Make(effectRegion.cornerRadiusTL, effectRegion.cornerRadiusTL),
+                 SkVector::Make(effectRegion.cornerRadiusTR, effectRegion.cornerRadiusTR),
+                 SkVector::Make(effectRegion.cornerRadiusBL, effectRegion.cornerRadiusBL),
+                 SkVector::Make(effectRegion.cornerRadiusBR, effectRegion.cornerRadiusBR)};
+        SkRRect roundedRect;
+        roundedRect.setRectRadii(rect, radii);
+        canvas->drawRRect(roundedRect, paint);
+    } else {
+        canvas->drawRect(rect, paint);
+    }
 }
 
 EGLContext SkiaGLRenderEngine::createEglContext(EGLDisplay display, EGLConfig config,

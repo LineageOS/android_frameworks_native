@@ -669,7 +669,8 @@ void Output::updateAndWriteCompositionState(
 compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition() const {
     compositionengine::OutputLayer* layerRequestingBgComposition = nullptr;
     for (auto* layer : getOutputLayersOrderedByZ()) {
-        if (layer->getLayerFE().getCompositionState()->backgroundBlurRadius > 0) {
+        if (layer->getLayerFE().getCompositionState()->backgroundBlurRadius > 0 ||
+            layer->getLayerFE().getCompositionState()->blurRegions.size() > 0) {
             layerRequestingBgComposition = layer;
         }
     }

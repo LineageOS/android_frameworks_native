@@ -1017,6 +1017,18 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBackg
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBlurRegions(
+        const sp<SurfaceControl>& sc, const std::vector<BlurRegion>& blurRegions) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eBlurRegionsChanged;
+    s->blurRegions = blurRegions;
+    return *this;
+}
+
 SurfaceComposerClient::Transaction&
 SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(
         const sp<SurfaceControl>& sc, const sp<SurfaceControl>& barrierSurfaceControl,

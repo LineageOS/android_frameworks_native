@@ -75,6 +75,8 @@ private:
     bool waitFence(base::unique_fd fenceFd);
     void drawShadow(SkCanvas* canvas, const SkRect& casterRect, float casterCornerRadius,
                     const ShadowSettings& shadowSettings);
+    void drawBlurRegion(SkCanvas* canvas, const BlurRegion& blurRegion, const SkRect& layerBounds,
+                        sk_sp<SkSurface> blurrendSurface);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;

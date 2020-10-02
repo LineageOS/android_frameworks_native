@@ -96,6 +96,8 @@ class Replayer {
             layer_id id, const CornerRadiusChange& cc);
     void setBackgroundBlurRadius(SurfaceComposerClient::Transaction& t,
             layer_id id, const BackgroundBlurRadiusChange& cc);
+    void setBlurRegions(SurfaceComposerClient::Transaction& t,
+            layer_id id, const BlurRegionsChange& cc);
     void setMatrix(SurfaceComposerClient::Transaction& t,
             layer_id id, const MatrixChange& mc);
     void setTransparentRegionHint(SurfaceComposerClient::Transaction& t,
@@ -120,6 +122,8 @@ class Replayer {
             layer_id id, const ReparentChildrenChange& c);
     void setShadowRadiusChange(SurfaceComposerClient::Transaction& t,
             layer_id id, const ShadowRadiusChange& c);
+    void setBlurRegionsChange(SurfaceComposerClient::Transaction& t,
+            layer_id id, const BlurRegionsChange& c);
 
     void setDisplaySurface(SurfaceComposerClient::Transaction& t,
             display_id id, const DispSurfaceChange& dsc);
