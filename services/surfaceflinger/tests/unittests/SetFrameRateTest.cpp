@@ -157,7 +157,11 @@ void SetFrameRateTest::reparentChildren(sp<Layer> parent, sp<Layer> newParent) {
 
 void SetFrameRateTest::commitTransaction() {
     for (auto layer : mLayers) {
-        layer.get()->commitTransaction(layer.get()->getCurrentState());
+        layer->pushPendingState();
+        auto c = layer->getCurrentState();
+        if (layer->applyPendingStates(&c)) {
+            layer->commitTransaction(c);
+        }
     }
 }
 

@@ -167,7 +167,7 @@ protected:
     void updateCloneBufferInfo() override;
     uint64_t mPreviousFrameNumber = 0;
 
-    virtual uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
+    uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const override;
 
     void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;
 

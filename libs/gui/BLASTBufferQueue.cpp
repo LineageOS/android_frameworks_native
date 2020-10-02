@@ -18,6 +18,7 @@
 #define LOG_TAG "BLASTBufferQueue"
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
+// #define LOG_NDEBUG 0
 
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
@@ -29,7 +30,19 @@
 
 using namespace std::chrono_literals;
 
+namespace {
+inline const char* toString(bool b) {
+    return b ? "true" : "false";
+}
+} // namespace
+
 namespace android {
+
+// Macros to include adapter info in log messages
+#define BQA_LOGV(x, ...) \
+    ALOGV("[%s](f:%u,a:%u) " x, mName.c_str(), mNumFrameAvailable, mNumAcquired, ##__VA_ARGS__)
+#define BQA_LOGE(x, ...) \
+    ALOGE("[%s](f:%u,a:%u) " x, mName.c_str(), mNumFrameAvailable, mNumAcquired, ##__VA_ARGS__)
 
 void BLASTBufferItemConsumer::onDisconnect() {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
@@ -93,9 +106,10 @@ void BLASTBufferItemConsumer::getConnectionEvents(uint64_t frameNumber, bool* ne
     if (needsDisconnect != nullptr) *needsDisconnect = disconnect;
 }
 
-BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width, int height,
-                                   bool enableTripleBuffering)
-      : mSurfaceControl(surface),
+BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface,
+                                   int width, int height, bool enableTripleBuffering)
+      : mName(name),
+        mSurfaceControl(surface),
         mWidth(width),
         mHeight(height),
         mNextTransaction(nullptr) {
@@ -110,9 +124,9 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
     mBufferItemConsumer =
         new BLASTBufferItemConsumer(mConsumer, GraphicBuffer::USAGE_HW_COMPOSER, 1, true);
     static int32_t id = 0;
-    auto name = std::string("BLAST Consumer") + std::to_string(id);
+    auto consumerName = mName + "(BLAST Consumer)" + std::to_string(id);
     id++;
-    mBufferItemConsumer->setName(String8(name.c_str()));
+    mBufferItemConsumer->setName(String8(consumerName.c_str()));
     mBufferItemConsumer->setFrameAvailableListener(this);
     mBufferItemConsumer->setBufferFreedListener(this);
     mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
@@ -127,7 +141,7 @@ BLASTBufferQueue::BLASTBufferQueue(const sp<SurfaceControl>& surface, int width,
     mPendingReleaseItem.releaseFence = nullptr;
 }
 
-void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, int width, int height) {
+void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height) {
     std::unique_lock _lock{mMutex};
     mSurfaceControl = surface;
 
@@ -152,6 +166,8 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
                                            const std::vector<SurfaceControlStats>& stats) {
     std::unique_lock _lock{mMutex};
     ATRACE_CALL();
+
+    BQA_LOGV("transactionCallback");
 
     if (!stats.empty()) {
         mTransformHint = stats[0].transformHint;
@@ -195,6 +211,8 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
 
 void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     ATRACE_CALL();
+    BQA_LOGV("processNextBufferLocked useNextTransaction=%s", toString(useNextTransaction));
+
     if (mNumFrameAvailable == 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1) {
         return;
     }
@@ -246,15 +264,22 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
                        bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE);
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
 
-    t->setFrame(mSurfaceControl, {0, 0, mWidth, mHeight});
+    t->setFrame(mSurfaceControl,
+                {0, 0, static_cast<int32_t>(mWidth), static_cast<int32_t>(mHeight)});
     t->setCrop(mSurfaceControl, computeCrop(bufferItem));
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
     t->setDesiredPresentTime(bufferItem.mTimestamp);
+    t->setFrameNumber(mSurfaceControl, bufferItem.mFrameNumber);
 
     if (applyTransaction) {
         t->apply();
     }
+
+    BQA_LOGV("processNextBufferLocked size=%dx%d mFrameNumber=%" PRIu64
+             " applyTransaction=%s mTimestamp=%" PRId64,
+             mWidth, mHeight, bufferItem.mFrameNumber, toString(applyTransaction),
+             bufferItem.mTimestamp);
 }
 
 Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
@@ -268,7 +293,10 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& /*item*/) {
     ATRACE_CALL();
     std::unique_lock _lock{mMutex};
 
-    if (mNextTransaction != nullptr) {
+    const bool nextTransactionSet = mNextTransaction != nullptr;
+    BQA_LOGV("onFrameAvailable nextTransactionSet=%s", toString(nextTransactionSet));
+
+    if (nextTransactionSet) {
         while (mNumFrameAvailable > 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1) {
             mCallbackCV.wait(_lock);
         }

@@ -44,8 +44,12 @@ class SurfaceComposerClient;
 class SurfaceControl : public RefBase
 {
 public:
-    static sp<SurfaceControl> readFromParcel(const Parcel* parcel);
-    void writeToParcel(Parcel* parcel);
+    static status_t readFromParcel(const Parcel& parcel, sp<SurfaceControl>* outSurfaceControl);
+    status_t writeToParcel(Parcel& parcel);
+
+    static status_t readNullableFromParcel(const Parcel& parcel,
+                                           sp<SurfaceControl>* outSurfaceControl);
+    static status_t writeNullableToParcel(Parcel& parcel, const sp<SurfaceControl>& surfaceControl);
 
     static bool isValid(const sp<SurfaceControl>& surface) {
         return (surface != nullptr) && surface->isValid();
@@ -70,6 +74,7 @@ public:
     sp<Surface> getSurface() const;
     sp<Surface> createSurface() const;
     sp<IBinder> getHandle() const;
+    int32_t getLayerId() const;
 
     sp<IGraphicBufferProducer> getIGraphicBufferProducer() const;
 
@@ -85,7 +90,8 @@ public:
     explicit SurfaceControl(const sp<SurfaceControl>& other);
 
     SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                   const sp<IGraphicBufferProducer>& gbp, uint32_t transformHint = 0);
+                   const sp<IGraphicBufferProducer>& gbp, int32_t layerId,
+                   uint32_t transformHint = 0);
 
 private:
     // can't be copied
@@ -105,6 +111,7 @@ private:
     sp<IGraphicBufferProducer>  mGraphicBufferProducer;
     mutable Mutex               mLock;
     mutable sp<Surface>         mSurfaceData;
+    int32_t mLayerId;
     uint32_t mTransformHint;
 };
 

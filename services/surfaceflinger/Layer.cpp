@@ -62,6 +62,7 @@
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWComposer.h"
 #include "EffectLayer.h"
+#include "FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
 #include "LayerProtoHelper.h"
 #include "LayerRejecter.h"
@@ -76,6 +77,7 @@ namespace android {
 
 using base::StringAppendF;
 using namespace android::flag_operators;
+using PresentState = frametimeline::SurfaceFrame::PresentState;
 
 std::atomic<int32_t> Layer::sSequence{1};
 
@@ -124,6 +126,8 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.shadowRadius = 0.f;
     mCurrentState.treeHasFrameRateVote = false;
     mCurrentState.fixedTransformHint = ui::Transform::ROT_INVALID;
+    mCurrentState.frameTimelineVsyncId = ISurfaceComposer::INVALID_VSYNC_ID;
+    mCurrentState.postTime = -1;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -800,10 +804,10 @@ void Layer::pushPendingState() {
             // to be applied as per normal (no synchronization).
             mCurrentState.barrierLayer_legacy = nullptr;
         } else {
-            auto syncPoint = std::make_shared<SyncPoint>(mCurrentState.frameNumber_legacy, this);
+            auto syncPoint = std::make_shared<SyncPoint>(mCurrentState.barrierFrameNumber, this);
             if (barrierLayer->addSyncPoint(syncPoint)) {
                 std::stringstream ss;
-                ss << "Adding sync point " << mCurrentState.frameNumber_legacy;
+                ss << "Adding sync point " << mCurrentState.barrierFrameNumber;
                 ATRACE_NAME(ss.str().c_str());
                 mRemoteSyncPoints.push_back(std::move(syncPoint));
             } else {
@@ -823,8 +827,8 @@ void Layer::pushPendingState() {
 
 void Layer::popPendingState(State* stateToCommit) {
     ATRACE_CALL();
-    *stateToCommit = mPendingStates[0];
 
+    *stateToCommit = mPendingStates[0];
     mPendingStates.removeAt(0);
     ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
 }
@@ -844,7 +848,7 @@ bool Layer::applyPendingStates(State* stateToCommit) {
             }
 
             if (mRemoteSyncPoints.front()->getFrameNumber() !=
-                mPendingStates[0].frameNumber_legacy) {
+                mPendingStates[0].barrierFrameNumber) {
                 ALOGE("[%s] Unexpected sync point frame number found", getDebugName());
 
                 // Signal our end of the sync point and then dispose of it
@@ -879,6 +883,20 @@ bool Layer::applyPendingStates(State* stateToCommit) {
     if (!mPendingStates.empty()) {
         setTransactionFlags(eTransactionNeeded);
         mFlinger->setTraversalNeeded();
+    }
+
+    if (stateUpdateAvailable) {
+        const auto vsyncId =
+                stateToCommit->frameTimelineVsyncId == ISurfaceComposer::INVALID_VSYNC_ID
+                ? std::nullopt
+                : std::make_optional(stateToCommit->frameTimelineVsyncId);
+
+        auto surfaceFrame =
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mTransactionName, vsyncId);
+        surfaceFrame->setActualQueueTime(stateToCommit->postTime);
+        surfaceFrame->setActualEndTime(stateToCommit->postTime);
+
+        mSurfaceFrame = std::move(surfaceFrame);
     }
 
     mCurrentState.modified = false;
@@ -1018,6 +1036,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
 
 void Layer::commitTransaction(const State& stateToCommit) {
     mDrawingState = stateToCommit;
+    mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mSurfaceFrame), PresentState::Presented);
 }
 
 uint32_t Layer::getTransactionFlags(uint32_t flags) {
@@ -1434,8 +1453,12 @@ bool Layer::setFrameRate(FrameRate frameRate) {
     return true;
 }
 
-void Layer::setFrameTimelineVsync(int64_t frameTimelineVsyncId) {
-    mFrameTimelineVsyncId = frameTimelineVsyncId;
+void Layer::setFrameTimelineVsyncForTransaction(int64_t frameTimelineVsyncId, nsecs_t postTime) {
+    mCurrentState.sequence++;
+    mCurrentState.frameTimelineVsyncId = frameTimelineVsyncId;
+    mCurrentState.postTime = postTime;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
 }
 
 Layer::FrameRate Layer::getFrameRateForLayerTree() const {
@@ -1463,13 +1486,13 @@ void Layer::deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t
     }
 
     mCurrentState.barrierLayer_legacy = barrierLayer;
-    mCurrentState.frameNumber_legacy = frameNumber;
+    mCurrentState.barrierFrameNumber = frameNumber;
     // We don't set eTransactionNeeded, because just receiving a deferral
     // request without any other state updates shouldn't actually induce a delay
     mCurrentState.modified = true;
     pushPendingState();
     mCurrentState.barrierLayer_legacy = nullptr;
-    mCurrentState.frameNumber_legacy = 0;
+    mCurrentState.barrierFrameNumber = 0;
     mCurrentState.modified = false;
 }
 
@@ -2234,7 +2257,7 @@ LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags,
 
 void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
                                      const DisplayDevice* display) {
-    ui::Transform transform = getTransform();
+    const ui::Transform transform = getTransform();
 
     if (traceFlags & SurfaceTracing::TRACE_CRITICAL) {
         for (const auto& pendingState : mPendingStatesSnapshot) {
@@ -2242,7 +2265,7 @@ void Layer::writeToProtoDrawingState(LayerProto* layerInfo, uint32_t traceFlags,
             if (barrierLayer != nullptr) {
                 BarrierLayerProto* barrierLayerProto = layerInfo->add_barrier_layer();
                 barrierLayerProto->set_id(barrierLayer->sequence);
-                barrierLayerProto->set_frame_number(pendingState.frameNumber_legacy);
+                barrierLayerProto->set_frame_number(pendingState.barrierFrameNumber);
             }
         }
 

@@ -19,26 +19,27 @@
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <cmath>
+#include "SkiaGLRenderEngine.h"
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
-#include <sync/sync.h>
-#include <ui/GraphicBuffer.h>
-#include <utils/Trace.h>
-#include "../gl/GLExtensions.h"
-#include "SkiaGLRenderEngine.h"
-#include "filters/BlurFilter.h"
-
 #include <GrContextOptions.h>
-#include <gl/GrGLInterface.h>
-
 #include <SkCanvas.h>
+#include <SkColorSpace.h>
 #include <SkImage.h>
 #include <SkImageFilters.h>
 #include <SkShadowUtils.h>
 #include <SkSurface.h>
+#include <gl/GrGLInterface.h>
+#include <sync/sync.h>
+#include <ui/GraphicBuffer.h>
+#include <utils/Trace.h>
+
+#include <cmath>
+
+#include "../gl/GLExtensions.h"
+#include "filters/BlurFilter.h"
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
@@ -128,6 +129,47 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint render
     }
 
     return err;
+}
+
+// Converts an android dataspace to a supported SkColorSpace
+// Supported dataspaces are
+// 1. sRGB
+// 2. Display P3
+// 3. BT2020 PQ
+// 4. BT2020 HLG
+// Unknown primaries are mapped to BT709, and unknown transfer functions
+// are mapped to sRGB.
+static sk_sp<SkColorSpace> toColorSpace(ui::Dataspace dataspace) {
+    skcms_Matrix3x3 gamut;
+    switch (dataspace & HAL_DATASPACE_STANDARD_MASK) {
+        case HAL_DATASPACE_STANDARD_BT709:
+            gamut = SkNamedGamut::kSRGB;
+            break;
+        case HAL_DATASPACE_STANDARD_BT2020:
+            gamut = SkNamedGamut::kRec2020;
+            break;
+        case HAL_DATASPACE_STANDARD_DCI_P3:
+            gamut = SkNamedGamut::kDisplayP3;
+            break;
+        default:
+            ALOGV("Unsupported Gamut: %d, defaulting to sRGB", dataspace);
+            gamut = SkNamedGamut::kSRGB;
+            break;
+    }
+
+    switch (dataspace & HAL_DATASPACE_TRANSFER_MASK) {
+        case HAL_DATASPACE_TRANSFER_LINEAR:
+            return SkColorSpace::MakeRGB(SkNamedTransferFn::kLinear, gamut);
+        case HAL_DATASPACE_TRANSFER_SRGB:
+            return SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, gamut);
+        case HAL_DATASPACE_TRANSFER_ST2084:
+            return SkColorSpace::MakeRGB(SkNamedTransferFn::kPQ, gamut);
+        case HAL_DATASPACE_TRANSFER_HLG:
+            return SkColorSpace::MakeRGB(SkNamedTransferFn::kHLG, gamut);
+        default:
+            ALOGV("Unsupported Gamma: %d, defaulting to sRGB transfer", dataspace);
+            return SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, gamut);
+    }
 }
 
 std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
@@ -257,7 +299,8 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
         mEGLContext(ctxt),
         mPlaceholderSurface(placeholder),
         mProtectedEGLContext(protectedContext),
-        mProtectedPlaceholderSurface(protectedPlaceholder) {
+        mProtectedPlaceholderSurface(protectedPlaceholder),
+        mUseColorManagement(args.useColorManagement) {
     // Suppress unused field warnings for things we definitely will need/use
     // These EGL fields will all be needed for toggling between protected & unprotected contexts
     // Or we need different RE instances for that
@@ -385,7 +428,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     if (!surface) {
         surface = SkSurface::MakeFromAHardwareBuffer(mGrContext.get(), buffer->toAHardwareBuffer(),
                                                      GrSurfaceOrigin::kTopLeft_GrSurfaceOrigin,
-                                                     SkColorSpace::MakeSRGB(), nullptr);
+                                                     mUseColorManagement
+                                                             ? toColorSpace(display.outputDataspace)
+                                                             : SkColorSpace::MakeSRGB(),
+                                                     nullptr);
         if (useFramebufferCache && surface) {
             ALOGD("Adding to cache");
             mSurfaceCache.insert({buffer->getId(), surface});
@@ -430,7 +476,11 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 image = SkImage::MakeFromAHardwareBuffer(item.buffer->toAHardwareBuffer(),
                                                          item.usePremultipliedAlpha
                                                                  ? kPremul_SkAlphaType
-                                                                 : kUnpremul_SkAlphaType);
+                                                                 : kUnpremul_SkAlphaType,
+                                                         mUseColorManagement
+                                                                 ? toColorSpace(
+                                                                           layer->sourceDataspace)
+                                                                 : SkColorSpace::MakeSRGB());
                 mImageCache.insert({item.buffer->getId(), image});
             }
 

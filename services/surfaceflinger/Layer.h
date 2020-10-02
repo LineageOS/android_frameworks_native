@@ -71,6 +71,10 @@ namespace impl {
 class SurfaceInterceptor;
 }
 
+namespace frametimeline {
+class SurfaceFrame;
+} // namespace frametimeline
+
 struct LayerCreationArgs {
     LayerCreationArgs(SurfaceFlinger*, sp<Client>, std::string name, uint32_t w, uint32_t h,
                       uint32_t flags, LayerMetadata);
@@ -187,7 +191,7 @@ public:
         // If set, defers this state update until the identified Layer
         // receives a frame with the given frameNumber
         wp<Layer> barrierLayer_legacy;
-        uint64_t frameNumber_legacy;
+        uint64_t barrierFrameNumber;
 
         // the transparentRegion hint is a bit special, it's latched only
         // when we receive a buffer -- this is because it's "content"
@@ -267,6 +271,12 @@ public:
         // a buffer of a different size. ui::Transform::ROT_INVALID means the
         // a fixed transform hint is not set.
         ui::Transform::RotationFlags fixedTransformHint;
+
+        // The vsync id that was used to start the transaction
+        int64_t frameTimelineVsyncId;
+
+        // When the transaction was posted
+        nsecs_t postTime;
     };
 
     /*
@@ -406,7 +416,7 @@ public:
     virtual bool setFrame(const Rect& /*frame*/) { return false; };
     virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, const sp<Fence>& /*acquireFence*/,
                            nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
-                           const client_cache_t& /*clientCacheId*/) {
+                           const client_cache_t& /*clientCacheId*/, uint64_t /* frameNumber */) {
         return false;
     };
     virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
@@ -509,6 +519,8 @@ public:
     virtual bool isHdrY410() const { return false; }
 
     virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
+
+    virtual uint64_t getHeadFrameNumber(nsecs_t /* expectedPresentTime */) const { return 0; }
 
     /*
      * called after composition.
@@ -821,7 +833,8 @@ public:
 
     bool setFrameRate(FrameRate);
 
-    void setFrameTimelineVsync(int64_t frameTimelineVsyncId);
+    virtual void setFrameTimelineVsyncForBuffer(int64_t /*frameTimelineVsyncId*/) {}
+    void setFrameTimelineVsyncForTransaction(int64_t frameTimelineVsyncId, nsecs_t postTime);
 
     // Creates a new handle each time, so we only expect
     // this to be called once.
@@ -1021,11 +1034,11 @@ protected:
     // Can only be accessed with the SF state lock held.
     bool mChildrenChanged{false};
 
-    // Can only be accessed with the SF state lock held.
-    std::optional<int64_t> mFrameTimelineVsyncId;
-
     // Window types from WindowManager.LayoutParams
     const InputWindowInfo::Type mWindowType;
+
+    // Can only be accessed with the SF state lock held.
+    std::unique_ptr<frametimeline::SurfaceFrame> mSurfaceFrame;
 
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}
