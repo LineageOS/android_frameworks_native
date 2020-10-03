@@ -348,6 +348,9 @@ namespace android {
     DEFINE_AXIS(SCROLL), \
     DEFINE_AXIS(RELATIVE_X), \
     DEFINE_AXIS(RELATIVE_Y), \
+    {"RESERVED_29", 29}, \
+    {"RESERVED_30", 30}, \
+    {"RESERVED_31", 31}, \
     DEFINE_AXIS(GENERIC_1), \
     DEFINE_AXIS(GENERIC_2), \
     DEFINE_AXIS(GENERIC_3), \
