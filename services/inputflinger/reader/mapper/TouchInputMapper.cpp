@@ -18,6 +18,7 @@
 #include "../Macros.h"
 // clang-format on
 
+#include <input/NamedEnum.h>
 #include "TouchInputMapper.h"
 
 #include "CursorButtonAccumulator.h"
@@ -257,7 +258,8 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
 }
 
 void TouchInputMapper::dump(std::string& dump) {
-    dump += StringPrintf(INDENT2 "Touch Input Mapper (mode - %s):\n", modeToString(mDeviceMode));
+    dump += StringPrintf(INDENT2 "Touch Input Mapper (mode - %s):\n",
+                         NamedEnum::string(mDeviceMode).c_str());
     dumpParameters(dump);
     dumpVirtualKeys(dump);
     dumpRawPointerAxes(dump);
@@ -343,22 +345,6 @@ void TouchInputMapper::dump(std::string& dump) {
         dump += StringPrintf(INDENT4 "YZoomScale: %0.3f\n", mPointerYZoomScale);
         dump += StringPrintf(INDENT4 "MaxSwipeWidth: %f\n", mPointerGestureMaxSwipeWidth);
     }
-}
-
-const char* TouchInputMapper::modeToString(DeviceMode deviceMode) {
-    switch (deviceMode) {
-        case DeviceMode::DISABLED:
-            return "disabled";
-        case DeviceMode::DIRECT:
-            return "direct";
-        case DeviceMode::UNSCALED:
-            return "unscaled";
-        case DeviceMode::NAVIGATION:
-            return "navigation";
-        case DeviceMode::POINTER:
-            return "pointer";
-    }
-    return "unknown";
 }
 
 void TouchInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
@@ -512,33 +498,9 @@ void TouchInputMapper::configureParameters() {
 void TouchInputMapper::dumpParameters(std::string& dump) {
     dump += INDENT3 "Parameters:\n";
 
-    switch (mParameters.gestureMode) {
-        case Parameters::GestureMode::SINGLE_TOUCH:
-            dump += INDENT4 "GestureMode: single-touch\n";
-            break;
-        case Parameters::GestureMode::MULTI_TOUCH:
-            dump += INDENT4 "GestureMode: multi-touch\n";
-            break;
-        default:
-            assert(false);
-    }
+    dump += INDENT4 "GestureMode: " + NamedEnum::string(mParameters.gestureMode) + "\n";
 
-    switch (mParameters.deviceType) {
-        case Parameters::DeviceType::TOUCH_SCREEN:
-            dump += INDENT4 "DeviceType: touchScreen\n";
-            break;
-        case Parameters::DeviceType::TOUCH_PAD:
-            dump += INDENT4 "DeviceType: touchPad\n";
-            break;
-        case Parameters::DeviceType::TOUCH_NAVIGATION:
-            dump += INDENT4 "DeviceType: touchNavigation\n";
-            break;
-        case Parameters::DeviceType::POINTER:
-            dump += INDENT4 "DeviceType: pointer\n";
-            break;
-        default:
-            ALOG_ASSERT(false);
-    }
+    dump += INDENT4 "DeviceType: " + NamedEnum::string(mParameters.deviceType) + "\n";
 
     dump += StringPrintf(INDENT4 "AssociatedDisplay: hasAssociatedDisplay=%s, isExternal=%s, "
                                  "displayId='%s'\n",

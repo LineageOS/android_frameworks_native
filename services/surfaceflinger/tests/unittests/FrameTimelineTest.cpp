@@ -217,4 +217,20 @@ TEST_F(FrameTimelineTest, displayFramesSlidingWindowMovesAfterLimit) {
               true);
 }
 
+TEST_F(FrameTimelineTest, surfaceFrameEndTimeAcquireFenceAfterQueue) {
+    auto surfaceFrame =
+            mFrameTimeline->createSurfaceFrameForToken("acquireFenceAfterQueue", std::nullopt);
+    surfaceFrame->setActualQueueTime(123);
+    surfaceFrame->setAcquireFenceTime(456);
+    EXPECT_EQ(surfaceFrame->getActuals().endTime, 456);
+}
+
+TEST_F(FrameTimelineTest, surfaceFrameEndTimeAcquireFenceBeforeQueue) {
+    auto surfaceFrame =
+            mFrameTimeline->createSurfaceFrameForToken("acquireFenceAfterQueue", std::nullopt);
+    surfaceFrame->setActualQueueTime(456);
+    surfaceFrame->setAcquireFenceTime(123);
+    EXPECT_EQ(surfaceFrame->getActuals().endTime, 456);
+}
+
 } // namespace android::frametimeline

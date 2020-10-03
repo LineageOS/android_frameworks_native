@@ -340,7 +340,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
                                                FrameTracer::FrameEvent::LATCH);
 
         if (mQueueItems[0].surfaceFrame) {
-            mQueueItems[0].surfaceFrame->setActualEndTime(
+            mQueueItems[0].surfaceFrame->setAcquireFenceTime(
                     mQueueItems[0].item.mFenceTime->getSignalTime());
             mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mQueueItems[0].surfaceFrame),
                                                       PresentState::Presented);

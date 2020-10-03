@@ -87,10 +87,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetRelativeZBug64572777) {
     ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN, 32, 32));
 
-    Transaction()
-            .setPosition(layerG, 16, 16)
-            .setRelativeLayer(layerG, layerR->getHandle(), 1)
-            .apply();
+    Transaction().setPosition(layerG, 16, 16).setRelativeLayer(layerG, layerR, 1).apply();
 
     Transaction().reparent(layerG, nullptr).apply();
 
@@ -154,10 +151,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetZNegative) {
     ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN, 32, 32));
 
-    Transaction()
-            .reparent(layerR, parent->getHandle())
-            .reparent(layerG, parent->getHandle())
-            .apply();
+    Transaction().reparent(layerR, parent).reparent(layerG, parent).apply();
     Transaction().setLayer(layerR, -1).setLayer(layerG, -2).apply();
     {
         SCOPED_TRACE("layerR");
@@ -241,7 +235,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusRotated) {
     auto transaction = Transaction()
                                .setCornerRadius(parent, cornerRadius)
                                .setCrop_legacy(parent, Rect(0, 0, size, size))
-                               .reparent(child, parent->getHandle())
+                               .reparent(child, parent)
                                .setPosition(child, 0, size)
                                // Rotate by half PI
                                .setMatrix(child, 0.0f, -1.0f, 1.0f, 0.0f);
@@ -283,14 +277,14 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusChildCrop) {
         Transaction()
                 .setCornerRadius(parent, cornerRadius)
                 .setCrop_legacy(parent, Rect(0, 0, size, size))
-                .reparent(child, parent->getHandle())
+                .reparent(child, parent)
                 .setPosition(child, 0, size / 2)
                 .apply();
     } else {
         Transaction()
                 .setCornerRadius(parent, cornerRadius)
                 .setFrame(parent, Rect(0, 0, size, size))
-                .reparent(child, parent->getHandle())
+                .reparent(child, parent)
                 .setFrame(child, Rect(0, size / 2, size, size))
                 .apply();
     }
