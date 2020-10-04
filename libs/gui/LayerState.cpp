@@ -18,15 +18,54 @@
 
 #include <inttypes.h>
 
-#include <utils/Errors.h>
 #include <binder/Parcel.h>
-#include <gui/ISurfaceComposerClient.h>
 #include <gui/IGraphicBufferProducer.h>
+#include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
+#include <utils/Errors.h>
 
 #include <cmath>
 
 namespace android {
+
+layer_state_t::layer_state_t()
+      : what(0),
+        x(0),
+        y(0),
+        z(0),
+        w(0),
+        h(0),
+        layerStack(0),
+        alpha(0),
+        flags(0),
+        mask(0),
+        reserved(0),
+        crop_legacy(Rect::INVALID_RECT),
+        cornerRadius(0.0f),
+        backgroundBlurRadius(0),
+        barrierFrameNumber(0),
+        overrideScalingMode(-1),
+        transform(0),
+        transformToDisplayInverse(false),
+        crop(Rect::INVALID_RECT),
+        orientedDisplaySpaceRect(Rect::INVALID_RECT),
+        dataspace(ui::Dataspace::UNKNOWN),
+        surfaceDamageRegion(),
+        api(-1),
+        colorTransform(mat4()),
+        bgColorAlpha(0),
+        bgColorDataspace(ui::Dataspace::UNKNOWN),
+        colorSpaceAgnostic(false),
+        shadowRadius(0.0f),
+        frameRateSelectionPriority(-1),
+        frameRate(0.0f),
+        frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
+        fixedTransformHint(ui::Transform::ROT_INVALID),
+        frameNumber(0) {
+    matrix.dsdx = matrix.dtdy = 1.0f;
+    matrix.dsdy = matrix.dtdx = 0.0f;
+    hdrMetadata.validTypes = 0;
+}
 
 status_t layer_state_t::write(Parcel& output) const
 {
@@ -44,13 +83,12 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeUint32, mask);
     SAFE_PARCEL(matrix.write, output);
     SAFE_PARCEL(output.write, crop_legacy);
-    SAFE_PARCEL(output.writeStrongBinder, barrierHandle_legacy);
-    SAFE_PARCEL(output.writeStrongBinder, reparentHandle);
+    SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, barrierSurfaceControl_legacy);
+    SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, reparentSurfaceControl);
     SAFE_PARCEL(output.writeUint64, barrierFrameNumber);
     SAFE_PARCEL(output.writeInt32, overrideScalingMode);
-    SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(barrierGbp_legacy));
-    SAFE_PARCEL(output.writeStrongBinder, relativeLayerHandle);
-    SAFE_PARCEL(output.writeStrongBinder, parentHandleForChild);
+    SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, relativeLayerSurfaceControl);
+    SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, parentSurfaceControlForChild);
     SAFE_PARCEL(output.writeFloat, color.r);
     SAFE_PARCEL(output.writeFloat, color.g);
     SAFE_PARCEL(output.writeFloat, color.b);
@@ -135,18 +173,15 @@ status_t layer_state_t::read(const Parcel& input)
 
     SAFE_PARCEL(matrix.read, input);
     SAFE_PARCEL(input.read, crop_legacy);
-    SAFE_PARCEL(input.readNullableStrongBinder, &barrierHandle_legacy);
-    SAFE_PARCEL(input.readNullableStrongBinder, &reparentHandle);
+    SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &barrierSurfaceControl_legacy);
+    SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &reparentSurfaceControl);
     SAFE_PARCEL(input.readUint64, &barrierFrameNumber);
     SAFE_PARCEL(input.readInt32, &overrideScalingMode);
 
-    sp<IBinder> tmpBinder;
-    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
-    barrierGbp_legacy = interface_cast<IGraphicBufferProducer>(tmpBinder);
+    SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &relativeLayerSurfaceControl);
+    SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &parentSurfaceControlForChild);
 
     float tmpFloat = 0;
-    SAFE_PARCEL(input.readNullableStrongBinder, &relativeLayerHandle);
-    SAFE_PARCEL(input.readNullableStrongBinder, &parentHandleForChild);
     SAFE_PARCEL(input.readFloat, &tmpFloat);
     color.r = tmpFloat;
     SAFE_PARCEL(input.readFloat, &tmpFloat);
@@ -190,6 +225,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, &colorTransform, 16 * sizeof(float));
     SAFE_PARCEL(input.readFloat, &cornerRadius);
     SAFE_PARCEL(input.readUint32, &backgroundBlurRadius);
+    sp<IBinder> tmpBinder;
     SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
     cachedBuffer.token = tmpBinder;
     SAFE_PARCEL(input.readUint64, &cachedBuffer.id);
@@ -342,8 +378,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eDeferTransaction_legacy) {
         what |= eDeferTransaction_legacy;
-        barrierHandle_legacy = other.barrierHandle_legacy;
-        barrierGbp_legacy = other.barrierGbp_legacy;
+        barrierSurfaceControl_legacy = other.barrierSurfaceControl_legacy;
         barrierFrameNumber = other.barrierFrameNumber;
     }
     if (other.what & eOverrideScalingModeChanged) {
@@ -352,7 +387,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eReparentChildren) {
         what |= eReparentChildren;
-        reparentHandle = other.reparentHandle;
+        reparentSurfaceControl = other.reparentSurfaceControl;
     }
     if (other.what & eDetachChildren) {
         what |= eDetachChildren;
@@ -361,11 +396,11 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eRelativeLayerChanged;
         what &= ~eLayerChanged;
         z = other.z;
-        relativeLayerHandle = other.relativeLayerHandle;
+        relativeLayerSurfaceControl = other.relativeLayerSurfaceControl;
     }
     if (other.what & eReparent) {
         what |= eReparent;
-        parentHandleForChild = other.parentHandleForChild;
+        parentSurfaceControlForChild = other.parentSurfaceControlForChild;
     }
     if (other.what & eDestroySurface) {
         what |= eDestroySurface;

@@ -49,6 +49,7 @@
 
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerMetadata.h>
+#include <gui/SurfaceControl.h>
 #include <math/vec3.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
@@ -128,44 +129,7 @@ struct layer_state_t {
         eFrameNumberChanged = 0x400'00000000,
     };
 
-    layer_state_t()
-          : what(0),
-            x(0),
-            y(0),
-            z(0),
-            w(0),
-            h(0),
-            layerStack(0),
-            alpha(0),
-            flags(0),
-            mask(0),
-            reserved(0),
-            crop_legacy(Rect::INVALID_RECT),
-            cornerRadius(0.0f),
-            backgroundBlurRadius(0),
-            barrierFrameNumber(0),
-            overrideScalingMode(-1),
-            transform(0),
-            transformToDisplayInverse(false),
-            crop(Rect::INVALID_RECT),
-            orientedDisplaySpaceRect(Rect::INVALID_RECT),
-            dataspace(ui::Dataspace::UNKNOWN),
-            surfaceDamageRegion(),
-            api(-1),
-            colorTransform(mat4()),
-            bgColorAlpha(0),
-            bgColorDataspace(ui::Dataspace::UNKNOWN),
-            colorSpaceAgnostic(false),
-            shadowRadius(0.0f),
-            frameRateSelectionPriority(-1),
-            frameRate(0.0f),
-            frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
-            fixedTransformHint(ui::Transform::ROT_INVALID),
-            frameNumber(0) {
-        matrix.dsdx = matrix.dtdy = 1.0f;
-        matrix.dsdy = matrix.dtdx = 0.0f;
-        hdrMetadata.validTypes = 0;
-    }
+    layer_state_t();
 
     void merge(const layer_state_t& other);
     status_t write(Parcel& output) const;
@@ -196,16 +160,14 @@ struct layer_state_t {
     Rect crop_legacy;
     float cornerRadius;
     uint32_t backgroundBlurRadius;
-    sp<IBinder> barrierHandle_legacy;
-    sp<IBinder> reparentHandle;
+    sp<SurfaceControl> barrierSurfaceControl_legacy;
+    sp<SurfaceControl> reparentSurfaceControl;
     uint64_t barrierFrameNumber;
     int32_t overrideScalingMode;
 
-    sp<IGraphicBufferProducer> barrierGbp_legacy;
+    sp<SurfaceControl> relativeLayerSurfaceControl;
 
-    sp<IBinder> relativeLayerHandle;
-
-    sp<IBinder> parentHandleForChild;
+    sp<SurfaceControl> parentSurfaceControlForChild;
 
     half3 color;
 

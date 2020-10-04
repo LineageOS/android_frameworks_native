@@ -50,7 +50,7 @@ TEST_F(LayerTransactionTest, ReparentToSelf) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-    Transaction().reparent(layer, layer->getHandle()).apply();
+    Transaction().reparent(layer, layer).apply();
 
     {
         // We expect the transaction to be silently dropped, but for SurfaceFlinger

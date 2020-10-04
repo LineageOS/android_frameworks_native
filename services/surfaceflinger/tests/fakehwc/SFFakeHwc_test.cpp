@@ -1322,7 +1322,7 @@ protected:
         {
             TransactionScope ts(*sFakeComposer);
             ts.setAlpha(mFGSurfaceControl, 0.75);
-            ts.deferTransactionUntil_legacy(mFGSurfaceControl, syncSurfaceControl->getHandle(),
+            ts.deferTransactionUntil_legacy(mFGSurfaceControl, syncSurfaceControl,
                                             syncSurfaceControl->getSurface()->getNextFrameNumber());
         }
         EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
@@ -1330,7 +1330,7 @@ protected:
         {
             TransactionScope ts(*sFakeComposer);
             ts.setPosition(mFGSurfaceControl, 128, 128);
-            ts.deferTransactionUntil_legacy(mFGSurfaceControl, syncSurfaceControl->getHandle(),
+            ts.deferTransactionUntil_legacy(mFGSurfaceControl, syncSurfaceControl,
                                             syncSurfaceControl->getSurface()->getNextFrameNumber() +
                                                     1);
         }
@@ -1376,7 +1376,7 @@ protected:
             TransactionScope ts(*sFakeComposer);
             ts.setPosition(relativeSurfaceControl, 64, 64);
             ts.show(relativeSurfaceControl);
-            ts.setRelativeLayer(relativeSurfaceControl, mFGSurfaceControl->getHandle(), 1);
+            ts.setRelativeLayer(relativeSurfaceControl, mFGSurfaceControl, 1);
         }
         auto referenceFrame = mBaseFrame;
         // NOTE: All three layers will be visible as the surfaces are
@@ -1606,7 +1606,7 @@ protected:
 
         {
             TransactionScope ts(*Base::sFakeComposer);
-            ts.reparentChildren(Base::mFGSurfaceControl, Base::mBGSurfaceControl->getHandle());
+            ts.reparentChildren(Base::mFGSurfaceControl, Base::mBGSurfaceControl);
         }
 
         auto referenceFrame2 = referenceFrame;
@@ -1761,7 +1761,7 @@ protected:
         // Show the child layer in a deferred transaction
         {
             TransactionScope ts(*Base::sFakeComposer);
-            ts.deferTransactionUntil_legacy(mChild, Base::mFGSurfaceControl->getHandle(),
+            ts.deferTransactionUntil_legacy(mChild, Base::mFGSurfaceControl,
                                             Base::mFGSurfaceControl->getSurface()
                                                     ->getNextFrameNumber());
             ts.show(mChild);

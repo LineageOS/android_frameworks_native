@@ -94,6 +94,8 @@ private:
 
     void processNextBufferLocked(bool useNextTransaction) REQUIRES(mMutex);
     Rect computeCrop(const BufferItem& item);
+    // Return true if we need to reject the buffer based on the scaling mode and the buffer size.
+    bool rejectBuffer(const BufferItem& item) const;
 
     std::string mName;
     sp<SurfaceControl> mSurfaceControl;
@@ -107,6 +109,7 @@ private:
 
     int32_t mNumFrameAvailable GUARDED_BY(mMutex);
     int32_t mNumAcquired GUARDED_BY(mMutex);
+    bool mInitialCallbackReceived GUARDED_BY(mMutex) = false;
     struct PendingReleaseItem {
         BufferItem item;
         sp<Fence> releaseFence;

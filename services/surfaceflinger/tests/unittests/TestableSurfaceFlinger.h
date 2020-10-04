@@ -83,8 +83,8 @@ public:
         return nullptr;
     }
 
-    sp<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger* flinger) override {
-        return new android::impl::SurfaceInterceptor(flinger);
+    sp<SurfaceInterceptor> createSurfaceInterceptor() override {
+        return new android::impl::SurfaceInterceptor();
     }
 
     sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override {

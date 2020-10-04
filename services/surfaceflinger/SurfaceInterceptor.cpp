@@ -40,11 +40,6 @@ SurfaceInterceptor::~SurfaceInterceptor() = default;
 
 namespace impl {
 
-SurfaceInterceptor::SurfaceInterceptor(SurfaceFlinger* flinger)
-    :   mFlinger(flinger)
-{
-}
-
 void SurfaceInterceptor::addTransactionTraceListener(
         const sp<gui::ITransactionTraceListener>& listener) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
@@ -472,16 +467,10 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     }
     if (state.what & layer_state_t::eDeferTransaction_legacy) {
         sp<Layer> otherLayer = nullptr;
-        if (state.barrierHandle_legacy != nullptr) {
-            otherLayer =
-                    static_cast<Layer::Handle*>(state.barrierHandle_legacy.get())->owner.promote();
-        } else if (state.barrierGbp_legacy != nullptr) {
-            auto const& gbp = state.barrierGbp_legacy;
-            if (mFlinger->authenticateSurfaceTextureLocked(gbp)) {
-                otherLayer = (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
-            } else {
-                ALOGE("Attempt to defer transaction to to an unrecognized GraphicBufferProducer");
-            }
+        if (state.barrierSurfaceControl_legacy != nullptr) {
+            otherLayer = static_cast<Layer::Handle*>(
+                                 state.barrierSurfaceControl_legacy->getHandle().get())
+                                 ->owner.promote();
         }
         addDeferTransactionLocked(transaction, layerId, otherLayer, state.barrierFrameNumber);
     }
@@ -489,17 +478,23 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
         addOverrideScalingModeLocked(transaction, layerId, state.overrideScalingMode);
     }
     if (state.what & layer_state_t::eReparent) {
-        addReparentLocked(transaction, layerId, getLayerIdFromHandle(state.parentHandleForChild));
+        auto parentHandle = (state.parentSurfaceControlForChild)
+                ? state.parentSurfaceControlForChild->getHandle()
+                : nullptr;
+        addReparentLocked(transaction, layerId, getLayerIdFromHandle(parentHandle));
     }
     if (state.what & layer_state_t::eReparentChildren) {
-        addReparentChildrenLocked(transaction, layerId, getLayerIdFromHandle(state.reparentHandle));
+        addReparentChildrenLocked(transaction, layerId,
+                                  getLayerIdFromHandle(state.reparentSurfaceControl->getHandle()));
     }
     if (state.what & layer_state_t::eDetachChildren) {
         addDetachChildrenLocked(transaction, layerId, true);
     }
     if (state.what & layer_state_t::eRelativeLayerChanged) {
         addRelativeParentLocked(transaction, layerId,
-                                getLayerIdFromHandle(state.relativeLayerHandle), state.z);
+                                getLayerIdFromHandle(
+                                        state.relativeLayerSurfaceControl->getHandle()),
+                                state.z);
     }
     if (state.what & layer_state_t::eShadowRadiusChanged) {
         addShadowRadiusLocked(transaction, layerId, state.shadowRadius);

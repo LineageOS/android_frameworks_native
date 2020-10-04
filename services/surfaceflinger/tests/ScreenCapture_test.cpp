@@ -239,7 +239,7 @@ TEST_F(ScreenCaptureTest, DontCaptureRelativeOutsideTree) {
     SurfaceComposerClient::Transaction()
             .show(child)
             // Set relative layer above fg layer so should be shown above when computing all layers.
-            .setRelativeLayer(relative, mFGSurfaceControl->getHandle(), 1)
+            .setRelativeLayer(relative, mFGSurfaceControl, 1)
             .show(relative)
             .apply(true);
 
@@ -264,7 +264,7 @@ TEST_F(ScreenCaptureTest, CaptureRelativeInTree) {
             // Set relative layer below fg layer but relative to child layer so it should be shown
             // above child layer.
             .setLayer(relative, -1)
-            .setRelativeLayer(relative, child->getHandle(), 1)
+            .setRelativeLayer(relative, child, 1)
             .show(relative)
             .apply(true);
 
@@ -707,7 +707,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithUid) {
             .setLayer(layerWithFakeUid, INT32_MAX)
             .setPosition(layerWithFakeUid, 128, 128)
             // reparent a layer that was created with a different uid to the new layer.
-            .reparent(layer, layerWithFakeUid->getHandle())
+            .reparent(layer, layerWithFakeUid)
             .apply();
 
     // Screenshot from the fakeUid caller with the uid requested allows the layer

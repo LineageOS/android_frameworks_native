@@ -397,16 +397,15 @@ void SurfaceInterceptorTest::secureFlagUpdate(Transaction& t) {
 }
 
 void SurfaceInterceptorTest::deferredTransactionUpdate(Transaction& t) {
-    t.deferTransactionUntil_legacy(mBGSurfaceControl, mBGSurfaceControl->getHandle(),
-                                   DEFERRED_UPDATE);
+    t.deferTransactionUntil_legacy(mBGSurfaceControl, mBGSurfaceControl, DEFERRED_UPDATE);
 }
 
 void SurfaceInterceptorTest::reparentUpdate(Transaction& t) {
-    t.reparent(mBGSurfaceControl, mFGSurfaceControl->getHandle());
+    t.reparent(mBGSurfaceControl, mFGSurfaceControl);
 }
 
 void SurfaceInterceptorTest::relativeParentUpdate(Transaction& t) {
-    t.setRelativeLayer(mBGSurfaceControl, mFGSurfaceControl->getHandle(), RELATIVE_Z);
+    t.setRelativeLayer(mBGSurfaceControl, mFGSurfaceControl, RELATIVE_Z);
 }
 
 void SurfaceInterceptorTest::detachChildrenUpdate(Transaction& t) {
@@ -414,7 +413,7 @@ void SurfaceInterceptorTest::detachChildrenUpdate(Transaction& t) {
 }
 
 void SurfaceInterceptorTest::reparentChildrenUpdate(Transaction& t) {
-    t.reparentChildren(mBGSurfaceControl, mFGSurfaceControl->getHandle());
+    t.reparentChildren(mBGSurfaceControl, mFGSurfaceControl);
 }
 
 void SurfaceInterceptorTest::shadowRadiusUpdate(Transaction& t) {
