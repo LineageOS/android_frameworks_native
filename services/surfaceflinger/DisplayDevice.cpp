@@ -168,22 +168,16 @@ void DisplayDevice::setProjection(ui::Rotation orientation, Rect layerStackSpace
         sPrimaryDisplayRotationFlags = ui::Transform::toRotationFlags(orientation);
     }
 
-    const Rect& displayBounds = getCompositionDisplay()->getState().displaySpace.bounds;
-    const int displayWidth = displayBounds.width();
-    const int displayHeight = displayBounds.height();
-
     if (!orientedDisplaySpaceRect.isValid()) {
-        // the destination frame can be invalid if it has never been set,
-        // in that case we assume the whole display frame.
-        orientedDisplaySpaceRect = Rect(displayWidth, displayHeight);
+        // The destination frame can be invalid if it has never been set,
+        // in that case we assume the whole display size.
+        orientedDisplaySpaceRect = getCompositionDisplay()->getState().displaySpace.bounds;
     }
 
     if (layerStackSpaceRect.isEmpty()) {
-        // layerStackSpaceRect can be invalid if it has never been set, in that case
-        // we assume the whole display size.
-        // It's also invalid to have an empty layerStackSpaceRect, so we handle that
-        // case in the same way.
-        layerStackSpaceRect = Rect(displayWidth, displayHeight);
+        // The layerStackSpaceRect can be invalid if it has never been set, in that case
+        // we assume the whole framebuffer size.
+        layerStackSpaceRect = getCompositionDisplay()->getState().framebufferSpace.bounds;
         if (orientation == ui::ROTATION_90 || orientation == ui::ROTATION_270) {
             std::swap(layerStackSpaceRect.right, layerStackSpaceRect.bottom);
         }
