@@ -52,6 +52,7 @@
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/PowerAdvisor.h"
+#include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
@@ -947,8 +948,8 @@ private:
         return it != mPhysicalDisplayTokens.end() ? it->second : nullptr;
     }
 
-    std::optional<DisplayId> getPhysicalDisplayIdLocked(const sp<IBinder>& displayToken) const
-            REQUIRES(mStateLock) {
+    std::optional<PhysicalDisplayId> getPhysicalDisplayIdLocked(
+            const sp<IBinder>& displayToken) const REQUIRES(mStateLock) {
         for (const auto& [id, token] : mPhysicalDisplayTokens) {
             if (token == displayToken) {
                 return id;
@@ -1110,6 +1111,8 @@ private:
     std::map<wp<IBinder>, sp<DisplayDevice>> mDisplays GUARDED_BY(mStateLock);
     std::unordered_map<PhysicalDisplayId, sp<IBinder>> mPhysicalDisplayTokens
             GUARDED_BY(mStateLock);
+
+    RandomDisplayIdGenerator<GpuVirtualDisplayId> mGpuVirtualDisplayIdGenerator;
 
     std::unordered_map<BBinder*, wp<Layer>> mLayersByLocalBinderToken GUARDED_BY(mStateLock);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,23 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
+#pragma once
 
-#include "mock/MockSurfaceInterceptor.h"
+#include <gmock/gmock.h>
+
+#include "DisplayIdGenerator.h"
 
 namespace android::mock {
 
-// Explicit default instantiation is recommended.
-SurfaceInterceptor::SurfaceInterceptor() = default;
-SurfaceInterceptor::~SurfaceInterceptor() = default;
+template <typename T>
+class DisplayIdGenerator : public android::DisplayIdGenerator<T> {
+public:
+    // Explicit default instantiation is recommended.
+    DisplayIdGenerator() = default;
+    virtual ~DisplayIdGenerator() = default;
+
+    MOCK_METHOD0(nextId, std::optional<T>());
+    MOCK_METHOD1(markUnused, void(T));
+};
 
 } // namespace android::mock
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"

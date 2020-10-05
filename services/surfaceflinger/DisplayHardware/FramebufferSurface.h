@@ -23,6 +23,7 @@
 #include <compositionengine/DisplaySurface.h>
 #include <compositionengine/impl/HwcBufferCache.h>
 #include <gui/ConsumerBase.h>
+#include <ui/DisplayId.h>
 #include <ui/Size.h>
 
 #include "DisplayIdentification.h"
@@ -39,7 +40,7 @@ class HWComposer;
 
 class FramebufferSurface : public ConsumerBase, public compositionengine::DisplaySurface {
 public:
-    FramebufferSurface(HWComposer& hwc, DisplayId displayId,
+    FramebufferSurface(HWComposer& hwc, PhysicalDisplayId displayId,
                        const sp<IGraphicBufferConsumer>& consumer, uint32_t maxWidth,
                        uint32_t maxHeight);
 
@@ -69,7 +70,7 @@ private:
     status_t nextBuffer(uint32_t& outSlot, sp<GraphicBuffer>& outBuffer,
             sp<Fence>& outFence, ui::Dataspace& outDataspace);
 
-    const DisplayId mDisplayId;
+    const PhysicalDisplayId mDisplayId;
 
     // Framebuffer size has a dimension limitation in pixels based on the graphics capabilities of
     // the device.
