@@ -94,6 +94,13 @@ public:
         nsecs_t workDuration = 0;
         nsecs_t readyDuration = 0;
         nsecs_t earliestVsync = 0;
+
+        bool operator==(const ScheduleTiming& other) const {
+            return workDuration == other.workDuration && readyDuration == other.readyDuration &&
+                    earliestVsync == other.earliestVsync;
+        }
+
+        bool operator!=(const ScheduleTiming& other) const { return !(*this == other); }
     };
 
     /*
