@@ -338,9 +338,9 @@ template <typename PhysicalDisplay>
 struct PhysicalDisplayIdType {};
 
 template <uint64_t displayId>
-using HalVirtualDisplayIdType = std::integral_constant<uint64_t, displayId>;
+using VirtualDisplayIdType = std::integral_constant<uint64_t, displayId>;
 
-struct GpuVirtualDisplayIdType {};
+struct NoDisplayId {};
 
 template <typename>
 struct IsPhysicalDisplayId : std::bool_constant<false> {};
@@ -353,7 +353,7 @@ struct DisplayIdGetter;
 
 template <typename PhysicalDisplay>
 struct DisplayIdGetter<PhysicalDisplayIdType<PhysicalDisplay>> {
-    static PhysicalDisplayId get() {
+    static std::optional<PhysicalDisplayId> get() {
         if (!PhysicalDisplay::HAS_IDENTIFICATION_DATA) {
             return PhysicalDisplayId::fromPort(static_cast<bool>(PhysicalDisplay::PRIMARY)
                                                        ? LEGACY_DISPLAY_TYPE_PRIMARY
@@ -363,18 +363,19 @@ struct DisplayIdGetter<PhysicalDisplayIdType<PhysicalDisplay>> {
         const auto info =
                 parseDisplayIdentificationData(PhysicalDisplay::PORT,
                                                PhysicalDisplay::GET_IDENTIFICATION_DATA());
-        return info ? info->id : PhysicalDisplayId::fromPort(PhysicalDisplay::PORT);
+        return info ? std::make_optional(info->id) : std::nullopt;
     }
 };
 
 template <uint64_t displayId>
-struct DisplayIdGetter<HalVirtualDisplayIdType<displayId>> {
-    static HalVirtualDisplayId get() { return HalVirtualDisplayId(displayId); }
+struct DisplayIdGetter<VirtualDisplayIdType<displayId>> {
+    // TODO(b/160679868) Use VirtualDisplayId
+    static std::optional<PhysicalDisplayId> get() { return PhysicalDisplayId{displayId}; }
 };
 
 template <>
-struct DisplayIdGetter<GpuVirtualDisplayIdType> {
-    static GpuVirtualDisplayId get() { return GpuVirtualDisplayId(0); }
+struct DisplayIdGetter<NoDisplayId> {
+    static std::optional<DisplayId> get() { return {}; }
 };
 
 template <typename>
@@ -395,7 +396,7 @@ struct HwcDisplayIdGetter {
 constexpr HWDisplayId HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID = 1010;
 
 template <uint64_t displayId>
-struct HwcDisplayIdGetter<HalVirtualDisplayIdType<displayId>> {
+struct HwcDisplayIdGetter<VirtualDisplayIdType<displayId>> {
     static constexpr std::optional<HWDisplayId> value = HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID;
 };
 
@@ -406,8 +407,8 @@ struct HwcDisplayIdGetter<PhysicalDisplayIdType<PhysicalDisplay>> {
 
 // DisplayIdType can be:
 //     1) PhysicalDisplayIdType<...> for generated ID of physical display backed by HWC.
-//     2) HalVirtualDisplayIdType<...> for hard-coded ID of virtual display backed by HWC.
-//     3) GpuVirtualDisplayIdType for virtual display without HWC backing.
+//     2) VirtualDisplayIdType<...> for hard-coded ID of virtual display backed by HWC.
+//     3) NoDisplayId for virtual display without HWC backing.
 template <typename DisplayIdType, int width, int height, Critical critical, Async async,
           Secure secure, Primary primary, int grallocUsage>
 struct DisplayVariant {
@@ -439,35 +440,16 @@ struct DisplayVariant {
 
     static auto makeFakeExistingDisplayInjector(DisplayTransactionTest* test) {
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder();
-        if (auto displayId = PhysicalDisplayId::tryCast(DISPLAY_ID::get())) {
+        if (auto displayId = DISPLAY_ID::get()) {
             ceDisplayArgs.setPhysical({*displayId, DisplayConnectionType::Internal});
         } else {
-            // We turn off the use of HwcVirtualDisplays, to prevent Composition Engine
-            // from calling into HWComposer. This way all virtual displays will get
-            // a GpuVirtualDisplayId, even if we are in the HwcVirtualDisplayVariant.
-            // In this case we later override it by calling display.setDisplayIdForTesting().
             ceDisplayArgs.setUseHwcVirtualDisplays(false);
-
-            GpuVirtualDisplayId desiredDisplayId = GpuVirtualDisplayId::tryCast(DISPLAY_ID::get())
-                                                           .value_or(GpuVirtualDisplayId(0));
-
-            ON_CALL(test->mFlinger.gpuVirtualDisplayIdGenerator(), nextId())
-                    .WillByDefault(Return(desiredDisplayId));
-
-            auto& generator = test->mFlinger.gpuVirtualDisplayIdGenerator();
-            ceDisplayArgs.setGpuVirtualDisplayIdGenerator(generator);
         }
-        ceDisplayArgs.setPixels({WIDTH, HEIGHT}).setPowerAdvisor(&test->mPowerAdvisor);
+        ceDisplayArgs.setPixels({WIDTH, HEIGHT}).setPowerAdvisor(&test->mPowerAdvisor).build();
 
         auto compositionDisplay =
                 compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),
                                                        ceDisplayArgs.build());
-
-        if (HalVirtualDisplayId::tryCast(DISPLAY_ID::get())) {
-            // CompositionEngine has assigned a placeholder GpuVirtualDisplayId and we need to
-            // override it with the correct HalVirtualDisplayId.
-            compositionDisplay->setDisplayIdForTesting(DISPLAY_ID::get());
-        }
 
         auto injector = FakeDisplayDeviceInjector(test->mFlinger, compositionDisplay,
                                                   CONNECTION_TYPE::value, HWC_DISPLAY_ID_OPT::value,
@@ -550,8 +532,8 @@ struct HwcDisplayVariant {
     // Called by tests to inject a HWC display setup
     static void injectHwcDisplayWithNoDefaultCapabilities(DisplayTransactionTest* test) {
         const auto displayId = DisplayVariant::DISPLAY_ID::get();
-        ASSERT_FALSE(GpuVirtualDisplayId::tryCast(displayId));
-        FakeHwcDisplayInjector(displayId, HWC_DISPLAY_TYPE,
+        ASSERT_TRUE(displayId);
+        FakeHwcDisplayInjector(*displayId, HWC_DISPLAY_TYPE,
                                static_cast<bool>(DisplayVariant::PRIMARY))
                 .setHwcDisplayId(HWC_DISPLAY_ID)
                 .setWidth(DisplayVariant::WIDTH)
@@ -577,7 +559,7 @@ struct HwcDisplayVariant {
                 ::testing::UnitTest::GetInstance()->current_test_info();
 
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
-                                     .setPhysical({DisplayVariant::DISPLAY_ID::get(),
+                                     .setPhysical({*DisplayVariant::DISPLAY_ID::get(),
                                                    PhysicalDisplay::CONNECTION_TYPE})
                                      .setPixels({DisplayVariant::WIDTH, DisplayVariant::HEIGHT})
                                      .setIsSecure(static_cast<bool>(DisplayVariant::SECURE))
@@ -704,11 +686,10 @@ constexpr uint32_t GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY = 0;
 
 template <int width, int height, Secure secure>
 struct NonHwcVirtualDisplayVariant
-      : DisplayVariant<GpuVirtualDisplayIdType, width, height, Critical::FALSE, Async::TRUE, secure,
+      : DisplayVariant<NoDisplayId, width, height, Critical::FALSE, Async::TRUE, secure,
                        Primary::FALSE, GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY> {
-    using Base =
-            DisplayVariant<GpuVirtualDisplayIdType, width, height, Critical::FALSE, Async::TRUE,
-                           secure, Primary::FALSE, GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY>;
+    using Base = DisplayVariant<NoDisplayId, width, height, Critical::FALSE, Async::TRUE, secure,
+                                Primary::FALSE, GRALLOC_USAGE_NONHWC_VIRTUAL_DISPLAY>;
 
     static void injectHwcDisplay(DisplayTransactionTest*) {}
 
@@ -717,17 +698,12 @@ struct NonHwcVirtualDisplayVariant
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
 
-        ON_CALL(test->mFlinger.gpuVirtualDisplayIdGenerator(), nextId())
-                .WillByDefault(Return(Base::DISPLAY_ID::get()));
-
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
                                      .setPixels({Base::WIDTH, Base::HEIGHT})
                                      .setIsSecure(static_cast<bool>(Base::SECURE))
                                      .setPowerAdvisor(&test->mPowerAdvisor)
                                      .setName(std::string("Injected display for ") +
                                               test_info->test_case_name() + "." + test_info->name())
-                                     .setGpuVirtualDisplayIdGenerator(
-                                             test->mFlinger.gpuVirtualDisplayIdGenerator())
                                      .build();
 
         return compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),
@@ -749,13 +725,13 @@ constexpr uint32_t GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY = GRALLOC_USAGE_HW_COMPOSER
 
 template <int width, int height, Secure secure>
 struct HwcVirtualDisplayVariant
-      : DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Critical::FALSE, Async::TRUE,
+      : DisplayVariant<VirtualDisplayIdType<42>, width, height, Critical::FALSE, Async::TRUE,
                        secure, Primary::FALSE, GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>,
         HwcDisplayVariant<HWC_VIRTUAL_DISPLAY_HWC_DISPLAY_ID, DisplayType::VIRTUAL,
-                          DisplayVariant<HalVirtualDisplayIdType<42>, width, height,
-                                         Critical::FALSE, Async::TRUE, secure, Primary::FALSE,
+                          DisplayVariant<VirtualDisplayIdType<42>, width, height, Critical::FALSE,
+                                         Async::TRUE, secure, Primary::FALSE,
                                          GRALLOC_USAGE_HWC_VIRTUAL_DISPLAY>> {
-    using Base = DisplayVariant<HalVirtualDisplayIdType<42>, width, height, Critical::FALSE,
+    using Base = DisplayVariant<VirtualDisplayIdType<42>, width, height, Critical::FALSE,
                                 Async::TRUE, secure, Primary::FALSE, GRALLOC_USAGE_HW_COMPOSER>;
     using Self = HwcVirtualDisplayVariant<width, height, secure>;
 
@@ -764,14 +740,6 @@ struct HwcVirtualDisplayVariant
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
 
-        // In order to prevent compostition engine calling into HWComposer, we
-        // 1. turn off the use of HWC virtual displays,
-        // 2. provide a GpuVirtualDisplayIdGenerator which always returns some fake ID
-        // 3. override the ID by calling setDisplayIdForTesting()
-
-        ON_CALL(test->mFlinger.gpuVirtualDisplayIdGenerator(), nextId())
-                .WillByDefault(Return(GpuVirtualDisplayId(0)));
-
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
                                      .setUseHwcVirtualDisplays(false)
                                      .setPixels({Base::WIDTH, Base::HEIGHT})
@@ -779,8 +747,6 @@ struct HwcVirtualDisplayVariant
                                      .setPowerAdvisor(&test->mPowerAdvisor)
                                      .setName(std::string("Injected display for ") +
                                               test_info->test_case_name() + "." + test_info->name())
-                                     .setGpuVirtualDisplayIdGenerator(
-                                             test->mFlinger.gpuVirtualDisplayIdGenerator())
                                      .build();
 
         auto compositionDisplay =
@@ -789,9 +755,8 @@ struct HwcVirtualDisplayVariant
         compositionDisplay->setDisplayIdForTesting(Base::DISPLAY_ID::get());
 
         // Insert display data so that the HWC thinks it created the virtual display.
-        if (const auto displayId = Base::DISPLAY_ID::get();
-            HalVirtualDisplayId::tryCast(displayId)) {
-            test->mFlinger.mutableHwcDisplayData().try_emplace(displayId);
+        if (const auto displayId = Base::DISPLAY_ID::get()) {
+            test->mFlinger.mutableHwcDisplayData().try_emplace(*displayId);
         }
 
         return compositionDisplay;
@@ -1811,11 +1776,13 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
 
     DisplayDeviceState state;
     if (const auto connectionType = Case::Display::CONNECTION_TYPE::value) {
-        const auto displayId = PhysicalDisplayId::tryCast(Case::Display::DISPLAY_ID::get());
+        const auto displayId = Case::Display::DISPLAY_ID::get();
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
         ASSERT_TRUE(hwcDisplayId);
-        state.physical = {.id = *displayId, .type = *connectionType, .hwcDisplayId = *hwcDisplayId};
+        state.physical = {.id = static_cast<PhysicalDisplayId>(*displayId),
+                          .type = *connectionType,
+                          .hwcDisplayId = *hwcDisplayId};
     }
 
     state.isSecure = static_cast<bool>(Case::Display::SECURE);
@@ -1987,11 +1954,11 @@ void HandleTransactionLockedTest::verifyDisplayIsConnected(const sp<IBinder>& di
 
     std::optional<DisplayDeviceState::Physical> expectedPhysical;
     if (const auto connectionType = Case::Display::CONNECTION_TYPE::value) {
-        const auto displayId = PhysicalDisplayId::tryCast(Case::Display::DISPLAY_ID::get());
+        const auto displayId = Case::Display::DISPLAY_ID::get();
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
         ASSERT_TRUE(hwcDisplayId);
-        expectedPhysical = {.id = *displayId,
+        expectedPhysical = {.id = static_cast<PhysicalDisplayId>(*displayId),
                             .type = *connectionType,
                             .hwcDisplayId = *hwcDisplayId};
     }
@@ -2016,9 +1983,9 @@ void HandleTransactionLockedTest::verifyPhysicalDisplayIsConnected() {
 
     // SF should have a display token.
     const auto displayId = Case::Display::DISPLAY_ID::get();
-    ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 1);
-    auto& displayToken = mFlinger.mutablePhysicalDisplayTokens()[displayId];
+    ASSERT_TRUE(displayId);
+    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(*displayId) == 1);
+    auto& displayToken = mFlinger.mutablePhysicalDisplayTokens()[*displayId];
 
     verifyDisplayIsConnected<Case>(displayToken);
 }
@@ -2121,8 +2088,8 @@ void HandleTransactionLockedTest::processesHotplugDisconnectCommon() {
 
     // SF should not have a display token.
     const auto displayId = Case::Display::DISPLAY_ID::get();
-    ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 0);
+    ASSERT_TRUE(displayId);
+    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(*displayId) == 0);
 
     // The existing token should have been removed
     verifyDisplayIsNotConnected(existing.token());
@@ -2207,8 +2174,8 @@ TEST_F(HandleTransactionLockedTest, processesHotplugConnectThenDisconnectPrimary
 
     // SF should not have a display token.
     const auto displayId = Case::Display::DISPLAY_ID::get();
-    ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 0);
+    ASSERT_TRUE(displayId);
+    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(*displayId) == 0);
 }
 
 TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectThenConnectPrimary) {
@@ -2246,9 +2213,9 @@ TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectThenConnectPrimary
     // The existing token should have been removed
     verifyDisplayIsNotConnected(existing.token());
     const auto displayId = Case::Display::DISPLAY_ID::get();
-    ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 1);
-    EXPECT_NE(existing.token(), mFlinger.mutablePhysicalDisplayTokens()[displayId]);
+    ASSERT_TRUE(displayId);
+    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(*displayId) == 1);
+    EXPECT_NE(existing.token(), mFlinger.mutablePhysicalDisplayTokens()[*displayId]);
 
     // A new display should be connected in its place
 
@@ -2382,8 +2349,8 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayRemoval) {
 
     // A virtual display is set up but is removed from the current state.
     const auto displayId = Case::Display::DISPLAY_ID::get();
-    ASSERT_TRUE(HalVirtualDisplayId::tryCast(displayId));
-    mFlinger.mutableHwcDisplayData().try_emplace(displayId);
+    ASSERT_TRUE(displayId);
+    mFlinger.mutableHwcDisplayData().try_emplace(*displayId);
     Case::Display::injectHwcDisplay(this);
     auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
     existing.inject();
@@ -3518,8 +3485,8 @@ TEST_F(SetPowerModeInternalTest, setPowerModeInternalDoesNothingIfVirtualDisplay
 
     // Insert display data so that the HWC thinks it created the virtual display.
     const auto displayId = Case::Display::DISPLAY_ID::get();
-    ASSERT_TRUE(HalVirtualDisplayId::tryCast(displayId));
-    mFlinger.mutableHwcDisplayData().try_emplace(displayId);
+    ASSERT_TRUE(displayId);
+    mFlinger.mutableHwcDisplayData().try_emplace(*displayId);
 
     // A virtual display device is set up
     Case::Display::injectHwcDisplay(this);

@@ -29,13 +29,6 @@ cc_test {
 }
 
 cc_test {
-    name: "DisplayId_test",
-    shared_libs: ["libui"],
-    srcs: ["DisplayId_test.cpp"],
-    cflags: ["-Wall", "-Werror"],
-}
-
-cc_test {
     name: "FlattenableHelpers_test",
     shared_libs: ["libui"],
     srcs: ["FlattenableHelpers_test.cpp"],

@@ -20,7 +20,9 @@
 
 #include "DisplayHardware/PowerAdvisor.h"
 
-namespace android::Hwc2::mock {
+namespace android {
+namespace Hwc2 {
+namespace mock {
 
 class PowerAdvisor : public android::Hwc2::PowerAdvisor {
 public:
@@ -32,4 +34,6 @@ public:
     MOCK_METHOD0(notifyDisplayUpdateImminent, void());
 };
 
-} // namespace android::Hwc2::mock
+} // namespace mock
+} // namespace Hwc2
+} // namespace android

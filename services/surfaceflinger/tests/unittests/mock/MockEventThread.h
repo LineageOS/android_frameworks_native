@@ -20,7 +20,8 @@
 
 #include "Scheduler/EventThread.h"
 
-namespace android::mock {
+namespace android {
+namespace mock {
 
 class EventThread : public android::EventThread {
 public:
@@ -46,4 +47,5 @@ public:
     MOCK_METHOD0(getEventThreadConnectionCount, size_t());
 };
 
-} // namespace android::mock
+} // namespace mock
+} // namespace android
