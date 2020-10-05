@@ -17,20 +17,13 @@
 #pragma once
 
 #include <cstdint>
-#include <optional>
+#include <functional>
 #include <string>
 
 namespace android {
 
 // ID of a physical or a virtual display. This class acts as a type safe wrapper around uint64_t.
-// The encoding of the ID is type-specific for bits 0 to 61.
 struct DisplayId {
-    // Flag indicating that the display is virtual.
-    static constexpr uint64_t FLAG_VIRTUAL = 1ULL << 63;
-
-    // Flag indicating that the ID is stable across reboots.
-    static constexpr uint64_t FLAG_STABLE = 1ULL << 62;
-
     // TODO(b/162612135) Remove default constructor
     DisplayId() = default;
     constexpr DisplayId(const DisplayId&) = default;
@@ -58,12 +51,8 @@ inline std::string to_string(DisplayId displayId) {
 
 // DisplayId of a physical display, such as the internal display or externally connected display.
 struct PhysicalDisplayId : DisplayId {
-    static constexpr std::optional<PhysicalDisplayId> tryCast(DisplayId id) {
-        if (id.value & FLAG_VIRTUAL) {
-            return std::nullopt;
-        }
-        return {PhysicalDisplayId(id)};
-    }
+    // Flag indicating that the ID is stable across reboots.
+    static constexpr uint64_t FLAG_STABLE = 1ULL << 62;
 
     // Returns a stable ID based on EDID information.
     static constexpr PhysicalDisplayId fromEdid(uint8_t port, uint16_t manufacturerId,
@@ -80,8 +69,8 @@ struct PhysicalDisplayId : DisplayId {
 
     // TODO(b/162612135) Remove default constructor
     PhysicalDisplayId() = default;
-    // TODO(b/162612135) Remove constructor
     explicit constexpr PhysicalDisplayId(uint64_t id) : DisplayId(id) {}
+    explicit constexpr PhysicalDisplayId(DisplayId other) : DisplayId(other.value) {}
 
     constexpr uint16_t getManufacturerId() const { return static_cast<uint16_t>(value >> 40); }
 
@@ -92,81 +81,9 @@ private:
                                 uint32_t modelHash)
           : DisplayId(flags | (static_cast<uint64_t>(manufacturerId) << 40) |
                       (static_cast<uint64_t>(modelHash) << 8) | port) {}
-
-    explicit constexpr PhysicalDisplayId(DisplayId other) : DisplayId(other) {}
 };
 
 static_assert(sizeof(PhysicalDisplayId) == sizeof(uint64_t));
-
-struct VirtualDisplayId : DisplayId {
-    using BaseId = uint32_t;
-    // Flag indicating that this virtual display is backed by the GPU.
-    static constexpr uint64_t FLAG_GPU = 1ULL << 61;
-
-    static constexpr std::optional<VirtualDisplayId> tryCast(DisplayId id) {
-        if (id.value & FLAG_VIRTUAL) {
-            return {VirtualDisplayId(id)};
-        }
-        return std::nullopt;
-    }
-
-protected:
-    constexpr VirtualDisplayId(uint64_t flags, BaseId baseId)
-          : DisplayId(DisplayId::FLAG_VIRTUAL | flags | baseId) {}
-
-    explicit constexpr VirtualDisplayId(DisplayId other) : DisplayId(other) {}
-};
-
-struct HalVirtualDisplayId : VirtualDisplayId {
-    explicit constexpr HalVirtualDisplayId(BaseId baseId) : VirtualDisplayId(0, baseId) {}
-
-    static constexpr std::optional<HalVirtualDisplayId> tryCast(DisplayId id) {
-        if ((id.value & FLAG_VIRTUAL) && !(id.value & VirtualDisplayId::FLAG_GPU)) {
-            return {HalVirtualDisplayId(id)};
-        }
-        return std::nullopt;
-    }
-
-private:
-    explicit constexpr HalVirtualDisplayId(DisplayId other) : VirtualDisplayId(other) {}
-};
-
-struct GpuVirtualDisplayId : VirtualDisplayId {
-    explicit constexpr GpuVirtualDisplayId(BaseId baseId)
-          : VirtualDisplayId(VirtualDisplayId::FLAG_GPU, baseId) {}
-
-    static constexpr std::optional<GpuVirtualDisplayId> tryCast(DisplayId id) {
-        if ((id.value & FLAG_VIRTUAL) && (id.value & VirtualDisplayId::FLAG_GPU)) {
-            return {GpuVirtualDisplayId(id)};
-        }
-        return std::nullopt;
-    }
-
-private:
-    explicit constexpr GpuVirtualDisplayId(DisplayId other) : VirtualDisplayId(other) {}
-};
-
-// HalDisplayId is the ID of a display which is managed by HWC.
-// PhysicalDisplayId and HalVirtualDisplayId are implicitly convertible to HalDisplayId.
-struct HalDisplayId : DisplayId {
-    constexpr HalDisplayId(HalVirtualDisplayId other) : DisplayId(other) {}
-    constexpr HalDisplayId(PhysicalDisplayId other) : DisplayId(other) {}
-
-    static constexpr std::optional<HalDisplayId> tryCast(DisplayId id) {
-        if (GpuVirtualDisplayId::tryCast(id)) {
-            return std::nullopt;
-        }
-        return {HalDisplayId(id)};
-    }
-
-private:
-    explicit constexpr HalDisplayId(DisplayId other) : DisplayId(other) {}
-};
-
-static_assert(sizeof(VirtualDisplayId) == sizeof(uint64_t));
-static_assert(sizeof(HalVirtualDisplayId) == sizeof(uint64_t));
-static_assert(sizeof(GpuVirtualDisplayId) == sizeof(uint64_t));
-static_assert(sizeof(HalDisplayId) == sizeof(uint64_t));
 
 } // namespace android
 
@@ -181,14 +98,5 @@ struct hash<android::DisplayId> {
 
 template <>
 struct hash<android::PhysicalDisplayId> : hash<android::DisplayId> {};
-
-template <>
-struct hash<android::HalVirtualDisplayId> : hash<android::DisplayId> {};
-
-template <>
-struct hash<android::GpuVirtualDisplayId> : hash<android::DisplayId> {};
-
-template <>
-struct hash<android::HalDisplayId> : hash<android::DisplayId> {};
 
 } // namespace std

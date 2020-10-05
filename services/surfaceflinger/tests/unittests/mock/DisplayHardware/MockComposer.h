@@ -24,7 +24,8 @@ namespace android {
 
 class GraphicBuffer;
 
-namespace Hwc2::mock {
+namespace Hwc2 {
+namespace mock {
 
 using android::hardware::graphics::common::V1_0::ColorTransform;
 using android::hardware::graphics::common::V1_0::Transform;
@@ -139,5 +140,6 @@ public:
     MOCK_METHOD2(getClientTargetProperty, Error(Display, IComposerClient::ClientTargetProperty*));
 };
 
-} // namespace Hwc2::mock
+} // namespace mock
+} // namespace Hwc2
 } // namespace android

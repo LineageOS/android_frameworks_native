@@ -27,7 +27,6 @@
 #include <math/mat4.h>
 #include <renderengine/RenderEngine.h>
 #include <system/window.h>
-#include <ui/DisplayId.h>
 #include <ui/DisplayInfo.h>
 #include <ui/DisplayState.h>
 #include <ui/GraphicTypes.h>
@@ -105,15 +104,7 @@ public:
     bool needsFiltering() const;
     ui::LayerStack getLayerStack() const;
 
-    // Returns the physical ID of this display. This function asserts the ID is physical and it
-    // shouldn't be called for other display types, e.g. virtual.
-    PhysicalDisplayId getPhysicalId() const {
-        const auto displayIdOpt = PhysicalDisplayId::tryCast(getId());
-        LOG_FATAL_IF(!displayIdOpt);
-        return *displayIdOpt;
-    }
-
-    DisplayId getId() const;
+    const std::optional<DisplayId>& getId() const;
     const wp<IBinder>& getDisplayToken() const { return mDisplayToken; }
     int32_t getSequenceId() const { return mSequenceId; }
 
