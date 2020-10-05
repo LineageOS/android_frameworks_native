@@ -20,8 +20,7 @@
 
 #include "Scheduler/VsyncController.h"
 
-namespace android {
-namespace mock {
+namespace android::mock {
 
 class VsyncController : public android::scheduler::VsyncController {
 public:
@@ -36,5 +35,4 @@ public:
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock
