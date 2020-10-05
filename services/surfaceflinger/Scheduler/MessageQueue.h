@@ -29,6 +29,8 @@
 #include <private/gui/BitTube.h>
 
 #include "EventThread.h"
+#include "TracedOrdinal.h"
+#include "VSyncDispatch.h"
 
 namespace android {
 
@@ -63,6 +65,9 @@ public:
     virtual ~MessageQueue() = default;
 
     virtual void init(const sp<SurfaceFlinger>& flinger) = 0;
+    virtual void initVsync(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
+                           std::chrono::nanoseconds workDuration) = 0;
+    virtual void setDuration(std::chrono::nanoseconds workDuration) = 0;
     virtual void setEventConnection(const sp<EventThreadConnection>& connection) = 0;
     virtual void waitMessage() = 0;
     virtual void postMessage(sp<MessageHandler>&&) = 0;
@@ -74,7 +79,8 @@ public:
 
 namespace impl {
 
-class MessageQueue final : public android::MessageQueue {
+class MessageQueue : public android::MessageQueue {
+protected:
     class Handler : public MessageHandler {
         enum { eventMaskInvalidate = 0x1, eventMaskRefresh = 0x2, eventMaskTransaction = 0x4 };
         MessageQueue& mQueue;
@@ -84,9 +90,9 @@ class MessageQueue final : public android::MessageQueue {
 
     public:
         explicit Handler(MessageQueue& queue) : mQueue(queue), mEventMask(0) {}
-        virtual void handleMessage(const Message& message);
-        void dispatchRefresh();
-        void dispatchInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTimestamp);
+        void handleMessage(const Message& message) override;
+        virtual void dispatchRefresh();
+        virtual void dispatchInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTimestamp);
     };
 
     friend class Handler;
@@ -94,15 +100,33 @@ class MessageQueue final : public android::MessageQueue {
     sp<SurfaceFlinger> mFlinger;
     sp<Looper> mLooper;
     sp<EventThreadConnection> mEvents;
+
+    struct Vsync {
+        frametimeline::TokenManager* tokenManager = nullptr;
+        std::unique_ptr<scheduler::VSyncCallbackRegistration> registration;
+
+        std::mutex mutex;
+        TracedOrdinal<std::chrono::nanoseconds> workDuration
+                GUARDED_BY(mutex) = {"VsyncWorkDuration-sf", std::chrono::nanoseconds(0)};
+        std::chrono::nanoseconds lastCallbackTime GUARDED_BY(mutex) = std::chrono::nanoseconds{0};
+        TracedOrdinal<int> value = {"VSYNC-sf", 0};
+    };
+
+    Vsync mVsync;
+
     gui::BitTube mEventTube;
     sp<Handler> mHandler;
 
     static int cb_eventReceiver(int fd, int events, void* data);
     int eventReceiver(int fd, int events);
+    void vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, nsecs_t readyTime);
 
 public:
     ~MessageQueue() override = default;
     void init(const sp<SurfaceFlinger>& flinger) override;
+    void initVsync(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
+                   std::chrono::nanoseconds workDuration) override;
+    void setDuration(std::chrono::nanoseconds workDuration) override;
     void setEventConnection(const sp<EventThreadConnection>& connection) override;
 
     void waitMessage() override;

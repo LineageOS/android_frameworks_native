@@ -1414,8 +1414,8 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
         Mutex::Autolock lock(mStateLock);
 
         if (const auto handle = mScheduler->enableVSyncInjection(enable)) {
-            mEventQueue->setEventConnection(
-                    mScheduler->getEventConnection(enable ? handle : mSfConnectionHandle));
+            mEventQueue->setEventConnection(enable ? mScheduler->getEventConnection(handle)
+                                                   : nullptr);
         }
     }).wait();
 
@@ -2866,19 +2866,23 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
     // start the EventThread
     mScheduler = getFactory().createScheduler(*mRefreshRateConfigs, *this);
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
+    const nsecs_t vsyncPeriod =
+            mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).getVsyncPeriod();
     mAppConnectionHandle =
             mScheduler->createConnection("app", mFrameTimeline->getTokenManager(),
                                          /*workDuration=*/configs.late.appWorkDuration,
                                          /*readyDuration=*/configs.late.sfWorkDuration,
                                          impl::EventThread::InterceptVSyncsCallback());
     mSfConnectionHandle =
-            mScheduler->createConnection("sf", mFrameTimeline->getTokenManager(),
-                                         /*workDuration=*/configs.late.sfWorkDuration,
-                                         /*readyDuration=*/0ns, [this](nsecs_t timestamp) {
+            mScheduler->createConnection("appSf", mFrameTimeline->getTokenManager(),
+                                         /*workDuration=*/std::chrono::nanoseconds(vsyncPeriod),
+                                         /*readyDuration=*/configs.late.sfWorkDuration,
+                                         [this](nsecs_t timestamp) {
                                              mInterceptor->saveVSyncEvent(timestamp);
                                          });
 
-    mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
+    mEventQueue->initVsync(mScheduler->getVsyncDispatch(), *mFrameTimeline->getTokenManager(),
+                           configs.late.sfWorkDuration);
 
     mRegionSamplingThread =
             new RegionSamplingThread(*this, *mScheduler,
@@ -2890,8 +2894,6 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
     // This is a bit hacky, but this avoids a back-pointer into the main SF
     // classes from EventThread, and there should be no run-time binder cost
     // anyway since there are no connected apps at this point.
-    const nsecs_t vsyncPeriod =
-            mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).getVsyncPeriod();
     mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, primaryDisplayId, currentConfig,
                                               vsyncPeriod);
     static auto ignorePresentFences =
@@ -2903,16 +2905,19 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
 
 void SurfaceFlinger::updatePhaseConfiguration(const RefreshRate& refreshRate) {
     mVsyncConfiguration->setRefreshRateFps(refreshRate.getFps());
-    setVsyncConfig(mVsyncModulator->setVsyncConfigSet(mVsyncConfiguration->getCurrentConfigs()));
+    setVsyncConfig(mVsyncModulator->setVsyncConfigSet(mVsyncConfiguration->getCurrentConfigs()),
+                   refreshRate.getVsyncPeriod());
 }
 
-void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config) {
+void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config,
+                                    nsecs_t vsyncPeriod) {
     mScheduler->setDuration(mAppConnectionHandle,
                             /*workDuration=*/config.appWorkDuration,
                             /*readyDuration=*/config.sfWorkDuration);
     mScheduler->setDuration(mSfConnectionHandle,
-                            /*workDuration=*/config.sfWorkDuration,
-                            /*readyDuration=*/0ns);
+                            /*workDuration=*/std::chrono::nanoseconds(vsyncPeriod),
+                            /*readyDuration=*/config.sfWorkDuration);
+    mEventQueue->setDuration(config.sfWorkDuration);
 }
 
 void SurfaceFlinger::commitTransaction() {
