@@ -195,12 +195,17 @@ ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
 }
 
 std::string DisplayDevice::getDebugName() const {
+    std::string displayId;
+    if (const auto id = getId()) {
+        displayId = to_string(*id) + ", ";
+    }
+
     const char* type = "virtual";
     if (mConnectionType) {
         type = *mConnectionType == DisplayConnectionType::Internal ? "internal" : "external";
     }
 
-    return base::StringPrintf("DisplayDevice{%s, %s%s, \"%s\"}", to_string(getId()).c_str(), type,
+    return base::StringPrintf("DisplayDevice{%s%s%s, \"%s\"}", displayId.c_str(), type,
                               isPrimary() ? ", primary" : "", mDisplayName.c_str());
 }
 
@@ -224,7 +229,9 @@ bool DisplayDevice::hasRenderIntent(ui::RenderIntent intent) const {
     return mCompositionDisplay->getDisplayColorProfile()->hasRenderIntent(intent);
 }
 
-DisplayId DisplayDevice::getId() const {
+// ----------------------------------------------------------------------------
+
+const std::optional<DisplayId>& DisplayDevice::getId() const {
     return mCompositionDisplay->getId();
 }
 

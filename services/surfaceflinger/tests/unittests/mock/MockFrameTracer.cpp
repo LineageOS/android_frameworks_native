@@ -16,10 +16,12 @@
 
 #include "mock/MockFrameTracer.h"
 
-namespace android::mock {
+namespace android {
+namespace mock {
 
 // Explicit default instantiation is recommended.
 FrameTracer::FrameTracer() = default;
 FrameTracer::~FrameTracer() = default;
 
-} // namespace android::mock
+} // namespace mock
+} // namespace android

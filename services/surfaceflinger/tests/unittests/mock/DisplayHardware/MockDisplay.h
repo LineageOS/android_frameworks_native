@@ -22,7 +22,9 @@
 
 using android::HWC2::Layer;
 
-namespace android::Hwc2::mock {
+namespace android {
+namespace Hwc2 {
+namespace mock {
 
 namespace hal = android::hardware::graphics::composer::hal;
 
@@ -96,4 +98,6 @@ public:
     MOCK_CONST_METHOD0(isVsyncPeriodSwitchSupported, bool());
 };
 
-} // namespace android::Hwc2::mock
+} // namespace mock
+} // namespace Hwc2
+} // namespace android

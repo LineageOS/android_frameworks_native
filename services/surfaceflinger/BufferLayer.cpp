@@ -366,7 +366,7 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
     } else if (!display) {
         // Do nothing.
-    } else if (const auto displayId = PhysicalDisplayId::tryCast(display->getId());
+    } else if (const auto displayId = display->getId();
                displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.

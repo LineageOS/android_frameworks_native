@@ -20,7 +20,8 @@
 
 #include "TimeStats/TimeStats.h"
 
-namespace android::mock {
+namespace android {
+namespace mock {
 
 class TimeStats : public android::TimeStats {
 public:
@@ -58,4 +59,5 @@ public:
     MOCK_METHOD1(setPresentFenceGlobal, void(const std::shared_ptr<FenceTime>&));
 };
 
-} // namespace android::mock
+} // namespace mock
+} // namespace android

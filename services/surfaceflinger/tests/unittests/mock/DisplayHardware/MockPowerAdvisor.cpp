@@ -16,10 +16,14 @@
 
 #include "MockPowerAdvisor.h"
 
-namespace android::Hwc2::mock {
+namespace android {
+namespace Hwc2 {
+namespace mock {
 
 // Explicit default instantiation is recommended.
 PowerAdvisor::PowerAdvisor() = default;
 PowerAdvisor::~PowerAdvisor() = default;
 
-} // namespace android::Hwc2::mock
+} // namespace mock
+} // namespace Hwc2
+} // namespace android

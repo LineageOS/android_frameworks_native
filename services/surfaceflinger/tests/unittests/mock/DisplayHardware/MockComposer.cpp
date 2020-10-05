@@ -20,13 +20,17 @@
 
 #include "mock/DisplayHardware/MockComposer.h"
 
-namespace android::Hwc2::mock {
+namespace android {
+namespace Hwc2 {
+namespace mock {
 
 // Explicit default instantiation is recommended.
 Composer::Composer() = default;
 Composer::~Composer() = default;
 
-} // namespace android::Hwc2::mock
+} // namespace mock
+} // namespace Hwc2
+} // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
