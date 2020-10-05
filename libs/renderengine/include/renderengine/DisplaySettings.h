@@ -47,8 +47,8 @@ struct DisplaySettings {
     // DataSpace::UNKNOWN otherwise.
     ui::Dataspace outputDataspace = ui::Dataspace::UNKNOWN;
 
-    // Additional color transform to apply in linear space after transforming
-    // to the output dataspace.
+    // Additional color transform to apply after transforming to the output
+    // dataspace, in non-linear space.
     mat4 colorTransform = mat4();
 
     // Region that will be cleared to (0, 0, 0, 1) prior to rendering.
