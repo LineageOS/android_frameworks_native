@@ -490,8 +490,8 @@ public:
         IGraphicBufferProducer::QueueBufferOutput qbOutput;
         IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
                                                        Rect(bufWidth, bufHeight),
-                                                       NATIVE_WINDOW_SCALING_MODE_FREEZE, tr,
-                                                       Fence::NO_FENCE);
+                                                       NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW,
+                                                       tr, Fence::NO_FENCE);
         igbProducer->queueBuffer(slot, input, &qbOutput);
         ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 

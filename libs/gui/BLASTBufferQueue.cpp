@@ -18,7 +18,7 @@
 #define LOG_TAG "BLASTBufferQueue"
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-// #define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
@@ -252,8 +252,8 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     }
 
     if (rejectBuffer(bufferItem)) {
-        BQA_LOGE("rejecting buffer: configured width=%d, height=%d, buffer{w=%d, h=%d}", mWidth,
-                 mHeight, buffer->getWidth(), buffer->getHeight());
+        BQA_LOGE("rejecting buffer:configured size=%dx%d, buffer{size=%dx%d transform=%d}", mWidth,
+                 mHeight, buffer->getWidth(), buffer->getHeight(), bufferItem.mTransform);
         mBufferItemConsumer->releaseBuffer(bufferItem, Fence::NO_FENCE);
         return;
     }
@@ -330,7 +330,15 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) const {
         return false;
     }
 
+    uint32_t bufWidth = item.mGraphicBuffer->getWidth();
+    uint32_t bufHeight = item.mGraphicBuffer->getHeight();
+
+    // Take the buffer's orientation into account
+    if (item.mTransform & ui::Transform::ROT_90) {
+        std::swap(bufWidth, bufHeight);
+    }
+
     // reject buffers if the buffer size doesn't match.
-    return item.mGraphicBuffer->getWidth() != mWidth || item.mGraphicBuffer->getHeight() != mHeight;
+    return bufWidth != mWidth || bufHeight != mHeight;
 }
 } // namespace android
