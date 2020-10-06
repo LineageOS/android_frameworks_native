@@ -47,6 +47,7 @@ cc_test {
         "LayerHistoryTest.cpp",
         "LayerHistoryTestV2.cpp",
         "LayerMetadataTest.cpp",
+        "MessageQueueTest.cpp",
         "PromiseTest.cpp",
         "SchedulerTest.cpp",
         "SchedulerUtilsTest.cpp",

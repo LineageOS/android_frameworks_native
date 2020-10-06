@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <binder/IPCThreadState.h>
 
@@ -28,6 +26,7 @@
 #include <gui/IDisplayEventConnection.h>
 
 #include "EventThread.h"
+#include "FrameTimeline.h"
 #include "MessageQueue.h"
 #include "SurfaceFlinger.h"
 
@@ -68,15 +67,53 @@ void MessageQueue::init(const sp<SurfaceFlinger>& flinger) {
     mHandler = new Handler(*this);
 }
 
+// TODO(b/169865816): refactor VSyncInjections to use MessageQueue directly
+// and remove the EventThread from MessageQueue
 void MessageQueue::setEventConnection(const sp<EventThreadConnection>& connection) {
     if (mEventTube.getFd() >= 0) {
         mLooper->removeFd(mEventTube.getFd());
     }
 
     mEvents = connection;
-    mEvents->stealReceiveChannel(&mEventTube);
-    mLooper->addFd(mEventTube.getFd(), 0, Looper::EVENT_INPUT, MessageQueue::cb_eventReceiver,
-                   this);
+    if (mEvents) {
+        mEvents->stealReceiveChannel(&mEventTube);
+        mLooper->addFd(mEventTube.getFd(), 0, Looper::EVENT_INPUT, MessageQueue::cb_eventReceiver,
+                       this);
+    }
+}
+
+void MessageQueue::vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, nsecs_t readyTime) {
+    ATRACE_CALL();
+    // Trace VSYNC-sf
+    mVsync.value = (mVsync.value + 1) % 2;
+
+    {
+        std::lock_guard lock(mVsync.mutex);
+        mVsync.lastCallbackTime = std::chrono::nanoseconds(vsyncTime);
+    }
+    mHandler->dispatchInvalidate(mVsync.tokenManager->generateTokenForPredictions(
+                                         {targetWakeupTime, readyTime, vsyncTime}),
+                                 vsyncTime);
+}
+
+void MessageQueue::initVsync(scheduler::VSyncDispatch& dispatch,
+                             frametimeline::TokenManager& tokenManager,
+                             std::chrono::nanoseconds workDuration) {
+    setDuration(workDuration);
+    mVsync.tokenManager = &tokenManager;
+    mVsync.registration = std::make_unique<
+            scheduler::VSyncCallbackRegistration>(dispatch,
+                                                  std::bind(&MessageQueue::vsyncCallback, this,
+                                                            std::placeholders::_1,
+                                                            std::placeholders::_2,
+                                                            std::placeholders::_3),
+                                                  "sf");
+}
+
+void MessageQueue::setDuration(std::chrono::nanoseconds workDuration) {
+    ATRACE_CALL();
+    std::lock_guard lock(mVsync.mutex);
+    mVsync.workDuration = workDuration;
 }
 
 void MessageQueue::waitMessage() {
@@ -106,7 +143,18 @@ void MessageQueue::postMessage(sp<MessageHandler>&& handler) {
 }
 
 void MessageQueue::invalidate() {
-    mEvents->requestNextVsync();
+    ATRACE_CALL();
+    if (mEvents) {
+        mEvents->requestNextVsync();
+    } else {
+        const auto [workDuration, lastVsyncCallback] = [&] {
+            std::lock_guard lock(mVsync.mutex);
+            std::chrono::nanoseconds mWorkDurationNanos = mVsync.workDuration;
+            return std::make_pair(mWorkDurationNanos.count(), mVsync.lastCallbackTime.count());
+        }();
+
+        mVsync.registration->schedule({workDuration, /*readyDuration=*/0, lastVsyncCallback});
+    }
 }
 
 void MessageQueue::refresh() {
@@ -135,5 +183,3 @@ int MessageQueue::eventReceiver(int /*fd*/, int /*events*/) {
 
 } // namespace android::impl
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"

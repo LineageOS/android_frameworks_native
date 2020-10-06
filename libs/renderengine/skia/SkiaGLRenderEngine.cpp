@@ -20,13 +20,13 @@
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "SkiaGLRenderEngine.h"
-
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
 #include <GrContextOptions.h>
 #include <SkCanvas.h>
+#include <SkColorFilter.h>
+#include <SkColorMatrix.h>
 #include <SkColorSpace.h>
 #include <SkImage.h>
 #include <SkImageFilters.h>
@@ -40,6 +40,7 @@
 #include <cmath>
 
 #include "../gl/GLExtensions.h"
+#include "SkiaGLRenderEngine.h"
 #include "filters/BlurFilter.h"
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
@@ -395,6 +396,13 @@ static float toDegrees(uint32_t transform) {
     }
 }
 
+static SkColorMatrix toSkColorMatrix(const mat4& matrix) {
+    return SkColorMatrix(matrix[0][0], matrix[1][0], matrix[2][0], matrix[3][0], 0, matrix[0][1],
+                         matrix[1][1], matrix[2][1], matrix[3][1], 0, matrix[0][2], matrix[1][2],
+                         matrix[2][2], matrix[3][2], 0, matrix[0][3], matrix[1][3], matrix[2][3],
+                         matrix[3][3], 0);
+}
+
 void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     mImageCache.erase(bufferId);
@@ -565,6 +573,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             const auto color = layer->source.solidColor;
             paint.setColor(SkColor4f{.fR = color.r, .fG = color.g, .fB = color.b, layer->alpha});
         }
+
+        paint.setColorFilter(SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform)));
 
         // Layers have a local transform matrix that should be applied to them.
         canvas->save();

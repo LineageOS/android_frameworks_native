@@ -1414,8 +1414,8 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
         Mutex::Autolock lock(mStateLock);
 
         if (const auto handle = mScheduler->enableVSyncInjection(enable)) {
-            mEventQueue->setEventConnection(
-                    mScheduler->getEventConnection(enable ? handle : mSfConnectionHandle));
+            mEventQueue->setEventConnection(enable ? mScheduler->getEventConnection(handle)
+                                                   : nullptr);
         }
     }).wait();
 
@@ -2867,19 +2867,23 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
     // start the EventThread
     mScheduler = getFactory().createScheduler(*mRefreshRateConfigs, *this);
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
+    const nsecs_t vsyncPeriod =
+            mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).getVsyncPeriod();
     mAppConnectionHandle =
             mScheduler->createConnection("app", mFrameTimeline->getTokenManager(),
                                          /*workDuration=*/configs.late.appWorkDuration,
                                          /*readyDuration=*/configs.late.sfWorkDuration,
                                          impl::EventThread::InterceptVSyncsCallback());
     mSfConnectionHandle =
-            mScheduler->createConnection("sf", mFrameTimeline->getTokenManager(),
-                                         /*workDuration=*/configs.late.sfWorkDuration,
-                                         /*readyDuration=*/0ns, [this](nsecs_t timestamp) {
+            mScheduler->createConnection("appSf", mFrameTimeline->getTokenManager(),
+                                         /*workDuration=*/std::chrono::nanoseconds(vsyncPeriod),
+                                         /*readyDuration=*/configs.late.sfWorkDuration,
+                                         [this](nsecs_t timestamp) {
                                              mInterceptor->saveVSyncEvent(timestamp);
                                          });
 
-    mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
+    mEventQueue->initVsync(mScheduler->getVsyncDispatch(), *mFrameTimeline->getTokenManager(),
+                           configs.late.sfWorkDuration);
 
     mRegionSamplingThread =
             new RegionSamplingThread(*this, *mScheduler,
@@ -2891,8 +2895,6 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
     // This is a bit hacky, but this avoids a back-pointer into the main SF
     // classes from EventThread, and there should be no run-time binder cost
     // anyway since there are no connected apps at this point.
-    const nsecs_t vsyncPeriod =
-            mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).getVsyncPeriod();
     mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, primaryDisplayId, currentConfig,
                                               vsyncPeriod);
     static auto ignorePresentFences =
@@ -2904,16 +2906,19 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
 
 void SurfaceFlinger::updatePhaseConfiguration(const RefreshRate& refreshRate) {
     mVsyncConfiguration->setRefreshRateFps(refreshRate.getFps());
-    setVsyncConfig(mVsyncModulator->setVsyncConfigSet(mVsyncConfiguration->getCurrentConfigs()));
+    setVsyncConfig(mVsyncModulator->setVsyncConfigSet(mVsyncConfiguration->getCurrentConfigs()),
+                   refreshRate.getVsyncPeriod());
 }
 
-void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config) {
+void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config,
+                                    nsecs_t vsyncPeriod) {
     mScheduler->setDuration(mAppConnectionHandle,
                             /*workDuration=*/config.appWorkDuration,
                             /*readyDuration=*/config.sfWorkDuration);
     mScheduler->setDuration(mSfConnectionHandle,
-                            /*workDuration=*/config.sfWorkDuration,
-                            /*readyDuration=*/0ns);
+                            /*workDuration=*/std::chrono::nanoseconds(vsyncPeriod),
+                            /*readyDuration=*/config.sfWorkDuration);
+    mEventQueue->setDuration(config.sfWorkDuration);
 }
 
 void SurfaceFlinger::commitTransaction() {
@@ -3942,7 +3947,9 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     mInterceptor->saveSurfaceCreation(layer);
 
     setTransactionFlags(eTransactionNeeded);
-    *outId = layer->sequence;
+    if (outId) {
+        *outId = layer->sequence;
+    }
     return result;
 }
 
@@ -4232,7 +4239,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
                 {"--vsync"s, dumper(&SurfaceFlinger::dumpVSync)},
                 {"--wide-color"s, dumper(&SurfaceFlinger::dumpWideColorInfo)},
-                {"--frametimeline"s, dumper([this](std::string& s) { mFrameTimeline->dump(s); })},
+                {"--frametimeline"s, argsDumper(&SurfaceFlinger::dumpFrameTimeline)},
         };
 
         const auto flag = args.empty() ? ""s : std::string(String8(args[0]));
@@ -4313,6 +4320,10 @@ void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
 
 void SurfaceFlinger::dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const {
     mTimeStats->parseArgs(asProto, args, result);
+}
+
+void SurfaceFlinger::dumpFrameTimeline(const DumpArgs& args, std::string& result) const {
+    mFrameTimeline->parseArgs(args, result);
 }
 
 // This should only be called from the main thread.  Otherwise it would need
@@ -4897,9 +4908,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1037 are currently used for backdoors. The code
+    // Numbers from 1000 to 1038 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1037) {
+    if (code >= 1000 && code <= 1038) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5253,6 +5264,21 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
 
                 onHotplugReceived(getBE().mComposerSequenceId, *hwcId, hal::Connection::CONNECTED);
 
+                return NO_ERROR;
+            }
+            // Modify the max number of display frames stored within FrameTimeline
+            case 1038: {
+                n = data.readInt32();
+                if (n < 0 || n > MAX_ALLOWED_DISPLAY_FRAMES) {
+                    ALOGW("Invalid max size. Maximum allowed is %d", MAX_ALLOWED_DISPLAY_FRAMES);
+                    return BAD_VALUE;
+                }
+                if (n == 0) {
+                    // restore to default
+                    mFrameTimeline->reset();
+                    return NO_ERROR;
+                }
+                mFrameTimeline->setMaxDisplayFrames(n);
                 return NO_ERROR;
             }
         }

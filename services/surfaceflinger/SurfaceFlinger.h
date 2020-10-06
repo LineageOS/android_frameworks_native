@@ -494,11 +494,14 @@ private:
               typename Handler = VsyncModulator::VsyncConfigOpt (VsyncModulator::*)(Args...)>
     void modulateVsync(Handler handler, Args... args) {
         if (const auto config = (*mVsyncModulator.*handler)(args...)) {
-            setVsyncConfig(*config);
+            const auto vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
+            setVsyncConfig(*config, vsyncPeriod);
         }
     }
 
     static const int MAX_TRACING_MEMORY = 100 * 1024 * 1024; // 100MB
+    // Maximum allowed number of display frames that can be set through backdoor
+    static const int MAX_ALLOWED_DISPLAY_FRAMES = 2048;
 
     // Implements IBinder.
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;
@@ -701,7 +704,7 @@ private:
 
     void initScheduler(PhysicalDisplayId primaryDisplayId);
     void updatePhaseConfiguration(const RefreshRate&);
-    void setVsyncConfig(const VsyncModulator::VsyncConfig&);
+    void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
      * region. Returns whether a new buffer has been latched, i.e., whether it
@@ -978,6 +981,7 @@ private:
     void dumpStatsLocked(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
     void clearStatsLocked(const DumpArgs& args, std::string& result);
     void dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const;
+    void dumpFrameTimeline(const DumpArgs& args, std::string& result) const;
     void logFrameStats();
 
     void dumpVSync(std::string& result) const REQUIRES(mStateLock);
