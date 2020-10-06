@@ -1,5 +1,5 @@
-cc_library_shared {
-    name: "liblayers_proto",
+cc_defaults {
+    name: "liblayers_proto_defaults",
     export_include_dirs: ["include"],
 
     srcs: [
@@ -19,7 +19,7 @@ cc_library_shared {
     proto: {
         export_proto_headers: true,
     },
-
+    
     cppflags: [
         "-Werror",
         "-Wno-unused-parameter",
@@ -33,7 +33,20 @@ cc_library_shared {
         "-Wno-old-style-cast",
         "-Wno-undef",
     ],
+}
 
+cc_library_shared {
+    name: "liblayers_proto",
+    defaults: [
+        "liblayers_proto_defaults",
+    ],
+}
+
+cc_library_static {
+    name: "liblayers_proto_static",
+    defaults: [
+        "liblayers_proto_defaults",
+    ],
 }
 
 java_library_static {
