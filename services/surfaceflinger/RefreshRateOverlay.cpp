@@ -176,12 +176,13 @@ RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger, bool showSpinner
 }
 
 bool RefreshRateOverlay::createLayer() {
+    int32_t layerId;
     const status_t ret =
             mFlinger.createLayer(String8("RefreshRateOverlay"), mClient,
                                  SevenSegmentDrawer::getWidth(), SevenSegmentDrawer::getHeight(),
                                  PIXEL_FORMAT_RGBA_8888,
                                  ISurfaceComposerClient::eFXSurfaceBufferState, LayerMetadata(),
-                                 &mIBinder, &mGbp, nullptr);
+                                 &mIBinder, &mGbp, nullptr, &layerId);
     if (ret) {
         ALOGE("failed to create buffer state layer");
         return false;

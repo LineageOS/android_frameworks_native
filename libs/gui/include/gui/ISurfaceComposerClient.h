@@ -58,7 +58,7 @@ public:
     virtual status_t createSurface(const String8& name, uint32_t w, uint32_t h, PixelFormat format,
                                    uint32_t flags, const sp<IBinder>& parent,
                                    LayerMetadata metadata, sp<IBinder>* handle,
-                                   sp<IGraphicBufferProducer>* gbp, int32_t* outId,
+                                   sp<IGraphicBufferProducer>* gbp, int32_t* outLayerId,
                                    uint32_t* outTransformHint) = 0;
 
     /*
@@ -68,7 +68,7 @@ public:
                                              PixelFormat format, uint32_t flags,
                                              const sp<IGraphicBufferProducer>& parent,
                                              LayerMetadata metadata, sp<IBinder>* handle,
-                                             sp<IGraphicBufferProducer>* gbp, int32_t* outId,
+                                             sp<IGraphicBufferProducer>* gbp, int32_t* outLayerId,
                                              uint32_t* outTransformHint) = 0;
 
     /*
@@ -82,7 +82,7 @@ public:
     virtual status_t getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const = 0;
 
     virtual status_t mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* outHandle,
-                                   int32_t* outId) = 0;
+                                   int32_t* outLayerId) = 0;
 };
 
 class BnSurfaceComposerClient : public SafeBnInterface<ISurfaceComposerClient> {
