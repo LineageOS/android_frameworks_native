@@ -106,16 +106,16 @@ void Client::detachLayer(const Layer* layer)
         }
     }
 }
-sp<Layer> Client::getLayerUser(const sp<IBinder>& handle) const
+
+bool Client::isAttached(const sp<IBinder>& handle) const
 {
     Mutex::Autolock _l(mLock);
     sp<Layer> lbc;
     wp<Layer> layer(mLayers.valueFor(handle));
     if (layer != 0) {
-        lbc = layer.promote();
-        ALOGE_IF(lbc==0, "getLayerUser(name=%p) is dead", handle.get());
+        return true;
     }
-    return lbc;
+    return false;
 }
 
 status_t Client::onTransact(
@@ -148,12 +148,15 @@ status_t Client::createSurface(
         uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
         const sp<IBinder>& parentHandle, int32_t windowType, int32_t ownerUid,
         sp<IBinder>* handle,
-        sp<IGraphicBufferProducer>* gbp) {
+        sp<IGraphicBufferProducer>* gbp)
+{
     bool parentDied;
-    sp<Layer> parentLayer = getParentLayer(&parentDied);
+    sp<Layer> parentLayer;
+    if (!parentHandle) parentLayer = getParentLayer(&parentDied);
     if (parentHandle == nullptr && parentDied) {
         return NAME_NOT_FOUND;
     }
+
     return mFlinger->createLayer(name, this, w, h, format, flags, windowType,
                                  ownerUid, handle, gbp, parentHandle, parentLayer);
 }
@@ -163,21 +166,11 @@ status_t Client::destroySurface(const sp<IBinder>& handle) {
 }
 
 status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {
-    sp<Layer> layer = getLayerUser(handle);
-    if (layer == nullptr) {
-        return NAME_NOT_FOUND;
-    }
-    layer->clearFrameStats();
-    return NO_ERROR;
+    return mFlinger->clearLayerFrameStats(this, handle);
 }
 
 status_t Client::getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const {
-    sp<Layer> layer = getLayerUser(handle);
-    if (layer == nullptr) {
-        return NAME_NOT_FOUND;
-    }
-    layer->getFrameStats(outStats);
-    return NO_ERROR;
+    return mFlinger->getLayerFrameStats(this, handle, outStats);
 }
 
 // ---------------------------------------------------------------------------
