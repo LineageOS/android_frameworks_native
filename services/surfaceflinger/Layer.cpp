@@ -162,13 +162,8 @@ Layer::~Layer() {
 void Layer::onLayerDisplayed(const sp<Fence>& /*releaseFence*/) {}
 
 void Layer::onRemovedFromCurrentState() {
-    if (!mPendingRemoval) {
-        // the layer is removed from SF mCurrentState to mLayersPendingRemoval
-        mPendingRemoval = true;
-
-        // remove from sf mapping
-        mFlinger->removeLayerFromMap(this);
-    }
+    // the layer is removed from SF mCurrentState to mLayersPendingRemoval
+    mPendingRemoval = true;
 
     if (mCurrentState.zOrderRelativeOf != nullptr) {
         sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
