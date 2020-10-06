@@ -39,6 +39,7 @@ cc_test {
         "CompositionTest.cpp",
         "DispSyncSourceTest.cpp",
         "DisplayIdentificationTest.cpp",
+        "DisplayIdGeneratorTest.cpp",
         "DisplayTransactionTest.cpp",
         "EventThreadTest.cpp",
         "FrameTimelineTest.cpp",
