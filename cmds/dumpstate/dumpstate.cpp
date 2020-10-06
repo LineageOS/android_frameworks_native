@@ -1308,7 +1308,7 @@ static Dumpstate::RunStatus RunDumpsysNormal() {
 static void DumpHals() {
     if (!ds.IsZipping()) {
         RunCommand("HARDWARE HALS", {"lshal", "--all", "--types=all", "--debug"},
-                   CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
+                   CommandOptions::WithTimeout(60).AsRootIfAvailable().Build());
         return;
     }
     DurationReporter duration_reporter("DUMP HALS");
