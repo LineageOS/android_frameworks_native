@@ -57,8 +57,7 @@ static const char* dbgCompositionTypeStr(compositionengine::DisplaySurface::Comp
     }
 }
 
-VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc,
-                                             const std::optional<DisplayId>& displayId,
+VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc, VirtualDisplayId displayId,
                                              const sp<IGraphicBufferProducer>& sink,
                                              const sp<IGraphicBufferProducer>& bqProducer,
                                              const sp<IGraphicBufferConsumer>& bqConsumer,
@@ -125,7 +124,7 @@ VirtualDisplaySurface::~VirtualDisplaySurface() {
 }
 
 status_t VirtualDisplaySurface::beginFrame(bool mustRecompose) {
-    if (!mDisplayId) {
+    if (GpuVirtualDisplayId::tryCast(mDisplayId)) {
         return NO_ERROR;
     }
 
@@ -139,7 +138,7 @@ status_t VirtualDisplaySurface::beginFrame(bool mustRecompose) {
 }
 
 status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
-    if (!mDisplayId) {
+    if (GpuVirtualDisplayId::tryCast(mDisplayId)) {
         return NO_ERROR;
     }
 
@@ -187,7 +186,7 @@ status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
 }
 
 status_t VirtualDisplaySurface::advanceFrame() {
-    if (!mDisplayId) {
+    if (GpuVirtualDisplayId::tryCast(mDisplayId)) {
         return NO_ERROR;
     }
 
@@ -219,9 +218,11 @@ status_t VirtualDisplaySurface::advanceFrame() {
             mFbProducerSlot, fbBuffer.get(),
             mOutputProducerSlot, outBuffer.get());
 
+    const auto halDisplayId = HalVirtualDisplayId::tryCast(mDisplayId);
+    LOG_FATAL_IF(!halDisplayId);
     // At this point we know the output buffer acquire fence,
     // so update HWC state with it.
-    mHwc.setOutputBuffer(*mDisplayId, mOutputFence, outBuffer);
+    mHwc.setOutputBuffer(*halDisplayId, mOutputFence, outBuffer);
 
     status_t result = NO_ERROR;
     if (fbBuffer != nullptr) {
@@ -230,7 +231,7 @@ status_t VirtualDisplaySurface::advanceFrame() {
         mHwcBufferCache.getHwcBuffer(mFbProducerSlot, fbBuffer, &hwcSlot, &hwcBuffer);
 
         // TODO: Correctly propagate the dataspace from GL composition
-        result = mHwc.setClientTarget(*mDisplayId, hwcSlot, mFbFence, hwcBuffer,
+        result = mHwc.setClientTarget(*halDisplayId, hwcSlot, mFbFence, hwcBuffer,
                                       ui::Dataspace::UNKNOWN);
     }
 
@@ -238,7 +239,8 @@ status_t VirtualDisplaySurface::advanceFrame() {
 }
 
 void VirtualDisplaySurface::onFrameCommitted() {
-    if (!mDisplayId) {
+    const auto halDisplayId = HalVirtualDisplayId::tryCast(mDisplayId);
+    if (!halDisplayId) {
         return;
     }
 
@@ -246,7 +248,7 @@ void VirtualDisplaySurface::onFrameCommitted() {
             "Unexpected onFrameCommitted() in %s state", dbgStateStr());
     mDbgState = DBG_STATE_IDLE;
 
-    sp<Fence> retireFence = mHwc.getPresentFence(*mDisplayId);
+    sp<Fence> retireFence = mHwc.getPresentFence(*halDisplayId);
     if (mCompositionType == COMPOSITION_MIXED && mFbProducerSlot >= 0) {
         // release the scratch buffer back to the pool
         Mutex::Autolock lock(mMutex);
@@ -301,7 +303,7 @@ const sp<Fence>& VirtualDisplaySurface::getClientTargetAcquireFence() const {
 
 status_t VirtualDisplaySurface::requestBuffer(int pslot,
         sp<GraphicBuffer>* outBuf) {
-    if (!mDisplayId) {
+    if (GpuVirtualDisplayId::tryCast(mDisplayId)) {
         return mSource[SOURCE_SINK]->requestBuffer(pslot, outBuf);
     }
 
@@ -323,7 +325,7 @@ status_t VirtualDisplaySurface::setAsyncMode(bool async) {
 
 status_t VirtualDisplaySurface::dequeueBuffer(Source source,
         PixelFormat format, uint64_t usage, int* sslot, sp<Fence>* fence) {
-    LOG_FATAL_IF(!mDisplayId);
+    LOG_FATAL_IF(GpuVirtualDisplayId::tryCast(mDisplayId));
 
     status_t result =
             mSource[source]->dequeueBuffer(sslot, fence, mSinkBufferWidth, mSinkBufferHeight,
@@ -369,7 +371,7 @@ status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence, uint
                                               PixelFormat format, uint64_t usage,
                                               uint64_t* outBufferAge,
                                               FrameEventHistoryDelta* outTimestamps) {
-    if (!mDisplayId) {
+    if (GpuVirtualDisplayId::tryCast(mDisplayId)) {
         return mSource[SOURCE_SINK]->dequeueBuffer(pslot, fence, w, h, format, usage, outBufferAge,
                                                    outTimestamps);
     }
@@ -456,7 +458,7 @@ status_t VirtualDisplaySurface::attachBuffer(int* /* outSlot */,
 
 status_t VirtualDisplaySurface::queueBuffer(int pslot,
         const QueueBufferInput& input, QueueBufferOutput* output) {
-    if (!mDisplayId) {
+    if (GpuVirtualDisplayId::tryCast(mDisplayId)) {
         return mSource[SOURCE_SINK]->queueBuffer(pslot, input, output);
     }
 
@@ -514,7 +516,7 @@ status_t VirtualDisplaySurface::queueBuffer(int pslot,
 
 status_t VirtualDisplaySurface::cancelBuffer(int pslot,
         const sp<Fence>& fence) {
-    if (!mDisplayId) {
+    if (GpuVirtualDisplayId::tryCast(mDisplayId)) {
         return mSource[SOURCE_SINK]->cancelBuffer(mapProducer2SourceSlot(SOURCE_SINK, pslot), fence);
     }
 
@@ -626,7 +628,7 @@ void VirtualDisplaySurface::resetPerFrameState() {
 }
 
 status_t VirtualDisplaySurface::refreshOutputBuffer() {
-    LOG_FATAL_IF(!mDisplayId);
+    LOG_FATAL_IF(GpuVirtualDisplayId::tryCast(mDisplayId));
 
     if (mOutputProducerSlot >= 0) {
         mSource[SOURCE_SINK]->cancelBuffer(
@@ -645,7 +647,9 @@ status_t VirtualDisplaySurface::refreshOutputBuffer() {
     // until after GPU calls queueBuffer(). So here we just set the buffer
     // (for use in HWC prepare) but not the fence; we'll call this again with
     // the proper fence once we have it.
-    result = mHwc.setOutputBuffer(*mDisplayId, Fence::NO_FENCE,
+    const auto halDisplayId = HalVirtualDisplayId::tryCast(mDisplayId);
+    LOG_FATAL_IF(!halDisplayId);
+    result = mHwc.setOutputBuffer(*halDisplayId, Fence::NO_FENCE,
                                   mProducerBuffers[mOutputProducerSlot]);
 
     return result;

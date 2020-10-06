@@ -16,14 +16,10 @@
 
 #include "mock/DisplayHardware/MockDisplay.h"
 
-namespace android {
-namespace Hwc2 {
-namespace mock {
+namespace android::Hwc2::mock {
 
 // Explicit default instantiation is recommended.
 Display::Display() = default;
 Display::~Display() = default;
 
-} // namespace mock
-} // namespace Hwc2
-} // namespace android
+} // namespace android::Hwc2::mock

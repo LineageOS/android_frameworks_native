@@ -16,12 +16,10 @@
 
 #include "mock/MockTimeStats.h"
 
-namespace android {
-namespace mock {
+namespace android::mock {
 
 // Explicit default instantiation is recommended.
 TimeStats::TimeStats() = default;
 TimeStats::~TimeStats() = default;
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock

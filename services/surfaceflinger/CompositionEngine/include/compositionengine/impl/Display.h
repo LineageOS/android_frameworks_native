@@ -57,7 +57,7 @@ public:
     void finishFrame(const CompositionRefreshArgs&) override;
 
     // compositionengine::Display overrides
-    const std::optional<DisplayId>& getId() const override;
+    DisplayId getId() const override;
     bool isSecure() const override;
     bool isVirtual() const override;
     void disconnect() override;
@@ -85,12 +85,14 @@ public:
     std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(const sp<LayerFE>&) const;
 
     // Testing
-    void setDisplayIdForTesting(std::optional<DisplayId> displayId);
+    void setDisplayIdForTesting(DisplayId displayId);
 
 private:
     bool mIsVirtual = false;
-    std::optional<DisplayId> mId;
+    bool mIsDisconnected = false;
+    DisplayId mId;
     Hwc2::PowerAdvisor* mPowerAdvisor = nullptr;
+    DisplayIdGenerator<GpuVirtualDisplayId>* mGpuVirtualDisplayIdGenerator;
 };
 
 // This template factory function standardizes the implementation details of the

@@ -15,15 +15,11 @@
  */
 
 #include "mock/MockVSyncTracker.h"
-#include <thread>
 
-using namespace std::chrono_literals;
-namespace android {
-namespace mock {
+namespace android::mock {
 
 // Explicit default instantiation is recommended.
 VSyncTracker::VSyncTracker() = default;
 VSyncTracker::~VSyncTracker() = default;
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock
