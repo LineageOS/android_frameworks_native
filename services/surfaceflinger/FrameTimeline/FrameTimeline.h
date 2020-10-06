@@ -22,9 +22,47 @@
 #include <gui/ISurfaceComposer.h>
 #include <ui/FenceTime.h>
 #include <utils/RefBase.h>
+#include <utils/String16.h>
 #include <utils/Timers.h>
+#include <utils/Vector.h>
 
 namespace android::frametimeline {
+
+/*
+ * The type of jank that is associated with a Display/Surface frame
+ */
+enum class JankType {
+    // No Jank
+    None,
+    // Jank not related to SurfaceFlinger or the App
+    Display,
+    // SF took too long on the CPU
+    SurfaceFlingerDeadlineMissed,
+    // Either App or GPU took too long on the frame
+    AppDeadlineMissed,
+    // Predictions live for 120ms, if prediction is expired for a frame, there is definitely a jank
+    // associated with the App if this is for a SurfaceFrame, and SF for a DisplayFrame.
+    PredictionExpired,
+    // Latching a buffer early might cause an early present of the frame
+    SurfaceFlingerEarlyLatch,
+};
+
+enum JankMetadata {
+    // Frame was presented earlier than expected
+    EarlyPresent = 0x1,
+    // Frame was presented later than expected
+    LatePresent = 0x2,
+    // App/SF started earlier than expected
+    EarlyStart = 0x4,
+    // App/SF started later than expected
+    LateStart = 0x8,
+    // App/SF finished work earlier than the deadline
+    EarlyFinish = 0x10,
+    // App/SF finished work later than the deadline
+    LateFinish = 0x20,
+    // SF was in GPU composition
+    GpuComposition = 0x40,
+};
 
 class FrameTimelineTest;
 
@@ -82,11 +120,11 @@ public:
 
     virtual ~SurfaceFrame() = default;
 
-    virtual TimelineItem getPredictions() = 0;
-    virtual TimelineItem getActuals() = 0;
-    virtual nsecs_t getActualQueueTime() = 0;
-    virtual PresentState getPresentState() = 0;
-    virtual PredictionState getPredictionState() = 0;
+    virtual TimelineItem getPredictions() const = 0;
+    virtual TimelineItem getActuals() const = 0;
+    virtual nsecs_t getActualQueueTime() const = 0;
+    virtual PresentState getPresentState() const = 0;
+    virtual PredictionState getPredictionState() const = 0;
 
     virtual void setPresentState(PresentState state) = 0;
 
@@ -127,7 +165,17 @@ public:
     virtual void setSfPresent(nsecs_t sfPresentTime,
                               const std::shared_ptr<FenceTime>& presentFence) = 0;
 
-    virtual void dump(std::string& result) = 0;
+    // Args:
+    // -jank : Dumps only the Display Frames that are either janky themselves
+    //         or contain janky Surface Frames.
+    // -all : Dumps the entire list of DisplayFrames and the SurfaceFrames contained within
+    virtual void parseArgs(const Vector<String16>& args, std::string& result) = 0;
+
+    // Sets the max number of display frames that can be stored. Called by SF backdoor.
+    virtual void setMaxDisplayFrames(uint32_t size);
+
+    // Restores the max number of display frames to default. Called by SF backdoor.
+    virtual void reset() = 0;
 };
 
 namespace impl {
@@ -162,27 +210,33 @@ public:
                  TimelineItem&& predictions);
     ~SurfaceFrame() = default;
 
-    TimelineItem getPredictions() override { return mPredictions; };
-    TimelineItem getActuals() override;
-    nsecs_t getActualQueueTime() override;
-    PresentState getPresentState() override;
-    PredictionState getPredictionState() override;
+    TimelineItem getPredictions() const override { return mPredictions; };
+    TimelineItem getActuals() const override;
+    nsecs_t getActualQueueTime() const override;
+    PresentState getPresentState() const override;
+    PredictionState getPredictionState() const override { return mPredictionState; };
 
     void setActualStartTime(nsecs_t actualStartTime) override;
     void setActualQueueTime(nsecs_t actualQueueTime) override;
     void setAcquireFenceTime(nsecs_t acquireFenceTime) override;
     void setPresentState(PresentState state) override;
     void setActualPresentTime(nsecs_t presentTime);
-    void dump(std::string& result);
+    void setJankInfo(JankType jankType, int32_t jankMetadata);
+    JankType getJankType() const;
+    nsecs_t getBaseTime() const;
+    // All the timestamps are dumped relative to the baseTime
+    void dump(std::string& result, const std::string& indent, nsecs_t baseTime);
 
 private:
     const std::string mLayerName;
     PresentState mPresentState GUARDED_BY(mMutex);
-    PredictionState mPredictionState GUARDED_BY(mMutex);
+    const PredictionState mPredictionState;
     const TimelineItem mPredictions;
     TimelineItem mActuals GUARDED_BY(mMutex);
-    nsecs_t mActualQueueTime;
-    std::mutex mMutex;
+    nsecs_t mActualQueueTime GUARDED_BY(mMutex);
+    mutable std::mutex mMutex;
+    JankType mJankType GUARDED_BY(mMutex);    // Enum for the type of jank
+    int32_t mJankMetadata GUARDED_BY(mMutex); // Additional details about the jank
 };
 
 class FrameTimeline : public android::frametimeline::FrameTimeline {
@@ -198,7 +252,9 @@ public:
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime) override;
     void setSfPresent(nsecs_t sfPresentTime,
                       const std::shared_ptr<FenceTime>& presentFence) override;
-    void dump(std::string& result) override;
+    void parseArgs(const Vector<String16>& args, std::string& result) override;
+    void setMaxDisplayFrames(uint32_t size) override;
+    void reset() override;
 
 private:
     // Friend class for testing
@@ -222,10 +278,19 @@ private:
         std::vector<std::unique_ptr<SurfaceFrame>> surfaceFrames;
 
         PredictionState predictionState;
+        JankType jankType = JankType::None; // Enum for the type of jank
+        int32_t jankMetadata = 0x0;         // Additional details about the jank
     };
 
     void flushPendingPresentFences() REQUIRES(mMutex);
     void finalizeCurrentDisplayFrame() REQUIRES(mMutex);
+    // BaseTime is the smallest timestamp in a DisplayFrame.
+    // Used for dumping all timestamps relative to the oldest, making it easy to read.
+    nsecs_t findBaseTime(const std::shared_ptr<DisplayFrame>&) REQUIRES(mMutex);
+    void dumpDisplayFrame(std::string& result, const std::shared_ptr<DisplayFrame>&,
+                          nsecs_t baseTime) REQUIRES(mMutex);
+    void dumpAll(std::string& result);
+    void dumpJank(std::string& result);
 
     // Sliding window of display frames. TODO(b/168072834): compare perf with fixed size array
     std::deque<std::shared_ptr<DisplayFrame>> mDisplayFrames GUARDED_BY(mMutex);
@@ -234,12 +299,21 @@ private:
     std::shared_ptr<DisplayFrame> mCurrentDisplayFrame GUARDED_BY(mMutex);
     TokenManager mTokenManager;
     std::mutex mMutex;
-    static constexpr uint32_t kMaxDisplayFrames = 64;
+    uint32_t mMaxDisplayFrames;
+    static constexpr uint32_t kDefaultMaxDisplayFrames = 64;
     // The initial container size for the vector<SurfaceFrames> inside display frame. Although this
     // number doesn't represent any bounds on the number of surface frames that can go in a display
     // frame, this is a good starting size for the vector so that we can avoid the internal vector
     // resizing that happens with push_back.
     static constexpr uint32_t kNumSurfaceFramesInitial = 10;
+    // The various thresholds for App and SF. If the actual timestamp falls within the threshold
+    // compared to prediction, we don't treat it as a jank.
+    static constexpr nsecs_t kPresentThreshold =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
+    static constexpr nsecs_t kDeadlineThreshold =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
+    static constexpr nsecs_t kSFStartThreshold =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count();
 };
 
 } // namespace impl

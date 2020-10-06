@@ -4239,7 +4239,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
                 {"--vsync"s, dumper(&SurfaceFlinger::dumpVSync)},
                 {"--wide-color"s, dumper(&SurfaceFlinger::dumpWideColorInfo)},
-                {"--frametimeline"s, dumper([this](std::string& s) { mFrameTimeline->dump(s); })},
+                {"--frametimeline"s, argsDumper(&SurfaceFlinger::dumpFrameTimeline)},
         };
 
         const auto flag = args.empty() ? ""s : std::string(String8(args[0]));
@@ -4320,6 +4320,10 @@ void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
 
 void SurfaceFlinger::dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const {
     mTimeStats->parseArgs(asProto, args, result);
+}
+
+void SurfaceFlinger::dumpFrameTimeline(const DumpArgs& args, std::string& result) const {
+    mFrameTimeline->parseArgs(args, result);
 }
 
 // This should only be called from the main thread.  Otherwise it would need
@@ -4904,9 +4908,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1037 are currently used for backdoors. The code
+    // Numbers from 1000 to 1038 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1037) {
+    if (code >= 1000 && code <= 1038) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5260,6 +5264,21 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
 
                 onHotplugReceived(getBE().mComposerSequenceId, *hwcId, hal::Connection::CONNECTED);
 
+                return NO_ERROR;
+            }
+            // Modify the max number of display frames stored within FrameTimeline
+            case 1038: {
+                n = data.readInt32();
+                if (n < 0 || n > MAX_ALLOWED_DISPLAY_FRAMES) {
+                    ALOGW("Invalid max size. Maximum allowed is %d", MAX_ALLOWED_DISPLAY_FRAMES);
+                    return BAD_VALUE;
+                }
+                if (n == 0) {
+                    // restore to default
+                    mFrameTimeline->reset();
+                    return NO_ERROR;
+                }
+                mFrameTimeline->setMaxDisplayFrames(n);
                 return NO_ERROR;
             }
         }
