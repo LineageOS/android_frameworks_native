@@ -81,6 +81,7 @@ public:
 
     MOCK_METHOD2(onHotplug,
                  std::optional<DisplayIdentificationInfo>(hal::HWDisplayId, hal::Connection));
+    MOCK_CONST_METHOD0(updatesDeviceProductInfoOnHotplugReconnect, bool());
     MOCK_METHOD2(onVsync, bool(hal::HWDisplayId, int64_t));
     MOCK_METHOD2(setVsyncEnabled, void(PhysicalDisplayId, hal::Vsync));
     MOCK_CONST_METHOD1(getRefreshTimestamp, nsecs_t(PhysicalDisplayId));

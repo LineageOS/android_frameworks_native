@@ -435,3 +435,13 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.display_update_imminent_timeout_ms"
 }
+
+
+# Updates the DeviceProductInfo when a hoplug reconnect event is processed
+prop {
+    api_name: "update_device_product_info_on_hotplug_reconnect"
+    type: Boolean
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.update_device_product_info_on_hotplug_reconnect"
+}
