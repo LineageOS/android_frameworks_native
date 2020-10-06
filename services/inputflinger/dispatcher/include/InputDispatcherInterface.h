@@ -20,11 +20,14 @@
 #include <InputListener.h>
 #include <android-base/result.h>
 #include <android/FocusRequest.h>
+#include <android/os/BlockUntrustedTouchesMode.h>
 #include <android/os/ISetInputWindowsListener.h>
 #include <input/InputApplication.h>
 #include <input/InputTransport.h>
 #include <input/InputWindow.h>
 #include <unordered_map>
+
+using android::os::BlockUntrustedTouchesMode;
 
 namespace android {
 
@@ -144,6 +147,21 @@ public:
      * If true, the device is in touch mode.
      */
     virtual void setInTouchMode(bool inTouchMode) = 0;
+
+    /**
+     * Sets the maximum allowed obscuring opacity by UID to propagate touches.
+     * For certain window types (eg. SAWs), the decision of honoring
+     * FLAG_NOT_TOUCHABLE or not depends on the combined obscuring opacity of
+     * the windows above the touch-consuming window.
+     */
+    virtual void setMaximumObscuringOpacityForTouch(float opacity) = 0;
+
+    /**
+     * Sets the mode of the block untrusted touches feature.
+     *
+     * TODO(b/169067926): Clean-up feature modes.
+     */
+    virtual void setBlockUntrustedTouchesMode(BlockUntrustedTouchesMode mode) = 0;
 
     /* Transfers touch focus from one window to another window.
      *

@@ -17,6 +17,7 @@
 #ifndef _UI_INPUT_WINDOW_H
 #define _UI_INPUT_WINDOW_H
 
+#include <android/os/TouchOcclusionMode.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
 #include <input/Flags.h>
@@ -29,6 +30,8 @@
 #include <utils/Timers.h>
 
 #include "InputApplication.h"
+
+using android::os::TouchOcclusionMode;
 
 namespace android {
 
@@ -158,6 +161,10 @@ struct InputWindowInfo : public Parcelable {
     // in scaling of the TOUCH_MAJOR/TOUCH_MINOR axis.
     float globalScaleFactor = 1.0f;
 
+    // The opacity of this window, from 0.0 to 1.0 (inclusive).
+    // An alpha of 1.0 means fully opaque and 0.0 means fully transparent.
+    float alpha;
+
     // Transform applied to individual windows.
     ui::Transform transform;
 
@@ -176,8 +183,10 @@ struct InputWindowInfo : public Parcelable {
      * motion events to be delivered to them with AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED.
      */
     bool trustedOverlay = false;
+    TouchOcclusionMode touchOcclusionMode = TouchOcclusionMode::BLOCK_UNTRUSTED;
     int32_t ownerPid = -1;
     int32_t ownerUid = -1;
+    std::string packageName;
     Flags<Feature> inputFeatures;
     int32_t displayId = ADISPLAY_ID_NONE;
     int32_t portalToDisplayId = ADISPLAY_ID_NONE;
