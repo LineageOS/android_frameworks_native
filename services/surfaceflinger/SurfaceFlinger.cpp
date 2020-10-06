@@ -3846,7 +3846,7 @@ uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& input
 }
 
 status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
-                                     sp<IBinder>* outHandle, int32_t* outId) {
+                                     sp<IBinder>* outHandle, int32_t* outLayerId) {
     if (!mirrorFromHandle) {
         return NAME_NOT_FOUND;
     }
@@ -3871,7 +3871,7 @@ status_t SurfaceFlinger::mirrorLayer(const sp<Client>& client, const sp<IBinder>
         mirrorLayer->mClonedChild = mirrorFrom->createClone();
     }
 
-    *outId = mirrorLayer->sequence;
+    *outLayerId = mirrorLayer->sequence;
     return addClientLayer(client, *outHandle, nullptr, mirrorLayer, nullptr, nullptr, false,
                           nullptr /* outTransformHint */);
 }
@@ -3880,8 +3880,8 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                                      uint32_t h, PixelFormat format, uint32_t flags,
                                      LayerMetadata metadata, sp<IBinder>* handle,
                                      sp<IGraphicBufferProducer>* gbp,
-                                     const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer,
-                                     int32_t* outId, uint32_t* outTransformHint) {
+                                     const sp<IBinder>& parentHandle, int32_t* outLayerId,
+                                     const sp<Layer>& parentLayer, uint32_t* outTransformHint) {
     if (int32_t(w|h) < 0) {
         ALOGE("createLayer() failed, w or h is negative (w=%d, h=%d)",
                 int(w), int(h));
@@ -3947,9 +3947,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
     mInterceptor->saveSurfaceCreation(layer);
 
     setTransactionFlags(eTransactionNeeded);
-    if (outId) {
-        *outId = layer->sequence;
-    }
+    *outLayerId = layer->sequence;
     return result;
 }
 
