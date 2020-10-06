@@ -44,7 +44,6 @@ layer_state_t::layer_state_t()
         cornerRadius(0.0f),
         backgroundBlurRadius(0),
         barrierFrameNumber(0),
-        overrideScalingMode(-1),
         transform(0),
         transformToDisplayInverse(false),
         crop(Rect::INVALID_RECT),
@@ -86,7 +85,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, barrierSurfaceControl_legacy);
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, reparentSurfaceControl);
     SAFE_PARCEL(output.writeUint64, barrierFrameNumber);
-    SAFE_PARCEL(output.writeInt32, overrideScalingMode);
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, relativeLayerSurfaceControl);
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, parentSurfaceControlForChild);
     SAFE_PARCEL(output.writeFloat, color.r);
@@ -176,7 +174,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &barrierSurfaceControl_legacy);
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &reparentSurfaceControl);
     SAFE_PARCEL(input.readUint64, &barrierFrameNumber);
-    SAFE_PARCEL(input.readInt32, &overrideScalingMode);
 
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &relativeLayerSurfaceControl);
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &parentSurfaceControlForChild);
@@ -380,10 +377,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eDeferTransaction_legacy;
         barrierSurfaceControl_legacy = other.barrierSurfaceControl_legacy;
         barrierFrameNumber = other.barrierFrameNumber;
-    }
-    if (other.what & eOverrideScalingModeChanged) {
-        what |= eOverrideScalingModeChanged;
-        overrideScalingMode = other.overrideScalingMode;
     }
     if (other.what & eReparentChildren) {
         what |= eReparentChildren;

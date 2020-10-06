@@ -341,7 +341,6 @@ public:
     //
     // The first set of geometry functions are controlled by the scaling mode, described
     // in window.h. The scaling mode may be set by the client, as it submits buffers.
-    // This value may be overriden through SurfaceControl, with setOverrideScalingMode.
     //
     // Put simply, if our scaling mode is SCALING_MODE_FREEZE, then
     // matrix updates will not be applied while a resize is pending
@@ -399,7 +398,6 @@ public:
     virtual void deferTransactionUntil_legacy(const sp<IBinder>& barrierHandle,
                                               uint64_t frameNumber);
     virtual void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber);
-    virtual bool setOverrideScalingMode(int32_t overrideScalingMode);
     virtual bool setMetadata(const LayerMetadata& data);
     virtual void setChildrenDrawingParent(const sp<Layer>&);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
@@ -1003,7 +1001,6 @@ protected:
     bool mIsActiveBufferUpdatedForGpu = true;
 
     // We encode unset as -1.
-    int32_t mOverrideScalingMode{-1};
     std::atomic<uint64_t> mCurrentFrameNumber{0};
     // Whether filtering is needed b/c of the drawingstate
     bool mNeedsFiltering{false};

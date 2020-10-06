@@ -1295,13 +1295,6 @@ bool Layer::setCrop_legacy(const Rect& crop) {
     return true;
 }
 
-bool Layer::setOverrideScalingMode(int32_t scalingMode) {
-    if (scalingMode == mOverrideScalingMode) return false;
-    mOverrideScalingMode = scalingMode;
-    setTransactionFlags(eTransactionNeeded);
-    return true;
-}
-
 bool Layer::setMetadata(const LayerMetadata& data) {
     if (!mCurrentState.metadata.merge(data, true /* eraseEmpty */)) return false;
     mCurrentState.sequence++;
