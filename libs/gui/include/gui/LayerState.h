@@ -312,12 +312,12 @@ struct CaptureArgs {
     float frameScale{1};
     bool captureSecureLayers{false};
     int32_t uid{UNSET_UID};
-    // True to force using RGB color as the capture result.
+    // Force capture to be in a color space. If the value is ui::Dataspace::UNKNOWN, the captured
+    // result will be in the display's colorspace.
     // The display may use non-RGB dataspace (ex. displayP3) that could cause pixel data could be
-    // different from RGB (byte per color), and failed when checking colors.
-    // NOTE: This should only be used for testing since in normal cases, we want the screen
-    // capture's colorspace to match the display's colorspace
-    bool useRGBColorSpace{false};
+    // different from SRGB (byte per color), and failed when checking colors in tests.
+    // NOTE: In normal cases, we want the screen to be captured in display's colorspace.
+    ui::Dataspace dataspace = ui::Dataspace::UNKNOWN;
 
     virtual status_t write(Parcel& output) const;
     virtual status_t read(const Parcel& input);

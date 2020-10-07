@@ -592,19 +592,20 @@ status_t CaptureArgs::write(Parcel& output) const {
     SAFE_PARCEL(output.writeFloat, frameScale);
     SAFE_PARCEL(output.writeBool, captureSecureLayers);
     SAFE_PARCEL(output.writeInt32, uid);
-    SAFE_PARCEL(output.writeBool, useRGBColorSpace);
+    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(dataspace));
     return NO_ERROR;
 }
 
 status_t CaptureArgs::read(const Parcel& input) {
-    int32_t format = 0;
-    SAFE_PARCEL(input.readInt32, &format);
-    pixelFormat = static_cast<ui::PixelFormat>(format);
+    int32_t value = 0;
+    SAFE_PARCEL(input.readInt32, &value);
+    pixelFormat = static_cast<ui::PixelFormat>(value);
     SAFE_PARCEL(input.read, sourceCrop);
     SAFE_PARCEL(input.readFloat, &frameScale);
     SAFE_PARCEL(input.readBool, &captureSecureLayers);
     SAFE_PARCEL(input.readInt32, &uid);
-    SAFE_PARCEL(input.readBool, &useRGBColorSpace);
+    SAFE_PARCEL(input.readInt32, &value);
+    dataspace = static_cast<ui::Dataspace>(value);
     return NO_ERROR;
 }
 
