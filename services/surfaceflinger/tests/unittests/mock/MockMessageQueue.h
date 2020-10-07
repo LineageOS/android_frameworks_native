@@ -18,6 +18,7 @@
 
 #include <gmock/gmock.h>
 
+#include "FrameTimeline.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
 
@@ -34,6 +35,10 @@ public:
     MOCK_METHOD1(postMessage, void(sp<MessageHandler>&&));
     MOCK_METHOD0(invalidate, void());
     MOCK_METHOD0(refresh, void());
+    MOCK_METHOD3(initVsync,
+                 void(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
+                      std::chrono::nanoseconds));
+    MOCK_METHOD1(setDuration, void(std::chrono::nanoseconds workDuration));
 };
 
 } // namespace android::mock

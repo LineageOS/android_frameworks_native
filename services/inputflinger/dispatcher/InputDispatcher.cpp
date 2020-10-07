@@ -402,6 +402,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         // To avoid leaking stack in case that call never comes, and for tests,
         // initialize it here anyways.
         mInTouchMode(true),
+        mMaximumObscuringOpacityForTouch(1.0f),
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT) {
     mLooper = new Looper(false);
     mReporter = createInputReporter();
@@ -481,6 +482,33 @@ void InputDispatcher::dispatchOnce() {
 }
 
 /**
+ * Raise ANR if there is no focused window.
+ * Before the ANR is raised, do a final state check:
+ * 1. The currently focused application must be the same one we are waiting for.
+ * 2. Ensure we still don't have a focused window.
+ */
+void InputDispatcher::processNoFocusedWindowAnrLocked() {
+    // Check if the application that we are waiting for is still focused.
+    std::shared_ptr<InputApplicationHandle> focusedApplication =
+            getValueByKey(mFocusedApplicationHandlesByDisplay, mAwaitedApplicationDisplayId);
+    if (focusedApplication == nullptr ||
+        focusedApplication->getApplicationToken() !=
+                mAwaitedFocusedApplication->getApplicationToken()) {
+        // Unexpected because we should have reset the ANR timer when focused application changed
+        ALOGE("Waited for a focused window, but focused application has already changed to %s",
+              focusedApplication->getName().c_str());
+        return; // The focused application has changed.
+    }
+
+    const sp<InputWindowHandle>& focusedWindowHandle =
+            getFocusedWindowHandleLocked(mAwaitedApplicationDisplayId);
+    if (focusedWindowHandle != nullptr) {
+        return; // We now have a focused window. No need for ANR.
+    }
+    onAnrLocked(mAwaitedFocusedApplication);
+}
+
+/**
  * Check if any of the connections' wait queues have events that are too old.
  * If we waited for events to be ack'ed for more than the window timeout, raise an ANR.
  * Return the time at which we should wake up next.
@@ -491,8 +519,9 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     // Check if we are waiting for a focused window to appear. Raise ANR if waited too long
     if (mNoFocusedWindowTimeoutTime.has_value() && mAwaitedFocusedApplication != nullptr) {
         if (currentTime >= *mNoFocusedWindowTimeoutTime) {
-            onAnrLocked(mAwaitedFocusedApplication);
+            processNoFocusedWindowAnrLocked();
             mAwaitedFocusedApplication.reset();
+            mNoFocusedWindowTimeoutTime = std::nullopt;
             return LONG_LONG_MIN;
         } else {
             // Keep waiting
@@ -1494,6 +1523,7 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
                     DEFAULT_INPUT_DISPATCHING_TIMEOUT);
             mNoFocusedWindowTimeoutTime = currentTime + timeout.count();
             mAwaitedFocusedApplication = focusedApplicationHandle;
+            mAwaitedApplicationDisplayId = displayId;
             ALOGW("Waiting because no window has focus but %s may eventually add a "
                   "window when it finishes starting up. Will wait for %" PRId64 "ms",
                   mAwaitedFocusedApplication->getName().c_str(), millis(timeout));
@@ -1704,6 +1734,22 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             if (!isResponsive) {
                 ALOGW("%s will not receive the new gesture at %" PRIu64,
                       newTouchedWindowHandle->getName().c_str(), entry.eventTime);
+                newTouchedWindowHandle = nullptr;
+            }
+        }
+
+        // Drop events that can't be trusted due to occlusion
+        if (newTouchedWindowHandle != nullptr &&
+            mBlockUntrustedTouchesMode != BlockUntrustedTouchesMode::DISABLED) {
+            TouchOcclusionInfo occlusionInfo =
+                    computeTouchOcclusionInfoLocked(newTouchedWindowHandle, x, y);
+            // The order of the operands in the 'if' below is important because even if the feature
+            // is not BLOCK we want isTouchTrustedLocked() to execute in order to log details to
+            // logcat.
+            if (!isTouchTrustedLocked(occlusionInfo) &&
+                mBlockUntrustedTouchesMode == BlockUntrustedTouchesMode::BLOCK) {
+                ALOGW("Dropping untrusted touch event due to %s/%d",
+                      occlusionInfo.obscuringPackage.c_str(), occlusionInfo.obscuringUid);
                 newTouchedWindowHandle = nullptr;
             }
         }
@@ -2116,6 +2162,84 @@ static bool canBeObscuredBy(const sp<InputWindowHandle>& windowHandle,
     } else if (otherInfo->trustedOverlay) {
         return false;
     } else if (otherInfo->displayId != info->displayId) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Returns touch occlusion information in the form of TouchOcclusionInfo. To check if the touch is
+ * untrusted, one should check:
+ *
+ * 1. If result.hasBlockingOcclusion is true.
+ *    If it's, it means the touch should be blocked due to a window with occlusion mode of
+ *    BLOCK_UNTRUSTED.
+ *
+ * 2. If result.obscuringOpacity > mMaximumObscuringOpacityForTouch.
+ *    If it is (and 1 is false), then the touch should be blocked because a stack of windows
+ *    (possibly only one) with occlusion mode of USE_OPACITY from one UID resulted in a composed
+ *    obscuring opacity above the threshold. Note that if there was no window of occlusion mode
+ *    USE_OPACITY, result.obscuringOpacity would've been 0 and since
+ *    mMaximumObscuringOpacityForTouch >= 0, the condition above would never be true.
+ *
+ * If neither of those is true, then it means the touch can be allowed.
+ */
+InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLocked(
+        const sp<InputWindowHandle>& windowHandle, int32_t x, int32_t y) const {
+    int32_t displayId = windowHandle->getInfo()->displayId;
+    const std::vector<sp<InputWindowHandle>>& windowHandles = getWindowHandlesLocked(displayId);
+    TouchOcclusionInfo info;
+    info.hasBlockingOcclusion = false;
+    info.obscuringOpacity = 0;
+    info.obscuringUid = -1;
+    std::map<int32_t, float> opacityByUid;
+    for (const sp<InputWindowHandle>& otherHandle : windowHandles) {
+        if (windowHandle == otherHandle) {
+            break; // All future windows are below us. Exit early.
+        }
+        const InputWindowInfo* otherInfo = otherHandle->getInfo();
+        if (canBeObscuredBy(windowHandle, otherHandle) &&
+            windowHandle->getInfo()->ownerUid != otherInfo->ownerUid &&
+            otherInfo->frameContainsPoint(x, y)) {
+            // canBeObscuredBy() has returned true above, which means this window is untrusted, so
+            // we perform the checks below to see if the touch can be propagated or not based on the
+            // window's touch occlusion mode
+            if (otherInfo->touchOcclusionMode == TouchOcclusionMode::BLOCK_UNTRUSTED) {
+                info.hasBlockingOcclusion = true;
+                info.obscuringUid = otherInfo->ownerUid;
+                info.obscuringPackage = otherInfo->packageName;
+                break;
+            }
+            if (otherInfo->touchOcclusionMode == TouchOcclusionMode::USE_OPACITY) {
+                uint32_t uid = otherInfo->ownerUid;
+                float opacity =
+                        (opacityByUid.find(uid) == opacityByUid.end()) ? 0 : opacityByUid[uid];
+                // Given windows A and B:
+                // opacity(A, B) = 1 - [1 - opacity(A)] * [1 - opacity(B)]
+                opacity = 1 - (1 - opacity) * (1 - otherInfo->alpha);
+                opacityByUid[uid] = opacity;
+                if (opacity > info.obscuringOpacity) {
+                    info.obscuringOpacity = opacity;
+                    info.obscuringUid = uid;
+                    info.obscuringPackage = otherInfo->packageName;
+                }
+            }
+        }
+    }
+    return info;
+}
+
+bool InputDispatcher::isTouchTrustedLocked(const TouchOcclusionInfo& occlusionInfo) const {
+    if (occlusionInfo.hasBlockingOcclusion) {
+        ALOGW("Untrusted touch due to occlusion by %s/%d", occlusionInfo.obscuringPackage.c_str(),
+              occlusionInfo.obscuringUid);
+        return false;
+    }
+    if (occlusionInfo.obscuringOpacity > mMaximumObscuringOpacityForTouch) {
+        ALOGW("Untrusted touch due to occlusion by %s/%d (obscuring opacity = "
+              "%.2f, maximum allowed = %.2f)",
+              occlusionInfo.obscuringPackage.c_str(), occlusionInfo.obscuringUid,
+              occlusionInfo.obscuringOpacity, mMaximumObscuringOpacityForTouch);
         return false;
     }
     return true;
@@ -4058,6 +4182,21 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
 void InputDispatcher::setInTouchMode(bool inTouchMode) {
     std::scoped_lock lock(mLock);
     mInTouchMode = inTouchMode;
+}
+
+void InputDispatcher::setMaximumObscuringOpacityForTouch(float opacity) {
+    if (opacity < 0 || opacity > 1) {
+        LOG_ALWAYS_FATAL("Maximum obscuring opacity for touch should be >= 0 and <= 1");
+        return;
+    }
+
+    std::scoped_lock lock(mLock);
+    mMaximumObscuringOpacityForTouch = opacity;
+}
+
+void InputDispatcher::setBlockUntrustedTouchesMode(BlockUntrustedTouchesMode mode) {
+    std::scoped_lock lock(mLock);
+    mBlockUntrustedTouchesMode = mode;
 }
 
 bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {

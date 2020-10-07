@@ -52,6 +52,7 @@
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/PowerAdvisor.h"
+#include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
@@ -494,11 +495,14 @@ private:
               typename Handler = VsyncModulator::VsyncConfigOpt (VsyncModulator::*)(Args...)>
     void modulateVsync(Handler handler, Args... args) {
         if (const auto config = (*mVsyncModulator.*handler)(args...)) {
-            setVsyncConfig(*config);
+            const auto vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
+            setVsyncConfig(*config, vsyncPeriod);
         }
     }
 
     static const int MAX_TRACING_MEMORY = 100 * 1024 * 1024; // 100MB
+    // Maximum allowed number of display frames that can be set through backdoor
+    static const int MAX_ALLOWED_DISPLAY_FRAMES = 2048;
 
     // Implements IBinder.
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;
@@ -701,7 +705,7 @@ private:
 
     void initScheduler(PhysicalDisplayId primaryDisplayId);
     void updatePhaseConfiguration(const RefreshRate&);
-    void setVsyncConfig(const VsyncModulator::VsyncConfig&);
+    void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
      * region. Returns whether a new buffer has been latched, i.e., whether it
@@ -749,8 +753,9 @@ private:
     status_t createLayer(const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
                          PixelFormat format, uint32_t flags, LayerMetadata metadata,
                          sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp,
-                         const sp<IBinder>& parentHandle, const sp<Layer>& parentLayer = nullptr,
-                         int32_t* outId = nullptr, uint32_t* outTransformHint = nullptr);
+                         const sp<IBinder>& parentHandle, int32_t* outLayerId,
+                         const sp<Layer>& parentLayer = nullptr,
+                         uint32_t* outTransformHint = nullptr);
 
     status_t createBufferQueueLayer(const sp<Client>& client, std::string name, uint32_t w,
                                     uint32_t h, uint32_t flags, LayerMetadata metadata,
@@ -770,7 +775,7 @@ private:
                                   sp<IBinder>* outHandle, sp<Layer>* outLayer);
 
     status_t mirrorLayer(const sp<Client>& client, const sp<IBinder>& mirrorFromHandle,
-                         sp<IBinder>* outHandle, int32_t* outId);
+                         sp<IBinder>* outHandle, int32_t* outLayerId);
 
     std::string getUniqueLayerName(const char* name);
 
@@ -947,8 +952,8 @@ private:
         return it != mPhysicalDisplayTokens.end() ? it->second : nullptr;
     }
 
-    std::optional<DisplayId> getPhysicalDisplayIdLocked(const sp<IBinder>& displayToken) const
-            REQUIRES(mStateLock) {
+    std::optional<PhysicalDisplayId> getPhysicalDisplayIdLocked(
+            const sp<IBinder>& displayToken) const REQUIRES(mStateLock) {
         for (const auto& [id, token] : mPhysicalDisplayTokens) {
             if (token == displayToken) {
                 return id;
@@ -978,6 +983,7 @@ private:
     void dumpStatsLocked(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
     void clearStatsLocked(const DumpArgs& args, std::string& result);
     void dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const;
+    void dumpFrameTimeline(const DumpArgs& args, std::string& result) const;
     void logFrameStats();
 
     void dumpVSync(std::string& result) const REQUIRES(mStateLock);
@@ -1110,6 +1116,8 @@ private:
     std::map<wp<IBinder>, sp<DisplayDevice>> mDisplays GUARDED_BY(mStateLock);
     std::unordered_map<PhysicalDisplayId, sp<IBinder>> mPhysicalDisplayTokens
             GUARDED_BY(mStateLock);
+
+    RandomDisplayIdGenerator<GpuVirtualDisplayId> mGpuVirtualDisplayIdGenerator;
 
     std::unordered_map<BBinder*, wp<Layer>> mLayersByLocalBinderToken GUARDED_BY(mStateLock);
 

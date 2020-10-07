@@ -53,6 +53,9 @@
         },
         {
           "include-filter": "*RelativeZTest.*"
+        },
+        {
+          "include-filter": "*RefreshRateOverlayTest.*"
         }
       ]
     },

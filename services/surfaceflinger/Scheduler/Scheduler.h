@@ -137,6 +137,8 @@ public:
 
     void setDisplayPowerState(bool normal);
 
+    scheduler::VSyncDispatch& getVsyncDispatch() { return *mVsyncSchedule.dispatch; }
+
     void dump(std::string&) const;
     void dump(ConnectionHandle, std::string&) const;
     void dumpVsync(std::string&) const;
