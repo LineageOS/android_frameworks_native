@@ -61,7 +61,7 @@ public:
     status_t start() override;
     status_t stop() override;
 
-    void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) override;
+    std::vector<InputDeviceInfo> getInputDevices() const override;
 
     bool isInputDeviceEnabled(int32_t deviceId) override;
 
@@ -121,7 +121,7 @@ protected:
 private:
     std::unique_ptr<InputThread> mThread;
 
-    Mutex mLock;
+    mutable Mutex mLock;
 
     Condition mReaderIsAliveCondition;
 
@@ -181,7 +181,7 @@ private:
     int32_t mNextInputDeviceId;
     int32_t nextInputDeviceIdLocked();
 
-    void getInputDevicesLocked(std::vector<InputDeviceInfo>& outInputDevices);
+    std::vector<InputDeviceInfo> getInputDevicesLocked() const;
 
     nsecs_t mDisableVirtualKeysTimeout;
     void disableVirtualKeysUntilLocked(nsecs_t time);

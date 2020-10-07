@@ -87,7 +87,6 @@ void InputReader::loopOnce() {
     int32_t oldGeneration;
     int32_t timeoutMillis;
     bool inputDevicesChanged = false;
-    std::vector<InputDeviceInfo> inputDevices;
     { // acquire lock
         AutoMutex _l(mLock);
 
@@ -128,13 +127,12 @@ void InputReader::loopOnce() {
 
         if (oldGeneration != mGeneration) {
             inputDevicesChanged = true;
-            getInputDevicesLocked(inputDevices);
         }
     } // release lock
 
     // Send out a message that the describes the changed input devices.
     if (inputDevicesChanged) {
-        mPolicy->notifyInputDevicesChanged(inputDevices);
+        mPolicy->notifyInputDevicesChanged(getInputDevicesLocked());
     }
 
     // Flush queued events out to the listener.
@@ -474,13 +472,14 @@ int32_t InputReader::bumpGenerationLocked() {
     return ++mGeneration;
 }
 
-void InputReader::getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) {
+std::vector<InputDeviceInfo> InputReader::getInputDevices() const {
     AutoMutex _l(mLock);
-    getInputDevicesLocked(outInputDevices);
+    return getInputDevicesLocked();
 }
 
-void InputReader::getInputDevicesLocked(std::vector<InputDeviceInfo>& outInputDevices) {
-    outInputDevices.clear();
+std::vector<InputDeviceInfo> InputReader::getInputDevicesLocked() const {
+    std::vector<InputDeviceInfo> outInputDevices;
+    outInputDevices.reserve(mDeviceToEventHubIdsMap.size());
 
     for (const auto& [device, eventHubIds] : mDeviceToEventHubIdsMap) {
         if (!device->isIgnored()) {
@@ -489,6 +488,7 @@ void InputReader::getInputDevicesLocked(std::vector<InputDeviceInfo>& outInputDe
             outInputDevices.push_back(info);
         }
     }
+    return outInputDevices;
 }
 
 int32_t InputReader::getKeyCodeState(int32_t deviceId, uint32_t sourceMask, int32_t keyCode) {
