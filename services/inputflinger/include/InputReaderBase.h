@@ -78,7 +78,7 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual void getInputDevices(std::vector<InputDeviceInfo>& outInputDevices) = 0;
+    virtual std::vector<InputDeviceInfo> getInputDevices() const = 0;
 
     /* Query current input state. */
     virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask,
