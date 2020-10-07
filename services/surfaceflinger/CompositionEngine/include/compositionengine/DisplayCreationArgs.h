@@ -20,12 +20,14 @@
 #include <optional>
 #include <string>
 
+#include <ui/DisplayId.h>
 #include <ui/DisplayInfo.h>
 #include <ui/PixelFormat.h>
 #include <ui/Size.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/PowerAdvisor.h"
+#include "DisplayIdGenerator.h"
 
 namespace android::compositionengine {
 
@@ -65,6 +67,9 @@ struct DisplayCreationArgs {
 
     // Debugging. Human readable name for the display.
     std::string name;
+
+    // Generator for IDs of virtual displays, which are backed by the GPU.
+    DisplayIdGenerator<GpuVirtualDisplayId>* gpuVirtualDisplayIdGenerator;
 };
 
 /**
@@ -92,6 +97,12 @@ public:
 
     DisplayCreationArgsBuilder& setUseHwcVirtualDisplays(bool useHwcVirtualDisplays) {
         mArgs.useHwcVirtualDisplays = useHwcVirtualDisplays;
+        return *this;
+    }
+
+    DisplayCreationArgsBuilder& setGpuVirtualDisplayIdGenerator(
+            DisplayIdGenerator<GpuVirtualDisplayId>& generator) {
+        mArgs.gpuVirtualDisplayIdGenerator = &generator;
         return *this;
     }
 

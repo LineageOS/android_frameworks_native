@@ -16,12 +16,10 @@
 
 #include "mock/MockEventThread.h"
 
-namespace android {
-namespace mock {
+namespace android::mock {
 
 // Explicit default instantiation is recommended.
 EventThread::EventThread() = default;
 EventThread::~EventThread() = default;
 
-} // namespace mock
-} // namespace android
+} // namespace android::mock

@@ -18,6 +18,8 @@ filegroup {
     name: "inputconstants_aidl",
     srcs: [
         "android/os/IInputConstants.aidl",
+        "android/os/TouchOcclusionMode.aidl",
+        "android/os/BlockUntrustedTouchesMode.aidl",
     ],
 }
 
@@ -71,9 +73,13 @@ cc_library {
                 "android/FocusRequest.aidl",
                 "android/InputApplicationInfo.aidl",
                 "android/os/IInputConstants.aidl",
+                "android/os/TouchOcclusionMode.aidl",
+                "android/os/BlockUntrustedTouchesMode.aidl",
                 "android/os/IInputFlinger.aidl",
                 "android/os/ISetInputWindowsListener.aidl",
             ],
+
+            export_shared_lib_headers: ["libbinder"],
 
             shared_libs: [
                 "libutils",
