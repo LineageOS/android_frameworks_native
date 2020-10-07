@@ -217,6 +217,36 @@ static void dumpRegion(std::string& dump, const Region& region) {
     }
 }
 
+static std::string dumpQueue(const std::deque<DispatchEntry*>& queue, nsecs_t currentTime) {
+    constexpr size_t maxEntries = 50; // max events to print
+    constexpr size_t skipBegin = maxEntries / 2;
+    const size_t skipEnd = queue.size() - maxEntries / 2;
+    // skip from maxEntries / 2 ... size() - maxEntries/2
+    // only print from 0 .. skipBegin and then from skipEnd .. size()
+
+    std::string dump;
+    for (size_t i = 0; i < queue.size(); i++) {
+        const DispatchEntry& entry = *queue[i];
+        if (i >= skipBegin && i < skipEnd) {
+            dump += StringPrintf(INDENT4 "<skipped %zu entries>\n", skipEnd - skipBegin);
+            i = skipEnd - 1; // it will be incremented to "skipEnd" by 'continue'
+            continue;
+        }
+        dump.append(INDENT4);
+        dump += entry.eventEntry->getDescription();
+        dump += StringPrintf(", seq=%" PRIu32
+                             ", targetFlags=0x%08x, resolvedAction=%d, age=%" PRId64 "ms",
+                             entry.seq, entry.targetFlags, entry.resolvedAction,
+                             ns2ms(currentTime - entry.eventEntry->eventTime));
+        if (entry.deliveryTime != 0) {
+            // This entry was delivered, so add information on how long we've been waiting
+            dump += StringPrintf(", wait=%" PRId64 "ms", ns2ms(currentTime - entry.deliveryTime));
+        }
+        dump.append("\n");
+    }
+    return dump;
+}
+
 /**
  * Find the entry in std::unordered_map by key, and return it.
  * If the entry is not found, return a default constructed entry.
@@ -4454,7 +4484,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += StringPrintf(INDENT "RecentQueue: length=%zu\n", mRecentQueue.size());
         for (EventEntry* entry : mRecentQueue) {
             dump += INDENT2;
-            entry->appendDescription(dump);
+            dump += entry->getDescription();
             dump += StringPrintf(", age=%" PRId64 "ms\n", ns2ms(currentTime - entry->eventTime));
         }
     } else {
@@ -4465,7 +4495,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     if (mPendingEvent) {
         dump += INDENT "PendingEvent:\n";
         dump += INDENT2;
-        mPendingEvent->appendDescription(dump);
+        dump += mPendingEvent->getDescription();
         dump += StringPrintf(", age=%" PRId64 "ms\n",
                              ns2ms(currentTime - mPendingEvent->eventTime));
     } else {
@@ -4477,7 +4507,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += StringPrintf(INDENT "InboundQueue: length=%zu\n", mInboundQueue.size());
         for (EventEntry* entry : mInboundQueue) {
             dump += INDENT2;
-            entry->appendDescription(dump);
+            dump += entry->getDescription();
             dump += StringPrintf(", age=%" PRId64 "ms\n", ns2ms(currentTime - entry->eventTime));
         }
     } else {
@@ -4509,14 +4539,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
             if (!connection->outboundQueue.empty()) {
                 dump += StringPrintf(INDENT3 "OutboundQueue: length=%zu\n",
                                      connection->outboundQueue.size());
-                for (DispatchEntry* entry : connection->outboundQueue) {
-                    dump.append(INDENT4);
-                    entry->eventEntry->appendDescription(dump);
-                    dump += StringPrintf(", targetFlags=0x%08x, resolvedAction=%d, age=%" PRId64
-                                         "ms\n",
-                                         entry->targetFlags, entry->resolvedAction,
-                                         ns2ms(currentTime - entry->eventEntry->eventTime));
-                }
+                dump += dumpQueue(connection->outboundQueue, currentTime);
+
             } else {
                 dump += INDENT3 "OutboundQueue: <empty>\n";
             }
@@ -4524,15 +4548,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
             if (!connection->waitQueue.empty()) {
                 dump += StringPrintf(INDENT3 "WaitQueue: length=%zu\n",
                                      connection->waitQueue.size());
-                for (DispatchEntry* entry : connection->waitQueue) {
-                    dump += INDENT4;
-                    entry->eventEntry->appendDescription(dump);
-                    dump += StringPrintf(", targetFlags=0x%08x, resolvedAction=%d, "
-                                         "age=%" PRId64 "ms, wait=%" PRId64 "ms seq=%" PRIu32 "\n",
-                                         entry->targetFlags, entry->resolvedAction,
-                                         ns2ms(currentTime - entry->eventEntry->eventTime),
-                                         ns2ms(currentTime - entry->deliveryTime), entry->seq);
-                }
+                dump += dumpQueue(connection->waitQueue, currentTime);
             } else {
                 dump += INDENT3 "WaitQueue: <empty>\n";
             }
