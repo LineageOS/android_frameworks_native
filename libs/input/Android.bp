@@ -17,9 +17,11 @@
 filegroup {
     name: "inputconstants_aidl",
     srcs: [
-        "android/os/IInputConstants.aidl",
-        "android/os/TouchOcclusionMode.aidl",
         "android/os/BlockUntrustedTouchesMode.aidl",
+        "android/os/IInputConstants.aidl",
+        "android/os/InputEventInjectionResult.aidl",
+        "android/os/InputEventInjectionSync.aidl",
+        "android/os/TouchOcclusionMode.aidl",
     ],
 }
 
@@ -73,6 +75,8 @@ cc_library {
                 "android/FocusRequest.aidl",
                 "android/InputApplicationInfo.aidl",
                 "android/os/IInputConstants.aidl",
+                "android/os/InputEventInjectionResult.aidl",
+                "android/os/InputEventInjectionSync.aidl",
                 "android/os/TouchOcclusionMode.aidl",
                 "android/os/BlockUntrustedTouchesMode.aidl",
                 "android/os/IInputFlinger.aidl",

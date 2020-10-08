@@ -95,10 +95,10 @@ public:
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
 
-    virtual int32_t injectInputEvent(const InputEvent* event, int32_t injectorPid,
-                                     int32_t injectorUid, int32_t syncMode,
-                                     std::chrono::milliseconds timeout,
-                                     uint32_t policyFlags) override;
+    virtual android::os::InputEventInjectionResult injectInputEvent(
+            const InputEvent* event, int32_t injectorPid, int32_t injectorUid,
+            android::os::InputEventInjectionSync syncMode, std::chrono::milliseconds timeout,
+            uint32_t policyFlags) override;
 
     virtual std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) override;
 
@@ -113,7 +113,7 @@ public:
     virtual void setInputFilterEnabled(bool enabled) override;
     virtual void setInTouchMode(bool inTouchMode) override;
     virtual void setMaximumObscuringOpacityForTouch(float opacity) override;
-    virtual void setBlockUntrustedTouchesMode(BlockUntrustedTouchesMode mode) override;
+    virtual void setBlockUntrustedTouchesMode(android::os::BlockUntrustedTouchesMode mode) override;
 
     virtual bool transferTouchFocus(const sp<IBinder>& fromToken,
                                     const sp<IBinder>& toToken) override;
@@ -242,7 +242,8 @@ private:
     // Event injection and synchronization.
     std::condition_variable mInjectionResultAvailable;
     bool hasInjectionPermission(int32_t injectorPid, int32_t injectorUid);
-    void setInjectionResult(EventEntry* entry, int32_t injectionResult);
+    void setInjectionResult(EventEntry* entry,
+                            android::os::InputEventInjectionResult injectionResult);
 
     std::condition_variable mInjectionSyncFinished;
     void incrementPendingForegroundDispatches(EventEntry* entry);
@@ -299,7 +300,7 @@ private:
     bool mInputFilterEnabled GUARDED_BY(mLock);
     bool mInTouchMode GUARDED_BY(mLock);
     float mMaximumObscuringOpacityForTouch GUARDED_BY(mLock);
-    BlockUntrustedTouchesMode mBlockUntrustedTouchesMode GUARDED_BY(mLock);
+    android::os::BlockUntrustedTouchesMode mBlockUntrustedTouchesMode GUARDED_BY(mLock);
 
     std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>> mWindowHandlesByDisplay
             GUARDED_BY(mLock);
@@ -431,13 +432,12 @@ private:
     void resetNoFocusedWindowTimeoutLocked() REQUIRES(mLock);
 
     int32_t getTargetDisplayId(const EventEntry& entry);
-    int32_t findFocusedWindowTargetsLocked(nsecs_t currentTime, const EventEntry& entry,
-                                           std::vector<InputTarget>& inputTargets,
-                                           nsecs_t* nextWakeupTime) REQUIRES(mLock);
-    int32_t findTouchedWindowTargetsLocked(nsecs_t currentTime, const MotionEntry& entry,
-                                           std::vector<InputTarget>& inputTargets,
-                                           nsecs_t* nextWakeupTime,
-                                           bool* outConflictingPointerActions) REQUIRES(mLock);
+    android::os::InputEventInjectionResult findFocusedWindowTargetsLocked(
+            nsecs_t currentTime, const EventEntry& entry, std::vector<InputTarget>& inputTargets,
+            nsecs_t* nextWakeupTime) REQUIRES(mLock);
+    android::os::InputEventInjectionResult findTouchedWindowTargetsLocked(
+            nsecs_t currentTime, const MotionEntry& entry, std::vector<InputTarget>& inputTargets,
+            nsecs_t* nextWakeupTime, bool* outConflictingPointerActions) REQUIRES(mLock);
     std::vector<TouchedMonitor> findTouchedGestureMonitorsLocked(
             int32_t displayId, const std::vector<sp<InputWindowHandle>>& portalWindows) const
             REQUIRES(mLock);
