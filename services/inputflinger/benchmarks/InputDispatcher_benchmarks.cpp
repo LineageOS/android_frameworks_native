@@ -57,6 +57,8 @@ private:
 
     void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
 
+    void notifyUntrustedTouch(const std::string& obscuringPackage) override {}
+
     void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
         *outConfig = mConfig;
     }

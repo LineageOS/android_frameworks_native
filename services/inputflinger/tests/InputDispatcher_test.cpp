@@ -215,6 +215,8 @@ private:
 
     virtual void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
 
+    virtual void notifyUntrustedTouch(const std::string& obscuringPackage) override {}
+
     virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
         *outConfig = mConfig;
     }

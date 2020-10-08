@@ -1743,14 +1743,13 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             mBlockUntrustedTouchesMode != BlockUntrustedTouchesMode::DISABLED) {
             TouchOcclusionInfo occlusionInfo =
                     computeTouchOcclusionInfoLocked(newTouchedWindowHandle, x, y);
-            // The order of the operands in the 'if' below is important because even if the feature
-            // is not BLOCK we want isTouchTrustedLocked() to execute in order to log details to
-            // logcat.
-            if (!isTouchTrustedLocked(occlusionInfo) &&
-                mBlockUntrustedTouchesMode == BlockUntrustedTouchesMode::BLOCK) {
-                ALOGW("Dropping untrusted touch event due to %s/%d",
-                      occlusionInfo.obscuringPackage.c_str(), occlusionInfo.obscuringUid);
-                newTouchedWindowHandle = nullptr;
+            if (!isTouchTrustedLocked(occlusionInfo)) {
+                onUntrustedTouchLocked(occlusionInfo.obscuringPackage);
+                if (mBlockUntrustedTouchesMode == BlockUntrustedTouchesMode::BLOCK) {
+                    ALOGW("Dropping untrusted touch event due to %s/%d",
+                          occlusionInfo.obscuringPackage.c_str(), occlusionInfo.obscuringUid);
+                    newTouchedWindowHandle = nullptr;
+                }
             }
         }
 
@@ -4858,6 +4857,13 @@ void InputDispatcher::onAnrLocked(const std::shared_ptr<InputApplicationHandle>&
     postCommandLocked(std::move(commandEntry));
 }
 
+void InputDispatcher::onUntrustedTouchLocked(const std::string& obscuringPackage) {
+    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyUntrustedTouchLockedInterruptible);
+    commandEntry->obscuringPackage = obscuringPackage;
+    postCommandLocked(std::move(commandEntry));
+}
+
 void InputDispatcher::updateLastAnrStateLocked(const sp<InputWindowHandle>& window,
                                                const std::string& reason) {
     const std::string windowLabel = getApplicationWindowLabel(nullptr, window);
@@ -4934,6 +4940,14 @@ void InputDispatcher::doNotifyAnrLockedInterruptible(CommandEntry* commandEntry)
         }
         cancelEventsForAnrLocked(connection);
     }
+}
+
+void InputDispatcher::doNotifyUntrustedTouchLockedInterruptible(CommandEntry* commandEntry) {
+    mLock.unlock();
+
+    mPolicy->notifyUntrustedTouch(commandEntry->obscuringPackage);
+
+    mLock.lock();
 }
 
 void InputDispatcher::extendAnrTimeoutsLocked(
