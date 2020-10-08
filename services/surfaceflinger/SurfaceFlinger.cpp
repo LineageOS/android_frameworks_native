@@ -5414,9 +5414,8 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         // (ex. displayP3) to enhance the content, but some cases are checking native RGB in bytes,
         // and failed if display is not in native mode. This provide a way to force using native
         // colors when capture.
-        if (args.useRGBColorSpace) {
-            dataspace = Dataspace::V0_SRGB;
-        } else {
+        dataspace = args.dataspace;
+        if (dataspace == ui::Dataspace::UNKNOWN) {
             const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
             dataspace = pickDataspaceFromColorMode(colorMode);
         }
@@ -5580,9 +5579,8 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         // (ex. displayP3) to enhance the content, but some cases are checking native RGB in bytes,
         // and failed if display is not in native mode. This provide a way to force using native
         // colors when capture.
-        if (args.useRGBColorSpace) {
-            dataspace = Dataspace::V0_SRGB;
-        } else {
+        dataspace = args.dataspace;
+        if (dataspace == ui::Dataspace::UNKNOWN) {
             const ui::ColorMode colorMode = display->getCompositionDisplay()->getState().colorMode;
             dataspace = pickDataspaceFromColorMode(colorMode);
         }
