@@ -70,12 +70,6 @@ EventEntry::~EventEntry() {
     releaseInjectionState();
 }
 
-std::string EventEntry::getDescription() const {
-    std::string result;
-    appendDescription(result);
-    return result;
-}
-
 void EventEntry::release() {
     refCount -= 1;
     if (refCount == 0) {
@@ -99,8 +93,8 @@ ConfigurationChangedEntry::ConfigurationChangedEntry(int32_t id, nsecs_t eventTi
 
 ConfigurationChangedEntry::~ConfigurationChangedEntry() {}
 
-void ConfigurationChangedEntry::appendDescription(std::string& msg) const {
-    msg += StringPrintf("ConfigurationChangedEvent(), policyFlags=0x%08x", policyFlags);
+std::string ConfigurationChangedEntry::getDescription() const {
+    return StringPrintf("ConfigurationChangedEvent(), policyFlags=0x%08x", policyFlags);
 }
 
 // --- DeviceResetEntry ---
@@ -110,8 +104,8 @@ DeviceResetEntry::DeviceResetEntry(int32_t id, nsecs_t eventTime, int32_t device
 
 DeviceResetEntry::~DeviceResetEntry() {}
 
-void DeviceResetEntry::appendDescription(std::string& msg) const {
-    msg += StringPrintf("DeviceResetEvent(deviceId=%d), policyFlags=0x%08x", deviceId, policyFlags);
+std::string DeviceResetEntry::getDescription() const {
+    return StringPrintf("DeviceResetEvent(deviceId=%d), policyFlags=0x%08x", deviceId, policyFlags);
 }
 
 // --- FocusEntry ---
@@ -126,8 +120,8 @@ FocusEntry::FocusEntry(int32_t id, nsecs_t eventTime, sp<IBinder> connectionToke
 
 FocusEntry::~FocusEntry() {}
 
-void FocusEntry::appendDescription(std::string& msg) const {
-    msg += StringPrintf("FocusEvent(hasFocus=%s)", hasFocus ? "true" : "false");
+std::string FocusEntry::getDescription() const {
+    return StringPrintf("FocusEvent(hasFocus=%s)", hasFocus ? "true" : "false");
 }
 
 // --- KeyEntry ---
@@ -153,12 +147,11 @@ KeyEntry::KeyEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t sou
 
 KeyEntry::~KeyEntry() {}
 
-void KeyEntry::appendDescription(std::string& msg) const {
-    msg += StringPrintf("KeyEvent");
+std::string KeyEntry::getDescription() const {
     if (!GetBoolProperty("ro.debuggable", false)) {
-        return;
+        return "KeyEvent";
     }
-    msg += StringPrintf("(deviceId=%d, source=0x%08x, displayId=%" PRId32 ", action=%s, "
+    return StringPrintf("KeyEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32 ", action=%s, "
                         "flags=0x%08x, keyCode=%d, scanCode=%d, metaState=0x%08x, "
                         "repeatCount=%d), policyFlags=0x%08x",
                         deviceId, source, displayId, KeyEvent::actionToString(action), flags,
@@ -212,12 +205,12 @@ MotionEntry::MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32
 
 MotionEntry::~MotionEntry() {}
 
-void MotionEntry::appendDescription(std::string& msg) const {
-    msg += StringPrintf("MotionEvent");
+std::string MotionEntry::getDescription() const {
     if (!GetBoolProperty("ro.debuggable", false)) {
-        return;
+        return "MotionEvent";
     }
-    msg += StringPrintf("(deviceId=%d, source=0x%08x, displayId=%" PRId32
+    std::string msg;
+    msg += StringPrintf("MotionEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32
                         ", action=%s, actionButton=0x%08x, flags=0x%08x, metaState=0x%08x, "
                         "buttonState=0x%08x, "
                         "classification=%s, edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, "
@@ -235,6 +228,7 @@ void MotionEntry::appendDescription(std::string& msg) const {
                             pointerCoords[i].getY());
     }
     msg += StringPrintf("]), policyFlags=0x%08x", policyFlags);
+    return msg;
 }
 
 // --- DispatchEntry ---
