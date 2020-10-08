@@ -778,7 +778,12 @@ bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
 
 bool Layer::isSecure() const {
     const State& s(mDrawingState);
-    return (s.flags & layer_state_t::eLayerSecure);
+    if (s.flags & layer_state_t::eLayerSecure) {
+        return true;
+    }
+
+    const auto p = mDrawingParent.promote();
+    return (p != nullptr) ? p->isSecure() : false;
 }
 
 // ----------------------------------------------------------------------------
