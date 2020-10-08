@@ -35,6 +35,7 @@
 #include <utils/String8.h>
 
 #include "BufferQueueLayer.h"
+#include "ContainerLayer.h"
 #include "DisplayRenderArea.h"
 #include "EffectLayer.h"
 #include "Layer.h"
@@ -188,6 +189,7 @@ public:
     sp<compositionengine::mock::DisplaySurface> mDisplaySurface =
             new compositionengine::mock::DisplaySurface();
     mock::NativeWindow* mNativeWindow = new mock::NativeWindow();
+    std::vector<sp<Layer>> mAuxiliaryLayers;
 
     sp<GraphicBuffer> mBuffer = new GraphicBuffer();
     ANativeWindowBuffer* mNativeWindowBuffer = mBuffer->getNativeBuffer();
@@ -762,10 +764,9 @@ struct SidebandLayerProperties : public BaseLayerProperties<SidebandLayerPropert
     static void setupREBufferCompositionCommonCallExpectations(CompositionTest* /*test*/) {}
 };
 
-struct SecureLayerProperties : public BaseLayerProperties<SecureLayerProperties> {
-    using Base = BaseLayerProperties<SecureLayerProperties>;
-
-    static constexpr uint32_t LAYER_FLAGS = ISurfaceComposerClient::eSecure;
+template <typename LayerProperties>
+struct CommonSecureLayerProperties : public BaseLayerProperties<LayerProperties> {
+    using Base = BaseLayerProperties<LayerProperties>;
 
     static void setupInsecureREBufferCompositionCommonCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
@@ -806,6 +807,13 @@ struct SecureLayerProperties : public BaseLayerProperties<SecureLayerProperties>
     }
 };
 
+struct ParentSecureLayerProperties
+      : public CommonSecureLayerProperties<ParentSecureLayerProperties> {};
+
+struct SecureLayerProperties : public CommonSecureLayerProperties<SecureLayerProperties> {
+    static constexpr uint32_t LAYER_FLAGS = ISurfaceComposerClient::eSecure;
+};
+
 struct CursorLayerProperties : public BaseLayerProperties<CursorLayerProperties> {
     using Base = BaseLayerProperties<CursorLayerProperties>;
 
@@ -841,6 +849,13 @@ struct BaseLayerVariant {
         Mock::VerifyAndClear(test->mRenderEngine);
         Mock::VerifyAndClearExpectations(test->mMessageQueue);
 
+        initLayerDrawingStateAndComputeBounds(test, layer);
+
+        return layer;
+    }
+
+    template <typename L>
+    static void initLayerDrawingStateAndComputeBounds(CompositionTest* test, sp<L> layer) {
         auto& layerDrawingState = test->mFlinger.mutableLayerDrawingState(layer);
         layerDrawingState.layerStack = DEFAULT_LAYER_STACK;
         layerDrawingState.active.w = 100;
@@ -848,8 +863,6 @@ struct BaseLayerVariant {
         layerDrawingState.color = half4(LayerProperties::COLOR[0], LayerProperties::COLOR[1],
                                         LayerProperties::COLOR[2], LayerProperties::COLOR[3]);
         layer->computeBounds(FloatRect(0, 0, 100, 100), ui::Transform(), 0.f /* shadowRadius */);
-
-        return layer;
     }
 
     static void injectLayer(CompositionTest* test, sp<Layer> layer) {
@@ -967,6 +980,49 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
 
     static void setupInsecureREScreenshotCompositionCallExpectations(CompositionTest* test) {
         LayerProperties::setupInsecureREBufferScreenshotCompositionCallExpectations(test);
+    }
+};
+
+template <typename LayerProperties>
+struct ContainerLayerVariant : public BaseLayerVariant<LayerProperties> {
+    using Base = BaseLayerVariant<LayerProperties>;
+    using FlingerLayerType = sp<ContainerLayer>;
+
+    static FlingerLayerType createLayer(CompositionTest* test) {
+        LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-container-layer",
+                               LayerProperties::WIDTH, LayerProperties::HEIGHT,
+                               LayerProperties::LAYER_FLAGS, LayerMetadata());
+        FlingerLayerType layer = new ContainerLayer(args);
+        Base::template initLayerDrawingStateAndComputeBounds(test, layer);
+        return layer;
+    }
+};
+
+template <typename LayerVariant, typename ParentLayerVariant>
+struct ChildLayerVariant : public LayerVariant {
+    using Base = LayerVariant;
+    using FlingerLayerType = typename LayerVariant::FlingerLayerType;
+    using ParentBase = ParentLayerVariant;
+
+    static FlingerLayerType createLayer(CompositionTest* test) {
+        // Need to create child layer first. Otherwise layer history size will be 2.
+        FlingerLayerType layer = Base::createLayer(test);
+
+        typename ParentBase::FlingerLayerType parentLayer = ParentBase::createLayer(test);
+        parentLayer->addChild(layer);
+        test->mFlinger.setLayerDrawingParent(layer, parentLayer);
+
+        test->mAuxiliaryLayers.push_back(parentLayer);
+
+        return layer;
+    }
+
+    static void cleanupInjectedLayers(CompositionTest* test) {
+        // Clear auxiliary layers first so that child layer can be successfully destroyed in the
+        // following call.
+        test->mAuxiliaryLayers.clear();
+
+        Base::cleanupInjectedLayers(test);
     }
 };
 
@@ -1355,6 +1411,38 @@ TEST_F(CompositionTest, HWCComposedSecureBufferLayerOnInsecureDisplayWithDirtyFr
 TEST_F(CompositionTest, captureScreenSecureBufferLayerOnInsecureDisplay) {
     captureScreenComposition<
             CompositionCase<InsecureDisplaySetupVariant, BufferLayerVariant<SecureLayerProperties>,
+                            NoCompositionTypeVariant, REScreenshotResultVariant>>();
+}
+
+/* ------------------------------------------------------------------------
+ *  Layers with a parent layer with ISurfaceComposerClient::eSecure, on a non-secure display
+ */
+
+TEST_F(CompositionTest,
+       HWCComposedBufferLayerWithSecureParentLayerOnInsecureDisplayWithDirtyGeometry) {
+    displayRefreshCompositionDirtyGeometry<
+            CompositionCase<InsecureDisplaySetupVariant,
+                            ChildLayerVariant<BufferLayerVariant<ParentSecureLayerProperties>,
+                                              ContainerLayerVariant<SecureLayerProperties>>,
+                            KeepCompositionTypeVariant<IComposerClient::Composition::CLIENT>,
+                            ForcedClientCompositionResultVariant>>();
+}
+
+TEST_F(CompositionTest,
+       HWCComposedBufferLayerWithSecureParentLayerOnInsecureDisplayWithDirtyFrame) {
+    displayRefreshCompositionDirtyFrame<
+            CompositionCase<InsecureDisplaySetupVariant,
+                            ChildLayerVariant<BufferLayerVariant<ParentSecureLayerProperties>,
+                                              ContainerLayerVariant<SecureLayerProperties>>,
+                            KeepCompositionTypeVariant<IComposerClient::Composition::CLIENT>,
+                            ForcedClientCompositionResultVariant>>();
+}
+
+TEST_F(CompositionTest, captureScreenBufferLayerWithSecureParentLayerOnInsecureDisplay) {
+    captureScreenComposition<
+            CompositionCase<InsecureDisplaySetupVariant,
+                            ChildLayerVariant<BufferLayerVariant<ParentSecureLayerProperties>,
+                                              ContainerLayerVariant<SecureLayerProperties>>,
                             NoCompositionTypeVariant, REScreenshotResultVariant>>();
 }
 
