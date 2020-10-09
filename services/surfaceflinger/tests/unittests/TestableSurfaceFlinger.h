@@ -277,6 +277,10 @@ public:
         layer->mPotentialCursor = potentialCursor;
     }
 
+    static void setLayerDrawingParent(const sp<Layer>& layer, const sp<Layer>& drawingParent) {
+        layer->mDrawingParent = drawingParent;
+    }
+
     /* ------------------------------------------------------------------------
      * Forwarding for functions being tested
      */

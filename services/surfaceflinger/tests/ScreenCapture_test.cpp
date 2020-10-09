@@ -109,6 +109,41 @@ TEST_F(ScreenCaptureTest, SetFlagsSecureEUidSystem) {
     sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
+TEST_F(ScreenCaptureTest, CaptureChildSetParentFlagsSecureEUidSystem) {
+    sp<SurfaceControl> parentLayer;
+    ASSERT_NO_FATAL_FAILURE(
+            parentLayer = createLayer("parent-test", 32, 32,
+                                      ISurfaceComposerClient::eSecure |
+                                              ISurfaceComposerClient::eFXSurfaceBufferQueue));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(parentLayer, Color::RED, 32, 32));
+
+    sp<SurfaceControl> childLayer;
+    ASSERT_NO_FATAL_FAILURE(childLayer = createLayer("child-test", 10, 10,
+                                                     ISurfaceComposerClient::eFXSurfaceBufferQueue,
+                                                     parentLayer.get()));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(childLayer, Color::BLUE, 10, 10));
+
+    Transaction().show(parentLayer).setLayer(parentLayer, INT32_MAX).show(childLayer).apply(true);
+
+    UIDFaker f(AID_SYSTEM);
+
+    {
+        SCOPED_TRACE("as system");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 10, 10), Color::BLACK);
+    }
+
+    // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
+    // to receive them...we are expected to take care with the results.
+    DisplayCaptureArgs args;
+    args.displayToken = mDisplay;
+    args.captureSecureLayers = true;
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureDisplay(args, mCaptureResults));
+    ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+    ScreenCapture sc(mCaptureResults.buffer);
+    sc.expectColor(Rect(0, 0, 10, 10), Color::BLUE);
+}
+
 TEST_F(ScreenCaptureTest, CaptureSingleLayer) {
     LayerCaptureArgs captureArgs;
     captureArgs.layerHandle = mBGSurfaceControl->getHandle();
