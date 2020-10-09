@@ -55,6 +55,9 @@ public:
     virtual void notifyInputChannelBroken(const sp<IBinder>& token) = 0;
     virtual void notifyFocusChanged(const sp<IBinder>& oldToken, const sp<IBinder>& newToken) = 0;
 
+    /* Notifies the system that an untrusted touch occurred. */
+    virtual void notifyUntrustedTouch(const std::string& obscuringPackage) = 0;
+
     /* Gets the input dispatcher configuration. */
     virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) = 0;
 
