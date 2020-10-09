@@ -81,9 +81,7 @@ struct EventEntry {
 
     void release();
 
-    virtual void appendDescription(std::string& msg) const = 0;
-
-    std::string getDescription() const;
+    virtual std::string getDescription() const = 0;
 
 protected:
     EventEntry(int32_t id, Type type, nsecs_t eventTime, uint32_t policyFlags);
@@ -93,7 +91,7 @@ protected:
 
 struct ConfigurationChangedEntry : EventEntry {
     explicit ConfigurationChangedEntry(int32_t id, nsecs_t eventTime);
-    virtual void appendDescription(std::string& msg) const;
+    std::string getDescription() const override;
 
 protected:
     virtual ~ConfigurationChangedEntry();
@@ -103,7 +101,7 @@ struct DeviceResetEntry : EventEntry {
     int32_t deviceId;
 
     DeviceResetEntry(int32_t id, nsecs_t eventTime, int32_t deviceId);
-    virtual void appendDescription(std::string& msg) const;
+    std::string getDescription() const override;
 
 protected:
     virtual ~DeviceResetEntry();
@@ -116,7 +114,7 @@ struct FocusEntry : EventEntry {
 
     FocusEntry(int32_t id, nsecs_t eventTime, sp<IBinder> connectionToken, bool hasFocus,
                std::string_view reason);
-    virtual void appendDescription(std::string& msg) const;
+    std::string getDescription() const override;
 
 protected:
     virtual ~FocusEntry();
@@ -148,7 +146,7 @@ struct KeyEntry : EventEntry {
     KeyEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source, int32_t displayId,
              uint32_t policyFlags, int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode,
              int32_t metaState, int32_t repeatCount, nsecs_t downTime);
-    virtual void appendDescription(std::string& msg) const;
+    std::string getDescription() const override;
     void recycle();
 
 protected:
@@ -182,7 +180,7 @@ struct MotionEntry : EventEntry {
                 float yCursorPosition, nsecs_t downTime, uint32_t pointerCount,
                 const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
                 float xOffset, float yOffset);
-    virtual void appendDescription(std::string& msg) const;
+    std::string getDescription() const override;
 
 protected:
     virtual ~MotionEntry();
