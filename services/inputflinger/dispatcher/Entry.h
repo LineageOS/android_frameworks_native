@@ -261,6 +261,7 @@ struct CommandEntry {
     std::shared_ptr<InputChannel> inputChannel;
     sp<IBinder> oldToken;
     sp<IBinder> newToken;
+    std::string obscuringPackage;
 };
 
 } // namespace android::inputdispatcher
