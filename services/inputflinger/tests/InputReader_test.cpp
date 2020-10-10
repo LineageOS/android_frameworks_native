@@ -45,15 +45,23 @@ static constexpr std::chrono::duration WAIT_TIMEOUT = 100ms;
 static const nsecs_t ARBITRARY_TIME = 1234;
 
 // Arbitrary display properties.
-static const int32_t DISPLAY_ID = 0;
-static const int32_t SECONDARY_DISPLAY_ID = DISPLAY_ID + 1;
-static const int32_t DISPLAY_WIDTH = 480;
-static const int32_t DISPLAY_HEIGHT = 800;
-static const int32_t VIRTUAL_DISPLAY_ID = 1;
-static const int32_t VIRTUAL_DISPLAY_WIDTH = 400;
-static const int32_t VIRTUAL_DISPLAY_HEIGHT = 500;
+static constexpr int32_t DISPLAY_ID = 0;
+static constexpr int32_t SECONDARY_DISPLAY_ID = DISPLAY_ID + 1;
+static constexpr int32_t DISPLAY_WIDTH = 480;
+static constexpr int32_t DISPLAY_HEIGHT = 800;
+static constexpr int32_t VIRTUAL_DISPLAY_ID = 1;
+static constexpr int32_t VIRTUAL_DISPLAY_WIDTH = 400;
+static constexpr int32_t VIRTUAL_DISPLAY_HEIGHT = 500;
 static const char* VIRTUAL_DISPLAY_UNIQUE_ID = "virtual:1";
 static constexpr std::optional<uint8_t> NO_PORT = std::nullopt; // no physical port is specified
+
+static constexpr int32_t FIRST_SLOT = 0;
+static constexpr int32_t SECOND_SLOT = 1;
+static constexpr int32_t THIRD_SLOT = 2;
+static constexpr int32_t INVALID_TRACKING_ID = -1;
+static constexpr int32_t FIRST_TRACKING_ID = 0;
+static constexpr int32_t SECOND_TRACKING_ID = 1;
+static constexpr int32_t THIRD_TRACKING_ID = 2;
 
 // Error tolerance for floating point assertions.
 static const float EPSILON = 0.001f;
@@ -288,6 +296,8 @@ public:
     void setDefaultPointerDisplayId(int32_t pointerDisplayId) {
         mConfig.defaultPointerDisplayId = pointerDisplayId;
     }
+
+    float getPointerGestureMovementSpeedRatio() { return mConfig.pointerGestureMovementSpeedRatio; }
 
 private:
     DisplayViewport createDisplayViewport(int32_t displayId, int32_t width, int32_t height,
@@ -1873,10 +1883,6 @@ TEST_F(InputReaderIntegrationTest, SendsGearDownAndUpToInputListener) {
 // --- TouchProcessTest ---
 class TouchIntegrationTest : public InputReaderIntegrationTest {
 protected:
-    static const int32_t FIRST_SLOT = 0;
-    static const int32_t SECOND_SLOT = 1;
-    static const int32_t FIRST_TRACKING_ID = 0;
-    static const int32_t SECOND_TRACKING_ID = 1;
     const std::string UNIQUE_ID = "local:0";
 
     virtual void SetUp() override {
@@ -1947,9 +1953,9 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessMultiTouch) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
 
     // ACTION_POINTER_UP (Second slot)
-    mDevice->sendUp();
+    mDevice->sendPointerUp();
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
-    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_UP | (0 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
               args.action);
 
     // ACTION_UP
@@ -1964,11 +1970,13 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessPalm) {
     const Point centerPoint = mDevice->getCenterPoint();
 
     // ACTION_DOWN
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
     mDevice->sendDown(centerPoint);
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, args.action);
 
-    // ACTION_POINTER_DOWN (Second slot)
+    // ACTION_POINTER_DOWN (second slot)
     const Point secondPoint = centerPoint + Point(100, 100);
     mDevice->sendSlot(SECOND_SLOT);
     mDevice->sendTrackingId(SECOND_TRACKING_ID);
@@ -1977,26 +1985,31 @@ TEST_F(TouchIntegrationTest, InputEvent_ProcessPalm) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
               args.action);
 
-    // ACTION_MOVE (Second slot)
+    // ACTION_MOVE (second slot)
     mDevice->sendMove(secondPoint + Point(1, 1));
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
 
-    // Send MT_TOOL_PALM, which indicates that the touch IC has determined this to be a grip event.
-    // Expect to receive ACTION_CANCEL, to abort the entire gesture.
+    // Send MT_TOOL_PALM (second slot), which indicates that the touch IC has determined this to be
+    // a palm event.
+    // Expect to receive the ACTION_POINTER_UP with cancel flag.
     mDevice->sendToolType(MT_TOOL_PALM);
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
-    ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, args.action);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+              args.action);
+    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, args.flags);
 
-    // ACTION_POINTER_UP (Second slot)
-    mDevice->sendUp();
+    // Send up to second slot, expect first slot send moving.
+    mDevice->sendPointerUp();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
 
-    // ACTION_UP
+    // Send ACTION_UP (first slot)
     mDevice->sendSlot(FIRST_SLOT);
     mDevice->sendUp();
 
-    // Expect no event received after abort the entire gesture.
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
 }
 
 // --- InputDeviceTest ---
@@ -7059,10 +7072,10 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandleSingleTouch) {
 }
 
 /**
- * Test touch should be canceled when received the MT_TOOL_PALM event, and the following MOVE and
- * UP events should be ignored.
+ * Test single touch should be canceled when received the MT_TOOL_PALM event, and the following
+ * MOVE and UP events should be ignored.
  */
-TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType) {
+TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType_SinglePointer) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION | ID | SLOT | TOOL_TYPE);
@@ -7072,7 +7085,7 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType) {
 
     // default tool type is finger
     constexpr int32_t x1 = 100, y1 = 200, x2 = 120, y2 = 220, x3 = 140, y3 = 240;
-    processId(mapper, 1);
+    processId(mapper, FIRST_TRACKING_ID);
     processPosition(mapper, x1, y1);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
@@ -7086,19 +7099,19 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionArgs.action);
 
     // Ignore the following MOVE and UP events if had detect a palm event.
-    processId(mapper, 1);
+    processId(mapper, FIRST_TRACKING_ID);
     processPosition(mapper, x2, y2);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 
     // finger up.
-    processId(mapper, -1);
+    processId(mapper, INVALID_TRACKING_ID);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 
     // new finger down
+    processId(mapper, FIRST_TRACKING_ID);
     processToolType(mapper, MT_TOOL_FINGER);
-    processId(mapper, 1);
     processPosition(mapper, x3, y3);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
@@ -7107,11 +7120,10 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType) {
 }
 
 /**
- * Test multi-touch should be canceled when received the MT_TOOL_PALM event from some finger,
- * and could be allowed again after all non-MT_TOOL_PALM is release and the new point is
- * MT_TOOL_FINGER.
+ * Test multi-touch should sent POINTER_UP when received the MT_TOOL_PALM event from some finger,
+ * and the rest active fingers could still be allowed to receive the events
  */
-TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType2) {
+TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType_TwoPointers) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION | ID | SLOT | TOOL_TYPE);
@@ -7120,8 +7132,8 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType2) {
     NotifyMotionArgs motionArgs;
 
     // default tool type is finger
-    constexpr int32_t x1 = 100, y1 = 200, x2 = 120, y2 = 220, x3 = 140, y3 = 240;
-    processId(mapper, 1);
+    constexpr int32_t x1 = 100, y1 = 200, x2 = 120, y2 = 220;
+    processId(mapper, FIRST_TRACKING_ID);
     processPosition(mapper, x1, y1);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
@@ -7129,51 +7141,232 @@ TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType2) {
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
 
     // Second finger down.
-    processSlot(mapper, 1);
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, SECOND_TRACKING_ID);
     processPosition(mapper, x2, y2);
-    processId(mapper, 2);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+              motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[1].toolType);
+
+    // If the tool type of the first finger changes to MT_TOOL_PALM,
+    // we expect to receive ACTION_POINTER_UP with cancel flag.
+    processSlot(mapper, FIRST_SLOT);
+    processId(mapper, FIRST_TRACKING_ID);
+    processToolType(mapper, MT_TOOL_PALM);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_UP | (0 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+              motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, motionArgs.flags);
+
+    // The following MOVE events of second finger should be processed.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2 + 1, y2 + 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
+
+    // First finger up. It used to be in palm mode, and we already generated ACTION_POINTER_UP for
+    // it. Second finger receive move.
+    processSlot(mapper, FIRST_SLOT);
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
+
+    // Second finger keeps moving.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2 + 2, y2 + 2);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
+
+    // Second finger up.
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
+    ASSERT_NE(AMOTION_EVENT_FLAG_CANCELED, motionArgs.flags);
+}
+
+/**
+ * Test multi-touch should sent POINTER_UP when received the MT_TOOL_PALM event, if only 1 finger
+ * is active, it should send CANCEL after receiving the MT_TOOL_PALM event.
+ */
+TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType_ShouldCancelWhenAllTouchIsPalm) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT | TOOL_TYPE);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+
+    constexpr int32_t x1 = 100, y1 = 200, x2 = 120, y2 = 220, x3 = 140, y3 = 240;
+    // First finger down.
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+
+    // Second finger down.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
               motionArgs.action);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
 
-    // If the tool type of the first pointer changes to MT_TOOL_PALM,
-    // the entire gesture should be aborted, so we expect to receive ACTION_CANCEL.
-    processSlot(mapper, 0);
-    processId(mapper, 1);
+    // If the tool type of the first finger changes to MT_TOOL_PALM,
+    // we expect to receive ACTION_POINTER_UP with cancel flag.
+    processSlot(mapper, FIRST_SLOT);
+    processId(mapper, FIRST_TRACKING_ID);
+    processToolType(mapper, MT_TOOL_PALM);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_UP | (0 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+              motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, motionArgs.flags);
+
+    // Second finger keeps moving.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2 + 1, y2 + 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+
+    // second finger becomes palm, receive cancel due to only 1 finger is active.
+    processId(mapper, SECOND_TRACKING_ID);
     processToolType(mapper, MT_TOOL_PALM);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionArgs.action);
 
-    // Ignore the following MOVE and UP events if had detect a palm event.
-    processSlot(mapper, 1);
-    processId(mapper, 2);
+    // third finger down.
+    processSlot(mapper, THIRD_SLOT);
+    processId(mapper, THIRD_TRACKING_ID);
+    processToolType(mapper, MT_TOOL_FINGER);
     processPosition(mapper, x3, y3);
-    processSync(mapper);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
-
-    // second finger up.
-    processId(mapper, -1);
-    processSync(mapper);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
-
-    // first finger move, but still in palm
-    processSlot(mapper, 0);
-    processId(mapper, 1);
-    processPosition(mapper, x1 - 1, y1 - 1);
-    processSync(mapper);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
-
-    // second finger down, expect as new finger down.
-    processSlot(mapper, 1);
-    processId(mapper, 2);
-    processPosition(mapper, x2, y2);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
     ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
+
+    // third finger move
+    processId(mapper, THIRD_TRACKING_ID);
+    processPosition(mapper, x3 + 1, y3 + 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+
+    // first finger up, third finger receive move.
+    processSlot(mapper, FIRST_SLOT);
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
+
+    // second finger up, third finger receive move.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
+
+    // third finger up.
+    processSlot(mapper, THIRD_SLOT);
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
+    ASSERT_NE(AMOTION_EVENT_FLAG_CANCELED, motionArgs.flags);
+}
+
+/**
+ * Test multi-touch should sent POINTER_UP when received the MT_TOOL_PALM event from some finger,
+ * and the active finger could still be allowed to receive the events
+ */
+TEST_F(MultiTouchInputMapperTest, Process_ShouldHandlePalmToolType_KeepFirstPointer) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT | TOOL_TYPE);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    NotifyMotionArgs motionArgs;
+
+    // default tool type is finger
+    constexpr int32_t x1 = 100, y1 = 200, x2 = 120, y2 = 220;
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1, y1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+
+    // Second finger down.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, x2, y2);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+              motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+
+    // If the tool type of the second finger changes to MT_TOOL_PALM,
+    // we expect to receive ACTION_POINTER_UP with cancel flag.
+    processId(mapper, SECOND_TRACKING_ID);
+    processToolType(mapper, MT_TOOL_PALM);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+              motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_FLAG_CANCELED, motionArgs.flags);
+
+    // The following MOVE event should be processed.
+    processSlot(mapper, FIRST_SLOT);
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1 + 1, y1 + 1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(uint32_t(1), motionArgs.pointerCount);
+
+    // second finger up.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+
+    // first finger keep moving
+    processSlot(mapper, FIRST_SLOT);
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, x1 + 2, y1 + 2);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+
+    // first finger up.
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
+    ASSERT_NE(AMOTION_EVENT_FLAG_CANCELED, motionArgs.flags);
 }
 
 // --- MultiTouchInputMapperTest_ExternalDevice ---
@@ -7338,4 +7531,223 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270) {
     constexpr int32_t yExpected = (x + 1) - DISPLAY_WIDTH / 4;
     processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
 }
+
+TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
+    // we need a pointer controller for mouse mode of touchpad (start pointer at 0,0)
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+    fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+    fakePointerController->setPosition(0, 0);
+    fakePointerController->setButtonState(0);
+
+    // prepare device and capture
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOUCH, 0, AKEYCODE_UNKNOWN, 0);
+    mFakePolicy->setPointerCapture(true);
+    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // captured touchpad should be a touchpad source
+    NotifyDeviceResetArgs resetArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
+
+    InputDeviceInfo deviceInfo;
+    mDevice->getDeviceInfo(&deviceInfo);
+
+    const InputDeviceInfo::MotionRange* relRangeX =
+            deviceInfo.getMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, AINPUT_SOURCE_TOUCHPAD);
+    ASSERT_NE(relRangeX, nullptr);
+    ASSERT_EQ(relRangeX->min, -(RAW_X_MAX - RAW_X_MIN));
+    ASSERT_EQ(relRangeX->max, RAW_X_MAX - RAW_X_MIN);
+    const InputDeviceInfo::MotionRange* relRangeY =
+            deviceInfo.getMotionRange(AMOTION_EVENT_AXIS_RELATIVE_Y, AINPUT_SOURCE_TOUCHPAD);
+    ASSERT_NE(relRangeY, nullptr);
+    ASSERT_EQ(relRangeY->min, -(RAW_Y_MAX - RAW_Y_MIN));
+    ASSERT_EQ(relRangeY->max, RAW_Y_MAX - RAW_Y_MIN);
+
+    // run captured pointer tests - note that this is unscaled, so input listener events should be
+    //                              identical to what the hardware sends (accounting for any
+    //                              calibration).
+    // FINGER 0 DOWN
+    processSlot(mapper, 0);
+    processId(mapper, 1);
+    processPosition(mapper, 100 + RAW_X_MIN, 100 + RAW_Y_MIN);
+    processKey(mapper, BTN_TOUCH, 1);
+    processSync(mapper);
+
+    // expect coord[0] to contain initial location of touch 0
+    NotifyMotionArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, args.action);
+    ASSERT_EQ(1U, args.pointerCount);
+    ASSERT_EQ(0, args.pointerProperties[0].id);
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, args.source);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 100, 100, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // FINGER 1 DOWN
+    processSlot(mapper, 1);
+    processId(mapper, 2);
+    processPosition(mapper, 560 + RAW_X_MIN, 154 + RAW_Y_MIN);
+    processSync(mapper);
+
+    // expect coord[0] to contain previous location, coord[1] to contain new touch 1 location
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+            args.action);
+    ASSERT_EQ(2U, args.pointerCount);
+    ASSERT_EQ(0, args.pointerProperties[0].id);
+    ASSERT_EQ(1, args.pointerProperties[1].id);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 100, 100, 1, 0, 0, 0, 0, 0, 0, 0));
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[1], 560, 154, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // FINGER 1 MOVE
+    processPosition(mapper, 540 + RAW_X_MIN, 690 + RAW_Y_MIN);
+    processSync(mapper);
+
+    // expect coord[0] to contain previous location, coord[1] to contain new touch 1 location
+    // from move
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 100, 100, 1, 0, 0, 0, 0, 0, 0, 0));
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[1], 540, 690, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // FINGER 0 MOVE
+    processSlot(mapper, 0);
+    processPosition(mapper, 50 + RAW_X_MIN, 800 + RAW_Y_MIN);
+    processSync(mapper);
+
+    // expect coord[0] to contain new touch 0 location, coord[1] to contain previous location
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 50, 800, 1, 0, 0, 0, 0, 0, 0, 0));
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[1], 540, 690, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // BUTTON DOWN
+    processKey(mapper, BTN_LEFT, 1);
+    processSync(mapper);
+
+    // touchinputmapper design sends a move before button press
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_PRESS, args.action);
+
+    // BUTTON UP
+    processKey(mapper, BTN_LEFT, 0);
+    processSync(mapper);
+
+    // touchinputmapper design sends a move after button release
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_RELEASE, args.action);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+
+    // FINGER 0 UP
+    processId(mapper, -1);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_UP | 0x0000, args.action);
+
+    // FINGER 1 MOVE
+    processSlot(mapper, 1);
+    processPosition(mapper, 320 + RAW_X_MIN, 900 + RAW_Y_MIN);
+    processSync(mapper);
+
+    // expect coord[0] to contain new location of touch 1, and properties[0].id to contain 1
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    ASSERT_EQ(1U, args.pointerCount);
+    ASSERT_EQ(1, args.pointerProperties[0].id);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 320, 900, 1, 0, 0, 0, 0, 0, 0, 0));
+
+    // FINGER 1 UP
+    processId(mapper, -1);
+    processKey(mapper, BTN_TOUCH, 0);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
+
+    // non captured touchpad should be a mouse source
+    mFakePolicy->setPointerCapture(false);
+    configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
+}
+
+TEST_F(MultiTouchInputMapperTest, Process_UnCapturedTouchpadPointer) {
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+    fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+    fakePointerController->setPosition(0, 0);
+    fakePointerController->setButtonState(0);
+
+    // prepare device and capture
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOUCH, 0, AKEYCODE_UNKNOWN, 0);
+    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+    // run uncaptured pointer tests - pushes out generic events
+    // FINGER 0 DOWN
+    processId(mapper, 3);
+    processPosition(mapper, 100, 100);
+    processKey(mapper, BTN_TOUCH, 1);
+    processSync(mapper);
+
+    // start at (100,100), cursor should be at (0,0) * scale
+    NotifyMotionArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(
+            assertPointerCoords(args.pointerCoords[0], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+
+    // FINGER 0 MOVE
+    processPosition(mapper, 200, 200);
+    processSync(mapper);
+
+    // compute scaling to help with touch position checking
+    float rawDiagonal = hypotf(RAW_X_MAX - RAW_X_MIN, RAW_Y_MAX - RAW_Y_MIN);
+    float displayDiagonal = hypotf(DISPLAY_WIDTH, DISPLAY_HEIGHT);
+    float scale =
+            mFakePolicy->getPointerGestureMovementSpeedRatio() * displayDiagonal / rawDiagonal;
+
+    // translate from (100,100) -> (200,200), cursor should have changed to (100,100) * scale)
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0], 100 * scale, 100 * scale, 0,
+                                                0, 0, 0, 0, 0, 0, 0));
+}
+
+TEST_F(MultiTouchInputMapperTest, WhenCapturedAndNotCaptured_GetSources) {
+    std::shared_ptr<FakePointerController> fakePointerController =
+            std::make_shared<FakePointerController>();
+
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION | ID | SLOT);
+    mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
+    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    mFakePolicy->setPointerCapture(false);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // uncaptured touchpad should be a pointer device
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
+
+    // captured touchpad should be a touchpad device
+    mFakePolicy->setPointerCapture(true);
+    configureDevice(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
+}
+
 } // namespace android

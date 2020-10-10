@@ -86,6 +86,13 @@ constexpr int32_t VERIFIED_KEY_EVENT_FLAGS = AKEY_EVENT_FLAG_CANCELED;
 constexpr int32_t VERIFIED_MOTION_EVENT_FLAGS =
         AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED | AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
 
+/**
+ * This flag indicates that the point up event has been canceled.
+ * Typically this is used for palm event when the user has accidental touches.
+ * TODO: Adjust flag to public api
+ */
+constexpr int32_t AMOTION_EVENT_FLAG_CANCELED = 0x20;
+
 enum {
     /* Used when a motion event is not associated with any display.
      * Typically used for non-pointer events. */

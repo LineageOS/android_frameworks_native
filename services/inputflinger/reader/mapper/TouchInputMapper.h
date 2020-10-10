@@ -17,14 +17,14 @@
 #ifndef _UI_INPUTREADER_TOUCH_INPUT_MAPPER_H
 #define _UI_INPUTREADER_TOUCH_INPUT_MAPPER_H
 
+#include <stdint.h>
+
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
 #include "EventHub.h"
 #include "InputMapper.h"
 #include "InputReaderBase.h"
 #include "TouchButtonAccumulator.h"
-
-#include <stdint.h>
 
 namespace android {
 
@@ -71,7 +71,7 @@ struct RawPointerData {
 
     uint32_t pointerCount;
     Pointer pointers[MAX_POINTERS];
-    BitSet32 hoveringIdBits, touchingIdBits;
+    BitSet32 hoveringIdBits, touchingIdBits, canceledIdBits;
     uint32_t idToIndex[MAX_POINTER_ID + 1];
 
     RawPointerData();
@@ -90,6 +90,7 @@ struct RawPointerData {
     inline void clearIdBits() {
         hoveringIdBits.clear();
         touchingIdBits.clear();
+        canceledIdBits.clear();
     }
 
     inline const Pointer& pointerForId(uint32_t id) const { return pointers[idToIndex[id]]; }
@@ -102,7 +103,7 @@ struct CookedPointerData {
     uint32_t pointerCount;
     PointerProperties pointerProperties[MAX_POINTERS];
     PointerCoords pointerCoords[MAX_POINTERS];
-    BitSet32 hoveringIdBits, touchingIdBits;
+    BitSet32 hoveringIdBits, touchingIdBits, canceledIdBits, validIdBits;
     uint32_t idToIndex[MAX_POINTER_ID + 1];
 
     CookedPointerData();
@@ -128,30 +129,31 @@ struct CookedPointerData {
     inline bool isTouching(uint32_t pointerIndex) const {
         return touchingIdBits.hasBit(pointerProperties[pointerIndex].id);
     }
+
+    inline bool hasPointerCoordsForId(uint32_t id) const { return validIdBits.hasBit(id); }
 };
 
 class TouchInputMapper : public InputMapper {
 public:
     explicit TouchInputMapper(InputDeviceContext& deviceContext);
-    virtual ~TouchInputMapper();
+    ~TouchInputMapper() override;
 
-    virtual uint32_t getSources() override;
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
-    virtual void dump(std::string& dump) override;
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
-                           uint32_t changes) override;
-    virtual void reset(nsecs_t when) override;
-    virtual void process(const RawEvent* rawEvent) override;
+    uint32_t getSources() override;
+    void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    void dump(std::string& dump) override;
+    void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes) override;
+    void reset(nsecs_t when) override;
+    void process(const RawEvent* rawEvent) override;
 
-    virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode) override;
-    virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
-    virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-                                       const int32_t* keyCodes, uint8_t* outFlags) override;
+    int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode) override;
+    int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
+    bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
+                               uint8_t* outFlags) override;
 
-    virtual void cancelTouch(nsecs_t when) override;
-    virtual void timeoutExpired(nsecs_t when) override;
-    virtual void updateExternalStylusState(const StylusState& state) override;
-    virtual std::optional<int32_t> getAssociatedDisplayId() override;
+    void cancelTouch(nsecs_t when) override;
+    void timeoutExpired(nsecs_t when) override;
+    void updateExternalStylusState(const StylusState& state) override;
+    std::optional<int32_t> getAssociatedDisplayId() override;
 
 protected:
     CursorButtonAccumulator mCursorButtonAccumulator;
@@ -177,12 +179,12 @@ protected:
     // Input sources and device mode.
     uint32_t mSource;
 
-    enum DeviceMode {
-        DEVICE_MODE_DISABLED,   // input is disabled
-        DEVICE_MODE_DIRECT,     // direct mapping (touchscreen)
-        DEVICE_MODE_UNSCALED,   // unscaled mapping (touchpad)
-        DEVICE_MODE_NAVIGATION, // unscaled mapping with assist gesture (touch navigation)
-        DEVICE_MODE_POINTER,    // pointer mapping (pointer)
+    enum class DeviceMode {
+        DISABLED,   // input is disabled
+        DIRECT,     // direct mapping (touchscreen)
+        UNSCALED,   // unscaled mapping (touchpad)
+        NAVIGATION, // unscaled mapping with assist gesture (touch navigation)
+        POINTER,    // pointer mapping (pointer)
     };
     DeviceMode mDeviceMode;
 
@@ -191,11 +193,11 @@ protected:
 
     // Immutable configuration parameters.
     struct Parameters {
-        enum DeviceType {
-            DEVICE_TYPE_TOUCH_SCREEN,
-            DEVICE_TYPE_TOUCH_PAD,
-            DEVICE_TYPE_TOUCH_NAVIGATION,
-            DEVICE_TYPE_POINTER,
+        enum class DeviceType {
+            TOUCH_SCREEN,
+            TOUCH_PAD,
+            TOUCH_NAVIGATION,
+            POINTER,
         };
 
         DeviceType deviceType;
@@ -205,9 +207,9 @@ protected:
         bool hasButtonUnderPad;
         std::string uniqueDisplayId;
 
-        enum GestureMode {
-            GESTURE_MODE_SINGLE_TOUCH,
-            GESTURE_MODE_MULTI_TOUCH,
+        enum class GestureMode {
+            SINGLE_TOUCH,
+            MULTI_TOUCH,
         };
         GestureMode gestureMode;
 
@@ -217,13 +219,13 @@ protected:
     // Immutable calibration parameters in parsed form.
     struct Calibration {
         // Size
-        enum SizeCalibration {
-            SIZE_CALIBRATION_DEFAULT,
-            SIZE_CALIBRATION_NONE,
-            SIZE_CALIBRATION_GEOMETRIC,
-            SIZE_CALIBRATION_DIAMETER,
-            SIZE_CALIBRATION_BOX,
-            SIZE_CALIBRATION_AREA,
+        enum class SizeCalibration {
+            DEFAULT,
+            NONE,
+            GEOMETRIC,
+            DIAMETER,
+            BOX,
+            AREA,
         };
 
         SizeCalibration sizeCalibration;
@@ -236,11 +238,11 @@ protected:
         bool sizeIsSummed;
 
         // Pressure
-        enum PressureCalibration {
-            PRESSURE_CALIBRATION_DEFAULT,
-            PRESSURE_CALIBRATION_NONE,
-            PRESSURE_CALIBRATION_PHYSICAL,
-            PRESSURE_CALIBRATION_AMPLITUDE,
+        enum class PressureCalibration {
+            DEFAULT,
+            NONE,
+            PHYSICAL,
+            AMPLITUDE,
         };
 
         PressureCalibration pressureCalibration;
@@ -248,30 +250,30 @@ protected:
         float pressureScale;
 
         // Orientation
-        enum OrientationCalibration {
-            ORIENTATION_CALIBRATION_DEFAULT,
-            ORIENTATION_CALIBRATION_NONE,
-            ORIENTATION_CALIBRATION_INTERPOLATED,
-            ORIENTATION_CALIBRATION_VECTOR,
+        enum class OrientationCalibration {
+            DEFAULT,
+            NONE,
+            INTERPOLATED,
+            VECTOR,
         };
 
         OrientationCalibration orientationCalibration;
 
         // Distance
-        enum DistanceCalibration {
-            DISTANCE_CALIBRATION_DEFAULT,
-            DISTANCE_CALIBRATION_NONE,
-            DISTANCE_CALIBRATION_SCALED,
+        enum class DistanceCalibration {
+            DEFAULT,
+            NONE,
+            SCALED,
         };
 
         DistanceCalibration distanceCalibration;
         bool haveDistanceScale;
         float distanceScale;
 
-        enum CoverageCalibration {
-            COVERAGE_CALIBRATION_DEFAULT,
-            COVERAGE_CALIBRATION_NONE,
-            COVERAGE_CALIBRATION_BOX,
+        enum class CoverageCalibration {
+            DEFAULT,
+            NONE,
+            BOX,
         };
 
         CoverageCalibration coverageCalibration;
@@ -524,16 +526,16 @@ private:
         uint64_t distance : 48; // squared distance
     };
 
-    enum PointerUsage {
-        POINTER_USAGE_NONE,
-        POINTER_USAGE_GESTURES,
-        POINTER_USAGE_STYLUS,
-        POINTER_USAGE_MOUSE,
+    enum class PointerUsage {
+        NONE,
+        GESTURES,
+        STYLUS,
+        MOUSE,
     };
     PointerUsage mPointerUsage;
 
     struct PointerGesture {
-        enum Mode {
+        enum class Mode {
             // No fingers, button is not pressed.
             // Nothing happening.
             NEUTRAL,
@@ -646,9 +648,9 @@ private:
             firstTouchTime = LLONG_MIN;
             activeTouchId = -1;
             activeGestureId = -1;
-            currentGestureMode = NEUTRAL;
+            currentGestureMode = Mode::NEUTRAL;
             currentGestureIdBits.clear();
-            lastGestureMode = NEUTRAL;
+            lastGestureMode = Mode::NEUTRAL;
             lastGestureIdBits.clear();
             downTime = 0;
             velocityTracker.clear();
