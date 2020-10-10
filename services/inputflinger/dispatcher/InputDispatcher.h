@@ -547,6 +547,7 @@ private:
             REQUIRES(mLock);
     void onAnrLocked(const Connection& connection) REQUIRES(mLock);
     void onAnrLocked(const std::shared_ptr<InputApplicationHandle>& application) REQUIRES(mLock);
+    void onUntrustedTouchLocked(const std::string& obscuringPackage) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)
             REQUIRES(mLock);
     void updateLastAnrStateLocked(const std::shared_ptr<InputApplicationHandle>& application,
@@ -560,6 +561,7 @@ private:
     void doNotifyInputChannelBrokenLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doNotifyFocusChangedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doNotifyAnrLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+    void doNotifyUntrustedTouchLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doInterceptKeyBeforeDispatchingLockedInterruptible(CommandEntry* commandEntry)
             REQUIRES(mLock);
     void doDispatchCycleFinishedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
