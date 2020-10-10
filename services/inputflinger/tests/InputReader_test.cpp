@@ -7558,6 +7558,7 @@ TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
     //                              identical to what the hardware sends (accounting for any
     //                              calibration).
     // FINGER 0 DOWN
+    processSlot(mapper, 0);
     processId(mapper, 1);
     processPosition(mapper, 100 + RAW_X_MIN, 100 + RAW_Y_MIN);
     processKey(mapper, BTN_TOUCH, 1);
@@ -7581,7 +7582,8 @@ TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
 
     // expect coord[0] to contain previous location, coord[1] to contain new touch 1 location
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
-    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN | 0x0100, args.action);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+            args.action);
     ASSERT_EQ(2U, args.pointerCount);
     ASSERT_EQ(0, args.pointerProperties[0].id);
     ASSERT_EQ(1, args.pointerProperties[1].id);
