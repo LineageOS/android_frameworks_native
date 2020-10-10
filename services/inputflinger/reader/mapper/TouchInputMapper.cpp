@@ -1780,7 +1780,8 @@ bool TouchInputMapper::consumeRawTouches(nsecs_t when, uint32_t policyFlags) {
         // Pointer just went down.  Check for virtual key press or off-screen touches.
         uint32_t id = mCurrentRawState.rawPointerData.touchingIdBits.firstMarkedBit();
         const RawPointerData::Pointer& pointer = mCurrentRawState.rawPointerData.pointerForId(id);
-        if (!isPointInsideSurface(pointer.x, pointer.y)) {
+        // Exclude unscaled device for inside surface checking.
+        if (!isPointInsideSurface(pointer.x, pointer.y) && mDeviceMode != DeviceMode::UNSCALED) {
             // If exactly one pointer went down, check for virtual key hit.
             // Otherwise we will drop the entire stroke.
             if (mCurrentRawState.rawPointerData.touchingIdBits.count() == 1) {
@@ -2274,7 +2275,7 @@ void TouchInputMapper::cookPointerData() {
             out.setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, toolMinor);
         }
 
-        // Write output relative fieldis if applicable.
+        // Write output relative fields if applicable.
         uint32_t id = in.id;
         if (mSource == AINPUT_SOURCE_TOUCHPAD &&
             mLastCookedState.cookedPointerData.hasPointerCoordsForId(id)) {
