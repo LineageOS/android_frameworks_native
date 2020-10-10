@@ -379,6 +379,7 @@ void TouchInputMapper::configure(nsecs_t when, const InputReaderConfiguration* c
     if (!changes ||
         (changes &
          (InputReaderConfiguration::CHANGE_DISPLAY_INFO |
+          InputReaderConfiguration::CHANGE_POINTER_CAPTURE |
           InputReaderConfiguration::CHANGE_POINTER_GESTURE_ENABLEMENT |
           InputReaderConfiguration::CHANGE_SHOW_TOUCHES |
           InputReaderConfiguration::CHANGE_EXTERNAL_STYLUS_PRESENCE))) {
@@ -562,7 +563,7 @@ bool TouchInputMapper::hasExternalStylus() const {
  * 4. Otherwise, use a non-display viewport.
  */
 std::optional<DisplayViewport> TouchInputMapper::findViewport() {
-    if (mParameters.hasAssociatedDisplay) {
+    if (mParameters.hasAssociatedDisplay && mDeviceMode != DeviceMode::UNSCALED) {
         const std::optional<uint8_t> displayPort = getDeviceContext().getAssociatedDisplayPort();
         if (displayPort) {
             // Find the viewport that contains the same port
@@ -620,7 +621,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 
     // Determine device mode.
     if (mParameters.deviceType == Parameters::DeviceType::POINTER &&
-        mConfig.pointerGesturesEnabled) {
+        mConfig.pointerGesturesEnabled && !mConfig.pointerCapture) {
         mSource = AINPUT_SOURCE_MOUSE;
         mDeviceMode = DeviceMode::POINTER;
         if (hasStylus()) {
