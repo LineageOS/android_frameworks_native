@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// clang-format off
 #include "../Macros.h"
+// clang-format on
 
 #include "TouchInputMapper.h"
 
@@ -159,7 +161,7 @@ void CookedPointerData::copyFrom(const CookedPointerData& other) {
 TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext)
       : InputMapper(deviceContext),
         mSource(0),
-        mDeviceMode(DEVICE_MODE_DISABLED),
+        mDeviceMode(DeviceMode::DISABLED),
         mRawSurfaceWidth(-1),
         mRawSurfaceHeight(-1),
         mSurfaceLeft(0),
@@ -179,7 +181,7 @@ uint32_t TouchInputMapper::getSources() {
 void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     InputMapper::populateDeviceInfo(info);
 
-    if (mDeviceMode != DEVICE_MODE_DISABLED) {
+    if (mDeviceMode != DeviceMode::DISABLED) {
         info->addMotionRange(mOrientedRanges.x);
         info->addMotionRange(mOrientedRanges.y);
         info->addMotionRange(mOrientedRanges.pressure);
@@ -218,7 +220,7 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
             info->addMotionRange(AMOTION_EVENT_AXIS_HSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f,
                                  0.0f);
         }
-        if (mCalibration.coverageCalibration == Calibration::COVERAGE_CALIBRATION_BOX) {
+        if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
             const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
             const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
             info->addMotionRange(AMOTION_EVENT_AXIS_GENERIC_1, mSource, x.min, x.max, x.flat,
@@ -311,7 +313,7 @@ void TouchInputMapper::dump(std::string& dump) {
     dump += INDENT3 "External Stylus State:\n";
     dumpStylusState(dump, mExternalStylusState);
 
-    if (mDeviceMode == DEVICE_MODE_POINTER) {
+    if (mDeviceMode == DeviceMode::POINTER) {
         dump += StringPrintf(INDENT3 "Pointer Gesture Detector:\n");
         dump += StringPrintf(INDENT4 "XMovementScale: %0.3f\n", mPointerXMovementScale);
         dump += StringPrintf(INDENT4 "YMovementScale: %0.3f\n", mPointerYMovementScale);
@@ -323,15 +325,15 @@ void TouchInputMapper::dump(std::string& dump) {
 
 const char* TouchInputMapper::modeToString(DeviceMode deviceMode) {
     switch (deviceMode) {
-        case DEVICE_MODE_DISABLED:
+        case DeviceMode::DISABLED:
             return "disabled";
-        case DEVICE_MODE_DIRECT:
+        case DeviceMode::DIRECT:
             return "direct";
-        case DEVICE_MODE_UNSCALED:
+        case DeviceMode::UNSCALED:
             return "unscaled";
-        case DEVICE_MODE_NAVIGATION:
+        case DeviceMode::NAVIGATION:
             return "navigation";
-        case DEVICE_MODE_POINTER:
+        case DeviceMode::POINTER:
             return "pointer";
     }
     return "unknown";
@@ -406,16 +408,16 @@ void TouchInputMapper::configureParameters() {
     // multitouch.  The spot-based presentation relies on being able to accurately
     // locate two or more fingers on the touch pad.
     mParameters.gestureMode = getDeviceContext().hasInputProperty(INPUT_PROP_SEMI_MT)
-            ? Parameters::GESTURE_MODE_SINGLE_TOUCH
-            : Parameters::GESTURE_MODE_MULTI_TOUCH;
+            ? Parameters::GestureMode::SINGLE_TOUCH
+            : Parameters::GestureMode::MULTI_TOUCH;
 
     String8 gestureModeString;
     if (getDeviceContext().getConfiguration().tryGetProperty(String8("touch.gestureMode"),
                                                              gestureModeString)) {
         if (gestureModeString == "single-touch") {
-            mParameters.gestureMode = Parameters::GESTURE_MODE_SINGLE_TOUCH;
+            mParameters.gestureMode = Parameters::GestureMode::SINGLE_TOUCH;
         } else if (gestureModeString == "multi-touch") {
-            mParameters.gestureMode = Parameters::GESTURE_MODE_MULTI_TOUCH;
+            mParameters.gestureMode = Parameters::GestureMode::MULTI_TOUCH;
         } else if (gestureModeString != "default") {
             ALOGW("Invalid value for touch.gestureMode: '%s'", gestureModeString.string());
         }
@@ -423,18 +425,18 @@ void TouchInputMapper::configureParameters() {
 
     if (getDeviceContext().hasInputProperty(INPUT_PROP_DIRECT)) {
         // The device is a touch screen.
-        mParameters.deviceType = Parameters::DEVICE_TYPE_TOUCH_SCREEN;
+        mParameters.deviceType = Parameters::DeviceType::TOUCH_SCREEN;
     } else if (getDeviceContext().hasInputProperty(INPUT_PROP_POINTER)) {
         // The device is a pointing device like a track pad.
-        mParameters.deviceType = Parameters::DEVICE_TYPE_POINTER;
+        mParameters.deviceType = Parameters::DeviceType::POINTER;
     } else if (getDeviceContext().hasRelativeAxis(REL_X) ||
                getDeviceContext().hasRelativeAxis(REL_Y)) {
         // The device is a cursor device with a touch pad attached.
         // By default don't use the touch pad to move the pointer.
-        mParameters.deviceType = Parameters::DEVICE_TYPE_TOUCH_PAD;
+        mParameters.deviceType = Parameters::DeviceType::TOUCH_PAD;
     } else {
         // The device is a touch pad of unknown purpose.
-        mParameters.deviceType = Parameters::DEVICE_TYPE_POINTER;
+        mParameters.deviceType = Parameters::DeviceType::POINTER;
     }
 
     mParameters.hasButtonUnderPad = getDeviceContext().hasInputProperty(INPUT_PROP_BUTTONPAD);
@@ -443,29 +445,29 @@ void TouchInputMapper::configureParameters() {
     if (getDeviceContext().getConfiguration().tryGetProperty(String8("touch.deviceType"),
                                                              deviceTypeString)) {
         if (deviceTypeString == "touchScreen") {
-            mParameters.deviceType = Parameters::DEVICE_TYPE_TOUCH_SCREEN;
+            mParameters.deviceType = Parameters::DeviceType::TOUCH_SCREEN;
         } else if (deviceTypeString == "touchPad") {
-            mParameters.deviceType = Parameters::DEVICE_TYPE_TOUCH_PAD;
+            mParameters.deviceType = Parameters::DeviceType::TOUCH_PAD;
         } else if (deviceTypeString == "touchNavigation") {
-            mParameters.deviceType = Parameters::DEVICE_TYPE_TOUCH_NAVIGATION;
+            mParameters.deviceType = Parameters::DeviceType::TOUCH_NAVIGATION;
         } else if (deviceTypeString == "pointer") {
-            mParameters.deviceType = Parameters::DEVICE_TYPE_POINTER;
+            mParameters.deviceType = Parameters::DeviceType::POINTER;
         } else if (deviceTypeString != "default") {
             ALOGW("Invalid value for touch.deviceType: '%s'", deviceTypeString.string());
         }
     }
 
-    mParameters.orientationAware = mParameters.deviceType == Parameters::DEVICE_TYPE_TOUCH_SCREEN;
+    mParameters.orientationAware = mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN;
     getDeviceContext().getConfiguration().tryGetProperty(String8("touch.orientationAware"),
                                                          mParameters.orientationAware);
 
     mParameters.hasAssociatedDisplay = false;
     mParameters.associatedDisplayIsExternal = false;
     if (mParameters.orientationAware ||
-        mParameters.deviceType == Parameters::DEVICE_TYPE_TOUCH_SCREEN ||
-        mParameters.deviceType == Parameters::DEVICE_TYPE_POINTER) {
+        mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN ||
+        mParameters.deviceType == Parameters::DeviceType::POINTER) {
         mParameters.hasAssociatedDisplay = true;
-        if (mParameters.deviceType == Parameters::DEVICE_TYPE_TOUCH_SCREEN) {
+        if (mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN) {
             mParameters.associatedDisplayIsExternal = getDeviceContext().isExternal();
             String8 uniqueDisplayId;
             getDeviceContext().getConfiguration().tryGetProperty(String8("touch.displayId"),
@@ -488,10 +490,10 @@ void TouchInputMapper::dumpParameters(std::string& dump) {
     dump += INDENT3 "Parameters:\n";
 
     switch (mParameters.gestureMode) {
-        case Parameters::GESTURE_MODE_SINGLE_TOUCH:
+        case Parameters::GestureMode::SINGLE_TOUCH:
             dump += INDENT4 "GestureMode: single-touch\n";
             break;
-        case Parameters::GESTURE_MODE_MULTI_TOUCH:
+        case Parameters::GestureMode::MULTI_TOUCH:
             dump += INDENT4 "GestureMode: multi-touch\n";
             break;
         default:
@@ -499,16 +501,16 @@ void TouchInputMapper::dumpParameters(std::string& dump) {
     }
 
     switch (mParameters.deviceType) {
-        case Parameters::DEVICE_TYPE_TOUCH_SCREEN:
+        case Parameters::DeviceType::TOUCH_SCREEN:
             dump += INDENT4 "DeviceType: touchScreen\n";
             break;
-        case Parameters::DEVICE_TYPE_TOUCH_PAD:
+        case Parameters::DeviceType::TOUCH_PAD:
             dump += INDENT4 "DeviceType: touchPad\n";
             break;
-        case Parameters::DEVICE_TYPE_TOUCH_NAVIGATION:
+        case Parameters::DeviceType::TOUCH_NAVIGATION:
             dump += INDENT4 "DeviceType: touchNavigation\n";
             break;
-        case Parameters::DEVICE_TYPE_POINTER:
+        case Parameters::DeviceType::POINTER:
             dump += INDENT4 "DeviceType: pointer\n";
             break;
         default:
@@ -565,7 +567,7 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
             return getDeviceContext().getAssociatedViewport();
         }
 
-        if (mDeviceMode == DEVICE_MODE_POINTER) {
+        if (mDeviceMode == DeviceMode::POINTER) {
             std::optional<DisplayViewport> viewport =
                     mConfig.getDisplayViewportById(mConfig.defaultPointerDisplayId);
             if (viewport) {
@@ -610,34 +612,34 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
 }
 
 void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
-    int32_t oldDeviceMode = mDeviceMode;
+    DeviceMode oldDeviceMode = mDeviceMode;
 
     resolveExternalStylusPresence();
 
     // Determine device mode.
-    if (mParameters.deviceType == Parameters::DEVICE_TYPE_POINTER &&
+    if (mParameters.deviceType == Parameters::DeviceType::POINTER &&
         mConfig.pointerGesturesEnabled) {
         mSource = AINPUT_SOURCE_MOUSE;
-        mDeviceMode = DEVICE_MODE_POINTER;
+        mDeviceMode = DeviceMode::POINTER;
         if (hasStylus()) {
             mSource |= AINPUT_SOURCE_STYLUS;
         }
-    } else if (mParameters.deviceType == Parameters::DEVICE_TYPE_TOUCH_SCREEN &&
+    } else if (mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN &&
                mParameters.hasAssociatedDisplay) {
         mSource = AINPUT_SOURCE_TOUCHSCREEN;
-        mDeviceMode = DEVICE_MODE_DIRECT;
+        mDeviceMode = DeviceMode::DIRECT;
         if (hasStylus()) {
             mSource |= AINPUT_SOURCE_STYLUS;
         }
         if (hasExternalStylus()) {
             mSource |= AINPUT_SOURCE_BLUETOOTH_STYLUS;
         }
-    } else if (mParameters.deviceType == Parameters::DEVICE_TYPE_TOUCH_NAVIGATION) {
+    } else if (mParameters.deviceType == Parameters::DeviceType::TOUCH_NAVIGATION) {
         mSource = AINPUT_SOURCE_TOUCH_NAVIGATION;
-        mDeviceMode = DEVICE_MODE_NAVIGATION;
+        mDeviceMode = DeviceMode::NAVIGATION;
     } else {
         mSource = AINPUT_SOURCE_TOUCHPAD;
-        mDeviceMode = DEVICE_MODE_UNSCALED;
+        mDeviceMode = DeviceMode::UNSCALED;
     }
 
     // Ensure we have valid X and Y axes.
@@ -645,7 +647,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         ALOGW("Touch device '%s' did not report support for X or Y axis!  "
               "The device will be inoperable.",
               getDeviceName().c_str());
-        mDeviceMode = DEVICE_MODE_DISABLED;
+        mDeviceMode = DeviceMode::DISABLED;
         return;
     }
 
@@ -656,7 +658,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
               "display.  The device will be inoperable until the display size "
               "becomes available.",
               getDeviceName().c_str());
-        mDeviceMode = DEVICE_MODE_DISABLED;
+        mDeviceMode = DeviceMode::DISABLED;
         return;
     }
 
@@ -668,7 +670,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     if (viewportChanged) {
         mViewport = *newViewport;
 
-        if (mDeviceMode == DEVICE_MODE_DIRECT || mDeviceMode == DEVICE_MODE_POINTER) {
+        if (mDeviceMode == DeviceMode::DIRECT || mDeviceMode == DeviceMode::POINTER) {
             // Convert rotated viewport to natural surface coordinates.
             int32_t naturalLogicalWidth, naturalLogicalHeight;
             int32_t naturalPhysicalWidth, naturalPhysicalHeight;
@@ -759,8 +761,8 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     }
 
     // Create pointer controller if needed.
-    if (mDeviceMode == DEVICE_MODE_POINTER ||
-        (mDeviceMode == DEVICE_MODE_DIRECT && mConfig.showTouches)) {
+    if (mDeviceMode == DeviceMode::POINTER ||
+        (mDeviceMode == DeviceMode::DIRECT && mConfig.showTouches)) {
         if (mPointerController == nullptr) {
             mPointerController = getContext()->getPointerController(getDeviceId());
         }
@@ -798,7 +800,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         float diagonalSize = hypotf(mRawSurfaceWidth, mRawSurfaceHeight);
 
         // Size factors.
-        if (mCalibration.sizeCalibration != Calibration::SIZE_CALIBRATION_NONE) {
+        if (mCalibration.sizeCalibration != Calibration::SizeCalibration::NONE) {
             if (mRawPointerAxes.touchMajor.valid && mRawPointerAxes.touchMajor.maxValue != 0) {
                 mSizeScale = 1.0f / mRawPointerAxes.touchMajor.maxValue;
             } else if (mRawPointerAxes.toolMajor.valid && mRawPointerAxes.toolMajor.maxValue != 0) {
@@ -847,8 +849,8 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         // Pressure factors.
         mPressureScale = 0;
         float pressureMax = 1.0;
-        if (mCalibration.pressureCalibration == Calibration::PRESSURE_CALIBRATION_PHYSICAL ||
-            mCalibration.pressureCalibration == Calibration::PRESSURE_CALIBRATION_AMPLITUDE) {
+        if (mCalibration.pressureCalibration == Calibration::PressureCalibration::PHYSICAL ||
+            mCalibration.pressureCalibration == Calibration::PressureCalibration::AMPLITUDE) {
             if (mCalibration.havePressureScale) {
                 mPressureScale = mCalibration.pressureScale;
                 pressureMax = mPressureScale * mRawPointerAxes.pressure.maxValue;
@@ -901,9 +903,9 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mOrientedRanges.orientation.fuzz = 0;
             mOrientedRanges.orientation.resolution = 0;
         } else if (mCalibration.orientationCalibration !=
-                   Calibration::ORIENTATION_CALIBRATION_NONE) {
+                   Calibration::OrientationCalibration::NONE) {
             if (mCalibration.orientationCalibration ==
-                Calibration::ORIENTATION_CALIBRATION_INTERPOLATED) {
+                Calibration::OrientationCalibration::INTERPOLATED) {
                 if (mRawPointerAxes.orientation.valid) {
                     if (mRawPointerAxes.orientation.maxValue > 0) {
                         mOrientationScale = M_PI_2 / mRawPointerAxes.orientation.maxValue;
@@ -928,8 +930,8 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 
         // Distance
         mDistanceScale = 0;
-        if (mCalibration.distanceCalibration != Calibration::DISTANCE_CALIBRATION_NONE) {
-            if (mCalibration.distanceCalibration == Calibration::DISTANCE_CALIBRATION_SCALED) {
+        if (mCalibration.distanceCalibration != Calibration::DistanceCalibration::NONE) {
+            if (mCalibration.distanceCalibration == Calibration::DistanceCalibration::SCALED) {
                 if (mCalibration.haveDistanceScale) {
                     mDistanceScale = mCalibration.distanceScale;
                 } else {
@@ -991,7 +993,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         // Location
         updateAffineTransformation();
 
-        if (mDeviceMode == DEVICE_MODE_POINTER) {
+        if (mDeviceMode == DeviceMode::POINTER) {
             // Compute pointer gesture detection parameters.
             float rawDiagonal = hypotf(rawWidth, rawHeight);
             float displayDiagonal = hypotf(mRawSurfaceWidth, mRawSurfaceHeight);
@@ -1112,19 +1114,19 @@ void TouchInputMapper::parseCalibration() {
     Calibration& out = mCalibration;
 
     // Size
-    out.sizeCalibration = Calibration::SIZE_CALIBRATION_DEFAULT;
+    out.sizeCalibration = Calibration::SizeCalibration::DEFAULT;
     String8 sizeCalibrationString;
     if (in.tryGetProperty(String8("touch.size.calibration"), sizeCalibrationString)) {
         if (sizeCalibrationString == "none") {
-            out.sizeCalibration = Calibration::SIZE_CALIBRATION_NONE;
+            out.sizeCalibration = Calibration::SizeCalibration::NONE;
         } else if (sizeCalibrationString == "geometric") {
-            out.sizeCalibration = Calibration::SIZE_CALIBRATION_GEOMETRIC;
+            out.sizeCalibration = Calibration::SizeCalibration::GEOMETRIC;
         } else if (sizeCalibrationString == "diameter") {
-            out.sizeCalibration = Calibration::SIZE_CALIBRATION_DIAMETER;
+            out.sizeCalibration = Calibration::SizeCalibration::DIAMETER;
         } else if (sizeCalibrationString == "box") {
-            out.sizeCalibration = Calibration::SIZE_CALIBRATION_BOX;
+            out.sizeCalibration = Calibration::SizeCalibration::BOX;
         } else if (sizeCalibrationString == "area") {
-            out.sizeCalibration = Calibration::SIZE_CALIBRATION_AREA;
+            out.sizeCalibration = Calibration::SizeCalibration::AREA;
         } else if (sizeCalibrationString != "default") {
             ALOGW("Invalid value for touch.size.calibration: '%s'", sizeCalibrationString.string());
         }
@@ -1135,15 +1137,15 @@ void TouchInputMapper::parseCalibration() {
     out.haveSizeIsSummed = in.tryGetProperty(String8("touch.size.isSummed"), out.sizeIsSummed);
 
     // Pressure
-    out.pressureCalibration = Calibration::PRESSURE_CALIBRATION_DEFAULT;
+    out.pressureCalibration = Calibration::PressureCalibration::DEFAULT;
     String8 pressureCalibrationString;
     if (in.tryGetProperty(String8("touch.pressure.calibration"), pressureCalibrationString)) {
         if (pressureCalibrationString == "none") {
-            out.pressureCalibration = Calibration::PRESSURE_CALIBRATION_NONE;
+            out.pressureCalibration = Calibration::PressureCalibration::NONE;
         } else if (pressureCalibrationString == "physical") {
-            out.pressureCalibration = Calibration::PRESSURE_CALIBRATION_PHYSICAL;
+            out.pressureCalibration = Calibration::PressureCalibration::PHYSICAL;
         } else if (pressureCalibrationString == "amplitude") {
-            out.pressureCalibration = Calibration::PRESSURE_CALIBRATION_AMPLITUDE;
+            out.pressureCalibration = Calibration::PressureCalibration::AMPLITUDE;
         } else if (pressureCalibrationString != "default") {
             ALOGW("Invalid value for touch.pressure.calibration: '%s'",
                   pressureCalibrationString.string());
@@ -1153,15 +1155,15 @@ void TouchInputMapper::parseCalibration() {
     out.havePressureScale = in.tryGetProperty(String8("touch.pressure.scale"), out.pressureScale);
 
     // Orientation
-    out.orientationCalibration = Calibration::ORIENTATION_CALIBRATION_DEFAULT;
+    out.orientationCalibration = Calibration::OrientationCalibration::DEFAULT;
     String8 orientationCalibrationString;
     if (in.tryGetProperty(String8("touch.orientation.calibration"), orientationCalibrationString)) {
         if (orientationCalibrationString == "none") {
-            out.orientationCalibration = Calibration::ORIENTATION_CALIBRATION_NONE;
+            out.orientationCalibration = Calibration::OrientationCalibration::NONE;
         } else if (orientationCalibrationString == "interpolated") {
-            out.orientationCalibration = Calibration::ORIENTATION_CALIBRATION_INTERPOLATED;
+            out.orientationCalibration = Calibration::OrientationCalibration::INTERPOLATED;
         } else if (orientationCalibrationString == "vector") {
-            out.orientationCalibration = Calibration::ORIENTATION_CALIBRATION_VECTOR;
+            out.orientationCalibration = Calibration::OrientationCalibration::VECTOR;
         } else if (orientationCalibrationString != "default") {
             ALOGW("Invalid value for touch.orientation.calibration: '%s'",
                   orientationCalibrationString.string());
@@ -1169,13 +1171,13 @@ void TouchInputMapper::parseCalibration() {
     }
 
     // Distance
-    out.distanceCalibration = Calibration::DISTANCE_CALIBRATION_DEFAULT;
+    out.distanceCalibration = Calibration::DistanceCalibration::DEFAULT;
     String8 distanceCalibrationString;
     if (in.tryGetProperty(String8("touch.distance.calibration"), distanceCalibrationString)) {
         if (distanceCalibrationString == "none") {
-            out.distanceCalibration = Calibration::DISTANCE_CALIBRATION_NONE;
+            out.distanceCalibration = Calibration::DistanceCalibration::NONE;
         } else if (distanceCalibrationString == "scaled") {
-            out.distanceCalibration = Calibration::DISTANCE_CALIBRATION_SCALED;
+            out.distanceCalibration = Calibration::DistanceCalibration::SCALED;
         } else if (distanceCalibrationString != "default") {
             ALOGW("Invalid value for touch.distance.calibration: '%s'",
                   distanceCalibrationString.string());
@@ -1184,13 +1186,13 @@ void TouchInputMapper::parseCalibration() {
 
     out.haveDistanceScale = in.tryGetProperty(String8("touch.distance.scale"), out.distanceScale);
 
-    out.coverageCalibration = Calibration::COVERAGE_CALIBRATION_DEFAULT;
+    out.coverageCalibration = Calibration::CoverageCalibration::DEFAULT;
     String8 coverageCalibrationString;
     if (in.tryGetProperty(String8("touch.coverage.calibration"), coverageCalibrationString)) {
         if (coverageCalibrationString == "none") {
-            out.coverageCalibration = Calibration::COVERAGE_CALIBRATION_NONE;
+            out.coverageCalibration = Calibration::CoverageCalibration::NONE;
         } else if (coverageCalibrationString == "box") {
-            out.coverageCalibration = Calibration::COVERAGE_CALIBRATION_BOX;
+            out.coverageCalibration = Calibration::CoverageCalibration::BOX;
         } else if (coverageCalibrationString != "default") {
             ALOGW("Invalid value for touch.coverage.calibration: '%s'",
                   coverageCalibrationString.string());
@@ -1201,43 +1203,43 @@ void TouchInputMapper::parseCalibration() {
 void TouchInputMapper::resolveCalibration() {
     // Size
     if (mRawPointerAxes.touchMajor.valid || mRawPointerAxes.toolMajor.valid) {
-        if (mCalibration.sizeCalibration == Calibration::SIZE_CALIBRATION_DEFAULT) {
-            mCalibration.sizeCalibration = Calibration::SIZE_CALIBRATION_GEOMETRIC;
+        if (mCalibration.sizeCalibration == Calibration::SizeCalibration::DEFAULT) {
+            mCalibration.sizeCalibration = Calibration::SizeCalibration::GEOMETRIC;
         }
     } else {
-        mCalibration.sizeCalibration = Calibration::SIZE_CALIBRATION_NONE;
+        mCalibration.sizeCalibration = Calibration::SizeCalibration::NONE;
     }
 
     // Pressure
     if (mRawPointerAxes.pressure.valid) {
-        if (mCalibration.pressureCalibration == Calibration::PRESSURE_CALIBRATION_DEFAULT) {
-            mCalibration.pressureCalibration = Calibration::PRESSURE_CALIBRATION_PHYSICAL;
+        if (mCalibration.pressureCalibration == Calibration::PressureCalibration::DEFAULT) {
+            mCalibration.pressureCalibration = Calibration::PressureCalibration::PHYSICAL;
         }
     } else {
-        mCalibration.pressureCalibration = Calibration::PRESSURE_CALIBRATION_NONE;
+        mCalibration.pressureCalibration = Calibration::PressureCalibration::NONE;
     }
 
     // Orientation
     if (mRawPointerAxes.orientation.valid) {
-        if (mCalibration.orientationCalibration == Calibration::ORIENTATION_CALIBRATION_DEFAULT) {
-            mCalibration.orientationCalibration = Calibration::ORIENTATION_CALIBRATION_INTERPOLATED;
+        if (mCalibration.orientationCalibration == Calibration::OrientationCalibration::DEFAULT) {
+            mCalibration.orientationCalibration = Calibration::OrientationCalibration::INTERPOLATED;
         }
     } else {
-        mCalibration.orientationCalibration = Calibration::ORIENTATION_CALIBRATION_NONE;
+        mCalibration.orientationCalibration = Calibration::OrientationCalibration::NONE;
     }
 
     // Distance
     if (mRawPointerAxes.distance.valid) {
-        if (mCalibration.distanceCalibration == Calibration::DISTANCE_CALIBRATION_DEFAULT) {
-            mCalibration.distanceCalibration = Calibration::DISTANCE_CALIBRATION_SCALED;
+        if (mCalibration.distanceCalibration == Calibration::DistanceCalibration::DEFAULT) {
+            mCalibration.distanceCalibration = Calibration::DistanceCalibration::SCALED;
         }
     } else {
-        mCalibration.distanceCalibration = Calibration::DISTANCE_CALIBRATION_NONE;
+        mCalibration.distanceCalibration = Calibration::DistanceCalibration::NONE;
     }
 
     // Coverage
-    if (mCalibration.coverageCalibration == Calibration::COVERAGE_CALIBRATION_DEFAULT) {
-        mCalibration.coverageCalibration = Calibration::COVERAGE_CALIBRATION_NONE;
+    if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::DEFAULT) {
+        mCalibration.coverageCalibration = Calibration::CoverageCalibration::NONE;
     }
 }
 
@@ -1246,19 +1248,19 @@ void TouchInputMapper::dumpCalibration(std::string& dump) {
 
     // Size
     switch (mCalibration.sizeCalibration) {
-        case Calibration::SIZE_CALIBRATION_NONE:
+        case Calibration::SizeCalibration::NONE:
             dump += INDENT4 "touch.size.calibration: none\n";
             break;
-        case Calibration::SIZE_CALIBRATION_GEOMETRIC:
+        case Calibration::SizeCalibration::GEOMETRIC:
             dump += INDENT4 "touch.size.calibration: geometric\n";
             break;
-        case Calibration::SIZE_CALIBRATION_DIAMETER:
+        case Calibration::SizeCalibration::DIAMETER:
             dump += INDENT4 "touch.size.calibration: diameter\n";
             break;
-        case Calibration::SIZE_CALIBRATION_BOX:
+        case Calibration::SizeCalibration::BOX:
             dump += INDENT4 "touch.size.calibration: box\n";
             break;
-        case Calibration::SIZE_CALIBRATION_AREA:
+        case Calibration::SizeCalibration::AREA:
             dump += INDENT4 "touch.size.calibration: area\n";
             break;
         default:
@@ -1280,13 +1282,13 @@ void TouchInputMapper::dumpCalibration(std::string& dump) {
 
     // Pressure
     switch (mCalibration.pressureCalibration) {
-        case Calibration::PRESSURE_CALIBRATION_NONE:
+        case Calibration::PressureCalibration::NONE:
             dump += INDENT4 "touch.pressure.calibration: none\n";
             break;
-        case Calibration::PRESSURE_CALIBRATION_PHYSICAL:
+        case Calibration::PressureCalibration::PHYSICAL:
             dump += INDENT4 "touch.pressure.calibration: physical\n";
             break;
-        case Calibration::PRESSURE_CALIBRATION_AMPLITUDE:
+        case Calibration::PressureCalibration::AMPLITUDE:
             dump += INDENT4 "touch.pressure.calibration: amplitude\n";
             break;
         default:
@@ -1299,13 +1301,13 @@ void TouchInputMapper::dumpCalibration(std::string& dump) {
 
     // Orientation
     switch (mCalibration.orientationCalibration) {
-        case Calibration::ORIENTATION_CALIBRATION_NONE:
+        case Calibration::OrientationCalibration::NONE:
             dump += INDENT4 "touch.orientation.calibration: none\n";
             break;
-        case Calibration::ORIENTATION_CALIBRATION_INTERPOLATED:
+        case Calibration::OrientationCalibration::INTERPOLATED:
             dump += INDENT4 "touch.orientation.calibration: interpolated\n";
             break;
-        case Calibration::ORIENTATION_CALIBRATION_VECTOR:
+        case Calibration::OrientationCalibration::VECTOR:
             dump += INDENT4 "touch.orientation.calibration: vector\n";
             break;
         default:
@@ -1314,10 +1316,10 @@ void TouchInputMapper::dumpCalibration(std::string& dump) {
 
     // Distance
     switch (mCalibration.distanceCalibration) {
-        case Calibration::DISTANCE_CALIBRATION_NONE:
+        case Calibration::DistanceCalibration::NONE:
             dump += INDENT4 "touch.distance.calibration: none\n";
             break;
-        case Calibration::DISTANCE_CALIBRATION_SCALED:
+        case Calibration::DistanceCalibration::SCALED:
             dump += INDENT4 "touch.distance.calibration: scaled\n";
             break;
         default:
@@ -1329,10 +1331,10 @@ void TouchInputMapper::dumpCalibration(std::string& dump) {
     }
 
     switch (mCalibration.coverageCalibration) {
-        case Calibration::COVERAGE_CALIBRATION_NONE:
+        case Calibration::CoverageCalibration::NONE:
             dump += INDENT4 "touch.coverage.calibration: none\n";
             break;
-        case Calibration::COVERAGE_CALIBRATION_BOX:
+        case Calibration::CoverageCalibration::BOX:
             dump += INDENT4 "touch.coverage.calibration: box\n";
             break;
         default:
@@ -1370,7 +1372,7 @@ void TouchInputMapper::reset(nsecs_t when) {
     mCurrentCookedState.clear();
     mLastRawState.clear();
     mLastCookedState.clear();
-    mPointerUsage = POINTER_USAGE_NONE;
+    mPointerUsage = PointerUsage::NONE;
     mSentHoverEnter = false;
     mHavePointerIds = false;
     mCurrentMotionAborted = false;
@@ -1452,7 +1454,7 @@ void TouchInputMapper::sync(nsecs_t when) {
 }
 
 void TouchInputMapper::processRawTouches(bool timeout) {
-    if (mDeviceMode == DEVICE_MODE_DISABLED) {
+    if (mDeviceMode == DeviceMode::DISABLED) {
         // Drop all input if the device is disabled.
         mCurrentRawState.clear();
         mRawStatesPending.clear();
@@ -1517,7 +1519,7 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
     bool buttonsPressed = mCurrentRawState.buttonState & ~mLastRawState.buttonState;
     if (initialDown || buttonsPressed) {
         // If this is a touch screen, hide the pointer on an initial down.
-        if (mDeviceMode == DEVICE_MODE_DIRECT) {
+        if (mDeviceMode == DeviceMode::DIRECT) {
             getContext()->fadePointer();
         }
 
@@ -1546,7 +1548,7 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
                          mCurrentCookedState.buttonState);
 
     // Dispatch the touches either directly or by translation through a pointer on screen.
-    if (mDeviceMode == DEVICE_MODE_POINTER) {
+    if (mDeviceMode == DeviceMode::POINTER) {
         for (BitSet32 idBits(mCurrentRawState.rawPointerData.touchingIdBits); !idBits.isEmpty();) {
             uint32_t id = idBits.clearFirstMarkedBit();
             const RawPointerData::Pointer& pointer =
@@ -1576,18 +1578,18 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
         if (!mCurrentCookedState.stylusIdBits.isEmpty()) {
             mCurrentCookedState.mouseIdBits.clear();
             mCurrentCookedState.fingerIdBits.clear();
-            pointerUsage = POINTER_USAGE_STYLUS;
+            pointerUsage = PointerUsage::STYLUS;
         } else if (!mCurrentCookedState.mouseIdBits.isEmpty()) {
             mCurrentCookedState.fingerIdBits.clear();
-            pointerUsage = POINTER_USAGE_MOUSE;
+            pointerUsage = PointerUsage::MOUSE;
         } else if (!mCurrentCookedState.fingerIdBits.isEmpty() ||
                    isPointerDown(mCurrentRawState.buttonState)) {
-            pointerUsage = POINTER_USAGE_GESTURES;
+            pointerUsage = PointerUsage::GESTURES;
         }
 
         dispatchPointerUsage(when, policyFlags, pointerUsage);
     } else {
-        if (mDeviceMode == DEVICE_MODE_DIRECT && mConfig.showTouches &&
+        if (mDeviceMode == DeviceMode::DIRECT && mConfig.showTouches &&
             mPointerController != nullptr) {
             mPointerController->setPresentation(PointerControllerInterface::Presentation::SPOT);
             mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
@@ -1627,7 +1629,7 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
 }
 
 void TouchInputMapper::applyExternalStylusButtonState(nsecs_t when) {
-    if (mDeviceMode == DEVICE_MODE_DIRECT && hasExternalStylus() && mExternalStylusId != -1) {
+    if (mDeviceMode == DeviceMode::DIRECT && hasExternalStylus() && mExternalStylusId != -1) {
         mCurrentRawState.buttonState |= mExternalStylusState.buttons;
     }
 }
@@ -1654,7 +1656,7 @@ void TouchInputMapper::applyExternalStylusTouchState(nsecs_t when) {
 }
 
 bool TouchInputMapper::assignExternalStylusId(const RawState& state, bool timeout) {
-    if (mDeviceMode != DEVICE_MODE_DIRECT || !hasExternalStylus()) {
+    if (mDeviceMode != DeviceMode::DIRECT || !hasExternalStylus()) {
         return false;
     }
 
@@ -1697,11 +1699,11 @@ bool TouchInputMapper::assignExternalStylusId(const RawState& state, bool timeou
 }
 
 void TouchInputMapper::timeoutExpired(nsecs_t when) {
-    if (mDeviceMode == DEVICE_MODE_POINTER) {
-        if (mPointerUsage == POINTER_USAGE_GESTURES) {
+    if (mDeviceMode == DeviceMode::POINTER) {
+        if (mPointerUsage == PointerUsage::GESTURES) {
             dispatchPointerGestures(when, 0 /*policyFlags*/, true /*isTimeout*/);
         }
-    } else if (mDeviceMode == DEVICE_MODE_DIRECT) {
+    } else if (mDeviceMode == DeviceMode::DIRECT) {
         if (mExternalStylusFusionTimeout < when) {
             processRawTouches(true /*timeout*/);
         } else if (mExternalStylusFusionTimeout != LLONG_MAX) {
@@ -2038,10 +2040,10 @@ void TouchInputMapper::cookPointerData() {
         // Size
         float touchMajor, touchMinor, toolMajor, toolMinor, size;
         switch (mCalibration.sizeCalibration) {
-            case Calibration::SIZE_CALIBRATION_GEOMETRIC:
-            case Calibration::SIZE_CALIBRATION_DIAMETER:
-            case Calibration::SIZE_CALIBRATION_BOX:
-            case Calibration::SIZE_CALIBRATION_AREA:
+            case Calibration::SizeCalibration::GEOMETRIC:
+            case Calibration::SizeCalibration::DIAMETER:
+            case Calibration::SizeCalibration::BOX:
+            case Calibration::SizeCalibration::AREA:
                 if (mRawPointerAxes.touchMajor.valid && mRawPointerAxes.toolMajor.valid) {
                     touchMajor = in.touchMajor;
                     touchMinor = mRawPointerAxes.touchMinor.valid ? in.touchMinor : in.touchMajor;
@@ -2083,17 +2085,17 @@ void TouchInputMapper::cookPointerData() {
                     }
                 }
 
-                if (mCalibration.sizeCalibration == Calibration::SIZE_CALIBRATION_GEOMETRIC) {
+                if (mCalibration.sizeCalibration == Calibration::SizeCalibration::GEOMETRIC) {
                     touchMajor *= mGeometricScale;
                     touchMinor *= mGeometricScale;
                     toolMajor *= mGeometricScale;
                     toolMinor *= mGeometricScale;
-                } else if (mCalibration.sizeCalibration == Calibration::SIZE_CALIBRATION_AREA) {
+                } else if (mCalibration.sizeCalibration == Calibration::SizeCalibration::AREA) {
                     touchMajor = touchMajor > 0 ? sqrtf(touchMajor) : 0;
                     touchMinor = touchMajor;
                     toolMajor = toolMajor > 0 ? sqrtf(toolMajor) : 0;
                     toolMinor = toolMajor;
-                } else if (mCalibration.sizeCalibration == Calibration::SIZE_CALIBRATION_DIAMETER) {
+                } else if (mCalibration.sizeCalibration == Calibration::SizeCalibration::DIAMETER) {
                     touchMinor = touchMajor;
                     toolMinor = toolMajor;
                 }
@@ -2116,8 +2118,8 @@ void TouchInputMapper::cookPointerData() {
         // Pressure
         float pressure;
         switch (mCalibration.pressureCalibration) {
-            case Calibration::PRESSURE_CALIBRATION_PHYSICAL:
-            case Calibration::PRESSURE_CALIBRATION_AMPLITUDE:
+            case Calibration::PressureCalibration::PHYSICAL:
+            case Calibration::PressureCalibration::AMPLITUDE:
                 pressure = in.pressure * mPressureScale;
                 break;
             default:
@@ -2137,10 +2139,10 @@ void TouchInputMapper::cookPointerData() {
             tilt = 0;
 
             switch (mCalibration.orientationCalibration) {
-                case Calibration::ORIENTATION_CALIBRATION_INTERPOLATED:
+                case Calibration::OrientationCalibration::INTERPOLATED:
                     orientation = in.orientation * mOrientationScale;
                     break;
-                case Calibration::ORIENTATION_CALIBRATION_VECTOR: {
+                case Calibration::OrientationCalibration::VECTOR: {
                     int32_t c1 = signExtendNybble((in.orientation & 0xf0) >> 4);
                     int32_t c2 = signExtendNybble(in.orientation & 0x0f);
                     if (c1 != 0 || c2 != 0) {
@@ -2164,7 +2166,7 @@ void TouchInputMapper::cookPointerData() {
         // Distance
         float distance;
         switch (mCalibration.distanceCalibration) {
-            case Calibration::DISTANCE_CALIBRATION_SCALED:
+            case Calibration::DistanceCalibration::SCALED:
                 distance = in.distance * mDistanceScale;
                 break;
             default:
@@ -2174,7 +2176,7 @@ void TouchInputMapper::cookPointerData() {
         // Coverage
         int32_t rawLeft, rawTop, rawRight, rawBottom;
         switch (mCalibration.coverageCalibration) {
-            case Calibration::COVERAGE_CALIBRATION_BOX:
+            case Calibration::CoverageCalibration::BOX:
                 rawLeft = (in.toolMinor & 0xffff0000) >> 16;
                 rawRight = in.toolMinor & 0x0000ffff;
                 rawBottom = in.toolMajor & 0x0000ffff;
@@ -2251,7 +2253,7 @@ void TouchInputMapper::cookPointerData() {
         out.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, orientation);
         out.setAxisValue(AMOTION_EVENT_AXIS_TILT, tilt);
         out.setAxisValue(AMOTION_EVENT_AXIS_DISTANCE, distance);
-        if (mCalibration.coverageCalibration == Calibration::COVERAGE_CALIBRATION_BOX) {
+        if (mCalibration.coverageCalibration == Calibration::CoverageCalibration::BOX) {
             out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_1, left);
             out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_2, top);
             out.setAxisValue(AMOTION_EVENT_AXIS_GENERIC_3, right);
@@ -2281,36 +2283,36 @@ void TouchInputMapper::dispatchPointerUsage(nsecs_t when, uint32_t policyFlags,
     }
 
     switch (mPointerUsage) {
-        case POINTER_USAGE_GESTURES:
+        case PointerUsage::GESTURES:
             dispatchPointerGestures(when, policyFlags, false /*isTimeout*/);
             break;
-        case POINTER_USAGE_STYLUS:
+        case PointerUsage::STYLUS:
             dispatchPointerStylus(when, policyFlags);
             break;
-        case POINTER_USAGE_MOUSE:
+        case PointerUsage::MOUSE:
             dispatchPointerMouse(when, policyFlags);
             break;
-        default:
+        case PointerUsage::NONE:
             break;
     }
 }
 
 void TouchInputMapper::abortPointerUsage(nsecs_t when, uint32_t policyFlags) {
     switch (mPointerUsage) {
-        case POINTER_USAGE_GESTURES:
+        case PointerUsage::GESTURES:
             abortPointerGestures(when, policyFlags);
             break;
-        case POINTER_USAGE_STYLUS:
+        case PointerUsage::STYLUS:
             abortPointerStylus(when, policyFlags);
             break;
-        case POINTER_USAGE_MOUSE:
+        case PointerUsage::MOUSE:
             abortPointerMouse(when, policyFlags);
             break;
-        default:
+        case PointerUsage::NONE:
             break;
     }
 
-    mPointerUsage = POINTER_USAGE_NONE;
+    mPointerUsage = PointerUsage::NONE;
 }
 
 void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlags, bool isTimeout) {
@@ -2326,13 +2328,13 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
     }
 
     // Update the pointer presentation and spots.
-    if (mParameters.gestureMode == Parameters::GESTURE_MODE_MULTI_TOUCH) {
+    if (mParameters.gestureMode == Parameters::GestureMode::MULTI_TOUCH) {
         mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
         if (finishPreviousGesture || cancelPreviousGesture) {
             mPointerController->clearSpots();
         }
 
-        if (mPointerGesture.currentGestureMode == PointerGesture::FREEFORM) {
+        if (mPointerGesture.currentGestureMode == PointerGesture::Mode::FREEFORM) {
             mPointerController->setSpots(mPointerGesture.currentGestureCoords,
                                          mPointerGesture.currentGestureIdToIndex,
                                          mPointerGesture.currentGestureIdBits,
@@ -2344,28 +2346,28 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
 
     // Show or hide the pointer if needed.
     switch (mPointerGesture.currentGestureMode) {
-        case PointerGesture::NEUTRAL:
-        case PointerGesture::QUIET:
-            if (mParameters.gestureMode == Parameters::GESTURE_MODE_MULTI_TOUCH &&
-                mPointerGesture.lastGestureMode == PointerGesture::FREEFORM) {
+        case PointerGesture::Mode::NEUTRAL:
+        case PointerGesture::Mode::QUIET:
+            if (mParameters.gestureMode == Parameters::GestureMode::MULTI_TOUCH &&
+                mPointerGesture.lastGestureMode == PointerGesture::Mode::FREEFORM) {
                 // Remind the user of where the pointer is after finishing a gesture with spots.
                 mPointerController->unfade(PointerControllerInterface::Transition::GRADUAL);
             }
             break;
-        case PointerGesture::TAP:
-        case PointerGesture::TAP_DRAG:
-        case PointerGesture::BUTTON_CLICK_OR_DRAG:
-        case PointerGesture::HOVER:
-        case PointerGesture::PRESS:
-        case PointerGesture::SWIPE:
+        case PointerGesture::Mode::TAP:
+        case PointerGesture::Mode::TAP_DRAG:
+        case PointerGesture::Mode::BUTTON_CLICK_OR_DRAG:
+        case PointerGesture::Mode::HOVER:
+        case PointerGesture::Mode::PRESS:
+        case PointerGesture::Mode::SWIPE:
             // Unfade the pointer when the current gesture manipulates the
             // area directly under the pointer.
             mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
             break;
-        case PointerGesture::FREEFORM:
+        case PointerGesture::Mode::FREEFORM:
             // Fade the pointer when the current gesture manipulates a different
             // area and there are spots to guide the user experience.
-            if (mParameters.gestureMode == Parameters::GESTURE_MODE_MULTI_TOUCH) {
+            if (mParameters.gestureMode == Parameters::GestureMode::MULTI_TOUCH) {
                 mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
             } else {
                 mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
@@ -2379,12 +2381,12 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
 
     // Update last coordinates of pointers that have moved so that we observe the new
     // pointer positions at the same time as other pointers that have just gone up.
-    bool down = mPointerGesture.currentGestureMode == PointerGesture::TAP ||
-            mPointerGesture.currentGestureMode == PointerGesture::TAP_DRAG ||
-            mPointerGesture.currentGestureMode == PointerGesture::BUTTON_CLICK_OR_DRAG ||
-            mPointerGesture.currentGestureMode == PointerGesture::PRESS ||
-            mPointerGesture.currentGestureMode == PointerGesture::SWIPE ||
-            mPointerGesture.currentGestureMode == PointerGesture::FREEFORM;
+    bool down = mPointerGesture.currentGestureMode == PointerGesture::Mode::TAP ||
+            mPointerGesture.currentGestureMode == PointerGesture::Mode::TAP_DRAG ||
+            mPointerGesture.currentGestureMode == PointerGesture::Mode::BUTTON_CLICK_OR_DRAG ||
+            mPointerGesture.currentGestureMode == PointerGesture::Mode::PRESS ||
+            mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE ||
+            mPointerGesture.currentGestureMode == PointerGesture::Mode::FREEFORM;
     bool moveNeeded = false;
     if (down && !cancelPreviousGesture && !finishPreviousGesture &&
         !mPointerGesture.lastGestureIdBits.isEmpty() &&
@@ -2467,7 +2469,7 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
     }
 
     // Send motion events for hover.
-    if (mPointerGesture.currentGestureMode == PointerGesture::HOVER) {
+    if (mPointerGesture.currentGestureMode == PointerGesture::Mode::HOVER) {
         dispatchMotion(when, policyFlags, mSource, AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
                        buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                        mPointerGesture.currentGestureProperties,
@@ -2553,7 +2555,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         ALOGD("Gestures: Processing timeout");
 #endif
 
-        if (mPointerGesture.lastGestureMode == PointerGesture::TAP) {
+        if (mPointerGesture.lastGestureMode == PointerGesture::Mode::TAP) {
             if (when <= mPointerGesture.tapUpTime + mConfig.pointerGestureTapDragInterval) {
                 // The tap/drag timeout has not yet expired.
                 getContext()->requestTimeoutAtTime(mPointerGesture.tapUpTime +
@@ -2566,7 +2568,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                 *outFinishPreviousGesture = true;
 
                 mPointerGesture.activeGestureId = -1;
-                mPointerGesture.currentGestureMode = PointerGesture::NEUTRAL;
+                mPointerGesture.currentGestureMode = PointerGesture::Mode::NEUTRAL;
                 mPointerGesture.currentGestureIdBits.clear();
 
                 mPointerVelocityControl.reset();
@@ -2598,9 +2600,9 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 
     // If the gesture ever enters a mode other than TAP, HOVER or TAP_DRAG, without first returning
     // to NEUTRAL, then we should not generate tap event.
-    if (mPointerGesture.lastGestureMode != PointerGesture::HOVER &&
-        mPointerGesture.lastGestureMode != PointerGesture::TAP &&
-        mPointerGesture.lastGestureMode != PointerGesture::TAP_DRAG) {
+    if (mPointerGesture.lastGestureMode != PointerGesture::Mode::HOVER &&
+        mPointerGesture.lastGestureMode != PointerGesture::Mode::TAP &&
+        mPointerGesture.lastGestureMode != PointerGesture::Mode::TAP_DRAG) {
         mPointerGesture.resetTap();
     }
 
@@ -2633,15 +2635,16 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
     } else {
         isQuietTime = when < mPointerGesture.quietTime + mConfig.pointerGestureQuietInterval;
         if (!isQuietTime) {
-            if ((mPointerGesture.lastGestureMode == PointerGesture::PRESS ||
-                 mPointerGesture.lastGestureMode == PointerGesture::SWIPE ||
-                 mPointerGesture.lastGestureMode == PointerGesture::FREEFORM) &&
+            if ((mPointerGesture.lastGestureMode == PointerGesture::Mode::PRESS ||
+                 mPointerGesture.lastGestureMode == PointerGesture::Mode::SWIPE ||
+                 mPointerGesture.lastGestureMode == PointerGesture::Mode::FREEFORM) &&
                 currentFingerCount < 2) {
                 // Enter quiet time when exiting swipe or freeform state.
                 // This is to prevent accidentally entering the hover state and flinging the
                 // pointer when finishing a swipe and there is still one pointer left onscreen.
                 isQuietTime = true;
-            } else if (mPointerGesture.lastGestureMode == PointerGesture::BUTTON_CLICK_OR_DRAG &&
+            } else if (mPointerGesture.lastGestureMode ==
+                               PointerGesture::Mode::BUTTON_CLICK_OR_DRAG &&
                        currentFingerCount >= 2 && !isPointerDown(mCurrentRawState.buttonState)) {
                 // Enter quiet time when releasing the button and there are still two or more
                 // fingers down.  This may indicate that one finger was used to press the button
@@ -2661,12 +2664,12 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         ALOGD("Gestures: QUIET for next %0.3fms",
               (mPointerGesture.quietTime + mConfig.pointerGestureQuietInterval - when) * 0.000001f);
 #endif
-        if (mPointerGesture.lastGestureMode != PointerGesture::QUIET) {
+        if (mPointerGesture.lastGestureMode != PointerGesture::Mode::QUIET) {
             *outFinishPreviousGesture = true;
         }
 
         mPointerGesture.activeGestureId = -1;
-        mPointerGesture.currentGestureMode = PointerGesture::QUIET;
+        mPointerGesture.currentGestureMode = PointerGesture::Mode::QUIET;
         mPointerGesture.currentGestureIdBits.clear();
 
         mPointerVelocityControl.reset();
@@ -2690,7 +2693,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
               activeTouchId, currentFingerCount);
 #endif
         // Reset state when just starting.
-        if (mPointerGesture.lastGestureMode != PointerGesture::BUTTON_CLICK_OR_DRAG) {
+        if (mPointerGesture.lastGestureMode != PointerGesture::Mode::BUTTON_CLICK_OR_DRAG) {
             *outFinishPreviousGesture = true;
             mPointerGesture.activeGestureId = 0;
         }
@@ -2744,7 +2747,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         float x, y;
         mPointerController->getPosition(&x, &y);
 
-        mPointerGesture.currentGestureMode = PointerGesture::BUTTON_CLICK_OR_DRAG;
+        mPointerGesture.currentGestureMode = PointerGesture::Mode::BUTTON_CLICK_OR_DRAG;
         mPointerGesture.currentGestureIdBits.clear();
         mPointerGesture.currentGestureIdBits.markBit(mPointerGesture.activeGestureId);
         mPointerGesture.currentGestureIdToIndex[mPointerGesture.activeGestureId] = 0;
@@ -2757,15 +2760,15 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
     } else if (currentFingerCount == 0) {
         // Case 3. No fingers down and button is not pressed. (NEUTRAL)
-        if (mPointerGesture.lastGestureMode != PointerGesture::NEUTRAL) {
+        if (mPointerGesture.lastGestureMode != PointerGesture::Mode::NEUTRAL) {
             *outFinishPreviousGesture = true;
         }
 
         // Watch for taps coming out of HOVER or TAP_DRAG mode.
         // Checking for taps after TAP_DRAG allows us to detect double-taps.
         bool tapped = false;
-        if ((mPointerGesture.lastGestureMode == PointerGesture::HOVER ||
-             mPointerGesture.lastGestureMode == PointerGesture::TAP_DRAG) &&
+        if ((mPointerGesture.lastGestureMode == PointerGesture::Mode::HOVER ||
+             mPointerGesture.lastGestureMode == PointerGesture::Mode::TAP_DRAG) &&
             lastFingerCount == 1) {
             if (when <= mPointerGesture.tapDownTime + mConfig.pointerGestureTapInterval) {
                 float x, y;
@@ -2781,7 +2784,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                                                        mConfig.pointerGestureTapDragInterval);
 
                     mPointerGesture.activeGestureId = 0;
-                    mPointerGesture.currentGestureMode = PointerGesture::TAP;
+                    mPointerGesture.currentGestureMode = PointerGesture::Mode::TAP;
                     mPointerGesture.currentGestureIdBits.clear();
                     mPointerGesture.currentGestureIdBits.markBit(mPointerGesture.activeGestureId);
                     mPointerGesture.currentGestureIdToIndex[mPointerGesture.activeGestureId] = 0;
@@ -2824,7 +2827,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             ALOGD("Gestures: NEUTRAL");
 #endif
             mPointerGesture.activeGestureId = -1;
-            mPointerGesture.currentGestureMode = PointerGesture::NEUTRAL;
+            mPointerGesture.currentGestureMode = PointerGesture::Mode::NEUTRAL;
             mPointerGesture.currentGestureIdBits.clear();
         }
     } else if (currentFingerCount == 1) {
@@ -2834,14 +2837,14 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         // When in TAP_DRAG, emit MOVE events at the pointer location.
         ALOG_ASSERT(activeTouchId >= 0);
 
-        mPointerGesture.currentGestureMode = PointerGesture::HOVER;
-        if (mPointerGesture.lastGestureMode == PointerGesture::TAP) {
+        mPointerGesture.currentGestureMode = PointerGesture::Mode::HOVER;
+        if (mPointerGesture.lastGestureMode == PointerGesture::Mode::TAP) {
             if (when <= mPointerGesture.tapUpTime + mConfig.pointerGestureTapDragInterval) {
                 float x, y;
                 mPointerController->getPosition(&x, &y);
                 if (fabs(x - mPointerGesture.tapX) <= mConfig.pointerGestureTapSlop &&
                     fabs(y - mPointerGesture.tapY) <= mConfig.pointerGestureTapSlop) {
-                    mPointerGesture.currentGestureMode = PointerGesture::TAP_DRAG;
+                    mPointerGesture.currentGestureMode = PointerGesture::Mode::TAP_DRAG;
                 } else {
 #if DEBUG_GESTURES
                     ALOGD("Gestures: Not a TAP_DRAG, deltaX=%f, deltaY=%f",
@@ -2854,8 +2857,8 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                       (when - mPointerGesture.tapUpTime) * 0.000001f);
 #endif
             }
-        } else if (mPointerGesture.lastGestureMode == PointerGesture::TAP_DRAG) {
-            mPointerGesture.currentGestureMode = PointerGesture::TAP_DRAG;
+        } else if (mPointerGesture.lastGestureMode == PointerGesture::Mode::TAP_DRAG) {
+            mPointerGesture.currentGestureMode = PointerGesture::Mode::TAP_DRAG;
         }
 
         float deltaX = 0, deltaY = 0;
@@ -2878,7 +2881,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         }
 
         bool down;
-        if (mPointerGesture.currentGestureMode == PointerGesture::TAP_DRAG) {
+        if (mPointerGesture.currentGestureMode == PointerGesture::Mode::TAP_DRAG) {
 #if DEBUG_GESTURES
             ALOGD("Gestures: TAP_DRAG");
 #endif
@@ -2887,7 +2890,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 #if DEBUG_GESTURES
             ALOGD("Gestures: HOVER");
 #endif
-            if (mPointerGesture.lastGestureMode != PointerGesture::HOVER) {
+            if (mPointerGesture.lastGestureMode != PointerGesture::Mode::HOVER) {
                 *outFinishPreviousGesture = true;
             }
             mPointerGesture.activeGestureId = 0;
@@ -2933,9 +2936,9 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 
         bool settled = when >=
                 mPointerGesture.firstTouchTime + mConfig.pointerGestureMultitouchSettleInterval;
-        if (mPointerGesture.lastGestureMode != PointerGesture::PRESS &&
-            mPointerGesture.lastGestureMode != PointerGesture::SWIPE &&
-            mPointerGesture.lastGestureMode != PointerGesture::FREEFORM) {
+        if (mPointerGesture.lastGestureMode != PointerGesture::Mode::PRESS &&
+            mPointerGesture.lastGestureMode != PointerGesture::Mode::SWIPE &&
+            mPointerGesture.lastGestureMode != PointerGesture::Mode::FREEFORM) {
             *outFinishPreviousGesture = true;
         } else if (!settled && currentFingerCount > lastFingerCount) {
             // Additional pointers have gone down but not yet settled.
@@ -2953,7 +2956,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         }
 
         if (*outFinishPreviousGesture || *outCancelPreviousGesture) {
-            mPointerGesture.currentGestureMode = PointerGesture::PRESS;
+            mPointerGesture.currentGestureMode = PointerGesture::Mode::PRESS;
             mPointerGesture.activeGestureId = 0;
             mPointerGesture.referenceIdBits.clear();
             mPointerVelocityControl.reset();
@@ -3005,7 +3008,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         }
 
         // Consider transitions from PRESS to SWIPE or MULTITOUCH.
-        if (mPointerGesture.currentGestureMode == PointerGesture::PRESS) {
+        if (mPointerGesture.currentGestureMode == PointerGesture::Mode::PRESS) {
             float dist[MAX_POINTER_ID + 1];
             int32_t distOverThreshold = 0;
             for (BitSet32 idBits(mPointerGesture.referenceIdBits); !idBits.isEmpty();) {
@@ -3027,7 +3030,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                           currentFingerCount);
 #endif
                     *outCancelPreviousGesture = true;
-                    mPointerGesture.currentGestureMode = PointerGesture::FREEFORM;
+                    mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
                 } else {
                     // There are exactly two pointers.
                     BitSet32 idBits(mCurrentCookedState.fingerIdBits);
@@ -3046,7 +3049,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                               mutualDistance, mPointerGestureMaxSwipeWidth);
 #endif
                         *outCancelPreviousGesture = true;
-                        mPointerGesture.currentGestureMode = PointerGesture::FREEFORM;
+                        mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
                     } else {
                         // There are two pointers.  Wait for both pointers to start moving
                         // before deciding whether this is a SWIPE or FREEFORM gesture.
@@ -3077,7 +3080,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                                       mConfig.pointerGestureMultitouchMinDistance, cosine,
                                       mConfig.pointerGestureSwipeTransitionAngleCosine);
 #endif
-                                mPointerGesture.currentGestureMode = PointerGesture::SWIPE;
+                                mPointerGesture.currentGestureMode = PointerGesture::Mode::SWIPE;
                             } else {
                                 // Pointers are moving in different directions.  Switch to FREEFORM.
 #if DEBUG_GESTURES
@@ -3089,13 +3092,13 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                                       mConfig.pointerGestureSwipeTransitionAngleCosine);
 #endif
                                 *outCancelPreviousGesture = true;
-                                mPointerGesture.currentGestureMode = PointerGesture::FREEFORM;
+                                mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
                             }
                         }
                     }
                 }
             }
-        } else if (mPointerGesture.currentGestureMode == PointerGesture::SWIPE) {
+        } else if (mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE) {
             // Switch from SWIPE to FREEFORM if additional pointers go down.
             // Cancel previous gesture.
             if (currentFingerCount > 2) {
@@ -3104,13 +3107,13 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
                       currentFingerCount);
 #endif
                 *outCancelPreviousGesture = true;
-                mPointerGesture.currentGestureMode = PointerGesture::FREEFORM;
+                mPointerGesture.currentGestureMode = PointerGesture::Mode::FREEFORM;
             }
         }
 
         // Move the reference points based on the overall group motion of the fingers
         // except in PRESS mode while waiting for a transition to occur.
-        if (mPointerGesture.currentGestureMode != PointerGesture::PRESS &&
+        if (mPointerGesture.currentGestureMode != PointerGesture::Mode::PRESS &&
             (commonDeltaX || commonDeltaY)) {
             for (BitSet32 idBits(mPointerGesture.referenceIdBits); !idBits.isEmpty();) {
                 uint32_t id = idBits.clearFirstMarkedBit();
@@ -3133,8 +3136,8 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
         }
 
         // Report gestures.
-        if (mPointerGesture.currentGestureMode == PointerGesture::PRESS ||
-            mPointerGesture.currentGestureMode == PointerGesture::SWIPE) {
+        if (mPointerGesture.currentGestureMode == PointerGesture::Mode::PRESS ||
+            mPointerGesture.currentGestureMode == PointerGesture::Mode::SWIPE) {
             // PRESS or SWIPE mode.
 #if DEBUG_GESTURES
             ALOGD("Gestures: PRESS or SWIPE activeTouchId=%d,"
@@ -3155,7 +3158,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
             mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y,
                                                                  mPointerGesture.referenceGestureY);
             mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
-        } else if (mPointerGesture.currentGestureMode == PointerGesture::FREEFORM) {
+        } else if (mPointerGesture.currentGestureMode == PointerGesture::Mode::FREEFORM) {
             // FREEFORM mode.
 #if DEBUG_GESTURES
             ALOGD("Gestures: FREEFORM activeTouchId=%d,"
@@ -3168,7 +3171,7 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 
             BitSet32 mappedTouchIdBits;
             BitSet32 usedGestureIdBits;
-            if (mPointerGesture.lastGestureMode != PointerGesture::FREEFORM) {
+            if (mPointerGesture.lastGestureMode != PointerGesture::Mode::FREEFORM) {
                 // Initially, assign the active gesture id to the active touch point
                 // if there is one.  No other touch id bits are mapped yet.
                 if (!*outCancelPreviousGesture) {
@@ -3568,7 +3571,7 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
     }
     float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
-    if (mDeviceMode == DEVICE_MODE_POINTER) {
+    if (mDeviceMode == DeviceMode::POINTER) {
         mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
     }
     const int32_t displayId = getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE);
@@ -3907,7 +3910,7 @@ bool TouchInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCode
 
 std::optional<int32_t> TouchInputMapper::getAssociatedDisplayId() {
     if (mParameters.hasAssociatedDisplay) {
-        if (mDeviceMode == DEVICE_MODE_POINTER) {
+        if (mDeviceMode == DeviceMode::POINTER) {
             return std::make_optional(mPointerController->getDisplayId());
         } else {
             return std::make_optional(mViewport.displayId);
