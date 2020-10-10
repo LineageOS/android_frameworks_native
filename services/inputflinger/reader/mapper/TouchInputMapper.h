@@ -71,7 +71,7 @@ struct RawPointerData {
 
     uint32_t pointerCount;
     Pointer pointers[MAX_POINTERS];
-    BitSet32 hoveringIdBits, touchingIdBits;
+    BitSet32 hoveringIdBits, touchingIdBits, canceledIdBits;
     uint32_t idToIndex[MAX_POINTER_ID + 1];
 
     RawPointerData();
@@ -90,6 +90,7 @@ struct RawPointerData {
     inline void clearIdBits() {
         hoveringIdBits.clear();
         touchingIdBits.clear();
+        canceledIdBits.clear();
     }
 
     inline const Pointer& pointerForId(uint32_t id) const { return pointers[idToIndex[id]]; }
@@ -102,7 +103,7 @@ struct CookedPointerData {
     uint32_t pointerCount;
     PointerProperties pointerProperties[MAX_POINTERS];
     PointerCoords pointerCoords[MAX_POINTERS];
-    BitSet32 hoveringIdBits, touchingIdBits;
+    BitSet32 hoveringIdBits, touchingIdBits, canceledIdBits;
     uint32_t idToIndex[MAX_POINTER_ID + 1];
 
     CookedPointerData();
