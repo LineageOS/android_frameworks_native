@@ -236,6 +236,20 @@ void MultiTouchInputMapper::process(const RawEvent* rawEvent) {
     mMultiTouchMotionAccumulator.process(rawEvent);
 }
 
+std::optional<int32_t> MultiTouchInputMapper::getActiveBitId(
+        const MultiTouchMotionAccumulator::Slot& inSlot) {
+    if (mHavePointerIds) {
+        int32_t trackingId = inSlot.getTrackingId();
+        for (BitSet32 idBits(mPointerIdBits); !idBits.isEmpty();) {
+            int32_t n = idBits.clearFirstMarkedBit();
+            if (mPointerTrackingIdMap[n] == trackingId) {
+                return std::make_optional(n);
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
     size_t inCount = mMultiTouchMotionAccumulator.getSlotCount();
     size_t outCount = 0;
@@ -250,10 +264,9 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
         }
 
         if (inSlot->getToolType() == AMOTION_EVENT_TOOL_TYPE_PALM) {
-            if (!mCurrentMotionAborted) {
-                ALOGI("Canceling touch gesture from device %s because the palm event was detected",
-                      getDeviceName().c_str());
-                cancelTouch(when);
+            std::optional<int32_t> id = getActiveBitId(*inSlot);
+            if (id) {
+                outState->rawPointerData.canceledIdBits.markBit(id.value());
             }
             continue;
         }
