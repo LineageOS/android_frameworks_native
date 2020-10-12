@@ -1471,6 +1471,34 @@ TEST_F(RefreshRateConfigsTest, testKernelIdleTimerAction) {
     EXPECT_EQ(KernelIdleTimerAction::TurnOff, refreshRateConfigs->getIdleTimerAction());
 }
 
+TEST_F(RefreshRateConfigsTest, RefreshRateDividerForUnknownUid) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_30);
+    EXPECT_EQ(1, refreshRateConfigs->getRefreshRateDividerForUid(1234));
+}
+
+TEST_F(RefreshRateConfigsTest, RefreshRateDividerForUid) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_30);
+    const uid_t uid = 1234;
+    refreshRateConfigs->setPreferredRefreshRateForUid(uid, 30);
+    EXPECT_EQ(1, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_60);
+    EXPECT_EQ(2, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_72);
+    EXPECT_EQ(1, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    EXPECT_EQ(3, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_120);
+    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+}
+
 } // namespace
 } // namespace scheduler
 } // namespace android
