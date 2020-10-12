@@ -158,7 +158,8 @@ typedef struct AImageDecoder AImageDecoder;
  * - {@link ANDROID_IMAGE_DECODER_UNSUPPORTED_FORMAT}: The format is not
  *   supported.
  */
-int AImageDecoder_createFromAAsset(struct AAsset* asset, AImageDecoder** outDecoder)
+int AImageDecoder_createFromAAsset(struct AAsset* _Nonnull asset,
+                                   AImageDecoder* _Nonnull * _Nonnull outDecoder)
         __INTRODUCED_IN(30);
 
 /**
@@ -189,7 +190,8 @@ int AImageDecoder_createFromAAsset(struct AAsset* asset, AImageDecoder** outDeco
  * - {@link ANDROID_IMAGE_DECODER_UNSUPPORTED_FORMAT}: The format is not
  *   supported.
  */
-int AImageDecoder_createFromFd(int fd, AImageDecoder** outDecoder) __INTRODUCED_IN(30);
+int AImageDecoder_createFromFd(int fd, AImageDecoder* _Nonnull * _Nonnull outDecoder)
+        __INTRODUCED_IN(30);
 
 /**
  * Create a new AImageDecoder from a buffer.
@@ -218,15 +220,16 @@ int AImageDecoder_createFromFd(int fd, AImageDecoder** outDecoder) __INTRODUCED_
  * - {@link ANDROID_IMAGE_DECODER_UNSUPPORTED_FORMAT}: The format is not
  *   supported.
  */
-int AImageDecoder_createFromBuffer(const void* buffer, size_t length,
-                                   AImageDecoder** outDecoder) __INTRODUCED_IN(30);
+int AImageDecoder_createFromBuffer(const void* _Nonnull buffer, size_t length,
+                                   AImageDecoder* _Nonnull * _Nonnull outDecoder)
+        __INTRODUCED_IN(30);
 
 /**
  * Delete the AImageDecoder.
  *
  * Available since API level 30.
  */
-void AImageDecoder_delete(AImageDecoder* decoder) __INTRODUCED_IN(30);
+void AImageDecoder_delete(AImageDecoder* _Nonnull decoder) __INTRODUCED_IN(30);
 
 /**
  * Choose the desired output format.
@@ -247,7 +250,7 @@ void AImageDecoder_delete(AImageDecoder* decoder) __INTRODUCED_IN(30);
  * - {@link ANDROID_IMAGE_DECODER_INVALID_CONVERSION}: The
  *   {@link AndroidBitmapFormat} is incompatible with the image.
  */
-int AImageDecoder_setAndroidBitmapFormat(AImageDecoder*,
+int AImageDecoder_setAndroidBitmapFormat(AImageDecoder* _Nonnull decoder,
         int32_t format) __INTRODUCED_IN(30);
 
 /**
@@ -270,7 +273,7 @@ int AImageDecoder_setAndroidBitmapFormat(AImageDecoder*,
  * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
  *   {@link AImageDecoder} is null.
  */
-int AImageDecoder_setUnpremultipliedRequired(AImageDecoder*,
+int AImageDecoder_setUnpremultipliedRequired(AImageDecoder* _Nonnull decoder,
                                              bool unpremultipliedRequired) __INTRODUCED_IN(30);
 
 /**
@@ -295,7 +298,8 @@ int AImageDecoder_setUnpremultipliedRequired(AImageDecoder*,
  *   {@link AImageDecoder} is null or |dataspace| does not correspond to an
  *   {@link ADataSpace} value.
  */
-int AImageDecoder_setDataSpace(AImageDecoder*, int32_t dataspace) __INTRODUCED_IN(30);
+int AImageDecoder_setDataSpace(AImageDecoder* _Nonnull decoder, int32_t dataspace)
+        __INTRODUCED_IN(30);
 
 /**
  * Specify the output size for a decoded image.
@@ -324,7 +328,8 @@ int AImageDecoder_setDataSpace(AImageDecoder*, int32_t dataspace) __INTRODUCED_I
  *   or the scale is incompatible with a previous call to
  *   {@link AImageDecoder_setUnpremultipliedRequired}(true).
  */
-int AImageDecoder_setTargetSize(AImageDecoder*, int32_t width, int32_t height) __INTRODUCED_IN(30);
+int AImageDecoder_setTargetSize(AImageDecoder* _Nonnull decoder, int32_t width,
+                                int32_t height) __INTRODUCED_IN(30);
 
 
 /**
@@ -353,8 +358,9 @@ int AImageDecoder_setTargetSize(AImageDecoder*, int32_t width, int32_t height) _
  * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
  *   {@link AImageDecoder}, |width| or |height| is null or |sampleSize| is < 1.
  */
-int AImageDecoder_computeSampledSize(const AImageDecoder*, int sampleSize,
-                                     int32_t* width, int32_t* height) __INTRODUCED_IN(30);
+int AImageDecoder_computeSampledSize(const AImageDecoder* _Nonnull decoder, int sampleSize,
+                                     int32_t* _Nonnull width, int32_t* _Nonnull height)
+        __INTRODUCED_IN(30);
 /**
  * Specify how to crop the output after scaling (if any).
  *
@@ -380,7 +386,7 @@ int AImageDecoder_computeSampledSize(const AImageDecoder*, int sampleSize,
  *   {@link AImageDecoder} is null or the crop is not contained by the
  *   (possibly scaled) image dimensions.
  */
-int AImageDecoder_setCrop(AImageDecoder*, ARect crop) __INTRODUCED_IN(30);
+int AImageDecoder_setCrop(AImageDecoder* _Nonnull decoder, ARect crop) __INTRODUCED_IN(30);
 
 struct AImageDecoderHeaderInfo;
 /**
@@ -399,8 +405,8 @@ typedef struct AImageDecoderHeaderInfo AImageDecoderHeaderInfo;
  *
  * Available since API level 30.
  */
-const AImageDecoderHeaderInfo* AImageDecoder_getHeaderInfo(
-        const AImageDecoder*) __INTRODUCED_IN(30);
+const AImageDecoderHeaderInfo* _Nonnull  AImageDecoder_getHeaderInfo(
+        const AImageDecoder* _Nonnull decoder) __INTRODUCED_IN(30);
 
 /**
  * Report the native width of the encoded image. This is also the logical
@@ -410,7 +416,8 @@ const AImageDecoderHeaderInfo* AImageDecoder_getHeaderInfo(
  *
  * Available since API level 30.
  */
-int32_t AImageDecoderHeaderInfo_getWidth(const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
+int32_t AImageDecoderHeaderInfo_getWidth(const AImageDecoderHeaderInfo* _Nonnull)
+        __INTRODUCED_IN(30);
 
 /**
  * Report the native height of the encoded image. This is also the logical
@@ -420,7 +427,8 @@ int32_t AImageDecoderHeaderInfo_getWidth(const AImageDecoderHeaderInfo*) __INTRO
  *
  * Available since API level 30.
  */
-int32_t AImageDecoderHeaderInfo_getHeight(const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
+int32_t AImageDecoderHeaderInfo_getHeight(const AImageDecoderHeaderInfo* _Nonnull)
+        __INTRODUCED_IN(30);
 
 /**
  * Report the mimeType of the encoded image.
@@ -429,8 +437,8 @@ int32_t AImageDecoderHeaderInfo_getHeight(const AImageDecoderHeaderInfo*) __INTR
  *
  * @return a string literal describing the mime type.
  */
-const char* AImageDecoderHeaderInfo_getMimeType(
-        const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
+const char* _Nonnull  AImageDecoderHeaderInfo_getMimeType(
+        const AImageDecoderHeaderInfo* _Nonnull) __INTRODUCED_IN(30);
 
 /**
  * Report the {@link AndroidBitmapFormat} the AImageDecoder will decode to
@@ -441,7 +449,7 @@ const char* AImageDecoderHeaderInfo_getMimeType(
  * Available since API level 30.
  */
 int32_t AImageDecoderHeaderInfo_getAndroidBitmapFormat(
-        const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
+        const AImageDecoderHeaderInfo* _Nonnull) __INTRODUCED_IN(30);
 
 /**
  * Report how the {@link AImageDecoder} will handle alpha by default. If the image
@@ -453,7 +461,7 @@ int32_t AImageDecoderHeaderInfo_getAndroidBitmapFormat(
  * Available since API level 30.
  */
 int AImageDecoderHeaderInfo_getAlphaFlags(
-        const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
+        const AImageDecoderHeaderInfo* _Nonnull) __INTRODUCED_IN(30);
 
 /**
  * Report the dataspace the AImageDecoder will decode to by default.
@@ -474,7 +482,7 @@ int AImageDecoderHeaderInfo_getAlphaFlags(
  *         no corresponding {@link ADataSpace}.
  */
 int32_t AImageDecoderHeaderInfo_getDataSpace(
-        const AImageDecoderHeaderInfo*) __INTRODUCED_IN(30);
+        const AImageDecoderHeaderInfo* _Nonnull) __INTRODUCED_IN(30);
 
 /**
  * Return the minimum stride that can be used in
@@ -489,7 +497,7 @@ int32_t AImageDecoderHeaderInfo_getDataSpace(
  *
  * Available since API level 30.
  */
-size_t AImageDecoder_getMinimumStride(AImageDecoder*) __INTRODUCED_IN(30);
+size_t AImageDecoder_getMinimumStride(AImageDecoder* _Nonnull decoder) __INTRODUCED_IN(30);
 
 /**
  * Decode the image into pixels, using the settings of the {@link AImageDecoder}.
@@ -523,8 +531,8 @@ size_t AImageDecoder_getMinimumStride(AImageDecoder*) __INTRODUCED_IN(30);
  * - {@link ANDROID_IMAGE_DECODER_INTERNAL_ERROR}: Some other error, like a
  *   failure to allocate memory.
  */
-int AImageDecoder_decodeImage(AImageDecoder* decoder,
-                              void* pixels, size_t stride,
+int AImageDecoder_decodeImage(AImageDecoder* _Nonnull decoder,
+                              void* _Nonnull pixels, size_t stride,
                               size_t size) __INTRODUCED_IN(30);
 
 #endif // __ANDROID_API__ >= 30
