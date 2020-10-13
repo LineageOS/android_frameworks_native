@@ -109,7 +109,19 @@ enum {
     /**
      * AImageDecoder did not recognize the format.
      */
-    ANDROID_IMAGE_DECODER_UNSUPPORTED_FORMAT = -9
+    ANDROID_IMAGE_DECODER_UNSUPPORTED_FORMAT = -9,
+    /**
+     * The animation has reached the end.
+     */
+    ANDROID_IMAGE_DECODER_FINISHED = -10,
+    /**
+     * This method cannot be called while the AImageDecoder is in its current
+     * state. For example, various setters (like {@link AImageDecoder_setTargetSize})
+     * can only be called while the AImageDecoder is set to decode the first
+     * frame of an animation. This ensures that any blending and/or restoring
+     * prior frames works correctly.
+     */
+    ANDROID_IMAGE_DECODER_INVALID_STATE = -11,
 };
 
 struct AImageDecoder;
@@ -240,6 +252,10 @@ void AImageDecoder_delete(AImageDecoder* _Nonnull decoder) __INTRODUCED_IN(30);
 /**
  * Choose the desired output format.
  *
+ * If the encoded image represents an animation, this must be called while on
+ * the first frame (e.g. before calling {@link AImageDecoder_advanceFrame} or
+ * after calling {@link AImageDecoder_rewind}).
+ *
  * Available since API level 30.
  *
  * @param format {@link AndroidBitmapFormat} to use for the output.
@@ -255,6 +271,8 @@ void AImageDecoder_delete(AImageDecoder* _Nonnull decoder) __INTRODUCED_IN(30);
  *   {@link AndroidBitmapFormat}.
  * - {@link ANDROID_IMAGE_DECODER_INVALID_CONVERSION}: The
  *   {@link AndroidBitmapFormat} is incompatible with the image.
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_STATE}: The animation is not on
+ *   the first frame.
  */
 int AImageDecoder_setAndroidBitmapFormat(AImageDecoder* _Nonnull decoder,
         int32_t format) __INTRODUCED_IN(30);
@@ -265,6 +283,10 @@ int AImageDecoder_setAndroidBitmapFormat(AImageDecoder* _Nonnull decoder,
  * By default, {@link AImageDecoder_decodeImage} will premultiply the pixels, if they have alpha.
  * Pass true to this method to leave them unpremultiplied. This has no effect on an
  * opaque image.
+ *
+ * If the encoded image represents an animation, this must be called while on
+ * the first frame (e.g. before calling {@link AImageDecoder_advanceFrame} or
+ * after calling {@link AImageDecoder_rewind}).
  *
  * Available since API level 30.
  *
@@ -278,6 +300,8 @@ int AImageDecoder_setAndroidBitmapFormat(AImageDecoder* _Nonnull decoder,
  *   {@link AImageDecoder_setTargetSize}.
  * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
  *   {@link AImageDecoder} is null.
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_STATE}: The animation is not on
+ *   the first frame.
  */
 int AImageDecoder_setUnpremultipliedRequired(AImageDecoder* _Nonnull decoder,
                                              bool unpremultipliedRequired) __INTRODUCED_IN(30);
@@ -287,6 +311,10 @@ int AImageDecoder_setUnpremultipliedRequired(AImageDecoder* _Nonnull decoder,
  *
  * Ignored by {@link ANDROID_BITMAP_FORMAT_A_8}, which does not support
  * an {@link ADataSpace}.
+ *
+ * If the encoded image represents an animation, this must be called while on
+ * the first frame (e.g. before calling {@link AImageDecoder_advanceFrame} or
+ * after calling {@link AImageDecoder_rewind}).
  *
  * Available since API level 30.
  *
@@ -303,6 +331,8 @@ int AImageDecoder_setUnpremultipliedRequired(AImageDecoder* _Nonnull decoder,
  * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
  *   {@link AImageDecoder} is null or |dataspace| does not correspond to an
  *   {@link ADataSpace} value.
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_STATE}: The animation is not on
+ *   the first frame.
  */
 int AImageDecoder_setDataSpace(AImageDecoder* _Nonnull decoder, int32_t dataspace)
         __INTRODUCED_IN(30);
@@ -315,6 +345,10 @@ int AImageDecoder_setDataSpace(AImageDecoder* _Nonnull decoder, int32_t dataspac
  * {@link AImageDecoder_setCrop}), it must be contained within the dimensions
  * specified by width and height, and the output image will be the size of the
  * crop rect.
+ *
+ * If the encoded image represents an animation, this must be called while on
+ * the first frame (e.g. before calling {@link AImageDecoder_advanceFrame} or
+ * after calling {@link AImageDecoder_rewind}).
  *
  * Available since API level 30.
  *
@@ -330,9 +364,11 @@ int AImageDecoder_setDataSpace(AImageDecoder* _Nonnull decoder, int32_t dataspac
  * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
  *   {@link AImageDecoder} is null.
  * - {@link ANDROID_IMAGE_DECODER_INVALID_SCALE}: |width| or |height| is <= 0,
- *   the size is too big, any existing crop is not contained by the new image dimensions,
- *   or the scale is incompatible with a previous call to
+ *   the size is too big, any existing crop is not contained by the new image
+ *   dimensions, or the scale is incompatible with a previous call to
  *   {@link AImageDecoder_setUnpremultipliedRequired}(true).
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_STATE}: The animation is not on
+ *   the first frame.
  */
 int AImageDecoder_setTargetSize(AImageDecoder* _Nonnull decoder, int32_t width,
                                 int32_t height) __INTRODUCED_IN(30);
@@ -374,6 +410,10 @@ int AImageDecoder_computeSampledSize(const AImageDecoder* _Nonnull decoder, int 
  * the specified {@link ARect}. Clients will only need to allocate enough memory
  * for the cropped ARect.
  *
+ * If the encoded image represents an animation, this must be called while on
+ * the first frame (e.g. before calling {@link AImageDecoder_advanceFrame} or
+ * after calling {@link AImageDecoder_rewind}).
+ *
  * Available since API level 30.
  *
  * @param crop Rectangle describing a crop of the decode. It must be contained inside of
@@ -389,8 +429,10 @@ int AImageDecoder_computeSampledSize(const AImageDecoder* _Nonnull decoder, int 
  *
  * Errors:
  * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The
- *   {@link AImageDecoder} is null or the crop is not contained by the
+ *   {@link AImageDecoder} is null, or the crop is not contained by the
  *   (possibly scaled) image dimensions.
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_STATE}: The animation is not on
+ *   the first frame.
  */
 int AImageDecoder_setCrop(AImageDecoder* _Nonnull decoder, ARect crop) __INTRODUCED_IN(30);
 
@@ -518,8 +560,44 @@ size_t AImageDecoder_getMinimumStride(AImageDecoder* _Nonnull decoder) __INTRODU
  * Available since API level 30.
  *
  * Starting in API level 31, it can be used to decode all of the frames of an
- * animated image (i.e. GIF, WebP, HEIF) using new APIs (TODO (scroggo): list
- * and describe here).
+ * animated image (i.e. GIF, WebP, HEIF) using new APIs. Internally,
+ * AImageDecoder keeps track of its "current frame" - that is, the frame that
+ * will be decoded by a call to AImageDecoder_decodeImage. At creation time, the
+ * current frame is always the first frame, and multiple calls to this method
+ * will each decode the first frame. {@link AImageDecoder_advanceFrame} advances
+ * the current frame to the following frame, so that future calls to this method
+ * will decode that frame. Some frames may update only part of the image. They
+ * may only update a sub-rectangle (see {@link
+ * AImageDecoderFrameInfo_getFrameRect}), or they may have alpha (see
+ * {@link AImageDecoderFrameInfo_hasAlphaWithinBounds}). In these cases, this
+ * method assumes that the prior frame is still residing in the |pixels| buffer,
+ * decodes only the new portion, and blends it with the buffer. Frames that change
+ * the entire |pixels| buffer are "independent", and do not require the prior
+ * frame to remain in the buffer. The first frame is always independent. A
+ * sophisticated client can use information from the {@link AImageDecoderFrameInfo}
+ * to determine whether other frames are independent, or what frames they rely on.
+ *
+ * If the current frame is marked {@link ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS},
+ * AImageDecoder_decodeImage will cache the |pixels| buffer prior to decoding
+ * (note: this only happens for the first in a string of consecutive
+ * ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS frames). After advancing to the
+ * following frame, AImageDecoder_decodeImage will restore the cached buffer
+ * prior to decoding that frame.
+ *
+ * Ignoring timing information, display, etc, a client wishing to decode all
+ * frames of an animated image may conceptually use code like the following:
+ *
+ * while (true) {
+ *   int result = AImageDecoder_decodeImage(decoder, pixels, stride, size);
+ *   if (result != ANDROID_IMAGE_DECODER_SUCCESS) break;
+ *
+ *   // Display or save the image in |pixels|, keeping the buffer intact for
+ *   // AImageDecoder to decode the next frame correctly.
+ *   Application_viewImage(pixels);
+ *
+ *   result = AImageDecoder_advanceFrame(decoder);
+ *   if (result != ANDROID_IMAGE_DECODER_SUCCESS) break;
+ * }
  *
  * @param decoder Opaque object representing the decoder.
  * @param pixels On success, will be filled with the result
@@ -547,6 +625,10 @@ size_t AImageDecoder_getMinimumStride(AImageDecoder* _Nonnull decoder) __INTRODU
  *   failed to seek.
  * - {@link ANDROID_IMAGE_DECODER_INTERNAL_ERROR}: Some other error, like a
  *   failure to allocate memory.
+ * - {@link ANDROID_IMAGE_DECODER_FINISHED}: The input contains no
+ *   more frames. No decoding occurred. The client must call
+ *   {@link AImageDecoder_rewind} before calling
+ *   {@link AImageDecoder_decodeImage} again.
  */
 int AImageDecoder_decodeImage(AImageDecoder* _Nonnull decoder,
                               void* _Nonnull pixels, size_t stride,
@@ -561,8 +643,8 @@ int AImageDecoder_decodeImage(AImageDecoder* _Nonnull decoder,
  *
  * Introduced in API 31.
  *
- * This may require seeking past the first frame to verify whether
- * there is a following frame (e.g. for GIF).
+ * A single frame GIF is considered to *not* be animated. This may require
+ * seeking past the first frame to verify whether there is a following frame.
  *
  * Errors:
  * - returns false if |decoder| is null.
@@ -608,6 +690,69 @@ enum {
  *   is null.
  */
 int32_t AImageDecoder_getRepeatCount(AImageDecoder* _Nonnull decoder);
+        __INTRODUCED_IN(31);
+
+/**
+ * Advance to the next frame in the animation.
+ *
+ * Introduced in API 31.
+ *
+ * The AImageDecoder keeps track internally which frame it is ready to decode
+ * (the "current frame"). Initially it is set to decode the first frame, and
+ * each call to {@link AImageDecoder_decodeImage} will continue to decode
+ * the same frame until this method (or {@link AImageDecoder_rewind})
+ * is called.
+ *
+ * Note that this can be used to skip a frame without decoding it. But
+ * some frames depend on (i.e. blend with) prior frames, and
+ * AImageDecoder_decodeImage assumes that the prior frame is in the
+ * |pixels| buffer. In addition, AImageDecoder_decodeImage handles caching and
+ * restoring frames (see {@link ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS}), so
+ * skipping frames in an image with such frames may not produce the correct
+ * results.
+ *
+ * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The AImageDecoder
+ *   represents an image that is not animated (see
+ *   {@link AImageDecoder_isAnimated}) or the AImageDecoder is null.
+ * - {@link ANDROID_IMAGE_DECODER_INCOMPLETE}: The input appears
+ *   to be truncated. The client must call {@link AImageDecoder_rewind}
+ *   before calling {@link AImageDecoder_decodeImage} again.
+ * - {@link ANDROID_IMAGE_DECODER_ERROR}: The input contains an error.
+ *   The client must call  {@link AImageDecoder_rewind} before
+ *   calling {@link AImageDecoder_decodeImage} again.
+ * - {@link ANDROID_IMAGE_DECODER_FINISHED}: The input contains no
+ *   more frames. The client must call {@link AImageDecoder_rewind}
+ *   before calling {@link AImageDecoder_decodeImage} again.
+ */
+int AImageDecoder_advanceFrame(AImageDecoder* _Nonnull decoder)
+        __INTRODUCED_IN(31);
+
+/**
+ * Return to the beginning of the animation.
+ *
+ * Introduced in API 31.
+ *
+ * After this call, the AImageDecoder will be ready to decode the
+ * first frame of the animation. This can be called after reaching
+ * the end of the animation or an error or in the middle of the
+ * animation.
+ *
+ * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The AImageDecoder
+ *   represents an image that is not animated (see
+ *   {@link AImageDecoder_isAnimated}) or the AImageDecoder is
+ *   null.
+ * - {@link ANDROID_IMAGE_DECODER_SEEK_ERROR}: The asset or file
+ *   descriptor failed to seek.
+ */
+int AImageDecoder_rewind(AImageDecoder* _Nonnull decoder)
         __INTRODUCED_IN(31);
 
 #endif // __ANDROID_API__ >= 31
