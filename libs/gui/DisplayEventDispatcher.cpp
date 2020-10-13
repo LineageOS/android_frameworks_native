@@ -73,8 +73,8 @@ status_t DisplayEventDispatcher::scheduleVsync() {
         nsecs_t vsyncTimestamp;
         PhysicalDisplayId vsyncDisplayId;
         uint32_t vsyncCount;
-        int64_t vsyncId;
-        if (processPendingEvents(&vsyncTimestamp, &vsyncDisplayId, &vsyncCount, &vsyncId)) {
+        VsyncEventData vsyncEventData;
+        if (processPendingEvents(&vsyncTimestamp, &vsyncDisplayId, &vsyncCount, &vsyncEventData)) {
             ALOGE("dispatcher %p ~ last event processed while scheduling was for %" PRId64 "", this,
                   ns2ms(static_cast<nsecs_t>(vsyncTimestamp)));
         }
@@ -117,13 +117,14 @@ int DisplayEventDispatcher::handleEvent(int, int events, void*) {
     nsecs_t vsyncTimestamp;
     PhysicalDisplayId vsyncDisplayId;
     uint32_t vsyncCount;
-    int64_t vsyncId;
-    if (processPendingEvents(&vsyncTimestamp, &vsyncDisplayId, &vsyncCount, &vsyncId)) {
+    VsyncEventData vsyncEventData;
+    if (processPendingEvents(&vsyncTimestamp, &vsyncDisplayId, &vsyncCount, &vsyncEventData)) {
         ALOGV("dispatcher %p ~ Vsync pulse: timestamp=%" PRId64
               ", displayId=%s, count=%d, vsyncId=%" PRId64,
-              this, ns2ms(vsyncTimestamp), to_string(vsyncDisplayId).c_str(), vsyncCount, vsyncId);
+              this, ns2ms(vsyncTimestamp), to_string(vsyncDisplayId).c_str(), vsyncCount,
+              vsyncEventData.id);
         mWaitingForVsync = false;
-        dispatchVsync(vsyncTimestamp, vsyncDisplayId, vsyncCount, vsyncId);
+        dispatchVsync(vsyncTimestamp, vsyncDisplayId, vsyncCount, vsyncEventData);
     }
 
     return 1; // keep the callback
@@ -131,11 +132,11 @@ int DisplayEventDispatcher::handleEvent(int, int events, void*) {
 
 bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                                                   PhysicalDisplayId* outDisplayId,
-                                                  uint32_t* outCount, int64_t* outVsyncId) {
+                                                  uint32_t* outCount,
+                                                  VsyncEventData* outVsyncEventData) {
     bool gotVsync = false;
     DisplayEventReceiver::Event buf[EVENT_BUFFER_SIZE];
     ssize_t n;
-    *outVsyncId = 0;
     while ((n = mReceiver.getEvents(buf, EVENT_BUFFER_SIZE)) > 0) {
         ALOGV("dispatcher %p ~ Read %d events.", this, int(n));
         for (ssize_t i = 0; i < n; i++) {
@@ -148,7 +149,8 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                     *outTimestamp = ev.header.timestamp;
                     *outDisplayId = ev.header.displayId;
                     *outCount = ev.vsync.count;
-                    *outVsyncId = ev.vsync.vsyncId;
+                    outVsyncEventData->id = ev.vsync.vsyncId;
+                    outVsyncEventData->deadlineTimestamp = ev.vsync.deadlineTimestamp;
                     break;
                 case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
                     dispatchHotplug(ev.header.timestamp, ev.header.displayId, ev.hotplug.connected);
