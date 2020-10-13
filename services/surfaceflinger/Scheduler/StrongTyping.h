@@ -70,6 +70,10 @@ struct StrongTyping : Ability<StrongTyping<T, W, Ability...>>... {
     T const& value() const { return mValue; }
     T& value() { return mValue; }
 
+    friend std::ostream& operator<<(std::ostream& os, const StrongTyping<T, W, Ability...>& value) {
+        return os << value.value();
+    }
+
 private:
     T mValue;
 };

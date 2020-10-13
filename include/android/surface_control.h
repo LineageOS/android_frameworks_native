@@ -410,24 +410,10 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
 #if __ANDROID_API__ >= 30
 
 /**
- * Sets the intended frame rate for |surface_control|.
+ * Same as ASurfaceTransaction_setFrameRateWithSeamlessness(transaction, surface_control,
+ * frameRate, compatibility, true).
  *
- * On devices that are capable of running the display at different refresh rates, the system may
- * choose a display refresh rate to better match this surface's frame rate. Usage of this API won't
- * directly affect the application's frame production pipeline. However, because the system may
- * change the display refresh rate, calls to this function may result in changes to Choreographer
- * callback timings, and changes to the time interval at which the system releases buffers back to
- * the application.
- *
- * |frameRate| is the intended frame rate of this surface, in frames per second. 0 is a special
- * value that indicates the app will accept the system's choice for the display frame rate, which is
- * the default behavior if this function isn't called. The frameRate param does <em>not</em> need to
- * be a valid refresh rate for this device's display - e.g., it's fine to pass 30fps to a device
- * that can only run the display at 60fps.
- *
- * |compatibility| The frame rate compatibility of this surface. The compatibility value may
- * influence the system's choice of display frame rate. To specify a compatibility use the
- * ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* enum.
+ * See ASurfaceTransaction_setFrameRateWithSeamlessness().
  *
  * Available since API level 30.
  */
@@ -437,6 +423,42 @@ void ASurfaceTransaction_setFrameRate(ASurfaceTransaction* transaction,
 
 #endif // __ANDROID_API__ >= 30
 
+#if __ANDROID_API__ >= 31
+
+/**
+ * Sets the intended frame rate for \a surface_control.
+ *
+ * On devices that are capable of running the display at different refresh rates, the system may
+ * choose a display refresh rate to better match this surface's frame rate. Usage of this API won't
+ * directly affect the application's frame production pipeline. However, because the system may
+ * change the display refresh rate, calls to this function may result in changes to Choreographer
+ * callback timings, and changes to the time interval at which the system releases buffers back to
+ * the application.
+ *
+ * \param frameRate is the intended frame rate of this surface, in frames per second. 0 is a special
+ * value that indicates the app will accept the system's choice for the display frame rate, which is
+ * the default behavior if this function isn't called. The frameRate param does <em>not</em> need to
+ * be a valid refresh rate for this device's display - e.g., it's fine to pass 30fps to a device
+ * that can only run the display at 60fps.
+ *
+ * \param compatibility The frame rate compatibility of this surface. The compatibility value may
+ * influence the system's choice of display frame rate. To specify a compatibility use the
+ * ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* enum.
+ *
+ * \param shouldBeSeamless Whether display refresh rate transitions should be seamless. A
+ * seamless transition is one that doesn't have any visual interruptions, such as a black
+ * screen for a second or two. True indicates that any frame rate changes caused by this
+ * request should be seamless. False indicates that non-seamless refresh rates are also
+ * acceptable.
+ *
+ * Available since API level 31.
+ */
+void ASurfaceTransaction_setFrameRateWithSeamlessness(ASurfaceTransaction* transaction,
+                                      ASurfaceControl* surface_control, float frameRate,
+                                      int8_t compatibility, bool shouldBeSeamless)
+                                      __INTRODUCED_IN(31);
+
+#endif // __ANDROID_API__ >= 31
 __END_DECLS
 
 #endif // ANDROID_SURFACE_CONTROL_H

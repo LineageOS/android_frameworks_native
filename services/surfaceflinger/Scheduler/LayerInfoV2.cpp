@@ -198,10 +198,10 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible(nsecs_t now) {
                                           : std::make_optional(mLastRefreshRate.reported);
 }
 
-std::pair<LayerHistory::LayerVoteType, float> LayerInfoV2::getRefreshRate(nsecs_t now) {
+LayerInfoV2::LayerVote LayerInfoV2::getRefreshRateVote(nsecs_t now) {
     if (mLayerVote.type != LayerHistory::LayerVoteType::Heuristic) {
         ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
-        return {mLayerVote.type, mLayerVote.fps};
+        return mLayerVote;
     }
 
     if (isAnimating(now)) {

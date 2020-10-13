@@ -59,6 +59,7 @@ layer_state_t::layer_state_t()
         frameRateSelectionPriority(-1),
         frameRate(0.0f),
         frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
+        shouldBeSeamless(true),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         frameNumber(0) {
     matrix.dsdx = matrix.dtdy = 1.0f;
@@ -144,6 +145,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeInt32, frameRateSelectionPriority);
     SAFE_PARCEL(output.writeFloat, frameRate);
     SAFE_PARCEL(output.writeByte, frameRateCompatibility);
+    SAFE_PARCEL(output.writeBool, shouldBeSeamless);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
     SAFE_PARCEL(output.writeUint64, frameNumber);
     SAFE_PARCEL(output.writeInt64, frameTimelineVsyncId);
@@ -262,6 +264,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readInt32, &frameRateSelectionPriority);
     SAFE_PARCEL(input.readFloat, &frameRate);
     SAFE_PARCEL(input.readByte, &frameRateCompatibility);
+    SAFE_PARCEL(input.readBool, &shouldBeSeamless);
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
     SAFE_PARCEL(input.readUint64, &frameNumber);
@@ -521,6 +524,7 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eFrameRateChanged;
         frameRate = other.frameRate;
         frameRateCompatibility = other.frameRateCompatibility;
+        shouldBeSeamless = other.shouldBeSeamless;
     }
     if (other.what & eFixedTransformHintChanged) {
         what |= eFixedTransformHintChanged;

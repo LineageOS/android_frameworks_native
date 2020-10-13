@@ -3781,7 +3781,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                               "SurfaceFlinger::setClientStateLocked") &&
             layer->setFrameRate(Layer::FrameRate(s.frameRate,
                                                  Layer::FrameRate::convertCompatibility(
-                                                         s.frameRateCompatibility)))) {
+                                                         s.frameRateCompatibility),
+                                                 s.shouldBeSeamless))) {
             flags |= eTraversalNeeded;
         }
     }
@@ -6135,7 +6136,7 @@ const std::unordered_map<std::string, uint32_t>& SurfaceFlinger::getGenericLayer
 }
 
 status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
-                                      int8_t compatibility) {
+                                      int8_t compatibility, bool shouldBeSeamless) {
     if (!ValidateFrameRate(frameRate, compatibility, "SurfaceFlinger::setFrameRate")) {
         return BAD_VALUE;
     }
@@ -6148,10 +6149,10 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
                 ALOGE("Attempt to set frame rate on a layer that no longer exists");
                 return BAD_VALUE;
             }
-
             if (layer->setFrameRate(
                         Layer::FrameRate(frameRate,
-                                         Layer::FrameRate::convertCompatibility(compatibility)))) {
+                                         Layer::FrameRate::convertCompatibility(compatibility),
+                                         shouldBeSeamless))) {
                 setTransactionFlags(eTraversalNeeded);
             }
         } else {

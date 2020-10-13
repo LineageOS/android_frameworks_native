@@ -218,6 +218,7 @@ struct layer_state_t {
     // Layer frame rate and compatibility. See ANativeWindow_setFrameRate().
     float frameRate;
     int8_t frameRateCompatibility;
+    bool shouldBeSeamless;
 
     // Set by window manager indicating the layer and all its children are
     // in a different orientation than the display. The hint suggests that

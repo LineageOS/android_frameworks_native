@@ -34,6 +34,7 @@
 #define ANDROID_NATIVE_WINDOW_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <sys/cdefs.h>
 
 #include <android/data_space.h>
@@ -256,36 +257,11 @@ enum ANativeWindow_FrameRateCompatibility {
 };
 
 /**
- * Sets the intended frame rate for this window.
+ * Same as ANativeWindow_setFrameRateWithSeamlessness(window, frameRate, compatibility, true).
  *
- * On devices that are capable of running the display at different refresh
- * rates, the system may choose a display refresh rate to better match this
- * window's frame rate. Usage of this API won't introduce frame rate throttling,
- * or affect other aspects of the application's frame production
- * pipeline. However, because the system may change the display refresh rate,
- * calls to this function may result in changes to Choreographer callback
- * timings, and changes to the time interval at which the system releases
- * buffers back to the application.
- *
- * Note that this only has an effect for windows presented on the display. If
- * this ANativeWindow is consumed by something other than the system compositor,
- * e.g. a media codec, this call has no effect.
+ * See ANativeWindow_setFrameRateWithSeamlessness().
  *
  * Available since API level 30.
- *
- * \param frameRate The intended frame rate of this window, in frames per
- * second. 0 is a special value that indicates the app will accept the system's
- * choice for the display frame rate, which is the default behavior if this
- * function isn't called. The frameRate param does <em>not</em> need to be a
- * valid refresh rate for this device's display - e.g., it's fine to pass 30fps
- * to a device that can only run the display at 60fps.
- *
- * \param compatibility The frame rate compatibility of this window. The
- * compatibility value may influence the system's choice of display refresh
- * rate. See the ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* values for more info.
- *
- * \return 0 for success, -EINVAL if the window, frame rate, or compatibility
- * value are invalid.
  */
 int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate, int8_t compatibility)
         __INTRODUCED_IN(30);
@@ -302,6 +278,51 @@ int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate, int8_
 void ANativeWindow_tryAllocateBuffers(ANativeWindow* window);
 
 #endif // __ANDROID_API__ >= 30
+
+#if __ANDROID_API__ >= 31
+
+/**
+ * Sets the intended frame rate for this window.
+ *
+ * On devices that are capable of running the display at different refresh
+ * rates, the system may choose a display refresh rate to better match this
+ * window's frame rate. Usage of this API won't introduce frame rate throttling,
+ * or affect other aspects of the application's frame production
+ * pipeline. However, because the system may change the display refresh rate,
+ * calls to this function may result in changes to Choreographer callback
+ * timings, and changes to the time interval at which the system releases
+ * buffers back to the application.
+ *
+ * Note that this only has an effect for windows presented on the display. If
+ * this ANativeWindow is consumed by something other than the system compositor,
+ * e.g. a media codec, this call has no effect.
+ *
+ * Available since API level 31.
+ *
+ * \param frameRate The intended frame rate of this window, in frames per
+ * second. 0 is a special value that indicates the app will accept the system's
+ * choice for the display frame rate, which is the default behavior if this
+ * function isn't called. The frameRate param does <em>not</em> need to be a
+ * valid refresh rate for this device's display - e.g., it's fine to pass 30fps
+ * to a device that can only run the display at 60fps.
+ *
+ * \param compatibility The frame rate compatibility of this window. The
+ * compatibility value may influence the system's choice of display refresh
+ * rate. See the ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* values for more info.
+ *
+ * \param shouldBeSeamless Whether display refresh rate transitions should be seamless. A
+ * seamless transition is one that doesn't have any visual interruptions, such as a black
+ * screen for a second or two. True indicates that any frame rate changes caused by this
+ * request should be seamless. False indicates that non-seamless refresh rates are also
+ * acceptable.
+ *
+ * \return 0 for success, -EINVAL if the window, frame rate, or compatibility
+ * value are invalid.
+ */
+int32_t ANativeWindow_setFrameRateWithSeamlessness(ANativeWindow* window, float frameRate,
+        int8_t compatibility, bool shouldBeSeamless) __INTRODUCED_IN(31);
+
+#endif // __ANDROID_API__ >= 31
 
 #ifdef __cplusplus
 };

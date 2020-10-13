@@ -123,7 +123,7 @@ protected:
     }
 
     virtual void fillBufferQueueLayerColor(const sp<SurfaceControl>& layer, const Color& color,
-                                           int32_t bufferWidth, int32_t bufferHeight) {
+                                           uint32_t bufferWidth, uint32_t bufferHeight) {
         ANativeWindow_Buffer buffer;
         ASSERT_NO_FATAL_FAILURE(buffer = getBufferQueueLayerBuffer(layer));
         TransactionUtils::fillANativeWindowBufferColor(buffer,
@@ -145,7 +145,7 @@ protected:
     }
 
     void fillLayerColor(uint32_t mLayerType, const sp<SurfaceControl>& layer, const Color& color,
-                        int32_t bufferWidth, int32_t bufferHeight) {
+                        uint32_t bufferWidth, uint32_t bufferHeight) {
         switch (mLayerType) {
             case ISurfaceComposerClient::eFXSurfaceBufferQueue:
                 fillBufferQueueLayerColor(layer, color, bufferWidth, bufferHeight);

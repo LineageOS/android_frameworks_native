@@ -78,7 +78,7 @@ protected:
         for (auto& [weak, info] : history().mLayerInfos) {
             if (auto strong = weak.promote(); strong && strong.get() == layer) {
                 info->setDefaultLayerVote(vote);
-                info->setLayerVote(vote, 0);
+                info->setLayerVote({vote, 0, false});
                 return;
             }
         }

@@ -56,6 +56,13 @@ class LayerInfoV2 {
     friend class LayerHistoryTestV2;
 
 public:
+    // Holds information about the layer vote
+    struct LayerVote {
+        LayerHistory::LayerVoteType type = LayerHistory::LayerVoteType::Heuristic;
+        float fps = 0.0f;
+        bool shouldBeSeamless = true;
+    };
+
     static void setTraceEnabled(bool enabled) { sTraceEnabled = enabled; }
 
     static void setRefreshRateConfigs(const RefreshRateConfigs& refreshRateConfigs) {
@@ -76,7 +83,7 @@ public:
 
     // Sets an explicit layer vote. This usually comes directly from the application via
     // ANativeWindow_setFrameRate API
-    void setLayerVote(LayerHistory::LayerVoteType type, float fps) { mLayerVote = {type, fps}; }
+    void setLayerVote(LayerVote vote) { mLayerVote = vote; }
 
     // Sets the default layer vote. This will be the layer vote after calling to resetLayerVote().
     // This is used for layers that called to setLayerVote() and then removed the vote, so that the
@@ -84,9 +91,9 @@ public:
     void setDefaultLayerVote(LayerHistory::LayerVoteType type) { mDefaultVote = type; }
 
     // Resets the layer vote to its default.
-    void resetLayerVote() { mLayerVote = {mDefaultVote, 0.0f}; }
+    void resetLayerVote() { mLayerVote = {mDefaultVote, 0.0f, true}; }
 
-    std::pair<LayerHistory::LayerVoteType, float> getRefreshRate(nsecs_t now);
+    LayerVote getRefreshRateVote(nsecs_t now);
 
     // Return the last updated time. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
@@ -128,12 +135,6 @@ private:
         // Whether the last reported rate for LayerInfoV2::getRefreshRate()
         // was due to animation or infrequent updates
         bool animatingOrInfrequent = false;
-    };
-
-    // Holds information about the layer vote
-    struct LayerVote {
-        LayerHistory::LayerVoteType type = LayerHistory::LayerVoteType::Heuristic;
-        float fps = 0.0f;
     };
 
     // Class to store past calculated refresh rate and determine whether
