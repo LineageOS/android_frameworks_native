@@ -120,13 +120,15 @@ public:
 
     // Sets the refresh rate boundaries for the display.
     static status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                 int32_t defaultConfig, float primaryRefreshRateMin,
+                                                 int32_t defaultConfig, bool allowGroupSwitching,
+                                                 float primaryRefreshRateMin,
                                                  float primaryRefreshRateMax,
                                                  float appRequestRefreshRateMin,
                                                  float appRequestRefreshRateMax);
     // Gets the refresh rate boundaries for the display.
     static status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
                                                  int32_t* outDefaultConfig,
+                                                 bool* outAllowGroupSwitching,
                                                  float* outPrimaryRefreshRateMin,
                                                  float* outPrimaryRefreshRateMax,
                                                  float* outAppRequestRefreshRateMin,

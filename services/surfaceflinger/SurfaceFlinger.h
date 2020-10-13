@@ -583,11 +583,12 @@ private:
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
     status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken, int32_t displayModeId,
-                                          float primaryRefreshRateMin, float primaryRefreshRateMax,
+                                          bool allowGroupSwitching, float primaryRefreshRateMin,
+                                          float primaryRefreshRateMax,
                                           float appRequestRefreshRateMin,
                                           float appRequestRefreshRateMax) override;
     status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                          int32_t* outDefaultConfig,
+                                          int32_t* outDefaultConfig, bool* outAllowGroupSwitching,
                                           float* outPrimaryRefreshRateMin,
                                           float* outPrimaryRefreshRateMax,
                                           float* outAppRequestRefreshRateMin,

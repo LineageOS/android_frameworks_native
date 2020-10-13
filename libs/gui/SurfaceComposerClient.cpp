@@ -1774,27 +1774,24 @@ int SurfaceComposerClient::getActiveConfig(const sp<IBinder>& display) {
     return ComposerService::getComposerService()->getActiveConfig(display);
 }
 
-status_t SurfaceComposerClient::setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                             int32_t defaultConfig,
-                                                             float primaryRefreshRateMin,
-                                                             float primaryRefreshRateMax,
-                                                             float appRequestRefreshRateMin,
-                                                             float appRequestRefreshRateMax) {
+status_t SurfaceComposerClient::setDesiredDisplayConfigSpecs(
+        const sp<IBinder>& displayToken, int32_t defaultConfig, bool allowGroupSwitching,
+        float primaryRefreshRateMin, float primaryRefreshRateMax, float appRequestRefreshRateMin,
+        float appRequestRefreshRateMax) {
     return ComposerService::getComposerService()
-            ->setDesiredDisplayConfigSpecs(displayToken, defaultConfig, primaryRefreshRateMin,
-                                           primaryRefreshRateMax, appRequestRefreshRateMin,
-                                           appRequestRefreshRateMax);
+            ->setDesiredDisplayConfigSpecs(displayToken, defaultConfig, allowGroupSwitching,
+                                           primaryRefreshRateMin, primaryRefreshRateMax,
+                                           appRequestRefreshRateMin, appRequestRefreshRateMax);
 }
 
-status_t SurfaceComposerClient::getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                             int32_t* outDefaultConfig,
-                                                             float* outPrimaryRefreshRateMin,
-                                                             float* outPrimaryRefreshRateMax,
-                                                             float* outAppRequestRefreshRateMin,
-                                                             float* outAppRequestRefreshRateMax) {
+status_t SurfaceComposerClient::getDesiredDisplayConfigSpecs(
+        const sp<IBinder>& displayToken, int32_t* outDefaultConfig, bool* outAllowGroupSwitching,
+        float* outPrimaryRefreshRateMin, float* outPrimaryRefreshRateMax,
+        float* outAppRequestRefreshRateMin, float* outAppRequestRefreshRateMax) {
     return ComposerService::getComposerService()
-            ->getDesiredDisplayConfigSpecs(displayToken, outDefaultConfig, outPrimaryRefreshRateMin,
-                                           outPrimaryRefreshRateMax, outAppRequestRefreshRateMin,
+            ->getDesiredDisplayConfigSpecs(displayToken, outDefaultConfig, outAllowGroupSwitching,
+                                           outPrimaryRefreshRateMin, outPrimaryRefreshRateMax,
+                                           outAppRequestRefreshRateMin,
                                            outAppRequestRefreshRateMax);
 }
 

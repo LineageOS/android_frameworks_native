@@ -108,6 +108,10 @@ public:
             std::unordered_map<HwcConfigIndexType, std::unique_ptr<const RefreshRate>>;
 
     struct Policy {
+    private:
+        static constexpr int kAllowGroupSwitchingDefault = false;
+
+    public:
         struct Range {
             float min = 0;
             float max = std::numeric_limits<float>::max();
@@ -122,6 +126,8 @@ public:
         // The default config, used to ensure we only initiate display config switches within the
         // same config group as defaultConfigId's group.
         HwcConfigIndexType defaultConfig;
+        // Whether or not we switch config groups to get the best frame rate.
+        bool allowGroupSwitching = kAllowGroupSwitchingDefault;
         // The primary refresh rate range represents display manager's general guidance on the
         // display configs we'll consider when switching refresh rates. Unless we get an explicit
         // signal from an app, we should stay within this range.
@@ -133,15 +139,23 @@ public:
         // app request range. The app request range will be greater than or equal to the primary
         // refresh rate range, never smaller.
         Range appRequestRange;
-        // Whether or not we switch config groups to get the best frame rate. Only used by tests.
-        bool allowGroupSwitching = false;
 
         Policy() = default;
+
         Policy(HwcConfigIndexType defaultConfig, const Range& range)
-              : Policy(defaultConfig, range, range) {}
+              : Policy(defaultConfig, kAllowGroupSwitchingDefault, range, range) {}
+
+        Policy(HwcConfigIndexType defaultConfig, bool allowGroupSwitching, const Range& range)
+              : Policy(defaultConfig, allowGroupSwitching, range, range) {}
+
         Policy(HwcConfigIndexType defaultConfig, const Range& primaryRange,
                const Range& appRequestRange)
+              : Policy(defaultConfig, kAllowGroupSwitchingDefault, primaryRange, appRequestRange) {}
+
+        Policy(HwcConfigIndexType defaultConfig, bool allowGroupSwitching,
+               const Range& primaryRange, const Range& appRequestRange)
               : defaultConfig(defaultConfig),
+                allowGroupSwitching(allowGroupSwitching),
                 primaryRange(primaryRange),
                 appRequestRange(appRequestRange) {}
 
@@ -152,6 +166,7 @@ public:
         }
 
         bool operator!=(const Policy& other) const { return !(*this == other); }
+        std::string toString();
     };
 
     // Return code set*Policy() to indicate the current policy is unchanged.
