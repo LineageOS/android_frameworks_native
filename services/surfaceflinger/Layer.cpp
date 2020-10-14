@@ -2453,6 +2453,7 @@ InputWindowInfo Layer::fillInputInfo() {
         ySurfaceInset = std::round(ySurfaceInset * yScale);
     }
 
+    // Transform the layer bounds from layer coordinate space to display coordinate space.
     Rect transformedLayerBounds = t.transform(layerBounds);
 
     // clamp inset to layer bounds
@@ -2477,7 +2478,7 @@ InputWindowInfo Layer::fillInputInfo() {
         transformedLayerBounds.bottom = tmp;
     }
 
-    // Input coordinate should match the layer bounds.
+    // Input coordinates should be in display coordinate space.
     info.frameLeft = transformedLayerBounds.left;
     info.frameTop = transformedLayerBounds.top;
     info.frameRight = transformedLayerBounds.right;
@@ -2490,7 +2491,7 @@ InputWindowInfo Layer::fillInputInfo() {
     // the final frame calculated.
     // 1. Take the original transform set on the window and get the inverse transform. This is
     //    used to get the final bounds in display space (ignorning the transform). Apply the
-    //    inverse transform on the layerBounds to get the untransformed frame (in display space)
+    //    inverse transform on the layerBounds to get the untransformed frame (in layer space)
     // 2. Take the top and left of the untransformed frame to get the real position on screen.
     //    Apply the layer transform on top/left so it includes any scale or rotation. These will
     //    be the new translation values for the transform.
