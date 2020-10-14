@@ -179,7 +179,7 @@ public:
     status_t getUniqueId(uint64_t* outId) const;
     status_t getConsumerUsage(uint64_t* outUsage) const;
 
-    status_t setFrameRate(float frameRate, int8_t compatibility);
+    virtual status_t setFrameRate(float frameRate, int8_t compatibility);
 
 protected:
     virtual ~Surface();

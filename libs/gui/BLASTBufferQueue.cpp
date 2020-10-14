@@ -354,10 +354,15 @@ bool BLASTBufferQueue::maxBuffersAcquired() const {
 }
 
 class BBQSurface : public Surface {
+private:
+    sp<BLASTBufferQueue> mBbq;
 public:
-    BBQSurface(const sp<IGraphicBufferProducer>& igbp, bool controlledByApp) :
-        Surface(igbp, controlledByApp) {
+  BBQSurface(const sp<IGraphicBufferProducer>& igbp, bool controlledByApp,
+      const sp<BLASTBufferQueue>& bbq) :
+      Surface(igbp, controlledByApp),
+      mBbq(bbq) {
     }
+
     void allocateBuffers() override {
         uint32_t reqWidth = mReqWidth ? mReqWidth : mUserWidth;
         uint32_t reqHeight = mReqHeight ? mReqHeight : mUserHeight;
@@ -369,10 +374,27 @@ public:
 
         }).detach();
     }
+
+    status_t setFrameRate(float frameRate, int8_t compatibility) override {
+        if (!ValidateFrameRate(frameRate, compatibility, "BBQSurface::setFrameRate")) {
+            return BAD_VALUE;
+        }
+        return mBbq->setFrameRate(frameRate, compatibility);
+    }
 };
 
+// TODO: Can we coalesce this with frame updates? Need to confirm
+// no timing issues.
+status_t BLASTBufferQueue::setFrameRate(float frameRate, int8_t compatibility) {
+    std::unique_lock _lock{mMutex};
+    SurfaceComposerClient::Transaction t;
+
+    return t.setFrameRate(mSurfaceControl, frameRate, compatibility)
+        .apply();
+}
+
 sp<Surface> BLASTBufferQueue::getSurface() {
-    return new BBQSurface(mProducer, true);
+    return new BBQSurface(mProducer, true, this);
 }
 
 } // namespace android
