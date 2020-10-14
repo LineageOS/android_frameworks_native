@@ -66,7 +66,7 @@ public:
     bool isEnabled();
     void setEnabled(bool enabled, nsecs_t when);
 
-    void dump(std::string& dump);
+    void dump(std::string& dump, const std::string& eventHubDevStr);
     void addEventHubDevice(int32_t eventHubId, bool populateMappers = true);
     void removeEventHubDevice(int32_t eventHubId);
     void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
