@@ -26,8 +26,7 @@ RenderArea::RotationFlags applyDeviceOrientation(bool useIdentityTransform,
         return RenderArea::RotationFlags::ROT_0;
     }
 
-    const ui::Rotation orientation = display.getPhysicalOrientation() + display.getOrientation();
-    return ui::Transform::toRotationFlags(orientation);
+    return ui::Transform::toRotationFlags(display.getOrientation());
 }
 
 } // namespace

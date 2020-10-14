@@ -129,13 +129,14 @@ public:
     static Choreographer* getForThread();
     virtual ~Choreographer() override EXCLUDES(gChoreographers.lock);
     int64_t getVsyncId() const;
+    int64_t getFrameDeadline() const;
 
 
 private:
     Choreographer(const Choreographer&) = delete;
 
     void dispatchVsync(nsecs_t timestamp, PhysicalDisplayId displayId, uint32_t count,
-                       int64_t vsyncId) override;
+                       VsyncEventData vsyncEventData) override;
     void dispatchHotplug(nsecs_t timestamp, PhysicalDisplayId displayId, bool connected) override;
     void dispatchConfigChanged(nsecs_t timestamp, PhysicalDisplayId displayId, int32_t configId,
                                nsecs_t vsyncPeriod) override;
@@ -149,7 +150,7 @@ private:
     std::vector<RefreshRateCallback> mRefreshRateCallbacks;
 
     nsecs_t mLatestVsyncPeriod = -1;
-    int64_t mLastVsyncId = -1;
+    VsyncEventData mLastVsyncEventData;
 
     const sp<Looper> mLooper;
     const std::thread::id mThreadId;
@@ -354,7 +355,8 @@ void Choreographer::handleRefreshRateUpdates() {
 // TODO(b/74619554): The PhysicalDisplayId is ignored because SF only emits VSYNC events for the
 // internal display and DisplayEventReceiver::requestNextVsync only allows requesting VSYNC for
 // the internal display implicitly.
-void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t, int64_t vsyncId) {
+void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t,
+                                  VsyncEventData vsyncEventData) {
     std::vector<FrameCallback> callbacks{};
     {
         std::lock_guard<std::mutex> _l{mLock};
@@ -364,7 +366,7 @@ void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t
             mFrameCallbacks.pop();
         }
     }
-    mLastVsyncId = vsyncId;
+    mLastVsyncEventData = vsyncEventData;
     for (const auto& cb : callbacks) {
         if (cb.callback64 != nullptr) {
             cb.callback64(timestamp, cb.data);
@@ -410,7 +412,11 @@ void Choreographer::handleMessage(const Message& message) {
 }
 
 int64_t Choreographer::getVsyncId() const {
-    return mLastVsyncId;
+    return mLastVsyncEventData.id;
+}
+
+int64_t Choreographer::getFrameDeadline() const {
+    return mLastVsyncEventData.deadlineTimestamp;
 }
 
 } // namespace android
@@ -490,6 +496,10 @@ void AChoreographer_routeUnregisterRefreshRateCallback(AChoreographer* choreogra
 
 int64_t AChoreographer_getVsyncId(const AChoreographer* choreographer) {
     return AChoreographer_to_Choreographer(choreographer)->getVsyncId();
+}
+
+int64_t AChoreographer_getFrameDeadline(const AChoreographer* choreographer) {
+    return AChoreographer_to_Choreographer(choreographer)->getFrameDeadline();
 }
 
 } // namespace android

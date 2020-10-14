@@ -504,6 +504,10 @@ size_t AImageDecoder_getMinimumStride(AImageDecoder* _Nonnull decoder) __INTRODU
  *
  * Available since API level 30.
  *
+ * Starting in API level 31, it can be used to decode all of the frames of an
+ * animated image (i.e. GIF, WebP, HEIF) using new APIs (TODO (scroggo): list
+ * and describe here).
+ *
  * @param decoder Opaque object representing the decoder.
  * @param pixels On success, will be filled with the result
  *               of the decode. Must be large enough to hold |size| bytes.
@@ -536,6 +540,24 @@ int AImageDecoder_decodeImage(AImageDecoder* _Nonnull decoder,
                               size_t size) __INTRODUCED_IN(30);
 
 #endif // __ANDROID_API__ >= 30
+
+#if __ANDROID_API__ >= 31
+
+/**
+ * Return true iff the image is animated - i.e. has multiple frames.
+ *
+ * Introduced in API 31.
+ *
+ * This may require seeking past the first frame to verify whether
+ * there is a following frame (e.g. for GIF).
+ *
+ * Errors:
+ * - returns false if |decoder| is null.
+ */
+bool AImageDecoder_isAnimated(AImageDecoder* _Nonnull decoder)
+        __INTRODUCED_IN(31);
+
+#endif // __ANDROID_API__ >= 31
 
 #ifdef __cplusplus
 }

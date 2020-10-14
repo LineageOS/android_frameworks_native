@@ -20,6 +20,17 @@
 
 namespace android {
 
+struct VsyncEventData {
+    // The Vsync Id corresponsing to this vsync event. This will be used to
+    // populate ISurfaceComposer::setFrameTimelineVsync and
+    // SurfaceComposerClient::setFrameTimelineVsync
+    int64_t id = ISurfaceComposer::INVALID_VSYNC_ID;
+
+    // The deadline in CLOCK_MONOTONIC that the app needs to complete its
+    // frame by (both on the CPU and the GPU)
+    int64_t deadlineTimestamp = std::numeric_limits<int64_t>::max();
+};
+
 class DisplayEventDispatcher : public LooperCallback {
 public:
     explicit DisplayEventDispatcher(
@@ -44,7 +55,7 @@ private:
     bool mWaitingForVsync;
 
     virtual void dispatchVsync(nsecs_t timestamp, PhysicalDisplayId displayId, uint32_t count,
-                               int64_t vsyncId) = 0;
+                               VsyncEventData vsyncEventData) = 0;
     virtual void dispatchHotplug(nsecs_t timestamp, PhysicalDisplayId displayId,
                                  bool connected) = 0;
     virtual void dispatchConfigChanged(nsecs_t timestamp, PhysicalDisplayId displayId,
@@ -54,6 +65,6 @@ private:
     virtual void dispatchNullEvent(nsecs_t timestamp, PhysicalDisplayId displayId) = 0;
 
     bool processPendingEvents(nsecs_t* outTimestamp, PhysicalDisplayId* outDisplayId,
-                              uint32_t* outCount, int64_t* outVsyncId);
+                              uint32_t* outCount, VsyncEventData* outVsyncEventData);
 };
 } // namespace android
