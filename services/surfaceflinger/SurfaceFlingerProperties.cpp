@@ -371,5 +371,10 @@ DisplayPrimaries getDisplayNativePrimaries() {
     return primaries;
 }
 
+bool update_device_product_info_on_hotplug_reconnect(bool defaultValue) {
+    return SurfaceFlingerProperties::update_device_product_info_on_hotplug_reconnect().value_or(
+            defaultValue);
+}
+
 } // namespace sysprop
 } // namespace android

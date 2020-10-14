@@ -26,6 +26,7 @@
 
 #include "HWComposer.h"
 
+#include <android-base/properties.h>
 #include <compositionengine/Output.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
@@ -38,6 +39,7 @@
 #include "../Layer.h" // needed only for debugging
 #include "../Promise.h"
 #include "../SurfaceFlinger.h"
+#include "../SurfaceFlingerProperties.h"
 #include "ComposerHal.h"
 #include "HWC2.h"
 
@@ -143,12 +145,13 @@ HWComposer::~HWComposer() = default;
 
 namespace impl {
 
-HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer) : mComposer(std::move(composer)) {
-}
+HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer)
+      : mComposer(std::move(composer)),
+        mUpdateDeviceProductInfoOnHotplugReconnect(
+                android::sysprop::update_device_product_info_on_hotplug_reconnect(false)) {}
 
 HWComposer::HWComposer(const std::string& composerServiceName)
-      : mComposer(std::make_unique<Hwc2::impl::Composer>(composerServiceName)) {
-}
+      : HWComposer(std::make_unique<Hwc2::impl::Composer>(composerServiceName)) {}
 
 HWComposer::~HWComposer() {
     mDisplayData.clear();
@@ -202,6 +205,10 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplug(hal::HWDisplayId 
         case hal::Connection::INVALID:
             return {};
     }
+}
+
+bool HWComposer::updatesDeviceProductInfoOnHotplugReconnect() const {
+    return mUpdateDeviceProductInfoOnHotplugReconnect;
 }
 
 bool HWComposer::onVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp) {
@@ -888,6 +895,16 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplugConnect(
         info = DisplayIdentificationInfo{.id = *displayId,
                                          .name = std::string(),
                                          .deviceProductInfo = std::nullopt};
+        if (mUpdateDeviceProductInfoOnHotplugReconnect) {
+            uint8_t port;
+            DisplayIdentificationData data;
+            getDisplayIdentificationData(hwcDisplayId, &port, &data);
+            if (auto newInfo = parseDisplayIdentificationData(port, data)) {
+                info->deviceProductInfo = std::move(newInfo->deviceProductInfo);
+            } else {
+                ALOGE("Failed to parse identification data for display %" PRIu64, hwcDisplayId);
+            }
+        }
     } else {
         uint8_t port;
         DisplayIdentificationData data;
