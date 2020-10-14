@@ -48,6 +48,7 @@ class TokenManager;
 // ---------------------------------------------------------------------------
 
 using ResyncCallback = std::function<void()>;
+using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
 
 enum class VSyncRequest {
     None = -2,
@@ -82,7 +83,7 @@ public:
 class EventThreadConnection : public BnDisplayEventConnection {
 public:
     EventThreadConnection(EventThread*, uid_t callingUid, ResyncCallback,
-                          ISurfaceComposer::ConfigChanged configChanged);
+                          ISurfaceComposer::EventRegistrationFlags eventRegistration = {});
     virtual ~EventThreadConnection();
 
     virtual status_t postEvent(const DisplayEventReceiver::Event& event);
@@ -95,15 +96,15 @@ public:
     const ResyncCallback resyncCallback;
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
-    const ISurfaceComposer::ConfigChanged mConfigChanged =
-            ISurfaceComposer::ConfigChanged::eConfigChangedSuppress;
-
     const uid_t mOwnerUid;
+    const ISurfaceComposer::EventRegistrationFlags mEventRegistration;
 
 private:
     virtual void onFirstRef();
     EventThread* const mEventThread;
     gui::BitTube mChannel;
+
+    std::vector<DisplayEventReceiver::Event> mPendingEvents;
 };
 
 class EventThread {
@@ -111,7 +112,8 @@ public:
     virtual ~EventThread();
 
     virtual sp<EventThreadConnection> createEventConnection(
-            ResyncCallback, ISurfaceComposer::ConfigChanged configChanged) const = 0;
+            ResyncCallback,
+            ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) const = 0;
 
     // called before the screen is turned off from main thread
     virtual void onScreenReleased() = 0;
@@ -124,6 +126,10 @@ public:
     // called when SF changes the active config and apps needs to be notified about the change
     virtual void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId,
                                  nsecs_t vsyncPeriod) = 0;
+
+    // called when SF updates the Frame Rate Override list
+    virtual void onFrameRateOverridesChanged(PhysicalDisplayId displayId,
+                                             std::vector<FrameRateOverride> overrides) = 0;
 
     virtual void dump(std::string& result) const = 0;
 
@@ -152,7 +158,8 @@ public:
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
-            ResyncCallback, ISurfaceComposer::ConfigChanged configChanged) const override;
+            ResyncCallback,
+            ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) const override;
 
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
@@ -168,6 +175,9 @@ public:
 
     void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId,
                          nsecs_t vsyncPeriod) override;
+
+    void onFrameRateOverridesChanged(PhysicalDisplayId displayId,
+                                     std::vector<FrameRateOverride> overrides) override;
 
     void dump(std::string& result) const override;
 

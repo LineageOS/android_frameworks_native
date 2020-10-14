@@ -33,10 +33,10 @@ namespace android {
 // using just a few large reads.
 static const size_t EVENT_BUFFER_SIZE = 100;
 
-DisplayEventDispatcher::DisplayEventDispatcher(const sp<Looper>& looper,
-                                               ISurfaceComposer::VsyncSource vsyncSource,
-                                               ISurfaceComposer::ConfigChanged configChanged)
-      : mLooper(looper), mReceiver(vsyncSource, configChanged), mWaitingForVsync(false) {
+DisplayEventDispatcher::DisplayEventDispatcher(
+        const sp<Looper>& looper, ISurfaceComposer::VsyncSource vsyncSource,
+        ISurfaceComposer::EventRegistrationFlags eventRegistration)
+      : mLooper(looper), mReceiver(vsyncSource, eventRegistration), mWaitingForVsync(false) {
     ALOGV("dispatcher %p ~ Initializing display event dispatcher.", this);
 }
 
@@ -139,6 +139,7 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
     ssize_t n;
     while ((n = mReceiver.getEvents(buf, EVENT_BUFFER_SIZE)) > 0) {
         ALOGV("dispatcher %p ~ Read %d events.", this, int(n));
+        mFrameRateOverrides.reserve(n);
         for (ssize_t i = 0; i < n; i++) {
             const DisplayEventReceiver::Event& ev = buf[i];
             switch (ev.header.type) {
@@ -161,6 +162,13 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                     break;
                 case DisplayEventReceiver::DISPLAY_EVENT_NULL:
                     dispatchNullEvent(ev.header.timestamp, ev.header.displayId);
+                    break;
+                case DisplayEventReceiver::DISPLAY_EVENT_FRAME_RATE_OVERRIDE:
+                    mFrameRateOverrides.emplace_back(ev.frameRateOverride);
+                    break;
+                case DisplayEventReceiver::DISPLAY_EVENT_FRAME_RATE_OVERRIDE_FLUSH:
+                    dispatchFrameRateOverrides(ev.header.timestamp, ev.header.displayId,
+                                               std::move(mFrameRateOverrides));
                     break;
                 default:
                     ALOGW("dispatcher %p ~ ignoring unknown event type %#x", this, ev.header.type);

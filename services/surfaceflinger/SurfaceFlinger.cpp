@@ -1527,11 +1527,12 @@ status_t SurfaceFlinger::notifyPowerBoost(int32_t boostId) {
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
-        ISurfaceComposer::VsyncSource vsyncSource, ISurfaceComposer::ConfigChanged configChanged) {
+        ISurfaceComposer::VsyncSource vsyncSource,
+        ISurfaceComposer::EventRegistrationFlags eventRegistration) {
     const auto& handle =
             vsyncSource == eVsyncSourceSurfaceFlinger ? mSfConnectionHandle : mAppConnectionHandle;
 
-    return mScheduler->createDisplayEventConnection(handle, configChanged);
+    return mScheduler->createDisplayEventConnection(handle, eventRegistration);
 }
 
 void SurfaceFlinger::signalTransaction() {
@@ -5274,10 +5275,18 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 return NO_ERROR;
             }
             case 1039: {
-                // The first parameter is the uid
-                n = data.readInt32();
-                const float refreshRateHz = data.readFloat();
-                mRefreshRateConfigs->setPreferredRefreshRateForUid(n, refreshRateHz);
+                PhysicalDisplayId displayId = [&]() {
+                    Mutex::Autolock lock(mStateLock);
+                    return getDefaultDisplayDeviceLocked()->getPhysicalId();
+                }();
+
+                auto inUid = static_cast<uid_t>(data.readInt32());
+                const auto refreshRate = data.readFloat();
+                mRefreshRateConfigs->setPreferredRefreshRateForUid(
+                        FrameRateOverride{inUid, refreshRate});
+                const auto mappings = mRefreshRateConfigs->getFrameRateOverrides();
+                mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId,
+                                                        std::move(mappings));
             }
                 return NO_ERROR;
         }

@@ -54,6 +54,8 @@ public:
         DISPLAY_EVENT_HOTPLUG = fourcc('p', 'l', 'u', 'g'),
         DISPLAY_EVENT_CONFIG_CHANGED = fourcc('c', 'o', 'n', 'f'),
         DISPLAY_EVENT_NULL = fourcc('n', 'u', 'l', 'l'),
+        DISPLAY_EVENT_FRAME_RATE_OVERRIDE = fourcc('r', 'a', 't', 'e'),
+        DISPLAY_EVENT_FRAME_RATE_OVERRIDE_FLUSH = fourcc('f', 'l', 's', 'h'),
     };
 
     struct Event {
@@ -85,11 +87,17 @@ public:
             nsecs_t vsyncPeriod __attribute__((aligned(8)));
         };
 
+        struct FrameRateOverride {
+            uid_t uid __attribute__((aligned(8)));
+            float frameRateHz __attribute__((aligned(8)));
+        };
+
         Header header;
         union {
             VSync vsync;
             Hotplug hotplug;
             Config config;
+            FrameRateOverride frameRateOverride;
         };
     };
 
@@ -98,13 +106,12 @@ public:
      * DisplayEventReceiver creates and registers an event connection with
      * SurfaceFlinger. VSync events are disabled by default. Call setVSyncRate
      * or requestNextVsync to receive them.
-     * To receive Config Changed events specify this in the constructor.
-     * Other events start being delivered immediately.
+     * To receive ConfigChanged and/or FrameRateOverrides events specify this in
+     * the constructor. Other events start being delivered immediately.
      */
     explicit DisplayEventReceiver(
             ISurfaceComposer::VsyncSource vsyncSource = ISurfaceComposer::eVsyncSourceApp,
-            ISurfaceComposer::ConfigChanged configChanged =
-                    ISurfaceComposer::eConfigChangedSuppress);
+            ISurfaceComposer::EventRegistrationFlags eventRegistration = {});
 
     /*
      * ~DisplayEventReceiver severs the connection with SurfaceFlinger, new events

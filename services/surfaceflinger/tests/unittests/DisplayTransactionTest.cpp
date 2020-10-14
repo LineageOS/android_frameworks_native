@@ -70,15 +70,13 @@ DisplayTransactionTest::~DisplayTransactionTest() {
 void DisplayTransactionTest::injectMockScheduler() {
     EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*mEventThread, createEventConnection(_, _))
-            .WillOnce(Return(new EventThreadConnection(mEventThread, /*callingUid=*/0,
-                                                       ResyncCallback(),
-                                                       ISurfaceComposer::eConfigChangedSuppress)));
+            .WillOnce(Return(
+                    new EventThreadConnection(mEventThread, /*callingUid=*/0, ResyncCallback())));
 
     EXPECT_CALL(*mSFEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*mSFEventThread, createEventConnection(_, _))
-            .WillOnce(Return(new EventThreadConnection(mSFEventThread, /*callingUid=*/0,
-                                                       ResyncCallback(),
-                                                       ISurfaceComposer::eConfigChangedSuppress)));
+            .WillOnce(Return(
+                    new EventThreadConnection(mSFEventThread, /*callingUid=*/0, ResyncCallback())));
 
     mFlinger.setupScheduler(std::unique_ptr<scheduler::VsyncController>(mVsyncController),
                             std::unique_ptr<scheduler::VSyncTracker>(mVSyncTracker),

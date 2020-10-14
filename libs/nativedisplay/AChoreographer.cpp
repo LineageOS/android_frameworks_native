@@ -141,6 +141,8 @@ private:
     void dispatchConfigChanged(nsecs_t timestamp, PhysicalDisplayId displayId, int32_t configId,
                                nsecs_t vsyncPeriod) override;
     void dispatchNullEvent(nsecs_t, PhysicalDisplayId) override;
+    void dispatchFrameRateOverrides(nsecs_t timestamp, PhysicalDisplayId displayId,
+                                    std::vector<FrameRateOverride> overrides) override;
 
     void scheduleCallbacks();
 
@@ -175,8 +177,7 @@ Choreographer* Choreographer::getForThread() {
 }
 
 Choreographer::Choreographer(const sp<Looper>& looper)
-      : DisplayEventDispatcher(looper, ISurfaceComposer::VsyncSource::eVsyncSourceApp,
-                               ISurfaceComposer::ConfigChanged::eConfigChangedSuppress),
+      : DisplayEventDispatcher(looper, ISurfaceComposer::VsyncSource::eVsyncSourceApp),
         mLooper(looper),
         mThreadId(std::this_thread::get_id()) {
     std::lock_guard<std::mutex> _l(gChoreographers.lock);
@@ -381,15 +382,13 @@ void Choreographer::dispatchHotplug(nsecs_t, PhysicalDisplayId displayId, bool c
             this, to_string(displayId).c_str(), toString(connected));
 }
 
-// TODO(b/74619554): The PhysicalDisplayId is ignored because currently
-// Choreographer only supports dispatching VSYNC events for the internal
-// display, so as such Choreographer does not support the notion of multiple
-// displays. When multi-display choreographer is properly supported, then
-// PhysicalDisplayId should no longer be ignored.
-void Choreographer::dispatchConfigChanged(nsecs_t, PhysicalDisplayId displayId, int32_t configId,
-                                          nsecs_t) {
-    ALOGV("choreographer %p ~ received config change event (displayId=%s, configId=%d).",
-          this, to_string(displayId).c_str(), configId);
+void Choreographer::dispatchConfigChanged(nsecs_t, PhysicalDisplayId, int32_t, nsecs_t) {
+    LOG_ALWAYS_FATAL("dispatchConfigChanged was called but was never registered");
+}
+
+void Choreographer::dispatchFrameRateOverrides(nsecs_t, PhysicalDisplayId,
+                                               std::vector<FrameRateOverride>) {
+    LOG_ALWAYS_FATAL("dispatchFrameRateOverrides was called but was never registered");
 }
 
 void Choreographer::dispatchNullEvent(nsecs_t, PhysicalDisplayId) {

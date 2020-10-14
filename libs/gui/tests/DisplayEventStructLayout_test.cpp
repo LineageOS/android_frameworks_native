@@ -40,6 +40,9 @@ TEST(DisplayEventStructLayoutTest, TestEventAlignment) {
 
     CHECK_OFFSET(DisplayEventReceiver::Event::Config, configId, 0);
     CHECK_OFFSET(DisplayEventReceiver::Event::Config, vsyncPeriod, 8);
+
+    CHECK_OFFSET(DisplayEventReceiver::Event::FrameRateOverride, uid, 0);
+    CHECK_OFFSET(DisplayEventReceiver::Event::FrameRateOverride, frameRateHz, 8);
 }
 
 } // namespace android::test

@@ -26,6 +26,8 @@
 #include <gui/IScreenCaptureListener.h>
 #include <gui/ITransactionCompletedListener.h>
 
+#include <input/Flags.h>
+
 #include <math/vec4.h>
 
 #include <ui/ConfigStoreTypes.h>
@@ -107,7 +109,12 @@ public:
         eVsyncSourceSurfaceFlinger = 1
     };
 
-    enum ConfigChanged { eConfigChangedSuppress = 0, eConfigChangedDispatch = 1 };
+    enum class EventRegistration {
+        configChanged = 1 << 0,
+        frameRateOverride = 1 << 1,
+    };
+
+    using EventRegistrationFlags = Flags<EventRegistration>;
 
     // Needs to be in sync with android.graphics.FrameInfo.INVALID_VSYNC_ID in java
     static constexpr int64_t INVALID_VSYNC_ID = -1;
@@ -120,7 +127,7 @@ public:
     /* return an IDisplayEventConnection */
     virtual sp<IDisplayEventConnection> createDisplayEventConnection(
             VsyncSource vsyncSource = eVsyncSourceApp,
-            ConfigChanged configChanged = eConfigChangedSuppress) = 0;
+            EventRegistrationFlags eventRegistration = {}) = 0;
 
     /* create a virtual display
      * requires ACCESS_SURFACE_FLINGER permission.
