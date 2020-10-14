@@ -3703,11 +3703,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eDetachChildren) {
         layer->detachChildren();
     }
-    if (what & layer_state_t::eOverrideScalingModeChanged) {
-        layer->setOverrideScalingMode(s.overrideScalingMode);
-        // We don't trigger a traversal here because if no other state is
-        // changed, we don't want this to cause any more work
-    }
     if (what & layer_state_t::eTransformChanged) {
         if (layer->setTransform(s.transform)) flags |= eTraversalNeeded;
     }

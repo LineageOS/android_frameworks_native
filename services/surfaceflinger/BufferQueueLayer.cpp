@@ -239,7 +239,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     bool queuedBuffer = false;
     const int32_t layerId = getSequence();
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
-                    getProducerStickyTransform() != 0, mName, mOverrideScalingMode,
+                    getProducerStickyTransform() != 0, mName,
                     getTransformToDisplayInverse());
 
     if (isRemovedFromCurrentState()) {

@@ -94,7 +94,7 @@ struct layer_state_t {
         eLayerStackChanged = 0x00000080,
         eCropChanged_legacy = 0x00000100,
         eDeferTransaction_legacy = 0x00000200,
-        eOverrideScalingModeChanged = 0x00000400,
+        /* was ScalingModeChanged, now available 0x00000400, */
         eShadowRadiusChanged = 0x00000800,
         eReparentChildren = 0x00001000,
         eDetachChildren = 0x00002000,
@@ -163,7 +163,6 @@ struct layer_state_t {
     sp<SurfaceControl> barrierSurfaceControl_legacy;
     sp<SurfaceControl> reparentSurfaceControl;
     uint64_t barrierFrameNumber;
-    int32_t overrideScalingMode;
 
     sp<SurfaceControl> relativeLayerSurfaceControl;
 

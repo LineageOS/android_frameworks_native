@@ -145,7 +145,6 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
                                   layer->mCurrentState.barrierLayer_legacy.promote(),
                                   layer->mCurrentState.barrierFrameNumber);
     }
-    addOverrideScalingModeLocked(transaction, layerId, layer->getEffectiveScalingMode());
     addFlagsLocked(transaction, layerId, layer->mCurrentState.flags,
                    layer_state_t::eLayerHidden | layer_state_t::eLayerOpaque |
                            layer_state_t::eLayerSecure);
@@ -376,14 +375,6 @@ void SurfaceInterceptor::addDeferTransactionLocked(Transaction* transaction, int
     deferTransaction->set_frame_number(frameNumber);
 }
 
-void SurfaceInterceptor::addOverrideScalingModeLocked(Transaction* transaction,
-        int32_t layerId, int32_t overrideScalingMode)
-{
-    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
-    OverrideScalingModeChange* overrideChange(change->mutable_override_scaling_mode());
-    overrideChange->set_override_scaling_mode(overrideScalingMode);
-}
-
 void SurfaceInterceptor::addReparentLocked(Transaction* transaction, int32_t layerId,
                                            int32_t parentId) {
     SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
@@ -473,9 +464,6 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
                                  ->owner.promote();
         }
         addDeferTransactionLocked(transaction, layerId, otherLayer, state.barrierFrameNumber);
-    }
-    if (state.what & layer_state_t::eOverrideScalingModeChanged) {
-        addOverrideScalingModeLocked(transaction, layerId, state.overrideScalingMode);
     }
     if (state.what & layer_state_t::eReparent) {
         auto parentHandle = (state.parentSurfaceControlForChild)

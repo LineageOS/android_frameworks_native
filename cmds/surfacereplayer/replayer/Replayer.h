@@ -98,8 +98,6 @@ class Replayer {
             layer_id id, const BackgroundBlurRadiusChange& cc);
     void setMatrix(SurfaceComposerClient::Transaction& t,
             layer_id id, const MatrixChange& mc);
-    void setOverrideScalingMode(SurfaceComposerClient::Transaction& t,
-            layer_id id, const OverrideScalingModeChange& osmc);
     void setTransparentRegionHint(SurfaceComposerClient::Transaction& t,
             layer_id id, const TransparentRegionHintChange& trgc);
     void setLayerStack(SurfaceComposerClient::Transaction& t,
