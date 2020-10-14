@@ -557,6 +557,40 @@ int AImageDecoder_decodeImage(AImageDecoder* _Nonnull decoder,
 bool AImageDecoder_isAnimated(AImageDecoder* _Nonnull decoder)
         __INTRODUCED_IN(31);
 
+enum {
+    /*
+     * Reported by {@link AImageDecoder_getRepeatCount} if the
+     * animation should repeat forever.
+     */
+    ANDROID_IMAGE_DECODER_INFINITE = INT32_MAX,
+};
+
+/**
+ * Report how many times the animation should repeat.
+ *
+ * Introduced in API 31.
+ *
+ * This does not include the first play through. e.g. a repeat
+ * count of 4 means that each frame is played 5 times.
+ *
+ * {@link ANDROID_IMAGE_DECODER_INFINITE} means to repeat forever.
+ *
+ * This may require seeking.
+ *
+ * For non-animated formats, this returns 0. It may return non-zero for
+ * an image with only one frame (i.e. {@link AImageDecoder_isAnimated} returns
+ * false) if the encoded image contains a repeat count.
+ *
+ * @return Number of times to repeat on success or a value
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The AImageDecoder
+ *   is null.
+ */
+int32_t AImageDecoder_getRepeatCount(AImageDecoder* _Nonnull decoder);
+        __INTRODUCED_IN(31);
+
 #endif // __ANDROID_API__ >= 31
 
 #ifdef __cplusplus
