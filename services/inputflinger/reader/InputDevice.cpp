@@ -84,12 +84,13 @@ void InputDevice::setEnabled(bool enabled, nsecs_t when) {
     bumpGeneration();
 }
 
-void InputDevice::dump(std::string& dump) {
+void InputDevice::dump(std::string& dump, const std::string& eventHubDevStr) {
     InputDeviceInfo deviceInfo;
     getDeviceInfo(&deviceInfo);
 
     dump += StringPrintf(INDENT "Device %d: %s\n", deviceInfo.getId(),
                          deviceInfo.getDisplayName().c_str());
+    dump += StringPrintf(INDENT "%s", eventHubDevStr.c_str());
     dump += StringPrintf(INDENT2 "Generation: %d\n", mGeneration);
     dump += StringPrintf(INDENT2 "IsExternal: %s\n", toString(mIsExternal));
     dump += StringPrintf(INDENT2 "AssociatedDisplayPort: ");
@@ -101,6 +102,7 @@ void InputDevice::dump(std::string& dump) {
     dump += StringPrintf(INDENT2 "HasMic:     %s\n", toString(mHasMic));
     dump += StringPrintf(INDENT2 "Sources: 0x%08x\n", deviceInfo.getSources());
     dump += StringPrintf(INDENT2 "KeyboardType: %d\n", deviceInfo.getKeyboardType());
+    dump += StringPrintf(INDENT2 "ControllerNum: %d\n", deviceInfo.getControllerNumber());
 
     const std::vector<InputDeviceInfo::MotionRange>& ranges = deviceInfo.getMotionRanges();
     if (!ranges.empty()) {
@@ -200,6 +202,8 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
 
     // insert the context into the devices set
     mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
+    // Must change generation to flag this device as changed
+    bumpGeneration();
 }
 
 void InputDevice::removeEventHubDevice(int32_t eventHubId) {
