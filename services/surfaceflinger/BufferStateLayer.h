@@ -92,7 +92,6 @@ public:
         return false;
     }
     bool setCrop_legacy(const Rect& /*crop*/) override { return false; }
-    bool setOverrideScalingMode(int32_t /*overrideScalingMode*/) override { return false; }
     void deferTransactionUntil_legacy(const sp<IBinder>& /*barrierHandle*/,
                                       uint64_t /*frameNumber*/) override {}
     void deferTransactionUntil_legacy(const sp<Layer>& /*barrierLayer*/,
@@ -110,6 +109,7 @@ public:
     bool fenceHasSignaled() const override;
     bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const override;
     bool onPreComposition(nsecs_t refreshStartTime) override;
+    uint32_t getEffectiveScalingMode() const override;
 
 protected:
     void gatherBufferInfo() override;

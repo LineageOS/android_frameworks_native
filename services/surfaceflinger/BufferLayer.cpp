@@ -527,10 +527,6 @@ bool BufferLayer::hasReadyFrame() const {
 }
 
 uint32_t BufferLayer::getEffectiveScalingMode() const {
-    if (mOverrideScalingMode >= 0) {
-        return mOverrideScalingMode;
-    }
-
     return mBufferInfo.mScaleMode;
 }
 

@@ -48,7 +48,6 @@ const std::array<float, 16> BufferStateLayer::IDENTITY_MATRIX{
 
 BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args)
       : BufferLayer(args), mHwcSlotGenerator(new HwcSlotGenerator()) {
-    mOverrideScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
     mCurrentState.dataspace = ui::Dataspace::V0_SRGB;
 }
 
@@ -679,6 +678,10 @@ void BufferStateLayer::gatherBufferInfo() {
     mBufferInfo.mApi = s.api;
     mBufferInfo.mTransformToDisplayInverse = s.transformToDisplayInverse;
     mBufferInfo.mBufferSlot = mHwcSlotGenerator->getHwcCacheSlot(s.clientCacheId);
+}
+
+uint32_t BufferStateLayer::getEffectiveScalingMode() const {
+   return NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
 }
 
 Rect BufferStateLayer::computeCrop(const State& s) {

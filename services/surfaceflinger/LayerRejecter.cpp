@@ -29,13 +29,12 @@ namespace android {
 
 LayerRejecter::LayerRejecter(Layer::State& front, Layer::State& current,
                              bool& recomputeVisibleRegions, bool stickySet, const std::string& name,
-                             int32_t overrideScalingMode, bool transformToDisplayInverse)
+                             bool transformToDisplayInverse)
       : mFront(front),
         mCurrent(current),
         mRecomputeVisibleRegions(recomputeVisibleRegions),
         mStickyTransformSet(stickySet),
         mName(name),
-        mOverrideScalingMode(overrideScalingMode),
         mTransformToDisplayInverse(transformToDisplayInverse) {}
 
 bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item) {
@@ -59,7 +58,7 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
         }
     }
 
-    int actualScalingMode = mOverrideScalingMode >= 0 ? mOverrideScalingMode : item.mScalingMode;
+    int actualScalingMode = item.mScalingMode;
     bool isFixedSize = actualScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE;
     if (mFront.active_legacy != mFront.requested_legacy) {
         if (isFixedSize ||

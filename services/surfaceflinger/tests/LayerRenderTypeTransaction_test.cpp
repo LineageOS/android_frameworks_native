@@ -179,19 +179,6 @@ TEST_P(LayerRenderTypeTransactionTest, SetSizeBasic_BufferQueue) {
     }
 }
 
-TEST_P(LayerRenderTypeTransactionTest, SetSizeWithScaleToWindow_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // setSize is immediate with SCALE_TO_WINDOW, unlike setPosition
-    Transaction()
-            .setSize(layer, 64, 64)
-            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
-            .apply();
-    getScreenCapture()->expectColor(Rect(0, 0, 64, 64), Color::RED);
-}
-
 TEST_P(LayerRenderTypeTransactionTest, CreateLayer_BufferState) {
     uint32_t transformHint = ui::Transform::ROT_INVALID;
     sp<SurfaceControl> layer;
@@ -947,40 +934,6 @@ TEST_P(LayerRenderTypeTransactionTest, SetMatrixWithResize_BufferQueue) {
         SCOPED_TRACE("resize applied");
         const Rect rect(0, 0, 128, 128);
         getScreenCapture()->expectColor(rect, Color::RED);
-    }
-}
-
-TEST_P(LayerRenderTypeTransactionTest, SetMatrixWithScaleToWindow_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // setMatrix is immediate with SCALE_TO_WINDOW, unlike setPosition
-    Transaction()
-            .setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f)
-            .setSize(layer, 64, 64)
-            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
-            .apply();
-    getScreenCapture()->expectColor(Rect(0, 0, 128, 128), Color::RED);
-}
-
-TEST_P(LayerRenderTypeTransactionTest, SetOverrideScalingModeBasic_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerQuadrant(layer, 32, 32, Color::RED, Color::GREEN,
-                                                         Color::BLUE, Color::WHITE));
-
-    // XXX SCALE_CROP is not respected; calling setSize and
-    // setOverrideScalingMode in separate transactions does not work
-    // (b/69315456)
-    Transaction()
-            .setSize(layer, 64, 16)
-            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
-            .apply();
-    {
-        SCOPED_TRACE("SCALE_TO_WINDOW");
-        getScreenCapture()->expectQuadrant(Rect(0, 0, 64, 16), Color::RED, Color::GREEN,
-                                           Color::BLUE, Color::WHITE, true /* filtered */);
     }
 }
 

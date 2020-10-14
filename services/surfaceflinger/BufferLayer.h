@@ -94,8 +94,7 @@ public:
 
     bool hasReadyFrame() const override;
 
-    // Returns the current scaling mode, unless mOverrideScalingMode
-    // is set, in which case, it returns mOverrideScalingMode
+    // Returns the current scaling mode
     uint32_t getEffectiveScalingMode() const override;
 
     // Calls latchBuffer if the buffer has a frame queued and then releases the buffer.
