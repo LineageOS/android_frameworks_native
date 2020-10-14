@@ -797,13 +797,14 @@ private:
     // Boot animation, on/off animations and screen capture
     void startBootAnim();
 
+    status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize,
+                                 ui::PixelFormat, const bool allowProtected,
+                                 const sp<IScreenCaptureListener>&);
+    status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, sp<GraphicBuffer>&,
+                                 bool regionSampling, const sp<IScreenCaptureListener>&);
     status_t renderScreenImplLocked(const RenderArea&, TraverseLayersFunction,
                                     const sp<GraphicBuffer>&, bool forSystem, int* outSyncFd,
                                     bool regionSampling, ScreenCaptureResults&);
-    status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize,
-                                 ui::PixelFormat, const sp<IScreenCaptureListener>&);
-    status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, sp<GraphicBuffer>&,
-                                 bool regionSampling, const sp<IScreenCaptureListener>&);
 
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack) REQUIRES(mStateLock);

@@ -467,7 +467,7 @@ public:
     virtual bool canReceiveInput() const;
 
     /*
-     * isProtected - true if the layer may contain protected content in the
+     * isProtected - true if the layer may contain protected contents in the
      * GRALLOC_USAGE_PROTECTED sense.
      */
     virtual bool isProtected() const { return false; }
@@ -679,7 +679,8 @@ public:
 
     /*
      * isSecure - true if this surface is secure, that is if it prevents
-     * screenshots or VNC servers.
+     * screenshots or VNC servers. A surface can be set to be secure by the
+     * application, being secure doesn't mean the surface has DRM contents.
      */
     bool isSecure() const;
 

@@ -593,6 +593,7 @@ status_t CaptureArgs::write(Parcel& output) const {
     SAFE_PARCEL(output.writeBool, captureSecureLayers);
     SAFE_PARCEL(output.writeInt32, uid);
     SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(dataspace));
+    SAFE_PARCEL(output.writeBool, allowProtected);
     return NO_ERROR;
 }
 
@@ -606,6 +607,7 @@ status_t CaptureArgs::read(const Parcel& input) {
     SAFE_PARCEL(input.readInt32, &uid);
     SAFE_PARCEL(input.readInt32, &value);
     dataspace = static_cast<ui::Dataspace>(value);
+    SAFE_PARCEL(input.readBool, &allowProtected);
     return NO_ERROR;
 }
 

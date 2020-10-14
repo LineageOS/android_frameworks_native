@@ -319,6 +319,14 @@ struct CaptureArgs {
     // NOTE: In normal cases, we want the screen to be captured in display's colorspace.
     ui::Dataspace dataspace = ui::Dataspace::UNKNOWN;
 
+    // The receiver of the capture can handle protected buffer. A protected buffer has
+    // GRALLOC_USAGE_PROTECTED usage bit and must not be accessed unprotected behaviour.
+    // Any read/write access from unprotected context will result in undefined behaviour.
+    // Protected contents are typically DRM contents. This has no direct implication to the
+    // secure property of the surface, which is specified by the application explicitly to avoid
+    // the contents being accessed/captured by screenshot or unsecure display.
+    bool allowProtected = false;
+
     virtual status_t write(Parcel& output) const;
     virtual status_t read(const Parcel& input);
 };
@@ -346,7 +354,7 @@ struct ScreenCaptureResults {
     sp<GraphicBuffer> buffer;
     bool capturedSecureLayers{false};
     ui::Dataspace capturedDataspace{ui::Dataspace::V0_SRGB};
-    status_t result = NO_ERROR;
+    status_t result = OK;
 
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
