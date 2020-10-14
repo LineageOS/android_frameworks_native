@@ -23,6 +23,7 @@
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/GLConsumer.h>
+#include <gui/Surface.h>
 
 #include <utils/Trace.h>
 
@@ -350,6 +351,28 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) const {
 bool BLASTBufferQueue::maxBuffersAcquired() const {
     return mNumAcquired == MAX_ACQUIRED_BUFFERS + 1 ||
             (!mInitialCallbackReceived && mNumAcquired == 1);
+}
+
+class BBQSurface : public Surface {
+public:
+    BBQSurface(const sp<IGraphicBufferProducer>& igbp, bool controlledByApp) :
+        Surface(igbp, controlledByApp) {
+    }
+    void allocateBuffers() override {
+        uint32_t reqWidth = mReqWidth ? mReqWidth : mUserWidth;
+        uint32_t reqHeight = mReqHeight ? mReqHeight : mUserHeight;
+        auto gbp = getIGraphicBufferProducer();
+        std::thread ([reqWidth, reqHeight, gbp=getIGraphicBufferProducer(),
+                      reqFormat=mReqFormat, reqUsage=mReqUsage] () {
+            gbp->allocateBuffers(reqWidth, reqHeight,
+                                 reqFormat, reqUsage);
+
+        }).detach();
+    }
+};
+
+sp<Surface> BLASTBufferQueue::getSurface() {
+    return new BBQSurface(mProducer, true);
 }
 
 } // namespace android

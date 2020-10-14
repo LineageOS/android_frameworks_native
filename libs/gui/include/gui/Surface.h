@@ -120,7 +120,7 @@ public:
      * delay during dequeueBuffer. If there are already the maximum number of
      * buffers allocated, this function has no effect.
      */
-    void allocateBuffers();
+    virtual void allocateBuffers();
 
     /* Sets the generation number on the IGraphicBufferProducer and updates the
      * generation number on any buffers attached to the Surface after this call.
