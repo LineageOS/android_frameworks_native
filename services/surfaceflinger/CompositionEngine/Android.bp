@@ -1,3 +1,15 @@
+soong_config_module_type_import {
+    from: "vendor/lineage/build/soong/Android.bp",
+    module_types: ["surfaceflinger_fod_lib_defaults"],
+}
+
+cc_library_static {
+    name: "surfaceflinger_fod_lib_defaults",
+    srcs: [
+        "src/FodExtension.cpp",
+    ],
+}
+
 cc_defaults {
     name: "libcompositionengine_defaults",
     defaults: ["surfaceflinger_defaults"],
@@ -41,7 +53,10 @@ cc_defaults {
 
 cc_library {
     name: "libcompositionengine",
-    defaults: ["libcompositionengine_defaults"],
+    defaults: [
+        "libcompositionengine_defaults",
+        "surfaceflinger_fod_lib",
+    ],
     srcs: [
         "src/ClientCompositionRequestCache.cpp",
         "src/CompositionEngine.cpp",
@@ -49,7 +64,6 @@ cc_library {
         "src/DisplayColorProfile.cpp",
         "src/DisplaySurface.cpp",
         "src/DumpHelpers.cpp",
-        "src/FodExtension.cpp",
         "src/HwcBufferCache.cpp",
         "src/LayerFECompositionState.cpp",
         "src/Output.cpp",
@@ -58,16 +72,7 @@ cc_library {
         "src/OutputLayerCompositionState.cpp",
         "src/RenderSurface.cpp",
     ],
-    local_include_dirs: ["include"],
     export_include_dirs: ["include"],
-    product_variables: {
-        lineage: {
-            target_surfaceflinger_fod_lib: {
-                cflags: ["-DTARGET_PROVIDES_FOD_LIB"],
-                whole_static_libs: ["%s"],
-            },
-        },
-    },
 }
 
 cc_library {
@@ -89,14 +94,13 @@ cc_library {
         "libgmock",
         "libcompositionengine",
     ],
-    local_include_dirs: ["include"],
     export_include_dirs: ["include"],
 }
 
 cc_test {
     name: "libcompositionengine_test",
-    test_suites: ["device-tests"],
     defaults: ["libcompositionengine_defaults"],
+    test_suites: ["device-tests"],
     srcs: [
         "tests/CompositionEngineTest.cpp",
         "tests/DisplayColorProfileTest.cpp",
@@ -130,7 +134,6 @@ cc_test {
         //
         // You can either "make dist tests" before flashing, or set this
         // option to false temporarily.
-
 
         // FIXME: ASAN build is broken for a while, but was not discovered
         // since new PM silently suppressed ASAN. Temporarily turn off ASAN
