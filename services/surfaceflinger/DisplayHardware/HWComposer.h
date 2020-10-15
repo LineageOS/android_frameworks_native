@@ -173,6 +173,10 @@ public:
     virtual std::optional<DisplayIdentificationInfo> onHotplug(hal::HWDisplayId,
                                                                hal::Connection) = 0;
 
+    // If true we'll update the DeviceProductInfo on subsequent hotplug connected events.
+    // TODO(b/157555476): Remove when the framework has proper support for headless mode
+    virtual bool updatesDeviceProductInfoOnHotplugReconnect() const = 0;
+
     virtual bool onVsync(hal::HWDisplayId, int64_t timestamp) = 0;
     virtual void setVsyncEnabled(PhysicalDisplayId, hal::Vsync enabled) = 0;
 
@@ -303,9 +307,11 @@ public:
 
     // Events handling ---------------------------------------------------------
 
-    // Returns stable display ID (and display name on connection of new or previously disconnected
+    // Returns PhysicalDisplayId (and display name on connection of new or previously disconnected
     // display), or std::nullopt if hotplug event was ignored.
     std::optional<DisplayIdentificationInfo> onHotplug(hal::HWDisplayId, hal::Connection) override;
+
+    bool updatesDeviceProductInfoOnHotplugReconnect() const override;
 
     bool onVsync(hal::HWDisplayId, int64_t timestamp) override;
     void setVsyncEnabled(PhysicalDisplayId, hal::Vsync enabled) override;
@@ -400,6 +406,8 @@ private:
     bool mHasMultiDisplaySupport = false;
 
     RandomDisplayIdGenerator<HalVirtualDisplayId> mVirtualIdGenerator{getMaxVirtualDisplayCount()};
+
+    const bool mUpdateDeviceProductInfoOnHotplugReconnect;
 };
 
 } // namespace impl

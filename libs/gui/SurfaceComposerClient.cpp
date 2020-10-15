@@ -1353,35 +1353,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::detachCh
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setOverrideScalingMode(
-        const sp<SurfaceControl>& sc, int32_t overrideScalingMode) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-
-    switch (overrideScalingMode) {
-        case NATIVE_WINDOW_SCALING_MODE_FREEZE:
-        case NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW:
-        case NATIVE_WINDOW_SCALING_MODE_SCALE_CROP:
-        case NATIVE_WINDOW_SCALING_MODE_NO_SCALE_CROP:
-        case -1:
-            break;
-        default:
-            ALOGE("unknown scaling mode: %d",
-                    overrideScalingMode);
-            mStatus = BAD_VALUE;
-            return *this;
-    }
-
-    s->what |= layer_state_t::eOverrideScalingModeChanged;
-    s->overrideScalingMode = overrideScalingMode;
-
-    registerSurfaceControlForCallback(sc);
-    return *this;
-}
-
 #ifndef NO_INPUT
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInputWindowInfo(
         const sp<SurfaceControl>& sc,

@@ -124,6 +124,10 @@ props {
     prop_name: "ro.surface_flinger.supports_background_blur"
   }
   prop {
+    api_name: "update_device_product_info_on_hotplug_reconnect"
+    prop_name: "ro.surface_flinger.update_device_product_info_on_hotplug_reconnect"
+  }
+  prop {
     api_name: "use_color_management"
     prop_name: "ro.surface_flinger.use_color_management"
   }

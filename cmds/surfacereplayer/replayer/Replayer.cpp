@@ -387,10 +387,6 @@ status_t Replayer::doSurfaceTransaction(
             case SurfaceChange::SurfaceChangeCase::kMatrix:
                 setMatrix(transaction, change.id(), change.matrix());
                 break;
-            case SurfaceChange::SurfaceChangeCase::kOverrideScalingMode:
-                setOverrideScalingMode(transaction, change.id(),
-                        change.override_scaling_mode());
-                break;
             case SurfaceChange::SurfaceChangeCase::kTransparentRegionHint:
                 setTransparentRegionHint(transaction, change.id(),
                         change.transparent_region_hint());
@@ -523,12 +519,6 @@ void Replayer::setMatrix(SurfaceComposerClient::Transaction& t,
     ALOGV("Layer %d: Setting Matrix -- dsdx=%f, dtdx=%f, dsdy=%f, dtdy=%f", id, mc.dsdx(),
             mc.dtdx(), mc.dsdy(), mc.dtdy());
     t.setMatrix(mLayers[id], mc.dsdx(), mc.dtdx(), mc.dsdy(), mc.dtdy());
-}
-
-void Replayer::setOverrideScalingMode(SurfaceComposerClient::Transaction& t,
-        layer_id id, const OverrideScalingModeChange& osmc) {
-    ALOGV("Layer %d: Setting Override Scaling Mode -- mode=%d", id, osmc.override_scaling_mode());
-    t.setOverrideScalingMode(mLayers[id], osmc.override_scaling_mode());
 }
 
 void Replayer::setTransparentRegionHint(SurfaceComposerClient::Transaction& t,

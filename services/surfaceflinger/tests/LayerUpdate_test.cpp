@@ -566,7 +566,10 @@ TEST_F(ChildLayerTest, ChildrenInheritNonTransformScalingFromParent) {
     }
 
     asTransaction([&](Transaction& t) {
-        t.setOverrideScalingMode(mFGSurfaceControl, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        mFGSurfaceControl->getSurface()->setScalingMode(
+            NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        // Resubmit buffer with new scaling mode
+        TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
         // We cause scaling by 2.
         t.setSize(mFGSurfaceControl, 128, 128);
     });
@@ -673,7 +676,10 @@ TEST_F(ChildLayerTest, ChildCroppedByParentWithBufferScale) {
     }
 
     asTransaction([&](Transaction& t) {
-        t.setOverrideScalingMode(mFGSurfaceControl, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        mFGSurfaceControl->getSurface()->setScalingMode(
+            NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        // Resubmit buffer with new scaling mode
+        TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
         // Set a scaling by 2.
         t.setSize(mFGSurfaceControl, 128, 128);
     });
@@ -705,7 +711,10 @@ TEST_F(ChildLayerTest, ChildrenWithParentBufferTransformAndScale) {
 
     // Change the size of the foreground to 128 * 64 so we can test rotation as well.
     asTransaction([&](Transaction& t) {
-        t.setOverrideScalingMode(mFGSurfaceControl, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        mFGSurfaceControl->getSurface()->setScalingMode(
+            NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        // Resubmit buffer with new scaling mode
+        TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
         t.setSize(mFGSurfaceControl, 128, 64);
     });
     sp<Surface> s = mFGSurfaceControl->getSurface();

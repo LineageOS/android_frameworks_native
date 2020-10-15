@@ -2313,7 +2313,7 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
 
 void SurfaceFlinger::processDisplayHotplugEventsLocked() {
     for (const auto& event : mPendingHotplugEvents) {
-        const std::optional<DisplayIdentificationInfo> info =
+        std::optional<DisplayIdentificationInfo> info =
                 getHwComposer().onHotplug(event.hwcDisplayId, event.connection);
 
         if (!info) {
@@ -2335,9 +2335,9 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 state.physical = {.id = displayId,
                                   .type = getHwComposer().getDisplayConnectionType(displayId),
                                   .hwcDisplayId = event.hwcDisplayId,
-                                  .deviceProductInfo = info->deviceProductInfo};
+                                  .deviceProductInfo = std::move(info->deviceProductInfo)};
                 state.isSecure = true; // All physical displays are currently considered secure.
-                state.displayName = info->name;
+                state.displayName = std::move(info->name);
 
                 sp<IBinder> token = new BBinder();
                 mCurrentState.displays.add(token, state);
@@ -2349,7 +2349,10 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 
                 const auto token = it->second;
                 auto& state = mCurrentState.displays.editValueFor(token);
-                state.sequenceId = DisplayDeviceState{}.sequenceId;
+                state.sequenceId = DisplayDeviceState{}.sequenceId; // Generate new sequenceId
+                if (getHwComposer().updatesDeviceProductInfoOnHotplugReconnect()) {
+                    state.physical->deviceProductInfo = std::move(info->deviceProductInfo);
+                }
             }
         } else {
             ALOGV("Removing display %s", to_string(displayId).c_str());
@@ -3702,11 +3705,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eDetachChildren) {
         layer->detachChildren();
-    }
-    if (what & layer_state_t::eOverrideScalingModeChanged) {
-        layer->setOverrideScalingMode(s.overrideScalingMode);
-        // We don't trigger a traversal here because if no other state is
-        // changed, we don't want this to cause any more work
     }
     if (what & layer_state_t::eTransformChanged) {
         if (layer->setTransform(s.transform)) flags |= eTraversalNeeded;
