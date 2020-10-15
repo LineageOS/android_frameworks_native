@@ -1073,7 +1073,8 @@ private:
     sp<Layer> getRootLayer();
 
     // Cached properties computed from drawing state
-    // Effective transform taking into account parent transforms and any parent scaling.
+    // Effective transform taking into account parent transforms and any parent scaling, which is
+    // a transform from the current layer coordinate space to display(screen) coordinate space.
     ui::Transform mEffectiveTransform;
 
     // Bounds of the layer before any transformation is applied and before it has been cropped
