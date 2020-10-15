@@ -41,7 +41,6 @@ message SurfaceChange {
         LayerChange                 layer                   = 5;
         CropChange                  crop                    = 6;
         MatrixChange                matrix                  = 8;
-        OverrideScalingModeChange   override_scaling_mode   = 9;
         TransparentRegionHintChange transparent_region_hint = 10;
         LayerStackChange            layer_stack             = 11;
         HiddenFlagChange            hidden_flag             = 12;
@@ -93,10 +92,6 @@ message MatrixChange {
     required float dtdx = 2;
     required float dsdy = 3;
     required float dtdy = 4;
-}
-
-message OverrideScalingModeChange {
-    required int32 override_scaling_mode = 1;
 }
 
 message TransparentRegionHintChange {

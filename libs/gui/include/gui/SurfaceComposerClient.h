@@ -501,11 +501,6 @@ public:
         // Sometimes the WindowManager needs to extend their lifetime slightly
         // in order to perform an exit animation or prevent flicker.
         Transaction& detachChildren(const sp<SurfaceControl>& sc);
-        // Set an override scaling mode as documented in <system/window.h>
-        // the override scaling mode will take precedence over any client
-        // specified scaling mode. -1 will clear the override scaling mode.
-        Transaction& setOverrideScalingMode(const sp<SurfaceControl>& sc,
-                int32_t overrideScalingMode);
 
 #ifndef NO_INPUT
         Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const InputWindowInfo& info);

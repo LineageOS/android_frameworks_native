@@ -1691,30 +1691,6 @@ protected:
         EXPECT_TRUE(framesAreSame(referenceFrame, Base::sFakeComposer->getLatestFrame()));
     }
 
-    void Test_InheritNonTransformScalingFromParent() {
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.show(mChild);
-            ts.setPosition(mChild, 0, 0);
-            ts.setPosition(Base::mFGSurfaceControl, 0, 0);
-        }
-
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.setOverrideScalingMode(Base::mFGSurfaceControl,
-                                      NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-            // We cause scaling by 2.
-            ts.setSize(Base::mFGSurfaceControl, 128, 128);
-        }
-
-        auto referenceFrame = Base::mBaseFrame;
-        referenceFrame[Base::FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 128, 128};
-        referenceFrame[Base::FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 64.f, 64.f};
-        referenceFrame[CHILD_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 20, 20};
-        referenceFrame[CHILD_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 10.f, 10.f};
-        EXPECT_TRUE(framesAreSame(referenceFrame, Base::sFakeComposer->getLatestFrame()));
-    }
-
     // Regression test for b/37673612
     void Test_ChildrenWithParentBufferTransform() {
         {
@@ -1821,10 +1797,6 @@ TEST_F(ChildLayerTest_2_1, DISABLED_DetachChildrenSameClient) {
 
 TEST_F(ChildLayerTest_2_1, DISABLED_DetachChildrenDifferentClient) {
     Test_DetachChildrenDifferentClient();
-}
-
-TEST_F(ChildLayerTest_2_1, DISABLED_InheritNonTransformScalingFromParent) {
-    Test_InheritNonTransformScalingFromParent();
 }
 
 // Regression test for b/37673612
