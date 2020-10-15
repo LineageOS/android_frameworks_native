@@ -254,8 +254,8 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     if (rejectBuffer(bufferItem)) {
         BQA_LOGE("rejecting buffer:configured size=%dx%d, buffer{size=%dx%d transform=%d}", mWidth,
                  mHeight, buffer->getWidth(), buffer->getHeight(), bufferItem.mTransform);
-        mBufferItemConsumer->releaseBuffer(bufferItem, Fence::NO_FENCE);
-        return;
+        // TODO(b/168917217) temporarily don't reject buffers until we can synchronize buffer size
+        // changes from ViewRootImpl.
     }
 
     mNumAcquired++;
@@ -307,13 +307,16 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& /*item*/) {
     std::unique_lock _lock{mMutex};
 
     const bool nextTransactionSet = mNextTransaction != nullptr;
-    BQA_LOGV("onFrameAvailable nextTransactionSet=%s", toString(nextTransactionSet));
+    BQA_LOGV("onFrameAvailable nextTransactionSet=%s mFlushShadowQueue=%s",
+             toString(nextTransactionSet), toString(mFlushShadowQueue));
 
-    if (nextTransactionSet) {
+    if (nextTransactionSet || mFlushShadowQueue) {
         while (mNumFrameAvailable > 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1) {
+            BQA_LOGV("waiting in onFrameAvailable...");
             mCallbackCV.wait(_lock);
         }
     }
+    mFlushShadowQueue = false;
     // add to shadow queue
     mNumFrameAvailable++;
     processNextBufferLocked(true);
