@@ -479,8 +479,7 @@ TEST_F(ListTest, Fetch) {
 }
 
 TEST_F(ListTest, DumpVintf) {
-    const std::string expected = "<manifest version=\"2.0\" type=\"device\">\n"
-                                 "    <hal format=\"hidl\">\n"
+    const std::string expected = "    <hal format=\"hidl\">\n"
                                  "        <name>a.h.foo1</name>\n"
                                  "        <transport>hwbinder</transport>\n"
                                  "        <fqname>@1.0::IFoo/1</fqname>\n"
@@ -499,8 +498,7 @@ TEST_F(ListTest, DumpVintf) {
                                  "        <name>a.h.foo4</name>\n"
                                  "        <transport arch=\"32\">passthrough</transport>\n"
                                  "        <fqname>@4.0::IFoo/4</fqname>\n"
-                                 "    </hal>\n"
-                                 "</manifest>";
+                                 "    </hal>\n";
 
     optind = 1; // mimic Lshal::parseArg()
     EXPECT_EQ(0u, mockList->main(createArg({"lshal", "--init-vintf"})));
