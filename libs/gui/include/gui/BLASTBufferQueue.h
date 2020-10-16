@@ -94,9 +94,10 @@ private:
     BLASTBufferQueue(const BLASTBufferQueue& rhs);
 
     void processNextBufferLocked(bool useNextTransaction) REQUIRES(mMutex);
-    Rect computeCrop(const BufferItem& item);
+    Rect computeCrop(const BufferItem& item) REQUIRES(mMutex);
     // Return true if we need to reject the buffer based on the scaling mode and the buffer size.
-    bool rejectBuffer(const BufferItem& item) const;
+    bool rejectBuffer(const BufferItem& item) const REQUIRES(mMutex);
+    bool maxBuffersAcquired() const REQUIRES(mMutex);
 
     std::string mName;
     sp<SurfaceControl> mSurfaceControl;
