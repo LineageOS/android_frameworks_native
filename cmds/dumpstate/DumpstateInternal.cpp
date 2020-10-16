@@ -69,7 +69,7 @@ bool DropRootUser() {
 
     static const std::vector<std::string> group_names{
         "log", "sdcard_r", "sdcard_rw", "mount", "inet", "net_bw_stats",
-            "readproc", "bluetooth", "wakelock"};
+            "readproc", "bluetooth", "wakelock", "nfc"};
     std::vector<gid_t> groups(group_names.size(), 0);
     for (size_t i = 0; i < group_names.size(); ++i) {
         grp = getgrnam(group_names[i].c_str());
