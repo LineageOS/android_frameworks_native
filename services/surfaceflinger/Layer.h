@@ -465,7 +465,7 @@ public:
     virtual bool canReceiveInput() const;
 
     /*
-     * isProtected - true if the layer may contain protected content in the
+     * isProtected - true if the layer may contain protected contents in the
      * GRALLOC_USAGE_PROTECTED sense.
      */
     virtual bool isProtected() const { return false; }
@@ -677,7 +677,8 @@ public:
 
     /*
      * isSecure - true if this surface is secure, that is if it prevents
-     * screenshots or VNC servers.
+     * screenshots or VNC servers. A surface can be set to be secure by the
+     * application, being secure doesn't mean the surface has DRM contents.
      */
     bool isSecure() const;
 
@@ -1073,7 +1074,8 @@ private:
     sp<Layer> getRootLayer();
 
     // Cached properties computed from drawing state
-    // Effective transform taking into account parent transforms and any parent scaling.
+    // Effective transform taking into account parent transforms and any parent scaling, which is
+    // a transform from the current layer coordinate space to display(screen) coordinate space.
     ui::Transform mEffectiveTransform;
 
     // Bounds of the layer before any transformation is applied and before it has been cropped
