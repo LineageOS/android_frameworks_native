@@ -461,6 +461,7 @@ private:
         float obscuringOpacity;
         std::string obscuringPackage;
         int32_t obscuringUid;
+        std::vector<std::string> debugInfo;
     };
 
     TouchOcclusionInfo computeTouchOcclusionInfoLocked(const sp<InputWindowHandle>& windowHandle,
@@ -469,6 +470,7 @@ private:
     bool isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle, int32_t x,
                                        int32_t y) const REQUIRES(mLock);
     bool isWindowObscuredLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
+    std::string dumpWindowForTouchOcclusion(const InputWindowInfo* info, bool isTouchWindow) const;
     std::string getApplicationWindowLabel(
             const std::shared_ptr<InputApplicationHandle>& applicationHandle,
             const sp<InputWindowHandle>& windowHandle);
