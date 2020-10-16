@@ -213,12 +213,9 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     ATRACE_CALL();
     BQA_LOGV("processNextBufferLocked useNextTransaction=%s", toString(useNextTransaction));
 
-    // Wait to acquire a buffer if there are no frames available or we have acquired the maximum
+    // Wait to acquire a buffer if there are no frames available or we have acquired the max
     // number of buffers.
-    // As a special case, we wait for the first callback before acquiring the second buffer so we
-    // can ensure the first buffer is presented if multiple buffers are queued in succession.
-    if (mNumFrameAvailable == 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1 ||
-        (!mInitialCallbackReceived && mNumAcquired == 1)) {
+    if (mNumFrameAvailable == 0 || maxBuffersAcquired()) {
         BQA_LOGV("processNextBufferLocked waiting for frame available or callback");
         return;
     }
@@ -241,6 +238,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
 
     status_t status = mBufferItemConsumer->acquireBuffer(&bufferItem, -1, false);
     if (status != OK) {
+        BQA_LOGE("Failed to acquire a buffer, err=%s", statusToString(status).c_str());
         return;
     }
     auto buffer = bufferItem.mGraphicBuffer;
@@ -248,6 +246,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
 
     if (buffer == nullptr) {
         mBufferItemConsumer->releaseBuffer(bufferItem, Fence::NO_FENCE);
+        BQA_LOGE("Buffer was empty");
         return;
     }
 
@@ -311,7 +310,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& /*item*/) {
              toString(nextTransactionSet), toString(mFlushShadowQueue));
 
     if (nextTransactionSet || mFlushShadowQueue) {
-        while (mNumFrameAvailable > 0 || mNumAcquired == MAX_ACQUIRED_BUFFERS + 1) {
+        while (mNumFrameAvailable > 0 || maxBuffersAcquired()) {
             BQA_LOGV("waiting in onFrameAvailable...");
             mCallbackCV.wait(_lock);
         }
@@ -344,4 +343,13 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) const {
     // reject buffers if the buffer size doesn't match.
     return bufWidth != mWidth || bufHeight != mHeight;
 }
+
+// Check if we have acquired the maximum number of buffers.
+// As a special case, we wait for the first callback before acquiring the second buffer so we
+// can ensure the first buffer is presented if multiple buffers are queued in succession.
+bool BLASTBufferQueue::maxBuffersAcquired() const {
+    return mNumAcquired == MAX_ACQUIRED_BUFFERS + 1 ||
+            (!mInitialCallbackReceived && mNumAcquired == 1);
+}
+
 } // namespace android
