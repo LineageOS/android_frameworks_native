@@ -5381,6 +5381,45 @@ static status_t validateScreenshotPermissions(const CaptureArgs& captureArgs) {
     return PERMISSION_DENIED;
 }
 
+status_t SurfaceFlinger::setSchedFifo(bool enabled) {
+    static constexpr int kFifoPriority = 2;
+    static constexpr int kOtherPriority = 0;
+
+    struct sched_param param = {0};
+    int sched_policy;
+    if (enabled) {
+        sched_policy = SCHED_FIFO;
+        param.sched_priority = kFifoPriority;
+    } else {
+        sched_policy = SCHED_OTHER;
+        param.sched_priority = kOtherPriority;
+    }
+
+    if (sched_setscheduler(0, sched_policy, &param) != 0) {
+        return -errno;
+    }
+    return NO_ERROR;
+}
+
+sp<DisplayDevice> SurfaceFlinger::getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) {
+    if (const sp<IBinder> displayToken =
+                getPhysicalDisplayTokenLocked(PhysicalDisplayId{displayOrLayerStack})) {
+        return getDisplayDeviceLocked(displayToken);
+    }
+    // Couldn't find display by displayId. Try to get display by layerStack since virtual displays
+    // may not have a displayId.
+    return getDisplayByLayerStack(displayOrLayerStack);
+}
+
+sp<DisplayDevice> SurfaceFlinger::getDisplayByLayerStack(uint64_t layerStack) {
+    for (const auto& [token, display] : mDisplays) {
+        if (display->getLayerStack() == layerStack) {
+            return display;
+        }
+    }
+    return nullptr;
+}
+
 status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                                         const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
@@ -5429,46 +5468,7 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               args.pixelFormat, captureListener);
-}
-
-status_t SurfaceFlinger::setSchedFifo(bool enabled) {
-    static constexpr int kFifoPriority = 2;
-    static constexpr int kOtherPriority = 0;
-
-    struct sched_param param = {0};
-    int sched_policy;
-    if (enabled) {
-        sched_policy = SCHED_FIFO;
-        param.sched_priority = kFifoPriority;
-    } else {
-        sched_policy = SCHED_OTHER;
-        param.sched_priority = kOtherPriority;
-    }
-
-    if (sched_setscheduler(0, sched_policy, &param) != 0) {
-        return -errno;
-    }
-    return NO_ERROR;
-}
-
-sp<DisplayDevice> SurfaceFlinger::getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) {
-    if (const sp<IBinder> displayToken =
-                getPhysicalDisplayTokenLocked(PhysicalDisplayId{displayOrLayerStack})) {
-        return getDisplayDeviceLocked(displayToken);
-    }
-    // Couldn't find display by displayId. Try to get display by layerStack since virtual displays
-    // may not have a displayId.
-    return getDisplayByLayerStack(displayOrLayerStack);
-}
-
-sp<DisplayDevice> SurfaceFlinger::getDisplayByLayerStack(uint64_t layerStack) {
-    for (const auto& [token, display] : mDisplays) {
-        if (display->getLayerStack() == layerStack) {
-            return display;
-        }
-    }
-    return nullptr;
+                               args.pixelFormat, args.allowProtected, captureListener);
 }
 
 status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
@@ -5503,7 +5503,8 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
-                               ui::PixelFormat::RGBA_8888, captureListener);
+                               ui::PixelFormat::RGBA_8888, false /* allowProtected */,
+                               captureListener);
 }
 
 status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
@@ -5624,18 +5625,32 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               args.pixelFormat, captureListener);
+                               args.pixelFormat, args.allowProtected, captureListener);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
                                              ui::Size bufferSize, ui::PixelFormat reqPixelFormat,
+                                             const bool allowProtected,
                                              const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
-    // TODO(b/116112787) Make buffer usage a parameter.
-    const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
-            GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
+    // Loop over all visible layers to see whether there's any protected layer. A protected layer is
+    // typically a layer with DRM contents, or have the GRALLOC_USAGE_PROTECTED set on the buffer.
+    // A protected layer has no implication on whether it's secure, which is explicitly set by
+    // application to avoid being screenshot or drawn via unsecure display.
+    const bool supportsProtected = getRenderEngine().supportsProtectedContent();
+    bool hasProtectedLayer = false;
+    if (allowProtected && supportsProtected) {
+        traverseLayers([&](Layer* layer) {
+            hasProtectedLayer = hasProtectedLayer || (layer->isVisible() && layer->isProtected());
+        });
+    }
+
+    const uint32_t usage = GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE |
+            (hasProtectedLayer && allowProtected && supportsProtected
+                     ? GRALLOC_USAGE_PROTECTED
+                     : GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN);
     sp<GraphicBuffer> buffer =
             getFactory().createGraphicBuffer(bufferSize.getWidth(), bufferSize.getHeight(),
                                              static_cast<android_pixel_format>(reqPixelFormat),
@@ -5646,7 +5661,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
-                                             sp<GraphicBuffer>& buffer, bool regionSampling,
+                                             sp<GraphicBuffer>& buffer, const bool regionSampling,
                                              const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
@@ -5704,6 +5719,8 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                 captureResults.capturedSecureLayers || (layer->isVisible() && layer->isSecure());
     });
 
+    const bool useProtected = buffer->getUsage() & GRALLOC_USAGE_PROTECTED;
+
     // We allow the system server to take screenshots of secure layers for
     // use in situations like the Screen-rotation animation and place
     // the impetus on WindowManager to not persist them.
@@ -5748,14 +5765,13 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     std::vector<Layer*> renderedLayers;
     Region clearRegion = Region::INVALID_REGION;
     traverseLayers([&](Layer* layer) {
-        const bool supportProtectedContent = false;
         Region clip(renderArea.getBounds());
         compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
                 clip,
                 layer->needsFilteringForScreenshots(display.get(), transform) ||
                         renderArea.needsFiltering(),
                 renderArea.isSecure(),
-                supportProtectedContent,
+                useProtected,
                 clearRegion,
                 layerStackSpaceRect,
                 clientCompositionDisplay.outputDataspace,
@@ -5793,7 +5809,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     // there is no need for synchronization with the GPU.
     base::unique_fd bufferFence;
     base::unique_fd drawFence;
-    getRenderEngine().useProtectedContext(false);
+    getRenderEngine().useProtectedContext(useProtected);
     getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, buffer,
                                  /*useFramebufferCache=*/false, std::move(bufferFence), &drawFence);
 
@@ -5805,6 +5821,8 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
             layer->onLayerDisplayed(releaseFence);
         }
     }
+    // Always switch back to unprotected context.
+    getRenderEngine().useProtectedContext(false);
 
     return NO_ERROR;
 }
