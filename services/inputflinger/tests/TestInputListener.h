@@ -55,6 +55,7 @@ public:
     void assertNotifySwitchWasCalled(NotifySwitchArgs* outEventArgs = nullptr);
 
     void assertNotifyCaptureWasCalled(NotifyPointerCaptureChangedArgs* outEventArgs = nullptr);
+    void assertNotifySensorWasCalled(NotifySensorArgs* outEventArgs = nullptr);
 
 private:
     template <class NotifyArgsType>
@@ -76,6 +77,8 @@ private:
 
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
 
+    virtual void notifySensor(const NotifySensorArgs* args) override;
+
     virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
     std::mutex mLock;
@@ -88,6 +91,7 @@ private:
                std::vector<NotifyKeyArgs>,                   //
                std::vector<NotifyMotionArgs>,                //
                std::vector<NotifySwitchArgs>,                //
+               std::vector<NotifySensorArgs>,                //
                std::vector<NotifyPointerCaptureChangedArgs>> //
             mQueues GUARDED_BY(mLock);
 };

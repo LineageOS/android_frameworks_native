@@ -23,6 +23,7 @@
 #include <android-base/stringprintf.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
+#include <input/NamedEnum.h>
 
 using android::base::StringPrintf;
 
@@ -166,7 +167,9 @@ InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
         mKeyCharacterMap(other.mKeyCharacterMap),
         mHasVibrator(other.mHasVibrator),
         mHasButtonUnderPad(other.mHasButtonUnderPad),
-        mMotionRanges(other.mMotionRanges) {}
+        mHasSensor(other.mHasSensor),
+        mMotionRanges(other.mMotionRanges),
+        mSensors(other.mSensors) {}
 
 InputDeviceInfo::~InputDeviceInfo() {
 }
@@ -185,7 +188,9 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
     mKeyboardType = AINPUT_KEYBOARD_TYPE_NONE;
     mHasVibrator = false;
     mHasButtonUnderPad = false;
+    mHasSensor = false;
     mMotionRanges.clear();
+    mSensors.clear();
 }
 
 const InputDeviceInfo::MotionRange* InputDeviceInfo::getMotionRange(
@@ -212,6 +217,30 @@ void InputDeviceInfo::addMotionRange(int32_t axis, uint32_t source, float min, f
 
 void InputDeviceInfo::addMotionRange(const MotionRange& range) {
     mMotionRanges.push_back(range);
+}
+
+void InputDeviceInfo::addSensorInfo(const InputDeviceSensorInfo& info) {
+    if (mSensors.find(info.type) != mSensors.end()) {
+        ALOGW("Sensor type %s already exists, will be replaced by new sensor added.",
+              NamedEnum::string(info.type).c_str());
+    }
+    mSensors.insert_or_assign(info.type, info);
+}
+
+const std::vector<InputDeviceSensorType> InputDeviceInfo::getSensorTypes() {
+    std::vector<InputDeviceSensorType> types;
+    for (const auto& [type, info] : mSensors) {
+        types.push_back(type);
+    }
+    return types;
+}
+
+const InputDeviceSensorInfo* InputDeviceInfo::getSensorInfo(InputDeviceSensorType type) {
+    auto it = mSensors.find(type);
+    if (it == mSensors.end()) {
+        return nullptr;
+    }
+    return &it->second;
 }
 
 } // namespace android

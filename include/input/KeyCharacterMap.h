@@ -142,6 +142,8 @@ public:
     void writeToParcel(Parcel* parcel) const;
 #endif
 
+    bool operator==(const KeyCharacterMap& other) const;
+
     KeyCharacterMap(const KeyCharacterMap& other);
 
     virtual ~KeyCharacterMap();

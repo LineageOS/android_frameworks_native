@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <input/Input.h>
+#include <input/InputDevice.h>
 #include <input/TouchVideoFrame.h>
 #include <utils/RefBase.h>
 
@@ -141,6 +142,30 @@ struct NotifyMotionArgs : public NotifyArgs {
     virtual void notify(const sp<InputListenerInterface>& listener) const;
 };
 
+/* Describes a sensor event. */
+struct NotifySensorArgs : public NotifyArgs {
+    int32_t deviceId;
+    uint32_t source;
+    InputDeviceSensorType sensorType;
+    InputDeviceSensorAccuracy accuracy;
+    bool accuracyChanged;
+    nsecs_t hwTimestamp;
+    std::vector<float> values;
+
+    inline NotifySensorArgs() {}
+
+    NotifySensorArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+                     InputDeviceSensorType sensorType, InputDeviceSensorAccuracy accuracy,
+                     bool accuracyChanged, nsecs_t hwTimestamp, std::vector<float> values);
+
+    NotifySensorArgs(const NotifySensorArgs& other);
+
+    bool operator==(const NotifySensorArgs rhs) const;
+
+    ~NotifySensorArgs() override {}
+
+    void notify(const sp<InputListenerInterface>& listener) const override;
+};
 
 /* Describes a switch event. */
 struct NotifySwitchArgs : public NotifyArgs {
@@ -211,6 +236,7 @@ public:
     virtual void notifyKey(const NotifyKeyArgs* args) = 0;
     virtual void notifyMotion(const NotifyMotionArgs* args) = 0;
     virtual void notifySwitch(const NotifySwitchArgs* args) = 0;
+    virtual void notifySensor(const NotifySensorArgs* args) = 0;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) = 0;
     virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) = 0;
 };
@@ -231,6 +257,7 @@ public:
     virtual void notifyKey(const NotifyKeyArgs* args) override;
     virtual void notifyMotion(const NotifyMotionArgs* args) override;
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
+    virtual void notifySensor(const NotifySensorArgs* args) override;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 

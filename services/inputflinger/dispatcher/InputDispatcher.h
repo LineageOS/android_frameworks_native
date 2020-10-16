@@ -94,6 +94,7 @@ public:
     virtual void notifyKey(const NotifyKeyArgs* args) override;
     virtual void notifyMotion(const NotifyMotionArgs* args) override;
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
+    virtual void notifySensor(const NotifySensorArgs* args) override;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
     virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
@@ -128,6 +129,7 @@ public:
     virtual status_t removeInputChannel(const sp<IBinder>& connectionToken) override;
     virtual status_t pilferPointers(const sp<IBinder>& token) override;
     virtual void requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) override;
+    virtual bool flushSensor(int deviceId, InputDeviceSensorType sensorType) override;
 
     std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
 
@@ -392,7 +394,8 @@ private:
             DropReason& dropReason) REQUIRES(mLock);
     void dispatchEventLocked(nsecs_t currentTime, std::shared_ptr<EventEntry> entry,
                              const std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
-
+    void dispatchSensorLocked(nsecs_t currentTime, std::shared_ptr<SensorEntry> entry,
+                              DropReason* dropReason, nsecs_t* nextWakeupTime) REQUIRES(mLock);
     void logOutboundKeyDetails(const char* prefix, const KeyEntry& entry);
     void logOutboundMotionDetails(const char* prefix, const MotionEntry& entry);
 
@@ -592,6 +595,7 @@ private:
             REQUIRES(mLock);
     void doNotifyConnectionResponsiveLockedInterruptible(CommandEntry* commandEntry)
             REQUIRES(mLock);
+    void doNotifySensorLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doNotifyUntrustedTouchLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doInterceptKeyBeforeDispatchingLockedInterruptible(CommandEntry* commandEntry)
             REQUIRES(mLock);
