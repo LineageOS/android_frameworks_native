@@ -180,10 +180,10 @@ void VSyncDispatchTimerQueue::cancelTimer() {
     mTimeKeeper->alarmCancel();
 }
 
-void VSyncDispatchTimerQueue::setTimer(nsecs_t targetTime, nsecs_t now) {
+void VSyncDispatchTimerQueue::setTimer(nsecs_t targetTime, nsecs_t /*now*/) {
     mIntendedWakeupTime = targetTime;
-    mTimeKeeper->alarmIn(std::bind(&VSyncDispatchTimerQueue::timerCallback, this),
-                         targetTime - now);
+    mTimeKeeper->alarmAt(std::bind(&VSyncDispatchTimerQueue::timerCallback, this),
+                         mIntendedWakeupTime);
     mLastTimerSchedule = mTimeKeeper->now();
 }
 
@@ -243,7 +243,8 @@ void VSyncDispatchTimerQueue::timerCallback() {
     std::vector<Invocation> invocations;
     {
         std::lock_guard<decltype(mMutex)> lk(mMutex);
-        mLastTimerCallback = mTimeKeeper->now();
+        auto const now = mTimeKeeper->now();
+        mLastTimerCallback = now;
         for (auto it = mCallbacks.begin(); it != mCallbacks.end(); it++) {
             auto& callback = it->second;
             auto const wakeupTime = callback->wakeupTime();
@@ -251,7 +252,8 @@ void VSyncDispatchTimerQueue::timerCallback() {
                 continue;
             }
 
-            if (*wakeupTime < mIntendedWakeupTime + mTimerSlack) {
+            auto const lagAllowance = std::max(now - mIntendedWakeupTime, static_cast<nsecs_t>(0));
+            if (*wakeupTime < mIntendedWakeupTime + mTimerSlack + lagAllowance) {
                 callback->executing();
                 invocations.emplace_back(
                         Invocation{callback, *callback->lastExecutedVsyncTarget(), *wakeupTime});
