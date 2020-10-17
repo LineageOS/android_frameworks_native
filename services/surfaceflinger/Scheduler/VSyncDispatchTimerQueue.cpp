@@ -180,10 +180,10 @@ void VSyncDispatchTimerQueue::cancelTimer() {
     mTimeKeeper->alarmCancel();
 }
 
-void VSyncDispatchTimerQueue::setTimer(nsecs_t targetTime, nsecs_t now) {
+void VSyncDispatchTimerQueue::setTimer(nsecs_t targetTime, nsecs_t /*now*/) {
     mIntendedWakeupTime = targetTime;
-    mTimeKeeper->alarmIn(std::bind(&VSyncDispatchTimerQueue::timerCallback, this),
-                         targetTime - now);
+    mTimeKeeper->alarmAt(std::bind(&VSyncDispatchTimerQueue::timerCallback, this),
+                         mIntendedWakeupTime);
     mLastTimerSchedule = mTimeKeeper->now();
 }
 
