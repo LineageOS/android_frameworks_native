@@ -1636,6 +1636,8 @@ static Dumpstate::RunStatus dumpstate() {
 
     /* Dump Bluetooth HCI logs */
     ds.AddDir("/data/misc/bluetooth/logs", true);
+    /* Dump Nfc NCI logs */
+    ds.AddDir("/data/misc/nfc/logs", true);
 
     if (ds.options_->do_screenshot && !ds.do_early_screenshot_) {
         MYLOGI("taking late screenshot\n");
