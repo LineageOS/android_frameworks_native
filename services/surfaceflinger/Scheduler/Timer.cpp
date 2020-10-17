@@ -88,7 +88,7 @@ nsecs_t Timer::now() const {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
 
-void Timer::alarmIn(std::function<void()> const& cb, nsecs_t fireIn) {
+void Timer::alarmAt(std::function<void()> const& cb, nsecs_t time) {
     std::lock_guard<decltype(mMutex)> lk(mMutex);
     using namespace std::literals;
     static constexpr int ns_per_s =
@@ -99,11 +99,11 @@ void Timer::alarmIn(std::function<void()> const& cb, nsecs_t fireIn) {
     struct itimerspec old_timer;
     struct itimerspec new_timer {
         .it_interval = {.tv_sec = 0, .tv_nsec = 0},
-        .it_value = {.tv_sec = static_cast<long>(fireIn / ns_per_s),
-                     .tv_nsec = static_cast<long>(fireIn % ns_per_s)},
+        .it_value = {.tv_sec = static_cast<long>(time / ns_per_s),
+                     .tv_nsec = static_cast<long>(time % ns_per_s)},
     };
 
-    if (timerfd_settime(mTimerFd, 0, &new_timer, &old_timer)) {
+    if (timerfd_settime(mTimerFd, TFD_TIMER_ABSTIME, &new_timer, &old_timer)) {
         ALOGW("Failed to set timerfd %s (%i)", strerror(errno), errno);
     }
 }
