@@ -41,5 +41,10 @@ std::optional<std::unordered_map<uint32_t, concurrent_time_t>>
     getUidsUpdatedConcurrentTimes(uint64_t *lastUpdate);
 bool clearUidTimes(unsigned int uid);
 
+bool startTrackingProcessCpuTimes(pid_t pid);
+bool startAggregatingTaskCpuTimes(pid_t pid, uint16_t aggregationKey);
+std::optional<std::unordered_map<uint16_t, std::vector<std::vector<uint64_t>>>>
+getAggregatedTaskCpuFreqTimes(pid_t pid, const std::vector<uint16_t> &aggregationKeys);
+
 } // namespace bpf
 } // namespace android
