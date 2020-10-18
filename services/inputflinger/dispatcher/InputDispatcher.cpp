@@ -37,6 +37,10 @@
 // Log debug messages about input focus tracking.
 static constexpr bool DEBUG_FOCUS = false;
 
+// Log debug messages about touch occlusion
+// STOPSHIP(b/169067926): Set to false
+static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
+
 // Log debug messages about the app switch latency optimization.
 #define DEBUG_APP_SWITCH 0
 
@@ -1774,6 +1778,12 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             TouchOcclusionInfo occlusionInfo =
                     computeTouchOcclusionInfoLocked(newTouchedWindowHandle, x, y);
             if (!isTouchTrustedLocked(occlusionInfo)) {
+                if (DEBUG_TOUCH_OCCLUSION) {
+                    ALOGD("Stack of obscuring windows during untrusted touch (%d, %d):", x, y);
+                    for (const auto& log : occlusionInfo.debugInfo) {
+                        ALOGD("%s", log.c_str());
+                    }
+                }
                 onUntrustedTouchLocked(occlusionInfo.obscuringPackage);
                 if (mBlockUntrustedTouchesMode == BlockUntrustedTouchesMode::BLOCK) {
                     ALOGW("Dropping untrusted touch event due to %s/%d",
@@ -2215,7 +2225,8 @@ static bool canBeObscuredBy(const sp<InputWindowHandle>& windowHandle,
  */
 InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLocked(
         const sp<InputWindowHandle>& windowHandle, int32_t x, int32_t y) const {
-    int32_t displayId = windowHandle->getInfo()->displayId;
+    const InputWindowInfo* windowInfo = windowHandle->getInfo();
+    int32_t displayId = windowInfo->displayId;
     const std::vector<sp<InputWindowHandle>>& windowHandles = getWindowHandlesLocked(displayId);
     TouchOcclusionInfo info;
     info.hasBlockingOcclusion = false;
@@ -2228,8 +2239,11 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
         }
         const InputWindowInfo* otherInfo = otherHandle->getInfo();
         if (canBeObscuredBy(windowHandle, otherHandle) &&
-            windowHandle->getInfo()->ownerUid != otherInfo->ownerUid &&
-            otherInfo->frameContainsPoint(x, y)) {
+            windowInfo->ownerUid != otherInfo->ownerUid && otherInfo->frameContainsPoint(x, y)) {
+            if (DEBUG_TOUCH_OCCLUSION) {
+                info.debugInfo.push_back(
+                        dumpWindowForTouchOcclusion(otherInfo, /* isTouchedWindow */ false));
+            }
             // canBeObscuredBy() has returned true above, which means this window is untrusted, so
             // we perform the checks below to see if the touch can be propagated or not based on the
             // window's touch occlusion mode
@@ -2255,7 +2269,24 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
             }
         }
     }
+    if (DEBUG_TOUCH_OCCLUSION) {
+        info.debugInfo.push_back(
+                dumpWindowForTouchOcclusion(windowInfo, /* isTouchedWindow */ true));
+    }
     return info;
+}
+
+std::string InputDispatcher::dumpWindowForTouchOcclusion(const InputWindowInfo* info,
+                                                         bool isTouchedWindow) const {
+    return StringPrintf(INDENT2 "* %stype=%s, package=%s/%" PRId32 ", mode=%s, alpha=%.2f, "
+                                "frame=[%" PRId32 ",%" PRId32 "][%" PRId32 ",%" PRId32
+                                "], window=%s, applicationInfo=%s, flags=%s\n",
+                        (isTouchedWindow) ? "[TOUCHED] " : "",
+                        NamedEnum::string(info->type).c_str(), info->packageName.c_str(),
+                        info->ownerUid, toString(info->touchOcclusionMode).c_str(), info->alpha,
+                        info->frameLeft, info->frameTop, info->frameRight, info->frameBottom,
+                        info->name.c_str(), info->applicationInfo.name.c_str(),
+                        info->flags.string().c_str());
 }
 
 bool InputDispatcher::isTouchTrustedLocked(const TouchOcclusionInfo& occlusionInfo) const {

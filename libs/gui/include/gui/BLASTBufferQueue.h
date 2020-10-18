@@ -82,6 +82,7 @@ public:
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
 
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height);
+    void flushShadowQueue() { mFlushShadowQueue = true; }
 
     virtual ~BLASTBufferQueue() = default;
 
@@ -93,9 +94,10 @@ private:
     BLASTBufferQueue(const BLASTBufferQueue& rhs);
 
     void processNextBufferLocked(bool useNextTransaction) REQUIRES(mMutex);
-    Rect computeCrop(const BufferItem& item);
+    Rect computeCrop(const BufferItem& item) REQUIRES(mMutex);
     // Return true if we need to reject the buffer based on the scaling mode and the buffer size.
-    bool rejectBuffer(const BufferItem& item) const;
+    bool rejectBuffer(const BufferItem& item) const REQUIRES(mMutex);
+    bool maxBuffersAcquired() const REQUIRES(mMutex);
 
     std::string mName;
     sp<SurfaceControl> mSurfaceControl;
@@ -130,6 +132,9 @@ private:
     sp<BLASTBufferItemConsumer> mBufferItemConsumer;
 
     SurfaceComposerClient::Transaction* mNextTransaction GUARDED_BY(mMutex);
+    // If set to true, the next queue buffer will wait until the shadow queue has been processed by
+    // the adapter.
+    bool mFlushShadowQueue = false;
 };
 
 } // namespace android
