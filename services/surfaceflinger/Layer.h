@@ -855,6 +855,8 @@ public:
 
     uid_t getOwnerUid() { return mOwnerUid; }
 
+    pid_t getOwnerPid() { return mOwnerPid; }
+
     // This layer is not a clone, but it's the parent to the cloned hierarchy. The
     // variable mClonedChild represents the top layer that will be cloned so this
     // layer will be the parent of mClonedChild.
@@ -1046,6 +1048,10 @@ protected:
     // The owner of the layer. If created from a non system process, it will be the calling uid.
     // If created from a system process, the value can be passed in.
     uid_t mOwnerUid;
+
+    // The owner pid of the layer. If created from a non system process, it will be the calling pid.
+    // If created from a system process, the value can be passed in.
+    pid_t mOwnerPid;
 
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}
