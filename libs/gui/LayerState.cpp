@@ -146,6 +146,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeByte, frameRateCompatibility);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
     SAFE_PARCEL(output.writeUint64, frameNumber);
+    SAFE_PARCEL(output.writeInt64, frameTimelineVsyncId);
     return NO_ERROR;
 }
 
@@ -250,6 +251,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
     SAFE_PARCEL(input.readUint64, &frameNumber);
+    SAFE_PARCEL(input.readInt64, &frameTimelineVsyncId);
     return NO_ERROR;
 }
 

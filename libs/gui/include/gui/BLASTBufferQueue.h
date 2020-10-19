@@ -86,6 +86,7 @@ public:
     void flushShadowQueue() { mFlushShadowQueue = true; }
 
     status_t setFrameRate(float frameRate, int8_t compatibility);
+    status_t setFrameTimelineVsync(int64_t frameTimelineVsyncId);
 
     virtual ~BLASTBufferQueue() = default;
 
