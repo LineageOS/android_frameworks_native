@@ -85,6 +85,8 @@ public:
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height);
     void flushShadowQueue() { mFlushShadowQueue = true; }
 
+    status_t setFrameRate(float frameRate, int8_t compatibility);
+
     virtual ~BLASTBufferQueue() = default;
 
 private:
