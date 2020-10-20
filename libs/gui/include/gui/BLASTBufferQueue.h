@@ -72,6 +72,7 @@ public:
     sp<IGraphicBufferProducer> getIGraphicBufferProducer() const {
         return mProducer;
     }
+    sp<Surface> getSurface();
 
     void onBufferFreed(const wp<GraphicBuffer>&/* graphicBuffer*/) override { /* TODO */ }
     void onFrameReplaced(const BufferItem& item) override {onFrameAvailable(item);}
@@ -83,6 +84,8 @@ public:
 
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height);
     void flushShadowQueue() { mFlushShadowQueue = true; }
+
+    status_t setFrameRate(float frameRate, int8_t compatibility);
 
     virtual ~BLASTBufferQueue() = default;
 
