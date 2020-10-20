@@ -381,6 +381,10 @@ public:
         }
         return mBbq->setFrameRate(frameRate, compatibility);
     }
+
+    status_t setFrameTimelineVsync(int64_t frameTimelineVsyncId) override {
+        return mBbq->setFrameTimelineVsync(frameTimelineVsyncId);
+    }
 };
 
 // TODO: Can we coalesce this with frame updates? Need to confirm
@@ -390,6 +394,14 @@ status_t BLASTBufferQueue::setFrameRate(float frameRate, int8_t compatibility) {
     SurfaceComposerClient::Transaction t;
 
     return t.setFrameRate(mSurfaceControl, frameRate, compatibility)
+        .apply();
+}
+
+status_t BLASTBufferQueue::setFrameTimelineVsync(int64_t frameTimelineVsyncId) {
+    std::unique_lock _lock{mMutex};
+    SurfaceComposerClient::Transaction t;
+
+    return t.setFrameTimelineVsync(mSurfaceControl, frameTimelineVsyncId)
         .apply();
 }
 

@@ -180,6 +180,7 @@ public:
     status_t getConsumerUsage(uint64_t* outUsage) const;
 
     virtual status_t setFrameRate(float frameRate, int8_t compatibility);
+    virtual status_t setFrameTimelineVsync(int64_t frameTimelineVsyncId);
 
 protected:
     virtual ~Surface();
