@@ -12,6 +12,7 @@ LIBVULKAN {
     vkBindImageMemory2; # introduced=28
     vkCmdBeginQuery;
     vkCmdBeginRenderPass;
+    vkCmdBeginRenderPass2; # introduced=31
     vkCmdBindDescriptorSets;
     vkCmdBindIndexBuffer;
     vkCmdBindPipeline;
@@ -31,12 +32,16 @@ LIBVULKAN {
     vkCmdDraw;
     vkCmdDrawIndexed;
     vkCmdDrawIndexedIndirect;
+    vkCmdDrawIndexedIndirectCount; # introduced=31
     vkCmdDrawIndirect;
+    vkCmdDrawIndirectCount; # introduced=31
     vkCmdEndQuery;
     vkCmdEndRenderPass;
+    vkCmdEndRenderPass2; # introduced=31
     vkCmdExecuteCommands;
     vkCmdFillBuffer;
     vkCmdNextSubpass;
+    vkCmdNextSubpass2; # introduced=31
     vkCmdPipelineBarrier;
     vkCmdPushConstants;
     vkCmdResetEvent;
@@ -76,6 +81,7 @@ LIBVULKAN {
     vkCreatePipelineLayout;
     vkCreateQueryPool;
     vkCreateRenderPass;
+    vkCreateRenderPass2; # introduced=31
     vkCreateSampler;
     vkCreateSamplerYcbcrConversion; # introduced=28
     vkCreateSemaphore;
@@ -119,13 +125,16 @@ LIBVULKAN {
     vkFreeDescriptorSets;
     vkFreeMemory;
     vkGetAndroidHardwareBufferPropertiesANDROID; # introduced=28
+    vkGetBufferDeviceAddress; # introduced=31
     vkGetBufferMemoryRequirements;
     vkGetBufferMemoryRequirements2; # introduced=28
+    vkGetBufferOpaqueCaptureAddress; # introduced=31
     vkGetDescriptorSetLayoutSupport; # introduced=28
     vkGetDeviceGroupPeerMemoryFeatures; # introduced=28
     vkGetDeviceGroupPresentCapabilitiesKHR; # introduced=28
     vkGetDeviceGroupSurfacePresentModesKHR; # introduced=28
     vkGetDeviceMemoryCommitment;
+    vkGetDeviceMemoryOpaqueCaptureAddress; # introduced=31
     vkGetDeviceProcAddr;
     vkGetDeviceQueue;
     vkGetDeviceQueue2; # introduced=28
@@ -163,6 +172,7 @@ LIBVULKAN {
     vkGetPipelineCacheData;
     vkGetQueryPoolResults;
     vkGetRenderAreaGranularity;
+    vkGetSemaphoreCounterValue; # introduced=31
     vkGetSwapchainImagesKHR;
     vkInvalidateMappedMemoryRanges;
     vkMapMemory;
@@ -176,12 +186,15 @@ LIBVULKAN {
     vkResetDescriptorPool;
     vkResetEvent;
     vkResetFences;
+    vkResetQueryPool; # introduced=31
     vkSetEvent;
+    vkSignalSemaphore; # introduced=31
     vkTrimCommandPool; # introduced=28
     vkUnmapMemory;
     vkUpdateDescriptorSets;
     vkUpdateDescriptorSetWithTemplate; # introduced=28
     vkWaitForFences;
+    vkWaitSemaphores; # introduced=31
   local:
     *;
 };
