@@ -2184,6 +2184,15 @@ static bool canBeObscuredBy(const sp<InputWindowHandle>& windowHandle,
     auto otherInfo = otherHandle->getInfo();
     if (!otherInfo->visible) {
         return false;
+    } else if (otherInfo->alpha == 0 &&
+               otherInfo->flags.test(InputWindowInfo::Flag::NOT_TOUCHABLE)) {
+        // Those act as if they were invisible, so we don't need to flag them.
+        // We do want to potentially flag touchable windows even if they have 0
+        // opacity, since they can consume touches and alter the effects of the
+        // user interaction (eg. apps that rely on
+        // FLAG_WINDOW_IS_PARTIALLY_OBSCURED should still be told about those
+        // windows), hence we also check for FLAG_NOT_TOUCHABLE.
+        return false;
     } else if (info->ownerUid == otherInfo->ownerUid) {
         // If ownerUid is the same we don't generate occlusion events as there
         // is no security boundary within an uid.
