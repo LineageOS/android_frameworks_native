@@ -387,6 +387,28 @@ TEST(TimeInStateTest, AllUidConcurrentTimesSanityCheck) {
     }
 }
 
+TEST(TimeInStateTest, AllUidConcurrentTimesFailsOnInvalidBucket) {
+    uint32_t uid = 0;
+    {
+        // Find an unused UID
+        auto map = getUidsConcurrentTimes();
+        ASSERT_TRUE(map.has_value());
+        ASSERT_FALSE(map->empty());
+        for (const auto &kv : *map) uid = std::max(uid, kv.first);
+        ++uid;
+    }
+    android::base::unique_fd fd{
+        bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_concurrent_times_map")};
+    ASSERT_GE(fd, 0);
+    uint32_t nCpus = get_nprocs_conf();
+    uint32_t maxBucket = (nCpus - 1) / CPUS_PER_ENTRY;
+    time_key_t key = {.uid = uid, .bucket = maxBucket + 1};
+    std::vector<concurrent_val_t> vals(nCpus);
+    ASSERT_FALSE(writeToMapEntry(fd, &key, vals.data(), BPF_NOEXIST));
+    EXPECT_FALSE(getUidsConcurrentTimes().has_value());
+    ASSERT_FALSE(deleteMapEntry(fd, &key));
+}
+
 TEST(TimeInStateTest, AllUidTimesConsistent) {
     auto tisMap = getUidsCpuFreqTimes();
     ASSERT_TRUE(tisMap.has_value());
