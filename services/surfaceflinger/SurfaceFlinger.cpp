@@ -3770,6 +3770,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTraversalNeeded;
         }
     }
+    if (what & layer_state_t::eFrameTimelineVsyncChanged) {
+        layer->setFrameTimelineVsyncForTransaction(s.frameTimelineVsyncId, postTime);
+    } else {
+        // TODO (b/171252403) We are calling this too much, potentially triggering
+        // unnecessary work
+        layer->setFrameTimelineVsyncForTransaction(frameTimelineVsyncId, postTime);
+    }
     if (what & layer_state_t::eFixedTransformHintChanged) {
         if (layer->setFixedTransformHint(s.fixedTransformHint)) {
             flags |= eTraversalNeeded | eTransformHintUpdateNeeded;
@@ -3828,8 +3835,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTraversalNeeded;
         }
     }
-
-    layer->setFrameTimelineVsyncForTransaction(frameTimelineVsyncId, postTime);
 
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
     // Do not put anything that updates layer state or modifies flags after
