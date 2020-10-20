@@ -84,6 +84,7 @@ cc_test {
         "mock/DisplayHardware/MockDisplay.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
         "mock/MockEventThread.cpp",
+        "mock/MockFrameTimeline.cpp",
         "mock/MockFrameTracer.cpp",
         "mock/MockMessageQueue.cpp",
         "mock/MockNativeWindowSurface.cpp",

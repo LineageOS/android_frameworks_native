@@ -42,6 +42,7 @@
 #include "TestableScheduler.h"
 #include "mock/DisplayHardware/MockDisplay.h"
 #include "mock/MockDisplayIdGenerator.h"
+#include "mock/MockFrameTimeline.h"
 #include "mock/MockFrameTracer.h"
 
 namespace android {
@@ -152,6 +153,11 @@ public:
 
     std::unique_ptr<FrameTracer> createFrameTracer() override {
         return std::make_unique<mock::FrameTracer>();
+    }
+
+    std::unique_ptr<frametimeline::FrameTimeline> createFrameTimeline(
+            std::shared_ptr<TimeStats> timeStats) override {
+        return std::make_unique<mock::FrameTimeline>(timeStats);
     }
 
     using CreateBufferQueueFunction =

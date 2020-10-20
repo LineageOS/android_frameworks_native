@@ -18,6 +18,8 @@
 
 #include <../TimeStats/TimeStats.h>
 #include <gui/ISurfaceComposer.h>
+#include <perfetto/trace/android/frame_timeline_event.pbzero.h>
+#include <perfetto/tracing.h>
 #include <ui/FenceTime.h>
 #include <utils/RefBase.h>
 #include <utils/String16.h>
@@ -128,6 +130,10 @@ public:
     virtual ~FrameTimeline() = default;
     virtual TokenManager* getTokenManager() = 0;
 
+    // Initializes the Perfetto DataSource that emits DisplayFrame and SurfaceFrame events. Test
+    // classes can avoid double registration by mocking this function.
+    virtual void onBootFinished() = 0;
+
     // Create a new surface frame, set the predictions based on a token and return it to the caller.
     // Sets the PredictionState of SurfaceFrame.
     // Debug name is the human-readable debugging string for dumpsys.
@@ -191,8 +197,9 @@ private:
 
 class SurfaceFrame : public android::frametimeline::SurfaceFrame {
 public:
-    SurfaceFrame(pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
-                 PredictionState predictionState, TimelineItem&& predictions);
+    SurfaceFrame(int64_t token, pid_t ownerPid, uid_t ownerUid, std::string layerName,
+                 std::string debugName, PredictionState predictionState,
+                 TimelineItem&& predictions);
     ~SurfaceFrame() = default;
 
     TimelineItem getPredictions() const override { return mPredictions; };
@@ -202,6 +209,7 @@ public:
     PredictionState getPredictionState() const override { return mPredictionState; };
     pid_t getOwnerPid() const override { return mOwnerPid; };
     TimeStats::JankType getJankType() const;
+    int64_t getToken() const { return mToken; };
     nsecs_t getBaseTime() const;
     uid_t getOwnerUid() const { return mOwnerUid; };
     const std::string& getName() const { return mLayerName; };
@@ -216,7 +224,13 @@ public:
     // All the timestamps are dumped relative to the baseTime
     void dump(std::string& result, const std::string& indent, nsecs_t baseTime);
 
+    // Emits a packet for perfetto tracing. The function body will be executed only if tracing is
+    // enabled. The displayFrameToken is needed to link the SurfaceFrame to the corresponding
+    // DisplayFrame at the trace processor side.
+    void traceSurfaceFrame(int64_t displayFrameToken);
+
 private:
+    const int64_t mToken;
     const pid_t mOwnerPid;
     const uid_t mOwnerUid;
     const std::string mLayerName;
@@ -233,6 +247,12 @@ private:
 
 class FrameTimeline : public android::frametimeline::FrameTimeline {
 public:
+    class FrameTimelineDataSource : public perfetto::DataSource<FrameTimelineDataSource> {
+        void OnSetup(const SetupArgs&) override{};
+        void OnStart(const StartArgs&) override{};
+        void OnStop(const StopArgs&) override{};
+    };
+
     FrameTimeline(std::shared_ptr<TimeStats> timeStats);
     ~FrameTimeline() = default;
 
@@ -249,6 +269,14 @@ public:
     void setMaxDisplayFrames(uint32_t size) override;
     void reset() override;
 
+    // Sets up the perfetto tracing backend and data source.
+    void onBootFinished() override;
+    // Registers the data source with the perfetto backend. Called as part of onBootFinished()
+    // and should not be called manually outside of tests.
+    void registerDataSource();
+
+    static constexpr char kFrameTimelineDataSource[] = "android.surfaceflinger.frametimeline";
+
 private:
     // Friend class for testing
     friend class android::frametimeline::FrameTimelineTest;
@@ -258,6 +286,8 @@ private:
      */
     struct DisplayFrame {
         DisplayFrame();
+
+        int64_t token = ISurfaceComposer::INVALID_VSYNC_ID;
 
         /* Usage of TimelineItem w.r.t SurfaceFlinger
          * startTime    Time when SurfaceFlinger wakes up to handle transactions and buffer updates
@@ -270,9 +300,9 @@ private:
         // Collection of predictions and actual values sent over by Layers
         std::vector<std::unique_ptr<SurfaceFrame>> surfaceFrames;
 
-        PredictionState predictionState;
+        PredictionState predictionState = PredictionState::None;
         TimeStats::JankType jankType = TimeStats::JankType::None; // Enum for the type of jank
-        int32_t jankMetadata = 0x0;         // Additional details about the jank
+        int32_t jankMetadata = 0x0; // Additional details about the jank
     };
 
     void flushPendingPresentFences() REQUIRES(mMutex);
@@ -285,6 +315,10 @@ private:
     void dumpAll(std::string& result);
     void dumpJank(std::string& result);
 
+    // Emits a packet for perfetto tracing. The function body will be executed only if tracing is
+    // enabled.
+    void traceDisplayFrame(const DisplayFrame& displayFrame) REQUIRES(mMutex);
+
     // Sliding window of display frames. TODO(b/168072834): compare perf with fixed size array
     std::deque<std::shared_ptr<DisplayFrame>> mDisplayFrames GUARDED_BY(mMutex);
     std::vector<std::pair<std::shared_ptr<FenceTime>, std::shared_ptr<DisplayFrame>>>
@@ -295,10 +329,10 @@ private:
     uint32_t mMaxDisplayFrames;
     std::shared_ptr<TimeStats> mTimeStats;
     static constexpr uint32_t kDefaultMaxDisplayFrames = 64;
-    // The initial container size for the vector<SurfaceFrames> inside display frame. Although this
-    // number doesn't represent any bounds on the number of surface frames that can go in a display
-    // frame, this is a good starting size for the vector so that we can avoid the internal vector
-    // resizing that happens with push_back.
+    // The initial container size for the vector<SurfaceFrames> inside display frame. Although
+    // this number doesn't represent any bounds on the number of surface frames that can go in a
+    // display frame, this is a good starting size for the vector so that we can avoid the
+    // internal vector resizing that happens with push_back.
     static constexpr uint32_t kNumSurfaceFramesInitial = 10;
     // The various thresholds for App and SF. If the actual timestamp falls within the threshold
     // compared to prediction, we don't treat it as a jank.

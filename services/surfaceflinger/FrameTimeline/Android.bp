@@ -14,5 +14,8 @@ cc_library_static {
         "libui",
         "libutils",
     ],
+    static_libs: [
+        "libperfetto_client_experimental",
+    ],
     export_include_dirs: ["."],
 }
