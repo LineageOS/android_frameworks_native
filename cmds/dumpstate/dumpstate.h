@@ -572,6 +572,8 @@ class Dumpstate {
 
     android::sp<ConsentCallback> consent_callback_;
 
+    std::recursive_mutex mutex_;
+
     DISALLOW_COPY_AND_ASSIGN(Dumpstate);
 };
 
