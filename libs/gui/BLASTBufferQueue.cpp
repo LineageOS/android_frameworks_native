@@ -23,6 +23,7 @@
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/GLConsumer.h>
+#include <gui/Surface.h>
 
 #include <utils/Trace.h>
 
@@ -350,6 +351,62 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) const {
 bool BLASTBufferQueue::maxBuffersAcquired() const {
     return mNumAcquired == MAX_ACQUIRED_BUFFERS + 1 ||
             (!mInitialCallbackReceived && mNumAcquired == 1);
+}
+
+class BBQSurface : public Surface {
+private:
+    sp<BLASTBufferQueue> mBbq;
+public:
+  BBQSurface(const sp<IGraphicBufferProducer>& igbp, bool controlledByApp,
+      const sp<BLASTBufferQueue>& bbq) :
+      Surface(igbp, controlledByApp),
+      mBbq(bbq) {
+    }
+
+    void allocateBuffers() override {
+        uint32_t reqWidth = mReqWidth ? mReqWidth : mUserWidth;
+        uint32_t reqHeight = mReqHeight ? mReqHeight : mUserHeight;
+        auto gbp = getIGraphicBufferProducer();
+        std::thread ([reqWidth, reqHeight, gbp=getIGraphicBufferProducer(),
+                      reqFormat=mReqFormat, reqUsage=mReqUsage] () {
+            gbp->allocateBuffers(reqWidth, reqHeight,
+                                 reqFormat, reqUsage);
+
+        }).detach();
+    }
+
+    status_t setFrameRate(float frameRate, int8_t compatibility) override {
+        if (!ValidateFrameRate(frameRate, compatibility, "BBQSurface::setFrameRate")) {
+            return BAD_VALUE;
+        }
+        return mBbq->setFrameRate(frameRate, compatibility);
+    }
+
+    status_t setFrameTimelineVsync(int64_t frameTimelineVsyncId) override {
+        return mBbq->setFrameTimelineVsync(frameTimelineVsyncId);
+    }
+};
+
+// TODO: Can we coalesce this with frame updates? Need to confirm
+// no timing issues.
+status_t BLASTBufferQueue::setFrameRate(float frameRate, int8_t compatibility) {
+    std::unique_lock _lock{mMutex};
+    SurfaceComposerClient::Transaction t;
+
+    return t.setFrameRate(mSurfaceControl, frameRate, compatibility)
+        .apply();
+}
+
+status_t BLASTBufferQueue::setFrameTimelineVsync(int64_t frameTimelineVsyncId) {
+    std::unique_lock _lock{mMutex};
+    SurfaceComposerClient::Transaction t;
+
+    return t.setFrameTimelineVsync(mSurfaceControl, frameTimelineVsyncId)
+        .apply();
+}
+
+sp<Surface> BLASTBufferQueue::getSurface() {
+    return new BBQSurface(mProducer, true, this);
 }
 
 } // namespace android

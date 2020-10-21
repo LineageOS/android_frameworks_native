@@ -532,6 +532,9 @@ public:
         // Sets the frame timeline vsync id received from choreographer that corresponds
         // to the transaction.
         Transaction& setFrameTimelineVsync(int64_t frameTimelineVsyncId);
+        // Variant that only applies to a specific SurfaceControl.
+        Transaction& setFrameTimelineVsync(const sp<SurfaceControl>& sc,
+                int64_t frameTimelineVsyncId);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
