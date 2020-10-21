@@ -35,6 +35,7 @@
 #include <ziparchive/zip_writer.h>
 
 #include "DumpstateUtil.h"
+#include "DumpPool.h"
 
 // Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
 // std::vector<std::string>
@@ -75,7 +76,7 @@ extern "C" {
 class DurationReporter {
   public:
     explicit DurationReporter(const std::string& title, bool logcat_only = false,
-                              bool verbose = false);
+                              bool verbose = false, int duration_fd = STDOUT_FILENO);
 
     ~DurationReporter();
 
@@ -84,6 +85,7 @@ class DurationReporter {
     bool logcat_only_;
     bool verbose_;
     uint64_t started_;
+    int duration_fd_;
 
     DISALLOW_COPY_AND_ASSIGN(DurationReporter);
 };
@@ -193,7 +195,7 @@ struct DumpData {
  * that are spread accross utils.cpp and dumpstate.cpp will be moved to it.
  */
 class Dumpstate {
-    friend class DumpstateTest;
+    friend class android::os::dumpstate::DumpstateTest;
 
   public:
     enum RunStatus { OK, HELP, INVALID_INPUT, ERROR, USER_CONSENT_DENIED, USER_CONSENT_TIMED_OUT };
@@ -490,6 +492,9 @@ class Dumpstate {
     // List of open ANR dump files.
     std::vector<DumpData> anr_data_;
 
+    // A thread pool to execute dump tasks simultaneously if the parallel run is enabled.
+    std::unique_ptr<android::os::dumpstate::DumpPool> dump_pool_;
+
     // A callback to IncidentCompanion service, which checks user consent for sharing the
     // bugreport with the calling app. If the user has not responded yet to the dialog it will
     // be neither confirmed nor denied.
@@ -527,6 +532,10 @@ class Dumpstate {
     // Removes the in progress files output files (tmp file, zip/txt file, screenshot),
     // but leaves the log file alone.
     void CleanupTmpFiles();
+
+    // Create the thread pool to enable the parallel run function.
+    void EnableParallelRunIfNeeded();
+    void ShutdownDumpPool();
 
     RunStatus HandleUserConsentDenied();
 
