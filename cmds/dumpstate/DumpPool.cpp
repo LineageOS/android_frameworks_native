@@ -33,7 +33,8 @@ namespace dumpstate {
 
 const std::string DumpPool::PREFIX_TMPFILE_NAME = "dump-tmp.";
 
-DumpPool::DumpPool(const std::string& tmp_root) : tmp_root_(tmp_root), shutdown_(false) {
+DumpPool::DumpPool(const std::string& tmp_root) : tmp_root_(tmp_root), shutdown_(false),
+        log_duration_(true) {
     assert(!tmp_root.empty());
     deleteTempFiles(tmp_root_);
 }
@@ -97,6 +98,26 @@ void DumpPool::waitForTask(const std::string& task_name, const std::string& titl
     if (unlink(result.c_str())) {
         MYLOGE("Failed to unlink (%s): %s\n", result.c_str(), strerror(errno));
     }
+}
+
+void DumpPool::setLogDuration(bool log_duration) {
+    log_duration_ = log_duration;
+}
+
+template <>
+void DumpPool::invokeTask<std::function<void()>>(std::function<void()> dump_func,
+        const std::string& duration_title, int out_fd) {
+    DurationReporter duration_reporter(duration_title, /*logcat_only =*/!log_duration_,
+            /*verbose =*/false, out_fd);
+    std::invoke(dump_func);
+}
+
+template <>
+void DumpPool::invokeTask<std::function<void(int)>>(std::function<void(int)> dump_func,
+        const std::string& duration_title, int out_fd) {
+    DurationReporter duration_reporter(duration_title, /*logcat_only =*/!log_duration_,
+            /*verbose =*/false, out_fd);
+    std::invoke(dump_func, out_fd);
 }
 
 std::unique_ptr<DumpPool::TmpFile> DumpPool::createTempFile() {
