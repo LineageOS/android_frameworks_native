@@ -258,7 +258,6 @@ TEST_F(DumpOptionsTest, InitializeFullBugReport) {
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
     EXPECT_FALSE(options_.use_socket);
-    EXPECT_FALSE(options_.do_start_service);
     EXPECT_FALSE(options_.limited_only);
 }
 
@@ -267,7 +266,6 @@ TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.do_progress_updates);
-    EXPECT_TRUE(options_.do_start_service);
     EXPECT_TRUE(options_.do_screenshot);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::INTERACTIVE);
 
@@ -303,7 +301,6 @@ TEST_F(DumpOptionsTest, InitializeWearBugReport) {
     EXPECT_TRUE(options_.do_screenshot);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.do_progress_updates);
-    EXPECT_TRUE(options_.do_start_service);
     EXPECT_EQ(options_.dumpstate_hal_mode, DumpstateMode::WEAR);
 
     // Other options retain default values

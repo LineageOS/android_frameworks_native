@@ -398,7 +398,6 @@ class Dumpstate {
         bool is_screenshot_copied = false;
         bool is_remote_mode = false;
         bool show_header_only = false;
-        bool do_start_service = false;
         bool telephony_only = false;
         bool wifi_only = false;
         // Trimmed-down version of dumpstate to only include whitelisted logs.
