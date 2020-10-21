@@ -151,11 +151,12 @@ std::string KeyEntry::getDescription() const {
     if (!GetBoolProperty("ro.debuggable", false)) {
         return "KeyEvent";
     }
-    return StringPrintf("KeyEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32 ", action=%s, "
+    return StringPrintf("KeyEvent(deviceId=%d, eventTime=%" PRIu64
+                        ", source=0x%08x, displayId=%" PRId32 ", action=%s, "
                         "flags=0x%08x, keyCode=%d, scanCode=%d, metaState=0x%08x, "
                         "repeatCount=%d), policyFlags=0x%08x",
-                        deviceId, source, displayId, KeyEvent::actionToString(action), flags,
-                        keyCode, scanCode, metaState, repeatCount, policyFlags);
+                        deviceId, eventTime, source, displayId, KeyEvent::actionToString(action),
+                        flags, keyCode, scanCode, metaState, repeatCount, policyFlags);
 }
 
 void KeyEntry::recycle() {
@@ -210,12 +211,13 @@ std::string MotionEntry::getDescription() const {
         return "MotionEvent";
     }
     std::string msg;
-    msg += StringPrintf("MotionEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32
+    msg += StringPrintf("MotionEvent(deviceId=%d, eventTime=%" PRIu64
+                        ", source=0x%08x, displayId=%" PRId32
                         ", action=%s, actionButton=0x%08x, flags=0x%08x, metaState=0x%08x, "
                         "buttonState=0x%08x, "
                         "classification=%s, edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, "
                         "xCursorPosition=%0.1f, yCursorPosition=%0.1f, pointers=[",
-                        deviceId, source, displayId, MotionEvent::actionToString(action),
+                        deviceId, eventTime, source, displayId, MotionEvent::actionToString(action),
                         actionButton, flags, metaState, buttonState,
                         motionClassificationToString(classification), edgeFlags, xPrecision,
                         yPrecision, xCursorPosition, yCursorPosition);

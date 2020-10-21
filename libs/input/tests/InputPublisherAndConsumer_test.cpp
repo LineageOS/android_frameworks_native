@@ -54,8 +54,12 @@ protected:
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
+    ASSERT_NE(nullptr, mPublisher->getChannel());
+    ASSERT_NE(nullptr, mConsumer->getChannel());
     EXPECT_EQ(mServerChannel.get(), mPublisher->getChannel().get());
     EXPECT_EQ(mClientChannel.get(), mConsumer->getChannel().get());
+    ASSERT_EQ(mPublisher->getChannel()->getConnectionToken(),
+              mConsumer->getChannel()->getConnectionToken());
 }
 
 void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
