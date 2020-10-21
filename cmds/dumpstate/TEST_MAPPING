@@ -1,6 +1,13 @@
 {
   "presubmit": [
-    // TODO(159590499) add BugreportManagerTestCases
+    {
+      "name": "BugreportManagerTestCases",
+      "options": [
+        {
+          "exclude-annotation": "androidx.test.filters.LargeTest"
+        }
+      ]
+    },
     {
       "name": "dumpstate_smoke_test"
     },
