@@ -150,6 +150,7 @@ public:
         const std::chrono::duration waited = std::chrono::steady_clock::now() - start;
         if (mAnrApplications.empty() || mAnrWindowTokens.empty()) {
             ADD_FAILURE() << "Did not receive ANR callback";
+            return {};
         }
         // Ensure that the ANR didn't get raised too early. We can't be too strict here because
         // the dispatcher started counting before this function was called
