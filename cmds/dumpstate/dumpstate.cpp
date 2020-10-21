@@ -95,6 +95,7 @@ using ::android::hardware::dumpstate::V1_1::DumpstateStatus;
 using ::android::hardware::dumpstate::V1_1::toString;
 using ::std::literals::chrono_literals::operator""ms;
 using ::std::literals::chrono_literals::operator""s;
+using ::std::placeholders::_1;
 
 // TODO: remove once moved to namespace
 using android::defaultServiceManager;
@@ -113,7 +114,9 @@ using android::base::StringPrintf;
 using android::os::IDumpstateListener;
 using android::os::dumpstate::CommandOptions;
 using android::os::dumpstate::DumpFileToFd;
+using android::os::dumpstate::DumpPool;
 using android::os::dumpstate::PropertiesHelper;
+using android::os::dumpstate::TaskQueue;
 
 // Keep in sync with
 // frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java
@@ -126,8 +129,8 @@ static const int32_t WEIGHT_FILE = 5;
 static Dumpstate& ds = Dumpstate::GetInstance();
 static int RunCommand(const std::string& title, const std::vector<std::string>& full_command,
                       const CommandOptions& options = CommandOptions::DEFAULT,
-                      bool verbose_duration = false) {
-    return ds.RunCommand(title, full_command, options, verbose_duration);
+                      bool verbose_duration = false, int out_fd = STDOUT_FILENO) {
+    return ds.RunCommand(title, full_command, options, verbose_duration, out_fd);
 }
 
 // Reasonable value for max stats.
@@ -196,7 +199,35 @@ static const std::string ANR_FILE_PREFIX = "anr_";
     func_ptr(__VA_ARGS__);                                  \
     RETURN_IF_USER_DENIED_CONSENT();
 
+// Runs func_ptr, and logs a duration report after it's finished.
+#define RUN_SLOW_FUNCTION_AND_LOG(log_title, func_ptr, ...)      \
+    {                                                            \
+        DurationReporter duration_reporter_in_macro(log_title);  \
+        func_ptr(__VA_ARGS__);                                   \
+    }
+
+// Similar with RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK, an additional duration report
+// is output after a slow function is finished.
+#define RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(log_title, func_ptr, ...) \
+    RETURN_IF_USER_DENIED_CONSENT();                                           \
+    RUN_SLOW_FUNCTION_AND_LOG(log_title, func_ptr, __VA_ARGS__);               \
+    RETURN_IF_USER_DENIED_CONSENT();
+
+#define WAIT_TASK_WITH_CONSENT_CHECK(task_name, pool_ptr) \
+    RETURN_IF_USER_DENIED_CONSENT();                      \
+    pool_ptr->waitForTask(task_name);                     \
+    RETURN_IF_USER_DENIED_CONSENT();
+
 static const char* WAKE_LOCK_NAME = "dumpstate_wakelock";
+
+// Names of parallel tasks, they are used for the DumpPool to identify the dump
+// task and the log title of the duration report.
+static const std::string DUMP_TRACES_TASK = "DUMP TRACES";
+static const std::string DUMP_INCIDENT_REPORT_TASK = "INCIDENT REPORT";
+static const std::string DUMP_HALS_TASK = "DUMP HALS";
+static const std::string DUMP_BOARD_TASK = "dumpstate_board()";
+static const std::string DUMP_CHECKINS_TASK = "DUMP CHECKINS";
+static const std::string DUMP_APP_INFOS_TASK = "DUMP APP INFOS";
 
 namespace android {
 namespace os {
@@ -306,8 +337,12 @@ static bool CopyFileToFile(const std::string& input_file, const std::string& out
 
 static void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
                        const CommandOptions& options = Dumpstate::DEFAULT_DUMPSYS,
-                       long dumpsysTimeoutMs = 0) {
-    return ds.RunDumpsys(title, dumpsysArgs, options, dumpsysTimeoutMs);
+                       long dumpsysTimeoutMs = 0, int out_fd = STDOUT_FILENO) {
+    return ds.RunDumpsys(title, dumpsysArgs, options, dumpsysTimeoutMs, out_fd);
+}
+static void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+                       int out_fd) {
+    return ds.RunDumpsys(title, dumpsysArgs, Dumpstate::DEFAULT_DUMPSYS, 0, out_fd);
 }
 static int DumpFile(const std::string& title, const std::string& path) {
     return ds.DumpFile(title, path);
@@ -762,8 +797,9 @@ void Dumpstate::PrintHeader() const {
     RunCommandToFd(STDOUT_FILENO, "", {"uptime", "-p"},
                    CommandOptions::WithTimeout(1).Always().Build());
     printf("Bugreport format version: %s\n", version_.c_str());
-    printf("Dumpstate info: id=%d pid=%d dry_run=%d args=%s bugreport_mode=%s\n", id_, pid_,
-           PropertiesHelper::IsDryRun(), options_->args.c_str(), options_->bugreport_mode.c_str());
+    printf("Dumpstate info: id=%d pid=%d dry_run=%d parallel_run=%d args=%s bugreport_mode=%s\n",
+           id_, pid_, PropertiesHelper::IsDryRun(), PropertiesHelper::IsParallelRun(),
+           options_->args.c_str(), options_->bugreport_mode.c_str());
     printf("\n");
 }
 
@@ -993,7 +1029,6 @@ static void DumpIncidentReport() {
         MYLOGD("Not dumping incident report because it's not a zipped bugreport\n");
         return;
     }
-    DurationReporter duration_reporter("INCIDENT REPORT");
     const std::string path = ds.bugreport_internal_dir_ + "/tmp_incident_report";
     auto fd = android::base::unique_fd(TEMP_FAILURE_RETRY(open(path.c_str(),
                 O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
@@ -1008,9 +1043,11 @@ static void DumpIncidentReport() {
         // Use a different name from "incident.proto"
         // /proto/incident.proto is reserved for incident service dump
         // i.e. metadata for debugging.
-        ds.AddZipEntry(kProtoPath + "incident_report" + kProtoExt, path);
+        ds.EnqueueAddZipEntryAndCleanupIfNeeded(kProtoPath + "incident_report" + kProtoExt,
+                path);
+    } else {
+        unlink(path.c_str());
     }
-    unlink(path.c_str());
 }
 
 static void DumpVisibleWindowViews() {
@@ -1305,15 +1342,20 @@ static Dumpstate::RunStatus RunDumpsysNormal() {
                            /* timeout= */ 90s, /* service_timeout= */ 10s);
 }
 
-static void DumpHals() {
+/*
+ * |out_fd| A fd to support the DumpPool to output results to a temporary file.
+ * Dumpstate can pick up later and output to the bugreport. Using STDOUT_FILENO
+ * if it's not running in the parallel task.
+ */
+static void DumpHals(int out_fd = STDOUT_FILENO) {
     if (!ds.IsZipping()) {
         RunCommand("HARDWARE HALS", {"lshal", "--all", "--types=all", "--debug"},
                    CommandOptions::WithTimeout(60).AsRootIfAvailable().Build());
         return;
     }
-    DurationReporter duration_reporter("DUMP HALS");
     RunCommand("HARDWARE HALS", {"lshal", "--all", "--types=all"},
-               CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
+               CommandOptions::WithTimeout(10).AsRootIfAvailable().Build(),
+               false, out_fd);
 
     using android::hidl::manager::V1_0::IServiceManager;
     using android::hardware::defaultServiceManager;
@@ -1335,6 +1377,7 @@ static void DumpHals() {
                             }, '_');
             const std::string path = ds.bugreport_internal_dir_ + "/lshal_debug_" + cleanName;
 
+            bool empty = false;
             {
                 auto fd = android::base::unique_fd(
                     TEMP_FAILURE_RETRY(open(path.c_str(),
@@ -1349,13 +1392,14 @@ static void DumpHals() {
                         {"lshal", "debug", "-E", interface},
                         CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
 
-                bool empty = 0 == lseek(fd, 0, SEEK_END);
-                if (!empty) {
-                    ds.AddZipEntry("lshal-debug/" + cleanName + ".txt", path);
-                }
+                empty = 0 == lseek(fd, 0, SEEK_END);
             }
-
-            unlink(path.c_str());
+            if (!empty) {
+                ds.EnqueueAddZipEntryAndCleanupIfNeeded("lshal-debug/" + cleanName + ".txt",
+                        path);
+            } else {
+                unlink(path.c_str());
+            }
         }
     });
 
@@ -1443,12 +1487,92 @@ static void DumpstateLimitedOnly() {
     printf("========================================================\n");
 }
 
+/*
+ * |out_fd| A fd to support the DumpPool to output results to a temporary file.
+ * Dumpstate can pick up later and output to the bugreport. Using STDOUT_FILENO
+ * if it's not running in the parallel task.
+ */
+static void DumpCheckins(int out_fd = STDOUT_FILENO) {
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Checkins\n");
+    dprintf(out_fd, "========================================================\n");
+
+    RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"}, out_fd);
+    RunDumpsys("CHECKIN MEMINFO", {"meminfo", "--checkin"}, out_fd);
+    RunDumpsys("CHECKIN NETSTATS", {"netstats", "--checkin"}, out_fd);
+    RunDumpsys("CHECKIN PROCSTATS", {"procstats", "-c"}, out_fd);
+    RunDumpsys("CHECKIN USAGESTATS", {"usagestats", "-c"}, out_fd);
+    RunDumpsys("CHECKIN PACKAGE", {"package", "--checkin"}, out_fd);
+}
+
+/*
+ * Runs dumpsys on activity service to dump all application activities, services
+ * and providers in the device.
+ *
+ * |out_fd| A fd to support the DumpPool to output results to a temporary file.
+ * Dumpstate can pick up later and output to the bugreport. Using STDOUT_FILENO
+ * if it's not running in the parallel task.
+ */
+static void DumpAppInfos(int out_fd = STDOUT_FILENO) {
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Running Application Activities\n");
+    dprintf(out_fd, "========================================================\n");
+
+    // The following dumpsys internally collects output from running apps, so it can take a long
+    // time. So let's extend the timeout.
+
+    const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
+
+    RunDumpsys("APP ACTIVITIES", {"activity", "-v", "all"}, DUMPSYS_COMPONENTS_OPTIONS, 0, out_fd);
+
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Running Application Services (platform)\n");
+    dprintf(out_fd, "========================================================\n");
+
+    RunDumpsys("APP SERVICES PLATFORM", {"activity", "service", "all-platform-non-critical"},
+            DUMPSYS_COMPONENTS_OPTIONS, 0, out_fd);
+
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Running Application Services (non-platform)\n");
+    dprintf(out_fd, "========================================================\n");
+
+    RunDumpsys("APP SERVICES NON-PLATFORM", {"activity", "service", "all-non-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS, 0, out_fd);
+
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Running Application Providers (platform)\n");
+    dprintf(out_fd, "========================================================\n");
+
+    RunDumpsys("APP PROVIDERS PLATFORM", {"activity", "provider", "all-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS, out_fd);
+
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Running Application Providers (non-platform)\n");
+    dprintf(out_fd, "========================================================\n");
+
+    RunDumpsys("APP PROVIDERS NON-PLATFORM", {"activity", "provider", "all-non-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS, 0, out_fd);
+}
+
 // Dumps various things. Returns early with status USER_CONSENT_DENIED if user denies consent
 // via the consent they are shown. Ignores other errors that occur while running various
 // commands. The consent checking is currently done around long running tasks, which happen to
 // be distributed fairly evenly throughout the function.
 static Dumpstate::RunStatus dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
+
+    // Enqueue slow functions into the thread pool, if the parallel run is enabled.
+    if (ds.dump_pool_) {
+        // Pool was shutdown in DumpstateDefaultAfterCritical method in order to
+        // drop root user. Restarts it with two threads for the parallel run.
+        ds.dump_pool_->start(/* thread_counts = */2);
+
+        ds.dump_pool_->enqueueTaskWithFd(DUMP_HALS_TASK, &DumpHals, _1);
+        ds.dump_pool_->enqueueTask(DUMP_INCIDENT_REPORT_TASK, &DumpIncidentReport);
+        ds.dump_pool_->enqueueTaskWithFd(DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
+        ds.dump_pool_->enqueueTaskWithFd(DUMP_CHECKINS_TASK, &DumpCheckins, _1);
+        ds.dump_pool_->enqueueTaskWithFd(DUMP_APP_INFOS_TASK, &DumpAppInfos, _1);
+    }
 
     // Dump various things. Note that anything that takes "long" (i.e. several seconds) should
     // check intermittently (if it's intrerruptable like a foreach on pids) and/or should be wrapped
@@ -1481,7 +1605,11 @@ static Dumpstate::RunStatus dumpstate() {
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunCommand, "LIBRANK", {"librank"},
                                          CommandOptions::AS_ROOT);
 
-    DumpHals();
+    if (ds.dump_pool_) {
+        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_HALS_TASK, ds.dump_pool_);
+    } else {
+        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_HALS_TASK, DumpHals);
+    }
 
     RunCommand("PRINTENV", {"printenv"});
     RunCommand("NETSTAT", {"netstat", "-nW"});
@@ -1564,7 +1692,11 @@ static Dumpstate::RunStatus dumpstate() {
 
     ds.AddDir(SNAPSHOTCTL_LOG_DIR, false);
 
-    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(ds.DumpstateBoard);
+    if (ds.dump_pool_) {
+        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_BOARD_TASK, ds.dump_pool_);
+    } else {
+        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_BOARD_TASK, ds.DumpstateBoard);
+    }
 
     /* Migrate the ril_dumpstate to a device specific dumpstate? */
     int rilDumpstateTimeout = android::base::GetIntProperty("ril.dumpstate.timeout", 0);
@@ -1586,57 +1718,17 @@ static Dumpstate::RunStatus dumpstate() {
 
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsysNormal);
 
-    printf("========================================================\n");
-    printf("== Checkins\n");
-    printf("========================================================\n");
+    if (ds.dump_pool_) {
+        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_CHECKINS_TASK, ds.dump_pool_);
+    } else {
+        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_CHECKINS_TASK, DumpCheckins);
+    }
 
-    RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
-
-    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsys, "CHECKIN MEMINFO", {"meminfo", "--checkin"});
-
-    RunDumpsys("CHECKIN NETSTATS", {"netstats", "--checkin"});
-    RunDumpsys("CHECKIN PROCSTATS", {"procstats", "-c"});
-    RunDumpsys("CHECKIN USAGESTATS", {"usagestats", "-c"});
-    RunDumpsys("CHECKIN PACKAGE", {"package", "--checkin"});
-
-    printf("========================================================\n");
-    printf("== Running Application Activities\n");
-    printf("========================================================\n");
-
-    // The following dumpsys internally collects output from running apps, so it can take a long
-    // time. So let's extend the timeout.
-
-    const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
-
-    RunDumpsys("APP ACTIVITIES", {"activity", "-v", "all"}, DUMPSYS_COMPONENTS_OPTIONS);
-
-    printf("========================================================\n");
-    printf("== Running Application Services (platform)\n");
-    printf("========================================================\n");
-
-    RunDumpsys("APP SERVICES PLATFORM", {"activity", "service", "all-platform-non-critical"},
-            DUMPSYS_COMPONENTS_OPTIONS);
-
-    printf("========================================================\n");
-    printf("== Running Application Services (non-platform)\n");
-    printf("========================================================\n");
-
-    RunDumpsys("APP SERVICES NON-PLATFORM", {"activity", "service", "all-non-platform"},
-            DUMPSYS_COMPONENTS_OPTIONS);
-
-    printf("========================================================\n");
-    printf("== Running Application Providers (platform)\n");
-    printf("========================================================\n");
-
-    RunDumpsys("APP PROVIDERS PLATFORM", {"activity", "provider", "all-platform"},
-            DUMPSYS_COMPONENTS_OPTIONS);
-
-    printf("========================================================\n");
-    printf("== Running Application Providers (non-platform)\n");
-    printf("========================================================\n");
-
-    RunDumpsys("APP PROVIDERS NON-PLATFORM", {"activity", "provider", "all-non-platform"},
-            DUMPSYS_COMPONENTS_OPTIONS);
+    if (ds.dump_pool_) {
+        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_APP_INFOS_TASK, ds.dump_pool_);
+    } else {
+        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_APP_INFOS_TASK, DumpAppInfos);
+    }
 
     printf("========================================================\n");
     printf("== Dropbox crashes\n");
@@ -1661,7 +1753,12 @@ static Dumpstate::RunStatus dumpstate() {
     // Add linker configuration directory
     ds.AddDir(LINKERCONFIG_DIR, true);
 
-    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(DumpIncidentReport);
+    if (ds.dump_pool_) {
+        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_INCIDENT_REPORT_TASK, ds.dump_pool_);
+    } else {
+        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_INCIDENT_REPORT_TASK,
+                DumpIncidentReport);
+    }
 
     return Dumpstate::RunStatus::OK;
 }
@@ -1682,7 +1779,18 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     time_t logcat_ts = time(nullptr);
 
     /* collect stack traces from Dalvik and native processes (needs root) */
-    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(ds.DumpTraces, &dump_traces_path);
+    if (dump_pool_) {
+        RETURN_IF_USER_DENIED_CONSENT();
+        // One thread is enough since we only need to enqueue DumpTraces here.
+        dump_pool_->start(/* thread_counts = */1);
+
+        // DumpTraces takes long time, post it to the another thread in the
+        // pool, if pool is available
+        dump_pool_->enqueueTask(DUMP_TRACES_TASK, &Dumpstate::DumpTraces, &ds, &dump_traces_path);
+    } else {
+        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_TRACES_TASK, ds.DumpTraces,
+                &dump_traces_path);
+    }
 
     /* Run some operations that require root. */
     ds.tombstone_data_ = GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX, !ds.IsZipping());
@@ -1725,6 +1833,15 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     DumpFile("PSI memory", "/proc/pressure/memory");
     DumpFile("PSI io", "/proc/pressure/io");
 
+    if (dump_pool_) {
+        RETURN_IF_USER_DENIED_CONSENT();
+        dump_pool_->waitForTask(DUMP_TRACES_TASK);
+
+        // Current running thread in the pool is the root user also. Shutdown
+        // the pool and restart later to ensure all threads in the pool could
+        // drop the root user.
+        dump_pool_->shutdown();
+    }
     if (!DropRootUser()) {
         return Dumpstate::RunStatus::ERROR;
     }
@@ -1736,31 +1853,39 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     return status;
 }
 
+// Common states for telephony and wifi which are needed to be collected before
+// dumpstate drop the root user.
+static void DumpstateRadioAsRoot() {
+    DumpIpTablesAsRoot();
+    ds.AddDir(LOGPERSIST_DATA_DIR, false);
+}
+
 // This method collects common dumpsys for telephony and wifi. Typically, wifi
 // reports are fine to include all information, but telephony reports on user
 // builds need to strip some content (see DumpstateTelephonyOnly).
 static void DumpstateRadioCommon(bool include_sensitive_info = true) {
-    DumpIpTablesAsRoot();
-
-    ds.AddDir(LOGPERSIST_DATA_DIR, false);
-
-    if (!DropRootUser()) {
-        return;
-    }
-
     // We need to be picky about some stuff for telephony reports on user builds.
     if (!include_sensitive_info) {
         // Only dump the radio log buffer (other buffers and dumps contain too much unrelated info).
         DoRadioLogcat();
     } else {
+        // DumpHals takes long time, post it to the another thread in the pool,
+        // if pool is available.
+        if (ds.dump_pool_) {
+            ds.dump_pool_->enqueueTaskWithFd(DUMP_HALS_TASK, &DumpHals, _1);
+        }
         // Contains various system properties and process startup info.
         do_dmesg();
         // Logs other than the radio buffer may contain package/component names and potential PII.
         DoLogcat();
         // Too broad for connectivity problems.
         DoKmsg();
-        // Contains unrelated hardware info (camera, NFC, biometrics, ...).
-        DumpHals();
+        // DumpHals contains unrelated hardware info (camera, NFC, biometrics, ...).
+        if (ds.dump_pool_) {
+            ds.dump_pool_->waitForTask(DUMP_HALS_TASK);
+        } else {
+            RUN_SLOW_FUNCTION_AND_LOG(DUMP_HALS_TASK, DumpHals);
+        }
     }
 
     DumpPacketStats();
@@ -1783,6 +1908,21 @@ static void DumpstateTelephonyOnly(const std::string& calling_package) {
     const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
 
     const bool include_sensitive_info = !PropertiesHelper::IsUserBuild();
+
+    DumpstateRadioAsRoot();
+    if (!DropRootUser()) {
+        return;
+    }
+
+    // Starts thread pool after the root user is dropped, and two additional threads
+    // are created for DumpHals in the DumpstateRadioCommon and DumpstateBoard.
+    if (ds.dump_pool_) {
+        ds.dump_pool_->start(/*thread_counts =*/2);
+
+        // DumpstateBoard takes long time, post it to the another thread in the pool,
+        // if pool is available.
+        ds.dump_pool_->enqueueTaskWithFd(DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
+    }
 
     DumpstateRadioCommon(include_sensitive_info);
 
@@ -1860,11 +2000,28 @@ static void DumpstateTelephonyOnly(const std::string& calling_package) {
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
+
+    if (ds.dump_pool_) {
+        ds.dump_pool_->waitForTask(DUMP_BOARD_TASK);
+    } else {
+        RUN_SLOW_FUNCTION_AND_LOG(DUMP_BOARD_TASK, ds.DumpstateBoard);
+    }
 }
 
 // This method collects dumpsys for wifi debugging only
 static void DumpstateWifiOnly() {
     DurationReporter duration_reporter("DUMPSTATE");
+
+    DumpstateRadioAsRoot();
+    if (!DropRootUser()) {
+        return;
+    }
+
+    // Starts thread pool after the root user is dropped. Only one additional
+    // thread is needed for DumpHals in the DumpstateRadioCommon.
+    if (ds.dump_pool_) {
+        ds.dump_pool_->start(/*thread_counts =*/1);
+    }
 
     DumpstateRadioCommon();
 
@@ -1883,8 +2040,6 @@ static void DumpstateWifiOnly() {
 }
 
 Dumpstate::RunStatus Dumpstate::DumpTraces(const char** path) {
-    DurationReporter duration_reporter("DUMP TRACES");
-
     const std::string temp_file_pattern = "/data/anr/dumptrace_XXXXXX";
     const size_t buf_size = temp_file_pattern.length() + 1;
     std::unique_ptr<char[]> file_name_buf(new char[buf_size]);
@@ -1992,11 +2147,10 @@ Dumpstate::RunStatus Dumpstate::DumpTraces(const char** path) {
     return RunStatus::OK;
 }
 
-void Dumpstate::DumpstateBoard() {
-    DurationReporter duration_reporter("dumpstate_board()");
-    printf("========================================================\n");
-    printf("== Board\n");
-    printf("========================================================\n");
+void Dumpstate::DumpstateBoard(int out_fd) {
+    dprintf(out_fd, "========================================================\n");
+    dprintf(out_fd, "== Board\n");
+    dprintf(out_fd, "========================================================\n");
 
     if (!IsZipping()) {
         MYLOGD("Not dumping board info because it's not a zipped bugreport\n");
@@ -2122,8 +2276,9 @@ void Dumpstate::DumpstateBoard() {
             MYLOGE("Ignoring empty %s\n", kDumpstateBoardFiles[i].c_str());
             continue;
         }
-        AddZipEntry(kDumpstateBoardFiles[i], paths[i]);
-        printf("*** See %s entry ***\n", kDumpstateBoardFiles[i].c_str());
+        remover[i].Disable();
+        EnqueueAddZipEntryAndCleanupIfNeeded(kDumpstateBoardFiles[i], paths[i]);
+        dprintf(out_fd, "*** See %s entry ***\n", kDumpstateBoardFiles[i].c_str());
     }
 }
 
@@ -2153,6 +2308,11 @@ static void register_sig_handler() {
 }
 
 bool Dumpstate::FinishZipFile() {
+    // Runs all enqueued adding zip entry and cleanup tasks before finishing the zip file.
+    if (zip_entry_tasks_) {
+        zip_entry_tasks_->run(/* do_cancel = */false);
+    }
+
     std::string entry_name = base_name_ + "-" + name_ + ".txt";
     MYLOGD("Adding main entry (%s) from %s to .zip bugreport\n", entry_name.c_str(),
            tmp_path_.c_str());
@@ -2356,7 +2516,6 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
             break;
         case Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE:
             // Currently, the dumpstate binder is only used by Shell to update progress.
-            options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_screenshot = is_screenshot_requested;
             options->dumpstate_hal_mode = DumpstateMode::INTERACTIVE;
@@ -2368,7 +2527,6 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
             options->dumpstate_hal_mode = DumpstateMode::REMOTE;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WEAR:
-            options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_zip_file = true;
             options->do_screenshot = is_screenshot_requested;
@@ -2395,12 +2553,12 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
 static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
     MYLOGI(
         "do_zip_file: %d do_vibrate: %d use_socket: %d use_control_socket: %d do_screenshot: %d "
-        "is_remote_mode: %d show_header_only: %d do_start_service: %d telephony_only: %d "
+        "is_remote_mode: %d show_header_only: %d telephony_only: %d "
         "wifi_only: %d do_progress_updates: %d fd: %d bugreport_mode: %s dumpstate_hal_mode: %s "
         "limited_only: %d args: %s\n",
         options.do_zip_file, options.do_vibrate, options.use_socket, options.use_control_socket,
         options.do_screenshot, options.is_remote_mode, options.show_header_only,
-        options.do_start_service, options.telephony_only, options.wifi_only,
+        options.telephony_only, options.wifi_only,
         options.do_progress_updates, options.bugreport_fd.get(), options.bugreport_mode.c_str(),
         toString(options.dumpstate_hal_mode).c_str(), options.limited_only, options.args.c_str());
 }
@@ -2531,6 +2689,15 @@ void Dumpstate::Cancel() {
     }
     tombstone_data_.clear();
     anr_data_.clear();
+
+    // Instead of shutdown the pool, we delete temporary files directly since
+    // shutdown blocking the call.
+    if (dump_pool_) {
+        dump_pool_->deleteTempFiles();
+    }
+    if (zip_entry_tasks_) {
+        zip_entry_tasks_->run(/*do_cancel =*/ true);
+    }
 }
 
 /*
@@ -2556,6 +2723,7 @@ void Dumpstate::Cancel() {
  */
 Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
                                             const std::string& calling_package) {
+    DurationReporter duration_reporter("RUN INTERNAL", /* logcat_only = */true);
     LogDumpOptions(*options_);
     if (!options_->ValidateOptions()) {
         MYLOGE("Invalid options specified\n");
@@ -2614,15 +2782,6 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     }
 
     register_sig_handler();
-
-    // TODO(b/111441001): maybe skip if already started?
-    if (options_->do_start_service) {
-        MYLOGI("Starting 'dumpstate' service\n");
-        android::status_t ret;
-        if ((ret = android::os::DumpstateService::Start()) != android::OK) {
-            MYLOGE("Unable to start DumpstateService: %d\n", ret);
-        }
-    }
 
     if (PropertiesHelper::IsDryRun()) {
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
@@ -2717,6 +2876,13 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     // Don't buffer stdout
     setvbuf(stdout, nullptr, _IONBF, 0);
 
+    // Enable the parallel run if the client requests to output to a file.
+    EnableParallelRunIfNeeded();
+    // Using scope guard to make sure the dump pool can be shut down correctly.
+    auto scope_guard_to_shutdown_pool = android::base::make_scope_guard([=]() {
+        ShutdownDumpPool();
+    });
+
     // NOTE: there should be no stdout output until now, otherwise it would break the header.
     // In particular, DurationReport objects should be created passing 'title, NULL', so their
     // duration is logged into MYLOG instead.
@@ -2728,7 +2894,6 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         onUiIntensiveBugreportDumpsFinished(calling_uid, calling_package);
         MaybeCheckUserConsent(calling_uid, calling_package);
         DumpstateTelephonyOnly(calling_package);
-        DumpstateBoard();
     } else if (options_->wifi_only) {
         MaybeTakeEarlyScreenshot();
         onUiIntensiveBugreportDumpsFinished(calling_uid, calling_package);
@@ -2883,6 +3048,45 @@ void Dumpstate::CleanupTmpFiles() {
     android::os::UnlinkAndLogOnError(path_);
 }
 
+void Dumpstate::EnableParallelRunIfNeeded() {
+    // The thread pool needs to create temporary files to receive dump results.
+    // That's why we only enable it when the bugreport client chooses to output
+    // to a file.
+    if (!PropertiesHelper::IsParallelRun() || !options_->OutputToFile()) {
+        return;
+    }
+    dump_pool_ = std::make_unique<DumpPool>(bugreport_internal_dir_);
+    zip_entry_tasks_ = std::make_unique<TaskQueue>();
+}
+
+void Dumpstate::ShutdownDumpPool() {
+    if (dump_pool_) {
+        dump_pool_->shutdown();
+        dump_pool_ = nullptr;
+    }
+    if (zip_entry_tasks_) {
+        zip_entry_tasks_->run(/* do_cancel = */true);
+        zip_entry_tasks_ = nullptr;
+    }
+}
+
+void Dumpstate::EnqueueAddZipEntryAndCleanupIfNeeded(const std::string& entry_name,
+        const std::string& entry_path) {
+    auto func_add_zip_entry_and_cleanup = [=](bool task_cancelled) {
+        if (!task_cancelled) {
+            AddZipEntry(entry_name, entry_path);
+        }
+        android::os::UnlinkAndLogOnError(entry_path);
+    };
+    if (zip_entry_tasks_) {
+        // Enqueues AddZipEntryAndCleanup function if the parallel run is enabled.
+        zip_entry_tasks_->add(func_add_zip_entry_and_cleanup, _1);
+    } else {
+        // Invokes AddZipEntryAndCleanup immediately
+        std::invoke(func_add_zip_entry_and_cleanup, /* task_cancelled = */false);
+    }
+}
+
 Dumpstate::RunStatus Dumpstate::HandleUserConsentDenied() {
     MYLOGD("User denied consent; deleting files and returning\n");
     CleanupTmpFiles();
@@ -3001,8 +3205,9 @@ Dumpstate& Dumpstate::GetInstance() {
     return singleton_;
 }
 
-DurationReporter::DurationReporter(const std::string& title, bool logcat_only, bool verbose)
-    : title_(title), logcat_only_(logcat_only), verbose_(verbose) {
+DurationReporter::DurationReporter(const std::string& title, bool logcat_only, bool verbose,
+        int duration_fd) : title_(title), logcat_only_(logcat_only), verbose_(verbose),
+        duration_fd_(duration_fd) {
     if (!title_.empty()) {
         started_ = Nanotime();
     }
@@ -3016,7 +3221,8 @@ DurationReporter::~DurationReporter() {
         }
         if (!logcat_only_) {
             // Use "Yoda grammar" to make it easier to grep|sort sections.
-            printf("------ %.3fs was the duration of '%s' ------\n", elapsed, title_.c_str());
+            dprintf(duration_fd_, "------ %.3fs was the duration of '%s' ------\n",
+                    elapsed, title_.c_str());
         }
     }
 }
@@ -3602,10 +3808,11 @@ int dump_file_from_fd(const char *title, const char *path, int fd) {
 }
 
 int Dumpstate::RunCommand(const std::string& title, const std::vector<std::string>& full_command,
-                          const CommandOptions& options, bool verbose_duration) {
-    DurationReporter duration_reporter(title, false /* logcat_only */, verbose_duration);
+                          const CommandOptions& options, bool verbose_duration, int out_fd) {
+    DurationReporter duration_reporter(title, false /* logcat_only */,
+                                       verbose_duration, out_fd);
 
-    int status = RunCommandToFd(STDOUT_FILENO, title, full_command, options);
+    int status = RunCommandToFd(out_fd, title, full_command, options);
 
     /* TODO: for now we're simplifying the progress calculation by using the
      * timeout as the weight. It's a good approximation for most cases, except when calling dumpsys,
@@ -3617,11 +3824,11 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
 }
 
 void Dumpstate::RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
-                           const CommandOptions& options, long dumpsysTimeoutMs) {
+                           const CommandOptions& options, long dumpsysTimeoutMs, int out_fd) {
     long timeout_ms = dumpsysTimeoutMs > 0 ? dumpsysTimeoutMs : options.TimeoutInMs();
     std::vector<std::string> dumpsys = {"/system/bin/dumpsys", "-T", std::to_string(timeout_ms)};
     dumpsys.insert(dumpsys.end(), dumpsys_args.begin(), dumpsys_args.end());
-    RunCommand(title, dumpsys, options);
+    RunCommand(title, dumpsys, options, false, out_fd);
 }
 
 int open_socket(const char *service) {
@@ -3744,12 +3951,16 @@ void dump_route_tables() {
     fclose(fp);
 }
 
-// TODO: make this function thread safe if sections are generated in parallel.
 void Dumpstate::UpdateProgress(int32_t delta_sec) {
     if (progress_ == nullptr) {
         MYLOGE("UpdateProgress: progress_ not set\n");
         return;
     }
+    // This function updates progress related members of the dumpstate and reports
+    // progress percentage to the bugreport client. Since it could be called by
+    // different dump tasks at the same time if the parallel run is enabled, a
+    // mutex lock is necessary here to synchronize the call.
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
 
     // Always update progess so stats can be tuned...
     progress_->Inc(delta_sec);

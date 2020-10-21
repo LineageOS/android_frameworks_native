@@ -176,10 +176,18 @@ class PropertiesHelper {
      */
     static bool IsUnroot();
 
+    /*
+     * Whether or not the parallel run is enabled. Setting the system property
+     * 'dumpstate.parallel_run' to false to disable it, otherwise it returns
+     * true by default.
+     */
+    static bool IsParallelRun();
+
   private:
     static std::string build_type_;
     static int dry_run_;
     static int unroot_;
+    static int parallel_run_;
 };
 
 /*
