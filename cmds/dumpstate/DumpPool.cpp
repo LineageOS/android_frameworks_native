@@ -100,6 +100,10 @@ void DumpPool::waitForTask(const std::string& task_name, const std::string& titl
     }
 }
 
+void DumpPool::deleteTempFiles() {
+    deleteTempFiles(tmp_root_);
+}
+
 void DumpPool::setLogDuration(bool log_duration) {
     log_duration_ = log_duration;
 }
