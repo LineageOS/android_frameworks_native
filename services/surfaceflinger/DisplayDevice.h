@@ -95,10 +95,7 @@ public:
 
     static ui::Transform::RotationFlags getPrimaryDisplayRotationFlags();
 
-    ui::Transform::RotationFlags getTransformHint() const {
-        return static_cast<ui::Transform::RotationFlags>(getTransform().getOrientation());
-    }
-
+    ui::Transform::RotationFlags getTransformHint() const;
     const ui::Transform& getTransform() const;
     const Rect& getLayerStackSpaceRect() const;
     const Rect& getOrientedDisplaySpaceRect() const;

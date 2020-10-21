@@ -42,6 +42,7 @@ public:
                        const Rect& orientedDisplaySpaceRect) override;
     void setDisplaySize(const ui::Size&) override;
     void setLayerStackFilter(uint32_t layerStackId, bool isInternal) override;
+    ui::Transform::RotationFlags getTransformHint() const override;
 
     void setColorTransform(const compositionengine::CompositionRefreshArgs&) override;
     void setColorProfile(const ColorProfile&) override;
