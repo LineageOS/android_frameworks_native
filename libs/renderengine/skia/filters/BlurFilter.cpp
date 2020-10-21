@@ -72,8 +72,10 @@ void BlurFilter::draw(SkCanvas* canvas, sk_sp<SkSurface> input, const uint32_t b
     const float stepY = radiusByPasses;
 
     // start by drawing and downscaling and doing the first blur pass
+    SkFilterOptions linear = {SkSamplingMode::kLinear, SkMipmapMode::kNone};
     SkRuntimeShaderBuilder blurBuilder(mBlurEffect);
-    blurBuilder.child("input") = input->makeImageSnapshot()->makeShader();
+    blurBuilder.child("input") =
+            input->makeImageSnapshot()->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
     blurBuilder.uniform("in_inverseScale") = kInverseInputScale;
     blurBuilder.uniform("in_blurOffset") =
             SkV2{stepX * kInverseInputScale, stepY * kInverseInputScale};
@@ -97,7 +99,9 @@ void BlurFilter::draw(SkCanvas* canvas, sk_sp<SkSurface> input, const uint32_t b
         for (auto i = 1; i < numberOfPasses; i++) {
             const float stepScale = (float)i * kInputScale;
 
-            blurBuilder.child("input") = readSurface->makeImageSnapshot()->makeShader();
+            blurBuilder.child("input") =
+                    readSurface->makeImageSnapshot()->makeShader(SkTileMode::kClamp,
+                                                                 SkTileMode::kClamp, linear);
             blurBuilder.uniform("in_inverseScale") = 1.0f;
             blurBuilder.uniform("in_blurOffset") = SkV2{stepX * stepScale, stepY * stepScale};
 
