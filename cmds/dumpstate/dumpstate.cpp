@@ -3881,12 +3881,16 @@ void dump_route_tables() {
     fclose(fp);
 }
 
-// TODO: make this function thread safe if sections are generated in parallel.
 void Dumpstate::UpdateProgress(int32_t delta_sec) {
     if (progress_ == nullptr) {
         MYLOGE("UpdateProgress: progress_ not set\n");
         return;
     }
+    // This function updates progress related members of the dumpstate and reports
+    // progress percentage to the bugreport client. Since it could be called by
+    // different dump tasks at the same time if the parallel run is enabled, a
+    // mutex lock is necessary here to synchronize the call.
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
 
     // Always update progess so stats can be tuned...
     progress_->Inc(delta_sec);
