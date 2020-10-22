@@ -15,6 +15,7 @@
  */
 
 import java.io.PrintStream;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -199,6 +200,33 @@ public class JniCodeEmitter {
         }
 
         out.println(iii + ");");
+    }
+
+    // Function to automatically generate properly formatted function calls that
+    // comply with clang format rules
+    public static String formatFunctionCall(String indent, String functionCall) {
+        final int MAXLEN = 100;
+        String tokens[] = functionCall.split("\\(|\\)", 2);
+        String params[] = tokens[1].split(",\\s*");
+        String formatted = indent + tokens[0] + "(";
+        char[] chars = new char[indent.length() + tokens[0].length() + 1];
+        Arrays.fill(chars, ' ');
+        String multiIndent = new String(chars);
+        ArrayList<String> lines = new ArrayList<String>();
+        for(int i = 0; i < params.length; i++) {
+            String terminator = ((i == params.length - 1) ? "" : ",");
+            if(indent.length() + formatted.length() + params[i].length() > MAXLEN) {
+                lines.add(formatted);
+                if (!indent.equals(multiIndent)) {
+                    indent = multiIndent;
+                }
+                formatted = indent + params[i] + terminator;
+            } else {
+              formatted += (i == 0 ? "" : " ") + params[i] + terminator;
+            }
+        }
+        lines.add(formatted);
+        return String.join("\n", lines);
     }
 
     void printIfcheckPostamble(PrintStream out, boolean isBuffer, boolean emitExceptionCheck,
@@ -1538,14 +1566,19 @@ public class JniCodeEmitter {
                                         "_exception ? JNI_ABORT : 0" : "0")) +
                                 ");");
                         } else {
-                            out.println(indent + indent +
+                            String bufferOffset = numBufferArgs <= 1 ? "_bufferOffset" :
+                                "_" + cfunc.getArgName(cIndex) + "BufferOffset";
+                            String typeCast = "(char *)" + cfunc.getArgName(cIndex);
+                            String withOffset = "(void *)(" + typeCast + " - " + bufferOffset + ")";
+                            String releasePointerCall = (
                                 "releasePointer(_env, " + array + ", " +
-                                cfunc.getArgName(cIndex) +
+                                withOffset +
                                 ", " +
                                 (cfunc.getArgType(cIndex).isConst() ?
                                     "JNI_FALSE" : (emitExceptionCheck ?
                                         "_exception ? JNI_FALSE : JNI_TRUE" : "JNI_TRUE")) +
                                 ");");
+                            out.println(formatFunctionCall(indent + indent, releasePointerCall));
                         }
                         out.println(indent + "}");
                     }
