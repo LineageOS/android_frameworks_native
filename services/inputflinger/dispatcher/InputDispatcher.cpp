@@ -561,9 +561,7 @@ nsecs_t InputDispatcher::processAnrsLocked() {
             mNoFocusedWindowTimeoutTime = std::nullopt;
             return LONG_LONG_MIN;
         } else {
-            // Keep waiting
-            const nsecs_t millisRemaining = ns2ms(*mNoFocusedWindowTimeoutTime - currentTime);
-            ALOGW("Still no focused window. Will drop the event in %" PRId64 "ms", millisRemaining);
+            // Keep waiting. We will drop the event when mNoFocusedWindowTimeoutTime comes.
             nextAnrCheck = *mNoFocusedWindowTimeoutTime;
         }
     }
