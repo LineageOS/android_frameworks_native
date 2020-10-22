@@ -16,11 +16,12 @@
 
 #pragma once
 
+#include <ftl/ArrayTraits.h>
+
 #include <algorithm>
 #include <cassert>
 #include <iterator>
 #include <memory>
-#include <new>
 #include <type_traits>
 #include <utility>
 
@@ -63,8 +64,15 @@ constexpr struct IteratorRangeTag {} IteratorRange;
 //     assert(vector == (ftl::StaticVector{'h', 'i', '\0'}));
 //
 template <typename T, size_t N>
-class StaticVector final {
+class StaticVector final : ArrayTraits<T>,
+                           ArrayIterators<StaticVector<T, N>, T>,
+                           ArrayComparators<StaticVector> {
     static_assert(N > 0);
+
+    using ArrayTraits<T>::construct_at;
+
+    using Iter = ArrayIterators<StaticVector, T>;
+    friend Iter;
 
     // There is ambiguity when constructing from two iterator-like elements like pointers:
     // they could be an iterator range, or arguments for in-place construction. Assume the
@@ -76,19 +84,19 @@ class StaticVector final {
             std::negation<std::is_constructible<T, I>>>;
 
 public:
-    using value_type = T;
-    using size_type = size_t;
-    using difference_type = ptrdiff_t;
+    FTL_ARRAY_TRAIT(T, value_type);
+    FTL_ARRAY_TRAIT(T, size_type);
+    FTL_ARRAY_TRAIT(T, difference_type);
 
-    using pointer = value_type*;
-    using reference = value_type&;
-    using iterator = pointer;
-    using reverse_iterator = std::reverse_iterator<iterator>;
+    FTL_ARRAY_TRAIT(T, pointer);
+    FTL_ARRAY_TRAIT(T, reference);
+    FTL_ARRAY_TRAIT(T, iterator);
+    FTL_ARRAY_TRAIT(T, reverse_iterator);
 
-    using const_pointer = const value_type*;
-    using const_reference = const value_type&;
-    using const_iterator = const_pointer;
-    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    FTL_ARRAY_TRAIT(T, const_pointer);
+    FTL_ARRAY_TRAIT(T, const_reference);
+    FTL_ARRAY_TRAIT(T, const_iterator);
+    FTL_ARRAY_TRAIT(T, const_reverse_iterator);
 
     // Creates an empty vector.
     StaticVector() = default;
@@ -180,32 +188,26 @@ public:
     bool full() const { return size() == max_size(); }
 
     iterator begin() { return std::launder(reinterpret_cast<pointer>(mData)); }
-    const_iterator begin() const { return cbegin(); }
-    const_iterator cbegin() const { return mut().begin(); }
-
     iterator end() { return begin() + size(); }
-    const_iterator end() const { return cend(); }
-    const_iterator cend() const { return mut().end(); }
 
-    reverse_iterator rbegin() { return std::make_reverse_iterator(end()); }
-    const_reverse_iterator rbegin() const { return crbegin(); }
-    const_reverse_iterator crbegin() const { return mut().rbegin(); }
+    using Iter::begin;
+    using Iter::end;
 
-    reverse_iterator rend() { return std::make_reverse_iterator(begin()); }
-    const_reverse_iterator rend() const { return crend(); }
-    const_reverse_iterator crend() const { return mut().rend(); }
+    using Iter::cbegin;
+    using Iter::cend;
 
-    iterator last() { return end() - 1; }
-    const_iterator last() const { return mut().last(); }
+    using Iter::rbegin;
+    using Iter::rend;
 
-    reference front() { return *begin(); }
-    const_reference front() const { return mut().front(); }
+    using Iter::crbegin;
+    using Iter::crend;
 
-    reference back() { return *last(); }
-    const_reference back() const { return mut().back(); }
+    using Iter::last;
 
-    reference operator[](size_type i) { return *(begin() + i); }
-    const_reference operator[](size_type i) const { return mut()[i]; }
+    using Iter::back;
+    using Iter::front;
+
+    using Iter::operator[];
 
     // Replaces an element, and returns a reference to it. The iterator must be dereferenceable, so
     // replacing at end() is erroneous.
@@ -242,7 +244,13 @@ public:
     //
     // On success, the end() iterator is invalidated.
     //
-    bool push_back(value_type v) {
+    bool push_back(const value_type& v) {
+        // Two statements for sequence point.
+        const iterator it = emplace_back(v);
+        return it != end();
+    }
+
+    bool push_back(value_type&& v) {
         // Two statements for sequence point.
         const iterator it = emplace_back(std::move(v));
         return it != end();
@@ -273,8 +281,6 @@ public:
 private:
     struct Empty {};
 
-    StaticVector& mut() const { return *const_cast<StaticVector*>(this); }
-
     // Recursion for variadic constructor.
     template <size_t I, typename E, typename... Es>
     StaticVector(std::index_sequence<I>, E&& element, Es&&... elements)
@@ -285,13 +291,6 @@ private:
     // Base case for variadic constructor.
     template <size_t I>
     explicit StaticVector(std::index_sequence<I>) : mSize(I) {}
-
-    // TODO: Replace with std::construct_at in C++20.
-    template <typename... Args>
-    static pointer construct_at(const_iterator it, Args&&... args) {
-        void* const ptr = const_cast<void*>(static_cast<const void*>(it));
-        return new (ptr) value_type{std::forward<Args>(args)...};
-    }
 
     size_type mSize = 0;
     std::aligned_storage_t<sizeof(value_type), alignof(value_type)> mData[N];
@@ -346,37 +345,6 @@ void StaticVector<T, N>::swap(StaticVector& other) {
 template <typename T, size_t N>
 inline void swap(StaticVector<T, N>& lhs, StaticVector<T, N>& rhs) {
     lhs.swap(rhs);
-}
-
-// TODO: Replace with operator<=> in C++20.
-template <typename T, size_t N, size_t M>
-inline bool operator==(const StaticVector<T, N>& lhs, const StaticVector<T, M>& rhs) {
-    return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
-}
-
-template <typename T, size_t N, size_t M>
-inline bool operator<(const StaticVector<T, N>& lhs, const StaticVector<T, M>& rhs) {
-    return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
-}
-
-template <typename T, size_t N, size_t M>
-inline bool operator>(const StaticVector<T, N>& lhs, const StaticVector<T, M>& rhs) {
-    return rhs < lhs;
-}
-
-template <typename T, size_t N, size_t M>
-inline bool operator!=(const StaticVector<T, N>& lhs, const StaticVector<T, M>& rhs) {
-    return !(lhs == rhs);
-}
-
-template <typename T, size_t N, size_t M>
-inline bool operator>=(const StaticVector<T, N>& lhs, const StaticVector<T, M>& rhs) {
-    return !(lhs < rhs);
-}
-
-template <typename T, size_t N, size_t M>
-inline bool operator<=(const StaticVector<T, N>& lhs, const StaticVector<T, M>& rhs) {
-    return !(rhs < lhs);
 }
 
 } // namespace android::ftl
