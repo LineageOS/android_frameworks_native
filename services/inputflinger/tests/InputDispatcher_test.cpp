@@ -3032,4 +3032,64 @@ TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
     mFocusedWindow->assertNoEvents();
 }
 
+/**
+ * If we have no focused window, and a key comes in, we start the ANR timer.
+ * The focused application should add a focused window before the timer runs out to prevent ANR.
+ *
+ * If the user touches another application during this time, the key should be dropped.
+ * Next, if a new focused window comes in, without toggling the focused application,
+ * then no ANR should occur.
+ *
+ * Normally, we would expect the new focused window to be accompanied by 'setFocusedApplication',
+ * but in some cases the policy may not update the focused application.
+ */
+TEST_F(InputDispatcherMultiWindowAnr, FocusedWindowWithoutSetFocusedApplication_NoAnr) {
+    sp<FakeApplicationHandle> focusedApplication = new FakeApplicationHandle();
+    focusedApplication->setDispatchingTimeout(60ms);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, focusedApplication);
+    // The application that owns 'mFocusedWindow' and 'mUnfocusedWindow' is not focused.
+    mFocusedWindow->setFocus(false);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mFocusedWindow, mUnfocusedWindow}}});
+    mFocusedWindow->consumeFocusEvent(false);
+
+    // Send a key. The ANR timer should start because there is no focused window.
+    // 'focusedApplication' will get blamed if this timer completes.
+    // Key will not be sent anywhere because we have no focused window. It will remain pending.
+    int32_t result =
+            injectKey(mDispatcher, AKEY_EVENT_ACTION_DOWN, 0 /*repeatCount*/, ADISPLAY_ID_DEFAULT,
+                      INPUT_EVENT_INJECTION_SYNC_NONE, 10ms /*injectionTimeout*/);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, result);
+
+    // Wait until dispatcher starts the "no focused window" timer. If we don't wait here,
+    // then the injected touches won't cause the focused event to get dropped.
+    // The dispatcher only checks for whether the queue should be pruned upon queueing.
+    // If we inject the touch right away and the ANR timer hasn't started, the touch event would
+    // simply be added to the queue without 'shouldPruneInboundQueueLocked' returning 'true'.
+    // For this test, it means that the key would get delivered to the window once it becomes
+    // focused.
+    std::this_thread::sleep_for(10ms);
+
+    // Touch unfocused window. This should force the pending key to get dropped.
+    NotifyMotionArgs motionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT, {UNFOCUSED_WINDOW_LOCATION});
+    mDispatcher->notifyMotion(&motionArgs);
+
+    // We do not consume the motion right away, because that would require dispatcher to first
+    // process (== drop) the key event, and by that time, ANR will be raised.
+    // Set the focused window first.
+    mFocusedWindow->setFocus(true);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mFocusedWindow, mUnfocusedWindow}}});
+    mFocusedWindow->consumeFocusEvent(true);
+    // We do not call "setFocusedApplication" here, even though the newly focused window belongs
+    // to another application. This could be a bug / behaviour in the policy.
+
+    mUnfocusedWindow->consumeMotionDown();
+
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    // Should not ANR because we actually have a focused window. It was just added too slowly.
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertNotifyAnrWasNotCalled());
+}
+
 } // namespace android::inputdispatcher
