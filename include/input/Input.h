@@ -730,7 +730,7 @@ public:
     static const char* getLabel(int32_t axis);
     static int32_t getAxisFromLabel(const char* label);
 
-    static const char* actionToString(int32_t action);
+    static std::string actionToString(int32_t action);
 
 protected:
     int32_t mAction;
