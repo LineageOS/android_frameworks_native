@@ -300,6 +300,7 @@ private:
             REQUIRES(mLock);
     sp<InputWindowHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken) const
             REQUIRES(mLock);
+    sp<InputWindowHandle> getFocusedWindowHandleLocked(int displayId) const REQUIRES(mLock);
     sp<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const REQUIRES(mLock);
     bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
 
@@ -366,6 +367,11 @@ private:
      * Used to raise an ANR when we have no focused window.
      */
     sp<InputApplicationHandle> mAwaitedFocusedApplication GUARDED_BY(mLock);
+    /**
+     * The displayId that the focused application is associated with.
+     */
+    int32_t mAwaitedApplicationDisplayId GUARDED_BY(mLock);
+    void processNoFocusedWindowAnrLocked() REQUIRES(mLock);
 
     // Optimization: AnrTracker is used to quickly find which connection is due for a timeout next.
     // AnrTracker must be kept in-sync with all responsive connection.waitQueues.
