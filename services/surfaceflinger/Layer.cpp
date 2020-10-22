@@ -1455,7 +1455,6 @@ bool Layer::setFrameRate(FrameRate frameRate) {
 }
 
 void Layer::setFrameTimelineVsyncForTransaction(int64_t frameTimelineVsyncId, nsecs_t postTime) {
-    mCurrentState.sequence++;
     mCurrentState.frameTimelineVsyncId = frameTimelineVsyncId;
     mCurrentState.postTime = postTime;
     mCurrentState.modified = true;
