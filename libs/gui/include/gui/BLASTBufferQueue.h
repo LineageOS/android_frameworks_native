@@ -75,7 +75,7 @@ public:
     sp<Surface> getSurface();
 
     void onBufferFreed(const wp<GraphicBuffer>&/* graphicBuffer*/) override { /* TODO */ }
-    void onFrameReplaced(const BufferItem& item) override {onFrameAvailable(item);}
+    void onFrameReplaced(const BufferItem& item) override;
     void onFrameAvailable(const BufferItem& item) override;
 
     void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,

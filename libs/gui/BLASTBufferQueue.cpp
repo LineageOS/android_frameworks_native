@@ -302,13 +302,13 @@ Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
     return item.mCrop;
 }
 
-void BLASTBufferQueue::onFrameAvailable(const BufferItem& /*item*/) {
+void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     ATRACE_CALL();
     std::unique_lock _lock{mMutex};
 
     const bool nextTransactionSet = mNextTransaction != nullptr;
-    BQA_LOGV("onFrameAvailable nextTransactionSet=%s mFlushShadowQueue=%s",
-             toString(nextTransactionSet), toString(mFlushShadowQueue));
+    BQA_LOGV("onFrameAvailable framenumber=%" PRIu64 " nextTransactionSet=%s mFlushShadowQueue=%s",
+             item.mFrameNumber, toString(nextTransactionSet), toString(mFlushShadowQueue));
 
     if (nextTransactionSet || mFlushShadowQueue) {
         while (mNumFrameAvailable > 0 || maxBuffersAcquired()) {
@@ -320,6 +320,11 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& /*item*/) {
     // add to shadow queue
     mNumFrameAvailable++;
     processNextBufferLocked(true);
+}
+
+void BLASTBufferQueue::onFrameReplaced(const BufferItem& item) {
+    BQA_LOGV("onFrameReplaced framenumber=%" PRIu64, item.mFrameNumber);
+    // Do nothing since we are not storing unacquired buffer items locally.
 }
 
 void BLASTBufferQueue::setNextTransaction(SurfaceComposerClient::Transaction* t) {
