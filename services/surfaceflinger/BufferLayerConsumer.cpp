@@ -503,6 +503,9 @@ void BufferLayerConsumer::dumpLocked(String8& result, const char* prefix) const 
 BufferLayerConsumer::Image::Image(const sp<GraphicBuffer>& graphicBuffer,
                                   renderengine::RenderEngine& engine)
       : mGraphicBuffer(graphicBuffer), mRE(engine) {
+    if (graphicBuffer != nullptr && (graphicBuffer->getUsage() & GRALLOC_USAGE_PROTECTED)) {
+        return;
+    }
     mRE.cacheExternalTextureBuffer(mGraphicBuffer);
 }
 

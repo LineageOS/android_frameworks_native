@@ -735,9 +735,9 @@ status_t GLESRenderEngine::cacheExternalTextureBufferInternal(const sp<GraphicBu
     bool created = newImage->setNativeWindowBuffer(buffer->getNativeBuffer(),
                                                    buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
     if (!created) {
-        ALOGE("Failed to create image. size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
-              buffer->getWidth(), buffer->getHeight(), buffer->getStride(), buffer->getUsage(),
-              buffer->getPixelFormat());
+        ALOGE("Failed to create image. id=%" PRIx64 " size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
+              buffer->getId(), buffer->getWidth(), buffer->getHeight(), buffer->getStride(),
+              buffer->getUsage(), buffer->getPixelFormat());
         return NO_INIT;
     }
 
@@ -1218,6 +1218,11 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             texCoords[2] = vec2(1.0, 1.0);
             texCoords[3] = vec2(1.0, 0.0);
             setupLayerTexturing(texture);
+
+            // Do not cache protected EGLImage, protected memory is limited.
+            if (gBuf->getUsage() & GRALLOC_USAGE_PROTECTED) {
+                unbindExternalTextureBuffer(gBuf->getId());
+            }
         }
 
         const half3 solidColor = layer->source.solidColor;
