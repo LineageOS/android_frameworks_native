@@ -24,11 +24,11 @@
 #include <binder/Parcel.h>
 #include <binder/PermissionCache.h>
 #include <cutils/properties.h>
+#include <gpumem/GpuMem.h>
 #include <gpustats/GpuStats.h>
 #include <private/android_filesystem_config.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
-
 #include <vkjson.h>
 
 namespace android {
@@ -45,7 +45,10 @@ const String16 sDump("android.permission.DUMP");
 
 const char* const GpuService::SERVICE_NAME = "gpu";
 
-GpuService::GpuService() : mGpuStats(std::make_unique<GpuStats>()){};
+GpuService::GpuService()
+      : mGpuMem(std::make_unique<GpuMem>()), mGpuStats(std::make_unique<GpuStats>()) {
+    mGpuMem->initialize();
+};
 
 void GpuService::setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
@@ -110,6 +113,7 @@ status_t GpuService::doDump(int fd, const Vector<String16>& args, bool /*asProto
     } else {
         bool dumpAll = true;
         bool dumpDriverInfo = false;
+        bool dumpMem = false;
         bool dumpStats = false;
         size_t numArgs = args.size();
 
@@ -119,13 +123,19 @@ status_t GpuService::doDump(int fd, const Vector<String16>& args, bool /*asProto
                     dumpStats = true;
                 } else if (args[index] == String16("--gpudriverinfo")) {
                     dumpDriverInfo = true;
+                } else if (args[index] == String16("--gpumem")) {
+                    dumpMem = true;
                 }
             }
-            dumpAll = !(dumpDriverInfo || dumpStats);
+            dumpAll = !(dumpDriverInfo || dumpMem || dumpStats);
         }
 
         if (dumpAll || dumpDriverInfo) {
             dumpGameDriverInfo(&result);
+            result.append("\n");
+        }
+        if (dumpAll || dumpMem) {
+            mGpuMem->dump(args, &result);
             result.append("\n");
         }
         if (dumpAll || dumpStats) {
