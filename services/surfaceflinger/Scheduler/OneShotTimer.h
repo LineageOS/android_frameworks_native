@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <semaphore.h>
 #include <chrono>
 #include <condition_variable>
 #include <thread>
@@ -70,17 +71,15 @@ private:
     // Function that loops until the condition for stopping is met.
     void loop();
 
+    // Checks whether mResetTriggered and mStopTriggered were set and updates
+    // mState if so.
+    TimerState checkForResetAndStop(TimerState state);
+
     // Thread waiting for timer to expire.
     std::thread mThread;
 
-    // Condition used to notify mThread.
-    std::condition_variable_any mCondition;
-
-    // Lock used for synchronizing the waiting thread with the application thread.
-    std::mutex mMutex;
-
-    // Current timer state
-    TimerState mState GUARDED_BY(mMutex) = TimerState::RESET;
+    // Semaphore to keep mThread synchronized.
+    sem_t mSemaphore;
 
     // Interval after which timer expires.
     const Interval mInterval;
@@ -90,6 +89,12 @@ private:
 
     // Callback that happens when timer expires.
     const TimeoutCallback mTimeoutCallback;
+
+    // After removing lock guarding mState, the state can be now accessed at
+    // any time. Keep a bool if the reset or stop were requested, and occasionally
+    // check in the main loop if they were.
+    std::atomic<bool> mResetTriggered = false;
+    std::atomic<bool> mStopTriggered = false;
 };
 
 } // namespace scheduler
