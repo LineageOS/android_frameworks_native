@@ -57,6 +57,7 @@ struct ProcHook {
 
         EXTENSION_CORE_1_0,
         EXTENSION_CORE_1_1,
+        EXTENSION_CORE_1_2,
         EXTENSION_COUNT,
         EXTENSION_UNKNOWN,
     };

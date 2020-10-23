@@ -129,7 +129,9 @@ VkJsonDevice VkJsonGetDevice(VkPhysicalDevice physical_device) {
 
   VkFormatProperties format_properties = {};
   for (VkFormat format = VK_FORMAT_R4G4_UNORM_PACK8;
-       format <= VK_FORMAT_END_RANGE;
+       // TODO(http://b/171403054): avoid hard-coding last value in the
+       // contiguous range
+       format <= VK_FORMAT_ASTC_12x12_SRGB_BLOCK;
        format = static_cast<VkFormat>(format + 1)) {
     vkGetPhysicalDeviceFormatProperties(physical_device, format,
                                         &format_properties);
@@ -142,6 +144,8 @@ VkJsonDevice VkJsonGetDevice(VkPhysicalDevice physical_device) {
 
   if (device.properties.apiVersion >= VK_API_VERSION_1_1) {
     for (VkFormat format = VK_FORMAT_G8B8G8R8_422_UNORM;
+         // TODO(http://b/171403054): avoid hard-coding last value in the
+         // contiguous range
          format <= VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM;
          format = static_cast<VkFormat>(format + 1)) {
       vkGetPhysicalDeviceFormatProperties(physical_device, format,

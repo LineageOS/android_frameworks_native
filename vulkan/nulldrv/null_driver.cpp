@@ -1123,6 +1123,14 @@ VkResult CreateDebugReportCallbackEXT(VkInstance instance,
     return VK_SUCCESS;
 }
 
+VkResult CreateRenderPass2(VkDevice device,
+                           const VkRenderPassCreateInfo2*,
+                           const VkAllocationCallbacks* /*allocator*/,
+                           VkRenderPass* pRenderPass) {
+    *pRenderPass = AllocHandle<VkRenderPass>(device, HandleType::kRenderPass);
+    return VK_SUCCESS;
+}
+
 // -----------------------------------------------------------------------------
 // No-op entrypoints
 
@@ -1566,6 +1574,55 @@ void GetPhysicalDeviceExternalSemaphoreProperties(VkPhysicalDevice physicalDevic
 }
 
 void GetDescriptorSetLayoutSupport(VkDevice device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo, VkDescriptorSetLayoutSupport* pSupport) {
+}
+
+void ResetQueryPool(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount) {
+    ALOGV("TODO: vk%s", __FUNCTION__);
+}
+
+void CmdBeginRenderPass2(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pRenderPassBegin, const VkSubpassBeginInfo* pSubpassBeginInfo) {
+}
+
+void CmdNextSubpass2(VkCommandBuffer commandBuffer, const VkSubpassBeginInfo* pSubpassBeginInfo, const VkSubpassEndInfo* pSubpassEndInfo) {
+}
+
+void CmdEndRenderPass2(VkCommandBuffer commandBuffer, const VkSubpassEndInfo* pSubpassEndInfo) {
+}
+
+VkResult GetSemaphoreCounterValue(VkDevice device, VkSemaphore semaphore, uint64_t* pValue) {
+    ALOGV("TODO: vk%s", __FUNCTION__);
+    return VK_SUCCESS;
+}
+
+VkResult WaitSemaphores(VkDevice device, const VkSemaphoreWaitInfo* pWaitInfo, uint64_t timeout) {
+    ALOGV("TODO: vk%s", __FUNCTION__);
+    return VK_SUCCESS;
+}
+
+VkResult SignalSemaphore(VkDevice device, const VkSemaphoreSignalInfo* pSignalInfo) {
+    ALOGV("TODO: vk%s", __FUNCTION__);
+    return VK_SUCCESS;
+}
+
+void CmdDrawIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) {
+}
+
+void CmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) {
+}
+
+uint64_t GetBufferOpaqueCaptureAddress(VkDevice device, const VkBufferDeviceAddressInfo* pInfo) {
+    ALOGV("TODO: vk%s", __FUNCTION__);
+    return 0;
+}
+
+VkDeviceAddress GetBufferDeviceAddress(VkDevice device, const VkBufferDeviceAddressInfo* pInfo) {
+    ALOGV("TODO: vk%s", __FUNCTION__);
+    return (VkDeviceAddress)0;
+}
+
+uint64_t GetDeviceMemoryOpaqueCaptureAddress(VkDevice device, const VkDeviceMemoryOpaqueCaptureAddressInfo* pInfo) {
+    ALOGV("TODO: vk%s", __FUNCTION__);
+    return 0;
 }
 
 #pragma clang diagnostic pop
