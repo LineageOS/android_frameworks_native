@@ -51,7 +51,7 @@ TEST_F(EffectLayerTest, DefaultEffectLayerHasSolidBlackFill) {
     sp<SurfaceControl> effectLayer =
             mClient->createSurface(String8("Effect Layer"), 0 /* width */, 0 /* height */,
                                    PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceEffect,
-                                   mParentLayer.get());
+                                   mParentLayer->getHandle());
 
     EXPECT_NE(nullptr, effectLayer.get()) << "failed to create SurfaceControl";
     asTransaction([&](Transaction& t) {
@@ -72,7 +72,7 @@ TEST_F(EffectLayerTest, EffectLayerWithNoFill) {
                                    PIXEL_FORMAT_RGBA_8888,
                                    ISurfaceComposerClient::eFXSurfaceEffect |
                                            ISurfaceComposerClient::eNoColorFill,
-                                   mParentLayer.get());
+                                   mParentLayer->getHandle());
 
     EXPECT_NE(nullptr, effectLayer.get()) << "failed to create SurfaceControl";
     asTransaction([&](Transaction& t) {
@@ -93,7 +93,7 @@ TEST_F(EffectLayerTest, EffectLayerCanSetColor) {
                                    PIXEL_FORMAT_RGBA_8888,
                                    ISurfaceComposerClient::eFXSurfaceEffect |
                                            ISurfaceComposerClient::eNoColorFill,
-                                   mParentLayer.get());
+                                   mParentLayer->getHandle());
 
     EXPECT_NE(nullptr, effectLayer.get()) << "failed to create SurfaceControl";
     asTransaction([&](Transaction& t) {

@@ -75,8 +75,9 @@ protected:
                                              PixelFormat format, uint32_t flags,
                                              SurfaceControl* parent = nullptr,
                                              uint32_t* outTransformHint = nullptr) {
-        auto layer = client->createSurface(String8(name), width, height, format, flags, parent,
-                                           LayerMetadata(), outTransformHint);
+        sp<IBinder> parentHandle = (parent) ? parent->getHandle() : nullptr;
+        auto layer = client->createSurface(String8(name), width, height, format, flags,
+                                           parentHandle, LayerMetadata(), outTransformHint);
         EXPECT_NE(nullptr, layer.get()) << "failed to create SurfaceControl";
         return layer;
     }
