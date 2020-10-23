@@ -82,6 +82,8 @@ public:
     void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
             const std::vector<SurfaceControlStats>& stats);
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
+    void setTransactionCompleteCallback(uint64_t frameNumber,
+                                        std::function<void(int64_t)>&& transactionCompleteCallback);
 
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height);
     void flushShadowQueue() { mFlushShadowQueue = true; }
@@ -153,6 +155,9 @@ private:
     // layer size immediately or wait until we get the next buffer. This will support scenarios
     // where the layer can change sizes and the buffer will scale to fit the new size.
     uint32_t mLastBufferScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
+
+    std::function<void(int64_t)> mTransactionCompleteCallback GUARDED_BY(mMutex) = nullptr;
+    uint64_t mTransactionCompleteFrameNumber GUARDED_BY(mMutex){0};
 };
 
 } // namespace android
