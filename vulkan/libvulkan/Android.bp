@@ -21,7 +21,7 @@ ndk_library {
 }
 
 llndk_library {
-    name: "libvulkan",
+    name: "libvulkan.llndk",
     symbol_file: "libvulkan.map.txt",
     export_llndk_headers: [
         "vulkan_headers_llndk",
@@ -30,6 +30,7 @@ llndk_library {
 
 cc_library_shared {
     name: "libvulkan",
+    llndk_stubs: "libvulkan.llndk",
     clang: true,
     sanitize: {
         misc_undefined: ["integer"],
