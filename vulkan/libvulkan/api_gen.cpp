@@ -226,6 +226,7 @@ bool InitDispatchTable(
     INIT_PROC(true, dev, CreateQueryPool);
     INIT_PROC(true, dev, DestroyQueryPool);
     INIT_PROC(true, dev, GetQueryPoolResults);
+    INIT_PROC(false, dev, ResetQueryPool);
     INIT_PROC(true, dev, CreateBuffer);
     INIT_PROC(true, dev, DestroyBuffer);
     INIT_PROC(true, dev, CreateBufferView);
@@ -337,8 +338,20 @@ bool InitDispatchTable(
     INIT_PROC(false, dev, DestroySamplerYcbcrConversion);
     INIT_PROC(false, dev, GetDeviceQueue2);
     INIT_PROC(false, dev, GetDescriptorSetLayoutSupport);
+    INIT_PROC(false, dev, CreateRenderPass2);
+    INIT_PROC(false, dev, CmdBeginRenderPass2);
+    INIT_PROC(false, dev, CmdNextSubpass2);
+    INIT_PROC(false, dev, CmdEndRenderPass2);
+    INIT_PROC(false, dev, GetSemaphoreCounterValue);
+    INIT_PROC(false, dev, WaitSemaphores);
+    INIT_PROC(false, dev, SignalSemaphore);
     INIT_PROC_EXT(ANDROID_external_memory_android_hardware_buffer, true, dev, GetAndroidHardwareBufferPropertiesANDROID);
     INIT_PROC_EXT(ANDROID_external_memory_android_hardware_buffer, true, dev, GetMemoryAndroidHardwareBufferANDROID);
+    INIT_PROC(false, dev, CmdDrawIndirectCount);
+    INIT_PROC(false, dev, CmdDrawIndexedIndirectCount);
+    INIT_PROC(false, dev, GetBufferOpaqueCaptureAddress);
+    INIT_PROC(false, dev, GetBufferDeviceAddress);
+    INIT_PROC(false, dev, GetDeviceMemoryOpaqueCaptureAddress);
     // clang-format on
 
     return success;
@@ -391,6 +404,7 @@ VKAPI_ATTR VkResult ResetEvent(VkDevice device, VkEvent event);
 VKAPI_ATTR VkResult CreateQueryPool(VkDevice device, const VkQueryPoolCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkQueryPool* pQueryPool);
 VKAPI_ATTR void DestroyQueryPool(VkDevice device, VkQueryPool queryPool, const VkAllocationCallbacks* pAllocator);
 VKAPI_ATTR VkResult GetQueryPoolResults(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount, size_t dataSize, void* pData, VkDeviceSize stride, VkQueryResultFlags flags);
+VKAPI_ATTR void ResetQueryPool(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount);
 VKAPI_ATTR VkResult CreateBuffer(VkDevice device, const VkBufferCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkBuffer* pBuffer);
 VKAPI_ATTR void DestroyBuffer(VkDevice device, VkBuffer buffer, const VkAllocationCallbacks* pAllocator);
 VKAPI_ATTR VkResult CreateBufferView(VkDevice device, const VkBufferViewCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkBufferView* pView);
@@ -520,8 +534,20 @@ VKAPI_ATTR VkResult CreateSamplerYcbcrConversion(VkDevice device, const VkSample
 VKAPI_ATTR void DestroySamplerYcbcrConversion(VkDevice device, VkSamplerYcbcrConversion ycbcrConversion, const VkAllocationCallbacks* pAllocator);
 VKAPI_ATTR void GetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2* pQueueInfo, VkQueue* pQueue);
 VKAPI_ATTR void GetDescriptorSetLayoutSupport(VkDevice device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo, VkDescriptorSetLayoutSupport* pSupport);
+VKAPI_ATTR VkResult CreateRenderPass2(VkDevice device, const VkRenderPassCreateInfo2* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkRenderPass* pRenderPass);
+VKAPI_ATTR void CmdBeginRenderPass2(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pRenderPassBegin, const VkSubpassBeginInfo* pSubpassBeginInfo);
+VKAPI_ATTR void CmdNextSubpass2(VkCommandBuffer commandBuffer, const VkSubpassBeginInfo* pSubpassBeginInfo, const VkSubpassEndInfo* pSubpassEndInfo);
+VKAPI_ATTR void CmdEndRenderPass2(VkCommandBuffer commandBuffer, const VkSubpassEndInfo* pSubpassEndInfo);
+VKAPI_ATTR VkResult GetSemaphoreCounterValue(VkDevice device, VkSemaphore semaphore, uint64_t* pValue);
+VKAPI_ATTR VkResult WaitSemaphores(VkDevice device, const VkSemaphoreWaitInfo* pWaitInfo, uint64_t timeout);
+VKAPI_ATTR VkResult SignalSemaphore(VkDevice device, const VkSemaphoreSignalInfo* pSignalInfo);
 VKAPI_ATTR VkResult GetAndroidHardwareBufferPropertiesANDROID(VkDevice device, const struct AHardwareBuffer* buffer, VkAndroidHardwareBufferPropertiesANDROID* pProperties);
 VKAPI_ATTR VkResult GetMemoryAndroidHardwareBufferANDROID(VkDevice device, const VkMemoryGetAndroidHardwareBufferInfoANDROID* pInfo, struct AHardwareBuffer** pBuffer);
+VKAPI_ATTR void CmdDrawIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride);
+VKAPI_ATTR void CmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride);
+VKAPI_ATTR uint64_t GetBufferOpaqueCaptureAddress(VkDevice device, const VkBufferDeviceAddressInfo* pInfo);
+VKAPI_ATTR VkDeviceAddress GetBufferDeviceAddress(VkDevice device, const VkBufferDeviceAddressInfo* pInfo);
+VKAPI_ATTR uint64_t GetDeviceMemoryOpaqueCaptureAddress(VkDevice device, const VkDeviceMemoryOpaqueCaptureAddressInfo* pInfo);
 
 VKAPI_ATTR VkResult EnumeratePhysicalDevices(VkInstance instance, uint32_t* pPhysicalDeviceCount, VkPhysicalDevice* pPhysicalDevices) {
     return GetData(instance).dispatch.EnumeratePhysicalDevices(instance, pPhysicalDeviceCount, pPhysicalDevices);
@@ -551,6 +577,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
         "vkEnumerateInstanceVersion",
         "vkEnumeratePhysicalDeviceGroups",
         "vkEnumeratePhysicalDeviceGroupsKHR",
+        "vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR",
         "vkEnumeratePhysicalDevices",
         "vkGetDisplayModeProperties2KHR",
         "vkGetDisplayPlaneCapabilities2KHR",
@@ -571,7 +598,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
         "vkGetPhysicalDeviceFormatProperties",
         "vkGetPhysicalDeviceFormatProperties2",
         "vkGetPhysicalDeviceFormatProperties2KHR",
-        "vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX",
+        "vkGetPhysicalDeviceFragmentShadingRatesKHR",
         "vkGetPhysicalDeviceImageFormatProperties",
         "vkGetPhysicalDeviceImageFormatProperties2",
         "vkGetPhysicalDeviceImageFormatProperties2KHR",
@@ -583,6 +610,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
         "vkGetPhysicalDeviceProperties",
         "vkGetPhysicalDeviceProperties2",
         "vkGetPhysicalDeviceProperties2KHR",
+        "vkGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR",
         "vkGetPhysicalDeviceQueueFamilyProperties",
         "vkGetPhysicalDeviceQueueFamilyProperties2",
         "vkGetPhysicalDeviceQueueFamilyProperties2KHR",
@@ -595,6 +623,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
         "vkGetPhysicalDeviceSurfaceFormatsKHR",
         "vkGetPhysicalDeviceSurfacePresentModesKHR",
         "vkGetPhysicalDeviceSurfaceSupportKHR",
+        "vkGetPhysicalDeviceToolPropertiesEXT",
         "vkSubmitDebugUtilsMessageEXT",
     };
     // clang-format on
@@ -646,6 +675,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const cha
         { "vkBindImageMemory2", reinterpret_cast<PFN_vkVoidFunction>(BindImageMemory2) },
         { "vkCmdBeginQuery", reinterpret_cast<PFN_vkVoidFunction>(CmdBeginQuery) },
         { "vkCmdBeginRenderPass", reinterpret_cast<PFN_vkVoidFunction>(CmdBeginRenderPass) },
+        { "vkCmdBeginRenderPass2", reinterpret_cast<PFN_vkVoidFunction>(CmdBeginRenderPass2) },
         { "vkCmdBindDescriptorSets", reinterpret_cast<PFN_vkVoidFunction>(CmdBindDescriptorSets) },
         { "vkCmdBindIndexBuffer", reinterpret_cast<PFN_vkVoidFunction>(CmdBindIndexBuffer) },
         { "vkCmdBindPipeline", reinterpret_cast<PFN_vkVoidFunction>(CmdBindPipeline) },
@@ -665,12 +695,16 @@ VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const cha
         { "vkCmdDraw", reinterpret_cast<PFN_vkVoidFunction>(CmdDraw) },
         { "vkCmdDrawIndexed", reinterpret_cast<PFN_vkVoidFunction>(CmdDrawIndexed) },
         { "vkCmdDrawIndexedIndirect", reinterpret_cast<PFN_vkVoidFunction>(CmdDrawIndexedIndirect) },
+        { "vkCmdDrawIndexedIndirectCount", reinterpret_cast<PFN_vkVoidFunction>(CmdDrawIndexedIndirectCount) },
         { "vkCmdDrawIndirect", reinterpret_cast<PFN_vkVoidFunction>(CmdDrawIndirect) },
+        { "vkCmdDrawIndirectCount", reinterpret_cast<PFN_vkVoidFunction>(CmdDrawIndirectCount) },
         { "vkCmdEndQuery", reinterpret_cast<PFN_vkVoidFunction>(CmdEndQuery) },
         { "vkCmdEndRenderPass", reinterpret_cast<PFN_vkVoidFunction>(CmdEndRenderPass) },
+        { "vkCmdEndRenderPass2", reinterpret_cast<PFN_vkVoidFunction>(CmdEndRenderPass2) },
         { "vkCmdExecuteCommands", reinterpret_cast<PFN_vkVoidFunction>(CmdExecuteCommands) },
         { "vkCmdFillBuffer", reinterpret_cast<PFN_vkVoidFunction>(CmdFillBuffer) },
         { "vkCmdNextSubpass", reinterpret_cast<PFN_vkVoidFunction>(CmdNextSubpass) },
+        { "vkCmdNextSubpass2", reinterpret_cast<PFN_vkVoidFunction>(CmdNextSubpass2) },
         { "vkCmdPipelineBarrier", reinterpret_cast<PFN_vkVoidFunction>(CmdPipelineBarrier) },
         { "vkCmdPushConstants", reinterpret_cast<PFN_vkVoidFunction>(CmdPushConstants) },
         { "vkCmdResetEvent", reinterpret_cast<PFN_vkVoidFunction>(CmdResetEvent) },
@@ -709,6 +743,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const cha
         { "vkCreatePipelineLayout", reinterpret_cast<PFN_vkVoidFunction>(CreatePipelineLayout) },
         { "vkCreateQueryPool", reinterpret_cast<PFN_vkVoidFunction>(CreateQueryPool) },
         { "vkCreateRenderPass", reinterpret_cast<PFN_vkVoidFunction>(CreateRenderPass) },
+        { "vkCreateRenderPass2", reinterpret_cast<PFN_vkVoidFunction>(CreateRenderPass2) },
         { "vkCreateSampler", reinterpret_cast<PFN_vkVoidFunction>(CreateSampler) },
         { "vkCreateSamplerYcbcrConversion", reinterpret_cast<PFN_vkVoidFunction>(CreateSamplerYcbcrConversion) },
         { "vkCreateSemaphore", reinterpret_cast<PFN_vkVoidFunction>(CreateSemaphore) },
@@ -749,13 +784,16 @@ VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const cha
         { "vkFreeDescriptorSets", reinterpret_cast<PFN_vkVoidFunction>(FreeDescriptorSets) },
         { "vkFreeMemory", reinterpret_cast<PFN_vkVoidFunction>(FreeMemory) },
         { "vkGetAndroidHardwareBufferPropertiesANDROID", reinterpret_cast<PFN_vkVoidFunction>(GetAndroidHardwareBufferPropertiesANDROID) },
+        { "vkGetBufferDeviceAddress", reinterpret_cast<PFN_vkVoidFunction>(GetBufferDeviceAddress) },
         { "vkGetBufferMemoryRequirements", reinterpret_cast<PFN_vkVoidFunction>(GetBufferMemoryRequirements) },
         { "vkGetBufferMemoryRequirements2", reinterpret_cast<PFN_vkVoidFunction>(GetBufferMemoryRequirements2) },
+        { "vkGetBufferOpaqueCaptureAddress", reinterpret_cast<PFN_vkVoidFunction>(GetBufferOpaqueCaptureAddress) },
         { "vkGetDescriptorSetLayoutSupport", reinterpret_cast<PFN_vkVoidFunction>(GetDescriptorSetLayoutSupport) },
         { "vkGetDeviceGroupPeerMemoryFeatures", reinterpret_cast<PFN_vkVoidFunction>(GetDeviceGroupPeerMemoryFeatures) },
         { "vkGetDeviceGroupPresentCapabilitiesKHR", reinterpret_cast<PFN_vkVoidFunction>(GetDeviceGroupPresentCapabilitiesKHR) },
         { "vkGetDeviceGroupSurfacePresentModesKHR", reinterpret_cast<PFN_vkVoidFunction>(GetDeviceGroupSurfacePresentModesKHR) },
         { "vkGetDeviceMemoryCommitment", reinterpret_cast<PFN_vkVoidFunction>(GetDeviceMemoryCommitment) },
+        { "vkGetDeviceMemoryOpaqueCaptureAddress", reinterpret_cast<PFN_vkVoidFunction>(GetDeviceMemoryOpaqueCaptureAddress) },
         { "vkGetDeviceProcAddr", reinterpret_cast<PFN_vkVoidFunction>(GetDeviceProcAddr) },
         { "vkGetDeviceQueue", reinterpret_cast<PFN_vkVoidFunction>(GetDeviceQueue) },
         { "vkGetDeviceQueue2", reinterpret_cast<PFN_vkVoidFunction>(GetDeviceQueue2) },
@@ -771,6 +809,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const cha
         { "vkGetPipelineCacheData", reinterpret_cast<PFN_vkVoidFunction>(GetPipelineCacheData) },
         { "vkGetQueryPoolResults", reinterpret_cast<PFN_vkVoidFunction>(GetQueryPoolResults) },
         { "vkGetRenderAreaGranularity", reinterpret_cast<PFN_vkVoidFunction>(GetRenderAreaGranularity) },
+        { "vkGetSemaphoreCounterValue", reinterpret_cast<PFN_vkVoidFunction>(GetSemaphoreCounterValue) },
         { "vkGetSwapchainImagesKHR", reinterpret_cast<PFN_vkVoidFunction>(GetSwapchainImagesKHR) },
         { "vkInvalidateMappedMemoryRanges", reinterpret_cast<PFN_vkVoidFunction>(InvalidateMappedMemoryRanges) },
         { "vkMapMemory", reinterpret_cast<PFN_vkVoidFunction>(MapMemory) },
@@ -784,12 +823,15 @@ VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const cha
         { "vkResetDescriptorPool", reinterpret_cast<PFN_vkVoidFunction>(ResetDescriptorPool) },
         { "vkResetEvent", reinterpret_cast<PFN_vkVoidFunction>(ResetEvent) },
         { "vkResetFences", reinterpret_cast<PFN_vkVoidFunction>(ResetFences) },
+        { "vkResetQueryPool", reinterpret_cast<PFN_vkVoidFunction>(ResetQueryPool) },
         { "vkSetEvent", reinterpret_cast<PFN_vkVoidFunction>(SetEvent) },
+        { "vkSignalSemaphore", reinterpret_cast<PFN_vkVoidFunction>(SignalSemaphore) },
         { "vkTrimCommandPool", reinterpret_cast<PFN_vkVoidFunction>(TrimCommandPool) },
         { "vkUnmapMemory", reinterpret_cast<PFN_vkVoidFunction>(UnmapMemory) },
         { "vkUpdateDescriptorSetWithTemplate", reinterpret_cast<PFN_vkVoidFunction>(UpdateDescriptorSetWithTemplate) },
         { "vkUpdateDescriptorSets", reinterpret_cast<PFN_vkVoidFunction>(UpdateDescriptorSets) },
         { "vkWaitForFences", reinterpret_cast<PFN_vkVoidFunction>(WaitForFences) },
+        { "vkWaitSemaphores", reinterpret_cast<PFN_vkVoidFunction>(WaitSemaphores) },
     };
     // clang-format on
     constexpr size_t count = sizeof(hooks) / sizeof(hooks[0]);
@@ -963,6 +1005,10 @@ VKAPI_ATTR void DestroyQueryPool(VkDevice device, VkQueryPool queryPool, const V
 
 VKAPI_ATTR VkResult GetQueryPoolResults(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount, size_t dataSize, void* pData, VkDeviceSize stride, VkQueryResultFlags flags) {
     return GetData(device).dispatch.GetQueryPoolResults(device, queryPool, firstQuery, queryCount, dataSize, pData, stride, flags);
+}
+
+VKAPI_ATTR void ResetQueryPool(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount) {
+    GetData(device).dispatch.ResetQueryPool(device, queryPool, firstQuery, queryCount);
 }
 
 VKAPI_ATTR VkResult CreateBuffer(VkDevice device, const VkBufferCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkBuffer* pBuffer) {
@@ -1481,12 +1527,60 @@ VKAPI_ATTR void GetDescriptorSetLayoutSupport(VkDevice device, const VkDescripto
     GetData(device).dispatch.GetDescriptorSetLayoutSupport(device, pCreateInfo, pSupport);
 }
 
+VKAPI_ATTR VkResult CreateRenderPass2(VkDevice device, const VkRenderPassCreateInfo2* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkRenderPass* pRenderPass) {
+    return GetData(device).dispatch.CreateRenderPass2(device, pCreateInfo, pAllocator, pRenderPass);
+}
+
+VKAPI_ATTR void CmdBeginRenderPass2(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pRenderPassBegin, const VkSubpassBeginInfo* pSubpassBeginInfo) {
+    GetData(commandBuffer).dispatch.CmdBeginRenderPass2(commandBuffer, pRenderPassBegin, pSubpassBeginInfo);
+}
+
+VKAPI_ATTR void CmdNextSubpass2(VkCommandBuffer commandBuffer, const VkSubpassBeginInfo* pSubpassBeginInfo, const VkSubpassEndInfo* pSubpassEndInfo) {
+    GetData(commandBuffer).dispatch.CmdNextSubpass2(commandBuffer, pSubpassBeginInfo, pSubpassEndInfo);
+}
+
+VKAPI_ATTR void CmdEndRenderPass2(VkCommandBuffer commandBuffer, const VkSubpassEndInfo* pSubpassEndInfo) {
+    GetData(commandBuffer).dispatch.CmdEndRenderPass2(commandBuffer, pSubpassEndInfo);
+}
+
+VKAPI_ATTR VkResult GetSemaphoreCounterValue(VkDevice device, VkSemaphore semaphore, uint64_t* pValue) {
+    return GetData(device).dispatch.GetSemaphoreCounterValue(device, semaphore, pValue);
+}
+
+VKAPI_ATTR VkResult WaitSemaphores(VkDevice device, const VkSemaphoreWaitInfo* pWaitInfo, uint64_t timeout) {
+    return GetData(device).dispatch.WaitSemaphores(device, pWaitInfo, timeout);
+}
+
+VKAPI_ATTR VkResult SignalSemaphore(VkDevice device, const VkSemaphoreSignalInfo* pSignalInfo) {
+    return GetData(device).dispatch.SignalSemaphore(device, pSignalInfo);
+}
+
 VKAPI_ATTR VkResult GetAndroidHardwareBufferPropertiesANDROID(VkDevice device, const struct AHardwareBuffer* buffer, VkAndroidHardwareBufferPropertiesANDROID* pProperties) {
     return GetData(device).dispatch.GetAndroidHardwareBufferPropertiesANDROID(device, buffer, pProperties);
 }
 
 VKAPI_ATTR VkResult GetMemoryAndroidHardwareBufferANDROID(VkDevice device, const VkMemoryGetAndroidHardwareBufferInfoANDROID* pInfo, struct AHardwareBuffer** pBuffer) {
     return GetData(device).dispatch.GetMemoryAndroidHardwareBufferANDROID(device, pInfo, pBuffer);
+}
+
+VKAPI_ATTR void CmdDrawIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) {
+    GetData(commandBuffer).dispatch.CmdDrawIndirectCount(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+}
+
+VKAPI_ATTR void CmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) {
+    GetData(commandBuffer).dispatch.CmdDrawIndexedIndirectCount(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+}
+
+VKAPI_ATTR uint64_t GetBufferOpaqueCaptureAddress(VkDevice device, const VkBufferDeviceAddressInfo* pInfo) {
+    return GetData(device).dispatch.GetBufferOpaqueCaptureAddress(device, pInfo);
+}
+
+VKAPI_ATTR VkDeviceAddress GetBufferDeviceAddress(VkDevice device, const VkBufferDeviceAddressInfo* pInfo) {
+    return GetData(device).dispatch.GetBufferDeviceAddress(device, pInfo);
+}
+
+VKAPI_ATTR uint64_t GetDeviceMemoryOpaqueCaptureAddress(VkDevice device, const VkDeviceMemoryOpaqueCaptureAddressInfo* pInfo) {
+    return GetData(device).dispatch.GetDeviceMemoryOpaqueCaptureAddress(device, pInfo);
 }
 
 
@@ -1752,6 +1846,11 @@ VKAPI_ATTR void vkDestroyQueryPool(VkDevice device, VkQueryPool queryPool, const
 __attribute__((visibility("default")))
 VKAPI_ATTR VkResult vkGetQueryPoolResults(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount, size_t dataSize, void* pData, VkDeviceSize stride, VkQueryResultFlags flags) {
     return vulkan::api::GetQueryPoolResults(device, queryPool, firstQuery, queryCount, dataSize, pData, stride, flags);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR void vkResetQueryPool(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount) {
+    vulkan::api::ResetQueryPool(device, queryPool, firstQuery, queryCount);
 }
 
 __attribute__((visibility("default")))
@@ -2400,6 +2499,41 @@ VKAPI_ATTR void vkGetDescriptorSetLayoutSupport(VkDevice device, const VkDescrip
 }
 
 __attribute__((visibility("default")))
+VKAPI_ATTR VkResult vkCreateRenderPass2(VkDevice device, const VkRenderPassCreateInfo2* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkRenderPass* pRenderPass) {
+    return vulkan::api::CreateRenderPass2(device, pCreateInfo, pAllocator, pRenderPass);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR void vkCmdBeginRenderPass2(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo* pRenderPassBegin, const VkSubpassBeginInfo* pSubpassBeginInfo) {
+    vulkan::api::CmdBeginRenderPass2(commandBuffer, pRenderPassBegin, pSubpassBeginInfo);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR void vkCmdNextSubpass2(VkCommandBuffer commandBuffer, const VkSubpassBeginInfo* pSubpassBeginInfo, const VkSubpassEndInfo* pSubpassEndInfo) {
+    vulkan::api::CmdNextSubpass2(commandBuffer, pSubpassBeginInfo, pSubpassEndInfo);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR void vkCmdEndRenderPass2(VkCommandBuffer commandBuffer, const VkSubpassEndInfo* pSubpassEndInfo) {
+    vulkan::api::CmdEndRenderPass2(commandBuffer, pSubpassEndInfo);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR VkResult vkGetSemaphoreCounterValue(VkDevice device, VkSemaphore semaphore, uint64_t* pValue) {
+    return vulkan::api::GetSemaphoreCounterValue(device, semaphore, pValue);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR VkResult vkWaitSemaphores(VkDevice device, const VkSemaphoreWaitInfo* pWaitInfo, uint64_t timeout) {
+    return vulkan::api::WaitSemaphores(device, pWaitInfo, timeout);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR VkResult vkSignalSemaphore(VkDevice device, const VkSemaphoreSignalInfo* pSignalInfo) {
+    return vulkan::api::SignalSemaphore(device, pSignalInfo);
+}
+
+__attribute__((visibility("default")))
 VKAPI_ATTR VkResult vkGetAndroidHardwareBufferPropertiesANDROID(VkDevice device, const struct AHardwareBuffer* buffer, VkAndroidHardwareBufferPropertiesANDROID* pProperties) {
     return vulkan::api::GetAndroidHardwareBufferPropertiesANDROID(device, buffer, pProperties);
 }
@@ -2407,6 +2541,31 @@ VKAPI_ATTR VkResult vkGetAndroidHardwareBufferPropertiesANDROID(VkDevice device,
 __attribute__((visibility("default")))
 VKAPI_ATTR VkResult vkGetMemoryAndroidHardwareBufferANDROID(VkDevice device, const VkMemoryGetAndroidHardwareBufferInfoANDROID* pInfo, struct AHardwareBuffer** pBuffer) {
     return vulkan::api::GetMemoryAndroidHardwareBufferANDROID(device, pInfo, pBuffer);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR void vkCmdDrawIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) {
+    vulkan::api::CmdDrawIndirectCount(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR void vkCmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount, uint32_t stride) {
+    vulkan::api::CmdDrawIndexedIndirectCount(commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR uint64_t vkGetBufferOpaqueCaptureAddress(VkDevice device, const VkBufferDeviceAddressInfo* pInfo) {
+    return vulkan::api::GetBufferOpaqueCaptureAddress(device, pInfo);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR VkDeviceAddress vkGetBufferDeviceAddress(VkDevice device, const VkBufferDeviceAddressInfo* pInfo) {
+    return vulkan::api::GetBufferDeviceAddress(device, pInfo);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR uint64_t vkGetDeviceMemoryOpaqueCaptureAddress(VkDevice device, const VkDeviceMemoryOpaqueCaptureAddressInfo* pInfo) {
+    return vulkan::api::GetDeviceMemoryOpaqueCaptureAddress(device, pInfo);
 }
 
 // clang-format on
