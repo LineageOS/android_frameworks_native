@@ -12,30 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-cc_test {
-    name: "gpuservice_unittest",
-    test_suites: ["device-tests"],
-    sanitize: {
-        address: true,
-    },
-    srcs: [
-        "GpuMemTest.cpp",
-        "GpuStatsTest.cpp",
-    ],
-    shared_libs: [
-        "libbase",
-        "libbpf",
-        "libbpf_android",
-        "libcutils",
-        "libgfxstats",
-        "libgpumem",
-        "libgraphicsenv",
-        "liblog",
-        "libstatslog",
-        "libstatspull",
-        "libutils",
-    ],
-    static_libs: [
-        "libgmock",
+bpf {
+    name: "gpu_mem.o",
+    srcs: ["gpu_mem.c"],
+    cflags: [
+        "-Wall",
+        "-Werror",
     ],
 }

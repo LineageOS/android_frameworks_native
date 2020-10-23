@@ -21,6 +21,8 @@ cc_defaults {
         "libbinder",
         "libcutils",
         "libgfxstats",
+        "libgpumem",
+        "libgpumemtracer",
         "libgraphicsenv",
         "liblog",
         "libutils",
@@ -85,6 +87,10 @@ cc_binary {
     name: "gpuservice",
     defaults: ["libgpuservice_binary"],
     init_rc: ["gpuservice.rc"],
+    required: [
+        "bpfloader",
+        "gpu_mem.o",
+    ],
     srcs: [":gpuservice_binary_sources"],
     shared_libs: [
         "libgpuservice",

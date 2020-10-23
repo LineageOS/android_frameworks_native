@@ -12,30 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-cc_test {
-    name: "gpuservice_unittest",
-    test_suites: ["device-tests"],
-    sanitize: {
-        address: true,
-    },
+cc_library_shared {
+    name: "libgpumemtracer",
     srcs: [
-        "GpuMemTest.cpp",
-        "GpuStatsTest.cpp",
+        "GpuMemTracer.cpp",
     ],
     shared_libs: [
-        "libbase",
-        "libbpf",
-        "libbpf_android",
-        "libcutils",
-        "libgfxstats",
         "libgpumem",
-        "libgraphicsenv",
+        "libbase",
         "liblog",
-        "libstatslog",
-        "libstatspull",
         "libutils",
     ],
     static_libs: [
-        "libgmock",
+        "libperfetto_client_experimental",
+    ],
+    export_include_dirs: ["include"],
+    export_static_lib_headers: [
+        "libperfetto_client_experimental",
+    ],
+    cppflags: [
+        "-Wall",
+        "-Werror",
+        "-Wformat",
+        "-Wthread-safety",
+        "-Wunused",
+        "-Wunreachable-code",
     ],
 }
