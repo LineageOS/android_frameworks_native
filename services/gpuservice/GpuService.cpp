@@ -27,6 +27,7 @@
 #include <gpumem/GpuMem.h>
 #include <gpustats/GpuStats.h>
 #include <private/android_filesystem_config.h>
+#include <tracing/GpuMemTracer.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 #include <vkjson.h>
@@ -48,8 +49,13 @@ const String16 sDump("android.permission.DUMP");
 const char* const GpuService::SERVICE_NAME = "gpu";
 
 GpuService::GpuService()
-      : mGpuMem(std::make_unique<GpuMem>()), mGpuStats(std::make_unique<GpuStats>()) {
-    std::thread asyncInitThread([this]() { mGpuMem->initialize(); });
+      : mGpuMem(std::make_shared<GpuMem>()),
+        mGpuStats(std::make_unique<GpuStats>()),
+        mGpuMemTracer(std::make_unique<GpuMemTracer>()) {
+    std::thread asyncInitThread([this]() {
+        mGpuMem->initialize();
+        mGpuMemTracer->initialize(mGpuMem);
+    });
     asyncInitThread.detach();
 };
 
