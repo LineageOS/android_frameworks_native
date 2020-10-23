@@ -99,6 +99,7 @@ struct DeviceDispatchTable {
     PFN_vkCreateQueryPool CreateQueryPool;
     PFN_vkDestroyQueryPool DestroyQueryPool;
     PFN_vkGetQueryPoolResults GetQueryPoolResults;
+    PFN_vkResetQueryPool ResetQueryPool;
     PFN_vkCreateBuffer CreateBuffer;
     PFN_vkDestroyBuffer DestroyBuffer;
     PFN_vkCreateBufferView CreateBufferView;
@@ -210,8 +211,20 @@ struct DeviceDispatchTable {
     PFN_vkDestroySamplerYcbcrConversion DestroySamplerYcbcrConversion;
     PFN_vkGetDeviceQueue2 GetDeviceQueue2;
     PFN_vkGetDescriptorSetLayoutSupport GetDescriptorSetLayoutSupport;
+    PFN_vkCreateRenderPass2 CreateRenderPass2;
+    PFN_vkCmdBeginRenderPass2 CmdBeginRenderPass2;
+    PFN_vkCmdNextSubpass2 CmdNextSubpass2;
+    PFN_vkCmdEndRenderPass2 CmdEndRenderPass2;
+    PFN_vkGetSemaphoreCounterValue GetSemaphoreCounterValue;
+    PFN_vkWaitSemaphores WaitSemaphores;
+    PFN_vkSignalSemaphore SignalSemaphore;
     PFN_vkGetAndroidHardwareBufferPropertiesANDROID GetAndroidHardwareBufferPropertiesANDROID;
     PFN_vkGetMemoryAndroidHardwareBufferANDROID GetMemoryAndroidHardwareBufferANDROID;
+    PFN_vkCmdDrawIndirectCount CmdDrawIndirectCount;
+    PFN_vkCmdDrawIndexedIndirectCount CmdDrawIndexedIndirectCount;
+    PFN_vkGetBufferOpaqueCaptureAddress GetBufferOpaqueCaptureAddress;
+    PFN_vkGetBufferDeviceAddress GetBufferDeviceAddress;
+    PFN_vkGetDeviceMemoryOpaqueCaptureAddress GetDeviceMemoryOpaqueCaptureAddress;
     // clang-format on
 };
 
