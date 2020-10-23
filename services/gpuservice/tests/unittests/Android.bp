@@ -38,4 +38,5 @@ cc_test {
     static_libs: [
         "libgmock",
     ],
+    require_root: true,
 }
