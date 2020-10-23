@@ -133,6 +133,7 @@ cc_library_static {
 cc_library_shared {
     name: "libEGL",
     defaults: ["egl_libs_defaults"],
+    llndk_stubs: "libEGL.llndk",
     srcs: [
         "EGL/egl_tls.cpp",
         "EGL/egl_cache.cpp",
@@ -198,6 +199,7 @@ cc_defaults {
 cc_library_shared {
     name: "libGLESv1_CM",
     defaults: ["gles_libs_defaults"],
+    llndk_stubs: "libGLESv1_CM.llndk",
     srcs: ["GLES_CM/gl.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv1\""],
     version_script: "libGLESv1_CM.map.txt",
@@ -209,6 +211,7 @@ cc_library_shared {
 cc_library_shared {
     name: "libGLESv2",
     defaults: ["gles_libs_defaults"],
+    llndk_stubs: "libGLESv2.llndk",
     srcs: ["GLES2/gl2.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv2\""],
 
@@ -223,6 +226,7 @@ cc_library_shared {
 cc_library_shared {
     name: "libGLESv3",
     defaults: ["gles_libs_defaults"],
+    llndk_stubs: "libGLESv3.llndk",
     srcs: ["GLES2/gl2.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv3\""],
 }
