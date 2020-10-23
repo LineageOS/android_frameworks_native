@@ -62,6 +62,7 @@ public:
 
         mGpuMem = std::make_unique<GpuMem>();
         mTestableGpuMem = TestableGpuMem(mGpuMem.get());
+        mTestableGpuMem.setInitialized();
         errno = 0;
         mTestMap = bpf::BpfMap<uint64_t, uint64_t>(BPF_MAP_TYPE_HASH, TEST_MAP_SIZE,
                                                    BPF_F_NO_PREALLOC);
