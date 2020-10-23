@@ -20,6 +20,8 @@
 #include <utils/String16.h>
 #include <utils/Vector.h>
 
+#include <functional>
+
 namespace android {
 
 class GpuMem {
@@ -33,27 +35,9 @@ public:
     void dump(const Vector<String16>& args, std::string* result);
     bool isInitialized() { return mInitialized.load(); }
 
-    // Traverse the map and send each value read back to the callback function.
-    // Used for tracing.
-    template <typename lambda>
-    void traceGpuMemTotals(lambda tracerCallback) {
-        auto res = mGpuMemTotalMap.getFirstKey();
-        if (!res.ok()) return;
-        uint64_t key = res.value();
-        while (true) {
-            uint32_t gpu_id = key >> 32;
-            uint32_t pid = key;
-
-            res = mGpuMemTotalMap.readValue(key);
-            if (!res.ok()) break;
-            uint64_t size = res.value();
-
-            tracerCallback(gpu_id, pid, size);
-            res = mGpuMemTotalMap.getNextKey(key);
-            if (!res.ok()) break;
-            key = res.value();
-        }
-    }
+    // Traverse the gpu memory total map to feed the callback function.
+    void traverseGpuMemTotals(const std::function<void(int64_t ts, uint32_t gpuId, uint32_t pid,
+                                                       uint64_t size)>& callback);
 
 private:
     // Friend class for testing.
