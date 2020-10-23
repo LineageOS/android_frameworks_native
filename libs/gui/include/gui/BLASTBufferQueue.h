@@ -72,7 +72,7 @@ public:
     sp<IGraphicBufferProducer> getIGraphicBufferProducer() const {
         return mProducer;
     }
-    sp<Surface> getSurface();
+    sp<Surface> getSurface(bool includeSurfaceControlHandle);
 
     void onBufferFreed(const wp<GraphicBuffer>&/* graphicBuffer*/) override { /* TODO */ }
     void onFrameReplaced(const BufferItem& item) override {onFrameAvailable(item);}

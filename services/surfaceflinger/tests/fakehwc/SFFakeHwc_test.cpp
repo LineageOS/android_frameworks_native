@@ -1469,7 +1469,7 @@ protected:
         Base::SetUp();
         mChild = Base::mComposerClient->createSurface(String8("Child surface"), 10, 10,
                                                       PIXEL_FORMAT_RGBA_8888, 0,
-                                                      Base::mFGSurfaceControl.get());
+                                                      Base::mFGSurfaceControl->getHandle());
         fillSurfaceRGBA8(mChild, LIGHT_GRAY);
 
         Base::sFakeComposer->runVSyncAndWait();
@@ -1653,7 +1653,7 @@ protected:
         sp<SurfaceControl> childNewClient =
                 newComposerClient->createSurface(String8("New Child Test Surface"), 10, 10,
                                                  PIXEL_FORMAT_RGBA_8888, 0,
-                                                 Base::mFGSurfaceControl.get());
+                                                 Base::mFGSurfaceControl->getHandle());
         ASSERT_TRUE(childNewClient != nullptr);
         ASSERT_TRUE(childNewClient->isValid());
         fillSurfaceRGBA8(childNewClient, LIGHT_GRAY);
@@ -1732,7 +1732,7 @@ protected:
         mChild = Base::mComposerClient->createSurface(String8("Child surface"), 10, 10,
                                                       PIXEL_FORMAT_RGBA_8888,
                                                       ISurfaceComposerClient::eHidden,
-                                                      Base::mFGSurfaceControl.get());
+                                                      Base::mFGSurfaceControl->getHandle());
 
         // Show the child layer in a deferred transaction
         {
@@ -1819,7 +1819,7 @@ protected:
                 Base::mComposerClient->createSurface(String8("Child surface"), 0, 0,
                                                      PIXEL_FORMAT_RGBA_8888,
                                                      ISurfaceComposerClient::eFXSurfaceEffect,
-                                                     Base::mFGSurfaceControl.get());
+                                                     Base::mFGSurfaceControl->getHandle());
         {
             TransactionScope ts(*Base::sFakeComposer);
             ts.setColor(Base::mChild,

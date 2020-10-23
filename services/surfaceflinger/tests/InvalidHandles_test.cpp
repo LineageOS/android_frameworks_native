@@ -56,7 +56,7 @@ TEST_F(InvalidHandleTest, createSurfaceInvalidHandle) {
     auto notSc = makeNotSurfaceControl();
     ASSERT_EQ(nullptr,
               mScc->createSurface(String8("lolcats"), 19, 47, PIXEL_FORMAT_RGBA_8888, 0,
-                                  notSc.get())
+                                  notSc->getHandle())
                       .get());
 }
 
