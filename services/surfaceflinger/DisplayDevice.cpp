@@ -248,6 +248,10 @@ ui::LayerStack DisplayDevice::getLayerStack() const {
     return mCompositionDisplay->getState().layerStackId;
 }
 
+ui::Transform::RotationFlags DisplayDevice::getTransformHint() const {
+    return mCompositionDisplay->getTransformHint();
+}
+
 const ui::Transform& DisplayDevice::getTransform() const {
     return mCompositionDisplay->getState().transform;
 }
