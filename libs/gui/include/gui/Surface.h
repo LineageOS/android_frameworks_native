@@ -68,7 +68,6 @@ class Surface
     : public ANativeObjectBase<ANativeWindow, Surface, RefBase>
 {
 public:
-
     /*
      * creates a Surface from the given IGraphicBufferProducer (which concrete
      * implementation is a BufferQueue).
@@ -83,15 +82,23 @@ public:
      *
      * the controlledByApp flag indicates that this Surface (producer) is
      * controlled by the application. This flag is used at connect time.
+     *
+     * Pass in the SurfaceControlHandle to store a weak reference to the layer
+     * that the Surface was created from. This handle can be used to create a
+     * child surface without using the IGBP to identify the layer. This is used
+     * for surfaces created by the BlastBufferQueue whose IGBP is created on the
+     * client and cannot be verified in SF.
      */
-    explicit Surface(const sp<IGraphicBufferProducer>& bufferProducer,
-            bool controlledByApp = false);
+    explicit Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controlledByApp = false,
+                     const sp<IBinder>& surfaceControlHandle = nullptr);
 
     /* getIGraphicBufferProducer() returns the IGraphicBufferProducer this
      * Surface was created with. Usually it's an error to use the
      * IGraphicBufferProducer while the Surface is connected.
      */
     sp<IGraphicBufferProducer> getIGraphicBufferProducer() const;
+
+    sp<IBinder> getSurfaceControlHandle() const { return mSurfaceControlHandle; }
 
     /* convenience function to check that the given surface is non NULL as
      * well as its IGraphicBufferProducer */
@@ -540,6 +547,11 @@ protected:
     // A cached copy of the FrameEventHistory maintained by the consumer.
     bool mEnableFrameTimestamps = false;
     std::unique_ptr<ProducerFrameEventHistory> mFrameEventHistory;
+
+    // Reference to the SurfaceFlinger layer that was used to create this
+    // surface. This is only populated when the Surface is created from
+    // a BlastBufferQueue.
+    sp<IBinder> mSurfaceControlHandle;
 
     bool mReportRemovedBuffers = false;
     std::vector<sp<GraphicBuffer>> mRemovedBuffers;

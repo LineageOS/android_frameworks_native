@@ -1028,12 +1028,13 @@ TEST_F(BoundlessLayerTest, IntermediateBoundlessLayerCanSetTransform) {
 TEST_F(BoundlessLayerTest, IntermediateBoundlessLayerDoNotCrop) {
     sp<SurfaceControl> boundlessLayer =
             mClient->createSurface(String8("BoundlessLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   0 /* flags */, mFGSurfaceControl.get());
+                                   0 /* flags */, mFGSurfaceControl->getHandle());
     ASSERT_TRUE(boundlessLayer != nullptr);
     ASSERT_TRUE(boundlessLayer->isValid());
     sp<SurfaceControl> colorLayer =
             mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   ISurfaceComposerClient::eFXSurfaceEffect, boundlessLayer.get());
+                                   ISurfaceComposerClient::eFXSurfaceEffect,
+                                   boundlessLayer->getHandle());
     ASSERT_TRUE(colorLayer != nullptr);
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
