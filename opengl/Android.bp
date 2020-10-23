@@ -53,25 +53,25 @@ ndk_headers {
 }
 
 llndk_library {
-    name: "libEGL",
+    name: "libEGL.llndk",
     symbol_file: "libs/libEGL.map.txt",
     export_include_dirs: ["include"],
 }
 
 llndk_library {
-    name: "libGLESv1_CM",
+    name: "libGLESv1_CM.llndk",
     symbol_file: "libs/libGLESv1_CM.map.txt",
     export_include_dirs: ["include"],
 }
 
 llndk_library {
-    name: "libGLESv2",
+    name: "libGLESv2.llndk",
     symbol_file: "libs/libGLESv2.map.txt",
     export_include_dirs: ["include"],
 }
 
 llndk_library {
-    name: "libGLESv3",
+    name: "libGLESv3.llndk",
     symbol_file: "libs/libGLESv3.map.txt",
     export_include_dirs: ["include"],
 }
