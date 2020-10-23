@@ -695,8 +695,6 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
         }
     }
 
-    mListenerCallbacks.clear();
-
     cacheBuffers();
 
     Vector<ComposerState> composerStates;
@@ -709,10 +707,7 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
         composerStates.add(kv.second);
     }
 
-    mComposerStates.clear();
-
-    displayStates = mDisplayStates;
-    mDisplayStates.clear();
+    displayStates = std::move(mDisplayStates);
 
     if (mForceSynchronous) {
         flags |= ISurfaceComposer::eSynchronous;
@@ -733,21 +728,16 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
         flags |= ISurfaceComposer::eExplicitEarlyWakeupEnd;
     }
 
-    mForceSynchronous = false;
-    mAnimation = false;
-    mEarlyWakeup = false;
-    mExplicitEarlyWakeupStart = false;
-    mExplicitEarlyWakeupEnd = false;
-
-    uint64_t transactionId = mId;
-    mId = generateId();
-
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
     sf->setTransactionState(mFrameTimelineVsyncId, composerStates, displayStates, flags, applyToken,
                             mInputWindowCommands, mDesiredPresentTime,
                             {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/,
-                            hasListenerCallbacks, listenerCallbacks, transactionId);
-    mInputWindowCommands.clear();
+                            hasListenerCallbacks, listenerCallbacks, mId);
+    mId = generateId();
+
+    // Clear the current states and flags
+    clear();
+
     mStatus = NO_ERROR;
     return NO_ERROR;
 }

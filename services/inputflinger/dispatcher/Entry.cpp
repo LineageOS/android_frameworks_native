@@ -59,7 +59,6 @@ VerifiedMotionEvent verifiedMotionEventFromMotionEntry(const MotionEntry& entry)
 
 EventEntry::EventEntry(int32_t id, Type type, nsecs_t eventTime, uint32_t policyFlags)
       : id(id),
-        refCount(1),
         type(type),
         eventTime(eventTime),
         policyFlags(policyFlags),
@@ -68,15 +67,6 @@ EventEntry::EventEntry(int32_t id, Type type, nsecs_t eventTime, uint32_t policy
 
 EventEntry::~EventEntry() {
     releaseInjectionState();
-}
-
-void EventEntry::release() {
-    refCount -= 1;
-    if (refCount == 0) {
-        delete this;
-    } else {
-        ALOG_ASSERT(refCount > 0);
-    }
 }
 
 void EventEntry::releaseInjectionState() {
@@ -151,11 +141,12 @@ std::string KeyEntry::getDescription() const {
     if (!GetBoolProperty("ro.debuggable", false)) {
         return "KeyEvent";
     }
-    return StringPrintf("KeyEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32 ", action=%s, "
+    return StringPrintf("KeyEvent(deviceId=%d, eventTime=%" PRIu64
+                        ", source=0x%08x, displayId=%" PRId32 ", action=%s, "
                         "flags=0x%08x, keyCode=%d, scanCode=%d, metaState=0x%08x, "
                         "repeatCount=%d), policyFlags=0x%08x",
-                        deviceId, source, displayId, KeyEvent::actionToString(action), flags,
-                        keyCode, scanCode, metaState, repeatCount, policyFlags);
+                        deviceId, eventTime, source, displayId, KeyEvent::actionToString(action),
+                        flags, keyCode, scanCode, metaState, repeatCount, policyFlags);
 }
 
 void KeyEntry::recycle() {
@@ -210,12 +201,13 @@ std::string MotionEntry::getDescription() const {
         return "MotionEvent";
     }
     std::string msg;
-    msg += StringPrintf("MotionEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32
+    msg += StringPrintf("MotionEvent(deviceId=%d, eventTime=%" PRIu64
+                        ", source=0x%08x, displayId=%" PRId32
                         ", action=%s, actionButton=0x%08x, flags=0x%08x, metaState=0x%08x, "
                         "buttonState=0x%08x, "
                         "classification=%s, edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, "
                         "xCursorPosition=%0.1f, yCursorPosition=%0.1f, pointers=[",
-                        deviceId, source, displayId, MotionEvent::actionToString(action),
+                        deviceId, eventTime, source, displayId, MotionEvent::actionToString(action),
                         actionButton, flags, metaState, buttonState,
                         motionClassificationToString(classification), edgeFlags, xPrecision,
                         yPrecision, xCursorPosition, yCursorPosition);
@@ -235,22 +227,16 @@ std::string MotionEntry::getDescription() const {
 
 volatile int32_t DispatchEntry::sNextSeqAtomic;
 
-DispatchEntry::DispatchEntry(EventEntry* eventEntry, int32_t targetFlags, ui::Transform transform,
-                             float globalScaleFactor)
+DispatchEntry::DispatchEntry(std::shared_ptr<EventEntry> eventEntry, int32_t targetFlags,
+                             ui::Transform transform, float globalScaleFactor)
       : seq(nextSeq()),
-        eventEntry(eventEntry),
+        eventEntry(std::move(eventEntry)),
         targetFlags(targetFlags),
         transform(transform),
         globalScaleFactor(globalScaleFactor),
         deliveryTime(0),
         resolvedAction(0),
-        resolvedFlags(0) {
-    eventEntry->refCount += 1;
-}
-
-DispatchEntry::~DispatchEntry() {
-    eventEntry->release();
-}
+        resolvedFlags(0) {}
 
 uint32_t DispatchEntry::nextSeq() {
     // Sequence number 0 is reserved and will never be returned.
