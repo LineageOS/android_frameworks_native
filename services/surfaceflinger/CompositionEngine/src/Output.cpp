@@ -192,6 +192,10 @@ void Output::setDisplaySize(const ui::Size& size) {
     dirtyEntireOutput();
 }
 
+ui::Transform::RotationFlags Output::getTransformHint() const {
+    return static_cast<ui::Transform::RotationFlags>(getState().transform.getOrientation());
+}
+
 void Output::setLayerStackFilter(uint32_t layerStackId, bool isInternal) {
     auto& outputState = editState();
     outputState.layerStackId = layerStackId;

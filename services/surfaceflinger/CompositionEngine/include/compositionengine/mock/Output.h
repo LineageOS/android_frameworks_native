@@ -39,6 +39,7 @@ public:
     MOCK_METHOD3(setProjection, void(ui::Rotation, const Rect&, const Rect&));
     MOCK_METHOD1(setDisplaySize, void(const ui::Size&));
     MOCK_METHOD2(setLayerStackFilter, void(uint32_t, bool));
+    MOCK_CONST_METHOD0(getTransformHint, ui::Transform::RotationFlags());
 
     MOCK_METHOD1(setColorTransform, void(const compositionengine::CompositionRefreshArgs&));
     MOCK_METHOD1(setColorProfile, void(const ColorProfile&));

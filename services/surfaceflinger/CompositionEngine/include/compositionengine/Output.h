@@ -167,6 +167,11 @@ public:
                                const Rect& orientedDisplaySpaceRect) = 0;
     // Sets the bounds to use
     virtual void setDisplaySize(const ui::Size&) = 0;
+    // Gets the transform hint used in layers that belong to this output. Used to guide
+    // composition orientation so that HW overlay can be used when display isn't in its natural
+    // orientation on some devices. Therefore usually we only use transform hint from display
+    // output.
+    virtual ui::Transform::RotationFlags getTransformHint() const = 0;
 
     // Sets the layer stack filtering settings for this output. See
     // belongsInOutput for full details.

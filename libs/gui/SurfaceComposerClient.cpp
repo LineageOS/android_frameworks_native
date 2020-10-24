@@ -1628,11 +1628,11 @@ void SurfaceComposerClient::dispose() {
 
 sp<SurfaceControl> SurfaceComposerClient::createSurface(const String8& name, uint32_t w, uint32_t h,
                                                         PixelFormat format, uint32_t flags,
-                                                        SurfaceControl* parent,
+                                                        const sp<IBinder>& parentHandle,
                                                         LayerMetadata metadata,
                                                         uint32_t* outTransformHint) {
     sp<SurfaceControl> s;
-    createSurfaceChecked(name, w, h, format, &s, flags, parent, std::move(metadata),
+    createSurfaceChecked(name, w, h, format, &s, flags, parentHandle, std::move(metadata),
                          outTransformHint);
     return s;
 }
@@ -1669,19 +1669,15 @@ sp<SurfaceControl> SurfaceComposerClient::createWithSurfaceParent(const String8&
 status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32_t w, uint32_t h,
                                                      PixelFormat format,
                                                      sp<SurfaceControl>* outSurface, uint32_t flags,
-                                                     SurfaceControl* parent, LayerMetadata metadata,
+                                                     const sp<IBinder>& parentHandle,
+                                                     LayerMetadata metadata,
                                                      uint32_t* outTransformHint) {
     sp<SurfaceControl> sur;
     status_t err = mStatus;
 
     if (mStatus == NO_ERROR) {
         sp<IBinder> handle;
-        sp<IBinder> parentHandle;
         sp<IGraphicBufferProducer> gbp;
-
-        if (parent != nullptr) {
-            parentHandle = parent->getHandle();
-        }
 
         uint32_t transformHint = 0;
         int32_t id = -1;
