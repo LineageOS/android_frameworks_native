@@ -268,6 +268,8 @@ TEST_F(OutputTest, setProjectionWorks) {
     EXPECT_EQ(orientation, state.framebufferSpace.orientation);
 
     EXPECT_EQ(state.displaySpace.content, state.transform.transform(state.layerStackSpace.content));
+
+    EXPECT_EQ(ui::Transform::ROT_90, mOutput->getTransformHint());
 }
 
 TEST_F(OutputTest, setProjectionWithSmallFramebufferWorks) {

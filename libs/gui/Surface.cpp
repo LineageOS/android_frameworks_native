@@ -63,7 +63,8 @@ bool isInterceptorRegistrationOp(int op) {
 
 } // namespace
 
-Surface::Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controlledByApp)
+Surface::Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controlledByApp,
+                 const sp<IBinder>& surfaceControlHandle)
       : mGraphicBufferProducer(bufferProducer),
         mCrop(Rect::EMPTY_RECT),
         mBufferAge(0),
@@ -111,6 +112,7 @@ Surface::Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controll
     mProducerControlledByApp = controlledByApp;
     mSwapIntervalZero = false;
     mMaxBufferCount = NUM_BUFFER_SLOTS;
+    mSurfaceControlHandle = surfaceControlHandle;
 }
 
 Surface::~Surface() {
