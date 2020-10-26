@@ -7,6 +7,18 @@
           "include-filter": "android.server.wm.WindowInputTests"
         }
       ]
+    },
+    {
+      "name": "libinput_tests"
+    },
+    {
+      "name": "inputflinger_tests"
+    },
+    {
+      "name": "InputTests"
+    },
+    {
+      "name": "libinputservice_test"
     }
   ]
 }

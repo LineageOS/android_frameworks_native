@@ -48,4 +48,5 @@ cc_test {
         "libc++fs"
     ],
     require_root: true,
+    test_suites: ["device-tests"],
 }
