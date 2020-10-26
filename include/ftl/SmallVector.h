@@ -108,50 +108,49 @@ public:
     // Returns whether the vector is backed by static or dynamic storage.
     bool dynamic() const { return std::holds_alternative<Dynamic>(mVector); }
 
-#define VISITOR(T, F, ...)                                               \
-    T F() __VA_ARGS__ {                                                  \
-        return std::visit([](auto&& v) -> T { return v.F(); }, mVector); \
+    // Avoid std::visit as it generates a dispatch table.
+#define DISPATCH(T, F, ...)                                                                \
+    T F() __VA_ARGS__ {                                                                    \
+        return dynamic() ? std::get<Dynamic>(mVector).F() : std::get<Static>(mVector).F(); \
     }
 
-    VISITOR(size_type, max_size, const)
-    VISITOR(size_type, size, const)
-    VISITOR(bool, empty, const)
+    DISPATCH(size_type, max_size, const)
+    DISPATCH(size_type, size, const)
+    DISPATCH(bool, empty, const)
 
     // noexcept to suppress warning about zero variadic macro arguments.
-    VISITOR(iterator, begin, noexcept)
-    VISITOR(const_iterator, begin, const)
-    VISITOR(const_iterator, cbegin, const)
+    DISPATCH(iterator, begin, noexcept)
+    DISPATCH(const_iterator, begin, const)
+    DISPATCH(const_iterator, cbegin, const)
 
-    VISITOR(iterator, end, noexcept)
-    VISITOR(const_iterator, end, const)
-    VISITOR(const_iterator, cend, const)
+    DISPATCH(iterator, end, noexcept)
+    DISPATCH(const_iterator, end, const)
+    DISPATCH(const_iterator, cend, const)
 
-    VISITOR(reverse_iterator, rbegin, noexcept)
-    VISITOR(const_reverse_iterator, rbegin, const)
-    VISITOR(const_reverse_iterator, crbegin, const)
+    DISPATCH(reverse_iterator, rbegin, noexcept)
+    DISPATCH(const_reverse_iterator, rbegin, const)
+    DISPATCH(const_reverse_iterator, crbegin, const)
 
-    VISITOR(reverse_iterator, rend, noexcept)
-    VISITOR(const_reverse_iterator, rend, const)
-    VISITOR(const_reverse_iterator, crend, const)
+    DISPATCH(reverse_iterator, rend, noexcept)
+    DISPATCH(const_reverse_iterator, rend, const)
+    DISPATCH(const_reverse_iterator, crend, const)
 
-    VISITOR(iterator, last, noexcept)
-    VISITOR(const_iterator, last, const)
+    DISPATCH(iterator, last, noexcept)
+    DISPATCH(const_iterator, last, const)
 
-    VISITOR(reference, front, noexcept)
-    VISITOR(const_reference, front, const)
+    DISPATCH(reference, front, noexcept)
+    DISPATCH(const_reference, front, const)
 
-    VISITOR(reference, back, noexcept)
-    VISITOR(const_reference, back, const)
+    DISPATCH(reference, back, noexcept)
+    DISPATCH(const_reference, back, const)
 
-#undef VISITOR
+#undef DISPATCH
 
     reference operator[](size_type i) {
-        return std::visit([i](auto& v) -> reference { return v[i]; }, mVector);
+        return dynamic() ? std::get<Dynamic>(mVector)[i] : std::get<Static>(mVector)[i];
     }
 
-    const_reference operator[](size_type i) const {
-        return std::visit([i](const auto& v) -> const_reference { return v[i]; }, mVector);
-    }
+    const_reference operator[](size_type i) const { return const_cast<SmallVector&>(*this)[i]; }
 
     // Replaces an element, and returns a reference to it. The iterator must be dereferenceable, so
     // replacing at end() is erroneous.
@@ -165,10 +164,11 @@ public:
     //
     template <typename... Args>
     reference replace(const_iterator it, Args&&... args) {
-        return std::
-                visit([it, &args...](auto& v)
-                              -> reference { return v.replace(it, std::forward<Args>(args)...); },
-                      mVector);
+        if (dynamic()) {
+            return std::get<Dynamic>(mVector).replace(it, std::forward<Args>(args)...);
+        } else {
+            return std::get<Static>(mVector).replace(it, std::forward<Args>(args)...);
+        }
     }
 
     // Appends an element, and returns a reference to it.
@@ -209,7 +209,11 @@ public:
     // The last() and end() iterators are invalidated.
     //
     void pop_back() {
-        std::visit([](auto& v) { v.pop_back(); }, mVector);
+        if (dynamic()) {
+            std::get<Dynamic>(mVector).pop_back();
+        } else {
+            std::get<Static>(mVector).pop_back();
+        }
     }
 
     // Erases an element, but does not preserve order. Rather than shifting subsequent elements,
@@ -218,31 +222,26 @@ public:
     // The last() and end() iterators, as well as those to the erased element, are invalidated.
     //
     void unstable_erase(iterator it) {
-        std::visit([it](auto& v) { v.unstable_erase(it); }, mVector);
+        if (dynamic()) {
+            std::get<Dynamic>(mVector).unstable_erase(it);
+        } else {
+            std::get<Static>(mVector).unstable_erase(it);
+        }
     }
 
 private:
-    template <typename... Vs>
-    struct Visitor : Vs... {};
-
-    // TODO: Remove this deduction guide in C++20.
-    template <typename... Vs>
-    Visitor(Vs...) -> Visitor<Vs...>;
-
     template <auto insertStatic, auto insertDynamic, typename... Args>
     auto insert(Args&&... args) {
-        return std::visit(Visitor{[this, &args...](Static& vector) {
-                                      if (vector.full()) {
-                                          return (promote(vector).*
-                                                  insertDynamic)(std::forward<Args>(args)...);
-                                      }
+        if (Dynamic* const vector = std::get_if<Dynamic>(&mVector)) {
+            return (vector->*insertDynamic)(std::forward<Args>(args)...);
+        }
 
-                                      return (vector.*insertStatic)(std::forward<Args>(args)...);
-                                  },
-                                  [&args...](Dynamic& vector) {
-                                      return (vector.*insertDynamic)(std::forward<Args>(args)...);
-                                  }},
-                          mVector);
+        auto& vector = std::get<Static>(mVector);
+        if (vector.full()) {
+            return (promote(vector).*insertDynamic)(std::forward<Args>(args)...);
+        } else {
+            return (vector.*insertStatic)(std::forward<Args>(args)...);
+        }
     }
 
     Dynamic& promote(Static& staticVector) {
