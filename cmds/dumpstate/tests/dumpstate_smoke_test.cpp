@@ -401,7 +401,7 @@ TEST_F(BugreportSectionTest, BatteryStatsSectionGenerated) {
     SectionExists("batterystats", /* bytes= */ 1000);
 }
 
-TEST_F(BugreportSectionTest, WifiSectionGenerated) {
+TEST_F(BugreportSectionTest, DISABLED_WifiSectionGenerated) {
     SectionExists("wifi", /* bytes= */ 100000);
 }
 
