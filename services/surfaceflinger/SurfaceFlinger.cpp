@@ -357,7 +357,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     hasWideColorDisplay = has_wide_color_display(false);
 
-    useColorManagement = use_color_management(false);
+    // Android 12 and beyond, color management in display pipeline is turned on
+    // by default.
+    useColorManagement = use_color_management(true);
 
     mDefaultCompositionDataspace =
             static_cast<ui::Dataspace>(default_composition_dataspace(Dataspace::V0_SRGB));
