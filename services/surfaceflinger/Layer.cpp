@@ -1034,6 +1034,12 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         mCurrentState.inputInfoChanged = false;
     }
 
+    // Add the callbacks from the drawing state into the current state. This is so when the current
+    // state gets copied to drawing, we don't lose the callback handles that are still in drawing.
+    for (auto& handle : s.callbackHandles) {
+        c.callbackHandles.push_back(handle);
+    }
+
     // Commit the transaction
     commitTransaction(c);
     mPendingStatesSnapshot = mPendingStates;
