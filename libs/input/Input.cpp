@@ -19,9 +19,11 @@
 
 #include <attestation/HmacKeyManager.h>
 #include <cutils/compiler.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <string.h>
 
+#include <android-base/stringprintf.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
@@ -30,6 +32,8 @@
 #include <binder/Parcel.h>
 #include <sys/random.h>
 #endif
+
+using android::base::StringPrintf;
 
 namespace android {
 
@@ -700,23 +704,37 @@ int32_t MotionEvent::getAxisFromLabel(const char* label) {
     return InputEventLookup::getAxisByLabel(label);
 }
 
-const char* MotionEvent::actionToString(int32_t action) {
+std::string MotionEvent::actionToString(int32_t action) {
     // Convert MotionEvent action to string
     switch (action & AMOTION_EVENT_ACTION_MASK) {
         case AMOTION_EVENT_ACTION_DOWN:
             return "DOWN";
-        case AMOTION_EVENT_ACTION_MOVE:
-            return "MOVE";
         case AMOTION_EVENT_ACTION_UP:
             return "UP";
+        case AMOTION_EVENT_ACTION_MOVE:
+            return "MOVE";
         case AMOTION_EVENT_ACTION_CANCEL:
             return "CANCEL";
+        case AMOTION_EVENT_ACTION_OUTSIDE:
+            return "OUTSIDE";
         case AMOTION_EVENT_ACTION_POINTER_DOWN:
             return "POINTER_DOWN";
         case AMOTION_EVENT_ACTION_POINTER_UP:
             return "POINTER_UP";
+        case AMOTION_EVENT_ACTION_HOVER_MOVE:
+            return "HOVER_MOVE";
+        case AMOTION_EVENT_ACTION_SCROLL:
+            return "SCROLL";
+        case AMOTION_EVENT_ACTION_HOVER_ENTER:
+            return "HOVER_ENTER";
+        case AMOTION_EVENT_ACTION_HOVER_EXIT:
+            return "HOVER_EXIT";
+        case AMOTION_EVENT_ACTION_BUTTON_PRESS:
+            return "BUTTON_PRESS";
+        case AMOTION_EVENT_ACTION_BUTTON_RELEASE:
+            return "BUTTON_RELEASE";
     }
-    return "UNKNOWN";
+    return android::base::StringPrintf("%" PRId32, action);
 }
 
 // --- FocusEvent ---

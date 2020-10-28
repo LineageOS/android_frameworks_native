@@ -30,7 +30,8 @@ cc_test {
         "liblog",
         "libui",
         "libutils",
-    ]
+    ],
+    test_suites: ["device-tests"],
 }
 
 // NOTE: This is a compile time test, and does not need to be

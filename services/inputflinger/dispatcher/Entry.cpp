@@ -207,10 +207,10 @@ std::string MotionEntry::getDescription() const {
                         "buttonState=0x%08x, "
                         "classification=%s, edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, "
                         "xCursorPosition=%0.1f, yCursorPosition=%0.1f, pointers=[",
-                        deviceId, eventTime, source, displayId, MotionEvent::actionToString(action),
-                        actionButton, flags, metaState, buttonState,
-                        motionClassificationToString(classification), edgeFlags, xPrecision,
-                        yPrecision, xCursorPosition, yCursorPosition);
+                        deviceId, eventTime, source, displayId,
+                        MotionEvent::actionToString(action).c_str(), actionButton, flags, metaState,
+                        buttonState, motionClassificationToString(classification), edgeFlags,
+                        xPrecision, yPrecision, xCursorPosition, yCursorPosition);
 
     for (uint32_t i = 0; i < pointerCount; i++) {
         if (i) {
