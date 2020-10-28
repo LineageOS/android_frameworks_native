@@ -425,6 +425,7 @@ std::optional<std::unordered_map<uint32_t, concurrent_time_t>> getUidsUpdatedCon
 
     uint64_t newLastUpdate = lastUpdate ? *lastUpdate : 0;
     do {
+        if (key.bucket > (gNCpus - 1) / CPUS_PER_ENTRY) return {};
         if (lastUpdate) {
             auto uidUpdated = uidUpdatedSince(key.uid, *lastUpdate, &newLastUpdate);
             if (!uidUpdated.has_value()) return {};
