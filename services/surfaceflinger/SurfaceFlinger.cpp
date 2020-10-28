@@ -1850,16 +1850,18 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
 
     bool refreshNeeded;
     {
-        ConditionalLockGuard<std::mutex> lock(mTracingLock, mTracingEnabled);
+        mTracePostComposition = mTracing.flagIsSet(SurfaceTracing::TRACE_COMPOSITION) ||
+                mTracing.flagIsSet(SurfaceTracing::TRACE_SYNC) ||
+                mTracing.flagIsSet(SurfaceTracing::TRACE_BUFFERS);
+        const bool tracePreComposition = mTracingEnabled && !mTracePostComposition;
+        ConditionalLockGuard<std::mutex> lock(mTracingLock, tracePreComposition);
 
         mFrameTimeline->setSfWakeUp(vsyncId, frameStart);
 
         refreshNeeded = handleMessageTransaction();
         refreshNeeded |= handleMessageInvalidate();
-        if (mTracingEnabled) {
-            mAddCompositionStateToTrace =
-                    mTracing.flagIsSetLocked(SurfaceTracing::TRACE_COMPOSITION);
-            if (mVisibleRegionsDirty && !mAddCompositionStateToTrace) {
+        if (tracePreComposition) {
+            if (mVisibleRegionsDirty) {
                 mTracing.notifyLocked("visibleRegionsDirty");
             }
         }
@@ -2009,12 +2011,15 @@ void SurfaceFlinger::onMessageRefresh() {
     modulateVsync(&VsyncModulator::onDisplayRefresh, usedGpuComposition);
 
     mLayersWithQueuedFrames.clear();
-    if (mVisibleRegionsDirty) {
-        mVisibleRegionsDirty = false;
-        if (mTracingEnabled && mAddCompositionStateToTrace) {
+    if (mTracingEnabled && mTracePostComposition) {
+        // This may block if SurfaceTracing is running in sync mode.
+        if (mVisibleRegionsDirty) {
             mTracing.notify("visibleRegionsDirty");
+        } else if (mTracing.flagIsSet(SurfaceTracing::TRACE_BUFFERS)) {
+            mTracing.notify("bufferLatched");
         }
     }
+    mVisibleRegionsDirty = false;
 
     if (mCompositionEngine->needsAnotherUpdate()) {
         signalLayerUpdate();
@@ -4279,7 +4284,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
 
 status_t SurfaceFlinger::dumpCritical(int fd, const DumpArgs&, bool asProto) {
     if (asProto && mTracing.isEnabled()) {
-        mTracing.writeToFileAsync();
+        mTracing.writeToFile();
     }
 
     return doDump(fd, DumpArgs(), asProto);
@@ -5103,19 +5108,19 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             }
             case 1025: { // Set layer tracing
                 n = data.readInt32();
+                bool tracingEnabledChanged;
                 if (n) {
                     ALOGD("LayerTracing enabled");
-                    mTracingEnabledChanged = mTracing.enable();
-                    reply->writeInt32(NO_ERROR);
+                    tracingEnabledChanged = mTracing.enable();
+                    if (tracingEnabledChanged) {
+                        schedule([&]() MAIN_THREAD { mTracing.notify("start"); }).wait();
+                    }
                 } else {
                     ALOGD("LayerTracing disabled");
-                    mTracingEnabledChanged = mTracing.disable();
-                    if (mTracingEnabledChanged) {
-                        reply->writeInt32(mTracing.writeToFile());
-                    } else {
-                        reply->writeInt32(NO_ERROR);
-                    }
+                    tracingEnabledChanged = mTracing.disable();
                 }
+                mTracingEnabledChanged = tracingEnabledChanged;
+                reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
             }
             case 1026: { // Get layer tracing status
