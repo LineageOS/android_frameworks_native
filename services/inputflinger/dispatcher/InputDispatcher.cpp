@@ -4403,6 +4403,24 @@ std::string InputDispatcher::dumpFocusedWindowsLocked() {
     return dump;
 }
 
+std::string InputDispatcher::dumpPendingFocusRequestsLocked() {
+    if (mPendingFocusRequests.empty()) {
+        return INDENT "mPendingFocusRequests: <none>\n";
+    }
+
+    std::string dump;
+    dump += INDENT "mPendingFocusRequests:\n";
+    for (const auto& [displayId, focusRequest] : mPendingFocusRequests) {
+        // Rather than printing raw values for focusRequest.token and focusRequest.focusedToken,
+        // try to resolve them to actual windows.
+        std::string windowName = getConnectionNameLocked(focusRequest.token);
+        std::string focusedWindowName = getConnectionNameLocked(focusRequest.focusedToken);
+        dump += StringPrintf(INDENT2 "displayId=%" PRId32 ", token->%s, focusedToken->%s\n",
+                             displayId, windowName.c_str(), focusedWindowName.c_str());
+    }
+    return dump;
+}
+
 void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     dump += StringPrintf(INDENT "DispatchEnabled: %s\n", toString(mDispatchEnabled));
     dump += StringPrintf(INDENT "DispatchFrozen: %s\n", toString(mDispatchFrozen));
@@ -4425,6 +4443,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     }
 
     dump += dumpFocusedWindowsLocked();
+    dump += dumpPendingFocusRequestsLocked();
 
     if (!mTouchStatesByDisplay.empty()) {
         dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
@@ -4828,6 +4847,14 @@ sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConn
     }
 
     return nullptr;
+}
+
+std::string InputDispatcher::getConnectionNameLocked(const sp<IBinder>& connectionToken) const {
+    sp<Connection> connection = getConnectionLocked(connectionToken);
+    if (connection == nullptr) {
+        return "<nullptr>";
+    }
+    return connection->getInputChannelName();
 }
 
 void InputDispatcher::removeConnectionLocked(const sp<Connection>& connection) {
