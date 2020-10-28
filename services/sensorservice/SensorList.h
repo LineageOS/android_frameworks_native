@@ -53,6 +53,8 @@ public:
     const Vector<Sensor> getVirtualSensors() const;
 
     String8 getName(int handle) const;
+    String8 getStringType(int handle) const;
+
     sp<SensorInterface> getInterface(int handle) const;
     bool isNewHandle(int handle) const;
 
