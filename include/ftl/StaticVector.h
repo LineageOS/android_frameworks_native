@@ -26,12 +26,14 @@
 
 namespace android::ftl {
 
+constexpr struct IteratorRangeTag {} IteratorRange;
+
 // Fixed-capacity, statically allocated counterpart of std::vector. Akin to std::array, StaticVector
 // allocates contiguous storage for N elements of type T at compile time, but stores at most (rather
 // than exactly) N elements. Unlike std::array, its default constructor does not require T to have a
 // default constructor, since elements are constructed in-place as the vector grows. Operations that
-// insert an element, such as push_back and emplace, fail when the vector is full. The API otherwise
-// adheres to standard containers, except the unstable_erase operation that does not shift elements,
+// insert an element (emplace_back, push_back, etc.) fail when the vector is full. The API otherwise
+// adheres to standard containers, except the unstable_erase operation that does not preserve order,
 // and the replace operation that destructively emplaces.
 //
 // StaticVector<T, 1> is analogous to an iterable std::optional, but StaticVector<T, 0> is an error.
@@ -61,12 +63,17 @@ namespace android::ftl {
 //     assert(vector == (ftl::StaticVector{'h', 'i', '\0'}));
 //
 template <typename T, size_t N>
-class StaticVector {
+class StaticVector final {
     static_assert(N > 0);
 
-    template <typename I>
-    using IsInputIterator = std::is_base_of<std::input_iterator_tag,
-                                            typename std::iterator_traits<I>::iterator_category>;
+    // There is ambiguity when constructing from two iterator-like elements like pointers:
+    // they could be an iterator range, or arguments for in-place construction. Assume the
+    // latter unless they are input iterators and cannot be used to construct elements. If
+    // the former is intended, the caller can pass an IteratorRangeTag to disambiguate.
+    template <typename I, typename Traits = std::iterator_traits<I>>
+    using IsInputIterator = std::conjunction<
+            std::is_base_of<std::input_iterator_tag, typename Traits::iterator_category>,
+            std::negation<std::is_constructible<T, I>>>;
 
 public:
     using value_type = T;
@@ -87,20 +94,32 @@ public:
     StaticVector() = default;
 
     // Copies and moves a vector, respectively.
-    StaticVector(const StaticVector& other) : StaticVector(other.begin(), other.end()) {}
+    StaticVector(const StaticVector& other)
+          : StaticVector(IteratorRange, other.begin(), other.end()) {}
     StaticVector(StaticVector&& other) { swap<Empty>(other); }
 
     // Copies at most N elements from a smaller convertible vector.
     template <typename U, size_t M, typename = std::enable_if_t<M <= N>>
-    StaticVector(const StaticVector<U, M>& other) : StaticVector(other.begin(), other.end()) {}
+    StaticVector(const StaticVector<U, M>& other)
+          : StaticVector(IteratorRange, other.begin(), other.end()) {}
 
     // Copies at most N elements from an array.
     template <typename U, size_t M>
-    explicit StaticVector(U (&array)[M]) : StaticVector(std::begin(array), std::end(array)) {}
+    explicit StaticVector(U (&array)[M])
+          : StaticVector(IteratorRange, std::begin(array), std::end(array)) {}
 
     // Copies at most N elements from the range [first, last).
+    //
+    // IteratorRangeTag disambiguates with initialization from two iterator-like elements.
+    //
     template <typename Iterator, typename = std::enable_if_t<IsInputIterator<Iterator>{}>>
-    StaticVector(Iterator first, Iterator last)
+    StaticVector(Iterator first, Iterator last) : StaticVector(IteratorRange, first, last) {
+        using V = typename std::iterator_traits<Iterator>::value_type;
+        static_assert(std::is_constructible_v<value_type, V>, "Incompatible iterator range");
+    }
+
+    template <typename Iterator>
+    StaticVector(IteratorRangeTag, Iterator first, Iterator last)
           : mSize(std::min(max_size(), static_cast<size_type>(std::distance(first, last)))) {
         std::uninitialized_copy(first, first + mSize, begin());
     }
@@ -154,7 +173,7 @@ public:
     template <typename = void>
     void swap(StaticVector&);
 
-    size_type max_size() const { return N; }
+    static constexpr size_type max_size() { return N; }
     size_type size() const { return mSize; }
 
     bool empty() const { return size() == 0; }
@@ -188,19 +207,29 @@ public:
     reference operator[](size_type i) { return *(begin() + i); }
     const_reference operator[](size_type i) const { return mut()[i]; }
 
-    // Replaces an element, and returns an iterator to it. If the vector is full, the element is not
-    // replaced, and the end iterator is returned.
+    // Replaces an element, and returns a reference to it. The iterator must be dereferenceable, so
+    // replacing at end() is erroneous.
+    //
+    // The element is emplaced via move constructor, so type T does not need to define copy/move
+    // assignment, e.g. its data members may be const.
+    //
+    // The arguments may directly or indirectly refer to the element being replaced.
+    //
+    // Iterators to the replaced element point to its replacement, and others remain valid.
+    //
     template <typename... Args>
-    iterator replace(const_iterator cit, Args&&... args) {
-        if (full()) return end();
-        // Append element, and move into place if not last.
-        emplace_back(std::forward<Args>(args)...);
-        if (cit != last()) unstable_erase(cit);
-        return const_cast<iterator>(cit);
+    reference replace(const_iterator it, Args&&... args) {
+        value_type element{std::forward<Args>(args)...};
+        std::destroy_at(it);
+        // This is only safe because exceptions are disabled.
+        return *construct_at(it, std::move(element));
     }
 
     // Appends an element, and returns an iterator to it. If the vector is full, the element is not
-    // inserted, and the end iterator is returned.
+    // inserted, and the end() iterator is returned.
+    //
+    // On success, the end() iterator is invalidated.
+    //
     template <typename... Args>
     iterator emplace_back(Args&&... args) {
         if (full()) return end();
@@ -209,25 +238,37 @@ public:
         return it;
     }
 
-    // Erases an element, but does not preserve order. Rather than shifting subsequent elements,
-    // this moves the last element to the slot of the erased element.
-    void unstable_erase(const_iterator it) {
-        std::destroy_at(it);
-        if (it != last()) {
-            // Move last element and destroy its source for destructor side effects.
-            construct_at(it, std::move(back()));
-            std::destroy_at(last());
-        }
-        --mSize;
-    }
-
+    // Appends an element unless the vector is full, and returns whether the element was inserted.
+    //
+    // On success, the end() iterator is invalidated.
+    //
     bool push_back(value_type v) {
         // Two statements for sequence point.
         const iterator it = emplace_back(std::move(v));
         return it != end();
     }
 
+    // Removes the last element. The vector must not be empty, or the call is erroneous.
+    //
+    // The last() and end() iterators are invalidated.
+    //
     void pop_back() { unstable_erase(last()); }
+
+    // Erases an element, but does not preserve order. Rather than shifting subsequent elements,
+    // this moves the last element to the slot of the erased element.
+    //
+    // The last() and end() iterators, as well as those to the erased element, are invalidated.
+    //
+    void unstable_erase(const_iterator it) {
+        std::destroy_at(it);
+        if (it != last()) {
+            // Move last element and destroy its source for destructor side effects. This is only
+            // safe because exceptions are disabled.
+            construct_at(it, std::move(back()));
+            std::destroy_at(last());
+        }
+        --mSize;
+    }
 
 private:
     struct Empty {};
