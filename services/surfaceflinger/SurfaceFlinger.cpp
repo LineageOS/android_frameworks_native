@@ -1043,7 +1043,12 @@ status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mo
         } else {
             const HwcConfigIndexType config(mode);
             const float fps = mRefreshRateConfigs->getRefreshRateFromConfigId(config).getFps();
-            const scheduler::RefreshRateConfigs::Policy policy{config, {fps, fps}};
+            // Keep the old switching type.
+            const auto allowGroupSwitching =
+                    mRefreshRateConfigs->getCurrentPolicy().allowGroupSwitching;
+            const scheduler::RefreshRateConfigs::Policy policy{config,
+                                                               allowGroupSwitching,
+                                                               {fps, fps}};
             constexpr bool kOverridePolicy = false;
 
             return setDesiredDisplayConfigSpecsInternal(display, policy, kOverridePolicy);
@@ -4368,21 +4373,14 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   dispSyncPresentTimeOffset, getVsyncPeriodFromHWC());
 
     scheduler::RefreshRateConfigs::Policy policy = mRefreshRateConfigs->getDisplayManagerPolicy();
-    StringAppendF(&result,
-                  "DesiredDisplayConfigSpecs (DisplayManager): default config ID: %d"
-                  ", primary range: [%.2f %.2f], app request range: [%.2f %.2f]\n\n",
-                  policy.defaultConfig.value(), policy.primaryRange.min, policy.primaryRange.max,
-                  policy.appRequestRange.min, policy.appRequestRange.max);
+    StringAppendF(&result, "DesiredDisplayConfigSpecs (DisplayManager): %s\n\n",
+                  policy.toString().c_str());
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
     scheduler::RefreshRateConfigs::Policy currentPolicy = mRefreshRateConfigs->getCurrentPolicy();
     if (currentPolicy != policy) {
-        StringAppendF(&result,
-                      "DesiredDisplayConfigSpecs (Override): default config ID: %d"
-                      ", primary range: [%.2f %.2f], app request range: [%.2f %.2f]\n\n",
-                      currentPolicy.defaultConfig.value(), currentPolicy.primaryRange.min,
-                      currentPolicy.primaryRange.max, currentPolicy.appRequestRange.min,
-                      currentPolicy.appRequestRange.max);
+        StringAppendF(&result, "DesiredDisplayConfigSpecs (Override): %s\n\n",
+                      currentPolicy.toString().c_str());
     }
 
     mScheduler->dump(mAppConnectionHandle, result);
@@ -5976,12 +5974,10 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                      int32_t defaultConfig,
-                                                      float primaryRefreshRateMin,
-                                                      float primaryRefreshRateMax,
-                                                      float appRequestRefreshRateMin,
-                                                      float appRequestRefreshRateMax) {
+status_t SurfaceFlinger::setDesiredDisplayConfigSpecs(
+        const sp<IBinder>& displayToken, int32_t defaultConfig, bool allowGroupSwitching,
+        float primaryRefreshRateMin, float primaryRefreshRateMax, float appRequestRefreshRateMin,
+        float appRequestRefreshRateMax) {
     ATRACE_CALL();
 
     if (!displayToken) {
@@ -6000,6 +5996,7 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecs(const sp<IBinder>& display
         } else {
             using Policy = scheduler::RefreshRateConfigs::Policy;
             const Policy policy{HwcConfigIndexType(defaultConfig),
+                                allowGroupSwitching,
                                 {primaryRefreshRateMin, primaryRefreshRateMax},
                                 {appRequestRefreshRateMin, appRequestRefreshRateMax}};
             constexpr bool kOverridePolicy = false;
@@ -6011,12 +6008,10 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecs(const sp<IBinder>& display
     return future.get();
 }
 
-status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                      int32_t* outDefaultConfig,
-                                                      float* outPrimaryRefreshRateMin,
-                                                      float* outPrimaryRefreshRateMax,
-                                                      float* outAppRequestRefreshRateMin,
-                                                      float* outAppRequestRefreshRateMax) {
+status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(
+        const sp<IBinder>& displayToken, int32_t* outDefaultConfig, bool* outAllowGroupSwitching,
+        float* outPrimaryRefreshRateMin, float* outPrimaryRefreshRateMax,
+        float* outAppRequestRefreshRateMin, float* outAppRequestRefreshRateMax) {
     ATRACE_CALL();
 
     if (!displayToken || !outDefaultConfig || !outPrimaryRefreshRateMin ||
@@ -6034,6 +6029,7 @@ status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(const sp<IBinder>& display
         scheduler::RefreshRateConfigs::Policy policy =
                 mRefreshRateConfigs->getDisplayManagerPolicy();
         *outDefaultConfig = policy.defaultConfig.value();
+        *outAllowGroupSwitching = policy.allowGroupSwitching;
         *outPrimaryRefreshRateMin = policy.primaryRange.min;
         *outPrimaryRefreshRateMax = policy.primaryRange.max;
         *outAppRequestRefreshRateMin = policy.appRequestRange.min;
@@ -6044,6 +6040,7 @@ status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(const sp<IBinder>& display
     } else {
         const auto displayId = display->getPhysicalId();
         *outDefaultConfig = getHwComposer().getActiveConfigIndex(displayId);
+        *outAllowGroupSwitching = false;
         auto vsyncPeriod = getHwComposer().getActiveConfig(displayId)->getVsyncPeriod();
         *outPrimaryRefreshRateMin = 1e9f / vsyncPeriod;
         *outPrimaryRefreshRateMax = 1e9f / vsyncPeriod;
@@ -6174,8 +6171,8 @@ status_t SurfaceFlinger::acquireFrameRateFlexibilityToken(sp<IBinder>* outToken)
             // This is a little racy, but not in a way that hurts anything. As we grab the
             // defaultConfig from the display manager policy, we could be setting a new display
             // manager policy, leaving us using a stale defaultConfig. The defaultConfig doesn't
-            // matter for the override policy though, since we set allowGroupSwitching to true, so
-            // it's not a problem.
+            // matter for the override policy though, since we set allowGroupSwitching to
+            // true, so it's not a problem.
             scheduler::RefreshRateConfigs::Policy overridePolicy;
             overridePolicy.defaultConfig =
                     mRefreshRateConfigs->getDisplayManagerPolicy().defaultConfig;
