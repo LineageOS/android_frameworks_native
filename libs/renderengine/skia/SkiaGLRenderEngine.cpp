@@ -560,6 +560,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             }
 
             auto texMatrix = getSkM44(item.textureTransform).asM33();
+
+            // b/171404534, scale to fix the layer
+            matrix.postScale(bounds.getWidth() / bufferWidth, bounds.getHeight() / bufferHeight);
+
             // textureTansform was intended to be passed directly into a shader, so when
             // building the total matrix with the textureTransform we need to first
             // normalize it, then apply the textureTransform, then scale back up.
