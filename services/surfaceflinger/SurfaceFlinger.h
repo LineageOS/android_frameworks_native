@@ -1134,7 +1134,7 @@ private:
     SurfaceTracing mTracing{*this};
     std::mutex mTracingLock;
     bool mTracingEnabled = false;
-    bool mAddCompositionStateToTrace = false;
+    bool mTracePostComposition = false;
     std::atomic<bool> mTracingEnabledChanged = false;
 
     const std::shared_ptr<TimeStats> mTimeStats;
