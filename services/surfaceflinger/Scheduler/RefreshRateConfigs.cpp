@@ -48,6 +48,13 @@ std::string RefreshRateConfigs::layerVoteTypeString(LayerVoteType vote) {
     }
 }
 
+std::string RefreshRateConfigs::Policy::toString() {
+    return base::StringPrintf("default config ID: %d, allowGroupSwitching = %d"
+                              ", primary range: [%.2f %.2f], app request range: [%.2f %.2f]",
+                              defaultConfig.value(), allowGroupSwitching, primaryRange.min,
+                              primaryRange.max, appRequestRange.min, appRequestRange.max);
+}
+
 const RefreshRate& RefreshRateConfigs::getRefreshRateForContent(
         const std::vector<LayerRequirement>& layers) const {
     std::lock_guard lock(mLock);

@@ -888,7 +888,7 @@ public:
     }
 
     virtual status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                  int32_t defaultConfig,
+                                                  int32_t defaultConfig, bool allowGroupSwitching,
                                                   float primaryRefreshRateMin,
                                                   float primaryRefreshRateMax,
                                                   float appRequestRefreshRateMin,
@@ -907,6 +907,11 @@ public:
         result = data.writeInt32(defaultConfig);
         if (result != NO_ERROR) {
             ALOGE("setDesiredDisplayConfigSpecs failed to write defaultConfig: %d", result);
+            return result;
+        }
+        result = data.writeBool(allowGroupSwitching);
+        if (result != NO_ERROR) {
+            ALOGE("setDesiredDisplayConfigSpecs failed to write allowGroupSwitching: %d", result);
             return result;
         }
         result = data.writeFloat(primaryRefreshRateMin);
@@ -943,12 +948,14 @@ public:
 
     virtual status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
                                                   int32_t* outDefaultConfig,
+                                                  bool* outAllowGroupSwitching,
                                                   float* outPrimaryRefreshRateMin,
                                                   float* outPrimaryRefreshRateMax,
                                                   float* outAppRequestRefreshRateMin,
                                                   float* outAppRequestRefreshRateMax) {
-        if (!outDefaultConfig || !outPrimaryRefreshRateMin || !outPrimaryRefreshRateMax ||
-            !outAppRequestRefreshRateMin || !outAppRequestRefreshRateMax) {
+        if (!outDefaultConfig || !outAllowGroupSwitching || !outPrimaryRefreshRateMin ||
+            !outPrimaryRefreshRateMax || !outAppRequestRefreshRateMin ||
+            !outAppRequestRefreshRateMax) {
             return BAD_VALUE;
         }
         Parcel data, reply;
@@ -971,6 +978,11 @@ public:
         result = reply.readInt32(outDefaultConfig);
         if (result != NO_ERROR) {
             ALOGE("getDesiredDisplayConfigSpecs failed to read defaultConfig: %d", result);
+            return result;
+        }
+        result = reply.readBool(outAllowGroupSwitching);
+        if (result != NO_ERROR) {
+            ALOGE("getDesiredDisplayConfigSpecs failed to read allowGroupSwitching: %d", result);
             return result;
         }
         result = reply.readFloat(outPrimaryRefreshRateMin);
@@ -1829,6 +1841,13 @@ status_t BnSurfaceComposer::onTransact(
                 ALOGE("setDesiredDisplayConfigSpecs: failed to read defaultConfig: %d", result);
                 return result;
             }
+            bool allowGroupSwitching;
+            result = data.readBool(&allowGroupSwitching);
+            if (result != NO_ERROR) {
+                ALOGE("setDesiredDisplayConfigSpecs: failed to read allowGroupSwitching: %d",
+                      result);
+                return result;
+            }
             float primaryRefreshRateMin;
             result = data.readFloat(&primaryRefreshRateMin);
             if (result != NO_ERROR) {
@@ -1857,10 +1876,10 @@ status_t BnSurfaceComposer::onTransact(
                       result);
                 return result;
             }
-            result =
-                    setDesiredDisplayConfigSpecs(displayToken, defaultConfig, primaryRefreshRateMin,
-                                                 primaryRefreshRateMax, appRequestRefreshRateMin,
-                                                 appRequestRefreshRateMax);
+            result = setDesiredDisplayConfigSpecs(displayToken, defaultConfig, allowGroupSwitching,
+                                                  primaryRefreshRateMin, primaryRefreshRateMax,
+                                                  appRequestRefreshRateMin,
+                                                  appRequestRefreshRateMax);
             if (result != NO_ERROR) {
                 ALOGE("setDesiredDisplayConfigSpecs: failed to call setDesiredDisplayConfigSpecs: "
                       "%d",
@@ -1874,13 +1893,14 @@ status_t BnSurfaceComposer::onTransact(
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> displayToken = data.readStrongBinder();
             int32_t defaultConfig;
+            bool allowGroupSwitching;
             float primaryRefreshRateMin;
             float primaryRefreshRateMax;
             float appRequestRefreshRateMin;
             float appRequestRefreshRateMax;
 
             status_t result =
-                    getDesiredDisplayConfigSpecs(displayToken, &defaultConfig,
+                    getDesiredDisplayConfigSpecs(displayToken, &defaultConfig, &allowGroupSwitching,
                                                  &primaryRefreshRateMin, &primaryRefreshRateMax,
                                                  &appRequestRefreshRateMin,
                                                  &appRequestRefreshRateMax);
@@ -1894,6 +1914,12 @@ status_t BnSurfaceComposer::onTransact(
             result = reply->writeInt32(defaultConfig);
             if (result != NO_ERROR) {
                 ALOGE("getDesiredDisplayConfigSpecs: failed to write defaultConfig: %d", result);
+                return result;
+            }
+            result = reply->writeBool(allowGroupSwitching);
+            if (result != NO_ERROR) {
+                ALOGE("getDesiredDisplayConfigSpecs: failed to write allowGroupSwitching: %d",
+                      result);
                 return result;
             }
             result = reply->writeFloat(primaryRefreshRateMin);

@@ -218,18 +218,21 @@ TEST_F(CredentialsTest, GetDisplayNativePrimariesTest) {
 TEST_F(CredentialsTest, SetDesiredDisplayConfigsTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     int32_t defaultConfig;
+    bool allowGroupSwitching;
     float primaryFpsMin;
     float primaryFpsMax;
     float appRequestFpsMin;
     float appRequestFpsMax;
     status_t res =
             SurfaceComposerClient::getDesiredDisplayConfigSpecs(display, &defaultConfig,
+                                                                &allowGroupSwitching,
                                                                 &primaryFpsMin, &primaryFpsMax,
                                                                 &appRequestFpsMin,
                                                                 &appRequestFpsMax);
     ASSERT_EQ(res, NO_ERROR);
     std::function<status_t()> condition = [=]() {
         return SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, defaultConfig,
+                                                                   allowGroupSwitching,
                                                                    primaryFpsMin, primaryFpsMax,
                                                                    appRequestFpsMin,
                                                                    appRequestFpsMax);

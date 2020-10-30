@@ -177,9 +177,7 @@ struct AInputDevice {
 
 namespace android {
 
-#ifdef __ANDROID__
 class Parcel;
-#endif
 
 const char* inputEventTypeToString(int32_t type);
 
@@ -346,10 +344,8 @@ struct PointerCoords {
         return getAxisValue(AMOTION_EVENT_AXIS_Y);
     }
 
-#ifdef __ANDROID__
     status_t readFromParcel(Parcel* parcel);
     status_t writeToParcel(Parcel* parcel) const;
-#endif
 
     bool operator==(const PointerCoords& other) const;
     inline bool operator!=(const PointerCoords& other) const {
@@ -708,10 +704,8 @@ public:
     // Matrix is in row-major form and compatible with SkMatrix.
     void transform(const std::array<float, 9>& matrix);
 
-#ifdef __ANDROID__
     status_t readFromParcel(Parcel* parcel);
     status_t writeToParcel(Parcel* parcel) const;
-#endif
 
     static bool isTouchEvent(uint32_t source, int32_t action);
     inline bool isTouchEvent() const {

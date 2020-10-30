@@ -40,8 +40,11 @@ cc_library {
         "Keyboard.cpp",
         "KeyCharacterMap.cpp",
         "KeyLayoutMap.cpp",
+        "LatencyStatistics.cpp",
         "PropertyMap.cpp",
         "TouchVideoFrame.cpp",
+        "VelocityControl.cpp",
+        "VelocityTracker.cpp",
         "VirtualKeyMap.cpp",
     ],
 
@@ -69,9 +72,6 @@ cc_library {
             srcs: [
                 "InputTransport.cpp",
                 "InputWindow.cpp",
-                "LatencyStatistics.cpp",
-                "VelocityControl.cpp",
-                "VelocityTracker.cpp",
                 "android/FocusRequest.aidl",
                 "android/InputApplicationInfo.aidl",
                 "android/os/IInputConstants.aidl",
@@ -99,12 +99,33 @@ cc_library {
             shared: {
                 enabled: false,
             },
+            include_dirs: [
+                "frameworks/native/libs/arect/include",
+            ],
+        },
+        linux_glibc: {
+            srcs: [
+                "InputTransport.cpp",
+                "InputWindow.cpp",
+                "android/FocusRequest.aidl",
+                "android/InputApplicationInfo.aidl",
+                "android/os/IInputConstants.aidl",
+                "android/os/IInputFlinger.aidl",
+                "android/os/ISetInputWindowsListener.aidl",
+                "android/os/TouchOcclusionMode.aidl",
+            ],
+            static_libs: [
+                "libhostgraphics",
+            ],
+            shared_libs: [
+                "libbinder",
+            ],
         },
     },
 
     aidl: {
         local_include_dirs: ["."],
-        export_aidl_headers: true
+        export_aidl_headers: true,
     },
 }
 

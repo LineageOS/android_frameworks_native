@@ -16,6 +16,9 @@
 
 #pragma once
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+
 #include <chrono>
 
 #include <android/native_window.h>
@@ -181,3 +184,6 @@ public:
 };
 } // namespace
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

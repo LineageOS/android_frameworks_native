@@ -844,7 +844,7 @@ public:
         return NO_ERROR;
     }
     status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& /*displayToken*/,
-                                          int32_t /*defaultConfig*/,
+                                          int32_t /*defaultConfig*/, bool /*allowGroupSwitching*/,
                                           float /*primaryRefreshRateMin*/,
                                           float /*primaryRefreshRateMax*/,
                                           float /*appRequestRefreshRateMin*/,
@@ -853,6 +853,7 @@ public:
     }
     status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& /*displayToken*/,
                                           int32_t* /*outDefaultConfig*/,
+                                          bool* /*outAllowGroupSwitching*/,
                                           float* /*outPrimaryRefreshRateMin*/,
                                           float* /*outPrimaryRefreshRateMax*/,
                                           float* /*outAppRequestRefreshRateMin*/,
