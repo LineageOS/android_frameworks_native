@@ -204,8 +204,8 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
     layer.frameNumber = mCurrentFrameNumber;
     layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getId() : 0;
 
-    // TODO: we could be more subtle with isFixedSize()
-    const bool useFiltering = targetSettings.needsFiltering || mNeedsFiltering || isFixedSize();
+    const bool useFiltering =
+            targetSettings.needsFiltering || mNeedsFiltering || bufferNeedsFiltering();
 
     // Query the texture matrix given our current filtering mode.
     float textureMatrix[16];
@@ -820,6 +820,10 @@ void BufferLayer::setTransformHint(ui::Transform::RotationFlags displayTransform
     if (mTransformHint == ui::Transform::ROT_INVALID) {
         mTransformHint = displayTransformHint;
     }
+}
+
+bool BufferLayer::bufferNeedsFiltering() const {
+    return isFixedSize();
 }
 
 } // namespace android

@@ -115,6 +115,10 @@ public:
 
     ui::Transform::RotationFlags getTransformHint() const override { return mTransformHint; }
 
+    // Returns true if the transformed buffer size does not match the layer size and we need
+    // to apply filtering.
+    virtual bool bufferNeedsFiltering() const;
+
 protected:
     struct BufferInfo {
         nsecs_t mDesiredPresentTime;
