@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <iterator>
 #include <new>
+#include <type_traits>
 
 #define FTL_ARRAY_TRAIT(T, U) using U = typename ArrayTraits<T>::U
 
@@ -40,11 +41,16 @@ struct ArrayTraits {
     using const_iterator = const_pointer;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-    // TODO: Replace with std::construct_at in C++20.
     template <typename... Args>
     static pointer construct_at(const_iterator it, Args&&... args) {
         void* const ptr = const_cast<void*>(static_cast<const void*>(it));
-        return new (ptr) value_type{std::forward<Args>(args)...};
+        if constexpr (std::is_constructible_v<value_type, Args...>) {
+            // TODO: Replace with std::construct_at in C++20.
+            return new (ptr) value_type(std::forward<Args>(args)...);
+        } else {
+            // Fall back to list initialization.
+            return new (ptr) value_type{std::forward<Args>(args)...};
+        }
     }
 };
 

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <ftl/ArrayTraits.h>
+#include <ftl/InitializerList.h>
 
 #include <algorithm>
 #include <cassert>
@@ -32,7 +33,7 @@ constexpr struct IteratorRangeTag {} IteratorRange;
 // Fixed-capacity, statically allocated counterpart of std::vector. Akin to std::array, StaticVector
 // allocates contiguous storage for N elements of type T at compile time, but stores at most (rather
 // than exactly) N elements. Unlike std::array, its default constructor does not require T to have a
-// default constructor, since elements are constructed in-place as the vector grows. Operations that
+// default constructor, since elements are constructed in place as the vector grows. Operations that
 // insert an element (emplace_back, push_back, etc.) fail when the vector is full. The API otherwise
 // adheres to standard containers, except the unstable_erase operation that does not preserve order,
 // and the replace operation that destructively emplaces.
@@ -62,6 +63,14 @@ constexpr struct IteratorRangeTag {} IteratorRange;
 //     const char array[] = "hi";
 //     vector = ftl::StaticVector(array);
 //     assert(vector == (ftl::StaticVector{'h', 'i', '\0'}));
+//
+//     ftl::StaticVector strings = ftl::init::list<std::string>("abc")
+//                                                             ("123456", 3u)
+//                                                             (3u, '?');
+//     assert(strings.size() == 3u);
+//     assert(strings[0] == "abc");
+//     assert(strings[1] == "123");
+//     assert(strings[2] == "???");
 //
 template <typename T, size_t N>
 class StaticVector final : ArrayTraits<T>,
@@ -153,15 +162,22 @@ public:
         static_assert(sizeof...(elements) < N, "Too many elements");
     }
 
-    // Constructs at most N elements. The template arguments T and N are inferred using the
-    // deduction guide defined below. Element types must be convertible to the specified T:
+    // Constructs at most N elements in place by forwarding per-element constructor arguments. The
+    // template arguments T and N are inferred using the deduction guide defined below. The syntax
+    // for listing arguments is as follows:
     //
-    //     ftl::StaticVector vector(std::in_place_type<std::string>, "red", "velvet", "cake");
+    //     ftl::StaticVector vector = ftl::init::list<std::string>("abc")()(3u, '?');
+    //
     //     static_assert(std::is_same_v<decltype(vector), ftl::StaticVector<std::string, 3>>);
+    //     assert(vector.full());
+    //     assert(vector[0] == "abc");
+    //     assert(vector[1].empty());
+    //     assert(vector[2] == "???");
     //
-    template <typename... Es>
-    explicit StaticVector(std::in_place_type_t<T>, Es... elements)
-          : StaticVector(std::forward<Es>(elements)...) {}
+    template <typename U, size_t Size, size_t... Sizes, typename... Types>
+    StaticVector(InitializerList<U, std::index_sequence<Size, Sizes...>, Types...>&& init)
+          : StaticVector(std::index_sequence<0, 0, Size>{}, std::make_index_sequence<Size>{},
+                         std::index_sequence<Sizes...>{}, init.tuple) {}
 
     ~StaticVector() { std::destroy(begin(), end()); }
 
@@ -292,6 +308,32 @@ private:
     template <size_t I>
     explicit StaticVector(std::index_sequence<I>) : mSize(I) {}
 
+    // Recursion for in-place constructor.
+    //
+    // Construct element I by extracting its arguments from the InitializerList tuple. ArgIndex
+    // is the position of its first argument in Args, and ArgCount is the number of arguments.
+    // The Indices sequence corresponds to [0, ArgCount).
+    //
+    // The Sizes sequence lists the argument counts for elements after I, so Size is the ArgCount
+    // for the next element. The recursion stops when Sizes is empty for the last element.
+    //
+    template <size_t I, size_t ArgIndex, size_t ArgCount, size_t... Indices, size_t Size,
+              size_t... Sizes, typename... Args>
+    StaticVector(std::index_sequence<I, ArgIndex, ArgCount>, std::index_sequence<Indices...>,
+                 std::index_sequence<Size, Sizes...>, std::tuple<Args...>& tuple)
+          : StaticVector(std::index_sequence<I + 1, ArgIndex + ArgCount, Size>{},
+                         std::make_index_sequence<Size>{}, std::index_sequence<Sizes...>{}, tuple) {
+        construct_at(begin() + I, std::move(std::get<ArgIndex + Indices>(tuple))...);
+    }
+
+    // Base case for in-place constructor.
+    template <size_t I, size_t ArgIndex, size_t ArgCount, size_t... Indices, typename... Args>
+    StaticVector(std::index_sequence<I, ArgIndex, ArgCount>, std::index_sequence<Indices...>,
+                 std::index_sequence<>, std::tuple<Args...>& tuple)
+          : mSize(I + 1) {
+        construct_at(begin() + I, std::move(std::get<ArgIndex + Indices>(tuple))...);
+    }
+
     size_type mSize = 0;
     std::aligned_storage_t<sizeof(value_type), alignof(value_type)> mData[N];
 };
@@ -306,8 +348,9 @@ template <typename T, typename... Us, typename V = std::decay_t<T>,
 StaticVector(T&&, Us&&...) -> StaticVector<V, 1 + sizeof...(Us)>;
 
 // Deduction guide for in-place constructor.
-template <typename T, typename... Us>
-StaticVector(std::in_place_type_t<T>, Us&&...) -> StaticVector<T, sizeof...(Us)>;
+template <typename T, size_t... Sizes, typename... Types>
+StaticVector(InitializerList<T, std::index_sequence<Sizes...>, Types...>&&)
+        -> StaticVector<T, sizeof...(Sizes)>;
 
 template <typename T, size_t N>
 template <typename E>

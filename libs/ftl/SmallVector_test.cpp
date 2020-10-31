@@ -52,6 +52,14 @@ TEST(SmallVector, Example) {
     vector = ftl::SmallVector(array);
     EXPECT_EQ(vector, (ftl::SmallVector{'h', 'i', '\0'}));
     EXPECT_FALSE(vector.dynamic());
+
+    ftl::SmallVector strings = ftl::init::list<std::string>("abc")("123456", 3u)(3u, '?');
+    ASSERT_EQ(strings.size(), 3u);
+    EXPECT_FALSE(strings.dynamic());
+
+    EXPECT_EQ(strings[0], "abc");
+    EXPECT_EQ(strings[1], "123");
+    EXPECT_EQ(strings[2], "???");
 }
 
 TEST(SmallVector, Construct) {
@@ -99,7 +107,8 @@ TEST(SmallVector, Construct) {
     }
     {
         // In-place constructor with same types.
-        SmallVector vector(std::in_place_type<std::string>, "red", "velvet", "cake");
+        SmallVector vector =
+                ftl::init::list<std::string>("redolent", 3u)("velveteen", 6u)("cakewalk", 4u);
 
         static_assert(std::is_same_v<decltype(vector), SmallVector<std::string, 3>>);
         EXPECT_EQ(vector, (SmallVector{"red"s, "velvet"s, "cake"s}));
@@ -110,9 +119,10 @@ TEST(SmallVector, Construct) {
         const auto copy = "red"s;
         auto move = "velvet"s;
         std::initializer_list<char> list = {'c', 'a', 'k', 'e'};
-        SmallVector vector(std::in_place_type<std::string>, copy.c_str(), std::move(move), list);
+        SmallVector vector = ftl::init::list<std::string>(copy.c_str())(std::move(move))(list);
 
         static_assert(std::is_same_v<decltype(vector), SmallVector<std::string, 3>>);
+        EXPECT_TRUE(move.empty());
         EXPECT_EQ(vector, (SmallVector{"red"s, "velvet"s, "cake"s}));
         EXPECT_FALSE(vector.dynamic());
     }
@@ -206,9 +216,8 @@ TEST(SmallVector, CopyableElement) {
 }
 
 TEST(SmallVector, MovableElement) {
-    // Construct std::string elements in-place from C-style strings. Without std::in_place_type, the
-    // element type would be deduced from the first element, i.e. const char*.
-    SmallVector strings(std::in_place_type<std::string>, "", "", "", "cake", "velvet", "red", "");
+    // Construct std::string elements in place from per-element arguments.
+    SmallVector strings = ftl::init::list<std::string>()()()("cake")("velvet")("red")();
     strings.pop_back();
 
     EXPECT_EQ(strings.max_size(), 7u);
@@ -221,6 +230,7 @@ TEST(SmallVector, MovableElement) {
         ASSERT_FALSE(it == strings.end());
         EXPECT_EQ(*it, "cake");
 
+        // Construct std::string from first 4 characters of string literal.
         strings.unstable_erase(it);
         EXPECT_EQ(strings.emplace_back("cakewalk", 4u), "cake"s);
     }
@@ -260,7 +270,7 @@ TEST(SmallVector, Replace) {
         bool operator==(const Word& other) const { return other.str == str; }
     };
 
-    SmallVector words(std::in_place_type<Word>, "colored", "velour");
+    SmallVector words = ftl::init::list<Word>("colored")("velour");
 
     // The replaced element can be referenced by the replacement.
     {
@@ -301,7 +311,7 @@ TEST(SmallVector, ReverseAppend) {
 }
 
 TEST(SmallVector, Sort) {
-    SmallVector strings(std::in_place_type<std::string>, "pie", "quince", "tart", "red", "velvet");
+    SmallVector strings = ftl::init::list<std::string>("pie")("quince")("tart")("red")("velvet");
     strings.push_back("cake"s);
 
     auto sorted = std::move(strings);
