@@ -52,7 +52,7 @@ struct FuzzType {
 
 // Fuzzer for Serialization operations, this is mostly just lifted from the
 // existing test cases to use fuzzed values as inputs.
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+void FuzzSerializeDeserialize(const uint8_t* data, size_t size) {
   FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
   Payload result;
 
@@ -106,6 +106,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   Deserialize(&vec_val, &result);
   Serialize(t1_val, &result);
   Deserialize(&t1_val, &result);
+}
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+  FuzzSerializeDeserialize(data, size);
 
   return 0;
 }
