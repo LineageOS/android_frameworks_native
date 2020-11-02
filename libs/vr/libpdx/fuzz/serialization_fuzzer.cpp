@@ -108,8 +108,181 @@ void FuzzSerializeDeserialize(const uint8_t* data, size_t size) {
   Deserialize(&t1_val, &result);
 }
 
+void FuzzDeserializeUint8(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {ENCODING_TYPE_UINT8, fdp.ConsumeIntegral<uint8_t>()};
+  std::uint8_t result;
+  Deserialize(&result, &buffer);
+}
+
+void FuzzDeserializeUint16(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {ENCODING_TYPE_UINT16, fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>()};
+  std::uint16_t result;
+  Deserialize(&result, &buffer);
+}
+
+void FuzzDeserializeUint32(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {ENCODING_TYPE_UINT32, fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>()};
+  std::uint32_t result;
+  Deserialize(&result, &buffer);
+}
+
+void FuzzDeserializeUint64(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {
+      ENCODING_TYPE_UINT64,           fdp.ConsumeIntegral<uint8_t>(),
+      fdp.ConsumeIntegral<uint8_t>(), fdp.ConsumeIntegral<uint8_t>(),
+      fdp.ConsumeIntegral<uint8_t>(), fdp.ConsumeIntegral<uint8_t>(),
+      fdp.ConsumeIntegral<uint8_t>(), fdp.ConsumeIntegral<uint8_t>(),
+      fdp.ConsumeIntegral<uint8_t>()};
+  std::uint64_t result;
+  Deserialize(&result, &buffer);
+}
+
+void FuzzDeserializeInt8(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {ENCODING_TYPE_INT8, fdp.ConsumeIntegral<uint8_t>()};
+  std::int8_t result;
+  Deserialize(&result, &buffer);
+}
+
+void FuzzDeserializeInt16(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {ENCODING_TYPE_INT16, fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>()};
+  std::int16_t result;
+  Deserialize(&result, &buffer);
+}
+
+void FuzzDeserializeInt32(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {ENCODING_TYPE_INT32, fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>()};
+  std::int32_t result;
+  Deserialize(&result, &buffer);
+}
+
+void FuzzDeserializeInt64(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {ENCODING_TYPE_INT64,
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>()};
+  std::int64_t result;
+  Deserialize(&result, &buffer);
+}
+
+void FuzzDeserializeFloat32(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {ENCODING_TYPE_FLOAT32, fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>()};
+  float floatResult;
+  Deserialize(&floatResult, &buffer);
+
+  buffer.Rewind();
+  double doubleResult;
+  Deserialize(&doubleResult, &buffer);
+}
+
+void FuzzDeserializeFloat64(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {
+      ENCODING_TYPE_FLOAT64,          fdp.ConsumeIntegral<uint8_t>(),
+      fdp.ConsumeIntegral<uint8_t>(), fdp.ConsumeIntegral<uint8_t>(),
+      fdp.ConsumeIntegral<uint8_t>(), fdp.ConsumeIntegral<uint8_t>(),
+      fdp.ConsumeIntegral<uint8_t>(), fdp.ConsumeIntegral<uint8_t>(),
+      fdp.ConsumeIntegral<uint8_t>()};
+  double result;
+  Deserialize(&result, &buffer);
+}
+
+void FuzzDeserializeFixstr(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  std::string s_val = fdp.ConsumeRemainingBytesAsString();
+  Payload buffer = {ENCODING_TYPE_FIXSTR_MAX};
+  for (std::string::iterator iter = s_val.begin(); iter != s_val.end();
+       iter++) {
+    buffer.Append(1, *iter);
+  }
+  std::string result;
+  Deserialize(&result, &buffer);
+}
+
+void FuzzDeserializeFixmap(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {ENCODING_TYPE_FIXMAP_MAX};
+  // Fill the map with the fuzzed data, not attempting to
+  // make a valid map
+  while (fdp.remaining_bytes() > 0) {
+    buffer.Append(1, fdp.ConsumeIntegral<uint8_t>());
+  }
+
+  std::map<std::uint32_t, std::uint32_t> result;
+  Deserialize(&result, &buffer);
+
+  buffer.Rewind();
+  std::unordered_map<std::uint32_t, std::uint32_t> unorderedResult;
+  Deserialize(&unorderedResult, &buffer);
+}
+
+void FuzzDeserializeVariant(const uint8_t* data, size_t size) {
+  FuzzedDataProvider fdp = FuzzedDataProvider(data, size);
+  Payload buffer = {ENCODING_TYPE_INT16,
+                    ENCODING_TYPE_FLOAT32,
+                    ENCODING_TYPE_FIXSTR_MAX,
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>(),
+                    fdp.ConsumeIntegral<uint8_t>()};
+  // Add the rest of the data as a string
+  std::string s_val = fdp.ConsumeRemainingBytesAsString();
+  for (std::string::iterator iter = s_val.begin(); iter != s_val.end();
+       iter++) {
+    buffer.Append(1, *iter);
+  }
+  Variant<int, float, std::string> result;
+  Deserialize(&result, &buffer);
+}
+
+// Attempts to deserialize fuzzed data as various types
+void FuzzDeserialize(const uint8_t* data, size_t size) {
+  FuzzDeserializeUint8(data, size);
+  FuzzDeserializeUint16(data, size);
+  FuzzDeserializeUint32(data, size);
+  FuzzDeserializeUint64(data, size);
+  FuzzDeserializeInt8(data, size);
+  FuzzDeserializeInt16(data, size);
+  FuzzDeserializeInt32(data, size);
+  FuzzDeserializeInt64(data, size);
+  FuzzDeserializeFloat32(data, size);
+  FuzzDeserializeFloat64(data, size);
+  FuzzDeserializeFixstr(data, size);
+  FuzzDeserializeFixmap(data, size);
+  FuzzDeserializeVariant(data, size);
+}
+
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   FuzzSerializeDeserialize(data, size);
+  FuzzDeserialize(data, size);
 
   return 0;
 }
