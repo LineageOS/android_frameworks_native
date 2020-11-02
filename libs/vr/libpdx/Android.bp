@@ -1,6 +1,5 @@
 cc_library_headers {
     name: "libpdx_headers",
-    host_supported: true,
     export_include_dirs: ["private"],
     vendor_available: true,
     min_sdk_version: "29",
@@ -8,7 +7,6 @@ cc_library_headers {
 
 cc_library_static {
     name: "libpdx",
-    host_supported: true,
     clang: true,
     cflags: [
         "-Wall",
