@@ -40,14 +40,28 @@ public:
         std::string toString() const;
     };
 
+    struct JankPayload {
+        // note that transactions are counted for these frames.
+        int32_t totalFrames = 0;
+        int32_t totalJankyFrames = 0;
+        int32_t totalSFLongCpu = 0;
+        int32_t totalSFLongGpu = 0;
+        int32_t totalSFUnattributed = 0;
+        int32_t totalAppUnattributed = 0;
+
+        std::string toString() const;
+    };
+
     class TimeStatsLayer {
     public:
+        uid_t uid;
         std::string layerName;
         std::string packageName;
         int32_t totalFrames = 0;
         int32_t droppedFrames = 0;
         int32_t lateAcquireFrames = 0;
         int32_t badDesiredPresentFrames = 0;
+        JankPayload jankPayload;
         std::unordered_map<std::string, Histogram> deltas;
 
         std::string toString() const;
@@ -69,8 +83,17 @@ public:
         Histogram presentToPresent;
         Histogram frameDuration;
         Histogram renderEngineTiming;
-        std::unordered_map<std::string, TimeStatsLayer> stats;
+
+        struct StatsHasher {
+            size_t operator()(const std::pair<uid_t, std::string>& p) const {
+                // Normally this isn't a very good hash function due to symmetry reasons,
+                // but these are distinct types so this should be good enough
+                return std::hash<uid_t>{}(p.first) ^ std::hash<std::string>{}(p.second);
+            }
+        };
+        std::unordered_map<std::pair<uid_t, std::string>, TimeStatsLayer, StatsHasher> stats;
         std::unordered_map<uint32_t, nsecs_t> refreshRateStats;
+        JankPayload jankPayload;
 
         std::string toString(std::optional<uint32_t> maxLayers) const;
         SFTimeStatsGlobalProto toProto(std::optional<uint32_t> maxLayers) const;

@@ -16,9 +16,7 @@
 
 #pragma once
 
-#include <deque>
-#include <mutex>
-
+#include <../TimeStats/TimeStats.h>
 #include <gui/ISurfaceComposer.h>
 #include <ui/FenceTime.h>
 #include <utils/RefBase.h>
@@ -26,26 +24,10 @@
 #include <utils/Timers.h>
 #include <utils/Vector.h>
 
-namespace android::frametimeline {
+#include <deque>
+#include <mutex>
 
-/*
- * The type of jank that is associated with a Display/Surface frame
- */
-enum class JankType {
-    // No Jank
-    None,
-    // Jank not related to SurfaceFlinger or the App
-    Display,
-    // SF took too long on the CPU
-    SurfaceFlingerDeadlineMissed,
-    // Either App or GPU took too long on the frame
-    AppDeadlineMissed,
-    // Predictions live for 120ms, if prediction is expired for a frame, there is definitely a jank
-    // associated with the App if this is for a SurfaceFrame, and SF for a DisplayFrame.
-    PredictionExpired,
-    // Latching a buffer early might cause an early present of the frame
-    SurfaceFlingerEarlyLatch,
-};
+namespace android::frametimeline {
 
 enum JankMetadata {
     // Frame was presented earlier than expected
@@ -147,8 +129,10 @@ public:
 
     // Create a new surface frame, set the predictions based on a token and return it to the caller.
     // Sets the PredictionState of SurfaceFrame.
+    // Debug name is the human-readable debugging string for dumpsys.
     virtual std::unique_ptr<SurfaceFrame> createSurfaceFrameForToken(
-            const std::string& layerName, std::optional<int64_t> token) = 0;
+            uid_t uid, std::string layerName, std::string debugName,
+            std::optional<int64_t> token) = 0;
 
     // Adds a new SurfaceFrame to the current DisplayFrame. Frames from multiple layers can be
     // composited into one display frame.
@@ -206,8 +190,8 @@ private:
 
 class SurfaceFrame : public android::frametimeline::SurfaceFrame {
 public:
-    SurfaceFrame(const std::string& layerName, PredictionState predictionState,
-                 TimelineItem&& predictions);
+    SurfaceFrame(uid_t uid, std::string layerName, std::string debugName,
+                 PredictionState predictionState, TimelineItem&& predictions);
     ~SurfaceFrame() = default;
 
     TimelineItem getPredictions() const override { return mPredictions; };
@@ -221,32 +205,37 @@ public:
     void setAcquireFenceTime(nsecs_t acquireFenceTime) override;
     void setPresentState(PresentState state) override;
     void setActualPresentTime(nsecs_t presentTime);
-    void setJankInfo(JankType jankType, int32_t jankMetadata);
-    JankType getJankType() const;
+    void setJankInfo(TimeStats::JankType jankType, int32_t jankMetadata);
+    TimeStats::JankType getJankType() const;
     nsecs_t getBaseTime() const;
+    uid_t getOwnerUid() const;
+    const std::string& getName() const;
     // All the timestamps are dumped relative to the baseTime
     void dump(std::string& result, const std::string& indent, nsecs_t baseTime);
 
 private:
+    const uid_t mOwnerUid;
     const std::string mLayerName;
+    const std::string mDebugName;
     PresentState mPresentState GUARDED_BY(mMutex);
     const PredictionState mPredictionState;
     const TimelineItem mPredictions;
     TimelineItem mActuals GUARDED_BY(mMutex);
     nsecs_t mActualQueueTime GUARDED_BY(mMutex);
     mutable std::mutex mMutex;
-    JankType mJankType GUARDED_BY(mMutex);    // Enum for the type of jank
+    TimeStats::JankType mJankType GUARDED_BY(mMutex); // Enum for the type of jank
     int32_t mJankMetadata GUARDED_BY(mMutex); // Additional details about the jank
 };
 
 class FrameTimeline : public android::frametimeline::FrameTimeline {
 public:
-    FrameTimeline();
+    FrameTimeline(std::shared_ptr<TimeStats> timeStats);
     ~FrameTimeline() = default;
 
     frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
     std::unique_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForToken(
-            const std::string& layerName, std::optional<int64_t> token) override;
+            uid_t ownerUid, std::string layerName, std::string debugName,
+            std::optional<int64_t> token) override;
     void addSurfaceFrame(std::unique_ptr<frametimeline::SurfaceFrame> surfaceFrame,
                          SurfaceFrame::PresentState state) override;
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime) override;
@@ -278,7 +267,7 @@ private:
         std::vector<std::unique_ptr<SurfaceFrame>> surfaceFrames;
 
         PredictionState predictionState;
-        JankType jankType = JankType::None; // Enum for the type of jank
+        TimeStats::JankType jankType = TimeStats::JankType::None; // Enum for the type of jank
         int32_t jankMetadata = 0x0;         // Additional details about the jank
     };
 
@@ -300,6 +289,7 @@ private:
     TokenManager mTokenManager;
     std::mutex mMutex;
     uint32_t mMaxDisplayFrames;
+    std::shared_ptr<TimeStats> mTimeStats;
     static constexpr uint32_t kDefaultMaxDisplayFrames = 64;
     // The initial container size for the vector<SurfaceFrames> inside display frame. Although this
     // number doesn't represent any bounds on the number of surface frames that can go in a display

@@ -5,10 +5,12 @@ cc_library_static {
         "FrameTimeline.cpp",
     ],
     shared_libs: [
+        "android.hardware.graphics.composer@2.4",
         "libbase",
         "libcutils",
         "liblog",
         "libgui",
+        "libtimestats",
         "libui",
         "libutils",
     ],
