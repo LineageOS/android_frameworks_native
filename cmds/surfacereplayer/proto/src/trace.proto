@@ -54,6 +54,7 @@ message SurfaceChange {
         ReparentChildrenChange      reparent_children       = 20;
         BackgroundBlurRadiusChange  background_blur_radius  = 21;
         ShadowRadiusChange          shadow_radius           = 22;
+        BlurRegionsChange           blur_regions            = 23;
     }
 }
 
@@ -205,6 +206,23 @@ message DetachChildrenChange {
 
 message ShadowRadiusChange {
     required float radius = 1;
+}
+
+message BlurRegionsChange {
+    repeated BlurRegionChange blur_regions = 1;
+}
+
+message BlurRegionChange {
+    required uint32 blur_radius = 1;
+    required float corner_radius_tl = 2;
+    required float corner_radius_tr = 3;
+    required float corner_radius_bl = 4;
+    required float corner_radius_br = 5;
+    required float alpha = 6;
+    required int32 left = 7;
+    required int32 top = 8;
+    required int32 right = 9;
+    required int32 bottom = 10;
 }
 
 message Origin {

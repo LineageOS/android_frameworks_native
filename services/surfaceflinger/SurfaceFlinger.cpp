@@ -3684,6 +3684,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eBackgroundBlurRadiusChanged && !mDisableBlurs && mSupportsBlur) {
         if (layer->setBackgroundBlurRadius(s.backgroundBlurRadius)) flags |= eTraversalNeeded;
     }
+    if (what & layer_state_t::eBlurRegionsChanged) {
+        if (layer->setBlurRegions(s.blurRegions)) flags |= eTraversalNeeded;
+    }
     if (what & layer_state_t::eLayerStackChanged) {
         ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
         // We only allow setting layer stacks for top level layers,

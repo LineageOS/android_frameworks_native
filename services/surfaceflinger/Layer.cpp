@@ -482,6 +482,7 @@ void Layer::prepareBasicGeometryCompositionState() {
     compositionState->blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
     compositionState->alpha = alpha;
     compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
+    compositionState->blurRegions = drawingState.blurRegions;
 }
 
 void Layer::prepareGeometryCompositionState() {
@@ -550,7 +551,8 @@ void Layer::preparePerFrameCompositionState() {
             isOpaque(drawingState) && !usesRoundedCorners && getAlpha() == 1.0_hf;
 
     // Force client composition for special cases known only to the front-end.
-    if (isHdrY410() || usesRoundedCorners || drawShadows()) {
+    if (isHdrY410() || usesRoundedCorners || drawShadows() ||
+        getDrawingState().blurRegions.size() > 0) {
         compositionState->forceClientComposition = true;
     }
 }
@@ -646,6 +648,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
     layerSettings.alpha = alpha;
     layerSettings.sourceDataspace = getDataSpace();
     layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
+    layerSettings.blurRegions = getBlurRegions();
     return layerSettings;
 }
 
@@ -1280,6 +1283,14 @@ bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix,
 
 bool Layer::setTransparentRegionHint(const Region& transparent) {
     mCurrentState.requestedTransparentRegion_legacy = transparent;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::setBlurRegions(const std::vector<BlurRegion>& blurRegions) {
+    mCurrentState.sequence++;
+    mCurrentState.blurRegions = blurRegions;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -2170,6 +2181,10 @@ half4 Layer::getColor() const {
 
 int32_t Layer::getBackgroundBlurRadius() const {
     return getDrawingState().backgroundBlurRadius;
+}
+
+const std::vector<BlurRegion>& Layer::getBlurRegions() const {
+    return getDrawingState().blurRegions;
 }
 
 Layer::RoundedCornerState Layer::getRoundedCornerState() const {

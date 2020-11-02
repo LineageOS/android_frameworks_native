@@ -29,6 +29,7 @@
 #include <utils/SortedVector.h>
 #include <utils/threads.h>
 
+#include <ui/BlurRegion.h>
 #include <ui/ConfigStoreTypes.h>
 #include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
@@ -439,6 +440,8 @@ public:
         Transaction& setCornerRadius(const sp<SurfaceControl>& sc, float cornerRadius);
         Transaction& setBackgroundBlurRadius(const sp<SurfaceControl>& sc,
                                              int backgroundBlurRadius);
+        Transaction& setBlurRegions(const sp<SurfaceControl>& sc,
+                                    const std::vector<BlurRegion>& regions);
         Transaction& setLayerStack(const sp<SurfaceControl>& sc, uint32_t layerStack);
         Transaction& setMetadata(const sp<SurfaceControl>& sc, uint32_t key, const Parcel& p);
         // Defers applying any changes made in this transaction until the Layer
