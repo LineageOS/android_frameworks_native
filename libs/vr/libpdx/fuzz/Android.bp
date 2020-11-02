@@ -42,7 +42,6 @@ cc_fuzz {
 
 cc_fuzz {
     name: "libpdx_serialization_fuzzer",
-    host_supported: true,
     clang: true,
     srcs: [
         "serialization_fuzzer.cpp",
