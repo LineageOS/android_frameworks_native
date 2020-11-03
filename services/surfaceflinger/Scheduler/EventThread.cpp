@@ -31,6 +31,8 @@
 
 #include <android-base/stringprintf.h>
 
+#include <binder/IPCThreadState.h>
+
 #include <cutils/compiler.h>
 #include <cutils/sched_policy.h>
 
@@ -123,11 +125,12 @@ DisplayEventReceiver::Event makeConfigChanged(PhysicalDisplayId displayId,
 
 } // namespace
 
-EventThreadConnection::EventThreadConnection(EventThread* eventThread,
+EventThreadConnection::EventThreadConnection(EventThread* eventThread, uid_t callingUid,
                                              ResyncCallback resyncCallback,
                                              ISurfaceComposer::ConfigChanged configChanged)
       : resyncCallback(std::move(resyncCallback)),
         mConfigChanged(configChanged),
+        mOwnerUid(callingUid),
         mEventThread(eventThread),
         mChannel(gui::BitTube::DefaultSize) {}
 
@@ -170,10 +173,12 @@ namespace impl {
 
 EventThread::EventThread(std::unique_ptr<VSyncSource> vsyncSource,
                          android::frametimeline::TokenManager* tokenManager,
-                         InterceptVSyncsCallback interceptVSyncsCallback)
+                         InterceptVSyncsCallback interceptVSyncsCallback,
+                         ThrottleVsyncCallback throttleVsyncCallback)
       : mVSyncSource(std::move(vsyncSource)),
         mTokenManager(tokenManager),
         mInterceptVSyncsCallback(std::move(interceptVSyncsCallback)),
+        mThrottleVsyncCallback(std::move(throttleVsyncCallback)),
         mThreadName(mVSyncSource->getName()) {
     mVSyncSource->setCallback(this);
 
@@ -216,8 +221,9 @@ void EventThread::setDuration(std::chrono::nanoseconds workDuration,
 
 sp<EventThreadConnection> EventThread::createEventConnection(
         ResyncCallback resyncCallback, ISurfaceComposer::ConfigChanged configChanged) const {
-    return new EventThreadConnection(const_cast<EventThread*>(this), std::move(resyncCallback),
-                                     configChanged);
+    return new EventThreadConnection(const_cast<EventThread*>(this),
+                                     IPCThreadState::self()->getCallingUid(),
+                                     std::move(resyncCallback), configChanged);
 }
 
 status_t EventThread::registerDisplayEventConnection(const sp<EventThreadConnection>& connection) {
@@ -443,6 +449,11 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
 
 bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
                                      const sp<EventThreadConnection>& connection) const {
+    const auto throttleVsync = [&] {
+        return mThrottleVsyncCallback &&
+                mThrottleVsyncCallback(event.vsync.expectedVSyncTimestamp, connection->mOwnerUid);
+    };
+
     switch (event.header.type) {
         case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
             return true;
@@ -458,12 +469,22 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
                 case VSyncRequest::SingleSuppressCallback:
                     connection->vsyncRequest = VSyncRequest::None;
                     return false;
-                case VSyncRequest::Single:
+                case VSyncRequest::Single: {
+                    if (throttleVsync()) {
+                        return false;
+                    }
                     connection->vsyncRequest = VSyncRequest::SingleSuppressCallback;
                     return true;
+                }
                 case VSyncRequest::Periodic:
+                    if (throttleVsync()) {
+                        return false;
+                    }
                     return true;
                 default:
+                    // We don't throttle vsync if the app set a vsync request rate
+                    // since there is no easy way to do that and this is a very
+                    // rare case
                     return event.vsync.count % vsyncPeriod(connection->vsyncRequest) == 0;
             }
 

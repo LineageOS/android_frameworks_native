@@ -59,16 +59,16 @@ struct VSyncPredictorTest : testing::Test {
 };
 
 TEST_F(VSyncPredictorTest, reportsAnticipatedPeriod) {
-    auto [slope, intercept] = tracker.getVSyncPredictionModel();
+    auto model = tracker.getVSyncPredictionModel();
 
-    EXPECT_THAT(slope, Eq(mPeriod));
-    EXPECT_THAT(intercept, Eq(0));
+    EXPECT_THAT(model.slope, Eq(mPeriod));
+    EXPECT_THAT(model.intercept, Eq(0));
 
     auto const changedPeriod = 2000;
     tracker.setPeriod(changedPeriod);
-    std::tie(slope, intercept) = tracker.getVSyncPredictionModel();
-    EXPECT_THAT(slope, Eq(changedPeriod));
-    EXPECT_THAT(intercept, Eq(0));
+    model = tracker.getVSyncPredictionModel();
+    EXPECT_THAT(model.slope, Eq(changedPeriod));
+    EXPECT_THAT(model.intercept, Eq(0));
 }
 
 TEST_F(VSyncPredictorTest, reportsSamplesNeededWhenHasNoDataPoints) {
@@ -264,17 +264,17 @@ TEST_F(VSyncPredictorTest, handlesVsyncChange) {
     }
 
     auto const mMaxRoundingError = 100;
-    auto [slope, intercept] = tracker.getVSyncPredictionModel();
-    EXPECT_THAT(slope, IsCloseTo(fastPeriod, mMaxRoundingError));
-    EXPECT_THAT(intercept, IsCloseTo(0, mMaxRoundingError));
+    auto model = tracker.getVSyncPredictionModel();
+    EXPECT_THAT(model.slope, IsCloseTo(fastPeriod, mMaxRoundingError));
+    EXPECT_THAT(model.intercept, IsCloseTo(0, mMaxRoundingError));
 
     tracker.setPeriod(slowPeriod);
     for (auto const& timestamp : simulatedVsyncsSlow) {
         tracker.addVsyncTimestamp(timestamp);
     }
-    std::tie(slope, intercept) = tracker.getVSyncPredictionModel();
-    EXPECT_THAT(slope, IsCloseTo(slowPeriod, mMaxRoundingError));
-    EXPECT_THAT(intercept, IsCloseTo(0, mMaxRoundingError));
+    model = tracker.getVSyncPredictionModel();
+    EXPECT_THAT(model.slope, IsCloseTo(slowPeriod, mMaxRoundingError));
+    EXPECT_THAT(model.intercept, IsCloseTo(0, mMaxRoundingError));
 }
 
 TEST_F(VSyncPredictorTest, willBeAccurateUsingPriorResultsForRate) {
@@ -296,9 +296,9 @@ TEST_F(VSyncPredictorTest, willBeAccurateUsingPriorResultsForRate) {
     for (auto const& timestamp : simulatedVsyncsFast) {
         tracker.addVsyncTimestamp(timestamp);
     }
-    auto [slope, intercept] = tracker.getVSyncPredictionModel();
-    EXPECT_THAT(slope, Eq(fastPeriod));
-    EXPECT_THAT(intercept, Eq(0));
+    auto model = tracker.getVSyncPredictionModel();
+    EXPECT_THAT(model.slope, Eq(fastPeriod));
+    EXPECT_THAT(model.intercept, Eq(0));
 
     tracker.setPeriod(slowPeriod);
     for (auto const& timestamp : simulatedVsyncsSlow) {
@@ -308,16 +308,16 @@ TEST_F(VSyncPredictorTest, willBeAccurateUsingPriorResultsForRate) {
     // we had a model for 100ns mPeriod before, use that until the new samples are
     // sufficiently built up
     tracker.setPeriod(idealPeriod);
-    std::tie(slope, intercept) = tracker.getVSyncPredictionModel();
-    EXPECT_THAT(slope, Eq(fastPeriod));
-    EXPECT_THAT(intercept, Eq(0));
+    model = tracker.getVSyncPredictionModel();
+    EXPECT_THAT(model.slope, Eq(fastPeriod));
+    EXPECT_THAT(model.intercept, Eq(0));
 
     for (auto const& timestamp : simulatedVsyncsFast2) {
         tracker.addVsyncTimestamp(timestamp);
     }
-    std::tie(slope, intercept) = tracker.getVSyncPredictionModel();
-    EXPECT_THAT(slope, Eq(fastPeriod2));
-    EXPECT_THAT(intercept, Eq(0));
+    model = tracker.getVSyncPredictionModel();
+    EXPECT_THAT(model.slope, Eq(fastPeriod2));
+    EXPECT_THAT(model.intercept, Eq(0));
 }
 
 TEST_F(VSyncPredictorTest, idealModelPredictionsBeforeRegressionModelIsBuilt) {
@@ -407,11 +407,9 @@ TEST_F(VSyncPredictorTest, resetsWhenInstructed) {
         tracker.addVsyncTimestamp(i * realPeriod);
     }
 
-    EXPECT_THAT(std::get<0>(tracker.getVSyncPredictionModel()),
-                IsCloseTo(realPeriod, mMaxRoundingError));
+    EXPECT_THAT(tracker.getVSyncPredictionModel().slope, IsCloseTo(realPeriod, mMaxRoundingError));
     tracker.resetModel();
-    EXPECT_THAT(std::get<0>(tracker.getVSyncPredictionModel()),
-                IsCloseTo(idealPeriod, mMaxRoundingError));
+    EXPECT_THAT(tracker.getVSyncPredictionModel().slope, IsCloseTo(idealPeriod, mMaxRoundingError));
 }
 
 TEST_F(VSyncPredictorTest, slopeAlwaysValid) {
@@ -448,6 +446,33 @@ TEST_F(VSyncPredictorTest, aPhoneThatHasBeenAroundAWhileCanStillComputePeriod) {
     auto [slope, intercept] = tracker.getVSyncPredictionModel();
     EXPECT_THAT(slope, IsCloseTo(mPeriod, mMaxRoundingError));
     EXPECT_THAT(intercept, Eq(0));
+}
+
+TEST_F(VSyncPredictorTest, isVSyncInPhase) {
+    auto last = mNow;
+    auto const bias = 10;
+    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
+        EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
+        mNow += mPeriod - bias;
+        last = mNow;
+        tracker.addVsyncTimestamp(mNow);
+        mNow += bias;
+    }
+
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod - bias));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 100), Eq(mNow + mPeriod - bias));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 990), Eq(mNow + 2 * mPeriod - bias));
+
+    const auto maxDivider = 5;
+    const auto maxPeriods = 15;
+    for (int divider = 1; divider < maxDivider; divider++) {
+        for (int i = 0; i < maxPeriods; i++) {
+            const bool expectedInPhase = (i % divider) == 0;
+            EXPECT_THAT(expectedInPhase, tracker.isVSyncInPhase(mNow + i * mPeriod - bias, divider))
+                    << "vsync at " << mNow + (i + 1) * mPeriod - bias << " is "
+                    << (expectedInPhase ? "not " : "") << "in phase for divider " << divider;
+        }
+    }
 }
 
 } // namespace android::scheduler

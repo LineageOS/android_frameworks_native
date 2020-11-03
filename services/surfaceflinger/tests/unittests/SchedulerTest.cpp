@@ -42,7 +42,7 @@ protected:
     class MockEventThreadConnection : public android::EventThreadConnection {
     public:
         explicit MockEventThreadConnection(EventThread* eventThread)
-              : EventThreadConnection(eventThread, ResyncCallback(),
+              : EventThreadConnection(eventThread, /*callingUid=*/0, ResyncCallback(),
                                       ISurfaceComposer::eConfigChangedSuppress) {}
         ~MockEventThreadConnection() = default;
 
