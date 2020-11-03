@@ -161,7 +161,7 @@ bool SensorService::SensorEventConnection::addSensor(int32_t handle) {
     Mutex::Autolock _l(mConnectionLock);
     sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
     if (si == nullptr ||
-        !canAccessSensor(si->getSensor(), "Tried adding", mOpPackageName) ||
+        !canAccessSensor(si->getSensor(), "Add to SensorEventConnection: ", mOpPackageName) ||
         mSensorInfo.count(handle) > 0) {
         return false;
     }
@@ -460,8 +460,12 @@ bool SensorService::SensorEventConnection::noteOpIfRequired(const sensors_event_
                 mTargetSdk > 0 && mTargetSdk <= __ANDROID_API_P__) {
             success = true;
         } else {
+            int32_t sensorHandle = event.sensor;
+            String16 noteMsg("Sensor event (");
+            noteMsg.append(String16(mService->getSensorStringType(sensorHandle)));
+            noteMsg.append(String16(")"));
             int32_t appOpMode = mService->sAppOpsManager.noteOp(iter->second, mUid,
-                                                                mOpPackageName);
+                                                                mOpPackageName, {}, noteMsg);
             success = (appOpMode == AppOpsManager::MODE_ALLOWED);
         }
     }
