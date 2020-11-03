@@ -5,6 +5,14 @@
     },
     {
       "name": "libcompositionengine_test"
+    },
+    {
+      "name": "SurfaceFlinger_test"
+    }
+  ],
+  "postsubmit": [
+    {
+      "name": "sffakehwc_test"
     }
   ]
 }
