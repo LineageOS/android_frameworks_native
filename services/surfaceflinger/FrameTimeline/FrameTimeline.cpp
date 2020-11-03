@@ -177,10 +177,11 @@ void TokenManager::flushTokens(nsecs_t flushTime) {
     }
 }
 
-SurfaceFrame::SurfaceFrame(uid_t ownerUid, std::string layerName, std::string debugName,
-                           PredictionState predictionState,
+SurfaceFrame::SurfaceFrame(pid_t ownerPid, uid_t ownerUid, std::string layerName,
+                           std::string debugName, PredictionState predictionState,
                            frametimeline::TimelineItem&& predictions)
-      : mOwnerUid(ownerUid),
+      : mOwnerPid(ownerPid),
+        mOwnerUid(ownerUid),
         mLayerName(std::move(layerName)),
         mDebugName(std::move(debugName)),
         mPresentState(PresentState::Unknown),
@@ -241,14 +242,6 @@ TimeStats::JankType SurfaceFrame::getJankType() const {
     return mJankType;
 }
 
-uid_t SurfaceFrame::getOwnerUid() const {
-    return mOwnerUid;
-}
-
-const std::string& SurfaceFrame::getName() const {
-    return mLayerName;
-}
-
 nsecs_t SurfaceFrame::getBaseTime() const {
     std::lock_guard<std::mutex> lock(mMutex);
     nsecs_t baseTime = std::numeric_limits<nsecs_t>::max();
@@ -285,6 +278,8 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
     }
     StringAppendF(&result, "\n");
     StringAppendF(&result, "%s", indent.c_str());
+    StringAppendF(&result, "Owner Pid : %d\n", mOwnerPid);
+    StringAppendF(&result, "%s", indent.c_str());
     StringAppendF(&result, "Present State : %s\n", presentStateToString(mPresentState).c_str());
     StringAppendF(&result, "%s", indent.c_str());
     StringAppendF(&result, "Prediction State : %s\n", toString(mPredictionState).c_str());
@@ -311,20 +306,23 @@ FrameTimeline::DisplayFrame::DisplayFrame()
 }
 
 std::unique_ptr<android::frametimeline::SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
-        uid_t uid, std::string layerName, std::string debugName, std::optional<int64_t> token) {
+        pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
+        std::optional<int64_t> token) {
     ATRACE_CALL();
     if (!token) {
-        return std::make_unique<impl::SurfaceFrame>(uid, std::move(layerName), std::move(debugName),
-                                                    PredictionState::None, TimelineItem());
+        return std::make_unique<impl::SurfaceFrame>(ownerPid, ownerUid, std::move(layerName),
+                                                    std::move(debugName), PredictionState::None,
+                                                    TimelineItem());
     }
     std::optional<TimelineItem> predictions = mTokenManager.getPredictionsForToken(*token);
     if (predictions) {
-        return std::make_unique<impl::SurfaceFrame>(uid, std::move(layerName), std::move(debugName),
-                                                    PredictionState::Valid,
+        return std::make_unique<impl::SurfaceFrame>(ownerPid, ownerUid, std::move(layerName),
+                                                    std::move(debugName), PredictionState::Valid,
                                                     std::move(*predictions));
     }
-    return std::make_unique<impl::SurfaceFrame>(uid, std::move(layerName), std::move(debugName),
-                                                PredictionState::Expired, TimelineItem());
+    return std::make_unique<impl::SurfaceFrame>(ownerPid, ownerUid, std::move(layerName),
+                                                std::move(debugName), PredictionState::Expired,
+                                                TimelineItem());
 }
 
 void FrameTimeline::addSurfaceFrame(

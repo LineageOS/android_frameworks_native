@@ -150,9 +150,11 @@ Layer::Layer(const LayerCreationArgs& args)
     if (mCallingUid == AID_GRAPHICS || mCallingUid == AID_SYSTEM) {
         // If the system didn't send an ownerUid, use the callingUid for the ownerUid.
         mOwnerUid = args.metadata.getInt32(METADATA_OWNER_UID, mCallingUid);
+        mOwnerPid = args.metadata.getInt32(METADATA_OWNER_PID, mCallingPid);
     } else {
         // A create layer request from a non system request cannot specify the owner uid
         mOwnerUid = mCallingUid;
+        mOwnerPid = mCallingPid;
     }
 }
 
@@ -900,8 +902,9 @@ bool Layer::applyPendingStates(State* stateToCommit) {
                 : std::make_optional(stateToCommit->frameTimelineVsyncId);
 
         auto surfaceFrame =
-                mFlinger->mFrameTimeline->createSurfaceFrameForToken(getOwnerUid(), mName,
-                                                                     mTransactionName, vsyncId);
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(getOwnerPid(), getOwnerUid(),
+                                                                     mName, mTransactionName,
+                                                                     vsyncId);
         surfaceFrame->setActualQueueTime(stateToCommit->postTime);
         // For transactions we set the acquire fence time to the post time as we
         // don't have a buffer. For BufferStateLayer it is overridden in

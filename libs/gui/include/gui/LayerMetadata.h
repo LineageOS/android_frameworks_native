@@ -27,6 +27,8 @@ enum {
     METADATA_WINDOW_TYPE = 2,
     METADATA_TASK_ID = 3,
     METADATA_MOUSE_CURSOR = 4,
+    METADATA_ACCESSIBILITY_ID = 5,
+    METADATA_OWNER_PID = 6,
 };
 
 struct LayerMetadata : public Parcelable {

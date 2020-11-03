@@ -107,6 +107,7 @@ public:
     virtual nsecs_t getActualQueueTime() const = 0;
     virtual PresentState getPresentState() const = 0;
     virtual PredictionState getPredictionState() const = 0;
+    virtual pid_t getOwnerPid() const = 0;
 
     virtual void setPresentState(PresentState state) = 0;
 
@@ -131,7 +132,7 @@ public:
     // Sets the PredictionState of SurfaceFrame.
     // Debug name is the human-readable debugging string for dumpsys.
     virtual std::unique_ptr<SurfaceFrame> createSurfaceFrameForToken(
-            uid_t uid, std::string layerName, std::string debugName,
+            pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
             std::optional<int64_t> token) = 0;
 
     // Adds a new SurfaceFrame to the current DisplayFrame. Frames from multiple layers can be
@@ -190,7 +191,7 @@ private:
 
 class SurfaceFrame : public android::frametimeline::SurfaceFrame {
 public:
-    SurfaceFrame(uid_t uid, std::string layerName, std::string debugName,
+    SurfaceFrame(pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
                  PredictionState predictionState, TimelineItem&& predictions);
     ~SurfaceFrame() = default;
 
@@ -199,6 +200,11 @@ public:
     nsecs_t getActualQueueTime() const override;
     PresentState getPresentState() const override;
     PredictionState getPredictionState() const override { return mPredictionState; };
+    pid_t getOwnerPid() const override { return mOwnerPid; };
+    TimeStats::JankType getJankType() const;
+    nsecs_t getBaseTime() const;
+    uid_t getOwnerUid() const { return mOwnerUid; };
+    const std::string& getName() const { return mLayerName; };
 
     void setActualStartTime(nsecs_t actualStartTime) override;
     void setActualQueueTime(nsecs_t actualQueueTime) override;
@@ -206,14 +212,12 @@ public:
     void setPresentState(PresentState state) override;
     void setActualPresentTime(nsecs_t presentTime);
     void setJankInfo(TimeStats::JankType jankType, int32_t jankMetadata);
-    TimeStats::JankType getJankType() const;
-    nsecs_t getBaseTime() const;
-    uid_t getOwnerUid() const;
-    const std::string& getName() const;
+
     // All the timestamps are dumped relative to the baseTime
     void dump(std::string& result, const std::string& indent, nsecs_t baseTime);
 
 private:
+    const pid_t mOwnerPid;
     const uid_t mOwnerUid;
     const std::string mLayerName;
     const std::string mDebugName;
@@ -234,7 +238,7 @@ public:
 
     frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
     std::unique_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForToken(
-            uid_t ownerUid, std::string layerName, std::string debugName,
+            pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
             std::optional<int64_t> token) override;
     void addSurfaceFrame(std::unique_ptr<frametimeline::SurfaceFrame> surfaceFrame,
                          SurfaceFrame::PresentState state) override;
