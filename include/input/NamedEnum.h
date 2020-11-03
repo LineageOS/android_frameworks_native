@@ -115,10 +115,10 @@ public:
     // Do not specialize it to a large number to avoid performance issues.
     // The recommended maximum enum number to specialize is 64.
     template <typename E>
-    static const std::string string(E val) {
+    static const std::string string(E val, const char* fallbackFormat = "0x%08x") {
         std::string result;
         std::optional<std::string_view> enumString = enum_name(val);
-        result += enumString ? enumString.value() : base::StringPrintf("0x%08x", val);
+        result += enumString ? enumString.value() : base::StringPrintf(fallbackFormat, val);
         return result;
     }
 };
