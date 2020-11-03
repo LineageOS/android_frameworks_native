@@ -81,7 +81,7 @@ public:
 
 class EventThreadConnection : public BnDisplayEventConnection {
 public:
-    EventThreadConnection(EventThread*, ResyncCallback,
+    EventThreadConnection(EventThread*, uid_t callingUid, ResyncCallback,
                           ISurfaceComposer::ConfigChanged configChanged);
     virtual ~EventThreadConnection();
 
@@ -97,6 +97,8 @@ public:
     VSyncRequest vsyncRequest = VSyncRequest::None;
     const ISurfaceComposer::ConfigChanged mConfigChanged =
             ISurfaceComposer::ConfigChanged::eConfigChangedSuppress;
+
+    const uid_t mOwnerUid;
 
 private:
     virtual void onFirstRef();
@@ -143,9 +145,10 @@ namespace impl {
 class EventThread : public android::EventThread, private VSyncSource::Callback {
 public:
     using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
+    using ThrottleVsyncCallback = std::function<bool(nsecs_t, uid_t)>;
 
-    EventThread(std::unique_ptr<VSyncSource>, frametimeline::TokenManager*,
-                InterceptVSyncsCallback);
+    EventThread(std::unique_ptr<VSyncSource>, frametimeline::TokenManager*, InterceptVSyncsCallback,
+                ThrottleVsyncCallback);
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
@@ -196,6 +199,7 @@ private:
     frametimeline::TokenManager* const mTokenManager;
 
     const InterceptVSyncsCallback mInterceptVSyncsCallback;
+    const ThrottleVsyncCallback mThrottleVsyncCallback;
     const char* const mThreadName;
 
     std::thread mThread;

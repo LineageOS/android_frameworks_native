@@ -59,9 +59,11 @@ class EventThreadTest : public testing::Test {
 protected:
     class MockEventThreadConnection : public EventThreadConnection {
     public:
-        MockEventThreadConnection(impl::EventThread* eventThread, ResyncCallback&& resyncCallback,
+        MockEventThreadConnection(impl::EventThread* eventThread, uid_t callingUid,
+                                  ResyncCallback&& resyncCallback,
                                   ISurfaceComposer::ConfigChanged configChanged)
-              : EventThreadConnection(eventThread, std::move(resyncCallback), configChanged) {}
+              : EventThreadConnection(eventThread, callingUid, std::move(resyncCallback),
+                                      configChanged) {}
         MOCK_METHOD1(postEvent, status_t(const DisplayEventReceiver::Event& event));
     };
 
@@ -73,7 +75,8 @@ protected:
 
     void createThread(std::unique_ptr<VSyncSource>);
     sp<MockEventThreadConnection> createConnection(ConnectionEventRecorder& recorder,
-                                                   ISurfaceComposer::ConfigChanged configChanged);
+                                                   ISurfaceComposer::ConfigChanged configChanged,
+                                                   uid_t ownerUid = mConnectionUid);
 
     void expectVSyncSetEnabledCallReceived(bool expectedState);
     void expectVSyncSetDurationCallReceived(std::chrono::nanoseconds expectedDuration,
@@ -89,6 +92,7 @@ protected:
     void expectConfigChangedEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
                                                       int32_t expectedConfigId,
                                                       nsecs_t expectedVsyncPeriod);
+    void expectThrottleVsyncReceived(nsecs_t expectedTimestamp, uid_t);
 
     AsyncCallRecorder<void (*)(bool)> mVSyncSetEnabledCallRecorder;
     AsyncCallRecorder<void (*)(VSyncSource::Callback*)> mVSyncSetCallbackCallRecorder;
@@ -96,12 +100,18 @@ protected:
             mVSyncSetDurationCallRecorder;
     AsyncCallRecorder<void (*)()> mResyncCallRecorder;
     AsyncCallRecorder<void (*)(nsecs_t)> mInterceptVSyncCallRecorder;
+    AsyncCallRecorder<void (*)(nsecs_t, uid_t)> mThrottleVsyncCallRecorder;
     ConnectionEventRecorder mConnectionEventCallRecorder{0};
+    ConnectionEventRecorder mThrottledConnectionEventCallRecorder{0};
 
     MockVSyncSource* mVSyncSource;
     VSyncSource::Callback* mCallback = nullptr;
     std::unique_ptr<impl::EventThread> mThread;
     sp<MockEventThreadConnection> mConnection;
+    sp<MockEventThreadConnection> mThrottledConnection;
+
+    static constexpr uid_t mConnectionUid = 443;
+    static constexpr uid_t mThrottledConnectionUid = 177;
 };
 
 EventThreadTest::EventThreadTest() {
@@ -124,6 +134,9 @@ EventThreadTest::EventThreadTest() {
     createThread(std::move(vsyncSource));
     mConnection = createConnection(mConnectionEventCallRecorder,
                                    ISurfaceComposer::eConfigChangedDispatch);
+    mThrottledConnection =
+            createConnection(mThrottledConnectionEventCallRecorder,
+                             ISurfaceComposer::eConfigChangedDispatch, mThrottledConnectionUid);
 
     // A display must be connected for VSYNC events to be delivered.
     mThread->onHotplugReceived(INTERNAL_DISPLAY_ID, true);
@@ -140,9 +153,15 @@ EventThreadTest::~EventThreadTest() {
 }
 
 void EventThreadTest::createThread(std::unique_ptr<VSyncSource> source) {
+    const auto throttleVsync = [&](nsecs_t expectedVsyncTimestamp, uid_t uid) {
+        mThrottleVsyncCallRecorder.getInvocable()(expectedVsyncTimestamp, uid);
+        return (uid == mThrottledConnectionUid);
+    };
+
     mThread = std::make_unique<impl::EventThread>(std::move(source),
                                                   /*tokenManager=*/nullptr,
-                                                  mInterceptVSyncCallRecorder.getInvocable());
+                                                  mInterceptVSyncCallRecorder.getInvocable(),
+                                                  throttleVsync);
 
     // EventThread should register itself as VSyncSource callback.
     mCallback = expectVSyncSetCallbackCallReceived();
@@ -150,10 +169,11 @@ void EventThreadTest::createThread(std::unique_ptr<VSyncSource> source) {
 }
 
 sp<EventThreadTest::MockEventThreadConnection> EventThreadTest::createConnection(
-        ConnectionEventRecorder& recorder, ISurfaceComposer::ConfigChanged configChanged) {
+        ConnectionEventRecorder& recorder, ISurfaceComposer::ConfigChanged configChanged,
+        uid_t ownerUid) {
     sp<MockEventThreadConnection> connection =
-            new MockEventThreadConnection(mThread.get(), mResyncCallRecorder.getInvocable(),
-                                          configChanged);
+            new MockEventThreadConnection(mThread.get(), ownerUid,
+                                          mResyncCallRecorder.getInvocable(), configChanged);
     EXPECT_CALL(*connection, postEvent(_)).WillRepeatedly(Invoke(recorder.getInvocable()));
     return connection;
 }
@@ -181,6 +201,13 @@ void EventThreadTest::expectInterceptCallReceived(nsecs_t expectedTimestamp) {
     auto args = mInterceptVSyncCallRecorder.waitForCall();
     ASSERT_TRUE(args.has_value());
     EXPECT_EQ(expectedTimestamp, std::get<0>(args.value()));
+}
+
+void EventThreadTest::expectThrottleVsyncReceived(nsecs_t expectedTimestamp, uid_t uid) {
+    auto args = mThrottleVsyncCallRecorder.waitForCall();
+    ASSERT_TRUE(args.has_value());
+    EXPECT_EQ(expectedTimestamp, std::get<0>(args.value()));
+    EXPECT_EQ(uid, std::get<1>(args.value()));
 }
 
 void EventThreadTest::expectVsyncEventReceivedByConnection(
@@ -267,13 +294,15 @@ TEST_F(EventThreadTest, requestNextVsyncPostsASingleVSyncEventToTheConnection) {
     // The interceptor should receive the event, as well as the connection.
     mCallback->onVSyncEvent(123, 456, 789);
     expectInterceptCallReceived(123);
+    expectThrottleVsyncReceived(456, mConnectionUid);
     expectVsyncEventReceivedByConnection(123, 1u);
 
     // Use the received callback to signal a second vsync event.
-    // The interceptor should receive the event, but the the connection should
+    // The interceptor should receive the event, but the connection should
     // not as it was only interested in the first.
     mCallback->onVSyncEvent(456, 123, 0);
     expectInterceptCallReceived(456);
+    EXPECT_FALSE(mThrottleVsyncCallRecorder.waitForUnexpectedCall().has_value());
     EXPECT_FALSE(mConnectionEventCallRecorder.waitForUnexpectedCall().has_value());
 
     // EventThread should also detect that at this point that it does not need
@@ -323,16 +352,19 @@ TEST_F(EventThreadTest, setVsyncRateOnePostsAllEventsToThatConnection) {
     // interceptor, and the connection.
     mCallback->onVSyncEvent(123, 456, 789);
     expectInterceptCallReceived(123);
+    expectThrottleVsyncReceived(456, mConnectionUid);
     expectVsyncEventReceivedByConnection(123, 1u);
 
     // A second event should go to the same places.
     mCallback->onVSyncEvent(456, 123, 0);
     expectInterceptCallReceived(456);
+    expectThrottleVsyncReceived(123, mConnectionUid);
     expectVsyncEventReceivedByConnection(456, 2u);
 
     // A third event should go to the same places.
     mCallback->onVSyncEvent(789, 777, 111);
     expectInterceptCallReceived(789);
+    expectThrottleVsyncReceived(777, mConnectionUid);
     expectVsyncEventReceivedByConnection(789, 3u);
 }
 
@@ -346,16 +378,19 @@ TEST_F(EventThreadTest, setVsyncRateTwoPostsEveryOtherEventToThatConnection) {
     mCallback->onVSyncEvent(123, 456, 789);
     expectInterceptCallReceived(123);
     EXPECT_FALSE(mConnectionEventCallRecorder.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mThrottleVsyncCallRecorder.waitForUnexpectedCall().has_value());
 
     // The second event will be seen by the interceptor and the connection.
     mCallback->onVSyncEvent(456, 123, 0);
     expectInterceptCallReceived(456);
     expectVsyncEventReceivedByConnection(456, 2u);
+    EXPECT_FALSE(mThrottleVsyncCallRecorder.waitForUnexpectedCall().has_value());
 
     // The third event will be seen by the interceptor, and not the connection.
     mCallback->onVSyncEvent(789, 777, 744);
     expectInterceptCallReceived(789);
     EXPECT_FALSE(mConnectionEventCallRecorder.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mThrottleVsyncCallRecorder.waitForUnexpectedCall().has_value());
 
     // The fourth event will be seen by the interceptor and the connection.
     mCallback->onVSyncEvent(101112, 7847, 86);
@@ -408,19 +443,19 @@ TEST_F(EventThreadTest, connectionsRemovedIfEventDeliveryError) {
 }
 
 TEST_F(EventThreadTest, tracksEventConnections) {
-    EXPECT_EQ(1, mThread->getEventThreadConnectionCount());
+    EXPECT_EQ(2, mThread->getEventThreadConnectionCount());
     ConnectionEventRecorder errorConnectionEventRecorder{NO_MEMORY};
     sp<MockEventThreadConnection> errorConnection =
             createConnection(errorConnectionEventRecorder,
                              ISurfaceComposer::eConfigChangedSuppress);
     mThread->setVsyncRate(1, errorConnection);
-    EXPECT_EQ(2, mThread->getEventThreadConnectionCount());
+    EXPECT_EQ(3, mThread->getEventThreadConnectionCount());
     ConnectionEventRecorder secondConnectionEventRecorder{0};
     sp<MockEventThreadConnection> secondConnection =
             createConnection(secondConnectionEventRecorder,
                              ISurfaceComposer::eConfigChangedSuppress);
     mThread->setVsyncRate(1, secondConnection);
-    EXPECT_EQ(3, mThread->getEventThreadConnectionCount());
+    EXPECT_EQ(4, mThread->getEventThreadConnectionCount());
 
     // EventThread should enable vsync callbacks.
     expectVSyncSetEnabledCallReceived(true);
@@ -432,7 +467,7 @@ TEST_F(EventThreadTest, tracksEventConnections) {
     expectVsyncEventReceivedByConnection("errorConnection", errorConnectionEventRecorder, 123, 1u);
     expectVsyncEventReceivedByConnection("successConnection", secondConnectionEventRecorder, 123,
                                          1u);
-    EXPECT_EQ(2, mThread->getEventThreadConnectionCount());
+    EXPECT_EQ(3, mThread->getEventThreadConnectionCount());
 }
 
 TEST_F(EventThreadTest, eventsDroppedIfNonfatalEventDeliveryError) {
@@ -512,6 +547,36 @@ TEST_F(EventThreadTest, suppressConfigChanged) {
 
     auto args = suppressConnectionEventRecorder.waitForCall();
     ASSERT_FALSE(args.has_value());
+}
+
+TEST_F(EventThreadTest, requestNextVsyncWithThrottleVsyncDoesntPostVSync) {
+    // Signal that we want the next vsync event to be posted to the throttled connection
+    mThread->requestNextVsync(mThrottledConnection);
+
+    // EventThread should immediately request a resync.
+    EXPECT_TRUE(mResyncCallRecorder.waitForCall().has_value());
+
+    // EventThread should enable vsync callbacks.
+    expectVSyncSetEnabledCallReceived(true);
+
+    // Use the received callback to signal a first vsync event.
+    // The interceptor should receive the event, but not the connection.
+    mCallback->onVSyncEvent(123, 456, 789);
+    expectInterceptCallReceived(123);
+    expectThrottleVsyncReceived(456, mThrottledConnectionUid);
+    mThrottledConnectionEventCallRecorder.waitForUnexpectedCall();
+
+    // Use the received callback to signal a second vsync event.
+    // The interceptor should receive the event, but the connection should
+    // not as it was only interested in the first.
+    mCallback->onVSyncEvent(456, 123, 0);
+    expectInterceptCallReceived(456);
+    expectThrottleVsyncReceived(123, mThrottledConnectionUid);
+    EXPECT_FALSE(mConnectionEventCallRecorder.waitForUnexpectedCall().has_value());
+
+    // EventThread should not change the vsync state as it didn't send the event
+    // yet
+    EXPECT_FALSE(mVSyncSetEnabledCallRecorder.waitForUnexpectedCall().has_value());
 }
 
 } // namespace
