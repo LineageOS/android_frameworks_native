@@ -20,6 +20,7 @@
 
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
+#include <ui/BlurRegion.h>
 #include <ui/FloatRect.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -117,6 +118,9 @@ struct LayerFECompositionState {
 
     // length of the shadow in screen space
     float shadowRadius{0.f};
+
+    // List of regions that require blur
+    std::vector<BlurRegion> blurRegions;
 
     /*
      * Geometry state

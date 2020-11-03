@@ -4014,6 +4014,34 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBackgroundBlurRequests) 
     mOutput->updateAndWriteCompositionState(args);
 }
 
+TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBlurRegionRequests) {
+    InjectedLayer layer1;
+    InjectedLayer layer2;
+    InjectedLayer layer3;
+
+    // Layer requesting blur, or below, should request client composition.
+    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
+    EXPECT_CALL(*layer1.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
+    EXPECT_CALL(*layer2.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_0));
+    EXPECT_CALL(*layer3.outputLayer, writeStateToHWC(false));
+
+    BlurRegion region;
+    layer2.layerFEState.blurRegions.push_back(region);
+
+    injectOutputLayer(layer1);
+    injectOutputLayer(layer2);
+    injectOutputLayer(layer3);
+
+    mOutput->editState().isEnabled = true;
+
+    CompositionRefreshArgs args;
+    args.updatingGeometryThisFrame = false;
+    args.devOptForceClientComposition = false;
+    mOutput->updateAndWriteCompositionState(args);
+}
+
 TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenRequests) {
     // In split-screen landscape mode, the screen is rotated 90 degrees, with
     // one layer on the left covering the left side of the output, and one layer
