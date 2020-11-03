@@ -295,6 +295,7 @@ private:
     virtual status_t dump(int fd, const Vector<String16>& args);
     status_t dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock) const;
     String8 getSensorName(int handle) const;
+    String8 getSensorStringType(int handle) const;
     bool isVirtualSensor(int handle) const;
     sp<SensorInterface> getSensorInterfaceFromHandle(int handle) const;
     bool isWakeUpSensor(int type) const;
