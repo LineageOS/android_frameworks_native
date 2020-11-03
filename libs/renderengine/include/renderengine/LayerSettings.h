@@ -21,6 +21,7 @@
 #include <math/mat4.h>
 #include <math/vec3.h>
 #include <renderengine/Texture.h>
+#include <ui/BlurRegion.h>
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
@@ -151,6 +152,8 @@ struct LayerSettings {
     ShadowSettings shadow;
 
     int backgroundBlurRadius = 0;
+
+    std::vector<BlurRegion> blurRegions;
 };
 
 // Keep in sync with custom comparison function in
@@ -182,7 +185,29 @@ static inline bool operator==(const ShadowSettings& lhs, const ShadowSettings& r
             lhs.length == rhs.length && lhs.casterIsTranslucent == rhs.casterIsTranslucent;
 }
 
+static inline bool operator==(const BlurRegion& lhs, const BlurRegion& rhs) {
+    return lhs.alpha == rhs.alpha && lhs.cornerRadiusTL == rhs.cornerRadiusTL &&
+            lhs.cornerRadiusTR == rhs.cornerRadiusTR && lhs.cornerRadiusBL == rhs.cornerRadiusBL &&
+            lhs.cornerRadiusBR == rhs.cornerRadiusBR && lhs.blurRadius == rhs.blurRadius &&
+            lhs.left == rhs.left && lhs.top == rhs.top && lhs.right == rhs.right &&
+            lhs.bottom == rhs.bottom;
+}
+
+static inline bool operator!=(const BlurRegion& lhs, const BlurRegion& rhs) {
+    return !(lhs == rhs);
+}
+
 static inline bool operator==(const LayerSettings& lhs, const LayerSettings& rhs) {
+    if (lhs.blurRegions.size() != rhs.blurRegions.size()) {
+        return false;
+    }
+    const auto size = lhs.blurRegions.size();
+    for (size_t i = 0; i < size; i++) {
+        if (lhs.blurRegions[i] != rhs.blurRegions[i]) {
+            return false;
+        }
+    }
+
     return lhs.geometry == rhs.geometry && lhs.source == rhs.source && lhs.alpha == rhs.alpha &&
             lhs.sourceDataspace == rhs.sourceDataspace &&
             lhs.colorTransform == rhs.colorTransform &&

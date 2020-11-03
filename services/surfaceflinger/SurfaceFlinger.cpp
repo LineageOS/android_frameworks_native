@@ -331,7 +331,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInterceptor(mFactory.createSurfaceInterceptor()),
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(std::make_unique<FrameTracer>()),
-        mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>()),
+        mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>(mTimeStats)),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
@@ -3683,6 +3683,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eBackgroundBlurRadiusChanged && !mDisableBlurs && mSupportsBlur) {
         if (layer->setBackgroundBlurRadius(s.backgroundBlurRadius)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eBlurRegionsChanged) {
+        if (layer->setBlurRegions(s.blurRegions)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eLayerStackChanged) {
         ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);

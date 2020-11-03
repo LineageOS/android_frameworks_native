@@ -51,6 +51,7 @@
 #include <gui/LayerMetadata.h>
 #include <gui/SurfaceControl.h>
 #include <math/vec3.h>
+#include <ui/BlurRegion.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -128,6 +129,7 @@ struct layer_state_t {
         eFixedTransformHintChanged = 0x200'00000000,
         eFrameNumberChanged = 0x400'00000000,
         eFrameTimelineVsyncChanged = 0x800'00000000,
+        eBlurRegionsChanged = 0x1000'00000000,
     };
 
     layer_state_t();
@@ -186,6 +188,7 @@ struct layer_state_t {
     int32_t api;
     sp<NativeHandle> sidebandStream;
     mat4 colorTransform;
+    std::vector<BlurRegion> blurRegions;
 
 #ifndef NO_INPUT
     sp<InputWindowHandle> inputHandle = new InputWindowHandle();

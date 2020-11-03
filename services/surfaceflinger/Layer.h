@@ -26,6 +26,7 @@
 #include <renderengine/Mesh.h>
 #include <renderengine/Texture.h>
 #include <sys/types.h>
+#include <ui/BlurRegion.h>
 #include <ui/FloatRect.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
@@ -255,6 +256,9 @@ public:
         // be rendered around the layer.
         float shadowRadius;
 
+        // Layer regions that are made of custom materials, like frosted glass
+        std::vector<BlurRegion> blurRegions;
+
         // Priority of the layer assigned by Window Manager.
         int32_t frameRateSelectionPriority;
 
@@ -391,6 +395,7 @@ public:
     // When non-zero, everything below this layer will be blurred by backgroundBlurRadius, which
     // is specified in pixels.
     virtual bool setBackgroundBlurRadius(int backgroundBlurRadius);
+    virtual bool setBlurRegions(const std::vector<BlurRegion>& effectRegions);
     virtual bool setTransparentRegionHint(const Region& transparent);
     virtual bool setFlags(uint8_t flags, uint8_t mask);
     virtual bool setLayerStack(uint32_t layerStack);
@@ -1038,6 +1043,10 @@ protected:
     // Can only be accessed with the SF state lock held.
     std::unique_ptr<frametimeline::SurfaceFrame> mSurfaceFrame;
 
+    // The owner of the layer. If created from a non system process, it will be the calling uid.
+    // If created from a system process, the value can be passed in.
+    uid_t mOwnerUid;
+
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}
 
@@ -1096,10 +1105,6 @@ private:
     pid_t mCallingPid;
     uid_t mCallingUid;
 
-    // The owner of the layer. If created from a non system process, it will be the calling uid.
-    // If created from a system process, the value can be passed in.
-    uid_t mOwnerUid;
-
     // The current layer is a clone of mClonedFrom. This means that this layer will update it's
     // properties based on mClonedFrom. When mClonedFrom latches a new buffer for BufferLayers,
     // this layer will update it's buffer. When mClonedFrom updates it's drawing state, children,
@@ -1110,6 +1115,9 @@ private:
     // final shadow radius for this layer. If a shadow is specified for a layer, then effective
     // shadow radius is the set shadow radius, otherwise its the parent's shadow radius.
     float mEffectiveShadowRadius = 0.f;
+
+    // A list of regions on this layer that should have blurs.
+    const std::vector<BlurRegion>& getBlurRegions() const;
 };
 
 } // namespace android

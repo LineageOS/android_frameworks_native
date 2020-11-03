@@ -140,6 +140,7 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
     addCropLocked(transaction, layerId, layer->mCurrentState.crop_legacy);
     addCornerRadiusLocked(transaction, layerId, layer->mCurrentState.cornerRadius);
     addBackgroundBlurRadiusLocked(transaction, layerId, layer->mCurrentState.backgroundBlurRadius);
+    addBlurRegionsLocked(transaction, layerId, layer->mCurrentState.blurRegions);
     if (layer->mCurrentState.barrierLayer_legacy != nullptr) {
         addDeferTransactionLocked(transaction, layerId,
                                   layer->mCurrentState.barrierLayer_legacy.promote(),
@@ -361,6 +362,25 @@ void SurfaceInterceptor::addBackgroundBlurRadiusLocked(Transaction* transaction,
     blurRadiusChange->set_background_blur_radius(backgroundBlurRadius);
 }
 
+void SurfaceInterceptor::addBlurRegionsLocked(Transaction* transaction, int32_t layerId,
+                                              const std::vector<BlurRegion>& blurRegions) {
+    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
+    BlurRegionsChange* blurRegionsChange(change->mutable_blur_regions());
+    for (const auto blurRegion : blurRegions) {
+        const auto blurRegionChange = blurRegionsChange->add_blur_regions();
+        blurRegionChange->set_blur_radius(blurRegion.blurRadius);
+        blurRegionChange->set_corner_radius_tl(blurRegion.cornerRadiusTL);
+        blurRegionChange->set_corner_radius_tr(blurRegion.cornerRadiusTR);
+        blurRegionChange->set_corner_radius_bl(blurRegion.cornerRadiusBL);
+        blurRegionChange->set_corner_radius_br(blurRegion.cornerRadiusBR);
+        blurRegionChange->set_alpha(blurRegion.alpha);
+        blurRegionChange->set_left(blurRegion.left);
+        blurRegionChange->set_top(blurRegion.top);
+        blurRegionChange->set_right(blurRegion.right);
+        blurRegionChange->set_bottom(blurRegion.bottom);
+    }
+}
+
 void SurfaceInterceptor::addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
         const sp<const Layer>& layer, uint64_t frameNumber)
 {
@@ -455,6 +475,9 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     }
     if (state.what & layer_state_t::eBackgroundBlurRadiusChanged) {
         addBackgroundBlurRadiusLocked(transaction, layerId, state.backgroundBlurRadius);
+    }
+    if (state.what & layer_state_t::eBlurRegionsChanged) {
+        addBlurRegionsLocked(transaction, layerId, state.blurRegions);
     }
     if (state.what & layer_state_t::eDeferTransaction_legacy) {
         sp<Layer> otherLayer = nullptr;

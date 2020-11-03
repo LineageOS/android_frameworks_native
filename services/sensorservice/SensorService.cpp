@@ -1112,6 +1112,10 @@ String8 SensorService::getSensorName(int handle) const {
     return mSensors.getName(handle);
 }
 
+String8 SensorService::getSensorStringType(int handle) const {
+    return mSensors.getStringType(handle);
+}
+
 bool SensorService::isVirtualSensor(int handle) const {
     sp<SensorInterface> sensor = getSensorInterfaceFromHandle(handle);
     return sensor != nullptr && sensor->isVirtual();
@@ -1807,9 +1811,6 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
     }
 
     const int32_t opCode = sensor.getRequiredAppOp();
-    const int32_t appOpMode = sAppOpsManager.checkOp(opCode,
-            IPCThreadState::self()->getCallingUid(), opPackageName);
-    bool appOpAllowed = appOpMode == AppOpsManager::MODE_ALLOWED;
     int targetSdkVersion = getTargetSdkVersion(opPackageName);
 
     bool canAccess = false;
@@ -1822,14 +1823,16 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
         canAccess = true;
     } else if (hasPermissionForSensor(sensor)) {
         // Ensure that the AppOp is allowed, or that there is no necessary app op for the sensor
-        if (opCode < 0 || appOpAllowed) {
+        if (opCode >= 0) {
+            const int32_t appOpMode = sAppOpsManager.checkOp(opCode,
+                    IPCThreadState::self()->getCallingUid(), opPackageName);
+            canAccess = (appOpMode == AppOpsManager::MODE_ALLOWED);
+        } else {
             canAccess = true;
         }
     }
 
-    if (canAccess) {
-        sAppOpsManager.noteOp(opCode, IPCThreadState::self()->getCallingUid(), opPackageName);
-    } else {
+    if (!canAccess) {
         ALOGE("%s %s a sensor (%s) without holding %s", String8(opPackageName).string(),
               operation, sensor.getName().string(), sensor.getRequiredPermission().string());
     }

@@ -47,8 +47,14 @@ public:
     explicit BlurFilter();
     virtual ~BlurFilter(){};
 
-    // Execute blur passes, rendering to a canvas.
-    void draw(SkCanvas* canvas, sk_sp<SkSurface> input, const uint32_t radius) const;
+    // Execute blur, saving it to a texture
+    sk_sp<SkSurface> generate(SkCanvas* canvas, const sk_sp<SkSurface> input,
+                              const uint32_t radius) const;
+    // Same as generate but also drawing to the screen
+    sk_sp<SkSurface> draw(SkCanvas* canvas, const sk_sp<SkSurface> input,
+                          const uint32_t radius) const;
+    // Returns a matrix that should be applied to the blur shader
+    SkMatrix getShaderMatrix(const SkMatrix& transformMatrix) const;
 
 private:
     sk_sp<SkRuntimeEffect> mBlurEffect;
