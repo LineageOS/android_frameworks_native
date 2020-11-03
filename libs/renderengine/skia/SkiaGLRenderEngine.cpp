@@ -482,7 +482,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     // displays might have different scaling when compared to the physical screen.
 
     canvas->clipRect(getSkRect(display.physicalDisplay));
-    canvas->translate(display.physicalDisplay.left, display.physicalDisplay.top);
+    SkMatrix screenTransform;
+    screenTransform.setTranslate(display.physicalDisplay.left, display.physicalDisplay.top);
 
     const auto clipWidth = display.clip.width();
     const auto clipHeight = display.clip.height();
@@ -496,25 +497,28 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             static_cast<SkScalar>(rotatedClipWidth);
     const auto scaleY = static_cast<SkScalar>(display.physicalDisplay.height()) /
             static_cast<SkScalar>(rotatedClipHeight);
-    canvas->scale(scaleX, scaleY);
+    screenTransform.preScale(scaleX, scaleY);
 
     // Canvas rotation is done by centering the clip window at the origin, rotating, translating
     // back so that the top left corner of the clip is at (0, 0).
-    canvas->translate(rotatedClipWidth / 2, rotatedClipHeight / 2);
-    canvas->rotate(toDegrees(display.orientation));
-    canvas->translate(-clipWidth / 2, -clipHeight / 2);
-    canvas->translate(-display.clip.left, -display.clip.top);
+    screenTransform.preTranslate(rotatedClipWidth / 2, rotatedClipHeight / 2);
+    screenTransform.preRotate(toDegrees(display.orientation));
+    screenTransform.preTranslate(-clipWidth / 2, -clipHeight / 2);
+    screenTransform.preTranslate(-display.clip.left, -display.clip.top);
     for (const auto& layer : layers) {
+        const SkMatrix drawTransform = getDrawTransform(layer, screenTransform);
+
         SkPaint paint;
         const auto& bounds = layer->geometry.boundaries;
         const auto dest = getSkRect(bounds);
         std::unordered_map<uint32_t, sk_sp<SkSurface>> cachedBlurs;
 
         if (mBlurFilter) {
+            const auto layerRect = drawTransform.mapRect(dest);
             if (layer->backgroundBlurRadius > 0) {
                 ATRACE_NAME("BackgroundBlur");
                 auto blurredSurface =
-                        mBlurFilter->draw(canvas, surface, layer->backgroundBlurRadius);
+                        mBlurFilter->draw(canvas, surface, layer->backgroundBlurRadius, layerRect);
                 cachedBlurs[layer->backgroundBlurRadius] = blurredSurface;
             }
             if (layer->blurRegions.size() > 0) {
@@ -523,7 +527,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                         continue;
                     }
                     ATRACE_NAME("BlurRegion");
-                    auto blurredSurface = mBlurFilter->generate(canvas, surface, region.blurRadius);
+                    auto blurredSurface =
+                            mBlurFilter->generate(canvas, surface, region.blurRadius, layerRect);
                     cachedBlurs[region.blurRadius] = blurredSurface;
                 }
             }
@@ -603,9 +608,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
         paint.setColorFilter(SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform)));
 
-        // Layers have a local transform matrix that should be applied to them.
         canvas->save();
-        canvas->concat(getSkM44(layer->geometry.positionTransform));
+        canvas->concat(drawTransform);
 
         for (const auto effectRegion : layer->blurRegions) {
             drawBlurRegion(canvas, effectRegion, dest, cachedBlurs[effectRegion.blurRadius]);
@@ -680,6 +684,13 @@ inline SkM44 SkiaGLRenderEngine::getSkM44(const mat4& matrix) {
                  matrix[0][1], matrix[1][1], matrix[2][1], matrix[3][1],
                  matrix[0][2], matrix[1][2], matrix[2][2], matrix[3][2],
                  matrix[0][3], matrix[1][3], matrix[2][3], matrix[3][3]);
+}
+
+inline SkMatrix SkiaGLRenderEngine::getDrawTransform(const LayerSettings* layer,
+                                                     const SkMatrix& screenTransform) {
+    // Layers have a local transform matrix that should be applied to them.
+    const auto layerTransform = getSkM44(layer->geometry.positionTransform).asM33();
+    return SkMatrix::Concat(screenTransform, layerTransform);
 }
 
 inline SkPoint3 SkiaGLRenderEngine::getSkPoint3(const vec3& vector) {
