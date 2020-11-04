@@ -40,8 +40,8 @@ namespace skia {
 class SkiaGLRenderEngine : public skia::SkiaRenderEngine {
 public:
     static std::unique_ptr<SkiaGLRenderEngine> create(const RenderEngineCreationArgs& args);
-    SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display, EGLConfig config,
-                       EGLContext ctxt, EGLSurface placeholder, EGLContext protectedContext,
+    SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display, EGLContext ctxt,
+                       EGLSurface placeholder, EGLContext protectedContext,
                        EGLSurface protectedPlaceholder);
     ~SkiaGLRenderEngine() override{};
 
@@ -51,6 +51,9 @@ public:
                         const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
     void cleanFramebufferCache() override;
+    bool isProtected() const override { return mInProtectedContext; }
+    bool supportsProtectedContent() const override;
+    bool useProtectedContext(bool useProtectedContext) override;
 
 protected:
     void dump(std::string& /*result*/) override{};
@@ -79,7 +82,6 @@ private:
                         sk_sp<SkSurface> blurrendSurface);
 
     EGLDisplay mEGLDisplay;
-    EGLConfig mEGLConfig;
     EGLContext mEGLContext;
     EGLSurface mPlaceholderSurface;
     EGLContext mProtectedEGLContext;
@@ -98,9 +100,14 @@ private:
 
     sp<Fence> mLastDrawFence;
 
+    // Graphics context used for creating surfaces and submitting commands
     sk_sp<GrDirectContext> mGrContext;
+    // Same as above, but for protected content (eg. DRM)
+    sk_sp<GrDirectContext> mProtectedGrContext;
 
     std::unordered_map<uint64_t, sk_sp<SkSurface>> mSurfaceCache;
+    std::unordered_map<uint64_t, sk_sp<SkSurface>> mProtectedSurfaceCache;
+    bool mInProtectedContext = false;
 };
 
 } // namespace skia

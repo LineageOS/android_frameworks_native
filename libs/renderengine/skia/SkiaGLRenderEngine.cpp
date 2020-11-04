@@ -252,8 +252,8 @@ std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
 
     // initialize the renderer while GL is current
     std::unique_ptr<SkiaGLRenderEngine> engine =
-            std::make_unique<SkiaGLRenderEngine>(args, display, config, ctxt, placeholder,
-                                                 protectedContext, protectedPlaceholder);
+            std::make_unique<SkiaGLRenderEngine>(args, display, ctxt, placeholder, protectedContext,
+                                                 protectedPlaceholder);
 
     ALOGI("OpenGL ES informations:");
     ALOGI("vendor    : %s", extensions.getVendor());
@@ -306,36 +306,50 @@ EGLConfig SkiaGLRenderEngine::chooseEglConfig(EGLDisplay display, int format, bo
 }
 
 SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
-                                       EGLConfig config, EGLContext ctxt, EGLSurface placeholder,
+                                       EGLContext ctxt, EGLSurface placeholder,
                                        EGLContext protectedContext, EGLSurface protectedPlaceholder)
       : mEGLDisplay(display),
-        mEGLConfig(config),
         mEGLContext(ctxt),
         mPlaceholderSurface(placeholder),
         mProtectedEGLContext(protectedContext),
         mProtectedPlaceholderSurface(protectedPlaceholder),
         mUseColorManagement(args.useColorManagement) {
-    // Suppress unused field warnings for things we definitely will need/use
-    // These EGL fields will all be needed for toggling between protected & unprotected contexts
-    // Or we need different RE instances for that
-    (void)mEGLDisplay;
-    (void)mEGLConfig;
-    (void)mEGLContext;
-    (void)mPlaceholderSurface;
-    (void)mProtectedEGLContext;
-    (void)mProtectedPlaceholderSurface;
-
     sk_sp<const GrGLInterface> glInterface(GrGLCreateNativeInterface());
     LOG_ALWAYS_FATAL_IF(!glInterface.get());
 
     GrContextOptions options;
     options.fPreferExternalImagesOverES3 = true;
     options.fDisableDistanceFieldPaths = true;
-    mGrContext = GrDirectContext::MakeGL(std::move(glInterface), options);
+    mGrContext = GrDirectContext::MakeGL(glInterface, options);
+    if (useProtectedContext(true)) {
+        mProtectedGrContext = GrDirectContext::MakeGL(glInterface, options);
+        useProtectedContext(false);
+    }
 
     if (args.supportsBackgroundBlur) {
         mBlurFilter = new BlurFilter();
     }
+}
+
+bool SkiaGLRenderEngine::supportsProtectedContent() const {
+    return mProtectedEGLContext != EGL_NO_CONTEXT;
+}
+
+bool SkiaGLRenderEngine::useProtectedContext(bool useProtectedContext) {
+    if (useProtectedContext == mInProtectedContext) {
+        return true;
+    }
+    if (useProtectedContext && supportsProtectedContent()) {
+        return false;
+    }
+    const EGLSurface surface =
+            useProtectedContext ? mProtectedPlaceholderSurface : mPlaceholderSurface;
+    const EGLContext context = useProtectedContext ? mProtectedEGLContext : mEGLContext;
+    const bool success = eglMakeCurrent(mEGLDisplay, surface, surface, context) == EGL_TRUE;
+    if (success) {
+        mInProtectedContext = useProtectedContext;
+    }
+    return success;
 }
 
 base::unique_fd SkiaGLRenderEngine::flush() {
@@ -471,22 +485,23 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         return BAD_VALUE;
     }
 
+    auto grContext = mInProtectedContext ? mProtectedGrContext : mGrContext;
+    auto cache = mInProtectedContext ? mProtectedSurfaceCache : mSurfaceCache;
     AHardwareBuffer_Desc bufferDesc;
     AHardwareBuffer_describe(buffer->toAHardwareBuffer(), &bufferDesc);
-
     LOG_ALWAYS_FATAL_IF(!hasUsage(bufferDesc, AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE),
                         "missing usage");
 
     sk_sp<SkSurface> surface;
     if (useFramebufferCache) {
-        auto iter = mSurfaceCache.find(buffer->getId());
-        if (iter != mSurfaceCache.end()) {
+        auto iter = cache.find(buffer->getId());
+        if (iter != cache.end()) {
             ALOGV("Cache hit!");
             surface = iter->second;
         }
     }
     if (!surface) {
-        surface = SkSurface::MakeFromAHardwareBuffer(mGrContext.get(), buffer->toAHardwareBuffer(),
+        surface = SkSurface::MakeFromAHardwareBuffer(grContext.get(), buffer->toAHardwareBuffer(),
                                                      GrSurfaceOrigin::kTopLeft_GrSurfaceOrigin,
                                                      mUseColorManagement
                                                              ? toColorSpace(display.outputDataspace)
@@ -494,7 +509,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                      nullptr);
         if (useFramebufferCache && surface) {
             ALOGD("Adding to cache");
-            mSurfaceCache.insert({buffer->getId(), surface});
+            cache.insert({buffer->getId(), surface});
         }
     }
     if (!surface) {
@@ -699,7 +714,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     } else {
         ATRACE_BEGIN("Submit(sync=false)");
     }
-    bool success = mGrContext->submit(requireSync);
+    bool success = grContext->submit(requireSync);
     ATRACE_END();
     if (!success) {
         ALOGE("Failed to flush RenderEngine commands");
@@ -868,6 +883,7 @@ EGLSurface SkiaGLRenderEngine::createPlaceholderEglPbufferSurface(EGLDisplay dis
 
 void SkiaGLRenderEngine::cleanFramebufferCache() {
     mSurfaceCache.clear();
+    mProtectedSurfaceCache.clear();
 }
 
 } // namespace skia
