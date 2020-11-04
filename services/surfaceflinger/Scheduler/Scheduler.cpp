@@ -212,13 +212,26 @@ std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
                                                        readyDuration, traceVsync, name);
 }
 
+bool Scheduler::isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const {
+    const auto divider = mRefreshRateConfigs.getRefreshRateDividerForUid(uid);
+    if (divider <= 1) {
+        return true;
+    }
+
+    return mVsyncSchedule.tracker->isVSyncInPhase(expectedVsyncTimestamp, divider);
+}
+
 Scheduler::ConnectionHandle Scheduler::createConnection(
         const char* connectionName, frametimeline::TokenManager* tokenManager,
         std::chrono::nanoseconds workDuration, std::chrono::nanoseconds readyDuration,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     auto vsyncSource = makePrimaryDispSyncSource(connectionName, workDuration, readyDuration);
+    auto throttleVsync = [this](nsecs_t expectedVsyncTimestamp, uid_t uid) {
+        return !isVsyncValid(expectedVsyncTimestamp, uid);
+    };
     auto eventThread = std::make_unique<impl::EventThread>(std::move(vsyncSource), tokenManager,
-                                                           std::move(interceptCallback));
+                                                           std::move(interceptCallback),
+                                                           std::move(throttleVsync));
     return createConnection(std::move(eventThread));
 }
 
@@ -379,7 +392,8 @@ Scheduler::ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
         auto eventThread =
                 std::make_unique<impl::EventThread>(std::move(vsyncSource),
                                                     /*tokenManager=*/nullptr,
-                                                    impl::EventThread::InterceptVSyncsCallback());
+                                                    impl::EventThread::InterceptVSyncsCallback(),
+                                                    impl::EventThread::ThrottleVsyncCallback());
 
         mInjectorConnectionHandle = createConnection(std::move(eventThread));
     }

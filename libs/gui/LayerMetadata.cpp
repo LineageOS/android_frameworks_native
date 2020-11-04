@@ -122,6 +122,8 @@ std::string LayerMetadata::itemToString(uint32_t key, const char* separator) con
             return StringPrintf("windowType%s%d", separator, getInt32(key, 0));
         case view::LayerMetadataKey::METADATA_TASK_ID:
             return StringPrintf("taskId%s%d", separator, getInt32(key, 0));
+        case view::LayerMetadataKey::METADATA_OWNER_PID:
+            return StringPrintf("ownerPID%s%d", separator, getInt32(key, 0));
         default:
             return StringPrintf("%d%s%dbytes", key, separator,
                                 static_cast<int>(mMap.at(key).size()));

@@ -139,6 +139,10 @@ public:
 
     scheduler::VSyncDispatch& getVsyncDispatch() { return *mVsyncSchedule.dispatch; }
 
+    // Returns true if a given vsync timestamp is considered valid vsync
+    // for a given uid
+    bool isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const;
+
     void dump(std::string&) const;
     void dump(ConnectionHandle, std::string&) const;
     void dumpVsync(std::string&) const;

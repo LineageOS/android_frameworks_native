@@ -66,13 +66,15 @@ public:
         EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*eventThread, createEventConnection(_, _))
                 .WillOnce(Return(
-                        new EventThreadConnection(eventThread.get(), ResyncCallback(),
+                        new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
+                                                  ResyncCallback(),
                                                   ISurfaceComposer::eConfigChangedSuppress)));
 
         EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
                 .WillOnce(Return(
-                        new EventThreadConnection(sfEventThread.get(), ResyncCallback(),
+                        new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
+                                                  ResyncCallback(),
                                                   ISurfaceComposer::eConfigChangedSuppress)));
 
         EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));

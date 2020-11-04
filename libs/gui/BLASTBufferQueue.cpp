@@ -159,7 +159,7 @@ static void transactionCallbackThunk(void* context, nsecs_t latchTime,
     if (context == nullptr) {
         return;
     }
-    BLASTBufferQueue* bq = static_cast<BLASTBufferQueue*>(context);
+    sp<BLASTBufferQueue> bq = static_cast<BLASTBufferQueue*>(context);
     bq->transactionCallback(latchTime, presentFence, stats);
 }
 

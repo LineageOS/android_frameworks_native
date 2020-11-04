@@ -393,6 +393,15 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
                               nsecs_t expectedPresentTime) {
     ATRACE_CALL();
 
+    // If this is not a valid vsync for the layer's uid, return and try again later
+    const bool isVsyncValidForUid =
+            mFlinger->mScheduler->isVsyncValid(expectedPresentTime, mOwnerUid);
+    if (!isVsyncValidForUid) {
+        ATRACE_NAME("!isVsyncValidForUid");
+        mFlinger->setTransactionFlags(eTraversalNeeded);
+        return false;
+    }
+
     bool refreshRequired = latchSidebandStream(recomputeVisibleRegions);
 
     if (refreshRequired) {
