@@ -72,13 +72,9 @@ status_t Surface::readFromParcel(const Parcel* parcel, bool nameAlreadyRead) {
 }
 
 String16 Surface::readMaybeEmptyString16(const Parcel* parcel) {
-    size_t len;
-    const char16_t* str = parcel->readString16Inplace(&len);
-    if (str != nullptr) {
-        return String16(str, len);
-    } else {
-        return String16();
-    }
+    std::optional<String16> str;
+    parcel->readString16(&str);
+    return str.value_or(String16());
 }
 
 } // namespace view
