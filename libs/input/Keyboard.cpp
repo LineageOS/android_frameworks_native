@@ -128,7 +128,7 @@ status_t KeyMap::loadKeyCharacterMap(const InputDeviceIdentifier& deviceIdentifi
     }
 
     base::Result<std::shared_ptr<KeyCharacterMap>> ret =
-            KeyCharacterMap::load(path, KeyCharacterMap::FORMAT_BASE);
+            KeyCharacterMap::load(path, KeyCharacterMap::Format::BASE);
     if (!ret) {
         return ret.error().code();
     }
@@ -159,9 +159,9 @@ bool isKeyboardSpecialFunction(const PropertyMap* config) {
 bool isEligibleBuiltInKeyboard(const InputDeviceIdentifier& deviceIdentifier,
         const PropertyMap* deviceConfiguration, const KeyMap* keyMap) {
     // TODO: remove the third OR statement (SPECIAL_FUNCTION) in Q
-    if (!keyMap->haveKeyCharacterMap() || isKeyboardSpecialFunction(deviceConfiguration)
-            || keyMap->keyCharacterMap->getKeyboardType()
-                    == KeyCharacterMap::KEYBOARD_TYPE_SPECIAL_FUNCTION) {
+    if (!keyMap->haveKeyCharacterMap() || isKeyboardSpecialFunction(deviceConfiguration) ||
+        keyMap->keyCharacterMap->getKeyboardType() ==
+                KeyCharacterMap::KeyboardType::SPECIAL_FUNCTION) {
         return false;
     }
 
