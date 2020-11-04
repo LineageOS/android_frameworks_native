@@ -33,6 +33,8 @@
 #include <math.h>
 
 #include <memory>
+#include "input/DisplayViewport.h"
+#include "input/Input.h"
 
 namespace android {
 
@@ -1230,6 +1232,47 @@ TEST_F(InputReaderPolicyTest, Viewports_TwoOfSameType) {
         std::optional<DisplayViewport> someViewport = mFakePolicy->getDisplayViewportByType(type);
         ASSERT_TRUE(someViewport);
     }
+}
+
+/**
+ * When we have multiple internal displays make sure we always return the default display when
+ * querying by type.
+ */
+TEST_F(InputReaderPolicyTest, Viewports_ByTypeReturnsDefaultForInternal) {
+    const std::string uniqueId1 = "uniqueId1";
+    const std::string uniqueId2 = "uniqueId2";
+    constexpr int32_t nonDefaultDisplayId = 2;
+    static_assert(nonDefaultDisplayId != ADISPLAY_ID_DEFAULT,
+                  "Test display ID should not be ADISPLAY_ID_DEFAULT");
+
+    // Add the default display first and ensure it gets returned.
+    mFakePolicy->clearViewports();
+    mFakePolicy->addDisplayViewport(ADISPLAY_ID_DEFAULT, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                    DISPLAY_ORIENTATION_0, uniqueId1, NO_PORT,
+                                    ViewportType::INTERNAL);
+    mFakePolicy->addDisplayViewport(nonDefaultDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                    DISPLAY_ORIENTATION_0, uniqueId2, NO_PORT,
+                                    ViewportType::INTERNAL);
+
+    std::optional<DisplayViewport> viewport =
+            mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
+    ASSERT_TRUE(viewport);
+    ASSERT_EQ(ADISPLAY_ID_DEFAULT, viewport->displayId);
+    ASSERT_EQ(ViewportType::INTERNAL, viewport->type);
+
+    // Add the default display second to make sure order doesn't matter.
+    mFakePolicy->clearViewports();
+    mFakePolicy->addDisplayViewport(nonDefaultDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                    DISPLAY_ORIENTATION_0, uniqueId2, NO_PORT,
+                                    ViewportType::INTERNAL);
+    mFakePolicy->addDisplayViewport(ADISPLAY_ID_DEFAULT, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                    DISPLAY_ORIENTATION_0, uniqueId1, NO_PORT,
+                                    ViewportType::INTERNAL);
+
+    viewport = mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
+    ASSERT_TRUE(viewport);
+    ASSERT_EQ(ADISPLAY_ID_DEFAULT, viewport->displayId);
+    ASSERT_EQ(ViewportType::INTERNAL, viewport->type);
 }
 
 /**
