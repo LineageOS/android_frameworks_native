@@ -5,6 +5,7 @@ cc_test {
         address: true,
     },
     srcs: [
+        "SmallVector_test.cpp",
         "StaticVector_test.cpp",
     ],
     cflags: [
