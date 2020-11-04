@@ -2495,12 +2495,6 @@ InputWindowInfo Layer::fillInputInfo() {
         transformedLayerBounds.bottom = tmp;
     }
 
-    // Input coordinates should be in display coordinate space.
-    info.frameLeft = transformedLayerBounds.left;
-    info.frameTop = transformedLayerBounds.top;
-    info.frameRight = transformedLayerBounds.right;
-    info.frameBottom = transformedLayerBounds.bottom;
-
     // Compute the correct transform to send to input. This will allow it to transform the
     // input coordinates from display space into window space. Therefore, it needs to use the
     // final layer frame to create the inverse transform. Since surface insets are added later,
@@ -2521,6 +2515,16 @@ InputWindowInfo Layer::fillInputInfo() {
     ui::Transform inputTransform(t);
     inputTransform.set(translation.x, translation.y);
     info.transform = inputTransform.inverse();
+
+    // We need to send the layer bounds cropped to the screenbounds since the layer can be cropped.
+    // The frame should be the area the user sees on screen since it's used for occlusion
+    // detection.
+    Rect screenBounds = Rect{mScreenBounds};
+    transformedLayerBounds.intersect(screenBounds, &transformedLayerBounds);
+    info.frameLeft = transformedLayerBounds.left;
+    info.frameTop = transformedLayerBounds.top;
+    info.frameRight = transformedLayerBounds.right;
+    info.frameBottom = transformedLayerBounds.bottom;
 
     // Position the touchable region relative to frame screen location and restrict it to frame
     // bounds.
