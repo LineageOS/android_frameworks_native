@@ -442,7 +442,8 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
         }
 
         auto surfaceFrame =
-                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mName, mFrameTimelineVsyncId);
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mOwnerPid, mOwnerUid, mName,
+                                                                     mName, mFrameTimelineVsyncId);
         surfaceFrame->setActualQueueTime(systemTime());
 
         mQueueItems.push_back({item, std::move(surfaceFrame)});
@@ -480,7 +481,8 @@ void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
         }
 
         auto surfaceFrame =
-                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mName, mFrameTimelineVsyncId);
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mOwnerPid, mOwnerUid, mName,
+                                                                     mName, mFrameTimelineVsyncId);
         surfaceFrame->setActualQueueTime(systemTime());
         mQueueItems[mQueueItems.size() - 1].item = item;
         mQueueItems[mQueueItems.size() - 1].surfaceFrame = std::move(surfaceFrame);

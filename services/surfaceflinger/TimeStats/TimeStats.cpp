@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
 #undef LOG_TAG
 #define LOG_TAG "TimeStats"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -32,6 +29,8 @@
 
 #include <algorithm>
 #include <chrono>
+
+#include "timestatsproto/TimeStatsHelper.h"
 
 namespace android {
 
@@ -115,6 +114,13 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventLi
                                        mMaxPulledHistogramBuckets);
     mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)renderEngineTimingBytes.c_str(),
                                              renderEngineTimingBytes.size());
+
+    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalFrames);
+    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalJankyFrames);
+    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalSFLongCpu);
+    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalSFLongGpu);
+    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalSFUnattributed);
+    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalAppUnattributed);
     mStatsDelegate->statsEventBuild(event);
     clearGlobalLocked();
 
@@ -160,6 +166,13 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
 
         mStatsDelegate->statsEventWriteInt64(event, layer->lateAcquireFrames);
         mStatsDelegate->statsEventWriteInt64(event, layer->badDesiredPresentFrames);
+        mStatsDelegate->statsEventWriteInt32(event, layer->uid);
+        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalFrames);
+        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalJankyFrames);
+        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFLongCpu);
+        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFLongGpu);
+        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFUnattributed);
+        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalAppUnattributed);
 
         mStatsDelegate->statsEventBuild(event);
     }
@@ -397,11 +410,13 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId) {
               timeRecords[0].frameTime.frameNumber, timeRecords[0].frameTime.presentTime);
 
         if (prevTimeRecord.ready) {
+            uid_t uid = layerRecord.uid;
             const std::string& layerName = layerRecord.layerName;
-            if (!mTimeStats.stats.count(layerName)) {
-                mTimeStats.stats[layerName].layerName = layerName;
+            if (!mTimeStats.stats.count({uid, layerName})) {
+                mTimeStats.stats[{uid, layerName}].uid = uid;
+                mTimeStats.stats[{uid, layerName}].layerName = layerName;
             }
-            TimeStatsHelper::TimeStatsLayer& timeStatsLayer = mTimeStats.stats[layerName];
+            TimeStatsHelper::TimeStatsLayer& timeStatsLayer = mTimeStats.stats[{uid, layerName}];
             timeStatsLayer.totalFrames++;
             timeStatsLayer.droppedFrames += layerRecord.droppedFrames;
             timeStatsLayer.lateAcquireFrames += layerRecord.lateAcquireFrames;
@@ -462,8 +477,13 @@ static bool layerNameIsValid(const std::string& layerName) {
             layerName.compare(0, kMinLenLayerName, kPopupWindowPrefix) != 0;
 }
 
+bool TimeStats::canAddNewAggregatedStats(uid_t uid, const std::string& layerName) {
+    return mTimeStats.stats.count({uid, layerName}) > 0 ||
+            mTimeStats.stats.size() < MAX_NUM_LAYER_STATS;
+}
+
 void TimeStats::setPostTime(int32_t layerId, uint64_t frameNumber, const std::string& layerName,
-                            nsecs_t postTime) {
+                            uid_t uid, nsecs_t postTime) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
@@ -471,11 +491,12 @@ void TimeStats::setPostTime(int32_t layerId, uint64_t frameNumber, const std::st
           postTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStats.stats.count(layerName) && mTimeStats.stats.size() >= MAX_NUM_LAYER_STATS) {
+    if (!canAddNewAggregatedStats(uid, layerName)) {
         return;
     }
     if (!mTimeStatsTracker.count(layerId) && mTimeStatsTracker.size() < MAX_NUM_LAYER_RECORDS &&
         layerNameIsValid(layerName)) {
+        mTimeStatsTracker[layerId].uid = uid;
         mTimeStatsTracker[layerId].layerName = layerName;
     }
     if (!mTimeStatsTracker.count(layerId)) return;
@@ -653,6 +674,66 @@ void TimeStats::setPresentFence(int32_t layerId, uint64_t frameNumber,
     }
 
     flushAvailableRecordsToStatsLocked(layerId);
+}
+
+template <class T>
+static void updateJankPayload(T& t, int32_t reasons) {
+    t.jankPayload.totalFrames++;
+
+    static const constexpr int32_t kValidJankyReason =
+            TimeStats::JankType::SurfaceFlingerDeadlineMissed |
+            TimeStats::JankType::SurfaceFlingerGpuDeadlineMissed |
+            TimeStats::JankType::AppDeadlineMissed | TimeStats::JankType::Display;
+    if (reasons & kValidJankyReason) {
+        t.jankPayload.totalJankyFrames++;
+        if ((reasons & TimeStats::JankType::SurfaceFlingerDeadlineMissed) != 0) {
+            t.jankPayload.totalSFLongCpu++;
+        }
+        if ((reasons & TimeStats::JankType::SurfaceFlingerGpuDeadlineMissed) != 0) {
+            t.jankPayload.totalSFLongGpu++;
+        }
+        if ((reasons & TimeStats::JankType::Display) != 0) {
+            t.jankPayload.totalSFUnattributed++;
+        }
+        if ((reasons & TimeStats::JankType::AppDeadlineMissed) != 0) {
+            t.jankPayload.totalAppUnattributed++;
+        }
+    }
+}
+
+void TimeStats::incrementJankyFrames(int32_t reasons) {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    updateJankPayload<TimeStatsHelper::TimeStatsGlobal>(mTimeStats, reasons);
+}
+
+void TimeStats::incrementJankyFrames(uid_t uid, const std::string& layerName, int32_t reasons) {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    // Only update layer stats if we're allowed to do so.
+    // As an implementation detail, we do this because this method is expected to be
+    // called from FrameTimeline, which is allowed to do jank analysis well after a frame is
+    // presented. This means that we can't rely on TimeStats to flush layer records over to the
+    // aggregated stats.
+    if (!canAddNewAggregatedStats(uid, layerName)) {
+        return;
+    }
+
+    // Defensively initialize the stats in case FrameTimeline flushes its signaled present fences
+    // before TimeStats does.
+    if (!mTimeStats.stats.count({uid, layerName})) {
+        mTimeStats.stats[{uid, layerName}].uid = uid;
+        mTimeStats.stats[{uid, layerName}].layerName = layerName;
+    }
+
+    TimeStatsHelper::TimeStatsLayer& timeStatsLayer = mTimeStats.stats[{uid, layerName}];
+    updateJankPayload<TimeStatsHelper::TimeStatsLayer>(timeStatsLayer, reasons);
 }
 
 void TimeStats::onDestroy(int32_t layerId) {
@@ -860,6 +941,7 @@ void TimeStats::clearGlobalLocked() {
     mTimeStats.presentToPresent.hist.clear();
     mTimeStats.frameDuration.hist.clear();
     mTimeStats.renderEngineTiming.hist.clear();
+    mTimeStats.jankPayload = TimeStatsHelper::JankPayload();
     mTimeStats.refreshRateStats.clear();
     mPowerTime.prevTime = systemTime();
     mGlobalRecord.prevPresentTime = 0;
@@ -905,6 +987,3 @@ void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, std::strin
 } // namespace impl
 
 } // namespace android
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"

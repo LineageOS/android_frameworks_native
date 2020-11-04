@@ -77,14 +77,28 @@ std::string TimeStatsHelper::Histogram::toString() const {
     return result;
 }
 
+std::string TimeStatsHelper::JankPayload::toString() const {
+    std::string result;
+    StringAppendF(&result, "totalTimelineFrames = %d\n", totalFrames);
+    StringAppendF(&result, "jankyFrames = %d\n", totalJankyFrames);
+    StringAppendF(&result, "sfLongCpuJankyFrames = %d\n", totalSFLongCpu);
+    StringAppendF(&result, "sfLongGpuJankyFrames = %d\n", totalSFLongGpu);
+    StringAppendF(&result, "sfUnattributedJankyFrame = %d\n", totalSFUnattributed);
+    StringAppendF(&result, "appUnattributedJankyFrame = %d\n", totalAppUnattributed);
+    return result;
+}
+
 std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     std::string result = "\n";
+    StringAppendF(&result, "uid = %d\n", uid);
     StringAppendF(&result, "layerName = %s\n", layerName.c_str());
     StringAppendF(&result, "packageName = %s\n", packageName.c_str());
     StringAppendF(&result, "totalFrames = %d\n", totalFrames);
     StringAppendF(&result, "droppedFrames = %d\n", droppedFrames);
     StringAppendF(&result, "lateAcquireFrames = %d\n", lateAcquireFrames);
     StringAppendF(&result, "badDesiredPresentFrames = %d\n", badDesiredPresentFrames);
+    result.append("Jank payload for this layer:\n");
+    result.append(jankPayload.toString());
     const auto iter = deltas.find("present2present");
     if (iter != deltas.end()) {
         const float averageTime = iter->second.averageTime();
@@ -110,6 +124,8 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     StringAppendF(&result, "refreshRateSwitches = %d\n", refreshRateSwitches);
     StringAppendF(&result, "compositionStrategyChanges = %d\n", compositionStrategyChanges);
     StringAppendF(&result, "displayOnTime = %" PRId64 " ms\n", displayOnTime);
+    result.append("Global aggregated jank payload:\n");
+    result.append(jankPayload.toString());
     StringAppendF(&result, "displayConfigStats is as below:\n");
     for (const auto& [fps, duration] : refreshRateStats) {
         StringAppendF(&result, "%dfps = %ldms\n", fps, ns2ms(duration));

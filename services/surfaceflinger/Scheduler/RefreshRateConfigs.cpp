@@ -625,4 +625,36 @@ RefreshRateConfigs::KernelIdleTimerAction RefreshRateConfigs::getIdleTimerAction
     return RefreshRateConfigs::KernelIdleTimerAction::TurnOn;
 }
 
+void RefreshRateConfigs::setPreferredRefreshRateForUid(uid_t uid, float refreshRateHz) {
+    if (refreshRateHz > 0 && refreshRateHz < 1) {
+        return;
+    }
+
+    std::lock_guard lock(mLock);
+    if (refreshRateHz != 0) {
+        mPreferredRefreshRateForUid[uid] = refreshRateHz;
+    } else {
+        mPreferredRefreshRateForUid.erase(uid);
+    }
+}
+
+int RefreshRateConfigs::getRefreshRateDividerForUid(uid_t uid) const {
+    constexpr float kThreshold = 0.1f;
+    std::lock_guard lock(mLock);
+
+    const auto iter = mPreferredRefreshRateForUid.find(uid);
+    if (iter == mPreferredRefreshRateForUid.end()) {
+        return 1;
+    }
+
+    const auto refreshRateHz = iter->second;
+    const auto numPeriods = mCurrentRefreshRate->getFps() / refreshRateHz;
+    const auto numPeriodsRounded = std::round(numPeriods);
+    if (std::abs(numPeriods - numPeriodsRounded) > kThreshold) {
+        return 1;
+    }
+
+    return static_cast<int>(numPeriods);
+}
+
 } // namespace android::scheduler

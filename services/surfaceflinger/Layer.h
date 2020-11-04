@@ -855,6 +855,8 @@ public:
 
     uid_t getOwnerUid() { return mOwnerUid; }
 
+    pid_t getOwnerPid() { return mOwnerPid; }
+
     // This layer is not a clone, but it's the parent to the cloned hierarchy. The
     // variable mClonedChild represents the top layer that will be cloned so this
     // layer will be the parent of mClonedChild.
@@ -1043,6 +1045,14 @@ protected:
     // Can only be accessed with the SF state lock held.
     std::unique_ptr<frametimeline::SurfaceFrame> mSurfaceFrame;
 
+    // The owner of the layer. If created from a non system process, it will be the calling uid.
+    // If created from a system process, the value can be passed in.
+    uid_t mOwnerUid;
+
+    // The owner pid of the layer. If created from a non system process, it will be the calling pid.
+    // If created from a system process, the value can be passed in.
+    pid_t mOwnerPid;
+
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}
 
@@ -1100,10 +1110,6 @@ private:
     // to help debugging.
     pid_t mCallingPid;
     uid_t mCallingUid;
-
-    // The owner of the layer. If created from a non system process, it will be the calling uid.
-    // If created from a system process, the value can be passed in.
-    uid_t mOwnerUid;
 
     // The current layer is a clone of mClonedFrom. This means that this layer will update it's
     // properties based on mClonedFrom. When mClonedFrom latches a new buffer for BufferLayers,

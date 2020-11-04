@@ -93,19 +93,19 @@ std::string toString(PredictionState predictionState) {
     }
 }
 
-std::string toString(JankType jankType) {
+std::string toString(TimeStats::JankType jankType) {
     switch (jankType) {
-        case JankType::None:
+        case TimeStats::JankType::None:
             return "None";
-        case JankType::Display:
+        case TimeStats::JankType::Display:
             return "Composer/Display - outside SF and App";
-        case JankType::SurfaceFlingerDeadlineMissed:
+        case TimeStats::JankType::SurfaceFlingerDeadlineMissed:
             return "SurfaceFlinger Deadline Missed";
-        case JankType::AppDeadlineMissed:
+        case TimeStats::JankType::AppDeadlineMissed:
             return "App Deadline Missed";
-        case JankType::PredictionExpired:
+        case TimeStats::JankType::PredictionExpired:
             return "Prediction Expired";
-        case JankType::SurfaceFlingerEarlyLatch:
+        case TimeStats::JankType::SurfaceFlingerEarlyLatch:
             return "SurfaceFlinger Early Latch";
         default:
             return "Unclassified";
@@ -177,15 +177,19 @@ void TokenManager::flushTokens(nsecs_t flushTime) {
     }
 }
 
-SurfaceFrame::SurfaceFrame(const std::string& layerName, PredictionState predictionState,
+SurfaceFrame::SurfaceFrame(pid_t ownerPid, uid_t ownerUid, std::string layerName,
+                           std::string debugName, PredictionState predictionState,
                            frametimeline::TimelineItem&& predictions)
-      : mLayerName(layerName),
+      : mOwnerPid(ownerPid),
+        mOwnerUid(ownerUid),
+        mLayerName(std::move(layerName)),
+        mDebugName(std::move(debugName)),
         mPresentState(PresentState::Unknown),
         mPredictionState(predictionState),
         mPredictions(predictions),
         mActuals({0, 0, 0}),
         mActualQueueTime(0),
-        mJankType(JankType::None),
+        mJankType(TimeStats::JankType::None),
         mJankMetadata(0) {}
 
 void SurfaceFrame::setPresentState(PresentState state) {
@@ -227,13 +231,13 @@ void SurfaceFrame::setActualPresentTime(nsecs_t presentTime) {
     mActuals.presentTime = presentTime;
 }
 
-void SurfaceFrame::setJankInfo(JankType jankType, int32_t jankMetadata) {
+void SurfaceFrame::setJankInfo(TimeStats::JankType jankType, int32_t jankMetadata) {
     std::lock_guard<std::mutex> lock(mMutex);
     mJankType = jankType;
     mJankMetadata = jankMetadata;
 }
 
-JankType SurfaceFrame::getJankType() const {
+TimeStats::JankType SurfaceFrame::getJankType() const {
     std::lock_guard<std::mutex> lock(mMutex);
     return mJankType;
 }
@@ -267,12 +271,14 @@ std::string presentStateToString(SurfaceFrame::PresentState presentState) {
 void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t baseTime) {
     std::lock_guard<std::mutex> lock(mMutex);
     StringAppendF(&result, "%s", indent.c_str());
-    StringAppendF(&result, "Layer - %s", mLayerName.c_str());
-    if (mJankType != JankType::None) {
+    StringAppendF(&result, "Layer - %s", mDebugName.c_str());
+    if (mJankType != TimeStats::JankType::None) {
         // Easily identify a janky Surface Frame in the dump
         StringAppendF(&result, " [*] ");
     }
     StringAppendF(&result, "\n");
+    StringAppendF(&result, "%s", indent.c_str());
+    StringAppendF(&result, "Owner Pid : %d\n", mOwnerPid);
     StringAppendF(&result, "%s", indent.c_str());
     StringAppendF(&result, "Present State : %s\n", presentStateToString(mPresentState).c_str());
     StringAppendF(&result, "%s", indent.c_str());
@@ -285,32 +291,37 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
     dumpTable(result, mPredictions, mActuals, indent, mPredictionState, baseTime);
 }
 
-FrameTimeline::FrameTimeline()
+FrameTimeline::FrameTimeline(std::shared_ptr<TimeStats> timeStats)
       : mCurrentDisplayFrame(std::make_shared<DisplayFrame>()),
-        mMaxDisplayFrames(kDefaultMaxDisplayFrames) {}
+        mMaxDisplayFrames(kDefaultMaxDisplayFrames),
+        mTimeStats(std::move(timeStats)) {}
 
 FrameTimeline::DisplayFrame::DisplayFrame()
       : surfaceFlingerPredictions(TimelineItem()),
         surfaceFlingerActuals(TimelineItem()),
         predictionState(PredictionState::None),
-        jankType(JankType::None),
+        jankType(TimeStats::JankType::None),
         jankMetadata(0) {
     this->surfaceFrames.reserve(kNumSurfaceFramesInitial);
 }
 
 std::unique_ptr<android::frametimeline::SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
-        const std::string& layerName, std::optional<int64_t> token) {
+        pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
+        std::optional<int64_t> token) {
     ATRACE_CALL();
     if (!token) {
-        return std::make_unique<impl::SurfaceFrame>(layerName, PredictionState::None,
+        return std::make_unique<impl::SurfaceFrame>(ownerPid, ownerUid, std::move(layerName),
+                                                    std::move(debugName), PredictionState::None,
                                                     TimelineItem());
     }
     std::optional<TimelineItem> predictions = mTokenManager.getPredictionsForToken(*token);
     if (predictions) {
-        return std::make_unique<impl::SurfaceFrame>(layerName, PredictionState::Valid,
+        return std::make_unique<impl::SurfaceFrame>(ownerPid, ownerUid, std::move(layerName),
+                                                    std::move(debugName), PredictionState::Valid,
                                                     std::move(*predictions));
     }
-    return std::make_unique<impl::SurfaceFrame>(layerName, PredictionState::Expired,
+    return std::make_unique<impl::SurfaceFrame>(ownerPid, ownerUid, std::move(layerName),
+                                                std::move(debugName), PredictionState::Expired,
                                                 TimelineItem());
 }
 
@@ -359,6 +370,7 @@ void FrameTimeline::flushPendingPresentFences() {
             }
         }
         if (signalTime != Fence::SIGNAL_TIME_INVALID) {
+            int32_t totalJankReasons = TimeStats::JankType::None;
             auto& displayFrame = pendingPresentFence.second;
             displayFrame->surfaceFlingerActuals.presentTime = signalTime;
 
@@ -377,20 +389,25 @@ void FrameTimeline::flushPendingPresentFences() {
                     displayFrame->jankMetadata |= EarlyFinish;
                 }
 
-                if (displayFrame->jankMetadata & EarlyFinish & EarlyPresent) {
-                    displayFrame->jankType = JankType::SurfaceFlingerEarlyLatch;
-                } else if (displayFrame->jankMetadata & LateFinish & LatePresent) {
-                    displayFrame->jankType = JankType::SurfaceFlingerDeadlineMissed;
+                if ((displayFrame->jankMetadata & EarlyFinish) &&
+                    (displayFrame->jankMetadata & EarlyPresent)) {
+                    displayFrame->jankType = TimeStats::JankType::SurfaceFlingerEarlyLatch;
+                } else if ((displayFrame->jankMetadata & LateFinish) &&
+                           (displayFrame->jankMetadata & LatePresent)) {
+                    displayFrame->jankType = TimeStats::JankType::SurfaceFlingerDeadlineMissed;
                 } else if (displayFrame->jankMetadata & EarlyPresent ||
                            displayFrame->jankMetadata & LatePresent) {
                     // Cases where SF finished early but frame was presented late and vice versa
-                    displayFrame->jankType = JankType::Display;
+                    displayFrame->jankType = TimeStats::JankType::Display;
                 }
             }
+
             if (std::abs(sfActuals.startTime - sfPredictions.startTime) > kSFStartThreshold) {
                 displayFrame->jankMetadata |=
                         sfActuals.startTime > sfPredictions.startTime ? LateStart : EarlyStart;
             }
+
+            totalJankReasons |= displayFrame->jankType;
 
             for (auto& surfaceFrame : displayFrame->surfaceFrames) {
                 if (surfaceFrame->getPresentState() == SurfaceFrame::PresentState::Presented) {
@@ -401,13 +418,13 @@ void FrameTimeline::flushPendingPresentFences() {
                     const auto& predictionState = surfaceFrame->getPredictionState();
                     if (predictionState == PredictionState::Expired) {
                         // Jank analysis cannot be done on apps that don't use predictions
-                        surfaceFrame->setJankInfo(JankType::PredictionExpired, 0);
+                        surfaceFrame->setJankInfo(TimeStats::JankType::PredictionExpired, 0);
                         continue;
                     } else if (predictionState == PredictionState::Valid) {
                         const auto& actuals = surfaceFrame->getActuals();
                         const auto& predictions = surfaceFrame->getPredictions();
                         int32_t jankMetadata = 0;
-                        JankType jankType = JankType::None;
+                        TimeStats::JankType jankType = TimeStats::JankType::None;
                         if (std::abs(actuals.endTime - predictions.endTime) > kDeadlineThreshold) {
                             jankMetadata |= actuals.endTime > predictions.endTime ? LateFinish
                                                                                   : EarlyFinish;
@@ -419,19 +436,26 @@ void FrameTimeline::flushPendingPresentFences() {
                                     : EarlyPresent;
                         }
                         if (jankMetadata & EarlyPresent) {
-                            jankType = JankType::SurfaceFlingerEarlyLatch;
+                            jankType = TimeStats::JankType::SurfaceFlingerEarlyLatch;
                         } else if (jankMetadata & LatePresent) {
                             if (jankMetadata & EarlyFinish) {
                                 // TODO(b/169890654): Classify this properly
-                                jankType = JankType::Display;
+                                jankType = TimeStats::JankType::Display;
                             } else {
-                                jankType = JankType::AppDeadlineMissed;
+                                jankType = TimeStats::JankType::AppDeadlineMissed;
                             }
                         }
+
+                        totalJankReasons |= jankType;
+                        mTimeStats->incrementJankyFrames(surfaceFrame->getOwnerUid(),
+                                                         surfaceFrame->getName(),
+                                                         jankType | displayFrame->jankType);
                         surfaceFrame->setJankInfo(jankType, jankMetadata);
                     }
                 }
             }
+
+            mTimeStats->incrementJankyFrames(totalJankReasons);
         }
 
         mPendingPresentFences.erase(mPendingPresentFences.begin() + static_cast<int>(i));
@@ -467,7 +491,7 @@ nsecs_t FrameTimeline::findBaseTime(const std::shared_ptr<DisplayFrame>& display
 void FrameTimeline::dumpDisplayFrame(std::string& result,
                                      const std::shared_ptr<DisplayFrame>& displayFrame,
                                      nsecs_t baseTime) {
-    if (displayFrame->jankType != JankType::None) {
+    if (displayFrame->jankType != TimeStats::JankType::None) {
         // Easily identify a janky Display Frame in the dump
         StringAppendF(&result, " [*] ");
     }
@@ -501,11 +525,11 @@ void FrameTimeline::dumpJank(std::string& result) {
     nsecs_t baseTime = (mDisplayFrames.empty()) ? 0 : findBaseTime(mDisplayFrames[0]);
     for (size_t i = 0; i < mDisplayFrames.size(); i++) {
         const auto& displayFrame = mDisplayFrames[i];
-        if (displayFrame->jankType == JankType::None) {
+        if (displayFrame->jankType == TimeStats::JankType::None) {
             // Check if any Surface Frame has been janky
             bool isJanky = false;
             for (const auto& surfaceFrame : displayFrame->surfaceFrames) {
-                if (surfaceFrame->getJankType() != JankType::None) {
+                if (surfaceFrame->getJankType() != TimeStats::JankType::None) {
                     isJanky = true;
                     break;
                 }

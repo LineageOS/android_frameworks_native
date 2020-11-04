@@ -68,6 +68,14 @@ public:
 
     virtual bool needsMoreSamples() const = 0;
 
+    /*
+     * Checks if a vsync timestamp is in phase for a given divider.
+     *
+     * \param [in] timePoint  A vsync timestamp
+     * \param [in] divider  The divider to check for
+     */
+    virtual bool isVSyncInPhase(nsecs_t timePoint, int divider) const = 0;
+
     virtual void dump(std::string& result) const = 0;
 
 protected:

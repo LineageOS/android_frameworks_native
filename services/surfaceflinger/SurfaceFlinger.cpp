@@ -331,7 +331,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInterceptor(mFactory.createSurfaceInterceptor()),
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(std::make_unique<FrameTracer>()),
-        mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>()),
+        mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>(mTimeStats)),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
@@ -4915,7 +4915,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
     }
     // Numbers from 1000 to 1038 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1038) {
+    if (code >= 1000 && code <= 1039) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5280,6 +5280,13 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 mFrameTimeline->setMaxDisplayFrames(n);
                 return NO_ERROR;
             }
+            case 1039: {
+                // The first parameter is the uid
+                n = data.readInt32();
+                const float refreshRateHz = data.readFloat();
+                mRefreshRateConfigs->setPreferredRefreshRateForUid(n, refreshRateHz);
+            }
+                return NO_ERROR;
         }
     }
     return err;

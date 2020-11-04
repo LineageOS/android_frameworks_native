@@ -311,6 +311,13 @@ public:
     // refresh rates.
     KernelIdleTimerAction getIdleTimerAction() const;
 
+    // Stores the preferred refresh rate that an app should run at.
+    // refreshRate == 0 means no preference.
+    void setPreferredRefreshRateForUid(uid_t, float refreshRateHz) EXCLUDES(mLock);
+
+    // Returns a divider for the current refresh rate
+    int getRefreshRateDividerForUid(uid_t) const EXCLUDES(mLock);
+
 private:
     friend class RefreshRateConfigsTest;
 
@@ -367,6 +374,8 @@ private:
     // and read by the Scheduler (and other objects) on other threads.
     Policy mDisplayManagerPolicy GUARDED_BY(mLock);
     std::optional<Policy> mOverridePolicy GUARDED_BY(mLock);
+
+    std::unordered_map<uid_t, float> mPreferredRefreshRateForUid GUARDED_BY(mLock);
 
     // The min and max refresh rates supported by the device.
     // This will not change at runtime.
