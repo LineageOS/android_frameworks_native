@@ -19,7 +19,9 @@
 
 #include <stdint.h>
 
+#ifdef __linux__
 #include <binder/IBinder.h>
+#endif
 
 #include <android-base/result.h>
 #include <input/Input.h>
@@ -132,11 +134,13 @@ public:
     void tryRemapKey(int32_t scanCode, int32_t metaState,
             int32_t* outKeyCode, int32_t* outMetaState) const;
 
+#ifdef __linux__
     /* Reads a key map from a parcel. */
     static std::shared_ptr<KeyCharacterMap> readFromParcel(Parcel* parcel);
 
     /* Writes a key map to a parcel. */
     void writeToParcel(Parcel* parcel) const;
+#endif
 
     KeyCharacterMap(const KeyCharacterMap& other);
 
