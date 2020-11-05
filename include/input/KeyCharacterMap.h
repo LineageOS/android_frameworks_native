@@ -42,27 +42,27 @@ namespace android {
  */
 class KeyCharacterMap {
 public:
-    enum KeyboardType {
-        KEYBOARD_TYPE_UNKNOWN = 0,
-        KEYBOARD_TYPE_NUMERIC = 1,
-        KEYBOARD_TYPE_PREDICTIVE = 2,
-        KEYBOARD_TYPE_ALPHA = 3,
-        KEYBOARD_TYPE_FULL = 4,
+    enum class KeyboardType : int32_t {
+        UNKNOWN = 0,
+        NUMERIC = 1,
+        PREDICTIVE = 2,
+        ALPHA = 3,
+        FULL = 4,
         /**
          * Deprecated. Set 'keyboard.specialFunction' to '1' in the device's IDC file instead.
          */
-        KEYBOARD_TYPE_SPECIAL_FUNCTION = 5,
-        KEYBOARD_TYPE_OVERLAY = 6,
+        SPECIAL_FUNCTION = 5,
+        OVERLAY = 6,
     };
 
-    enum Format {
+    enum class Format {
         // Base keyboard layout, may contain device-specific options, such as "type" declaration.
-        FORMAT_BASE = 0,
+        BASE = 0,
         // Overlay keyboard layout, more restrictive, may be published by applications,
         // cannot override device-specific options.
-        FORMAT_OVERLAY = 1,
+        OVERLAY = 1,
         // Either base or overlay layout ok.
-        FORMAT_ANY = 2,
+        ANY = 2,
     };
 
     // Substitute key code and meta state for fallback action.
@@ -86,7 +86,7 @@ public:
     void combine(const KeyCharacterMap& overlay);
 
     /* Gets the keyboard type. */
-    int32_t getKeyboardType() const;
+    KeyboardType getKeyboardType() const;
 
     /* Gets the primary character for this key as in the label physically printed on it.
      * Returns 0 if none (eg. for non-printing keys). */
@@ -222,7 +222,7 @@ private:
     };
 
     KeyedVector<int32_t, Key*> mKeys;
-    int mType;
+    KeyboardType mType;
     std::string mLoadFileName;
 
     KeyedVector<int32_t, int32_t> mKeysByScanCode;

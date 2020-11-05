@@ -204,12 +204,12 @@ static bool validateMotionEvent(int32_t action, int32_t actionButton, size_t poi
     return true;
 }
 
-static void dumpRegion(std::string& dump, const Region& region) {
+static std::string dumpRegion(const Region& region) {
     if (region.isEmpty()) {
-        dump += "<empty>";
-        return;
+        return "<empty>";
     }
 
+    std::string dump;
     bool first = true;
     Region::const_iterator cur = region.begin();
     Region::const_iterator const tail = region.end();
@@ -222,6 +222,7 @@ static void dumpRegion(std::string& dump, const Region& region) {
         dump += StringPrintf("[%d,%d][%d,%d]", cur->left, cur->top, cur->right, cur->bottom);
         cur++;
     }
+    return dump;
 }
 
 static std::string dumpQueue(const std::deque<DispatchEntry*>& queue, nsecs_t currentTime) {
@@ -2273,13 +2274,16 @@ std::string InputDispatcher::dumpWindowForTouchOcclusion(const InputWindowInfo* 
                                                          bool isTouchedWindow) const {
     return StringPrintf(INDENT2 "* %stype=%s, package=%s/%" PRId32 ", mode=%s, alpha=%.2f, "
                                 "frame=[%" PRId32 ",%" PRId32 "][%" PRId32 ",%" PRId32
-                                "], window=%s, applicationInfo=%s, flags=%s\n",
+                                "], touchableRegion=%s, window={%s}, applicationInfo=%s, "
+                                "flags={%s}, inputFeatures={%s}, hasToken=%s\n",
                         (isTouchedWindow) ? "[TOUCHED] " : "",
-                        NamedEnum::string(info->type).c_str(), info->packageName.c_str(),
-                        info->ownerUid, toString(info->touchOcclusionMode).c_str(), info->alpha,
-                        info->frameLeft, info->frameTop, info->frameRight, info->frameBottom,
-                        info->name.c_str(), info->applicationInfo.name.c_str(),
-                        info->flags.string().c_str());
+                        NamedEnum::string(info->type, "%" PRId32).c_str(),
+                        info->packageName.c_str(), info->ownerUid,
+                        toString(info->touchOcclusionMode).c_str(), info->alpha, info->frameLeft,
+                        info->frameTop, info->frameRight, info->frameBottom,
+                        dumpRegion(info->touchableRegion).c_str(), info->name.c_str(),
+                        info->applicationInfo.name.c_str(), info->flags.string().c_str(),
+                        info->inputFeatures.string().c_str(), toString(info->token != nullptr));
 }
 
 bool InputDispatcher::isTouchTrustedLocked(const TouchOcclusionInfo& occlusionInfo) const {
@@ -4484,13 +4488,15 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          windowInfo->frameRight, windowInfo->frameBottom,
                                          windowInfo->globalScaleFactor,
                                          windowInfo->applicationInfo.name.c_str());
-                    dumpRegion(dump, windowInfo->touchableRegion);
+                    dump += dumpRegion(windowInfo->touchableRegion);
                     dump += StringPrintf(", inputFeatures=%s",
                                          windowInfo->inputFeatures.string().c_str());
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%" PRId64
-                                         "ms\n",
+                                         "ms, trustedOverlay=%s, hasToken=%s\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
-                                         millis(windowInfo->dispatchingTimeout));
+                                         millis(windowInfo->dispatchingTimeout),
+                                         toString(windowInfo->trustedOverlay),
+                                         toString(windowInfo->token != nullptr));
                     windowInfo->transform.dump(dump, "transform", INDENT4);
                 }
             } else {

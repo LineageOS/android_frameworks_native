@@ -83,9 +83,7 @@ static String8 toString(const char16_t* chars, size_t numChars) {
 
 // --- KeyCharacterMap ---
 
-KeyCharacterMap::KeyCharacterMap() :
-    mType(KEYBOARD_TYPE_UNKNOWN) {
-}
+KeyCharacterMap::KeyCharacterMap() : mType(KeyboardType::UNKNOWN) {}
 
 KeyCharacterMap::KeyCharacterMap(const KeyCharacterMap& other)
       : mType(other.mType),
@@ -184,7 +182,7 @@ void KeyCharacterMap::combine(const KeyCharacterMap& overlay) {
     mLoadFileName = overlay.mLoadFileName;
 }
 
-int32_t KeyCharacterMap::getKeyboardType() const {
+KeyCharacterMap::KeyboardType KeyCharacterMap::getKeyboardType() const {
     return mType;
 }
 
@@ -593,7 +591,7 @@ std::shared_ptr<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel)
         return nullptr;
     }
     std::shared_ptr<KeyCharacterMap> map = std::shared_ptr<KeyCharacterMap>(new KeyCharacterMap());
-    map->mType = parcel->readInt32();
+    map->mType = static_cast<KeyCharacterMap::KeyboardType>(parcel->readInt32());
     size_t numKeys = parcel->readInt32();
     if (parcel->errorCheck()) {
         return nullptr;
@@ -651,7 +649,7 @@ void KeyCharacterMap::writeToParcel(Parcel* parcel) const {
         ALOGE("%s: Null parcel", __func__);
         return;
     }
-    parcel->writeInt32(mType);
+    parcel->writeInt32(static_cast<int32_t>(mType));
 
     size_t numKeys = mKeys.size();
     parcel->writeInt32(numKeys);
@@ -776,20 +774,20 @@ status_t KeyCharacterMap::Parser::parse() {
         return BAD_VALUE;
     }
 
-    if (mMap->mType == KEYBOARD_TYPE_UNKNOWN) {
+    if (mMap->mType == KeyboardType::UNKNOWN) {
         ALOGE("%s: Keyboard layout missing required keyboard 'type' declaration.",
                 mTokenizer->getLocation().string());
         return BAD_VALUE;
     }
 
-    if (mFormat == FORMAT_BASE) {
-        if (mMap->mType == KEYBOARD_TYPE_OVERLAY) {
+    if (mFormat == Format::BASE) {
+        if (mMap->mType == KeyboardType::OVERLAY) {
             ALOGE("%s: Base keyboard layout must specify a keyboard 'type' other than 'OVERLAY'.",
                     mTokenizer->getLocation().string());
             return BAD_VALUE;
         }
-    } else if (mFormat == FORMAT_OVERLAY) {
-        if (mMap->mType != KEYBOARD_TYPE_OVERLAY) {
+    } else if (mFormat == Format::OVERLAY) {
+        if (mMap->mType != KeyboardType::OVERLAY) {
             ALOGE("%s: Overlay keyboard layout missing required keyboard "
                     "'type OVERLAY' declaration.",
                     mTokenizer->getLocation().string());
@@ -801,7 +799,7 @@ status_t KeyCharacterMap::Parser::parse() {
 }
 
 status_t KeyCharacterMap::Parser::parseType() {
-    if (mMap->mType != KEYBOARD_TYPE_UNKNOWN) {
+    if (mMap->mType != KeyboardType::UNKNOWN) {
         ALOGE("%s: Duplicate keyboard 'type' declaration.",
                 mTokenizer->getLocation().string());
         return BAD_VALUE;
@@ -810,20 +808,20 @@ status_t KeyCharacterMap::Parser::parseType() {
     KeyboardType type;
     String8 typeToken = mTokenizer->nextToken(WHITESPACE);
     if (typeToken == "NUMERIC") {
-        type = KEYBOARD_TYPE_NUMERIC;
+        type = KeyboardType::NUMERIC;
     } else if (typeToken == "PREDICTIVE") {
-        type = KEYBOARD_TYPE_PREDICTIVE;
+        type = KeyboardType::PREDICTIVE;
     } else if (typeToken == "ALPHA") {
-        type = KEYBOARD_TYPE_ALPHA;
+        type = KeyboardType::ALPHA;
     } else if (typeToken == "FULL") {
-        type = KEYBOARD_TYPE_FULL;
+        type = KeyboardType::FULL;
     } else if (typeToken == "SPECIAL_FUNCTION") {
         ALOGW("The SPECIAL_FUNCTION type is now declared in the device's IDC file, please set "
                 "the property 'keyboard.specialFunction' to '1' there instead.");
         // TODO: return BAD_VALUE here in Q
-        type = KEYBOARD_TYPE_SPECIAL_FUNCTION;
+        type = KeyboardType::SPECIAL_FUNCTION;
     } else if (typeToken == "OVERLAY") {
-        type = KEYBOARD_TYPE_OVERLAY;
+        type = KeyboardType::OVERLAY;
     } else {
         ALOGE("%s: Expected keyboard type label, got '%s'.", mTokenizer->getLocation().string(),
                 typeToken.string());
