@@ -21,6 +21,11 @@ cc_library {
         "-Wno-enum-compare",
     ],
     host_supported: true,
+    target: {
+        darwin: {
+            enabled: false,
+        }
+    },
 
     vendor_available: true,
     vndk: {
