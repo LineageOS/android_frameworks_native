@@ -35,6 +35,11 @@ cc_library {
     vendor_available: true,
     double_loadable: true,
     host_supported: true,
+    target: {
+        darwin: {
+            enabled: false,
+        }
+    },
 
     cflags: [
         "-Wall",
