@@ -210,6 +210,8 @@ private:
     sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
             REQUIRES(mLock);
 
+    std::string getConnectionNameLocked(const sp<IBinder>& connectionToken) const REQUIRES(mLock);
+
     void removeConnectionLocked(const sp<Connection>& connection) REQUIRES(mLock);
 
     struct IBinderHash {
@@ -532,6 +534,7 @@ private:
     void dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors);
     void logDispatchStateLocked() REQUIRES(mLock);
     std::string dumpFocusedWindowsLocked() REQUIRES(mLock);
+    std::string dumpPendingFocusRequestsLocked() REQUIRES(mLock);
 
     // Registration.
     void removeMonitorChannelLocked(const sp<IBinder>& connectionToken) REQUIRES(mLock);
