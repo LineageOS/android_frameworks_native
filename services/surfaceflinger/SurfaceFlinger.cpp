@@ -3787,9 +3787,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eFrameTimelineVsyncChanged) {
         layer->setFrameTimelineVsyncForTransaction(s.frameTimelineVsyncId, postTime);
-    } else {
-        // TODO (b/171252403) We are calling this too much, potentially triggering
-        // unnecessary work
+    } else if (frameTimelineVsyncId != ISurfaceComposer::INVALID_VSYNC_ID) {
         layer->setFrameTimelineVsyncForTransaction(frameTimelineVsyncId, postTime);
     }
     if (what & layer_state_t::eFixedTransformHintChanged) {
