@@ -106,6 +106,33 @@ TEST(StaticVector, Construct) {
         static_assert(std::is_same_v<decltype(vector), StaticVector<std::string, 3>>);
         EXPECT_EQ(vector, (StaticVector{"red"s, "velvet"s, "cake"s}));
     }
+    {
+        struct String {
+            explicit String(const char* str) : str(str) {}
+            explicit String(const char** ptr) : str(*ptr) {}
+            const char* str;
+        };
+
+        const char* kStrings[] = {"a", "b", "c", "d"};
+
+        {
+            // Two iterator-like elements.
+            StaticVector<String, 3> vector(kStrings, kStrings + 3);
+            ASSERT_EQ(vector.size(), 2u);
+
+            EXPECT_STREQ(vector[0].str, "a");
+            EXPECT_STREQ(vector[1].str, "d");
+        }
+        {
+            // Disambiguating iterator constructor.
+            StaticVector<String, 3> vector(ftl::IteratorRange, kStrings, kStrings + 3);
+            ASSERT_EQ(vector.size(), 3u);
+
+            EXPECT_STREQ(vector[0].str, "a");
+            EXPECT_STREQ(vector[1].str, "b");
+            EXPECT_STREQ(vector[2].str, "c");
+        }
+    }
 }
 
 TEST(StaticVector, String) {
@@ -124,8 +151,7 @@ TEST(StaticVector, String) {
     EXPECT_EQ(string.size(), 7u);
 
     // Similar to emplace, but replaces rather than inserts.
-    const auto it = string.replace(string.begin() + 5, '\0');
-    EXPECT_NE(it, string.end());
+    string.replace(string.begin() + 5, '\0');
     EXPECT_STREQ(string.begin(), "12345");
 
     swap(chars, string);
@@ -209,13 +235,27 @@ TEST(StaticVector, MovableElement) {
         ASSERT_FALSE(rit == strings.rend());
 
         std::initializer_list<char> list = {'t', 'a', 'r', 't'};
-        const auto it = strings.replace(rit.base() - 1, list);
-        EXPECT_NE(it, strings.end());
+        strings.replace(rit.base() - 1, list);
     }
 
     strings.front().assign("pie");
 
     EXPECT_EQ(strings, (StaticVector{"pie"s, "quince"s, "tart"s, "red"s, "velvet"s, "cake"s}));
+}
+
+TEST(StaticVector, Replace) {
+    // Replacing does not require a copy/move assignment operator.
+    struct Word {
+        explicit Word(std::string str) : str(std::move(str)) {}
+        const std::string str;
+    };
+
+    StaticVector words(std::in_place_type<Word>, "red", "velour", "cake");
+
+    // The replaced element can be referenced by the replacement.
+    const auto it = words.begin() + 1;
+    const Word& word = words.replace(it, it->str.substr(0, 3) + "vet");
+    EXPECT_EQ(word.str, "velvet");
 }
 
 TEST(StaticVector, ReverseTruncate) {
@@ -251,12 +291,16 @@ TEST(StaticVector, Sort) {
     EXPECT_LT(sorted, strings);
 
     // Append remaining elements, such that "pie" is the only difference.
-    sorted.replace(sorted.end(), "quince");
-    for (const char* str : {"red", "tart", "velvet"}) sorted.emplace_back(str);
+    for (const char* str : {"quince", "red", "tart", "velvet"}) {
+        sorted.emplace_back(str);
+    }
 
     EXPECT_NE(sorted, strings);
 
-    sorted.replace(sorted.begin() + 1, "pie");
+    // Replace second element with "pie".
+    const auto it = sorted.begin() + 1;
+    EXPECT_EQ(sorted.replace(it, 'p' + it->substr(1)), "pie");
+
     EXPECT_EQ(sorted, strings);
 }
 

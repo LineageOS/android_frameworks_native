@@ -19,6 +19,7 @@
 
 #include <android-base/stringprintf.h>
 #include <input/Input.h>
+#include <input/NamedEnum.h>
 
 #include <cinttypes>
 #include <optional>
@@ -43,18 +44,6 @@ enum class ViewportType : int32_t {
     EXTERNAL = 2,
     VIRTUAL = 3,
 };
-
-static const char* viewportTypeToString(ViewportType type) {
-    switch (type) {
-        case ViewportType::INTERNAL:
-            return "INTERNAL";
-        case ViewportType::EXTERNAL:
-            return "EXTERNAL";
-        case ViewportType::VIRTUAL:
-            return "VIRTUAL";
-    }
-    return "UNKNOWN";
-}
 
 /*
  * Describes how coordinates are mapped on a physical display.
@@ -142,7 +131,7 @@ struct DisplayViewport {
                             "physicalFrame=[%d, %d, %d, %d], "
                             "deviceSize=[%d, %d], "
                             "isActive=[%d]",
-                            viewportTypeToString(type), displayId, uniqueId.c_str(),
+                            NamedEnum::string(type).c_str(), displayId, uniqueId.c_str(),
                             physicalPort ? StringPrintf("%" PRIu8, *physicalPort).c_str()
                                          : "<none>",
                             orientation, logicalLeft, logicalTop, logicalRight, logicalBottom,
