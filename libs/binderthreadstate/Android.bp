@@ -19,6 +19,11 @@ cc_library_static {
     double_loadable: true,
     vendor_available: true,
     host_supported: true,
+    target: {
+        darwin: {
+            enabled: false,
+        }
+    },
 
     shared_libs: [
         "libbinder",
