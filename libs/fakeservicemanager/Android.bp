@@ -9,6 +9,11 @@ cc_defaults {
         "libbinder",
         "libutils",
     ],
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
 }
 
 cc_library {
