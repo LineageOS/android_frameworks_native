@@ -109,6 +109,7 @@ protected:
         TracedOrdinal<std::chrono::nanoseconds> workDuration
                 GUARDED_BY(mutex) = {"VsyncWorkDuration-sf", std::chrono::nanoseconds(0)};
         std::chrono::nanoseconds lastCallbackTime GUARDED_BY(mutex) = std::chrono::nanoseconds{0};
+        bool mScheduled GUARDED_BY(mutex) = false;
         TracedOrdinal<int> value = {"VSYNC-sf", 0};
     };
 
