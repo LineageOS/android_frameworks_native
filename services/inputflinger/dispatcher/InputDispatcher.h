@@ -211,7 +211,6 @@ private:
     sp<InputWindowHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t y,
                                                     TouchState* touchState,
                                                     bool addOutsideTargets = false,
-                                                    bool addPortalWindows = false,
                                                     bool ignoreDragWindow = false) REQUIRES(mLock);
 
     sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
@@ -489,8 +488,7 @@ private:
     android::os::InputEventInjectionResult findTouchedWindowTargetsLocked(
             nsecs_t currentTime, const MotionEntry& entry, std::vector<InputTarget>& inputTargets,
             nsecs_t* nextWakeupTime, bool* outConflictingPointerActions) REQUIRES(mLock);
-    std::vector<TouchedMonitor> findTouchedGestureMonitorsLocked(
-            int32_t displayId, const std::vector<sp<InputWindowHandle>>& portalWindows) const
+    std::vector<TouchedMonitor> findTouchedGestureMonitorsLocked(int32_t displayId) const
             REQUIRES(mLock);
     std::vector<TouchedMonitor> selectResponsiveMonitorsLocked(
             const std::vector<TouchedMonitor>& gestureMonitors) const REQUIRES(mLock);

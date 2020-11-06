@@ -36,7 +36,6 @@ void TouchState::reset() {
     source = 0;
     displayId = ADISPLAY_ID_NONE;
     windows.clear();
-    portalWindows.clear();
     gestureMonitors.clear();
 }
 
@@ -47,7 +46,6 @@ void TouchState::copyFrom(const TouchState& other) {
     source = other.source;
     displayId = other.displayId;
     windows = other.windows;
-    portalWindows = other.portalWindows;
     gestureMonitors = other.gestureMonitors;
 }
 
@@ -74,16 +72,6 @@ void TouchState::addOrUpdateWindow(const sp<InputWindowHandle>& windowHandle, in
     touchedWindow.targetFlags = targetFlags;
     touchedWindow.pointerIds = pointerIds;
     windows.push_back(touchedWindow);
-}
-
-void TouchState::addPortalWindow(const sp<InputWindowHandle>& windowHandle) {
-    size_t numWindows = portalWindows.size();
-    for (size_t i = 0; i < numWindows; i++) {
-        if (portalWindows[i] == windowHandle) {
-            return;
-        }
-    }
-    portalWindows.push_back(windowHandle);
 }
 
 void TouchState::addGestureMonitors(const std::vector<TouchedMonitor>& newMonitors) {
@@ -118,7 +106,6 @@ void TouchState::filterNonAsIsTouchWindows() {
 
 void TouchState::filterNonMonitors() {
     windows.clear();
-    portalWindows.clear();
 }
 
 sp<InputWindowHandle> TouchState::getFirstForegroundWindowHandle() const {

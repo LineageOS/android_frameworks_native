@@ -34,11 +34,6 @@ struct TouchState {
     int32_t displayId; // id to the display that currently has a touch, others are rejected
     std::vector<TouchedWindow> windows;
 
-    // This collects the portal windows that the touch has gone through. Each portal window
-    // targets a display (embedded display for most cases). With this info, we can add the
-    // monitoring channels of the displays touched.
-    std::vector<sp<android::InputWindowHandle>> portalWindows;
-
     std::vector<TouchedMonitor> gestureMonitors;
 
     TouchState();
