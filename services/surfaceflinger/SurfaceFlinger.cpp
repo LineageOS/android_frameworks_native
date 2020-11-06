@@ -2344,8 +2344,10 @@ void SurfaceFlinger::postComposition()
     }
     getBE().mLastSwapTime = currentTime;
 
+#ifndef DISABLE_POST_RENDER_CLEANUP
     // Cleanup any outstanding resources due to rendering a prior frame.
     getRenderEngine().cleanupPostRender();
+#endif
 
     {
         std::lock_guard lock(mTexturePoolMutex);
