@@ -2344,8 +2344,10 @@ void SurfaceFlinger::postComposition()
     }
     getBE().mLastSwapTime = currentTime;
 
+#ifndef QCOM_BSP_LEGACY
     // Cleanup any outstanding resources due to rendering a prior frame.
     getRenderEngine().cleanupPostRender();
+#endif
 
     {
         std::lock_guard lock(mTexturePoolMutex);
