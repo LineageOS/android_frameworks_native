@@ -95,6 +95,10 @@ public:
 
     void flushSensor(int32_t deviceId, InputDeviceSensorType sensorType) override;
 
+    std::optional<int32_t> getBatteryCapacity(int32_t deviceId) override;
+
+    std::optional<int32_t> getBatteryStatus(int32_t deviceId) override;
+
 protected:
     // These members are protected so they can be instrumented by test cases.
     virtual std::shared_ptr<InputDevice> createDeviceLocked(int32_t deviceId,

@@ -92,6 +92,9 @@ public:
     void disableSensor(InputDeviceSensorType sensorType);
     void flushSensor(InputDeviceSensorType sensorType);
 
+    std::optional<int32_t> getBatteryCapacity();
+    std::optional<int32_t> getBatteryStatus();
+
     int32_t getMetaState();
     void updateMetaState(int32_t keyCode);
 
@@ -286,6 +289,12 @@ public:
     inline void cancelVibrate() { return mEventHub->cancelVibrate(mId); }
 
     inline std::vector<int32_t> getVibratorIds() { return mEventHub->getVibratorIds(mId); }
+
+    inline std::optional<int32_t> getBatteryCapacity() {
+        return mEventHub->getBatteryCapacity(mId);
+    }
+
+    inline std::optional<int32_t> getBatteryStatus() { return mEventHub->getBatteryStatus(mId); }
 
     inline bool hasAbsoluteAxis(int32_t code) const {
         RawAbsoluteAxisInfo info;
