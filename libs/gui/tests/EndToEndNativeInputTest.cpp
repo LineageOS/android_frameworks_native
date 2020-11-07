@@ -153,6 +153,24 @@ public:
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
+    void expectTapWithFlag(int x, int y, int32_t flags) {
+        InputEvent *ev = consumeEvent();
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
+        MotionEvent *mev = static_cast<MotionEvent *>(ev);
+        EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, mev->getAction());
+        EXPECT_EQ(x, mev->getX(0));
+        EXPECT_EQ(y, mev->getY(0));
+        EXPECT_EQ(flags, mev->getFlags() & flags);
+
+        ev = consumeEvent();
+        ASSERT_NE(ev, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
+        mev = static_cast<MotionEvent *>(ev);
+        EXPECT_EQ(AMOTION_EVENT_ACTION_UP, mev->getAction());
+        EXPECT_EQ(flags, mev->getFlags() & flags);
+    }
+
     ~InputSurface() { mInputFlinger->removeInputChannel(mClientChannel->getConnectionToken()); }
 
     void doTransaction(std::function<void(SurfaceComposerClient::Transaction&,
@@ -600,6 +618,70 @@ TEST_F(InputSurfacesTest, rotate_surface_with_scale_and_insets) {
     });
     injectTap(160, 80);
     surface->expectTap(5, 10);
+}
+
+TEST_F(InputSurfacesTest, touch_flag_obscured) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(100, 100);
+
+    // Add non touchable window to fully cover touchable window. Window behind gets touch, but
+    // with flag AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED
+    std::unique_ptr<InputSurface> nonTouchableSurface = makeSurface(100, 100);
+    nonTouchableSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    nonTouchableSurface->mInputInfo.ownerUid = 22222;
+    nonTouchableSurface->showAt(100, 100);
+
+    injectTap(190, 199);
+    surface->expectTapWithFlag(90, 99, AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED);
+}
+
+TEST_F(InputSurfacesTest, touch_flag_partially_obscured_with_crop) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(100, 100);
+
+    // Add non touchable window to cover touchable window, but parent is cropped to not cover area
+    // that will be tapped. Window behind gets touch, but with flag
+    // AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED
+    std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> nonTouchableSurface = makeSurface(100, 100);
+    nonTouchableSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    parentSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    nonTouchableSurface->mInputInfo.ownerUid = 22222;
+    parentSurface->mInputInfo.ownerUid = 22222;
+    nonTouchableSurface->showAt(0, 0);
+    parentSurface->showAt(100, 100);
+
+    nonTouchableSurface->doTransaction([&](auto &t, auto &sc) {
+        t.setCrop_legacy(parentSurface->mSurfaceControl, Rect(0, 0, 50, 50));
+        t.reparent(sc, parentSurface->mSurfaceControl);
+    });
+
+    injectTap(190, 199);
+    surface->expectTapWithFlag(90, 99, AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED);
+}
+
+TEST_F(InputSurfacesTest, touch_not_obscured_with_crop) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(100, 100);
+
+    // Add non touchable window to cover touchable window, but parent is cropped to avoid covering
+    // the touchable window. Window behind gets touch with no obscured flags.
+    std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> nonTouchableSurface = makeSurface(100, 100);
+    nonTouchableSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    parentSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    nonTouchableSurface->mInputInfo.ownerUid = 22222;
+    parentSurface->mInputInfo.ownerUid = 22222;
+    nonTouchableSurface->showAt(0, 0);
+    parentSurface->showAt(50, 50);
+
+    nonTouchableSurface->doTransaction([&](auto &t, auto &sc) {
+        t.setCrop_legacy(parentSurface->mSurfaceControl, Rect(0, 0, 50, 50));
+        t.reparent(sc, parentSurface->mSurfaceControl);
+    });
+
+    injectTap(101, 110);
+    surface->expectTap(1, 10);
 }
 
 } // namespace android::test
