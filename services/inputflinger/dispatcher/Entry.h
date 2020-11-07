@@ -250,7 +250,7 @@ struct CommandEntry {
     int32_t userActivityEventType;
     uint32_t seq;
     bool handled;
-    std::shared_ptr<InputChannel> inputChannel;
+    sp<IBinder> connectionToken;
     sp<IBinder> oldToken;
     sp<IBinder> newToken;
     std::string obscuringPackage;
