@@ -166,7 +166,7 @@ public:
         }
 
         bool operator!=(const Policy& other) const { return !(*this == other); }
-        std::string toString();
+        std::string toString() const;
     };
 
     // Return code set*Policy() to indicate the current policy is unchanged.

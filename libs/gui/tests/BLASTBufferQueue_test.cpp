@@ -123,6 +123,7 @@ protected:
                 .apply();
 
         mCaptureArgs.displayToken = mDisplayToken;
+        mCaptureArgs.dataspace = ui::Dataspace::V0_SRGB;
     }
 
     void setUpProducer(BLASTBufferQueueHelper adapter, sp<IGraphicBufferProducer>& producer) {
@@ -181,6 +182,7 @@ protected:
         for (uint32_t row = 0; row < height; row++) {
             for (uint32_t col = 0; col < width; col++) {
                 uint8_t* pixel = (uint8_t*)(bufData + (row * stride) + col);
+                ASSERT_NE(nullptr, pixel);
                 bool inRegion;
                 if (!outsideRegion) {
                     inRegion = row >= region.top + border && row < region.bottom - border &&
