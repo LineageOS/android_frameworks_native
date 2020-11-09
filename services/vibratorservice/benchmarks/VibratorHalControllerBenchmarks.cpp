@@ -302,11 +302,13 @@ public:
         }
 
         std::vector<hardware::vibrator::Effect> supported = effectsResult.value();
+        b->ArgNames({"Effect", "Strength"});
+
         if (supported.empty()) {
+            b->Args({static_cast<long>(-1), static_cast<long>(-1)});
             return;
         }
 
-        b->ArgNames({"Effect", "Strength"});
         for (const auto& effect : enum_range<hardware::vibrator::Effect>()) {
             if (std::find(supported.begin(), supported.end(), effect) == supported.end()) {
                 continue;
@@ -318,6 +320,8 @@ public:
     }
 
 protected:
+    bool hasArgs(const State& state) const { return this->getOtherArg(state, 0) >= 0; }
+
     auto getEffect(const State& state) const {
         return static_cast<hardware::vibrator::Effect>(this->getOtherArg(state, 0));
     }
@@ -331,6 +335,9 @@ BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnEnable, {
     auto result = mController.getCapabilities();
 
     if (!hasCapabilities(result, vibrator::Capabilities::ALWAYS_ON_CONTROL, state)) {
+        return;
+    }
+    if (!hasArgs(state)) {
         return;
     }
 
@@ -354,6 +361,9 @@ BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnDisable, {
     if (!hasCapabilities(result, vibrator::Capabilities::ALWAYS_ON_CONTROL, state)) {
         return;
     }
+    if (!hasArgs(state)) {
+        return;
+    }
 
     int32_t id = 1;
     auto effect = getEffect(state);
@@ -370,6 +380,10 @@ BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnDisable, {
 });
 
 BENCHMARK_WRAPPER(VibratorEffectsBench, performEffect, {
+    if (!hasArgs(state)) {
+        return;
+    }
+
     auto effect = getEffect(state);
     auto strength = getStrength(state);
     auto callback = []() {};
@@ -394,11 +408,13 @@ public:
         }
 
         std::vector<hardware::vibrator::CompositePrimitive> supported = primitivesResult.value();
+        b->ArgNames({"Primitive"});
+
         if (supported.empty()) {
+            b->Args({static_cast<long>(-1)});
             return;
         }
 
-        b->ArgNames({"Primitive"});
         for (const auto& primitive : enum_range<hardware::vibrator::CompositePrimitive>()) {
             if (std::find(supported.begin(), supported.end(), primitive) == supported.end()) {
                 continue;
@@ -411,6 +427,8 @@ public:
     }
 
 protected:
+    bool hasArgs(const State& state) const { return this->getOtherArg(state, 0) >= 0; }
+
     auto getPrimitive(const State& state) const {
         return static_cast<hardware::vibrator::CompositePrimitive>(this->getOtherArg(state, 0));
     }
@@ -420,6 +438,9 @@ BENCHMARK_WRAPPER(VibratorPrimitivesBench, performComposedEffect, {
     auto result = mController.getCapabilities();
 
     if (!hasCapabilities(result, vibrator::Capabilities::COMPOSE_EFFECTS, state)) {
+        return;
+    }
+    if (!hasArgs(state)) {
         return;
     }
 
