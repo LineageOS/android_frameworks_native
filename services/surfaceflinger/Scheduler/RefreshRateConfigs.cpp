@@ -48,7 +48,7 @@ std::string RefreshRateConfigs::layerVoteTypeString(LayerVoteType vote) {
     }
 }
 
-std::string RefreshRateConfigs::Policy::toString() {
+std::string RefreshRateConfigs::Policy::toString() const {
     return base::StringPrintf("default config ID: %d, allowGroupSwitching = %d"
                               ", primary range: [%.2f %.2f], app request range: [%.2f %.2f]",
                               defaultConfig.value(), allowGroupSwitching, primaryRange.min,
@@ -433,10 +433,12 @@ bool RefreshRateConfigs::isPolicyValid(const Policy& policy) {
     // defaultConfig must be a valid config, and within the given refresh rate range.
     auto iter = mRefreshRates.find(policy.defaultConfig);
     if (iter == mRefreshRates.end()) {
+        ALOGE("Default config is not found.");
         return false;
     }
     const RefreshRate& refreshRate = *iter->second;
     if (!refreshRate.inPolicy(policy.primaryRange.min, policy.primaryRange.max)) {
+        ALOGE("Default config is not in the primary range.");
         return false;
     }
     return policy.appRequestRange.min <= policy.primaryRange.min &&
@@ -446,6 +448,7 @@ bool RefreshRateConfigs::isPolicyValid(const Policy& policy) {
 status_t RefreshRateConfigs::setDisplayManagerPolicy(const Policy& policy) {
     std::lock_guard lock(mLock);
     if (!isPolicyValid(policy)) {
+        ALOGE("Invalid refresh rate policy: %s", policy.toString().c_str());
         return BAD_VALUE;
     }
     Policy previousPolicy = *getCurrentPolicyLocked();
