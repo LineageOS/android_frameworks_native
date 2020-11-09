@@ -52,5 +52,10 @@ bool Description::hasColorMatrix() const {
     return colorMatrix != identity;
 }
 
+bool Description::hasDisplayColorMatrix() const {
+    const mat4 identity;
+    return displayColorMatrix != identity;
+}
+
 } // namespace renderengine
 } // namespace android
