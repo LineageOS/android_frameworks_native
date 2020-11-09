@@ -669,8 +669,14 @@ void Output::updateAndWriteCompositionState(
 compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition() const {
     compositionengine::OutputLayer* layerRequestingBgComposition = nullptr;
     for (auto* layer : getOutputLayersOrderedByZ()) {
-        if (layer->getLayerFE().getCompositionState()->backgroundBlurRadius > 0 ||
-            layer->getLayerFE().getCompositionState()->blurRegions.size() > 0) {
+        auto* compState = layer->getLayerFE().getCompositionState();
+
+        // If any layer has a sideband stream, we will disable blurs. In that case, we don't
+        // want to force client composition because of the blur.
+        if (compState->sidebandStream != nullptr) {
+            return nullptr;
+        }
+        if (compState->backgroundBlurRadius > 0 || compState->blurRegions.size() > 0) {
             layerRequestingBgComposition = layer;
         }
     }
@@ -1022,6 +1028,8 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
     // Used when a layer clears part of the buffer.
     Region stubRegion;
 
+    bool disableBlurs = false;
+
     for (auto* layer : getOutputLayersOrderedByZ()) {
         const auto& layerState = layer->getState();
         const auto* layerFEState = layer->getLayerFE().getCompositionState();
@@ -1034,6 +1042,8 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
             firstLayer = false;
             continue;
         }
+
+        disableBlurs |= layerFEState->sidebandStream != nullptr;
 
         const bool clientComposition = layer->requiresClientComposition();
 
@@ -1063,7 +1073,8 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                                    .viewport = outputState.layerStackSpace.content,
                                    .dataspace = outputDataspace,
                                    .realContentIsVisible = realContentIsVisible,
-                                   .clearContent = !clientComposition};
+                                   .clearContent = !clientComposition,
+                                   .disableBlurs = disableBlurs};
             std::vector<LayerFE::LayerSettings> results =
                     layerFE.prepareClientCompositionList(targetSettings);
             if (realContentIsVisible && !results.empty()) {

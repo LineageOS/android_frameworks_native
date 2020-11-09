@@ -5795,7 +5795,10 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     const auto display = renderArea.getDisplayDevice();
     std::vector<Layer*> renderedLayers;
     Region clearRegion = Region::INVALID_REGION;
+    bool disableBlurs = false;
     traverseLayers([&](Layer* layer) {
+        disableBlurs |= layer->getCurrentState().sidebandStream != nullptr;
+
         Region clip(renderArea.getBounds());
         compositionengine::LayerFE::ClientCompositionTargetSettings targetSettings{
                 clip,
@@ -5806,8 +5809,9 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                 clearRegion,
                 layerStackSpaceRect,
                 clientCompositionDisplay.outputDataspace,
-                true,  /* realContentIsVisible */
+                true, /* realContentIsVisible */
                 false, /* clearContent */
+                disableBlurs,
         };
         std::vector<compositionengine::LayerFE::LayerSettings> results =
                 layer->prepareClientCompositionList(targetSettings);
@@ -5822,11 +5826,13 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                     settings.backgroundBlurRadius = 0;
                 }
             }
+
             clientCompositionLayers.insert(clientCompositionLayers.end(),
                                            std::make_move_iterator(results.begin()),
                                            std::make_move_iterator(results.end()));
             renderedLayers.push_back(layer);
         }
+
     });
 
     std::vector<const renderengine::LayerSettings*> clientCompositionLayerPointers(

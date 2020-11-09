@@ -3688,6 +3688,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqu
             kDisplayDataspace,
             false /* realContentIsVisible */,
             true /* clearContent */,
+            false /* disabledBlurs */,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
@@ -3699,6 +3700,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqu
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
 
     LayerFE::LayerSettings mBlackoutSettings = mLayers[1].mLayerSettings;
@@ -3742,6 +3744,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(Rect(0, 0, 30, 30)),
@@ -3753,6 +3756,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(Rect(0, 0, 40, 201)),
@@ -3764,6 +3768,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
 
     EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
@@ -3795,6 +3800,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
@@ -3806,6 +3812,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
@@ -3817,6 +3824,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
 
     EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
@@ -3848,6 +3856,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
 
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
@@ -3860,6 +3869,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
@@ -3871,6 +3881,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
 
     EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
@@ -3901,6 +3912,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
@@ -3912,6 +3924,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
@@ -3923,6 +3936,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
 
     EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
@@ -3951,6 +3965,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer1TargetSettings{
             Region(kDisplayFrame),
@@ -3962,6 +3977,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
     compositionengine::LayerFE::ClientCompositionTargetSettings layer2TargetSettings{
             Region(kDisplayFrame),
@@ -3973,6 +3989,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
 
     EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
@@ -4092,6 +4109,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
             kOutputDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
 
     EXPECT_CALL(leftLayer.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
@@ -4109,6 +4127,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
             kOutputDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
 
     EXPECT_CALL(rightLayer.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
@@ -4142,6 +4161,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             false /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
 
     LayerFE::LayerSettings mShadowSettings;
@@ -4187,6 +4207,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             kDisplayDataspace,
             true /* realContentIsVisible */,
             false /* clearContent */,
+            false /* disabledBlurs */,
     };
 
     EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
