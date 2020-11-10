@@ -429,15 +429,35 @@ bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
     return result;
 }
 
-void InputDevice::vibrate(const std::vector<VibrationElement>& pattern, ssize_t repeat,
-                          int32_t token) {
-    for_each_mapper([pattern, repeat, token](InputMapper& mapper) {
-        mapper.vibrate(pattern, repeat, token);
+void InputDevice::vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token) {
+    for_each_mapper([sequence, repeat, token](InputMapper& mapper) {
+        mapper.vibrate(sequence, repeat, token);
     });
 }
 
 void InputDevice::cancelVibrate(int32_t token) {
     for_each_mapper([token](InputMapper& mapper) { mapper.cancelVibrate(token); });
+}
+
+bool InputDevice::isVibrating() {
+    bool vibrating = false;
+    for_each_mapper([&vibrating](InputMapper& mapper) { vibrating |= mapper.isVibrating(); });
+    return vibrating;
+}
+
+/* There's no guarantee the IDs provided by the different mappers are unique, so if we have two
+ * different vibration mappers then we could have duplicate IDs.
+ * Alternatively, if we have a merged device that has multiple evdev nodes with FF_* capabilities,
+ * we would definitely have duplicate IDs.
+ */
+std::vector<int32_t> InputDevice::getVibratorIds() {
+    std::vector<int32_t> vibrators;
+    for_each_mapper([&vibrators](InputMapper& mapper) {
+        std::vector<int32_t> devVibs = mapper.getVibratorIds();
+        vibrators.reserve(vibrators.size() + devVibs.size());
+        vibrators.insert(vibrators.end(), devVibs.begin(), devVibs.end());
+    });
+    return vibrators;
 }
 
 void InputDevice::cancelTouch(nsecs_t when) {

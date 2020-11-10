@@ -56,7 +56,7 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
     mQueuedListener = new QueuedInputListener(listener);
 
     { // acquire lock
-        std::lock_guard<std::mutex> lock(mLock);
+        std::scoped_lock _l(mLock);
 
         refreshConfigurationLocked(0);
         updateGlobalMetaStateLocked();
@@ -89,7 +89,7 @@ void InputReader::loopOnce() {
     bool inputDevicesChanged = false;
     std::vector<InputDeviceInfo> inputDevices;
     { // acquire lock
-        std::lock_guard<std::mutex> lock(mLock);
+        std::scoped_lock _l(mLock);
 
         oldGeneration = mGeneration;
         timeoutMillis = -1;
@@ -108,7 +108,7 @@ void InputReader::loopOnce() {
     size_t count = mEventHub->getEvents(timeoutMillis, mEventBuffer, EVENT_BUFFER_SIZE);
 
     { // acquire lock
-        std::lock_guard<std::mutex> lock(mLock);
+        std::scoped_lock _l(mLock);
         mReaderIsAliveCondition.notify_all();
 
         if (count) {
@@ -407,7 +407,7 @@ void InputReader::getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& o
 }
 
 void InputReader::dispatchExternalStylusState(const StylusState& state) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     for (auto& devicePair : mDevices) {
         std::shared_ptr<InputDevice>& device = devicePair.second;
         device->updateExternalStylusState(state);
@@ -482,7 +482,7 @@ int32_t InputReader::bumpGenerationLocked() {
 }
 
 std::vector<InputDeviceInfo> InputReader::getInputDevices() const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     return getInputDevicesLocked();
 }
 
@@ -501,19 +501,19 @@ std::vector<InputDeviceInfo> InputReader::getInputDevicesLocked() const {
 }
 
 int32_t InputReader::getKeyCodeState(int32_t deviceId, uint32_t sourceMask, int32_t keyCode) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     return getStateLocked(deviceId, sourceMask, keyCode, &InputDevice::getKeyCodeState);
 }
 
 int32_t InputReader::getScanCodeState(int32_t deviceId, uint32_t sourceMask, int32_t scanCode) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     return getStateLocked(deviceId, sourceMask, scanCode, &InputDevice::getScanCodeState);
 }
 
 int32_t InputReader::getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t switchCode) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     return getStateLocked(deviceId, sourceMask, switchCode, &InputDevice::getSwitchState);
 }
@@ -545,7 +545,7 @@ int32_t InputReader::getStateLocked(int32_t deviceId, uint32_t sourceMask, int32
 }
 
 void InputReader::toggleCapsLockState(int32_t deviceId) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     InputDevice* device = findInputDeviceLocked(deviceId);
     if (!device) {
         ALOGW("Ignoring toggleCapsLock for unknown deviceId %" PRId32 ".", deviceId);
@@ -561,7 +561,7 @@ void InputReader::toggleCapsLockState(int32_t deviceId) {
 
 bool InputReader::hasKeys(int32_t deviceId, uint32_t sourceMask, size_t numCodes,
                           const int32_t* keyCodes, uint8_t* outFlags) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     memset(outFlags, 0, numCodes);
     return markSupportedKeyCodesLocked(deviceId, sourceMask, numCodes, keyCodes, outFlags);
@@ -588,7 +588,7 @@ bool InputReader::markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceM
 }
 
 void InputReader::requestRefreshConfiguration(uint32_t changes) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     if (changes) {
         bool needWake = !mConfigurationChangesToRefresh;
@@ -600,17 +600,18 @@ void InputReader::requestRefreshConfiguration(uint32_t changes) {
     }
 }
 
-void InputReader::vibrate(int32_t deviceId, const std::vector<VibrationElement>& pattern,
-                          ssize_t repeat, int32_t token) {
-    std::lock_guard<std::mutex> lock(mLock);
+void InputReader::vibrate(int32_t deviceId, const VibrationSequence& sequence, ssize_t repeat,
+                          int32_t token) {
+    std::scoped_lock _l(mLock);
+
     InputDevice* device = findInputDeviceLocked(deviceId);
     if (device) {
-        device->vibrate(pattern, repeat, token);
+        device->vibrate(sequence, repeat, token);
     }
 }
 
 void InputReader::cancelVibrate(int32_t deviceId, int32_t token) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     InputDevice* device = findInputDeviceLocked(deviceId);
     if (device) {
@@ -618,8 +619,28 @@ void InputReader::cancelVibrate(int32_t deviceId, int32_t token) {
     }
 }
 
+bool InputReader::isVibrating(int32_t deviceId) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        return device->isVibrating();
+    }
+    return false;
+}
+
+std::vector<int32_t> InputReader::getVibratorIds(int32_t deviceId) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        return device->getVibratorIds();
+    }
+    return {};
+}
+
 bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     InputDevice* device = findInputDeviceLocked(deviceId);
     if (device) {
@@ -630,7 +651,7 @@ bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
 }
 
 bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     InputDevice* device = findInputDeviceLocked(deviceId);
     if (!device) {
@@ -658,7 +679,7 @@ bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
 }
 
 void InputReader::dump(std::string& dump) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     mEventHub->dump(dump);
     dump += "\n";

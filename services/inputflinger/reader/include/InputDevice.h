@@ -82,8 +82,10 @@ public:
     int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
     bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
                                uint8_t* outFlags);
-    void vibrate(const std::vector<VibrationElement>& pattern, ssize_t repeat, int32_t token);
+    void vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token);
     void cancelVibrate(int32_t token);
+    bool isVibrating();
+    std::vector<int32_t> getVibratorIds();
     void cancelTouch(nsecs_t when);
 
     int32_t getMetaState();
@@ -271,6 +273,8 @@ public:
         return mEventHub->vibrate(mId, element);
     }
     inline void cancelVibrate() { return mEventHub->cancelVibrate(mId); }
+
+    inline std::vector<int32_t> getVibratorIds() { return mEventHub->getVibratorIds(mId); }
 
     inline bool hasAbsoluteAxis(int32_t code) const {
         RawAbsoluteAxisInfo info;

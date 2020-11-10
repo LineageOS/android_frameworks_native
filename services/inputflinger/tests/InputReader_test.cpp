@@ -27,6 +27,7 @@
 #include <TestInputListener.h>
 #include <TouchInputMapper.h>
 #include <UinputDevice.h>
+#include <VibratorInputMapper.h>
 #include <android-base/thread_annotations.h>
 #include <gtest/gtest.h>
 #include <inttypes.h>
@@ -396,6 +397,7 @@ class FakeEventHub : public EventHubInterface {
     std::vector<std::string> mExcludedDevices;
     List<RawEvent> mEvents GUARDED_BY(mLock);
     std::unordered_map<int32_t /*deviceId*/, std::vector<TouchVideoFrame>> mVideoFrames;
+    std::vector<int32_t> mVibrators = {0, 1};
 
 public:
     virtual ~FakeEventHub() {
@@ -809,6 +811,8 @@ private:
     void vibrate(int32_t, const VibrationElement&) override {}
 
     void cancelVibrate(int32_t) override {}
+
+    std::vector<int32_t> getVibratorIds(int32_t deviceId) override { return mVibrators; };
 
     virtual bool isExternal(int32_t) const {
         return false;
@@ -1816,6 +1820,31 @@ TEST_F(InputReaderTest, ChangingPointerCaptureNotifiesInputListener) {
     ASSERT_FALSE(args.enabled) << "Pointer Capture should be disabled.";
 }
 
+class FakeVibratorInputMapper : public FakeInputMapper {
+public:
+    FakeVibratorInputMapper(InputDeviceContext& deviceContext, uint32_t sources)
+          : FakeInputMapper(deviceContext, sources) {}
+
+    std::vector<int32_t> getVibratorIds() override { return getDeviceContext().getVibratorIds(); }
+};
+
+TEST_F(InputReaderTest, VibratorGetVibratorIds) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD | InputDeviceClass::VIBRATOR;
+    constexpr int32_t eventHubId = 1;
+    const char* DEVICE_LOCATION = "BLUETOOTH";
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake", DEVICE_LOCATION);
+    FakeVibratorInputMapper& mapper =
+            device->addMapper<FakeVibratorInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
+    mReader->pushNextDevice(device);
+
+    ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
+    ASSERT_NO_FATAL_FAILURE(mapper.assertConfigureWasCalled());
+
+    ASSERT_EQ(mapper.getVibratorIds().size(), 2U);
+    ASSERT_EQ(mReader->getVibratorIds(deviceId).size(), 2U);
+}
+
 // --- InputReaderIntegrationTest ---
 
 // These tests create and interact with the InputReader only through its interface.
@@ -2496,6 +2525,46 @@ TEST_F(SwitchInputMapperTest, Process) {
     ASSERT_EQ(uint32_t(0), args.policyFlags);
 }
 
+// --- VibratorInputMapperTest ---
+class VibratorInputMapperTest : public InputMapperTest {
+protected:
+    void SetUp() override { InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::VIBRATOR); }
+};
+
+TEST_F(VibratorInputMapperTest, GetSources) {
+    VibratorInputMapper& mapper = addMapperAndConfigure<VibratorInputMapper>();
+
+    ASSERT_EQ(AINPUT_SOURCE_UNKNOWN, mapper.getSources());
+}
+
+TEST_F(VibratorInputMapperTest, GetVibratorIds) {
+    VibratorInputMapper& mapper = addMapperAndConfigure<VibratorInputMapper>();
+
+    ASSERT_EQ(mapper.getVibratorIds().size(), 2U);
+}
+
+TEST_F(VibratorInputMapperTest, Vibrate) {
+    constexpr uint8_t DEFAULT_AMPLITUDE = 192;
+    VibratorInputMapper& mapper = addMapperAndConfigure<VibratorInputMapper>();
+
+    VibrationElement pattern(2);
+    VibrationSequence sequence(2);
+    pattern.duration = std::chrono::milliseconds(200);
+    pattern.channels = {{0 /* vibratorId */, DEFAULT_AMPLITUDE / 2},
+                        {1 /* vibratorId */, DEFAULT_AMPLITUDE}};
+    sequence.addElement(pattern);
+    pattern.duration = std::chrono::milliseconds(500);
+    pattern.channels = {{0 /* vibratorId */, DEFAULT_AMPLITUDE / 4},
+                        {1 /* vibratorId */, DEFAULT_AMPLITUDE}};
+    sequence.addElement(pattern);
+
+    std::vector<int64_t> timings = {0, 1};
+    std::vector<uint8_t> amplitudes = {DEFAULT_AMPLITUDE, DEFAULT_AMPLITUDE / 2};
+
+    ASSERT_FALSE(mapper.isVibrating());
+    mapper.vibrate(sequence, -1 /* repeat */, 0 /* token */);
+    ASSERT_TRUE(mapper.isVibrating());
+}
 
 // --- KeyboardInputMapperTest ---
 
