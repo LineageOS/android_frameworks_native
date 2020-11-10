@@ -28,6 +28,7 @@
 #include <compositionengine/Display.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <cutils/properties.h>
+#include <ftl/future.h>
 #include <gui/IRegionSamplingListener.h>
 #include <gui/SyncScreenCaptureListener.h>
 #include <ui/DisplayStatInfo.h>
@@ -38,7 +39,6 @@
 #include "DisplayDevice.h"
 #include "DisplayRenderArea.h"
 #include "Layer.h"
-#include "Promise.h"
 #include "Scheduler/VsyncController.h"
 #include "SurfaceFlinger.h"
 
@@ -389,7 +389,7 @@ void RegionSamplingThread::captureSample() {
 
     const Rect sampledBounds = sampleRegion.bounds();
 
-    SurfaceFlinger::RenderAreaFuture renderAreaFuture = promise::defer([=] {
+    SurfaceFlinger::RenderAreaFuture renderAreaFuture = ftl::defer([=] {
         return DisplayRenderArea::create(displayWeak, screencapRegion.bounds(),
                                          sampledBounds.getSize(), ui::Dataspace::V0_SRGB,
                                          orientation);

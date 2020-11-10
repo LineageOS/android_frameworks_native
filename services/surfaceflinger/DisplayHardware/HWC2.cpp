@@ -26,18 +26,17 @@
 
 #include "HWC2.h"
 
+#include <android/configuration.h>
+#include <ftl/future.h>
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
 
-#include <android/configuration.h>
-
-#include <inttypes.h>
 #include <algorithm>
+#include <cinttypes>
 #include <iterator>
 #include <set>
 
-#include "../Promise.h"
 #include "ComposerHal.h"
 
 namespace android {
@@ -647,7 +646,7 @@ Error Display::presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests
 }
 
 std::future<Error> Display::setDisplayBrightness(float brightness) {
-    return promise::defer([composer = &mComposer, id = mId, brightness] {
+    return ftl::defer([composer = &mComposer, id = mId, brightness] {
         const auto intError = composer->setDisplayBrightness(id, brightness);
         return static_cast<Error>(intError);
     });

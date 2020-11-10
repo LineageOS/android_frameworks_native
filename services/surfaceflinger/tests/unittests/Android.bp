@@ -50,7 +50,6 @@ cc_test {
         "LayerHistoryTest.cpp",
         "LayerMetadataTest.cpp",
         "MessageQueueTest.cpp",
-        "PromiseTest.cpp",
         "SurfaceFlinger_CreateDisplayTest.cpp",
         "SurfaceFlinger_DestroyDisplayTest.cpp",
         "SurfaceFlinger_GetDisplayNativePrimariesTest.cpp",
