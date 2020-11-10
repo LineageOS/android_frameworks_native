@@ -18,24 +18,31 @@
 
 namespace android {
 
-// Jank information tracked by SurfaceFlinger for the purpose of funneling to telemetry.
+// Jank information tracked by SurfaceFlinger(SF) for perfetto tracing and telemetry.
+// TODO(b/175843808): Change JankType from enum to enum class
 enum JankType {
     // No Jank
     None = 0x0,
-    // Jank not related to SurfaceFlinger or the App
-    Display = 0x1,
+    // Jank that occurs in the layers below SurfaceFlinger
+    DisplayHAL = 0x1,
     // SF took too long on the CPU
-    SurfaceFlingerDeadlineMissed = 0x2,
+    SurfaceFlingerCpuDeadlineMissed = 0x2,
     // SF took too long on the GPU
     SurfaceFlingerGpuDeadlineMissed = 0x4,
     // Either App or GPU took too long on the frame
     AppDeadlineMissed = 0x8,
-    // Predictions live for 120ms, if prediction is expired for a frame, there is definitely a
-    // jank
-    // associated with the App if this is for a SurfaceFrame, and SF for a DisplayFrame.
-    PredictionExpired = 0x10,
-    // Latching a buffer early might cause an early present of the frame
-    SurfaceFlingerEarlyLatch = 0x20,
+    // Vsync predictions have drifted beyond the threshold from the actual HWVsync
+    PredictionError = 0x10,
+    // Janks caused due to the time SF was scheduled to work on the frame
+    // Example: SF woke up too early and latched a buffer resulting in an early present
+    SurfaceFlingerScheduling = 0x20,
+    // A buffer is said to be stuffed if it was expected to be presented on a vsync but was
+    // presented later because the previous buffer was presented in its expected vsync. This
+    // usually happens if there is an unexpectedly long frame causing the rest of the buffers
+    // to enter a stuffed state.
+    BufferStuffing = 0x40,
+    // Jank due to unknown reasons.
+    Unknown = 0x80,
 };
 
 } // namespace android

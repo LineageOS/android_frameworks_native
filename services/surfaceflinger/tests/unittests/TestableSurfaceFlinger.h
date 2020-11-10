@@ -156,8 +156,8 @@ public:
     }
 
     std::unique_ptr<frametimeline::FrameTimeline> createFrameTimeline(
-            std::shared_ptr<TimeStats> timeStats) override {
-        return std::make_unique<mock::FrameTimeline>(timeStats);
+            std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid = 0) override {
+        return std::make_unique<mock::FrameTimeline>(timeStats, surfaceFlingerPid);
     }
 
     using CreateBufferQueueFunction =

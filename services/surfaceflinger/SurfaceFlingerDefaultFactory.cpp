@@ -136,8 +136,8 @@ std::unique_ptr<FrameTracer> DefaultFactory::createFrameTracer() {
 }
 
 std::unique_ptr<frametimeline::FrameTimeline> DefaultFactory::createFrameTimeline(
-        std::shared_ptr<TimeStats> timeStats) {
-    return std::make_unique<frametimeline::impl::FrameTimeline>(timeStats);
+        std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid) {
+    return std::make_unique<frametimeline::impl::FrameTimeline>(timeStats, surfaceFlingerPid);
 }
 
 } // namespace android::surfaceflinger

@@ -19,8 +19,8 @@
 namespace android::mock {
 
 // Explicit default instantiation is recommended.
-FrameTimeline::FrameTimeline(std::shared_ptr<TimeStats> timeStats)
-      : android::frametimeline::impl::FrameTimeline(timeStats) {}
+FrameTimeline::FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid)
+      : android::frametimeline::impl::FrameTimeline(timeStats, surfaceFlingerPid) {}
 FrameTimeline::~FrameTimeline() = default;
 
 } // namespace android::mock
