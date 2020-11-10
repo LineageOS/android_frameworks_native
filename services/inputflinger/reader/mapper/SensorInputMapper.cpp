@@ -405,13 +405,10 @@ void SensorInputMapper::sync(nsecs_t when, bool force) {
             // Convert to Android unit
             convertFromLinuxToAndroid(values, sensorType);
             // Notify dispatcher for sensor event
-            NotifySensorArgs args(getContext()->getNextId(), when, getDeviceId(),
-                                  AINPUT_SOURCE_SENSOR, sensorType, sensor.sensorInfo.accuracy,
-                                  sensor.accuracy !=
-                                          sensor.sensorInfo.accuracy /* accuracyChanged */,
-                                  timestamp /* hwTimestamp */, values);
-
-            getListener()->notifySensor(&args);
+            getContext()->notifySensor(when, getDeviceId(), sensorType, sensor.sensorInfo.accuracy,
+                                       sensor.accuracy !=
+                                               sensor.sensorInfo.accuracy /* accuracyChanged */,
+                                       timestamp /* hwTimestamp */, std::move(values));
             sensor.lastSampleTimeNs = timestamp;
             sensor.accuracy = sensor.sensorInfo.accuracy;
         }
