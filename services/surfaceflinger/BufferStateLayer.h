@@ -122,6 +122,8 @@ private:
     bool updateFrameEventHistory(const sp<Fence>& acquireFence, nsecs_t postedTime,
                                  nsecs_t requestedPresentTime);
 
+    status_t addReleaseFence(const sp<CallbackHandle>& ch, const sp<Fence>& releaseFence);
+
     uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
