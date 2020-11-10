@@ -66,6 +66,7 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
         mTextureMatrixLoc = glGetUniformLocation(programId, "texture");
         mSamplerLoc = glGetUniformLocation(programId, "sampler");
         mColorLoc = glGetUniformLocation(programId, "color");
+        mDisplayColorMatrixLoc = glGetUniformLocation(programId, "displayColorMatrix");
         mDisplayMaxLuminanceLoc = glGetUniformLocation(programId, "displayMaxLuminance");
         mMaxMasteringLuminanceLoc = glGetUniformLocation(programId, "maxMasteringLuminance");
         mMaxContentLuminanceLoc = glGetUniformLocation(programId, "maxContentLuminance");
@@ -128,6 +129,9 @@ void Program::setUniforms(const Description& desc) {
     if (mColorLoc >= 0) {
         const float color[4] = {desc.color.r, desc.color.g, desc.color.b, desc.color.a};
         glUniform4fv(mColorLoc, 1, color);
+    }
+    if (mDisplayColorMatrixLoc >= 0) {
+        glUniformMatrix4fv(mDisplayColorMatrixLoc, 1, GL_FALSE, desc.displayColorMatrix.asArray());
     }
     if (mInputTransformMatrixLoc >= 0) {
         mat4 inputTransformMatrix = desc.inputTransformMatrix;
