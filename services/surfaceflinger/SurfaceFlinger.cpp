@@ -4374,16 +4374,10 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   "      present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriodFromHWC());
 
-    scheduler::RefreshRateConfigs::Policy policy = mRefreshRateConfigs->getDisplayManagerPolicy();
-    StringAppendF(&result, "DesiredDisplayConfigSpecs (DisplayManager): %s\n\n",
-                  policy.toString().c_str());
+    mRefreshRateConfigs->dump(result);
+
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
-    scheduler::RefreshRateConfigs::Policy currentPolicy = mRefreshRateConfigs->getCurrentPolicy();
-    if (currentPolicy != policy) {
-        StringAppendF(&result, "DesiredDisplayConfigSpecs (Override): %s\n\n",
-                      currentPolicy.toString().c_str());
-    }
 
     mScheduler->dump(mAppConnectionHandle, result);
     mScheduler->dumpVsync(result);

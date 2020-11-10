@@ -322,6 +322,8 @@ public:
     // Returns a divider for the current refresh rate
     int getRefreshRateDividerForUid(uid_t) const EXCLUDES(mLock);
 
+    void dump(std::string& result) const EXCLUDES(mLock);
+
 private:
     friend class RefreshRateConfigsTest;
 

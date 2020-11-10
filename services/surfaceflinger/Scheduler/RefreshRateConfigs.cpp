@@ -719,4 +719,26 @@ int RefreshRateConfigs::getRefreshRateDividerForUid(uid_t uid) const {
     return static_cast<int>(numPeriods);
 }
 
+void RefreshRateConfigs::dump(std::string& result) const {
+    std::lock_guard lock(mLock);
+    base::StringAppendF(&result, "DesiredDisplayConfigSpecs (DisplayManager): %s\n\n",
+                        mDisplayManagerPolicy.toString().c_str());
+    scheduler::RefreshRateConfigs::Policy currentPolicy = *getCurrentPolicyLocked();
+    if (mOverridePolicy && currentPolicy != mDisplayManagerPolicy) {
+        base::StringAppendF(&result, "DesiredDisplayConfigSpecs (Override): %s\n\n",
+                            currentPolicy.toString().c_str());
+    }
+
+    auto config = mCurrentRefreshRate->hwcConfig;
+    base::StringAppendF(&result, "Current config: %s\n", mCurrentRefreshRate->toString().c_str());
+
+    result.append("Refresh rates:\n");
+    for (const auto& [id, refreshRate] : mRefreshRates) {
+        config = refreshRate->hwcConfig;
+        base::StringAppendF(&result, "\t%s\n", refreshRate->toString().c_str());
+    }
+
+    result.append("\n");
+}
+
 } // namespace android::scheduler
