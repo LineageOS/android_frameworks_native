@@ -313,7 +313,7 @@ private:
             logicalOrientation = ui::Rotation::Rotation90;
         }
 
-        const ui::Rotation orientation = device->getPhysicalOrientation() + logicalOrientation;
+        const ui::Rotation orientation = logicalOrientation;
 
         switch (orientation) {
             case ui::ROTATION_0:
