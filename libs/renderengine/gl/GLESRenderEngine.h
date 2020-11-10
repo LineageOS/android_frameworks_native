@@ -165,6 +165,7 @@ private:
     void setupLayerTexturing(const Texture& texture);
     void setupFillWithColor(float r, float g, float b, float a);
     void setColorTransform(const mat4& colorTransform);
+    void setDisplayColorTransform(const mat4& colorTransform);
     void disableTexturing();
     void disableBlending();
     void setupCornerRadiusCropSize(float width, float height);

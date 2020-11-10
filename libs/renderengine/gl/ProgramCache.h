@@ -117,6 +117,11 @@ public:
             SHADOW_MASK = 1 << SHADOW_SHIFT,
             SHADOW_OFF = 0 << SHADOW_SHIFT,
             SHADOW_ON = 1 << SHADOW_SHIFT,
+
+            DISPLAY_COLOR_TRANSFORM_MATRIX_SHIFT = 14,
+            DISPLAY_COLOR_TRANSFORM_MATRIX_MASK = 1 << DISPLAY_COLOR_TRANSFORM_MATRIX_SHIFT,
+            DISPLAY_COLOR_TRANSFORM_MATRIX_OFF = 0 << DISPLAY_COLOR_TRANSFORM_MATRIX_SHIFT,
+            DISPLAY_COLOR_TRANSFORM_MATRIX_ON = 1 << DISPLAY_COLOR_TRANSFORM_MATRIX_SHIFT,
         };
 
         inline Key() : mKey(0) {}
@@ -142,6 +147,9 @@ public:
         }
         inline bool hasOutputTransformMatrix() const {
             return (mKey & OUTPUT_TRANSFORM_MATRIX_MASK) == OUTPUT_TRANSFORM_MATRIX_ON;
+        }
+        inline bool hasDisplayColorMatrix() const {
+            return (mKey & DISPLAY_COLOR_TRANSFORM_MATRIX_MASK) == DISPLAY_COLOR_TRANSFORM_MATRIX_ON;
         }
         inline bool hasTransformMatrix() const {
             return hasInputTransformMatrix() || hasOutputTransformMatrix();

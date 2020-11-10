@@ -180,6 +180,10 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
                  description.hasOutputTransformMatrix() || description.hasColorMatrix()
                          ? Key::OUTPUT_TRANSFORM_MATRIX_ON
                          : Key::OUTPUT_TRANSFORM_MATRIX_OFF)
+            .set(Key::Key::DISPLAY_COLOR_TRANSFORM_MATRIX_MASK,
+                 description.hasDisplayColorMatrix()
+                         ? Key::DISPLAY_COLOR_TRANSFORM_MATRIX_ON
+                         : Key::DISPLAY_COLOR_TRANSFORM_MATRIX_OFF)
             .set(Key::ROUNDED_CORNERS_MASK,
                  description.cornerRadius > 0 ? Key::ROUNDED_CORNERS_ON : Key::ROUNDED_CORNERS_OFF)
             .set(Key::SHADOW_MASK, description.drawShadows ? Key::SHADOW_ON : Key::SHADOW_OFF);
@@ -661,7 +665,9 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
             )__SHADER__";
     }
 
-    if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF())) {
+    if (needs.hasTransformMatrix() ||
+        (needs.getInputTF() != needs.getOutputTF()) ||
+        needs.hasDisplayColorMatrix()) {
         if (needs.needsToneMapping()) {
             fs << "uniform float displayMaxLuminance;";
             fs << "uniform float maxMasteringLuminance;";
@@ -700,6 +706,21 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
             )__SHADER__";
         }
 
+        if (needs.hasDisplayColorMatrix()) {
+            fs << "uniform mat4 displayColorMatrix;";
+            fs << R"__SHADER__(
+                highp vec3 DisplayColorMatrix(const highp vec3 color) {
+                    return clamp(vec3(displayColorMatrix * vec4(color, 1.0)), 0.0, 1.0);
+                }
+            )__SHADER__";
+        } else {
+            fs << R"__SHADER__(
+                highp vec3 DisplayColorMatrix(const highp vec3 color) {
+                    return color;
+                }
+            )__SHADER__";
+        }
+
         generateEOTF(fs, needs);
         generateOOTF(fs, needs);
         generateOETF(fs, needs);
@@ -732,14 +753,17 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
         }
     }
 
-    if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF())) {
+    if (needs.hasTransformMatrix() ||
+        (needs.getInputTF() != needs.getOutputTF()) ||
+        needs.hasDisplayColorMatrix()) {
         if (!needs.isOpaque() && needs.isPremultiplied()) {
             // un-premultiply if needed before linearization
             // avoid divide by 0 by adding 0.5/256 to the alpha channel
             fs << "gl_FragColor.rgb = gl_FragColor.rgb / (gl_FragColor.a + 0.0019);";
         }
         fs << "gl_FragColor.rgb = "
-              "OETF(OutputTransform(OOTF(InputTransform(EOTF(gl_FragColor.rgb)))));";
+              "DisplayColorMatrix(OETF(OutputTransform(OOTF(InputTransform(EOTF(gl_FragColor.rgb))))));";
+
         if (!needs.isOpaque() && needs.isPremultiplied()) {
             // and re-premultiply if needed after gamma correction
             fs << "gl_FragColor.rgb = gl_FragColor.rgb * (gl_FragColor.a + 0.0019);";
