@@ -30,3 +30,15 @@ cc_library_shared {
         "-Wno-unused-parameter",
     ],
 }
+
+// ====  java host library for timestats proto  ===========================
+// Note timestats is deprecated and is only used for legacy tests
+java_library_host {
+    name: "host-timestats-proto",
+    srcs: [
+        "timestats.proto",
+    ],
+    proto: {
+        type: "full",
+    },
+}
