@@ -16,7 +16,10 @@
 
 #include "LinearEffect.h"
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include <SkString.h>
+#include <utils/Trace.h>
 
 #include <optional>
 
@@ -427,6 +430,7 @@ static ColorSpace toColorSpace(ui::Dataspace dataspace) {
 }
 
 sk_sp<SkRuntimeEffect> buildRuntimeEffect(const LinearEffect& linearEffect) {
+    ATRACE_CALL();
     SkString shaderString;
     generateEOTF(linearEffect.inputDataspace, shaderString);
     generateXYZTransforms(shaderString);
@@ -445,6 +449,7 @@ sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader, const LinearEff
                                          sk_sp<SkRuntimeEffect> runtimeEffect,
                                          float maxDisplayLuminance, float maxMasteringLuminance,
                                          float maxContentLuminance) {
+    ATRACE_CALL();
     SkRuntimeShaderBuilder effectBuilder(runtimeEffect);
 
     effectBuilder.child("input") = shader;
