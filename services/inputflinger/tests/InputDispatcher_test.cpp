@@ -198,7 +198,7 @@ private:
     std::condition_variable mNotifyAnr;
     std::chrono::nanoseconds mAnrTimeout = 0ms;
 
-    virtual void notifyConfigurationChanged(nsecs_t when) override {
+    void notifyConfigurationChanged(nsecs_t when) override {
         std::scoped_lock lock(mLock);
         mConfigurationChangedTime = when;
     }
@@ -213,17 +213,17 @@ private:
         return mAnrTimeout;
     }
 
-    virtual void notifyInputChannelBroken(const sp<IBinder>&) override {}
+    void notifyInputChannelBroken(const sp<IBinder>&) override {}
 
-    virtual void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
+    void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
 
-    virtual void notifyUntrustedTouch(const std::string& obscuringPackage) override {}
+    void notifyUntrustedTouch(const std::string& obscuringPackage) override {}
 
-    virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
+    void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
         *outConfig = mConfig;
     }
 
-    virtual bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) override {
+    bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) override {
         std::scoped_lock lock(mLock);
         switch (inputEvent->getType()) {
             case AINPUT_EVENT_TYPE_KEY: {
@@ -241,22 +241,20 @@ private:
         return true;
     }
 
-    virtual void interceptKeyBeforeQueueing(const KeyEvent*, uint32_t&) override {}
+    void interceptKeyBeforeQueueing(const KeyEvent*, uint32_t&) override {}
 
-    virtual void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) override {}
+    void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) override {}
 
-    virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent*,
-                                                  uint32_t) override {
+    nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent*, uint32_t) override {
         return 0;
     }
 
-    virtual bool dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent*, uint32_t,
-                                      KeyEvent*) override {
+    bool dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent*, uint32_t, KeyEvent*) override {
         return false;
     }
 
-    virtual void notifySwitch(nsecs_t when, uint32_t switchValues, uint32_t switchMask,
-                              uint32_t policyFlags) override {
+    void notifySwitch(nsecs_t when, uint32_t switchValues, uint32_t switchMask,
+                      uint32_t policyFlags) override {
         std::scoped_lock lock(mLock);
         /** We simply reconstruct NotifySwitchArgs in policy because InputDispatcher is
          * essentially a passthrough for notifySwitch.
@@ -264,13 +262,11 @@ private:
         mLastNotifySwitch = NotifySwitchArgs(1 /*id*/, when, policyFlags, switchValues, switchMask);
     }
 
-    virtual void pokeUserActivity(nsecs_t, int32_t) override {}
+    void pokeUserActivity(nsecs_t, int32_t) override {}
 
-    virtual bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) override {
-        return false;
-    }
+    bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) override { return false; }
 
-    virtual void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {
+    void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {
         std::scoped_lock lock(mLock);
         mOnPointerDownToken = newToken;
     }

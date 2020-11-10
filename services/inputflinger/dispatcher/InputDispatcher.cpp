@@ -1230,9 +1230,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<Key
                     &InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible);
             sp<IBinder> focusedWindowToken =
                     getValueByKey(mFocusedWindowTokenByDisplay, getTargetDisplayId(*entry));
-            if (focusedWindowToken != nullptr) {
-                commandEntry->inputChannel = getInputChannelLocked(focusedWindowToken);
-            }
+            commandEntry->connectionToken = focusedWindowToken;
             commandEntry->keyEntry = entry;
             postCommandLocked(std::move(commandEntry));
             return false; // wait for the command to run
@@ -4920,14 +4918,13 @@ void InputDispatcher::onAnrLocked(const Connection& connection) {
                                         connection.inputChannel->getName().c_str(),
                                         ns2ms(currentWait),
                                         oldestEntry->eventEntry->getDescription().c_str());
-
-    updateLastAnrStateLocked(getWindowHandleLocked(connection.inputChannel->getConnectionToken()),
-                             reason);
+    sp<IBinder> connectionToken = connection.inputChannel->getConnectionToken();
+    updateLastAnrStateLocked(getWindowHandleLocked(connectionToken), reason);
 
     std::unique_ptr<CommandEntry> commandEntry =
             std::make_unique<CommandEntry>(&InputDispatcher::doNotifyAnrLockedInterruptible);
     commandEntry->inputApplicationHandle = nullptr;
-    commandEntry->inputChannel = connection.inputChannel;
+    commandEntry->connectionToken = connectionToken;
     commandEntry->reason = std::move(reason);
     postCommandLocked(std::move(commandEntry));
 }
@@ -4941,7 +4938,6 @@ void InputDispatcher::onAnrLocked(const std::shared_ptr<InputApplicationHandle>&
     std::unique_ptr<CommandEntry> commandEntry =
             std::make_unique<CommandEntry>(&InputDispatcher::doNotifyAnrLockedInterruptible);
     commandEntry->inputApplicationHandle = application;
-    commandEntry->inputChannel = nullptr;
     commandEntry->reason = std::move(reason);
     postCommandLocked(std::move(commandEntry));
 }
@@ -5010,10 +5006,8 @@ void InputDispatcher::doNotifyFocusChangedLockedInterruptible(CommandEntry* comm
 }
 
 void InputDispatcher::doNotifyAnrLockedInterruptible(CommandEntry* commandEntry) {
-    sp<IBinder> token =
-            commandEntry->inputChannel ? commandEntry->inputChannel->getConnectionToken() : nullptr;
     mLock.unlock();
-
+    const sp<IBinder>& token = commandEntry->connectionToken;
     const std::chrono::nanoseconds timeoutExtension =
             mPolicy->notifyAnr(commandEntry->inputApplicationHandle, token, commandEntry->reason);
 
@@ -5076,9 +5070,7 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
     mLock.unlock();
 
     android::base::Timer t;
-    sp<IBinder> token = commandEntry->inputChannel != nullptr
-            ? commandEntry->inputChannel->getConnectionToken()
-            : nullptr;
+    const sp<IBinder>& token = commandEntry->connectionToken;
     nsecs_t delay = mPolicy->interceptKeyBeforeDispatching(token, &event, entry.policyFlags);
     if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
         ALOGW("Excessive delay in interceptKeyBeforeDispatching; took %s ms",
