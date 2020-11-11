@@ -454,6 +454,8 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mInTouchMode(true),
         mMaximumObscuringOpacityForTouch(1.0f),
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
+        mFocusedWindowRequestedPointerCapture(false),
+        mWindowTokenWithPointerCapture(nullptr),
         mCompatService(getCompatService()) {
     mLooper = new Looper(false);
     mReporter = createInputReporter();
@@ -713,6 +715,14 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             break;
         }
 
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
+            const auto typedEntry =
+                    std::static_pointer_cast<PointerCaptureChangedEntry>(mPendingEvent);
+            dispatchPointerCaptureChangedLocked(currentTime, typedEntry, dropReason);
+            done = true;
+            break;
+        }
+
         case EventEntry::Type::KEY: {
             std::shared_ptr<KeyEntry> keyEntry = std::static_pointer_cast<KeyEntry>(mPendingEvent);
             if (isAppSwitchDue) {
@@ -862,7 +872,8 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
             break;
         }
         case EventEntry::Type::CONFIGURATION_CHANGED:
-        case EventEntry::Type::DEVICE_RESET: {
+        case EventEntry::Type::DEVICE_RESET:
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
             // nothing to do
             break;
         }
@@ -968,6 +979,10 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
             ALOGI("Dropped event because it is stale.");
             reason = "inbound event was dropped because it is stale";
             break;
+        case DropReason::NO_POINTER_CAPTURE:
+            ALOGI("Dropped event because there is no window with Pointer Capture.");
+            reason = "inbound event was dropped because there is no window with Pointer Capture";
+            break;
         case DropReason::NOT_DROPPED: {
             LOG_ALWAYS_FATAL("Should not be dropping a NOT_DROPPED event");
             return;
@@ -989,6 +1004,9 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
                 CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS, reason);
                 synthesizeCancelationEventsForAllConnectionsLocked(options);
             }
+            break;
+        }
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
             break;
         }
         case EventEntry::Type::FOCUS:
@@ -1174,6 +1192,55 @@ void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime, std::shared_ptr<F
     std::string reason = std::string("reason=").append(entry->reason);
     android_log_event_list(LOGTAG_INPUT_FOCUS) << message << reason << LOG_ID_EVENTS;
     dispatchEventLocked(currentTime, entry, {target});
+}
+
+void InputDispatcher::dispatchPointerCaptureChangedLocked(
+        nsecs_t currentTime, const std::shared_ptr<PointerCaptureChangedEntry>& entry,
+        DropReason& dropReason) {
+    const bool haveWindowWithPointerCapture = mWindowTokenWithPointerCapture != nullptr;
+    if (entry->pointerCaptureEnabled == haveWindowWithPointerCapture) {
+        LOG_ALWAYS_FATAL_IF(mFocusedWindowRequestedPointerCapture,
+                            "The Pointer Capture state has already been dispatched to the window.");
+        // Pointer capture was already forcefully disabled because of focus change.
+        dropReason = DropReason::NOT_DROPPED;
+        return;
+    }
+
+    // Set drop reason for early returns
+    dropReason = DropReason::NO_POINTER_CAPTURE;
+
+    sp<IBinder> token;
+    if (entry->pointerCaptureEnabled) {
+        // Enable Pointer Capture
+        if (!mFocusedWindowRequestedPointerCapture) {
+            // This can happen if a window requests capture and immediately releases capture.
+            ALOGW("No window requested Pointer Capture.");
+            return;
+        }
+        token = getValueByKey(mFocusedWindowTokenByDisplay, mFocusedDisplayId);
+        LOG_ALWAYS_FATAL_IF(!token, "Cannot find focused window for Pointer Capture.");
+        mWindowTokenWithPointerCapture = token;
+    } else {
+        // Disable Pointer Capture
+        token = mWindowTokenWithPointerCapture;
+        mWindowTokenWithPointerCapture = nullptr;
+        mFocusedWindowRequestedPointerCapture = false;
+    }
+
+    auto channel = getInputChannelLocked(token);
+    if (channel == nullptr) {
+        // Window has gone away, clean up Pointer Capture state.
+        mWindowTokenWithPointerCapture = nullptr;
+        mFocusedWindowRequestedPointerCapture = false;
+        return;
+    }
+    InputTarget target;
+    target.inputChannel = channel;
+    target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
+    entry->dispatchInProgress = true;
+    dispatchEventLocked(currentTime, entry, {target});
+
+    dropReason = DropReason::NOT_DROPPED;
 }
 
 bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<KeyEntry> entry,
@@ -1483,6 +1550,7 @@ int32_t InputDispatcher::getTargetDisplayId(const EventEntry& entry) {
             displayId = motionEntry.displayId;
             break;
         }
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED:
         case EventEntry::Type::FOCUS:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET: {
@@ -2366,8 +2434,10 @@ std::string InputDispatcher::getApplicationWindowLabel(
 }
 
 void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
-    if (eventEntry.type == EventEntry::Type::FOCUS) {
-        // Focus events are passed to apps, but do not represent user activity.
+    if (eventEntry.type == EventEntry::Type::FOCUS ||
+        eventEntry.type == EventEntry::Type::POINTER_CAPTURE_CHANGED) {
+        // Focus or pointer capture changed events are passed to apps, but do not represent user
+        // activity.
         return;
     }
     int32_t displayId = getTargetDisplayId(eventEntry);
@@ -2405,7 +2475,8 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
         }
         case EventEntry::Type::FOCUS:
         case EventEntry::Type::CONFIGURATION_CHANGED:
-        case EventEntry::Type::DEVICE_RESET: {
+        case EventEntry::Type::DEVICE_RESET:
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
             LOG_ALWAYS_FATAL("%s events are not user activity",
                              EventEntry::typeToString(eventEntry.type));
             break;
@@ -2617,7 +2688,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
 
             break;
         }
-        case EventEntry::Type::FOCUS: {
+        case EventEntry::Type::FOCUS:
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
             break;
         }
         case EventEntry::Type::CONFIGURATION_CHANGED:
@@ -2821,12 +2893,22 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 reportTouchEventForStatistics(motionEntry);
                 break;
             }
+
             case EventEntry::Type::FOCUS: {
                 const FocusEntry& focusEntry = static_cast<const FocusEntry&>(eventEntry);
                 status = connection->inputPublisher.publishFocusEvent(dispatchEntry->seq,
                                                                       focusEntry.id,
                                                                       focusEntry.hasFocus,
                                                                       mInTouchMode);
+                break;
+            }
+
+            case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
+                const auto& captureEntry =
+                        static_cast<const PointerCaptureChangedEntry&>(eventEntry);
+                status = connection->inputPublisher
+                                 .publishCaptureEvent(dispatchEntry->seq, captureEntry.id,
+                                                      captureEntry.pointerCaptureEnabled);
                 break;
             }
 
@@ -3124,8 +3206,10 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
                                          static_cast<const MotionEntry&>(*cancelationEventEntry));
                 break;
             }
-            case EventEntry::Type::FOCUS: {
-                LOG_ALWAYS_FATAL("Canceling focus events is not supported");
+            case EventEntry::Type::FOCUS:
+            case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
+                LOG_ALWAYS_FATAL("Canceling %s events is not supported",
+                                 EventEntry::typeToString(cancelationEventEntry->type));
                 break;
             }
             case EventEntry::Type::CONFIGURATION_CHANGED:
@@ -3185,7 +3269,8 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
             case EventEntry::Type::KEY:
             case EventEntry::Type::FOCUS:
             case EventEntry::Type::CONFIGURATION_CHANGED:
-            case EventEntry::Type::DEVICE_RESET: {
+            case EventEntry::Type::DEVICE_RESET:
+            case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
                 LOG_ALWAYS_FATAL("%s event should not be found inside Connections's queue",
                                      EventEntry::typeToString(downEventEntry->type));
                 break;
@@ -3562,7 +3647,17 @@ void InputDispatcher::notifyPointerCaptureChanged(const NotifyPointerCaptureChan
           args->enabled ? "true" : "false");
 #endif
 
-    // TODO(prabirmsp): Implement.
+    bool needWake;
+    { // acquire lock
+        std::scoped_lock _l(mLock);
+        auto entry = std::make_unique<PointerCaptureChangedEntry>(args->id, args->eventTime,
+                                                                  args->enabled);
+        needWake = enqueueInboundEventLocked(std::move(entry));
+    } // release lock
+
+    if (needWake) {
+        mLooper->wake();
+    }
 }
 
 InputEventInjectionResult InputDispatcher::injectInputEvent(
@@ -4456,6 +4551,24 @@ std::string InputDispatcher::dumpPendingFocusRequestsLocked() {
     return dump;
 }
 
+std::string InputDispatcher::dumpPointerCaptureStateLocked() {
+    std::string dump;
+
+    dump += StringPrintf(INDENT "FocusedWindowRequestedPointerCapture: %s\n",
+                         toString(mFocusedWindowRequestedPointerCapture));
+
+    std::string windowName = "None";
+    if (mWindowTokenWithPointerCapture) {
+        const sp<InputWindowHandle> captureWindowHandle =
+                getWindowHandleLocked(mWindowTokenWithPointerCapture);
+        windowName = captureWindowHandle ? captureWindowHandle->getName().c_str()
+                                         : "token has capture without window";
+    }
+    dump += StringPrintf(INDENT "CurrentWindowWithPointerCapture: %s\n", windowName.c_str());
+
+    return dump;
+}
+
 void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     dump += StringPrintf(INDENT "DispatchEnabled: %s\n", toString(mDispatchEnabled));
     dump += StringPrintf(INDENT "DispatchFrozen: %s\n", toString(mDispatchFrozen));
@@ -4479,6 +4592,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
 
     dump += dumpFocusedWindowsLocked();
     dump += dumpPendingFocusRequestsLocked();
+    dump += dumpPointerCaptureStateLocked();
 
     if (!mTouchStatesByDisplay.empty()) {
         dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
@@ -4858,6 +4972,39 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
         state.filterNonMonitors();
     }
     return OK;
+}
+
+void InputDispatcher::requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) {
+    { // acquire lock
+        std::scoped_lock _l(mLock);
+        if (DEBUG_FOCUS) {
+            const sp<InputWindowHandle> windowHandle = getWindowHandleLocked(windowToken);
+            ALOGI("Request to %s Pointer Capture from: %s.", enabled ? "enable" : "disable",
+                  windowHandle != nullptr ? windowHandle->getName().c_str()
+                                          : "token without window");
+        }
+
+        const sp<IBinder> focusedToken =
+                getValueByKey(mFocusedWindowTokenByDisplay, mFocusedDisplayId);
+        if (focusedToken != windowToken) {
+            ALOGW("Ignoring request to %s Pointer Capture: window does not have focus.",
+                  enabled ? "enable" : "disable");
+            return;
+        }
+
+        if (enabled == mFocusedWindowRequestedPointerCapture) {
+            ALOGW("Ignoring request to %s Pointer Capture: "
+                  "window has %s requested pointer capture.",
+                  enabled ? "enable" : "disable", enabled ? "already" : "not");
+            return;
+        }
+
+        mFocusedWindowRequestedPointerCapture = enabled;
+        setPointerCaptureLocked(enabled);
+    } // release lock
+
+    // Wake the thread to process command entries.
+    mLooper->wake();
 }
 
 std::optional<int32_t> InputDispatcher::findGestureMonitorDisplayByTokenLocked(
@@ -5578,9 +5725,48 @@ void InputDispatcher::onFocusChangedLocked(const sp<IBinder>& oldFocusedToken,
         enqueueFocusEventLocked(newFocusedToken, true /*hasFocus*/, reason);
     }
 
+    // If a window has pointer capture, then it must have focus. We need to ensure that this
+    // contract is upheld when pointer capture is being disabled due to a loss of window focus.
+    // If the window loses focus before it loses pointer capture, then the window can be in a state
+    // where it has pointer capture but not focus, violating the contract. Therefore we must
+    // dispatch the pointer capture event before the focus event. Since focus events are added to
+    // the front of the queue (above), we add the pointer capture event to the front of the queue
+    // after the focus events are added. This ensures the pointer capture event ends up at the
+    // front.
+    disablePointerCaptureForcedLocked();
+
     if (mFocusedDisplayId == displayId) {
         notifyFocusChangedLocked(oldFocusedToken, newFocusedToken);
     }
+}
+
+void InputDispatcher::disablePointerCaptureForcedLocked() {
+    if (!mFocusedWindowRequestedPointerCapture && !mWindowTokenWithPointerCapture) {
+        return;
+    }
+
+    ALOGD_IF(DEBUG_FOCUS, "Disabling Pointer Capture because the window lost focus.");
+
+    if (mFocusedWindowRequestedPointerCapture) {
+        mFocusedWindowRequestedPointerCapture = false;
+        setPointerCaptureLocked(false);
+    }
+
+    if (!mWindowTokenWithPointerCapture) {
+        // No need to send capture changes because no window has capture.
+        return;
+    }
+
+    if (mPendingEvent != nullptr) {
+        // Move the pending event to the front of the queue. This will give the chance
+        // for the pending event to be dropped if it is a captured event.
+        mInboundQueue.push_front(mPendingEvent);
+        mPendingEvent = nullptr;
+    }
+
+    auto entry = std::make_unique<PointerCaptureChangedEntry>(mIdGenerator.nextId(), now(),
+                                                              false /* hasCapture */);
+    mInboundQueue.push_front(std::move(entry));
 }
 
 /**
@@ -5626,4 +5812,21 @@ InputDispatcher::FocusResult InputDispatcher::checkTokenFocusableLocked(const sp
 
     return FocusResult::OK;
 }
+
+void InputDispatcher::setPointerCaptureLocked(bool enabled) {
+    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
+            &InputDispatcher::doSetPointerCaptureLockedInterruptible);
+    commandEntry->enabled = enabled;
+    postCommandLocked(std::move(commandEntry));
+}
+
+void InputDispatcher::doSetPointerCaptureLockedInterruptible(
+        android::inputdispatcher::CommandEntry* commandEntry) {
+    mLock.unlock();
+
+    mPolicy->setPointerCapture(commandEntry->enabled);
+
+    mLock.lock();
+}
+
 } // namespace android::inputdispatcher
