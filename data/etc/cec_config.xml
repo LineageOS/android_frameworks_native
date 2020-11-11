@@ -30,7 +30,7 @@
   </setting>
   <setting name="system_audio_mode_muting"
            value-type="int"
-           user-configurable="false">
+           user-configurable="true">
     <allowed-values>
       <value int-value="0" />
       <value int-value="1" />
