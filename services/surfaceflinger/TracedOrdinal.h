@@ -57,7 +57,9 @@ public:
         trace();
     }
 
-    operator T() const { return mData; }
+    T get() const { return mData; }
+
+    operator T() const { return get(); }
 
     TracedOrdinal& operator=(T other) {
         mData = other;
