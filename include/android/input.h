@@ -163,6 +163,9 @@ enum {
 
     /** Focus event */
     AINPUT_EVENT_TYPE_FOCUS = 3,
+
+    /** Capture event */
+    AINPUT_EVENT_TYPE_CAPTURE = 4,
 };
 
 /**

@@ -773,6 +773,25 @@ protected:
     bool mInTouchMode;
 };
 
+/*
+ * Capture events.
+ */
+class CaptureEvent : public InputEvent {
+public:
+    virtual ~CaptureEvent() {}
+
+    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_CAPTURE; }
+
+    inline bool getPointerCaptureEnabled() const { return mPointerCaptureEnabled; }
+
+    void initialize(int32_t id, bool pointerCaptureEnabled);
+
+    void initialize(const CaptureEvent& from);
+
+protected:
+    bool mPointerCaptureEnabled;
+};
+
 /**
  * Base class for verified events.
  * Do not create a VerifiedInputEvent explicitly.
@@ -835,6 +854,7 @@ public:
     virtual KeyEvent* createKeyEvent() = 0;
     virtual MotionEvent* createMotionEvent() = 0;
     virtual FocusEvent* createFocusEvent() = 0;
+    virtual CaptureEvent* createCaptureEvent() = 0;
 };
 
 /*
@@ -849,11 +869,13 @@ public:
     virtual KeyEvent* createKeyEvent() override { return &mKeyEvent; }
     virtual MotionEvent* createMotionEvent() override { return &mMotionEvent; }
     virtual FocusEvent* createFocusEvent() override { return &mFocusEvent; }
+    virtual CaptureEvent* createCaptureEvent() override { return &mCaptureEvent; }
 
 private:
     KeyEvent mKeyEvent;
     MotionEvent mMotionEvent;
     FocusEvent mFocusEvent;
+    CaptureEvent mCaptureEvent;
 };
 
 /*
@@ -867,6 +889,7 @@ public:
     virtual KeyEvent* createKeyEvent() override;
     virtual MotionEvent* createMotionEvent() override;
     virtual FocusEvent* createFocusEvent() override;
+    virtual CaptureEvent* createCaptureEvent() override;
 
     void recycle(InputEvent* event);
 
@@ -876,6 +899,7 @@ private:
     std::queue<std::unique_ptr<KeyEvent>> mKeyEventPool;
     std::queue<std::unique_ptr<MotionEvent>> mMotionEventPool;
     std::queue<std::unique_ptr<FocusEvent>> mFocusEventPool;
+    std::queue<std::unique_ptr<CaptureEvent>> mCaptureEventPool;
 };
 
 } // namespace android

@@ -51,6 +51,7 @@ protected:
     void PublishAndConsumeKeyEvent();
     void PublishAndConsumeMotionEvent();
     void PublishAndConsumeFocusEvent();
+    void PublishAndConsumeCaptureEvent();
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
@@ -309,6 +310,43 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
             << "publisher receiveFinishedSignal should have set handled to consumer's reply";
 }
 
+void InputPublisherAndConsumerTest::PublishAndConsumeCaptureEvent() {
+    status_t status;
+
+    constexpr uint32_t seq = 42;
+    int32_t eventId = InputEvent::nextId();
+    constexpr bool captureEnabled = true;
+
+    status = mPublisher->publishCaptureEvent(seq, eventId, captureEnabled);
+    ASSERT_EQ(OK, status) << "publisher publishKeyEvent should return OK";
+
+    uint32_t consumeSeq;
+    InputEvent* event;
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    ASSERT_EQ(OK, status) << "consumer consume should return OK";
+
+    ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
+    ASSERT_EQ(AINPUT_EVENT_TYPE_CAPTURE, event->getType())
+            << "consumer should have returned a capture event";
+
+    const CaptureEvent* captureEvent = static_cast<CaptureEvent*>(event);
+    EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, captureEvent->getId());
+    EXPECT_EQ(captureEnabled, captureEvent->getPointerCaptureEnabled());
+
+    status = mConsumer->sendFinishedSignal(seq, true);
+    ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
+
+    uint32_t finishedSeq = 0;
+    bool handled = false;
+    status = mPublisher->receiveFinishedSignal(&finishedSeq, &handled);
+    ASSERT_EQ(OK, status) << "publisher receiveFinishedSignal should return OK";
+    ASSERT_EQ(seq, finishedSeq)
+            << "publisher receiveFinishedSignal should have returned the original sequence number";
+    ASSERT_TRUE(handled)
+            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
+}
+
 TEST_F(InputPublisherAndConsumerTest, PublishKeyEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
 }
@@ -319,6 +357,10 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_EndToEnd) {
 
 TEST_F(InputPublisherAndConsumerTest, PublishFocusEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeFocusEvent());
+}
+
+TEST_F(InputPublisherAndConsumerTest, PublishCaptureEvent_EndToEnd) {
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeCaptureEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZero_ReturnsError) {
@@ -383,6 +425,9 @@ TEST_F(InputPublisherAndConsumerTest, PublishMultipleEvents_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeFocusEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeCaptureEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
 }

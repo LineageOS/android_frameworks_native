@@ -89,6 +89,9 @@ const char* inputEventTypeToString(int32_t type) {
         case AINPUT_EVENT_TYPE_FOCUS: {
             return "FOCUS";
         }
+        case AINPUT_EVENT_TYPE_CAPTURE: {
+            return "CAPTURE";
+        }
     }
     return "UNKNOWN";
 }
@@ -754,6 +757,19 @@ void FocusEvent::initialize(const FocusEvent& from) {
     mInTouchMode = from.mInTouchMode;
 }
 
+// --- CaptureEvent ---
+
+void CaptureEvent::initialize(int32_t id, bool pointerCaptureEnabled) {
+    InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
+                           ADISPLAY_ID_NONE, INVALID_HMAC);
+    mPointerCaptureEnabled = pointerCaptureEnabled;
+}
+
+void CaptureEvent::initialize(const CaptureEvent& from) {
+    InputEvent::initialize(from);
+    mPointerCaptureEnabled = from.mPointerCaptureEnabled;
+}
+
 // --- PooledInputEventFactory ---
 
 PooledInputEventFactory::PooledInputEventFactory(size_t maxPoolSize) :
@@ -790,6 +806,15 @@ FocusEvent* PooledInputEventFactory::createFocusEvent() {
     return event;
 }
 
+CaptureEvent* PooledInputEventFactory::createCaptureEvent() {
+    if (mCaptureEventPool.empty()) {
+        return new CaptureEvent();
+    }
+    CaptureEvent* event = mCaptureEventPool.front().release();
+    mCaptureEventPool.pop();
+    return event;
+}
+
 void PooledInputEventFactory::recycle(InputEvent* event) {
     switch (event->getType()) {
     case AINPUT_EVENT_TYPE_KEY:
@@ -807,6 +832,13 @@ void PooledInputEventFactory::recycle(InputEvent* event) {
     case AINPUT_EVENT_TYPE_FOCUS:
         if (mFocusEventPool.size() < mMaxPoolSize) {
             mFocusEventPool.push(std::unique_ptr<FocusEvent>(static_cast<FocusEvent*>(event)));
+            return;
+        }
+        break;
+    case AINPUT_EVENT_TYPE_CAPTURE:
+        if (mCaptureEventPool.size() < mMaxPoolSize) {
+            mCaptureEventPool.push(
+                    std::unique_ptr<CaptureEvent>(static_cast<CaptureEvent*>(event)));
             return;
         }
         break;
