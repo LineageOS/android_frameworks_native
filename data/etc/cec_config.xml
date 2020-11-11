@@ -9,6 +9,15 @@
     </allowed-values>
     <default-value int-value="1" />
   </setting>
+  <setting name="hdmi_cec_version"
+           value-type="int"
+           user-configurable="true">
+    <allowed-values>
+      <value int-value="0x05" />
+      <value int-value="0x06" />
+    </allowed-values>
+    <default-value int-value="0x05" />
+  </setting>
   <setting name="send_standby_on_sleep"
            value-type="string"
            user-configurable="true">
