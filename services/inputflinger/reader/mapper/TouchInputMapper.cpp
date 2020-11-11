@@ -3433,7 +3433,6 @@ void TouchInputMapper::abortPointerMouse(nsecs_t when, uint32_t policyFlags) {
 void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags, bool down,
                                              bool hovering) {
     int32_t metaState = getContext()->getGlobalMetaState();
-    int32_t displayId = mViewport.displayId;
 
     if (down || hovering) {
         mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
@@ -3443,7 +3442,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
     } else if (!down && !hovering && (mPointerSimple.down || mPointerSimple.hovering)) {
         mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
     }
-    displayId = mPointerController->getDisplayId();
+    int32_t displayId = mPointerController->getDisplayId();
 
     float xCursorPosition;
     float yCursorPosition;
