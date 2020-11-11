@@ -78,6 +78,7 @@ filegroup {
         "skia/SkiaRenderEngine.cpp",
         "skia/SkiaGLRenderEngine.cpp",
         "skia/filters/BlurFilter.cpp",
+        "skia/filters/LinearEffect.cpp",
     ],
 }
 

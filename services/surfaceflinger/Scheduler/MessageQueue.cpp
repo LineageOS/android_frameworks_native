@@ -90,6 +90,7 @@ void MessageQueue::vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, ns
     {
         std::lock_guard lock(mVsync.mutex);
         mVsync.lastCallbackTime = std::chrono::nanoseconds(vsyncTime);
+        mVsync.mScheduled = false;
     }
     mHandler->dispatchInvalidate(mVsync.tokenManager->generateTokenForPredictions(
                                          {targetWakeupTime, readyTime, vsyncTime}),
@@ -114,6 +115,10 @@ void MessageQueue::setDuration(std::chrono::nanoseconds workDuration) {
     ATRACE_CALL();
     std::lock_guard lock(mVsync.mutex);
     mVsync.workDuration = workDuration;
+    if (mVsync.mScheduled) {
+        mVsync.registration->schedule({mVsync.workDuration.get().count(), /*readyDuration=*/0,
+                                       mVsync.lastCallbackTime.count()});
+    }
 }
 
 void MessageQueue::waitMessage() {
@@ -147,13 +152,10 @@ void MessageQueue::invalidate() {
     if (mEvents) {
         mEvents->requestNextVsync();
     } else {
-        const auto [workDuration, lastVsyncCallback] = [&] {
-            std::lock_guard lock(mVsync.mutex);
-            std::chrono::nanoseconds mWorkDurationNanos = mVsync.workDuration;
-            return std::make_pair(mWorkDurationNanos.count(), mVsync.lastCallbackTime.count());
-        }();
-
-        mVsync.registration->schedule({workDuration, /*readyDuration=*/0, lastVsyncCallback});
+        std::lock_guard lock(mVsync.mutex);
+        mVsync.mScheduled = true;
+        mVsync.registration->schedule({mVsync.workDuration.get().count(), /*readyDuration=*/0,
+                                       mVsync.lastCallbackTime.count()});
     }
 }
 
