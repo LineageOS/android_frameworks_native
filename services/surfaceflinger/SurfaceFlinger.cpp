@@ -5746,7 +5746,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
 
     // TODO(b/116112787) Make buffer usage a parameter.
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
-            GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
+            GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER;
     *outBuffer =
             getFactory().createGraphicBuffer(renderArea.getReqWidth(), renderArea.getReqHeight(),
                                              static_cast<android_pixel_format>(reqPixelFormat), 1,
