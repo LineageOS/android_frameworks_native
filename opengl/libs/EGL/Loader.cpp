@@ -514,6 +514,8 @@ static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
         if (so) {
             return so;
         }
+        ALOGE("Could not load %s from updatable gfx driver namespace: %s.", name.c_str(),
+              dlerror());
     }
     return nullptr;
 }
