@@ -18,6 +18,7 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
+#define LOG_TAG "MockComposer"
 #include "mock/DisplayHardware/MockComposer.h"
 
 namespace android::Hwc2::mock {

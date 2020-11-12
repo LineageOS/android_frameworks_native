@@ -1,4 +1,4 @@
-cc_library_shared {
+cc_library {
     name: "libtimestats_proto",
     export_include_dirs: ["include"],
 

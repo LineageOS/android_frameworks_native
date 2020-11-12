@@ -46,7 +46,7 @@ cc_test {
     data: ["SurfaceFlinger_test.filter"],
     static_libs: [
         "libtrace_proto",
-        "liblayers_proto_static",
+        "liblayers_proto",
         "android.hardware.graphics.composer@2.1",
     ],
     shared_libs: [
