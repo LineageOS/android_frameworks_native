@@ -2270,13 +2270,14 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
 
 std::string InputDispatcher::dumpWindowForTouchOcclusion(const InputWindowInfo* info,
                                                          bool isTouchedWindow) const {
-    return StringPrintf(INDENT2 "* %stype=%s, package=%s/%" PRId32 ", mode=%s, alpha=%.2f, "
+    return StringPrintf(INDENT2 "* %stype=%s, package=%s/%" PRId32 ", id=%" PRId32
+                                ", mode=%s, alpha=%.2f, "
                                 "frame=[%" PRId32 ",%" PRId32 "][%" PRId32 ",%" PRId32
                                 "], touchableRegion=%s, window={%s}, applicationInfo=%s, "
                                 "flags={%s}, inputFeatures={%s}, hasToken=%s\n",
                         (isTouchedWindow) ? "[TOUCHED] " : "",
                         NamedEnum::string(info->type, "%" PRId32).c_str(),
-                        info->packageName.c_str(), info->ownerUid,
+                        info->packageName.c_str(), info->ownerUid, info->id,
                         toString(info->touchOcclusionMode).c_str(), info->alpha, info->frameLeft,
                         info->frameTop, info->frameRight, info->frameBottom,
                         dumpRegion(info->touchableRegion).c_str(), info->name.c_str(),
@@ -4486,19 +4487,19 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     const sp<InputWindowHandle>& windowHandle = windowHandles[i];
                     const InputWindowInfo* windowInfo = windowHandle->getInfo();
 
-                    dump += StringPrintf(INDENT3 "%zu: name='%s', displayId=%d, "
+                    dump += StringPrintf(INDENT3 "%zu: name='%s', id=%" PRId32 ", displayId=%d, "
                                                  "portalToDisplayId=%d, paused=%s, focusable=%s, "
-                                                 "hasWallpaper=%s, visible=%s, "
+                                                 "hasWallpaper=%s, visible=%s, alpha=%.2f, "
                                                  "flags=%s, type=0x%08x, "
                                                  "frame=[%d,%d][%d,%d], globalScale=%f, "
                                                  "applicationInfo=%s, "
                                                  "touchableRegion=",
-                                         i, windowInfo->name.c_str(), windowInfo->displayId,
-                                         windowInfo->portalToDisplayId,
+                                         i, windowInfo->name.c_str(), windowInfo->id,
+                                         windowInfo->displayId, windowInfo->portalToDisplayId,
                                          toString(windowInfo->paused),
                                          toString(windowInfo->focusable),
                                          toString(windowInfo->hasWallpaper),
-                                         toString(windowInfo->visible),
+                                         toString(windowInfo->visible), windowInfo->alpha,
                                          windowInfo->flags.string().c_str(),
                                          static_cast<int32_t>(windowInfo->type),
                                          windowInfo->frameLeft, windowInfo->frameTop,

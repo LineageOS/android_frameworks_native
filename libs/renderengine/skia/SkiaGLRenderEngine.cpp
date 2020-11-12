@@ -16,6 +16,9 @@
 
 //#define LOG_NDEBUG 0
 #include <cstdint>
+
+#include "SkImageInfo.h"
+#include "system/graphics-base-v1.0.h"
 #undef LOG_TAG
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -50,6 +53,7 @@
 #include "../gl/GLExtensions.h"
 #include "SkiaGLRenderEngine.h"
 #include "filters/BlurFilter.h"
+#include "filters/LinearEffect.h"
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
@@ -411,6 +415,32 @@ static SkColorMatrix toSkColorMatrix(const mat4& matrix) {
                          matrix[3][3], 0);
 }
 
+static bool needsToneMapping(ui::Dataspace sourceDataspace, ui::Dataspace destinationDataspace) {
+    int64_t sourceTransfer = sourceDataspace & HAL_DATASPACE_TRANSFER_MASK;
+    int64_t destTransfer = destinationDataspace & HAL_DATASPACE_TRANSFER_MASK;
+
+    // Treat unsupported dataspaces as srgb
+    if (destTransfer != HAL_DATASPACE_TRANSFER_LINEAR &&
+        destTransfer != HAL_DATASPACE_TRANSFER_HLG &&
+        destTransfer != HAL_DATASPACE_TRANSFER_ST2084) {
+        destTransfer = HAL_DATASPACE_TRANSFER_SRGB;
+    }
+
+    if (sourceTransfer != HAL_DATASPACE_TRANSFER_LINEAR &&
+        sourceTransfer != HAL_DATASPACE_TRANSFER_HLG &&
+        sourceTransfer != HAL_DATASPACE_TRANSFER_ST2084) {
+        sourceTransfer = HAL_DATASPACE_TRANSFER_SRGB;
+    }
+
+    const bool isSourceLinear = sourceTransfer == HAL_DATASPACE_TRANSFER_LINEAR;
+    const bool isSourceSRGB = sourceTransfer == HAL_DATASPACE_TRANSFER_SRGB;
+    const bool isDestLinear = destTransfer == HAL_DATASPACE_TRANSFER_LINEAR;
+    const bool isDestSRGB = destTransfer == HAL_DATASPACE_TRANSFER_SRGB;
+
+    return !(isSourceLinear && isDestSRGB) && !(isSourceSRGB && isDestLinear) &&
+            sourceTransfer != destTransfer;
+}
+
 void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     mImageCache.erase(bufferId);
@@ -539,14 +569,20 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             if (iter != mImageCache.end()) {
                 image = iter->second;
             } else {
-                image = SkImage::MakeFromAHardwareBuffer(item.buffer->toAHardwareBuffer(),
-                                                         item.usePremultipliedAlpha
-                                                                 ? kPremul_SkAlphaType
-                                                                 : kUnpremul_SkAlphaType,
-                                                         mUseColorManagement
-                                                                 ? toColorSpace(
-                                                                           layer->sourceDataspace)
-                                                                 : SkColorSpace::MakeSRGB());
+                image = SkImage::MakeFromAHardwareBuffer(
+                        item.buffer->toAHardwareBuffer(),
+                        item.isOpaque ? kOpaque_SkAlphaType
+                                      : (item.usePremultipliedAlpha ? kPremul_SkAlphaType
+                                                                    : kUnpremul_SkAlphaType),
+                        mUseColorManagement
+                                ? (needsToneMapping(layer->sourceDataspace, display.outputDataspace)
+                                           // If we need to map to linear space, then
+                                           // mark the source image with the same
+                                           // colorspace as the destination surface so
+                                           // that Skia's color management is a no-op.
+                                           ? toColorSpace(display.outputDataspace)
+                                           : toColorSpace(layer->sourceDataspace))
+                                : SkColorSpace::MakeSRGB());
                 mImageCache.insert({item.buffer->getId(), image});
             }
 
@@ -594,7 +630,22 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
             matrix.postConcat(texMatrix);
             matrix.postScale(rotatedBufferWidth, rotatedBufferHeight);
-            paint.setShader(image->makeShader(matrix));
+            sk_sp<SkShader> shader = image->makeShader(matrix);
+
+            if (mUseColorManagement &&
+                needsToneMapping(layer->sourceDataspace, display.outputDataspace)) {
+                LinearEffect effect = LinearEffect{.inputDataspace = layer->sourceDataspace,
+                                                   .outputDataspace = display.outputDataspace,
+                                                   .undoPremultipliedAlpha = !item.isOpaque &&
+                                                           item.usePremultipliedAlpha};
+                sk_sp<SkRuntimeEffect> runtimeEffect = buildRuntimeEffect(effect);
+                paint.setShader(createLinearEffectShader(shader, effect, runtimeEffect,
+                                                         display.maxLuminance,
+                                                         layer->source.buffer.maxMasteringLuminance,
+                                                         layer->source.buffer.maxContentLuminance));
+            } else {
+                paint.setShader(shader);
+            }
         } else {
             ATRACE_NAME("DrawColor");
             const auto color = layer->source.solidColor;
