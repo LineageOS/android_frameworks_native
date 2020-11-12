@@ -112,7 +112,9 @@ cc_library {
         "Stability.cpp",
         "Status.cpp",
         "TextOutput.cpp",
+        "Utils.cpp",
         ":libbinder_aidl",
+        ":activity_manager_procstate_aidl",
     ],
 
     target: {
