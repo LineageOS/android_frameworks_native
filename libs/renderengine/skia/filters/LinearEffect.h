@@ -63,6 +63,24 @@ struct LinearEffect {
     const bool undoPremultipliedAlpha = false;
 };
 
+static inline bool operator==(const LinearEffect& lhs, const LinearEffect& rhs) {
+    return lhs.inputDataspace == rhs.inputDataspace && lhs.outputDataspace == rhs.outputDataspace &&
+            lhs.undoPremultipliedAlpha == rhs.undoPremultipliedAlpha;
+}
+
+struct LinearEffectHasher {
+    // Inspired by art/runtime/class_linker.cc
+    // Also this is what boost:hash_combine does
+    static size_t HashCombine(size_t seed, size_t val) {
+        return seed ^ (val + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+    }
+    size_t operator()(const LinearEffect& le) const {
+        size_t result = std::hash<ui::Dataspace>{}(le.inputDataspace);
+        result = HashCombine(result, std::hash<ui::Dataspace>{}(le.outputDataspace));
+        return HashCombine(result, std::hash<bool>{}(le.undoPremultipliedAlpha));
+    }
+};
+
 sk_sp<SkRuntimeEffect> buildRuntimeEffect(const LinearEffect& linearEffect);
 
 // Generates a shader resulting from applying the a linear effect created from

@@ -638,7 +638,16 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                    .outputDataspace = display.outputDataspace,
                                                    .undoPremultipliedAlpha = !item.isOpaque &&
                                                            item.usePremultipliedAlpha};
-                sk_sp<SkRuntimeEffect> runtimeEffect = buildRuntimeEffect(effect);
+
+                auto effectIter = mRuntimeEffects.find(effect);
+                sk_sp<SkRuntimeEffect> runtimeEffect = nullptr;
+                if (effectIter == mRuntimeEffects.end()) {
+                    runtimeEffect = buildRuntimeEffect(effect);
+                    mRuntimeEffects.insert({effect, runtimeEffect});
+                } else {
+                    runtimeEffect = effectIter->second;
+                }
+
                 paint.setShader(createLinearEffectShader(shader, effect, runtimeEffect,
                                                          display.maxLuminance,
                                                          layer->source.buffer.maxMasteringLuminance,

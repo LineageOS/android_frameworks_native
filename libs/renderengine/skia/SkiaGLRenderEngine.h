@@ -35,6 +35,7 @@
 #include "SkiaRenderEngine.h"
 #include "android-base/macros.h"
 #include "filters/BlurFilter.h"
+#include "skia/filters/LinearEffect.h"
 
 namespace android {
 namespace renderengine {
@@ -100,6 +101,7 @@ private:
             GUARDED_BY(mRenderingMutex);
     std::unordered_map<uint64_t, std::shared_ptr<AutoBackendTexture::LocalRef>>
             mProtectedTextureCache GUARDED_BY(mRenderingMutex);
+    std::unordered_map<LinearEffect, sk_sp<SkRuntimeEffect>, LinearEffectHasher> mRuntimeEffects;
     // Mutex guarding rendering operations, so that:
     // 1. GL operations aren't interleaved, and
     // 2. Internal state related to rendering that is potentially modified by
