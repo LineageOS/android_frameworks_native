@@ -548,7 +548,7 @@ void GraphicsEnv::setDebugLayersGLES(const std::string layers) {
 }
 
 // Return true if all the required libraries from vndk and sphal namespace are
-// linked to the Game Driver namespace correctly.
+// linked to the updatable gfx driver namespace correctly.
 bool GraphicsEnv::linkDriverNamespaceLocked(android_namespace_t* vndkNamespace) {
     const std::string llndkLibraries = getSystemNativeLibraries(NativeLibrary::LLNDK);
     if (llndkLibraries.empty()) {
