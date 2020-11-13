@@ -19,6 +19,25 @@
     },
     {
       "name": "libinputservice_test"
+    },
+    {
+      "name": "CtsInputTestCases"
+    },
+    {
+      "name": "CtsViewTestCases",
+      "options": [
+        {
+          "include-filter": "android.view.cts.MotionEventTest"
+        }
+      ]
+    },
+    {
+      "name": "CtsSecurityTestCases",
+      "options": [
+        {
+          "include-filter": "android.security.cts.MotionEventTest"
+        }
+      ]
     }
   ]
 }
