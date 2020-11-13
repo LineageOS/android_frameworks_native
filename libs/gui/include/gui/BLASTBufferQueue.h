@@ -139,6 +139,10 @@ private:
     // If set to true, the next queue buffer will wait until the shadow queue has been processed by
     // the adapter.
     bool mFlushShadowQueue = false;
+    // Last requested auto refresh state set by the producer. The state indicates that the consumer
+    // should acquire the next frame as soon as it can and not wait for a frame to become available.
+    // This is only relevant for shared buffer mode.
+    bool mAutoRefresh GUARDED_BY(mMutex) = false;
 };
 
 } // namespace android

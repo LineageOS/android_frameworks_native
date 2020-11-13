@@ -289,6 +289,11 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     t->setDesiredPresentTime(bufferItem.mTimestamp);
     t->setFrameNumber(mSurfaceControl, bufferItem.mFrameNumber);
 
+    if (mAutoRefresh != bufferItem.mAutoRefresh) {
+        t->setAutoRefresh(mSurfaceControl, bufferItem.mAutoRefresh);
+        mAutoRefresh = bufferItem.mAutoRefresh;
+    }
+
     if (applyTransaction) {
         t->apply();
     }

@@ -541,6 +541,11 @@ public:
         Transaction& setFrameTimelineVsync(const sp<SurfaceControl>& sc,
                 int64_t frameTimelineVsyncId);
 
+        // Indicates that the consumer should acquire the next frame as soon as it
+        // can and not wait for a frame to become available. This is only relevant
+        // in shared buffer mode.
+        Transaction& setAutoRefresh(const sp<SurfaceControl>& sc, bool autoRefresh);
+
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
 

@@ -444,6 +444,7 @@ public:
     virtual bool setColorSpaceAgnostic(const bool agnostic);
     virtual bool setFrameRateSelectionPriority(int32_t priority);
     virtual bool setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHint);
+    virtual void setAutoRefresh(bool /* autoRefresh */) {}
     //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
     //  rate priority from its parent.
     virtual int32_t getFrameRateSelectionPriority() const;

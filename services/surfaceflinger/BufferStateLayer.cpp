@@ -482,13 +482,10 @@ uint64_t BufferStateLayer::getHeadFrameNumber(nsecs_t /* expectedPresentTime */)
     return mCurrentState.frameNumber;
 }
 
-bool BufferStateLayer::getAutoRefresh() const {
-    // TODO(marissaw): support shared buffer mode
-    return false;
-}
-
-bool BufferStateLayer::getSidebandStreamChanged() const {
-    return mSidebandStreamChanged.load();
+void BufferStateLayer::setAutoRefresh(bool autoRefresh) {
+    if (!mAutoRefresh.exchange(autoRefresh)) {
+        mFlinger->signalLayerUpdate();
+    }
 }
 
 bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
