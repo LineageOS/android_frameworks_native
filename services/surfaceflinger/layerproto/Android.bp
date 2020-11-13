@@ -1,5 +1,5 @@
-cc_defaults {
-    name: "liblayers_proto_defaults",
+cc_library {
+    name: "liblayers_proto",
     export_include_dirs: ["include"],
 
     srcs: [
@@ -19,7 +19,7 @@ cc_defaults {
     proto: {
         export_proto_headers: true,
     },
-    
+
     cppflags: [
         "-Werror",
         "-Wno-unused-parameter",
@@ -32,20 +32,6 @@ cc_defaults {
         "-Wno-padded",
         "-Wno-old-style-cast",
         "-Wno-undef",
-    ],
-}
-
-cc_library_shared {
-    name: "liblayers_proto",
-    defaults: [
-        "liblayers_proto_defaults",
-    ],
-}
-
-cc_library_static {
-    name: "liblayers_proto_static",
-    defaults: [
-        "liblayers_proto_defaults",
     ],
 }
 
