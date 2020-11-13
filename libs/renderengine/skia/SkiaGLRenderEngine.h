@@ -69,6 +69,7 @@ private:
     inline SkRRect getRoundedRect(const LayerSettings* layer);
     inline SkColor getSkColor(const vec4& color);
     inline SkM44 getSkM44(const mat4& matrix);
+    inline SkMatrix getDrawTransform(const LayerSettings* layer, const SkMatrix& screenTransform);
     inline SkPoint3 getSkPoint3(const vec3& vector);
 
     base::unique_fd flush();

@@ -851,7 +851,7 @@ bool Layer::applyPendingStates(State* stateToCommit) {
                 // If we don't have a sync point for this, apply it anyway. It
                 // will be visually wrong, but it should keep us from getting
                 // into too much trouble.
-                ALOGE("[%s] No local sync point found", getDebugName());
+                ALOGV("[%s] No local sync point found", getDebugName());
                 popPendingState(stateToCommit);
                 stateUpdateAvailable = true;
                 continue;

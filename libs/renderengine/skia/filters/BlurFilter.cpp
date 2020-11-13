@@ -56,7 +56,7 @@ BlurFilter::BlurFilter() {
 }
 
 sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> input,
-                                      const uint32_t blurRadius) const {
+                                      const uint32_t blurRadius, SkRect rect) const {
     ATRACE_CALL();
 
     // Kawase is an approximation of Gaussian, but it behaves differently from it.
@@ -68,6 +68,9 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
 
     SkImageInfo scaledInfo = SkImageInfo::MakeN32Premul((float)input->width() * kInputScale,
                                                         (float)input->height() * kInputScale);
+
+    SkRect scaledRect = {rect.fLeft * kInputScale, rect.fTop * kInputScale,
+                         rect.fRight * kInputScale, rect.fBottom * kInputScale};
     auto drawSurface = canvas->makeSurface(scaledInfo);
 
     const float stepX = radiusByPasses;
@@ -88,7 +91,9 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
         SkPaint paint;
         paint.setShader(blurBuilder.makeShader(nullptr, false));
         paint.setFilterQuality(kLow_SkFilterQuality);
-        drawSurface->getCanvas()->drawIRect(scaledInfo.bounds(), paint);
+
+        drawSurface->getCanvas()->drawRect(scaledRect, paint);
+
         blurBuilder.child("input") = nullptr;
     }
 
@@ -110,7 +115,8 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
             SkPaint paint;
             paint.setShader(blurBuilder.makeShader(nullptr, false));
             paint.setFilterQuality(kLow_SkFilterQuality);
-            drawSurface->getCanvas()->drawIRect(scaledInfo.bounds(), paint);
+
+            drawSurface->getCanvas()->drawRect(scaledRect, paint);
 
             // Swap buffers for next iteration
             const auto tmp = drawSurface;
@@ -125,16 +131,18 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
 }
 
 sk_sp<SkSurface> BlurFilter::draw(SkCanvas* canvas, const sk_sp<SkSurface> input,
-                                  const uint32_t blurRadius) const {
+                                  const uint32_t blurRadius, SkRect rect) const {
     ATRACE_CALL();
-    auto surface = generate(canvas, input, blurRadius);
+    sk_sp<SkSurface> surface = generate(canvas, input, blurRadius, rect);
+    const auto image = surface->makeImageSnapshot();
 
     SkPaint paint;
-    const auto image = surface->makeImageSnapshot();
     paint.setShader(image->makeShader(SkMatrix::MakeScale(kInverseInputScale)));
     paint.setFilterQuality(kLow_SkFilterQuality);
     paint.setAlpha(std::min(1.0f, (float)blurRadius / kMaxCrossFadeRadius) * 255);
-    canvas->drawIRect(SkIRect::MakeWH(input->width(), input->height()), paint);
+
+    canvas->drawRect(rect, paint);
+
     return surface;
 }
 
