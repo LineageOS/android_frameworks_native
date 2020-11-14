@@ -5660,9 +5660,14 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
     const bool supportsProtected = getRenderEngine().supportsProtectedContent();
     bool hasProtectedLayer = false;
     if (allowProtected && supportsProtected) {
-        traverseLayers([&](Layer* layer) {
-            hasProtectedLayer = hasProtectedLayer || (layer->isVisible() && layer->isProtected());
-        });
+        hasProtectedLayer = schedule([=]() {
+                                bool protectedLayerFound = false;
+                                traverseLayers([&](Layer* layer) {
+                                    protectedLayerFound = protectedLayerFound ||
+                                            (layer->isVisible() && layer->isProtected());
+                                });
+                                return protectedLayerFound;
+                            }).get();
     }
 
     const uint32_t usage = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER |
