@@ -447,8 +447,8 @@ sk_sp<SkRuntimeEffect> buildRuntimeEffect(const LinearEffect& linearEffect) {
 
 sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader, const LinearEffect& linearEffect,
                                          sk_sp<SkRuntimeEffect> runtimeEffect,
-                                         float maxDisplayLuminance, float maxMasteringLuminance,
-                                         float maxContentLuminance) {
+                                         const mat4& colorTransform, float maxDisplayLuminance,
+                                         float maxMasteringLuminance, float maxContentLuminance) {
     ATRACE_CALL();
     SkRuntimeShaderBuilder effectBuilder(runtimeEffect);
 
@@ -458,7 +458,7 @@ sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader, const LinearEff
     ColorSpace outputColorSpace = toColorSpace(linearEffect.outputDataspace);
 
     effectBuilder.uniform("in_rgbToXyz") = mat4(inputColorSpace.getRGBtoXYZ());
-    effectBuilder.uniform("in_xyzToRgb") = mat4(outputColorSpace.getXYZtoRGB());
+    effectBuilder.uniform("in_xyzToRgb") = colorTransform * mat4(outputColorSpace.getXYZtoRGB());
     effectBuilder.uniform("in_displayMaxLuminance") = maxDisplayLuminance;
     effectBuilder.uniform("in_inputMaxLuminance") =
             std::min(maxMasteringLuminance, maxContentLuminance);
