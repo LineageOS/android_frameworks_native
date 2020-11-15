@@ -86,9 +86,9 @@ TEST(NamedEnum, RuntimeUnknownNamedEnum) {
 
 TEST(NamedEnum, RuntimeUnknownNamedEnumAsString) {
     TestEnums e = static_cast<TestEnums>(0x5);
-    ASSERT_EQ(NamedEnum::string(e), "0x00000005");
+    ASSERT_EQ(NamedEnum::string(e), "05");
     e = static_cast<TestEnums>(0x9);
-    ASSERT_EQ(NamedEnum::string(e), "0x00000009");
+    ASSERT_EQ(NamedEnum::string(e, "0x%08x"), "0x00000009");
 }
 
 TEST(NamedEnum, CompileTimeFlagName) {
