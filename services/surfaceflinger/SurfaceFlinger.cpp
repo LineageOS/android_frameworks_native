@@ -5467,15 +5467,6 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
         display = getDisplayDeviceLocked(displayToken);
         if (!display) return NAME_NOT_FOUND;
 
-        if (display->isPrimary()) {
-            const auto physicalOrientation = display->getPhysicalOrientation();
-            renderAreaRotation = ui::Transform::toRotationFlags(rotation + physicalOrientation);
-            if (renderAreaRotation == ui::Transform::ROT_INVALID) {
-                ALOGE("%s: Invalid rotation: %s", __FUNCTION__, toCString(rotation));
-                renderAreaRotation = ui::Transform::ROT_0;
-            }
-        }
-
         // set the requested width/height to the logical display viewport size
         // by default
         if (reqWidth == 0 || reqHeight == 0) {
@@ -5549,7 +5540,6 @@ status_t SurfaceFlinger::captureScreen(uint64_t displayOrLayerStack, Dataspace* 
     uint32_t width;
     uint32_t height;
     ui::Transform::RotationFlags captureOrientation;
-    ui::Rotation correctOrientation;
     {
         Mutex::Autolock lock(mStateLock);
         display = getDisplayByIdOrLayerStack(displayOrLayerStack);
@@ -5561,31 +5551,7 @@ status_t SurfaceFlinger::captureScreen(uint64_t displayOrLayerStack, Dataspace* 
         height = uint32_t(display->getViewport().height());
 
         const auto orientation = display->getOrientation();
-        const auto physicalOrientation = display->getPhysicalOrientation();
-        if (display->isPrimary()) {
-            switch (physicalOrientation) {
-            case ui::Rotation::Rotation0:
-                correctOrientation = orientation;
-                break;
-            case ui::Rotation::Rotation90:
-                correctOrientation = orientation + ui::Rotation::Rotation270;
-                break;
-
-            case ui::Rotation::Rotation180:
-                correctOrientation = orientation + ui::Rotation::Rotation180;
-                break;
-
-            case ui::Rotation::Rotation270:
-                correctOrientation = orientation + ui::Rotation::Rotation90;
-                break;
-
-            default:
-                break;
-            }
-            captureOrientation = ui::Transform::toRotationFlags(correctOrientation);
-        } else {
-            captureOrientation = ui::Transform::toRotationFlags(orientation);
-        }
+        captureOrientation = ui::Transform::toRotationFlags(orientation);
 
         switch (captureOrientation) {
             case ui::Transform::ROT_90:
