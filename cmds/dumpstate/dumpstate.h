@@ -549,8 +549,7 @@ class Dumpstate {
 
     void MaybeTakeEarlyScreenshot();
 
-    void onUiIntensiveBugreportDumpsFinished(int32_t calling_uid,
-                                             const std::string& calling_package);
+    void onUiIntensiveBugreportDumpsFinished(int32_t calling_uid);
 
     void MaybeCheckUserConsent(int32_t calling_uid, const std::string& calling_package);
 
