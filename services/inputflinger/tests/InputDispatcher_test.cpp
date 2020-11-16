@@ -862,6 +862,8 @@ public:
 
     void setWindowScale(float xScale, float yScale) { setWindowTransform(xScale, 0, 0, yScale); }
 
+    void setWindowOffset(float offsetX, float offsetY) { mInfo.transform.set(offsetX, offsetY); }
+
     void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
         consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
                      expectedFlags);
@@ -2049,6 +2051,50 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
     EXPECT_EQ(motionArgs.flags & VERIFIED_MOTION_EVENT_FLAGS, verifiedMotion.flags);
     EXPECT_EQ(motionArgs.metaState, verifiedMotion.metaState);
     EXPECT_EQ(motionArgs.buttonState, verifiedMotion.buttonState);
+}
+
+TEST_F(InputDispatcherTest, NonPointerMotionEvent_JoystickNotTransformed) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+    const std::string name = window->getName();
+
+    // Window gets transformed by offset values.
+    window->setWindowOffset(500.0f, 500.0f);
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    window->setFocusable(true);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // First, we set focused window so that focusedWindowHandle is not null.
+    setFocusedWindow(window);
+
+    // Second, we consume focus event if it is right or wrong according to onFocusChangedLocked.
+    window->consumeFocusEvent(true);
+
+    NotifyMotionArgs motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_MOVE,
+                                                     AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+
+    // Third, we consume motion event.
+    InputEvent* event = window->consume();
+    ASSERT_NE(event, nullptr);
+    ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType())
+            << name.c_str() << "expected " << inputEventTypeToString(AINPUT_EVENT_TYPE_MOTION)
+            << " event, got " << inputEventTypeToString(event->getType()) << " event";
+
+    const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
+    EXPECT_EQ(AINPUT_EVENT_TYPE_MOTION, motionEvent.getAction());
+
+    float expectedX = motionArgs.pointerCoords[0].getX();
+    float expectedY = motionArgs.pointerCoords[0].getY();
+
+    // Finally we test if the axis values from the final motion event are not transformed
+    EXPECT_EQ(expectedX, motionEvent.getX(0)) << "expected " << expectedX << " for x coord of "
+                                              << name.c_str() << ", got " << motionEvent.getX(0);
+    EXPECT_EQ(expectedY, motionEvent.getY(0)) << "expected " << expectedY << " for y coord of "
+                                              << name.c_str() << ", got " << motionEvent.getY(0);
 }
 
 /**
