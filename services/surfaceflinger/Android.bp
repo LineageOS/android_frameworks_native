@@ -195,7 +195,10 @@ cc_library_shared {
     // Please use libsurfaceflinger_defaults to configure how the sources are
     // built, so the same settings can be used elsewhere.
     name: "libsurfaceflinger",
-    defaults: ["libsurfaceflinger_production_defaults"],
+    defaults: [
+        "libsurfaceflinger_production_defaults",
+        "fod_always_on_hbm_defaults",
+    ],
     srcs: [
         ":libsurfaceflinger_sources",
 

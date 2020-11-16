@@ -517,11 +517,19 @@ status_t BufferQueueLayer::setDefaultBufferProperties(uint32_t w, uint32_t h, Pi
 
     uint64_t usageBits = getEffectiveUsage(0);
 
+#ifndef FOD_ALWAYS_ON_HBM
     if (mName == FOD_LAYER_NAME) {
         usageBits = getFodUsageBits(usageBits, false);
     } else if (mName == FOD_TOUCHED_LAYER_NAME) {
         usageBits = getFodUsageBits(usageBits, true);
     }
+#else
+    if (mName == FOD_LAYER_NAME || mName == FOD_TOUCHED_LAYER_NAME) {
+        usageBits = getFodUsageBits(usageBits, true);
+    } else {
+        usageBits = getFodUsageBits(usageBits, false);
+    }
+#endif
 
     setDefaultBufferSize(w, h);
     mConsumer->setDefaultBufferFormat(format);
