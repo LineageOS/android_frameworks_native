@@ -1052,7 +1052,7 @@ std::string Gralloc4Mapper::dumpBuffers(bool less) const {
 Gralloc4Allocator::Gralloc4Allocator(const Gralloc4Mapper& mapper) : mMapper(mapper) {
     mAllocator = IAllocator::getService();
     if (mAllocator == nullptr) {
-        ALOGW("allocator 3.x is not supported");
+        ALOGW("allocator 4.x is not supported");
         return;
     }
 }
