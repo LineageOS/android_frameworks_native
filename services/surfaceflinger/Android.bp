@@ -252,7 +252,10 @@ filegroup {
 
 cc_binary {
     name: "surfaceflinger",
-    defaults: ["libsurfaceflinger_binary"],
+    defaults: [
+        "libsurfaceflinger_binary",
+        "fod_always_on_hbm_defaults",
+    ],
     init_rc: ["surfaceflinger.rc"],
     srcs: [":surfaceflinger_binary_sources"],
     shared_libs: [
