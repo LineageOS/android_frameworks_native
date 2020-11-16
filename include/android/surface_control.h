@@ -48,7 +48,7 @@ typedef struct ASurfaceControl ASurfaceControl;
 
 /**
  * Creates an ASurfaceControl with either ANativeWindow or an ASurfaceControl as its parent.
- * |debug_name| is a debug name associated with this surface. It can be used to
+ * \a debug_name is a debug name associated with this surface. It can be used to
  * identify this surface in the SurfaceFlinger's layer tree. It must not be
  * null.
  *
@@ -69,7 +69,7 @@ ASurfaceControl* ASurfaceControl_create(ASurfaceControl* parent, const char* deb
                                         __INTRODUCED_IN(29);
 
 /**
- * Releases the |surface_control| object. After releasing the ASurfaceControl the caller no longer
+ * Releases the \a surface_control object. After releasing the ASurfaceControl the caller no longer
  * has ownership of the AsurfaceControl. The surface and it's children may remain on display as long
  * as their parent remains on display.
  *
@@ -87,21 +87,21 @@ typedef struct ASurfaceTransaction ASurfaceTransaction;
 
 /**
  * The caller takes ownership of the transaction and must release it using
- * ASurfaceControl_delete below.
+ * ASurfaceTransaction_delete() below.
  *
  * Available since API level 29.
  */
 ASurfaceTransaction* ASurfaceTransaction_create() __INTRODUCED_IN(29);
 
 /**
- * Destroys the |transaction| object.
+ * Destroys the \a transaction object.
  *
  * Available since API level 29.
  */
 void ASurfaceTransaction_delete(ASurfaceTransaction* transaction) __INTRODUCED_IN(29);
 
 /**
- * Applies the updates accumulated in |transaction|.
+ * Applies the updates accumulated in \a transaction.
  *
  * Note that the transaction is guaranteed to be applied atomically. The
  * transactions which are applied on the same thread are also guaranteed to be
@@ -123,10 +123,10 @@ typedef struct ASurfaceTransactionStats ASurfaceTransactionStats;
  * ASurfaceTransaction_OnComplete callback can be used to be notified when a frame
  * including the updates in a transaction was presented.
  *
- * |context| is the optional context provided by the client that is passed into
+ * \param context Optional context provided by the client that is passed into
  * the callback.
  *
- * |stats| is an opaque handle that can be passed to ASurfaceTransactionStats functions to query
+ * \param stats Opaque handle that can be passed to ASurfaceTransactionStats functions to query
  * information about the transaction. The handle is only valid during the callback.
  *
  * THREADING
@@ -157,14 +157,14 @@ int ASurfaceTransactionStats_getPresentFenceFd(ASurfaceTransactionStats* surface
                                                __INTRODUCED_IN(29);
 
 /**
- * |outASurfaceControls| returns an array of ASurfaceControl pointers that were updated during the
+ * \a outASurfaceControls returns an array of ASurfaceControl pointers that were updated during the
  * transaction. Stats for the surfaces can be queried through ASurfaceTransactionStats functions.
  * When the client is done using the array, it must release it by calling
  * ASurfaceTransactionStats_releaseASurfaceControls.
  *
  * Available since API level 29.
  *
- * |outASurfaceControlsSize| returns the size of the ASurfaceControls array.
+ * \a outASurfaceControlsSize returns the size of the ASurfaceControls array.
  */
 void ASurfaceTransactionStats_getASurfaceControls(ASurfaceTransactionStats* surface_transaction_stats,
                                                   ASurfaceControl*** outASurfaceControls,
@@ -172,7 +172,7 @@ void ASurfaceTransactionStats_getASurfaceControls(ASurfaceTransactionStats* surf
                                                   __INTRODUCED_IN(29);
 /**
  * Releases the array of ASurfaceControls that were returned by
- * ASurfaceTransactionStats_getASurfaceControls.
+ * ASurfaceTransactionStats_getASurfaceControls().
  *
  * Available since API level 29.
  */
@@ -197,8 +197,8 @@ int64_t ASurfaceTransactionStats_getAcquireTime(ASurfaceTransactionStats* surfac
  * buffer is already released. The recipient of the callback takes ownership of the
  * previousReleaseFenceFd and is responsible for closing it.
  *
- * Each time a buffer is set through ASurfaceTransaction_setBuffer()/_setCachedBuffer() on a
- * transaction which is applied, the framework takes a ref on this buffer. The framework treats the
+ * Each time a buffer is set through ASurfaceTransaction_setBuffer() on a transaction
+ * which is applied, the framework takes a ref on this buffer. The framework treats the
  * addition of a buffer to a particular surface as a unique ref. When a transaction updates or
  * removes a buffer from a surface, or removes the surface itself from the tree, this ref is
  * guaranteed to be released in the OnComplete callback for this transaction. The
@@ -226,10 +226,10 @@ void ASurfaceTransaction_setOnComplete(ASurfaceTransaction* transaction, void* c
                                        ASurfaceTransaction_OnComplete func) __INTRODUCED_IN(29);
 
 /**
- * Reparents the |surface_control| from its old parent to the |new_parent| surface control.
- * Any children of the* reparented |surface_control| will remain children of the |surface_control|.
+ * Reparents the \a surface_control from its old parent to the \a new_parent surface control.
+ * Any children of the reparented \a surface_control will remain children of the \a surface_control.
  *
- * The |new_parent| can be null. Surface controls with a null parent do not appear on the display.
+ * The \a new_parent can be null. Surface controls with a null parent do not appear on the display.
  *
  * Available since API level 29.
  */
@@ -237,14 +237,16 @@ void ASurfaceTransaction_reparent(ASurfaceTransaction* transaction,
                                   ASurfaceControl* surface_control, ASurfaceControl* new_parent)
                                   __INTRODUCED_IN(29);
 
-/* Parameter for ASurfaceTransaction_setVisibility */
+/**
+ * Parameter for ASurfaceTransaction_setVisibility().
+ */
 enum {
     ASURFACE_TRANSACTION_VISIBILITY_HIDE = 0,
     ASURFACE_TRANSACTION_VISIBILITY_SHOW = 1,
 };
 /**
- * Updates the visibility of |surface_control|. If show is set to
- * ASURFACE_TRANSACTION_VISIBILITY_HIDE, the |surface_control| and all surfaces in its subtree will
+ * Updates the visibility of \a surface_control. If show is set to
+ * ASURFACE_TRANSACTION_VISIBILITY_HIDE, the \a surface_control and all surfaces in its subtree will
  * be hidden.
  *
  * Available since API level 29.
@@ -254,7 +256,7 @@ void ASurfaceTransaction_setVisibility(ASurfaceTransaction* transaction,
                                        __INTRODUCED_IN(29);
 
 /**
- * Updates the z order index for |surface_control|. Note that the z order for a surface
+ * Updates the z order index for \a surface_control. Note that the z order for a surface
  * is relative to other surfaces which are siblings of this surface. The behavior of sibilings with
  * the same z order is undefined.
  *
@@ -267,11 +269,11 @@ void ASurfaceTransaction_setZOrder(ASurfaceTransaction* transaction,
                                    __INTRODUCED_IN(29);
 
 /**
- * Updates the AHardwareBuffer displayed for |surface_control|. If not -1, the
+ * Updates the AHardwareBuffer displayed for \a surface_control. If not -1, the
  * acquire_fence_fd should be a file descriptor that is signaled when all pending work
  * for the buffer is complete and the buffer can be safely read.
  *
- * The frameworks takes ownership of the |acquire_fence_fd| passed and is responsible
+ * The frameworks takes ownership of the \a acquire_fence_fd passed and is responsible
  * for closing it.
  *
  * Available since API level 29.
@@ -281,9 +283,9 @@ void ASurfaceTransaction_setBuffer(ASurfaceTransaction* transaction,
                                    int acquire_fence_fd = -1) __INTRODUCED_IN(29);
 
 /**
- * Updates the color for |surface_control|.  This will make the background color for the
- * ASurfaceControl visible in transparent regions of the surface.  Colors |r|, |g|,
- * and |b| must be within the range that is valid for |dataspace|.  |dataspace| and |alpha|
+ * Updates the color for \a surface_control.  This will make the background color for the
+ * ASurfaceControl visible in transparent regions of the surface.  Colors \a r, \a g,
+ * and \a b must be within the range that is valid for \a dataspace.  \a dataspace and \a alpha
  * will be the dataspace and alpha set for the background color layer.
  *
  * Available since API level 29.
@@ -294,15 +296,15 @@ void ASurfaceTransaction_setColor(ASurfaceTransaction* transaction,
                                   __INTRODUCED_IN(29);
 
 /**
- * |source| the sub-rect within the buffer's content to be rendered inside the surface's area
+ * \param source The sub-rect within the buffer's content to be rendered inside the surface's area
  * The surface's source rect is clipped by the bounds of its current buffer. The source rect's width
  * and height must be > 0.
  *
- * |destination| specifies the rect in the parent's space where this surface will be drawn. The post
+ * \param destination Specifies the rect in the parent's space where this surface will be drawn. The post
  * source rect bounds are scaled to fit the destination rect. The surface's destination rect is
  * clipped by the bounds of its parent. The destination rect's width and height must be > 0.
  *
- * |transform| the transform applied after the source rect is applied to the buffer. This parameter
+ * \param transform The transform applied after the source rect is applied to the buffer. This parameter
  * should be set to 0 for no transform. To specify a transfrom use the NATIVE_WINDOW_TRANSFORM_*
  * enum.
  *
@@ -314,7 +316,9 @@ void ASurfaceTransaction_setGeometry(ASurfaceTransaction* transaction,
                                      __INTRODUCED_IN(29);
 
 
-/* Parameter for ASurfaceTransaction_setBufferTransparency */
+/**
+ * Parameter for ASurfaceTransaction_setBufferTransparency().
+ */
 enum {
     ASURFACE_TRANSACTION_TRANSPARENCY_TRANSPARENT = 0,
     ASURFACE_TRANSACTION_TRANSPARENCY_TRANSLUCENT = 1,
@@ -360,7 +364,7 @@ void ASurfaceTransaction_setDesiredPresentTime(ASurfaceTransaction* transaction,
 /**
  * Sets the alpha for the buffer. It uses a premultiplied blending.
  *
- * The |alpha| must be between 0.0 and 1.0.
+ * The \a alpha must be between 0.0 and 1.0.
  *
  * Available since API level 29.
  */
@@ -379,10 +383,10 @@ void ASurfaceTransaction_setBufferDataSpace(ASurfaceTransaction* transaction,
                                             ASurfaceControl* surface_control, ADataSpace data_space)
                                             __INTRODUCED_IN(29);
 
-/*
+/**
  * SMPTE ST 2086 "Mastering Display Color Volume" static metadata
  *
- * When |metadata| is set to null, the framework does not use any smpte2086 metadata when rendering
+ * When \a metadata is set to null, the framework does not use any smpte2086 metadata when rendering
  * the surface's buffer.
  *
  * Available since API level 29.
@@ -392,10 +396,10 @@ void ASurfaceTransaction_setHdrMetadata_smpte2086(ASurfaceTransaction* transacti
                                                   struct AHdrMetadata_smpte2086* metadata)
                                                   __INTRODUCED_IN(29);
 
-/*
+/**
  * Sets the CTA 861.3 "HDR Static Metadata Extension" static metadata on a surface.
  *
- * When |metadata| is set to null, the framework does not use any cta861.3 metadata when rendering
+ * When \a metadata is set to null, the framework does not use any cta861.3 metadata when rendering
  * the surface's buffer.
  *
  * Available since API level 29.
