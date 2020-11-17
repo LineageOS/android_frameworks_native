@@ -1472,6 +1472,8 @@ static void DumpstateLimitedOnly() {
 
     RunDumpsys("DUMPSYS NETWORK_SERVICE_LIMITED", {"wifi", "-a"},
                CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS CONNECTIVITY REQUESTS", {"connectivity", "requests"},
+               CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
 
     printf("========================================================\n");
     printf("== Dropbox crashes\n");
