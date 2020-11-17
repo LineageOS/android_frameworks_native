@@ -130,9 +130,9 @@ LayerHistoryV2::Summary LayerHistoryV2::summarize(nsecs_t now) {
         ALOGV("%s has priority: %d %s focused", strong->getName().c_str(),
               frameRateSelectionPriority, layerFocused ? "" : "not");
 
-        const auto [type, refreshRate] = info->getRefreshRate(now);
+        const auto vote = info->getRefreshRateVote(now);
         // Skip NoVote layer as those don't have any requirements
-        if (type == LayerHistory::LayerVoteType::NoVote) {
+        if (vote.type == LayerHistory::LayerVoteType::NoVote) {
             continue;
         }
 
@@ -144,10 +144,11 @@ LayerHistoryV2::Summary LayerHistoryV2::summarize(nsecs_t now) {
 
         const float layerArea = transformed.getWidth() * transformed.getHeight();
         float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
-        summary.push_back({strong->getName(), type, refreshRate, weight, layerFocused});
+        summary.push_back({strong->getName(), vote.type, vote.fps, vote.shouldBeSeamless, weight,
+                           layerFocused});
 
         if (CC_UNLIKELY(mTraceEnabled)) {
-            trace(layer, *info, type, static_cast<int>(std::round(refreshRate)));
+            trace(layer, *info, vote.type, static_cast<int>(std::round(vote.fps)));
         }
     }
 
@@ -178,7 +179,7 @@ void LayerHistoryV2::partitionLayers(nsecs_t now) {
 
             if (frameRate.rate > 0 || voteType == LayerVoteType::NoVote) {
                 const auto type = layer->isVisible() ? voteType : LayerVoteType::NoVote;
-                info->setLayerVote(type, frameRate.rate);
+                info->setLayerVote({type, frameRate.rate, frameRate.shouldBeSeamless});
             } else {
                 info->resetLayerVote();
             }

@@ -869,7 +869,7 @@ public:
     }
 
     status_t setFrameRate(const sp<IGraphicBufferProducer>& /*surface*/, float /*frameRate*/,
-                          int8_t /*compatibility*/) override {
+                          int8_t /*compatibility*/, bool /*shouldBeSeamless*/) override {
         return NO_ERROR;
     }
 

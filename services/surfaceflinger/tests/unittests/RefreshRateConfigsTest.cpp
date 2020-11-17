@@ -57,6 +57,8 @@ protected:
     static inline const HwcConfigIndexType HWC_CONFIG_ID_72 = HwcConfigIndexType(2);
     static inline const HwcConfigIndexType HWC_CONFIG_ID_120 = HwcConfigIndexType(3);
     static inline const HwcConfigIndexType HWC_CONFIG_ID_30 = HwcConfigIndexType(4);
+    static inline const HwcConfigIndexType HWC_CONFIG_ID_25 = HwcConfigIndexType(5);
+    static inline const HwcConfigIndexType HWC_CONFIG_ID_50 = HwcConfigIndexType(6);
 
     // Test configs
     std::shared_ptr<const HWC2::Display::Config> mConfig60 =
@@ -77,8 +79,16 @@ protected:
             createConfig(HWC_CONFIG_ID_120, 1, static_cast<int64_t>(1e9f / 120));
     std::shared_ptr<const HWC2::Display::Config> mConfig30 =
             createConfig(HWC_CONFIG_ID_30, 0, static_cast<int64_t>(1e9f / 30));
+    std::shared_ptr<const HWC2::Display::Config> mConfig30DifferentGroup =
+            createConfig(HWC_CONFIG_ID_30, 1, static_cast<int64_t>(1e9f / 30));
+    std::shared_ptr<const HWC2::Display::Config> mConfig25DifferentGroup =
+            createConfig(HWC_CONFIG_ID_25, 1, static_cast<int64_t>(1e9f / 25));
+    std::shared_ptr<const HWC2::Display::Config> mConfig50 =
+            createConfig(HWC_CONFIG_ID_50, 0, static_cast<int64_t>(1e9f / 50));
 
     // Test device configurations
+    // The positions of the configs in the arrays below MUST match their IDs. For example,
+    // the first config should always be 60Hz, the second 90Hz etc.
     std::vector<std::shared_ptr<const HWC2::Display::Config>> m60OnlyConfigDevice = {mConfig60};
     std::vector<std::shared_ptr<const HWC2::Display::Config>> m60_90Device = {mConfig60, mConfig90};
     std::vector<std::shared_ptr<const HWC2::Display::Config>> m60_90DeviceWithDifferentGroups =
@@ -104,6 +114,14 @@ protected:
             {mConfig60, mConfig90, mConfig72, mConfig120DifferentGroup, mConfig30};
     std::vector<std::shared_ptr<const HWC2::Display::Config>> m30_60_90Device =
             {mConfig60, mConfig90, mConfig72DifferentGroup, mConfig120DifferentGroup, mConfig30};
+    std::vector<std::shared_ptr<const HWC2::Display::Config>> m25_30_50_60Device =
+            {mConfig60,
+             mConfig90,
+             mConfig72DifferentGroup,
+             mConfig120DifferentGroup,
+             mConfig30DifferentGroup,
+             mConfig25DifferentGroup,
+             mConfig50};
 
     // Expected RefreshRate objects
     RefreshRate mExpected60Config = {HWC_CONFIG_ID_60, mConfig60, "60fps", 60,
@@ -292,8 +310,8 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
 
     const auto makeLayerRequirements = [](float refreshRate) -> std::vector<LayerRequirement> {
-        return {{"testLayer", LayerVoteType::Heuristic, refreshRate, /*weight*/ 1.0f,
-                 /*focused*/ false}};
+        return {{"testLayer", LayerVoteType::Heuristic, refreshRate, /*shouldBeSeamless*/ true,
+                 /*weight*/ 1.0f, /*focused*/ false}};
     };
 
     EXPECT_EQ(mExpected90Config,
@@ -1245,7 +1263,9 @@ TEST_F(RefreshRateConfigsTest, groupSwitching) {
     auto& layer = layers[0];
     layer.vote = LayerVoteType::ExplicitDefault;
     layer.desiredRefreshRate = 90.0f;
+    layer.shouldBeSeamless = false;
     layer.name = "90Hz ExplicitDefault";
+    layer.focused = true;
 
     ASSERT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
@@ -1256,6 +1276,104 @@ TEST_F(RefreshRateConfigsTest, groupSwitching) {
     policy.allowGroupSwitching = true;
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
     ASSERT_EQ(HWC_CONFIG_ID_90,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                      .getConfigId());
+
+    // Verify that we won't change the group if seamless switch is required.
+    layer.shouldBeSeamless = true;
+    ASSERT_EQ(HWC_CONFIG_ID_60,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                      .getConfigId());
+
+    // At this point the default config in the DisplayManager policy with be 60Hz.
+    // Verify that if the current config is in another group and there are no layers with
+    // shouldBeSeamless=false we'll go back to the default group.
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    layer.desiredRefreshRate = 60.0f;
+    layer.name = "60Hz ExplicitDefault";
+    layer.shouldBeSeamless = true;
+    ASSERT_EQ(HWC_CONFIG_ID_60,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                      .getConfigId());
+
+    // If there's a layer with shouldBeSeamless=false, another layer with shouldBeSeamless=true
+    // can't change the config group.
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    auto layer2 = LayerRequirement{.weight = 0.5f};
+    layer2.vote = LayerVoteType::ExplicitDefault;
+    layer2.desiredRefreshRate = 90.0f;
+    layer2.name = "90Hz ExplicitDefault";
+    layer2.shouldBeSeamless = false;
+    layer2.focused = false;
+    layers.push_back(layer2);
+    ASSERT_EQ(HWC_CONFIG_ID_90,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                      .getConfigId());
+}
+
+TEST_F(RefreshRateConfigsTest, nonSeamlessVotePrefersSeamlessSwitches) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m30_60Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    // Allow group switching.
+    RefreshRateConfigs::Policy policy;
+    policy.defaultConfig = refreshRateConfigs->getCurrentPolicy().defaultConfig;
+    policy.allowGroupSwitching = true;
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& layer = layers[0];
+    layer.vote = LayerVoteType::ExplicitExactOrMultiple;
+    layer.desiredRefreshRate = 60.0f;
+    layer.shouldBeSeamless = false;
+    layer.name = "60Hz ExplicitExactOrMultiple";
+    layer.focused = true;
+
+    ASSERT_EQ(HWC_CONFIG_ID_60,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                      .getConfigId());
+
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_120);
+    ASSERT_EQ(HWC_CONFIG_ID_120,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                      .getConfigId());
+}
+
+TEST_F(RefreshRateConfigsTest, nonSeamlessExactAndSeamlessMultipleLayers) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m25_30_50_60Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    // Allow group switching.
+    RefreshRateConfigs::Policy policy;
+    policy.defaultConfig = refreshRateConfigs->getCurrentPolicy().defaultConfig;
+    policy.allowGroupSwitching = true;
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
+
+    auto layers = std::vector<
+            LayerRequirement>{LayerRequirement{.name = "60Hz ExplicitDefault",
+                                               .vote = LayerVoteType::ExplicitDefault,
+                                               .desiredRefreshRate = 60.0f,
+                                               .shouldBeSeamless = false,
+                                               .weight = 0.5f,
+                                               .focused = false},
+                              LayerRequirement{.name = "25Hz ExplicitExactOrMultiple",
+                                               .vote = LayerVoteType::ExplicitExactOrMultiple,
+                                               .desiredRefreshRate = 25.0f,
+                                               .shouldBeSeamless = true,
+                                               .weight = 1.0f,
+                                               .focused = true}};
+    auto& seamedLayer = layers[0];
+
+    ASSERT_EQ(HWC_CONFIG_ID_50,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                      .getConfigId());
+
+    seamedLayer.name = "30Hz ExplicitDefault", seamedLayer.desiredRefreshRate = 30.0f;
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_30);
+
+    ASSERT_EQ(HWC_CONFIG_ID_25,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
                       .getConfigId());
 }

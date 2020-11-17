@@ -159,10 +159,8 @@ int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) {
 }
 
 int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate, int8_t compatibility) {
-    if (!window || !query(window, NATIVE_WINDOW_IS_VALID)) {
-        return -EINVAL;
-    }
-    return native_window_set_frame_rate(window, frameRate, compatibility);
+    return ANativeWindow_setFrameRateWithSeamlessness(window, frameRate, compatibility,
+        /*shouldBeSeamless*/ true);
 }
 
 void ANativeWindow_tryAllocateBuffers(ANativeWindow* window) {
@@ -172,6 +170,13 @@ void ANativeWindow_tryAllocateBuffers(ANativeWindow* window) {
     window->perform(window, NATIVE_WINDOW_ALLOCATE_BUFFERS);
 }
 
+int32_t ANativeWindow_setFrameRateWithSeamlessness(ANativeWindow* window, float frameRate,
+        int8_t compatibility, bool shouldBeSeamless) {
+    if (!window || !query(window, NATIVE_WINDOW_IS_VALID)) {
+        return -EINVAL;
+    }
+    return native_window_set_frame_rate(window, frameRate, compatibility, shouldBeSeamless);
+}
 
 /**************************************************************************************************
  * vndk-stable

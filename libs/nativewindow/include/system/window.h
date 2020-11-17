@@ -1018,9 +1018,9 @@ static inline int native_window_set_auto_prerotation(struct ANativeWindow* windo
 }
 
 static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,
-                                               int8_t compatibility) {
+                                        int8_t compatibility, bool shouldBeSeamless) {
     return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate,
-                           (int)compatibility);
+                           (int)compatibility, (int)shouldBeSeamless);
 }
 
 static inline int native_window_set_frame_timeline_vsync(struct ANativeWindow* window,

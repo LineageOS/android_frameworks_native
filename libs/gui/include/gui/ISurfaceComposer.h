@@ -475,7 +475,7 @@ public:
      * Sets the intended frame rate for a surface. See ANativeWindow_setFrameRate() for more info.
      */
     virtual status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
-                                  int8_t compatibility) = 0;
+                                  int8_t compatibility, bool shouldBeSeamless) = 0;
 
     /*
      * Acquire a frame rate flexibility token from SurfaceFlinger. While this token is acquired,
