@@ -547,9 +547,11 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             const auto layerRect = drawTransform.mapRect(dest);
             if (layer->backgroundBlurRadius > 0) {
                 ATRACE_NAME("BackgroundBlur");
-                auto blurredSurface =
-                        mBlurFilter->draw(canvas, surface, layer->backgroundBlurRadius, layerRect);
+                auto blurredSurface = mBlurFilter->generate(canvas, surface,
+                                                            layer->backgroundBlurRadius, layerRect);
                 cachedBlurs[layer->backgroundBlurRadius] = blurredSurface;
+
+                drawBlurRegion(canvas, getBlurRegion(layer), drawTransform, blurredSurface);
             }
             if (layer->blurRegions.size() > 0) {
                 for (auto region : layer->blurRegions) {
@@ -663,13 +665,13 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
         paint.setColorFilter(SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform)));
 
-        canvas->save();
-        canvas->concat(drawTransform);
-
         for (const auto effectRegion : layer->blurRegions) {
-            drawBlurRegion(canvas, effectRegion, dest, cachedBlurs[effectRegion.blurRadius]);
+            drawBlurRegion(canvas, effectRegion, drawTransform,
+                           cachedBlurs[effectRegion.blurRadius]);
         }
 
+        canvas->save();
+        canvas->concat(drawTransform);
         if (layer->shadow.length > 0) {
             const auto rect = layer->geometry.roundedCornersRadius > 0
                     ? getSkRect(layer->geometry.roundedCornersCrop)
@@ -730,6 +732,21 @@ inline SkRRect SkiaGLRenderEngine::getRoundedRect(const LayerSettings* layer) {
     return SkRRect::MakeRectXY(rect, cornerRadius, cornerRadius);
 }
 
+inline BlurRegion SkiaGLRenderEngine::getBlurRegion(const LayerSettings* layer) {
+    const auto rect = getSkRect(layer->geometry.boundaries);
+    const auto cornersRadius = layer->geometry.roundedCornersRadius;
+    return BlurRegion{.blurRadius = static_cast<uint32_t>(layer->backgroundBlurRadius),
+                      .cornerRadiusTL = cornersRadius,
+                      .cornerRadiusTR = cornersRadius,
+                      .cornerRadiusBL = cornersRadius,
+                      .cornerRadiusBR = cornersRadius,
+                      .alpha = 1,
+                      .left = static_cast<int>(rect.fLeft),
+                      .top = static_cast<int>(rect.fTop),
+                      .right = static_cast<int>(rect.fRight),
+                      .bottom = static_cast<int>(rect.fBottom)};
+}
+
 inline SkColor SkiaGLRenderEngine::getSkColor(const vec4& color) {
     return SkColorSetARGB(color.a * 255, color.r * 255, color.g * 255, color.b * 255);
 }
@@ -777,17 +794,18 @@ void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRect& casterRect, 
 }
 
 void SkiaGLRenderEngine::drawBlurRegion(SkCanvas* canvas, const BlurRegion& effectRegion,
-                                        const SkRect& layerBoundaries,
+                                        const SkMatrix& drawTransform,
                                         sk_sp<SkSurface> blurredSurface) {
     ATRACE_CALL();
+
     SkPaint paint;
     paint.setAlpha(static_cast<int>(effectRegion.alpha * 255));
-    const auto rect = SkRect::MakeLTRB(effectRegion.left, effectRegion.top, effectRegion.right,
-                                       effectRegion.bottom);
-
-    const auto matrix = mBlurFilter->getShaderMatrix(
-            SkMatrix::MakeTrans(layerBoundaries.left(), layerBoundaries.top()));
+    const auto matrix = mBlurFilter->getShaderMatrix();
     paint.setShader(blurredSurface->makeImageSnapshot()->makeShader(matrix));
+
+    auto rect = SkRect::MakeLTRB(effectRegion.left, effectRegion.top, effectRegion.right,
+                                 effectRegion.bottom);
+    drawTransform.mapRect(&rect);
 
     if (effectRegion.cornerRadiusTL > 0 || effectRegion.cornerRadiusTR > 0 ||
         effectRegion.cornerRadiusBL > 0 || effectRegion.cornerRadiusBR > 0) {
