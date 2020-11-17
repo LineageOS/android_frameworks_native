@@ -50,11 +50,17 @@ protected:
 private:
     void notifyConfigurationChanged(nsecs_t) override {}
 
-    std::chrono::nanoseconds notifyAnr(const std::shared_ptr<InputApplicationHandle>&,
-                                       const sp<IBinder>&, const std::string& name) override {
-        ALOGE("The window is not responding : %s", name.c_str());
-        return 0s;
+    void notifyNoFocusedWindowAnr(
+            const std::shared_ptr<InputApplicationHandle>& applicationHandle) override {
+        ALOGE("There is no focused window for %s", applicationHandle->getName().c_str());
     }
+
+    void notifyConnectionUnresponsive(const sp<IBinder>& connectionToken,
+                                      const std::string& reason) override {
+        ALOGE("Connection is not responding: %s", reason.c_str());
+    }
+
+    void notifyConnectionResponsive(const sp<IBinder>& connectionToken) override {}
 
     void notifyInputChannelBroken(const sp<IBinder>&) override {}
 
