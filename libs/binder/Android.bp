@@ -147,6 +147,7 @@ cc_library {
         "-Wextra",
         "-Werror",
         "-Wzero-as-null-pointer-constant",
+        "-DANDROID_BASE_UNIQUE_FD_DISABLE_IMPLICIT_CONVERSION",
     ],
     product_variables: {
         binder32bit: {
@@ -173,6 +174,20 @@ cc_library {
         misc_undefined: ["integer"],
     },
     min_sdk_version: "29",
+
+    tidy: true,
+    tidy_flags: [
+        // Only check our headers
+        "--header-filter=^.*frameworks/native/libs/binder/.*.h$",
+    ],
+    tidy_checks_as_errors: [
+        "*",
+        "-google-build-using-namespace",
+        "-google-default-arguments",
+        "-google-explicit-constructor",
+        "-google-runtime-int",
+        "-performance-unnecessary-value-param",
+    ],
 }
 
 // AIDL interface between libbinder and framework.jar
