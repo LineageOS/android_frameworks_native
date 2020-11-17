@@ -17,11 +17,46 @@
 #ifndef ANDROID_OS_VIBRATOR_MANAGER_HAL_WRAPPER_H
 #define ANDROID_OS_VIBRATOR_MANAGER_HAL_WRAPPER_H
 
+#include <android/hardware/vibrator/IVibratorManager.h>
 #include <vibratorservice/VibratorHalController.h>
+#include <unordered_map>
 
 namespace android {
 
 namespace vibrator {
+
+// VibratorManager HAL capabilities.
+enum class ManagerCapabilities : int32_t {
+    NONE = 0,
+    SYNC = hardware::vibrator::IVibratorManager::CAP_SYNC,
+    PREPARE_ON = hardware::vibrator::IVibratorManager::CAP_PREPARE_ON,
+    PREPARE_PERFORM = hardware::vibrator::IVibratorManager::CAP_PREPARE_PERFORM,
+    PREPARE_COMPOSE = hardware::vibrator::IVibratorManager::CAP_PREPARE_COMPOSE,
+    MIXED_TRIGGER_ON = hardware::vibrator::IVibratorManager::IVibratorManager::CAP_MIXED_TRIGGER_ON,
+    MIXED_TRIGGER_PERFORM = hardware::vibrator::IVibratorManager::CAP_MIXED_TRIGGER_PERFORM,
+    MIXED_TRIGGER_COMPOSE = hardware::vibrator::IVibratorManager::CAP_MIXED_TRIGGER_COMPOSE,
+    TRIGGER_CALLBACK = hardware::vibrator::IVibratorManager::CAP_TRIGGER_CALLBACK
+};
+
+inline ManagerCapabilities operator|(ManagerCapabilities lhs, ManagerCapabilities rhs) {
+    using underlying = typename std::underlying_type<ManagerCapabilities>::type;
+    return static_cast<ManagerCapabilities>(static_cast<underlying>(lhs) |
+                                            static_cast<underlying>(rhs));
+}
+
+inline ManagerCapabilities& operator|=(ManagerCapabilities& lhs, ManagerCapabilities rhs) {
+    return lhs = lhs | rhs;
+}
+
+inline ManagerCapabilities operator&(ManagerCapabilities lhs, ManagerCapabilities rhs) {
+    using underlying = typename std::underlying_type<ManagerCapabilities>::type;
+    return static_cast<ManagerCapabilities>(static_cast<underlying>(lhs) &
+                                            static_cast<underlying>(rhs));
+}
+
+inline ManagerCapabilities& operator&=(ManagerCapabilities& lhs, ManagerCapabilities rhs) {
+    return lhs = lhs & rhs;
+}
 
 // Wrapper for VibratorManager HAL handlers.
 class ManagerHalWrapper {
@@ -36,6 +71,7 @@ public:
      */
     virtual void tryReconnect() = 0;
 
+    virtual HalResult<ManagerCapabilities> getCapabilities() = 0;
     virtual HalResult<std::vector<int32_t>> getVibratorIds() = 0;
     virtual HalResult<std::shared_ptr<HalController>> getVibrator(int32_t id) = 0;
 
@@ -55,6 +91,7 @@ public:
     HalResult<void> ping() override final;
     void tryReconnect() override final;
 
+    HalResult<ManagerCapabilities> getCapabilities() override final;
     HalResult<std::vector<int32_t>> getVibratorIds() override final;
     HalResult<std::shared_ptr<HalController>> getVibrator(int32_t id) override final;
 
@@ -64,6 +101,53 @@ public:
 
 private:
     const std::shared_ptr<HalController> mController;
+};
+
+// Wrapper for the AIDL VibratorManager HAL.
+class AidlManagerHalWrapper : public ManagerHalWrapper {
+public:
+    explicit AidlManagerHalWrapper(std::shared_ptr<CallbackScheduler> callbackScheduler,
+                                   sp<hardware::vibrator::IVibratorManager> handle)
+          : mHandle(std::move(handle)), mCallbackScheduler(callbackScheduler) {}
+    virtual ~AidlManagerHalWrapper() = default;
+
+    HalResult<void> ping() override final;
+    void tryReconnect() override final;
+
+    HalResult<ManagerCapabilities> getCapabilities() override final;
+    HalResult<std::vector<int32_t>> getVibratorIds() override final;
+    HalResult<std::shared_ptr<HalController>> getVibrator(int32_t id) override final;
+
+    HalResult<void> prepareSynced(const std::vector<int32_t>& ids) override final;
+    HalResult<void> triggerSynced(const std::function<void()>& completionCallback) override final;
+    HalResult<void> cancelSynced() override final;
+
+private:
+    std::mutex mHandleMutex;
+    std::mutex mCapabilitiesMutex;
+    std::mutex mVibratorsMutex;
+    sp<hardware::vibrator::IVibratorManager> mHandle GUARDED_BY(mHandleMutex);
+    std::optional<ManagerCapabilities> mCapabilities GUARDED_BY(mCapabilitiesMutex);
+    std::optional<std::vector<int32_t>> mVibratorIds GUARDED_BY(mVibratorsMutex);
+    std::unordered_map<int32_t, std::shared_ptr<HalController>> mVibrators
+            GUARDED_BY(mVibratorsMutex);
+    std::shared_ptr<CallbackScheduler> mCallbackScheduler;
+
+    sp<hardware::vibrator::IVibratorManager> getHal();
+
+    // Connector that creates a HalWrapper from an IVibrator loaded from IVibratorManager.
+    class ManagedHalConnector : public HalConnector {
+    public:
+        ManagedHalConnector(AidlManagerHalWrapper* manager, int32_t vibratorId)
+              : mManager(manager), mVibratorId(vibratorId) {}
+        ~ManagedHalConnector() = default;
+
+        std::shared_ptr<HalWrapper> connect(std::shared_ptr<CallbackScheduler>) override final;
+
+    private:
+        AidlManagerHalWrapper* mManager;
+        const int32_t mVibratorId;
+    };
 };
 
 }; // namespace vibrator
