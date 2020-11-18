@@ -330,7 +330,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
       : mFactory(factory),
         mInterceptor(mFactory.createSurfaceInterceptor()),
         mTimeStats(std::make_shared<impl::TimeStats>()),
-        mFrameTracer(std::make_unique<FrameTracer>()),
+        mFrameTracer(mFactory.createFrameTracer()),
         mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>(mTimeStats)),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
