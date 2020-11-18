@@ -45,11 +45,25 @@ public:
     /* Notifies the system that a configuration change has occurred. */
     virtual void notifyConfigurationChanged(nsecs_t when) = 0;
 
-    /* Notifies the system that an application is not responding.
-     * Returns a new timeout to continue waiting, or 0 to abort dispatch. */
-    virtual std::chrono::nanoseconds notifyAnr(
-            const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
-            const sp<IBinder>& token, const std::string& reason) = 0;
+    /* Notifies the system that an application does not have a focused window.
+     */
+    virtual void notifyNoFocusedWindowAnr(
+            const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) = 0;
+
+    /* Notifies the system that a connection just became unresponsive. This indicates that ANR
+     * should be raised for this connection. The connection is identified via token.
+     * The string reason contains information about the input event that we haven't received
+     * a response for.
+     */
+    virtual void notifyConnectionUnresponsive(const sp<IBinder>& token,
+                                              const std::string& reason) = 0;
+
+    /* Notifies the system that a connection just became responsive. This is only called after the
+     * connection was first marked "unresponsive". This indicates that ANR dialog (if any) should
+     * no longer should be shown to the user. The connection is eligible to cause a new ANR in the
+     * future.
+     */
+    virtual void notifyConnectionResponsive(const sp<IBinder>& token) = 0;
 
     /* Notifies the system that an input channel is unrecoverably broken. */
     virtual void notifyInputChannelBroken(const sp<IBinder>& token) = 0;

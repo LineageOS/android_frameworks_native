@@ -1443,7 +1443,8 @@ int Surface::dispatchGetLastQueueDuration(va_list args) {
 int Surface::dispatchSetFrameRate(va_list args) {
     float frameRate = static_cast<float>(va_arg(args, double));
     int8_t compatibility = static_cast<int8_t>(va_arg(args, int));
-    return setFrameRate(frameRate, compatibility);
+    bool shouldBeSeamless = static_cast<bool>(va_arg(args, int));
+    return setFrameRate(frameRate, compatibility, shouldBeSeamless);
 }
 
 int Surface::dispatchAddCancelInterceptor(va_list args) {
@@ -2279,7 +2280,7 @@ void Surface::ProducerListenerProxy::onBuffersDiscarded(const std::vector<int32_
     mSurfaceListener->onBuffersDiscarded(discardedBufs);
 }
 
-status_t Surface::setFrameRate(float frameRate, int8_t compatibility) {
+status_t Surface::setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless) {
     ATRACE_CALL();
     ALOGV("Surface::setFrameRate");
 
@@ -2287,7 +2288,8 @@ status_t Surface::setFrameRate(float frameRate, int8_t compatibility) {
         return BAD_VALUE;
     }
 
-    return composerService()->setFrameRate(mGraphicBufferProducer, frameRate, compatibility);
+    return composerService()->setFrameRate(mGraphicBufferProducer, frameRate, compatibility,
+                                           shouldBeSeamless);
 }
 
 status_t Surface::setFrameTimelineVsync(int64_t frameTimelineVsyncId) {

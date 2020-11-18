@@ -31,6 +31,12 @@ namespace android::scheduler {
 using AllRefreshRatesMapType = RefreshRateConfigs::AllRefreshRatesMapType;
 using RefreshRate = RefreshRateConfigs::RefreshRate;
 
+std::string RefreshRate::toString() const {
+    return base::StringPrintf("{id=%d, hwcId=%d, fps=%.2f, width=%d, height=%d group=%d}",
+                              getConfigId().value(), hwcConfig->getId(), getFps(),
+                              hwcConfig->getWidth(), hwcConfig->getHeight(), getConfigGroup());
+}
+
 std::string RefreshRateConfigs::layerVoteTypeString(LayerVoteType vote) {
     switch (vote) {
         case LayerVoteType::NoVote:
@@ -125,7 +131,7 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
         const std::vector<LayerRequirement>& layers, const GlobalSignals& globalSignals,
         GlobalSignals* outSignalsConsidered) const {
     ATRACE_CALL();
-    ALOGV("getRefreshRateForContent %zu layers", layers.size());
+    ALOGV("getBestRefreshRate %zu layers", layers.size());
 
     if (outSignalsConsidered) *outSignalsConsidered = {};
     const auto setTouchConsidered = [&] {
@@ -148,6 +154,7 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
     int explicitDefaultVoteLayers = 0;
     int explicitExactOrMultipleVoteLayers = 0;
     float maxExplicitWeight = 0;
+    int seamedLayers = 0;
     for (const auto& layer : layers) {
         if (layer.vote == LayerVoteType::NoVote) {
             noVoteLayers++;
@@ -161,6 +168,10 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
         } else if (layer.vote == LayerVoteType::ExplicitExactOrMultiple) {
             explicitExactOrMultipleVoteLayers++;
             maxExplicitWeight = std::max(maxExplicitWeight, layer.weight);
+        }
+
+        if (!layer.shouldBeSeamless) {
+            seamedLayers++;
         }
     }
 
@@ -206,6 +217,8 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
         scores.emplace_back(refreshRate, 0.0f);
     }
 
+    const auto& defaultConfig = mRefreshRates.at(policy->defaultConfig);
+
     for (const auto& layer : layers) {
         ALOGV("Calculating score for %s (%s, weight %.2f)", layer.name.c_str(),
               layerVoteTypeString(layer.vote).c_str(), layer.weight);
@@ -216,6 +229,30 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
         auto weight = layer.weight;
 
         for (auto i = 0u; i < scores.size(); i++) {
+            // If there are no layers with shouldBeSeamless=false and the current
+            // config group is different from the default one, this means a layer with
+            // shouldBeSeamless=false has just disappeared and we should switch back to
+            // the default config group.
+            const bool isSeamlessSwitch = seamedLayers > 0
+                    ? scores[i].first->getConfigGroup() == mCurrentRefreshRate->getConfigGroup()
+                    : scores[i].first->getConfigGroup() == defaultConfig->getConfigGroup();
+
+            if (layer.shouldBeSeamless && !isSeamlessSwitch) {
+                ALOGV("%s (weight %.2f) ignores %s (group=%d) to avoid non-seamless switch."
+                      "Current config = %s",
+                      layer.name.c_str(), weight, scores[i].first->name.c_str(),
+                      scores[i].first->getConfigGroup(), mCurrentRefreshRate->toString().c_str());
+                continue;
+            }
+
+            if (!layer.shouldBeSeamless && !isSeamlessSwitch && !layer.focused) {
+                ALOGV("%s (weight %.2f) ignores %s (group=%d) because it's not focused"
+                      " and the switch is going to be seamed. Current config = %s",
+                      layer.name.c_str(), weight, scores[i].first->name.c_str(),
+                      scores[i].first->getConfigGroup(), mCurrentRefreshRate->toString().c_str());
+                continue;
+            }
+
             bool inPrimaryRange =
                     scores[i].first->inPolicy(policy->primaryRange.min, policy->primaryRange.max);
             if ((primaryRangeIsSingleRate || !inPrimaryRange) &&
@@ -292,10 +329,13 @@ const RefreshRate& RefreshRateConfigs::getBestRefreshRate(
 
                     return 1.0f / iter;
                 }();
+                // Slightly prefer seamless switches.
+                constexpr float kSeamedSwitchPenalty = 0.95f;
+                const float seamlessness = isSeamlessSwitch ? 1.0f : kSeamedSwitchPenalty;
                 ALOGV("%s (%s, weight %.2f) %.2fHz gives %s score of %.2f", layer.name.c_str(),
                       layerVoteTypeString(layer.vote).c_str(), weight, 1e9f / layerPeriod,
                       scores[i].first->name.c_str(), layerScore);
-                scores[i].second += weight * layerScore;
+                scores[i].second += weight * layerScore * seamlessness;
                 continue;
             }
         }
@@ -367,6 +407,15 @@ const RefreshRate& RefreshRateConfigs::getMinRefreshRateByPolicy() const {
 }
 
 const RefreshRate& RefreshRateConfigs::getMinRefreshRateByPolicyLocked() const {
+    for (auto refreshRate : mPrimaryRefreshRates) {
+        if (mCurrentRefreshRate->getConfigGroup() == refreshRate->getConfigGroup()) {
+            return *refreshRate;
+        }
+    }
+    ALOGE("Can't find min refresh rate by policy with the same config group"
+          " as the current config %s",
+          mCurrentRefreshRate->toString().c_str());
+    // Defaulting to the lowest refresh rate
     return *mPrimaryRefreshRates.front();
 }
 
@@ -376,6 +425,16 @@ const RefreshRate& RefreshRateConfigs::getMaxRefreshRateByPolicy() const {
 }
 
 const RefreshRate& RefreshRateConfigs::getMaxRefreshRateByPolicyLocked() const {
+    for (auto it = mPrimaryRefreshRates.rbegin(); it != mPrimaryRefreshRates.rend(); it++) {
+        const auto& refreshRate = (**it);
+        if (mCurrentRefreshRate->getConfigGroup() == refreshRate.getConfigGroup()) {
+            return refreshRate;
+        }
+    }
+    ALOGE("Can't find max refresh rate by policy with the same config group"
+          " as the current config %s",
+          mCurrentRefreshRate->toString().c_str());
+    // Defaulting to the highest refresh rate
     return *mPrimaryRefreshRates.back();
 }
 
@@ -414,7 +473,7 @@ RefreshRateConfigs::RefreshRateConfigs(
         const float fps = 1e9f / config->getVsyncPeriod();
         mRefreshRates.emplace(configId,
                               std::make_unique<RefreshRate>(configId, config,
-                                                            base::StringPrintf("%.0ffps", fps), fps,
+                                                            base::StringPrintf("%.2ffps", fps), fps,
                                                             RefreshRate::ConstructorTag(0)));
         if (configId == currentConfigId) {
             mCurrentRefreshRate = mRefreshRates.at(configId).get();
@@ -658,6 +717,28 @@ int RefreshRateConfigs::getRefreshRateDividerForUid(uid_t uid) const {
     }
 
     return static_cast<int>(numPeriods);
+}
+
+void RefreshRateConfigs::dump(std::string& result) const {
+    std::lock_guard lock(mLock);
+    base::StringAppendF(&result, "DesiredDisplayConfigSpecs (DisplayManager): %s\n\n",
+                        mDisplayManagerPolicy.toString().c_str());
+    scheduler::RefreshRateConfigs::Policy currentPolicy = *getCurrentPolicyLocked();
+    if (mOverridePolicy && currentPolicy != mDisplayManagerPolicy) {
+        base::StringAppendF(&result, "DesiredDisplayConfigSpecs (Override): %s\n\n",
+                            currentPolicy.toString().c_str());
+    }
+
+    auto config = mCurrentRefreshRate->hwcConfig;
+    base::StringAppendF(&result, "Current config: %s\n", mCurrentRefreshRate->toString().c_str());
+
+    result.append("Refresh rates:\n");
+    for (const auto& [id, refreshRate] : mRefreshRates) {
+        config = refreshRate->hwcConfig;
+        base::StringAppendF(&result, "\t%s\n", refreshRate->toString().c_str());
+    }
+
+    result.append("\n");
 }
 
 } // namespace android::scheduler

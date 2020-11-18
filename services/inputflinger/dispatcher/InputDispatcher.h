@@ -419,9 +419,6 @@ private:
     // Once a connection becomes unresponsive, its entries are removed from AnrTracker to
     // prevent unneeded wakeups.
     AnrTracker mAnrTracker GUARDED_BY(mLock);
-    void extendAnrTimeoutsLocked(const std::shared_ptr<InputApplicationHandle>& application,
-                                 const sp<IBinder>& connectionToken,
-                                 std::chrono::nanoseconds timeoutExtension) REQUIRES(mLock);
 
     // Contains the last window which received a hover event.
     sp<InputWindowHandle> mLastHoverWindowHandle GUARDED_BY(mLock);
@@ -475,9 +472,8 @@ private:
                                        int32_t y) const REQUIRES(mLock);
     bool isWindowObscuredLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
     std::string dumpWindowForTouchOcclusion(const InputWindowInfo* info, bool isTouchWindow) const;
-    std::string getApplicationWindowLabel(
-            const std::shared_ptr<InputApplicationHandle>& applicationHandle,
-            const sp<InputWindowHandle>& windowHandle);
+    std::string getApplicationWindowLabel(const InputApplicationHandle* applicationHandle,
+                                          const sp<InputWindowHandle>& windowHandle);
 
     // Manage the dispatch cycle for a single connection.
     // These methods are deliberately not Interruptible because doing all of the work
@@ -554,11 +550,11 @@ private:
     void notifyFocusChangedLocked(const sp<IBinder>& oldFocus, const sp<IBinder>& newFocus)
             REQUIRES(mLock);
     void onAnrLocked(const Connection& connection) REQUIRES(mLock);
-    void onAnrLocked(const std::shared_ptr<InputApplicationHandle>& application) REQUIRES(mLock);
+    void onAnrLocked(std::shared_ptr<InputApplicationHandle> application) REQUIRES(mLock);
     void onUntrustedTouchLocked(const std::string& obscuringPackage) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)
             REQUIRES(mLock);
-    void updateLastAnrStateLocked(const std::shared_ptr<InputApplicationHandle>& application,
+    void updateLastAnrStateLocked(const InputApplicationHandle& application,
                                   const std::string& reason) REQUIRES(mLock);
     void updateLastAnrStateLocked(const std::string& windowLabel, const std::string& reason)
             REQUIRES(mLock);
@@ -568,7 +564,11 @@ private:
             REQUIRES(mLock);
     void doNotifyInputChannelBrokenLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doNotifyFocusChangedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doNotifyAnrLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+    void doNotifyNoFocusedWindowAnrLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+    void doNotifyConnectionUnresponsiveLockedInterruptible(CommandEntry* commandEntry)
+            REQUIRES(mLock);
+    void doNotifyConnectionResponsiveLockedInterruptible(CommandEntry* commandEntry)
+            REQUIRES(mLock);
     void doNotifyUntrustedTouchLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doInterceptKeyBeforeDispatchingLockedInterruptible(CommandEntry* commandEntry)
             REQUIRES(mLock);

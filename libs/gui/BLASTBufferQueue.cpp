@@ -378,11 +378,11 @@ public:
         }).detach();
     }
 
-    status_t setFrameRate(float frameRate, int8_t compatibility) override {
+    status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless) override {
         if (!ValidateFrameRate(frameRate, compatibility, "BBQSurface::setFrameRate")) {
             return BAD_VALUE;
         }
-        return mBbq->setFrameRate(frameRate, compatibility);
+        return mBbq->setFrameRate(frameRate, compatibility, shouldBeSeamless);
     }
 
     status_t setFrameTimelineVsync(int64_t frameTimelineVsyncId) override {
@@ -392,12 +392,12 @@ public:
 
 // TODO: Can we coalesce this with frame updates? Need to confirm
 // no timing issues.
-status_t BLASTBufferQueue::setFrameRate(float frameRate, int8_t compatibility) {
+status_t BLASTBufferQueue::setFrameRate(float frameRate, int8_t compatibility,
+                                        bool shouldBeSeamless) {
     std::unique_lock _lock{mMutex};
     SurfaceComposerClient::Transaction t;
 
-    return t.setFrameRate(mSurfaceControl, frameRate, compatibility)
-        .apply();
+    return t.setFrameRate(mSurfaceControl, frameRate, compatibility, shouldBeSeamless).apply();
 }
 
 status_t BLASTBufferQueue::setFrameTimelineVsync(int64_t frameTimelineVsyncId) {

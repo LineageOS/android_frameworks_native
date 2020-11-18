@@ -67,6 +67,7 @@ private:
     inline SkRect getSkRect(const FloatRect& layer);
     inline SkRect getSkRect(const Rect& layer);
     inline SkRRect getRoundedRect(const LayerSettings* layer);
+    inline BlurRegion getBlurRegion(const LayerSettings* layer);
     inline SkColor getSkColor(const vec4& color);
     inline SkM44 getSkM44(const mat4& matrix);
     inline SkMatrix getDrawTransform(const LayerSettings* layer, const SkMatrix& screenTransform);
@@ -76,8 +77,8 @@ private:
     bool waitFence(base::unique_fd fenceFd);
     void drawShadow(SkCanvas* canvas, const SkRect& casterRect, float casterCornerRadius,
                     const ShadowSettings& shadowSettings);
-    void drawBlurRegion(SkCanvas* canvas, const BlurRegion& blurRegion, const SkRect& layerBounds,
-                        sk_sp<SkSurface> blurrendSurface);
+    void drawBlurRegion(SkCanvas* canvas, const BlurRegion& blurRegion,
+                        const SkMatrix& drawTransform, sk_sp<SkSurface> blurrendSurface);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;

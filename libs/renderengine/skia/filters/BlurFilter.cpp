@@ -130,26 +130,8 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
     return lastDrawTarget;
 }
 
-sk_sp<SkSurface> BlurFilter::draw(SkCanvas* canvas, const sk_sp<SkSurface> input,
-                                  const uint32_t blurRadius, SkRect rect) const {
-    ATRACE_CALL();
-    sk_sp<SkSurface> surface = generate(canvas, input, blurRadius, rect);
-    const auto image = surface->makeImageSnapshot();
-
-    SkPaint paint;
-    paint.setShader(image->makeShader(SkMatrix::MakeScale(kInverseInputScale)));
-    paint.setFilterQuality(kLow_SkFilterQuality);
-    paint.setAlpha(std::min(1.0f, (float)blurRadius / kMaxCrossFadeRadius) * 255);
-
-    canvas->drawRect(rect, paint);
-
-    return surface;
-}
-
-SkMatrix BlurFilter::getShaderMatrix(const SkMatrix& transformMatrix) const {
-    SkMatrix matrix;
-    matrix.setConcat(transformMatrix, SkMatrix::MakeScale(kInverseInputScale));
-    return matrix;
+SkMatrix BlurFilter::getShaderMatrix() const {
+    return SkMatrix::MakeScale(kInverseInputScale);
 }
 
 } // namespace skia

@@ -98,14 +98,14 @@ public:
                                                  outTransformHint, format);
     }
 
-    void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color, int32_t bufferWidth,
-                        int32_t bufferHeight) {
+    void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color, uint32_t bufferWidth,
+                        uint32_t bufferHeight) {
         ASSERT_NO_FATAL_FAILURE(LayerTransactionTest::fillLayerColor(mLayerType, layer, color,
                                                                      bufferWidth, bufferHeight));
     }
 
-    void fillLayerQuadrant(const sp<SurfaceControl>& layer, int32_t bufferWidth,
-                           int32_t bufferHeight, const Color& topLeft, const Color& topRight,
+    void fillLayerQuadrant(const sp<SurfaceControl>& layer, uint32_t bufferWidth,
+                           uint32_t bufferHeight, const Color& topLeft, const Color& topRight,
                            const Color& bottomLeft, const Color& bottomRight) {
         ASSERT_NO_FATAL_FAILURE(LayerTransactionTest::fillLayerQuadrant(mLayerType, layer,
                                                                         bufferWidth, bufferHeight,

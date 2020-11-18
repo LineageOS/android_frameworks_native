@@ -153,12 +153,15 @@ public:
     struct FrameRate {
         float rate;
         FrameRateCompatibility type;
+        bool shouldBeSeamless;
 
-        FrameRate() : rate(0), type(FrameRateCompatibility::Default) {}
-        FrameRate(float rate, FrameRateCompatibility type) : rate(rate), type(type) {}
+        FrameRate() : rate(0), type(FrameRateCompatibility::Default), shouldBeSeamless(true) {}
+        FrameRate(float rate, FrameRateCompatibility type, bool shouldBeSeamless = true)
+              : rate(rate), type(type), shouldBeSeamless(shouldBeSeamless) {}
 
         bool operator==(const FrameRate& other) const {
-            return rate == other.rate && type == other.type;
+            return rate == other.rate && type == other.type &&
+                    shouldBeSeamless == other.shouldBeSeamless;
         }
 
         bool operator!=(const FrameRate& other) const { return !(*this == other); }
@@ -1125,5 +1128,7 @@ private:
     // A list of regions on this layer that should have blurs.
     const std::vector<BlurRegion>& getBlurRegions() const;
 };
+
+std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);
 
 } // namespace android
