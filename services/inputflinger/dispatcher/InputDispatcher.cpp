@@ -4490,7 +4490,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     dump += StringPrintf(INDENT3 "%zu: name='%s', id=%" PRId32 ", displayId=%d, "
                                                  "portalToDisplayId=%d, paused=%s, focusable=%s, "
                                                  "hasWallpaper=%s, visible=%s, alpha=%.2f, "
-                                                 "flags=%s, type=0x%08x, "
+                                                 "flags=%s, type=%s, "
                                                  "frame=[%d,%d][%d,%d], globalScale=%f, "
                                                  "applicationInfo=%s, "
                                                  "touchableRegion=",
@@ -4501,7 +4501,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          toString(windowInfo->hasWallpaper),
                                          toString(windowInfo->visible), windowInfo->alpha,
                                          windowInfo->flags.string().c_str(),
-                                         static_cast<int32_t>(windowInfo->type),
+                                         NamedEnum::string(windowInfo->type).c_str(),
                                          windowInfo->frameLeft, windowInfo->frameTop,
                                          windowInfo->frameRight, windowInfo->frameBottom,
                                          windowInfo->globalScaleFactor,
@@ -4510,11 +4510,13 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     dump += StringPrintf(", inputFeatures=%s",
                                          windowInfo->inputFeatures.string().c_str());
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%" PRId64
-                                         "ms, trustedOverlay=%s, hasToken=%s\n",
+                                         "ms, trustedOverlay=%s, hasToken=%s, "
+                                         "touchOcclusionMode=%s\n",
                                          windowInfo->ownerPid, windowInfo->ownerUid,
                                          millis(windowInfo->dispatchingTimeout),
                                          toString(windowInfo->trustedOverlay),
-                                         toString(windowInfo->token != nullptr));
+                                         toString(windowInfo->token != nullptr),
+                                         toString(windowInfo->touchOcclusionMode).c_str());
                     windowInfo->transform.dump(dump, "transform", INDENT4);
                 }
             } else {
