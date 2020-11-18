@@ -40,9 +40,13 @@ void calculateTimeoutTime(std::chrono::nanoseconds timestamp, timespec* spec) {
 namespace android {
 namespace scheduler {
 
-OneShotTimer::OneShotTimer(const Interval& interval, const ResetCallback& resetCallback,
+OneShotTimer::OneShotTimer(std::string name, const Interval& interval,
+                           const ResetCallback& resetCallback,
                            const TimeoutCallback& timeoutCallback)
-      : mInterval(interval), mResetCallback(resetCallback), mTimeoutCallback(timeoutCallback) {}
+      : mName(std::move(name)),
+        mInterval(interval),
+        mResetCallback(resetCallback),
+        mTimeoutCallback(timeoutCallback) {}
 
 OneShotTimer::~OneShotTimer() {
     stop();
@@ -71,6 +75,10 @@ void OneShotTimer::stop() {
 }
 
 void OneShotTimer::loop() {
+    if (pthread_setname_np(pthread_self(), mName.c_str())) {
+        ALOGW("Failed to set thread name on dispatch thread");
+    }
+
     TimerState state = TimerState::RESET;
     while (true) {
         bool triggerReset = false;
