@@ -100,7 +100,7 @@ private:
     void processNextBufferLocked(bool useNextTransaction) REQUIRES(mMutex);
     Rect computeCrop(const BufferItem& item) REQUIRES(mMutex);
     // Return true if we need to reject the buffer based on the scaling mode and the buffer size.
-    bool rejectBuffer(const BufferItem& item) const REQUIRES(mMutex);
+    bool rejectBuffer(const BufferItem& item) REQUIRES(mMutex);
     bool maxBuffersAcquired() const REQUIRES(mMutex);
 
     std::string mName;
@@ -126,8 +126,8 @@ private:
     // is ready to be presented.
     PendingReleaseItem mPendingReleaseItem GUARDED_BY(mMutex);
 
-    uint32_t mWidth GUARDED_BY(mMutex);
-    uint32_t mHeight GUARDED_BY(mMutex);
+    ui::Size mSize GUARDED_BY(mMutex);
+    ui::Size mRequestedSize GUARDED_BY(mMutex);
 
     uint32_t mTransformHint GUARDED_BY(mMutex);
 

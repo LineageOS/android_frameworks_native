@@ -111,8 +111,8 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
                                    int width, int height, bool enableTripleBuffering)
       : mName(name),
         mSurfaceControl(surface),
-        mWidth(width),
-        mHeight(height),
+        mSize(width, height),
+        mRequestedSize(mSize),
         mNextTransaction(nullptr) {
     BufferQueue::createBufferQueue(&mProducer, &mConsumer);
     // since the adapter is in the client process, set dequeue timeout
@@ -130,7 +130,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mBufferItemConsumer->setName(String8(consumerName.c_str()));
     mBufferItemConsumer->setFrameAvailableListener(this);
     mBufferItemConsumer->setBufferFreedListener(this);
-    mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
+    mBufferItemConsumer->setDefaultBufferSize(mSize.width, mSize.height);
     mBufferItemConsumer->setDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888);
 
     mTransformHint = mSurfaceControl->getTransformHint();
@@ -146,10 +146,10 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     std::unique_lock _lock{mMutex};
     mSurfaceControl = surface;
 
-    if (mWidth != width || mHeight != height) {
-        mWidth = width;
-        mHeight = height;
-        mBufferItemConsumer->setDefaultBufferSize(mWidth, mHeight);
+    ui::Size newSize(width, height);
+    if (mRequestedSize != newSize) {
+        mRequestedSize.set(newSize);
+        mBufferItemConsumer->setDefaultBufferSize(mRequestedSize.width, mRequestedSize.height);
     }
 }
 
@@ -218,6 +218,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     // number of buffers.
     if (mNumFrameAvailable == 0 || maxBuffersAcquired()) {
         BQA_LOGV("processNextBufferLocked waiting for frame available or callback");
+        mCallbackCV.notify_all();
         return;
     }
 
@@ -252,10 +253,13 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     }
 
     if (rejectBuffer(bufferItem)) {
-        BQA_LOGE("rejecting buffer:configured size=%dx%d, buffer{size=%dx%d transform=%d}", mWidth,
-                 mHeight, buffer->getWidth(), buffer->getHeight(), bufferItem.mTransform);
-        // TODO(b/168917217) temporarily don't reject buffers until we can synchronize buffer size
-        // changes from ViewRootImpl.
+        BQA_LOGE("rejecting buffer:active_size=%dx%d, requested_size=%dx%d"
+                 "buffer{size=%dx%d transform=%d}",
+                 mSize.width, mSize.height, mRequestedSize.width, mRequestedSize.height,
+                 buffer->getWidth(), buffer->getHeight(), bufferItem.mTransform);
+        mBufferItemConsumer->releaseBuffer(bufferItem, Fence::NO_FENCE);
+        processNextBufferLocked(useNextTransaction);
+        return;
     }
 
     mNumAcquired++;
@@ -278,7 +282,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
 
     t->setFrame(mSurfaceControl,
-                {0, 0, static_cast<int32_t>(mWidth), static_cast<int32_t>(mHeight)});
+                {0, 0, static_cast<int32_t>(mSize.width), static_cast<int32_t>(mSize.height)});
     t->setCrop(mSurfaceControl, computeCrop(bufferItem));
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
@@ -291,13 +295,13 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
 
     BQA_LOGV("processNextBufferLocked size=%dx%d mFrameNumber=%" PRIu64
              " applyTransaction=%s mTimestamp=%" PRId64,
-             mWidth, mHeight, bufferItem.mFrameNumber, toString(applyTransaction),
+             mSize.width, mSize.height, bufferItem.mFrameNumber, toString(applyTransaction),
              bufferItem.mTimestamp);
 }
 
 Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
     if (item.mScalingMode == NATIVE_WINDOW_SCALING_MODE_SCALE_CROP) {
-        return GLConsumer::scaleDownCrop(item.mCrop, mWidth, mHeight);
+        return GLConsumer::scaleDownCrop(item.mCrop, mSize.width, mSize.height);
     }
     return item.mCrop;
 }
@@ -332,8 +336,9 @@ void BLASTBufferQueue::setNextTransaction(SurfaceComposerClient::Transaction* t)
     mNextTransaction = t;
 }
 
-bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) const {
+bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
     if (item.mScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE) {
+        mSize = mRequestedSize;
         // Only reject buffers if scaling mode is freeze.
         return false;
     }
@@ -345,9 +350,14 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) const {
     if (item.mTransform & ui::Transform::ROT_90) {
         std::swap(bufWidth, bufHeight);
     }
+    ui::Size bufferSize(bufWidth, bufHeight);
+    if (mRequestedSize != mSize && mRequestedSize == bufferSize) {
+        mSize = mRequestedSize;
+        return false;
+    }
 
     // reject buffers if the buffer size doesn't match.
-    return bufWidth != mWidth || bufHeight != mHeight;
+    return mSize != bufferSize;
 }
 
 // Check if we have acquired the maximum number of buffers.
