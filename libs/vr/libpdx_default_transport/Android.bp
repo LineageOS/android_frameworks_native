@@ -45,6 +45,7 @@ cc_library_shared {
 
 cc_binary {
     name: "pdx_tool",
+    system_ext_specific: true,
     defaults: ["pdx_default_transport_compiler_defaults"],
     srcs: [
         "pdx_tool.cpp",
