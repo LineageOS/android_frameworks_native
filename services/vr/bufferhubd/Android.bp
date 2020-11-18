@@ -47,6 +47,7 @@ cc_library_static {
 
 cc_binary {
     srcs: ["bufferhubd.cpp"],
+    system_ext_specific: true,
     cflags: [
         "-DLOG_TAG=\"bufferhubd\"",
         "-DTRACE=0",
