@@ -15,7 +15,6 @@
 sharedLibraries = [
     "libbase",
     "libcutils",
-    "libgtest_prod",
     "libgui",
     "liblog",
     "libpdx_default_transport",
