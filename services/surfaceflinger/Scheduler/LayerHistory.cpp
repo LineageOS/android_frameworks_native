@@ -125,12 +125,23 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
                             return LayerVoteType::NoVote;
                     }
                 }();
-                summary.push_back({layer->getName(), voteType, frameRate.rate, /* weight */ 1.0f,
-                                   layerFocused});
+                summary.push_back(
+                        RefreshRateConfigs::LayerRequirement{.name = layer->getName(),
+                                                             .vote = voteType,
+                                                             .desiredRefreshRate = frameRate.rate,
+                                                             .shouldBeSeamless =
+                                                                     frameRate.shouldBeSeamless,
+                                                             .weight = 1.0f,
+                                                             .focused = layerFocused});
             } else if (recent) {
-                summary.push_back({layer->getName(), LayerVoteType::Heuristic,
-                                   info->getRefreshRate(now),
-                                   /* weight */ 1.0f, layerFocused});
+                summary.push_back(
+                        RefreshRateConfigs::LayerRequirement{.name = layer->getName(),
+                                                             .vote = LayerVoteType::Heuristic,
+                                                             .desiredRefreshRate =
+                                                                     info->getRefreshRate(now),
+                                                             .shouldBeSeamless = true,
+                                                             .weight = 1.0f,
+                                                             .focused = layerFocused});
             }
 
             if (CC_UNLIKELY(mTraceEnabled)) {

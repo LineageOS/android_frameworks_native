@@ -3781,7 +3781,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                               "SurfaceFlinger::setClientStateLocked") &&
             layer->setFrameRate(Layer::FrameRate(s.frameRate,
                                                  Layer::FrameRate::convertCompatibility(
-                                                         s.frameRateCompatibility)))) {
+                                                         s.frameRateCompatibility),
+                                                 s.shouldBeSeamless))) {
             flags |= eTraversalNeeded;
         }
     }
@@ -4373,16 +4374,10 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   "      present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriodFromHWC());
 
-    scheduler::RefreshRateConfigs::Policy policy = mRefreshRateConfigs->getDisplayManagerPolicy();
-    StringAppendF(&result, "DesiredDisplayConfigSpecs (DisplayManager): %s\n\n",
-                  policy.toString().c_str());
+    mRefreshRateConfigs->dump(result);
+
     StringAppendF(&result, "(config override by backdoor: %s)\n\n",
                   mDebugDisplayConfigSetByBackdoor ? "yes" : "no");
-    scheduler::RefreshRateConfigs::Policy currentPolicy = mRefreshRateConfigs->getCurrentPolicy();
-    if (currentPolicy != policy) {
-        StringAppendF(&result, "DesiredDisplayConfigSpecs (Override): %s\n\n",
-                      currentPolicy.toString().c_str());
-    }
 
     mScheduler->dump(mAppConnectionHandle, result);
     mScheduler->dumpVsync(result);
@@ -5660,9 +5655,14 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
     const bool supportsProtected = getRenderEngine().supportsProtectedContent();
     bool hasProtectedLayer = false;
     if (allowProtected && supportsProtected) {
-        traverseLayers([&](Layer* layer) {
-            hasProtectedLayer = hasProtectedLayer || (layer->isVisible() && layer->isProtected());
-        });
+        hasProtectedLayer = schedule([=]() {
+                                bool protectedLayerFound = false;
+                                traverseLayers([&](Layer* layer) {
+                                    protectedLayerFound = protectedLayerFound ||
+                                            (layer->isVisible() && layer->isProtected());
+                                });
+                                return protectedLayerFound;
+                            }).get();
     }
 
     const uint32_t usage = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER |
@@ -6136,7 +6136,7 @@ const std::unordered_map<std::string, uint32_t>& SurfaceFlinger::getGenericLayer
 }
 
 status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
-                                      int8_t compatibility) {
+                                      int8_t compatibility, bool shouldBeSeamless) {
     if (!ValidateFrameRate(frameRate, compatibility, "SurfaceFlinger::setFrameRate")) {
         return BAD_VALUE;
     }
@@ -6149,10 +6149,10 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
                 ALOGE("Attempt to set frame rate on a layer that no longer exists");
                 return BAD_VALUE;
             }
-
             if (layer->setFrameRate(
                         Layer::FrameRate(frameRate,
-                                         Layer::FrameRate::convertCompatibility(compatibility)))) {
+                                         Layer::FrameRate::convertCompatibility(compatibility),
+                                         shouldBeSeamless))) {
                 setTransactionFlags(eTraversalNeeded);
             }
         } else {

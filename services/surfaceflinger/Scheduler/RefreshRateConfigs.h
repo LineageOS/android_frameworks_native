@@ -86,6 +86,8 @@ public:
 
         bool operator==(const RefreshRate& other) const { return !(*this != other); }
 
+        std::string toString() const;
+
     private:
         friend RefreshRateConfigs;
         friend class RefreshRateConfigsTest;
@@ -216,6 +218,8 @@ public:
         LayerVoteType vote = LayerVoteType::NoVote;
         // Layer's desired refresh rate, if applicable.
         float desiredRefreshRate = 0.0f;
+        // If a seamless mode switch is required.
+        bool shouldBeSeamless = true;
         // Layer's weight in the range of [0, 1]. The higher the weight the more impact this layer
         // would have on choosing the refresh rate.
         float weight = 0.0f;
@@ -317,6 +321,8 @@ public:
 
     // Returns a divider for the current refresh rate
     int getRefreshRateDividerForUid(uid_t) const EXCLUDES(mLock);
+
+    void dump(std::string& result) const EXCLUDES(mLock);
 
 private:
     friend class RefreshRateConfigsTest;
