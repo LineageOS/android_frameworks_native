@@ -24,7 +24,14 @@
 
 __BEGIN_DECLS
 
-const native_handle_t* AHardwareBuffer_getNativeHandle(const AHardwareBuffer* buffer);
+/**
+ * Get the native handle from an AHardwareBuffer.
+ *
+ * \return a non-NULL native handle on success, NULL if \a buffer is nullptr or the operation fails
+ * for any reason.
+ */
+const native_handle_t* _Nullable AHardwareBuffer_getNativeHandle(
+        const AHardwareBuffer* _Nonnull buffer);
 
 enum CreateFromHandleMethod {
     // enum values chosen to match internal GraphicBuffer::HandleWrapMethod
@@ -33,9 +40,9 @@ enum CreateFromHandleMethod {
 };
 
 /**
- * Create a AHardwareBuffer from a native handle.
+ * Create an AHardwareBuffer from a native handle.
  *
- * This function wraps a native handle in a AHardwareBuffer suitable for use by applications or
+ * This function wraps a native handle in an AHardwareBuffer suitable for use by applications or
  * other parts of the system. The contents of desc will be returned by AHardwareBuffer_describe().
  *
  * If method is AHARDWAREBUFFER_CREATE_FROM_HANDLE_METHOD_REGISTER, the handle is assumed to be
@@ -44,10 +51,13 @@ enum CreateFromHandleMethod {
  *
  * If method is AHARDWAREBUFFER_CREATE_FROM_HANDLE_METHOD_CLONE, the handle will be cloned and the
  * clone registered. The AHardwareBuffer will own the cloned handle but not the original.
+ *
+ * \return 0 on success, -EINVAL if \a desc or \a handle or outBuffer is NULL, or an error number if
+ * the operation fails for any reason.
  */
-int AHardwareBuffer_createFromHandle(const AHardwareBuffer_Desc* desc,
-                                     const native_handle_t* handle, int32_t method,
-                                     AHardwareBuffer** outBuffer);
+int AHardwareBuffer_createFromHandle(const AHardwareBuffer_Desc* _Nonnull desc,
+                                     const native_handle_t* _Nonnull handle, int32_t method,
+                                     AHardwareBuffer* _Nullable* _Nonnull outBuffer);
 
 /**
  * Buffer pixel formats.
