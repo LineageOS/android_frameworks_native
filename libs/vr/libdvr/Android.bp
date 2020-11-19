@@ -80,6 +80,7 @@ shared_libs = [
 
 cc_library_shared {
     name: "libdvr.google",
+    system_ext_specific: true,
     owner: "google",
     cflags: cflags,
     header_libs: ["libdvr_headers"],

@@ -30,6 +30,7 @@ cc_defaults {
 
 cc_binary {
     name: "performanced",
+    system_ext_specific: true,
     defaults: ["performanced_defaults"],
     srcs: [
         "cpu_set.cpp",
