@@ -134,20 +134,8 @@ private:
     std::shared_ptr<CallbackScheduler> mCallbackScheduler;
 
     sp<hardware::vibrator::IVibratorManager> getHal();
-
-    // Connector that creates a HalWrapper from an IVibrator loaded from IVibratorManager.
-    class ManagedHalConnector : public HalConnector {
-    public:
-        ManagedHalConnector(AidlManagerHalWrapper* manager, int32_t vibratorId)
-              : mManager(manager), mVibratorId(vibratorId) {}
-        ~ManagedHalConnector() = default;
-
-        std::shared_ptr<HalWrapper> connect(std::shared_ptr<CallbackScheduler>) override final;
-
-    private:
-        AidlManagerHalWrapper* mManager;
-        const int32_t mVibratorId;
-    };
+    std::shared_ptr<HalWrapper> connectToVibrator(int32_t vibratorId,
+                                                  std::shared_ptr<CallbackScheduler> scheduler);
 };
 
 }; // namespace vibrator

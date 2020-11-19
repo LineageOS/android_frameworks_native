@@ -46,7 +46,7 @@ namespace vibrator {
 
 // -------------------------------------------------------------------------------------------------
 
-std::shared_ptr<HalWrapper> HalConnector::connect(std::shared_ptr<CallbackScheduler> scheduler) {
+std::shared_ptr<HalWrapper> connectHal(std::shared_ptr<CallbackScheduler> scheduler) {
     static bool gHalExists = true;
     if (!gHalExists) {
         // We already tried to connect to all of the vibrator HAL versions and none was available.
@@ -106,7 +106,7 @@ HalResult<T> HalController::apply(HalController::hal_fn<T>& halFn, const char* f
         std::lock_guard<std::mutex> lock(mConnectedHalMutex);
         if (mConnectedHal == nullptr) {
             // Init was never called, so connect to HAL for the first time during this call.
-            mConnectedHal = mHalConnector->connect(mCallbackScheduler);
+            mConnectedHal = mConnector(mCallbackScheduler);
 
             if (mConnectedHal == nullptr) {
                 ALOGV("Skipped %s because Vibrator HAL is not available", functionName);
@@ -129,7 +129,7 @@ HalResult<T> HalController::apply(HalController::hal_fn<T>& halFn, const char* f
 bool HalController::init() {
     std::lock_guard<std::mutex> lock(mConnectedHalMutex);
     if (mConnectedHal == nullptr) {
-        mConnectedHal = mHalConnector->connect(mCallbackScheduler);
+        mConnectedHal = mConnector(mCallbackScheduler);
     }
     return mConnectedHal != nullptr;
 }
@@ -142,7 +142,7 @@ HalResult<void> HalController::ping() {
 void HalController::tryReconnect() {
     std::lock_guard<std::mutex> lock(mConnectedHalMutex);
     if (mConnectedHal == nullptr) {
-        mConnectedHal = mHalConnector->connect(mCallbackScheduler);
+        mConnectedHal = mConnector(mCallbackScheduler);
     } else {
         mConnectedHal->tryReconnect();
     }

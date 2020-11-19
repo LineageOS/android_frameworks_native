@@ -72,11 +72,11 @@ HalResult<void> LegacyManagerHalWrapper::cancelSynced() {
 
 // -------------------------------------------------------------------------------------------------
 
-std::shared_ptr<HalWrapper> AidlManagerHalWrapper::ManagedHalConnector::connect(
-        std::shared_ptr<CallbackScheduler> callbackScheduler) {
-    std::function<HalResult<sp<Aidl::IVibrator>>()> reconnectFn = [&]() {
+std::shared_ptr<HalWrapper> AidlManagerHalWrapper::connectToVibrator(
+        int32_t vibratorId, std::shared_ptr<CallbackScheduler> callbackScheduler) {
+    std::function<HalResult<sp<Aidl::IVibrator>>()> reconnectFn = [=]() {
         sp<Aidl::IVibrator> vibrator;
-        auto result = this->mManager->getHal()->getVibrator(this->mVibratorId, &vibrator);
+        auto result = this->getHal()->getVibrator(vibratorId, &vibrator);
         return HalResult<sp<Aidl::IVibrator>>::fromStatus(result, vibrator);
     };
     auto result = reconnectFn();
@@ -133,9 +133,10 @@ HalResult<std::vector<int32_t>> AidlManagerHalWrapper::getVibratorIds() {
         // Cache copy of returned value and the individual controllers.
         mVibratorIds.emplace(ret.value());
         for (auto& id : ids) {
-            auto connector = std::make_unique<ManagedHalConnector>(this, id);
-            auto controller =
-                    std::make_unique<HalController>(std::move(connector), mCallbackScheduler);
+            HalController::Connector connector = [&, id](auto scheduler) {
+                return this->connectToVibrator(id, scheduler);
+            };
+            auto controller = std::make_unique<HalController>(mCallbackScheduler, connector);
             mVibrators[id] = std::move(controller);
         }
     }
