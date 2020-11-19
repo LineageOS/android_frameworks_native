@@ -405,6 +405,11 @@ void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     mListener->notifyDeviceReset(args);
 }
 
+void InputClassifier::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
+    // pass through
+    mListener->notifyPointerCaptureChanged(args);
+}
+
 void InputClassifier::setMotionClassifier(
         std::unique_ptr<MotionClassifierInterface> motionClassifier) {
     std::scoped_lock lock(mLock);

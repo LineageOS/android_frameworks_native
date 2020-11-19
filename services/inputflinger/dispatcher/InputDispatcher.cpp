@@ -3542,6 +3542,15 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     }
 }
 
+void InputDispatcher::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
+#if DEBUG_INBOUND_EVENT_DETAILS
+    ALOGD("notifyPointerCaptureChanged - eventTime=%" PRId64 ", enabled=%s", args->eventTime,
+          args->enabled ? "true" : "false");
+#endif
+
+    // TODO(prabirmsp): Implement.
+}
+
 InputEventInjectionResult InputDispatcher::injectInputEvent(
         const InputEvent* event, int32_t injectorPid, int32_t injectorUid,
         InputEventInjectionSync syncMode, std::chrono::milliseconds timeout, uint32_t policyFlags) {
