@@ -175,6 +175,7 @@ RegionSamplingThread::RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& s
         mScheduler(scheduler),
         mTunables(tunables),
         mIdleTimer(
+                "RegionSamplingIdleTimer",
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                         mTunables.mSamplingTimerTimeout),
                 [] {}, [this] { checkForStaleLuma(); }),
