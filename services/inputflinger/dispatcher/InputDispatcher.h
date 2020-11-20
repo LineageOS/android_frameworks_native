@@ -94,6 +94,7 @@ public:
     virtual void notifyMotion(const NotifyMotionArgs* args) override;
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
+    virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
     virtual android::os::InputEventInjectionResult injectInputEvent(
             const InputEvent* event, int32_t injectorPid, int32_t injectorUid,

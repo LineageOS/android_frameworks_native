@@ -105,6 +105,8 @@ bool InputMessage::isValid(size_t actualSize) const {
                 return true;
             case Type::FOCUS:
                 return true;
+            case Type::CAPTURE:
+                return true;
         }
     }
     return false;
@@ -120,6 +122,8 @@ size_t InputMessage::size() const {
             return sizeof(Header) + body.finished.size();
         case Type::FOCUS:
             return sizeof(Header) + body.focus.size();
+        case Type::CAPTURE:
+            return sizeof(Header) + body.capture.size();
     }
     return sizeof(Header);
 }
@@ -236,6 +240,11 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
             msg->body.focus.eventId = body.focus.eventId;
             msg->body.focus.hasFocus = body.focus.hasFocus;
             msg->body.focus.inTouchMode = body.focus.inTouchMode;
+            break;
+        }
+        case InputMessage::Type::CAPTURE: {
+            msg->body.capture.eventId = body.capture.eventId;
+            msg->body.capture.pointerCaptureEnabled = body.capture.pointerCaptureEnabled;
             break;
         }
     }
@@ -571,6 +580,23 @@ status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool h
     return mChannel->sendMessage(&msg);
 }
 
+status_t InputPublisher::publishCaptureEvent(uint32_t seq, int32_t eventId,
+                                             bool pointerCaptureEnabled) {
+    if (ATRACE_ENABLED()) {
+        std::string message =
+                StringPrintf("publishCaptureEvent(inputChannel=%s, pointerCaptureEnabled=%s)",
+                             mChannel->getName().c_str(), toString(pointerCaptureEnabled));
+        ATRACE_NAME(message.c_str());
+    }
+
+    InputMessage msg;
+    msg.header.type = InputMessage::Type::CAPTURE;
+    msg.header.seq = seq;
+    msg.body.capture.eventId = eventId;
+    msg.body.capture.pointerCaptureEnabled = pointerCaptureEnabled ? 1 : 0;
+    return mChannel->sendMessage(&msg);
+}
+
 status_t InputPublisher::receiveFinishedSignal(uint32_t* outSeq, bool* outHandled) {
     if (DEBUG_TRANSPORT_ACTIONS) {
         ALOGD("channel '%s' publisher ~ receiveFinishedSignal", mChannel->getName().c_str());
@@ -737,6 +763,16 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consum
                 initializeFocusEvent(focusEvent, &mMsg);
                 *outSeq = mMsg.header.seq;
                 *outEvent = focusEvent;
+                break;
+            }
+
+            case InputMessage::Type::CAPTURE: {
+                CaptureEvent* captureEvent = factory->createCaptureEvent();
+                if (!captureEvent) return NO_MEMORY;
+
+                initializeCaptureEvent(captureEvent, &mMsg);
+                *outSeq = mMsg.header.seq;
+                *outEvent = captureEvent;
                 break;
             }
         }
@@ -1171,6 +1207,10 @@ void InputConsumer::initializeFocusEvent(FocusEvent* event, const InputMessage* 
                       msg->body.focus.inTouchMode == 1);
 }
 
+void InputConsumer::initializeCaptureEvent(CaptureEvent* event, const InputMessage* msg) {
+    event->initialize(msg->body.capture.eventId, msg->body.capture.pointerCaptureEnabled == 1);
+}
+
 void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage* msg) {
     uint32_t pointerCount = msg->body.motion.pointerCount;
     PointerProperties pointerProperties[pointerCount];
@@ -1272,6 +1312,12 @@ std::string InputConsumer::dump() const {
                     out += android::base::StringPrintf("hasFocus=%s inTouchMode=%s",
                                                        toString(msg.body.focus.hasFocus),
                                                        toString(msg.body.focus.inTouchMode));
+                    break;
+                }
+                case InputMessage::Type::CAPTURE: {
+                    out += android::base::StringPrintf("hasCapture=%s",
+                                                       toString(msg.body.capture
+                                                                        .pointerCaptureEnabled));
                     break;
                 }
             }

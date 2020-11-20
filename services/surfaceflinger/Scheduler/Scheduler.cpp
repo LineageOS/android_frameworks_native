@@ -135,7 +135,7 @@ Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCal
         const auto callback = mOptions.supportKernelTimer ? &Scheduler::kernelIdleTimerCallback
                                                           : &Scheduler::idleTimerCallback;
         mIdleTimer.emplace(
-                std::chrono::milliseconds(millis),
+                "IdleTimer", std::chrono::milliseconds(millis),
                 [this, callback] { std::invoke(callback, this, TimerState::Reset); },
                 [this, callback] { std::invoke(callback, this, TimerState::Expired); });
         mIdleTimer->start();
@@ -144,7 +144,7 @@ Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCal
     if (const int64_t millis = set_touch_timer_ms(0); millis > 0) {
         // Touch events are coming to SF every 100ms, so the timer needs to be higher than that
         mTouchTimer.emplace(
-                std::chrono::milliseconds(millis),
+                "TouchTimer", std::chrono::milliseconds(millis),
                 [this] { touchTimerCallback(TimerState::Reset); },
                 [this] { touchTimerCallback(TimerState::Expired); });
         mTouchTimer->start();
@@ -152,7 +152,7 @@ Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCal
 
     if (const int64_t millis = set_display_power_timer_ms(0); millis > 0) {
         mDisplayPowerTimer.emplace(
-                std::chrono::milliseconds(millis),
+                "DisplayPowerTimer", std::chrono::milliseconds(millis),
                 [this] { displayPowerTimerCallback(TimerState::Reset); },
                 [this] { displayPowerTimerCallback(TimerState::Expired); });
         mDisplayPowerTimer->start();

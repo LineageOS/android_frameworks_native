@@ -90,9 +90,6 @@ protected:
 private:
     uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
-    bool getAutoRefresh() const override;
-    bool getSidebandStreamChanged() const override;
-
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
     void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;
 
@@ -140,11 +137,8 @@ private:
     std::vector<BufferData> mQueueItems;
     std::atomic<uint64_t> mLastFrameNumberReceived{0};
 
-    bool mAutoRefresh{false};
-
     // thread-safe
     std::atomic<int32_t> mQueuedFrames{0};
-    std::atomic<bool> mSidebandStreamChanged{false};
 
     sp<ContentsChangedListener> mContentsChangedListener;
 

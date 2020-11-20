@@ -16,6 +16,8 @@
 
 #include "OneShotTimer.h"
 
+#include <utils/Log.h>
+#include <utils/Timers.h>
 #include <chrono>
 #include <sstream>
 #include <thread>
@@ -29,25 +31,30 @@ constexpr int64_t kNsToSeconds = std::chrono::duration_cast<std::chrono::nanosec
 // (tv_sec) is the whole count of seconds. The second (tv_nsec) is the
 // nanosecond part of the count. This function takes care of translation.
 void calculateTimeoutTime(std::chrono::nanoseconds timestamp, timespec* spec) {
-    clock_gettime(CLOCK_MONOTONIC, spec);
-    spec->tv_sec += static_cast<__kernel_time_t>(timestamp.count() / kNsToSeconds);
-    spec->tv_nsec += timestamp.count() % kNsToSeconds;
+    const nsecs_t timeout = systemTime(CLOCK_MONOTONIC) + timestamp.count();
+    spec->tv_sec = static_cast<__kernel_time_t>(timeout / kNsToSeconds);
+    spec->tv_nsec = timeout % kNsToSeconds;
 }
 } // namespace
 
 namespace android {
 namespace scheduler {
 
-OneShotTimer::OneShotTimer(const Interval& interval, const ResetCallback& resetCallback,
+OneShotTimer::OneShotTimer(std::string name, const Interval& interval,
+                           const ResetCallback& resetCallback,
                            const TimeoutCallback& timeoutCallback)
-      : mInterval(interval), mResetCallback(resetCallback), mTimeoutCallback(timeoutCallback) {}
+      : mName(std::move(name)),
+        mInterval(interval),
+        mResetCallback(resetCallback),
+        mTimeoutCallback(timeoutCallback) {}
 
 OneShotTimer::~OneShotTimer() {
     stop();
 }
 
 void OneShotTimer::start() {
-    sem_init(&mSemaphore, 0, 0);
+    int result = sem_init(&mSemaphore, 0, 0);
+    LOG_ALWAYS_FATAL_IF(result, "sem_init failed");
 
     if (!mThread.joinable()) {
         // Only create thread if it has not been created.
@@ -57,15 +64,21 @@ void OneShotTimer::start() {
 
 void OneShotTimer::stop() {
     mStopTriggered = true;
-    sem_post(&mSemaphore);
+    int result = sem_post(&mSemaphore);
+    LOG_ALWAYS_FATAL_IF(result, "sem_post failed");
 
     if (mThread.joinable()) {
         mThread.join();
-        sem_destroy(&mSemaphore);
+        result = sem_destroy(&mSemaphore);
+        LOG_ALWAYS_FATAL_IF(result, "sem_destroy failed");
     }
 }
 
 void OneShotTimer::loop() {
+    if (pthread_setname_np(pthread_self(), mName.c_str())) {
+        ALOGW("Failed to set thread name on dispatch thread");
+    }
+
     TimerState state = TimerState::RESET;
     while (true) {
         bool triggerReset = false;
@@ -77,7 +90,12 @@ void OneShotTimer::loop() {
         }
 
         if (state == TimerState::IDLE) {
-            sem_wait(&mSemaphore);
+            int result = sem_wait(&mSemaphore);
+            if (result && errno != EINTR) {
+                std::stringstream ss;
+                ss << "sem_wait failed (" << errno << ")";
+                LOG_ALWAYS_FATAL("%s", ss.str().c_str());
+            }
             continue;
         }
 
@@ -101,7 +119,12 @@ void OneShotTimer::loop() {
             // Wait for mInterval time for semaphore signal.
             struct timespec ts;
             calculateTimeoutTime(std::chrono::nanoseconds(mInterval), &ts);
-            sem_clockwait(&mSemaphore, CLOCK_MONOTONIC, &ts);
+            int result = sem_clockwait(&mSemaphore, CLOCK_MONOTONIC, &ts);
+            if (result && errno != ETIMEDOUT && errno != EINTR) {
+                std::stringstream ss;
+                ss << "sem_clockwait failed (" << errno << ")";
+                LOG_ALWAYS_FATAL("%s", ss.str().c_str());
+            }
 
             state = checkForResetAndStop(state);
             if (state == TimerState::RESET) {
@@ -135,7 +158,8 @@ OneShotTimer::TimerState OneShotTimer::checkForResetAndStop(TimerState state) {
 
 void OneShotTimer::reset() {
     mResetTriggered = true;
-    sem_post(&mSemaphore);
+    int result = sem_post(&mSemaphore);
+    LOG_ALWAYS_FATAL_IF(result, "sem_post failed");
 }
 
 std::string OneShotTimer::dump() const {

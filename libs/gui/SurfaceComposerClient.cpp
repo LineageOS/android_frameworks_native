@@ -1527,6 +1527,19 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAutoRefresh(
+        const sp<SurfaceControl>& sc, bool autoRefresh) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eAutoRefreshChanged;
+    s->autoRefresh = autoRefresh;
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 
 DisplayState& SurfaceComposerClient::Transaction::getDisplayState(const sp<IBinder>& token) {

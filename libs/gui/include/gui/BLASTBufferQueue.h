@@ -100,7 +100,7 @@ private:
     void processNextBufferLocked(bool useNextTransaction) REQUIRES(mMutex);
     Rect computeCrop(const BufferItem& item) REQUIRES(mMutex);
     // Return true if we need to reject the buffer based on the scaling mode and the buffer size.
-    bool rejectBuffer(const BufferItem& item) const REQUIRES(mMutex);
+    bool rejectBuffer(const BufferItem& item) REQUIRES(mMutex);
     bool maxBuffersAcquired() const REQUIRES(mMutex);
 
     std::string mName;
@@ -126,8 +126,8 @@ private:
     // is ready to be presented.
     PendingReleaseItem mPendingReleaseItem GUARDED_BY(mMutex);
 
-    uint32_t mWidth GUARDED_BY(mMutex);
-    uint32_t mHeight GUARDED_BY(mMutex);
+    ui::Size mSize GUARDED_BY(mMutex);
+    ui::Size mRequestedSize GUARDED_BY(mMutex);
 
     uint32_t mTransformHint GUARDED_BY(mMutex);
 
@@ -139,6 +139,10 @@ private:
     // If set to true, the next queue buffer will wait until the shadow queue has been processed by
     // the adapter.
     bool mFlushShadowQueue = false;
+    // Last requested auto refresh state set by the producer. The state indicates that the consumer
+    // should acquire the next frame as soon as it can and not wait for a frame to become available.
+    // This is only relevant for shared buffer mode.
+    bool mAutoRefresh GUARDED_BY(mMutex) = false;
 };
 
 } // namespace android

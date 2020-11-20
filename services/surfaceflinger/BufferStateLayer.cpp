@@ -482,13 +482,10 @@ uint64_t BufferStateLayer::getHeadFrameNumber(nsecs_t /* expectedPresentTime */)
     return mCurrentState.frameNumber;
 }
 
-bool BufferStateLayer::getAutoRefresh() const {
-    // TODO(marissaw): support shared buffer mode
-    return false;
-}
-
-bool BufferStateLayer::getSidebandStreamChanged() const {
-    return mSidebandStreamChanged.load();
+void BufferStateLayer::setAutoRefresh(bool autoRefresh) {
+    if (!mAutoRefresh.exchange(autoRefresh)) {
+        mFlinger->signalLayerUpdate();
+    }
 }
 
 bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
@@ -526,37 +523,12 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         return NO_ERROR;
     }
 
-    const int32_t layerId = getSequence();
-
-    // Reject if the layer is invalid
-    uint32_t bufferWidth = s.buffer->width;
-    uint32_t bufferHeight = s.buffer->height;
-
-    if (s.transform & ui::Transform::ROT_90) {
-        std::swap(bufferWidth, bufferHeight);
-    }
-
-    if (s.transformToDisplayInverse) {
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
-        if (invTransform & ui::Transform::ROT_90) {
-            std::swap(bufferWidth, bufferHeight);
-        }
-    }
-
-    if (getEffectiveScalingMode() == NATIVE_WINDOW_SCALING_MODE_FREEZE &&
-        (s.active.w != bufferWidth || s.active.h != bufferHeight)) {
-        ALOGE("[%s] rejecting buffer: "
-              "bufferWidth=%d, bufferHeight=%d, front.active.{w=%d, h=%d}",
-              getDebugName(), bufferWidth, bufferHeight, s.active.w, s.active.h);
-        mFlinger->mTimeStats->removeTimeRecord(layerId, mDrawingState.frameNumber);
-        return BAD_VALUE;
-    }
-
     for (auto& handle : mDrawingState.callbackHandles) {
         handle->latchTime = latchTime;
         handle->frameNumber = mDrawingState.frameNumber;
     }
 
+    const int32_t layerId = getSequence();
     mFlinger->mTimeStats->setAcquireFence(layerId, mDrawingState.frameNumber,
                                           std::make_shared<FenceTime>(mDrawingState.acquireFence));
     mFlinger->mTimeStats->setLatchTime(layerId, mDrawingState.frameNumber, latchTime);

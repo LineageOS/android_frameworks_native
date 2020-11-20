@@ -338,23 +338,29 @@ void InputReader::refreshConfigurationLocked(uint32_t changes) {
     mPolicy->getReaderConfiguration(&mConfig);
     mEventHub->setExcludedDevices(mConfig.excludedDeviceNames);
 
-    if (changes) {
-        ALOGI("Reconfiguring input devices, changes=%s",
-              InputReaderConfiguration::changesToString(changes).c_str());
-        nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+    if (!changes) return;
 
-        if (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO) {
-            updatePointerDisplayLocked();
-        }
+    ALOGI("Reconfiguring input devices, changes=%s",
+          InputReaderConfiguration::changesToString(changes).c_str());
+    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
 
-        if (changes & InputReaderConfiguration::CHANGE_MUST_REOPEN) {
-            mEventHub->requestReopenDevices();
-        } else {
-            for (auto& devicePair : mDevices) {
-                std::shared_ptr<InputDevice>& device = devicePair.second;
-                device->configure(now, &mConfig, changes);
-            }
+    if (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO) {
+        updatePointerDisplayLocked();
+    }
+
+    if (changes & InputReaderConfiguration::CHANGE_MUST_REOPEN) {
+        mEventHub->requestReopenDevices();
+    } else {
+        for (auto& devicePair : mDevices) {
+            std::shared_ptr<InputDevice>& device = devicePair.second;
+            device->configure(now, &mConfig, changes);
         }
+    }
+
+    if (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE) {
+        const NotifyPointerCaptureChangedArgs args(mContext.getNextId(), now,
+                                                   mConfig.pointerCapture);
+        mQueuedListener->notifyPointerCaptureChanged(&args);
     }
 }
 

@@ -486,7 +486,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     }
 
     auto grContext = mInProtectedContext ? mProtectedGrContext : mGrContext;
-    auto cache = mInProtectedContext ? mProtectedSurfaceCache : mSurfaceCache;
+    auto& cache = mInProtectedContext ? mProtectedSurfaceCache : mSurfaceCache;
     AHardwareBuffer_Desc bufferDesc;
     AHardwareBuffer_describe(buffer->toAHardwareBuffer(), &bufferDesc);
     LOG_ALWAYS_FATAL_IF(!hasUsage(bufferDesc, AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE),

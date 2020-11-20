@@ -67,6 +67,7 @@ struct InputMessage {
         MOTION,
         FINISHED,
         FOCUS,
+        CAPTURE,
     };
 
     struct Header {
@@ -166,6 +167,13 @@ struct InputMessage {
 
             inline size_t size() const { return sizeof(Focus); }
         } focus;
+
+        struct Capture {
+            int32_t eventId;
+            uint32_t pointerCaptureEnabled; // actually a bool, but we maintain 8-byte alignment
+
+            inline size_t size() const { return sizeof(Capture); }
+        } capture;
     } __attribute__((aligned(8))) body;
 
     bool isValid(size_t actualSize) const;
@@ -182,6 +190,8 @@ struct InputMessage {
                 return "FINISHED";
             case Type::FOCUS:
                 return "FOCUS";
+            case Type::CAPTURE:
+                return "CAPTURE";
         }
     }
 };
@@ -340,6 +350,15 @@ public:
      * Other errors probably indicate that the channel is broken.
      */
     status_t publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus, bool inTouchMode);
+
+    /* Publishes a capture event to the input channel.
+     *
+     * Returns OK on success.
+     * Returns WOULD_BLOCK if the channel is full.
+     * Returns DEAD_OBJECT if the channel's peer has been closed.
+     * Other errors probably indicate that the channel is broken.
+     */
+    status_t publishCaptureEvent(uint32_t seq, int32_t eventId, bool pointerCaptureEnabled);
 
     /* Receives the finished signal from the consumer in reply to the original dispatch signal.
      * If a signal was received, returns the message sequence number,
@@ -576,6 +595,7 @@ private:
     static void initializeKeyEvent(KeyEvent* event, const InputMessage* msg);
     static void initializeMotionEvent(MotionEvent* event, const InputMessage* msg);
     static void initializeFocusEvent(FocusEvent* event, const InputMessage* msg);
+    static void initializeCaptureEvent(CaptureEvent* event, const InputMessage* msg);
     static void addSample(MotionEvent* event, const InputMessage* msg);
     static bool canAddSample(const Batch& batch, const InputMessage* msg);
     static ssize_t findSampleNoLaterThan(const Batch& batch, nsecs_t time);

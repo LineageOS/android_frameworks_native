@@ -30,6 +30,7 @@
 #include "DisplayDevice.h"
 #include "EffectLayer.h"
 #include "FakeVsyncConfiguration.h"
+#include "FrameTracer/FrameTracer.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
 #include "Scheduler/MessageQueue.h"
@@ -41,6 +42,7 @@
 #include "TestableScheduler.h"
 #include "mock/DisplayHardware/MockDisplay.h"
 #include "mock/MockDisplayIdGenerator.h"
+#include "mock/MockFrameTracer.h"
 
 namespace android {
 
@@ -146,6 +148,10 @@ public:
 
     sp<ContainerLayer> createContainerLayer(const LayerCreationArgs&) override {
         return nullptr;
+    }
+
+    std::unique_ptr<FrameTracer> createFrameTracer() override {
+        return std::make_unique<mock::FrameTracer>();
     }
 
     using CreateBufferQueueFunction =
