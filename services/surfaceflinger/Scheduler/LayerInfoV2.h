@@ -23,6 +23,7 @@
 
 #include "LayerHistory.h"
 #include "RefreshRateConfigs.h"
+#include "Scheduler/Seamlessness.h"
 #include "SchedulerUtils.h"
 
 namespace android {
@@ -60,7 +61,7 @@ public:
     struct LayerVote {
         LayerHistory::LayerVoteType type = LayerHistory::LayerVoteType::Heuristic;
         float fps = 0.0f;
-        bool shouldBeSeamless = true;
+        Seamlessness seamlessness = Seamlessness::Default;
     };
 
     static void setTraceEnabled(bool enabled) { sTraceEnabled = enabled; }
@@ -91,7 +92,7 @@ public:
     void setDefaultLayerVote(LayerHistory::LayerVoteType type) { mDefaultVote = type; }
 
     // Resets the layer vote to its default.
-    void resetLayerVote() { mLayerVote = {mDefaultVote, 0.0f, true}; }
+    void resetLayerVote() { mLayerVote = {mDefaultVote, 0.0f, Seamlessness::Default}; }
 
     LayerVote getRefreshRateVote(nsecs_t now);
 

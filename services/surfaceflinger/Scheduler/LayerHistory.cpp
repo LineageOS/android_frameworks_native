@@ -129,8 +129,7 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
                         RefreshRateConfigs::LayerRequirement{.name = layer->getName(),
                                                              .vote = voteType,
                                                              .desiredRefreshRate = frameRate.rate,
-                                                             .shouldBeSeamless =
-                                                                     frameRate.shouldBeSeamless,
+                                                             .seamlessness = frameRate.seamlessness,
                                                              .weight = 1.0f,
                                                              .focused = layerFocused});
             } else if (recent) {
@@ -139,7 +138,8 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
                                                              .vote = LayerVoteType::Heuristic,
                                                              .desiredRefreshRate =
                                                                      info->getRefreshRate(now),
-                                                             .shouldBeSeamless = true,
+                                                             .seamlessness =
+                                                                     Seamlessness::OnlySeamless,
                                                              .weight = 1.0f,
                                                              .focused = layerFocused});
             }
