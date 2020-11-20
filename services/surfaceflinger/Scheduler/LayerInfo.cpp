@@ -17,7 +17,7 @@
 // #define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "LayerInfoV2.h"
+#include "LayerInfo.h"
 
 #include <algorithm>
 #include <utility>
@@ -26,23 +26,23 @@
 #include <cutils/trace.h>
 
 #undef LOG_TAG
-#define LOG_TAG "LayerInfoV2"
+#define LOG_TAG "LayerInfo"
 
 namespace android::scheduler {
 
-const RefreshRateConfigs* LayerInfoV2::sRefreshRateConfigs = nullptr;
-bool LayerInfoV2::sTraceEnabled = false;
+const RefreshRateConfigs* LayerInfo::sRefreshRateConfigs = nullptr;
+bool LayerInfo::sTraceEnabled = false;
 
-LayerInfoV2::LayerInfoV2(const std::string& name, nsecs_t highRefreshRatePeriod,
-                         LayerHistory::LayerVoteType defaultVote)
+LayerInfo::LayerInfo(const std::string& name, nsecs_t highRefreshRatePeriod,
+                     LayerHistory::LayerVoteType defaultVote)
       : mName(name),
         mHighRefreshRatePeriod(highRefreshRatePeriod),
         mDefaultVote(defaultVote),
         mLayerVote({defaultVote, 0.0f}),
         mRefreshRateHistory(name) {}
 
-void LayerInfoV2::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now,
-                                     LayerUpdateType updateType, bool pendingConfigChange) {
+void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUpdateType updateType,
+                                   bool pendingConfigChange) {
     lastPresentTime = std::max(lastPresentTime, static_cast<nsecs_t>(0));
 
     mLastUpdatedTime = std::max(lastPresentTime, now);
@@ -63,13 +63,13 @@ void LayerInfoV2::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now,
     }
 }
 
-bool LayerInfoV2::isFrameTimeValid(const FrameTimeData& frameTime) const {
+bool LayerInfo::isFrameTimeValid(const FrameTimeData& frameTime) const {
     return frameTime.queueTime >= std::chrono::duration_cast<std::chrono::nanoseconds>(
                                           mFrameTimeValidSince.time_since_epoch())
                                           .count();
 }
 
-bool LayerInfoV2::isFrequent(nsecs_t now) const {
+bool LayerInfo::isFrequent(nsecs_t now) const {
     // If we know nothing about this layer we consider it as frequent as it might be the start
     // of an animation.
     if (mFrameTimes.size() < FREQUENT_LAYER_WINDOW_SIZE) {
@@ -94,11 +94,11 @@ bool LayerInfoV2::isFrequent(nsecs_t now) const {
     return (1e9f * (numFrames - 1)) / totalTime >= MIN_FPS_FOR_FREQUENT_LAYER;
 }
 
-bool LayerInfoV2::isAnimating(nsecs_t now) const {
+bool LayerInfo::isAnimating(nsecs_t now) const {
     return mLastAnimationTime >= getActiveLayerThreshold(now);
 }
 
-bool LayerInfoV2::hasEnoughDataForHeuristic() const {
+bool LayerInfo::hasEnoughDataForHeuristic() const {
     // The layer had to publish at least HISTORY_SIZE or HISTORY_DURATION of updates
     if (mFrameTimes.size() < 2) {
         ALOGV("fewer than 2 frames recorded: %zu", mFrameTimes.size());
@@ -120,7 +120,7 @@ bool LayerInfoV2::hasEnoughDataForHeuristic() const {
     return true;
 }
 
-std::optional<nsecs_t> LayerInfoV2::calculateAverageFrameTime() const {
+std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
     nsecs_t totalPresentTimeDeltas = 0;
     nsecs_t totalQueueTimeDeltas = 0;
     bool missingPresentTime = false;
@@ -163,7 +163,7 @@ std::optional<nsecs_t> LayerInfoV2::calculateAverageFrameTime() const {
     return static_cast<nsecs_t>(averageFrameTime);
 }
 
-std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible(nsecs_t now) {
+std::optional<float> LayerInfo::calculateRefreshRateIfPossible(nsecs_t now) {
     static constexpr float MARGIN = 1.0f; // 1Hz
     if (!hasEnoughDataForHeuristic()) {
         ALOGV("Not enough data");
@@ -198,7 +198,7 @@ std::optional<float> LayerInfoV2::calculateRefreshRateIfPossible(nsecs_t now) {
                                           : std::make_optional(mLastRefreshRate.reported);
 }
 
-LayerInfoV2::LayerVote LayerInfoV2::getRefreshRateVote(nsecs_t now) {
+LayerInfo::LayerVote LayerInfo::getRefreshRateVote(nsecs_t now) {
     if (mLayerVote.type != LayerHistory::LayerVoteType::Heuristic) {
         ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
         return mLayerVote;
@@ -233,7 +233,7 @@ LayerInfoV2::LayerVote LayerInfoV2::getRefreshRateVote(nsecs_t now) {
     return {LayerHistory::LayerVoteType::Max, 0};
 }
 
-const char* LayerInfoV2::getTraceTag(android::scheduler::LayerHistory::LayerVoteType type) const {
+const char* LayerInfo::getTraceTag(android::scheduler::LayerHistory::LayerVoteType type) const {
     if (mTraceTags.count(type) == 0) {
         const auto tag = "LFPS " + mName + " " + RefreshRateConfigs::layerVoteTypeString(type);
         mTraceTags.emplace(type, tag);
@@ -242,8 +242,8 @@ const char* LayerInfoV2::getTraceTag(android::scheduler::LayerHistory::LayerVote
     return mTraceTags.at(type).c_str();
 }
 
-LayerInfoV2::RefreshRateHistory::HeuristicTraceTagData
-LayerInfoV2::RefreshRateHistory::makeHeuristicTraceTagData() const {
+LayerInfo::RefreshRateHistory::HeuristicTraceTagData
+LayerInfo::RefreshRateHistory::makeHeuristicTraceTagData() const {
     const std::string prefix = "LFPS ";
     const std::string suffix = "Heuristic ";
     return {.min = prefix + mName + suffix + "min",
@@ -252,11 +252,11 @@ LayerInfoV2::RefreshRateHistory::makeHeuristicTraceTagData() const {
             .average = prefix + mName + suffix + "average"};
 }
 
-void LayerInfoV2::RefreshRateHistory::clear() {
+void LayerInfo::RefreshRateHistory::clear() {
     mRefreshRates.clear();
 }
 
-bool LayerInfoV2::RefreshRateHistory::add(float refreshRate, nsecs_t now) {
+bool LayerInfo::RefreshRateHistory::add(float refreshRate, nsecs_t now) {
     mRefreshRates.push_back({refreshRate, now});
     while (mRefreshRates.size() >= HISTORY_SIZE ||
            now - mRefreshRates.front().timestamp > HISTORY_DURATION.count()) {
@@ -274,7 +274,7 @@ bool LayerInfoV2::RefreshRateHistory::add(float refreshRate, nsecs_t now) {
     return isConsistent();
 }
 
-bool LayerInfoV2::RefreshRateHistory::isConsistent() const {
+bool LayerInfo::RefreshRateHistory::isConsistent() const {
     if (mRefreshRates.empty()) return true;
 
     const auto max = std::max_element(mRefreshRates.begin(), mRefreshRates.end());

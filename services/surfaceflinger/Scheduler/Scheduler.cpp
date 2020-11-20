@@ -196,7 +196,7 @@ std::unique_ptr<LayerHistory> Scheduler::createLayerHistory(
         const scheduler::RefreshRateConfigs& configs) {
     if (!configs.canSwitch()) return nullptr;
 
-    return std::make_unique<scheduler::impl::LayerHistoryV2>(configs);
+    return std::make_unique<scheduler::LayerHistory>(configs);
 }
 
 std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(

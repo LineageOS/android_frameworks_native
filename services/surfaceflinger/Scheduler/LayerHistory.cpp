@@ -15,7 +15,7 @@
  */
 
 #undef LOG_TAG
-#define LOG_TAG "LayerHistoryV2"
+#define LOG_TAG "LayerHistory"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "LayerHistory.h"
@@ -32,14 +32,14 @@
 #include <utility>
 
 #include "../Layer.h"
-#include "LayerInfoV2.h"
+#include "LayerInfo.h"
 #include "SchedulerUtils.h"
 
-namespace android::scheduler::impl {
+namespace android::scheduler {
 
 namespace {
 
-bool isLayerActive(const Layer& layer, const LayerInfoV2& info, nsecs_t threshold) {
+bool isLayerActive(const Layer& layer, const LayerInfo& info, nsecs_t threshold) {
     // Layers with an explicit vote are always kept active
     if (layer.getFrameRateForLayerTree().rate > 0) {
         return true;
@@ -58,7 +58,7 @@ bool useFrameRatePriority() {
     return atoi(value);
 }
 
-void trace(const wp<Layer>& weak, const LayerInfoV2& info, LayerHistory::LayerVoteType type,
+void trace(const wp<Layer>& weak, const LayerInfo& info, LayerHistory::LayerVoteType type,
            int fps) {
     const auto layer = weak.promote();
     if (!layer) return;
@@ -78,24 +78,24 @@ void trace(const wp<Layer>& weak, const LayerInfoV2& info, LayerHistory::LayerVo
 }
 } // namespace
 
-LayerHistoryV2::LayerHistoryV2(const scheduler::RefreshRateConfigs& refreshRateConfigs)
+LayerHistory::LayerHistory(const RefreshRateConfigs& refreshRateConfigs)
       : mTraceEnabled(traceEnabled()), mUseFrameRatePriority(useFrameRatePriority()) {
-    LayerInfoV2::setTraceEnabled(mTraceEnabled);
-    LayerInfoV2::setRefreshRateConfigs(refreshRateConfigs);
+    LayerInfo::setTraceEnabled(mTraceEnabled);
+    LayerInfo::setRefreshRateConfigs(refreshRateConfigs);
 }
 
-LayerHistoryV2::~LayerHistoryV2() = default;
+LayerHistory::~LayerHistory() = default;
 
-void LayerHistoryV2::registerLayer(Layer* layer, float /*lowRefreshRate*/, float highRefreshRate,
-                                   LayerVoteType type) {
+void LayerHistory::registerLayer(Layer* layer, float /*lowRefreshRate*/, float highRefreshRate,
+                                 LayerVoteType type) {
     const nsecs_t highRefreshRatePeriod = static_cast<nsecs_t>(1e9f / highRefreshRate);
-    auto info = std::make_unique<LayerInfoV2>(layer->getName(), highRefreshRatePeriod, type);
+    auto info = std::make_unique<LayerInfo>(layer->getName(), highRefreshRatePeriod, type);
     std::lock_guard lock(mLock);
     mLayerInfos.emplace_back(layer, std::move(info));
 }
 
-void LayerHistoryV2::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
-                            LayerUpdateType updateType) {
+void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
+                          LayerUpdateType updateType) {
     std::lock_guard lock(mLock);
 
     const auto it = std::find_if(mLayerInfos.begin(), mLayerInfos.end(),
@@ -112,7 +112,7 @@ void LayerHistoryV2::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
     }
 }
 
-LayerHistoryV2::Summary LayerHistoryV2::summarize(nsecs_t now) {
+LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
     LayerHistory::Summary summary;
 
     std::lock_guard lock(mLock);
@@ -155,7 +155,7 @@ LayerHistoryV2::Summary LayerHistoryV2::summarize(nsecs_t now) {
     return summary;
 }
 
-void LayerHistoryV2::partitionLayers(nsecs_t now) {
+void LayerHistory::partitionLayers(nsecs_t now) {
     const nsecs_t threshold = getActiveLayerThreshold(now);
 
     // Collect expired and inactive layers after active layers.
@@ -207,7 +207,7 @@ void LayerHistoryV2::partitionLayers(nsecs_t now) {
     mLayerInfos.erase(mLayerInfos.begin() + static_cast<long>(end), mLayerInfos.end());
 }
 
-void LayerHistoryV2::clear() {
+void LayerHistory::clear() {
     std::lock_guard lock(mLock);
 
     for (const auto& [layer, info] : activeLayers()) {
@@ -215,10 +215,10 @@ void LayerHistoryV2::clear() {
     }
 }
 
-std::string LayerHistoryV2::dump() const {
+std::string LayerHistory::dump() const {
     std::lock_guard lock(mLock);
-    return base::StringPrintf("LayerHistoryV2{size=%zu, active=%zu}", mLayerInfos.size(),
+    return base::StringPrintf("LayerHistory{size=%zu, active=%zu}", mLayerInfos.size(),
                               mActiveLayersEnd);
 }
 
-} // namespace android::scheduler::impl
+} // namespace android::scheduler

@@ -43,7 +43,7 @@ constexpr nsecs_t getActiveLayerThreshold(nsecs_t now) {
 }
 
 // Stores history of present times and refresh rates for a layer.
-class LayerInfoV2 {
+class LayerInfo {
     using LayerUpdateType = LayerHistory::LayerUpdateType;
 
     // Layer is considered frequent if the earliest value in the window of most recent present times
@@ -54,7 +54,7 @@ class LayerInfoV2 {
     static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS =
             std::chrono::nanoseconds(static_cast<nsecs_t>(1e9f / MIN_FPS_FOR_FREQUENT_LAYER)) + 1ms;
 
-    friend class LayerHistoryTestV2;
+    friend class LayerHistoryTest;
 
 public:
     // Holds information about the layer vote
@@ -70,11 +70,11 @@ public:
         sRefreshRateConfigs = &refreshRateConfigs;
     }
 
-    LayerInfoV2(const std::string& name, nsecs_t highRefreshRatePeriod,
-                LayerHistory::LayerVoteType defaultVote);
+    LayerInfo(const std::string& name, nsecs_t highRefreshRatePeriod,
+              LayerHistory::LayerVoteType defaultVote);
 
-    LayerInfoV2(const LayerInfo&) = delete;
-    LayerInfoV2& operator=(const LayerInfoV2&) = delete;
+    LayerInfo(const LayerInfo&) = delete;
+    LayerInfo& operator=(const LayerInfo&) = delete;
 
     // Records the last requested present time. It also stores information about when
     // the layer was last updated. If the present time is farther in the future than the
@@ -131,9 +131,9 @@ private:
     struct RefreshRateHeuristicData {
         // Rate calculated on the layer
         float calculated = 0.0f;
-        // Last reported rate for LayerInfoV2::getRefreshRate()
+        // Last reported rate for LayerInfo::getRefreshRate()
         float reported = 0.0f;
-        // Whether the last reported rate for LayerInfoV2::getRefreshRate()
+        // Whether the last reported rate for LayerInfo::getRefreshRate()
         // was due to animation or infrequent updates
         bool animatingOrInfrequent = false;
     };
@@ -154,7 +154,7 @@ private:
         bool add(float refreshRate, nsecs_t now);
 
     private:
-        friend class LayerHistoryTestV2;
+        friend class LayerHistoryTest;
 
         // Holds the refresh rate when it was calculated
         struct RefreshRateData {

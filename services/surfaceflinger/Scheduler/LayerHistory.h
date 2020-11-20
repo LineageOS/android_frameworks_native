@@ -36,25 +36,23 @@ class TestableScheduler;
 namespace scheduler {
 
 class LayerHistoryTest;
-class LayerHistoryTestV2;
 class LayerInfo;
-class LayerInfoV2;
 
 class LayerHistory {
 public:
     using LayerVoteType = RefreshRateConfigs::LayerVoteType;
 
-    virtual ~LayerHistory() = default;
+    LayerHistory(const RefreshRateConfigs&);
+    ~LayerHistory();
 
     // Layers are unregistered when the weak reference expires.
-    virtual void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate,
-                               LayerVoteType type) = 0;
+    void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate, LayerVoteType type);
 
     // Sets the display size. Client is responsible for synchronization.
-    virtual void setDisplayArea(uint32_t displayArea) = 0;
+    void setDisplayArea(uint32_t displayArea) { mDisplayArea = displayArea; }
 
     // Sets whether a config change is pending to be applied
-    virtual void setConfigChangePending(bool pending) = 0;
+    void setConfigChangePending(bool pending) { mConfigChangePending = pending; }
 
     // Represents which layer activity is recorded
     enum class LayerUpdateType {
@@ -64,47 +62,21 @@ public:
     };
 
     // Marks the layer as active, and records the given state to its history.
-    virtual void record(Layer*, nsecs_t presentTime, nsecs_t now, LayerUpdateType updateType) = 0;
+    void record(Layer*, nsecs_t presentTime, nsecs_t now, LayerUpdateType updateType);
 
     using Summary = std::vector<RefreshRateConfigs::LayerRequirement>;
 
     // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
-    virtual Summary summarize(nsecs_t now) = 0;
+    Summary summarize(nsecs_t now);
 
-    virtual void clear() = 0;
-    virtual std::string dump() const = 0;
-};
-
-namespace impl {
-
-class LayerHistoryV2 : public android::scheduler::LayerHistory {
-public:
-    LayerHistoryV2(const scheduler::RefreshRateConfigs&);
-    virtual ~LayerHistoryV2();
-
-    // Layers are unregistered when the weak reference expires.
-    void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate,
-                       LayerVoteType type) override;
-
-    // Sets the display size. Client is responsible for synchronization.
-    void setDisplayArea(uint32_t displayArea) override { mDisplayArea = displayArea; }
-
-    void setConfigChangePending(bool pending) override { mConfigChangePending = pending; }
-
-    // Marks the layer as active, and records the given state to its history.
-    void record(Layer*, nsecs_t presentTime, nsecs_t now, LayerUpdateType updateType) override;
-
-    // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
-    android::scheduler::LayerHistory::Summary summarize(nsecs_t /*now*/) override;
-
-    void clear() override;
-    std::string dump() const override;
+    void clear();
+    std::string dump() const;
 
 private:
-    friend android::scheduler::LayerHistoryTestV2;
+    friend LayerHistoryTest;
     friend TestableScheduler;
 
-    using LayerPair = std::pair<wp<Layer>, std::unique_ptr<LayerInfoV2>>;
+    using LayerPair = std::pair<wp<Layer>, std::unique_ptr<LayerInfo>>;
     using LayerInfos = std::vector<LayerPair>;
 
     struct ActiveLayers {
@@ -141,6 +113,5 @@ private:
     std::atomic<bool> mConfigChangePending = false;
 };
 
-} // namespace impl
 } // namespace scheduler
 } // namespace android

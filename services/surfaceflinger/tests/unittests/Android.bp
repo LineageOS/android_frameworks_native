@@ -47,7 +47,7 @@ cc_test {
         "FrameTimelineTest.cpp",
         "HWComposerTest.cpp",
         "OneShotTimerTest.cpp",
-        "LayerHistoryTestV2.cpp",
+        "LayerHistoryTest.cpp",
         "LayerMetadataTest.cpp",
         "MessageQueueTest.cpp",
         "PromiseTest.cpp",

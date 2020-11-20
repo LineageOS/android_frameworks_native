@@ -57,13 +57,11 @@ public:
 
     bool hasLayerHistory() const { return static_cast<bool>(mLayerHistory); }
 
-    auto* mutableLayerHistoryV2() {
-        return static_cast<scheduler::impl::LayerHistoryV2*>(mLayerHistory.get());
-    }
+    auto* mutableLayerHistory() { return mLayerHistory.get(); }
 
     size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
         if (!mLayerHistory) return 0;
-        return mutableLayerHistoryV2()->mLayerInfos.size();
+        return mutableLayerHistory()->mLayerInfos.size();
     }
 
     void replaceTouchTimer(int64_t millis) {

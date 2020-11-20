@@ -15,7 +15,7 @@
  */
 
 #undef LOG_TAG
-#define LOG_TAG "LayerHistoryTestV2"
+#define LOG_TAG "LayerHistoryTest"
 
 #include <Layer.h>
 #include <gmock/gmock.h>
@@ -23,7 +23,7 @@
 #include <log/log.h>
 
 #include "Scheduler/LayerHistory.h"
-#include "Scheduler/LayerInfoV2.h"
+#include "Scheduler/LayerInfo.h"
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/MockLayer.h"
@@ -34,14 +34,14 @@ using testing::Return;
 
 namespace android::scheduler {
 
-class LayerHistoryTestV2 : public testing::Test {
+class LayerHistoryTest : public testing::Test {
 protected:
-    static constexpr auto PRESENT_TIME_HISTORY_SIZE = LayerInfoV2::HISTORY_SIZE;
-    static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfoV2::MAX_FREQUENT_LAYER_PERIOD_NS;
-    static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfoV2::FREQUENT_LAYER_WINDOW_SIZE;
-    static constexpr auto PRESENT_TIME_HISTORY_DURATION = LayerInfoV2::HISTORY_DURATION;
+    static constexpr auto PRESENT_TIME_HISTORY_SIZE = LayerInfo::HISTORY_SIZE;
+    static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfo::MAX_FREQUENT_LAYER_PERIOD_NS;
+    static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfo::FREQUENT_LAYER_WINDOW_SIZE;
+    static constexpr auto PRESENT_TIME_HISTORY_DURATION = LayerInfo::HISTORY_DURATION;
     static constexpr auto REFRESH_RATE_AVERAGE_HISTORY_DURATION =
-            LayerInfoV2::RefreshRateHistory::HISTORY_DURATION;
+            LayerInfo::RefreshRateHistory::HISTORY_DURATION;
 
     static constexpr float LO_FPS = 30.f;
     static constexpr auto LO_FPS_PERIOD = static_cast<nsecs_t>(1e9f / LO_FPS);
@@ -49,12 +49,12 @@ protected:
     static constexpr float HI_FPS = 90.f;
     static constexpr auto HI_FPS_PERIOD = static_cast<nsecs_t>(1e9f / HI_FPS);
 
-    LayerHistoryTestV2() { mFlinger.resetScheduler(mScheduler); }
+    LayerHistoryTest() { mFlinger.resetScheduler(mScheduler); }
 
     void SetUp() override { ASSERT_TRUE(mScheduler->hasLayerHistory()); }
 
-    impl::LayerHistoryV2& history() { return *mScheduler->mutableLayerHistoryV2(); }
-    const impl::LayerHistoryV2& history() const { return *mScheduler->mutableLayerHistoryV2(); }
+    LayerHistory& history() { return *mScheduler->mutableLayerHistory(); }
+    const LayerHistory& history() const { return *mScheduler->mutableLayerHistory(); }
 
     size_t layerCount() const { return mScheduler->layerHistorySize(); }
     size_t activeLayerCount() const NO_THREAD_SAFETY_ANALYSIS { return history().mActiveLayersEnd; }
@@ -91,7 +91,7 @@ protected:
     void recordFramesAndExpect(const sp<mock::MockLayer>& layer, nsecs_t& time, float frameRate,
                                float desiredRefreshRate, int numFrames) {
         const nsecs_t framePeriod = static_cast<nsecs_t>(1e9f / frameRate);
-        impl::LayerHistoryV2::Summary summary;
+        LayerHistory::Summary summary;
         for (int i = 0; i < numFrames; i++) {
             history().record(layer.get(), time, time, LayerHistory::LayerUpdateType::Buffer);
             time += framePeriod;
@@ -125,7 +125,7 @@ protected:
 
 namespace {
 
-TEST_F(LayerHistoryTestV2, oneLayer) {
+TEST_F(LayerHistoryTest, oneLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -156,7 +156,7 @@ TEST_F(LayerHistoryTestV2, oneLayer) {
     }
 }
 
-TEST_F(LayerHistoryTestV2, oneInvisibleLayer) {
+TEST_F(LayerHistoryTest, oneInvisibleLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -180,7 +180,7 @@ TEST_F(LayerHistoryTestV2, oneInvisibleLayer) {
     EXPECT_EQ(0, activeLayerCount());
 }
 
-TEST_F(LayerHistoryTestV2, explicitTimestamp) {
+TEST_F(LayerHistoryTest, explicitTimestamp) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -201,7 +201,7 @@ TEST_F(LayerHistoryTestV2, explicitTimestamp) {
     EXPECT_EQ(1, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, oneLayerNoVote) {
+TEST_F(LayerHistoryTest, oneLayerNoVote) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -228,7 +228,7 @@ TEST_F(LayerHistoryTestV2, oneLayerNoVote) {
     EXPECT_EQ(0, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, oneLayerMinVote) {
+TEST_F(LayerHistoryTest, oneLayerMinVote) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -256,7 +256,7 @@ TEST_F(LayerHistoryTestV2, oneLayerMinVote) {
     EXPECT_EQ(0, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, oneLayerMaxVote) {
+TEST_F(LayerHistoryTest, oneLayerMaxVote) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -284,7 +284,7 @@ TEST_F(LayerHistoryTestV2, oneLayerMaxVote) {
     EXPECT_EQ(0, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, oneLayerExplicitVote) {
+TEST_F(LayerHistoryTest, oneLayerExplicitVote) {
     auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree())
@@ -316,7 +316,7 @@ TEST_F(LayerHistoryTestV2, oneLayerExplicitVote) {
     EXPECT_EQ(0, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, oneLayerExplicitExactVote) {
+TEST_F(LayerHistoryTest, oneLayerExplicitExactVote) {
     auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree())
@@ -350,7 +350,7 @@ TEST_F(LayerHistoryTestV2, oneLayerExplicitExactVote) {
     EXPECT_EQ(0, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, multipleLayers) {
+TEST_F(LayerHistoryTest, multipleLayers) {
     auto layer1 = createLayer();
     auto layer2 = createLayer();
     auto layer3 = createLayer();
@@ -370,7 +370,7 @@ TEST_F(LayerHistoryTestV2, multipleLayers) {
     EXPECT_EQ(0, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
 
-    impl::LayerHistoryV2::Summary summary;
+    LayerHistory::Summary summary;
 
     // layer1 is active but infrequent.
     for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
@@ -504,7 +504,7 @@ TEST_F(LayerHistoryTestV2, multipleLayers) {
     EXPECT_EQ(0, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, inactiveLayers) {
+TEST_F(LayerHistoryTest, inactiveLayers) {
     auto layer = createLayer();
 
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
@@ -560,7 +560,7 @@ TEST_F(LayerHistoryTestV2, inactiveLayers) {
     EXPECT_EQ(1, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, invisibleExplicitLayer) {
+TEST_F(LayerHistoryTest, invisibleExplicitLayer) {
     auto explicitVisiblelayer = createLayer();
     auto explicitInvisiblelayer = createLayer();
 
@@ -590,7 +590,7 @@ TEST_F(LayerHistoryTestV2, invisibleExplicitLayer) {
     EXPECT_EQ(2, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, infrequentAnimatingLayer) {
+TEST_F(LayerHistoryTest, infrequentAnimatingLayer) {
     auto layer = createLayer();
 
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
@@ -636,7 +636,7 @@ TEST_F(LayerHistoryTestV2, infrequentAnimatingLayer) {
     EXPECT_EQ(1, animatingLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, heuristicLayer60Hz) {
+TEST_F(LayerHistoryTest, heuristicLayer60Hz) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -647,7 +647,7 @@ TEST_F(LayerHistoryTestV2, heuristicLayer60Hz) {
     }
 }
 
-TEST_F(LayerHistoryTestV2, heuristicLayer60_30Hz) {
+TEST_F(LayerHistoryTest, heuristicLayer60_30Hz) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -662,7 +662,7 @@ TEST_F(LayerHistoryTestV2, heuristicLayer60_30Hz) {
     recordFramesAndExpect(layer, time, 60.0f, 60.0f, PRESENT_TIME_HISTORY_SIZE);
 }
 
-TEST_F(LayerHistoryTestV2, heuristicLayerNotOscillating) {
+TEST_F(LayerHistoryTest, heuristicLayerNotOscillating) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -676,11 +676,11 @@ TEST_F(LayerHistoryTestV2, heuristicLayerNotOscillating) {
     recordFramesAndExpect(layer, time, 27.10f, 30.0f, PRESENT_TIME_HISTORY_SIZE);
 }
 
-class LayerHistoryTestV2Parameterized
-      : public LayerHistoryTestV2,
-        public testing::WithParamInterface<std::chrono::nanoseconds> {};
+class LayerHistoryTestParameterized : public LayerHistoryTest,
+                                      public testing::WithParamInterface<std::chrono::nanoseconds> {
+};
 
-TEST_P(LayerHistoryTestV2Parameterized, HeuristicLayerWithInfrequentLayer) {
+TEST_P(LayerHistoryTestParameterized, HeuristicLayerWithInfrequentLayer) {
     std::chrono::nanoseconds infrequentUpdateDelta = GetParam();
     auto heuristicLayer = createLayer("HeuristicLayer");
 
@@ -746,7 +746,7 @@ TEST_P(LayerHistoryTestV2Parameterized, HeuristicLayerWithInfrequentLayer) {
     }
 }
 
-INSTANTIATE_TEST_CASE_P(LeapYearTests, LayerHistoryTestV2Parameterized,
+INSTANTIATE_TEST_CASE_P(LeapYearTests, LayerHistoryTestParameterized,
                         ::testing::Values(1s, 2s, 3s, 4s, 5s));
 
 } // namespace
