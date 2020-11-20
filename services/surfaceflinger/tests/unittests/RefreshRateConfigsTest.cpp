@@ -304,63 +304,6 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getCurrentRefreshRate) {
     }
 }
 
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent) {
-    auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(m60_90Device,
-                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
-
-    const auto makeLayerRequirements = [](float refreshRate) -> std::vector<LayerRequirement> {
-        return {{"testLayer", LayerVoteType::Heuristic, refreshRate, Seamlessness::OnlySeamless,
-                 /*weight*/ 1.0f, /*focused*/ false}};
-    };
-
-    EXPECT_EQ(mExpected90Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(90.0f)));
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(60.0f)));
-    EXPECT_EQ(mExpected90Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(45.0f)));
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(30.0f)));
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(24.0f)));
-
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {60, 60}}), 0);
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(90.0f)));
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(60.0f)));
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(45.0f)));
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(30.0f)));
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(24.0f)));
-
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {90, 90}}), 0);
-    EXPECT_EQ(mExpected90Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(90.0f)));
-    EXPECT_EQ(mExpected90Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(60.0f)));
-    EXPECT_EQ(mExpected90Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(45.0f)));
-    EXPECT_EQ(mExpected90Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(30.0f)));
-    EXPECT_EQ(mExpected90Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(24.0f)));
-    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {0, 120}}), 0);
-    EXPECT_EQ(mExpected90Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(90.0f)));
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(60.0f)));
-    EXPECT_EQ(mExpected90Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(45.0f)));
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(30.0f)));
-    EXPECT_EQ(mExpected60Config,
-              refreshRateConfigs->getRefreshRateForContent(makeLayerRequirements(24.0f)));
-}
-
 TEST_F(RefreshRateConfigsTest, getBestRefreshRate_noLayers) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m60_72_90Device, /*currentConfigId=*/
@@ -845,29 +788,6 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_24FpsVideo) {
                 refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false});
         EXPECT_EQ(mExpected60Config, refreshRate) << fps << "Hz chooses " << refreshRate.getName();
     }
-}
-
-TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getRefreshRateForContent_Explicit) {
-    auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(m60_90Device,
-                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
-
-    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f},
-                                                LayerRequirement{.weight = 1.0f}};
-    auto& lr1 = layers[0];
-    auto& lr2 = layers[1];
-
-    lr1.vote = LayerVoteType::Heuristic;
-    lr1.desiredRefreshRate = 60.0f;
-    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
-    lr2.desiredRefreshRate = 90.0f;
-    EXPECT_EQ(mExpected90Config, refreshRateConfigs->getRefreshRateForContent(layers));
-
-    lr1.vote = LayerVoteType::Heuristic;
-    lr1.desiredRefreshRate = 90.0f;
-    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
-    lr2.desiredRefreshRate = 60.0f;
-    EXPECT_EQ(mExpected60Config, refreshRateConfigs->getRefreshRateForContent(layers));
 }
 
 TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getBestRefreshRate_Explicit) {

@@ -117,10 +117,8 @@ protected:
                                 HwcConfigIndexType(0)};
 
     mock::NoOpSchedulerCallback mSchedulerCallback;
-    static constexpr bool kUseContentDetectionV2 = true;
 
-    TestableScheduler* const mScheduler =
-            new TestableScheduler(mConfigs, mSchedulerCallback, kUseContentDetectionV2);
+    TestableScheduler* const mScheduler = new TestableScheduler(mConfigs, mSchedulerCallback);
 
     TestableSurfaceFlinger mFlinger;
 };
