@@ -83,7 +83,7 @@ public:
             mTouchTimer.reset();
         }
         mTouchTimer.emplace(
-                std::chrono::milliseconds(millis),
+                "Testable Touch timer", std::chrono::milliseconds(millis),
                 [this] { touchTimerCallback(TimerState::Reset); },
                 [this] { touchTimerCallback(TimerState::Expired); });
         mTouchTimer->start();

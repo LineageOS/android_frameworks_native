@@ -178,13 +178,17 @@ protected:
     /// the mStateLock.
     ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
 
+    bool getAutoRefresh() const { return mAutoRefresh; }
+    bool getSidebandStreamChanged() const { return mSidebandStreamChanged; }
+
+    std::atomic<bool> mAutoRefresh{false};
+    std::atomic<bool> mSidebandStreamChanged{false};
+
 private:
     virtual bool fenceHasSignaled() const = 0;
     virtual bool framePresentTimeIsCurrent(nsecs_t expectedPresentTime) const = 0;
     virtual uint64_t getFrameNumber(nsecs_t expectedPresentTime) const = 0;
 
-    virtual bool getAutoRefresh() const = 0;
-    virtual bool getSidebandStreamChanged() const = 0;
 
     // Latch sideband stream and returns true if the dirty region should be updated.
     virtual bool latchSidebandStream(bool& recomputeVisibleRegions) = 0;

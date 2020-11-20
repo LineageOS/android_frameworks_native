@@ -1792,6 +1792,29 @@ TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToSubdeviceMappers) {
               mReader->getKeyCodeState(deviceId, AINPUT_SOURCE_KEYBOARD, AKEYCODE_C));
 }
 
+TEST_F(InputReaderTest, ChangingPointerCaptureNotifiesInputListener) {
+    NotifyPointerCaptureChangedArgs args;
+
+    mFakePolicy->setPointerCapture(true);
+    mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+    mReader->loopOnce();
+    mFakeListener->assertNotifyCaptureWasCalled(&args);
+    ASSERT_TRUE(args.enabled) << "Pointer Capture should be enabled.";
+
+    mFakePolicy->setPointerCapture(false);
+    mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+    mReader->loopOnce();
+    mFakeListener->assertNotifyCaptureWasCalled(&args);
+    ASSERT_FALSE(args.enabled) << "Pointer Capture should be disabled.";
+
+    // Verify that the Pointer Capture state is re-configured correctly when the configuration value
+    // does not change.
+    mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_POINTER_CAPTURE);
+    mReader->loopOnce();
+    mFakeListener->assertNotifyCaptureWasCalled(&args);
+    ASSERT_FALSE(args.enabled) << "Pointer Capture should be disabled.";
+}
+
 // --- InputReaderIntegrationTest ---
 
 // These tests create and interact with the InputReader only through its interface.

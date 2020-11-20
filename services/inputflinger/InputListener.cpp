@@ -48,7 +48,6 @@ void NotifyConfigurationChangedArgs::notify(const sp<InputListenerInterface>& li
     listener->notifyConfigurationChanged(this);
 }
 
-
 // --- NotifyKeyArgs ---
 
 NotifyKeyArgs::NotifyKeyArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
@@ -89,7 +88,6 @@ bool NotifyKeyArgs::operator==(const NotifyKeyArgs& rhs) const {
 void NotifyKeyArgs::notify(const sp<InputListenerInterface>& listener) const {
     listener->notifyKey(this);
 }
-
 
 // --- NotifyMotionArgs ---
 
@@ -189,7 +187,6 @@ void NotifyMotionArgs::notify(const sp<InputListenerInterface>& listener) const 
     listener->notifyMotion(this);
 }
 
-
 // --- NotifySwitchArgs ---
 
 NotifySwitchArgs::NotifySwitchArgs(int32_t id, nsecs_t eventTime, uint32_t policyFlags,
@@ -214,7 +211,6 @@ void NotifySwitchArgs::notify(const sp<InputListenerInterface>& listener) const 
     listener->notifySwitch(this);
 }
 
-
 // --- NotifyDeviceResetArgs ---
 
 NotifyDeviceResetArgs::NotifyDeviceResetArgs(int32_t id, nsecs_t eventTime, int32_t deviceId)
@@ -231,6 +227,23 @@ void NotifyDeviceResetArgs::notify(const sp<InputListenerInterface>& listener) c
     listener->notifyDeviceReset(this);
 }
 
+// --- NotifyPointerCaptureChangedArgs ---
+
+NotifyPointerCaptureChangedArgs::NotifyPointerCaptureChangedArgs(int32_t id, nsecs_t eventTime,
+                                                                 bool enabled)
+      : NotifyArgs(id, eventTime), enabled(enabled) {}
+
+NotifyPointerCaptureChangedArgs::NotifyPointerCaptureChangedArgs(
+        const NotifyPointerCaptureChangedArgs& other)
+      : NotifyArgs(other.id, other.eventTime), enabled(other.enabled) {}
+
+bool NotifyPointerCaptureChangedArgs::operator==(const NotifyPointerCaptureChangedArgs& rhs) const {
+    return id == rhs.id && eventTime == rhs.eventTime && enabled == rhs.enabled;
+}
+
+void NotifyPointerCaptureChangedArgs::notify(const sp<InputListenerInterface>& listener) const {
+    listener->notifyPointerCaptureChanged(this);
+}
 
 // --- QueuedInputListener ---
 
@@ -278,6 +291,11 @@ void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     mArgsQueue.push_back(new NotifyDeviceResetArgs(*args));
 }
 
+void QueuedInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
+    traceEvent(__func__, args->id);
+    mArgsQueue.push_back(new NotifyPointerCaptureChangedArgs(*args));
+}
+
 void QueuedInputListener::flush() {
     size_t count = mArgsQueue.size();
     for (size_t i = 0; i < count; i++) {
@@ -287,6 +305,5 @@ void QueuedInputListener::flush() {
     }
     mArgsQueue.clear();
 }
-
 
 } // namespace android

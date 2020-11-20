@@ -181,6 +181,22 @@ struct NotifyDeviceResetArgs : public NotifyArgs {
     virtual void notify(const sp<InputListenerInterface>& listener) const;
 };
 
+/* Describes a change in the state of Pointer Capture. */
+struct NotifyPointerCaptureChangedArgs : public NotifyArgs {
+    bool enabled;
+
+    inline NotifyPointerCaptureChangedArgs() {}
+
+    NotifyPointerCaptureChangedArgs(int32_t id, nsecs_t eventTime, bool enabled);
+
+    NotifyPointerCaptureChangedArgs(const NotifyPointerCaptureChangedArgs& other);
+
+    bool operator==(const NotifyPointerCaptureChangedArgs& rhs) const;
+
+    virtual ~NotifyPointerCaptureChangedArgs() {}
+
+    virtual void notify(const sp<InputListenerInterface>& listener) const;
+};
 
 /*
  * The interface used by the InputReader to notify the InputListener about input events.
@@ -196,6 +212,7 @@ public:
     virtual void notifyMotion(const NotifyMotionArgs* args) = 0;
     virtual void notifySwitch(const NotifySwitchArgs* args) = 0;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) = 0;
+    virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) = 0;
 };
 
 
@@ -210,11 +227,12 @@ protected:
 public:
     explicit QueuedInputListener(const sp<InputListenerInterface>& innerListener);
 
-    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args);
-    virtual void notifyKey(const NotifyKeyArgs* args);
-    virtual void notifyMotion(const NotifyMotionArgs* args);
-    virtual void notifySwitch(const NotifySwitchArgs* args);
-    virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args);
+    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
+    virtual void notifyKey(const NotifyKeyArgs* args) override;
+    virtual void notifyMotion(const NotifyMotionArgs* args) override;
+    virtual void notifySwitch(const NotifySwitchArgs* args) override;
+    virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
+    void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
     void flush();
 

@@ -36,7 +36,7 @@ public:
     using ResetCallback = std::function<void()>;
     using TimeoutCallback = std::function<void()>;
 
-    OneShotTimer(const Interval& interval, const ResetCallback& resetCallback,
+    OneShotTimer(std::string name, const Interval& interval, const ResetCallback& resetCallback,
                  const TimeoutCallback& timeoutCallback);
     ~OneShotTimer();
 
@@ -80,6 +80,9 @@ private:
 
     // Semaphore to keep mThread synchronized.
     sem_t mSemaphore;
+
+    // Timer's name.
+    std::string mName;
 
     // Interval after which timer expires.
     const Interval mInterval;

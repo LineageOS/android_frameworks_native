@@ -82,6 +82,14 @@ void TestInputListener::assertNotifySwitchWasCalled(NotifySwitchArgs* outEventAr
                                            "Expected notifySwitch() to have been called."));
 }
 
+void TestInputListener::assertNotifyCaptureWasCalled(
+        NotifyPointerCaptureChangedArgs* outEventArgs) {
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<NotifyPointerCaptureChangedArgs>(outEventArgs,
+                                                          "Expected notifyPointerCaptureChanged() "
+                                                          "to have been called."));
+}
+
 template <class NotifyArgsType>
 void TestInputListener::assertCalled(NotifyArgsType* outEventArgs, std::string message) {
     std::unique_lock<std::mutex> lock(mLock);
@@ -143,6 +151,10 @@ void TestInputListener::notifyMotion(const NotifyMotionArgs* args) {
 
 void TestInputListener::notifySwitch(const NotifySwitchArgs* args) {
     notify<NotifySwitchArgs>(args);
+}
+
+void TestInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
+    notify<NotifyPointerCaptureChangedArgs>(args);
 }
 
 } // namespace android
