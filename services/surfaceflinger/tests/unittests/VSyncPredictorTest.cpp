@@ -475,6 +475,20 @@ TEST_F(VSyncPredictorTest, isVSyncInPhase) {
     }
 }
 
+TEST_F(VSyncPredictorTest, InconsistentVsyncValueIsFlushedEventually) {
+    EXPECT_TRUE(tracker.addVsyncTimestamp(600));
+    EXPECT_TRUE(tracker.needsMoreSamples());
+
+    EXPECT_FALSE(tracker.addVsyncTimestamp(mNow += mPeriod));
+
+    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
+        EXPECT_TRUE(tracker.needsMoreSamples());
+        EXPECT_TRUE(tracker.addVsyncTimestamp(mNow += mPeriod));
+    }
+
+    EXPECT_FALSE(tracker.needsMoreSamples());
+}
+
 } // namespace android::scheduler
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

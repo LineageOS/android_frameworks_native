@@ -100,6 +100,7 @@ public:
     Rect getBufferSize(const State& s) const override;
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
     Layer::RoundedCornerState getRoundedCornerState() const override;
+    void setAutoRefresh(bool autoRefresh) override;
 
     // -----------------------------------------------------------------------
 
@@ -123,9 +124,6 @@ private:
 
     uint64_t getFrameNumber(nsecs_t expectedPresentTime) const override;
 
-    bool getAutoRefresh() const override;
-    bool getSidebandStreamChanged() const override;
-
     bool latchSidebandStream(bool& recomputeVisibleRegions) override;
 
     bool hasFrameUpdate() const override;
@@ -148,8 +146,6 @@ private:
     static const std::array<float, 16> IDENTITY_MATRIX;
 
     std::unique_ptr<renderengine::Image> mTextureImage;
-
-    std::atomic<bool> mSidebandStreamChanged{false};
 
     mutable uint64_t mFrameNumber{0};
     uint64_t mFrameCounter{0};

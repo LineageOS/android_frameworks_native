@@ -34,6 +34,7 @@ class BufferLayerConsumer;
 class EffectLayer;
 class ContainerLayer;
 class DisplayDevice;
+class FrameTracer;
 class GraphicBuffer;
 class HWComposer;
 class IGraphicBufferConsumer;
@@ -100,6 +101,7 @@ public:
     virtual sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) = 0;
     virtual sp<EffectLayer> createEffectLayer(const LayerCreationArgs& args) = 0;
     virtual sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) = 0;
+    virtual std::unique_ptr<FrameTracer> createFrameTracer() = 0;
 
 protected:
     ~Factory() = default;

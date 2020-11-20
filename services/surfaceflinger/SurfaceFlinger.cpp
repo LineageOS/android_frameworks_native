@@ -330,7 +330,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
       : mFactory(factory),
         mInterceptor(mFactory.createSurfaceInterceptor()),
         mTimeStats(std::make_shared<impl::TimeStats>()),
-        mFrameTracer(std::make_unique<FrameTracer>()),
+        mFrameTracer(mFactory.createFrameTracer()),
         mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>(mTimeStats)),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
@@ -3795,6 +3795,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         if (layer->setFixedTransformHint(s.fixedTransformHint)) {
             flags |= eTraversalNeeded | eTransformHintUpdateNeeded;
         }
+    }
+    if (what & layer_state_t::eAutoRefreshChanged) {
+        layer->setAutoRefresh(s.autoRefresh);
     }
     // This has to happen after we reparent children because when we reparent to null we remove
     // child layers from current state and remove its relative z. If the children are reparented in

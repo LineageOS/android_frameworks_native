@@ -55,9 +55,9 @@ public:
         mBlastBufferQueueAdapter->setNextTransaction(next);
     }
 
-    int getWidth() { return mBlastBufferQueueAdapter->mWidth; }
+    int getWidth() { return mBlastBufferQueueAdapter->mSize.width; }
 
-    int getHeight() { return mBlastBufferQueueAdapter->mHeight; }
+    int getHeight() { return mBlastBufferQueueAdapter->mSize.height; }
 
     Transaction* getNextTransaction() { return mBlastBufferQueueAdapter->mNextTransaction; }
 
@@ -250,8 +250,15 @@ TEST_F(BLASTBufferQueueTest, Update) {
                                    PIXEL_FORMAT_RGBA_8888);
     adapter.update(updateSurface, mDisplayWidth / 2, mDisplayHeight / 2);
     ASSERT_EQ(updateSurface, adapter.getSurfaceControl());
-    ASSERT_EQ(mDisplayWidth / 2, adapter.getWidth());
-    ASSERT_EQ(mDisplayHeight / 2, adapter.getHeight());
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+
+    int32_t width;
+    igbProducer->query(NATIVE_WINDOW_WIDTH, &width);
+    ASSERT_EQ(mDisplayWidth / 2, width);
+    int32_t height;
+    igbProducer->query(NATIVE_WINDOW_HEIGHT, &height);
+    ASSERT_EQ(mDisplayHeight / 2, height);
 }
 
 TEST_F(BLASTBufferQueueTest, SetNextTransaction) {

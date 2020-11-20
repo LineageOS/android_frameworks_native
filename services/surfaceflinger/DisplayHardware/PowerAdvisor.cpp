@@ -64,7 +64,7 @@ int32_t getUpdateTimeout() {
 PowerAdvisor::PowerAdvisor()
       : mUseUpdateImminentTimer(getUpdateTimeout() > 0),
         mUpdateImminentTimer(
-                OneShotTimer::Interval(getUpdateTimeout()),
+                "UpdateImminentTimer", OneShotTimer::Interval(getUpdateTimeout()),
                 /* resetCallback */ [this] { mSendUpdateImminent.store(false); },
                 /* timeoutCallback */ [this] { mSendUpdateImminent.store(true); }) {
     if (mUseUpdateImminentTimer) {

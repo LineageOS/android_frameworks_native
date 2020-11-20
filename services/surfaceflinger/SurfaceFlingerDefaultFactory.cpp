@@ -28,6 +28,7 @@
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "EffectLayer.h"
+#include "FrameTracer/FrameTracer.h"
 #include "Layer.h"
 #include "MonitoredProducer.h"
 #include "NativeWindowSurface.h"
@@ -130,6 +131,9 @@ sp<EffectLayer> DefaultFactory::createEffectLayer(const LayerCreationArgs& args)
     return new EffectLayer(args);
 }
 
+std::unique_ptr<FrameTracer> DefaultFactory::createFrameTracer() {
+    return std::make_unique<FrameTracer>();
+}
 } // namespace android::surfaceflinger
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
