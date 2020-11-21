@@ -77,7 +77,7 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
     const float stepY = radiusByPasses;
 
     // start by drawing and downscaling and doing the first blur pass
-    SkFilterOptions linear = {SkSamplingMode::kLinear, SkMipmapMode::kNone};
+    SkSamplingOptions linear(SkFilterMode::kLinear, SkMipmapMode::kNone);
     SkRuntimeShaderBuilder blurBuilder(mBlurEffect);
     blurBuilder.child("input") =
             input->makeImageSnapshot()->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
