@@ -79,6 +79,9 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 4);
   CHECK_OFFSET(InputMessage::Body::Focus, inTouchMode, 6);
 
+  CHECK_OFFSET(InputMessage::Body::Capture, eventId, 0);
+  CHECK_OFFSET(InputMessage::Body::Capture, pointerCaptureEnabled, 4);
+
   CHECK_OFFSET(InputMessage::Body::Finished, handled, 4);
 }
 
@@ -99,6 +102,7 @@ void TestBodySize() {
                           sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
     static_assert(sizeof(InputMessage::Body::Finished) == 8);
     static_assert(sizeof(InputMessage::Body::Focus) == 8);
+    static_assert(sizeof(InputMessage::Body::Capture) == 8);
 }
 
 // --- VerifiedInputEvent ---
