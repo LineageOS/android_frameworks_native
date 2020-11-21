@@ -457,8 +457,11 @@ GLESRenderEngine::~GLESRenderEngine() {
     mDrawingBuffer = nullptr;
     eglDestroyImageKHR(mEGLDisplay, mPlaceholderImage);
     mImageCache.clear();
+    eglDestroyContext(mEGLDisplay, mEGLContext);
+    eglDestroyContext(mEGLDisplay, mProtectedEGLContext);
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglTerminate(mEGLDisplay);
+    eglReleaseThread();
 }
 
 std::unique_ptr<Framebuffer> GLESRenderEngine::createFramebuffer() {
