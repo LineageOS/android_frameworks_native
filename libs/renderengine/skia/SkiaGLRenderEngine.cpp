@@ -550,7 +550,6 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     screenTransform.preRotate(toDegrees(display.orientation));
     screenTransform.preTranslate(-clipWidth / 2, -clipHeight / 2);
     screenTransform.preTranslate(-display.clip.left, -display.clip.top);
-    // Traverse all layers.
     for (const auto& layer : layers) {
         const SkMatrix drawTransform = getDrawTransform(layer, screenTransform);
 
@@ -653,16 +652,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
             matrix.postConcat(texMatrix);
             matrix.postScale(rotatedBufferWidth, rotatedBufferHeight);
-            sk_sp<SkShader> shader;
-
-            if (layer->source.buffer.useTextureFiltering) {
-                shader = image->makeShader(SkTileMode::kClamp, SkTileMode::kClamp,
-                                           SkSamplingOptions(
-                                                   {SkSamplingMode::kLinear, SkMipmapMode::kNone}),
-                                           &matrix);
-            } else {
-                shader = image->makeShader(matrix);
-            }
+            sk_sp<SkShader> shader = image->makeShader(matrix);
 
             if (mUseColorManagement &&
                 needsToneMapping(layer->sourceDataspace, display.outputDataspace)) {
