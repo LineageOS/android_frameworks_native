@@ -677,6 +677,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             } else {
                 paint.setShader(shader);
             }
+            // Make sure to take into the account the alpha set on the layer.
+            paint.setAlphaf(layer->alpha);
         } else {
             ATRACE_NAME("DrawColor");
             const auto color = layer->source.solidColor;
