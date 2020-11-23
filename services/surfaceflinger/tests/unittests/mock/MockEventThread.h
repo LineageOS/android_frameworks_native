@@ -28,11 +28,14 @@ public:
     ~EventThread() override;
 
     MOCK_CONST_METHOD2(createEventConnection,
-                       sp<EventThreadConnection>(ResyncCallback, ISurfaceComposer::ConfigChanged));
+                       sp<EventThreadConnection>(ResyncCallback,
+                                                 ISurfaceComposer::EventRegistrationFlags));
     MOCK_METHOD0(onScreenReleased, void());
     MOCK_METHOD0(onScreenAcquired, void());
     MOCK_METHOD2(onHotplugReceived, void(PhysicalDisplayId, bool));
     MOCK_METHOD3(onConfigChanged, void(PhysicalDisplayId, HwcConfigIndexType, nsecs_t));
+    MOCK_METHOD2(onFrameRateOverridesChanged,
+                 void(PhysicalDisplayId, std::vector<FrameRateOverride>));
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_METHOD2(setDuration,
                  void(std::chrono::nanoseconds workDuration,

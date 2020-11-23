@@ -42,8 +42,7 @@ protected:
     class MockEventThreadConnection : public android::EventThreadConnection {
     public:
         explicit MockEventThreadConnection(EventThread* eventThread)
-              : EventThreadConnection(eventThread, /*callingUid=*/0, ResyncCallback(),
-                                      ISurfaceComposer::eConfigChangedSuppress) {}
+              : EventThreadConnection(eventThread, /*callingUid=*/0, ResyncCallback()) {}
         ~MockEventThreadConnection() = default;
 
         MOCK_METHOD1(stealReceiveChannel, status_t(gui::BitTube* outChannel));
@@ -98,9 +97,7 @@ SchedulerTest::SchedulerTest() {
 TEST_F(SchedulerTest, invalidConnectionHandle) {
     Scheduler::ConnectionHandle handle;
 
-    const sp<IDisplayEventConnection> connection =
-            mScheduler.createDisplayEventConnection(handle,
-                                                    ISurfaceComposer::eConfigChangedSuppress);
+    const sp<IDisplayEventConnection> connection = mScheduler.createDisplayEventConnection(handle);
 
     EXPECT_FALSE(connection);
     EXPECT_FALSE(mScheduler.getEventConnection(handle));
@@ -126,8 +123,7 @@ TEST_F(SchedulerTest, invalidConnectionHandle) {
 
 TEST_F(SchedulerTest, validConnectionHandle) {
     const sp<IDisplayEventConnection> connection =
-            mScheduler.createDisplayEventConnection(mConnectionHandle,
-                                                    ISurfaceComposer::eConfigChangedSuppress);
+            mScheduler.createDisplayEventConnection(mConnectionHandle);
 
     ASSERT_EQ(mEventThreadConnection, connection);
     EXPECT_TRUE(mScheduler.getEventConnection(mConnectionHandle));

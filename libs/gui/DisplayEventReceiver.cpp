@@ -32,11 +32,12 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-DisplayEventReceiver::DisplayEventReceiver(ISurfaceComposer::VsyncSource vsyncSource,
-                                           ISurfaceComposer::ConfigChanged configChanged) {
+DisplayEventReceiver::DisplayEventReceiver(
+        ISurfaceComposer::VsyncSource vsyncSource,
+        ISurfaceComposer::EventRegistrationFlags eventRegistration) {
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     if (sf != nullptr) {
-        mEventConnection = sf->createDisplayEventConnection(vsyncSource, configChanged);
+        mEventConnection = sf->createDisplayEventConnection(vsyncSource, eventRegistration);
         if (mEventConnection != nullptr) {
             mDataChannel = std::make_unique<gui::BitTube>();
             mEventConnection->stealReceiveChannel(mDataChannel.get());

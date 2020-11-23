@@ -29,6 +29,7 @@
 using namespace std::chrono_literals;
 using namespace std::placeholders;
 
+using namespace android::flag_operators;
 using testing::_;
 using testing::Invoke;
 
@@ -61,9 +62,9 @@ protected:
     public:
         MockEventThreadConnection(impl::EventThread* eventThread, uid_t callingUid,
                                   ResyncCallback&& resyncCallback,
-                                  ISurfaceComposer::ConfigChanged configChanged)
+                                  ISurfaceComposer::EventRegistrationFlags eventRegistration)
               : EventThreadConnection(eventThread, callingUid, std::move(resyncCallback),
-                                      configChanged) {}
+                                      eventRegistration) {}
         MOCK_METHOD1(postEvent, status_t(const DisplayEventReceiver::Event& event));
     };
 
@@ -74,9 +75,10 @@ protected:
     ~EventThreadTest() override;
 
     void createThread(std::unique_ptr<VSyncSource>);
-    sp<MockEventThreadConnection> createConnection(ConnectionEventRecorder& recorder,
-                                                   ISurfaceComposer::ConfigChanged configChanged,
-                                                   uid_t ownerUid = mConnectionUid);
+    sp<MockEventThreadConnection> createConnection(
+            ConnectionEventRecorder& recorder,
+            ISurfaceComposer::EventRegistrationFlags eventRegistration = {},
+            uid_t ownerUid = mConnectionUid);
 
     void expectVSyncSetEnabledCallReceived(bool expectedState);
     void expectVSyncSetDurationCallReceived(std::chrono::nanoseconds expectedDuration,
@@ -93,6 +95,8 @@ protected:
                                                       int32_t expectedConfigId,
                                                       nsecs_t expectedVsyncPeriod);
     void expectThrottleVsyncReceived(nsecs_t expectedTimestamp, uid_t);
+    void expectUidFrameRateMappingEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
+                                                            std::vector<FrameRateOverride>);
 
     AsyncCallRecorder<void (*)(bool)> mVSyncSetEnabledCallRecorder;
     AsyncCallRecorder<void (*)(VSyncSource::Callback*)> mVSyncSetCallbackCallRecorder;
@@ -133,10 +137,11 @@ EventThreadTest::EventThreadTest() {
 
     createThread(std::move(vsyncSource));
     mConnection = createConnection(mConnectionEventCallRecorder,
-                                   ISurfaceComposer::eConfigChangedDispatch);
-    mThrottledConnection =
-            createConnection(mThrottledConnectionEventCallRecorder,
-                             ISurfaceComposer::eConfigChangedDispatch, mThrottledConnectionUid);
+                                   ISurfaceComposer::EventRegistration::configChanged |
+                                           ISurfaceComposer::EventRegistration::frameRateOverride);
+    mThrottledConnection = createConnection(mThrottledConnectionEventCallRecorder,
+                                            ISurfaceComposer::EventRegistration::configChanged,
+                                            mThrottledConnectionUid);
 
     // A display must be connected for VSYNC events to be delivered.
     mThread->onHotplugReceived(INTERNAL_DISPLAY_ID, true);
@@ -169,11 +174,11 @@ void EventThreadTest::createThread(std::unique_ptr<VSyncSource> source) {
 }
 
 sp<EventThreadTest::MockEventThreadConnection> EventThreadTest::createConnection(
-        ConnectionEventRecorder& recorder, ISurfaceComposer::ConfigChanged configChanged,
-        uid_t ownerUid) {
+        ConnectionEventRecorder& recorder,
+        ISurfaceComposer::EventRegistrationFlags eventRegistration, uid_t ownerUid) {
     sp<MockEventThreadConnection> connection =
             new MockEventThreadConnection(mThread.get(), ownerUid,
-                                          mResyncCallRecorder.getInvocable(), configChanged);
+                                          mResyncCallRecorder.getInvocable(), eventRegistration);
     EXPECT_CALL(*connection, postEvent(_)).WillRepeatedly(Invoke(recorder.getInvocable()));
     return connection;
 }
@@ -254,6 +259,25 @@ void EventThreadTest::expectConfigChangedEventReceivedByConnection(
     EXPECT_EQ(expectedVsyncPeriod, event.config.vsyncPeriod);
 }
 
+void EventThreadTest::expectUidFrameRateMappingEventReceivedByConnection(
+        PhysicalDisplayId expectedDisplayId, std::vector<FrameRateOverride> expectedOverrides) {
+    for (const auto [uid, frameRateHz] : expectedOverrides) {
+        auto args = mConnectionEventCallRecorder.waitForCall();
+        ASSERT_TRUE(args.has_value());
+        const auto& event = std::get<0>(args.value());
+        EXPECT_EQ(DisplayEventReceiver::DISPLAY_EVENT_FRAME_RATE_OVERRIDE, event.header.type);
+        EXPECT_EQ(expectedDisplayId, event.header.displayId);
+        EXPECT_EQ(uid, event.frameRateOverride.uid);
+        EXPECT_EQ(frameRateHz, event.frameRateOverride.frameRateHz);
+    }
+
+    auto args = mConnectionEventCallRecorder.waitForCall();
+    ASSERT_TRUE(args.has_value());
+    const auto& event = std::get<0>(args.value());
+    EXPECT_EQ(DisplayEventReceiver::DISPLAY_EVENT_FRAME_RATE_OVERRIDE_FLUSH, event.header.type);
+    EXPECT_EQ(expectedDisplayId, event.header.displayId);
+}
+
 namespace {
 
 /* ------------------------------------------------------------------------
@@ -313,9 +337,7 @@ TEST_F(EventThreadTest, requestNextVsyncPostsASingleVSyncEventToTheConnection) {
 TEST_F(EventThreadTest, setVsyncRateZeroPostsNoVSyncEventsToThatConnection) {
     // Create a first connection, register it, and request a vsync rate of zero.
     ConnectionEventRecorder firstConnectionEventRecorder{0};
-    sp<MockEventThreadConnection> firstConnection =
-            createConnection(firstConnectionEventRecorder,
-                             ISurfaceComposer::eConfigChangedSuppress);
+    sp<MockEventThreadConnection> firstConnection = createConnection(firstConnectionEventRecorder);
     mThread->setVsyncRate(0, firstConnection);
 
     // By itself, this should not enable vsync events
@@ -325,8 +347,7 @@ TEST_F(EventThreadTest, setVsyncRateZeroPostsNoVSyncEventsToThatConnection) {
     // However if there is another connection which wants events at a nonzero rate.....
     ConnectionEventRecorder secondConnectionEventRecorder{0};
     sp<MockEventThreadConnection> secondConnection =
-            createConnection(secondConnectionEventRecorder,
-                             ISurfaceComposer::eConfigChangedSuppress);
+            createConnection(secondConnectionEventRecorder);
     mThread->setVsyncRate(1, secondConnection);
 
     // EventThread should enable vsync callbacks.
@@ -418,9 +439,7 @@ TEST_F(EventThreadTest, connectionsRemovedIfInstanceDestroyed) {
 
 TEST_F(EventThreadTest, connectionsRemovedIfEventDeliveryError) {
     ConnectionEventRecorder errorConnectionEventRecorder{NO_MEMORY};
-    sp<MockEventThreadConnection> errorConnection =
-            createConnection(errorConnectionEventRecorder,
-                             ISurfaceComposer::eConfigChangedSuppress);
+    sp<MockEventThreadConnection> errorConnection = createConnection(errorConnectionEventRecorder);
     mThread->setVsyncRate(1, errorConnection);
 
     // EventThread should enable vsync callbacks.
@@ -445,15 +464,12 @@ TEST_F(EventThreadTest, connectionsRemovedIfEventDeliveryError) {
 TEST_F(EventThreadTest, tracksEventConnections) {
     EXPECT_EQ(2, mThread->getEventThreadConnectionCount());
     ConnectionEventRecorder errorConnectionEventRecorder{NO_MEMORY};
-    sp<MockEventThreadConnection> errorConnection =
-            createConnection(errorConnectionEventRecorder,
-                             ISurfaceComposer::eConfigChangedSuppress);
+    sp<MockEventThreadConnection> errorConnection = createConnection(errorConnectionEventRecorder);
     mThread->setVsyncRate(1, errorConnection);
     EXPECT_EQ(3, mThread->getEventThreadConnectionCount());
     ConnectionEventRecorder secondConnectionEventRecorder{0};
     sp<MockEventThreadConnection> secondConnection =
-            createConnection(secondConnectionEventRecorder,
-                             ISurfaceComposer::eConfigChangedSuppress);
+            createConnection(secondConnectionEventRecorder);
     mThread->setVsyncRate(1, secondConnection);
     EXPECT_EQ(4, mThread->getEventThreadConnectionCount());
 
@@ -472,9 +488,7 @@ TEST_F(EventThreadTest, tracksEventConnections) {
 
 TEST_F(EventThreadTest, eventsDroppedIfNonfatalEventDeliveryError) {
     ConnectionEventRecorder errorConnectionEventRecorder{WOULD_BLOCK};
-    sp<MockEventThreadConnection> errorConnection =
-            createConnection(errorConnectionEventRecorder,
-                             ISurfaceComposer::eConfigChangedSuppress);
+    sp<MockEventThreadConnection> errorConnection = createConnection(errorConnectionEventRecorder);
     mThread->setVsyncRate(1, errorConnection);
 
     // EventThread should enable vsync callbacks.
@@ -539,11 +553,39 @@ TEST_F(EventThreadTest, postConfigChangedPrimary64bit) {
 TEST_F(EventThreadTest, suppressConfigChanged) {
     ConnectionEventRecorder suppressConnectionEventRecorder{0};
     sp<MockEventThreadConnection> suppressConnection =
-            createConnection(suppressConnectionEventRecorder,
-                             ISurfaceComposer::eConfigChangedSuppress);
+            createConnection(suppressConnectionEventRecorder);
 
     mThread->onConfigChanged(INTERNAL_DISPLAY_ID, HwcConfigIndexType(9), 16666666);
     expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 9, 16666666);
+
+    auto args = suppressConnectionEventRecorder.waitForCall();
+    ASSERT_FALSE(args.has_value());
+}
+
+TEST_F(EventThreadTest, postUidFrameRateMapping) {
+    const std::vector<FrameRateOverride> overrides = {
+            {.uid = 1, .frameRateHz = 20},
+            {.uid = 3, .frameRateHz = 40},
+            {.uid = 5, .frameRateHz = 60},
+    };
+
+    mThread->onFrameRateOverridesChanged(INTERNAL_DISPLAY_ID, overrides);
+    expectUidFrameRateMappingEventReceivedByConnection(INTERNAL_DISPLAY_ID, overrides);
+}
+
+TEST_F(EventThreadTest, suppressUidFrameRateMapping) {
+    const std::vector<FrameRateOverride> overrides = {
+            {.uid = 1, .frameRateHz = 20},
+            {.uid = 3, .frameRateHz = 40},
+            {.uid = 5, .frameRateHz = 60},
+    };
+
+    ConnectionEventRecorder suppressConnectionEventRecorder{0};
+    sp<MockEventThreadConnection> suppressConnection =
+            createConnection(suppressConnectionEventRecorder);
+
+    mThread->onFrameRateOverridesChanged(INTERNAL_DISPLAY_ID, overrides);
+    expectUidFrameRateMappingEventReceivedByConnection(INTERNAL_DISPLAY_ID, overrides);
 
     auto args = suppressConnectionEventRecorder.waitForCall();
     ASSERT_FALSE(args.has_value());
