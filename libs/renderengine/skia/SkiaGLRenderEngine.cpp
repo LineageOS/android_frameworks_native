@@ -652,7 +652,16 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
             matrix.postConcat(texMatrix);
             matrix.postScale(rotatedBufferWidth, rotatedBufferHeight);
-            sk_sp<SkShader> shader = image->makeShader(matrix);
+            sk_sp<SkShader> shader;
+
+            if (layer->source.buffer.useTextureFiltering) {
+                shader = image->makeShader(SkTileMode::kClamp, SkTileMode::kClamp,
+                                           SkSamplingOptions(
+                                                   {SkFilterMode::kLinear, SkMipmapMode::kNone}),
+                                           &matrix);
+            } else {
+                shader = image->makeShader(matrix);
+            }
 
             if (mUseColorManagement &&
                 needsToneMapping(layer->sourceDataspace, display.outputDataspace)) {
