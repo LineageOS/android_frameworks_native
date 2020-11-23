@@ -668,8 +668,6 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             } else {
                 paint.setShader(shader);
             }
-            // Make sure to take into the account the alpha set on the layer.
-            paint.setAlphaf(layer->alpha);
         } else {
             ATRACE_NAME("DrawColor");
             const auto color = layer->source.solidColor;
@@ -816,7 +814,7 @@ void SkiaGLRenderEngine::drawBlurRegion(SkCanvas* canvas, const BlurRegion& effe
     ATRACE_CALL();
 
     SkPaint paint;
-    paint.setAlphaf(effectRegion.alpha);
+    paint.setAlpha(static_cast<int>(effectRegion.alpha * 255));
     const auto matrix = mBlurFilter->getShaderMatrix();
     paint.setShader(blurredSurface->makeImageSnapshot()->makeShader(matrix));
 
