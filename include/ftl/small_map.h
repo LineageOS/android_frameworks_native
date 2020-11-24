@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <ftl/InitializerList.h>
-#include <ftl/SmallVector.h>
+#include <ftl/initializer_list.h>
+#include <ftl/small_vector.h>
 
 #include <functional>
 #include <optional>
@@ -54,7 +54,7 @@ namespace android::ftl {
 //
 //    assert(map == SmallMap(ftl::init::map(-1, "xyz")(42, "???")(123, "abc")));
 //
-template <typename K, typename V, size_t N>
+template <typename K, typename V, std::size_t N>
 class SmallMap final {
     using Map = SmallVector<std::pair<const K, V>, N>;
 
@@ -92,26 +92,26 @@ public:
     //     ftl::SmallMap map = ftl::init::map(0, 'a')(1, 'b')(2, 'c');
     //     static_assert(std::is_same_v<decltype(map), ftl::SmallMap<int, char, 3>>);
     //
-    template <typename U, size_t... Sizes, typename... Types>
-    SmallMap(InitializerList<U, std::index_sequence<Sizes...>, Types...>&& init)
-          : mMap(std::move(init)) {
+    template <typename U, std::size_t... Sizes, typename... Types>
+    SmallMap(InitializerList<U, std::index_sequence<Sizes...>, Types...>&& list)
+          : map_(std::move(list)) {
         // TODO: Enforce unique keys.
     }
 
-    size_type max_size() const { return mMap.max_size(); }
-    size_type size() const { return mMap.size(); }
-    bool empty() const { return mMap.empty(); }
+    size_type max_size() const { return map_.max_size(); }
+    size_type size() const { return map_.size(); }
+    bool empty() const { return map_.empty(); }
 
     // Returns whether the map is backed by static or dynamic storage.
-    bool dynamic() const { return mMap.dynamic(); }
+    bool dynamic() const { return map_.dynamic(); }
 
-    iterator begin() { return mMap.begin(); }
+    iterator begin() { return map_.begin(); }
     const_iterator begin() const { return cbegin(); }
-    const_iterator cbegin() const { return mMap.cbegin(); }
+    const_iterator cbegin() const { return map_.cbegin(); }
 
-    iterator end() { return mMap.end(); }
+    iterator end() { return map_.end(); }
     const_iterator end() const { return cend(); }
-    const_iterator cend() const { return mMap.cend(); }
+    const_iterator cend() const { return map_.cend(); }
 
     // Returns whether a mapping exists for the given key.
     bool contains(const key_type& key) const {
@@ -173,16 +173,16 @@ public:
     }
 
 private:
-    Map mMap;
+    Map map_;
 };
 
 // Deduction guide for in-place constructor.
-template <typename K, typename V, size_t... Sizes, typename... Types>
+template <typename K, typename V, std::size_t... Sizes, typename... Types>
 SmallMap(InitializerList<KeyValue<K, V>, std::index_sequence<Sizes...>, Types...>&&)
         -> SmallMap<K, V, sizeof...(Sizes)>;
 
 // Returns whether the key-value pairs of two maps are equal.
-template <typename K, typename V, size_t N, typename Q, typename W, size_t M>
+template <typename K, typename V, std::size_t N, typename Q, typename W, std::size_t M>
 bool operator==(const SmallMap<K, V, N>& lhs, const SmallMap<Q, W, M>& rhs) {
     if (lhs.size() != rhs.size()) return false;
 
@@ -197,7 +197,7 @@ bool operator==(const SmallMap<K, V, N>& lhs, const SmallMap<Q, W, M>& rhs) {
 }
 
 // TODO: Remove in C++20.
-template <typename K, typename V, size_t N, typename Q, typename W, size_t M>
+template <typename K, typename V, std::size_t N, typename Q, typename W, std::size_t M>
 inline bool operator!=(const SmallMap<K, V, N>& lhs, const SmallMap<Q, W, M>& rhs) {
     return !(lhs == rhs);
 }

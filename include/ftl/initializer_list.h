@@ -27,7 +27,7 @@ namespace android::ftl {
 // first S0 arguments, the second element is initialized with the next S1 arguments, and so
 // on. The list of Types (T0, ..., TM) is flattened, so M is equal to the sum of the Sizes.
 //
-// The InitializerList is created using ftl::init::list, and is consumed by constructors of
+// An InitializerList is created using ftl::init::list, and is consumed by constructors of
 // containers. The function call operator is overloaded such that arguments are accumulated
 // in a tuple with each successive call. For instance, the following calls initialize three
 // strings using different constructors, i.e. string literal, default, and count/character:
@@ -49,7 +49,7 @@ namespace android::ftl {
 template <typename T, typename Sizes = std::index_sequence<>, typename... Types>
 struct InitializerList;
 
-template <typename T, size_t... Sizes, typename... Types>
+template <typename T, std::size_t... Sizes, typename... Types>
 struct InitializerList<T, std::index_sequence<Sizes...>, Types...> {
     // Creates a superset InitializerList by appending the number of arguments to Sizes, and
     // expanding Types with forwarding references for each argument.
@@ -72,7 +72,7 @@ struct KeyValue {};
 // Shorthand for key-value pairs that assigns the first argument to the key, and the rest to the
 // value. The specialization is on KeyValue rather than std::pair, so that ftl::init::list works
 // with the latter.
-template <typename K, typename V, size_t... Sizes, typename... Types>
+template <typename K, typename V, std::size_t... Sizes, typename... Types>
 struct InitializerList<KeyValue<K, V>, std::index_sequence<Sizes...>, Types...> {
     // Accumulate the three arguments to std::pair's piecewise constructor.
     template <typename... Args>

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <ftl/SmallVector.h>
+#include <ftl/small_vector.h>
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -72,8 +72,8 @@ TEST(SmallVector, Construct) {
     }
     {
         // Array constructor.
-        const float kFloats[] = {.1f, .2f, .3f};
-        SmallVector vector(kFloats);
+        const float floats[] = {.1f, .2f, .3f};
+        SmallVector vector(floats);
 
         EXPECT_EQ(vector, (SmallVector{.1f, .2f, .3f}));
         EXPECT_FALSE(vector.dynamic());
@@ -149,8 +149,8 @@ TEST(SmallVector, String) {
     EXPECT_STREQ(chars.begin(), "abcdefghij");
 
     // Constructor takes iterator range.
-    const char kString[] = "123456";
-    SmallVector<char, 10> string(std::begin(kString), std::end(kString));
+    const char numbers[] = "123456";
+    SmallVector<char, 10> string(std::begin(numbers), std::end(numbers));
 
     EXPECT_FALSE(string.dynamic());
     EXPECT_STREQ(string.begin(), "123456");
@@ -171,7 +171,7 @@ TEST(SmallVector, String) {
 
 TEST(SmallVector, CopyableElement) {
     struct Pair {
-        // Needed because std::vector emplace does not use uniform initialization.
+        // Needed because std::vector does not use list initialization to emplace.
         Pair(int a, int b) : a(a), b(b) {}
 
         const int a, b;
@@ -325,8 +325,8 @@ TEST(SmallVector, Sort) {
 
     // Constructor takes array reference.
     {
-        const char* kStrings[] = {"cake", "lie"};
-        strings = SmallVector(kStrings);
+        const char* array[] = {"cake", "lie"};
+        strings = SmallVector(array);
         EXPECT_FALSE(strings.dynamic());
     }
 

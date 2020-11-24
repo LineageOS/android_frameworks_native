@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <ftl/StaticVector.h>
+#include <ftl/static_vector.h>
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -68,8 +68,8 @@ TEST(StaticVector, Construct) {
     }
     {
         // Array constructor.
-        const float kFloats[] = {.1f, .2f, .3f};
-        StaticVector vector(kFloats);
+        const float floats[] = {.1f, .2f, .3f};
+        StaticVector vector(floats);
         EXPECT_EQ(vector, (StaticVector{.1f, .2f, .3f}));
     }
     {
@@ -122,11 +122,11 @@ TEST(StaticVector, Construct) {
             const char* str;
         };
 
-        const char* kStrings[] = {"a", "b", "c", "d"};
+        const char* strings[] = {"a", "b", "c", "d"};
 
         {
             // Two iterator-like elements.
-            StaticVector<String, 3> vector(kStrings, kStrings + 3);
+            StaticVector<String, 3> vector(strings, strings + 3);
             ASSERT_EQ(vector.size(), 2u);
 
             EXPECT_STREQ(vector[0].str, "a");
@@ -134,7 +134,7 @@ TEST(StaticVector, Construct) {
         }
         {
             // Disambiguating iterator constructor.
-            StaticVector<String, 3> vector(ftl::IteratorRange, kStrings, kStrings + 3);
+            StaticVector<String, 3> vector(ftl::kIteratorRange, strings, strings + 3);
             ASSERT_EQ(vector.size(), 3u);
 
             EXPECT_STREQ(vector[0].str, "a");
@@ -153,8 +153,8 @@ TEST(StaticVector, String) {
     EXPECT_STREQ(chars.begin(), "abcdefghi");
 
     // Constructor takes iterator range.
-    const char kString[] = "123456";
-    StaticVector<char, 10> string(std::begin(kString), std::end(kString));
+    const char numbers[] = "123456";
+    StaticVector<char, 10> string(std::begin(numbers), std::end(numbers));
 
     EXPECT_STREQ(string.begin(), "123456");
     EXPECT_EQ(string.size(), 7u);
@@ -290,8 +290,8 @@ TEST(StaticVector, Sort) {
 
     // Constructor takes array reference.
     {
-        const char* kStrings[] = {"cake", "lie"};
-        strings = StaticVector(kStrings);
+        const char* array[] = {"cake", "lie"};
+        strings = StaticVector(array);
     }
 
     EXPECT_GT(sorted, strings);

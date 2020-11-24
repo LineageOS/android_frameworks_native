@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <ftl/SmallMap.h>
+#include <ftl/small_map.h>
 #include <gtest/gtest.h>
 
 #include <cctype>

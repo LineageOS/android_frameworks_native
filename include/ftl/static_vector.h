@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <ftl/ArrayTraits.h>
-#include <ftl/InitializerList.h>
+#include <ftl/array_traits.h>
+#include <ftl/initializer_list.h>
 
 #include <algorithm>
 #include <cassert>
@@ -28,9 +28,9 @@
 
 namespace android::ftl {
 
-constexpr struct IteratorRangeTag {} IteratorRange;
+constexpr struct IteratorRangeTag {} kIteratorRange;
 
-// Fixed-capacity, statically allocated counterpart of std::vector. Akin to std::array, StaticVector
+// Fixed-capacity, statically allocated counterpart of std::vector. Like std::array, StaticVector
 // allocates contiguous storage for N elements of type T at compile time, but stores at most (rather
 // than exactly) N elements. Unlike std::array, its default constructor does not require T to have a
 // default constructor, since elements are constructed in place as the vector grows. Operations that
@@ -38,7 +38,8 @@ constexpr struct IteratorRangeTag {} IteratorRange;
 // adheres to standard containers, except the unstable_erase operation that does not preserve order,
 // and the replace operation that destructively emplaces.
 //
-// StaticVector<T, 1> is analogous to an iterable std::optional, but StaticVector<T, 0> is an error.
+// StaticVector<T, 1> is analogous to an iterable std::optional.
+// StaticVector<T, 0> is an error.
 //
 // Example usage:
 //
@@ -72,7 +73,7 @@ constexpr struct IteratorRangeTag {} IteratorRange;
 //     assert(strings[1] == "123");
 //     assert(strings[2] == "???");
 //
-template <typename T, size_t N>
+template <typename T, std::size_t N>
 class StaticVector final : ArrayTraits<T>,
                            ArrayIterators<StaticVector<T, N>, T>,
                            ArrayComparators<StaticVector> {
@@ -88,7 +89,7 @@ class StaticVector final : ArrayTraits<T>,
     // latter unless they are input iterators and cannot be used to construct elements. If
     // the former is intended, the caller can pass an IteratorRangeTag to disambiguate.
     template <typename I, typename Traits = std::iterator_traits<I>>
-    using IsInputIterator = std::conjunction<
+    using is_input_iterator = std::conjunction<
             std::is_base_of<std::input_iterator_tag, typename Traits::iterator_category>,
             std::negation<std::is_constructible<T, I>>>;
 
@@ -112,33 +113,34 @@ public:
 
     // Copies and moves a vector, respectively.
     StaticVector(const StaticVector& other)
-          : StaticVector(IteratorRange, other.begin(), other.end()) {}
-    StaticVector(StaticVector&& other) { swap<Empty>(other); }
+          : StaticVector(kIteratorRange, other.begin(), other.end()) {}
+
+    StaticVector(StaticVector&& other) { swap<true>(other); }
 
     // Copies at most N elements from a smaller convertible vector.
-    template <typename U, size_t M, typename = std::enable_if_t<M <= N>>
+    template <typename U, std::size_t M, typename = std::enable_if_t<M <= N>>
     StaticVector(const StaticVector<U, M>& other)
-          : StaticVector(IteratorRange, other.begin(), other.end()) {}
+          : StaticVector(kIteratorRange, other.begin(), other.end()) {}
 
     // Copies at most N elements from an array.
-    template <typename U, size_t M>
+    template <typename U, std::size_t M>
     explicit StaticVector(U (&array)[M])
-          : StaticVector(IteratorRange, std::begin(array), std::end(array)) {}
+          : StaticVector(kIteratorRange, std::begin(array), std::end(array)) {}
 
     // Copies at most N elements from the range [first, last).
     //
     // IteratorRangeTag disambiguates with initialization from two iterator-like elements.
     //
-    template <typename Iterator, typename = std::enable_if_t<IsInputIterator<Iterator>{}>>
-    StaticVector(Iterator first, Iterator last) : StaticVector(IteratorRange, first, last) {
+    template <typename Iterator, typename = std::enable_if_t<is_input_iterator<Iterator>{}>>
+    StaticVector(Iterator first, Iterator last) : StaticVector(kIteratorRange, first, last) {
         using V = typename std::iterator_traits<Iterator>::value_type;
         static_assert(std::is_constructible_v<value_type, V>, "Incompatible iterator range");
     }
 
     template <typename Iterator>
     StaticVector(IteratorRangeTag, Iterator first, Iterator last)
-          : mSize(std::min(max_size(), static_cast<size_type>(std::distance(first, last)))) {
-        std::uninitialized_copy(first, first + mSize, begin());
+          : size_(std::min(max_size(), static_cast<size_type>(std::distance(first, last)))) {
+        std::uninitialized_copy(first, first + size_, begin());
     }
 
     // Constructs at most N elements. The template arguments T and N are inferred using the
@@ -174,10 +176,10 @@ public:
     //     assert(vector[1].empty());
     //     assert(vector[2] == "???");
     //
-    template <typename U, size_t Size, size_t... Sizes, typename... Types>
-    StaticVector(InitializerList<U, std::index_sequence<Size, Sizes...>, Types...>&& init)
+    template <typename U, std::size_t Size, std::size_t... Sizes, typename... Types>
+    StaticVector(InitializerList<U, std::index_sequence<Size, Sizes...>, Types...>&& list)
           : StaticVector(std::index_sequence<0, 0, Size>{}, std::make_index_sequence<Size>{},
-                         std::index_sequence<Sizes...>{}, init.tuple) {}
+                         std::index_sequence<Sizes...>{}, list.tuple) {}
 
     ~StaticVector() { std::destroy(begin(), end()); }
 
@@ -189,21 +191,22 @@ public:
 
     StaticVector& operator=(StaticVector&& other) {
         std::destroy(begin(), end());
-        mSize = 0;
-        swap<Empty>(other);
+        size_ = 0;
+        swap<true>(other);
         return *this;
     }
 
-    template <typename = void>
+    // IsEmpty enables a fast path when the vector is known to be empty at compile time.
+    template <bool IsEmpty = false>
     void swap(StaticVector&);
 
     static constexpr size_type max_size() { return N; }
-    size_type size() const { return mSize; }
+    size_type size() const { return size_; }
 
     bool empty() const { return size() == 0; }
     bool full() const { return size() == max_size(); }
 
-    iterator begin() { return std::launder(reinterpret_cast<pointer>(mData)); }
+    iterator begin() { return std::launder(reinterpret_cast<pointer>(data_)); }
     iterator end() { return begin() + size(); }
 
     using Iter::begin;
@@ -252,7 +255,7 @@ public:
     iterator emplace_back(Args&&... args) {
         if (full()) return end();
         const iterator it = construct_at(end(), std::forward<Args>(args)...);
-        ++mSize;
+        ++size_;
         return it;
     }
 
@@ -291,22 +294,20 @@ public:
             construct_at(it, std::move(back()));
             std::destroy_at(last());
         }
-        --mSize;
+        --size_;
     }
 
 private:
-    struct Empty {};
-
     // Recursion for variadic constructor.
-    template <size_t I, typename E, typename... Es>
+    template <std::size_t I, typename E, typename... Es>
     StaticVector(std::index_sequence<I>, E&& element, Es&&... elements)
           : StaticVector(std::index_sequence<I + 1>{}, std::forward<Es>(elements)...) {
         construct_at(begin() + I, std::forward<E>(element));
     }
 
     // Base case for variadic constructor.
-    template <size_t I>
-    explicit StaticVector(std::index_sequence<I>) : mSize(I) {}
+    template <std::size_t I>
+    explicit StaticVector(std::index_sequence<I>) : size_(I) {}
 
     // Recursion for in-place constructor.
     //
@@ -317,29 +318,31 @@ private:
     // The Sizes sequence lists the argument counts for elements after I, so Size is the ArgCount
     // for the next element. The recursion stops when Sizes is empty for the last element.
     //
-    template <size_t I, size_t ArgIndex, size_t ArgCount, size_t... Indices, size_t Size,
-              size_t... Sizes, typename... Args>
+    template <std::size_t I, std::size_t ArgIndex, std::size_t ArgCount, std::size_t... Indices,
+              std::size_t Size, std::size_t... Sizes, typename... Args>
     StaticVector(std::index_sequence<I, ArgIndex, ArgCount>, std::index_sequence<Indices...>,
                  std::index_sequence<Size, Sizes...>, std::tuple<Args...>& tuple)
           : StaticVector(std::index_sequence<I + 1, ArgIndex + ArgCount, Size>{},
-                         std::make_index_sequence<Size>{}, std::index_sequence<Sizes...>{}, tuple) {
+                         std::make_index_sequence<Size>{}, std::index_sequence<Sizes...>{},
+                         tuple) {
         construct_at(begin() + I, std::move(std::get<ArgIndex + Indices>(tuple))...);
     }
 
     // Base case for in-place constructor.
-    template <size_t I, size_t ArgIndex, size_t ArgCount, size_t... Indices, typename... Args>
+    template <std::size_t I, std::size_t ArgIndex, std::size_t ArgCount, std::size_t... Indices,
+              typename... Args>
     StaticVector(std::index_sequence<I, ArgIndex, ArgCount>, std::index_sequence<Indices...>,
                  std::index_sequence<>, std::tuple<Args...>& tuple)
-          : mSize(I + 1) {
+          : size_(I + 1) {
         construct_at(begin() + I, std::move(std::get<ArgIndex + Indices>(tuple))...);
     }
 
-    size_type mSize = 0;
-    std::aligned_storage_t<sizeof(value_type), alignof(value_type)> mData[N];
+    size_type size_ = 0;
+    std::aligned_storage_t<sizeof(value_type), alignof(value_type)> data_[N];
 };
 
 // Deduction guide for array constructor.
-template <typename T, size_t N>
+template <typename T, std::size_t N>
 StaticVector(T (&)[N]) -> StaticVector<std::remove_cv_t<T>, N>;
 
 // Deduction guide for variadic constructor.
@@ -348,12 +351,12 @@ template <typename T, typename... Us, typename V = std::decay_t<T>,
 StaticVector(T&&, Us&&...) -> StaticVector<V, 1 + sizeof...(Us)>;
 
 // Deduction guide for in-place constructor.
-template <typename T, size_t... Sizes, typename... Types>
+template <typename T, std::size_t... Sizes, typename... Types>
 StaticVector(InitializerList<T, std::index_sequence<Sizes...>, Types...>&&)
         -> StaticVector<T, sizeof...(Sizes)>;
 
-template <typename T, size_t N>
-template <typename E>
+template <typename T, std::size_t N>
+template <bool IsEmpty>
 void StaticVector<T, N>::swap(StaticVector& other) {
     auto [to, from] = std::make_pair(this, &other);
     if (from == this) return;
@@ -362,7 +365,7 @@ void StaticVector<T, N>::swap(StaticVector& other) {
     auto [min, max] = std::make_pair(size(), other.size());
 
     // No elements to swap if moving into an empty vector.
-    if constexpr (std::is_same_v<E, Empty>) {
+    if constexpr (IsEmpty) {
         assert(min == 0);
     } else {
         if (min > max) {
@@ -382,10 +385,10 @@ void StaticVector<T, N>::swap(StaticVector& other) {
     std::uninitialized_move(first, last, to->begin() + min);
     std::destroy(first, last);
 
-    std::swap(mSize, other.mSize);
+    std::swap(size_, other.size_);
 }
 
-template <typename T, size_t N>
+template <typename T, std::size_t N>
 inline void swap(StaticVector<T, N>& lhs, StaticVector<T, N>& rhs) {
     lhs.swap(rhs);
 }

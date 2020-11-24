@@ -28,8 +28,8 @@ namespace android::ftl {
 template <typename T>
 struct ArrayTraits {
     using value_type = T;
-    using size_type = size_t;
-    using difference_type = ptrdiff_t;
+    using size_type = std::size_t;
+    using difference_type = std::ptrdiff_t;
 
     using pointer = value_type*;
     using reference = value_type&;
@@ -99,34 +99,34 @@ public:
 
 // Mixin to define comparison operators for an array-like template.
 // TODO: Replace with operator<=> in C++20.
-template <template <typename, size_t> class Array>
+template <template <typename, std::size_t> class Array>
 struct ArrayComparators {
-    template <typename T, size_t N, size_t M>
+    template <typename T, std::size_t N, std::size_t M>
     friend bool operator==(const Array<T, N>& lhs, const Array<T, M>& rhs) {
         return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
     }
 
-    template <typename T, size_t N, size_t M>
+    template <typename T, std::size_t N, std::size_t M>
     friend bool operator<(const Array<T, N>& lhs, const Array<T, M>& rhs) {
         return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
     }
 
-    template <typename T, size_t N, size_t M>
+    template <typename T, std::size_t N, std::size_t M>
     friend bool operator>(const Array<T, N>& lhs, const Array<T, M>& rhs) {
         return rhs < lhs;
     }
 
-    template <typename T, size_t N, size_t M>
+    template <typename T, std::size_t N, std::size_t M>
     friend bool operator!=(const Array<T, N>& lhs, const Array<T, M>& rhs) {
         return !(lhs == rhs);
     }
 
-    template <typename T, size_t N, size_t M>
+    template <typename T, std::size_t N, std::size_t M>
     friend bool operator>=(const Array<T, N>& lhs, const Array<T, M>& rhs) {
         return !(lhs < rhs);
     }
 
-    template <typename T, size_t N, size_t M>
+    template <typename T, std::size_t N, std::size_t M>
     friend bool operator<=(const Array<T, N>& lhs, const Array<T, M>& rhs) {
         return !(lhs > rhs);
     }

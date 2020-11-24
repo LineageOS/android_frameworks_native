@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <ftl/ArrayTraits.h>
-#include <ftl/StaticVector.h>
+#include <ftl/array_traits.h>
+#include <ftl/static_vector.h>
 
 #include <algorithm>
 #include <iterator>
@@ -29,7 +29,7 @@
 namespace android::ftl {
 
 template <typename>
-struct IsSmallVector;
+struct is_small_vector;
 
 // ftl::StaticVector that promotes to std::vector when full. SmallVector is a drop-in replacement
 // for std::vector with statically allocated storage for N elements, whose goal is to improve run
@@ -74,7 +74,7 @@ struct IsSmallVector;
 //     assert(strings[1] == "123");
 //     assert(strings[2] == "???");
 //
-template <typename T, size_t N>
+template <typename T, std::size_t N>
 class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
     using Static = StaticVector<T, N>;
     using Dynamic = SmallVector<T, 0>;
@@ -103,25 +103,25 @@ public:
 
     // Constructs at most N elements. See StaticVector for underlying constructors.
     template <typename Arg, typename... Args,
-              typename = std::enable_if_t<!IsSmallVector<remove_cvref_t<Arg>>{}>>
+              typename = std::enable_if_t<!is_small_vector<remove_cvref_t<Arg>>{}>>
     SmallVector(Arg&& arg, Args&&... args)
-          : mVector(std::in_place_type<Static>, std::forward<Arg>(arg),
+          : vector_(std::in_place_type<Static>, std::forward<Arg>(arg),
                     std::forward<Args>(args)...) {}
 
     // Copies at most N elements from a smaller convertible vector.
-    template <typename U, size_t M, typename = std::enable_if_t<M <= N>>
+    template <typename U, std::size_t M, typename = std::enable_if_t<M <= N>>
     SmallVector(const SmallVector<U, M>& other)
-          : SmallVector(IteratorRange, other.begin(), other.end()) {}
+          : SmallVector(kIteratorRange, other.begin(), other.end()) {}
 
-    void swap(SmallVector& other) { mVector.swap(other.mVector); }
+    void swap(SmallVector& other) { vector_.swap(other.vector_); }
 
     // Returns whether the vector is backed by static or dynamic storage.
-    bool dynamic() const { return std::holds_alternative<Dynamic>(mVector); }
+    bool dynamic() const { return std::holds_alternative<Dynamic>(vector_); }
 
     // Avoid std::visit as it generates a dispatch table.
 #define DISPATCH(T, F, ...)                                                                \
     T F() __VA_ARGS__ {                                                                    \
-        return dynamic() ? std::get<Dynamic>(mVector).F() : std::get<Static>(mVector).F(); \
+        return dynamic() ? std::get<Dynamic>(vector_).F() : std::get<Static>(vector_).F(); \
     }
 
     DISPATCH(size_type, max_size, const)
@@ -157,7 +157,7 @@ public:
 #undef DISPATCH
 
     reference operator[](size_type i) {
-        return dynamic() ? std::get<Dynamic>(mVector)[i] : std::get<Static>(mVector)[i];
+        return dynamic() ? std::get<Dynamic>(vector_)[i] : std::get<Static>(vector_)[i];
     }
 
     const_reference operator[](size_type i) const { return const_cast<SmallVector&>(*this)[i]; }
@@ -175,9 +175,9 @@ public:
     template <typename... Args>
     reference replace(const_iterator it, Args&&... args) {
         if (dynamic()) {
-            return std::get<Dynamic>(mVector).replace(it, std::forward<Args>(args)...);
+            return std::get<Dynamic>(vector_).replace(it, std::forward<Args>(args)...);
         } else {
-            return std::get<Static>(mVector).replace(it, std::forward<Args>(args)...);
+            return std::get<Static>(vector_).replace(it, std::forward<Args>(args)...);
         }
     }
 
@@ -188,9 +188,9 @@ public:
     //
     template <typename... Args>
     reference emplace_back(Args&&... args) {
-        constexpr auto insertStatic = &Static::template emplace_back<Args...>;
-        constexpr auto insertDynamic = &Dynamic::template emplace_back<Args...>;
-        return *insert<insertStatic, insertDynamic>(std::forward<Args>(args)...);
+        constexpr auto kInsertStatic = &Static::template emplace_back<Args...>;
+        constexpr auto kInsertDynamic = &Dynamic::template emplace_back<Args...>;
+        return *insert<kInsertStatic, kInsertDynamic>(std::forward<Args>(args)...);
     }
 
     // Appends an element.
@@ -199,19 +199,19 @@ public:
     // Otherwise, only the end() iterator is invalidated.
     //
     void push_back(const value_type& v) {
-        constexpr auto insertStatic =
+        constexpr auto kInsertStatic =
                 static_cast<bool (Static::*)(const value_type&)>(&Static::push_back);
-        constexpr auto insertDynamic =
+        constexpr auto kInsertDynamic =
                 static_cast<bool (Dynamic::*)(const value_type&)>(&Dynamic::push_back);
-        insert<insertStatic, insertDynamic>(v);
+        insert<kInsertStatic, kInsertDynamic>(v);
     }
 
     void push_back(value_type&& v) {
-        constexpr auto insertStatic =
+        constexpr auto kInsertStatic =
                 static_cast<bool (Static::*)(value_type&&)>(&Static::push_back);
-        constexpr auto insertDynamic =
+        constexpr auto kInsertDynamic =
                 static_cast<bool (Dynamic::*)(value_type&&)>(&Dynamic::push_back);
-        insert<insertStatic, insertDynamic>(std::move(v));
+        insert<kInsertStatic, kInsertDynamic>(std::move(v));
     }
 
     // Removes the last element. The vector must not be empty, or the call is erroneous.
@@ -220,9 +220,9 @@ public:
     //
     void pop_back() {
         if (dynamic()) {
-            std::get<Dynamic>(mVector).pop_back();
+            std::get<Dynamic>(vector_).pop_back();
         } else {
-            std::get<Static>(mVector).pop_back();
+            std::get<Static>(vector_).pop_back();
         }
     }
 
@@ -233,39 +233,39 @@ public:
     //
     void unstable_erase(iterator it) {
         if (dynamic()) {
-            std::get<Dynamic>(mVector).unstable_erase(it);
+            std::get<Dynamic>(vector_).unstable_erase(it);
         } else {
-            std::get<Static>(mVector).unstable_erase(it);
+            std::get<Static>(vector_).unstable_erase(it);
         }
     }
 
 private:
-    template <auto insertStatic, auto insertDynamic, typename... Args>
+    template <auto InsertStatic, auto InsertDynamic, typename... Args>
     auto insert(Args&&... args) {
-        if (Dynamic* const vector = std::get_if<Dynamic>(&mVector)) {
-            return (vector->*insertDynamic)(std::forward<Args>(args)...);
+        if (Dynamic* const vector = std::get_if<Dynamic>(&vector_)) {
+            return (vector->*InsertDynamic)(std::forward<Args>(args)...);
         }
 
-        auto& vector = std::get<Static>(mVector);
+        auto& vector = std::get<Static>(vector_);
         if (vector.full()) {
-            return (promote(vector).*insertDynamic)(std::forward<Args>(args)...);
+            return (promote(vector).*InsertDynamic)(std::forward<Args>(args)...);
         } else {
-            return (vector.*insertStatic)(std::forward<Args>(args)...);
+            return (vector.*InsertStatic)(std::forward<Args>(args)...);
         }
     }
 
-    Dynamic& promote(Static& staticVector) {
-        assert(staticVector.full());
+    Dynamic& promote(Static& static_vector) {
+        assert(static_vector.full());
 
         // Allocate double capacity to reduce probability of reallocation.
         Dynamic vector;
         vector.reserve(Static::max_size() * 2);
-        std::move(staticVector.begin(), staticVector.end(), std::back_inserter(vector));
+        std::move(static_vector.begin(), static_vector.end(), std::back_inserter(vector));
 
-        return mVector.template emplace<Dynamic>(std::move(vector));
+        return vector_.template emplace<Dynamic>(std::move(vector));
     }
 
-    std::variant<Static, Dynamic> mVector;
+    std::variant<Static, Dynamic> vector_;
 };
 
 // Partial specialization without static storage.
@@ -360,13 +360,13 @@ public:
 };
 
 template <typename>
-struct IsSmallVector : std::false_type {};
+struct is_small_vector : std::false_type {};
 
-template <typename T, size_t N>
-struct IsSmallVector<SmallVector<T, N>> : std::true_type {};
+template <typename T, std::size_t N>
+struct is_small_vector<SmallVector<T, N>> : std::true_type {};
 
 // Deduction guide for array constructor.
-template <typename T, size_t N>
+template <typename T, std::size_t N>
 SmallVector(T (&)[N]) -> SmallVector<std::remove_cv_t<T>, N>;
 
 // Deduction guide for variadic constructor.
@@ -375,15 +375,15 @@ template <typename T, typename... Us, typename V = std::decay_t<T>,
 SmallVector(T&&, Us&&...) -> SmallVector<V, 1 + sizeof...(Us)>;
 
 // Deduction guide for in-place constructor.
-template <typename T, size_t... Sizes, typename... Types>
+template <typename T, std::size_t... Sizes, typename... Types>
 SmallVector(InitializerList<T, std::index_sequence<Sizes...>, Types...>&&)
         -> SmallVector<T, sizeof...(Sizes)>;
 
 // Deduction guide for StaticVector conversion.
-template <typename T, size_t N>
+template <typename T, std::size_t N>
 SmallVector(StaticVector<T, N>&&) -> SmallVector<T, N>;
 
-template <typename T, size_t N>
+template <typename T, std::size_t N>
 inline void swap(SmallVector<T, N>& lhs, SmallVector<T, N>& rhs) {
     lhs.swap(rhs);
 }
