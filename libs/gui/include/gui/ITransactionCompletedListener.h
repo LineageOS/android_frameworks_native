@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "JankInfo.h"
+
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
@@ -57,6 +59,27 @@ public:
     nsecs_t dequeueReadyTime;
 };
 
+/**
+ * Jank information representing SurfaceFlinger's jank classification about frames for a specific
+ * surface.
+ */
+class JankData : public Parcelable {
+public:
+    status_t writeToParcel(Parcel* output) const override;
+    status_t readFromParcel(const Parcel* input) override;
+
+    JankData();
+    JankData(int64_t frameVsyncId, JankType jankType)
+          : frameVsyncId(frameVsyncId),
+            jankType(jankType) {}
+
+    // Identifier for the frame submitted with Transaction.setFrameTimelineVsyncId
+    int64_t frameVsyncId;
+
+    // The type of jank occurred
+    JankType jankType;
+};
+
 class SurfaceStats : public Parcelable {
 public:
     status_t writeToParcel(Parcel* output) const override;
@@ -64,18 +87,21 @@ public:
 
     SurfaceStats() = default;
     SurfaceStats(const sp<IBinder>& sc, nsecs_t time, const sp<Fence>& prevReleaseFence,
-                 uint32_t hint, FrameEventHistoryStats frameEventStats)
+                 uint32_t hint, FrameEventHistoryStats frameEventStats,
+                 std::vector<JankData> jankData)
           : surfaceControl(sc),
             acquireTime(time),
             previousReleaseFence(prevReleaseFence),
             transformHint(hint),
-            eventStats(frameEventStats) {}
+            eventStats(frameEventStats),
+            jankData(std::move(jankData)) {}
 
     sp<IBinder> surfaceControl;
     nsecs_t acquireTime = -1;
     sp<Fence> previousReleaseFence;
     uint32_t transformHint = 0;
     FrameEventHistoryStats eventStats;
+    std::vector<JankData> jankData;
 };
 
 class TransactionStats : public Parcelable {

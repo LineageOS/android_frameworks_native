@@ -120,6 +120,12 @@ public:
     virtual void setActualStartTime(nsecs_t actualStartTime) = 0;
     virtual void setActualQueueTime(nsecs_t actualQueueTime) = 0;
     virtual void setAcquireFenceTime(nsecs_t acquireFenceTime) = 0;
+
+    // Retrieves jank classification, if it's already been classified.
+    virtual std::optional<JankType> getJankType() const = 0;
+
+    // Token identifying the frame.
+    virtual int64_t getToken() const = 0;
 };
 
 /*
@@ -138,13 +144,13 @@ public:
     // Create a new surface frame, set the predictions based on a token and return it to the caller.
     // Sets the PredictionState of SurfaceFrame.
     // Debug name is the human-readable debugging string for dumpsys.
-    virtual std::unique_ptr<SurfaceFrame> createSurfaceFrameForToken(
+    virtual std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(
             pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
             std::optional<int64_t> token) = 0;
 
     // Adds a new SurfaceFrame to the current DisplayFrame. Frames from multiple layers can be
     // composited into one display frame.
-    virtual void addSurfaceFrame(std::unique_ptr<SurfaceFrame> surfaceFrame,
+    virtual void addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame,
                                  SurfaceFrame::PresentState state) = 0;
 
     // The first function called by SF for the current DisplayFrame. Fetches SF predictions based on
@@ -209,8 +215,8 @@ public:
     PresentState getPresentState() const override;
     PredictionState getPredictionState() const override { return mPredictionState; };
     pid_t getOwnerPid() const override { return mOwnerPid; };
-    JankType getJankType() const;
-    int64_t getToken() const { return mToken; };
+    std::optional<JankType> getJankType() const override;
+    int64_t getToken() const override { return mToken; };
     nsecs_t getBaseTime() const;
     uid_t getOwnerUid() const { return mOwnerUid; };
     const std::string& getName() const { return mLayerName; };
@@ -258,10 +264,10 @@ public:
     ~FrameTimeline() = default;
 
     frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
-    std::unique_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForToken(
+    std::shared_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForToken(
             pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
             std::optional<int64_t> token) override;
-    void addSurfaceFrame(std::unique_ptr<frametimeline::SurfaceFrame> surfaceFrame,
+    void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame,
                          SurfaceFrame::PresentState state) override;
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime) override;
     void setSfPresent(nsecs_t sfPresentTime,
@@ -299,7 +305,7 @@ private:
         TimelineItem surfaceFlingerActuals;
 
         // Collection of predictions and actual values sent over by Layers
-        std::vector<std::unique_ptr<SurfaceFrame>> surfaceFrames;
+        std::vector<std::shared_ptr<SurfaceFrame>> surfaceFrames;
 
         PredictionState predictionState = PredictionState::None;
         JankType jankType = JankType::None; // Enum for the type of jank

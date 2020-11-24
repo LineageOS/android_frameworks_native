@@ -100,14 +100,30 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
     }
 }
 
+void BufferStateLayer::onSurfaceFrameCreated(
+        const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
+    mPendingJankClassifications.emplace_back(surfaceFrame);
+}
+
 void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
         handle->transformHint = mTransformHint;
         handle->dequeueReadyTime = dequeueReadyTime;
     }
 
+    std::vector<JankData> jankData;
+    jankData.reserve(mPendingJankClassifications.size());
+    while (!mPendingJankClassifications.empty()
+            && mPendingJankClassifications.front()->getJankType()) {
+        std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame =
+                mPendingJankClassifications.front();
+        mPendingJankClassifications.pop_front();
+        jankData.emplace_back(
+                JankData(surfaceFrame->getToken(), surfaceFrame->getJankType().value()));
+    }
+
     mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
-            mDrawingState.callbackHandles);
+            mDrawingState.callbackHandles, jankData);
 
     mDrawingState.callbackHandles = {};
 
@@ -382,7 +398,7 @@ bool BufferStateLayer::setTransactionCompletedListeners(
 
 void BufferStateLayer::forceSendCallbacks() {
     mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
-            mCurrentState.callbackHandles);
+            mCurrentState.callbackHandles, std::vector<JankData>());
 }
 
 bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {

@@ -153,7 +153,7 @@ status_t TransactionCompletedThread::registerPendingCallbackHandle(
 }
 
 status_t TransactionCompletedThread::finalizePendingCallbackHandles(
-        const std::deque<sp<CallbackHandle>>& handles) {
+        const std::deque<sp<CallbackHandle>>& handles, const std::vector<JankData>& jankData) {
     if (handles.empty()) {
         return NO_ERROR;
     }
@@ -186,7 +186,7 @@ status_t TransactionCompletedThread::finalizePendingCallbackHandles(
             ALOGW("cannot find listener in mPendingTransactions");
         }
 
-        status_t err = addCallbackHandle(handle);
+        status_t err = addCallbackHandle(handle, jankData);
         if (err != NO_ERROR) {
             ALOGE("could not add callback handle");
             return err;
@@ -204,7 +204,7 @@ status_t TransactionCompletedThread::registerUnpresentedCallbackHandle(
         return BAD_VALUE;
     }
 
-    return addCallbackHandle(handle);
+    return addCallbackHandle(handle, std::vector<JankData>());
 }
 
 status_t TransactionCompletedThread::findTransactionStats(
@@ -225,7 +225,8 @@ status_t TransactionCompletedThread::findTransactionStats(
     return BAD_VALUE;
 }
 
-status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle) {
+status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle,
+        const std::vector<JankData>& jankData) {
     // If we can't find the transaction stats something has gone wrong. The client should call
     // startRegistration before trying to add a callback handle.
     TransactionStats* transactionStats;
@@ -246,7 +247,7 @@ status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>&
                                           handle->dequeueReadyTime);
         transactionStats->surfaceStats.emplace_back(surfaceControl, handle->acquireTime,
                                                     handle->previousReleaseFence,
-                                                    handle->transformHint, eventStats);
+                                                    handle->transformHint, eventStats, jankData);
     }
     return NO_ERROR;
 }

@@ -942,6 +942,7 @@ protected:
     virtual void commitTransaction(const State& stateToCommit);
     virtual bool applyPendingStates(State* stateToCommit);
     virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit);
+    virtual void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&) {}
 
     // Returns mCurrentScaling mode (originating from the
     // Client) or mOverrideScalingMode mode (originating from
@@ -1066,7 +1067,7 @@ protected:
     const InputWindowInfo::Type mWindowType;
 
     // Can only be accessed with the SF state lock held.
-    std::unique_ptr<frametimeline::SurfaceFrame> mSurfaceFrame;
+    std::shared_ptr<frametimeline::SurfaceFrame> mSurfaceFrame;
 
     // The owner of the layer. If created from a non system process, it will be the calling uid.
     // If created from a system process, the value can be passed in.

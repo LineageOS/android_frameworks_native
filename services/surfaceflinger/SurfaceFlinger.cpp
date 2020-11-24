@@ -1986,11 +1986,13 @@ void SurfaceFlinger::onMessageRefresh() {
 
     mScheduler->onDisplayRefreshed(presentTime);
 
-    postFrame();
-    postComposition();
-
+    // Set presentation information before calling postComposition, such that jank information from
+    // this' frame classification is already available when sending jank info to clients.
     mFrameTimeline->setSfPresent(systemTime(),
                                  std::make_shared<FenceTime>(mPreviousPresentFences[0]));
+
+    postFrame();
+    postComposition();
 
     const bool prevFrameHadClientComposition = mHadClientComposition;
 

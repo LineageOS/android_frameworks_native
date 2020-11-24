@@ -69,6 +69,7 @@ using ::testing::SetArgPointee;
 
 using Transaction = SurfaceComposerClient::Transaction;
 using Attribute = V2_4::IComposerClient::Attribute;
+using Display = V2_1::Display;
 
 ///////////////////////////////////////////////
 

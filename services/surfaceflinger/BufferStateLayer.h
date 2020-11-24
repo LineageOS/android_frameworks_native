@@ -115,6 +115,7 @@ public:
 protected:
     void gatherBufferInfo() override;
     uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
+    void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame);
 
 private:
     friend class SlotGenerationTest;
@@ -157,6 +158,8 @@ private:
     mutable bool mCurrentStateModified = false;
     bool mReleasePreviousBuffer = false;
     nsecs_t mCallbackHandleAcquireTime = -1;
+
+    std::deque<std::shared_ptr<android::frametimeline::SurfaceFrame>> mPendingJankClassifications;
 
     // TODO(marissaw): support sticky transform for LEGACY camera mode
 

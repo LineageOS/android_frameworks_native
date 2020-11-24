@@ -73,7 +73,8 @@ public:
     // presented.
     status_t registerPendingCallbackHandle(const sp<CallbackHandle>& handle);
     // Notifies the TransactionCompletedThread that a pending CallbackHandle has been presented.
-    status_t finalizePendingCallbackHandles(const std::deque<sp<CallbackHandle>>& handles);
+    status_t finalizePendingCallbackHandles(const std::deque<sp<CallbackHandle>>& handles,
+                                            const std::vector<JankData>& jankData);
 
     // Adds the Transaction CallbackHandle from a layer that does not need to be relatched and
     // presented this frame.
@@ -93,7 +94,8 @@ private:
                                   const std::vector<CallbackId>& callbackIds,
                                   TransactionStats** outTransactionStats) REQUIRES(mMutex);
 
-    status_t addCallbackHandle(const sp<CallbackHandle>& handle) REQUIRES(mMutex);
+    status_t addCallbackHandle(const sp<CallbackHandle>& handle,
+                               const std::vector<JankData>& jankData) REQUIRES(mMutex);
 
     class ThreadDeathRecipient : public IBinder::DeathRecipient {
     public:
