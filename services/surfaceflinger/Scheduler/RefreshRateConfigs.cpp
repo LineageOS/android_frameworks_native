@@ -687,21 +687,20 @@ RefreshRateConfigs::KernelIdleTimerAction RefreshRateConfigs::getIdleTimerAction
     return RefreshRateConfigs::KernelIdleTimerAction::TurnOn;
 }
 
-void RefreshRateConfigs::setPreferredRefreshRateForUid(uid_t uid, float refreshRateHz) {
-    if (refreshRateHz > 0 && refreshRateHz < 1) {
+void RefreshRateConfigs::setPreferredRefreshRateForUid(FrameRateOverride frameRateOverride) {
+    if (frameRateOverride.frameRateHz > 0 && frameRateOverride.frameRateHz < 1) {
         return;
     }
 
     std::lock_guard lock(mLock);
-    if (refreshRateHz != 0) {
-        mPreferredRefreshRateForUid[uid] = refreshRateHz;
+    if (frameRateOverride.frameRateHz != 0) {
+        mPreferredRefreshRateForUid[frameRateOverride.uid] = frameRateOverride.frameRateHz;
     } else {
-        mPreferredRefreshRateForUid.erase(uid);
+        mPreferredRefreshRateForUid.erase(frameRateOverride.uid);
     }
 }
 
 int RefreshRateConfigs::getRefreshRateDividerForUid(uid_t uid) const {
-    constexpr float kThreshold = 0.1f;
     std::lock_guard lock(mLock);
 
     const auto iter = mPreferredRefreshRateForUid.find(uid);
@@ -709,6 +708,9 @@ int RefreshRateConfigs::getRefreshRateDividerForUid(uid_t uid) const {
         return 1;
     }
 
+    // This calculation needs to be in sync with the java code
+    // in DisplayManagerService.getDisplayInfoForFrameRateOverride
+    constexpr float kThreshold = 0.1f;
     const auto refreshRateHz = iter->second;
     const auto numPeriods = mCurrentRefreshRate->getFps() / refreshRateHz;
     const auto numPeriodsRounded = std::round(numPeriods);
@@ -716,7 +718,19 @@ int RefreshRateConfigs::getRefreshRateDividerForUid(uid_t uid) const {
         return 1;
     }
 
-    return static_cast<int>(numPeriods);
+    return static_cast<int>(numPeriodsRounded);
+}
+
+std::vector<FrameRateOverride> RefreshRateConfigs::getFrameRateOverrides() {
+    std::lock_guard lock(mLock);
+    std::vector<FrameRateOverride> overrides;
+    overrides.reserve(mPreferredRefreshRateForUid.size());
+
+    for (const auto [uid, frameRate] : mPreferredRefreshRateForUid) {
+        overrides.emplace_back(FrameRateOverride{uid, frameRate});
+    }
+
+    return overrides;
 }
 
 void RefreshRateConfigs::dump(std::string& result) const {

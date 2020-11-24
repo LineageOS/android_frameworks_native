@@ -64,6 +64,16 @@ struct IsSmallVector;
 //     assert(vector == (ftl::SmallVector{'h', 'i', '\0'}));
 //     assert(!vector.dynamic());
 //
+//     ftl::SmallVector strings = ftl::init::list<std::string>("abc")
+//                                                            ("123456", 3u)
+//                                                            (3u, '?');
+//     assert(strings.size() == 3u);
+//     assert(!strings.dynamic());
+//
+//     assert(strings[0] == "abc");
+//     assert(strings[1] == "123");
+//     assert(strings[2] == "???");
+//
 template <typename T, size_t N>
 class SmallVector final : ArrayTraits<T>, ArrayComparators<SmallVector> {
     using Static = StaticVector<T, N>;
@@ -365,8 +375,9 @@ template <typename T, typename... Us, typename V = std::decay_t<T>,
 SmallVector(T&&, Us&&...) -> SmallVector<V, 1 + sizeof...(Us)>;
 
 // Deduction guide for in-place constructor.
-template <typename T, typename... Us>
-SmallVector(std::in_place_type_t<T>, Us&&...) -> SmallVector<T, sizeof...(Us)>;
+template <typename T, size_t... Sizes, typename... Types>
+SmallVector(InitializerList<T, std::index_sequence<Sizes...>, Types...>&&)
+        -> SmallVector<T, sizeof...(Sizes)>;
 
 // Deduction guide for StaticVector conversion.
 template <typename T, size_t N>

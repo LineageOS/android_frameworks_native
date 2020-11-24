@@ -51,6 +51,13 @@ TEST(StaticVector, Example) {
     const char array[] = "hi";
     vector = ftl::StaticVector(array);
     EXPECT_EQ(vector, (ftl::StaticVector{'h', 'i', '\0'}));
+
+    ftl::StaticVector strings = ftl::init::list<std::string>("abc")("123456", 3u)(3u, '?');
+    ASSERT_EQ(strings.size(), 3u);
+
+    EXPECT_EQ(strings[0], "abc");
+    EXPECT_EQ(strings[1], "123");
+    EXPECT_EQ(strings[2], "???");
 }
 
 TEST(StaticVector, Construct) {
@@ -91,7 +98,8 @@ TEST(StaticVector, Construct) {
     }
     {
         // In-place constructor with same types.
-        StaticVector vector(std::in_place_type<std::string>, "red", "velvet", "cake");
+        StaticVector vector =
+                ftl::init::list<std::string>("redolent", 3u)("velveteen", 6u)("cakewalk", 4u);
 
         static_assert(std::is_same_v<decltype(vector), StaticVector<std::string, 3>>);
         EXPECT_EQ(vector, (StaticVector{"red"s, "velvet"s, "cake"s}));
@@ -101,9 +109,10 @@ TEST(StaticVector, Construct) {
         const auto copy = "red"s;
         auto move = "velvet"s;
         std::initializer_list<char> list = {'c', 'a', 'k', 'e'};
-        StaticVector vector(std::in_place_type<std::string>, copy.c_str(), std::move(move), list);
+        StaticVector vector = ftl::init::list<std::string>(copy.c_str())(std::move(move))(list);
 
         static_assert(std::is_same_v<decltype(vector), StaticVector<std::string, 3>>);
+        EXPECT_TRUE(move.empty());
         EXPECT_EQ(vector, (StaticVector{"red"s, "velvet"s, "cake"s}));
     }
     {
@@ -204,9 +213,8 @@ TEST(StaticVector, CopyableElement) {
 }
 
 TEST(StaticVector, MovableElement) {
-    // Construct std::string elements in-place from C-style strings. Without std::in_place_type, the
-    // element type would be deduced from the first element, i.e. const char*.
-    StaticVector strings(std::in_place_type<std::string>, "", "", "", "cake", "velvet", "red", "");
+    // Construct std::string elements in place from per-element arguments.
+    StaticVector strings = ftl::init::list<std::string>()()()("cake")("velvet")("red")();
     strings.pop_back();
 
     EXPECT_EQ(strings.max_size(), 7u);
@@ -221,7 +229,7 @@ TEST(StaticVector, MovableElement) {
 
         strings.unstable_erase(it);
 
-        // Construct std::string from first 4 characters of C-style string.
+        // Construct std::string from first 4 characters of string literal.
         it = strings.emplace_back("cakewalk", 4u);
         ASSERT_NE(it, strings.end());
         EXPECT_EQ(*it, "cake"s);
@@ -250,7 +258,7 @@ TEST(StaticVector, Replace) {
         const std::string str;
     };
 
-    StaticVector words(std::in_place_type<Word>, "red", "velour", "cake");
+    StaticVector words = ftl::init::list<Word>("red")("velour")("cake");
 
     // The replaced element can be referenced by the replacement.
     const auto it = words.begin() + 1;

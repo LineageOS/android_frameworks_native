@@ -237,6 +237,10 @@ cc_defaults {
         "libnativebase_headers",
     ],
 
+    include_dirs: [
+        "frameworks/native/include",
+    ],
+
     export_shared_lib_headers: [
         "libEGL",
         "libnativewindow",

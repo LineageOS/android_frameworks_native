@@ -240,8 +240,9 @@ protected:
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 
-        mReceiver.reset(new DisplayEventReceiver(ISurfaceComposer::eVsyncSourceApp,
-                                                 ISurfaceComposer::eConfigChangedDispatch));
+        mReceiver.reset(
+                new DisplayEventReceiver(ISurfaceComposer::eVsyncSourceApp,
+                                         ISurfaceComposer::EventRegistration::configChanged));
         mLooper = new Looper(false);
         mLooper->addFd(mReceiver->getFd(), 0, ALOOPER_EVENT_INPUT, processDisplayEvents, this);
     }

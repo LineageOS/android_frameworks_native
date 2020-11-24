@@ -530,8 +530,7 @@ private:
     status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const override;
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp,
-            ISurfaceComposer::ConfigChanged configChanged =
-                    ISurfaceComposer::eConfigChangedSuppress) override;
+            ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) override;
     status_t captureDisplay(const DisplayCaptureArgs& args,
                             const sp<IScreenCaptureListener>& captureListener) override;
     status_t captureDisplay(uint64_t displayOrLayerStack,

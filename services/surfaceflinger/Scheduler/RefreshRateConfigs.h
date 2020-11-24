@@ -17,6 +17,7 @@
 #pragma once
 
 #include <android-base/stringprintf.h>
+#include <gui/DisplayEventReceiver.h>
 
 #include <algorithm>
 #include <numeric>
@@ -38,6 +39,8 @@ inline RefreshRateConfigEvent operator|(RefreshRateConfigEvent lhs, RefreshRateC
     using T = std::underlying_type_t<RefreshRateConfigEvent>;
     return static_cast<RefreshRateConfigEvent>(static_cast<T>(lhs) | static_cast<T>(rhs));
 }
+
+using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
 
 /**
  * This class is used to encapsulate configuration for refresh rates. It holds information
@@ -316,13 +319,16 @@ public:
     KernelIdleTimerAction getIdleTimerAction() const;
 
     // Stores the preferred refresh rate that an app should run at.
-    // refreshRate == 0 means no preference.
-    void setPreferredRefreshRateForUid(uid_t, float refreshRateHz) EXCLUDES(mLock);
+    // FrameRateOverride.refreshRateHz == 0 means no preference.
+    void setPreferredRefreshRateForUid(FrameRateOverride) EXCLUDES(mLock);
 
     // Returns a divider for the current refresh rate
     int getRefreshRateDividerForUid(uid_t) const EXCLUDES(mLock);
 
     void dump(std::string& result) const EXCLUDES(mLock);
+
+    // Returns the current frame rate overrides
+    std::vector<FrameRateOverride> getFrameRateOverrides() EXCLUDES(mLock);
 
 private:
     friend class RefreshRateConfigsTest;
@@ -381,6 +387,8 @@ private:
     Policy mDisplayManagerPolicy GUARDED_BY(mLock);
     std::optional<Policy> mOverridePolicy GUARDED_BY(mLock);
 
+    // A mapping between a UID and a preferred refresh rate that this app would
+    // run at.
     std::unordered_map<uid_t, float> mPreferredRefreshRateForUid GUARDED_BY(mLock);
 
     // The min and max refresh rates supported by the device.

@@ -19,6 +19,7 @@
 #include <utils/Looper.h>
 
 namespace android {
+using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
 
 struct VsyncEventData {
     // The Vsync Id corresponsing to this vsync event. This will be used to
@@ -36,8 +37,7 @@ public:
     explicit DisplayEventDispatcher(
             const sp<Looper>& looper,
             ISurfaceComposer::VsyncSource vsyncSource = ISurfaceComposer::eVsyncSourceApp,
-            ISurfaceComposer::ConfigChanged configChanged =
-                    ISurfaceComposer::eConfigChangedSuppress);
+            ISurfaceComposer::EventRegistrationFlags eventRegistration = {});
 
     status_t initialize();
     void dispose();
@@ -54,6 +54,8 @@ private:
     DisplayEventReceiver mReceiver;
     bool mWaitingForVsync;
 
+    std::vector<FrameRateOverride> mFrameRateOverrides;
+
     virtual void dispatchVsync(nsecs_t timestamp, PhysicalDisplayId displayId, uint32_t count,
                                VsyncEventData vsyncEventData) = 0;
     virtual void dispatchHotplug(nsecs_t timestamp, PhysicalDisplayId displayId,
@@ -63,6 +65,9 @@ private:
     // AChoreographer-specific hook for processing null-events so that looper
     // can be properly poked.
     virtual void dispatchNullEvent(nsecs_t timestamp, PhysicalDisplayId displayId) = 0;
+
+    virtual void dispatchFrameRateOverrides(nsecs_t timestamp, PhysicalDisplayId displayId,
+                                            std::vector<FrameRateOverride> overrides) = 0;
 
     bool processPendingEvents(nsecs_t* outTimestamp, PhysicalDisplayId* outDisplayId,
                               uint32_t* outCount, VsyncEventData* outVsyncEventData);
