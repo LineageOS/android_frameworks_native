@@ -921,10 +921,10 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         }
 
         const nsecs_t period = hwConfig->getVsyncPeriod();
-        config.refreshRate = 1e9f / period;
+        config.refreshRate = Fps::fromPeriodNsecs(period).getValue();
 
         const auto vsyncConfigSet =
-                mVsyncConfiguration->getConfigsForRefreshRate(config.refreshRate);
+                mVsyncConfiguration->getConfigsForRefreshRate(Fps(config.refreshRate));
         config.appVsyncOffset = vsyncConfigSet.late.appOffset;
         config.sfVsyncOffset = vsyncConfigSet.late.sfOffset;
         config.configGroup = hwConfig->getConfigGroup();
@@ -1042,7 +1042,7 @@ status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mo
             return INVALID_OPERATION;
         } else {
             const HwcConfigIndexType config(mode);
-            const float fps = mRefreshRateConfigs->getRefreshRateFromConfigId(config).getFps();
+            const auto fps = mRefreshRateConfigs->getRefreshRateFromConfigId(config).getFps();
             // Keep the old switching type.
             const auto allowGroupSwitching =
                     mRefreshRateConfigs->getCurrentPolicy().allowGroupSwitching;
@@ -1080,7 +1080,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
         mTimeStats->incrementRefreshRateSwitches();
     }
     updatePhaseConfiguration(refreshRate);
-    ATRACE_INT("ActiveConfigFPS", refreshRate.getFps());
+    ATRACE_INT("ActiveConfigFPS", refreshRate.getFps().getValue());
 
     if (mUpcomingActiveConfig.event != Scheduler::ConfigEvent::None) {
         const nsecs_t vsyncPeriod =
@@ -1138,7 +1138,7 @@ void SurfaceFlinger::performSetActiveConfig() {
     mUpcomingActiveConfig = *desiredActiveConfig;
     const auto displayId = display->getPhysicalId();
 
-    ATRACE_INT("ActiveConfigFPS_HWC", refreshRate.getFps());
+    ATRACE_INT("ActiveConfigFPS_HWC", refreshRate.getFps().getValue());
 
     // TODO(b/142753666) use constrains
     hal::VsyncPeriodChangeConstraints constraints;
@@ -3775,7 +3775,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eFrameRateChanged) {
         if (ValidateFrameRate(s.frameRate, s.frameRateCompatibility,
                               "SurfaceFlinger::setClientStateLocked") &&
-            layer->setFrameRate(Layer::FrameRate(s.frameRate,
+            layer->setFrameRate(Layer::FrameRate(Fps(s.frameRate),
                                                  Layer::FrameRate::convertCompatibility(
                                                          s.frameRateCompatibility),
                                                  s.shouldBeSeamless))) {
@@ -4708,8 +4708,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
         const auto activeConfig = getHwComposer().getActiveConfig(*displayId);
         std::string fps, xDpi, yDpi;
         if (activeConfig) {
-            fps = base::StringPrintf("%.2f Hz",
-                                     1e9f / getHwComposer().getDisplayVsyncPeriod(*displayId));
+            const auto vsyncPeriod = getHwComposer().getDisplayVsyncPeriod(*displayId);
+            fps = base::StringPrintf("%s", to_string(Fps::fromPeriodNsecs(vsyncPeriod)).c_str());
             xDpi = base::StringPrintf("%.2f", activeConfig->getDpiX());
             yDpi = base::StringPrintf("%.2f", activeConfig->getDpiY());
         } else {
@@ -5965,11 +5965,7 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
     }
     scheduler::RefreshRateConfigs::Policy currentPolicy = mRefreshRateConfigs->getCurrentPolicy();
 
-    ALOGV("Setting desired display config specs: defaultConfig: %d primaryRange: [%.0f %.0f]"
-          " expandedRange: [%.0f %.0f]",
-          currentPolicy.defaultConfig.value(), currentPolicy.primaryRange.min,
-          currentPolicy.primaryRange.max, currentPolicy.appRequestRange.min,
-          currentPolicy.appRequestRange.max);
+    ALOGV("Setting desired display config specs: %s", currentPolicy.toString().c_str());
 
     // TODO(b/140204874): Leave the event in until we do proper testing with all apps that might
     // be depending in this callback.
@@ -6025,8 +6021,8 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecs(
             using Policy = scheduler::RefreshRateConfigs::Policy;
             const Policy policy{HwcConfigIndexType(defaultConfig),
                                 allowGroupSwitching,
-                                {primaryRefreshRateMin, primaryRefreshRateMax},
-                                {appRequestRefreshRateMin, appRequestRefreshRateMax}};
+                                {Fps(primaryRefreshRateMin), Fps(primaryRefreshRateMax)},
+                                {Fps(appRequestRefreshRateMin), Fps(appRequestRefreshRateMax)}};
             constexpr bool kOverridePolicy = false;
 
             return setDesiredDisplayConfigSpecsInternal(display, policy, kOverridePolicy);
@@ -6058,10 +6054,10 @@ status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(
                 mRefreshRateConfigs->getDisplayManagerPolicy();
         *outDefaultConfig = policy.defaultConfig.value();
         *outAllowGroupSwitching = policy.allowGroupSwitching;
-        *outPrimaryRefreshRateMin = policy.primaryRange.min;
-        *outPrimaryRefreshRateMax = policy.primaryRange.max;
-        *outAppRequestRefreshRateMin = policy.appRequestRange.min;
-        *outAppRequestRefreshRateMax = policy.appRequestRange.max;
+        *outPrimaryRefreshRateMin = policy.primaryRange.min.getValue();
+        *outPrimaryRefreshRateMax = policy.primaryRange.max.getValue();
+        *outAppRequestRefreshRateMin = policy.appRequestRange.min.getValue();
+        *outAppRequestRefreshRateMax = policy.appRequestRange.max.getValue();
         return NO_ERROR;
     } else if (display->isVirtual()) {
         return INVALID_OPERATION;
@@ -6070,10 +6066,10 @@ status_t SurfaceFlinger::getDesiredDisplayConfigSpecs(
         *outDefaultConfig = getHwComposer().getActiveConfigIndex(displayId);
         *outAllowGroupSwitching = false;
         auto vsyncPeriod = getHwComposer().getActiveConfig(displayId)->getVsyncPeriod();
-        *outPrimaryRefreshRateMin = 1e9f / vsyncPeriod;
-        *outPrimaryRefreshRateMax = 1e9f / vsyncPeriod;
-        *outAppRequestRefreshRateMin = 1e9f / vsyncPeriod;
-        *outAppRequestRefreshRateMax = 1e9f / vsyncPeriod;
+        *outPrimaryRefreshRateMin = Fps::fromPeriodNsecs(vsyncPeriod).getValue();
+        *outPrimaryRefreshRateMax = Fps::fromPeriodNsecs(vsyncPeriod).getValue();
+        *outAppRequestRefreshRateMin = Fps::fromPeriodNsecs(vsyncPeriod).getValue();
+        *outAppRequestRefreshRateMax = Fps::fromPeriodNsecs(vsyncPeriod).getValue();
         return NO_ERROR;
     }
 }
@@ -6169,7 +6165,7 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
                 return BAD_VALUE;
             }
             if (layer->setFrameRate(
-                        Layer::FrameRate(frameRate,
+                        Layer::FrameRate(Fps{frameRate},
                                          Layer::FrameRate::convertCompatibility(compatibility),
                                          shouldBeSeamless))) {
                 setTransactionFlags(eTraversalNeeded);

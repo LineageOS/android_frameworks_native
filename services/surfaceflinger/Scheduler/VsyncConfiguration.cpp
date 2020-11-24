@@ -31,15 +31,10 @@ std::optional<nsecs_t> getProperty(const char* name) {
     return std::nullopt;
 }
 
-bool fpsEqualsWithMargin(float fpsA, float fpsB) {
-    static constexpr float MARGIN = 0.01f;
-    return std::abs(fpsA - fpsB) <= MARGIN;
-}
-
-std::vector<float> getRefreshRatesFromConfigs(
+std::vector<android::Fps> getRefreshRatesFromConfigs(
         const android::scheduler::RefreshRateConfigs& refreshRateConfigs) {
     const auto& allRefreshRates = refreshRateConfigs.getAllRefreshRates();
-    std::vector<float> refreshRates;
+    std::vector<android::Fps> refreshRates;
     refreshRates.reserve(allRefreshRates.size());
 
     for (const auto& [ignored, refreshRate] : allRefreshRates) {
@@ -53,12 +48,12 @@ std::vector<float> getRefreshRatesFromConfigs(
 
 namespace android::scheduler::impl {
 
-VsyncConfiguration::VsyncConfiguration(float currentFps) : mRefreshRateFps(currentFps) {}
+VsyncConfiguration::VsyncConfiguration(Fps currentFps) : mRefreshRateFps(currentFps) {}
 
-PhaseOffsets::VsyncConfigSet VsyncConfiguration::getConfigsForRefreshRate(float fps) const {
+PhaseOffsets::VsyncConfigSet VsyncConfiguration::getConfigsForRefreshRate(Fps fps) const {
     const auto iter = std::find_if(mOffsets.begin(), mOffsets.end(),
-                                   [&fps](const std::pair<float, VsyncConfigSet>& candidateFps) {
-                                       return fpsEqualsWithMargin(fps, candidateFps.first);
+                                   [&fps](const std::pair<Fps, VsyncConfigSet>& candidateFps) {
+                                       return fps.equalsWithMargin(candidateFps.first);
                                    });
 
     if (iter != mOffsets.end()) {
@@ -67,13 +62,13 @@ PhaseOffsets::VsyncConfigSet VsyncConfiguration::getConfigsForRefreshRate(float 
 
     // Unknown refresh rate. This might happen if we get a hotplug event for an external display.
     // In this case just construct the offset.
-    ALOGW("Can't find offset for %.2f fps", fps);
-    return constructOffsets(static_cast<nsecs_t>(1e9f / fps));
+    ALOGW("Can't find offset for %s", to_string(fps).c_str());
+    return constructOffsets(fps.getPeriodNsecs());
 }
 
-void VsyncConfiguration::initializeOffsets(const std::vector<float>& refreshRates) {
+void VsyncConfiguration::initializeOffsets(const std::vector<Fps>& refreshRates) {
     for (const auto fps : refreshRates) {
-        mOffsets.emplace(fps, constructOffsets(static_cast<nsecs_t>(1e9f / fps)));
+        mOffsets.emplace(fps, constructOffsets(fps.getPeriodNsecs()));
     }
 }
 
@@ -127,7 +122,7 @@ PhaseOffsets::PhaseOffsets(const scheduler::RefreshRateConfigs& refreshRateConfi
                              .value_or(std::numeric_limits<nsecs_t>::max())) {}
 
 PhaseOffsets::PhaseOffsets(
-        const std::vector<float>& refreshRates, float currentFps, nsecs_t vsyncPhaseOffsetNs,
+        const std::vector<Fps>& refreshRates, Fps currentFps, nsecs_t vsyncPhaseOffsetNs,
         nsecs_t sfVSyncPhaseOffsetNs, std::optional<nsecs_t> earlySfOffsetNs,
         std::optional<nsecs_t> earlyGpuSfOffsetNs, std::optional<nsecs_t> earlyAppOffsetNs,
         std::optional<nsecs_t> earlyGpuAppOffsetNs, nsecs_t highFpsVsyncPhaseOffsetNs,
@@ -378,10 +373,9 @@ WorkDuration::WorkDuration(const scheduler::RefreshRateConfigs& refreshRateConfi
     validateSysprops();
 }
 
-WorkDuration::WorkDuration(const std::vector<float>& refreshRates, float currentFps,
-                           nsecs_t sfDuration, nsecs_t appDuration, nsecs_t sfEarlyDuration,
-                           nsecs_t appEarlyDuration, nsecs_t sfEarlyGpuDuration,
-                           nsecs_t appEarlyGpuDuration)
+WorkDuration::WorkDuration(const std::vector<Fps>& refreshRates, Fps currentFps, nsecs_t sfDuration,
+                           nsecs_t appDuration, nsecs_t sfEarlyDuration, nsecs_t appEarlyDuration,
+                           nsecs_t sfEarlyGpuDuration, nsecs_t appEarlyGpuDuration)
       : VsyncConfiguration(currentFps),
         mSfDuration(sfDuration),
         mAppDuration(appDuration),
