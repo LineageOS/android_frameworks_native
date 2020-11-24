@@ -1071,11 +1071,12 @@ void SurfaceFlinger::setActiveConfigInternal() {
 
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
     mRefreshRateConfigs->setCurrentConfigId(mUpcomingActiveConfig.configId);
-    mRefreshRateStats->setConfigMode(mUpcomingActiveConfig.configId);
     display->setActiveConfig(mUpcomingActiveConfig.configId);
 
     auto& refreshRate =
             mRefreshRateConfigs->getRefreshRateFromConfigId(mUpcomingActiveConfig.configId);
+    mRefreshRateStats->setRefreshRate(refreshRate.getFps());
+
     if (refreshRate.getVsyncPeriod() != oldRefreshRate.getVsyncPeriod()) {
         mTimeStats->incrementRefreshRateSwitches();
     }
@@ -2868,10 +2869,10 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
             std::make_unique<scheduler::RefreshRateConfigs>(getHwComposer().getConfigs(
                                                                     primaryDisplayId),
                                                             currentConfig);
+    const auto& currRefreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig);
     mRefreshRateStats =
-            std::make_unique<scheduler::RefreshRateStats>(*mRefreshRateConfigs, *mTimeStats,
-                                                          currentConfig, hal::PowerMode::OFF);
-    mRefreshRateStats->setConfigMode(currentConfig);
+            std::make_unique<scheduler::RefreshRateStats>(*mTimeStats, currRefreshRate.getFps(),
+                                                          hal::PowerMode::OFF);
 
     mVsyncConfiguration = getFactory().createVsyncConfiguration(*mRefreshRateConfigs);
     mVsyncModulator.emplace(mVsyncConfiguration->getCurrentConfigs());
@@ -2879,8 +2880,7 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
     // start the EventThread
     mScheduler = getFactory().createScheduler(*mRefreshRateConfigs, *this);
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
-    const nsecs_t vsyncPeriod =
-            mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig).getVsyncPeriod();
+    const nsecs_t vsyncPeriod = currRefreshRate.getVsyncPeriod();
     mAppConnectionHandle =
             mScheduler->createConnection("app", mFrameTimeline->getTokenManager(),
                                          /*workDuration=*/configs.late.appWorkDuration,
