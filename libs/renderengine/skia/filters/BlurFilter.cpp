@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include "BlurFilter.h"
 #include <SkCanvas.h>
 #include <SkData.h>
@@ -38,11 +40,11 @@ BlurFilter::BlurFilter() {
         half4 main(float2 xy) {
             float2 scaled_xy = float2(xy.x * in_inverseScale, xy.y * in_inverseScale);
 
-            float4 c = float4(sample(input, scaled_xy));
-            c += float4(sample(input, scaled_xy + float2( in_blurOffset.x,  in_blurOffset.y)));
-            c += float4(sample(input, scaled_xy + float2( in_blurOffset.x, -in_blurOffset.y)));
-            c += float4(sample(input, scaled_xy + float2(-in_blurOffset.x,  in_blurOffset.y)));
-            c += float4(sample(input, scaled_xy + float2(-in_blurOffset.x, -in_blurOffset.y)));
+            half4 c = sample(input, scaled_xy);
+            c += sample(input, scaled_xy + float2( in_blurOffset.x,  in_blurOffset.y));
+            c += sample(input, scaled_xy + float2( in_blurOffset.x, -in_blurOffset.y));
+            c += sample(input, scaled_xy + float2(-in_blurOffset.x,  in_blurOffset.y));
+            c += sample(input, scaled_xy + float2(-in_blurOffset.x, -in_blurOffset.y));
 
             return half4(c.rgb * 0.2, 1.0);
         }
@@ -57,8 +59,6 @@ BlurFilter::BlurFilter() {
 
 sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> input,
                                       const uint32_t blurRadius, SkRect rect) const {
-    ATRACE_CALL();
-
     // Kawase is an approximation of Gaussian, but it behaves differently from it.
     // A radius transformation is required for approximating them, and also to introduce
     // non-integer steps, necessary to smoothly interpolate large radii.
@@ -77,7 +77,7 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
     const float stepY = radiusByPasses;
 
     // start by drawing and downscaling and doing the first blur pass
-    SkFilterOptions linear = {SkSamplingMode::kLinear, SkMipmapMode::kNone};
+    SkSamplingOptions linear(SkFilterMode::kLinear, SkMipmapMode::kNone);
     SkRuntimeShaderBuilder blurBuilder(mBlurEffect);
     blurBuilder.child("input") =
             input->makeImageSnapshot()->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
@@ -126,7 +126,11 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
         }
         lastDrawTarget = readSurface;
     }
-    lastDrawTarget->flushAndSubmit();
+
+    {
+        ATRACE_NAME("Flush Offscreen Surfaces");
+        lastDrawTarget->flushAndSubmit();
+    }
     return lastDrawTarget;
 }
 
