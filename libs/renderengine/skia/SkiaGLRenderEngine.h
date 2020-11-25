@@ -29,9 +29,13 @@
 #include <mutex>
 #include <unordered_map>
 
+#include "AutoBackendTexture.h"
 #include "EGL/egl.h"
+#include "SkImageInfo.h"
 #include "SkiaRenderEngine.h"
+#include "android-base/macros.h"
 #include "filters/BlurFilter.h"
+#include "skia/filters/LinearEffect.h"
 
 namespace android {
 namespace renderengine {
@@ -92,8 +96,12 @@ private:
 
     const bool mUseColorManagement;
 
-    // Cache of GL images that we'll store per GraphicBuffer ID
-    std::unordered_map<uint64_t, sk_sp<SkImage>> mImageCache GUARDED_BY(mRenderingMutex);
+    // Cache of GL textures that we'll store per GraphicBuffer ID
+    std::unordered_map<uint64_t, std::shared_ptr<AutoBackendTexture::LocalRef>> mTextureCache
+            GUARDED_BY(mRenderingMutex);
+    std::unordered_map<uint64_t, std::shared_ptr<AutoBackendTexture::LocalRef>>
+            mProtectedTextureCache GUARDED_BY(mRenderingMutex);
+    std::unordered_map<LinearEffect, sk_sp<SkRuntimeEffect>, LinearEffectHasher> mRuntimeEffects;
     // Mutex guarding rendering operations, so that:
     // 1. GL operations aren't interleaved, and
     // 2. Internal state related to rendering that is potentially modified by
@@ -107,8 +115,6 @@ private:
     // Same as above, but for protected content (eg. DRM)
     sk_sp<GrDirectContext> mProtectedGrContext;
 
-    std::unordered_map<uint64_t, sk_sp<SkSurface>> mSurfaceCache;
-    std::unordered_map<uint64_t, sk_sp<SkSurface>> mProtectedSurfaceCache;
     bool mInProtectedContext = false;
 };
 
