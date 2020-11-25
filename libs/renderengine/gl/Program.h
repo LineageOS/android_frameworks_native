@@ -54,7 +54,7 @@ public:
     };
 
     Program(const ProgramCache::Key& needs, const char* vertex, const char* fragment);
-    ~Program() = default;
+    ~Program();
 
     /* whether this object is usable */
     bool isValid() const;
