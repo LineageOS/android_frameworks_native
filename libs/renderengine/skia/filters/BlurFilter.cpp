@@ -135,7 +135,7 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
 }
 
 SkMatrix BlurFilter::getShaderMatrix() const {
-    return SkMatrix::MakeScale(kInverseInputScale);
+    return SkMatrix::Scale(kInverseInputScale, kInverseInputScale);
 }
 
 } // namespace skia
