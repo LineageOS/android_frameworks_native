@@ -22,6 +22,7 @@
 
 #include "log/log.h"
 #include "math/mat4.h"
+#include "system/graphics-base-v1.0.h"
 #include "ui/ColorSpace.h"
 
 namespace android {
@@ -46,6 +47,30 @@ static void generateEOTF(ui::Dataspace dataspace, SkString& shader) {
                 }
             )");
             break;
+        case HAL_DATASPACE_TRANSFER_HLG:
+            shader.append(R"(
+                float EOTF_channel(float channel) {
+                    const float a = 0.17883277;
+                    const float b = 0.28466892;
+                    const float c = 0.55991073;
+                    return channel <= 0.5 ? channel * channel / 3.0 :
+                            (exp((channel - c) / a) + b) / 12.0;
+                }
+
+                float3 EOTF(float3 color) {
+                    return float3(EOTF_channel(color.r), EOTF_channel(color.g),
+                            EOTF_channel(color.b));
+                }
+            )");
+            break;
+        case HAL_DATASPACE_TRANSFER_LINEAR:
+            shader.append(R"(
+                float3 EOTF(float3 color) {
+                    return color;
+                }
+            )");
+            break;
+        case HAL_DATASPACE_TRANSFER_SRGB:
         default:
             shader.append(R"(
 
@@ -79,13 +104,8 @@ static void generateXYZTransforms(SkString& shader) {
     )");
 }
 
-static void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDataspace,
-                         SkString& shader) {
-    shader.append(R"(
-            uniform float in_displayMaxLuminance;
-            uniform float in_inputMaxLuminance;
-            uniform float in_maxContentLuminance;
-        )");
+// Conversion from relative light to absolute light (maps from [0, 1] to [0, maxNits])
+static void generateLuminanceScalesForOOTF(ui::Dataspace inputDataspace, SkString& shader) {
     switch (inputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
         case HAL_DATASPACE_TRANSFER_ST2084:
             shader.append(R"(
@@ -93,9 +113,50 @@ static void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDatas
                         return xyz * 10000.0;
                     }
                 )");
+            break;
+        case HAL_DATASPACE_TRANSFER_HLG:
+            shader.append(R"(
+                    float3 ScaleLuminance(float3 xyz) {
+                        return xyz * 1000.0 * pow(xyz.y, 0.2);
+                    }
+                )");
+            break;
+        default:
+            shader.append(R"(
+                    float3 ScaleLuminance(float3 xyz) {
+                        return xyz * in_displayMaxLuminance;
+                    }
+                )");
+            break;
+    }
+}
 
+static void generateToneMapInterpolation(ui::Dataspace inputDataspace,
+                                         ui::Dataspace outputDataspace, SkString& shader) {
+    switch (inputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
+        case HAL_DATASPACE_TRANSFER_ST2084:
+        case HAL_DATASPACE_TRANSFER_HLG:
             switch (outputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
+                case HAL_DATASPACE_TRANSFER_ST2084:
+                    shader.append(R"(
+                            float3 ToneMap(float3 xyz) {
+                                return xyz;
+                            }
+                        )");
+                    break;
+                case HAL_DATASPACE_TRANSFER_HLG:
+                    // PQ has a wider luminance range (10,000 nits vs. 1,000 nits) than HLG, so
+                    // we'll clamp the luminance range in case we're mapping from PQ input to HLG
+                    // output.
+                    shader.append(R"(
+                            float3 ToneMap(float3 xyz) {
+                                return clamp(xyz, 0.0, 1000.0);
+                            }
+                        )");
+                    break;
                 default:
+                    // Here we're mapping from HDR to SDR content, so interpolate using a Hermitian
+                    // polynomial onto the smaller luminance range.
                     shader.append(R"(
                             float3 ToneMap(float3 xyz) {
                                 float maxInLumi = in_inputMaxLuminance;
@@ -155,23 +216,82 @@ static void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDatas
             }
             break;
         default:
-            shader.append(R"(
-                    float3 ScaleLuminance(float3 xyz) {
-                        return xyz * in_displayMaxLuminance;
-                    }
+            switch (outputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
+                case HAL_DATASPACE_TRANSFER_ST2084:
+                case HAL_DATASPACE_TRANSFER_HLG:
+                    // Map from SDR onto an HDR output buffer
+                    // Here we use a polynomial curve to map from [0, displayMaxLuminance] onto
+                    // [0, maxOutLumi] which is hard-coded to be 3000 nits.
+                    shader.append(R"(
+                            float3 ToneMap(float3 xyz) {
+                                const float maxOutLumi = 3000.0;
 
-                    float3 ToneMap(float3 xyz) {
-                        return xyz;
-                    }
-                )");
+                                const float x0 = 5.0;
+                                const float y0 = 2.5;
+                                float x1 = in_displayMaxLuminance * 0.7;
+                                float y1 = maxOutLumi * 0.15;
+                                float x2 = in_displayMaxLuminance * 0.9;
+                                float y2 = maxOutLumi * 0.45;
+                                float x3 = in_displayMaxLuminance;
+                                float y3 = maxOutLumi;
+
+                                float c1 = y1 / 3.0;
+                                float c2 = y2 / 2.0;
+                                float c3 = y3 / 1.5;
+
+                                float nits = xyz.y;
+
+                                if (nits <= x0) {
+                                    // scale [0.0, x0] to [0.0, y0] linearly
+                                    float slope = y0 / x0;
+                                    return xyz * slope;
+                                } else if (nits <= x1) {
+                                    // scale [x0, x1] to [y0, y1] using a curve
+                                    float t = (nits - x0) / (x1 - x0);
+                                    nits = (1.0 - t) * (1.0 - t) * y0 + 2.0 * (1.0 - t) * t * c1 + t * t * y1;
+                                } else if (nits <= x2) {
+                                    // scale [x1, x2] to [y1, y2] using a curve
+                                    float t = (nits - x1) / (x2 - x1);
+                                    nits = (1.0 - t) * (1.0 - t) * y1 + 2.0 * (1.0 - t) * t * c2 + t * t * y2;
+                                } else {
+                                    // scale [x2, x3] to [y2, y3] using a curve
+                                    float t = (nits - x2) / (x3 - x2);
+                                    nits = (1.0 - t) * (1.0 - t) * y2 + 2.0 * (1.0 - t) * t * c3 + t * t * y3;
+                                }
+
+                                // xyz.y is greater than x0 and is thus non-zero
+                                return xyz * (nits / xyz.y);
+                            }
+                        )");
+                    break;
+                default:
+                    // For completeness, this is tone-mapping from SDR to SDR, where this is just a
+                    // no-op.
+                    shader.append(R"(
+                            float3 ToneMap(float3 xyz) {
+                                return xyz;
+                            }
+                        )");
+                    break;
+            }
             break;
     }
+}
 
+// Normalizes from absolute light back to relative light (maps from [0, maxNits] back to [0, 1])
+static void generateLuminanceNormalizationForOOTF(ui::Dataspace outputDataspace, SkString& shader) {
     switch (outputDataspace & HAL_DATASPACE_TRANSFER_MASK) {
         case HAL_DATASPACE_TRANSFER_ST2084:
             shader.append(R"(
                     float3 NormalizeLuminance(float3 xyz) {
                         return xyz / 10000.0;
+                    }
+                )");
+            break;
+        case HAL_DATASPACE_TRANSFER_HLG:
+            shader.append(R"(
+                    float3 NormalizeLuminance(float3 xyz) {
+                        return xyz / 1000.0 * pow(xyz.y / 1000.0, -0.2 / 1.2);
                     }
                 )");
             break;
@@ -183,6 +303,19 @@ static void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDatas
                 )");
             break;
     }
+}
+
+static void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDataspace,
+                         SkString& shader) {
+    // Input uniforms
+    shader.append(R"(
+            uniform float in_displayMaxLuminance;
+            uniform float in_inputMaxLuminance;
+        )");
+
+    generateLuminanceScalesForOOTF(inputDataspace, shader);
+    generateToneMapInterpolation(inputDataspace, outputDataspace, shader);
+    generateLuminanceNormalizationForOOTF(outputDataspace, shader);
 
     shader.append(R"(
             float3 OOTF(float3 xyz) {
@@ -209,6 +342,30 @@ static void generateOETF(ui::Dataspace dataspace, SkString& shader) {
                 }
             )");
             break;
+        case HAL_DATASPACE_TRANSFER_HLG:
+            shader.append(R"(
+                float OETF_channel(float channel) {
+                    const float a = 0.17883277;
+                    const float b = 0.28466892;
+                    const float c = 0.55991073;
+                    return channel <= 1.0 / 12.0 ? sqrt(3.0 * channel) :
+                            a * log(12.0 * channel - b) + c;
+                }
+
+                float3 OETF(float3 linear) {
+                    return float3(OETF_channel(linear.r), OETF_channel(linear.g),
+                            OETF_channel(linear.b));
+                }
+            )");
+            break;
+        case HAL_DATASPACE_TRANSFER_LINEAR:
+            shader.append(R"(
+                float3 OETF(float3 linear) {
+                    return linear;
+                }
+            )");
+            break;
+        case HAL_DATASPACE_TRANSFER_SRGB:
         default:
             shader.append(R"(
                 float OETF_sRGB(float linear) {

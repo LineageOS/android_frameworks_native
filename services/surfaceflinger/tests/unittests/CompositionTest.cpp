@@ -133,17 +133,13 @@ public:
 
         EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*eventThread, createEventConnection(_, _))
-                .WillOnce(Return(
-                        new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
-                                                  ResyncCallback(),
-                                                  ISurfaceComposer::eConfigChangedSuppress)));
+                .WillOnce(Return(new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
+                                                           ResyncCallback())));
 
         EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-                .WillOnce(Return(
-                        new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
-                                                  ResyncCallback(),
-                                                  ISurfaceComposer::eConfigChangedSuppress)));
+                .WillOnce(Return(new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
+                                                           ResyncCallback())));
 
         auto vsyncController = std::make_unique<mock::VsyncController>();
         auto vsyncTracker = std::make_unique<mock::VSyncTracker>();

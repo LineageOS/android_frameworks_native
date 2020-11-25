@@ -222,10 +222,10 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
 
 /*
  * Returns whether a given vsync timestamp is in phase with a vsync divider.
- * For example, if the vsync timestamps are (0,16,32,48):
- * isVSyncInPhase(0, 2) = true
- * isVSyncInPhase(16, 2) = false
- * isVSyncInPhase(32, 2) = true
+ * For example, if the vsync timestamps are (16,32,48,64):
+ * isVSyncInPhase(16, 2) = true
+ * isVSyncInPhase(32, 2) = false
+ * isVSyncInPhase(48, 2) = true
  */
 bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, int divider) const {
     struct VsyncError {
@@ -235,11 +235,11 @@ bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, int divider) const {
         bool operator<(const VsyncError& other) const { return error < other.error; }
     };
 
-    std::lock_guard lock(mMutex);
-    if (divider <= 1) {
+    if (divider <= 1 || timePoint == 0) {
         return true;
     }
 
+    std::lock_guard lock(mMutex);
     const nsecs_t period = mRateMap[mIdealPeriod].slope;
     const nsecs_t justBeforeTimePoint = timePoint - period / 2;
     const nsecs_t dividedPeriod = mIdealPeriod / divider;

@@ -1601,7 +1601,7 @@ TEST_F(RefreshRateConfigsTest, RefreshRateDividerForUid) {
             std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_30);
     const uid_t uid = 1234;
-    refreshRateConfigs->setPreferredRefreshRateForUid(uid, 30);
+    refreshRateConfigs->setPreferredRefreshRateForUid({uid, 30});
     EXPECT_EQ(1, refreshRateConfigs->getRefreshRateDividerForUid(uid));
 
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_60);
@@ -1614,6 +1614,12 @@ TEST_F(RefreshRateConfigsTest, RefreshRateDividerForUid) {
     EXPECT_EQ(3, refreshRateConfigs->getRefreshRateDividerForUid(uid));
 
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_120);
+    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+
+    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    refreshRateConfigs->setPreferredRefreshRateForUid({uid, 22.5});
+    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+    refreshRateConfigs->setPreferredRefreshRateForUid({uid, 22.6f});
     EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDividerForUid(uid));
 }
 
