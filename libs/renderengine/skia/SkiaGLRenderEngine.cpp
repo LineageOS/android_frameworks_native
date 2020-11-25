@@ -416,6 +416,11 @@ static bool needsToneMapping(ui::Dataspace sourceDataspace, ui::Dataspace destin
             sourceTransfer != destTransfer;
 }
 
+static bool needsLinearEffect(const mat4& colorTransform, ui::Dataspace sourceDataspace,
+                              ui::Dataspace destinationDataspace) {
+    return colorTransform != mat4() || needsToneMapping(sourceDataspace, destinationDataspace);
+}
+
 void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     mTextureCache.erase(bufferId);
@@ -559,11 +564,13 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                                    false));
                 mTextureCache.insert({buffer->getId(), imageTextureRef});
             }
+
             sk_sp<SkImage> image =
                     imageTextureRef->getTexture()
                             ->makeImage(mUseColorManagement
-                                                ? (needsToneMapping(layer->sourceDataspace,
-                                                                    display.outputDataspace)
+                                                ? (needsLinearEffect(layer->colorTransform,
+                                                                     layer->sourceDataspace,
+                                                                     display.outputDataspace)
                                                            // If we need to map to linear space,
                                                            // then mark the source image with the
                                                            // same colorspace as the destination
@@ -633,7 +640,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             }
 
             if (mUseColorManagement &&
-                needsToneMapping(layer->sourceDataspace, display.outputDataspace)) {
+                needsLinearEffect(layer->colorTransform, layer->sourceDataspace,
+                                  display.outputDataspace)) {
                 LinearEffect effect = LinearEffect{.inputDataspace = layer->sourceDataspace,
                                                    .outputDataspace = display.outputDataspace,
                                                    .undoPremultipliedAlpha = !item.isOpaque &&
@@ -649,6 +657,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 }
 
                 paint.setShader(createLinearEffectShader(shader, effect, runtimeEffect,
+                                                         layer->colorTransform,
                                                          display.maxLuminance,
                                                          layer->source.buffer.maxMasteringLuminance,
                                                          layer->source.buffer.maxContentLuminance));
