@@ -193,7 +193,7 @@ private:
     GLuint mVpWidth;
     GLuint mVpHeight;
     Description mState;
-    GLShadowTexture mShadowTexture;
+    std::unique_ptr<GLShadowTexture> mShadowTexture = nullptr;
 
     mat4 mSrgbToXyz;
     mat4 mDisplayP3ToXyz;
@@ -294,7 +294,7 @@ private:
     friend class BlurFilter;
     friend class GenericProgram;
     std::unique_ptr<FlushTracer> mFlushTracer;
-    std::unique_ptr<ImageManager> mImageManager = std::make_unique<ImageManager>(this);
+    std::unique_ptr<ImageManager> mImageManager;
 };
 
 } // namespace gl

@@ -31,6 +31,9 @@ cc_defaults {
         "libui",
         "libutils",
     ],
+    include_dirs: [
+        "external/skia/src/gpu",
+    ],
     whole_static_libs: ["libskia"],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
@@ -75,6 +78,7 @@ filegroup {
 filegroup {
     name: "librenderengine_skia_sources",
     srcs: [
+        "skia/AutoBackendTexture.cpp",
         "skia/SkiaRenderEngine.cpp",
         "skia/SkiaGLRenderEngine.cpp",
         "skia/filters/BlurFilter.cpp",

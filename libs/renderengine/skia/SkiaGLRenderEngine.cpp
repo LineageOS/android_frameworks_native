@@ -16,8 +16,10 @@
 
 //#define LOG_NDEBUG 0
 #include <cstdint>
+#include <memory>
 
 #include "SkImageInfo.h"
+#include "log/log_main.h"
 #include "system/graphics-base-v1.0.h"
 #undef LOG_TAG
 #define LOG_TAG "RenderEngine"
@@ -143,47 +145,6 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint render
     }
 
     return err;
-}
-
-// Converts an android dataspace to a supported SkColorSpace
-// Supported dataspaces are
-// 1. sRGB
-// 2. Display P3
-// 3. BT2020 PQ
-// 4. BT2020 HLG
-// Unknown primaries are mapped to BT709, and unknown transfer functions
-// are mapped to sRGB.
-static sk_sp<SkColorSpace> toColorSpace(ui::Dataspace dataspace) {
-    skcms_Matrix3x3 gamut;
-    switch (dataspace & HAL_DATASPACE_STANDARD_MASK) {
-        case HAL_DATASPACE_STANDARD_BT709:
-            gamut = SkNamedGamut::kSRGB;
-            break;
-        case HAL_DATASPACE_STANDARD_BT2020:
-            gamut = SkNamedGamut::kRec2020;
-            break;
-        case HAL_DATASPACE_STANDARD_DCI_P3:
-            gamut = SkNamedGamut::kDisplayP3;
-            break;
-        default:
-            ALOGV("Unsupported Gamut: %d, defaulting to sRGB", dataspace);
-            gamut = SkNamedGamut::kSRGB;
-            break;
-    }
-
-    switch (dataspace & HAL_DATASPACE_TRANSFER_MASK) {
-        case HAL_DATASPACE_TRANSFER_LINEAR:
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kLinear, gamut);
-        case HAL_DATASPACE_TRANSFER_SRGB:
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, gamut);
-        case HAL_DATASPACE_TRANSFER_ST2084:
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kPQ, gamut);
-        case HAL_DATASPACE_TRANSFER_HLG:
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kHLG, gamut);
-        default:
-            ALOGV("Unsupported Gamma: %d, defaulting to sRGB transfer", dataspace);
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, gamut);
-    }
 }
 
 std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
@@ -455,9 +416,15 @@ static bool needsToneMapping(ui::Dataspace sourceDataspace, ui::Dataspace destin
             sourceTransfer != destTransfer;
 }
 
+static bool needsLinearEffect(const mat4& colorTransform, ui::Dataspace sourceDataspace,
+                              ui::Dataspace destinationDataspace) {
+    return colorTransform != mat4() || needsToneMapping(sourceDataspace, destinationDataspace);
+}
+
 void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
     std::lock_guard<std::mutex> lock(mRenderingMutex);
-    mImageCache.erase(bufferId);
+    mTextureCache.erase(bufferId);
+    mProtectedTextureCache.erase(bufferId);
 }
 
 status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
@@ -486,36 +453,36 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     }
 
     auto grContext = mInProtectedContext ? mProtectedGrContext : mGrContext;
-    auto& cache = mInProtectedContext ? mProtectedSurfaceCache : mSurfaceCache;
+    auto& cache = mInProtectedContext ? mProtectedTextureCache : mTextureCache;
     AHardwareBuffer_Desc bufferDesc;
     AHardwareBuffer_describe(buffer->toAHardwareBuffer(), &bufferDesc);
     LOG_ALWAYS_FATAL_IF(!hasUsage(bufferDesc, AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE),
                         "missing usage");
 
-    sk_sp<SkSurface> surface;
+    std::shared_ptr<AutoBackendTexture::LocalRef> surfaceTextureRef = nullptr;
     if (useFramebufferCache) {
         auto iter = cache.find(buffer->getId());
         if (iter != cache.end()) {
             ALOGV("Cache hit!");
-            surface = iter->second;
+            surfaceTextureRef = iter->second;
         }
     }
-    if (!surface) {
-        surface = SkSurface::MakeFromAHardwareBuffer(grContext.get(), buffer->toAHardwareBuffer(),
-                                                     GrSurfaceOrigin::kTopLeft_GrSurfaceOrigin,
-                                                     mUseColorManagement
-                                                             ? toColorSpace(display.outputDataspace)
-                                                             : SkColorSpace::MakeSRGB(),
-                                                     nullptr);
-        if (useFramebufferCache && surface) {
+
+    if (surfaceTextureRef == nullptr || surfaceTextureRef->getTexture() == nullptr) {
+        surfaceTextureRef = std::make_shared<AutoBackendTexture::LocalRef>();
+        surfaceTextureRef->setTexture(
+                new AutoBackendTexture(mGrContext.get(), buffer->toAHardwareBuffer(), true));
+        if (useFramebufferCache) {
             ALOGD("Adding to cache");
-            cache.insert({buffer->getId(), surface});
+            cache.insert({buffer->getId(), surfaceTextureRef});
         }
     }
-    if (!surface) {
-        ALOGE("Failed to make surface");
-        return BAD_VALUE;
-    }
+
+    sk_sp<SkSurface> surface =
+            surfaceTextureRef->getTexture()->getOrCreateSurface(mUseColorManagement
+                                                                        ? display.outputDataspace
+                                                                        : ui::Dataspace::SRGB,
+                                                                mGrContext.get());
 
     auto canvas = surface->getCanvas();
     // Clear the entire canvas with a transparent black to prevent ghost images.
@@ -586,28 +553,37 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             const auto& item = layer->source.buffer;
             const auto bufferWidth = item.buffer->getBounds().width();
             const auto bufferHeight = item.buffer->getBounds().height();
-            sk_sp<SkImage> image;
-            auto iter = mImageCache.find(item.buffer->getId());
-            if (iter != mImageCache.end()) {
-                image = iter->second;
+            std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef = nullptr;
+            auto iter = mTextureCache.find(item.buffer->getId());
+            if (iter != mTextureCache.end()) {
+                imageTextureRef = iter->second;
             } else {
-                image = SkImage::MakeFromAHardwareBuffer(
-                        item.buffer->toAHardwareBuffer(),
-                        item.isOpaque ? kOpaque_SkAlphaType
-                                      : (item.usePremultipliedAlpha ? kPremul_SkAlphaType
-                                                                    : kUnpremul_SkAlphaType),
-                        mUseColorManagement
-                                ? (needsToneMapping(layer->sourceDataspace, display.outputDataspace)
-                                           // If we need to map to linear space, then
-                                           // mark the source image with the same
-                                           // colorspace as the destination surface so
-                                           // that Skia's color management is a no-op.
-                                           ? toColorSpace(display.outputDataspace)
-                                           : toColorSpace(layer->sourceDataspace))
-                                : SkColorSpace::MakeSRGB());
-                mImageCache.insert({item.buffer->getId(), image});
+                imageTextureRef = std::make_shared<AutoBackendTexture::LocalRef>();
+                imageTextureRef->setTexture(new AutoBackendTexture(mGrContext.get(),
+                                                                   item.buffer->toAHardwareBuffer(),
+                                                                   false));
+                mTextureCache.insert({buffer->getId(), imageTextureRef});
             }
 
+            sk_sp<SkImage> image =
+                    imageTextureRef->getTexture()
+                            ->makeImage(mUseColorManagement
+                                                ? (needsLinearEffect(layer->colorTransform,
+                                                                     layer->sourceDataspace,
+                                                                     display.outputDataspace)
+                                                           // If we need to map to linear space,
+                                                           // then mark the source image with the
+                                                           // same colorspace as the destination
+                                                           // surface so that Skia's color
+                                                           // management is a no-op.
+                                                           ? display.outputDataspace
+                                                           : layer->sourceDataspace)
+                                                : ui::Dataspace::SRGB,
+                                        item.isOpaque ? kOpaque_SkAlphaType
+                                                      : (item.usePremultipliedAlpha
+                                                                 ? kPremul_SkAlphaType
+                                                                 : kUnpremul_SkAlphaType),
+                                        mGrContext.get());
             SkMatrix matrix;
             if (layer->geometry.roundedCornersRadius > 0) {
                 const auto roundedRect = getRoundedRect(layer);
@@ -664,13 +640,24 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             }
 
             if (mUseColorManagement &&
-                needsToneMapping(layer->sourceDataspace, display.outputDataspace)) {
+                needsLinearEffect(layer->colorTransform, layer->sourceDataspace,
+                                  display.outputDataspace)) {
                 LinearEffect effect = LinearEffect{.inputDataspace = layer->sourceDataspace,
                                                    .outputDataspace = display.outputDataspace,
                                                    .undoPremultipliedAlpha = !item.isOpaque &&
                                                            item.usePremultipliedAlpha};
-                sk_sp<SkRuntimeEffect> runtimeEffect = buildRuntimeEffect(effect);
+
+                auto effectIter = mRuntimeEffects.find(effect);
+                sk_sp<SkRuntimeEffect> runtimeEffect = nullptr;
+                if (effectIter == mRuntimeEffects.end()) {
+                    runtimeEffect = buildRuntimeEffect(effect);
+                    mRuntimeEffects.insert({effect, runtimeEffect});
+                } else {
+                    runtimeEffect = effectIter->second;
+                }
+
                 paint.setShader(createLinearEffectShader(shader, effect, runtimeEffect,
+                                                         layer->colorTransform,
                                                          display.maxLuminance,
                                                          layer->source.buffer.maxMasteringLuminance,
                                                          layer->source.buffer.maxContentLuminance));
@@ -921,10 +908,7 @@ EGLSurface SkiaGLRenderEngine::createPlaceholderEglPbufferSurface(EGLDisplay dis
     return eglCreatePbufferSurface(display, placeholderConfig, attributes.data());
 }
 
-void SkiaGLRenderEngine::cleanFramebufferCache() {
-    mSurfaceCache.clear();
-    mProtectedSurfaceCache.clear();
-}
+void SkiaGLRenderEngine::cleanFramebufferCache() {}
 
 } // namespace skia
 } // namespace renderengine
