@@ -35,7 +35,7 @@ std::recursive_mutex mMountsLock;
 /* Map of all quota mounts from target to source */
 std::unordered_map<std::string, std::string> mQuotaReverseMounts;
 
-std::string& FindQuotaDeviceForUuid(const std::string& uuid) {
+std::string FindQuotaDeviceForUuid(const std::string& uuid) {
     std::lock_guard<std::recursive_mutex> lock(mMountsLock);
     auto path = create_data_path(uuid.empty() ? nullptr : uuid.c_str());
     return mQuotaReverseMounts[path];
