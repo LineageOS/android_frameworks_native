@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-cc_library_shared {
+cc_library {
     name: "libvibrator",
     vendor_available: true,
     double_loadable: true,
@@ -47,4 +47,11 @@ cc_library_shared {
     ],
 
     export_include_dirs: ["include"],
+
+    host_supported: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
 }

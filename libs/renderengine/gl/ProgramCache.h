@@ -203,6 +203,8 @@ public:
     // if none can be found.
     void useProgram(const EGLContext context, const Description& description);
 
+    void purgeCaches() { mCaches.clear(); }
+
 private:
     // compute a cache Key from a Description
     static Key computeKey(const Description& description);

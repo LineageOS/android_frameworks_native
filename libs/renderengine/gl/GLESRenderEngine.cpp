@@ -15,6 +15,7 @@
  */
 
 //#define LOG_NDEBUG 0
+#include "EGL/egl.h"
 #undef LOG_TAG
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -446,19 +447,37 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
                                           mPlaceholderBuffer, attributes);
     ALOGE_IF(mPlaceholderImage == EGL_NO_IMAGE_KHR, "Failed to create placeholder image: %#x",
              eglGetError());
+
+    mShadowTexture = std::make_unique<GLShadowTexture>();
 }
 
 GLESRenderEngine::~GLESRenderEngine() {
     // Destroy the image manager first.
     mImageManager = nullptr;
+    mShadowTexture = nullptr;
     cleanFramebufferCache();
+    ProgramCache::getInstance().purgeCaches();
     std::lock_guard<std::mutex> lock(mRenderingMutex);
+    glDisableVertexAttribArray(Program::position);
     unbindFrameBuffer(mDrawingBuffer.get());
     mDrawingBuffer = nullptr;
     eglDestroyImageKHR(mEGLDisplay, mPlaceholderImage);
     mImageCache.clear();
+    if (mStubSurface != EGL_NO_SURFACE) {
+        eglDestroySurface(mEGLDisplay, mStubSurface);
+    }
+    if (mProtectedStubSurface != EGL_NO_SURFACE) {
+        eglDestroySurface(mEGLDisplay, mProtectedStubSurface);
+    }
+    if (mEGLContext != EGL_NO_CONTEXT) {
+        eglDestroyContext(mEGLDisplay, mEGLContext);
+    }
+    if (mProtectedEGLContext != EGL_NO_CONTEXT) {
+        eglDestroyContext(mEGLDisplay, mProtectedEGLContext);
+    }
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglTerminate(mEGLDisplay);
+    eglReleaseThread();
 }
 
 std::unique_ptr<Framebuffer> GLESRenderEngine::createFramebuffer() {
@@ -1800,7 +1819,7 @@ void GLESRenderEngine::handleShadow(const FloatRect& casterRect, float casterCor
 
     mState.cornerRadius = 0.0f;
     mState.drawShadows = true;
-    setupLayerTexturing(mShadowTexture.getTexture());
+    setupLayerTexturing(mShadowTexture->getTexture());
     drawMesh(mesh);
     mState.drawShadows = false;
 }
