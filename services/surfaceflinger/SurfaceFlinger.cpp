@@ -4035,7 +4035,14 @@ status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, std::s
                                                 sp<Layer>* outLayer) {
     LayerCreationArgs args(this, client, std::move(name), w, h, flags, std::move(metadata));
     args.textureName = getNewTexture();
-    sp<BufferStateLayer> layer = getFactory().createBufferStateLayer(args);
+    sp<BufferStateLayer> layer;
+    {
+        // TODO (b/173538294): Investigate why we need mStateLock here and above in
+        // createBufferQueue layer. Is it the renderengine::Image?
+        Mutex::Autolock lock(mStateLock);
+        layer = getFactory().createBufferStateLayer(args);
+
+    }
     *handle = layer->getHandle();
     *outLayer = layer;
 
