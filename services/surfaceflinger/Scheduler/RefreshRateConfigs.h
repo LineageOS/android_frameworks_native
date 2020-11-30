@@ -27,6 +27,7 @@
 #include "DisplayHardware/HWComposer.h"
 #include "HwcStrongTypes.h"
 #include "Scheduler/SchedulerUtils.h"
+#include "Scheduler/Seamlessness.h"
 #include "Scheduler/StrongTyping.h"
 
 namespace android::scheduler {
@@ -222,7 +223,7 @@ public:
         // Layer's desired refresh rate, if applicable.
         float desiredRefreshRate = 0.0f;
         // If a seamless mode switch is required.
-        bool shouldBeSeamless = true;
+        Seamlessness seamlessness = Seamlessness::Default;
         // Layer's weight in the range of [0, 1]. The higher the weight the more impact this layer
         // would have on choosing the refresh rate.
         float weight = 0.0f;

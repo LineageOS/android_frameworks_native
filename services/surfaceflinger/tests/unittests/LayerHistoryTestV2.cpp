@@ -73,12 +73,11 @@ protected:
                              [now](const auto& pair) { return pair.second->isAnimating(now); });
     }
 
-    void setLayerInfoVote(Layer* layer,
-                          LayerHistory::LayerVoteType vote) NO_THREAD_SAFETY_ANALYSIS {
+    void setDefaultLayerVote(Layer* layer,
+                             LayerHistory::LayerVoteType vote) NO_THREAD_SAFETY_ANALYSIS {
         for (auto& [weak, info] : history().mLayerInfos) {
             if (auto strong = weak.promote(); strong && strong.get() == layer) {
                 info->setDefaultLayerVote(vote);
-                info->setLayerVote({vote, 0, false});
                 return;
             }
         }
@@ -209,7 +208,7 @@ TEST_F(LayerHistoryTestV2, oneLayerNoVote) {
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
 
-    setLayerInfoVote(layer.get(), LayerHistory::LayerVoteType::NoVote);
+    setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::NoVote);
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -236,7 +235,7 @@ TEST_F(LayerHistoryTestV2, oneLayerMinVote) {
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
 
-    setLayerInfoVote(layer.get(), LayerHistory::LayerVoteType::Min);
+    setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Min);
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -264,7 +263,7 @@ TEST_F(LayerHistoryTestV2, oneLayerMaxVote) {
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
 
-    setLayerInfoVote(layer.get(), LayerHistory::LayerVoteType::Max);
+    setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Max);
 
     EXPECT_EQ(1, layerCount());
     EXPECT_EQ(0, activeLayerCount());
@@ -310,7 +309,7 @@ TEST_F(LayerHistoryTestV2, oneLayerExplicitVote) {
     EXPECT_EQ(1, frequentLayerCount(time));
 
     // layer became inactive, but the vote stays
-    setLayerInfoVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
+    setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
     ASSERT_EQ(1, history().summarize(time).size());
     EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitDefault, history().summarize(time)[0].vote);
@@ -343,7 +342,7 @@ TEST_F(LayerHistoryTestV2, oneLayerExplicitExactVote) {
     EXPECT_EQ(1, frequentLayerCount(time));
 
     // layer became inactive, but the vote stays
-    setLayerInfoVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
+    setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
     ASSERT_EQ(1, history().summarize(time).size());
     EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitExactOrMultiple,
