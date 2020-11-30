@@ -68,6 +68,26 @@ public:
     }
 };
 
+class GLESCMRenderEngineFactory : public RenderEngineFactory {
+public:
+    std::string name() override { return "GLESCMRenderEngineFactory"; }
+
+    std::unique_ptr<renderengine::gl::GLESRenderEngine> createRenderEngine() override {
+        renderengine::RenderEngineCreationArgs reCreationArgs =
+                renderengine::RenderEngineCreationArgs::Builder()
+                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
+                        .setImageCacheSize(1)
+                        .setEnableProtectedContext(false)
+                        .setPrecacheToneMapperShaderOnly(false)
+                        .setSupportsBackgroundBlur(true)
+                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
+                        .setRenderEngineType(renderengine::RenderEngine::RenderEngineType::GLES)
+                        .setUseColorManagerment(true)
+                        .build();
+        return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
+    }
+};
+
 class RenderEngineTest : public ::testing::TestWithParam<std::shared_ptr<RenderEngineFactory>> {
 public:
     static sp<GraphicBuffer> allocateDefaultBuffer() {
@@ -381,9 +401,6 @@ public:
                     const renderengine::ShadowSettings& shadow, const ubyte4& casterColor,
                     const ubyte4& backgroundColor);
 
-    // Keep around the same renderengine object to save on initialization time.
-    // For now, exercise the GL backend directly so that some caching specifics
-    // can be tested without changing the interface.
     std::unique_ptr<renderengine::gl::GLESRenderEngine> mRE;
 
     // Dumb hack to avoid NPE in the EGL driver: the GraphicBuffer needs to
@@ -400,12 +417,14 @@ struct ColorSourceVariant {
     static void fillColor(renderengine::LayerSettings& layer, half r, half g, half b,
                           RenderEngineTest* /*fixture*/) {
         layer.source.solidColor = half3(r, g, b);
+        layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     }
 };
 
 struct RelaxOpaqueBufferVariant {
     static void setOpaqueBit(renderengine::LayerSettings& layer) {
         layer.source.buffer.isOpaque = false;
+        layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     }
 
     static uint8_t getAlphaChannel() { return 255; }
@@ -414,6 +433,7 @@ struct RelaxOpaqueBufferVariant {
 struct ForceOpaqueBufferVariant {
     static void setOpaqueBit(renderengine::LayerSettings& layer) {
         layer.source.buffer.isOpaque = true;
+        layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     }
 
     static uint8_t getAlphaChannel() {
@@ -451,6 +471,7 @@ struct BufferSourceVariant {
 
         layer.source.buffer.buffer = buf;
         layer.source.buffer.textureName = texName;
+        layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
         OpaquenessVariant::setOpaqueBit(layer);
     }
 };
@@ -460,10 +481,12 @@ void RenderEngineTest::fillBuffer(half r, half g, half b, half a) {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = fullscreenRect();
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
 
     std::vector<const renderengine::LayerSettings*> layers;
 
     renderengine::LayerSettings layer;
+    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     layer.geometry.boundaries = fullscreenRect().toFloatRect();
     SourceVariant::fillColor(layer, r, g, b, this);
     layer.alpha = a;
@@ -500,12 +523,14 @@ void RenderEngineTest::fillRedTransparentBuffer() {
 template <typename SourceVariant>
 void RenderEngineTest::fillRedOffsetBuffer() {
     renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     settings.physicalDisplay = offsetRect();
     settings.clip = offsetRectAtZero();
 
     std::vector<const renderengine::LayerSettings*> layers;
 
     renderengine::LayerSettings layer;
+    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     layer.geometry.boundaries = offsetRectAtZero().toFloatRect();
     SourceVariant::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
     layer.alpha = 1.0f;
@@ -531,6 +556,7 @@ void RenderEngineTest::fillBufferPhysicalOffset() {
 template <typename SourceVariant>
 void RenderEngineTest::fillBufferCheckers(uint32_t orientationFlag) {
     renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     settings.physicalDisplay = fullscreenRect();
     // Here logical space is 2x2
     settings.clip = Rect(2, 2);
@@ -539,18 +565,21 @@ void RenderEngineTest::fillBufferCheckers(uint32_t orientationFlag) {
     std::vector<const renderengine::LayerSettings*> layers;
 
     renderengine::LayerSettings layerOne;
+    layerOne.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     Rect rectOne(0, 0, 1, 1);
     layerOne.geometry.boundaries = rectOne.toFloatRect();
     SourceVariant::fillColor(layerOne, 1.0f, 0.0f, 0.0f, this);
     layerOne.alpha = 1.0f;
 
     renderengine::LayerSettings layerTwo;
+    layerTwo.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     Rect rectTwo(0, 1, 1, 2);
     layerTwo.geometry.boundaries = rectTwo.toFloatRect();
     SourceVariant::fillColor(layerTwo, 0.0f, 1.0f, 0.0f, this);
     layerTwo.alpha = 1.0f;
 
     renderengine::LayerSettings layerThree;
+    layerThree.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     Rect rectThree(1, 0, 2, 1);
     layerThree.geometry.boundaries = rectThree.toFloatRect();
     SourceVariant::fillColor(layerThree, 0.0f, 0.0f, 1.0f, this);
@@ -633,10 +662,12 @@ void RenderEngineTest::fillBufferWithLayerTransform() {
     settings.physicalDisplay = fullscreenRect();
     // Here logical space is 2x2
     settings.clip = Rect(2, 2);
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
 
     std::vector<const renderengine::LayerSettings*> layers;
 
     renderengine::LayerSettings layer;
+    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     layer.geometry.boundaries = Rect(1, 1).toFloatRect();
     // Translate one pixel diagonally
     layer.geometry.positionTransform = mat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1);
@@ -664,10 +695,12 @@ void RenderEngineTest::fillBufferWithColorTransform() {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = Rect(1, 1);
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
 
     std::vector<const renderengine::LayerSettings*> layers;
 
     renderengine::LayerSettings layer;
+    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     layer.geometry.boundaries = Rect(1, 1).toFloatRect();
     SourceVariant::fillColor(layer, 0.5f, 0.25f, 0.125f, this);
     layer.alpha = 1.0f;
@@ -697,10 +730,12 @@ void RenderEngineTest::fillRedBufferWithRoundedCorners() {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = fullscreenRect();
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
 
     std::vector<const renderengine::LayerSettings*> layers;
 
     renderengine::LayerSettings layer;
+    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     layer.geometry.boundaries = fullscreenRect().toFloatRect();
     layer.geometry.roundedCornersRadius = 5.0f;
     layer.geometry.roundedCornersCrop = fullscreenRect().toFloatRect();
@@ -741,18 +776,21 @@ void RenderEngineTest::fillBufferAndBlurBackground() {
     auto center = DEFAULT_DISPLAY_WIDTH / 2;
 
     renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = fullscreenRect();
 
     std::vector<const renderengine::LayerSettings*> layers;
 
     renderengine::LayerSettings backgroundLayer;
+    backgroundLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     backgroundLayer.geometry.boundaries = fullscreenRect().toFloatRect();
     SourceVariant::fillColor(backgroundLayer, 0.0f, 1.0f, 0.0f, this);
     backgroundLayer.alpha = 1.0f;
     layers.push_back(&backgroundLayer);
 
     renderengine::LayerSettings leftLayer;
+    leftLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     leftLayer.geometry.boundaries =
             Rect(DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT).toFloatRect();
     SourceVariant::fillColor(leftLayer, 1.0f, 0.0f, 0.0f, this);
@@ -760,6 +798,7 @@ void RenderEngineTest::fillBufferAndBlurBackground() {
     layers.push_back(&leftLayer);
 
     renderengine::LayerSettings blurLayer;
+    blurLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     blurLayer.geometry.boundaries = fullscreenRect().toFloatRect();
     blurLayer.backgroundBlurRadius = blurRadius;
     blurLayer.alpha = 0;
@@ -778,10 +817,12 @@ void RenderEngineTest::overlayCorners() {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = fullscreenRect();
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
 
     std::vector<const renderengine::LayerSettings*> layersFirst;
 
     renderengine::LayerSettings layerOne;
+    layerOne.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     layerOne.geometry.boundaries =
             FloatRect(0, 0, DEFAULT_DISPLAY_WIDTH / 3.0, DEFAULT_DISPLAY_HEIGHT / 3.0);
     SourceVariant::fillColor(layerOne, 1.0f, 0.0f, 0.0f, this);
@@ -796,6 +837,7 @@ void RenderEngineTest::overlayCorners() {
 
     std::vector<const renderengine::LayerSettings*> layersSecond;
     renderengine::LayerSettings layerTwo;
+    layerTwo.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     layerTwo.geometry.boundaries =
             FloatRect(DEFAULT_DISPLAY_WIDTH / 3.0, DEFAULT_DISPLAY_HEIGHT / 3.0,
                       DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT);
@@ -815,10 +857,12 @@ void RenderEngineTest::fillRedBufferTextureTransform() {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = Rect(1, 1);
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
 
     std::vector<const renderengine::LayerSettings*> layers;
 
     renderengine::LayerSettings layer;
+    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     // Here will allocate a checker board texture, but transform texture
     // coordinates so that only the upper left is applied.
     sp<GraphicBuffer> buf = allocateSourceBuffer(2, 2);
@@ -966,6 +1010,7 @@ void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLaye
                                   const renderengine::ShadowSettings& shadow,
                                   const ubyte4& casterColor, const ubyte4& backgroundColor) {
     renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = fullscreenRect();
 
@@ -973,6 +1018,7 @@ void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLaye
 
     // add background layer
     renderengine::LayerSettings bgLayer;
+    bgLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     bgLayer.geometry.boundaries = fullscreenRect().toFloatRect();
     ColorSourceVariant::fillColor(bgLayer, backgroundColor.r / 255.0f, backgroundColor.g / 255.0f,
                                   backgroundColor.b / 255.0f, this);
@@ -981,6 +1027,7 @@ void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLaye
 
     // add shadow layer
     renderengine::LayerSettings shadowLayer;
+    shadowLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     shadowLayer.geometry.boundaries = castingLayer.geometry.boundaries;
     shadowLayer.alpha = castingLayer.alpha;
     shadowLayer.shadow = shadow;
@@ -988,6 +1035,7 @@ void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLaye
 
     // add layer casting the shadow
     renderengine::LayerSettings layer = castingLayer;
+    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     SourceVariant::fillColor(layer, casterColor.r / 255.0f, casterColor.g / 255.0f,
                              casterColor.b / 255.0f, this);
     layers.push_back(&layer);
@@ -996,7 +1044,8 @@ void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLaye
 }
 
 INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
-                         testing::Values(std::make_shared<GLESRenderEngineFactory>()));
+                         testing::Values(std::make_shared<GLESRenderEngineFactory>(),
+                                         std::make_shared<GLESCMRenderEngineFactory>()));
 
 TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
     const auto& renderEngineFactory = GetParam();
@@ -1009,6 +1058,7 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
     mRE = renderEngineFactory->createRenderEngine();
 
     renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     std::vector<const renderengine::LayerSettings*> layers;
     renderengine::LayerSettings layer;
     layer.geometry.boundaries = fullscreenRect().toFloatRect();
@@ -1025,6 +1075,7 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputFence) {
     mRE = renderEngineFactory->createRenderEngine();
 
     renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = fullscreenRect();
 
@@ -1046,6 +1097,7 @@ TEST_P(RenderEngineTest, drawLayers_doesNotCacheFramebuffer) {
     mRE = renderEngineFactory->createRenderEngine();
 
     renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = fullscreenRect();
 
@@ -1390,6 +1442,7 @@ TEST_P(RenderEngineTest, drawLayers_fillsBufferAndCachesImages) {
     mRE = renderEngineFactory->createRenderEngine();
 
     renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = fullscreenRect();
 
@@ -1488,6 +1541,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterColorLayer) {
     Rect casterBounds(DEFAULT_DISPLAY_WIDTH / 3.0f, DEFAULT_DISPLAY_HEIGHT / 3.0f);
     casterBounds.offsetBy(shadowLength + 1, shadowLength + 1);
     renderengine::LayerSettings castingLayer;
+    castingLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     castingLayer.geometry.boundaries = casterBounds.toFloatRect();
     castingLayer.alpha = 1.0f;
     renderengine::ShadowSettings settings =
@@ -1508,6 +1562,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterOpaqueBufferLayer) {
     Rect casterBounds(DEFAULT_DISPLAY_WIDTH / 3.0f, DEFAULT_DISPLAY_HEIGHT / 3.0f);
     casterBounds.offsetBy(shadowLength + 1, shadowLength + 1);
     renderengine::LayerSettings castingLayer;
+    castingLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     castingLayer.geometry.boundaries = casterBounds.toFloatRect();
     castingLayer.alpha = 1.0f;
     renderengine::ShadowSettings settings =
@@ -1577,6 +1632,7 @@ TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = fullscreenRect();
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
 
     std::vector<const renderengine::LayerSettings*> layers;
     renderengine::LayerSettings layer;
@@ -1606,6 +1662,7 @@ TEST_P(RenderEngineTest, cleanupPostRender_whenCleaningAll_replacesTextureMemory
     mRE = renderEngineFactory->createRenderEngine();
 
     renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = fullscreenRect();
 
