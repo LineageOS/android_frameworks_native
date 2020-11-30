@@ -289,6 +289,11 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     t->setDesiredPresentTime(bufferItem.mTimestamp);
     t->setFrameNumber(mSurfaceControl, bufferItem.mFrameNumber);
 
+    if (!mNextFrameTimelineVsyncIdQueue.empty()) {
+        t->setFrameTimelineVsync(mSurfaceControl, mNextFrameTimelineVsyncIdQueue.front());
+        mNextFrameTimelineVsyncIdQueue.pop();
+    }
+
     if (mAutoRefresh != bufferItem.mAutoRefresh) {
         t->setAutoRefresh(mSurfaceControl, bufferItem.mAutoRefresh);
         mAutoRefresh = bufferItem.mAutoRefresh;
@@ -417,10 +422,8 @@ status_t BLASTBufferQueue::setFrameRate(float frameRate, int8_t compatibility,
 
 status_t BLASTBufferQueue::setFrameTimelineVsync(int64_t frameTimelineVsyncId) {
     std::unique_lock _lock{mMutex};
-    SurfaceComposerClient::Transaction t;
-
-    return t.setFrameTimelineVsync(mSurfaceControl, frameTimelineVsyncId)
-        .apply();
+    mNextFrameTimelineVsyncIdQueue.push(frameTimelineVsyncId);
+    return OK;
 }
 
 sp<Surface> BLASTBufferQueue::getSurface(bool includeSurfaceControlHandle) {
