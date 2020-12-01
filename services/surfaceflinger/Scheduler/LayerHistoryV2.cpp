@@ -144,8 +144,8 @@ LayerHistoryV2::Summary LayerHistoryV2::summarize(nsecs_t now) {
 
         const float layerArea = transformed.getWidth() * transformed.getHeight();
         float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
-        summary.push_back({strong->getName(), vote.type, vote.fps, vote.shouldBeSeamless, weight,
-                           layerFocused});
+        summary.push_back(
+                {strong->getName(), vote.type, vote.fps, vote.seamlessness, weight, layerFocused});
 
         if (CC_UNLIKELY(mTraceEnabled)) {
             trace(layer, *info, vote.type, static_cast<int>(std::round(vote.fps)));
@@ -179,7 +179,7 @@ void LayerHistoryV2::partitionLayers(nsecs_t now) {
 
             if (frameRate.rate > 0 || voteType == LayerVoteType::NoVote) {
                 const auto type = layer->isVisible() ? voteType : LayerVoteType::NoVote;
-                info->setLayerVote({type, frameRate.rate, frameRate.shouldBeSeamless});
+                info->setLayerVote({type, frameRate.rate, frameRate.seamlessness});
             } else {
                 info->resetLayerVote();
             }
