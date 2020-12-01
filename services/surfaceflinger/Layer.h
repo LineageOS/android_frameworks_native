@@ -49,7 +49,9 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "RenderArea.h"
+#include "Scheduler/Seamlessness.h"
 #include "SurfaceFlinger.h"
+#include "SurfaceTracing.h"
 #include "TransactionCompletedThread.h"
 
 using namespace android::surfaceflinger;
@@ -151,17 +153,21 @@ public:
     // Encapsulates the frame rate and compatibility of the layer. This information will be used
     // when the display refresh rate is determined.
     struct FrameRate {
+        using Seamlessness = scheduler::Seamlessness;
+
         float rate;
         FrameRateCompatibility type;
-        bool shouldBeSeamless;
+        Seamlessness seamlessness;
 
-        FrameRate() : rate(0), type(FrameRateCompatibility::Default), shouldBeSeamless(true) {}
+        FrameRate()
+              : rate(0),
+                type(FrameRateCompatibility::Default),
+                seamlessness(Seamlessness::Default) {}
         FrameRate(float rate, FrameRateCompatibility type, bool shouldBeSeamless = true)
-              : rate(rate), type(type), shouldBeSeamless(shouldBeSeamless) {}
+              : rate(rate), type(type), seamlessness(getSeamlessness(rate, shouldBeSeamless)) {}
 
         bool operator==(const FrameRate& other) const {
-            return rate == other.rate && type == other.type &&
-                    shouldBeSeamless == other.shouldBeSeamless;
+            return rate == other.rate && type == other.type && seamlessness == other.seamlessness;
         }
 
         bool operator!=(const FrameRate& other) const { return !(*this == other); }
@@ -169,6 +175,19 @@ public:
         // Convert an ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* value to a
         // Layer::FrameRateCompatibility. Logs fatal if the compatibility value is invalid.
         static FrameRateCompatibility convertCompatibility(int8_t compatibility);
+
+    private:
+        static Seamlessness getSeamlessness(float rate, bool shouldBeSeamless) {
+            if (rate == 0.0f) {
+                // Refresh rate of 0 is a special value which should reset the vote to
+                // its default value.
+                return Seamlessness::Default;
+            } else if (shouldBeSeamless) {
+                return Seamlessness::OnlySeamless;
+            } else {
+                return Seamlessness::SeamedAndSeamless;
+            }
+        }
     };
 
     struct State {
