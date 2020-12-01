@@ -239,10 +239,6 @@ public:
         bool operator!=(const LayerRequirement& other) const { return !(*this == other); }
     };
 
-    // Returns the refresh rate that fits best to the given layers.
-    const RefreshRate& getRefreshRateForContent(const std::vector<LayerRequirement>& layers) const
-            EXCLUDES(mLock);
-
     // Global state describing signals that affect refresh rate choice.
     struct GlobalSignals {
         // Whether the user touched the screen recently. Used to apply touch boost.
