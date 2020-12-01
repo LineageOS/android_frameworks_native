@@ -745,11 +745,16 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         mOrientedRanges.clear();
     }
 
-    // Create pointer controller if needed.
+    // Create pointer controller if needed, and keep it around if Pointer Capture is enabled to
+    // preserve the cursor position.
     if (mDeviceMode == DeviceMode::POINTER ||
-        (mDeviceMode == DeviceMode::DIRECT && mConfig.showTouches)) {
+        (mDeviceMode == DeviceMode::DIRECT && mConfig.showTouches) ||
+        (mParameters.deviceType == Parameters::DeviceType::POINTER && mConfig.pointerCapture)) {
         if (mPointerController == nullptr) {
             mPointerController = getContext()->getPointerController(getDeviceId());
+        }
+        if (mConfig.pointerCapture) {
+            mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
         }
     } else {
         mPointerController.reset();
