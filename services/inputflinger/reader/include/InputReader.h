@@ -18,6 +18,7 @@
 #define _UI_INPUTREADER_INPUT_READER_H
 
 #include <PointerControllerInterface.h>
+#include <android-base/thread_annotations.h>
 #include <utils/Condition.h>
 #include <utils/Mutex.h>
 
@@ -84,8 +85,9 @@ public:
 
 protected:
     // These members are protected so they can be instrumented by test cases.
-    virtual std::shared_ptr<InputDevice> createDeviceLocked(
-            int32_t deviceId, const InputDeviceIdentifier& identifier);
+    virtual std::shared_ptr<InputDevice> createDeviceLocked(int32_t deviceId,
+                                                            const InputDeviceIdentifier& identifier)
+            REQUIRES(mLock);
 
     // With each iteration of the loop, InputReader reads and processes one incoming message from
     // the EventHub.
@@ -97,33 +99,37 @@ protected:
 
     public:
         explicit ContextImpl(InputReader* reader);
-
-        void updateGlobalMetaState() override;
-        int32_t getGlobalMetaState() override;
-        void disableVirtualKeysUntil(nsecs_t time) override;
-        bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode, int32_t scanCode) override;
-        void fadePointer() override;
-        std::shared_ptr<PointerControllerInterface> getPointerController(int32_t deviceId) override;
-        void requestTimeoutAtTime(nsecs_t when) override;
-        int32_t bumpGeneration() override;
-        void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices) override;
-        void dispatchExternalStylusState(const StylusState& outState) override;
-        InputReaderPolicyInterface* getPolicy() override;
-        InputListenerInterface* getListener() override;
-        EventHubInterface* getEventHub() override;
-        int32_t getNextId() override;
-        void updateLedMetaState(int32_t metaState) override;
-        int32_t getLedMetaState() override;
+        // lock is already held by the input loop
+        void updateGlobalMetaState() NO_THREAD_SAFETY_ANALYSIS override;
+        int32_t getGlobalMetaState() NO_THREAD_SAFETY_ANALYSIS override;
+        void disableVirtualKeysUntil(nsecs_t time) NO_THREAD_SAFETY_ANALYSIS override;
+        bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode,
+                                  int32_t scanCode) NO_THREAD_SAFETY_ANALYSIS override;
+        void fadePointer() NO_THREAD_SAFETY_ANALYSIS override;
+        std::shared_ptr<PointerControllerInterface> getPointerController(int32_t deviceId)
+                NO_THREAD_SAFETY_ANALYSIS override;
+        void requestTimeoutAtTime(nsecs_t when) NO_THREAD_SAFETY_ANALYSIS override;
+        int32_t bumpGeneration() NO_THREAD_SAFETY_ANALYSIS override;
+        void getExternalStylusDevices(std::vector<InputDeviceInfo>& outDevices)
+                NO_THREAD_SAFETY_ANALYSIS override;
+        void dispatchExternalStylusState(const StylusState& outState)
+                NO_THREAD_SAFETY_ANALYSIS override;
+        InputReaderPolicyInterface* getPolicy() NO_THREAD_SAFETY_ANALYSIS override;
+        InputListenerInterface* getListener() NO_THREAD_SAFETY_ANALYSIS override;
+        EventHubInterface* getEventHub() NO_THREAD_SAFETY_ANALYSIS override;
+        int32_t getNextId() NO_THREAD_SAFETY_ANALYSIS override;
+        void updateLedMetaState(int32_t metaState) NO_THREAD_SAFETY_ANALYSIS override;
+        int32_t getLedMetaState() NO_THREAD_SAFETY_ANALYSIS override;
     } mContext;
 
     friend class ContextImpl;
+    // Test cases need to override the locked functions
+    mutable std::mutex mLock;
 
 private:
     std::unique_ptr<InputThread> mThread;
 
-    mutable Mutex mLock;
-
-    Condition mReaderIsAliveCondition;
+    std::condition_variable mReaderIsAliveCondition;
 
     // This could be unique_ptr, but due to the way InputReader tests are written,
     // it is made shared_ptr here. In the tests, an EventHub reference is retained by the test
@@ -132,76 +138,79 @@ private:
     sp<InputReaderPolicyInterface> mPolicy;
     sp<QueuedInputListener> mQueuedListener;
 
-    InputReaderConfiguration mConfig;
+    InputReaderConfiguration mConfig GUARDED_BY(mLock);
 
     // The event queue.
     static const int EVENT_BUFFER_SIZE = 256;
-    RawEvent mEventBuffer[EVENT_BUFFER_SIZE];
+    RawEvent mEventBuffer[EVENT_BUFFER_SIZE] GUARDED_BY(mLock);
 
     // An input device can represent a collection of EventHub devices. This map provides a way
     // to lookup the input device instance from the EventHub device id.
-    std::unordered_map<int32_t /*eventHubId*/, std::shared_ptr<InputDevice>> mDevices;
+    std::unordered_map<int32_t /*eventHubId*/, std::shared_ptr<InputDevice>> mDevices
+            GUARDED_BY(mLock);
 
     // An input device contains one or more eventHubId, this map provides a way to lookup the
     // EventHubIds contained in the input device from the input device instance.
     std::unordered_map<std::shared_ptr<InputDevice>, std::vector<int32_t> /*eventHubId*/>
-            mDeviceToEventHubIdsMap;
+            mDeviceToEventHubIdsMap GUARDED_BY(mLock);
 
     // low-level input event decoding and device management
-    void processEventsLocked(const RawEvent* rawEvents, size_t count);
+    void processEventsLocked(const RawEvent* rawEvents, size_t count) REQUIRES(mLock);
 
-    void addDeviceLocked(nsecs_t when, int32_t eventHubId);
-    void removeDeviceLocked(nsecs_t when, int32_t eventHubId);
-    void processEventsForDeviceLocked(int32_t eventHubId, const RawEvent* rawEvents, size_t count);
-    void timeoutExpiredLocked(nsecs_t when);
+    void addDeviceLocked(nsecs_t when, int32_t eventHubId) REQUIRES(mLock);
+    void removeDeviceLocked(nsecs_t when, int32_t eventHubId) REQUIRES(mLock);
+    void processEventsForDeviceLocked(int32_t eventHubId, const RawEvent* rawEvents, size_t count)
+            REQUIRES(mLock);
+    void timeoutExpiredLocked(nsecs_t when) REQUIRES(mLock);
 
-    void handleConfigurationChangedLocked(nsecs_t when);
+    void handleConfigurationChangedLocked(nsecs_t when) REQUIRES(mLock);
 
-    int32_t mGlobalMetaState;
-    void updateGlobalMetaStateLocked();
-    int32_t getGlobalMetaStateLocked();
+    int32_t mGlobalMetaState GUARDED_BY(mLock);
+    void updateGlobalMetaStateLocked() REQUIRES(mLock);
+    int32_t getGlobalMetaStateLocked() REQUIRES(mLock);
 
-    int32_t mLedMetaState;
-    void updateLedMetaStateLocked(int32_t metaState);
-    int32_t getLedMetaStateLocked();
+    int32_t mLedMetaState GUARDED_BY(mLock);
+    void updateLedMetaStateLocked(int32_t metaState) REQUIRES(mLock);
+    int32_t getLedMetaStateLocked() REQUIRES(mLock);
 
-    void notifyExternalStylusPresenceChanged();
-    void getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices);
+    void notifyExternalStylusPresenceChangedLocked() REQUIRES(mLock);
+    void getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices) REQUIRES(mLock);
     void dispatchExternalStylusState(const StylusState& state);
 
     // The PointerController that is shared among all the input devices that need it.
     std::weak_ptr<PointerControllerInterface> mPointerController;
-    std::shared_ptr<PointerControllerInterface> getPointerControllerLocked(int32_t deviceId);
-    void updatePointerDisplayLocked();
-    void fadePointerLocked();
+    std::shared_ptr<PointerControllerInterface> getPointerControllerLocked(int32_t deviceId)
+            REQUIRES(mLock);
+    void updatePointerDisplayLocked() REQUIRES(mLock);
+    void fadePointerLocked() REQUIRES(mLock);
 
-    int32_t mGeneration;
-    int32_t bumpGenerationLocked();
+    int32_t mGeneration GUARDED_BY(mLock);
+    int32_t bumpGenerationLocked() REQUIRES(mLock);
 
-    int32_t mNextInputDeviceId;
-    int32_t nextInputDeviceIdLocked();
+    int32_t mNextInputDeviceId GUARDED_BY(mLock);
+    int32_t nextInputDeviceIdLocked() REQUIRES(mLock);
 
-    std::vector<InputDeviceInfo> getInputDevicesLocked() const;
+    std::vector<InputDeviceInfo> getInputDevicesLocked() const REQUIRES(mLock);
 
-    nsecs_t mDisableVirtualKeysTimeout;
-    void disableVirtualKeysUntilLocked(nsecs_t time);
-    bool shouldDropVirtualKeyLocked(nsecs_t now, int32_t keyCode, int32_t scanCode);
+    nsecs_t mDisableVirtualKeysTimeout GUARDED_BY(mLock);
+    void disableVirtualKeysUntilLocked(nsecs_t time) REQUIRES(mLock);
+    bool shouldDropVirtualKeyLocked(nsecs_t now, int32_t keyCode, int32_t scanCode) REQUIRES(mLock);
 
-    nsecs_t mNextTimeout;
-    void requestTimeoutAtTimeLocked(nsecs_t when);
+    nsecs_t mNextTimeout GUARDED_BY(mLock);
+    void requestTimeoutAtTimeLocked(nsecs_t when) REQUIRES(mLock);
 
-    uint32_t mConfigurationChangesToRefresh;
-    void refreshConfigurationLocked(uint32_t changes);
+    uint32_t mConfigurationChangesToRefresh GUARDED_BY(mLock);
+    void refreshConfigurationLocked(uint32_t changes) REQUIRES(mLock);
 
     // state queries
     typedef int32_t (InputDevice::*GetStateFunc)(uint32_t sourceMask, int32_t code);
     int32_t getStateLocked(int32_t deviceId, uint32_t sourceMask, int32_t code,
-                           GetStateFunc getStateFunc);
+                           GetStateFunc getStateFunc) REQUIRES(mLock);
     bool markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceMask, size_t numCodes,
-                                     const int32_t* keyCodes, uint8_t* outFlags);
+                                     const int32_t* keyCodes, uint8_t* outFlags) REQUIRES(mLock);
 
     // find an InputDevice from an InputDevice id
-    InputDevice* findInputDevice(int32_t deviceId);
+    InputDevice* findInputDeviceLocked(int32_t deviceId) REQUIRES(mLock);
 };
 
 } // namespace android
