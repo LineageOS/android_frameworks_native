@@ -232,7 +232,8 @@ public:
 
         bool operator==(const LayerRequirement& other) const {
             return name == other.name && vote == other.vote &&
-                    desiredRefreshRate == other.desiredRefreshRate && weight == other.weight &&
+                    desiredRefreshRate == other.desiredRefreshRate &&
+                    seamlessness == other.seamlessness && weight == other.weight &&
                     focused == other.focused;
         }
 
