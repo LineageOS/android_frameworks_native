@@ -81,6 +81,9 @@ filegroup {
         "skia/AutoBackendTexture.cpp",
         "skia/SkiaRenderEngine.cpp",
         "skia/SkiaGLRenderEngine.cpp",
+        "skia/debug/CaptureTimer.cpp",
+        "skia/debug/CommonPool.cpp",
+        "skia/debug/SkiaCapture.cpp",
         "skia/filters/BlurFilter.cpp",
         "skia/filters/LinearEffect.cpp",
     ],
@@ -94,6 +97,7 @@ cc_library_static {
     cflags: [
         "-fvisibility=hidden",
         "-Werror=format",
+        "-Wno-unused-parameter",
     ],
     srcs: [
         ":librenderengine_sources",

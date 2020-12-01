@@ -31,9 +31,16 @@
 #include <ui/Transform.h>
 
 /**
- * Allows to set RenderEngine backend to GLES (default) or Vulkan (NOT yet supported).
+ * Allows to set RenderEngine backend to GLES (default) or SkiaGL (NOT yet supported).
  */
 #define PROPERTY_DEBUG_RENDERENGINE_BACKEND "debug.renderengine.backend"
+
+/**
+ * Turns on recording of skia commands in SkiaGL version of the RE. This property
+ * defines number of milliseconds for the recording to take place. A non zero value
+ * turns on the recording.
+ */
+#define PROPERTY_DEBUG_RENDERENGINE_CAPTURE_SKIA_MS "debug.renderengine.capture_skia_ms"
 
 struct ANativeWindowBuffer;
 
