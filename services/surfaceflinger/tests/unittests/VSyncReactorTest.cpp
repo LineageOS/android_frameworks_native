@@ -41,6 +41,7 @@ public:
     MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
     MOCK_METHOD1(setPeriod, void(nsecs_t));
     MOCK_METHOD0(resetModel, void());
+    MOCK_CONST_METHOD0(needsMoreSamples, bool());
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 
@@ -57,6 +58,7 @@ public:
     nsecs_t currentPeriod() const final { return mTracker->currentPeriod(); }
     void setPeriod(nsecs_t period) final { mTracker->setPeriod(period); }
     void resetModel() final { mTracker->resetModel(); }
+    bool needsMoreSamples() const final { return mTracker->needsMoreSamples(); }
     void dump(std::string& result) const final { mTracker->dump(result); }
 
 private:
@@ -455,6 +457,83 @@ TEST_F(VSyncReactorTest, addPresentFenceWhileAwaitingPeriodConfirmationRequestsH
     EXPECT_FALSE(mReactor.addPresentFence(generateSignalledFenceWithTime(0)));
 }
 
+TEST_F(VSyncReactorTest, hwVsyncIsRequestedForTracker) {
+    auto time = 0;
+    bool periodFlushed = false;
+    nsecs_t const newPeriod = 4000;
+    mReactor.setPeriod(newPeriod);
+
+    static auto constexpr numSamplesWithNewPeriod = 4;
+    Sequence seq;
+    EXPECT_CALL(*mMockTracker, needsMoreSamples())
+            .Times(numSamplesWithNewPeriod - 2)
+            .InSequence(seq)
+            .WillRepeatedly(Return(true));
+    EXPECT_CALL(*mMockTracker, needsMoreSamples())
+            .Times(1)
+            .InSequence(seq)
+            .WillRepeatedly(Return(false));
+    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(numSamplesWithNewPeriod);
+
+    EXPECT_TRUE(mReactor.addResyncSample(time += period, std::nullopt, &periodFlushed));
+
+    EXPECT_TRUE(mReactor.addResyncSample(time += period, std::nullopt, &periodFlushed));
+    // confirmed period, but predictor wants numRequest samples. This one and prior are valid.
+    EXPECT_TRUE(mReactor.addResyncSample(time += newPeriod, std::nullopt, &periodFlushed));
+    EXPECT_TRUE(mReactor.addResyncSample(time += newPeriod, std::nullopt, &periodFlushed));
+    EXPECT_FALSE(mReactor.addResyncSample(time += newPeriod, std::nullopt, &periodFlushed));
+}
+
+TEST_F(VSyncReactorTest, hwVsyncturnsOffOnConfirmationWhenTrackerDoesntRequest) {
+    auto time = 0;
+    bool periodFlushed = false;
+    nsecs_t const newPeriod = 4000;
+    mReactor.setPeriod(newPeriod);
+
+    Sequence seq;
+    EXPECT_CALL(*mMockTracker, needsMoreSamples())
+            .Times(1)
+            .InSequence(seq)
+            .WillRepeatedly(Return(false));
+    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(2);
+
+    EXPECT_TRUE(mReactor.addResyncSample(time += period, std::nullopt, &periodFlushed));
+    EXPECT_TRUE(mReactor.addResyncSample(time += period, std::nullopt, &periodFlushed));
+    EXPECT_FALSE(mReactor.addResyncSample(time += newPeriod, std::nullopt, &periodFlushed));
+}
+
+TEST_F(VSyncReactorTest, hwVsyncIsRequestedForTrackerMultiplePeriodChanges) {
+    auto time = 0;
+    bool periodFlushed = false;
+    nsecs_t const newPeriod1 = 4000;
+    nsecs_t const newPeriod2 = 7000;
+
+    mReactor.setPeriod(newPeriod1);
+
+    Sequence seq;
+    EXPECT_CALL(*mMockTracker, needsMoreSamples())
+            .Times(4)
+            .InSequence(seq)
+            .WillRepeatedly(Return(true));
+    EXPECT_CALL(*mMockTracker, needsMoreSamples())
+            .Times(1)
+            .InSequence(seq)
+            .WillRepeatedly(Return(false));
+    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(7);
+
+    EXPECT_TRUE(mReactor.addResyncSample(time += period, std::nullopt, &periodFlushed));
+    EXPECT_TRUE(mReactor.addResyncSample(time += period, std::nullopt, &periodFlushed));
+    // confirmed period, but predictor wants numRequest samples. This one and prior are valid.
+    EXPECT_TRUE(mReactor.addResyncSample(time += newPeriod1, std::nullopt, &periodFlushed));
+    EXPECT_TRUE(mReactor.addResyncSample(time += newPeriod1, std::nullopt, &periodFlushed));
+
+    mReactor.setPeriod(newPeriod2);
+    EXPECT_TRUE(mReactor.addResyncSample(time += newPeriod1, std::nullopt, &periodFlushed));
+    EXPECT_TRUE(mReactor.addResyncSample(time += newPeriod2, std::nullopt, &periodFlushed));
+    EXPECT_TRUE(mReactor.addResyncSample(time += newPeriod2, std::nullopt, &periodFlushed));
+    EXPECT_FALSE(mReactor.addResyncSample(time += newPeriod2, std::nullopt, &periodFlushed));
+}
+
 static nsecs_t computeWorkload(nsecs_t period, nsecs_t phase) {
     return period - phase;
 }
@@ -648,7 +727,7 @@ TEST_F(VSyncReactorTest, beginResyncResetsModel) {
 
 TEST_F(VSyncReactorTest, periodChangeWithGivenVsyncPeriod) {
     bool periodFlushed = true;
-    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(3);
+    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(2);
     mReactor.setIgnorePresentFences(true);
 
     nsecs_t const newPeriod = 5000;
@@ -672,7 +751,7 @@ TEST_F(VSyncReactorTest, periodIsMeasuredIfIgnoringComposer) {
                                     kPendingLimit, true /* supportKernelIdleTimer */);
 
     bool periodFlushed = true;
-    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(5);
+    EXPECT_CALL(*mMockTracker, addVsyncTimestamp(_)).Times(4);
     idleReactor.setIgnorePresentFences(true);
 
     // First, set the same period, which should only be confirmed when we receive two

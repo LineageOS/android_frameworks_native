@@ -58,7 +58,7 @@ hardware::Return<void> StatsHal::reportChargeCycles(const ChargeCycles& chargeCy
     std::vector<int32_t> buckets = chargeCycles.cycleBucket;
     int initialSize = buckets.size();
     for (int i = 0; i < 10 - initialSize; i++) {
-        buckets.push_back(-1); // Push -1 for buckets that do not exist.
+        buckets.push_back(0); // Push 0 for buckets that do not exist.
     }
     android::util::stats_write(android::util::CHARGE_CYCLES_REPORTED, buckets[0], buckets[1],
             buckets[2], buckets[3], buckets[4], buckets[5], buckets[6], buckets[7], buckets[8],

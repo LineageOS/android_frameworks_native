@@ -73,27 +73,27 @@ TEST_F(VSyncPredictorTest, reportsAnticipatedPeriod) {
 
 TEST_F(VSyncPredictorTest, reportsSamplesNeededWhenHasNoDataPoints) {
     for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
-        EXPECT_TRUE(tracker.needsMoreSamples(mNow += mPeriod));
-        tracker.addVsyncTimestamp(mNow);
+        EXPECT_TRUE(tracker.needsMoreSamples());
+        tracker.addVsyncTimestamp(mNow += mPeriod);
     }
-    EXPECT_FALSE(tracker.needsMoreSamples(mNow));
+    EXPECT_FALSE(tracker.needsMoreSamples());
 }
 
 TEST_F(VSyncPredictorTest, reportsSamplesNeededAfterExplicitRateChange) {
     for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
         tracker.addVsyncTimestamp(mNow += mPeriod);
     }
-    EXPECT_FALSE(tracker.needsMoreSamples(mNow));
+    EXPECT_FALSE(tracker.needsMoreSamples());
 
     auto const changedPeriod = mPeriod * 2;
     tracker.setPeriod(changedPeriod);
-    EXPECT_TRUE(tracker.needsMoreSamples(mNow));
+    EXPECT_TRUE(tracker.needsMoreSamples());
 
     for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
-        EXPECT_TRUE(tracker.needsMoreSamples(mNow += changedPeriod));
-        tracker.addVsyncTimestamp(mNow);
+        EXPECT_TRUE(tracker.needsMoreSamples());
+        tracker.addVsyncTimestamp(mNow += changedPeriod);
     }
-    EXPECT_FALSE(tracker.needsMoreSamples(mNow));
+    EXPECT_FALSE(tracker.needsMoreSamples());
 }
 
 TEST_F(VSyncPredictorTest, transitionsToModelledPointsAfterSynthetic) {
@@ -320,20 +320,6 @@ TEST_F(VSyncPredictorTest, willBeAccurateUsingPriorResultsForRate) {
     EXPECT_THAT(intercept, Eq(0));
 }
 
-TEST_F(VSyncPredictorTest, willBecomeInaccurateAfterA_longTimeWithNoSamples) {
-    auto const simulatedVsyncs = generateVsyncTimestamps(kMinimumSamplesForPrediction, mPeriod, 0);
-
-    for (auto const& timestamp : simulatedVsyncs) {
-        tracker.addVsyncTimestamp(timestamp);
-    }
-    auto const mNow = *simulatedVsyncs.rbegin();
-    EXPECT_FALSE(tracker.needsMoreSamples(mNow));
-
-    // TODO: would be better to decay this as a result of the variance of the samples
-    static auto constexpr aLongTimeOut = 1000000000;
-    EXPECT_TRUE(tracker.needsMoreSamples(mNow + aLongTimeOut));
-}
-
 TEST_F(VSyncPredictorTest, idealModelPredictionsBeforeRegressionModelIsBuilt) {
     auto const simulatedVsyncs =
             generateVsyncTimestamps(kMinimumSamplesForPrediction + 1, mPeriod, 0);
@@ -443,7 +429,7 @@ TEST_F(VSyncPredictorTest, slopeAlwaysValid) {
         // When VsyncPredictor returns the period it means that it doesn't know how to predict and
         // it needs to get more samples
         if (slope == mPeriod && intercept == 0) {
-            EXPECT_TRUE(tracker.needsMoreSamples(now));
+            EXPECT_TRUE(tracker.needsMoreSamples());
         }
     }
 }
