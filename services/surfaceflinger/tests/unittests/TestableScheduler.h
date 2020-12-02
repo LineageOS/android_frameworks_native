@@ -32,21 +32,16 @@ namespace android {
 
 class TestableScheduler : public Scheduler {
 public:
-    TestableScheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback,
-                      bool useContentDetectionV2)
+    TestableScheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback)
           : TestableScheduler(std::make_unique<mock::VsyncController>(),
-                              std::make_unique<mock::VSyncTracker>(), configs, callback,
-                              useContentDetectionV2) {}
+                              std::make_unique<mock::VSyncTracker>(), configs, callback) {}
 
     TestableScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
                       std::unique_ptr<scheduler::VSyncTracker> vsyncTracker,
-                      const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback,
-                      bool useContentDetectionV2)
+                      const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback)
           : Scheduler({std::move(vsyncController), std::move(vsyncTracker), nullptr}, configs,
-                      callback, createLayerHistory(configs, useContentDetectionV2),
-                      {.supportKernelTimer = false,
-                       .useContentDetection = true,
-                       .useContentDetectionV2 = useContentDetectionV2}) {}
+                      callback, createLayerHistory(configs),
+                      {.supportKernelTimer = false, .useContentDetection = true}) {}
 
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
@@ -62,20 +57,11 @@ public:
 
     bool hasLayerHistory() const { return static_cast<bool>(mLayerHistory); }
 
-    auto* mutableLayerHistory() {
-        LOG_ALWAYS_FATAL_IF(mOptions.useContentDetectionV2);
-        return static_cast<scheduler::impl::LayerHistory*>(mLayerHistory.get());
-    }
-
-    auto* mutableLayerHistoryV2() {
-        LOG_ALWAYS_FATAL_IF(!mOptions.useContentDetectionV2);
-        return static_cast<scheduler::impl::LayerHistoryV2*>(mLayerHistory.get());
-    }
+    auto* mutableLayerHistory() { return mLayerHistory.get(); }
 
     size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
         if (!mLayerHistory) return 0;
-        return mOptions.useContentDetectionV2 ? mutableLayerHistoryV2()->mLayerInfos.size()
-                                              : mutableLayerHistory()->mLayerInfos.size();
+        return mutableLayerHistory()->mLayerInfos.size();
     }
 
     void replaceTouchTimer(int64_t millis) {

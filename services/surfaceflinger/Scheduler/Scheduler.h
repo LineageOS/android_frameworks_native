@@ -183,8 +183,6 @@ private:
         bool supportKernelTimer;
         // Whether to use content detection at all.
         bool useContentDetection;
-        // Whether to use improved content detection.
-        bool useContentDetectionV2;
     };
 
     struct VsyncSchedule {
@@ -201,8 +199,7 @@ private:
               std::unique_ptr<LayerHistory>, Options);
 
     static VsyncSchedule createVsyncSchedule(bool supportKernelIdleTimer);
-    static std::unique_ptr<LayerHistory> createLayerHistory(const scheduler::RefreshRateConfigs&,
-                                                            bool useContentDetectionV2);
+    static std::unique_ptr<LayerHistory> createLayerHistory(const scheduler::RefreshRateConfigs&);
 
     // Create a connection on the given EventThread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);
@@ -270,7 +267,6 @@ private:
     std::mutex mFeatureStateLock;
 
     struct {
-        ContentDetectionState contentDetectionV1 = ContentDetectionState::Off;
         TimerState idleTimer = TimerState::Reset;
         TouchState touch = TouchState::Inactive;
         TimerState displayPowerTimer = TimerState::Expired;

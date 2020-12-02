@@ -232,16 +232,13 @@ public:
 
         bool operator==(const LayerRequirement& other) const {
             return name == other.name && vote == other.vote &&
-                    desiredRefreshRate == other.desiredRefreshRate && weight == other.weight &&
+                    desiredRefreshRate == other.desiredRefreshRate &&
+                    seamlessness == other.seamlessness && weight == other.weight &&
                     focused == other.focused;
         }
 
         bool operator!=(const LayerRequirement& other) const { return !(*this == other); }
     };
-
-    // Returns the refresh rate that fits best to the given layers.
-    const RefreshRate& getRefreshRateForContent(const std::vector<LayerRequirement>& layers) const
-            EXCLUDES(mLock);
 
     // Global state describing signals that affect refresh rate choice.
     struct GlobalSignals {

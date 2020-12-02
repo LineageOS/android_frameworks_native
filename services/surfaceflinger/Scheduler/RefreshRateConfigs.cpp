@@ -69,60 +69,6 @@ std::string RefreshRateConfigs::Policy::toString() const {
                               primaryRange.max, appRequestRange.min, appRequestRange.max);
 }
 
-const RefreshRate& RefreshRateConfigs::getRefreshRateForContent(
-        const std::vector<LayerRequirement>& layers) const {
-    std::lock_guard lock(mLock);
-    int contentFramerate = 0;
-    int explicitContentFramerate = 0;
-    for (const auto& layer : layers) {
-        const auto desiredRefreshRateRound = round<int>(layer.desiredRefreshRate);
-        if (layer.vote == LayerVoteType::ExplicitDefault ||
-            layer.vote == LayerVoteType::ExplicitExactOrMultiple) {
-            if (desiredRefreshRateRound > explicitContentFramerate) {
-                explicitContentFramerate = desiredRefreshRateRound;
-            }
-        } else {
-            if (desiredRefreshRateRound > contentFramerate) {
-                contentFramerate = desiredRefreshRateRound;
-            }
-        }
-    }
-
-    if (explicitContentFramerate != 0) {
-        contentFramerate = explicitContentFramerate;
-    } else if (contentFramerate == 0) {
-        contentFramerate = round<int>(mMaxSupportedRefreshRate->getFps());
-    }
-    ATRACE_INT("ContentFPS", contentFramerate);
-
-    // Find the appropriate refresh rate with minimal error
-    auto iter = min_element(mPrimaryRefreshRates.cbegin(), mPrimaryRefreshRates.cend(),
-                            [contentFramerate](const auto& lhs, const auto& rhs) -> bool {
-                                return std::abs(lhs->fps - contentFramerate) <
-                                        std::abs(rhs->fps - contentFramerate);
-                            });
-
-    // Some content aligns better on higher refresh rate. For example for 45fps we should choose
-    // 90Hz config. However we should still prefer a lower refresh rate if the content doesn't
-    // align well with both
-    const RefreshRate* bestSoFar = *iter;
-    constexpr float MARGIN = 0.05f;
-    float ratio = (*iter)->fps / contentFramerate;
-    if (std::abs(std::round(ratio) - ratio) > MARGIN) {
-        while (iter != mPrimaryRefreshRates.cend()) {
-            ratio = (*iter)->fps / contentFramerate;
-
-            if (std::abs(std::round(ratio) - ratio) <= MARGIN) {
-                bestSoFar = *iter;
-                break;
-            }
-            ++iter;
-        }
-    }
-
-    return *bestSoFar;
-}
-
 std::pair<nsecs_t, nsecs_t> RefreshRateConfigs::getDisplayFrames(nsecs_t layerPeriod,
                                                                  nsecs_t displayPeriod) const {
     auto [displayFramesQuot, displayFramesRem] = std::div(layerPeriod, displayPeriod);

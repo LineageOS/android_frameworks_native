@@ -68,8 +68,7 @@ protected:
         }
     } mExpectDisableVsync{mSchedulerCallback};
 
-    static constexpr bool kUseContentDetectionV2 = false;
-    TestableScheduler mScheduler{mConfigs, mSchedulerCallback, kUseContentDetectionV2};
+    TestableScheduler mScheduler{mConfigs, mSchedulerCallback};
 
     Scheduler::ConnectionHandle mConnectionHandle;
     mock::EventThread* mEventThread;
