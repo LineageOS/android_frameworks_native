@@ -89,9 +89,8 @@ std::unique_ptr<scheduler::VSyncDispatch> createVSyncDispatch(scheduler::VSyncTr
                                                 timerSlack.count(), vsyncMoveThreshold.count());
 }
 
-const char* toContentDetectionString(bool useContentDetection, bool useContentDetectionV2) {
-    if (!useContentDetection) return "off";
-    return useContentDetectionV2 ? "V2" : "V1";
+const char* toContentDetectionString(bool useContentDetection) {
+    return useContentDetection ? "on" : "off";
 }
 
 } // namespace
@@ -119,14 +118,13 @@ private:
 Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback)
       : Scheduler(configs, callback,
                   {.supportKernelTimer = sysprop::support_kernel_idle_timer(false),
-                   .useContentDetection = sysprop::use_content_detection_for_refresh_rate(false),
-                   .useContentDetectionV2 =
-                           base::GetBoolProperty("debug.sf.use_content_detection_v2"s, true)}) {}
+                   .useContentDetection = sysprop::use_content_detection_for_refresh_rate(false)}) {
+}
 
 Scheduler::Scheduler(const scheduler::RefreshRateConfigs& configs, ISchedulerCallback& callback,
                      Options options)
       : Scheduler(createVsyncSchedule(options.supportKernelTimer), configs, callback,
-                  createLayerHistory(configs, options.useContentDetectionV2), options) {
+                  createLayerHistory(configs), options) {
     using namespace sysprop;
 
     const int setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms"s, 0);
@@ -195,14 +193,10 @@ Scheduler::VsyncSchedule Scheduler::createVsyncSchedule(bool supportKernelTimer)
 }
 
 std::unique_ptr<LayerHistory> Scheduler::createLayerHistory(
-        const scheduler::RefreshRateConfigs& configs, bool useContentDetectionV2) {
+        const scheduler::RefreshRateConfigs& configs) {
     if (!configs.canSwitch()) return nullptr;
 
-    if (useContentDetectionV2) {
-        return std::make_unique<scheduler::impl::LayerHistoryV2>(configs);
-    }
-
-    return std::make_unique<scheduler::impl::LayerHistory>();
+    return std::make_unique<scheduler::LayerHistory>(configs);
 }
 
 std::unique_ptr<VSyncSource> Scheduler::makePrimaryDispSyncSource(
@@ -528,14 +522,6 @@ void Scheduler::registerLayer(Layer* layer) {
         // still need to be registered.
         mLayerHistory->registerLayer(layer, minFps, maxFps,
                                      scheduler::LayerHistory::LayerVoteType::Max);
-    } else if (!mOptions.useContentDetectionV2) {
-        // In V1 of content detection, all layers are registered as Heuristic (unless it's
-        // wallpaper).
-        const auto highFps =
-                layer->getWindowType() == InputWindowInfo::Type::WALLPAPER ? minFps : maxFps;
-
-        mLayerHistory->registerLayer(layer, minFps, highFps,
-                                     scheduler::LayerHistory::LayerVoteType::Heuristic);
     } else {
         if (layer->getWindowType() == InputWindowInfo::Type::WALLPAPER) {
             // Running Wallpaper at Min is considered as part of content detection.
@@ -574,8 +560,6 @@ void Scheduler::chooseRefreshRateForContent() {
             return;
         }
         mFeatures.contentRequirements = summary;
-        mFeatures.contentDetectionV1 =
-                !summary.empty() ? ContentDetectionState::On : ContentDetectionState::Off;
 
         scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
         newConfigId = calculateRefreshRateConfigIndexType(&consideredSignals);
@@ -682,8 +666,7 @@ void Scheduler::dump(std::string& result) const {
     StringAppendF(&result, "+  Touch timer: %s\n",
                   mTouchTimer ? mTouchTimer->dump().c_str() : "off");
     StringAppendF(&result, "+  Content detection: %s %s\n\n",
-                  toContentDetectionString(mOptions.useContentDetection,
-                                           mOptions.useContentDetectionV2),
+                  toContentDetectionString(mOptions.useContentDetection),
                   mLayerHistory ? mLayerHistory->dump().c_str() : "(no layer history)");
 }
 
@@ -739,29 +722,6 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(
 
     const bool touchActive = mTouchTimer && mFeatures.touch == TouchState::Active;
     const bool idle = mIdleTimer && mFeatures.idleTimer == TimerState::Expired;
-
-    if (!mOptions.useContentDetectionV2) {
-        // As long as touch is active we want to be in performance mode.
-        if (touchActive) {
-            return mRefreshRateConfigs.getMaxRefreshRateByPolicy().getConfigId();
-        }
-
-        // If timer has expired as it means there is no new content on the screen.
-        if (idle) {
-            if (consideredSignals) consideredSignals->idle = true;
-            return mRefreshRateConfigs.getMinRefreshRateByPolicy().getConfigId();
-        }
-
-        // If content detection is off we choose performance as we don't know the content fps.
-        if (mFeatures.contentDetectionV1 == ContentDetectionState::Off) {
-            // NOTE: V1 always calls this, but this is not a default behavior for V2.
-            return mRefreshRateConfigs.getMaxRefreshRateByPolicy().getConfigId();
-        }
-
-        // Content detection is on, find the appropriate refresh rate with minimal error
-        return mRefreshRateConfigs.getRefreshRateForContent(mFeatures.contentRequirements)
-                .getConfigId();
-    }
 
     return mRefreshRateConfigs
             .getBestRefreshRate(mFeatures.contentRequirements, {.touch = touchActive, .idle = idle},

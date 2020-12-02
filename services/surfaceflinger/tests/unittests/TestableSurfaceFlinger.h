@@ -227,10 +227,8 @@ public:
                 mFactory.createVsyncConfiguration(*mFlinger->mRefreshRateConfigs);
         mFlinger->mVsyncModulator.emplace(mFlinger->mVsyncConfiguration->getCurrentConfigs());
 
-        constexpr bool kUseContentDetectionV2 = false;
         mScheduler = new TestableScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                                           *mFlinger->mRefreshRateConfigs, *(callback ?: this),
-                                           kUseContentDetectionV2);
+                                           *mFlinger->mRefreshRateConfigs, *(callback ?: this));
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
