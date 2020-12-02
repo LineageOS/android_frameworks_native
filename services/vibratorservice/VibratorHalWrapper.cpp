@@ -17,7 +17,6 @@
 #define LOG_TAG "VibratorHalWrapper"
 
 #include <android/hardware/vibrator/1.3/IVibrator.h>
-#include <android/hardware/vibrator/BnVibratorCallback.h>
 #include <android/hardware/vibrator/IVibrator.h>
 #include <hardware/vibrator.h>
 
@@ -71,17 +70,6 @@ bool isStaticCastValid(Effect effect) {
 const constexpr char* STATUS_T_ERROR_MESSAGE_PREFIX = "status_t = ";
 const constexpr char* STATUS_V_1_0_ERROR_MESSAGE_PREFIX =
         "android::hardware::vibrator::V1_0::Status = ";
-
-template <typename T>
-HalResult<T> HalResult<T>::fromStatus(binder::Status status, T data) {
-    if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
-        return HalResult<T>::unsupported();
-    }
-    if (status.isOk()) {
-        return HalResult<T>::ok(data);
-    }
-    return HalResult<T>::failed(std::string(status.toString8().c_str()));
-}
 
 template <typename T>
 HalResult<T> HalResult<T>::fromStatus(V1_0::Status status, T data) {
@@ -145,28 +133,16 @@ HalResult<void> HalResult<void>::fromReturn(hardware::Return<R>& ret) {
 
 // -------------------------------------------------------------------------------------------------
 
-class HalCallbackWrapper : public Aidl::BnVibratorCallback {
-public:
-    HalCallbackWrapper(std::function<void()> completionCallback)
-          : mCompletionCallback(completionCallback) {}
-
-    binder::Status onComplete() override {
-        mCompletionCallback();
-        return binder::Status::ok();
-    }
-
-private:
-    const std::function<void()> mCompletionCallback;
-};
-
-// -------------------------------------------------------------------------------------------------
-
 HalResult<void> AidlHalWrapper::ping() {
     return HalResult<void>::fromStatus(IInterface::asBinder(getHal())->pingBinder());
 }
 
 void AidlHalWrapper::tryReconnect() {
-    sp<Aidl::IVibrator> newHandle = checkVintfService<Aidl::IVibrator>();
+    auto result = mReconnectFn();
+    if (!result.isOk()) {
+        return;
+    }
+    sp<Aidl::IVibrator> newHandle = result.value();
     if (newHandle) {
         std::lock_guard<std::mutex> lock(mHandleMutex);
         mHandle = std::move(newHandle);
