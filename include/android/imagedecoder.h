@@ -65,7 +65,8 @@ struct AAsset;
  *  Many functions will return this to indicate success
  *  ({@link ANDROID_IMAGE_DECODER_SUCCESS}) or the reason for the failure. On
  *  failure, any out-parameters should be considered uninitialized, except where
- *  specified.
+ *  specified. Use {@link AImageDecoder_resultToString} for a readable
+ *  version of the result code.
  */
 enum {
     /**
@@ -123,6 +124,24 @@ enum {
      */
     ANDROID_IMAGE_DECODER_INVALID_STATE = -11,
 };
+
+#if __ANDROID_API__ >= 31
+
+/**
+ * Return a constant string value representing the error code.
+ *
+ * Introduced in API 31.
+ *
+ * Pass the return value from an {@link AImageDecoder} method (e.g.
+ * {@link AImageDecoder_decodeImage}) for a text string representing the error
+ * code.
+ *
+ * Errors:
+ * - Returns null for a value out of range.
+ */
+const char* _Nullable AImageDecoder_resultToString(int)__INTRODUCED_IN(31);
+
+#endif // __ANDROID_API__ >= 31
 
 struct AImageDecoder;
 
