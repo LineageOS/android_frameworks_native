@@ -681,21 +681,21 @@ static void updateJankPayload(T& t, int32_t reasons) {
     t.jankPayload.totalFrames++;
 
     static const constexpr int32_t kValidJankyReason =
-            TimeStats::JankType::SurfaceFlingerDeadlineMissed |
-            TimeStats::JankType::SurfaceFlingerGpuDeadlineMissed |
-            TimeStats::JankType::AppDeadlineMissed | TimeStats::JankType::Display;
+            JankType::SurfaceFlingerDeadlineMissed |
+            JankType::SurfaceFlingerGpuDeadlineMissed |
+            JankType::AppDeadlineMissed | JankType::Display;
     if (reasons & kValidJankyReason) {
         t.jankPayload.totalJankyFrames++;
-        if ((reasons & TimeStats::JankType::SurfaceFlingerDeadlineMissed) != 0) {
+        if ((reasons & JankType::SurfaceFlingerDeadlineMissed) != 0) {
             t.jankPayload.totalSFLongCpu++;
         }
-        if ((reasons & TimeStats::JankType::SurfaceFlingerGpuDeadlineMissed) != 0) {
+        if ((reasons & JankType::SurfaceFlingerGpuDeadlineMissed) != 0) {
             t.jankPayload.totalSFLongGpu++;
         }
-        if ((reasons & TimeStats::JankType::Display) != 0) {
+        if ((reasons & JankType::Display) != 0) {
             t.jankPayload.totalSFUnattributed++;
         }
-        if ((reasons & TimeStats::JankType::AppDeadlineMissed) != 0) {
+        if ((reasons & JankType::AppDeadlineMissed) != 0) {
             t.jankPayload.totalAppUnattributed++;
         }
     }
