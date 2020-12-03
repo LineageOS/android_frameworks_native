@@ -479,6 +479,10 @@ Rect BufferStateLayer::getBufferSize(const State& s) const {
         return Rect(getActiveWidth(s), getActiveHeight(s));
     }
 
+    if (mBufferInfo.mBuffer == nullptr) {
+        return Rect::INVALID_RECT;
+    }
+
     // if the display frame is not defined, use the parent bounds as the buffer size.
     const auto& p = mDrawingParent.promote();
     if (p != nullptr) {

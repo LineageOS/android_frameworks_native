@@ -1114,6 +1114,9 @@ private:
     // null.
     sp<Layer> getRootLayer();
 
+    // Fills in the frame and transform info for the InputWindowInfo
+    void fillInputFrameInfo(InputWindowInfo& info);
+
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling, which is
     // a transform from the current layer coordinate space to display(screen) coordinate space.
