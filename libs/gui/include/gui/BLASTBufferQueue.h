@@ -146,6 +146,11 @@ private:
     bool mAutoRefresh GUARDED_BY(mMutex) = false;
 
     std::queue<int64_t> mNextFrameTimelineVsyncIdQueue GUARDED_BY(mMutex);
+
+    // Last acquired buffer's scaling mode. This is used to check if we should update the blast
+    // layer size immediately or wait until we get the next buffer. This will support scenarios
+    // where the layer can change sizes and the buffer will scale to fit the new size.
+    uint32_t mLastBufferScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
 };
 
 } // namespace android
