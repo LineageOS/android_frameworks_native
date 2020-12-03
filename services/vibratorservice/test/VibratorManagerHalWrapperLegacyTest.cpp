@@ -78,6 +78,12 @@ TEST_F(VibratorManagerHalWrapperLegacyTest, TestTryReconnect) {
     mWrapper->tryReconnect();
 }
 
+TEST_F(VibratorManagerHalWrapperLegacyTest, TestGetCapabilities) {
+    auto result = mWrapper->getCapabilities();
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(vibrator::ManagerCapabilities::NONE, result.value());
+}
+
 TEST_F(VibratorManagerHalWrapperLegacyTest, TestGetVibratorIds) {
     std::vector<int32_t> expectedIds;
     expectedIds.push_back(0);

@@ -19,6 +19,7 @@
 
 #include <android-base/thread_annotations.h>
 #include <android/hardware/vibrator/1.3/IVibrator.h>
+#include <android/hardware/vibrator/BnVibratorCallback.h>
 #include <android/hardware/vibrator/IVibrator.h>
 #include <binder/IServiceManager.h>
 
@@ -40,7 +41,15 @@ public:
     }
     static HalResult<T> unsupported() { return HalResult("", /* unsupported= */ true); }
 
-    static HalResult<T> fromStatus(binder::Status status, T data);
+    static HalResult<T> fromStatus(binder::Status status, T data) {
+        if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
+            return HalResult<T>::unsupported();
+        }
+        if (status.isOk()) {
+            return HalResult<T>::ok(data);
+        }
+        return HalResult<T>::failed(std::string(status.toString8().c_str()));
+    }
     static HalResult<T> fromStatus(hardware::vibrator::V1_0::Status status, T data);
 
     template <typename R>
@@ -97,6 +106,20 @@ private:
           : mErrorMessage(), mFailed(false), mUnsupported(unsupported) {}
     explicit HalResult(std::string errorMessage)
           : mErrorMessage(std::move(errorMessage)), mFailed(true), mUnsupported(false) {}
+};
+
+class HalCallbackWrapper : public hardware::vibrator::BnVibratorCallback {
+public:
+    HalCallbackWrapper(std::function<void()> completionCallback)
+          : mCompletionCallback(completionCallback) {}
+
+    binder::Status onComplete() override {
+        mCompletionCallback();
+        return binder::Status::ok();
+    }
+
+private:
+    const std::function<void()> mCompletionCallback;
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -178,9 +201,16 @@ protected:
 // Wrapper for the AIDL Vibrator HAL.
 class AidlHalWrapper : public HalWrapper {
 public:
-    AidlHalWrapper(std::shared_ptr<CallbackScheduler> scheduler,
-                   sp<hardware::vibrator::IVibrator> handle)
-          : HalWrapper(std::move(scheduler)), mHandle(std::move(handle)) {}
+    AidlHalWrapper(
+            std::shared_ptr<CallbackScheduler> scheduler, sp<hardware::vibrator::IVibrator> handle,
+            std::function<HalResult<sp<hardware::vibrator::IVibrator>>()> reconnectFn =
+                    []() {
+                        return HalResult<sp<hardware::vibrator::IVibrator>>::ok(
+                                checkVintfService<hardware::vibrator::IVibrator>());
+                    })
+          : HalWrapper(std::move(scheduler)),
+            mReconnectFn(reconnectFn),
+            mHandle(std::move(handle)) {}
     virtual ~AidlHalWrapper() = default;
 
     HalResult<void> ping() override final;
@@ -211,6 +241,7 @@ public:
             const std::function<void()>& completionCallback) override final;
 
 private:
+    const std::function<HalResult<sp<hardware::vibrator::IVibrator>>()> mReconnectFn;
     std::mutex mHandleMutex;
     std::mutex mCapabilitiesMutex;
     std::mutex mSupportedEffectsMutex;

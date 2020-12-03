@@ -79,38 +79,6 @@ public:
     vibrator::CallbackScheduler* getCallbackScheduler() { return mCallbackScheduler.get(); }
 };
 
-class TestHalConnector : public vibrator::HalConnector {
-public:
-    TestHalConnector(int32_t* connectCounter, std::shared_ptr<MockHalWrapper> mockHal)
-          : mConnectCounter(connectCounter), mMockHal(std::move(mockHal)) {}
-    ~TestHalConnector() = default;
-
-    std::shared_ptr<vibrator::HalWrapper> connect(
-            std::shared_ptr<vibrator::CallbackScheduler>) override final {
-        android_atomic_inc(mConnectCounter);
-        return mMockHal;
-    }
-
-private:
-    int32_t* mConnectCounter;
-    std::shared_ptr<MockHalWrapper> mMockHal;
-};
-
-class FailingHalConnector : public vibrator::HalConnector {
-public:
-    FailingHalConnector(int32_t* connectCounter) : mConnectCounter(connectCounter) {}
-    ~FailingHalConnector() = default;
-
-    std::shared_ptr<vibrator::HalWrapper> connect(
-            std::shared_ptr<vibrator::CallbackScheduler>) override final {
-        android_atomic_inc(mConnectCounter);
-        return nullptr;
-    }
-
-private:
-    int32_t* mConnectCounter;
-};
-
 // -------------------------------------------------------------------------------------------------
 
 class VibratorHalControllerTest : public Test {
@@ -119,9 +87,12 @@ public:
         mConnectCounter = 0;
         auto callbackScheduler = std::make_shared<vibrator::CallbackScheduler>();
         mMockHal = std::make_shared<StrictMock<MockHalWrapper>>(callbackScheduler);
-        auto halConnector = std::make_unique<TestHalConnector>(&mConnectCounter, mMockHal);
-        mController = std::make_unique<vibrator::HalController>(std::move(halConnector),
-                                                                std::move(callbackScheduler));
+        mController = std::make_unique<
+                vibrator::HalController>(std::move(callbackScheduler),
+                                         [&](std::shared_ptr<vibrator::CallbackScheduler>) {
+                                             android_atomic_inc(&(this->mConnectCounter));
+                                             return this->mMockHal;
+                                         });
         ASSERT_NE(mController, nullptr);
     }
 
@@ -334,9 +305,11 @@ TEST_F(VibratorHalControllerTest, TestMultiThreadConnectsOnlyOnce) {
 }
 
 TEST_F(VibratorHalControllerTest, TestNoVibratorReturnsUnsupportedAndAttemptsToReconnect) {
-    auto failingHalConnector = std::make_unique<FailingHalConnector>(&mConnectCounter);
-    mController =
-            std::make_unique<vibrator::HalController>(std::move(failingHalConnector), nullptr);
+    mController = std::make_unique<
+            vibrator::HalController>(nullptr, [&](std::shared_ptr<vibrator::CallbackScheduler>) {
+        android_atomic_inc(&(this->mConnectCounter));
+        return nullptr;
+    });
     ASSERT_EQ(0, mConnectCounter);
 
     ASSERT_FALSE(mController->init());
