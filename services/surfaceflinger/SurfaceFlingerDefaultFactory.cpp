@@ -134,6 +134,12 @@ sp<EffectLayer> DefaultFactory::createEffectLayer(const LayerCreationArgs& args)
 std::unique_ptr<FrameTracer> DefaultFactory::createFrameTracer() {
     return std::make_unique<FrameTracer>();
 }
+
+std::unique_ptr<frametimeline::FrameTimeline> DefaultFactory::createFrameTimeline(
+        std::shared_ptr<TimeStats> timeStats) {
+    return std::make_unique<frametimeline::impl::FrameTimeline>(timeStats);
+}
+
 } // namespace android::surfaceflinger
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

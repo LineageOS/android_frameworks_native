@@ -331,7 +331,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInterceptor(mFactory.createSurfaceInterceptor()),
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(mFactory.createFrameTracer()),
-        mFrameTimeline(std::make_unique<frametimeline::impl::FrameTimeline>(mTimeStats)),
+        mFrameTimeline(mFactory.createFrameTimeline(mTimeStats)),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
@@ -621,6 +621,7 @@ void SurfaceFlinger::bootFinished() {
 
     mFrameTracer->initialize();
     mTimeStats->onBootFinished();
+    mFrameTimeline->onBootFinished();
 
     // wait patiently for the window manager death
     const String16 name("window");
