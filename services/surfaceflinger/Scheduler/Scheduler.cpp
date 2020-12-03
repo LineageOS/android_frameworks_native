@@ -399,6 +399,10 @@ Scheduler::ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
                                                     impl::EventThread::InterceptVSyncsCallback(),
                                                     impl::EventThread::ThrottleVsyncCallback());
 
+        // EventThread does not dispatch VSYNC unless the display is connected and powered on.
+        eventThread->onHotplugReceived(PhysicalDisplayId::fromPort(0), true);
+        eventThread->onScreenAcquired();
+
         mInjectorConnectionHandle = createConnection(std::move(eventThread));
     }
 
