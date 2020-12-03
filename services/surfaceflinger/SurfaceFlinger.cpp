@@ -2559,7 +2559,8 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
 }
 
 void SurfaceFlinger::processDisplayRemoved(const wp<IBinder>& displayToken) {
-    if (const auto display = getDisplayDeviceLocked(displayToken)) {
+    auto display = getDisplayDeviceLocked(displayToken);
+    if (display) {
         display->disconnect();
         if (!display->isVirtual()) {
             dispatchDisplayHotplugEvent(display->getPhysicalId(), false);
@@ -2567,6 +2568,22 @@ void SurfaceFlinger::processDisplayRemoved(const wp<IBinder>& displayToken) {
     }
 
     mDisplays.erase(displayToken);
+
+    if (display && display->isVirtual()) {
+        static_cast<void>(schedule([display = std::move(display)] {
+            // Destroy the display without holding the mStateLock.
+            // This is a temporary solution until we can manage transaction queues without
+            // holding the mStateLock.
+            // With blast, the IGBP that is passed to the VirtualDisplaySurface is owned by the
+            // client. When the IGBP is disconnected, its buffer cache in SF will be cleared
+            // via SurfaceComposerClient::doUncacheBufferTransaction. This call from the client
+            // ends up running on the main thread causing a deadlock since setTransactionstate
+            // will try to acquire the mStateLock. Instead we extend the lifetime of
+            // DisplayDevice and destroy it in the main thread without holding the mStateLock.
+            // The display will be disconnected and removed from the mDisplays list so it will
+            // not be accessible.
+        }));
+    }
 }
 
 void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
