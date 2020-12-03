@@ -22,22 +22,28 @@
 
 #include <utils/Log.h>
 
-#include <vibratorservice/VibratorManagerHalWrapper.h>
+#include <vibratorservice/VibratorManagerHalController.h>
 
 #include "test_utils.h"
+
+using android::vibrator::HalController;
 
 using namespace android;
 using namespace testing;
 
 static constexpr int MAX_ATTEMPTS = 2;
+static const std::vector<int32_t> VIBRATOR_IDS = {1, 2};
+static constexpr int VIBRATOR_ID = 1;
 
 class MockManagerHalWrapper : public vibrator::ManagerHalWrapper {
 public:
+    MOCK_METHOD(void, tryReconnect, (), (override));
     MOCK_METHOD(vibrator::HalResult<void>, ping, (), (override));
-    MOCK_METHOD(vibrator::HalResult<int32_t>, getCapabilities, (), (override));
+    MOCK_METHOD(vibrator::HalResult<vibrator::ManagerCapabilities>, getCapabilities, (),
+                (override));
     MOCK_METHOD(vibrator::HalResult<std::vector<int32_t>>, getVibratorIds, (), (override));
-    MOCK_METHOD(vibrator::HalResult<std::shared_ptr<vibrator::HalController>>, getVibrator,
-                (int32_t id), (override));
+    MOCK_METHOD(vibrator::HalResult<std::shared_ptr<HalController>>, getVibrator, (int32_t id),
+                (override));
     MOCK_METHOD(vibrator::HalResult<void>, prepareSynced, (const std::vector<int32_t>& ids),
                 (override));
     MOCK_METHOD(vibrator::HalResult<void>, triggerSynced,
@@ -50,13 +56,13 @@ public:
     void SetUp() override {
         mConnectCounter = 0;
         auto callbackScheduler = std::make_shared<vibrator::CallbackScheduler>();
-        mMockHal = std::make_shared<StrictMock<MockHalWrapper>>(callbackScheduler);
-        mController = std::make_unique<
-                vibrator::HalController>(std::move(callbackScheduler),
-                                         [&](std::shared_ptr<vibrator::CallbackScheduler>) {
-                                             android_atomic_inc(&(this->mConnectCounter));
-                                             return this->mMockHal;
-                                         });
+        mMockHal = std::make_shared<StrictMock<MockManagerHalWrapper>>();
+        auto connector = [this](std::shared_ptr<vibrator::CallbackScheduler>) {
+            android_atomic_inc(&mConnectCounter);
+            return mMockHal;
+        };
+        mController = std::make_unique<vibrator::ManagerHalController>(std::move(callbackScheduler),
+                                                                       connector);
         ASSERT_NE(mController, nullptr);
     }
 
@@ -65,8 +71,7 @@ protected:
     std::shared_ptr<MockManagerHalWrapper> mMockHal;
     std::unique_ptr<vibrator::ManagerHalController> mController;
 
-    void setHalExpectations(int32_t cardinality, std::vector<int32_t> ids,
-                            vibrator::HalResult<void> voidResult,
+    void setHalExpectations(int32_t cardinality, vibrator::HalResult<void> voidResult,
                             vibrator::HalResult<vibrator::ManagerCapabilities> capabilitiesResult,
                             vibrator::HalResult<std::vector<int32_t>> idsResult,
                             vibrator::HalResult<std::shared_ptr<HalController>> vibratorResult) {
@@ -100,24 +105,20 @@ protected:
 };
 
 TEST_F(VibratorManagerHalControllerTest, TestInit) {
-    ASSERT_TRUE(mController->init());
+    mController->init();
     ASSERT_EQ(1, mConnectCounter);
 
     // Noop when wrapper was already initialized.
-    ASSERT_TRUE(mController->init());
+    mController->init();
     ASSERT_EQ(1, mConnectCounter);
 }
 
 TEST_F(VibratorManagerHalControllerTest, TestApiCallsAreForwardedToHal) {
-    std::vector<int32_t> ids;
-    ids.push_back(1);
-    ids.push_back(2);
-
-    setHalExpectations(/* cardinality= */ 1, ids, vibrator::HalResult<void>::ok(),
+    setHalExpectations(/* cardinality= */ 1, vibrator::HalResult<void>::ok(),
                        vibrator::HalResult<vibrator::ManagerCapabilities>::ok(
                                vibrator::ManagerCapabilities::SYNC),
-                       vibrator::HalResult<std::vector<int32_t>>::ok(ids),
-                       vibrator::HalResult<std::shared_ptr<vibrator::HalController>>::ok(nullptr));
+                       vibrator::HalResult<std::vector<int32_t>>::ok(VIBRATOR_IDS),
+                       vibrator::HalResult<std::shared_ptr<HalController>>::ok(nullptr));
 
     ASSERT_TRUE(mController->ping().isOk());
 
@@ -127,13 +128,13 @@ TEST_F(VibratorManagerHalControllerTest, TestApiCallsAreForwardedToHal) {
 
     auto getVibratorIdsResult = mController->getVibratorIds();
     ASSERT_TRUE(getVibratorIdsResult.isOk());
-    ASSERT_EQ(ids, getVibratorIdsResult.value());
+    ASSERT_EQ(VIBRATOR_IDS, getVibratorIdsResult.value());
 
-    auto getVibratorResult = mController->getVibrator(1);
+    auto getVibratorResult = mController->getVibrator(VIBRATOR_ID);
     ASSERT_TRUE(getVibratorResult.isOk());
     ASSERT_EQ(nullptr, getVibratorResult.value());
 
-    ASSERT_TRUE(mController->prepareSynced(ids).isOk());
+    ASSERT_TRUE(mController->prepareSynced(VIBRATOR_IDS).isOk());
     ASSERT_TRUE(mController->triggerSynced([]() {}).isOk());
     ASSERT_TRUE(mController->cancelSynced().isOk());
 
@@ -141,20 +142,18 @@ TEST_F(VibratorManagerHalControllerTest, TestApiCallsAreForwardedToHal) {
 }
 
 TEST_F(VibratorManagerHalControllerTest, TestUnsupportedApiResultDoNotResetHalConnection) {
-    std::vector<int32_t> ids;
-    setHalExpectations(/* cardinality= */ 1, ids, vibrator::HalResult<void>::unsupported(),
+    setHalExpectations(/* cardinality= */ 1, vibrator::HalResult<void>::unsupported(),
                        vibrator::HalResult<vibrator::ManagerCapabilities>::unsupported(),
                        vibrator::HalResult<std::vector<int32_t>>::unsupported(),
-                       vibrator::HalResult<
-                               std::shared_ptr<vibrator::HalController>>::unsupported());
+                       vibrator::HalResult<std::shared_ptr<HalController>>::unsupported());
 
     ASSERT_EQ(0, mConnectCounter);
 
     ASSERT_TRUE(mController->ping().isUnsupported());
     ASSERT_TRUE(mController->getCapabilities().isUnsupported());
     ASSERT_TRUE(mController->getVibratorIds().isUnsupported());
-    ASSERT_TRUE(mController->getVibrator(1).isUnsupported());
-    ASSERT_TRUE(mController->prepareSynced(ids).isUnsupported());
+    ASSERT_TRUE(mController->getVibrator(VIBRATOR_ID).isUnsupported());
+    ASSERT_TRUE(mController->prepareSynced(VIBRATOR_IDS).isUnsupported());
     ASSERT_TRUE(mController->triggerSynced([]() {}).isUnsupported());
     ASSERT_TRUE(mController->cancelSynced().isUnsupported());
 
@@ -162,20 +161,18 @@ TEST_F(VibratorManagerHalControllerTest, TestUnsupportedApiResultDoNotResetHalCo
 }
 
 TEST_F(VibratorManagerHalControllerTest, TestFailedApiResultResetsHalConnection) {
-    std::vector<int32_t> ids;
-    setHalExpectations(/* cardinality= */ 1, ids, vibrator::HalResult<void>::failed("message"),
+    setHalExpectations(MAX_ATTEMPTS, vibrator::HalResult<void>::failed("message"),
                        vibrator::HalResult<vibrator::ManagerCapabilities>::failed("message"),
                        vibrator::HalResult<std::vector<int32_t>>::failed("message"),
-                       vibrator::HalResult<std::shared_ptr<vibrator::HalController>>::failed(
-                               "message"));
+                       vibrator::HalResult<std::shared_ptr<HalController>>::failed("message"));
 
     ASSERT_EQ(0, mConnectCounter);
 
     ASSERT_TRUE(mController->ping().isFailed());
     ASSERT_TRUE(mController->getCapabilities().isFailed());
     ASSERT_TRUE(mController->getVibratorIds().isFailed());
-    ASSERT_TRUE(mController->getVibrator(1).isFailed());
-    ASSERT_TRUE(mController->prepareSynced(ids).isFailed());
+    ASSERT_TRUE(mController->getVibrator(VIBRATOR_ID).isFailed());
+    ASSERT_TRUE(mController->prepareSynced(VIBRATOR_IDS).isFailed());
     ASSERT_TRUE(mController->triggerSynced([]() {}).isFailed());
     ASSERT_TRUE(mController->cancelSynced().isFailed());
 

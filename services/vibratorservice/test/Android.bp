@@ -23,6 +23,7 @@ cc_test {
         "VibratorHalWrapperHidlV1_1Test.cpp",
         "VibratorHalWrapperHidlV1_2Test.cpp",
         "VibratorHalWrapperHidlV1_3Test.cpp",
+        "VibratorManagerHalControllerTest.cpp",
         "VibratorManagerHalWrapperAidlTest.cpp",
         "VibratorManagerHalWrapperLegacyTest.cpp",
     ],
