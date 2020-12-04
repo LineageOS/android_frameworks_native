@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
-interface IBinderRustNdkInteropTest {
-    @utf8InCpp String echo(@utf8InCpp String str);
-}
+#include "mock/MockFrameTimeline.h"
+
+namespace android::mock {
+
+// Explicit default instantiation is recommended.
+FrameTimeline::FrameTimeline(std::shared_ptr<TimeStats> timeStats)
+      : android::frametimeline::impl::FrameTimeline(timeStats) {}
+FrameTimeline::~FrameTimeline() = default;
+
+} // namespace android::mock

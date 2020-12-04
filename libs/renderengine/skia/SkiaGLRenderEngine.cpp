@@ -57,8 +57,6 @@
 #include "filters/BlurFilter.h"
 #include "filters/LinearEffect.h"
 
-extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
-
 bool checkGlError(const char* op, int lineNumber);
 
 namespace android {
@@ -155,16 +153,16 @@ std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
         LOG_ALWAYS_FATAL("failed to initialize EGL");
     }
 
-    const auto eglVersion = eglQueryStringImplementationANDROID(display, EGL_VERSION);
+    const auto eglVersion = eglQueryString(display, EGL_VERSION);
     if (!eglVersion) {
         checkGlError(__FUNCTION__, __LINE__);
-        LOG_ALWAYS_FATAL("eglQueryStringImplementationANDROID(EGL_VERSION) failed");
+        LOG_ALWAYS_FATAL("eglQueryString(EGL_VERSION) failed");
     }
 
-    const auto eglExtensions = eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS);
+    const auto eglExtensions = eglQueryString(display, EGL_EXTENSIONS);
     if (!eglExtensions) {
         checkGlError(__FUNCTION__, __LINE__);
-        LOG_ALWAYS_FATAL("eglQueryStringImplementationANDROID(EGL_EXTENSIONS) failed");
+        LOG_ALWAYS_FATAL("eglQueryString(EGL_EXTENSIONS) failed");
     }
 
     auto& extensions = gl::GLExtensions::getInstance();

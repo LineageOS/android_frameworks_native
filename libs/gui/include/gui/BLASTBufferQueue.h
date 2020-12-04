@@ -28,6 +28,7 @@
 
 #include <system/window.h>
 #include <thread>
+#include <queue>
 
 namespace android {
 
@@ -143,6 +144,8 @@ private:
     // should acquire the next frame as soon as it can and not wait for a frame to become available.
     // This is only relevant for shared buffer mode.
     bool mAutoRefresh GUARDED_BY(mMutex) = false;
+
+    std::queue<int64_t> mNextFrameTimelineVsyncIdQueue GUARDED_BY(mMutex);
 };
 
 } // namespace android

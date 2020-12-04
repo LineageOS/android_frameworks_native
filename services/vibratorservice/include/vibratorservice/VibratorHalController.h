@@ -27,27 +27,20 @@ namespace android {
 
 namespace vibrator {
 
-// Handles the connection to he underlying HAL implementation available.
-class HalConnector {
-public:
-    HalConnector() = default;
-    virtual ~HalConnector() = default;
-
-    virtual std::shared_ptr<HalWrapper> connect(std::shared_ptr<CallbackScheduler> scheduler);
-};
+std::shared_ptr<HalWrapper> connectHal(std::shared_ptr<CallbackScheduler> scheduler);
 
 // Controller for Vibrator HAL handle.
-// This relies on HalConnector to connect to the underlying Vibrator HAL service and reconnects to
-// it after each failed api call. This also ensures connecting to the service is thread-safe.
+// This relies on a given Connector to connect to the underlying Vibrator HAL service and reconnects
+// after each failed api call. This also ensures connecting to the service is thread-safe.
 class HalController : public HalWrapper {
 public:
-    HalController()
-          : HalController(std::make_unique<HalConnector>(), std::make_shared<CallbackScheduler>()) {
-    }
-    HalController(std::unique_ptr<HalConnector> halConnector,
-                  std::shared_ptr<CallbackScheduler> callbackScheduler)
+    using Connector =
+            std::function<std::shared_ptr<HalWrapper>(std::shared_ptr<CallbackScheduler>)>;
+
+    HalController() : HalController(std::make_shared<CallbackScheduler>(), &connectHal) {}
+    HalController(std::shared_ptr<CallbackScheduler> callbackScheduler, Connector connector)
           : HalWrapper(std::move(callbackScheduler)),
-            mHalConnector(std::move(halConnector)),
+            mConnector(connector),
             mConnectedHal(nullptr) {}
     virtual ~HalController() = default;
 
@@ -89,7 +82,7 @@ public:
             const std::function<void()>& completionCallback) final override;
 
 private:
-    std::unique_ptr<HalConnector> mHalConnector;
+    Connector mConnector;
     std::mutex mConnectedHalMutex;
     // Shared pointer to allow local copies to be used by different threads.
     std::shared_ptr<HalWrapper> mConnectedHal GUARDED_BY(mConnectedHalMutex);
