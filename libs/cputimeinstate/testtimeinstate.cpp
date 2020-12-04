@@ -19,6 +19,8 @@
 
 #include <sys/sysinfo.h>
 
+#include <pthread.h>
+#include <semaphore.h>
 #include <numeric>
 #include <unordered_map>
 #include <vector>
@@ -502,6 +504,86 @@ TEST(TimeInStateTest, GetCpuFreqs) {
 
     ASSERT_EQ(freqs->size(), times->size());
     for (size_t i = 0; i < freqs->size(); ++i) EXPECT_EQ((*freqs)[i].size(), (*times)[i].size());
+}
+
+uint64_t timeNanos() {
+    struct timespec spec;
+    clock_gettime(CLOCK_MONOTONIC, &spec);
+    return spec.tv_sec * 1000000000 + spec.tv_nsec;
+}
+
+// Keeps CPU busy with some number crunching
+void useCpu() {
+    long sum = 0;
+    for (int i = 0; i < 100000; i++) {
+        sum *= i;
+    }
+}
+
+sem_t pingsem, pongsem;
+
+void *testThread(void *) {
+    for (int i = 0; i < 10; i++) {
+        sem_wait(&pingsem);
+        useCpu();
+        sem_post(&pongsem);
+    }
+    return nullptr;
+}
+
+TEST(TimeInStateTest, GetAggregatedTaskCpuFreqTimes) {
+    uint64_t startTimeNs = timeNanos();
+
+    sem_init(&pingsem, 0, 1);
+    sem_init(&pongsem, 0, 0);
+
+    pthread_t thread;
+    ASSERT_EQ(pthread_create(&thread, NULL, &testThread, NULL), 0);
+
+    // This process may have been running for some time, so when we start tracking
+    // CPU time, the very first switch may include the accumulated time.
+    // Yield the remainder of this timeslice to the newly created thread.
+    sem_wait(&pongsem);
+    sem_post(&pingsem);
+
+    pid_t tgid = getpid();
+    startTrackingProcessCpuTimes(tgid);
+
+    pid_t tid = pthread_gettid_np(thread);
+    startAggregatingTaskCpuTimes(tid, 42);
+
+    // Play ping-pong with the other thread to ensure that both threads get
+    // some CPU time.
+    for (int i = 0; i < 9; i++) {
+        sem_wait(&pongsem);
+        useCpu();
+        sem_post(&pingsem);
+    }
+
+    pthread_join(thread, NULL);
+
+    std::optional<std::unordered_map<uint16_t, std::vector<std::vector<uint64_t>>>> optionalMap =
+            getAggregatedTaskCpuFreqTimes(tgid, {0, 42});
+    ASSERT_TRUE(optionalMap);
+
+    std::unordered_map<uint16_t, std::vector<std::vector<uint64_t>>> map = *optionalMap;
+    ASSERT_EQ(map.size(), 2u);
+
+    uint64_t testDurationNs = timeNanos() - startTimeNs;
+    for (auto pair : map) {
+        uint16_t aggregationKey = pair.first;
+        ASSERT_TRUE(aggregationKey == 0 || aggregationKey == 42);
+
+        std::vector<std::vector<uint64_t>> timesInState = pair.second;
+        uint64_t totalCpuTime = 0;
+        for (size_t i = 0; i < timesInState.size(); i++) {
+            for (size_t j = 0; j < timesInState[i].size(); j++) {
+                totalCpuTime += timesInState[i][j];
+            }
+        }
+        ASSERT_GT(totalCpuTime, 0ul);
+        ASSERT_LE(totalCpuTime, testDurationNs);
+    }
 }
 
 } // namespace bpf
