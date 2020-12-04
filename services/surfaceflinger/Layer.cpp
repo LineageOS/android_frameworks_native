@@ -74,6 +74,9 @@
 #define DEBUG_RESIZE 0
 
 namespace android {
+namespace {
+constexpr int kDumpTableRowLength = 159;
+} // namespace
 
 using base::StringAppendF;
 using namespace android::flag_operators;
@@ -1622,11 +1625,8 @@ LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
 }
 
 void Layer::miniDumpHeader(std::string& result) {
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------\n");
+    result.append(kDumpTableRowLength, '-');
+    result.append("\n");
     result.append(" Layer name\n");
     result.append("           Z | ");
     result.append(" Window Type | ");
@@ -1634,12 +1634,9 @@ void Layer::miniDumpHeader(std::string& result) {
     result.append(" Transform | ");
     result.append("  Disp Frame (LTRB) | ");
     result.append("         Source Crop (LTRB) | ");
-    result.append("    Frame Rate (Explicit) [Focused]\n");
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------\n");
+    result.append("    Frame Rate (Explicit) (Seamlessness) [Focused]\n");
+    result.append(kDumpTableRowLength, '-');
+    result.append("\n");
 }
 
 std::string Layer::frameRateCompatibilityString(Layer::FrameRateCompatibility compatibility) {
@@ -1690,21 +1687,18 @@ void Layer::miniDump(std::string& result, const DisplayDevice& display) const {
                   crop.bottom);
     if (layerState.frameRate.rate.isValid() ||
         layerState.frameRate.type != FrameRateCompatibility::Default) {
-        StringAppendF(&result, "%s %15s seamless=%s", to_string(layerState.frameRate.rate).c_str(),
+        StringAppendF(&result, "%s %15s %17s", to_string(layerState.frameRate.rate).c_str(),
                       frameRateCompatibilityString(layerState.frameRate.type).c_str(),
                       toString(layerState.frameRate.seamlessness).c_str());
     } else {
-        StringAppendF(&result, "                         ");
+        result.append(41, ' ');
     }
 
     const auto focused = isLayerFocusedBasedOnPriority(getFrameRateSelectionPriority());
     StringAppendF(&result, "    [%s]\n", focused ? "*" : " ");
 
-    result.append("- - - - - - - - - - - - - - - - ");
-    result.append("- - - - - - - - - - - - - - - - ");
-    result.append("- - - - - - - - - - - - - - - - ");
-    result.append("- - - - - - - - - - - - - - - - ");
-    result.append("- - - - - - - -\n");
+    result.append(kDumpTableRowLength, '-');
+    result.append("\n");
 }
 
 void Layer::dumpFrameStats(std::string& result) const {
