@@ -53,6 +53,8 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 #include <android-base/stringprintf.h>
 #include <android/os/IInputConstants.h>
 #include <binder/Binder.h>
+#include <binder/IServiceManager.h>
+#include <com/android/internal/compat/IPlatformCompatNative.h>
 #include <input/InputDevice.h>
 #include <input/InputWindow.h>
 #include <log/log.h>
@@ -79,8 +81,10 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 
 using android::base::StringPrintf;
 using android::os::BlockUntrustedTouchesMode;
+using android::os::IInputConstants;
 using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
+using com::android::internal::compat::IPlatformCompatNative;
 
 namespace android::inputdispatcher {
 
@@ -422,6 +426,15 @@ static bool sharedPointersEqual(const std::shared_ptr<T>& lhs, const std::shared
     return *lhs == *rhs;
 }
 
+static sp<IPlatformCompatNative> getCompatService() {
+    sp<IBinder> service(defaultServiceManager()->getService(String16("platform_compat_native")));
+    if (service == nullptr) {
+        ALOGE("Failed to link to compat service");
+        return nullptr;
+    }
+    return interface_cast<IPlatformCompatNative>(service);
+}
+
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
@@ -440,7 +453,8 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         // initialize it here anyways.
         mInTouchMode(true),
         mMaximumObscuringOpacityForTouch(1.0f),
-        mFocusedDisplayId(ADISPLAY_ID_DEFAULT) {
+        mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
+        mCompatService(getCompatService()) {
     mLooper = new Looper(false);
     mReporter = createInputReporter();
 
@@ -4010,8 +4024,8 @@ void InputDispatcher::setInputWindows(
         const std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>>& handlesPerDisplay) {
     { // acquire lock
         std::scoped_lock _l(mLock);
-        for (auto const& i : handlesPerDisplay) {
-            setInputWindowsLocked(i.second, i.first);
+        for (const auto& [displayId, handles] : handlesPerDisplay) {
+            setInputWindowsLocked(handles, displayId);
         }
     }
     // Wake up poll loop since it may need to make new input dispatching choices.
@@ -4113,6 +4127,18 @@ void InputDispatcher::setInputWindowsLocked(
                 ALOGD("Window went away: %s", oldWindowHandle->getName().c_str());
             }
             oldWindowHandle->releaseChannel();
+            // To avoid making too many calls into the compat framework, only
+            // check for window flags when windows are going away.
+            // TODO(b/157929241) : delete this. This is only needed temporarily
+            // in order to gather some data about the flag usage
+            if (oldWindowHandle->getInfo()->flags.test(InputWindowInfo::Flag::SLIPPERY)) {
+                ALOGW("%s has FLAG_SLIPPERY. Please report this in b/157929241",
+                      oldWindowHandle->getName().c_str());
+                if (mCompatService != nullptr) {
+                    mCompatService->reportChangeByUid(IInputConstants::BLOCK_FLAG_SLIPPERY,
+                                                      oldWindowHandle->getInfo()->ownerUid);
+                }
+            }
         }
     }
 }
