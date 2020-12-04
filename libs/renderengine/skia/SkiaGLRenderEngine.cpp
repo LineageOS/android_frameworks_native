@@ -738,7 +738,7 @@ inline SkRect SkiaGLRenderEngine::getSkRect(const Rect& rect) {
 }
 
 inline SkRRect SkiaGLRenderEngine::getRoundedRect(const LayerSettings* layer) {
-    const auto rect = getSkRect(layer->geometry.roundedCornersCrop);
+    const auto rect = getSkRect(layer->geometry.boundaries);
     const auto cornerRadius = layer->geometry.roundedCornersRadius;
     return SkRRect::MakeRectXY(rect, cornerRadius, cornerRadius);
 }
