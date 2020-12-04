@@ -33,5 +33,6 @@ cc_test {
         "-Wall",
         "-Wextra",
     ],
+    require_root: true,
 }
 

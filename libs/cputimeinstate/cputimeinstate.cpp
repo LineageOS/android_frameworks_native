@@ -59,6 +59,7 @@ static std::set<uint32_t> gAllFreqs;
 static unique_fd gTisMapFd;
 static unique_fd gConcurrentMapFd;
 static unique_fd gUidLastUpdateMapFd;
+static unique_fd gPidTisMapFd;
 
 static std::optional<std::vector<uint32_t>> readNumbersFromFile(const std::string &path) {
     std::string data;
@@ -138,6 +139,12 @@ static bool initGlobals() {
     gUidLastUpdateMapFd =
             unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_last_update_map")};
     if (gUidLastUpdateMapFd < 0) return false;
+
+    gPidTisMapFd = unique_fd{mapRetrieveRO(BPF_FS_PATH "map_time_in_state_pid_time_in_state_map")};
+    if (gPidTisMapFd < 0) return false;
+
+    unique_fd trackedPidMapFd(mapRetrieveWO(BPF_FS_PATH "map_time_in_state_pid_tracked_map"));
+    if (trackedPidMapFd < 0) return false;
 
     gInitialized = true;
     return true;
@@ -222,7 +229,8 @@ bool startTrackingUidTimes() {
     }
 
     gTracking = attachTracepointProgram("sched", "sched_switch") &&
-            attachTracepointProgram("power", "cpu_frequency");
+            attachTracepointProgram("power", "cpu_frequency") &&
+            attachTracepointProgram("sched", "sched_process_free");
     return gTracking;
 }
 
@@ -500,6 +508,107 @@ bool clearUidTimes(uint32_t uid) {
 
     if (deleteMapEntry(gUidLastUpdateMapFd, &uid) && errno != ENOENT) return false;
     return true;
+}
+
+bool startTrackingProcessCpuTimes(pid_t pid) {
+    if (!gInitialized && !initGlobals()) return false;
+
+    unique_fd trackedPidHashMapFd(
+            mapRetrieveWO(BPF_FS_PATH "map_time_in_state_pid_tracked_hash_map"));
+    if (trackedPidHashMapFd < 0) return false;
+
+    unique_fd trackedPidMapFd(mapRetrieveWO(BPF_FS_PATH "map_time_in_state_pid_tracked_map"));
+    if (trackedPidMapFd < 0) return false;
+
+    for (uint32_t index = 0; index < MAX_TRACKED_PIDS; index++) {
+        // Find first available [index, pid] entry in the pid_tracked_hash_map map
+        if (writeToMapEntry(trackedPidHashMapFd, &index, &pid, BPF_NOEXIST) != 0) {
+            if (errno != EEXIST) {
+                return false;
+            }
+            continue; // This index is already taken
+        }
+
+        tracked_pid_t tracked_pid = {.pid = pid, .state = TRACKED_PID_STATE_ACTIVE};
+        if (writeToMapEntry(trackedPidMapFd, &index, &tracked_pid, BPF_ANY) != 0) {
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+// Marks the specified task identified by its PID (aka TID) for CPU time-in-state tracking
+// aggregated with other tasks sharing the same TGID and aggregation key.
+bool startAggregatingTaskCpuTimes(pid_t pid, uint16_t aggregationKey) {
+    if (!gInitialized && !initGlobals()) return false;
+
+    unique_fd taskAggregationMapFd(
+            mapRetrieveWO(BPF_FS_PATH "map_time_in_state_pid_task_aggregation_map"));
+    if (taskAggregationMapFd < 0) return false;
+
+    return writeToMapEntry(taskAggregationMapFd, &pid, &aggregationKey, BPF_ANY) == 0;
+}
+
+// Retrieves the times in ns that each thread spent running at each CPU freq, aggregated by
+// aggregation key.
+// Return contains no value on error, otherwise it contains a map from aggregation keys
+// to vectors of vectors using the format:
+// { aggKey0 -> [[t0_0_0, t0_0_1, ...], [t0_1_0, t0_1_1, ...], ...],
+//   aggKey1 -> [[t1_0_0, t1_0_1, ...], [t1_1_0, t1_1_1, ...], ...], ... }
+// where ti_j_k is the ns tid i spent running on the jth cluster at the cluster's kth lowest freq.
+std::optional<std::unordered_map<uint16_t, std::vector<std::vector<uint64_t>>>>
+getAggregatedTaskCpuFreqTimes(pid_t tgid, const std::vector<uint16_t> &aggregationKeys) {
+    if (!gInitialized && !initGlobals()) return {};
+
+    uint32_t maxFreqCount = 0;
+    std::vector<std::vector<uint64_t>> mapFormat;
+    for (const auto &freqList : gPolicyFreqs) {
+        if (freqList.size() > maxFreqCount) maxFreqCount = freqList.size();
+        mapFormat.emplace_back(freqList.size(), 0);
+    }
+
+    bool dataCollected = false;
+    std::unordered_map<uint16_t, std::vector<std::vector<uint64_t>>> map;
+    std::vector<tis_val_t> vals(gNCpus);
+    for (uint16_t aggregationKey : aggregationKeys) {
+        map.emplace(aggregationKey, mapFormat);
+
+        aggregated_task_tis_key_t key{.tgid = tgid, .aggregation_key = aggregationKey};
+        for (key.bucket = 0; key.bucket <= (maxFreqCount - 1) / FREQS_PER_ENTRY; ++key.bucket) {
+            if (findMapEntry(gPidTisMapFd, &key, vals.data()) != 0) {
+                if (errno != ENOENT) {
+                    return {};
+                }
+                continue;
+            } else {
+                dataCollected = true;
+            }
+
+            // Combine data by aggregating time-in-state data grouped by CPU cluster aka policy.
+            uint32_t offset = key.bucket * FREQS_PER_ENTRY;
+            uint32_t nextOffset = offset + FREQS_PER_ENTRY;
+            for (uint32_t j = 0; j < gNPolicies; ++j) {
+                if (offset >= gPolicyFreqs[j].size()) continue;
+                auto begin = map[key.aggregation_key][j].begin() + offset;
+                auto end = nextOffset < gPolicyFreqs[j].size() ? begin + FREQS_PER_ENTRY
+                                                               : map[key.aggregation_key][j].end();
+                for (const auto &cpu : gPolicyCpus[j]) {
+                    std::transform(begin, end, std::begin(vals[cpu].ar), begin,
+                                   std::plus<uint64_t>());
+                }
+            }
+        }
+    }
+
+    if (!dataCollected) {
+        // Check if eBPF is supported on this device. If it is, gTisMap should not be empty.
+        time_key_t key;
+        if (getFirstMapKey(gTisMapFd, &key) != 0) {
+            return {};
+        }
+    }
+    return map;
 }
 
 } // namespace bpf
