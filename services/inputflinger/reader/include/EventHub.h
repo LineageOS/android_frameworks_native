@@ -502,7 +502,7 @@ private:
     void releaseControllerNumberLocked(int32_t num);
 
     // Protect all internal state.
-    mutable Mutex mLock;
+    mutable std::mutex mLock;
 
     // The actual id of the built-in keyboard, or NO_BUILT_IN_KEYBOARD if none.
     // EventHub remaps the built-in keyboard to id 0 externally as required by the API.
