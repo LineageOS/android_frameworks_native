@@ -356,11 +356,11 @@ TEST_F(TimeStatsTest, canIncreaseJankyFrames) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
-    mTimeStats->incrementJankyFrames(TimeStats::JankType::SurfaceFlingerDeadlineMissed);
-    mTimeStats->incrementJankyFrames(TimeStats::JankType::SurfaceFlingerGpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(TimeStats::JankType::Display);
-    mTimeStats->incrementJankyFrames(TimeStats::JankType::AppDeadlineMissed);
-    mTimeStats->incrementJankyFrames(TimeStats::JankType::None);
+    mTimeStats->incrementJankyFrames(JankType::SurfaceFlingerDeadlineMissed);
+    mTimeStats->incrementJankyFrames(JankType::SurfaceFlingerGpuDeadlineMissed);
+    mTimeStats->incrementJankyFrames(JankType::Display);
+    mTimeStats->incrementJankyFrames(JankType::AppDeadlineMissed);
+    mTimeStats->incrementJankyFrames(JankType::None);
 
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
     std::string expectedResult = "totalTimelineFrames = " + std::to_string(5);
@@ -383,13 +383,13 @@ TEST_F(TimeStatsTest, canIncreaseJankyFramesForLayer) {
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
     mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0),
-                                     TimeStats::JankType::SurfaceFlingerDeadlineMissed);
+                                     JankType::SurfaceFlingerDeadlineMissed);
     mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0),
-                                     TimeStats::JankType::SurfaceFlingerGpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), TimeStats::JankType::Display);
+                                     JankType::SurfaceFlingerGpuDeadlineMissed);
+    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), JankType::Display);
     mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0),
-                                     TimeStats::JankType::AppDeadlineMissed);
-    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), TimeStats::JankType::None);
+                                     JankType::AppDeadlineMissed);
+    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), JankType::None);
 
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
     std::string expectedResult = "totalTimelineFrames = " + std::to_string(5);
@@ -848,13 +848,13 @@ TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
             std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
 
     mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0),
-                                     TimeStats::JankType::SurfaceFlingerDeadlineMissed);
+                                     JankType::SurfaceFlingerDeadlineMissed);
     mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0),
-                                     TimeStats::JankType::SurfaceFlingerGpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), TimeStats::JankType::Display);
+                                     JankType::SurfaceFlingerGpuDeadlineMissed);
+    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), JankType::Display);
     mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0),
-                                     TimeStats::JankType::AppDeadlineMissed);
-    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), TimeStats::JankType::None);
+                                     JankType::AppDeadlineMissed);
+    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), JankType::None);
 
     EXPECT_TRUE(inputCommand(InputCommand::CLEAR, FMT_STRING).empty());
 
@@ -987,11 +987,11 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
 
-    mTimeStats->incrementJankyFrames(TimeStats::JankType::SurfaceFlingerDeadlineMissed);
-    mTimeStats->incrementJankyFrames(TimeStats::JankType::SurfaceFlingerGpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(TimeStats::JankType::Display);
-    mTimeStats->incrementJankyFrames(TimeStats::JankType::AppDeadlineMissed);
-    mTimeStats->incrementJankyFrames(TimeStats::JankType::None);
+    mTimeStats->incrementJankyFrames(JankType::SurfaceFlingerDeadlineMissed);
+    mTimeStats->incrementJankyFrames(JankType::SurfaceFlingerGpuDeadlineMissed);
+    mTimeStats->incrementJankyFrames(JankType::Display);
+    mTimeStats->incrementJankyFrames(JankType::AppDeadlineMissed);
+    mTimeStats->incrementJankyFrames(JankType::None);
 
     EXPECT_THAT(mDelegate->mAtomTags,
                 UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
@@ -1062,13 +1062,13 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
 
     mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0),
-                                     TimeStats::JankType::SurfaceFlingerDeadlineMissed);
+                                     JankType::SurfaceFlingerDeadlineMissed);
     mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0),
-                                     TimeStats::JankType::SurfaceFlingerGpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), TimeStats::JankType::Display);
+                                     JankType::SurfaceFlingerGpuDeadlineMissed);
+    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), JankType::Display);
     mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0),
-                                     TimeStats::JankType::AppDeadlineMissed);
-    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), TimeStats::JankType::None);
+                                     JankType::AppDeadlineMissed);
+    mTimeStats->incrementJankyFrames(UID_0, genLayerName(LAYER_ID_0), JankType::None);
 
     EXPECT_THAT(mDelegate->mAtomTags,
                 UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,

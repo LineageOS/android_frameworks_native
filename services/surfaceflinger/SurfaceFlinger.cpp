@@ -2111,7 +2111,7 @@ void SurfaceFlinger::postComposition() {
     ALOGV("postComposition");
 
     nsecs_t dequeueReadyTime = systemTime();
-    for (auto layer : mLayersWithQueuedFrames) {
+    for (const auto& layer : mLayersWithQueuedFrames) {
         layer->releasePendingBuffer(dequeueReadyTime);
     }
 
@@ -3056,7 +3056,7 @@ bool SurfaceFlinger::handlePageFlip() {
         // writes to Layer current state. See also b/119481871
         Mutex::Autolock lock(mStateLock);
 
-        for (auto& layer : mLayersWithQueuedFrames) {
+        for (const auto& layer : mLayersWithQueuedFrames) {
             if (layer->latchBuffer(visibleRegions, latchTime, expectedPresentTime)) {
                 mLayersPendingRefresh.push_back(layer);
             }

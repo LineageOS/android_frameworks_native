@@ -150,6 +150,16 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     if (mRequestedSize != newSize) {
         mRequestedSize.set(newSize);
         mBufferItemConsumer->setDefaultBufferSize(mRequestedSize.width, mRequestedSize.height);
+        if (mLastBufferScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE) {
+            // If the buffer supports scaling, update the frame immediately since the client may
+            // want to scale the existing buffer to the new size.
+            mSize = mRequestedSize;
+            SurfaceComposerClient::Transaction t;
+            t.setFrame(mSurfaceControl,
+                       {0, 0, static_cast<int32_t>(mSize.width),
+                        static_cast<int32_t>(mSize.height)});
+            t.apply();
+        }
     }
 }
 
@@ -276,6 +286,8 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);
 
+    mLastBufferScalingMode = bufferItem.mScalingMode;
+
     t->setBuffer(mSurfaceControl, buffer);
     t->setAcquireFence(mSurfaceControl,
                        bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE);
@@ -348,7 +360,6 @@ void BLASTBufferQueue::setNextTransaction(SurfaceComposerClient::Transaction* t)
 
 bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
     if (item.mScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE) {
-        mSize = mRequestedSize;
         // Only reject buffers if scaling mode is freeze.
         return false;
     }
