@@ -274,6 +274,7 @@ binder::Status SetInputWindowsListener::onSetInputWindowsFinished() {
 
 const String16 sHardwareTest("android.permission.HARDWARE_TEST");
 const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER");
+const String16 sRotateSurfaceFlinger("android.permission.ROTATE_SURFACE_FLINGER");
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
 const char* KERNEL_IDLE_TIMER_PROP = "graphics.display.kernel_idle_timer.enabled";
@@ -322,6 +323,14 @@ std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
             return std::string("Unknown ") +
                 std::to_string(static_cast<int>(displayColorSetting));
     }
+}
+
+bool callingThreadHasRotateSurfaceFlingerAccess() {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    return uid == AID_GRAPHICS || uid == AID_SYSTEM ||
+            PermissionCache::checkPermission(sRotateSurfaceFlinger, pid, uid);
 }
 
 SurfaceFlingerBE::SurfaceFlingerBE() : mHwcServiceName(getHwcServiceName()) {}
@@ -3652,15 +3661,20 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         // must now be cropped to a non rectangular 8 sided region.
         //
         // Of course we can fix this in the future. For now, we are lucky, SurfaceControl is
-        // private API, and the WindowManager only uses rotation in one case, which is on a top
-        // level layer in which cropping is not an issue.
+        // private API, and arbitrary rotation is used in limited use cases, for instance:
+        // - WindowManager only uses rotation in one case, which is on a top level layer in which
+        //   cropping is not an issue.
+        // - Launcher, as a privileged app, uses this to transition an application to PiP
+        //   (picture-in-picture) mode.
         //
         // However given that abuse of rotation matrices could lead to surfaces extending outside
-        // of cropped areas, we need to prevent non-root clients without permission ACCESS_SURFACE_FLINGER
-        // (a.k.a. everyone except WindowManager and tests) from setting non rectangle preserving
-        // transformations.
-        if (layer->setMatrix(s.matrix, privileged))
-            flags |= eTraversalNeeded;
+        // of cropped areas, we need to prevent non-root clients without permission
+        // ACCESS_SURFACE_FLINGER nor ROTATE_SURFACE_FLINGER
+        // (a.k.a. everyone except WindowManager / tests / Launcher) from setting non rectangle
+        // preserving transformations.
+        bool allowNonRectPreservingTransforms =
+                privileged || callingThreadHasRotateSurfaceFlingerAccess();
+        if (layer->setMatrix(s.matrix, allowNonRectPreservingTransforms)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eTransparentRegionChanged) {
         if (layer->setTransparentRegionHint(s.transparentRegion))
