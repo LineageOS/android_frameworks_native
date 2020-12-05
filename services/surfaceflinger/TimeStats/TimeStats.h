@@ -31,6 +31,7 @@
 #include <statslog.h>
 #include <timestatsproto/TimeStatsHelper.h>
 #include <timestatsproto/TimeStatsProtoHeader.h>
+#include <gui/JankInfo.h>
 #include <ui/FenceTime.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
@@ -109,26 +110,6 @@ public:
     virtual void setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime) = 0;
     virtual void setPresentFence(int32_t layerId, uint64_t frameNumber,
                                  const std::shared_ptr<FenceTime>& presentFence) = 0;
-
-    // Subset of jank metadata tracked by FrameTimeline for the purpose of funneling to telemetry.
-    enum JankType {
-        // No Jank
-        None = 0x0,
-        // Jank not related to SurfaceFlinger or the App
-        Display = 0x1,
-        // SF took too long on the CPU
-        SurfaceFlingerDeadlineMissed = 0x2,
-        // SF took too long on the GPU
-        SurfaceFlingerGpuDeadlineMissed = 0x4,
-        // Either App or GPU took too long on the frame
-        AppDeadlineMissed = 0x8,
-        // Predictions live for 120ms, if prediction is expired for a frame, there is definitely a
-        // jank
-        // associated with the App if this is for a SurfaceFrame, and SF for a DisplayFrame.
-        PredictionExpired = 0x10,
-        // Latching a buffer early might cause an early present of the frame
-        SurfaceFlingerEarlyLatch = 0x20,
-    };
 
     // Increments janky frames, tracked globally. Because FrameTimeline is the infrastructure
     // responsible for computing jank in the system, this is expected to be called from

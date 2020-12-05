@@ -18,6 +18,7 @@
 
 #include <../TimeStats/TimeStats.h>
 #include <gui/ISurfaceComposer.h>
+#include <gui/JankInfo.h>
 #include <perfetto/trace/android/frame_timeline_event.pbzero.h>
 #include <perfetto/tracing.h>
 #include <ui/FenceTime.h>
@@ -208,7 +209,7 @@ public:
     PresentState getPresentState() const override;
     PredictionState getPredictionState() const override { return mPredictionState; };
     pid_t getOwnerPid() const override { return mOwnerPid; };
-    TimeStats::JankType getJankType() const;
+    JankType getJankType() const;
     int64_t getToken() const { return mToken; };
     nsecs_t getBaseTime() const;
     uid_t getOwnerUid() const { return mOwnerUid; };
@@ -219,7 +220,7 @@ public:
     void setAcquireFenceTime(nsecs_t acquireFenceTime) override;
     void setPresentState(PresentState state) override;
     void setActualPresentTime(nsecs_t presentTime);
-    void setJankInfo(TimeStats::JankType jankType, int32_t jankMetadata);
+    void setJankInfo(JankType jankType, int32_t jankMetadata);
 
     // All the timestamps are dumped relative to the baseTime
     void dump(std::string& result, const std::string& indent, nsecs_t baseTime);
@@ -241,7 +242,7 @@ private:
     TimelineItem mActuals GUARDED_BY(mMutex);
     nsecs_t mActualQueueTime GUARDED_BY(mMutex);
     mutable std::mutex mMutex;
-    TimeStats::JankType mJankType GUARDED_BY(mMutex); // Enum for the type of jank
+    JankType mJankType GUARDED_BY(mMutex); // Enum for the type of jank
     int32_t mJankMetadata GUARDED_BY(mMutex); // Additional details about the jank
 };
 
@@ -301,7 +302,7 @@ private:
         std::vector<std::unique_ptr<SurfaceFrame>> surfaceFrames;
 
         PredictionState predictionState = PredictionState::None;
-        TimeStats::JankType jankType = TimeStats::JankType::None; // Enum for the type of jank
+        JankType jankType = JankType::None; // Enum for the type of jank
         int32_t jankMetadata = 0x0; // Additional details about the jank
     };
 

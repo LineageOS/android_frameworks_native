@@ -127,10 +127,6 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
         lastDrawTarget = readSurface;
     }
 
-    {
-        ATRACE_NAME("Flush Offscreen Surfaces");
-        lastDrawTarget->flushAndSubmit();
-    }
     return lastDrawTarget;
 }
 

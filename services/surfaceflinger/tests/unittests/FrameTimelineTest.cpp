@@ -379,9 +379,9 @@ TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(sUidOne, sLayerNameOne,
-                                     HasBit(TimeStats::JankType::SurfaceFlingerDeadlineMissed)));
+                                     HasBit(JankType::SurfaceFlingerDeadlineMissed)));
     EXPECT_CALL(*mTimeStats,
-                incrementJankyFrames(HasBit(TimeStats::JankType::SurfaceFlingerDeadlineMissed)));
+                incrementJankyFrames(HasBit(JankType::SurfaceFlingerDeadlineMissed)));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions(
             {std::chrono::duration_cast<std::chrono::nanoseconds>(10ms).count(),
@@ -407,8 +407,8 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
     EXPECT_CALL(*mTimeStats,
-                incrementJankyFrames(sUidOne, sLayerNameOne, HasBit(TimeStats::JankType::Display)));
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(HasBit(TimeStats::JankType::Display)));
+                incrementJankyFrames(sUidOne, sLayerNameOne, HasBit(JankType::Display)));
+    EXPECT_CALL(*mTimeStats, incrementJankyFrames(HasBit(JankType::Display)));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions(
             {std::chrono::duration_cast<std::chrono::nanoseconds>(10ms).count(),
@@ -434,8 +434,8 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMiss) {
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(sUidOne, sLayerNameOne,
-                                     HasBit(TimeStats::JankType::AppDeadlineMissed)));
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(HasBit(TimeStats::JankType::AppDeadlineMissed)));
+                                     HasBit(JankType::AppDeadlineMissed)));
+    EXPECT_CALL(*mTimeStats, incrementJankyFrames(HasBit(JankType::AppDeadlineMissed)));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions(
             {std::chrono::duration_cast<std::chrono::nanoseconds>(10ms).count(),
