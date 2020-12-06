@@ -56,7 +56,7 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
     mQueuedListener = new QueuedInputListener(listener);
 
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::lock_guard<std::mutex> lock(mLock);
 
         refreshConfigurationLocked(0);
         updateGlobalMetaStateLocked();
@@ -87,8 +87,9 @@ void InputReader::loopOnce() {
     int32_t oldGeneration;
     int32_t timeoutMillis;
     bool inputDevicesChanged = false;
+    std::vector<InputDeviceInfo> inputDevices;
     { // acquire lock
-        AutoMutex _l(mLock);
+        std::lock_guard<std::mutex> lock(mLock);
 
         oldGeneration = mGeneration;
         timeoutMillis = -1;
@@ -107,8 +108,8 @@ void InputReader::loopOnce() {
     size_t count = mEventHub->getEvents(timeoutMillis, mEventBuffer, EVENT_BUFFER_SIZE);
 
     { // acquire lock
-        AutoMutex _l(mLock);
-        mReaderIsAliveCondition.broadcast();
+        std::lock_guard<std::mutex> lock(mLock);
+        mReaderIsAliveCondition.notify_all();
 
         if (count) {
             processEventsLocked(mEventBuffer, count);
@@ -127,12 +128,13 @@ void InputReader::loopOnce() {
 
         if (oldGeneration != mGeneration) {
             inputDevicesChanged = true;
+            inputDevices = getInputDevicesLocked();
         }
     } // release lock
 
     // Send out a message that the describes the changed input devices.
     if (inputDevicesChanged) {
-        mPolicy->notifyInputDevicesChanged(getInputDevicesLocked());
+        mPolicy->notifyInputDevicesChanged(inputDevices);
     }
 
     // Flush queued events out to the listener.
@@ -216,7 +218,7 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t eventHubId) {
     bumpGenerationLocked();
 
     if (device->getClasses().test(InputDeviceClass::EXTERNAL_STYLUS)) {
-        notifyExternalStylusPresenceChanged();
+        notifyExternalStylusPresenceChangedLocked();
     }
 }
 
@@ -256,7 +258,7 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
     device->removeEventHubDevice(eventHubId);
 
     if (device->getClasses().test(InputDeviceClass::EXTERNAL_STYLUS)) {
-        notifyExternalStylusPresenceChanged();
+        notifyExternalStylusPresenceChangedLocked();
     }
 
     if (device->hasEventHubDevices()) {
@@ -301,7 +303,7 @@ void InputReader::processEventsForDeviceLocked(int32_t eventHubId, const RawEven
     device->process(rawEvents, count);
 }
 
-InputDevice* InputReader::findInputDevice(int32_t deviceId) {
+InputDevice* InputReader::findInputDeviceLocked(int32_t deviceId) {
     auto deviceIt =
             std::find_if(mDevices.begin(), mDevices.end(), [deviceId](const auto& devicePair) {
                 return devicePair.second->getId() == deviceId;
@@ -389,7 +391,7 @@ int32_t InputReader::getLedMetaStateLocked() {
     return mLedMetaState;
 }
 
-void InputReader::notifyExternalStylusPresenceChanged() {
+void InputReader::notifyExternalStylusPresenceChangedLocked() {
     refreshConfigurationLocked(InputReaderConfiguration::CHANGE_EXTERNAL_STYLUS_PRESENCE);
 }
 
@@ -405,6 +407,7 @@ void InputReader::getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& o
 }
 
 void InputReader::dispatchExternalStylusState(const StylusState& state) {
+    std::lock_guard<std::mutex> lock(mLock);
     for (auto& devicePair : mDevices) {
         std::shared_ptr<InputDevice>& device = devicePair.second;
         device->updateExternalStylusState(state);
@@ -479,7 +482,7 @@ int32_t InputReader::bumpGenerationLocked() {
 }
 
 std::vector<InputDeviceInfo> InputReader::getInputDevices() const {
-    AutoMutex _l(mLock);
+    std::lock_guard<std::mutex> lock(mLock);
     return getInputDevicesLocked();
 }
 
@@ -498,19 +501,19 @@ std::vector<InputDeviceInfo> InputReader::getInputDevicesLocked() const {
 }
 
 int32_t InputReader::getKeyCodeState(int32_t deviceId, uint32_t sourceMask, int32_t keyCode) {
-    AutoMutex _l(mLock);
+    std::lock_guard<std::mutex> lock(mLock);
 
     return getStateLocked(deviceId, sourceMask, keyCode, &InputDevice::getKeyCodeState);
 }
 
 int32_t InputReader::getScanCodeState(int32_t deviceId, uint32_t sourceMask, int32_t scanCode) {
-    AutoMutex _l(mLock);
+    std::lock_guard<std::mutex> lock(mLock);
 
     return getStateLocked(deviceId, sourceMask, scanCode, &InputDevice::getScanCodeState);
 }
 
 int32_t InputReader::getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t switchCode) {
-    AutoMutex _l(mLock);
+    std::lock_guard<std::mutex> lock(mLock);
 
     return getStateLocked(deviceId, sourceMask, switchCode, &InputDevice::getSwitchState);
 }
@@ -519,7 +522,7 @@ int32_t InputReader::getStateLocked(int32_t deviceId, uint32_t sourceMask, int32
                                     GetStateFunc getStateFunc) {
     int32_t result = AKEY_STATE_UNKNOWN;
     if (deviceId >= 0) {
-        InputDevice* device = findInputDevice(deviceId);
+        InputDevice* device = findInputDeviceLocked(deviceId);
         if (device && !device->isIgnored() && sourcesMatchMask(device->getSources(), sourceMask)) {
             result = (device->*getStateFunc)(sourceMask, code);
         }
@@ -542,7 +545,8 @@ int32_t InputReader::getStateLocked(int32_t deviceId, uint32_t sourceMask, int32
 }
 
 void InputReader::toggleCapsLockState(int32_t deviceId) {
-    InputDevice* device = findInputDevice(deviceId);
+    std::lock_guard<std::mutex> lock(mLock);
+    InputDevice* device = findInputDeviceLocked(deviceId);
     if (!device) {
         ALOGW("Ignoring toggleCapsLock for unknown deviceId %" PRId32 ".", deviceId);
         return;
@@ -557,7 +561,7 @@ void InputReader::toggleCapsLockState(int32_t deviceId) {
 
 bool InputReader::hasKeys(int32_t deviceId, uint32_t sourceMask, size_t numCodes,
                           const int32_t* keyCodes, uint8_t* outFlags) {
-    AutoMutex _l(mLock);
+    std::lock_guard<std::mutex> lock(mLock);
 
     memset(outFlags, 0, numCodes);
     return markSupportedKeyCodesLocked(deviceId, sourceMask, numCodes, keyCodes, outFlags);
@@ -568,7 +572,7 @@ bool InputReader::markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceM
                                               uint8_t* outFlags) {
     bool result = false;
     if (deviceId >= 0) {
-        InputDevice* device = findInputDevice(deviceId);
+        InputDevice* device = findInputDeviceLocked(deviceId);
         if (device && !device->isIgnored() && sourcesMatchMask(device->getSources(), sourceMask)) {
             result = device->markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
         }
@@ -584,7 +588,7 @@ bool InputReader::markSupportedKeyCodesLocked(int32_t deviceId, uint32_t sourceM
 }
 
 void InputReader::requestRefreshConfiguration(uint32_t changes) {
-    AutoMutex _l(mLock);
+    std::lock_guard<std::mutex> lock(mLock);
 
     if (changes) {
         bool needWake = !mConfigurationChangesToRefresh;
@@ -598,26 +602,26 @@ void InputReader::requestRefreshConfiguration(uint32_t changes) {
 
 void InputReader::vibrate(int32_t deviceId, const std::vector<VibrationElement>& pattern,
                           ssize_t repeat, int32_t token) {
-    AutoMutex _l(mLock);
-    InputDevice* device = findInputDevice(deviceId);
+    std::lock_guard<std::mutex> lock(mLock);
+    InputDevice* device = findInputDeviceLocked(deviceId);
     if (device) {
         device->vibrate(pattern, repeat, token);
     }
 }
 
 void InputReader::cancelVibrate(int32_t deviceId, int32_t token) {
-    AutoMutex _l(mLock);
+    std::lock_guard<std::mutex> lock(mLock);
 
-    InputDevice* device = findInputDevice(deviceId);
+    InputDevice* device = findInputDeviceLocked(deviceId);
     if (device) {
         device->cancelVibrate(token);
     }
 }
 
 bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
-    AutoMutex _l(mLock);
+    std::lock_guard<std::mutex> lock(mLock);
 
-    InputDevice* device = findInputDevice(deviceId);
+    InputDevice* device = findInputDeviceLocked(deviceId);
     if (device) {
         return device->isEnabled();
     }
@@ -626,9 +630,9 @@ bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
 }
 
 bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
-    AutoMutex _l(mLock);
+    std::lock_guard<std::mutex> lock(mLock);
 
-    InputDevice* device = findInputDevice(deviceId);
+    InputDevice* device = findInputDeviceLocked(deviceId);
     if (!device) {
         ALOGW("Ignoring invalid device id %" PRId32 ".", deviceId);
         return false;
@@ -654,7 +658,7 @@ bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
 }
 
 void InputReader::dump(std::string& dump) {
-    AutoMutex _l(mLock);
+    std::lock_guard<std::mutex> lock(mLock);
 
     mEventHub->dump(dump);
     dump += "\n";
@@ -729,11 +733,9 @@ void InputReader::dump(std::string& dump) {
 
 void InputReader::monitor() {
     // Acquire and release the lock to ensure that the reader has not deadlocked.
-    mLock.lock();
+    std::unique_lock<std::mutex> lock(mLock);
     mEventHub->wake();
-    mReaderIsAliveCondition.wait(mLock);
-    mLock.unlock();
-
+    mReaderIsAliveCondition.wait(lock);
     // Check the EventHub
     mEventHub->monitor();
 }
