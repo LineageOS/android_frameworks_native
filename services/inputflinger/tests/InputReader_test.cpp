@@ -1030,8 +1030,9 @@ public:
     using InputReader::loopOnce;
 
 protected:
-    virtual std::shared_ptr<InputDevice> createDeviceLocked(
-            int32_t eventHubId, const InputDeviceIdentifier& identifier) {
+    virtual std::shared_ptr<InputDevice> createDeviceLocked(int32_t eventHubId,
+                                                            const InputDeviceIdentifier& identifier)
+            REQUIRES(mLock) {
         if (!mNextDevices.empty()) {
             std::shared_ptr<InputDevice> device(std::move(mNextDevices.front()));
             mNextDevices.pop();
