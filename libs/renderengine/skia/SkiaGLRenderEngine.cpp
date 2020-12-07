@@ -492,8 +492,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     // displays might have different scaling when compared to the physical screen.
 
     canvas->clipRect(getSkRect(display.physicalDisplay));
-    SkMatrix screenTransform;
-    screenTransform.setTranslate(display.physicalDisplay.left, display.physicalDisplay.top);
+    canvas->translate(display.physicalDisplay.left, display.physicalDisplay.top);
 
     const auto clipWidth = display.clip.width();
     const auto clipHeight = display.clip.height();
@@ -507,31 +506,33 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             static_cast<SkScalar>(rotatedClipWidth);
     const auto scaleY = static_cast<SkScalar>(display.physicalDisplay.height()) /
             static_cast<SkScalar>(rotatedClipHeight);
-    screenTransform.preScale(scaleX, scaleY);
+    canvas->scale(scaleX, scaleY);
 
     // Canvas rotation is done by centering the clip window at the origin, rotating, translating
     // back so that the top left corner of the clip is at (0, 0).
-    screenTransform.preTranslate(rotatedClipWidth / 2, rotatedClipHeight / 2);
-    screenTransform.preRotate(toDegrees(display.orientation));
-    screenTransform.preTranslate(-clipWidth / 2, -clipHeight / 2);
-    screenTransform.preTranslate(-display.clip.left, -display.clip.top);
+    canvas->translate(rotatedClipWidth / 2, rotatedClipHeight / 2);
+    canvas->rotate(toDegrees(display.orientation));
+    canvas->translate(-clipWidth / 2, -clipHeight / 2);
+    canvas->translate(-display.clip.left, -display.clip.top);
     for (const auto& layer : layers) {
-        const SkMatrix drawTransform = getDrawTransform(layer, screenTransform);
+        canvas->save();
+
+        // Layers have a local transform that should be applied to them
+        canvas->concat(getSkM44(layer->geometry.positionTransform).asM33());
 
         SkPaint paint;
         const auto& bounds = layer->geometry.boundaries;
         const auto dest = getSkRect(bounds);
+        const auto layerRect = canvas->getTotalMatrix().mapRect(dest);
         std::unordered_map<uint32_t, sk_sp<SkSurface>> cachedBlurs;
-
         if (mBlurFilter) {
-            const auto layerRect = drawTransform.mapRect(dest);
             if (layer->backgroundBlurRadius > 0) {
                 ATRACE_NAME("BackgroundBlur");
                 auto blurredSurface = mBlurFilter->generate(canvas, surface,
                                                             layer->backgroundBlurRadius, layerRect);
                 cachedBlurs[layer->backgroundBlurRadius] = blurredSurface;
 
-                drawBlurRegion(canvas, getBlurRegion(layer), drawTransform, blurredSurface);
+                drawBlurRegion(canvas, getBlurRegion(layer), layerRect, blurredSurface);
             }
             if (layer->blurRegions.size() > 0) {
                 for (auto region : layer->blurRegions) {
@@ -677,12 +678,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         paint.setColorFilter(SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform)));
 
         for (const auto effectRegion : layer->blurRegions) {
-            drawBlurRegion(canvas, effectRegion, drawTransform,
-                           cachedBlurs[effectRegion.blurRadius]);
+            drawBlurRegion(canvas, effectRegion, layerRect, cachedBlurs[effectRegion.blurRadius]);
         }
 
-        canvas->save();
-        canvas->concat(drawTransform);
         if (layer->shadow.length > 0) {
             const auto rect = layer->geometry.roundedCornersRadius > 0
                     ? getSkRect(layer->geometry.roundedCornersCrop)
@@ -769,13 +767,6 @@ inline SkM44 SkiaGLRenderEngine::getSkM44(const mat4& matrix) {
                  matrix[0][3], matrix[1][3], matrix[2][3], matrix[3][3]);
 }
 
-inline SkMatrix SkiaGLRenderEngine::getDrawTransform(const LayerSettings* layer,
-                                                     const SkMatrix& screenTransform) {
-    // Layers have a local transform matrix that should be applied to them.
-    const auto layerTransform = getSkM44(layer->geometry.positionTransform).asM33();
-    return SkMatrix::Concat(screenTransform, layerTransform);
-}
-
 inline SkPoint3 SkiaGLRenderEngine::getSkPoint3(const vec3& vector) {
     return SkPoint3::Make(vector.x, vector.y, vector.z);
 }
@@ -805,18 +796,16 @@ void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRect& casterRect, 
 }
 
 void SkiaGLRenderEngine::drawBlurRegion(SkCanvas* canvas, const BlurRegion& effectRegion,
-                                        const SkMatrix& drawTransform,
-                                        sk_sp<SkSurface> blurredSurface) {
+                                        const SkRect& layerRect, sk_sp<SkSurface> blurredSurface) {
     ATRACE_CALL();
 
     SkPaint paint;
     paint.setAlpha(static_cast<int>(effectRegion.alpha * 255));
-    const auto matrix = mBlurFilter->getShaderMatrix();
-    paint.setShader(blurredSurface->makeImageSnapshot()->makeShader(matrix));
+    paint.setShader(blurredSurface->makeImageSnapshot()->makeShader(
+            getBlurShaderTransform(canvas, layerRect)));
 
     auto rect = SkRect::MakeLTRB(effectRegion.left, effectRegion.top, effectRegion.right,
                                  effectRegion.bottom);
-    drawTransform.mapRect(&rect);
 
     if (effectRegion.cornerRadiusTL > 0 || effectRegion.cornerRadiusTR > 0 ||
         effectRegion.cornerRadiusBL > 0 || effectRegion.cornerRadiusBR > 0) {
@@ -831,6 +820,24 @@ void SkiaGLRenderEngine::drawBlurRegion(SkCanvas* canvas, const BlurRegion& effe
     } else {
         canvas->drawRect(rect, paint);
     }
+}
+
+SkMatrix SkiaGLRenderEngine::getBlurShaderTransform(const SkCanvas* canvas,
+                                                    const SkRect& layerRect) {
+    // 1. Apply the blur shader matrix, which scales up the blured surface to its real size
+    auto matrix = mBlurFilter->getShaderMatrix();
+    // 2. Since the blurred surface has the size of the layer, we align it with the
+    // top left corner of the layer position.
+    matrix.postConcat(SkMatrix::Translate(layerRect.fLeft, layerRect.fTop));
+    // 3. Finally, apply the inverse canvas matrix. The snapshot made in the BlurFilter is in the
+    // original surface orientation. The inverse matrix has to be applied to align the blur
+    // surface with the current orientation/position of the canvas.
+    SkMatrix drawInverse;
+    if (canvas->getTotalMatrix().invert(&drawInverse)) {
+        matrix.postConcat(drawInverse);
+    }
+
+    return matrix;
 }
 
 EGLContext SkiaGLRenderEngine::createEglContext(EGLDisplay display, EGLConfig config,
