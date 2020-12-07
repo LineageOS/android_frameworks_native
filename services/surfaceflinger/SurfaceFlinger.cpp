@@ -711,16 +711,17 @@ void SurfaceFlinger::init() {
     // Sending maxFrameBufferAcquiredBuffers as the cache size is tightly tuned to single-display.
     mCompositionEngine->setRenderEngine(renderengine::RenderEngine::create(
             renderengine::RenderEngineCreationArgs::Builder()
-                .setPixelFormat(static_cast<int32_t>(defaultCompositionPixelFormat))
-                .setImageCacheSize(maxFrameBufferAcquiredBuffers)
-                .setUseColorManagerment(useColorManagement)
-                .setEnableProtectedContext(enable_protected_contents(false))
-                .setPrecacheToneMapperShaderOnly(false)
-                .setSupportsBackgroundBlur(mSupportsBlur)
-                .setContextPriority(useContextPriority
-                        ? renderengine::RenderEngine::ContextPriority::HIGH
-                        : renderengine::RenderEngine::ContextPriority::MEDIUM)
-                .build()));
+                    .setPixelFormat(static_cast<int32_t>(defaultCompositionPixelFormat))
+                    .setImageCacheSize(maxFrameBufferAcquiredBuffers)
+                    .setUseColorManagerment(useColorManagement)
+                    .setEnableProtectedContext(enable_protected_contents(false))
+                    .setPrecacheToneMapperShaderOnly(false)
+                    .setSupportsBackgroundBlur(mSupportsBlur)
+                    .setContextPriority(
+                            useContextPriority
+                                    ? renderengine::RenderEngine::ContextPriority::REALTIME
+                                    : renderengine::RenderEngine::ContextPriority::MEDIUM)
+                    .build()));
     mCompositionEngine->setTimeStats(mTimeStats);
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(getBE().mHwcServiceName));
     mCompositionEngine->getHwComposer().setConfiguration(this, getBE().mComposerSequenceId);
@@ -6342,10 +6343,7 @@ status_t SurfaceFlinger::addTransactionTraceListener(
 }
 
 int SurfaceFlinger::getGPUContextPriority() {
-    // TODO(b/168740533): This is a proof of concept. Once REAL time priority is available
-    // in EGL, we can return it in RenderEngine and propagate it to SurfaceFlinger. Until
-    // then return IntentFilter.SYSTEM_HIGH_PRIORITY.
-    return 1000;
+    return getRenderEngine().getContextPriority();
 }
 
 } // namespace android

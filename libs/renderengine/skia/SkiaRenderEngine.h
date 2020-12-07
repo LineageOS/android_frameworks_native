@@ -56,6 +56,7 @@ public:
         return 0;
     };
     virtual bool cleanupPostRender(CleanupMode) override { return true; };
+    virtual int getContextPriority() override { return 0; }
 };
 
 } // namespace skia

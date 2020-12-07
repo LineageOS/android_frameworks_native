@@ -222,6 +222,29 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint render
     return err;
 }
 
+std::optional<RenderEngine::ContextPriority> GLESRenderEngine::createContextPriority(
+        const RenderEngineCreationArgs& args) {
+    if (!GLExtensions::getInstance().hasContextPriority()) {
+        return std::nullopt;
+    }
+
+    switch (args.contextPriority) {
+        case RenderEngine::ContextPriority::REALTIME:
+            if (gl::GLExtensions::getInstance().hasRealtimePriority()) {
+                return RenderEngine::ContextPriority::REALTIME;
+            } else {
+                ALOGI("Realtime priority unsupported, degrading gracefully to high priority");
+                return RenderEngine::ContextPriority::HIGH;
+            }
+        case RenderEngine::ContextPriority::HIGH:
+        case RenderEngine::ContextPriority::MEDIUM:
+        case RenderEngine::ContextPriority::LOW:
+            return args.contextPriority;
+        default:
+            return std::nullopt;
+    }
+}
+
 std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCreationArgs& args) {
     // initialize EGL for the default display
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -235,6 +258,7 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCre
         LOG_ALWAYS_FATAL("eglQueryString(EGL_VERSION) failed");
     }
 
+    // Use the Android impl to grab EGL_NV_context_priority_realtime
     const auto eglExtensions = eglQueryString(display, EGL_EXTENSIONS);
     if (!eglExtensions) {
         checkGlError(__FUNCTION__, __LINE__);
@@ -251,17 +275,16 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCre
         config = chooseEglConfig(display, args.pixelFormat, /*logConfig*/ true);
     }
 
-    bool useContextPriority =
-            extensions.hasContextPriority() && args.contextPriority == ContextPriority::HIGH;
+    const std::optional<RenderEngine::ContextPriority> priority = createContextPriority(args);
     EGLContext protectedContext = EGL_NO_CONTEXT;
     if (args.enableProtectedContext && extensions.hasProtectedContent()) {
-        protectedContext = createEglContext(display, config, nullptr, useContextPriority,
-                                            Protection::PROTECTED);
+        protectedContext =
+                createEglContext(display, config, nullptr, priority, Protection::PROTECTED);
         ALOGE_IF(protectedContext == EGL_NO_CONTEXT, "Can't create protected context");
     }
 
-    EGLContext ctxt = createEglContext(display, config, protectedContext, useContextPriority,
-                                       Protection::UNPROTECTED);
+    EGLContext ctxt =
+            createEglContext(display, config, protectedContext, priority, Protection::UNPROTECTED);
 
     // if can't create a GL context, we can only abort.
     LOG_ALWAYS_FATAL_IF(ctxt == EGL_NO_CONTEXT, "EGLContext creation failed");
@@ -311,7 +334,6 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCre
     ALOGI("extensions: %s", extensions.getExtensions());
     ALOGI("GL_MAX_TEXTURE_SIZE = %zu", engine->getMaxTextureSize());
     ALOGI("GL_MAX_VIEWPORT_DIMS = %zu", engine->getMaxViewportDims());
-
     return engine;
 }
 
@@ -800,6 +822,12 @@ void GLESRenderEngine::unbindExternalTextureBufferInternal(uint64_t bufferId) {
         }
     }
     ALOGV("Failed to find image for buffer: %" PRIu64, bufferId);
+}
+
+int GLESRenderEngine::getContextPriority() {
+    int value;
+    eglQueryContext(mEGLDisplay, mEGLContext, EGL_CONTEXT_PRIORITY_LEVEL_IMG, &value);
+    return value;
 }
 
 FloatRect GLESRenderEngine::setupLayerCropping(const LayerSettings& layer, Mesh& mesh) {
@@ -1617,7 +1645,8 @@ GLESRenderEngine::GlesVersion GLESRenderEngine::parseGlesVersion(const char* str
 }
 
 EGLContext GLESRenderEngine::createEglContext(EGLDisplay display, EGLConfig config,
-                                              EGLContext shareContext, bool useContextPriority,
+                                              EGLContext shareContext,
+                                              std::optional<ContextPriority> contextPriority,
                                               Protection protection) {
     EGLint renderableType = 0;
     if (config == EGL_NO_CONFIG) {
@@ -1640,9 +1669,23 @@ EGLContext GLESRenderEngine::createEglContext(EGLDisplay display, EGLConfig conf
     contextAttributes.reserve(7);
     contextAttributes.push_back(EGL_CONTEXT_CLIENT_VERSION);
     contextAttributes.push_back(contextClientVersion);
-    if (useContextPriority) {
+    if (contextPriority) {
         contextAttributes.push_back(EGL_CONTEXT_PRIORITY_LEVEL_IMG);
-        contextAttributes.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
+        switch (*contextPriority) {
+            case ContextPriority::REALTIME:
+                contextAttributes.push_back(EGL_CONTEXT_PRIORITY_REALTIME_NV);
+                break;
+            case ContextPriority::MEDIUM:
+                contextAttributes.push_back(EGL_CONTEXT_PRIORITY_MEDIUM_IMG);
+                break;
+            case ContextPriority::LOW:
+                contextAttributes.push_back(EGL_CONTEXT_PRIORITY_LOW_IMG);
+                break;
+            case ContextPriority::HIGH:
+            default:
+                contextAttributes.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
+                break;
+        }
     }
     if (protection == Protection::PROTECTED) {
         contextAttributes.push_back(EGL_PROTECTED_CONTENT_EXT);
