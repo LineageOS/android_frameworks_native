@@ -801,8 +801,12 @@ void SkiaGLRenderEngine::drawBlurRegion(SkCanvas* canvas, const BlurRegion& effe
 
     SkPaint paint;
     paint.setAlpha(static_cast<int>(effectRegion.alpha * 255));
+    const auto matrix = getBlurShaderTransform(canvas, layerRect);
     paint.setShader(blurredSurface->makeImageSnapshot()->makeShader(
-            getBlurShaderTransform(canvas, layerRect)));
+            SkTileMode::kClamp,
+            SkTileMode::kClamp,
+            SkSamplingOptions({SkFilterMode::kLinear, SkMipmapMode::kNone}),
+            &matrix));
 
     auto rect = SkRect::MakeLTRB(effectRegion.left, effectRegion.top, effectRegion.right,
                                  effectRegion.bottom);
