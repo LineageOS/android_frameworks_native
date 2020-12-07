@@ -6228,6 +6228,11 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
         Mutex::Autolock lock(mStateLock);
         if (authenticateSurfaceTextureLocked(surface)) {
             sp<Layer> layer = (static_cast<MonitoredProducer*>(surface.get()))->getLayer();
+            if (layer == nullptr) {
+                ALOGE("Attempt to set frame rate on a layer that no longer exists");
+                return BAD_VALUE;
+            }
+
             if (layer->setFrameRate(
                         Layer::FrameRate(frameRate,
                                          Layer::FrameRate::convertCompatibility(compatibility)))) {
