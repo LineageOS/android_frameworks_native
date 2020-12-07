@@ -82,6 +82,12 @@ public:
         this->reserve(SIZE);
     }
 
+    FatVector(std::initializer_list<T> init)
+          : std::vector<T, InlineStdAllocator<T, SIZE>>(init,
+                                                        InlineStdAllocator<T, SIZE>(mAllocation)) {
+        this->reserve(SIZE);
+    }
+
     explicit FatVector(size_t capacity) : FatVector() { this->resize(capacity); }
 
 private:
