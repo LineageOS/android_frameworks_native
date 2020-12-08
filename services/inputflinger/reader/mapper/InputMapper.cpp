@@ -56,10 +56,17 @@ bool InputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
     return false;
 }
 
-void InputMapper::vibrate(const std::vector<VibrationElement>& pattern, ssize_t repeat,
-                          int32_t token) {}
+void InputMapper::vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token) {}
 
 void InputMapper::cancelVibrate(int32_t token) {}
+
+bool InputMapper::isVibrating() {
+    return false;
+}
+
+std::vector<int32_t> InputMapper::getVibratorIds() {
+    return {};
+}
 
 void InputMapper::cancelTouch(nsecs_t when) {}
 

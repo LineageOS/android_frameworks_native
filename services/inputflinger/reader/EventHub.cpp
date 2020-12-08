@@ -61,8 +61,8 @@ static const char* DEVICE_PATH = "/dev/input";
 // v4l2 devices go directly into /dev
 static const char* VIDEO_DEVICE_PATH = "/dev";
 
-static constexpr size_t FF_STRONG_MAGNITUDE_CHANNEL_IDX = 0;
-static constexpr size_t FF_WEAK_MAGNITUDE_CHANNEL_IDX = 1;
+static constexpr int32_t FF_STRONG_MAGNITUDE_CHANNEL_IDX = 0;
+static constexpr int32_t FF_WEAK_MAGNITUDE_CHANNEL_IDX = 1;
 
 static inline const char* toString(bool value) {
     return value ? "true" : "false";
@@ -475,25 +475,25 @@ EventHub::~EventHub(void) {
 }
 
 InputDeviceIdentifier EventHub::getDeviceIdentifier(int32_t deviceId) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     return device != nullptr ? device->identifier : InputDeviceIdentifier();
 }
 
 Flags<InputDeviceClass> EventHub::getDeviceClasses(int32_t deviceId) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     return device != nullptr ? device->classes : Flags<InputDeviceClass>(0);
 }
 
 int32_t EventHub::getDeviceControllerNumber(int32_t deviceId) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     return device != nullptr ? device->controllerNumber : 0;
 }
 
 void EventHub::getConfiguration(int32_t deviceId, PropertyMap* outConfiguration) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && device->configuration) {
         *outConfiguration = *device->configuration;
@@ -507,7 +507,7 @@ status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,
     outAxisInfo->clear();
 
     if (axis >= 0 && axis <= ABS_MAX) {
-        std::lock_guard<std::mutex> lock(mLock);
+        std::scoped_lock _l(mLock);
 
         Device* device = getDeviceLocked(deviceId);
         if (device != nullptr && device->hasValidFd() && device->absBitmask.test(axis)) {
@@ -534,7 +534,7 @@ status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,
 
 bool EventHub::hasRelativeAxis(int32_t deviceId, int axis) const {
     if (axis >= 0 && axis <= REL_MAX) {
-        std::lock_guard<std::mutex> lock(mLock);
+        std::scoped_lock _l(mLock);
         Device* device = getDeviceLocked(deviceId);
         return device != nullptr ? device->relBitmask.test(axis) : false;
     }
@@ -542,7 +542,7 @@ bool EventHub::hasRelativeAxis(int32_t deviceId, int axis) const {
 }
 
 bool EventHub::hasInputProperty(int32_t deviceId, int property) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     Device* device = getDeviceLocked(deviceId);
     return property >= 0 && property <= INPUT_PROP_MAX && device != nullptr
@@ -552,7 +552,7 @@ bool EventHub::hasInputProperty(int32_t deviceId, int property) const {
 
 int32_t EventHub::getScanCodeState(int32_t deviceId, int32_t scanCode) const {
     if (scanCode >= 0 && scanCode <= KEY_MAX) {
-        std::lock_guard<std::mutex> lock(mLock);
+        std::scoped_lock _l(mLock);
 
         Device* device = getDeviceLocked(deviceId);
         if (device != nullptr && device->hasValidFd() && device->keyBitmask.test(scanCode)) {
@@ -565,7 +565,7 @@ int32_t EventHub::getScanCodeState(int32_t deviceId, int32_t scanCode) const {
 }
 
 int32_t EventHub::getKeyCodeState(int32_t deviceId, int32_t keyCode) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && device->hasValidFd() && device->keyMap.haveKeyLayout()) {
@@ -588,7 +588,7 @@ int32_t EventHub::getKeyCodeState(int32_t deviceId, int32_t keyCode) const {
 
 int32_t EventHub::getSwitchState(int32_t deviceId, int32_t sw) const {
     if (sw >= 0 && sw <= SW_MAX) {
-        std::lock_guard<std::mutex> lock(mLock);
+        std::scoped_lock _l(mLock);
 
         Device* device = getDeviceLocked(deviceId);
         if (device != nullptr && device->hasValidFd() && device->swBitmask.test(sw)) {
@@ -604,7 +604,7 @@ status_t EventHub::getAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t*
     *outValue = 0;
 
     if (axis >= 0 && axis <= ABS_MAX) {
-        std::lock_guard<std::mutex> lock(mLock);
+        std::scoped_lock _l(mLock);
 
         Device* device = getDeviceLocked(deviceId);
         if (device != nullptr && device->hasValidFd() && device->absBitmask.test(axis)) {
@@ -624,7 +624,7 @@ status_t EventHub::getAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t*
 
 bool EventHub::markSupportedKeyCodes(int32_t deviceId, size_t numCodes, const int32_t* keyCodes,
                                      uint8_t* outFlags) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && device->keyMap.haveKeyLayout()) {
@@ -652,7 +652,7 @@ bool EventHub::markSupportedKeyCodes(int32_t deviceId, size_t numCodes, const in
 
 status_t EventHub::mapKey(int32_t deviceId, int32_t scanCode, int32_t usageCode, int32_t metaState,
                           int32_t* outKeycode, int32_t* outMetaState, uint32_t* outFlags) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     status_t status = NAME_NOT_FOUND;
 
@@ -692,7 +692,7 @@ status_t EventHub::mapKey(int32_t deviceId, int32_t scanCode, int32_t usageCode,
 }
 
 status_t EventHub::mapAxis(int32_t deviceId, int32_t scanCode, AxisInfo* outAxisInfo) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
 
     if (device != nullptr && device->keyMap.haveKeyLayout()) {
@@ -706,13 +706,13 @@ status_t EventHub::mapAxis(int32_t deviceId, int32_t scanCode, AxisInfo* outAxis
 }
 
 void EventHub::setExcludedDevices(const std::vector<std::string>& devices) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     mExcludedDevices = devices;
 }
 
 bool EventHub::hasScanCode(int32_t deviceId, int32_t scanCode) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && scanCode >= 0 && scanCode <= KEY_MAX) {
         return device->keyBitmask.test(scanCode);
@@ -721,7 +721,7 @@ bool EventHub::hasScanCode(int32_t deviceId, int32_t scanCode) const {
 }
 
 bool EventHub::hasLed(int32_t deviceId, int32_t led) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     int32_t sc;
     if (device != nullptr && device->mapLed(led, &sc) == NO_ERROR) {
@@ -731,7 +731,7 @@ bool EventHub::hasLed(int32_t deviceId, int32_t led) const {
 }
 
 void EventHub::setLedState(int32_t deviceId, int32_t led, bool on) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && device->hasValidFd()) {
         device->setLedStateLocked(led, on);
@@ -742,7 +742,7 @@ void EventHub::getVirtualKeyDefinitions(int32_t deviceId,
                                         std::vector<VirtualKeyDefinition>& outVirtualKeys) const {
     outVirtualKeys.clear();
 
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && device->virtualKeyMap) {
         const std::vector<VirtualKeyDefinition> virtualKeys =
@@ -752,7 +752,7 @@ void EventHub::getVirtualKeyDefinitions(int32_t deviceId,
 }
 
 const std::shared_ptr<KeyCharacterMap> EventHub::getKeyCharacterMap(int32_t deviceId) const {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr) {
         return device->getKeyCharacterMap();
@@ -761,7 +761,7 @@ const std::shared_ptr<KeyCharacterMap> EventHub::getKeyCharacterMap(int32_t devi
 }
 
 bool EventHub::setKeyboardLayoutOverlay(int32_t deviceId, std::shared_ptr<KeyCharacterMap> map) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && map != nullptr && device->keyMap.keyCharacterMap != nullptr) {
         device->keyMap.keyCharacterMap->combine(*map);
@@ -822,7 +822,7 @@ void EventHub::assignDescriptorLocked(InputDeviceIdentifier& identifier) {
 }
 
 void EventHub::vibrate(int32_t deviceId, const VibrationElement& element) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && device->hasValidFd()) {
         ff_effect effect;
@@ -857,7 +857,7 @@ void EventHub::vibrate(int32_t deviceId, const VibrationElement& element) {
 }
 
 void EventHub::cancelVibrate(int32_t deviceId) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device != nullptr && device->hasValidFd()) {
         if (device->ffEffectPlaying) {
@@ -876,6 +876,18 @@ void EventHub::cancelVibrate(int32_t deviceId) {
             }
         }
     }
+}
+
+std::vector<int32_t> EventHub::getVibratorIds(int32_t deviceId) {
+    std::scoped_lock _l(mLock);
+    std::vector<int32_t> vibrators;
+    Device* device = getDeviceLocked(deviceId);
+    if (device != nullptr && device->hasValidFd() &&
+        device->classes.test(InputDeviceClass::VIBRATOR)) {
+        vibrators.push_back(FF_STRONG_MAGNITUDE_CHANNEL_IDX);
+        vibrators.push_back(FF_WEAK_MAGNITUDE_CHANNEL_IDX);
+    }
+    return vibrators;
 }
 
 EventHub::Device* EventHub::getDeviceByDescriptorLocked(const std::string& descriptor) const {
@@ -930,7 +942,7 @@ EventHub::Device* EventHub::getDeviceByFdLocked(int fd) const {
 size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) {
     ALOG_ASSERT(bufferSize >= 1);
 
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     struct input_event readBuffer[bufferSize];
 
@@ -1184,7 +1196,7 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
 }
 
 std::vector<TouchVideoFrame> EventHub::getVideoFrames(int32_t deviceId) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
 
     Device* device = getDeviceLocked(deviceId);
     if (device == nullptr || !device->videoDevice) {
@@ -1593,7 +1605,7 @@ bool EventHub::tryAddVideoDevice(EventHub::Device& device,
 }
 
 bool EventHub::isDeviceEnabled(int32_t deviceId) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device == nullptr) {
         ALOGE("Invalid device id=%" PRId32 " provided to %s", deviceId, __func__);
@@ -1603,7 +1615,7 @@ bool EventHub::isDeviceEnabled(int32_t deviceId) {
 }
 
 status_t EventHub::enableDevice(int32_t deviceId) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device == nullptr) {
         ALOGE("Invalid device id=%" PRId32 " provided to %s", deviceId, __func__);
@@ -1625,7 +1637,7 @@ status_t EventHub::enableDevice(int32_t deviceId) {
 }
 
 status_t EventHub::disableDevice(int32_t deviceId) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
     if (device == nullptr) {
         ALOGE("Invalid device id=%" PRId32 " provided to %s", deviceId, __func__);
@@ -1809,7 +1821,7 @@ status_t EventHub::scanVideoDirLocked(const std::string& dirname) {
 void EventHub::requestReopenDevices() {
     ALOGV("requestReopenDevices() called");
 
-    std::lock_guard<std::mutex> lock(mLock);
+    std::scoped_lock _l(mLock);
     mNeedToReopenDevices = true;
 }
 
@@ -1817,7 +1829,7 @@ void EventHub::dump(std::string& dump) {
     dump += "Event Hub State:\n";
 
     { // acquire lock
-        std::lock_guard<std::mutex> lock(mLock);
+        std::scoped_lock _l(mLock);
 
         dump += StringPrintf(INDENT "BuiltInKeyboardId: %d\n", mBuiltInKeyboardId);
 
