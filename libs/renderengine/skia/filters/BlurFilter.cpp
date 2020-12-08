@@ -66,11 +66,10 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
     float numberOfPasses = std::min(kMaxPasses, (uint32_t)ceil(tmpRadius));
     float radiusByPasses = tmpRadius / (float)numberOfPasses;
 
-    SkImageInfo scaledInfo = SkImageInfo::MakeN32Premul((float)input->width() * kInputScale,
-                                                        (float)input->height() * kInputScale);
+    SkImageInfo scaledInfo = SkImageInfo::MakeN32Premul((float)rect.width() * kInputScale,
+                                                        (float)rect.height() * kInputScale);
+    SkRect scaledRect = SkRect::MakeWH(scaledInfo.width(), scaledInfo.height());
 
-    SkRect scaledRect = {rect.fLeft * kInputScale, rect.fTop * kInputScale,
-                         rect.fRight * kInputScale, rect.fBottom * kInputScale};
     auto drawSurface = canvas->makeSurface(scaledInfo);
 
     const float stepX = radiusByPasses;
@@ -80,7 +79,8 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
     SkSamplingOptions linear(SkFilterMode::kLinear, SkMipmapMode::kNone);
     SkRuntimeShaderBuilder blurBuilder(mBlurEffect);
     blurBuilder.child("input") =
-            input->makeImageSnapshot()->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
+            input->makeImageSnapshot(rect.round())
+                    ->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
     blurBuilder.uniform("in_inverseScale") = kInverseInputScale;
     blurBuilder.uniform("in_blurOffset") =
             SkV2{stepX * kInverseInputScale, stepY * kInverseInputScale};
