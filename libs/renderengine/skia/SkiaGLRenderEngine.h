@@ -77,15 +77,15 @@ private:
     inline BlurRegion getBlurRegion(const LayerSettings* layer);
     inline SkColor getSkColor(const vec4& color);
     inline SkM44 getSkM44(const mat4& matrix);
-    inline SkMatrix getDrawTransform(const LayerSettings* layer, const SkMatrix& screenTransform);
     inline SkPoint3 getSkPoint3(const vec3& vector);
 
     base::unique_fd flush();
     bool waitFence(base::unique_fd fenceFd);
     void drawShadow(SkCanvas* canvas, const SkRect& casterRect, float casterCornerRadius,
                     const ShadowSettings& shadowSettings);
-    void drawBlurRegion(SkCanvas* canvas, const BlurRegion& blurRegion,
-                        const SkMatrix& drawTransform, sk_sp<SkSurface> blurrendSurface);
+    void drawBlurRegion(SkCanvas* canvas, const BlurRegion& blurRegion, const SkRect& layerRect,
+                        sk_sp<SkSurface> blurredSurface);
+    SkMatrix getBlurShaderTransform(const SkCanvas* canvas, const SkRect& layerRect);
 
     EGLDisplay mEGLDisplay;
     EGLContext mEGLContext;

@@ -627,7 +627,7 @@ const char* Layer::getDebugName() const {
 // ---------------------------------------------------------------------------
 
 std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientComposition(
-        compositionengine::LayerFE::ClientCompositionTargetSettings& /* targetSettings */) {
+        compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
     if (!getCompositionState()) {
         return {};
     }
@@ -649,8 +649,10 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
 
     layerSettings.alpha = alpha;
     layerSettings.sourceDataspace = getDataSpace();
-    layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
-    layerSettings.blurRegions = getBlurRegions();
+    if (!targetSettings.disableBlurs) {
+        layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
+        layerSettings.blurRegions = getBlurRegions();
+    }
     return layerSettings;
 }
 

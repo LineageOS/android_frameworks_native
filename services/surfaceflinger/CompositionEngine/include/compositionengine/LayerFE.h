@@ -108,6 +108,9 @@ public:
         // If set to true, change the layer settings to render a clear output.
         // This may be requested by the HWC
         const bool clearContent;
+
+        // If set to true, change the layer settings to not use any blurs.
+        const bool disableBlurs;
     };
 
     // A superset of LayerSettings required by RenderEngine to compose a layer
