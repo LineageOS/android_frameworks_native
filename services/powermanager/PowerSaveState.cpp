@@ -31,6 +31,7 @@ status_t PowerSaveState::readFromParcel(const android::Parcel *parcel) {
     return parcel->readBool(&mBatterySaverEnabled)
         ?: parcel->readBool(&mGlobalBatterySaverEnabled)
         ?: parcel->readInt32(reinterpret_cast<int32_t *>(&mLocationMode))
+        ?: parcel->readInt32(reinterpret_cast<int32_t *>(&mSoundTriggerMode))
         ?: parcel->readFloat(&mBrightnessFactor);
 }
 
@@ -43,6 +44,7 @@ status_t PowerSaveState::writeToParcel(android::Parcel *parcel) const {
     return parcel->writeBool(mBatterySaverEnabled)
         ?: parcel->writeBool(mGlobalBatterySaverEnabled)
         ?: parcel->writeInt32(static_cast<int32_t>(mLocationMode))
+        ?: parcel->writeInt32(static_cast<int32_t>(mSoundTriggerMode))
         ?: parcel->writeFloat(mBrightnessFactor);
 }
 
