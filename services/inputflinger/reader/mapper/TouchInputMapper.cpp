@@ -647,6 +647,13 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         return;
     }
 
+    if (!newViewport->isActive) {
+        ALOGI("Disabling %s (device %i) because the associated viewport is not active",
+              getDeviceName().c_str(), getDeviceId());
+        mDeviceMode = DeviceMode::DISABLED;
+        return;
+    }
+
     // Raw width and height in the natural orientation.
     int32_t rawWidth = mRawPointerAxes.getRawWidth();
     int32_t rawHeight = mRawPointerAxes.getRawHeight();
