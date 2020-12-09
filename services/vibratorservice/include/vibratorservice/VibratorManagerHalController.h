@@ -19,6 +19,7 @@
 
 #include <android/hardware/vibrator/IVibratorManager.h>
 #include <vibratorservice/VibratorHalController.h>
+#include <vibratorservice/VibratorManagerHalWrapper.h>
 #include <unordered_map>
 
 namespace android {
@@ -36,7 +37,7 @@ public:
     ManagerHalController()
           : ManagerHalController(std::make_shared<CallbackScheduler>(), &connectManagerHal) {}
     ManagerHalController(std::shared_ptr<CallbackScheduler> callbackScheduler, Connector connector)
-          : mConnector(connector), mConnectedHal(nullptr) {}
+          : mConnector(connector), mCallbackScheduler(callbackScheduler), mConnectedHal(nullptr) {}
     virtual ~ManagerHalController() = default;
 
     /* Connects to the HAL service, possibly waiting for the registered service to
@@ -64,9 +65,10 @@ public:
 
 private:
     Connector mConnector;
+    std::shared_ptr<CallbackScheduler> mCallbackScheduler;
     std::mutex mConnectedHalMutex;
     // Shared pointer to allow local copies to be used by different threads.
-    std::shared_ptr<HalWrapper> mConnectedHal GUARDED_BY(mConnectedHalMutex);
+    std::shared_ptr<ManagerHalWrapper> mConnectedHal GUARDED_BY(mConnectedHalMutex);
 
     template <typename T>
     HalResult<T> processHalResult(HalResult<T> result, const char* functionName);
