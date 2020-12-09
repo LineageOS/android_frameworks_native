@@ -34,7 +34,26 @@ class IPCThreadState
 public:
     static  IPCThreadState*     self();
     static  IPCThreadState*     selfOrNull();  // self(), but won't instantiate
-    
+
+    // Freeze or unfreeze the binder interface to a specific process. When freezing, this method
+    // will block up to timeout_ms to process pending transactions directed to pid. Unfreeze
+    // is immediate. Transactions to processes frozen via this method won't be delivered and the
+    // driver will return BR_FROZEN_REPLY to the client sending them. After unfreeze,
+    // transactions will be delivered normally.
+    //
+    // pid: id for the process for which the binder interface is to be frozen
+    // enable: freeze (true) or unfreeze (false)
+    // timeout_ms: maximum time this function is allowed to block the caller waiting for pending
+    // binder transactions to be processed.
+    //
+    // returns: 0 in case of success, a value < 0 in case of error
+    __attribute__((weak))
+    static  status_t            freeze(pid_t pid, bool enabled, uint32_t timeout_ms);
+
+    // Provide information about the state of a frozen process
+    __attribute__((weak))
+    static  status_t            getProcessFreezeInfo(pid_t pid, bool *sync_received,
+                                                    bool *async_received);
             sp<ProcessState>    process();
             
             status_t            clearLastError();

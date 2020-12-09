@@ -213,17 +213,18 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
 
-    auto entry = mNameToService.emplace(name, Service {
+    // Overwrite the old service if it exists
+    mNameToService[name] = Service {
         .binder = binder,
         .allowIsolated = allowIsolated,
         .dumpPriority = dumpPriority,
         .debugPid = ctx.debugPid,
-    });
+    };
 
     auto it = mNameToRegistrationCallback.find(name);
     if (it != mNameToRegistrationCallback.end()) {
         for (const sp<IServiceCallback>& cb : it->second) {
-            entry.first->second.guaranteeClient = true;
+            mNameToService[name].guaranteeClient = true;
             // permission checked in registerForNotifications
             cb->onRegistration(name, binder);
         }

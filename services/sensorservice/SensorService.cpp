@@ -79,6 +79,8 @@ uint8_t SensorService::sHmacGlobalKey[128] = {};
 bool SensorService::sHmacGlobalKeyIsValid = false;
 std::map<String16, int> SensorService::sPackageTargetVersion;
 Mutex SensorService::sPackageTargetVersionLock;
+String16 SensorService::sSensorInterfaceDescriptorPrefix =
+        String16("android.frameworks.sensorservice@");
 AppOpsManager SensorService::sAppOpsManager;
 
 #define SENSOR_SERVICE_DIR "/data/system/sensor_service"
@@ -1847,6 +1849,13 @@ bool SensorService::hasPermissionForSensor(const Sensor& sensor) {
 }
 
 int SensorService::getTargetSdkVersion(const String16& opPackageName) {
+    // Don't query the SDK version for the ISensorManager descriptor as it doesn't have one. This
+    // descriptor tends to be used for VNDK clients, but can technically be set by anyone so don't
+    // give it elevated privileges.
+    if (opPackageName.startsWith(sSensorInterfaceDescriptorPrefix)) {
+        return -1;
+    }
+
     Mutex::Autolock packageLock(sPackageTargetVersionLock);
     int targetSdkVersion = -1;
     auto entry = sPackageTargetVersion.find(opPackageName);

@@ -47,6 +47,7 @@ public:
     MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
     MOCK_METHOD1(setPeriod, void(nsecs_t));
     MOCK_METHOD0(resetModel, void());
+    MOCK_CONST_METHOD0(needsMoreSamples, bool());
     MOCK_CONST_METHOD1(dump, void(std::string&));
 
     nsecs_t nextVSyncTime(nsecs_t timePoint) const {
@@ -115,11 +116,15 @@ public:
 
     operator VSyncDispatch::CallbackToken() const { return mToken; }
 
-    void counter(nsecs_t time, nsecs_t) { mCalls.push_back(time); }
+    void counter(nsecs_t time, nsecs_t wakeup_time) {
+        mCalls.push_back(time);
+        mWakeupTime.push_back(wakeup_time);
+    }
 
     VSyncDispatch& mDispatch;
     VSyncDispatch::CallbackToken mToken;
     std::vector<nsecs_t> mCalls;
+    std::vector<nsecs_t> mWakeupTime;
 };
 
 class PausingCallback {
@@ -745,6 +750,31 @@ TEST_F(VSyncDispatchTimerQueueTest, rearmsWhenCancelledAndIsNextScheduled) {
 
     EXPECT_THAT(cb1.mCalls.size(), Eq(0));
     EXPECT_THAT(cb2.mCalls.size(), Eq(1));
+}
+
+TEST_F(VSyncDispatchTimerQueueTest, laggedTimerGroupsCallbacksWithinLag) {
+    CountingCallback cb1(mDispatch);
+    CountingCallback cb2(mDispatch);
+
+    Sequence seq;
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(1000))
+            .InSequence(seq)
+            .WillOnce(Return(1000));
+    EXPECT_CALL(mMockClock, alarmIn(_, 600)).InSequence(seq);
+    EXPECT_CALL(mStubTracker, nextAnticipatedVSyncTimeFrom(1000))
+            .InSequence(seq)
+            .WillOnce(Return(1000));
+
+    EXPECT_EQ(mDispatch.schedule(cb1, 400, 1000), ScheduleResult::Scheduled);
+    EXPECT_EQ(mDispatch.schedule(cb2, 390, 1000), ScheduleResult::Scheduled);
+
+    mMockClock.setLag(100);
+    mMockClock.advanceBy(700);
+
+    ASSERT_THAT(cb1.mWakeupTime.size(), Eq(1));
+    EXPECT_THAT(cb1.mWakeupTime[0], Eq(600));
+    ASSERT_THAT(cb2.mWakeupTime.size(), Eq(1));
+    EXPECT_THAT(cb2.mWakeupTime[0], Eq(610));
 }
 
 class VSyncDispatchTimerQueueEntryTest : public testing::Test {

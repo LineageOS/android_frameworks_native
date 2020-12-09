@@ -325,9 +325,6 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         }
 
         uint64_t bufferID = mQueueItems[0].mGraphicBuffer->getId();
-        mFlinger->mFrameTracer->traceFence(layerId, bufferID, currentFrameNumber,
-                                           mQueueItems[0].mFenceTime,
-                                           FrameTracer::FrameEvent::ACQUIRE_FENCE);
         mFlinger->mTimeStats->setLatchTime(layerId, currentFrameNumber, latchTime);
         mFlinger->mFrameTracer->traceTimestamp(layerId, bufferID, currentFrameNumber, latchTime,
                                                FrameTracer::FrameEvent::LATCH);
@@ -394,8 +391,12 @@ void BufferQueueLayer::onFrameCancelled(const uint64_t bufferId) {
 
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     const int32_t layerId = getSequence();
-    mFlinger->mFrameTracer->traceTimestamp(layerId, item.mGraphicBuffer->getId(), item.mFrameNumber,
-                                           systemTime(), FrameTracer::FrameEvent::QUEUE);
+    const uint64_t bufferId = item.mGraphicBuffer->getId();
+    mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, item.mFrameNumber, systemTime(),
+                                           FrameTracer::FrameEvent::QUEUE);
+    mFlinger->mFrameTracer->traceFence(layerId, bufferId, item.mFrameNumber,
+                                       std::make_shared<FenceTime>(item.mFence),
+                                       FrameTracer::FrameEvent::ACQUIRE_FENCE);
 
     ATRACE_CALL();
     // Add this buffer from our internal queue tracker
@@ -461,8 +462,12 @@ void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
     }
 
     const int32_t layerId = getSequence();
-    mFlinger->mFrameTracer->traceTimestamp(layerId, item.mGraphicBuffer->getId(), item.mFrameNumber,
-                                           systemTime(), FrameTracer::FrameEvent::QUEUE);
+    const uint64_t bufferId = item.mGraphicBuffer->getId();
+    mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, item.mFrameNumber, systemTime(),
+                                           FrameTracer::FrameEvent::QUEUE);
+    mFlinger->mFrameTracer->traceFence(layerId, bufferId, item.mFrameNumber,
+                                       std::make_shared<FenceTime>(item.mFence),
+                                       FrameTracer::FrameEvent::ACQUIRE_FENCE);
     mConsumer->onBufferAvailable(item);
 }
 

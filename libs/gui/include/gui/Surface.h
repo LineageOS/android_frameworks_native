@@ -30,6 +30,7 @@
 #include <utils/RefBase.h>
 
 #include <shared_mutex>
+#include <unordered_set>
 
 namespace android {
 
@@ -543,8 +544,15 @@ protected:
     int mMaxBufferCount;
 
     sp<IProducerListener> mListenerProxy;
+
+    // Get and flush the buffers of given slots, if the buffer in the slot
+    // is currently dequeued then it won't be flushed and won't be returned
+    // in outBuffers.
     status_t getAndFlushBuffersFromSlots(const std::vector<int32_t>& slots,
             std::vector<sp<GraphicBuffer>>* outBuffers);
+
+    // Buffers that are successfully dequeued/attached and handed to clients
+    std::unordered_set<int> mDequeuedSlots;
 };
 
 } // namespace android

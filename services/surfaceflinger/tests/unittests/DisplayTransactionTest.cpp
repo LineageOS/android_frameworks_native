@@ -85,7 +85,7 @@ using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
 using HotplugEvent = TestableSurfaceFlinger::HotplugEvent;
 using HWC2Display = TestableSurfaceFlinger::HWC2Display;
 
-constexpr int32_t DEFAULT_REFRESH_RATE = 16'666'666;
+constexpr int32_t DEFAULT_REFRESH_RATE = 16'666'667;
 constexpr int32_t DEFAULT_DPI = 320;
 constexpr int DEFAULT_VIRTUAL_DISPLAY_SURFACE_FORMAT = HAL_PIXEL_FORMAT_RGB_565;
 
