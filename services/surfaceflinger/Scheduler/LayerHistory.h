@@ -46,7 +46,7 @@ public:
     ~LayerHistory();
 
     // Layers are unregistered when the weak reference expires.
-    void registerLayer(Layer*, float lowRefreshRate, float highRefreshRate, LayerVoteType type);
+    void registerLayer(Layer*, Fps highRefreshRate, LayerVoteType type);
 
     // Sets the display size. Client is responsible for synchronization.
     void setDisplayArea(uint32_t displayArea) { mDisplayArea = displayArea; }

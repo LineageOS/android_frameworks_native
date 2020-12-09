@@ -108,11 +108,12 @@ std::string PrintToStringParamName(
  */
 class SetFrameRateTest : public ::testing::TestWithParam<std::shared_ptr<LayerFactory>> {
 protected:
-    const FrameRate FRAME_RATE_VOTE1 = FrameRate(67.f, FrameRateCompatibility::Default);
-    const FrameRate FRAME_RATE_VOTE2 = FrameRate(14.f, FrameRateCompatibility::ExactOrMultiple);
-    const FrameRate FRAME_RATE_VOTE3 = FrameRate(99.f, FrameRateCompatibility::NoVote);
-    const FrameRate FRAME_RATE_TREE = FrameRate(0, FrameRateCompatibility::NoVote);
-    const FrameRate FRAME_RATE_NO_VOTE = FrameRate(0, FrameRateCompatibility::Default);
+    const FrameRate FRAME_RATE_VOTE1 = FrameRate(Fps(67.f), FrameRateCompatibility::Default);
+    const FrameRate FRAME_RATE_VOTE2 =
+            FrameRate(Fps(14.f), FrameRateCompatibility::ExactOrMultiple);
+    const FrameRate FRAME_RATE_VOTE3 = FrameRate(Fps(99.f), FrameRateCompatibility::NoVote);
+    const FrameRate FRAME_RATE_TREE = FrameRate(Fps(0.f), FrameRateCompatibility::NoVote);
+    const FrameRate FRAME_RATE_NO_VOTE = FrameRate(Fps(0.f), FrameRateCompatibility::Default);
 
     SetFrameRateTest();
 

@@ -25,6 +25,7 @@
 #include <type_traits>
 
 #include "DisplayHardware/HWComposer.h"
+#include "Fps.h"
 #include "HwcStrongTypes.h"
 #include "Scheduler/SchedulerUtils.h"
 #include "Scheduler/Seamlessness.h"
@@ -64,29 +65,31 @@ public:
 
     public:
         RefreshRate(HwcConfigIndexType configId,
-                    std::shared_ptr<const HWC2::Display::Config> config, std::string name,
-                    float fps, ConstructorTag)
-              : configId(configId), hwcConfig(config), name(std::move(name)), fps(fps) {}
+                    std::shared_ptr<const HWC2::Display::Config> config, Fps fps, ConstructorTag)
+              : configId(configId), hwcConfig(config), fps(std::move(fps)) {}
 
         RefreshRate(const RefreshRate&) = delete;
 
         HwcConfigIndexType getConfigId() const { return configId; }
         nsecs_t getVsyncPeriod() const { return hwcConfig->getVsyncPeriod(); }
         int32_t getConfigGroup() const { return hwcConfig->getConfigGroup(); }
-        const std::string& getName() const { return name; }
-        float getFps() const { return fps; }
+        std::string getName() const { return to_string(fps); }
+        Fps getFps() const { return fps; }
 
         // Checks whether the fps of this RefreshRate struct is within a given min and max refresh
-        // rate passed in. FPS_EPSILON is applied to the boundaries for approximation.
-        bool inPolicy(float minRefreshRate, float maxRefreshRate) const {
-            return (fps >= (minRefreshRate - FPS_EPSILON) && fps <= (maxRefreshRate + FPS_EPSILON));
+        // rate passed in. Margin of error is applied to the boundaries for approximation.
+        bool inPolicy(Fps minRefreshRate, Fps maxRefreshRate) const {
+            return minRefreshRate.lessThanOrEqualWithMargin(fps) &&
+                    fps.lessThanOrEqualWithMargin(maxRefreshRate);
         }
 
         bool operator!=(const RefreshRate& other) const {
             return configId != other.configId || hwcConfig != other.hwcConfig;
         }
 
-        bool operator<(const RefreshRate& other) const { return getFps() < other.getFps(); }
+        bool operator<(const RefreshRate& other) const {
+            return getFps().getValue() < other.getFps().getValue();
+        }
 
         bool operator==(const RefreshRate& other) const { return !(*this != other); }
 
@@ -96,18 +99,13 @@ public:
         friend RefreshRateConfigs;
         friend class RefreshRateConfigsTest;
 
-        // The tolerance within which we consider FPS approximately equals.
-        static constexpr float FPS_EPSILON = 0.001f;
-
         // This config ID corresponds to the position of the config in the vector that is stored
         // on the device.
         const HwcConfigIndexType configId;
         // The config itself
         std::shared_ptr<const HWC2::Display::Config> hwcConfig;
-        // Human readable name of the refresh rate.
-        const std::string name;
         // Refresh rate in frames per second
-        const float fps = 0;
+        const Fps fps{0.0f};
     };
 
     using AllRefreshRatesMapType =
@@ -119,14 +117,19 @@ public:
 
     public:
         struct Range {
-            float min = 0;
-            float max = std::numeric_limits<float>::max();
+            Fps min{0.0f};
+            Fps max{std::numeric_limits<float>::max()};
 
             bool operator==(const Range& other) const {
-                return min == other.min && max == other.max;
+                return min.equalsWithMargin(other.min) && max.equalsWithMargin(other.max);
             }
 
             bool operator!=(const Range& other) const { return !(*this == other); }
+
+            std::string toString() const {
+                return base::StringPrintf("[%s %s]", to_string(min).c_str(),
+                                          to_string(max).c_str());
+            }
         };
 
         // The default config, used to ensure we only initiate display config switches within the
@@ -221,7 +224,7 @@ public:
         // Layer vote type.
         LayerVoteType vote = LayerVoteType::NoVote;
         // Layer's desired refresh rate, if applicable.
-        float desiredRefreshRate = 0.0f;
+        Fps desiredRefreshRate{0.0f};
         // If a seamless mode switch is required.
         Seamlessness seamlessness = Seamlessness::Default;
         // Layer's weight in the range of [0, 1]. The higher the weight the more impact this layer
@@ -232,7 +235,7 @@ public:
 
         bool operator==(const LayerRequirement& other) const {
             return name == other.name && vote == other.vote &&
-                    desiredRefreshRate == other.desiredRefreshRate &&
+                    desiredRefreshRate.equalsWithMargin(other.desiredRefreshRate) &&
                     seamlessness == other.seamlessness && weight == other.weight &&
                     focused == other.focused;
         }
@@ -295,7 +298,7 @@ public:
     static std::string layerVoteTypeString(LayerVoteType vote);
 
     // Returns a known frame rate that is the closest to frameRate
-    float findClosestKnownFrameRate(float frameRate) const;
+    Fps findClosestKnownFrameRate(Fps frameRate) const;
 
     RefreshRateConfigs(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
                        HwcConfigIndexType currentConfigId);
@@ -332,7 +335,7 @@ private:
     friend class RefreshRateConfigsTest;
 
     void constructAvailableRefreshRates() REQUIRES(mLock);
-    static std::vector<float> constructKnownFrameRates(
+    static std::vector<Fps> constructKnownFrameRates(
             const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs);
 
     void getSortedRefreshRateList(
@@ -387,7 +390,7 @@ private:
 
     // A mapping between a UID and a preferred refresh rate that this app would
     // run at.
-    std::unordered_map<uid_t, float> mPreferredRefreshRateForUid GUARDED_BY(mLock);
+    std::unordered_map<uid_t, Fps> mPreferredRefreshRateForUid GUARDED_BY(mLock);
 
     // The min and max refresh rates supported by the device.
     // This will not change at runtime.
@@ -398,7 +401,7 @@ private:
 
     // A sorted list of known frame rates that a Heuristic layer will choose
     // from based on the closest value.
-    const std::vector<float> mKnownFrameRates;
+    const std::vector<Fps> mKnownFrameRates;
 };
 
 } // namespace android::scheduler
