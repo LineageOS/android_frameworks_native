@@ -15,19 +15,19 @@
  */
 
 //#define LOG_NDEBUG 0
+#undef LOG_TAG
+#define LOG_TAG "RenderEngine"
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include <cstdint>
 #include <memory>
 
 #include "SkImageInfo.h"
 #include "log/log_main.h"
 #include "system/graphics-base-v1.0.h"
-#undef LOG_TAG
-#define LOG_TAG "RenderEngine"
-#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <GLES2/gl2.h>
 #include <sync/sync.h>
 #include <ui/BlurRegion.h>
 #include <ui/GraphicBuffer.h>
@@ -35,6 +35,8 @@
 #include "../gl/GLExtensions.h"
 #include "SkiaGLRenderEngine.h"
 #include "filters/BlurFilter.h"
+#include "filters/LinearEffect.h"
+#include "skia/debug/SkiaCapture.h"
 
 #include <GrContextOptions.h>
 #include <SkCanvas.h>
@@ -46,16 +48,8 @@
 #include <SkShadowUtils.h>
 #include <SkSurface.h>
 #include <gl/GrGLInterface.h>
-#include <sync/sync.h>
-#include <ui/GraphicBuffer.h>
-#include <utils/Trace.h>
 
 #include <cmath>
-
-#include "../gl/GLExtensions.h"
-#include "SkiaGLRenderEngine.h"
-#include "filters/BlurFilter.h"
-#include "filters/LinearEffect.h"
 
 bool checkGlError(const char* op, int lineNumber);
 
@@ -482,7 +476,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                                         : ui::Dataspace::SRGB,
                                                                 mGrContext.get());
 
-    auto canvas = surface->getCanvas();
+    SkCanvas* canvas = mCapture.tryCapture(surface.get());
     // Clear the entire canvas with a transparent black to prevent ghost images.
     canvas->clear(SK_ColorTRANSPARENT);
     canvas->save();
@@ -663,11 +657,12 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
         canvas->restore();
     }
+    canvas->restore();
+    mCapture.endCapture();
     {
         ATRACE_NAME("flush surface");
         surface->flush();
     }
-    canvas->restore();
 
     if (drawFence != nullptr) {
         *drawFence = flush();
