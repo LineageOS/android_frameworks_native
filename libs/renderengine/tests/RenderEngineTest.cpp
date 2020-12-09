@@ -88,6 +88,45 @@ public:
     }
 };
 
+class SkiaGLESRenderEngineFactory : public RenderEngineFactory {
+public:
+    std::string name() override { return "SkiaGLESRenderEngineFactory"; }
+
+    std::unique_ptr<renderengine::gl::GLESRenderEngine> createRenderEngine() override {
+        renderengine::RenderEngineCreationArgs reCreationArgs =
+                renderengine::RenderEngineCreationArgs::Builder()
+                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
+                        .setImageCacheSize(1)
+                        .setEnableProtectedContext(false)
+                        .setPrecacheToneMapperShaderOnly(false)
+                        .setSupportsBackgroundBlur(true)
+                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
+                        .setRenderEngineType(renderengine::RenderEngine::RenderEngineType::SKIA_GL)
+                        .build();
+        return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
+    }
+};
+
+class SkiaGLESCMRenderEngineFactory : public RenderEngineFactory {
+public:
+    std::string name() override { return "SkiaGLESCMRenderEngineFactory"; }
+
+    std::unique_ptr<renderengine::gl::GLESRenderEngine> createRenderEngine() override {
+        renderengine::RenderEngineCreationArgs reCreationArgs =
+                renderengine::RenderEngineCreationArgs::Builder()
+                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
+                        .setImageCacheSize(1)
+                        .setEnableProtectedContext(false)
+                        .setPrecacheToneMapperShaderOnly(false)
+                        .setSupportsBackgroundBlur(true)
+                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
+                        .setRenderEngineType(renderengine::RenderEngine::RenderEngineType::SKIA_GL)
+                        .setUseColorManagerment(true)
+                        .build();
+        return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
+    }
+};
+
 class RenderEngineTest : public ::testing::TestWithParam<std::shared_ptr<RenderEngineFactory>> {
 public:
     static sp<GraphicBuffer> allocateDefaultBuffer() {
@@ -1045,7 +1084,9 @@ void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLaye
 
 INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
                          testing::Values(std::make_shared<GLESRenderEngineFactory>(),
-                                         std::make_shared<GLESCMRenderEngineFactory>()));
+                                         std::make_shared<GLESCMRenderEngineFactory>(),
+                                         std::make_shared<SkiaGLESRenderEngineFactory>(),
+                                         std::make_shared<SkiaGLESCMRenderEngineFactory>()));
 
 TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
     const auto& renderEngineFactory = GetParam();
