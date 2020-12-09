@@ -1877,6 +1877,8 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                 }
                 if (isWindowObscuredAtPointLocked(newTouchedWindowHandle, x, y)) {
                     targetFlags |= InputTarget::FLAG_WINDOW_IS_OBSCURED;
+                } else if (isWindowObscuredLocked(newTouchedWindowHandle)) {
+                    targetFlags |= InputTarget::FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
                 }
 
                 BitSet32 pointerIds;
