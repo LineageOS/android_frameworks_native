@@ -880,7 +880,7 @@ public:
      */
     bool hasInputInfo() const;
 
-    uid_t getOwnerUid() { return mOwnerUid; }
+    virtual uid_t getOwnerUid() const { return mOwnerUid; }
 
     pid_t getOwnerPid() { return mOwnerPid; }
 
