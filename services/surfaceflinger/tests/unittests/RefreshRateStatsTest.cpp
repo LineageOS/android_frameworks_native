@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #undef LOG_TAG
 #define LOG_TAG "SchedulerUnittests"
 
@@ -83,7 +79,7 @@ RefreshRateStatsTest::~RefreshRateStatsTest() {
 
 std::shared_ptr<const HWC2::Display::Config> RefreshRateStatsTest::createConfig(
         HwcConfigIndexType configId, int32_t configGroup, int64_t vsyncPeriod) {
-    return HWC2::Display::Config::Builder(mDisplay, configId.value())
+    return HWC2::Display::Config::Builder(mDisplay, static_cast<hal::HWConfigId>(configId.value()))
             .setVsyncPeriod(static_cast<int32_t>(vsyncPeriod))
             .setConfigGroup(configGroup)
             .build();
@@ -105,7 +101,7 @@ TEST_F(RefreshRateStatsTest, oneConfigTest) {
     // Setting up tests on mobile harness can be flaky with time passing, so testing for
     // exact time changes can result in flaxy numbers. To avoid that remember old
     // numbers to make sure the correct values are increasing in the next test.
-    int screenOff = times["ScreenOff"];
+    auto screenOff = times["ScreenOff"];
 
     // Screen is off by default.
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -124,7 +120,7 @@ TEST_F(RefreshRateStatsTest, oneConfigTest) {
     EXPECT_LT(0, times["90.00fps"]);
 
     mRefreshRateStats->setPowerMode(PowerMode::DOZE);
-    int ninety = mRefreshRateStats->getTotalTimes()["90.00fps"];
+    auto ninety = mRefreshRateStats->getTotalTimes()["90.00fps"];
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
     times = mRefreshRateStats->getTotalTimes();
     EXPECT_LT(screenOff, times["ScreenOff"]);
@@ -154,7 +150,7 @@ TEST_F(RefreshRateStatsTest, twoConfigsTest) {
     // Setting up tests on mobile harness can be flaky with time passing, so testing for
     // exact time changes can result in flaxy numbers. To avoid that remember old
     // numbers to make sure the correct values are increasing in the next test.
-    int screenOff = times["ScreenOff"];
+    auto screenOff = times["ScreenOff"];
 
     // Screen is off by default.
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -174,7 +170,7 @@ TEST_F(RefreshRateStatsTest, twoConfigsTest) {
 
     // When power mode is normal, time for configs updates.
     mRefreshRateStats->setRefreshRate(config1Fps);
-    int ninety = mRefreshRateStats->getTotalTimes()["90.00fps"];
+    auto ninety = mRefreshRateStats->getTotalTimes()["90.00fps"];
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
     times = mRefreshRateStats->getTotalTimes();
     EXPECT_EQ(screenOff, times["ScreenOff"]);
@@ -183,7 +179,7 @@ TEST_F(RefreshRateStatsTest, twoConfigsTest) {
     EXPECT_LT(0, times["60.00fps"]);
 
     mRefreshRateStats->setRefreshRate(config0Fps);
-    int sixty = mRefreshRateStats->getTotalTimes()["60.00fps"];
+    auto sixty = mRefreshRateStats->getTotalTimes()["60.00fps"];
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
     times = mRefreshRateStats->getTotalTimes();
     EXPECT_EQ(screenOff, times["ScreenOff"]);
@@ -220,6 +216,3 @@ TEST_F(RefreshRateStatsTest, twoConfigsTest) {
 } // namespace
 } // namespace scheduler
 } // namespace android
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
