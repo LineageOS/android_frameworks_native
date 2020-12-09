@@ -21,7 +21,7 @@
 namespace android {
 
 VibratorInputMapper::VibratorInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext), mVibrating(false) {}
+      : InputMapper(deviceContext), mVibrating(false), mSequence(0) {}
 
 VibratorInputMapper::~VibratorInputMapper() {}
 
@@ -39,17 +39,15 @@ void VibratorInputMapper::process(const RawEvent* rawEvent) {
     // TODO: Handle FF_STATUS, although it does not seem to be widely supported.
 }
 
-void VibratorInputMapper::vibrate(const std::vector<VibrationElement>& pattern, ssize_t repeat,
+void VibratorInputMapper::vibrate(const VibrationSequence& sequence, ssize_t repeat,
                                   int32_t token) {
 #if DEBUG_VIBRATOR
-    std::string patternStr;
-    dumpPattern(patternStr);
     ALOGD("vibrate: deviceId=%d, pattern=[%s], repeat=%zd, token=%d", getDeviceId(),
-          patternStr.c_str(), repeat, token);
+          sequence.toString().c_str(), repeat, token);
 #endif
 
     mVibrating = true;
-    mPattern = pattern;
+    mSequence = sequence;
     mRepeat = repeat;
     mToken = token;
     mIndex = -1;
@@ -67,6 +65,14 @@ void VibratorInputMapper::cancelVibrate(int32_t token) {
     }
 }
 
+bool VibratorInputMapper::isVibrating() {
+    return mVibrating;
+}
+
+std::vector<int32_t> VibratorInputMapper::getVibratorIds() {
+    return getDeviceContext().getVibratorIds();
+}
+
 void VibratorInputMapper::timeoutExpired(nsecs_t when) {
     if (mVibrating) {
         if (when >= mNextStepTime) {
@@ -79,7 +85,7 @@ void VibratorInputMapper::timeoutExpired(nsecs_t when) {
 
 void VibratorInputMapper::nextStep() {
     mIndex += 1;
-    if (size_t(mIndex) >= mPattern.size()) {
+    if (size_t(mIndex) >= mSequence.pattern.size()) {
         if (mRepeat < 0) {
             // We are done.
             stopVibrating();
@@ -88,7 +94,7 @@ void VibratorInputMapper::nextStep() {
         mIndex = mRepeat;
     }
 
-    const VibrationElement& element = mPattern[mIndex];
+    const VibrationElement& element = mSequence.pattern[mIndex];
     if (element.isOn()) {
 #if DEBUG_VIBRATOR
         std::string description = element.toString();
@@ -125,23 +131,10 @@ void VibratorInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "Vibrating: %s\n", toString(mVibrating));
     if (mVibrating) {
         dump += INDENT3 "Pattern: ";
-        dumpPattern(dump);
+        dump += mSequence.toString();
         dump += "\n";
         dump += StringPrintf(INDENT3 "Repeat Index: %zd\n", mRepeat);
     }
-}
-
-void VibratorInputMapper::dumpPattern(std::string& dump) const {
-    dump += "[";
-
-    for (auto it = mPattern.begin(); it != mPattern.end(); ++it) {
-        dump += it->toString();
-        if (std::next(it) != mPattern.end()) {
-            dump += ", ";
-        }
-    }
-
-    dump += "]";
 }
 
 } // namespace android

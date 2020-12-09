@@ -233,6 +233,7 @@ public:
     /* Control the vibrator. */
     virtual void vibrate(int32_t deviceId, const VibrationElement& effect) = 0;
     virtual void cancelVibrate(int32_t deviceId) = 0;
+    virtual std::vector<int32_t> getVibratorIds(int32_t deviceId) = 0;
 
     /* Requests the EventHub to reopen all input devices on the next call to getEvents(). */
     virtual void requestReopenDevices() = 0;
@@ -381,6 +382,7 @@ public:
 
     void vibrate(int32_t deviceId, const VibrationElement& effect) override final;
     void cancelVibrate(int32_t deviceId) override final;
+    std::vector<int32_t> getVibratorIds(int32_t deviceId) override final;
 
     void requestReopenDevices() override final;
 
