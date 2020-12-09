@@ -45,6 +45,8 @@ public:
     SkCanvas* tryCapture(SkSurface* surface);
     // Called at the end of every frame.
     void endCapture();
+    // Returns whether the capture is running.
+    bool isCaptureRunning() { return mCaptureRunning; }
 
 private:
     // Performs the first-frame work of a multi frame SKP capture. Returns true if successful.
