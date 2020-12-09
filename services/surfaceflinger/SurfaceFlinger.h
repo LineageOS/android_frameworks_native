@@ -644,6 +644,8 @@ private:
     void repaintEverythingForHWC() override;
     // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
     void kernelTimerChanged(bool expired) override;
+    // Called when the frame rate override list changed to trigger an event.
+    void triggerOnFrameRateOverridesChanged() override;
     // Toggles the kernel idle timer on or off depending the policy decisions around refresh rates.
     void toggleKernelIdleTimer();
     // Keeps track of whether the kernel idle timer is currently enabled, so we don't have to
