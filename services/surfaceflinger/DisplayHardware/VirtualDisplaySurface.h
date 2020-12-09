@@ -180,6 +180,10 @@ private:
     uint64_t mProducerSlotSource;
     sp<GraphicBuffer> mProducerBuffers[BufferQueueDefs::NUM_BUFFER_SLOTS];
 
+    // Need to propagate reallocation to VDS consumer.
+    // Each bit corresponds to a producer slot.
+    uint64_t mProducerSlotNeedReallocation;
+
     // The QueueBufferOutput with the latest info from the sink, and with the
     // transform hint cleared. Since we defer queueBuffer from the GPU driver
     // to the sink, we have to return the previous version.
