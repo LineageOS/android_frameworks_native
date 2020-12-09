@@ -2591,6 +2591,11 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
         if (currentState.physical) {
             const auto display = getDisplayDeviceLocked(displayToken);
             setPowerModeInternal(display, hal::PowerMode::ON);
+
+            // TODO(b/175678251) Call a listener instead.
+            if (mRefreshRateOverlay) {
+                mRefreshRateOverlay->reset();
+            }
         }
         return;
     }

@@ -18,6 +18,8 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
+#include <algorithm>
+
 #include "RefreshRateOverlay.h"
 #include "Client.h"
 #include "Layer.h"
@@ -172,7 +174,7 @@ std::vector<sp<GraphicBuffer>> RefreshRateOverlay::SevenSegmentDrawer::drawNumbe
 RefreshRateOverlay::RefreshRateOverlay(SurfaceFlinger& flinger, bool showSpinner)
       : mFlinger(flinger), mClient(new Client(&mFlinger)), mShowSpinner(showSpinner) {
     createLayer();
-    primeCache();
+    reset();
 }
 
 bool RefreshRateOverlay::createLayer() {
@@ -202,26 +204,15 @@ bool RefreshRateOverlay::createLayer() {
     return true;
 }
 
-void RefreshRateOverlay::primeCache() {
-    auto& allRefreshRates = mFlinger.mRefreshRateConfigs->getAllRefreshRates();
-    if (allRefreshRates.size() == 1) {
-        int fps = allRefreshRates.begin()->second->getFps().getIntValue();
-        half4 color = {LOW_FPS_COLOR, ALPHA};
-        mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color, mShowSpinner));
-        return;
-    }
-
-    std::vector<uint32_t> supportedFps;
-    supportedFps.reserve(allRefreshRates.size());
-    for (auto& [ignored, refreshRate] : allRefreshRates) {
-        supportedFps.push_back(refreshRate->getFps().getIntValue());
-    }
-
-    std::sort(supportedFps.begin(), supportedFps.end());
-    const auto mLowFps = supportedFps[0];
-    const auto mHighFps = supportedFps[supportedFps.size() - 1];
-    for (auto fps : supportedFps) {
-        const auto fpsScale = float(fps - mLowFps) / (mHighFps - mLowFps);
+const std::vector<sp<GraphicBuffer>>& RefreshRateOverlay::getOrCreateBuffers(uint32_t fps) {
+    if (mBufferCache.find(fps) == mBufferCache.end()) {
+        // Ensure the range is > 0, so we don't divide by 0.
+        const auto rangeLength = std::max(1u, mHighFps - mLowFps);
+        // Clip values outside the range [mLowFps, mHighFps]. The current fps may be outside
+        // of this range if the display has changed its set of supported refresh rates.
+        fps = std::max(fps, mLowFps);
+        fps = std::min(fps, mHighFps);
+        const auto fpsScale = static_cast<float>(fps - mLowFps) / rangeLength;
         half4 color;
         color.r = HIGH_FPS_COLOR.r * fpsScale + LOW_FPS_COLOR.r * (1 - fpsScale);
         color.g = HIGH_FPS_COLOR.g * fpsScale + LOW_FPS_COLOR.g * (1 - fpsScale);
@@ -229,6 +220,8 @@ void RefreshRateOverlay::primeCache() {
         color.a = ALPHA;
         mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color, mShowSpinner));
     }
+
+    return mBufferCache[fps];
 }
 
 void RefreshRateOverlay::setViewport(ui::Size viewport) {
@@ -241,7 +234,7 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
 
 void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
     mCurrentFps = refreshRate.getFps().getIntValue();
-    auto buffer = mBufferCache[*mCurrentFps][mFrame];
+    auto buffer = getOrCreateBuffers(*mCurrentFps)[mFrame];
     mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {},
                       mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */));
 
@@ -251,13 +244,19 @@ void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
 void RefreshRateOverlay::onInvalidate() {
     if (!mCurrentFps.has_value()) return;
 
-    const auto& buffers = mBufferCache[*mCurrentFps];
+    const auto& buffers = getOrCreateBuffers(*mCurrentFps);
     mFrame = (mFrame + 1) % buffers.size();
     auto buffer = buffers[mFrame];
     mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {},
                       mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */));
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
+}
+
+void RefreshRateOverlay::reset() {
+    mBufferCache.clear();
+    mLowFps = mFlinger.mRefreshRateConfigs->getMinRefreshRate().getFps().getIntValue();
+    mHighFps = mFlinger.mRefreshRateConfigs->getMaxRefreshRate().getFps().getIntValue();
 }
 
 } // namespace android
