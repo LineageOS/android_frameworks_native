@@ -190,7 +190,7 @@ bool RefreshRateOverlay::createLayer() {
 
     Mutex::Autolock _l(mFlinger.mStateLock);
     mLayer = mClient->getLayerUser(mIBinder);
-    mLayer->setFrameRate(Layer::FrameRate(0, Layer::FrameRateCompatibility::NoVote));
+    mLayer->setFrameRate(Layer::FrameRate(Fps(0.0f), Layer::FrameRateCompatibility::NoVote));
 
     // setting Layer's Z requires resorting layersSortedByZ
     ssize_t idx = mFlinger.mCurrentState.layersSortedByZ.indexOf(mLayer);
@@ -205,7 +205,7 @@ bool RefreshRateOverlay::createLayer() {
 void RefreshRateOverlay::primeCache() {
     auto& allRefreshRates = mFlinger.mRefreshRateConfigs->getAllRefreshRates();
     if (allRefreshRates.size() == 1) {
-        auto fps = allRefreshRates.begin()->second->getFps();
+        int fps = allRefreshRates.begin()->second->getFps().getIntValue();
         half4 color = {LOW_FPS_COLOR, ALPHA};
         mBufferCache.emplace(fps, SevenSegmentDrawer::drawNumber(fps, color, mShowSpinner));
         return;
@@ -214,7 +214,7 @@ void RefreshRateOverlay::primeCache() {
     std::vector<uint32_t> supportedFps;
     supportedFps.reserve(allRefreshRates.size());
     for (auto& [ignored, refreshRate] : allRefreshRates) {
-        supportedFps.push_back(refreshRate->getFps());
+        supportedFps.push_back(refreshRate->getFps().getIntValue());
     }
 
     std::sort(supportedFps.begin(), supportedFps.end());
@@ -240,7 +240,7 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
 }
 
 void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
-    mCurrentFps = refreshRate.getFps();
+    mCurrentFps = refreshRate.getFps().getIntValue();
     auto buffer = mBufferCache[*mCurrentFps][mFrame];
     mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {},
                       mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */));

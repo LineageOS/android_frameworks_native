@@ -19,6 +19,7 @@ cc_library_shared {
         "VibratorCallbackScheduler.cpp",
         "VibratorHalController.cpp",
         "VibratorHalWrapper.cpp",
+        "VibratorManagerHalController.cpp",
         "VibratorManagerHalWrapper.cpp",
     ],
 

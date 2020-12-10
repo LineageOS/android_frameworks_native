@@ -21,6 +21,7 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace android {
 
@@ -32,11 +33,41 @@ constexpr size_t CHANNEL_SIZE = 2;
 struct VibrationElement {
     std::chrono::milliseconds duration;
     // Channel amplitude range 0-255.
-    std::array<uint8_t, CHANNEL_SIZE> channels = {0, 0};
+    std::vector<std::pair<int32_t /*vibratorId*/, uint8_t /*amplitude*/>> channels;
+
+    explicit VibrationElement(size_t channelNum);
+
+    VibrationElement(const VibrationElement& other);
+
+    bool operator==(const VibrationElement& other) const;
+
+    bool operator!=(const VibrationElement& other) const;
+
+    void addChannel(int32_t vibratorId, uint8_t amplitude);
 
     const std::string toString() const;
-    uint16_t getMagnitude(size_t channelIndex) const;
+
+    uint16_t getMagnitude(int32_t vibratorId) const;
+
     bool isOn() const;
+};
+
+/*
+ * Describes a sequence of rumble effect
+ */
+struct VibrationSequence {
+    // Pattern of vibration elements
+    std::vector<VibrationElement> pattern;
+
+    explicit VibrationSequence(size_t length);
+
+    void operator=(const VibrationSequence& other);
+
+    bool operator==(const VibrationSequence& other) const;
+
+    void addElement(VibrationElement element);
+
+    const std::string toString() const;
 };
 
 } // namespace android

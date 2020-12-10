@@ -15,19 +15,19 @@
  */
 
 //#define LOG_NDEBUG 0
+#undef LOG_TAG
+#define LOG_TAG "RenderEngine"
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include <cstdint>
 #include <memory>
 
 #include "SkImageInfo.h"
 #include "log/log_main.h"
 #include "system/graphics-base-v1.0.h"
-#undef LOG_TAG
-#define LOG_TAG "RenderEngine"
-#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <GLES2/gl2.h>
 #include <sync/sync.h>
 #include <ui/BlurRegion.h>
 #include <ui/GraphicBuffer.h>
@@ -35,6 +35,8 @@
 #include "../gl/GLExtensions.h"
 #include "SkiaGLRenderEngine.h"
 #include "filters/BlurFilter.h"
+#include "filters/LinearEffect.h"
+#include "skia/debug/SkiaCapture.h"
 
 #include <GrContextOptions.h>
 #include <SkCanvas.h>
@@ -46,16 +48,8 @@
 #include <SkShadowUtils.h>
 #include <SkSurface.h>
 #include <gl/GrGLInterface.h>
-#include <sync/sync.h>
-#include <ui/GraphicBuffer.h>
-#include <utils/Trace.h>
 
 #include <cmath>
-
-#include "../gl/GLExtensions.h"
-#include "SkiaGLRenderEngine.h"
-#include "filters/BlurFilter.h"
-#include "filters/LinearEffect.h"
 
 bool checkGlError(const char* op, int lineNumber);
 
@@ -482,7 +476,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                                         : ui::Dataspace::SRGB,
                                                                 mGrContext.get());
 
-    auto canvas = surface->getCanvas();
+    SkCanvas* canvas = mCapture.tryCapture(surface.get());
     // Clear the entire canvas with a transparent black to prevent ghost images.
     canvas->clear(SK_ColorTRANSPARENT);
     canvas->save();
@@ -550,8 +544,6 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         if (layer->source.buffer.buffer) {
             ATRACE_NAME("DrawImage");
             const auto& item = layer->source.buffer;
-            const auto bufferWidth = item.buffer->getBounds().width();
-            const auto bufferHeight = item.buffer->getBounds().height();
             std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef = nullptr;
             auto iter = mTextureCache.find(item.buffer->getId());
             if (iter != mTextureCache.end()) {
@@ -583,50 +575,19 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                                  ? kPremul_SkAlphaType
                                                                  : kUnpremul_SkAlphaType),
                                         mGrContext.get());
-            SkMatrix matrix;
-            if (layer->geometry.roundedCornersRadius > 0) {
-                const auto roundedRect = getRoundedRect(layer);
-                matrix.setTranslate(roundedRect.getBounds().left() - dest.left(),
-                                    roundedRect.getBounds().top() - dest.top());
-            } else {
-                matrix.setIdentity();
-            }
 
             auto texMatrix = getSkM44(item.textureTransform).asM33();
-
-            // b/171404534, scale to fix the layer
-            matrix.postScale(bounds.getWidth() / bufferWidth, bounds.getHeight() / bufferHeight);
-
             // textureTansform was intended to be passed directly into a shader, so when
             // building the total matrix with the textureTransform we need to first
             // normalize it, then apply the textureTransform, then scale back up.
-            matrix.postScale(1.0f / bufferWidth, 1.0f / bufferHeight);
+            texMatrix.preScale(1.0f / bounds.getWidth(), 1.0f / bounds.getHeight());
+            texMatrix.postScale(image->width(), image->height());
 
-            auto rotatedBufferWidth = bufferWidth;
-            auto rotatedBufferHeight = bufferHeight;
-
-            // Swap the buffer width and height if we're rotating, so that we
-            // scale back up by the correct factors post-rotation.
-            if (texMatrix.getSkewX() <= -0.5f || texMatrix.getSkewX() >= 0.5f) {
-                std::swap(rotatedBufferWidth, rotatedBufferHeight);
-                // TODO: clean this up.
-                // GLESRenderEngine specifies its texture coordinates in
-                // CW orientation under OpenGL conventions, when they probably should have
-                // been CCW instead. The net result is that orientation
-                // transforms are applied in the reverse
-                // direction to render the correct result, because SurfaceFlinger uses the inverse
-                // of the display transform to correct for that. But this means that
-                // the tex transform passed by SkiaGLRenderEngine will rotate
-                // individual layers in the reverse orientation. Hack around it
-                // by injected a 180 degree rotation, but ultimately this is
-                // a bug in how SurfaceFlinger invokes the RenderEngine
-                // interface, so the proper fix should live there, and GLESRenderEngine
-                // should be fixed accordingly.
-                matrix.postRotate(180, 0.5, 0.5);
+            SkMatrix matrix;
+            if (!texMatrix.invert(&matrix)) {
+                matrix = texMatrix;
             }
 
-            matrix.postConcat(texMatrix);
-            matrix.postScale(rotatedBufferWidth, rotatedBufferHeight);
             sk_sp<SkShader> shader;
 
             if (layer->source.buffer.useTextureFiltering) {
@@ -696,11 +657,12 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
         canvas->restore();
     }
+    canvas->restore();
+    mCapture.endCapture();
     {
         ATRACE_NAME("flush surface");
         surface->flush();
     }
-    canvas->restore();
 
     if (drawFence != nullptr) {
         *drawFence = flush();

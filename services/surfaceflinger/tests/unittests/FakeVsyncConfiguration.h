@@ -26,7 +26,7 @@ struct FakePhaseOffsets : VsyncConfiguration {
     static constexpr nsecs_t FAKE_PHASE_OFFSET_NS = 0;
     static constexpr auto FAKE_DURATION_OFFSET_NS = std::chrono::nanoseconds(0);
 
-    VsyncConfigSet getConfigsForRefreshRate(float) const override { return getCurrentConfigs(); }
+    VsyncConfigSet getConfigsForRefreshRate(Fps) const override { return getCurrentConfigs(); }
 
     VsyncConfigSet getCurrentConfigs() const override {
         return {{FAKE_PHASE_OFFSET_NS, FAKE_PHASE_OFFSET_NS, FAKE_DURATION_OFFSET_NS,
@@ -37,7 +37,7 @@ struct FakePhaseOffsets : VsyncConfiguration {
                  FAKE_DURATION_OFFSET_NS}};
     }
 
-    void setRefreshRateFps(float) override {}
+    void setRefreshRateFps(Fps) override {}
     void dump(std::string&) const override {}
 };
 

@@ -50,9 +50,9 @@ class LayerInfo {
     // is within a threshold. If a layer is infrequent, its average refresh rate is disregarded in
     // favor of a low refresh rate.
     static constexpr size_t FREQUENT_LAYER_WINDOW_SIZE = 3;
-    static constexpr float MIN_FPS_FOR_FREQUENT_LAYER = 10.0f;
+    static constexpr Fps MIN_FPS_FOR_FREQUENT_LAYER{10.0f};
     static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS =
-            std::chrono::nanoseconds(static_cast<nsecs_t>(1e9f / MIN_FPS_FOR_FREQUENT_LAYER)) + 1ms;
+            std::chrono::nanoseconds(MIN_FPS_FOR_FREQUENT_LAYER.getPeriodNsecs()) + 1ms;
 
     friend class LayerHistoryTest;
 
@@ -60,7 +60,7 @@ public:
     // Holds information about the layer vote
     struct LayerVote {
         LayerHistory::LayerVoteType type = LayerHistory::LayerVoteType::Heuristic;
-        float fps = 0.0f;
+        Fps fps{0.0f};
         Seamlessness seamlessness = Seamlessness::Default;
     };
 
@@ -92,7 +92,7 @@ public:
     void setDefaultLayerVote(LayerHistory::LayerVoteType type) { mDefaultVote = type; }
 
     // Resets the layer vote to its default.
-    void resetLayerVote() { mLayerVote = {mDefaultVote, 0.0f, Seamlessness::Default}; }
+    void resetLayerVote() { mLayerVote = {mDefaultVote, Fps(0.0f), Seamlessness::Default}; }
 
     LayerVote getRefreshRateVote(nsecs_t now);
 
@@ -130,9 +130,9 @@ private:
     // Holds information about the calculated and reported refresh rate
     struct RefreshRateHeuristicData {
         // Rate calculated on the layer
-        float calculated = 0.0f;
+        Fps calculated{0.0f};
         // Last reported rate for LayerInfo::getRefreshRate()
-        float reported = 0.0f;
+        Fps reported{0.0f};
         // Whether the last reported rate for LayerInfo::getRefreshRate()
         // was due to animation or infrequent updates
         bool animatingOrInfrequent = false;
@@ -151,18 +151,20 @@ private:
         void clear();
 
         // Adds a new refresh rate and returns true if it is consistent
-        bool add(float refreshRate, nsecs_t now);
+        bool add(Fps refreshRate, nsecs_t now);
 
     private:
         friend class LayerHistoryTest;
 
         // Holds the refresh rate when it was calculated
         struct RefreshRateData {
-            float refreshRate = 0.0f;
+            Fps refreshRate{0.0f};
             nsecs_t timestamp = 0;
 
             bool operator<(const RefreshRateData& other) const {
-                return refreshRate < other.refreshRate;
+                // We don't need comparison with margins since we are using
+                // this to find the min and max refresh rates.
+                return refreshRate.getValue() < other.refreshRate.getValue();
             }
         };
 
@@ -180,13 +182,13 @@ private:
         const std::string mName;
         mutable std::optional<HeuristicTraceTagData> mHeuristicTraceTagData;
         std::deque<RefreshRateData> mRefreshRates;
-        static constexpr float MARGIN_FPS = 1.0;
+        static constexpr float MARGIN_CONSISTENT_FPS = 1.0;
     };
 
     bool isFrequent(nsecs_t now) const;
     bool isAnimating(nsecs_t now) const;
     bool hasEnoughDataForHeuristic() const;
-    std::optional<float> calculateRefreshRateIfPossible(nsecs_t now);
+    std::optional<Fps> calculateRefreshRateIfPossible(nsecs_t now);
     std::optional<nsecs_t> calculateAverageFrameTime() const;
     bool isFrameTimeValid(const FrameTimeData&) const;
 
