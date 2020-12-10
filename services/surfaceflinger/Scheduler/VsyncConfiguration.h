@@ -18,6 +18,9 @@
 
 #include <unordered_map>
 
+#include <utils/Timers.h>
+
+#include "Fps.h"
 #include "RefreshRateConfigs.h"
 #include "VsyncModulator.h"
 
@@ -35,9 +38,9 @@ public:
 
     virtual ~VsyncConfiguration() = default;
     virtual VsyncConfigSet getCurrentConfigs() const = 0;
-    virtual VsyncConfigSet getConfigsForRefreshRate(float fps) const = 0;
+    virtual VsyncConfigSet getConfigsForRefreshRate(Fps fps) const = 0;
 
-    virtual void setRefreshRateFps(float fps) = 0;
+    virtual void setRefreshRateFps(Fps fps) = 0;
 
     virtual void dump(std::string& result) const = 0;
 };
@@ -51,10 +54,10 @@ namespace impl {
  */
 class VsyncConfiguration : public scheduler::VsyncConfiguration {
 public:
-    explicit VsyncConfiguration(float currentFps);
+    explicit VsyncConfiguration(Fps currentFps);
 
     // Returns early, early GL, and late offsets for Apps and SF for a given refresh rate.
-    VsyncConfigSet getConfigsForRefreshRate(float fps) const override;
+    VsyncConfigSet getConfigsForRefreshRate(Fps fps) const override;
 
     // Returns early, early GL, and late offsets for Apps and SF.
     VsyncConfigSet getCurrentConfigs() const override {
@@ -63,17 +66,17 @@ public:
 
     // This function should be called when the device is switching between different
     // refresh rates, to properly update the offsets.
-    void setRefreshRateFps(float fps) override { mRefreshRateFps = fps; }
+    void setRefreshRateFps(Fps fps) override { mRefreshRateFps = fps; }
 
     // Returns current offsets in human friendly format.
     void dump(std::string& result) const override;
 
 protected:
-    void initializeOffsets(const std::vector<float>& refreshRates);
+    void initializeOffsets(const std::vector<Fps>& refreshRates);
     virtual VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const = 0;
 
-    std::unordered_map<float, VsyncConfigSet> mOffsets;
-    std::atomic<float> mRefreshRateFps;
+    std::unordered_map<Fps, VsyncConfigSet, std::hash<Fps>, Fps::EqualsInBuckets> mOffsets;
+    std::atomic<Fps> mRefreshRateFps;
 };
 
 /*
@@ -86,10 +89,9 @@ public:
 
 protected:
     // Used for unit tests
-    PhaseOffsets(const std::vector<float>& refreshRates, float currentFps,
-                 nsecs_t vsyncPhaseOffsetNs, nsecs_t sfVSyncPhaseOffsetNs,
-                 std::optional<nsecs_t> earlySfOffsetNs, std::optional<nsecs_t> earlyGpuSfOffsetNs,
-                 std::optional<nsecs_t> earlyAppOffsetNs,
+    PhaseOffsets(const std::vector<Fps>& refreshRates, Fps currentFps, nsecs_t vsyncPhaseOffsetNs,
+                 nsecs_t sfVSyncPhaseOffsetNs, std::optional<nsecs_t> earlySfOffsetNs,
+                 std::optional<nsecs_t> earlyGpuSfOffsetNs, std::optional<nsecs_t> earlyAppOffsetNs,
                  std::optional<nsecs_t> earlyGpuAppOffsetNs, nsecs_t highFpsVsyncPhaseOffsetNs,
                  nsecs_t highFpsSfVSyncPhaseOffsetNs, std::optional<nsecs_t> highFpsEarlySfOffsetNs,
                  std::optional<nsecs_t> highFpsEarlyGpuSfOffsetNs,
@@ -130,7 +132,7 @@ public:
 
 protected:
     // Used for unit tests
-    WorkDuration(const std::vector<float>& refreshRates, float currentFps, nsecs_t sfDuration,
+    WorkDuration(const std::vector<Fps>& refreshRates, Fps currentFps, nsecs_t sfDuration,
                  nsecs_t appDuration, nsecs_t sfEarlyDuration, nsecs_t appEarlyDuration,
                  nsecs_t sfEarlyGpuDuration, nsecs_t appEarlyGpuDuration);
 

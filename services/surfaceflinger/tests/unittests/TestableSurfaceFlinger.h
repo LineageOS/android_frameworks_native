@@ -223,12 +223,14 @@ public:
                                          .build());
         }
 
-        mFlinger->mRefreshRateConfigs = std::make_unique<
-                scheduler::RefreshRateConfigs>(configs, /*currentConfig=*/HwcConfigIndexType(0));
-        mFlinger->mRefreshRateStats = std::make_unique<
-                scheduler::RefreshRateStats>(*mFlinger->mRefreshRateConfigs, *mFlinger->mTimeStats,
-                                             /*currentConfig=*/HwcConfigIndexType(0),
-                                             /*powerMode=*/hal::PowerMode::OFF);
+        const auto currConfig = HwcConfigIndexType(0);
+        mFlinger->mRefreshRateConfigs =
+                std::make_unique<scheduler::RefreshRateConfigs>(configs, currConfig);
+        const auto currFps =
+                mFlinger->mRefreshRateConfigs->getRefreshRateFromConfigId(currConfig).getFps();
+        mFlinger->mRefreshRateStats =
+                std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, currFps,
+                                                              /*powerMode=*/hal::PowerMode::OFF);
         mFlinger->mVsyncConfiguration =
                 mFactory.createVsyncConfiguration(*mFlinger->mRefreshRateConfigs);
         mFlinger->mVsyncModulator.emplace(mFlinger->mVsyncConfiguration->getCurrentConfigs());

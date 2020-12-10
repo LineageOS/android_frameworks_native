@@ -26,13 +26,13 @@ namespace android {
 
 namespace vibrator {
 
-std::shared_ptr<ManagerHalWrapper> connectHal(std::shared_ptr<CallbackScheduler> scheduler) {
+std::shared_ptr<ManagerHalWrapper> connectManagerHal(std::shared_ptr<CallbackScheduler> scheduler) {
     static bool gHalExists = true;
     if (gHalExists) {
         sp<Aidl::IVibratorManager> hal = waitForVintfService<Aidl::IVibratorManager>();
         if (hal) {
             ALOGV("Successfully connected to VibratorManager HAL AIDL service.");
-            return std::make_shared<AidlManagerHalWrapper>(std::move(scheduler), aidlHal);
+            return std::make_shared<AidlManagerHalWrapper>(std::move(scheduler), hal);
         }
     }
 
@@ -80,12 +80,11 @@ HalResult<T> ManagerHalController::apply(ManagerHalController::hal_fn<T>& halFn,
 
 // -------------------------------------------------------------------------------------------------
 
-bool ManagerHalController::init() {
+void ManagerHalController::init() {
     std::lock_guard<std::mutex> lock(mConnectedHalMutex);
     if (mConnectedHal == nullptr) {
         mConnectedHal = mConnector(mCallbackScheduler);
     }
-    return mConnectedHal != nullptr;
 }
 
 HalResult<void> ManagerHalController::ping() {

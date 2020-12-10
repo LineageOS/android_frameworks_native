@@ -29,17 +29,18 @@ namespace android::scheduler {
 
 class TestableWorkDuration : public impl::WorkDuration {
 public:
-    TestableWorkDuration(float currentFps, nsecs_t sfDuration, nsecs_t appDuration,
+    TestableWorkDuration(Fps currentFps, nsecs_t sfDuration, nsecs_t appDuration,
                          nsecs_t sfEarlyDuration, nsecs_t appEarlyDuration,
                          nsecs_t sfEarlyGlDuration, nsecs_t appEarlyGlDuration)
-          : impl::WorkDuration({60.0f, 90.0f}, currentFps, sfDuration, appDuration, sfEarlyDuration,
-                               appEarlyDuration, sfEarlyGlDuration, appEarlyGlDuration) {}
+          : impl::WorkDuration({Fps(60.0f), Fps(90.0f)}, currentFps, sfDuration, appDuration,
+                               sfEarlyDuration, appEarlyDuration, sfEarlyGlDuration,
+                               appEarlyGlDuration) {}
 };
 
 class WorkDurationTest : public testing::Test {
 protected:
     WorkDurationTest()
-          : mWorkDuration(60.0f, 10'500'000, 20'500'000, 16'000'000, 16'500'000, 13'500'000,
+          : mWorkDuration(Fps(60.0f), 10'500'000, 20'500'000, 16'000'000, 16'500'000, 13'500'000,
                           21'000'000) {}
 
     ~WorkDurationTest() = default;
@@ -51,9 +52,9 @@ protected:
  * Test cases
  */
 TEST_F(WorkDurationTest, getConfigsForRefreshRate_60Hz) {
-    mWorkDuration.setRefreshRateFps(60.0f);
+    mWorkDuration.setRefreshRateFps(Fps(60.0f));
     auto currentOffsets = mWorkDuration.getCurrentConfigs();
-    auto offsets = mWorkDuration.getConfigsForRefreshRate(60.0f);
+    auto offsets = mWorkDuration.getConfigsForRefreshRate(Fps(60.0f));
 
     EXPECT_EQ(currentOffsets, offsets);
     EXPECT_EQ(offsets.late.sfOffset, 6'166'667);
@@ -76,9 +77,9 @@ TEST_F(WorkDurationTest, getConfigsForRefreshRate_60Hz) {
 }
 
 TEST_F(WorkDurationTest, getConfigsForRefreshRate_90Hz) {
-    mWorkDuration.setRefreshRateFps(90.0f);
+    mWorkDuration.setRefreshRateFps(Fps(90.0f));
     auto currentOffsets = mWorkDuration.getCurrentConfigs();
-    auto offsets = mWorkDuration.getConfigsForRefreshRate(90.0f);
+    auto offsets = mWorkDuration.getConfigsForRefreshRate(Fps(90.0f));
 
     EXPECT_EQ(currentOffsets, offsets);
     EXPECT_EQ(offsets.late.sfOffset, 611'111);
@@ -101,7 +102,7 @@ TEST_F(WorkDurationTest, getConfigsForRefreshRate_90Hz) {
 }
 
 TEST_F(WorkDurationTest, getConfigsForRefreshRate_DefaultOffsets) {
-    TestableWorkDuration phaseOffsetsWithDefaultValues(60.0f, -1, -1, -1, -1, -1, -1);
+    TestableWorkDuration phaseOffsetsWithDefaultValues(Fps(60.0f), -1, -1, -1, -1, -1, -1);
 
     auto validateOffsets = [](const auto& offsets, std::chrono::nanoseconds vsyncPeriod) {
         EXPECT_EQ(offsets.late.sfOffset, 1'000'000);
@@ -123,21 +124,20 @@ TEST_F(WorkDurationTest, getConfigsForRefreshRate_DefaultOffsets) {
         EXPECT_EQ(offsets.earlyGpu.appWorkDuration, vsyncPeriod);
     };
 
-    const auto testForRefreshRate = [&](float refreshRate) {
+    const auto testForRefreshRate = [&](Fps refreshRate) {
         phaseOffsetsWithDefaultValues.setRefreshRateFps(refreshRate);
         auto currentOffsets = phaseOffsetsWithDefaultValues.getCurrentConfigs();
         auto offsets = phaseOffsetsWithDefaultValues.getConfigsForRefreshRate(refreshRate);
         EXPECT_EQ(currentOffsets, offsets);
-        validateOffsets(offsets,
-                        std::chrono::nanoseconds(static_cast<nsecs_t>(1e9f / refreshRate)));
+        validateOffsets(offsets, std::chrono::nanoseconds(refreshRate.getPeriodNsecs()));
     };
 
-    testForRefreshRate(90.0f);
-    testForRefreshRate(60.0f);
+    testForRefreshRate(Fps(90.0f));
+    testForRefreshRate(Fps(60.0f));
 }
 
 TEST_F(WorkDurationTest, getConfigsForRefreshRate_unknownRefreshRate) {
-    auto offsets = mWorkDuration.getConfigsForRefreshRate(14.7f);
+    auto offsets = mWorkDuration.getConfigsForRefreshRate(Fps(14.7f));
 
     EXPECT_EQ(offsets.late.sfOffset, 57'527'208);
     EXPECT_EQ(offsets.late.appOffset, 37'027'208);
@@ -171,9 +171,9 @@ public:
                          std::optional<nsecs_t> highFpsEarlyAppOffsetNs,
                          std::optional<nsecs_t> highFpsEarlyGpuAppOffsetNs,
                          nsecs_t thresholdForNextVsync)
-          : impl::PhaseOffsets({60.0f, 90.0f}, 60.0f, vsyncPhaseOffsetNs, sfVSyncPhaseOffsetNs,
-                               earlySfOffsetNs, earlyGpuSfOffsetNs, earlyAppOffsetNs,
-                               earlyGpuAppOffsetNs, highFpsVsyncPhaseOffsetNs,
+          : impl::PhaseOffsets({Fps(60.0f), Fps(90.0f)}, Fps(60.0f), vsyncPhaseOffsetNs,
+                               sfVSyncPhaseOffsetNs, earlySfOffsetNs, earlyGpuSfOffsetNs,
+                               earlyAppOffsetNs, earlyGpuAppOffsetNs, highFpsVsyncPhaseOffsetNs,
                                highFpsSfVSyncPhaseOffsetNs, highFpsEarlySfOffsetNs,
                                highFpsEarlyGpuSfOffsetNs, highFpsEarlyAppOffsetNs,
                                highFpsEarlyGpuAppOffsetNs, thresholdForNextVsync) {}
@@ -190,7 +190,7 @@ protected:
 };
 
 TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_unknownRefreshRate) {
-    auto offsets = mPhaseOffsets.getConfigsForRefreshRate(14.7f);
+    auto offsets = mPhaseOffsets.getConfigsForRefreshRate(Fps(14.7f));
 
     EXPECT_EQ(offsets.late.sfOffset, 6'000'000);
     EXPECT_EQ(offsets.late.appOffset, 2'000'000);
@@ -212,7 +212,7 @@ TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_unknownRefreshRate) {
 }
 
 TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_60Hz) {
-    auto offsets = mPhaseOffsets.getConfigsForRefreshRate(60.0f);
+    auto offsets = mPhaseOffsets.getConfigsForRefreshRate(Fps(60.0f));
 
     EXPECT_EQ(offsets.late.sfOffset, 6'000'000);
     EXPECT_EQ(offsets.late.appOffset, 2'000'000);
@@ -234,7 +234,7 @@ TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_60Hz) {
 }
 
 TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_90Hz) {
-    auto offsets = mPhaseOffsets.getConfigsForRefreshRate(90.0f);
+    auto offsets = mPhaseOffsets.getConfigsForRefreshRate(Fps(90.0f));
 
     EXPECT_EQ(offsets.late.sfOffset, 1'000'000);
     EXPECT_EQ(offsets.late.appOffset, 2'000'000);
@@ -258,7 +258,7 @@ TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_90Hz) {
 TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_DefaultValues_60Hz) {
     TestablePhaseOffsets phaseOffsets{1'000'000, 1'000'000, {}, {}, {}, {},        2'000'000,
                                       1'000'000, {},        {}, {}, {}, 10'000'000};
-    auto offsets = phaseOffsets.getConfigsForRefreshRate(60.0f);
+    auto offsets = phaseOffsets.getConfigsForRefreshRate(Fps(60.0f));
 
     EXPECT_EQ(offsets.late.sfOffset, 1'000'000);
     EXPECT_EQ(offsets.late.appOffset, 1'000'000);
@@ -282,7 +282,7 @@ TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_DefaultValues_60Hz) {
 TEST_F(PhaseOffsetsTest, getConfigsForRefreshRate_DefaultValues_90Hz) {
     TestablePhaseOffsets phaseOffsets{1'000'000, 1'000'000, {}, {}, {}, {},        2'000'000,
                                       1'000'000, {},        {}, {}, {}, 10'000'000};
-    auto offsets = phaseOffsets.getConfigsForRefreshRate(90.0f);
+    auto offsets = phaseOffsets.getConfigsForRefreshRate(Fps(90.0f));
 
     EXPECT_EQ(offsets.late.sfOffset, 1'000'000);
     EXPECT_EQ(offsets.late.appOffset, 2'000'000);

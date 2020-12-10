@@ -510,25 +510,22 @@ void Scheduler::setIgnorePresentFences(bool ignore) {
 void Scheduler::registerLayer(Layer* layer) {
     if (!mLayerHistory) return;
 
-    const auto minFps = mRefreshRateConfigs.getMinRefreshRate().getFps();
     const auto maxFps = mRefreshRateConfigs.getMaxRefreshRate().getFps();
 
     if (layer->getWindowType() == InputWindowInfo::Type::STATUS_BAR) {
-        mLayerHistory->registerLayer(layer, minFps, maxFps,
-                                     scheduler::LayerHistory::LayerVoteType::NoVote);
+        mLayerHistory->registerLayer(layer, maxFps, scheduler::LayerHistory::LayerVoteType::NoVote);
     } else if (!mOptions.useContentDetection) {
         // If the content detection feature is off, all layers are registered at Max. We still keep
         // the layer history, since we use it for other features (like Frame Rate API), so layers
         // still need to be registered.
-        mLayerHistory->registerLayer(layer, minFps, maxFps,
-                                     scheduler::LayerHistory::LayerVoteType::Max);
+        mLayerHistory->registerLayer(layer, maxFps, scheduler::LayerHistory::LayerVoteType::Max);
     } else {
         if (layer->getWindowType() == InputWindowInfo::Type::WALLPAPER) {
             // Running Wallpaper at Min is considered as part of content detection.
-            mLayerHistory->registerLayer(layer, minFps, maxFps,
+            mLayerHistory->registerLayer(layer, maxFps,
                                          scheduler::LayerHistory::LayerVoteType::Min);
         } else {
-            mLayerHistory->registerLayer(layer, minFps, maxFps,
+            mLayerHistory->registerLayer(layer, maxFps,
                                          scheduler::LayerHistory::LayerVoteType::Heuristic);
         }
     }
@@ -618,14 +615,15 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
     // TODO(145561154): cleanup the kernel idle timer implementation and the refresh rate
     // magic number
     const auto& refreshRate = mRefreshRateConfigs.getCurrentRefreshRate();
-    constexpr float FPS_THRESHOLD_FOR_KERNEL_TIMER = 65.0f;
-    if (state == TimerState::Reset && refreshRate.getFps() > FPS_THRESHOLD_FOR_KERNEL_TIMER) {
+    constexpr Fps FPS_THRESHOLD_FOR_KERNEL_TIMER{65.0f};
+    if (state == TimerState::Reset &&
+        refreshRate.getFps().greaterThanWithMargin(FPS_THRESHOLD_FOR_KERNEL_TIMER)) {
         // If we're not in performance mode then the kernel timer shouldn't do
         // anything, as the refresh rate during DPU power collapse will be the
         // same.
         resyncToHardwareVsync(true /* makeAvailable */, refreshRate.getVsyncPeriod());
     } else if (state == TimerState::Expired &&
-               refreshRate.getFps() <= FPS_THRESHOLD_FOR_KERNEL_TIMER) {
+               refreshRate.getFps().lessThanOrEqualWithMargin(FPS_THRESHOLD_FOR_KERNEL_TIMER)) {
         // Disable HW VSYNC if the timer expired, as we don't need it enabled if
         // we're not pushing frames, and if we're in PERFORMANCE mode then we'll
         // need to update the VsyncController model anyway.

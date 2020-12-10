@@ -74,6 +74,9 @@
 #define DEBUG_RESIZE 0
 
 namespace android {
+namespace {
+constexpr int kDumpTableRowLength = 159;
+} // namespace
 
 using base::StringAppendF;
 using namespace android::flag_operators;
@@ -1425,7 +1428,8 @@ void Layer::updateTreeHasFrameRateVote() {
     // First traverse the tree and count how many layers has votes
     int layersWithVote = 0;
     traverseTree([&layersWithVote](Layer* layer) {
-        const auto layerVotedWithDefaultCompatibility = layer->mCurrentState.frameRate.rate > 0 &&
+        const auto layerVotedWithDefaultCompatibility =
+                layer->mCurrentState.frameRate.rate.isValid() &&
                 layer->mCurrentState.frameRate.type == FrameRateCompatibility::Default;
         const auto layerVotedWithNoVote =
                 layer->mCurrentState.frameRate.type == FrameRateCompatibility::NoVote;
@@ -1486,14 +1490,14 @@ void Layer::setFrameTimelineVsyncForTransaction(int64_t frameTimelineVsyncId, ns
 
 Layer::FrameRate Layer::getFrameRateForLayerTree() const {
     const auto frameRate = getDrawingState().frameRate;
-    if (frameRate.rate > 0 || frameRate.type == FrameRateCompatibility::NoVote) {
+    if (frameRate.rate.isValid() || frameRate.type == FrameRateCompatibility::NoVote) {
         return frameRate;
     }
 
     // This layer doesn't have a frame rate. If one of its ancestors or successors
     // have a vote, return a NoVote for ancestors/successors to set the vote
     if (getDrawingState().treeHasFrameRateVote) {
-        return {0, FrameRateCompatibility::NoVote};
+        return {Fps(0.0f), FrameRateCompatibility::NoVote};
     }
 
     return frameRate;
@@ -1621,11 +1625,8 @@ LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
 }
 
 void Layer::miniDumpHeader(std::string& result) {
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------\n");
+    result.append(kDumpTableRowLength, '-');
+    result.append("\n");
     result.append(" Layer name\n");
     result.append("           Z | ");
     result.append(" Window Type | ");
@@ -1633,12 +1634,9 @@ void Layer::miniDumpHeader(std::string& result) {
     result.append(" Transform | ");
     result.append("  Disp Frame (LTRB) | ");
     result.append("         Source Crop (LTRB) | ");
-    result.append("    Frame Rate (Explicit) [Focused]\n");
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------------------");
-    result.append("-------------------\n");
+    result.append("    Frame Rate (Explicit) (Seamlessness) [Focused]\n");
+    result.append(kDumpTableRowLength, '-');
+    result.append("\n");
 }
 
 std::string Layer::frameRateCompatibilityString(Layer::FrameRateCompatibility compatibility) {
@@ -1687,23 +1685,20 @@ void Layer::miniDump(std::string& result, const DisplayDevice& display) const {
     const FloatRect& crop = outputLayerState.sourceCrop;
     StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f | ", crop.left, crop.top, crop.right,
                   crop.bottom);
-    if (layerState.frameRate.rate != 0 ||
+    if (layerState.frameRate.rate.isValid() ||
         layerState.frameRate.type != FrameRateCompatibility::Default) {
-        StringAppendF(&result, "% 6.2ffps %15s seamless=%s", layerState.frameRate.rate,
+        StringAppendF(&result, "%s %15s %17s", to_string(layerState.frameRate.rate).c_str(),
                       frameRateCompatibilityString(layerState.frameRate.type).c_str(),
                       toString(layerState.frameRate.seamlessness).c_str());
     } else {
-        StringAppendF(&result, "                         ");
+        result.append(41, ' ');
     }
 
     const auto focused = isLayerFocusedBasedOnPriority(getFrameRateSelectionPriority());
     StringAppendF(&result, "    [%s]\n", focused ? "*" : " ");
 
-    result.append("- - - - - - - - - - - - - - - - ");
-    result.append("- - - - - - - - - - - - - - - - ");
-    result.append("- - - - - - - - - - - - - - - - ");
-    result.append("- - - - - - - - - - - - - - - - ");
-    result.append("- - - - - - - -\n");
+    result.append(kDumpTableRowLength, '-');
+    result.append("\n");
 }
 
 void Layer::dumpFrameStats(std::string& result) const {

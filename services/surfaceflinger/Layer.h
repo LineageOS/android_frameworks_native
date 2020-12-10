@@ -45,6 +45,7 @@
 #include "ClientCache.h"
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/HWComposer.h"
+#include "Fps.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
@@ -155,7 +156,7 @@ public:
     struct FrameRate {
         using Seamlessness = scheduler::Seamlessness;
 
-        float rate;
+        Fps rate;
         FrameRateCompatibility type;
         Seamlessness seamlessness;
 
@@ -163,11 +164,12 @@ public:
               : rate(0),
                 type(FrameRateCompatibility::Default),
                 seamlessness(Seamlessness::Default) {}
-        FrameRate(float rate, FrameRateCompatibility type, bool shouldBeSeamless = true)
+        FrameRate(Fps rate, FrameRateCompatibility type, bool shouldBeSeamless = true)
               : rate(rate), type(type), seamlessness(getSeamlessness(rate, shouldBeSeamless)) {}
 
         bool operator==(const FrameRate& other) const {
-            return rate == other.rate && type == other.type && seamlessness == other.seamlessness;
+            return rate.equalsWithMargin(other.rate) && type == other.type &&
+                    seamlessness == other.seamlessness;
         }
 
         bool operator!=(const FrameRate& other) const { return !(*this == other); }
@@ -177,8 +179,8 @@ public:
         static FrameRateCompatibility convertCompatibility(int8_t compatibility);
 
     private:
-        static Seamlessness getSeamlessness(float rate, bool shouldBeSeamless) {
-            if (rate == 0.0f) {
+        static Seamlessness getSeamlessness(Fps rate, bool shouldBeSeamless) {
+            if (!rate.isValid()) {
                 // Refresh rate of 0 is a special value which should reset the vote to
                 // its default value.
                 return Seamlessness::Default;

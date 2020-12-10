@@ -35,6 +35,7 @@
 #include "SkiaRenderEngine.h"
 #include "android-base/macros.h"
 #include "filters/BlurFilter.h"
+#include "skia/debug/SkiaCapture.h"
 #include "skia/filters/LinearEffect.h"
 
 namespace android {
@@ -116,6 +117,8 @@ private:
     sk_sp<GrDirectContext> mProtectedGrContext;
 
     bool mInProtectedContext = false;
+    // Object to capture commands send to Skia.
+    SkiaCapture mCapture;
 };
 
 } // namespace skia

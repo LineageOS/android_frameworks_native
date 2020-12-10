@@ -65,10 +65,70 @@ BufferStateLayer::~BufferStateLayer() {
     }
 }
 
+status_t BufferStateLayer::addReleaseFence(const sp<CallbackHandle>& ch,
+                                           const sp<Fence>& fence) {
+    if (ch == nullptr) {
+        return OK;
+    }
+    if (!ch->previousReleaseFence.get()) {
+        ch->previousReleaseFence = fence;
+        return OK;
+    }
+
+    // Below logic is lifted from ConsumerBase.cpp:
+    // Check status of fences first because merging is expensive.
+    // Merging an invalid fence with any other fence results in an
+    // invalid fence.
+    auto currentStatus = ch->previousReleaseFence->getStatus();
+    if (currentStatus == Fence::Status::Invalid) {
+        ALOGE("Existing fence has invalid state, layer: %s", mName.c_str());
+        return BAD_VALUE;
+    }
+
+    auto incomingStatus = fence->getStatus();
+    if (incomingStatus == Fence::Status::Invalid) {
+        ALOGE("New fence has invalid state, layer: %s", mName.c_str());
+        ch->previousReleaseFence = fence;
+        return BAD_VALUE;
+    }
+
+    // If both fences are signaled or both are unsignaled, we need to merge
+    // them to get an accurate timestamp.
+    if (currentStatus == incomingStatus) {
+        char fenceName[32] = {};
+        snprintf(fenceName, 32, "%.28s", mName.c_str());
+        sp<Fence> mergedFence = Fence::merge(
+                fenceName, ch->previousReleaseFence, fence);
+        if (!mergedFence.get()) {
+            ALOGE("failed to merge release fences, layer: %s", mName.c_str());
+            // synchronization is broken, the best we can do is hope fences
+            // signal in order so the new fence will act like a union
+            ch->previousReleaseFence = fence;
+            return BAD_VALUE;
+        }
+        ch->previousReleaseFence = mergedFence;
+    } else if (incomingStatus == Fence::Status::Unsignaled) {
+        // If one fence has signaled and the other hasn't, the unsignaled
+        // fence will approximately correspond with the correct timestamp.
+        // There's a small race if both fences signal at about the same time
+        // and their statuses are retrieved with unfortunate timing. However,
+        // by this point, they will have both signaled and only the timestamp
+        // will be slightly off; any dependencies after this point will
+        // already have been met.
+        ch->previousReleaseFence = fence;
+    }
+    // else if (currentStatus == Fence::Status::Unsignaled) is a no-op.
+
+    return OK;
+}
+
 // -----------------------------------------------------------------------
 // Interface implementation for Layer
 // -----------------------------------------------------------------------
 void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
+    if (!releaseFence->isValid()) {
+        return;
+    }
     // The previous release fence notifies the client that SurfaceFlinger is done with the previous
     // buffer that was presented on this layer. The first transaction that came in this frame that
     // replaced the previous buffer on this layer needs this release fence, because the fence will
@@ -85,11 +145,16 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
     // buffer. It replaces the buffer in the second transaction. The buffer in the second
     // transaction will now no longer be presented so it is released immediately and the third
     // transaction doesn't need a previous release fence.
+    sp<CallbackHandle> ch;
     for (auto& handle : mDrawingState.callbackHandles) {
         if (handle->releasePreviousBuffer) {
-            handle->previousReleaseFence = releaseFence;
+            ch = handle;
             break;
         }
+    }
+    auto status = addReleaseFence(ch, releaseFence);
+    if (status != OK) {
+        ALOGE("Failed to add release fence for layer %s", getName().c_str());
     }
 
     mPreviousReleaseFence = releaseFence;
