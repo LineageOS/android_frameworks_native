@@ -2435,8 +2435,8 @@ bool Layer::isRemovedFromCurrentState() const  {
 InputWindowInfo Layer::fillInputInfo() {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
-        mDrawingState.inputInfo.ownerUid = mCallingUid;
-        mDrawingState.inputInfo.ownerPid = mCallingPid;
+        mDrawingState.inputInfo.ownerUid = mOwnerUid;
+        mDrawingState.inputInfo.ownerPid = mOwnerPid;
         mDrawingState.inputInfo.inputFeatures = InputWindowInfo::Feature::NO_INPUT_CHANNEL;
         mDrawingState.inputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
         mDrawingState.inputInfo.displayId = getLayerStack();
