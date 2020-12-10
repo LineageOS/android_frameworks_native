@@ -31,7 +31,7 @@ public:
 
     MOCK_METHOD0(onBootFinished, void());
     MOCK_METHOD2(addSurfaceFrame,
-                 void(std::unique_ptr<frametimeline::SurfaceFrame>,
+                 void(std::shared_ptr<frametimeline::SurfaceFrame>,
                       frametimeline::SurfaceFrame::PresentState));
     MOCK_METHOD2(setSfWakeUp, void(int64_t, nsecs_t));
     MOCK_METHOD2(setSfPresent, void(nsecs_t, const std::shared_ptr<FenceTime>&));

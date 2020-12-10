@@ -906,17 +906,17 @@ bool Layer::applyPendingStates(State* stateToCommit) {
                 ? std::nullopt
                 : std::make_optional(stateToCommit->frameTimelineVsyncId);
 
-        auto surfaceFrame =
+        mSurfaceFrame =
                 mFlinger->mFrameTimeline->createSurfaceFrameForToken(getOwnerPid(), getOwnerUid(),
                                                                      mName, mTransactionName,
                                                                      vsyncId);
-        surfaceFrame->setActualQueueTime(stateToCommit->postTime);
+        mSurfaceFrame->setActualQueueTime(stateToCommit->postTime);
         // For transactions we set the acquire fence time to the post time as we
         // don't have a buffer. For BufferStateLayer it is overridden in
         // BufferStateLayer::applyPendingStates
-        surfaceFrame->setAcquireFenceTime(stateToCommit->postTime);
+        mSurfaceFrame->setAcquireFenceTime(stateToCommit->postTime);
 
-        mSurfaceFrame = std::move(surfaceFrame);
+        onSurfaceFrameCreated(mSurfaceFrame);
     }
 
     mCurrentState.modified = false;
@@ -1062,7 +1062,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
 
 void Layer::commitTransaction(const State& stateToCommit) {
     mDrawingState = stateToCommit;
-    mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mSurfaceFrame), PresentState::Presented);
+    mFlinger->mFrameTimeline->addSurfaceFrame(mSurfaceFrame, PresentState::Presented);
 }
 
 uint32_t Layer::getTransactionFlags(uint32_t flags) {

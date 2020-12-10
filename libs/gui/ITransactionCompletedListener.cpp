@@ -17,6 +17,8 @@
 #define LOG_TAG "ITransactionCompletedListener"
 //#define LOG_NDEBUG 0
 
+#include <gui/LayerState.h>
+#include <gui/ISurfaceComposer.h>
 #include <gui/ITransactionCompletedListener.h>
 
 namespace android {
@@ -90,61 +92,63 @@ status_t FrameEventHistoryStats::readFromParcel(const Parcel* input) {
     return err;
 }
 
-status_t SurfaceStats::writeToParcel(Parcel* output) const {
-    status_t err = output->writeStrongBinder(surfaceControl);
-    if (err != NO_ERROR) {
-        return err;
-    }
-    err = output->writeInt64(acquireTime);
-    if (err != NO_ERROR) {
-        return err;
-    }
-    if (previousReleaseFence) {
-        err = output->writeBool(true);
-        if (err != NO_ERROR) {
-            return err;
-        }
-        err = output->write(*previousReleaseFence);
-    } else {
-        err = output->writeBool(false);
-    }
-    err = output->writeUint32(transformHint);
-    if (err != NO_ERROR) {
-        return err;
-    }
+JankData::JankData() :
+        frameVsyncId(ISurfaceComposer::INVALID_VSYNC_ID),
+        jankType(JankType::None) {
+}
 
-    err = output->writeParcelable(eventStats);
-    return err;
+status_t JankData::writeToParcel(Parcel* output) const {
+    SAFE_PARCEL(output->writeInt64, frameVsyncId);
+    SAFE_PARCEL(output->writeInt32, static_cast<int32_t>(jankType));
+    return NO_ERROR;
+}
+
+status_t JankData::readFromParcel(const Parcel* input) {
+    SAFE_PARCEL(input->readInt64, &frameVsyncId);
+    int32_t jankTypeInt;
+    SAFE_PARCEL(input->readInt32, &jankTypeInt);
+    jankType = static_cast<JankType>(jankTypeInt);
+    return NO_ERROR;
+}
+
+status_t SurfaceStats::writeToParcel(Parcel* output) const {
+    SAFE_PARCEL(output->writeStrongBinder, surfaceControl);
+    SAFE_PARCEL(output->writeInt64, acquireTime);
+    if (previousReleaseFence) {
+        SAFE_PARCEL(output->writeBool, true);
+        SAFE_PARCEL(output->write, *previousReleaseFence);
+    } else {
+        SAFE_PARCEL(output->writeBool, false);
+    }
+    SAFE_PARCEL(output->writeUint32, transformHint);
+    SAFE_PARCEL(output->writeParcelable, eventStats);
+    SAFE_PARCEL(output->writeInt32, static_cast<int32_t>(jankData.size()));
+    for (const auto& data : jankData) {
+        SAFE_PARCEL(output->writeParcelable, data);
+    }
+    return NO_ERROR;
 }
 
 status_t SurfaceStats::readFromParcel(const Parcel* input) {
-    status_t err = input->readStrongBinder(&surfaceControl);
-    if (err != NO_ERROR) {
-        return err;
-    }
-    err = input->readInt64(&acquireTime);
-    if (err != NO_ERROR) {
-        return err;
-    }
+    SAFE_PARCEL(input->readStrongBinder, &surfaceControl);
+    SAFE_PARCEL(input->readInt64, &acquireTime);
     bool hasFence = false;
-    err = input->readBool(&hasFence);
-    if (err != NO_ERROR) {
-        return err;
-    }
+    SAFE_PARCEL(input->readBool, &hasFence);
     if (hasFence) {
         previousReleaseFence = new Fence();
-        err = input->read(*previousReleaseFence);
-        if (err != NO_ERROR) {
-            return err;
-        }
+        SAFE_PARCEL(input->read, *previousReleaseFence);
     }
-    err = input->readUint32(&transformHint);
-    if (err != NO_ERROR) {
-        return err;
-    }
+    SAFE_PARCEL(input->readUint32, &transformHint);
+    SAFE_PARCEL(input->readParcelable, &eventStats);
 
-    err = input->readParcelable(&eventStats);
-    return err;
+    int32_t jankData_size = 0;
+    SAFE_PARCEL_READ_SIZE(input->readInt32, &jankData_size, input->dataSize());
+    for (int i = 0; i < jankData_size; i++) {
+        JankData data;
+        SAFE_PARCEL(input->readParcelable, &data);
+        jankData.push_back(data);
+    }
+    return NO_ERROR;
 }
 
 status_t TransactionStats::writeToParcel(Parcel* output) const {
