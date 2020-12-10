@@ -1279,7 +1279,8 @@ bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix,
     t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
 
     if (!allowNonRectPreservingTransforms && !t.preserveRects()) {
-        ALOGW("Attempt to set rotation matrix without permission ACCESS_SURFACE_FLINGER ignored");
+        ALOGW("Attempt to set rotation matrix without permission ACCESS_SURFACE_FLINGER nor "
+              "ROTATE_SURFACE_FLINGER ignored");
         return false;
     }
     mCurrentState.sequence++;
