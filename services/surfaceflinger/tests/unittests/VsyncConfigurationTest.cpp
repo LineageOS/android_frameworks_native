@@ -19,6 +19,7 @@
 
 #include <gmock/gmock.h>
 #include <log/log.h>
+#include <chrono>
 #include <thread>
 
 #include "Scheduler/VsyncConfiguration.h"
@@ -27,14 +28,15 @@ using namespace testing;
 
 namespace android::scheduler {
 
+using namespace std::chrono_literals;
+
 class TestableWorkDuration : public impl::WorkDuration {
 public:
     TestableWorkDuration(Fps currentFps, nsecs_t sfDuration, nsecs_t appDuration,
                          nsecs_t sfEarlyDuration, nsecs_t appEarlyDuration,
                          nsecs_t sfEarlyGlDuration, nsecs_t appEarlyGlDuration)
-          : impl::WorkDuration({Fps(60.0f), Fps(90.0f)}, currentFps, sfDuration, appDuration,
-                               sfEarlyDuration, appEarlyDuration, sfEarlyGlDuration,
-                               appEarlyGlDuration) {}
+          : impl::WorkDuration(currentFps, sfDuration, appDuration, sfEarlyDuration,
+                               appEarlyDuration, sfEarlyGlDuration, appEarlyGlDuration) {}
 };
 
 class WorkDurationTest : public testing::Test {
@@ -171,9 +173,9 @@ public:
                          std::optional<nsecs_t> highFpsEarlyAppOffsetNs,
                          std::optional<nsecs_t> highFpsEarlyGpuAppOffsetNs,
                          nsecs_t thresholdForNextVsync)
-          : impl::PhaseOffsets({Fps(60.0f), Fps(90.0f)}, Fps(60.0f), vsyncPhaseOffsetNs,
-                               sfVSyncPhaseOffsetNs, earlySfOffsetNs, earlyGpuSfOffsetNs,
-                               earlyAppOffsetNs, earlyGpuAppOffsetNs, highFpsVsyncPhaseOffsetNs,
+          : impl::PhaseOffsets(Fps(60.0f), vsyncPhaseOffsetNs, sfVSyncPhaseOffsetNs,
+                               earlySfOffsetNs, earlyGpuSfOffsetNs, earlyAppOffsetNs,
+                               earlyGpuAppOffsetNs, highFpsVsyncPhaseOffsetNs,
                                highFpsSfVSyncPhaseOffsetNs, highFpsEarlySfOffsetNs,
                                highFpsEarlyGpuSfOffsetNs, highFpsEarlyAppOffsetNs,
                                highFpsEarlyGpuAppOffsetNs, thresholdForNextVsync) {}
