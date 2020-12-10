@@ -263,9 +263,6 @@ public:
                                           GlobalSignals* outSignalsConsidered = nullptr) const
             EXCLUDES(mLock);
 
-    // Returns all the refresh rates supported by the device. This won't change at runtime.
-    const AllRefreshRatesMapType& getAllRefreshRates() const EXCLUDES(mLock);
-
     // Returns the lowest refresh rate supported by the device. This won't change at runtime.
     const RefreshRate& getMinRefreshRate() const { return *mMinSupportedRefreshRate; }
 
