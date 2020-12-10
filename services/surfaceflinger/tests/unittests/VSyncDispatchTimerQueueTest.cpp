@@ -47,6 +47,7 @@ public:
     MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
     MOCK_METHOD1(setPeriod, void(nsecs_t));
     MOCK_METHOD0(resetModel, void());
+    MOCK_CONST_METHOD0(needsMoreSamples, bool());
     MOCK_CONST_METHOD1(dump, void(std::string&));
 
     nsecs_t nextVSyncTime(nsecs_t timePoint) const {

@@ -255,21 +255,9 @@ void VSyncPredictor::clearTimestamps() {
     }
 }
 
-bool VSyncPredictor::needsMoreSamples(nsecs_t now) const {
-    using namespace std::literals::chrono_literals;
+bool VSyncPredictor::needsMoreSamples() const {
     std::lock_guard<std::mutex> lk(mMutex);
-    bool needsMoreSamples = true;
-    if (mTimestamps.size() >= kMinimumSamplesForPrediction) {
-        nsecs_t constexpr aLongTime =
-                std::chrono::duration_cast<std::chrono::nanoseconds>(500ms).count();
-        if (!(mLastTimestampIndex < 0 || mTimestamps.empty())) {
-            auto const lastTimestamp = mTimestamps[mLastTimestampIndex];
-            needsMoreSamples = !((lastTimestamp + aLongTime) > now);
-        }
-    }
-
-    ATRACE_INT("VSP-moreSamples", needsMoreSamples);
-    return needsMoreSamples;
+    return mTimestamps.size() < kMinimumSamplesForPrediction;
 }
 
 void VSyncPredictor::resetModel() {

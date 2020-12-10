@@ -38,7 +38,6 @@
     <!-- basic system services -->
     <feature name="android.software.connectionservice" />
     <feature name="android.software.voice_recognizers" notLowRam="true" />
-    <feature name="android.software.backup" />
     <feature name="android.software.home_screen" />
     <feature name="android.software.companion_device_setup" />
     <feature name="android.software.autofill" />

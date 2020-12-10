@@ -28,6 +28,12 @@
 #define UNUSED(x) (void)(x)
 
 namespace android {
+namespace {
+
+// Used as the default value for the target SDK until it's obtained via getTargetSdkVersion.
+constexpr int kTargetSdkUnknown = 0;
+
+}  // namespace
 
 SensorService::SensorEventConnection::SensorEventConnection(
         const sp<SensorService>& service, uid_t uid, String8 packageName, bool isDataInjectionMode,
@@ -35,9 +41,9 @@ SensorService::SensorEventConnection::SensorEventConnection(
     : mService(service), mUid(uid), mWakeLockRefCount(0), mHasLooperCallbacks(false),
       mDead(false), mDataInjectionMode(isDataInjectionMode), mEventCache(nullptr),
       mCacheSize(0), mMaxCacheSize(0), mTimeOfLastEventDrop(0), mEventsDropped(0),
-      mPackageName(packageName), mOpPackageName(opPackageName), mDestroyed(false) {
+      mPackageName(packageName), mOpPackageName(opPackageName), mTargetSdk(kTargetSdkUnknown),
+      mDestroyed(false) {
     mChannel = new BitTube(mService->mSocketBufferSize);
-    mTargetSdk = SensorService::getTargetSdkVersion(opPackageName);
 #if DEBUG_CONNECTIONS
     mEventsReceived = mEventsSentFromCache = mEventsSent = 0;
     mTotalAcksNeeded = mTotalAcksReceived = 0;
@@ -445,6 +451,14 @@ bool SensorService::SensorEventConnection::noteOpIfRequired(const sensors_event_
     bool success = true;
     const auto iter = mHandleToAppOp.find(event.sensor);
     if (iter != mHandleToAppOp.end()) {
+        if (mTargetSdk == kTargetSdkUnknown) {
+            // getTargetSdkVersion returns -1 if it fails so this operation should only be run once
+            // per connection and then cached. Perform this here as opposed to in the constructor to
+            // avoid log spam for NDK/VNDK clients that don't use sensors guarded with permissions
+            // and pass in invalid op package names.
+            mTargetSdk = SensorService::getTargetSdkVersion(mOpPackageName);
+        }
+
         // Special handling for step count/detect backwards compatibility: if the app's target SDK
         // is pre-Q, still permit delivering events to the app even if permission isn't granted
         // (since this permission was only introduced in Q)
