@@ -85,7 +85,7 @@ private:
     std::unique_ptr<Runner> runner;
 
     struct Config {
-        uint32_t flags = TRACE_CRITICAL | TRACE_INPUT;
+        uint32_t flags = TRACE_CRITICAL | TRACE_INPUT | TRACE_SYNC;
         size_t bufferSize = DEFAULT_BUFFER_SIZE;
     } mConfig;
 
