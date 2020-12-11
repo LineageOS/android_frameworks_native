@@ -15,7 +15,7 @@
 -->
 
 <!-- This is the standard feature indicating that the device passes Vulkan dEQP
-     tests associated with date 2020-03-01 (0x07E40301). -->
+     tests associated with date 2021-03-01 (0x07E50301). -->
 <permissions>
-    <feature name="android.software.vulkan.deqp.level" version="132383489" />
+    <feature name="android.software.vulkan.deqp.level" version="132449025" />
 </permissions>
