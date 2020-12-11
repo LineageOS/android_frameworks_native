@@ -619,6 +619,12 @@ public:
 
 // ---------------------------------------------------------------------------
 
+class JankDataListener : public VirtualLightRefBase {
+public:
+    virtual ~JankDataListener() = 0;
+    virtual void onJankDataAvailable(const std::vector<JankData>& jankData) = 0;
+};
+
 class TransactionCompletedListener : public BnTransactionCompletedListener {
     TransactionCompletedListener();
 
@@ -637,6 +643,7 @@ class TransactionCompletedListener : public BnTransactionCompletedListener {
     };
 
     std::unordered_map<CallbackId, CallbackTranslation> mCallbacks GUARDED_BY(mMutex);
+    std::multimap<sp<IBinder>, sp<JankDataListener>> mJankListeners GUARDED_BY(mMutex);
 
 public:
     static sp<TransactionCompletedListener> getInstance();
@@ -651,6 +658,18 @@ public:
 
     void addSurfaceControlToCallbacks(const sp<SurfaceControl>& surfaceControl,
                                       const std::unordered_set<CallbackId>& callbackIds);
+
+    /*
+     * Adds a jank listener to be informed about SurfaceFlinger's jank classification for a specific
+     * surface. Jank classifications arrive as part of the transaction callbacks about previous
+     * frames submitted to this Surface.
+     */
+    void addJankListener(const sp<JankDataListener>& listener, sp<SurfaceControl> surfaceControl);
+
+    /**
+     * Removes a jank listener previously added to addJankCallback.
+     */
+    void removeJankListener(const sp<JankDataListener>& listener);
 
     // Overrides BnTransactionCompletedListener's onTransactionCompleted
     void onTransactionCompleted(ListenerStats stats) override;

@@ -165,14 +165,30 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
     }
 }
 
+void BufferStateLayer::onSurfaceFrameCreated(
+        const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
+    mPendingJankClassifications.emplace_back(surfaceFrame);
+}
+
 void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
         handle->transformHint = mTransformHint;
         handle->dequeueReadyTime = dequeueReadyTime;
     }
 
+    std::vector<JankData> jankData;
+    jankData.reserve(mPendingJankClassifications.size());
+    while (!mPendingJankClassifications.empty()
+            && mPendingJankClassifications.front()->getJankType()) {
+        std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame =
+                mPendingJankClassifications.front();
+        mPendingJankClassifications.pop_front();
+        jankData.emplace_back(
+                JankData(surfaceFrame->getToken(), surfaceFrame->getJankType().value()));
+    }
+
     mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
-            mDrawingState.callbackHandles);
+            mDrawingState.callbackHandles, jankData);
 
     mDrawingState.callbackHandles = {};
 
@@ -447,7 +463,7 @@ bool BufferStateLayer::setTransactionCompletedListeners(
 
 void BufferStateLayer::forceSendCallbacks() {
     mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
-            mCurrentState.callbackHandles);
+            mCurrentState.callbackHandles, std::vector<JankData>());
 }
 
 bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {
@@ -461,6 +477,10 @@ Rect BufferStateLayer::getBufferSize(const State& s) const {
     // for buffer state layers we use the display frame size as the buffer size.
     if (getActiveWidth(s) < UINT32_MAX && getActiveHeight(s) < UINT32_MAX) {
         return Rect(getActiveWidth(s), getActiveHeight(s));
+    }
+
+    if (mBufferInfo.mBuffer == nullptr) {
+        return Rect::INVALID_RECT;
     }
 
     // if the display frame is not defined, use the parent bounds as the buffer size.

@@ -95,6 +95,15 @@ public:
         return std::make_unique<InputSurface>(surfaceControl, width, height);
     }
 
+    static std::unique_ptr<InputSurface> makeBlastInputSurface(const sp<SurfaceComposerClient> &scc,
+                                                               int width, int height) {
+        sp<SurfaceControl> surfaceControl =
+                scc->createSurface(String8("Test Buffer Surface"), width, height,
+                                   PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceBufferState);
+        return std::make_unique<InputSurface>(surfaceControl, width, height);
+    }
+
     static std::unique_ptr<InputSurface> makeContainerInputSurface(
             const sp<SurfaceComposerClient> &scc, int width, int height) {
         sp<SurfaceControl> surfaceControl =
@@ -180,13 +189,13 @@ public:
         t.apply(true);
     }
 
-    void showAt(int x, int y) {
+    void showAt(int x, int y, Rect crop = Rect(0, 0, 100, 100)) {
         SurfaceComposerClient::Transaction t;
         t.show(mSurfaceControl);
         t.setInputWindowInfo(mSurfaceControl, mInputInfo);
         t.setLayer(mSurfaceControl, LAYER_BASE);
         t.setPosition(mSurfaceControl, x, y);
-        t.setCrop_legacy(mSurfaceControl, Rect(0, 0, 100, 100));
+        t.setCrop_legacy(mSurfaceControl, crop);
         t.setAlpha(mSurfaceControl, 1);
         t.apply(true);
     }
@@ -682,6 +691,36 @@ TEST_F(InputSurfacesTest, touch_not_obscured_with_crop) {
 
     injectTap(101, 110);
     surface->expectTap(1, 10);
+}
+
+TEST_F(InputSurfacesTest, touch_not_obscured_with_zero_sized_bql) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+
+    std::unique_ptr<InputSurface> bufferSurface =
+            InputSurface::makeBufferInputSurface(mComposerClient, 0, 0);
+    bufferSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    bufferSurface->mInputInfo.ownerUid = 22222;
+
+    surface->showAt(10, 10);
+    bufferSurface->showAt(50, 50, Rect::EMPTY_RECT);
+
+    injectTap(11, 11);
+    surface->expectTap(1, 1);
+}
+
+TEST_F(InputSurfacesTest, touch_not_obscured_with_zero_sized_blast) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+
+    std::unique_ptr<InputSurface> bufferSurface =
+            InputSurface::makeBlastInputSurface(mComposerClient, 0, 0);
+    bufferSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
+    bufferSurface->mInputInfo.ownerUid = 22222;
+
+    surface->showAt(10, 10);
+    bufferSurface->showAt(50, 50, Rect::EMPTY_RECT);
+
+    injectTap(11, 11);
+    surface->expectTap(1, 1);
 }
 
 } // namespace android::test

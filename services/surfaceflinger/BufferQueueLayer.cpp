@@ -440,7 +440,7 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
                                                                      mName, mFrameTimelineVsyncId);
         surfaceFrame->setActualQueueTime(systemTime());
 
-        mQueueItems.push_back({item, std::move(surfaceFrame)});
+        mQueueItems.push_back({item, surfaceFrame});
         mQueuedFrames++;
 
         // Wake up any pending callbacks

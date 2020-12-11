@@ -129,10 +129,10 @@ private:
     Condition mQueueItemCondition;
 
     struct BufferData {
-        BufferData(BufferItem item, std::unique_ptr<frametimeline::SurfaceFrame> surfaceFrame)
-              : item(item), surfaceFrame(std::move(surfaceFrame)) {}
+        BufferData(BufferItem item, std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame)
+              : item(item), surfaceFrame(surfaceFrame) {}
         BufferItem item;
-        std::unique_ptr<frametimeline::SurfaceFrame> surfaceFrame;
+        std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame;
     };
     std::vector<BufferData> mQueueItems;
     std::atomic<uint64_t> mLastFrameNumberReceived{0};
