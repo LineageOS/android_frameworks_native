@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
+#include "TestInputListener.h"
 
 #include <gtest/gtest.h>
-
-#include "TestInputListener.h"
 
 namespace android {
 
@@ -28,7 +27,7 @@ TestInputListener::TestInputListener(std::chrono::milliseconds eventHappenedTime
       : mEventHappenedTimeout(eventHappenedTimeout),
         mEventDidNotHappenTimeout(eventDidNotHappenTimeout) {}
 
-TestInputListener::~TestInputListener() { }
+TestInputListener::~TestInputListener() {}
 
 void TestInputListener::assertNotifyConfigurationChangedWasCalled(
         NotifyConfigurationChangedArgs* outEventArgs) {
@@ -43,8 +42,7 @@ void TestInputListener::assertNotifyConfigurationChangedWasNotCalled() {
             "notifyConfigurationChanged() should not be called."));
 }
 
-void TestInputListener::assertNotifyDeviceResetWasCalled(
-        NotifyDeviceResetArgs* outEventArgs) {
+void TestInputListener::assertNotifyDeviceResetWasCalled(NotifyDeviceResetArgs* outEventArgs) {
     ASSERT_NO_FATAL_FAILURE(
             assertCalled<
                     NotifyDeviceResetArgs>(outEventArgs,
@@ -73,7 +71,7 @@ void TestInputListener::assertNotifyMotionWasCalled(NotifyMotionArgs* outEventAr
 
 void TestInputListener::assertNotifyMotionWasNotCalled() {
     ASSERT_NO_FATAL_FAILURE(
-            assertNotCalled<NotifySwitchArgs>("notifySwitch() should not be called."));
+            assertNotCalled<NotifyMotionArgs>("notifyMotion() should not be called."));
 }
 
 void TestInputListener::assertNotifySwitchWasCalled(NotifySwitchArgs* outEventArgs) {
