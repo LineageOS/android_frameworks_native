@@ -86,9 +86,8 @@ LayerHistory::LayerHistory(const RefreshRateConfigs& refreshRateConfigs)
 
 LayerHistory::~LayerHistory() = default;
 
-void LayerHistory::registerLayer(Layer* layer, Fps highRefreshRate, LayerVoteType type) {
-    const nsecs_t highRefreshRatePeriod = highRefreshRate.getPeriodNsecs();
-    auto info = std::make_unique<LayerInfo>(layer->getName(), highRefreshRatePeriod, type);
+void LayerHistory::registerLayer(Layer* layer, LayerVoteType type) {
+    auto info = std::make_unique<LayerInfo>(layer->getName(), type);
     std::lock_guard lock(mLock);
     mLayerInfos.emplace_back(layer, std::move(info));
 }

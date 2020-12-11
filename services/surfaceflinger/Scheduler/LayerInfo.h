@@ -70,8 +70,7 @@ public:
         sRefreshRateConfigs = &refreshRateConfigs;
     }
 
-    LayerInfo(const std::string& name, nsecs_t highRefreshRatePeriod,
-              LayerHistory::LayerVoteType defaultVote);
+    LayerInfo(const std::string& name, LayerHistory::LayerVoteType defaultVote);
 
     LayerInfo(const LayerInfo&) = delete;
     LayerInfo& operator=(const LayerInfo&) = delete;
@@ -194,8 +193,9 @@ private:
 
     const std::string mName;
 
-    // Used for sanitizing the heuristic data
-    const nsecs_t mHighRefreshRatePeriod;
+    // Used for sanitizing the heuristic data. If two frames are less than
+    // this period apart from each other they'll be considered as duplicates.
+    static constexpr nsecs_t kMinPeriodBetweenFrames = Fps(120.f).getPeriodNsecs();
     LayerHistory::LayerVoteType mDefaultVote;
 
     LayerVote mLayerVote;
