@@ -32,6 +32,7 @@
 #include "TouchedWindow.h"
 
 #include <attestation/HmacKeyManager.h>
+#include <com/android/internal/compat/IPlatformCompatNative.h>
 #include <input/Input.h>
 #include <input/InputApplication.h>
 #include <input/InputTransport.h>
@@ -596,6 +597,7 @@ private:
     void traceWaitQueueLength(const sp<Connection>& connection);
 
     sp<InputReporterInterface> mReporter;
+    sp<com::android::internal::compat::IPlatformCompatNative> mCompatService;
 };
 
 } // namespace android::inputdispatcher

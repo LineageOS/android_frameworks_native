@@ -125,6 +125,9 @@ sp<SurfaceComposerClient> SurfaceComposerClient::getDefault() {
     return DefaultComposerClient::getComposerClient();
 }
 
+JankDataListener::~JankDataListener() {
+}
+
 // ---------------------------------------------------------------------------
 
 // TransactionCompletedListener does not use ANDROID_SINGLETON_STATIC_INSTANCE because it needs
@@ -174,6 +177,23 @@ CallbackId TransactionCompletedListener::addCallbackFunction(
     return callbackId;
 }
 
+void TransactionCompletedListener::addJankListener(const sp<JankDataListener>& listener,
+                                                   sp<SurfaceControl> surfaceControl) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mJankListeners.insert({surfaceControl->getHandle(), listener});
+}
+
+void TransactionCompletedListener::removeJankListener(const sp<JankDataListener>& listener) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    for (auto it = mJankListeners.begin(); it != mJankListeners.end();) {
+        if (it->second == listener) {
+            it = mJankListeners.erase(it);
+        } else {
+            it++;
+        }
+    }
+}
+
 void TransactionCompletedListener::addSurfaceControlToCallbacks(
         const sp<SurfaceControl>& surfaceControl,
         const std::unordered_set<CallbackId>& callbackIds) {
@@ -189,6 +209,7 @@ void TransactionCompletedListener::addSurfaceControlToCallbacks(
 
 void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
     std::unordered_map<CallbackId, CallbackTranslation> callbacksMap;
+    std::multimap<sp<IBinder>, sp<JankDataListener>> jankListenersMap;
     {
         std::lock_guard<std::mutex> lock(mMutex);
 
@@ -204,6 +225,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
          * sp<SurfaceControl> that could possibly exist for the callbacks.
          */
         callbacksMap = mCallbacks;
+        jankListenersMap = mJankListeners;
         for (const auto& transactionStats : listenerStats.transactionStats) {
             for (auto& callbackId : transactionStats.callbackIds) {
                 mCallbacks.erase(callbackId);
@@ -235,6 +257,13 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
 
             callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
                              surfaceControlStats);
+        }
+        for (const auto& surfaceStats : transactionStats.surfaceStats) {
+            if (surfaceStats.jankData.empty()) continue;
+            for (auto it = jankListenersMap.find(surfaceStats.surfaceControl);
+                    it != jankListenersMap.end(); it++) {
+                it->second->onJankDataAvailable(surfaceStats.jankData);
+            }
         }
     }
 }

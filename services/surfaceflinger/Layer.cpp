@@ -906,17 +906,17 @@ bool Layer::applyPendingStates(State* stateToCommit) {
                 ? std::nullopt
                 : std::make_optional(stateToCommit->frameTimelineVsyncId);
 
-        auto surfaceFrame =
+        mSurfaceFrame =
                 mFlinger->mFrameTimeline->createSurfaceFrameForToken(getOwnerPid(), getOwnerUid(),
                                                                      mName, mTransactionName,
                                                                      vsyncId);
-        surfaceFrame->setActualQueueTime(stateToCommit->postTime);
+        mSurfaceFrame->setActualQueueTime(stateToCommit->postTime);
         // For transactions we set the acquire fence time to the post time as we
         // don't have a buffer. For BufferStateLayer it is overridden in
         // BufferStateLayer::applyPendingStates
-        surfaceFrame->setAcquireFenceTime(stateToCommit->postTime);
+        mSurfaceFrame->setAcquireFenceTime(stateToCommit->postTime);
 
-        mSurfaceFrame = std::move(surfaceFrame);
+        onSurfaceFrameCreated(mSurfaceFrame);
     }
 
     mCurrentState.modified = false;
@@ -1062,7 +1062,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
 
 void Layer::commitTransaction(const State& stateToCommit) {
     mDrawingState = stateToCommit;
-    mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mSurfaceFrame), PresentState::Presented);
+    mFlinger->mFrameTimeline->addSurfaceFrame(mSurfaceFrame, PresentState::Presented);
 }
 
 uint32_t Layer::getTransactionFlags(uint32_t flags) {
@@ -1279,7 +1279,8 @@ bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix,
     t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
 
     if (!allowNonRectPreservingTransforms && !t.preserveRects()) {
-        ALOGW("Attempt to set rotation matrix without permission ACCESS_SURFACE_FLINGER ignored");
+        ALOGW("Attempt to set rotation matrix without permission ACCESS_SURFACE_FLINGER nor "
+              "ROTATE_SURFACE_FLINGER ignored");
         return false;
     }
     mCurrentState.sequence++;
@@ -2431,27 +2432,7 @@ bool Layer::isRemovedFromCurrentState() const  {
     return mRemovedFromCurrentState;
 }
 
-InputWindowInfo Layer::fillInputInfo() {
-    if (!hasInputInfo()) {
-        mDrawingState.inputInfo.name = getName();
-        mDrawingState.inputInfo.ownerUid = mCallingUid;
-        mDrawingState.inputInfo.ownerPid = mCallingPid;
-        mDrawingState.inputInfo.inputFeatures = InputWindowInfo::Feature::NO_INPUT_CHANNEL;
-        mDrawingState.inputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
-        mDrawingState.inputInfo.displayId = getLayerStack();
-    }
-
-    InputWindowInfo info = mDrawingState.inputInfo;
-    info.id = sequence;
-
-    if (info.displayId == ADISPLAY_ID_NONE) {
-        info.displayId = getLayerStack();
-    }
-
-    ui::Transform t = getTransform();
-    int32_t xSurfaceInset = info.surfaceInset;
-    int32_t ySurfaceInset = info.surfaceInset;
-
+void Layer::fillInputFrameInfo(InputWindowInfo& info) {
     // Transform layer size to screen space and inset it by surface insets.
     // If this is a portal window, set the touchableRegion to the layerBounds.
     Rect layerBounds = info.portalToDisplayId == ADISPLAY_ID_NONE
@@ -2460,6 +2441,20 @@ InputWindowInfo Layer::fillInputInfo() {
     if (!layerBounds.isValid()) {
         layerBounds = getCroppedBufferSize(getDrawingState());
     }
+
+    if (!layerBounds.isValid()) {
+        // If the layer bounds is empty, set the frame to empty and clear the transform
+        info.frameLeft = 0;
+        info.frameTop = 0;
+        info.frameRight = 0;
+        info.frameBottom = 0;
+        info.transform.reset();
+        return;
+    }
+
+    ui::Transform t = getTransform();
+    int32_t xSurfaceInset = info.surfaceInset;
+    int32_t ySurfaceInset = info.surfaceInset;
 
     const float xScale = t.getScaleX();
     const float yScale = t.getScaleY();
@@ -2527,6 +2522,27 @@ InputWindowInfo Layer::fillInputInfo() {
     // Position the touchable region relative to frame screen location and restrict it to frame
     // bounds.
     info.touchableRegion = inputTransform.transform(info.touchableRegion);
+}
+
+InputWindowInfo Layer::fillInputInfo() {
+    if (!hasInputInfo()) {
+        mDrawingState.inputInfo.name = getName();
+        mDrawingState.inputInfo.ownerUid = mOwnerUid;
+        mDrawingState.inputInfo.ownerPid = mOwnerPid;
+        mDrawingState.inputInfo.inputFeatures = InputWindowInfo::Feature::NO_INPUT_CHANNEL;
+        mDrawingState.inputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
+        mDrawingState.inputInfo.displayId = getLayerStack();
+    }
+
+    InputWindowInfo info = mDrawingState.inputInfo;
+    info.id = sequence;
+
+    if (info.displayId == ADISPLAY_ID_NONE) {
+        info.displayId = getLayerStack();
+    }
+
+    fillInputFrameInfo(info);
+
     // For compatibility reasons we let layers which can receive input
     // receive input before they have actually submitted a buffer. Because
     // of this we use canReceiveInput instead of isVisible to check the

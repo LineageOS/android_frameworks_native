@@ -265,8 +265,11 @@ void SurfaceFrame::setJankInfo(JankType jankType, int32_t jankMetadata) {
     mJankMetadata = jankMetadata;
 }
 
-JankType SurfaceFrame::getJankType() const {
+std::optional<JankType> SurfaceFrame::getJankType() const {
     std::lock_guard<std::mutex> lock(mMutex);
+    if (mActuals.presentTime == 0) {
+        return std::nullopt;
+    }
     return mJankType;
 }
 
@@ -386,37 +389,36 @@ FrameTimeline::DisplayFrame::DisplayFrame()
     this->surfaceFrames.reserve(kNumSurfaceFramesInitial);
 }
 
-std::unique_ptr<android::frametimeline::SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
+std::shared_ptr<android::frametimeline::SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
         pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
         std::optional<int64_t> token) {
     ATRACE_CALL();
     if (!token) {
-        return std::make_unique<impl::SurfaceFrame>(ISurfaceComposer::INVALID_VSYNC_ID, ownerPid,
+        return std::make_shared<impl::SurfaceFrame>(ISurfaceComposer::INVALID_VSYNC_ID,ownerPid,
                                                     ownerUid, std::move(layerName),
                                                     std::move(debugName), PredictionState::None,
                                                     TimelineItem());
     }
     std::optional<TimelineItem> predictions = mTokenManager.getPredictionsForToken(*token);
     if (predictions) {
-        return std::make_unique<impl::SurfaceFrame>(*token, ownerPid, ownerUid,
+        return std::make_shared<impl::SurfaceFrame>(*token, ownerPid, ownerUid,
                                                     std::move(layerName), std::move(debugName),
                                                     PredictionState::Valid,
                                                     std::move(*predictions));
     }
-    return std::make_unique<impl::SurfaceFrame>(*token, ownerPid, ownerUid, std::move(layerName),
+    return std::make_shared<impl::SurfaceFrame>(*token, ownerPid, ownerUid, std::move(layerName),
                                                 std::move(debugName), PredictionState::Expired,
                                                 TimelineItem());
 }
 
 void FrameTimeline::addSurfaceFrame(
-        std::unique_ptr<android::frametimeline::SurfaceFrame> surfaceFrame,
+        std::shared_ptr<android::frametimeline::SurfaceFrame> surfaceFrame,
         SurfaceFrame::PresentState state) {
     ATRACE_CALL();
     surfaceFrame->setPresentState(state);
-    std::unique_ptr<impl::SurfaceFrame> implSurfaceFrame(
-            static_cast<impl::SurfaceFrame*>(surfaceFrame.release()));
     std::lock_guard<std::mutex> lock(mMutex);
-    mCurrentDisplayFrame->surfaceFrames.push_back(std::move(implSurfaceFrame));
+    mCurrentDisplayFrame->surfaceFrames.push_back(
+            std::static_pointer_cast<impl::SurfaceFrame>(surfaceFrame));
 }
 
 void FrameTimeline::setSfWakeUp(int64_t token, nsecs_t wakeUpTime) {

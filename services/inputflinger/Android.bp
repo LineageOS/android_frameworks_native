@@ -58,6 +58,7 @@ cc_defaults {
         "libstatslog",
         "libutils",
         "libui",
+        "lib-platform-compat-native-api",
     ],
     static_libs: [
         "libattestation",
