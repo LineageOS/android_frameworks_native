@@ -289,6 +289,9 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     mLastBufferScalingMode = bufferItem.mScalingMode;
 
     t->setBuffer(mSurfaceControl, buffer);
+    t->setDataspace(mSurfaceControl, static_cast<ui::Dataspace>(bufferItem.mDataSpace));
+    t->setHdrMetadata(mSurfaceControl, bufferItem.mHdrMetadata);
+    t->setSurfaceDamageRegion(mSurfaceControl, bufferItem.mSurfaceDamage);
     t->setAcquireFence(mSurfaceControl,
                        bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE);
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
