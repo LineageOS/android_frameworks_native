@@ -42,6 +42,10 @@ namespace android {
 // Macros to include adapter info in log messages
 #define BQA_LOGV(x, ...) \
     ALOGV("[%s](f:%u,a:%u) " x, mName.c_str(), mNumFrameAvailable, mNumAcquired, ##__VA_ARGS__)
+// enable logs for a single layer
+//#define BQA_LOGV(x, ...) \
+//    ALOGV_IF((strstr(mName.c_str(), "SurfaceView") != nullptr), "[%s](f:%u,a:%u) " x, \
+//              mName.c_str(), mNumFrameAvailable, mNumAcquired, ##__VA_ARGS__)
 #define BQA_LOGE(x, ...) \
     ALOGE("[%s](f:%u,a:%u) " x, mName.c_str(), mNumFrameAvailable, mNumAcquired, ##__VA_ARGS__)
 
@@ -248,7 +252,8 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
 
     BufferItem bufferItem;
 
-    status_t status = mBufferItemConsumer->acquireBuffer(&bufferItem, -1, false);
+    status_t status =
+            mBufferItemConsumer->acquireBuffer(&bufferItem, 0 /* expectedPresent */, false);
     if (status != OK) {
         BQA_LOGE("Failed to acquire a buffer, err=%s", statusToString(status).c_str());
         return;
