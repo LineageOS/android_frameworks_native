@@ -587,6 +587,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             if (!texMatrix.invert(&matrix)) {
                 matrix = texMatrix;
             }
+            // The shader does not respect the translation, so we add it to the texture
+            // transform for the SkImage. This will make sure that the correct layer contents
+            // are drawn in the correct part of the screen.
+            matrix.postTranslate(layer->geometry.boundaries.left, layer->geometry.boundaries.top);
 
             sk_sp<SkShader> shader;
 
@@ -649,12 +653,11 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
         }
 
+        // Push the clipRRect onto the clip stack. Draw the image. Pop the clip.
         if (layer->geometry.roundedCornersRadius > 0) {
-            canvas->drawRRect(getRoundedRect(layer), paint);
-        } else {
-            canvas->drawRect(dest, paint);
+            canvas->clipRRect(getRoundedRect(layer), true);
         }
-
+        canvas->drawRect(dest, paint);
         canvas->restore();
     }
     canvas->restore();
@@ -698,7 +701,7 @@ inline SkRect SkiaGLRenderEngine::getSkRect(const Rect& rect) {
 }
 
 inline SkRRect SkiaGLRenderEngine::getRoundedRect(const LayerSettings* layer) {
-    const auto rect = getSkRect(layer->geometry.boundaries);
+    const auto rect = getSkRect(layer->geometry.roundedCornersCrop);
     const auto cornerRadius = layer->geometry.roundedCornersRadius;
     return SkRRect::MakeRectXY(rect, cornerRadius, cornerRadius);
 }
