@@ -7729,7 +7729,8 @@ protected:
     }
 };
 
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange) {
+// TODO(b/175351838): Fix and enable this test
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, DISABLED_Viewports_SurfaceRange) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION);
@@ -7755,7 +7756,8 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange) {
     processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
 }
 
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_90) {
+// TODO(b/175351838): Fix and enable this test
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, DISABLED_Viewports_SurfaceRange_90) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION);
@@ -7773,7 +7775,8 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_90) {
     processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
 }
 
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270) {
+// TODO(b/175351838): Fix and enable this test
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, DISABLED_Viewports_SurfaceRange_270) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION);

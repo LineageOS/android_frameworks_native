@@ -14,7 +14,7 @@
      limitations under the License.
 -->
 
-<!-- This is the standard feature indicating that the device passes Vulkan deQP
+<!-- This is the standard feature indicating that the device passes Vulkan dEQP
      tests associated with date 2019-03-01 (0x07E30301). -->
 <permissions>
     <feature name="android.software.vulkan.deqp.level" version="132317953" />

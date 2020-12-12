@@ -123,7 +123,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
         mProducer->setMaxDequeuedBufferCount(2);
     }
     mBufferItemConsumer =
-        new BLASTBufferItemConsumer(mConsumer, GraphicBuffer::USAGE_HW_COMPOSER, 1, true);
+        new BLASTBufferItemConsumer(mConsumer, GraphicBuffer::USAGE_HW_COMPOSER, 1, false);
     static int32_t id = 0;
     auto consumerName = mName + "(BLAST Consumer)" + std::to_string(id);
     id++;
@@ -289,6 +289,9 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     mLastBufferScalingMode = bufferItem.mScalingMode;
 
     t->setBuffer(mSurfaceControl, buffer);
+    t->setDataspace(mSurfaceControl, static_cast<ui::Dataspace>(bufferItem.mDataSpace));
+    t->setHdrMetadata(mSurfaceControl, bufferItem.mHdrMetadata);
+    t->setSurfaceDamageRegion(mSurfaceControl, bufferItem.mSurfaceDamage);
     t->setAcquireFence(mSurfaceControl,
                        bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE);
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
