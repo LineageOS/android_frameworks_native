@@ -119,7 +119,7 @@ struct DisplayViewport {
         physicalBottom = height;
         deviceWidth = width;
         deviceHeight = height;
-        isActive = false;
+        isActive = true;
         uniqueId.clear();
         physicalPort = std::nullopt;
         type = ViewportType::INTERNAL;
