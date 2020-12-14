@@ -388,6 +388,8 @@ public:
         return mFlinger->onTransact(code, data, reply, flags);
     }
 
+    auto getGPUContextPriority() { return mFlinger->getGPUContextPriority(); }
+
     /* ------------------------------------------------------------------------
      * Read-only access to private data to assert post-conditions.
      */
