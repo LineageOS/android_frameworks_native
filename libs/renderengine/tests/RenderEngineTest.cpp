@@ -1735,6 +1735,56 @@ TEST_P(RenderEngineTest, cleanupPostRender_whenCleaningAll_replacesTextureMemory
     EXPECT_TRUE(mRE->isTextureNameKnownForTesting(texName));
 }
 
+TEST_P(RenderEngineTest, testRoundedCornersCrop) {
+    const auto& renderEngineFactory = GetParam();
+    mRE = renderEngineFactory->createRenderEngine();
+
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+
+    std::vector<const renderengine::LayerSettings*> layers;
+
+    renderengine::LayerSettings redLayer;
+    redLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+    redLayer.geometry.boundaries = fullscreenRect().toFloatRect();
+    redLayer.geometry.roundedCornersRadius = 5.0f;
+    redLayer.geometry.roundedCornersCrop = fullscreenRect().toFloatRect();
+    // Red background.
+    redLayer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
+    redLayer.alpha = 1.0f;
+
+    layers.push_back(&redLayer);
+
+    // Green layer with 1/3 size.
+    renderengine::LayerSettings greenLayer;
+    greenLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+    greenLayer.geometry.boundaries = fullscreenRect().toFloatRect();
+    greenLayer.geometry.roundedCornersRadius = 5.0f;
+    // Bottom right corner is not going to be rounded.
+    greenLayer.geometry.roundedCornersCrop =
+            Rect(DEFAULT_DISPLAY_WIDTH / 3, DEFAULT_DISPLAY_HEIGHT / 3, DEFAULT_DISPLAY_HEIGHT,
+                 DEFAULT_DISPLAY_HEIGHT)
+                    .toFloatRect();
+    greenLayer.source.solidColor = half3(0.0f, 1.0f, 0.0f);
+    greenLayer.alpha = 1.0f;
+
+    layers.push_back(&greenLayer);
+
+    invokeDraw(settings, layers, mBuffer);
+
+    // Corners should be ignored...
+    // Screen size: width is 128, height is 256.
+    expectBufferColor(Rect(0, 0, 1, 1), 0, 0, 0, 0);
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH - 1, 0, DEFAULT_DISPLAY_WIDTH, 1), 0, 0, 0, 0);
+    expectBufferColor(Rect(0, DEFAULT_DISPLAY_HEIGHT - 1, 1, DEFAULT_DISPLAY_HEIGHT), 0, 0, 0, 0);
+    // Bottom right corner is kept out of the clipping, and it's green.
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH - 1, DEFAULT_DISPLAY_HEIGHT - 1,
+                           DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                      0, 255, 0, 255);
+}
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
