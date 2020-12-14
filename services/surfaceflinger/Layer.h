@@ -36,6 +36,7 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
+#include <chrono>
 #include <cstdint>
 #include <list>
 #include <optional>
@@ -902,12 +903,13 @@ public:
 protected:
     class SyncPoint {
     public:
-        explicit SyncPoint(uint64_t frameNumber, wp<Layer> requestedSyncLayer)
+        explicit SyncPoint(uint64_t frameNumber, wp<Layer> requestedSyncLayer,
+                           wp<Layer> barrierLayer_legacy)
               : mFrameNumber(frameNumber),
                 mFrameIsAvailable(false),
                 mTransactionIsApplied(false),
-                mRequestedSyncLayer(requestedSyncLayer) {}
-
+                mRequestedSyncLayer(requestedSyncLayer),
+                mBarrierLayer_legacy(barrierLayer_legacy) {}
         uint64_t getFrameNumber() const { return mFrameNumber; }
 
         bool frameIsAvailable() const { return mFrameIsAvailable; }
@@ -920,11 +922,42 @@ protected:
 
         sp<Layer> getRequestedSyncLayer() { return mRequestedSyncLayer.promote(); }
 
+        sp<Layer> getBarrierLayer() const { return mBarrierLayer_legacy.promote(); }
+
+        bool isTimeout() const {
+            using namespace std::chrono_literals;
+            static constexpr std::chrono::nanoseconds TIMEOUT_THRESHOLD = 1s;
+
+            return std::chrono::steady_clock::now() - mCreateTimeStamp > TIMEOUT_THRESHOLD;
+        }
+
+        void checkTimeoutAndLog() {
+            using namespace std::chrono_literals;
+            static constexpr std::chrono::nanoseconds LOG_PERIOD = 1s;
+
+            if (!frameIsAvailable() && isTimeout()) {
+                const auto now = std::chrono::steady_clock::now();
+                if (now - mLastLogTime > LOG_PERIOD) {
+                    mLastLogTime = now;
+                    sp<Layer> requestedSyncLayer = getRequestedSyncLayer();
+                    sp<Layer> barrierLayer = getBarrierLayer();
+                    ALOGW("[%s] sync point %" PRIu64 " wait timeout %lld for %s",
+                          requestedSyncLayer ? requestedSyncLayer->getDebugName() : "Removed",
+                          mFrameNumber, (now - mCreateTimeStamp).count(),
+                          barrierLayer ? barrierLayer->getDebugName() : "Removed");
+                }
+            }
+        }
+
     private:
         const uint64_t mFrameNumber;
         std::atomic<bool> mFrameIsAvailable;
         std::atomic<bool> mTransactionIsApplied;
         wp<Layer> mRequestedSyncLayer;
+        wp<Layer> mBarrierLayer_legacy;
+        const std::chrono::time_point<std::chrono::steady_clock> mCreateTimeStamp =
+                std::chrono::steady_clock::now();
+        std::chrono::time_point<std::chrono::steady_clock> mLastLogTime;
     };
 
     friend class impl::SurfaceInterceptor;
@@ -1011,12 +1044,12 @@ protected:
     State mDrawingState;
     // Store a copy of the pending state so that the drawing thread can access the
     // states without a lock.
-    Vector<State> mPendingStatesSnapshot;
+    std::deque<State> mPendingStatesSnapshot;
 
     // these are protected by an external lock (mStateLock)
     State mCurrentState;
     std::atomic<uint32_t> mTransactionFlags{0};
-    Vector<State> mPendingStates;
+    std::deque<State> mPendingStates;
 
     // Timestamp history for UIAutomation. Thread safe.
     FrameTracker mFrameTracker;
