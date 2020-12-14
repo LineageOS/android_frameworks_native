@@ -183,7 +183,6 @@ public:
     virtual nsecs_t getRefreshTimestamp(PhysicalDisplayId) const = 0;
     virtual bool isConnected(PhysicalDisplayId) const = 0;
 
-    // Non-const because it can update configMap inside of mDisplayData
     virtual std::vector<std::shared_ptr<const HWC2::Display::Config>> getConfigs(
             PhysicalDisplayId) const = 0;
 
@@ -319,7 +318,6 @@ public:
     nsecs_t getRefreshTimestamp(PhysicalDisplayId) const override;
     bool isConnected(PhysicalDisplayId) const override;
 
-    // Non-const because it can update configMap inside of mDisplayData
     std::vector<std::shared_ptr<const HWC2::Display::Config>> getConfigs(
             PhysicalDisplayId) const override;
 
@@ -378,8 +376,7 @@ private:
         std::unordered_map<HWC2::Layer*, sp<Fence>> releaseFences;
         buffer_handle_t outbufHandle = nullptr;
         sp<Fence> outbufAcquireFence = Fence::NO_FENCE;
-        mutable std::unordered_map<int32_t,
-                std::shared_ptr<const HWC2::Display::Config>> configMap;
+        std::vector<std::shared_ptr<const HWC2::Display::Config>> configs;
 
         bool validateWasSkipped;
         hal::Error presentError;

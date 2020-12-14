@@ -528,6 +528,7 @@ RefreshRateConfigs::RefreshRateConfigs(
         HwcConfigIndexType currentConfigId)
       : mKnownFrameRates(constructKnownFrameRates(configs)) {
     LOG_ALWAYS_FATAL_IF(configs.empty());
+    LOG_ALWAYS_FATAL_IF(currentConfigId.value() < 0);
     LOG_ALWAYS_FATAL_IF(currentConfigId.value() >= configs.size());
 
     for (auto configId = HwcConfigIndexType(0); configId.value() < configs.size(); configId++) {

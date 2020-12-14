@@ -364,7 +364,7 @@ struct HwcDisplayVariant {
     static constexpr DisplayType HWC_DISPLAY_TYPE = hwcDisplayType;
 
     // The HWC active configuration id
-    static constexpr int HWC_ACTIVE_CONFIG_ID = 2001;
+    static constexpr hal::HWConfigId HWC_ACTIVE_CONFIG_ID = 2001;
     static constexpr PowerMode INIT_POWER_MODE = hal::PowerMode::ON;
 
     static void injectPendingHotplugEvent(DisplayTransactionTest* test, Connection connection) {
@@ -415,6 +415,45 @@ struct HwcDisplayVariant {
                                                       ceDisplayArgs);
     }
 
+    static void setupHwcGetConfigsCallExpectations(DisplayTransactionTest* test) {
+        if (HWC_DISPLAY_TYPE == DisplayType::PHYSICAL) {
+            EXPECT_CALL(*test->mComposer, getDisplayConfigs(HWC_DISPLAY_ID, _))
+                    .WillRepeatedly(DoAll(SetArgPointee<1>(std::vector<hal::HWConfigId>{
+                                                  HWC_ACTIVE_CONFIG_ID}),
+                                          Return(Error::NONE)));
+            EXPECT_CALL(*test->mComposer,
+                        getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
+                                            IComposerClient::Attribute::WIDTH, _))
+                    .WillRepeatedly(
+                            DoAll(SetArgPointee<3>(DisplayVariant::WIDTH), Return(Error::NONE)));
+            EXPECT_CALL(*test->mComposer,
+                        getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
+                                            IComposerClient::Attribute::HEIGHT, _))
+                    .WillRepeatedly(
+                            DoAll(SetArgPointee<3>(DisplayVariant::HEIGHT), Return(Error::NONE)));
+            EXPECT_CALL(*test->mComposer,
+                        getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
+                                            IComposerClient::Attribute::VSYNC_PERIOD, _))
+                    .WillRepeatedly(
+                            DoAll(SetArgPointee<3>(DEFAULT_REFRESH_RATE), Return(Error::NONE)));
+            EXPECT_CALL(*test->mComposer,
+                        getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
+                                            IComposerClient::Attribute::DPI_X, _))
+                    .WillRepeatedly(DoAll(SetArgPointee<3>(DEFAULT_DPI), Return(Error::NONE)));
+            EXPECT_CALL(*test->mComposer,
+                        getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
+                                            IComposerClient::Attribute::DPI_Y, _))
+                    .WillRepeatedly(DoAll(SetArgPointee<3>(DEFAULT_DPI), Return(Error::NONE)));
+            EXPECT_CALL(*test->mComposer,
+                        getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
+                                            IComposerClient::Attribute::CONFIG_GROUP, _))
+                    .WillRepeatedly(DoAll(SetArgPointee<3>(-1), Return(Error::NONE)));
+        } else {
+            EXPECT_CALL(*test->mComposer, getDisplayConfigs(_, _)).Times(0);
+            EXPECT_CALL(*test->mComposer, getDisplayAttribute(_, _, _, _)).Times(0);
+        }
+    }
+
     static void setupHwcHotplugCallExpectations(DisplayTransactionTest* test) {
         constexpr auto CONNECTION_TYPE =
                 PhysicalDisplay::CONNECTION_TYPE == DisplayConnectionType::Internal
@@ -426,33 +465,8 @@ struct HwcDisplayVariant {
 
         EXPECT_CALL(*test->mComposer, setClientTargetSlotCount(_))
                 .WillOnce(Return(hal::Error::NONE));
-        EXPECT_CALL(*test->mComposer, getDisplayConfigs(HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<unsigned>{HWC_ACTIVE_CONFIG_ID}),
-                                Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer,
-                    getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
-                                        IComposerClient::Attribute::WIDTH, _))
-                .WillOnce(DoAll(SetArgPointee<3>(DisplayVariant::WIDTH), Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer,
-                    getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
-                                        IComposerClient::Attribute::HEIGHT, _))
-                .WillOnce(DoAll(SetArgPointee<3>(DisplayVariant::HEIGHT), Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer,
-                    getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
-                                        IComposerClient::Attribute::VSYNC_PERIOD, _))
-                .WillOnce(DoAll(SetArgPointee<3>(DEFAULT_REFRESH_RATE), Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer,
-                    getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
-                                        IComposerClient::Attribute::DPI_X, _))
-                .WillOnce(DoAll(SetArgPointee<3>(DEFAULT_DPI), Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer,
-                    getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
-                                        IComposerClient::Attribute::DPI_Y, _))
-                .WillOnce(DoAll(SetArgPointee<3>(DEFAULT_DPI), Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer,
-                    getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
-                                        IComposerClient::Attribute::CONFIG_GROUP, _))
-                .WillOnce(DoAll(SetArgPointee<3>(-1), Return(Error::NONE)));
+
+        setupHwcGetConfigsCallExpectations(test);
 
         if (PhysicalDisplay::HAS_IDENTIFICATION_DATA) {
             EXPECT_CALL(*test->mComposer, getDisplayIdentificationData(HWC_DISPLAY_ID, _, _))
@@ -557,6 +571,11 @@ struct NonHwcVirtualDisplayVariant
 
         return compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),
                                                       ceDisplayArgs);
+    }
+
+    static void setupHwcGetConfigsCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mComposer, getDisplayConfigs(_, _)).Times(0);
+        EXPECT_CALL(*test->mComposer, getDisplayAttribute(_, _, _, _)).Times(0);
     }
 
     static void setupHwcGetActiveConfigCallExpectations(DisplayTransactionTest* test) {
