@@ -2866,17 +2866,17 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     // TODO(b/158737089) reduce code repetition in if branches
     if (options_->telephony_only) {
         MaybeTakeEarlyScreenshot();
-        onUiIntensiveBugreportDumpsFinished(calling_uid, calling_package);
+        onUiIntensiveBugreportDumpsFinished(calling_uid);
         MaybeCheckUserConsent(calling_uid, calling_package);
         DumpstateTelephonyOnly(calling_package);
     } else if (options_->wifi_only) {
         MaybeTakeEarlyScreenshot();
-        onUiIntensiveBugreportDumpsFinished(calling_uid, calling_package);
+        onUiIntensiveBugreportDumpsFinished(calling_uid);
         MaybeCheckUserConsent(calling_uid, calling_package);
         DumpstateWifiOnly();
     } else if (options_->limited_only) {
         MaybeTakeEarlyScreenshot();
-        onUiIntensiveBugreportDumpsFinished(calling_uid, calling_package);
+        onUiIntensiveBugreportDumpsFinished(calling_uid);
         MaybeCheckUserConsent(calling_uid, calling_package);
         DumpstateLimitedOnly();
     } else {
@@ -2885,7 +2885,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 
         // Take screenshot and get consent only after critical dumpsys has finished.
         MaybeTakeEarlyScreenshot();
-        onUiIntensiveBugreportDumpsFinished(calling_uid, calling_package);
+        onUiIntensiveBugreportDumpsFinished(calling_uid);
         MaybeCheckUserConsent(calling_uid, calling_package);
 
         // Dump state for the default case. This also drops root.
@@ -2969,16 +2969,14 @@ void Dumpstate::MaybeTakeEarlyScreenshot() {
     TakeScreenshot();
 }
 
-void Dumpstate::onUiIntensiveBugreportDumpsFinished(int32_t calling_uid,
-                                                    const std::string& calling_package) {
+void Dumpstate::onUiIntensiveBugreportDumpsFinished(int32_t calling_uid) {
     if (calling_uid == AID_SHELL || !CalledByApi()) {
         return;
     }
     if (listener_ != nullptr) {
         // Let listener know ui intensive bugreport dumps are finished, then it can do event
         // handling if required.
-        android::String16 package(calling_package.c_str());
-        listener_->onUiIntensiveBugreportDumpsFinished(package);
+        listener_->onUiIntensiveBugreportDumpsFinished();
     }
 }
 
