@@ -4827,7 +4827,7 @@ base::Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(
 }
 
 base::Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(
-        int32_t displayId, bool isGestureMonitor, const std::string& name) {
+        int32_t displayId, bool isGestureMonitor, const std::string& name, int32_t pid) {
     std::shared_ptr<InputChannel> serverChannel;
     std::unique_ptr<InputChannel> clientChannel;
     status_t result = openInputChannelPair(name, serverChannel, clientChannel);
@@ -4851,7 +4851,7 @@ base::Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(
 
         auto& monitorsByDisplay =
                 isGestureMonitor ? mGestureMonitorsByDisplay : mGlobalMonitorsByDisplay;
-        monitorsByDisplay[displayId].emplace_back(serverChannel);
+        monitorsByDisplay[displayId].emplace_back(serverChannel, pid);
 
         mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
     }

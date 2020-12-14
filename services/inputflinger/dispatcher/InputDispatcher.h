@@ -123,8 +123,10 @@ public:
     virtual base::Result<std::unique_ptr<InputChannel>> createInputChannel(
             const std::string& name) override;
     virtual void setFocusedWindow(const FocusRequest&) override;
-    virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(
-            int32_t displayId, bool isGestureMonitor, const std::string& name) override;
+    virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(int32_t displayId,
+                                                                           bool isGestureMonitor,
+                                                                           const std::string& name,
+                                                                           int32_t pid) override;
     virtual status_t removeInputChannel(const sp<IBinder>& connectionToken) override;
     virtual status_t pilferPointers(const sp<IBinder>& token) override;
     virtual void requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) override;

@@ -172,8 +172,10 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(
-            int32_t displayId, bool gestureMonitor, const std::string& name) = 0;
+    virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(int32_t displayId,
+                                                                           bool gestureMonitor,
+                                                                           const std::string& name,
+                                                                           int32_t pid) = 0;
 
     /* Removes input channels that will no longer receive input events.
      *
