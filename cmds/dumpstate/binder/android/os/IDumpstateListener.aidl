@@ -72,5 +72,5 @@ interface IDumpstateListener {
     /**
      * Called when ui intensive bugreport dumps are finished.
      */
-    oneway void onUiIntensiveBugreportDumpsFinished(String callingPackage);
+    oneway void onUiIntensiveBugreportDumpsFinished();
 }
