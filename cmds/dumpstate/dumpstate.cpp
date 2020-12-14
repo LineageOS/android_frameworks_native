@@ -2863,31 +2863,23 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     // duration is logged into MYLOG instead.
     PrintHeader();
 
-    // TODO(b/158737089) reduce code repetition in if branches
-    if (options_->telephony_only) {
-        MaybeTakeEarlyScreenshot();
-        onUiIntensiveBugreportDumpsFinished(calling_uid);
-        MaybeCheckUserConsent(calling_uid, calling_package);
-        DumpstateTelephonyOnly(calling_package);
-    } else if (options_->wifi_only) {
-        MaybeTakeEarlyScreenshot();
-        onUiIntensiveBugreportDumpsFinished(calling_uid);
-        MaybeCheckUserConsent(calling_uid, calling_package);
-        DumpstateWifiOnly();
-    } else if (options_->limited_only) {
-        MaybeTakeEarlyScreenshot();
-        onUiIntensiveBugreportDumpsFinished(calling_uid);
-        MaybeCheckUserConsent(calling_uid, calling_package);
-        DumpstateLimitedOnly();
-    } else {
+    bool is_dumpstate_restricted = options_->telephony_only
+                                   || options_->wifi_only
+                                   || options_->limited_only;
+    if (!is_dumpstate_restricted) {
         // Invoke critical dumpsys first to preserve system state, before doing anything else.
         RunDumpsysCritical();
-
-        // Take screenshot and get consent only after critical dumpsys has finished.
-        MaybeTakeEarlyScreenshot();
-        onUiIntensiveBugreportDumpsFinished(calling_uid);
-        MaybeCheckUserConsent(calling_uid, calling_package);
-
+    }
+    MaybeTakeEarlyScreenshot();
+    onUiIntensiveBugreportDumpsFinished(calling_uid);
+    MaybeCheckUserConsent(calling_uid, calling_package);
+    if (options_->telephony_only) {
+        DumpstateTelephonyOnly(calling_package);
+    } else if (options_->wifi_only) {
+        DumpstateWifiOnly();
+    } else if (options_->limited_only) {
+        DumpstateLimitedOnly();
+    } else {
         // Dump state for the default case. This also drops root.
         RunStatus s = DumpstateDefaultAfterCritical();
         if (s != RunStatus::OK) {
