@@ -596,7 +596,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                    {SkFilterMode::kLinear, SkMipmapMode::kNone}),
                                            &matrix);
             } else {
-                shader = image->makeShader(matrix);
+                shader = image->makeShader(SkSamplingOptions(), matrix);
             }
 
             if (mUseColorManagement &&
