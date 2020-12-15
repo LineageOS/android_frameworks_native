@@ -475,6 +475,46 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
                                /*border*/ 0, /*outsideRegion*/ true));
 }
 
+class TestProducerListener : public BnProducerListener {
+public:
+    sp<IGraphicBufferProducer> mIgbp;
+    TestProducerListener(const sp<IGraphicBufferProducer>& igbp) : mIgbp(igbp) {}
+    void onBufferReleased() override {
+        sp<GraphicBuffer> buffer;
+        sp<Fence> fence;
+        mIgbp->detachNextBuffer(&buffer, &fence);
+    }
+};
+
+TEST_F(BLASTBufferQueueTest, CustomProducerListener) {
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    sp<IGraphicBufferProducer> igbProducer = adapter.getIGraphicBufferProducer();
+    ASSERT_NE(nullptr, igbProducer.get());
+    ASSERT_EQ(NO_ERROR, igbProducer->setMaxDequeuedBufferCount(2));
+    IGraphicBufferProducer::QueueBufferOutput qbOutput;
+    ASSERT_EQ(NO_ERROR,
+              igbProducer->connect(new TestProducerListener(igbProducer), NATIVE_WINDOW_API_CPU,
+                                   false, &qbOutput));
+    ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
+    for (int i = 0; i < 3; i++) {
+        int slot;
+        sp<Fence> fence;
+        sp<GraphicBuffer> buf;
+        auto ret = igbProducer->dequeueBuffer(&slot, &fence, mDisplayWidth, mDisplayHeight,
+                                              PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                              nullptr, nullptr);
+        ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+        ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+        IGraphicBufferProducer::QueueBufferOutput qbOutput;
+        IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
+                                                       Rect(mDisplayWidth, mDisplayHeight),
+                                                       NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
+                                                       Fence::NO_FENCE);
+        igbProducer->queueBuffer(slot, input, &qbOutput);
+    }
+    adapter.waitForCallbacks();
+}
+
 class BLASTBufferQueueTransformTest : public BLASTBufferQueueTest {
 public:
     void test(uint32_t tr) {
