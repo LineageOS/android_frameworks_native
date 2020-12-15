@@ -480,6 +480,8 @@ public:
     virtual void useSurfaceDamage() {}
     virtual void useEmptyDamage() {}
 
+    virtual void incrementPendingBufferCount() {}
+
     /*
      * isOpaque - true if this surface is opaque
      *
@@ -744,7 +746,7 @@ public:
      * doTransaction - process the transaction. This is a good place to figure
      * out which attributes of the surface have changed.
      */
-    uint32_t doTransaction(uint32_t transactionFlags);
+    virtual uint32_t doTransaction(uint32_t transactionFlags);
 
     /*
      * Remove relative z for the layer if its relative parent is not part of the

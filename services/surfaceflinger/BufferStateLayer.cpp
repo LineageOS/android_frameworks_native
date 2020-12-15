@@ -347,6 +347,12 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
 
     if (mCurrentState.buffer) {
         mReleasePreviousBuffer = true;
+        if (mCurrentState.buffer != mDrawingState.buffer) {
+            // If mCurrentState has a buffer, and we are about to update again
+            // before swapping to drawing state, then the first buffer will be
+            // dropped and we should decrement the pending buffer count.
+            decrementPendingBufferCount();
+        }
     }
 
     mCurrentState.frameNumber = frameNumber;
@@ -629,6 +635,7 @@ status_t BufferStateLayer::updateActiveBuffer() {
     if (s.buffer == nullptr) {
         return BAD_VALUE;
     }
+    decrementPendingBufferCount();
 
     mPreviousBufferId = getCurrentBufferId();
     mBufferInfo.mBuffer = s.buffer;
@@ -826,6 +833,32 @@ bool BufferStateLayer::bufferNeedsFiltering() const {
     const Rect layerSize{getBounds()};
     return layerSize.width() != bufferWidth || layerSize.height() != bufferHeight;
 }
+
+void BufferStateLayer::incrementPendingBufferCount() {
+    mPendingBufferTransactions++;
+    tracePendingBufferCount();
+}
+
+void BufferStateLayer::decrementPendingBufferCount() {
+    mPendingBufferTransactions--;
+    tracePendingBufferCount();
+}
+
+void BufferStateLayer::tracePendingBufferCount() {
+    ATRACE_INT(mBlastTransactionName.c_str(), mPendingBufferTransactions);
+}
+
+uint32_t BufferStateLayer::doTransaction(uint32_t flags) {
+    if (mDrawingState.buffer != nullptr && mDrawingState.buffer != mBufferInfo.mBuffer) {
+        // If we are about to update mDrawingState.buffer but it has not yet latched
+        // then we will drop a buffer and should decrement the pending buffer count.
+        // This logic may not work perfectly in the face of a BufferStateLayer being the
+        // deferred side of a deferred transaction, but we don't expect this use case.
+        decrementPendingBufferCount();
+    }
+    return Layer::doTransaction(flags);
+}
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

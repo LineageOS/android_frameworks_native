@@ -112,6 +112,11 @@ public:
     bool onPreComposition(nsecs_t refreshStartTime) override;
     uint32_t getEffectiveScalingMode() const override;
 
+    // See mPendingBufferTransactions
+    void incrementPendingBufferCount() override;
+    void decrementPendingBufferCount();
+    uint32_t doTransaction(uint32_t flags) override;
+
 protected:
     void gatherBufferInfo() override;
     uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
@@ -119,6 +124,7 @@ protected:
 
 private:
     friend class SlotGenerationTest;
+    inline void tracePendingBufferCount();
 
     bool updateFrameEventHistory(const sp<Fence>& acquireFence, nsecs_t postedTime,
                                  nsecs_t requestedPresentTime);
@@ -162,6 +168,18 @@ private:
     nsecs_t mCallbackHandleAcquireTime = -1;
 
     std::deque<std::shared_ptr<android::frametimeline::SurfaceFrame>> mPendingJankClassifications;
+
+    const std::string mBlastTransactionName{"BufferTX - " + mName};
+    // This integer is incremented everytime a buffer arrives at the server for this layer,
+    // and decremented when a buffer is dropped or latched. When changed the integer is exported
+    // to systrace with ATRACE_INT and mBlastTransactionName. This way when debugging perf it is
+    // possible to see when a buffer arrived at the server, and in which frame it latched.
+    //
+    // You can understand the trace this way:
+    //     - If the integer increases, a buffer arrived at the server.
+    //     - If the integer decreases in latchBuffer, that buffer was latched
+    //     - If the integer decreases in setBuffer or doTransaction, a buffer was dropped
+    uint64_t mPendingBufferTransactions{0};
 
     // TODO(marissaw): support sticky transform for LEGACY camera mode
 
