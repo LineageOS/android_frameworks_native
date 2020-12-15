@@ -435,6 +435,14 @@ static sp<IPlatformCompatNative> getCompatService() {
     return interface_cast<IPlatformCompatNative>(service);
 }
 
+static KeyEvent createKeyEvent(const KeyEntry& entry) {
+    KeyEvent event;
+    event.initialize(entry.id, entry.deviceId, entry.source, entry.displayId, INVALID_HMAC,
+                     entry.action, entry.flags, entry.keyCode, entry.scanCode, entry.metaState,
+                     entry.repeatCount, entry.downTime, entry.eventTime);
+    return event;
+}
+
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
@@ -3131,8 +3139,8 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
 
 void InputDispatcher::synthesizeCancelationEventsForAllConnectionsLocked(
         const CancelationOptions& options) {
-    for (const auto& pair : mConnectionsByFd) {
-        synthesizeCancelationEventsForConnectionLocked(pair.second, options);
+    for (const auto& [fd, connection] : mConnectionsByFd) {
+        synthesizeCancelationEventsForConnectionLocked(connection, options);
     }
 }
 
@@ -5531,14 +5539,6 @@ void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* comman
     mPolicy->pokeUserActivity(commandEntry->eventTime, commandEntry->userActivityEventType);
 
     mLock.lock();
-}
-
-KeyEvent InputDispatcher::createKeyEvent(const KeyEntry& entry) {
-    KeyEvent event;
-    event.initialize(entry.id, entry.deviceId, entry.source, entry.displayId, INVALID_HMAC,
-                     entry.action, entry.flags, entry.keyCode, entry.scanCode, entry.metaState,
-                     entry.repeatCount, entry.downTime, entry.eventTime);
-    return event;
 }
 
 void InputDispatcher::reportDispatchStatistics(std::chrono::nanoseconds eventDuration,
