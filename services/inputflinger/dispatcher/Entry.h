@@ -271,6 +271,7 @@ struct CommandEntry {
     sp<IBinder> newToken;
     std::string obscuringPackage;
     bool enabled;
+    int32_t pid;
 };
 
 } // namespace android::inputdispatcher
