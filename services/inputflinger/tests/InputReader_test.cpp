@@ -7737,8 +7737,8 @@ protected:
         configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     }
 
-    void processPositionAndVerify(MultiTouchInputMapper& mapper, int32_t xInside, int32_t yInside,
-                                  int32_t xOutside, int32_t yOutside, int32_t xExpected,
+    void processPositionAndVerify(MultiTouchInputMapper& mapper, int32_t xOutside, int32_t yOutside,
+                                  int32_t xInside, int32_t yInside, int32_t xExpected,
                                   int32_t yExpected) {
         // touch on outside area should not work.
         processPosition(mapper, toRawX(xOutside), toRawY(yOutside));
@@ -7758,8 +7758,7 @@ protected:
     }
 };
 
-// TODO(b/175351838): Fix and enable this test
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, DISABLED_Viewports_SurfaceRange) {
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION);
@@ -7785,8 +7784,7 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, DISABLED_Viewports_SurfaceRange) 
     processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
 }
 
-// TODO(b/175351838): Fix and enable this test
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, DISABLED_Viewports_SurfaceRange_90) {
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_90) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION);
@@ -7804,8 +7802,7 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, DISABLED_Viewports_SurfaceRange_9
     processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
 }
 
-// TODO(b/175351838): Fix and enable this test
-TEST_F(MultiTouchInputMapperTest_SurfaceRange, DISABLED_Viewports_SurfaceRange_270) {
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(DISPLAY_ORIENTATION_0);
     prepareAxes(POSITION);
