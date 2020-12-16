@@ -233,12 +233,12 @@ public:
         return ListCommand::dumpVintf(out);
     }
     void internalPostprocess() { ListCommand::postprocess(); }
-    const PidInfo* getPidInfoCached(pid_t serverPid) {
+    const BinderPidInfo* getPidInfoCached(pid_t serverPid) {
         return ListCommand::getPidInfoCached(serverPid);
     }
 
     MOCK_METHOD0(postprocess, void());
-    MOCK_CONST_METHOD2(getPidInfo, bool(pid_t, PidInfo*));
+    MOCK_CONST_METHOD2(getPidInfo, bool(pid_t, BinderPidInfo*));
     MOCK_CONST_METHOD1(parseCmdline, std::string(pid_t));
     MOCK_METHOD1(getPartition, Partition(pid_t));
 
@@ -299,8 +299,8 @@ static uint64_t getPtr(pid_t serverId) { return 10000 + serverId; }
 static std::vector<pid_t> getClients(pid_t serverId) {
     return {serverId + 1, serverId + 3};
 }
-static PidInfo getPidInfoFromId(pid_t serverId) {
-    PidInfo info;
+static BinderPidInfo getPidInfoFromId(pid_t serverId) {
+    BinderPidInfo info;
     info.refPids[getPtr(serverId)] = getClients(serverId);
     info.threadUsage = 10 + serverId;
     info.threadCount = 20 + serverId;
@@ -363,7 +363,7 @@ public:
     void initMockList() {
         mockList = std::make_unique<NiceMock<MockListCommand>>(lshal.get());
         ON_CALL(*mockList, getPidInfo(_,_)).WillByDefault(Invoke(
-            [](pid_t serverPid, PidInfo* info) {
+            [](pid_t serverPid, BinderPidInfo* info) {
                 *info = getPidInfoFromId(serverPid);
                 return true;
             }));
