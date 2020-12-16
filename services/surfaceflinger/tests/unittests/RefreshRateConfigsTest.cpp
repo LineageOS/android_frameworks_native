@@ -25,13 +25,13 @@
 #include <log/log.h>
 #include <thread>
 
+#include <ui/Size.h>
+
 #include "../../Scheduler/RefreshRateConfigs.h"
 #include "DisplayHardware/HWC2.h"
 #include "Scheduler/RefreshRateConfigs.h"
-#include "mock/DisplayHardware/MockDisplay.h"
 
 using namespace std::chrono_literals;
-using testing::_;
 
 namespace android {
 
@@ -81,67 +81,48 @@ protected:
     static inline const HwcConfigIndexType HWC_CONFIG_ID_50 = HwcConfigIndexType(6);
 
     // Test configs
-    std::shared_ptr<const HWC2::Display::Config> mConfig60 =
-            createConfig(HWC_CONFIG_ID_60, 0, Fps(60.0f).getPeriodNsecs());
-    std::shared_ptr<const HWC2::Display::Config> mConfig90 =
-            createConfig(HWC_CONFIG_ID_90, 0, Fps(90.0f).getPeriodNsecs());
-    std::shared_ptr<const HWC2::Display::Config> mConfig90DifferentGroup =
+    DisplayModePtr mConfig60 = createConfig(HWC_CONFIG_ID_60, 0, Fps(60.0f).getPeriodNsecs());
+    DisplayModePtr mConfig90 = createConfig(HWC_CONFIG_ID_90, 0, Fps(90.0f).getPeriodNsecs());
+    DisplayModePtr mConfig90DifferentGroup =
             createConfig(HWC_CONFIG_ID_90, 1, Fps(90.0f).getPeriodNsecs());
-    std::shared_ptr<const HWC2::Display::Config> mConfig90DifferentResolution =
-            createConfig(HWC_CONFIG_ID_90, 0, Fps(90.0f).getPeriodNsecs(), 111, 222);
-    std::shared_ptr<const HWC2::Display::Config> mConfig72 =
-            createConfig(HWC_CONFIG_ID_72, 0, Fps(72.0f).getPeriodNsecs());
-    std::shared_ptr<const HWC2::Display::Config> mConfig72DifferentGroup =
+    DisplayModePtr mConfig90DifferentResolution =
+            createConfig(HWC_CONFIG_ID_90, 0, Fps(90.0f).getPeriodNsecs(), ui::Size(111, 222));
+    DisplayModePtr mConfig72 = createConfig(HWC_CONFIG_ID_72, 0, Fps(72.0f).getPeriodNsecs());
+    DisplayModePtr mConfig72DifferentGroup =
             createConfig(HWC_CONFIG_ID_72, 1, Fps(72.0f).getPeriodNsecs());
-    std::shared_ptr<const HWC2::Display::Config> mConfig120 =
-            createConfig(HWC_CONFIG_ID_120, 0, Fps(120.0f).getPeriodNsecs());
-    std::shared_ptr<const HWC2::Display::Config> mConfig120DifferentGroup =
+    DisplayModePtr mConfig120 = createConfig(HWC_CONFIG_ID_120, 0, Fps(120.0f).getPeriodNsecs());
+    DisplayModePtr mConfig120DifferentGroup =
             createConfig(HWC_CONFIG_ID_120, 1, Fps(120.0f).getPeriodNsecs());
-    std::shared_ptr<const HWC2::Display::Config> mConfig30 =
-            createConfig(HWC_CONFIG_ID_30, 0, Fps(30.0f).getPeriodNsecs());
-    std::shared_ptr<const HWC2::Display::Config> mConfig30DifferentGroup =
+    DisplayModePtr mConfig30 = createConfig(HWC_CONFIG_ID_30, 0, Fps(30.0f).getPeriodNsecs());
+    DisplayModePtr mConfig30DifferentGroup =
             createConfig(HWC_CONFIG_ID_30, 1, Fps(30.0f).getPeriodNsecs());
-    std::shared_ptr<const HWC2::Display::Config> mConfig25DifferentGroup =
+    DisplayModePtr mConfig25DifferentGroup =
             createConfig(HWC_CONFIG_ID_25, 1, Fps(25.0f).getPeriodNsecs());
-    std::shared_ptr<const HWC2::Display::Config> mConfig50 =
-            createConfig(HWC_CONFIG_ID_50, 0, Fps(50.0f).getPeriodNsecs());
+    DisplayModePtr mConfig50 = createConfig(HWC_CONFIG_ID_50, 0, Fps(50.0f).getPeriodNsecs());
 
     // Test device configurations
     // The positions of the configs in the arrays below MUST match their IDs. For example,
     // the first config should always be 60Hz, the second 90Hz etc.
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m60OnlyConfigDevice = {mConfig60};
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m60_90Device = {mConfig60, mConfig90};
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m60_90DeviceWithDifferentGroups =
-            {mConfig60, mConfig90DifferentGroup};
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m60_90DeviceWithDifferentResolutions =
-            {mConfig60, mConfig90DifferentResolution};
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m60_72_90Device = {mConfig60,
-                                                                                 mConfig90,
-                                                                                 mConfig72};
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m60_90_72_120Device = {mConfig60,
-                                                                                     mConfig90,
-                                                                                     mConfig72,
-                                                                                     mConfig120};
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m30_60_72_90_120Device = {mConfig60,
-                                                                                        mConfig90,
-                                                                                        mConfig72,
-                                                                                        mConfig120,
-                                                                                        mConfig30};
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m30_60Device =
-            {mConfig60, mConfig90DifferentGroup, mConfig72DifferentGroup, mConfig120DifferentGroup,
-             mConfig30};
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m30_60_72_90Device =
-            {mConfig60, mConfig90, mConfig72, mConfig120DifferentGroup, mConfig30};
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m30_60_90Device =
-            {mConfig60, mConfig90, mConfig72DifferentGroup, mConfig120DifferentGroup, mConfig30};
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> m25_30_50_60Device =
-            {mConfig60,
-             mConfig90,
-             mConfig72DifferentGroup,
-             mConfig120DifferentGroup,
-             mConfig30DifferentGroup,
-             mConfig25DifferentGroup,
-             mConfig50};
+    DisplayModes m60OnlyConfigDevice = {mConfig60};
+    DisplayModes m60_90Device = {mConfig60, mConfig90};
+    DisplayModes m60_90DeviceWithDifferentGroups = {mConfig60, mConfig90DifferentGroup};
+    DisplayModes m60_90DeviceWithDifferentResolutions = {mConfig60, mConfig90DifferentResolution};
+    DisplayModes m60_72_90Device = {mConfig60, mConfig90, mConfig72};
+    DisplayModes m60_90_72_120Device = {mConfig60, mConfig90, mConfig72, mConfig120};
+    DisplayModes m30_60_72_90_120Device = {mConfig60, mConfig90, mConfig72, mConfig120, mConfig30};
+    DisplayModes m30_60Device = {mConfig60, mConfig90DifferentGroup, mConfig72DifferentGroup,
+                                 mConfig120DifferentGroup, mConfig30};
+    DisplayModes m30_60_72_90Device = {mConfig60, mConfig90, mConfig72, mConfig120DifferentGroup,
+                                       mConfig30};
+    DisplayModes m30_60_90Device = {mConfig60, mConfig90, mConfig72DifferentGroup,
+                                    mConfig120DifferentGroup, mConfig30};
+    DisplayModes m25_30_50_60Device = {mConfig60,
+                                       mConfig90,
+                                       mConfig72DifferentGroup,
+                                       mConfig120DifferentGroup,
+                                       mConfig30DifferentGroup,
+                                       mConfig25DifferentGroup,
+                                       mConfig50};
 
     // Expected RefreshRate objects
     RefreshRate mExpected60Config = {HWC_CONFIG_ID_60, mConfig60, Fps(60),
@@ -162,18 +143,12 @@ protected:
                                      RefreshRate::ConstructorTag(0)};
     RefreshRate mExpected120Config = {HWC_CONFIG_ID_120, mConfig120, Fps(120),
                                       RefreshRate::ConstructorTag(0)};
-
-    Hwc2::mock::Display mDisplay;
-
 private:
-    std::shared_ptr<const HWC2::Display::Config> createConfig(HwcConfigIndexType configId,
-                                                              int32_t configGroup,
-                                                              int64_t vsyncPeriod,
-                                                              int32_t hight = -1,
-                                                              int32_t width = -1);
+    DisplayModePtr createConfig(HwcConfigIndexType configId, int32_t configGroup,
+                                int64_t vsyncPeriod, ui::Size resolution = ui::Size());
 };
 
-using Builder = HWC2::Display::Config::Builder;
+using Builder = DisplayMode::Builder;
 
 RefreshRateConfigsTest::RefreshRateConfigsTest() {
     const ::testing::TestInfo* const test_info =
@@ -187,14 +162,14 @@ RefreshRateConfigsTest::~RefreshRateConfigsTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-std::shared_ptr<const HWC2::Display::Config> RefreshRateConfigsTest::createConfig(
-        HwcConfigIndexType configId, int32_t configGroup, int64_t vsyncPeriod, int32_t hight,
-        int32_t width) {
-    return HWC2::Display::Config::Builder(mDisplay, hal::HWConfigId(configId.value()))
+DisplayModePtr RefreshRateConfigsTest::createConfig(HwcConfigIndexType configId,
+                                                    int32_t configGroup, int64_t vsyncPeriod,
+                                                    ui::Size resolution) {
+    return DisplayMode::Builder(hal::HWConfigId(configId.value()))
             .setVsyncPeriod(int32_t(vsyncPeriod))
             .setConfigGroup(configGroup)
-            .setHeight(hight)
-            .setWidth(width)
+            .setHeight(resolution.height)
+            .setWidth(resolution.width)
             .build();
 }
 

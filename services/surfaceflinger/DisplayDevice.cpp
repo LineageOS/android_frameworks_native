@@ -210,7 +210,7 @@ void DisplayDevice::dump(std::string& result) const {
     result.append("   ");
     StringAppendF(&result, "powerMode=%s (%d), ", to_string(mPowerMode).c_str(),
                   static_cast<int32_t>(mPowerMode));
-    StringAppendF(&result, "activeConfig=%d, ", mActiveConfig.value());
+    StringAppendF(&result, "activeConfig=%zu, ", mActiveConfig.value());
     StringAppendF(&result, "deviceProductInfo=");
     if (mDeviceProductInfo) {
         mDeviceProductInfo->dump(result);

@@ -77,9 +77,8 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, PhysicalDisplayId displa
     mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_FB |
                                        GRALLOC_USAGE_HW_RENDER |
                                        GRALLOC_USAGE_HW_COMPOSER);
-    const auto& activeConfig = mHwc.getActiveConfig(displayId);
-    ui::Size limitedSize =
-            limitFramebufferSize(activeConfig->getWidth(), activeConfig->getHeight());
+    const auto& activeMode = mHwc.getActiveMode(displayId);
+    ui::Size limitedSize = limitFramebufferSize(activeMode->getWidth(), activeMode->getHeight());
     mConsumer->setDefaultBufferSize(limitedSize.width, limitedSize.height);
     mConsumer->setMaxAcquiredBufferCount(
             SurfaceFlinger::maxFrameBufferAcquiredBuffers - 1);

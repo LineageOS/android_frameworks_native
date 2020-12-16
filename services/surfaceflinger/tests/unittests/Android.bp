@@ -80,7 +80,6 @@ cc_test {
         "VSyncReactorTest.cpp",
         "VsyncConfigurationTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
-        "mock/DisplayHardware/MockDisplay.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
         "mock/MockEventThread.cpp",
         "mock/MockFrameTimeline.cpp",
