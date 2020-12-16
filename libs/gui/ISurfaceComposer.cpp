@@ -1230,6 +1230,21 @@ public:
 
         return remote()->transact(BnSurfaceComposer::ADD_TRANSACTION_TRACE_LISTENER, data, &reply);
     }
+
+    /**
+     * Get priority of the RenderEngine in surface flinger.
+     */
+    virtual int getGPUContextPriority() {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        status_t err =
+                remote()->transact(BnSurfaceComposer::GET_GPU_CONTEXT_PRIORITY, data, &reply);
+        if (err != NO_ERROR) {
+            ALOGE("getGPUContextPriority failed to read data:  %s (%d)", strerror(-err), err);
+            return 0;
+        }
+        return reply.readInt32();
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -2093,6 +2108,12 @@ status_t BnSurfaceComposer::onTransact(
             SAFE_PARCEL(data.readStrongBinder, &listener);
 
             return addTransactionTraceListener(listener);
+        }
+        case GET_GPU_CONTEXT_PRIORITY: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            int priority = getGPUContextPriority();
+            SAFE_PARCEL(reply->writeInt32, priority);
+            return NO_ERROR;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

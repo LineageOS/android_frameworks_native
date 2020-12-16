@@ -887,6 +887,8 @@ public:
         return NO_ERROR;
     }
 
+    int getGPUContextPriority() override { return 0; };
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 
