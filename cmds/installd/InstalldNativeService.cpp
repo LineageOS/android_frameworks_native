@@ -398,6 +398,10 @@ static bool prepare_app_profile_dir(const std::string& packageName, int32_t appI
         PLOG(ERROR) << "Failed to prepare " << profile_dir;
         return false;
     }
+    if (selinux_android_restorecon(profile_dir.c_str(), 0)) {
+        PLOG(ERROR) << "Failed to restorecon " << profile_dir;
+        return false;
+    }
 
     const std::string ref_profile_path =
             create_primary_reference_profile_package_dir_path(packageName);
