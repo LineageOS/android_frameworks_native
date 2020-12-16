@@ -96,6 +96,8 @@ private:
 
     void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {}
 
+    void setPointerCapture(bool enabled) override {}
+
     InputDispatcherConfiguration mConfig;
 };
 

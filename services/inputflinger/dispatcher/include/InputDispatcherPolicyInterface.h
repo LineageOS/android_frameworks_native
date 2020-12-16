@@ -134,6 +134,12 @@ public:
      * The touchedToken passed as an argument is the window that received the input event.
      */
     virtual void onPointerDownOutsideFocus(const sp<IBinder>& touchedToken) = 0;
+
+    /* Change the Pointer Capture state in InputReader.
+     *
+     * InputDispatcher is solely responsible for updating the Pointer Capture state.
+     */
+    virtual void setPointerCapture(bool enabled) = 0;
 };
 
 } // namespace android

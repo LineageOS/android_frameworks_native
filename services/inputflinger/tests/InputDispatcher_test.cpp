@@ -211,12 +211,42 @@ public:
         mConfig.keyRepeatDelay = delay;
     }
 
+    void waitForSetPointerCapture(bool enabled) {
+        std::unique_lock lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+
+        if (!mPointerCaptureChangedCondition.wait_for(lock, 100ms,
+                                                      [this, enabled]() REQUIRES(mLock) {
+                                                          return mPointerCaptureEnabled &&
+                                                                  *mPointerCaptureEnabled ==
+                                                                  enabled;
+                                                      })) {
+            FAIL() << "Timed out waiting for setPointerCapture(" << enabled << ") to be called.";
+        }
+        mPointerCaptureEnabled.reset();
+    }
+
+    void assertSetPointerCaptureNotCalled() {
+        std::unique_lock lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+
+        if (mPointerCaptureChangedCondition.wait_for(lock, 100ms) != std::cv_status::timeout) {
+            FAIL() << "Expected setPointerCapture(enabled) to not be called, but was called. "
+                      "enabled = "
+                   << *mPointerCaptureEnabled;
+        }
+        mPointerCaptureEnabled.reset();
+    }
+
 private:
     std::mutex mLock;
     std::unique_ptr<InputEvent> mFilteredEvent GUARDED_BY(mLock);
     std::optional<nsecs_t> mConfigurationChangedTime GUARDED_BY(mLock);
     sp<IBinder> mOnPointerDownToken GUARDED_BY(mLock);
     std::optional<NotifySwitchArgs> mLastNotifySwitch GUARDED_BY(mLock);
+
+    std::condition_variable mPointerCaptureChangedCondition;
+    std::optional<bool> mPointerCaptureEnabled GUARDED_BY(mLock);
 
     // ANR handling
     std::queue<std::shared_ptr<InputApplicationHandle>> mAnrApplications GUARDED_BY(mLock);
@@ -305,6 +335,12 @@ private:
     void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {
         std::scoped_lock lock(mLock);
         mOnPointerDownToken = newToken;
+    }
+
+    void setPointerCapture(bool enabled) override {
+        std::scoped_lock lock(mLock);
+        mPointerCaptureEnabled = {enabled};
+        mPointerCaptureChangedCondition.notify_all();
     }
 
     void assertFilterInputEventWasCalled(int type, nsecs_t eventTime, int32_t action,
@@ -674,6 +710,9 @@ public:
             case AINPUT_EVENT_TYPE_FOCUS: {
                 FAIL() << "Use 'consumeFocusEvent' for FOCUS events";
             }
+            case AINPUT_EVENT_TYPE_CAPTURE: {
+                FAIL() << "Use 'consumeCaptureEvent' for CAPTURE events";
+            }
             default: {
                 FAIL() << mName.c_str() << ": invalid event type: " << expectedEventType;
             }
@@ -696,6 +735,21 @@ public:
         EXPECT_EQ(inTouchMode, focusEvent->getInTouchMode());
     }
 
+    void consumeCaptureEvent(bool hasCapture) {
+        const InputEvent* event = consume();
+        ASSERT_NE(nullptr, event) << mName.c_str()
+                                  << ": consumer should have returned non-NULL event.";
+        ASSERT_EQ(AINPUT_EVENT_TYPE_CAPTURE, event->getType())
+                << "Got " << inputEventTypeToString(event->getType())
+                << " event instead of CAPTURE event";
+
+        ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
+                << mName.c_str() << ": event displayId should always be NONE.";
+
+        const auto& captureEvent = static_cast<const CaptureEvent&>(*event);
+        EXPECT_EQ(hasCapture, captureEvent.getPointerCaptureEnabled());
+    }
+
     void assertNoEvents() {
         InputEvent* event = consume();
         if (event == nullptr) {
@@ -713,6 +767,10 @@ public:
             FocusEvent& focusEvent = static_cast<FocusEvent&>(*event);
             ADD_FAILURE() << "Received focus event, hasFocus = "
                           << (focusEvent.getHasFocus() ? "true" : "false");
+        } else if (event->getType() == AINPUT_EVENT_TYPE_CAPTURE) {
+            const auto& captureEvent = static_cast<CaptureEvent&>(*event);
+            ADD_FAILURE() << "Received capture event, pointerCaptureEnabled = "
+                          << (captureEvent.getPointerCaptureEnabled() ? "true" : "false");
         }
         FAIL() << mName.c_str()
                << ": should not have received any events, so consume() should return NULL";
@@ -857,6 +915,12 @@ public:
         ASSERT_NE(mInputReceiver, nullptr)
                 << "Cannot consume events from a window with no receiver";
         mInputReceiver->consumeFocusEvent(hasFocus, inTouchMode);
+    }
+
+    void consumeCaptureEvent(bool hasCapture) {
+        ASSERT_NE(mInputReceiver, nullptr)
+                << "Cannot consume events from a window with no receiver";
+        mInputReceiver->consumeCaptureEvent(hasCapture);
     }
 
     void consumeEvent(int32_t expectedEventType, int32_t expectedAction, int32_t expectedDisplayId,
@@ -1136,6 +1200,10 @@ static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32
 
 static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32_t displayId) {
     return generateMotionArgs(action, source, displayId, {PointF{100, 200}});
+}
+
+static NotifyPointerCaptureChangedArgs generatePointerCaptureChangedArgs(bool enabled) {
+    return NotifyPointerCaptureChangedArgs(/* id */ 0, systemTime(SYSTEM_TIME_MONOTONIC), enabled);
 }
 
 TEST_F(InputDispatcherTest, SetInputWindow_SingleWindowTouch) {
@@ -3824,4 +3892,88 @@ TEST_F(InputDispatcherMirrorWindowFocusTests, DeferFocusWhenInvisible) {
     // window gets the pending key event
     mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
 }
+
+class InputDispatcherPointerCaptureTests : public InputDispatcherTest {
+protected:
+    std::shared_ptr<FakeApplicationHandle> mApp;
+    sp<FakeWindowHandle> mWindow;
+    sp<FakeWindowHandle> mSecondWindow;
+
+    void SetUp() override {
+        InputDispatcherTest::SetUp();
+        mApp = std::make_shared<FakeApplicationHandle>();
+        mWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
+        mWindow->setFocusable(true);
+        mSecondWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow2", ADISPLAY_ID_DEFAULT);
+        mSecondWindow->setFocusable(true);
+
+        mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApp);
+        mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mSecondWindow}}});
+
+        setFocusedWindow(mWindow);
+        mWindow->consumeFocusEvent(true);
+    }
+
+    void notifyPointerCaptureChanged(bool enabled) {
+        const NotifyPointerCaptureChangedArgs args = generatePointerCaptureChangedArgs(enabled);
+        mDispatcher->notifyPointerCaptureChanged(&args);
+    }
+
+    void requestAndVerifyPointerCapture(const sp<FakeWindowHandle>& window, bool enabled) {
+        mDispatcher->requestPointerCapture(window->getToken(), enabled);
+        mFakePolicy->waitForSetPointerCapture(enabled);
+        notifyPointerCaptureChanged(enabled);
+        window->consumeCaptureEvent(enabled);
+    }
+};
+
+TEST_F(InputDispatcherPointerCaptureTests, EnablePointerCaptureWhenFocused) {
+    // Ensure that capture cannot be obtained for unfocused windows.
+    mDispatcher->requestPointerCapture(mSecondWindow->getToken(), true);
+    mFakePolicy->assertSetPointerCaptureNotCalled();
+    mSecondWindow->assertNoEvents();
+
+    // Ensure that capture can be enabled from the focus window.
+    requestAndVerifyPointerCapture(mWindow, true);
+
+    // Ensure that capture cannot be disabled from a window that does not have capture.
+    mDispatcher->requestPointerCapture(mSecondWindow->getToken(), false);
+    mFakePolicy->assertSetPointerCaptureNotCalled();
+
+    // Ensure that capture can be disabled from the window with capture.
+    requestAndVerifyPointerCapture(mWindow, false);
+}
+
+TEST_F(InputDispatcherPointerCaptureTests, DisablesPointerCaptureAfterWindowLosesFocus) {
+    requestAndVerifyPointerCapture(mWindow, true);
+
+    setFocusedWindow(mSecondWindow);
+
+    // Ensure that the capture disabled event was sent first.
+    mWindow->consumeCaptureEvent(false);
+    mWindow->consumeFocusEvent(false);
+    mSecondWindow->consumeFocusEvent(true);
+    mFakePolicy->waitForSetPointerCapture(false);
+
+    // Ensure that additional state changes from InputReader are not sent to the window.
+    notifyPointerCaptureChanged(false);
+    notifyPointerCaptureChanged(true);
+    notifyPointerCaptureChanged(false);
+    mWindow->assertNoEvents();
+    mSecondWindow->assertNoEvents();
+    mFakePolicy->assertSetPointerCaptureNotCalled();
+}
+
+TEST_F(InputDispatcherPointerCaptureTests, UnexpectedStateChangeDisablesPointerCapture) {
+    requestAndVerifyPointerCapture(mWindow, true);
+
+    // InputReader unexpectedly disables and enables pointer capture.
+    notifyPointerCaptureChanged(false);
+    notifyPointerCaptureChanged(true);
+
+    // Ensure that Pointer Capture is disabled.
+    mWindow->consumeCaptureEvent(false);
+    mWindow->assertNoEvents();
+}
+
 } // namespace android::inputdispatcher
