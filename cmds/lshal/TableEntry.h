@@ -32,7 +32,7 @@ namespace android {
 namespace lshal {
 
 using android::procpartition::Partition;
-using Pids = std::vector<int32_t>;
+using Pids = std::vector<pid_t>;
 
 enum class TableColumnType : unsigned int {
     INTERFACE_NAME = 0,

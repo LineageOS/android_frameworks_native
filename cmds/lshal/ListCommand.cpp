@@ -29,7 +29,6 @@
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
-#include <android-base/parseint.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl-hash/Hash.h>
 #include <hidl-util/FQName.h>
@@ -203,97 +202,14 @@ VintfInfo ListCommand::getVintfInfo(const std::string& fqInstanceName,
             lshal::getVintfInfo(getFrameworkMatrix(), fqInstance, ta, FRAMEWORK_MATRIX);
 }
 
-static bool scanBinderContext(pid_t pid,
-        const std::string &contextName,
-        std::function<void(const std::string&)> eachLine) {
-    std::ifstream ifs("/dev/binderfs/binder_logs/proc/" + std::to_string(pid));
-    if (!ifs.is_open()) {
-        ifs.open("/d/binder/proc/" + std::to_string(pid));
-        if (!ifs.is_open()) {
-            return false;
-        }
-    }
-
-    static const std::regex kContextLine("^context (\\w+)$");
-
-    bool isDesiredContext = false;
-    std::string line;
-    std::smatch match;
-    while(getline(ifs, line)) {
-        if (std::regex_search(line, match, kContextLine)) {
-            isDesiredContext = match.str(1) == contextName;
-            continue;
-        }
-
-        if (!isDesiredContext) {
-            continue;
-        }
-
-        eachLine(line);
-    }
-    return true;
-}
-
 bool ListCommand::getPidInfo(
-        pid_t serverPid, PidInfo *pidInfo) const {
-    static const std::regex kReferencePrefix("^\\s*node \\d+:\\s+u([0-9a-f]+)\\s+c([0-9a-f]+)\\s+");
-    static const std::regex kThreadPrefix("^\\s*thread \\d+:\\s+l\\s+(\\d)(\\d)");
-
-    std::smatch match;
-    return scanBinderContext(serverPid, "hwbinder", [&](const std::string& line) {
-        if (std::regex_search(line, match, kReferencePrefix)) {
-            const std::string &ptrString = "0x" + match.str(2); // use number after c
-            uint64_t ptr;
-            if (!::android::base::ParseUint(ptrString.c_str(), &ptr)) {
-                // Should not reach here, but just be tolerant.
-                err() << "Could not parse number " << ptrString << std::endl;
-                return;
-            }
-            const std::string proc = " proc ";
-            auto pos = line.rfind(proc);
-            if (pos != std::string::npos) {
-                for (const std::string &pidStr : split(line.substr(pos + proc.size()), ' ')) {
-                    int32_t pid;
-                    if (!::android::base::ParseInt(pidStr, &pid)) {
-                        err() << "Could not parse number " << pidStr << std::endl;
-                        return;
-                    }
-                    pidInfo->refPids[ptr].push_back(pid);
-                }
-            }
-
-            return;
-        }
-
-        if (std::regex_search(line, match, kThreadPrefix)) {
-            // "1" is waiting in binder driver
-            // "2" is poll. It's impossible to tell if these are in use.
-            //     and HIDL default code doesn't use it.
-            bool isInUse = match.str(1) != "1";
-            // "0" is a thread that has called into binder
-            // "1" is looper thread
-            // "2" is main looper thread
-            bool isHwbinderThread = match.str(2) != "0";
-
-            if (!isHwbinderThread) {
-                return;
-            }
-
-            if (isInUse) {
-                pidInfo->threadUsage++;
-            }
-
-            pidInfo->threadCount++;
-            return;
-        }
-
-        // not reference or thread line
-        return;
-    });
+        pid_t serverPid, BinderPidInfo *pidInfo) const {
+    const auto& status = getBinderPidInfo(BinderDebugContext::HWBINDER, serverPid, pidInfo);
+    return status == OK;
 }
 
-const PidInfo* ListCommand::getPidInfoCached(pid_t serverPid) {
-    auto pair = mCachedPidInfos.insert({serverPid, PidInfo{}});
+const BinderPidInfo* ListCommand::getPidInfoCached(pid_t serverPid) {
+    auto pair = mCachedPidInfos.insert({serverPid, BinderPidInfo{}});
     if (pair.second /* did insertion take place? */) {
         if (!getPidInfo(serverPid, &pair.first->second)) {
             return nullptr;
@@ -727,7 +643,7 @@ Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
         entry->arch = fromBaseArchitecture(debugInfo.arch);
 
         if (debugInfo.pid != NO_PID) {
-            const PidInfo* pidInfo = getPidInfoCached(debugInfo.pid);
+            const BinderPidInfo* pidInfo = getPidInfoCached(debugInfo.pid);
             if (pidInfo == nullptr) {
                 handleError(IO_ERROR,
                             "no information for PID " + std::to_string(debugInfo.pid) +
