@@ -271,7 +271,8 @@ CommandEntry::CommandEntry(Command command)
         keyEntry(nullptr),
         userActivityEventType(0),
         seq(0),
-        handled(false) {}
+        handled(false),
+        enabled(false) {}
 
 CommandEntry::~CommandEntry() {}
 
