@@ -149,8 +149,8 @@ class CreateInfoWrapper {
 Hal Hal::hal_;
 
 const std::array<const char*, 2> HAL_SUBNAME_KEY_PROPERTIES = {{
-    "ro.hardware.vulkan",
-    "ro.board.platform",
+    "ro.hardware." HWVULKAN_HARDWARE_MODULE_ID,
+    "ro.board.platform"
 }};
 constexpr int LIB_DL_FLAGS = RTLD_LOCAL | RTLD_NOW;
 
@@ -184,8 +184,9 @@ int LoadDriver(android_namespace_t* library_namespace,
         if (so)
             break;
     }
-    if (!so)
+    if (!so) {
         return -ENOENT;
+    }
 
     auto hmi = static_cast<hw_module_t*>(dlsym(so, HAL_MODULE_INFO_SYM_AS_STR));
     if (!hmi) {
@@ -230,7 +231,6 @@ int LoadUpdatedDriver(const hwvulkan_module_t** module) {
 
 bool Hal::Open() {
     ATRACE_CALL();
-
     const nsecs_t openTime = systemTime();
 
     ALOG_ASSERT(!hal_.dev_, "OpenHAL called more than once");
@@ -248,16 +248,16 @@ bool Hal::Open() {
     if (result != 0) {
         android::GraphicsEnv::getInstance().setDriverLoaded(
             android::GpuStatsInfo::Api::API_VK, false, systemTime() - openTime);
-        ALOGV("unable to load Vulkan HAL, using stub HAL (result=%d)", result);
         return true;
     }
-
 
     hwvulkan_device_t* device;
     ATRACE_BEGIN("hwvulkan module open");
     result =
         module->common.methods->open(&module->common, HWVULKAN_DEVICE_0,
                                      reinterpret_cast<hw_device_t**>(&device));
+
+
     ATRACE_END();
     if (result != 0) {
         android::GraphicsEnv::getInstance().setDriverLoaded(
