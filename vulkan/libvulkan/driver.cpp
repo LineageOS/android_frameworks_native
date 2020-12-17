@@ -28,20 +28,17 @@
 #include <android/dlext.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
-#include <cutils/properties.h>
 #include <graphicsenv/GraphicsEnv.h>
 #include <log/log.h>
-#include <nativeloader/dlext_namespaces.h>
 #include <sys/prctl.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
+#include <vndksupport/linker.h>
 
 #include <algorithm>
 #include <array>
 #include <climits>
 #include <new>
-#include <string_view>
-#include <sstream>
 #include <vector>
 
 #include "stubhal.h"
@@ -151,19 +148,11 @@ class CreateInfoWrapper {
 
 Hal Hal::hal_;
 
-void* LoadLibrary(const android_dlextinfo& dlextinfo,
-                  const std::string_view subname) {
-    ATRACE_CALL();
-
-    std::stringstream ss;
-    ss << "vulkan." << subname << ".so";
-    return android_dlopen_ext(ss.str().c_str(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
-}
-
 const std::array<const char*, 2> HAL_SUBNAME_KEY_PROPERTIES = {{
     "ro.hardware.vulkan",
     "ro.board.platform",
 }};
+constexpr int LIB_DL_FLAGS = RTLD_LOCAL | RTLD_NOW;
 
 // LoadDriver returns:
 // * 0 when succeed, or
@@ -174,20 +163,26 @@ int LoadDriver(android_namespace_t* library_namespace,
                const hwvulkan_module_t** module) {
     ATRACE_CALL();
 
-    const android_dlextinfo dlextinfo = {
-        .flags = ANDROID_DLEXT_USE_NAMESPACE,
-        .library_namespace = library_namespace,
-    };
     void* so = nullptr;
-    char prop[PROPERTY_VALUE_MAX];
     for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
-        int prop_len = property_get(key, prop, nullptr);
-        if (prop_len > 0 && prop_len <= UINT_MAX) {
-            std::string_view lib_name(prop, static_cast<unsigned int>(prop_len));
-            so = LoadLibrary(dlextinfo, lib_name);
-            if (so)
-                break;
+        std::string lib_name = android::base::GetProperty(key, "");
+        if (lib_name.empty())
+            continue;
+
+        lib_name = "vulkan." + lib_name + ".so";
+        if (library_namespace) {
+            // load updated driver
+            const android_dlextinfo dlextinfo = {
+                .flags = ANDROID_DLEXT_USE_NAMESPACE,
+                .library_namespace = library_namespace,
+            };
+            so = android_dlopen_ext(lib_name.c_str(), LIB_DL_FLAGS, &dlextinfo);
+        } else {
+            // load built-in driver
+            so = android_load_sphal_library(lib_name.c_str(), LIB_DL_FLAGS);
         }
+        if (so)
+            break;
     }
     if (!so)
         return -ENOENT;
@@ -211,12 +206,9 @@ int LoadDriver(android_namespace_t* library_namespace,
 int LoadBuiltinDriver(const hwvulkan_module_t** module) {
     ATRACE_CALL();
 
-    auto ns = android_get_exported_namespace("sphal");
-    if (!ns)
-        return -ENOENT;
     android::GraphicsEnv::getInstance().setDriverToLoad(
         android::GpuStatsInfo::Driver::VULKAN);
-    return LoadDriver(ns, module);
+    return LoadDriver(nullptr, module);
 }
 
 int LoadUpdatedDriver(const hwvulkan_module_t** module) {
