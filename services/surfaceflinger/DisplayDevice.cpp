@@ -62,6 +62,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mConnectionType(args.connectionType),
         mCompositionDisplay{args.compositionDisplay},
         mPhysicalOrientation(args.physicalOrientation),
+        mSupportedModes(std::move(args.supportedModes)),
         mIsPrimary(args.isPrimary) {
     mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
@@ -139,12 +140,26 @@ bool DisplayDevice::isPoweredOn() const {
     return mPowerMode != hal::PowerMode::OFF;
 }
 
-void DisplayDevice::setActiveMode(DisplayModeId mode) {
-    mActiveMode = mode;
+void DisplayDevice::setActiveMode(DisplayModeId id) {
+    LOG_FATAL_IF(id.value() >= mSupportedModes.size(),
+                 "Cannot set active mode which is not supported.");
+    mActiveModeId = id;
 }
 
-DisplayModeId DisplayDevice::getActiveMode() const {
-    return mActiveMode;
+const DisplayModePtr& DisplayDevice::getActiveMode() const {
+    return mSupportedModes[mActiveModeId.value()];
+}
+
+const DisplayModes& DisplayDevice::getSupportedModes() const {
+    return mSupportedModes;
+}
+
+DisplayModePtr DisplayDevice::getMode(DisplayModeId modeId) const {
+    const auto id = modeId.value();
+    if (id < mSupportedModes.size()) {
+        return mSupportedModes[id];
+    }
+    return nullptr;
 }
 
 ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
@@ -206,17 +221,24 @@ std::string DisplayDevice::getDebugName() const {
 
 void DisplayDevice::dump(std::string& result) const {
     StringAppendF(&result, "+ %s\n", getDebugName().c_str());
-
-    result.append("   ");
-    StringAppendF(&result, "powerMode=%s (%d), ", to_string(mPowerMode).c_str(),
+    StringAppendF(&result, "   powerMode=%s (%d)\n", to_string(mPowerMode).c_str(),
                   static_cast<int32_t>(mPowerMode));
-    StringAppendF(&result, "activeConfig=%zu, ", mActiveMode.value());
-    StringAppendF(&result, "deviceProductInfo=");
+    StringAppendF(&result, "   activeMode=%s\n", to_string(*getActiveMode()).c_str());
+
+    result.append("   supportedModes=\n");
+
+    for (const auto& mode : mSupportedModes) {
+        result.append("     ");
+        result.append(to_string(*mode));
+        result.append("\n");
+    }
+    StringAppendF(&result, "   deviceProductInfo=");
     if (mDeviceProductInfo) {
         mDeviceProductInfo->dump(result);
     } else {
         result.append("{}");
     }
+    result.append("\n");
     getCompositionDisplay()->dump(result);
 }
 

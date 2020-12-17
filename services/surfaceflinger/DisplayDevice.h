@@ -157,10 +157,20 @@ public:
     ui::Dataspace getCompositionDataSpace() const;
 
     /* ------------------------------------------------------------------------
-     * Display active config management.
+     * Display mode management.
      */
-    DisplayModeId getActiveMode() const;
-    void setActiveMode(DisplayModeId mode);
+    const DisplayModePtr& getActiveMode() const;
+    void setActiveMode(DisplayModeId);
+
+    // Return the immutable list of supported display modes. The HWC may report different modes
+    // after a hotplug reconnect event, in which case the DisplayDevice object will be recreated.
+    // Hotplug reconnects are common for external displays.
+    const DisplayModes& getSupportedModes() const;
+
+    // Returns nullptr if the given mode ID is not supported. A previously
+    // supported mode may be no longer supported for some devices like TVs and
+    // set-top boxes after a hotplug reconnect.
+    DisplayModePtr getMode(DisplayModeId) const;
 
     // release HWC resources (if any) for removable displays
     void disconnect();
@@ -189,7 +199,8 @@ private:
 
     hardware::graphics::composer::hal::PowerMode mPowerMode =
             hardware::graphics::composer::hal::PowerMode::OFF;
-    DisplayModeId mActiveMode;
+    DisplayModeId mActiveModeId;
+    const DisplayModes mSupportedModes;
 
     // TODO(b/74619554): Remove special cases for primary display.
     const bool mIsPrimary;
@@ -248,6 +259,7 @@ struct DisplayDeviceCreationArgs {
     hardware::graphics::composer::hal::PowerMode initialPowerMode{
             hardware::graphics::composer::hal::PowerMode::ON};
     bool isPrimary{false};
+    DisplayModes supportedModes;
 };
 
 } // namespace android
