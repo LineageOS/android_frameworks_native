@@ -504,6 +504,11 @@ public:
      */
     virtual status_t addTransactionTraceListener(
             const sp<gui::ITransactionTraceListener>& listener) = 0;
+
+    /**
+     * Gets priority of the RenderEngine in SurfaceFlinger.
+     */
+    virtual int getGPUContextPriority() = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -565,6 +570,7 @@ public:
         ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN,
         SET_FRAME_TIMELINE_VSYNC,
         ADD_TRANSACTION_TRACE_LISTENER,
+        GET_GPU_CONTEXT_PRIORITY,
         // Always append new enum to the end.
     };
 

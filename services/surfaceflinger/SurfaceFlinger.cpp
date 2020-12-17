@@ -4910,10 +4910,11 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CAPTURE_LAYERS:
         case CAPTURE_DISPLAY:
         case SET_DISPLAY_BRIGHTNESS:
-        case SET_FRAME_TIMELINE_VSYNC: {
+        case SET_FRAME_TIMELINE_VSYNC:
+        // This is not sensitive information, so should not require permission control.
+        case GET_GPU_CONTEXT_PRIORITY: {
             return OK;
         }
-
         case ADD_REGION_SAMPLING_LISTENER:
         case REMOVE_REGION_SAMPLING_LISTENER: {
             // codes that require permission check
@@ -6333,6 +6334,13 @@ status_t SurfaceFlinger::addTransactionTraceListener(
     mInterceptor->addTransactionTraceListener(listener);
 
     return NO_ERROR;
+}
+
+int SurfaceFlinger::getGPUContextPriority() {
+    // TODO(b/168740533): This is a proof of concept. Once REAL time priority is available
+    // in EGL, we can return it in RenderEngine and propagate it to SurfaceFlinger. Until
+    // then return IntentFilter.SYSTEM_HIGH_PRIORITY.
+    return 1000;
 }
 
 } // namespace android

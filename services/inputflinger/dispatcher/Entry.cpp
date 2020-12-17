@@ -114,6 +114,22 @@ std::string FocusEntry::getDescription() const {
     return StringPrintf("FocusEvent(hasFocus=%s)", hasFocus ? "true" : "false");
 }
 
+// --- PointerCaptureChangedEntry ---
+
+// PointerCaptureChanged notifications always go to apps, so set the flag POLICY_FLAG_PASS_TO_USER
+// for all entries.
+PointerCaptureChangedEntry::PointerCaptureChangedEntry(int32_t id, nsecs_t eventTime,
+                                                       bool hasPointerCapture)
+      : EventEntry(id, Type::POINTER_CAPTURE_CHANGED, eventTime, POLICY_FLAG_PASS_TO_USER),
+        pointerCaptureEnabled(hasPointerCapture) {}
+
+PointerCaptureChangedEntry::~PointerCaptureChangedEntry() {}
+
+std::string PointerCaptureChangedEntry::getDescription() const {
+    return StringPrintf("PointerCaptureChangedEvent(pointerCaptureEnabled=%s)",
+                        pointerCaptureEnabled ? "true" : "false");
+}
+
 // --- KeyEntry ---
 
 KeyEntry::KeyEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,

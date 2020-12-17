@@ -186,6 +186,13 @@ public:
      * This method may be called on any thread (usually by the input manager).
      */
     virtual status_t pilferPointers(const sp<IBinder>& token) = 0;
+
+    /**
+     * Enables Pointer Capture on the specified window if the window has focus.
+     *
+     * InputDispatcher is the source of truth of Pointer Capture.
+     */
+    virtual void requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) = 0;
 };
 
 } // namespace android
