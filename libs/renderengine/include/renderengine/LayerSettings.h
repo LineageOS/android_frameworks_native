@@ -274,6 +274,10 @@ static inline void PrintTo(const LayerSettings& settings, ::std::ostream* os) {
     *os << "\n    .colorTransform = " << settings.colorTransform;
     *os << "\n    .disableBlending = " << settings.disableBlending;
     *os << "\n    .backgroundBlurRadius = " << settings.backgroundBlurRadius;
+    for (auto blurRegion : settings.blurRegions) {
+        *os << "\n";
+        PrintTo(blurRegion, os);
+    }
     *os << "\n    .shadow = ";
     PrintTo(settings.shadow, os);
     *os << "\n}";
