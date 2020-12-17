@@ -656,6 +656,8 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
         layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
         layerSettings.blurRegions = getBlurRegions();
     }
+    // Record the name of the layer for debugging further down the stack.
+    layerSettings.name = getName();
     return layerSettings;
 }
 

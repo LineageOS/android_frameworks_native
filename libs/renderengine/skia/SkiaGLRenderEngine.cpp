@@ -477,9 +477,22 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                                 mGrContext.get());
 
     SkCanvas* canvas = mCapture.tryCapture(surface.get());
+    if (canvas == nullptr) {
+        ALOGE("Cannot acquire canvas from Skia.");
+        return BAD_VALUE;
+    }
     // Clear the entire canvas with a transparent black to prevent ghost images.
     canvas->clear(SK_ColorTRANSPARENT);
     canvas->save();
+
+    if (mCapture.isCaptureRunning()) {
+        // Record display settings when capture is running.
+        std::stringstream displaySettings;
+        PrintTo(display, &displaySettings);
+        // Store the DisplaySettings in additional information.
+        canvas->drawAnnotation(SkRect::MakeEmpty(), "DisplaySettings",
+                               SkData::MakeWithCString(displaySettings.str().c_str()));
+    }
 
     // Before doing any drawing, let's make sure that we'll start at the origin of the display.
     // Some displays don't start at 0,0 for example when we're mirroring the screen. Also, virtual
@@ -510,6 +523,15 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     canvas->translate(-display.clip.left, -display.clip.top);
     for (const auto& layer : layers) {
         canvas->save();
+
+        if (mCapture.isCaptureRunning()) {
+            // Record the name of the layer if the capture is running.
+            std::stringstream layerSettings;
+            PrintTo(*layer, &layerSettings);
+            // Store the LayerSettings in additional information.
+            canvas->drawAnnotation(SkRect::MakeEmpty(), layer->name.c_str(),
+                                   SkData::MakeWithCString(layerSettings.str().c_str()));
+        }
 
         // Layers have a local transform that should be applied to them
         canvas->concat(getSkM44(layer->geometry.positionTransform).asM33());
