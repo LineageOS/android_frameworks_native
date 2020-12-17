@@ -688,6 +688,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareShadowCli
     shadowLayer.source.buffer.fence = nullptr;
     shadowLayer.frameNumber = 0;
     shadowLayer.bufferId = 0;
+    shadowLayer.name = getName();
 
     if (shadowLayer.shadow.ambientColor.a <= 0.f && shadowLayer.shadow.spotColor.a <= 0.f) {
         return {};
@@ -723,6 +724,7 @@ void Layer::prepareClearClientComposition(LayerFE::LayerSettings& layerSettings,
 
     // If layer is blacked out, force alpha to 1 so that we draw a black color layer.
     layerSettings.alpha = blackout ? 1.0f : 0.0f;
+    layerSettings.name = getName();
 }
 
 std::vector<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCompositionList(
