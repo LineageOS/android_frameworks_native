@@ -211,6 +211,41 @@ void NotifySwitchArgs::notify(const sp<InputListenerInterface>& listener) const 
     listener->notifySwitch(this);
 }
 
+// --- NotifySensorArgs ---
+
+NotifySensorArgs::NotifySensorArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+                                   InputDeviceSensorType sensorType,
+                                   InputDeviceSensorAccuracy accuracy, bool accuracyChanged,
+                                   nsecs_t hwTimestamp, std::vector<float> values)
+      : NotifyArgs(id, eventTime),
+        deviceId(deviceId),
+        source(source),
+        sensorType(sensorType),
+        accuracy(accuracy),
+        accuracyChanged(accuracyChanged),
+        hwTimestamp(hwTimestamp),
+        values(std::move(values)) {}
+
+NotifySensorArgs::NotifySensorArgs(const NotifySensorArgs& other)
+      : NotifyArgs(other.id, other.eventTime),
+        deviceId(other.deviceId),
+        source(other.source),
+        sensorType(other.sensorType),
+        accuracy(other.accuracy),
+        accuracyChanged(other.accuracyChanged),
+        hwTimestamp(other.hwTimestamp),
+        values(other.values) {}
+
+bool NotifySensorArgs::operator==(const NotifySensorArgs rhs) const {
+    return id == rhs.id && eventTime == rhs.eventTime && sensorType == rhs.sensorType &&
+            accuracy == rhs.accuracy && accuracyChanged == rhs.accuracyChanged &&
+            hwTimestamp == rhs.hwTimestamp && values == rhs.values;
+}
+
+void NotifySensorArgs::notify(const sp<InputListenerInterface>& listener) const {
+    listener->notifySensor(this);
+}
+
 // --- NotifyDeviceResetArgs ---
 
 NotifyDeviceResetArgs::NotifyDeviceResetArgs(int32_t id, nsecs_t eventTime, int32_t deviceId)
@@ -284,6 +319,11 @@ void QueuedInputListener::notifyMotion(const NotifyMotionArgs* args) {
 void QueuedInputListener::notifySwitch(const NotifySwitchArgs* args) {
     traceEvent(__func__, args->id);
     mArgsQueue.push_back(new NotifySwitchArgs(*args));
+}
+
+void QueuedInputListener::notifySensor(const NotifySensorArgs* args) {
+    traceEvent(__func__, args->id);
+    mArgsQueue.push_back(new NotifySensorArgs(*args));
 }
 
 void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {

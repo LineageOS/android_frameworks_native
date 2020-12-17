@@ -25,6 +25,7 @@
 #include <android/os/InputEventInjectionResult.h>
 #include <android/os/InputEventInjectionSync.h>
 #include <input/InputApplication.h>
+#include <input/InputDevice.h>
 #include <input/InputTransport.h>
 #include <input/InputWindow.h>
 #include <unordered_map>
@@ -193,6 +194,11 @@ public:
      * InputDispatcher is the source of truth of Pointer Capture.
      */
     virtual void requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) = 0;
+    /* Flush input device motion sensor.
+     *
+     * Returns true on success.
+     */
+    virtual bool flushSensor(int deviceId, InputDeviceSensorType sensorType) = 0;
 };
 
 } // namespace android

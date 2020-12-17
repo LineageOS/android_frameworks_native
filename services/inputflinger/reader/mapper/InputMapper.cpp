@@ -70,6 +70,16 @@ std::vector<int32_t> InputMapper::getVibratorIds() {
 
 void InputMapper::cancelTouch(nsecs_t when) {}
 
+bool InputMapper::enableSensor(InputDeviceSensorType sensorType,
+                               std::chrono::microseconds samplingPeriod,
+                               std::chrono::microseconds maxBatchReportLatency) {
+    return true;
+}
+
+void InputMapper::disableSensor(InputDeviceSensorType sensorType) {}
+
+void InputMapper::flushSensor(InputDeviceSensorType sensorType) {}
+
 int32_t InputMapper::getMetaState() {
     return 0;
 }

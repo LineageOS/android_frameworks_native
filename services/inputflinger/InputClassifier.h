@@ -229,6 +229,7 @@ public:
     virtual void notifyKey(const NotifyKeyArgs* args) override;
     virtual void notifyMotion(const NotifyMotionArgs* args) override;
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
+    virtual void notifySensor(const NotifySensorArgs* args) override;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 

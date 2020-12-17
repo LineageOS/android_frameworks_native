@@ -282,6 +282,12 @@ private:
     void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
 
     void notifyUntrustedTouch(const std::string& obscuringPackage) override {}
+    void notifySensorEvent(int32_t deviceId, InputDeviceSensorType sensorType,
+                           InputDeviceSensorAccuracy accuracy, nsecs_t timestamp,
+                           const std::vector<float>& values) override {}
+
+    void notifySensorAccuracy(int deviceId, InputDeviceSensorType sensorType,
+                              InputDeviceSensorAccuracy accuracy) override {}
 
     void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
         *outConfig = mConfig;

@@ -111,6 +111,17 @@ public:
 
     /* Return true if the device can send input events to the specified display. */
     virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) = 0;
+
+    /* Enable sensor in input reader mapper. */
+    virtual bool enableSensor(int32_t deviceId, InputDeviceSensorType sensorType,
+                              std::chrono::microseconds samplingPeriod,
+                              std::chrono::microseconds maxBatchReportLatency) = 0;
+
+    /* Disable sensor in input reader mapper. */
+    virtual void disableSensor(int32_t deviceId, InputDeviceSensorType sensorType) = 0;
+
+    /* Flush sensor data in input reader mapper. */
+    virtual void flushSensor(int32_t deviceId, InputDeviceSensorType sensorType) = 0;
 };
 
 // --- InputReaderConfiguration ---

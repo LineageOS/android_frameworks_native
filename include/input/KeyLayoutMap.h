@@ -24,6 +24,8 @@
 #include <utils/RefBase.h>
 #include <utils/Tokenizer.h>
 
+#include <input/InputDevice.h>
+
 namespace android {
 
 struct AxisInfo {
@@ -76,6 +78,8 @@ public:
 
     status_t mapAxis(int32_t scanCode, AxisInfo* outAxisInfo) const;
     const std::string getLoadFileName() const;
+    // Return pair of sensor type and sensor data index, for the input device abs code
+    base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(int32_t absCode);
 
     virtual ~KeyLayoutMap();
 
@@ -89,12 +93,17 @@ private:
         int32_t ledCode;
     };
 
+    struct Sensor {
+        InputDeviceSensorType sensorType;
+        int32_t sensorDataIndex;
+    };
 
     KeyedVector<int32_t, Key> mKeysByScanCode;
     KeyedVector<int32_t, Key> mKeysByUsageCode;
     KeyedVector<int32_t, AxisInfo> mAxes;
     KeyedVector<int32_t, Led> mLedsByScanCode;
     KeyedVector<int32_t, Led> mLedsByUsageCode;
+    std::unordered_map<int32_t, Sensor> mSensorsByAbsCode;
     std::string mLoadFileName;
 
     KeyLayoutMap();
@@ -114,6 +123,7 @@ private:
         status_t parseKey();
         status_t parseAxis();
         status_t parseLed();
+        status_t parseSensor();
     };
 };
 

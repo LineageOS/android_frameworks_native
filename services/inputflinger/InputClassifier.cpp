@@ -391,6 +391,11 @@ void InputClassifier::notifyMotion(const NotifyMotionArgs* args) {
     mListener->notifyMotion(&newArgs);
 }
 
+void InputClassifier::notifySensor(const NotifySensorArgs* args) {
+    // pass through
+    mListener->notifySensor(args);
+}
+
 void InputClassifier::notifySwitch(const NotifySwitchArgs* args) {
     // pass through
     mListener->notifySwitch(args);
