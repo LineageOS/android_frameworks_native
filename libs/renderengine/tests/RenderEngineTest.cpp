@@ -406,6 +406,12 @@ public:
     void fillBufferColorTransform();
 
     template <typename SourceVariant>
+    void fillBufferWithColorTransformZeroLayerAlpha();
+
+    template <typename SourceVariant>
+    void fillBufferColorTransformZeroLayerAlpha();
+
+    template <typename SourceVariant>
     void fillRedBufferWithRoundedCorners();
 
     template <typename SourceVariant>
@@ -762,6 +768,36 @@ template <typename SourceVariant>
 void RenderEngineTest::fillBufferColorTransform() {
     fillBufferWithColorTransform<SourceVariant>();
     expectBufferColor(fullscreenRect(), 172, 0, 0, 255, 1);
+}
+
+template <typename SourceVariant>
+void RenderEngineTest::fillBufferWithColorTransformZeroLayerAlpha() {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = Rect(1, 1);
+
+    std::vector<const renderengine::LayerSettings*> layers;
+
+    renderengine::LayerSettings layer;
+    layer.geometry.boundaries = Rect(1, 1).toFloatRect();
+    SourceVariant::fillColor(layer, 0.5f, 0.25f, 0.125f, this);
+    layer.alpha = 0;
+
+    // construct a fake color matrix
+    // simple inverse color
+    settings.colorTransform = mat4(-1, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1, 0, 1, 1, 1, 1);
+
+    layer.geometry.boundaries = Rect(1, 1).toFloatRect();
+
+    layers.push_back(&layer);
+
+    invokeDraw(settings, layers, mBuffer);
+}
+
+template <typename SourceVariant>
+void RenderEngineTest::fillBufferColorTransformZeroLayerAlpha() {
+    fillBufferWithColorTransformZeroLayerAlpha<SourceVariant>();
+    expectBufferColor(fullscreenRect(), 0, 0, 0, 0);
 }
 
 template <typename SourceVariant>
@@ -1240,6 +1276,13 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_colorSource) {
     fillBufferWithRoundedCorners<ColorSourceVariant>();
 }
 
+TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_colorSource) {
+    const auto& renderEngineFactory = GetParam();
+    mRE = renderEngineFactory->createRenderEngine();
+
+    fillBufferColorTransformZeroLayerAlpha<ColorSourceVariant>();
+}
+
 TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_colorSource) {
     const auto& renderEngineFactory = GetParam();
     mRE = renderEngineFactory->createRenderEngine();
@@ -1336,6 +1379,12 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_opaqueBufferSource)
     mRE = renderEngineFactory->createRenderEngine();
 
     fillBufferWithRoundedCorners<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_opaqueBufferSource) {
+    const auto& renderEngineFactory = GetParam();
+    mRE = renderEngineFactory->createRenderEngine();
+
+    fillBufferColorTransformZeroLayerAlpha<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_opaqueBufferSource) {
@@ -1434,6 +1483,13 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_bufferSource) {
     mRE = renderEngineFactory->createRenderEngine();
 
     fillBufferWithRoundedCorners<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_bufferSource) {
+    const auto& renderEngineFactory = GetParam();
+    mRE = renderEngineFactory->createRenderEngine();
+
+    fillBufferColorTransformZeroLayerAlpha<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_bufferSource) {

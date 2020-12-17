@@ -36,6 +36,7 @@ struct EventEntry {
         FOCUS,
         KEY,
         MOTION,
+        POINTER_CAPTURE_CHANGED,
     };
 
     static const char* typeToString(Type type) {
@@ -50,6 +51,8 @@ struct EventEntry {
                 return "KEY";
             case Type::MOTION:
                 return "MOTION";
+            case Type::POINTER_CAPTURE_CHANGED:
+                return "POINTER_CAPTURE_CHANGED";
         }
     }
 
@@ -113,6 +116,15 @@ struct FocusEntry : EventEntry {
     std::string getDescription() const override;
 
     virtual ~FocusEntry();
+};
+
+struct PointerCaptureChangedEntry : EventEntry {
+    bool pointerCaptureEnabled;
+
+    PointerCaptureChangedEntry(int32_t id, nsecs_t eventTime, bool hasPointerCapture);
+    std::string getDescription() const override;
+
+    virtual ~PointerCaptureChangedEntry();
 };
 
 struct KeyEntry : EventEntry {
@@ -254,6 +266,7 @@ struct CommandEntry {
     sp<IBinder> oldToken;
     sp<IBinder> newToken;
     std::string obscuringPackage;
+    bool enabled;
 };
 
 } // namespace android::inputdispatcher

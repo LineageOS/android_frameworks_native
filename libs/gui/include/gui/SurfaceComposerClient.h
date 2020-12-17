@@ -185,6 +185,11 @@ public:
     static bool getProtectedContentSupport();
 
     /**
+     * Gets the context priority of surface flinger's render engine.
+     */
+    static int getGPUContextPriority();
+
+    /**
      * Uncaches a buffer in ISurfaceComposer. It must be uncached via a transaction so that it is
      * in order with other transactions that use buffers.
      */

@@ -1988,6 +1988,10 @@ status_t SurfaceComposerClient::setGlobalShadowSettings(const half4& ambientColo
                                                                           lightRadius);
 }
 
+int SurfaceComposerClient::getGPUContextPriority() {
+    return ComposerService::getComposerService()->getGPUContextPriority();
+}
+
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::captureDisplay(const DisplayCaptureArgs& captureArgs,

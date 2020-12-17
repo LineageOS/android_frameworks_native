@@ -608,6 +608,8 @@ private:
     status_t addTransactionTraceListener(
             const sp<gui::ITransactionTraceListener>& listener) override;
 
+    int getGPUContextPriority() override;
+
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 

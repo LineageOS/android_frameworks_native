@@ -25,6 +25,7 @@
 
 #include <android-base/macros.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
+#include <binderdebug/BinderDebug.h>
 #include <hidl-util/FqInstance.h>
 #include <vintf/HalManifest.h>
 #include <vintf/VintfObject.h>
@@ -39,12 +40,6 @@ namespace android {
 namespace lshal {
 
 class Lshal;
-
-struct PidInfo {
-    std::map<uint64_t, Pids> refPids; // pids that are referenced
-    uint32_t threadUsage; // number of threads in use
-    uint32_t threadCount; // number of threads total
-};
 
 enum class HalType {
     BINDERIZED_SERVICES = 0,
@@ -110,9 +105,9 @@ protected:
     // Get relevant information for a PID by parsing files under
     // /dev/binderfs/binder_logs or /d/binder.
     // It is a virtual member function so that it can be mocked.
-    virtual bool getPidInfo(pid_t serverPid, PidInfo *info) const;
+    virtual bool getPidInfo(pid_t serverPid, BinderPidInfo *info) const;
     // Retrieve from mCachedPidInfos and call getPidInfo if necessary.
-    const PidInfo* getPidInfoCached(pid_t serverPid);
+    const BinderPidInfo* getPidInfoCached(pid_t serverPid);
 
     void dumpTable(const NullableOStream<std::ostream>& out) const;
     void dumpVintf(const NullableOStream<std::ostream>& out) const;
@@ -191,7 +186,7 @@ protected:
     std::map<pid_t, std::string> mCmdlines;
 
     // Cache for getPidInfo.
-    std::map<pid_t, PidInfo> mCachedPidInfos;
+    std::map<pid_t, BinderPidInfo> mCachedPidInfos;
 
     // Cache for getPartition.
     std::map<pid_t, Partition> mPartitions;
