@@ -154,6 +154,9 @@ struct LayerSettings {
     int backgroundBlurRadius = 0;
 
     std::vector<BlurRegion> blurRegions;
+
+    // Name associated with the layer for debugging purposes.
+    std::string name;
 };
 
 // Keep in sync with custom comparison function in

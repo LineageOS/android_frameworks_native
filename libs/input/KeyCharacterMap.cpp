@@ -103,6 +103,48 @@ KeyCharacterMap::~KeyCharacterMap() {
     }
 }
 
+bool KeyCharacterMap::operator==(const KeyCharacterMap& other) const {
+    if (mType != other.mType) {
+        return false;
+    }
+    if (mKeys.size() != other.mKeys.size() ||
+        mKeysByScanCode.size() != other.mKeysByScanCode.size() ||
+        mKeysByUsageCode.size() != other.mKeysByUsageCode.size()) {
+        return false;
+    }
+
+    for (size_t i = 0; i < mKeys.size(); i++) {
+        if (mKeys.keyAt(i) != other.mKeys.keyAt(i)) {
+            return false;
+        }
+        const Key* key = mKeys.valueAt(i);
+        const Key* otherKey = other.mKeys.valueAt(i);
+        if (key->label != otherKey->label || key->number != otherKey->number) {
+            return false;
+        }
+    }
+
+    for (size_t i = 0; i < mKeysByScanCode.size(); i++) {
+        if (mKeysByScanCode.keyAt(i) != other.mKeysByScanCode.keyAt(i)) {
+            return false;
+        }
+        if (mKeysByScanCode.valueAt(i) != other.mKeysByScanCode.valueAt(i)) {
+            return false;
+        }
+    }
+
+    for (size_t i = 0; i < mKeysByUsageCode.size(); i++) {
+        if (mKeysByUsageCode.keyAt(i) != other.mKeysByUsageCode.keyAt(i)) {
+            return false;
+        }
+        if (mKeysByUsageCode.valueAt(i) != other.mKeysByUsageCode.valueAt(i)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 base::Result<std::shared_ptr<KeyCharacterMap>> KeyCharacterMap::load(const std::string& filename,
                                                                      Format format) {
     Tokenizer* tokenizer;

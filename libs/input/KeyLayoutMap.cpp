@@ -20,12 +20,13 @@
 
 #include <android/keycodes.h>
 #include <input/InputEventLabels.h>
-#include <input/Keyboard.h>
 #include <input/KeyLayoutMap.h>
-#include <utils/Log.h>
+#include <input/Keyboard.h>
+#include <input/NamedEnum.h>
 #include <utils/Errors.h>
-#include <utils/Tokenizer.h>
+#include <utils/Log.h>
 #include <utils/Timers.h>
+#include <utils/Tokenizer.h>
 
 // Enables debug output for the parser.
 #define DEBUG_PARSER 0
@@ -40,6 +41,26 @@
 namespace android {
 
 static const char* WHITESPACE = " \t\r";
+
+#define SENSOR_ENTRY(type) NamedEnum::string(type), type
+static const std::unordered_map<std::string, InputDeviceSensorType> SENSOR_LIST =
+        {{SENSOR_ENTRY(InputDeviceSensorType::ACCELEROMETER)},
+         {SENSOR_ENTRY(InputDeviceSensorType::MAGNETIC_FIELD)},
+         {SENSOR_ENTRY(InputDeviceSensorType::ORIENTATION)},
+         {SENSOR_ENTRY(InputDeviceSensorType::GYROSCOPE)},
+         {SENSOR_ENTRY(InputDeviceSensorType::LIGHT)},
+         {SENSOR_ENTRY(InputDeviceSensorType::PRESSURE)},
+         {SENSOR_ENTRY(InputDeviceSensorType::TEMPERATURE)},
+         {SENSOR_ENTRY(InputDeviceSensorType::PROXIMITY)},
+         {SENSOR_ENTRY(InputDeviceSensorType::GRAVITY)},
+         {SENSOR_ENTRY(InputDeviceSensorType::LINEAR_ACCELERATION)},
+         {SENSOR_ENTRY(InputDeviceSensorType::ROTATION_VECTOR)},
+         {SENSOR_ENTRY(InputDeviceSensorType::RELATIVE_HUMIDITY)},
+         {SENSOR_ENTRY(InputDeviceSensorType::AMBIENT_TEMPERATURE)},
+         {SENSOR_ENTRY(InputDeviceSensorType::MAGNETIC_FIELD_UNCALIBRATED)},
+         {SENSOR_ENTRY(InputDeviceSensorType::GAME_ROTATION_VECTOR)},
+         {SENSOR_ENTRY(InputDeviceSensorType::GYROSCOPE_UNCALIBRATED)},
+         {SENSOR_ENTRY(InputDeviceSensorType::SIGNIFICANT_MOTION)}};
 
 // --- KeyLayoutMap ---
 
@@ -125,6 +146,24 @@ status_t KeyLayoutMap::mapKey(int32_t scanCode, int32_t usageCode,
             scanCode, usageCode, *outKeyCode, *outFlags);
 #endif
     return NO_ERROR;
+}
+
+// Return pair of sensor type and sensor data index, for the input device abs code
+base::Result<std::pair<InputDeviceSensorType, int32_t>> KeyLayoutMap::mapSensor(int32_t absCode) {
+    auto it = mSensorsByAbsCode.find(absCode);
+    if (it == mSensorsByAbsCode.end()) {
+#if DEBUG_MAPPING
+        ALOGD("mapSensor: absCode=%d, ~ Failed.", absCode);
+#endif
+        return Errorf("Can't find abs code {}.", absCode);
+    }
+    const Sensor& sensor = it->second;
+
+#if DEBUG_MAPPING
+    ALOGD("mapSensor: absCode=%d, sensorType=0x%0x, sensorDataIndex=0x%x.", absCode,
+          NamedEnum::string(sensor.sensorType), sensor.sensorDataIndex);
+#endif
+    return std::make_pair(sensor.sensorType, sensor.sensorDataIndex);
 }
 
 const KeyLayoutMap::Key* KeyLayoutMap::getKey(int32_t scanCode, int32_t usageCode) const {
@@ -241,6 +280,10 @@ status_t KeyLayoutMap::Parser::parse() {
             } else if (keywordToken == "led") {
                 mTokenizer->skipDelimiters(WHITESPACE);
                 status_t status = parseLed();
+                if (status) return status;
+            } else if (keywordToken == "sensor") {
+                mTokenizer->skipDelimiters(WHITESPACE);
+                status_t status = parseSensor();
                 if (status) return status;
             } else {
                 ALOGE("%s: Expected keyword, got '%s'.", mTokenizer->getLocation().string(),
@@ -466,6 +509,86 @@ status_t KeyLayoutMap::Parser::parseLed() {
     Led led;
     led.ledCode = ledCode;
     map.add(code, led);
+    return NO_ERROR;
+}
+
+static std::optional<InputDeviceSensorType> getSensorType(const char* token) {
+    auto it = SENSOR_LIST.find(std::string(token));
+    if (it == SENSOR_LIST.end()) {
+        return std::nullopt;
+    }
+    return it->second;
+}
+
+static std::optional<int32_t> getSensorDataIndex(String8 token) {
+    std::string tokenStr(token.string());
+    if (tokenStr == "X") {
+        return 0;
+    } else if (tokenStr == "Y") {
+        return 1;
+    } else if (tokenStr == "Z") {
+        return 2;
+    }
+    return std::nullopt;
+}
+
+// Parse sensor type and data index mapping, as below format
+// sensor <raw abs> <sensor type> <sensor data index>
+// raw abs : the linux abs code of the axis
+// sensor type : string name of InputDeviceSensorType
+// sensor data index : the data index of sensor, out of [X, Y, Z]
+// Examples:
+// sensor 0x00 ACCELEROMETER X
+// sensor 0x01 ACCELEROMETER Y
+// sensor 0x02 ACCELEROMETER Z
+// sensor 0x03 GYROSCOPE X
+// sensor 0x04 GYROSCOPE Y
+// sensor 0x05 GYROSCOPE Z
+status_t KeyLayoutMap::Parser::parseSensor() {
+    String8 codeToken = mTokenizer->nextToken(WHITESPACE);
+    char* end;
+    int32_t code = int32_t(strtol(codeToken.string(), &end, 0));
+    if (*end) {
+        ALOGE("%s: Expected sensor %s number, got '%s'.", mTokenizer->getLocation().string(),
+              "abs code", codeToken.string());
+        return BAD_VALUE;
+    }
+
+    std::unordered_map<int32_t, Sensor>& map = mMap->mSensorsByAbsCode;
+    if (map.find(code) != map.end()) {
+        ALOGE("%s: Duplicate entry for sensor %s '%s'.", mTokenizer->getLocation().string(),
+              "abs code", codeToken.string());
+        return BAD_VALUE;
+    }
+
+    mTokenizer->skipDelimiters(WHITESPACE);
+    String8 sensorTypeToken = mTokenizer->nextToken(WHITESPACE);
+    std::optional<InputDeviceSensorType> typeOpt = getSensorType(sensorTypeToken.string());
+    if (!typeOpt) {
+        ALOGE("%s: Expected sensor code label, got '%s'.", mTokenizer->getLocation().string(),
+              sensorTypeToken.string());
+        return BAD_VALUE;
+    }
+    InputDeviceSensorType sensorType = typeOpt.value();
+    mTokenizer->skipDelimiters(WHITESPACE);
+    String8 sensorDataIndexToken = mTokenizer->nextToken(WHITESPACE);
+    std::optional<int32_t> indexOpt = getSensorDataIndex(sensorDataIndexToken);
+    if (!indexOpt) {
+        ALOGE("%s: Expected sensor data index label, got '%s'.", mTokenizer->getLocation().string(),
+              sensorDataIndexToken.string());
+        return BAD_VALUE;
+    }
+    int32_t sensorDataIndex = indexOpt.value();
+
+#if DEBUG_PARSER
+    ALOGD("Parsed sensor: abs code=%d, sensorType=%d, sensorDataIndex=%d.", code,
+          NamedEnum::string(sensorType).c_str(), sensorDataIndex);
+#endif
+
+    Sensor sensor;
+    sensor.sensorType = sensorType;
+    sensor.sensorDataIndex = sensorDataIndex;
+    map.emplace(code, sensor);
     return NO_ERROR;
 }
 };

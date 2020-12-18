@@ -157,6 +157,18 @@ Flags<InputDeviceClass> getAbsAxisUsage(int32_t axis, Flags<InputDeviceClass> de
         }
     }
 
+    if (deviceClasses.test(InputDeviceClass::SENSOR)) {
+        switch (axis) {
+            case ABS_X:
+            case ABS_Y:
+            case ABS_Z:
+            case ABS_RX:
+            case ABS_RY:
+            case ABS_RZ:
+                return InputDeviceClass::SENSOR;
+        }
+    }
+
     // External stylus gets the pressure axis
     if (deviceClasses.test(InputDeviceClass::EXTERNAL_STYLUS)) {
         if (axis == ABS_PRESSURE) {
@@ -250,6 +262,11 @@ void EventHub::Device::configureFd() {
     // uses the timestamps extensively and assumes they were recorded using the monotonic
     // clock.
     int clockId = CLOCK_MONOTONIC;
+    if (classes.test(InputDeviceClass::SENSOR)) {
+        // Each new sensor event should use the same time base as
+        // SystemClock.elapsedRealtimeNanos().
+        clockId = CLOCK_BOOTTIME;
+    }
     bool usingClockIoctl = !ioctl(fd, EVIOCSCLOCKID, &clockId);
     ALOGI("usingClockIoctl=%s", toString(usingClockIoctl));
 }
@@ -550,6 +567,15 @@ bool EventHub::hasInputProperty(int32_t deviceId, int property) const {
             : false;
 }
 
+bool EventHub::hasMscEvent(int32_t deviceId, int mscEvent) const {
+    std::scoped_lock _l(mLock);
+
+    Device* device = getDeviceLocked(deviceId);
+    return mscEvent >= 0 && mscEvent <= MSC_MAX && device != nullptr
+            ? device->mscBitmask.test(mscEvent)
+            : false;
+}
+
 int32_t EventHub::getScanCodeState(int32_t deviceId, int32_t scanCode) const {
     if (scanCode >= 0 && scanCode <= KEY_MAX) {
         std::scoped_lock _l(mLock);
@@ -703,6 +729,17 @@ status_t EventHub::mapAxis(int32_t deviceId, int32_t scanCode, AxisInfo* outAxis
     }
 
     return NAME_NOT_FOUND;
+}
+
+base::Result<std::pair<InputDeviceSensorType, int32_t>> EventHub::mapSensor(int32_t deviceId,
+                                                                            int32_t absCode) {
+    std::scoped_lock _l(mLock);
+    Device* device = getDeviceLocked(deviceId);
+
+    if (device != nullptr && device->keyMap.haveKeyLayout()) {
+        return device->keyMap.keyLayoutMap->mapSensor(absCode);
+    }
+    return Errorf("Device not found or device has no key layout.");
 }
 
 void EventHub::setExcludedDevices(const std::vector<std::string>& devices) {
@@ -1405,6 +1442,7 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     device->readDeviceBitMask(EVIOCGBIT(EV_SW, 0), device->swBitmask);
     device->readDeviceBitMask(EVIOCGBIT(EV_LED, 0), device->ledBitmask);
     device->readDeviceBitMask(EVIOCGBIT(EV_FF, 0), device->ffBitmask);
+    device->readDeviceBitMask(EVIOCGBIT(EV_MSC, 0), device->mscBitmask);
     device->readDeviceBitMask(EVIOCGPROP(0), device->propBitmask);
 
     // See if this is a keyboard.  Ignore everything in the button range except for
@@ -1469,6 +1507,11 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
         }
     }
 
+    // Check whether this device is an accelerometer.
+    if (device->propBitmask.test(INPUT_PROP_ACCELEROMETER)) {
+        device->classes |= InputDeviceClass::SENSOR;
+    }
+
     // Check whether this device has switches.
     for (int i = 0; i <= SW_MAX; i++) {
         if (device->swBitmask.test(i)) {
@@ -1493,9 +1536,11 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     }
 
     // Load the key map.
-    // We need to do this for joysticks too because the key layout may specify axes.
+    // We need to do this for joysticks too because the key layout may specify axes, and for
+    // sensor as well because the key layout may specify the axes to sensor data mapping.
     status_t keyMapStatus = NAME_NOT_FOUND;
-    if (device->classes.any(InputDeviceClass::KEYBOARD | InputDeviceClass::JOYSTICK)) {
+    if (device->classes.any(InputDeviceClass::KEYBOARD | InputDeviceClass::JOYSTICK |
+                            InputDeviceClass::SENSOR)) {
         // Load the keymap for the device.
         keyMapStatus = device->loadKeyMapLocked();
     }

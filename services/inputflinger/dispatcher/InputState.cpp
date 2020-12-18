@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "input/InputDevice.h"
+
 #include "InputState.h"
 
 #include "InputDispatcher.h"

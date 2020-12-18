@@ -87,6 +87,14 @@ public:
 
     bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) override;
 
+    bool enableSensor(int32_t deviceId, InputDeviceSensorType sensorType,
+                      std::chrono::microseconds samplingPeriod,
+                      std::chrono::microseconds maxBatchReportLatency) override;
+
+    void disableSensor(int32_t deviceId, InputDeviceSensorType sensorType) override;
+
+    void flushSensor(int32_t deviceId, InputDeviceSensorType sensorType) override;
+
 protected:
     // These members are protected so they can be instrumented by test cases.
     virtual std::shared_ptr<InputDevice> createDeviceLocked(int32_t deviceId,

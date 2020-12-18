@@ -97,6 +97,8 @@ private:
     // can't be copied
     BLASTBufferQueue& operator = (const BLASTBufferQueue& rhs);
     BLASTBufferQueue(const BLASTBufferQueue& rhs);
+    void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
+                           sp<IGraphicBufferConsumer>* outConsumer);
 
     void processNextBufferLocked(bool useNextTransaction) REQUIRES(mMutex);
     Rect computeCrop(const BufferItem& item) REQUIRES(mMutex);

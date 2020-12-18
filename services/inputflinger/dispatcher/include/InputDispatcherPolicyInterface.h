@@ -68,6 +68,11 @@ public:
     /* Notifies the system that an input channel is unrecoverably broken. */
     virtual void notifyInputChannelBroken(const sp<IBinder>& token) = 0;
     virtual void notifyFocusChanged(const sp<IBinder>& oldToken, const sp<IBinder>& newToken) = 0;
+    virtual void notifySensorEvent(int32_t deviceId, InputDeviceSensorType sensorType,
+                                   InputDeviceSensorAccuracy accuracy, nsecs_t timestamp,
+                                   const std::vector<float>& values) = 0;
+    virtual void notifySensorAccuracy(int32_t deviceId, InputDeviceSensorType sensorType,
+                                      InputDeviceSensorAccuracy accuracy) = 0;
 
     /* Notifies the system that an untrusted touch occurred. */
     virtual void notifyUntrustedTouch(const std::string& obscuringPackage) = 0;

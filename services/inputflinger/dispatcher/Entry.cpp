@@ -239,6 +239,41 @@ std::string MotionEntry::getDescription() const {
     return msg;
 }
 
+// --- SensorEntry ---
+
+SensorEntry::SensorEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+                         uint32_t policyFlags, nsecs_t hwTimestamp,
+                         InputDeviceSensorType sensorType, InputDeviceSensorAccuracy accuracy,
+                         bool accuracyChanged, std::vector<float> values)
+      : EventEntry(id, Type::SENSOR, eventTime, policyFlags),
+        deviceId(deviceId),
+        source(source),
+        sensorType(sensorType),
+        accuracy(accuracy),
+        accuracyChanged(accuracyChanged),
+        hwTimestamp(hwTimestamp),
+        values(std::move(values)) {}
+
+SensorEntry::~SensorEntry() {}
+
+std::string SensorEntry::getDescription() const {
+    std::string msg;
+    msg += StringPrintf("SensorEntry(deviceId=%d, source=0x%08x, sensorType=0x%08x, "
+                        "accuracy=0x%08x, hwTimestamp=%" PRId64,
+                        deviceId, source, sensorType, accuracy, hwTimestamp);
+
+    if (!GetBoolProperty("ro.debuggable", false)) {
+        for (size_t i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                msg += ", ";
+            }
+            msg += StringPrintf("(%.3f)", values[i]);
+        }
+    }
+    msg += StringPrintf(", policyFlags=0x%08x", policyFlags);
+    return msg;
+}
+
 // --- DispatchEntry ---
 
 volatile int32_t DispatchEntry::sNextSeqAtomic;
@@ -271,7 +306,8 @@ CommandEntry::CommandEntry(Command command)
         keyEntry(nullptr),
         userActivityEventType(0),
         seq(0),
-        handled(false) {}
+        handled(false),
+        enabled(false) {}
 
 CommandEntry::~CommandEntry() {}
 
