@@ -341,7 +341,7 @@ bool BufferStateLayer::addFrameEvent(const sp<Fence>& acquireFence, nsecs_t post
 }
 
 bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence,
-                                 nsecs_t postTime, nsecs_t desiredPresentTime,
+                                 nsecs_t postTime, nsecs_t desiredPresentTime, bool isAutoTimestamp,
                                  const client_cache_t& clientCacheId, uint64_t frameNumber) {
     ATRACE_CALL();
 
@@ -365,13 +365,13 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
     const int32_t layerId = getSequence();
     mFlinger->mTimeStats->setPostTime(layerId, mCurrentState.frameNumber, getName().c_str(),
                                       mOwnerUid, postTime);
-    desiredPresentTime = desiredPresentTime <= 0 ? 0 : desiredPresentTime;
     mCurrentState.desiredPresentTime = desiredPresentTime;
+    mCurrentState.isAutoTimestamp = isAutoTimestamp;
 
-    mFlinger->mScheduler->recordLayerHistory(this, desiredPresentTime,
+    mFlinger->mScheduler->recordLayerHistory(this, isAutoTimestamp ? 0 : desiredPresentTime,
                                              LayerHistory::LayerUpdateType::Buffer);
 
-    addFrameEvent(acquireFence, postTime, desiredPresentTime);
+    addFrameEvent(acquireFence, postTime, isAutoTimestamp ? 0 : desiredPresentTime);
     return true;
 }
 
@@ -533,7 +533,7 @@ bool BufferStateLayer::framePresentTimeIsCurrent(nsecs_t expectedPresentTime) co
         return true;
     }
 
-    return mCurrentState.desiredPresentTime <= expectedPresentTime;
+    return mCurrentState.isAutoTimestamp || mCurrentState.desiredPresentTime <= expectedPresentTime;
 }
 
 bool BufferStateLayer::onPreComposition(nsecs_t refreshStartTime) {
