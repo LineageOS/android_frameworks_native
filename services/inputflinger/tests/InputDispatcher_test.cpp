@@ -48,6 +48,9 @@ static const int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
 static const int32_t INJECTOR_PID = 999;
 static const int32_t INJECTOR_UID = 1001;
 
+// An arbitrary pid of the gesture monitor window
+static constexpr int32_t MONITOR_PID = 2001;
+
 struct PointF {
     float x;
     float y;
@@ -1787,7 +1790,7 @@ public:
     FakeMonitorReceiver(const sp<InputDispatcher>& dispatcher, const std::string name,
                         int32_t displayId, bool isGestureMonitor = false) {
         base::Result<std::unique_ptr<InputChannel>> channel =
-                dispatcher->createInputMonitor(displayId, isGestureMonitor, name);
+                dispatcher->createInputMonitor(displayId, isGestureMonitor, name, MONITOR_PID);
         mInputReceiver = std::make_unique<FakeInputReceiver>(std::move(*channel), name);
     }
 
