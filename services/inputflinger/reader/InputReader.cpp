@@ -220,6 +220,11 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t eventHubId) {
     if (device->getClasses().test(InputDeviceClass::EXTERNAL_STYLUS)) {
         notifyExternalStylusPresenceChangedLocked();
     }
+
+    // Sensor input device is noisy, to save power disable it by default.
+    if (device->getClasses().test(InputDeviceClass::SENSOR)) {
+        mEventHub->disableDevice(eventHubId);
+    }
 }
 
 void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
@@ -637,6 +642,36 @@ std::vector<int32_t> InputReader::getVibratorIds(int32_t deviceId) {
         return device->getVibratorIds();
     }
     return {};
+}
+
+void InputReader::disableSensor(int32_t deviceId, InputDeviceSensorType sensorType) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        device->disableSensor(sensorType);
+    }
+}
+
+bool InputReader::enableSensor(int32_t deviceId, InputDeviceSensorType sensorType,
+                               std::chrono::microseconds samplingPeriod,
+                               std::chrono::microseconds maxBatchReportLatency) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        return device->enableSensor(sensorType, samplingPeriod, maxBatchReportLatency);
+    }
+    return false;
+}
+
+void InputReader::flushSensor(int32_t deviceId, InputDeviceSensorType sensorType) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        device->flushSensor(sensorType);
+    }
 }
 
 bool InputReader::isInputDeviceEnabled(int32_t deviceId) {

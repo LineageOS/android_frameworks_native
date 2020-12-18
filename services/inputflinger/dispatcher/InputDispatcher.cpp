@@ -47,8 +47,6 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 // Log debug messages about hover events.
 #define DEBUG_HOVER 0
 
-#include "InputDispatcher.h"
-
 #include <android-base/chrono_utils.h>
 #include <android-base/stringprintf.h>
 #include <android/os/IInputConstants.h>
@@ -73,6 +71,7 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 #include <sstream>
 
 #include "Connection.h"
+#include "InputDispatcher.h"
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -758,6 +757,23 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             done = dispatchMotionLocked(currentTime, motionEntry, &dropReason, nextWakeupTime);
             break;
         }
+
+        case EventEntry::Type::SENSOR: {
+            std::shared_ptr<SensorEntry> sensorEntry =
+                    std::static_pointer_cast<SensorEntry>(mPendingEvent);
+            if (dropReason == DropReason::NOT_DROPPED && isAppSwitchDue) {
+                dropReason = DropReason::APP_SWITCH;
+            }
+            //  Sensor timestamps use SYSTEM_TIME_BOOTTIME time base, so we can't use
+            // 'currentTime' here, get SYSTEM_TIME_BOOTTIME instead.
+            nsecs_t bootTime = systemTime(SYSTEM_TIME_BOOTTIME);
+            if (dropReason == DropReason::NOT_DROPPED && isStaleEvent(bootTime, *sensorEntry)) {
+                dropReason = DropReason::STALE;
+            }
+            dispatchSensorLocked(currentTime, sensorEntry, &dropReason, nextWakeupTime);
+            done = true;
+            break;
+        }
     }
 
     if (done) {
@@ -873,6 +889,7 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
         }
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET:
+        case EventEntry::Type::SENSOR:
         case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
             // nothing to do
             break;
@@ -883,7 +900,10 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
 }
 
 void InputDispatcher::addRecentEventLocked(std::shared_ptr<EventEntry> entry) {
-    mRecentQueue.push_back(entry);
+    // Do not store sensor event in recent queue to avoid flooding the queue.
+    if (entry->type != EventEntry::Type::SENSOR) {
+        mRecentQueue.push_back(entry);
+    }
     if (mRecentQueue.size() > RECENT_QUEUE_MAX_SIZE) {
         mRecentQueue.pop_front();
     }
@@ -1006,13 +1026,16 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
             }
             break;
         }
+        case EventEntry::Type::SENSOR: {
+            break;
+        }
         case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
             break;
         }
         case EventEntry::Type::FOCUS:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET: {
-            LOG_ALWAYS_FATAL("Should not drop %s events", EventEntry::typeToString(entry.type));
+            LOG_ALWAYS_FATAL("Should not drop %s events", NamedEnum::string(entry.type).c_str());
             break;
         }
     }
@@ -1365,6 +1388,51 @@ void InputDispatcher::logOutboundKeyDetails(const char* prefix, const KeyEntry& 
 #endif
 }
 
+void InputDispatcher::doNotifySensorLockedInterruptible(CommandEntry* commandEntry) {
+    mLock.unlock();
+
+    const std::shared_ptr<SensorEntry>& entry = commandEntry->sensorEntry;
+    if (entry->accuracyChanged) {
+        mPolicy->notifySensorAccuracy(entry->deviceId, entry->sensorType, entry->accuracy);
+    }
+    mPolicy->notifySensorEvent(entry->deviceId, entry->sensorType, entry->accuracy,
+                               entry->hwTimestamp, entry->values);
+    mLock.lock();
+}
+
+void InputDispatcher::dispatchSensorLocked(nsecs_t currentTime, std::shared_ptr<SensorEntry> entry,
+                                           DropReason* dropReason, nsecs_t* nextWakeupTime) {
+#if DEBUG_OUTBOUND_EVENT_DETAILS
+    ALOGD("notifySensorEvent eventTime=%" PRId64 ", hwTimestamp=%" PRId64 ", deviceId=%d, "
+          "source=0x%x, sensorType=%s",
+          entry->eventTime, entry->hwTimestamp, entry->deviceId, entry->source,
+          NamedEnum::string(sensorType).c_str());
+#endif
+    std::unique_ptr<CommandEntry> commandEntry =
+            std::make_unique<CommandEntry>(&InputDispatcher::doNotifySensorLockedInterruptible);
+    commandEntry->sensorEntry = entry;
+    postCommandLocked(std::move(commandEntry));
+}
+
+bool InputDispatcher::flushSensor(int deviceId, InputDeviceSensorType sensorType) {
+#if DEBUG_OUTBOUND_EVENT_DETAILS
+    ALOGD("flushSensor deviceId=%d, sensorType=%s", deviceId,
+          NamedEnum::string(sensorType).c_str());
+#endif
+    { // acquire lock
+        std::scoped_lock _l(mLock);
+
+        for (auto it = mInboundQueue.begin(); it != mInboundQueue.end(); it++) {
+            std::shared_ptr<EventEntry> entry = *it;
+            if (entry->type == EventEntry::Type::SENSOR) {
+                it = mInboundQueue.erase(it);
+                releaseInboundEventLocked(entry);
+            }
+        }
+    }
+    return true;
+}
+
 bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<MotionEntry> entry,
                                            DropReason* dropReason, nsecs_t* nextWakeupTime) {
     ATRACE_CALL();
@@ -1553,8 +1621,9 @@ int32_t InputDispatcher::getTargetDisplayId(const EventEntry& entry) {
         case EventEntry::Type::POINTER_CAPTURE_CHANGED:
         case EventEntry::Type::FOCUS:
         case EventEntry::Type::CONFIGURATION_CHANGED:
-        case EventEntry::Type::DEVICE_RESET: {
-            ALOGE("%s events do not have a target display", EventEntry::typeToString(entry.type));
+        case EventEntry::Type::DEVICE_RESET:
+        case EventEntry::Type::SENSOR: {
+            ALOGE("%s events do not have a target display", NamedEnum::string(entry.type).c_str());
             return ADISPLAY_ID_NONE;
         }
     }
@@ -1608,7 +1677,7 @@ InputEventInjectionResult InputDispatcher::findFocusedWindowTargetsLocked(
     if (focusedWindowHandle == nullptr && focusedApplicationHandle == nullptr) {
         ALOGI("Dropping %s event because there is no focused window or focused application in "
               "display %" PRId32 ".",
-              EventEntry::typeToString(entry.type), displayId);
+              NamedEnum::string(entry.type).c_str(), displayId);
         return InputEventInjectionResult::FAILED;
     }
 
@@ -1633,7 +1702,7 @@ InputEventInjectionResult InputDispatcher::findFocusedWindowTargetsLocked(
         } else if (currentTime > *mNoFocusedWindowTimeoutTime) {
             // Already raised ANR. Drop the event
             ALOGE("Dropping %s event because there is no focused window",
-                  EventEntry::typeToString(entry.type));
+                  NamedEnum::string(entry.type).c_str());
             return InputEventInjectionResult::FAILED;
         } else {
             // Still waiting for the focused window
@@ -1945,6 +2014,8 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
                 }
                 if (isWindowObscuredAtPointLocked(newTouchedWindowHandle, x, y)) {
                     targetFlags |= InputTarget::FLAG_WINDOW_IS_OBSCURED;
+                } else if (isWindowObscuredLocked(newTouchedWindowHandle)) {
+                    targetFlags |= InputTarget::FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
                 }
 
                 BitSet32 pointerIds;
@@ -2476,9 +2547,10 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
         case EventEntry::Type::FOCUS:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET:
+        case EventEntry::Type::SENSOR:
         case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
             LOG_ALWAYS_FATAL("%s events are not user activity",
-                             EventEntry::typeToString(eventEntry.type));
+                             NamedEnum::string(eventEntry.type).c_str());
             break;
         }
     }
@@ -2522,7 +2594,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
     if (inputTarget.flags & InputTarget::FLAG_SPLIT) {
         LOG_ALWAYS_FATAL_IF(eventEntry->type != EventEntry::Type::MOTION,
                             "Entry type %s should not have FLAG_SPLIT",
-                            EventEntry::typeToString(eventEntry->type));
+                            NamedEnum::string(eventEntry->type).c_str());
 
         const MotionEntry& originalMotionEntry = static_cast<const MotionEntry&>(*eventEntry);
         if (inputTarget.pointerIds.count() != originalMotionEntry.pointerCount) {
@@ -2692,10 +2764,14 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
         case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
             break;
         }
+        case EventEntry::Type::SENSOR: {
+            LOG_ALWAYS_FATAL("SENSOR events should not go to apps via input channel");
+            break;
+        }
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET: {
             LOG_ALWAYS_FATAL("%s events should not go to apps",
-                             EventEntry::typeToString(newEntry.type));
+                             NamedEnum::string(newEntry.type).c_str());
             break;
         }
     }
@@ -2913,9 +2989,10 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
             }
 
             case EventEntry::Type::CONFIGURATION_CHANGED:
-            case EventEntry::Type::DEVICE_RESET: {
+            case EventEntry::Type::DEVICE_RESET:
+            case EventEntry::Type::SENSOR: {
                 LOG_ALWAYS_FATAL("Should never start dispatch cycles for %s events",
-                                 EventEntry::typeToString(eventEntry.type));
+                                 NamedEnum::string(eventEntry.type).c_str());
                 return;
             }
         }
@@ -3209,13 +3286,14 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
             case EventEntry::Type::FOCUS:
             case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
                 LOG_ALWAYS_FATAL("Canceling %s events is not supported",
-                                 EventEntry::typeToString(cancelationEventEntry->type));
+                                 NamedEnum::string(cancelationEventEntry->type).c_str());
                 break;
             }
             case EventEntry::Type::CONFIGURATION_CHANGED:
-            case EventEntry::Type::DEVICE_RESET: {
+            case EventEntry::Type::DEVICE_RESET:
+            case EventEntry::Type::SENSOR: {
                 LOG_ALWAYS_FATAL("%s event should not be found inside Connections's queue",
-                                 EventEntry::typeToString(cancelationEventEntry->type));
+                                 NamedEnum::string(cancelationEventEntry->type).c_str());
                 break;
             }
         }
@@ -3270,9 +3348,10 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
             case EventEntry::Type::FOCUS:
             case EventEntry::Type::CONFIGURATION_CHANGED:
             case EventEntry::Type::DEVICE_RESET:
-            case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
+            case EventEntry::Type::POINTER_CAPTURE_CHANGED:
+            case EventEntry::Type::SENSOR: {
                 LOG_ALWAYS_FATAL("%s event should not be found inside Connections's queue",
-                                     EventEntry::typeToString(downEventEntry->type));
+                                 NamedEnum::string(downEventEntry->type).c_str());
                 break;
             }
         }
@@ -3595,6 +3674,34 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                                               args->xCursorPosition, args->yCursorPosition,
                                               args->downTime, args->pointerCount,
                                               args->pointerProperties, args->pointerCoords, 0, 0);
+
+        needWake = enqueueInboundEventLocked(std::move(newEntry));
+        mLock.unlock();
+    } // release lock
+
+    if (needWake) {
+        mLooper->wake();
+    }
+}
+
+void InputDispatcher::notifySensor(const NotifySensorArgs* args) {
+#if DEBUG_INBOUND_EVENT_DETAILS
+    ALOGD("notifySensor - id=%" PRIx32 " eventTime=%" PRId64 ", deviceId=%d, source=0x%x, "
+          " sensorType=%s",
+          args->id, args->eventTime, args->deviceId, args->source,
+          NamedEnum::string(args->sensorType).c_str());
+#endif
+
+    bool needWake;
+    { // acquire lock
+        mLock.lock();
+
+        // Just enqueue a new sensor event.
+        std::unique_ptr<SensorEntry> newEntry =
+                std::make_unique<SensorEntry>(args->id, args->eventTime, args->deviceId,
+                                              args->source, 0 /* policyFlags*/, args->hwTimestamp,
+                                              args->sensorType, args->accuracy,
+                                              args->accuracyChanged, args->values);
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));
         mLock.unlock();

@@ -80,6 +80,12 @@ void TestInputListener::assertNotifySwitchWasCalled(NotifySwitchArgs* outEventAr
                                            "Expected notifySwitch() to have been called."));
 }
 
+void TestInputListener::assertNotifySensorWasCalled(NotifySensorArgs* outEventArgs) {
+    ASSERT_NO_FATAL_FAILURE(
+            assertCalled<NotifySensorArgs>(outEventArgs,
+                                           "Expected notifySensor() to have been called."));
+}
+
 void TestInputListener::assertNotifyCaptureWasCalled(
         NotifyPointerCaptureChangedArgs* outEventArgs) {
     ASSERT_NO_FATAL_FAILURE(
@@ -153,6 +159,10 @@ void TestInputListener::notifySwitch(const NotifySwitchArgs* args) {
 
 void TestInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) {
     notify<NotifyPointerCaptureChangedArgs>(args);
+}
+
+void TestInputListener::notifySensor(const NotifySensorArgs* args) {
+    notify<NotifySensorArgs>(args);
 }
 
 } // namespace android

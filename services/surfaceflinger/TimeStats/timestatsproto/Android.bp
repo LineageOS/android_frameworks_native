@@ -42,3 +42,16 @@ java_library_host {
         type: "full",
     },
 }
+
+// ====  java device library for timestats proto  ===========================
+// Note timestats is deprecated and is only used for legacy tests
+java_library {
+    name: "timestats-proto",
+    srcs: [
+        "timestats.proto",
+    ],
+    proto: {
+        type: "lite",
+    },
+    sdk_version: "current",
+}

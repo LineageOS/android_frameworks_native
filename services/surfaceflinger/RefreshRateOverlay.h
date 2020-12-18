@@ -43,6 +43,7 @@ public:
     void setViewport(ui::Size);
     void changeRefreshRate(const RefreshRate&);
     void onInvalidate();
+    void reset();
 
 private:
     class SevenSegmentDrawer {
@@ -71,7 +72,7 @@ private:
     };
 
     bool createLayer();
-    void primeCache();
+    const std::vector<sp<GraphicBuffer>>& getOrCreateBuffers(uint32_t fps);
 
     SurfaceFlinger& mFlinger;
     const sp<Client> mClient;
@@ -87,6 +88,10 @@ private:
     const half3 HIGH_FPS_COLOR = half3(0.0f, 1.0f, 0.0f);
 
     const bool mShowSpinner;
+
+    // Interpolate the colors between these values.
+    uint32_t mLowFps;
+    uint32_t mHighFps;
 };
 
 } // namespace android

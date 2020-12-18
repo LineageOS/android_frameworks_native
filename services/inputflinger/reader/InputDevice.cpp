@@ -28,6 +28,7 @@
 #include "KeyboardInputMapper.h"
 #include "MultiTouchInputMapper.h"
 #include "RotaryEncoderInputMapper.h"
+#include "SensorInputMapper.h"
 #include "SingleTouchInputMapper.h"
 #include "SwitchInputMapper.h"
 #include "VibratorInputMapper.h"
@@ -194,6 +195,11 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
     // Joystick-like devices.
     if (classes.test(InputDeviceClass::JOYSTICK)) {
         mappers.push_back(std::make_unique<JoystickInputMapper>(*contextPtr));
+    }
+
+    // Motion sensor enabled devices.
+    if (classes.test(InputDeviceClass::SENSOR)) {
+        mappers.push_back(std::make_unique<SensorInputMapper>(*contextPtr));
     }
 
     // External stylus-like devices.
@@ -458,6 +464,25 @@ std::vector<int32_t> InputDevice::getVibratorIds() {
         vibrators.insert(vibrators.end(), devVibs.begin(), devVibs.end());
     });
     return vibrators;
+}
+
+bool InputDevice::enableSensor(InputDeviceSensorType sensorType,
+                               std::chrono::microseconds samplingPeriod,
+                               std::chrono::microseconds maxBatchReportLatency) {
+    bool success = true;
+    for_each_mapper(
+            [&success, sensorType, samplingPeriod, maxBatchReportLatency](InputMapper& mapper) {
+                success &= mapper.enableSensor(sensorType, samplingPeriod, maxBatchReportLatency);
+            });
+    return success;
+}
+
+void InputDevice::disableSensor(InputDeviceSensorType sensorType) {
+    for_each_mapper([sensorType](InputMapper& mapper) { mapper.disableSensor(sensorType); });
+}
+
+void InputDevice::flushSensor(InputDeviceSensorType sensorType) {
+    for_each_mapper([sensorType](InputMapper& mapper) { mapper.flushSensor(sensorType); });
 }
 
 void InputDevice::cancelTouch(nsecs_t when) {

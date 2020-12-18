@@ -87,6 +87,10 @@ public:
     bool isVibrating();
     std::vector<int32_t> getVibratorIds();
     void cancelTouch(nsecs_t when);
+    bool enableSensor(InputDeviceSensorType sensorType, std::chrono::microseconds samplingPeriod,
+                      std::chrono::microseconds maxBatchReportLatency);
+    void disableSensor(InputDeviceSensorType sensorType);
+    void flushSensor(InputDeviceSensorType sensorType);
 
     int32_t getMetaState();
     void updateMetaState(int32_t keyCode);
@@ -229,9 +233,12 @@ public:
     inline bool hasRelativeAxis(int32_t code) const {
         return mEventHub->hasRelativeAxis(mId, code);
     }
-    inline bool hasInputProperty(int property) const {
+    inline bool hasInputProperty(int32_t property) const {
         return mEventHub->hasInputProperty(mId, property);
     }
+
+    inline bool hasMscEvent(int mscEvent) const { return mEventHub->hasMscEvent(mId, mscEvent); }
+
     inline status_t mapKey(int32_t scanCode, int32_t usageCode, int32_t metaState,
                            int32_t* outKeycode, int32_t* outMetaState, uint32_t* outFlags) const {
         return mEventHub->mapKey(mId, scanCode, usageCode, metaState, outKeycode, outMetaState,
@@ -240,6 +247,10 @@ public:
     inline status_t mapAxis(int32_t scanCode, AxisInfo* outAxisInfo) const {
         return mEventHub->mapAxis(mId, scanCode, outAxisInfo);
     }
+    inline base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(int32_t absCode) {
+        return mEventHub->mapSensor(mId, absCode);
+    }
+
     inline std::vector<TouchVideoFrame> getVideoFrames() { return mEventHub->getVideoFrames(mId); }
     inline int32_t getScanCodeState(int32_t scanCode) const {
         return mEventHub->getScanCodeState(mId, scanCode);

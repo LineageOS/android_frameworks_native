@@ -22,8 +22,13 @@
 
 #include <gui/BLASTBufferQueue.h>
 #include <gui/BufferItemConsumer.h>
+#include <gui/BufferQueueConsumer.h>
+#include <gui/BufferQueueCore.h>
+#include <gui/BufferQueueProducer.h>
 #include <gui/GLConsumer.h>
+#include <gui/IProducerListener.h>
 #include <gui/Surface.h>
+#include <utils/Singleton.h>
 
 #include <utils/Trace.h>
 
@@ -118,7 +123,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
         mSize(width, height),
         mRequestedSize(mSize),
         mNextTransaction(nullptr) {
-    BufferQueue::createBufferQueue(&mProducer, &mConsumer);
+    createBufferQueue(&mProducer, &mConsumer);
     // since the adapter is in the client process, set dequeue timeout
     // explicitly so that dequeueBuffer will block
     mProducer->setDequeueTimeout(std::numeric_limits<int64_t>::max());
@@ -452,6 +457,105 @@ sp<Surface> BLASTBufferQueue::getSurface(bool includeSurfaceControlHandle) {
         scHandle = mSurfaceControl->getHandle();
     }
     return new BBQSurface(mProducer, true, scHandle, this);
+}
+
+// Maintains a single worker thread per process that services a list of runnables.
+class AsyncWorker : public Singleton<AsyncWorker> {
+private:
+    std::thread mThread;
+    bool mDone = false;
+    std::deque<std::function<void()>> mRunnables;
+    std::mutex mMutex;
+    std::condition_variable mCv;
+    void run() {
+        std::unique_lock<std::mutex> lock(mMutex);
+        while (!mDone) {
+            mCv.wait(lock);
+            while (!mRunnables.empty()) {
+                std::function<void()> runnable = mRunnables.front();
+                mRunnables.pop_front();
+                runnable();
+            }
+        }
+    }
+
+public:
+    AsyncWorker() : Singleton<AsyncWorker>() { mThread = std::thread(&AsyncWorker::run, this); }
+
+    ~AsyncWorker() {
+        mDone = true;
+        mCv.notify_all();
+        if (mThread.joinable()) {
+            mThread.join();
+        }
+    }
+
+    void post(std::function<void()> runnable) {
+        std::unique_lock<std::mutex> lock(mMutex);
+        mRunnables.emplace_back(std::move(runnable));
+        mCv.notify_one();
+    }
+};
+ANDROID_SINGLETON_STATIC_INSTANCE(AsyncWorker);
+
+// Asynchronously calls ProducerListener functions so we can emulate one way binder calls.
+class AsyncProducerListener : public BnProducerListener {
+private:
+    const sp<IProducerListener> mListener;
+
+public:
+    AsyncProducerListener(const sp<IProducerListener>& listener) : mListener(listener) {}
+
+    void onBufferReleased() override {
+        AsyncWorker::getInstance().post([listener = mListener]() { listener->onBufferReleased(); });
+    }
+
+    void onBuffersDiscarded(const std::vector<int32_t>& slots) override {
+        AsyncWorker::getInstance().post(
+                [listener = mListener, slots = slots]() { listener->onBuffersDiscarded(slots); });
+    }
+};
+
+// Extends the BufferQueueProducer to create a wrapper around the listener so the listener calls
+// can be non-blocking when the producer is in the client process.
+class BBQBufferQueueProducer : public BufferQueueProducer {
+public:
+    BBQBufferQueueProducer(const sp<BufferQueueCore>& core)
+          : BufferQueueProducer(core, false /* consumerIsSurfaceFlinger*/) {}
+
+    status_t connect(const sp<IProducerListener>& listener, int api, bool producerControlledByApp,
+                     QueueBufferOutput* output) override {
+        if (!listener) {
+            return BufferQueueProducer::connect(listener, api, producerControlledByApp, output);
+        }
+
+        return BufferQueueProducer::connect(new AsyncProducerListener(listener), api,
+                                            producerControlledByApp, output);
+    }
+};
+
+// Similar to BufferQueue::createBufferQueue but creates an adapter specific bufferqueue producer.
+// This BQP allows invoking client specified ProducerListeners and invoke them asynchronously,
+// emulating one way binder call behavior. Without this, if the listener calls back into the queue,
+// we can deadlock.
+void BLASTBufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
+                                         sp<IGraphicBufferConsumer>* outConsumer) {
+    LOG_ALWAYS_FATAL_IF(outProducer == nullptr, "BLASTBufferQueue: outProducer must not be NULL");
+    LOG_ALWAYS_FATAL_IF(outConsumer == nullptr, "BLASTBufferQueue: outConsumer must not be NULL");
+
+    sp<BufferQueueCore> core(new BufferQueueCore());
+    LOG_ALWAYS_FATAL_IF(core == nullptr, "BLASTBufferQueue: failed to create BufferQueueCore");
+
+    sp<IGraphicBufferProducer> producer(new BBQBufferQueueProducer(core));
+    LOG_ALWAYS_FATAL_IF(producer == nullptr,
+                        "BLASTBufferQueue: failed to create BBQBufferQueueProducer");
+
+    sp<IGraphicBufferConsumer> consumer(new BufferQueueConsumer(core));
+    LOG_ALWAYS_FATAL_IF(consumer == nullptr,
+                        "BLASTBufferQueue: failed to create BufferQueueConsumer");
+
+    *outProducer = producer;
+    *outConsumer = consumer;
 }
 
 } // namespace android
