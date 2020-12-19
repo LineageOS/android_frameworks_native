@@ -17,6 +17,8 @@
 #pragma once
 
 #include <inttypes.h>
+#include <iosfwd>
+#include <iostream>
 
 namespace android {
 
@@ -32,5 +34,20 @@ struct BlurRegion {
     int right;
     int bottom;
 };
+
+static inline void PrintTo(const BlurRegion& blurRegion, ::std::ostream* os) {
+    *os << "BlurRegion {";
+    *os << "\n    .blurRadius = " << blurRegion.blurRadius;
+    *os << "\n    .cornerRadiusTL = " << blurRegion.cornerRadiusTL;
+    *os << "\n    .cornerRadiusTR = " << blurRegion.cornerRadiusTR;
+    *os << "\n    .cornerRadiusBL = " << blurRegion.cornerRadiusBL;
+    *os << "\n    .cornerRadiusBR = " << blurRegion.cornerRadiusBR;
+    *os << "\n    .alpha = " << blurRegion.alpha;
+    *os << "\n    .left = " << blurRegion.left;
+    *os << "\n    .top = " << blurRegion.top;
+    *os << "\n    .right = " << blurRegion.right;
+    *os << "\n    .bottom = " << blurRegion.bottom;
+    *os << "\n}";
+}
 
 } // namespace android

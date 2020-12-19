@@ -19,7 +19,8 @@
 namespace android::inputdispatcher {
 
 // --- Monitor ---
-Monitor::Monitor(const std::shared_ptr<InputChannel>& inputChannel) : inputChannel(inputChannel) {}
+Monitor::Monitor(const std::shared_ptr<InputChannel>& inputChannel, int32_t pid)
+      : inputChannel(inputChannel), pid(pid) {}
 
 // --- TouchedMonitor ---
 TouchedMonitor::TouchedMonitor(const Monitor& monitor, float xOffset, float yOffset)

@@ -2187,7 +2187,10 @@ half4 Layer::getColor() const {
 }
 
 int32_t Layer::getBackgroundBlurRadius() const {
-    return getDrawingState().backgroundBlurRadius;
+    const auto& p = mDrawingParent.promote();
+
+    half parentAlpha = (p != nullptr) ? p->getAlpha() : 1.0_hf;
+    return parentAlpha * getDrawingState().backgroundBlurRadius;
 }
 
 const std::vector<BlurRegion>& Layer::getBlurRegions() const {
