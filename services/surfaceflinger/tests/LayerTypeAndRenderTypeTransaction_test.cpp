@@ -377,6 +377,72 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurRadiusOnMultipleL
                       40 /* tolerance */);
 }
 
+TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurAffectedByParentAlpha) {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.surface_flinger.supports_background_blur", value, "0");
+    if (!atoi(value)) {
+        // This device doesn't support blurs, no-op.
+        return;
+    }
+
+    property_get("debug.renderengine.backend", value, "");
+    if (strcmp(value, "skiagl") != 0) {
+        // This device isn't using Skia render engine, no-op.
+        return;
+    }
+
+    sp<SurfaceControl> left;
+    sp<SurfaceControl> right;
+    sp<SurfaceControl> blur;
+    sp<SurfaceControl> blurParent;
+
+    const auto size = 32;
+    ASSERT_NO_FATAL_FAILURE(left = createLayer("Left", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(left, Color::BLUE, size, size));
+    ASSERT_NO_FATAL_FAILURE(right = createLayer("Right", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(right, Color::RED, size, size));
+
+    Transaction()
+            .setLayer(left, mLayerZBase + 1)
+            .setFrame(left, {0, 0, size, size})
+            .setLayer(right, mLayerZBase + 2)
+            .setPosition(right, size, 0)
+            .setFrame(right, {size, 0, size * 2, size})
+            .apply();
+
+    {
+        auto shot = getScreenCapture();
+        shot->expectColor(Rect(0, 0, size, size), Color::BLUE);
+        shot->expectColor(Rect(size, 0, size * 2, size), Color::RED);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(blur = createLayer("BackgroundBlur", size * 2, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(blur, Color::TRANSPARENT, size * 2, size));
+    ASSERT_NO_FATAL_FAILURE(blurParent = createLayer("BackgroundBlurParent", size * 2, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(blurParent, Color::TRANSPARENT, size * 2, size));
+
+    Transaction()
+            .setLayer(blurParent, mLayerZBase + 3)
+            .setAlpha(blurParent, 0.5)
+            .setLayer(blur, mLayerZBase + 4)
+            .setBackgroundBlurRadius(blur, size) // set the blur radius to the size of one rect
+            .setFrame(blur, {0, 0, size * 2, size})
+            .reparent(blur, blurParent)
+            .apply();
+
+    {
+        auto shot = getScreenCapture();
+        // assert that outer sides of the red and blue rects are not blended with the other color;
+        // if the blur didn't take into account parent alpha, the outer sides would have traces of
+        // the other color
+        shot->expectColor(Rect(0, 0, size / 2, size), Color::BLUE);
+        shot->expectColor(Rect(size + size / 2, 0, size * 2, size), Color::RED);
+        // assert that middle line has blended red and blur color; adding a tolerance of 10 to
+        // account for future blur algorithm changes
+        shot->expectColor(Rect(size, 0, size + 1, size), {136, 0, 119, 255}, 10);
+    }
+}
+
 TEST_P(LayerTypeAndRenderTypeTransactionTest, SetColorWithBuffer) {
     sp<SurfaceControl> bufferLayer;
     ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test", 32, 32));
