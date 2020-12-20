@@ -98,7 +98,6 @@ private:
             this->samplingPeriod = std::chrono::nanoseconds(0);
             this->maxBatchReportLatency = std::chrono::nanoseconds(0);
             this->lastSampleTimeNs = std::nullopt;
-            this->dataVec.fill(0);
         }
     };
 
