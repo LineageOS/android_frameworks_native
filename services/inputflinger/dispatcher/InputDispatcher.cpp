@@ -3414,7 +3414,9 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
                 // The first/last pointer went down/up.
                 action = maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN
                         ? AMOTION_EVENT_ACTION_DOWN
-                        : AMOTION_EVENT_ACTION_UP;
+                        : (originalMotionEntry.flags & AMOTION_EVENT_FLAG_CANCELED) != 0
+                                ? AMOTION_EVENT_ACTION_CANCEL
+                                : AMOTION_EVENT_ACTION_UP;
             } else {
                 // A secondary pointer went down/up.
                 uint32_t splitPointerIndex = 0;
