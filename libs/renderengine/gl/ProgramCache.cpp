@@ -742,15 +742,6 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
         if (needs.isOpaque()) {
             fs << "gl_FragColor.a = 1.0;";
         }
-        if (needs.hasAlpha()) {
-            // modulate the current alpha value with alpha set
-            if (needs.isPremultiplied()) {
-                // ... and the color too if we're premultiplied
-                fs << "gl_FragColor *= color.a;";
-            } else {
-                fs << "gl_FragColor.a *= color.a;";
-            }
-        }
     }
 
     if (needs.hasTransformMatrix() ||
@@ -767,6 +758,23 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
         if (!needs.isOpaque() && needs.isPremultiplied()) {
             // and re-premultiply if needed after gamma correction
             fs << "gl_FragColor.rgb = gl_FragColor.rgb * (gl_FragColor.a + 0.0019);";
+        }
+    }
+
+    /*
+     * Whether applying layer alpha before or after color transform doesn't matter,
+     * as long as we can undo premultiplication. But we cannot un-premultiply
+     * for color transform if the layer alpha = 0, e.g. 0 / (0 + 0.0019) = 0.
+     */
+    if (!needs.drawShadows()) {
+        if (needs.hasAlpha()) {
+            // modulate the current alpha value with alpha set
+            if (needs.isPremultiplied()) {
+                // ... and the color too if we're premultiplied
+                fs << "gl_FragColor *= color.a;";
+            } else {
+                fs << "gl_FragColor.a *= color.a;";
+            }
         }
     }
 
