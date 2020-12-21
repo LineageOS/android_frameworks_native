@@ -638,6 +638,9 @@ TEST_F(InputSurfacesTest, touch_flag_obscured) {
     std::unique_ptr<InputSurface> nonTouchableSurface = makeSurface(100, 100);
     nonTouchableSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
     nonTouchableSurface->mInputInfo.ownerUid = 22222;
+    // Overriding occlusion mode otherwise the touch would be discarded at InputDispatcher by
+    // the default obscured/untrusted touch filter introduced in S.
+    nonTouchableSurface->mInputInfo.touchOcclusionMode = TouchOcclusionMode::ALLOW;
     nonTouchableSurface->showAt(100, 100);
 
     injectTap(190, 199);
