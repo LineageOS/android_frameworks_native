@@ -47,8 +47,7 @@
 #include <configstore/Utils.h>
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
-#include <dlfcn.h>
-#include <errno.h>
+#include <ftl/future.h>
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
 #include <gui/IDisplayEventConnection.h>
@@ -81,6 +80,7 @@
 #include <utils/misc.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <cinttypes>
 #include <cmath>
 #include <cstdint>
@@ -112,7 +112,6 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "NativeWindowSurface.h"
-#include "Promise.h"
 #include "RefreshRateOverlay.h"
 #include "RegionSamplingThread.h"
 #include "Scheduler/DispSyncSource.h"
@@ -1512,12 +1511,12 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken, f
         return BAD_VALUE;
     }
 
-    return promise::chain(schedule([=]() MAIN_THREAD {
+    return ftl::chain(schedule([=]() MAIN_THREAD {
                if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
                    return getHwComposer().setDisplayBrightness(*displayId, brightness);
                } else {
                    ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
-                   return promise::yield<status_t>(NAME_NOT_FOUND);
+                   return ftl::yield<status_t>(NAME_NOT_FOUND);
                }
            }))
             .then([](std::future<status_t> task) { return task; })
@@ -5539,7 +5538,7 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         }
     }
 
-    RenderAreaFuture renderAreaFuture = promise::defer([=] {
+    RenderAreaFuture renderAreaFuture = ftl::defer([=] {
         return DisplayRenderArea::create(displayWeak, args.sourceCrop, reqSize, dataspace,
                                          args.useIdentityTransform, args.captureSecureLayers);
     });
@@ -5573,7 +5572,7 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
                 pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
     }
 
-    RenderAreaFuture renderAreaFuture = promise::defer([=] {
+    RenderAreaFuture renderAreaFuture = ftl::defer([=] {
         return DisplayRenderArea::create(displayWeak, Rect(), size, dataspace,
                                          false /* useIdentityTransform */,
                                          false /* captureSecureLayers */);
@@ -5677,7 +5676,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     }
 
     bool childrenOnly = args.childrenOnly;
-    RenderAreaFuture renderAreaFuture = promise::defer([=]() -> std::unique_ptr<RenderArea> {
+    RenderAreaFuture renderAreaFuture = ftl::defer([=]() -> std::unique_ptr<RenderArea> {
         return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
                                                  childrenOnly, layerStackSpaceRect,
                                                  captureSecureLayers);

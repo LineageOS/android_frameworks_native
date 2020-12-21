@@ -30,6 +30,7 @@
 #include <compositionengine/Output.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <ftl/future.h>
 #include <log/log.h>
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
@@ -37,7 +38,6 @@
 #include <utils/Trace.h>
 
 #include "../Layer.h" // needed only for debugging
-#include "../Promise.h"
 #include "../SurfaceFlinger.h"
 #include "../SurfaceFlingerProperties.h"
 #include "ComposerHal.h"
@@ -792,10 +792,10 @@ status_t HWComposer::getDisplayedContentSample(HalDisplayId displayId, uint64_t 
 
 std::future<status_t> HWComposer::setDisplayBrightness(PhysicalDisplayId displayId,
                                                        float brightness) {
-    RETURN_IF_INVALID_DISPLAY(displayId, promise::yield<status_t>(BAD_INDEX));
+    RETURN_IF_INVALID_DISPLAY(displayId, ftl::yield<status_t>(BAD_INDEX));
     auto& display = mDisplayData[displayId].hwcDisplay;
 
-    return promise::chain(display->setDisplayBrightness(brightness))
+    return ftl::chain(display->setDisplayBrightness(brightness))
             .then([displayId](hal::Error error) -> status_t {
                 if (error == hal::Error::UNSUPPORTED) {
                     RETURN_IF_HWC_ERROR(error, displayId, INVALID_OPERATION);
