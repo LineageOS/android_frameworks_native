@@ -146,7 +146,7 @@ void SensorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
                 axisInfo.axis = -1;
                 // Check key layout map for sensor data mapping to axes
                 auto ret = getDeviceContext().mapSensor(abs);
-                if (ret) {
+                if (ret.ok()) {
                     InputDeviceSensorType sensorType = (*ret).first;
                     int32_t sensorDataIndex = (*ret).second;
                     const Axis& axis = createAxis(axisInfo, rawAxisInfo);

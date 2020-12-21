@@ -111,7 +111,7 @@ status_t KeyMap::loadKeyLayout(const InputDeviceIdentifier& deviceIdentifier,
     }
 
     base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(path);
-    if (!ret) {
+    if (!ret.ok()) {
         return ret.error().code();
     }
     keyLayoutMap = *ret;
@@ -129,7 +129,7 @@ status_t KeyMap::loadKeyCharacterMap(const InputDeviceIdentifier& deviceIdentifi
 
     base::Result<std::shared_ptr<KeyCharacterMap>> ret =
             KeyCharacterMap::load(path, KeyCharacterMap::Format::BASE);
-    if (!ret) {
+    if (!ret.ok()) {
         return ret.error().code();
     }
     keyCharacterMap = *ret;
