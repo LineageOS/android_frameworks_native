@@ -80,7 +80,7 @@ base::Result<std::shared_ptr<KeyLayoutMap>> KeyLayoutMap::loadContents(const std
     }
     std::unique_ptr<Tokenizer> t(tokenizer);
     auto ret = load(t.get());
-    if (ret) {
+    if (ret.ok()) {
         (*ret)->mLoadFileName = filename;
     }
     return ret;
@@ -95,7 +95,7 @@ base::Result<std::shared_ptr<KeyLayoutMap>> KeyLayoutMap::load(const std::string
     }
     std::unique_ptr<Tokenizer> t(tokenizer);
     auto ret = load(t.get());
-    if (ret) {
+    if (ret.ok()) {
         (*ret)->mLoadFileName = filename;
     }
     return ret;
