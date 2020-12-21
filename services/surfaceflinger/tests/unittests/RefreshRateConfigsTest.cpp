@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wextra"
+
 #undef LOG_TAG
 #define LOG_TAG "SchedulerUnittests"
 
@@ -1656,3 +1660,6 @@ TEST_F(RefreshRateConfigsTest, populatePreferredFrameRate_twoUids) {
 } // namespace
 } // namespace scheduler
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wextra"

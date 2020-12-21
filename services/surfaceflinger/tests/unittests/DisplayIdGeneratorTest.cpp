@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wextra"
+
 #include <gtest/gtest.h>
 
 #include <vector>
@@ -80,3 +84,6 @@ TEST(DisplayIdGeneratorTest, maxIdsCount) {
 }
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wextra"
