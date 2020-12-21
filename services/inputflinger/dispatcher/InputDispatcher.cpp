@@ -1247,14 +1247,20 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
         // Disable Pointer Capture
         token = mWindowTokenWithPointerCapture;
         mWindowTokenWithPointerCapture = nullptr;
-        mFocusedWindowRequestedPointerCapture = false;
+        if (mFocusedWindowRequestedPointerCapture) {
+            mFocusedWindowRequestedPointerCapture = false;
+            setPointerCaptureLocked(false);
+        }
     }
 
     auto channel = getInputChannelLocked(token);
     if (channel == nullptr) {
         // Window has gone away, clean up Pointer Capture state.
         mWindowTokenWithPointerCapture = nullptr;
-        mFocusedWindowRequestedPointerCapture = false;
+        if (mFocusedWindowRequestedPointerCapture) {
+            mFocusedWindowRequestedPointerCapture = false;
+            setPointerCaptureLocked(false);
+        }
         return;
     }
     InputTarget target;
