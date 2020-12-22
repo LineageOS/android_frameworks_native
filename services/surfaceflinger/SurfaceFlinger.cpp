@@ -47,8 +47,7 @@
 #include <configstore/Utils.h>
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
-#include <dlfcn.h>
-#include <errno.h>
+#include <ftl/future.h>
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
 #include <gui/IDisplayEventConnection.h>
@@ -81,6 +80,7 @@
 #include <utils/misc.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <cinttypes>
 #include <cmath>
 #include <cstdint>
@@ -112,7 +112,6 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "NativeWindowSurface.h"
-#include "Promise.h"
 #include "RefreshRateOverlay.h"
 #include "RegionSamplingThread.h"
 #include "Scheduler/DispSyncSource.h"
@@ -1512,12 +1511,12 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken, f
         return BAD_VALUE;
     }
 
-    return promise::chain(schedule([=]() MAIN_THREAD {
+    return ftl::chain(schedule([=]() MAIN_THREAD {
                if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
                    return getHwComposer().setDisplayBrightness(*displayId, brightness);
                } else {
                    ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
-                   return promise::yield<status_t>(NAME_NOT_FOUND);
+                   return ftl::yield<status_t>(NAME_NOT_FOUND);
                }
            }))
             .then([](std::future<status_t> task) { return task; })
@@ -3273,14 +3272,16 @@ bool SurfaceFlinger::transactionFlushNeeded() {
 
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
-                                                   const Vector<ComposerState>& states) {
+                                                   const Vector<ComposerState>& states,
+                                                   bool updateTransactionCounters) {
 
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
+    bool ready = true;
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
     if (desiredPresentTime >= 0 && desiredPresentTime >= expectedPresentTime &&
         desiredPresentTime < expectedPresentTime + s2ns(1)) {
-        return false;
+        ready = false;
     }
 
     for (const ComposerState& state : states) {
@@ -3289,10 +3290,22 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
             continue;
         }
         if (s.acquireFence && s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
-            return false;
+          ready = false;
+        }
+        if (updateTransactionCounters) {
+              sp<Layer> layer = nullptr;
+              if (s.surface) {
+                layer = fromHandleLocked(s.surface).promote();
+              } else {
+                ALOGW("Transaction with buffer, but no Layer?");
+                continue;
+              }
+              // See BufferStateLayer::mPendingBufferTransactions
+              if (layer) layer->incrementPendingBufferCount();
+
         }
     }
-    return true;
+    return ready;
 }
 
 status_t SurfaceFlinger::setTransactionState(
@@ -3336,7 +3349,7 @@ status_t SurfaceFlinger::setTransactionState(
     const int originPid = ipc->getCallingPid();
     const int originUid = ipc->getCallingUid();
 
-    if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
+    if (pendingTransactions || !transactionIsReadyToBeApplied(desiredPresentTime, states, true)) {
         mTransactionQueues[applyToken].emplace(frameTimelineVsyncId, states, displays, flags,
                                                desiredPresentTime, uncacheBuffer, postTime,
                                                privileged, hasListenerCallbacks, listenerCallbacks,
@@ -5525,7 +5538,7 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         }
     }
 
-    RenderAreaFuture renderAreaFuture = promise::defer([=] {
+    RenderAreaFuture renderAreaFuture = ftl::defer([=] {
         return DisplayRenderArea::create(displayWeak, args.sourceCrop, reqSize, dataspace,
                                          args.useIdentityTransform, args.captureSecureLayers);
     });
@@ -5559,7 +5572,7 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
                 pickDataspaceFromColorMode(display->getCompositionDisplay()->getState().colorMode);
     }
 
-    RenderAreaFuture renderAreaFuture = promise::defer([=] {
+    RenderAreaFuture renderAreaFuture = ftl::defer([=] {
         return DisplayRenderArea::create(displayWeak, Rect(), size, dataspace,
                                          false /* useIdentityTransform */,
                                          false /* captureSecureLayers */);
@@ -5663,7 +5676,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     }
 
     bool childrenOnly = args.childrenOnly;
-    RenderAreaFuture renderAreaFuture = promise::defer([=]() -> std::unique_ptr<RenderArea> {
+    RenderAreaFuture renderAreaFuture = ftl::defer([=]() -> std::unique_ptr<RenderArea> {
         return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
                                                  childrenOnly, layerStackSpaceRect,
                                                  captureSecureLayers);
