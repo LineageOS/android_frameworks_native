@@ -71,6 +71,7 @@ public:
                         const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
     bool cleanupPostRender(CleanupMode mode) override;
+    int getContextPriority() override;
 
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     // Creates an output image for rendering to
@@ -116,8 +117,11 @@ private:
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
     static GlesVersion parseGlesVersion(const char* str);
     static EGLContext createEglContext(EGLDisplay display, EGLConfig config,
-                                       EGLContext shareContext, bool useContextPriority,
+                                       EGLContext shareContext,
+                                       std::optional<ContextPriority> contextPriority,
                                        Protection protection);
+    static std::optional<RenderEngine::ContextPriority> createContextPriority(
+            const RenderEngineCreationArgs& args);
     static EGLSurface createStubEglPbufferSurface(EGLDisplay display, EGLConfig config,
                                                   int hwcFormat, Protection protection);
     std::unique_ptr<Framebuffer> createFramebuffer();
