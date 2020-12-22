@@ -84,13 +84,11 @@ public:
         return remote()->transact(PLAYER_ATTRIBUTES, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
-    virtual status_t playerEvent(audio_unique_id_t piid, player_state_t event,
-            audio_port_handle_t deviceId) {
+    virtual status_t playerEvent(audio_unique_id_t piid, player_state_t event) {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
         data.writeInt32((int32_t) piid);
         data.writeInt32((int32_t) event);
-        data.writeInt32((int32_t) deviceId);
         return remote()->transact(PLAYER_EVENT, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
