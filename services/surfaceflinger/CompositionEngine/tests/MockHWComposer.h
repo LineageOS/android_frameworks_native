@@ -96,7 +96,7 @@ public:
     MOCK_CONST_METHOD1(isVsyncPeriodSwitchSupported, bool(PhysicalDisplayId));
     MOCK_CONST_METHOD1(getDisplayVsyncPeriod, nsecs_t(PhysicalDisplayId));
     MOCK_METHOD4(setActiveModeWithConstraints,
-                 status_t(PhysicalDisplayId, HwcConfigIndexType,
+                 status_t(PhysicalDisplayId, DisplayModeId,
                           const hal::VsyncPeriodChangeConstraints&,
                           hal::VsyncPeriodChangeTimeline*));
     MOCK_METHOD2(setAutoLowLatencyMode, status_t(PhysicalDisplayId, bool));

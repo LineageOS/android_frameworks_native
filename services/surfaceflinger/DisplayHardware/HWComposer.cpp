@@ -318,7 +318,7 @@ void HWComposer::loadModes(DisplayData& displayData, hal::HWDisplayId hwcDisplay
     displayData.modes.clear();
     for (auto configId : configIds) {
         auto mode = DisplayMode::Builder(configId)
-                            .setId(HwcConfigIndexType(displayData.modes.size()))
+                            .setId(DisplayModeId(displayData.modes.size()))
                             .setWidth(getAttribute(hwcDisplayId, configId, hal::Attribute::WIDTH))
                             .setHeight(getAttribute(hwcDisplayId, configId, hal::Attribute::HEIGHT))
                             .setVsyncPeriod(getAttribute(hwcDisplayId, configId,
@@ -674,7 +674,7 @@ status_t HWComposer::setPowerMode(PhysicalDisplayId displayId, hal::PowerMode mo
 }
 
 status_t HWComposer::setActiveModeWithConstraints(
-        PhysicalDisplayId displayId, HwcConfigIndexType modeId,
+        PhysicalDisplayId displayId, DisplayModeId modeId,
         const hal::VsyncPeriodChangeConstraints& constraints,
         hal::VsyncPeriodChangeTimeline* outTimeline) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);

@@ -349,7 +349,7 @@ void Scheduler::onFrameRateOverridesChanged(ConnectionHandle handle, PhysicalDis
 }
 
 void Scheduler::onPrimaryDisplayConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                              HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
+                                              DisplayModeId configId, nsecs_t vsyncPeriod) {
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
         // Cache the last reported config for primary display.
@@ -389,7 +389,7 @@ void Scheduler::dispatchCachedReportedConfig() {
 
 void Scheduler::onNonPrimaryDisplayConfigChanged(ConnectionHandle handle,
                                                  PhysicalDisplayId displayId,
-                                                 HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
+                                                 DisplayModeId configId, nsecs_t vsyncPeriod) {
     android::EventThread* thread;
     {
         std::lock_guard<std::mutex> lock(mConnectionsLock);
@@ -603,7 +603,7 @@ void Scheduler::chooseRefreshRateForContent() {
 
     scheduler::LayerHistory::Summary summary = mLayerHistory->summarize(systemTime());
     scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
-    HwcConfigIndexType newConfigId;
+    DisplayModeId newConfigId;
     bool frameRateChanged;
     bool frameRateOverridesChanged;
     {
@@ -789,7 +789,7 @@ bool Scheduler::updateFrameRateOverrides(
 
 template <class T>
 bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
-    HwcConfigIndexType newConfigId;
+    DisplayModeId newConfigId;
     bool refreshRateChanged = false;
     bool frameRateOverridesChanged;
     scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
@@ -829,7 +829,7 @@ bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
     return consideredSignals.touch;
 }
 
-HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(
+DisplayModeId Scheduler::calculateRefreshRateConfigIndexType(
         scheduler::RefreshRateConfigs::GlobalSignals* consideredSignals) {
     ATRACE_CALL();
     if (consideredSignals) *consideredSignals = {};
@@ -851,7 +851,7 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(
             .getConfigId();
 }
 
-std::optional<HwcConfigIndexType> Scheduler::getPreferredConfigId() {
+std::optional<DisplayModeId> Scheduler::getPreferredConfigId() {
     std::lock_guard<std::mutex> lock(mFeatureStateLock);
     // Make sure that the default config ID is first updated, before returned.
     if (mFeatures.configId.has_value()) {

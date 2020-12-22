@@ -27,8 +27,8 @@
 #include <utils/Errors.h>
 
 #include "AsyncCallRecorder.h"
+#include "DisplayHardware/DisplayMode.h"
 #include "Scheduler/EventThread.h"
-#include "Scheduler/HwcStrongTypes.h"
 
 using namespace std::chrono_literals;
 using namespace std::placeholders;
@@ -540,17 +540,17 @@ TEST_F(EventThreadTest, postHotplugExternalConnect) {
 }
 
 TEST_F(EventThreadTest, postConfigChangedPrimary) {
-    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, HwcConfigIndexType(7), 16666666);
+    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, DisplayModeId(7), 16666666);
     expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 7, 16666666);
 }
 
 TEST_F(EventThreadTest, postConfigChangedExternal) {
-    mThread->onConfigChanged(EXTERNAL_DISPLAY_ID, HwcConfigIndexType(5), 16666666);
+    mThread->onConfigChanged(EXTERNAL_DISPLAY_ID, DisplayModeId(5), 16666666);
     expectConfigChangedEventReceivedByConnection(EXTERNAL_DISPLAY_ID, 5, 16666666);
 }
 
 TEST_F(EventThreadTest, postConfigChangedPrimary64bit) {
-    mThread->onConfigChanged(DISPLAY_ID_64BIT, HwcConfigIndexType(7), 16666666);
+    mThread->onConfigChanged(DISPLAY_ID_64BIT, DisplayModeId(7), 16666666);
     expectConfigChangedEventReceivedByConnection(DISPLAY_ID_64BIT, 7, 16666666);
 }
 
@@ -559,7 +559,7 @@ TEST_F(EventThreadTest, suppressConfigChanged) {
     sp<MockEventThreadConnection> suppressConnection =
             createConnection(suppressConnectionEventRecorder);
 
-    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, HwcConfigIndexType(9), 16666666);
+    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, DisplayModeId(9), 16666666);
     expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 9, 16666666);
 
     auto args = suppressConnectionEventRecorder.waitForCall();
