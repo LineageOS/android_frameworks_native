@@ -52,33 +52,14 @@ ndk_headers {
     license: "include/KHR/NOTICE",
 }
 
-llndk_library {
-    name: "libEGL.llndk",
-    symbol_file: "libs/libEGL.map.txt",
-    export_include_dirs: ["include"],
-}
-
-llndk_library {
-    name: "libGLESv1_CM.llndk",
-    symbol_file: "libs/libGLESv1_CM.map.txt",
-    export_include_dirs: ["include"],
-}
-
-llndk_library {
-    name: "libGLESv2.llndk",
-    symbol_file: "libs/libGLESv2.map.txt",
-    export_include_dirs: ["include"],
-}
-
-llndk_library {
-    name: "libGLESv3.llndk",
-    symbol_file: "libs/libGLESv3.map.txt",
-    export_include_dirs: ["include"],
-}
-
 cc_library_headers {
     name: "gl_headers",
     vendor_available: true,
+    export_include_dirs: ["include"],
+}
+
+llndk_headers {
+    name: "gl_llndk_headers",
     export_include_dirs: ["include"],
 }
 

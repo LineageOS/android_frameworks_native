@@ -225,3 +225,27 @@ cc_library_shared {
     srcs: ["GLES2/gl2.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv3\""],
 }
+
+llndk_library {
+    name: "libEGL.llndk",
+    symbol_file: "libEGL.map.txt",
+    export_llndk_headers: ["gl_llndk_headers"],
+}
+
+llndk_library {
+    name: "libGLESv1_CM.llndk",
+    symbol_file: "libGLESv1_CM.map.txt",
+    export_llndk_headers: ["gl_llndk_headers"],
+}
+
+llndk_library {
+    name: "libGLESv2.llndk",
+    symbol_file: "libGLESv2.map.txt",
+    export_llndk_headers: ["gl_llndk_headers"],
+}
+
+llndk_library {
+    name: "libGLESv3.llndk",
+    symbol_file: "libGLESv3.map.txt",
+    export_llndk_headers: ["gl_llndk_headers"],
+}
