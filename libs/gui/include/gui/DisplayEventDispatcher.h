@@ -52,7 +52,20 @@ protected:
 private:
     sp<Looper> mLooper;
     DisplayEventReceiver mReceiver;
-    bool mWaitingForVsync;
+    // The state of vsync event registration and whether the client is expecting
+    // an event or not.
+    enum class VsyncState {
+        // The dispatcher is not registered for vsync events.
+        Unregistered,
+        // The dispatcher is registered to receive vsync events but should not dispatch it to the
+        // client as the client is not expecting a vsync event.
+        Registered,
+
+        // The dispatcher is registered to receive vsync events and supposed to dispatch it to
+        // the client.
+        RegisteredAndWaitingForVsync,
+    };
+    VsyncState mVsyncState;
 
     std::vector<FrameRateOverride> mFrameRateOverrides;
 
