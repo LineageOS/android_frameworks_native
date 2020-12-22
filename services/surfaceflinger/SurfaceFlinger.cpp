@@ -3288,14 +3288,18 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
         if (s.acquireFence && s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
           ready = false;
         }
+        sp<Layer> layer = nullptr;
+        if (s.surface) {
+            layer = fromHandleLocked(s.surface).promote();
+        } else {
+            ALOGW("Transaction with buffer, but no Layer?");
+            continue;
+        }
+        if (layer && !mScheduler->isVsyncValid(expectedPresentTime, layer->getOwnerUid())) {
+            ATRACE_NAME("!isVsyncValidForUid");
+            ready = false;
+        }
         if (updateTransactionCounters) {
-              sp<Layer> layer = nullptr;
-              if (s.surface) {
-                layer = fromHandleLocked(s.surface).promote();
-              } else {
-                ALOGW("Transaction with buffer, but no Layer?");
-                continue;
-              }
               // See BufferStateLayer::mPendingBufferTransactions
               if (layer) layer->incrementPendingBufferCount();
 
@@ -3338,7 +3342,11 @@ status_t SurfaceFlinger::setTransactionState(
     const bool pendingTransactions = itr != mTransactionQueues.end();
     // Expected present time is computed and cached on invalidate, so it may be stale.
     if (!pendingTransactions) {
-        mExpectedPresentTime = calculateExpectedPresentTime(systemTime());
+        // The transaction might arrive just before the next vsync but after
+        // invalidate was called. In that case we need to get the next vsync
+        // afterwards.
+        const auto referenceTime = std::max(mExpectedPresentTime.load(), systemTime());
+        mExpectedPresentTime = calculateExpectedPresentTime(referenceTime);
     }
 
     IPCThreadState* ipc = IPCThreadState::self();
