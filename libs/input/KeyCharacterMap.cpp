@@ -154,7 +154,7 @@ base::Result<std::shared_ptr<KeyCharacterMap>> KeyCharacterMap::load(const std::
     }
     std::unique_ptr<Tokenizer> t(tokenizer);
     auto ret = load(t.get(), format);
-    if (ret) {
+    if (ret.ok()) {
         (*ret)->mLoadFileName = filename;
     }
     return ret;
@@ -170,7 +170,7 @@ base::Result<std::shared_ptr<KeyCharacterMap>> KeyCharacterMap::loadContents(
     }
     std::unique_ptr<Tokenizer> t(tokenizer);
     auto ret = load(t.get(), format);
-    if (ret) {
+    if (ret.ok()) {
         (*ret)->mLoadFileName = filename;
     }
     return ret;
