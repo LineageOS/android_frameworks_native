@@ -1431,8 +1431,7 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
         Mutex::Autolock lock(mStateLock);
 
         if (const auto handle = mScheduler->enableVSyncInjection(enable)) {
-            mEventQueue->setEventConnection(enable ? mScheduler->getEventConnection(handle)
-                                                   : nullptr);
+            mEventQueue->setInjector(enable ? mScheduler->getEventConnection(handle) : nullptr);
         }
     }).wait();
 

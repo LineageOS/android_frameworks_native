@@ -30,7 +30,7 @@ public:
     ~MessageQueue() override;
 
     MOCK_METHOD1(init, void(const sp<SurfaceFlinger>&));
-    MOCK_METHOD1(setEventConnection, void(const sp<EventThreadConnection>& connection));
+    MOCK_METHOD1(setInjector, void(sp<EventThreadConnection>));
     MOCK_METHOD0(waitMessage, void());
     MOCK_METHOD1(postMessage, void(sp<MessageHandler>&&));
     MOCK_METHOD0(invalidate, void());
