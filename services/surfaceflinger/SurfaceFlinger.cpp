@@ -2885,10 +2885,19 @@ void SurfaceFlinger::changeRefreshRate(const RefreshRate& refreshRate,
                                        Scheduler::ConfigEvent event) {
     // If this is called from the main thread mStateLock must be locked before
     // Currently the only way to call this function from the main thread is from
-    // Sheduler::chooseRefreshRateForContent
+    // Scheduler::chooseRefreshRateForContent
 
     ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
     changeRefreshRateLocked(refreshRate, event);
+}
+
+void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
+    PhysicalDisplayId displayId = [&]() {
+        ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
+        return getDefaultDisplayDeviceLocked()->getPhysicalId();
+    }();
+
+    mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
 }
 
 void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
@@ -3293,14 +3302,18 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
         if (s.acquireFence && s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
           ready = false;
         }
+        sp<Layer> layer = nullptr;
+        if (s.surface) {
+            layer = fromHandleLocked(s.surface).promote();
+        } else {
+            ALOGW("Transaction with buffer, but no Layer?");
+            continue;
+        }
+        if (layer && !mScheduler->isVsyncValid(expectedPresentTime, layer->getOwnerUid())) {
+            ATRACE_NAME("!isVsyncValidForUid");
+            ready = false;
+        }
         if (updateTransactionCounters) {
-              sp<Layer> layer = nullptr;
-              if (s.surface) {
-                layer = fromHandleLocked(s.surface).promote();
-              } else {
-                ALOGW("Transaction with buffer, but no Layer?");
-                continue;
-              }
               // See BufferStateLayer::mPendingBufferTransactions
               if (layer) layer->incrementPendingBufferCount();
 
@@ -3343,7 +3356,11 @@ status_t SurfaceFlinger::setTransactionState(
     const bool pendingTransactions = itr != mTransactionQueues.end();
     // Expected present time is computed and cached on invalidate, so it may be stale.
     if (!pendingTransactions) {
-        mExpectedPresentTime = calculateExpectedPresentTime(systemTime());
+        // The transaction might arrive just before the next vsync but after
+        // invalidate was called. In that case we need to get the next vsync
+        // afterwards.
+        const auto referenceTime = std::max(mExpectedPresentTime.load(), systemTime());
+        mExpectedPresentTime = calculateExpectedPresentTime(referenceTime);
     }
 
     IPCThreadState* ipc = IPCThreadState::self();
@@ -5341,11 +5358,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
 
                 auto inUid = static_cast<uid_t>(data.readInt32());
                 const auto refreshRate = data.readFloat();
-                mRefreshRateConfigs->setPreferredRefreshRateForUid(
-                        FrameRateOverride{inUid, refreshRate});
-                const auto mappings = mRefreshRateConfigs->getFrameRateOverrides();
-                mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId,
-                                                        std::move(mappings));
+                mScheduler->setPreferredRefreshRateForUid(FrameRateOverride{inUid, refreshRate});
+                mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
             }
                 return NO_ERROR;
         }

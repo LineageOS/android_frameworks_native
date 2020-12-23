@@ -692,6 +692,7 @@ private:
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ConfigEvent) override {}
     void repaintEverythingForHWC() override {}
     void kernelTimerChanged(bool) override {}
+    void triggerOnFrameRateOverridesChanged() {}
 
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);
