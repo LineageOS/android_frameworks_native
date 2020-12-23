@@ -373,13 +373,17 @@ public:
         // to be presented. When it is not possible to present at exactly that time, it will be
         // presented after the time has passed.
         //
+        // If the client didn't pass a desired presentation time, mDesiredPresentTime will be
+        // populated to the time setBuffer was called, and mIsAutoTimestamp will be set to true.
+        //
         // Desired present times that are more than 1 second in the future may be ignored.
         // When a desired present time has already passed, the transaction will be presented as soon
         // as possible.
         //
         // Transactions from the same process are presented in the same order that they are applied.
         // The desired present time does not affect this ordering.
-        int64_t mDesiredPresentTime = -1;
+        int64_t mDesiredPresentTime = 0;
+        bool mIsAutoTimestamp = true;
 
         // The vsync Id provided by Choreographer.getVsyncId
         int64_t mFrameTimelineVsyncId = ISurfaceComposer::INVALID_VSYNC_ID;

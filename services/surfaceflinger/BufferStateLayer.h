@@ -70,8 +70,8 @@ public:
     bool setCrop(const Rect& crop) override;
     bool setFrame(const Rect& frame) override;
     bool setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence, nsecs_t postTime,
-                   nsecs_t desiredPresentTime, const client_cache_t& clientCacheId,
-                   uint64_t frameNumber) override;
+                   nsecs_t desiredPresentTime, bool isAutoTimestamp,
+                   const client_cache_t& clientCacheId, uint64_t frameNumber) override;
     bool setAcquireFence(const sp<Fence>& fence) override;
     bool setDataspace(ui::Dataspace dataspace) override;
     bool setHdrMetadata(const HdrMetadata& hdrMetadata) override;
