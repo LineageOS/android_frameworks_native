@@ -78,7 +78,7 @@ public:
     }
 
     std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
-            const scheduler::RefreshRateConfigs& /*refreshRateConfigs*/) override {
+            Fps /*currentRefreshRate*/) override {
         return std::make_unique<scheduler::FakePhaseOffsets>();
     }
 
@@ -231,8 +231,7 @@ public:
         mFlinger->mRefreshRateStats =
                 std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, currFps,
                                                               /*powerMode=*/hal::PowerMode::OFF);
-        mFlinger->mVsyncConfiguration =
-                mFactory.createVsyncConfiguration(*mFlinger->mRefreshRateConfigs);
+        mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(currFps);
         mFlinger->mVsyncModulator.emplace(mFlinger->mVsyncConfiguration->getCurrentConfigs());
 
         mScheduler = new TestableScheduler(std::move(vsyncController), std::move(vsyncTracker),

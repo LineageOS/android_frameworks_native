@@ -56,11 +56,11 @@ std::unique_ptr<MessageQueue> DefaultFactory::createMessageQueue() {
 }
 
 std::unique_ptr<scheduler::VsyncConfiguration> DefaultFactory::createVsyncConfiguration(
-        const scheduler::RefreshRateConfigs& refreshRateConfigs) {
+        Fps currentRefreshRate) {
     if (property_get_bool("debug.sf.use_phase_offsets_as_durations", false)) {
-        return std::make_unique<scheduler::impl::WorkDuration>(refreshRateConfigs);
+        return std::make_unique<scheduler::impl::WorkDuration>(currentRefreshRate);
     } else {
-        return std::make_unique<scheduler::impl::PhaseOffsets>(refreshRateConfigs);
+        return std::make_unique<scheduler::impl::PhaseOffsets>(currentRefreshRate);
     }
 }
 

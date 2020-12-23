@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "Fps.h"
+
 #include <cutils/compiler.h>
 #include <utils/StrongPointer.h>
 
@@ -76,7 +78,7 @@ public:
     virtual std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) = 0;
     virtual std::unique_ptr<MessageQueue> createMessageQueue() = 0;
     virtual std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
-            const scheduler::RefreshRateConfigs&) = 0;
+            Fps currentRefreshRate) = 0;
     virtual std::unique_ptr<Scheduler> createScheduler(const scheduler::RefreshRateConfigs&,
                                                        ISchedulerCallback&) = 0;
     virtual sp<SurfaceInterceptor> createSurfaceInterceptor() = 0;

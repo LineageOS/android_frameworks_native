@@ -2621,8 +2621,14 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             setPowerModeInternal(display, hal::PowerMode::ON);
 
             // TODO(b/175678251) Call a listener instead.
-            if (mRefreshRateOverlay) {
-                mRefreshRateOverlay->reset();
+            if (currentState.physical->hwcDisplayId == getHwComposer().getInternalHwcDisplayId()) {
+                const auto displayId = currentState.physical->id;
+                const auto configs = getHwComposer().getConfigs(displayId);
+                mVsyncConfiguration->reset();
+                updatePhaseConfiguration(mRefreshRateConfigs->getCurrentRefreshRate());
+                if (mRefreshRateOverlay) {
+                    mRefreshRateOverlay->reset();
+                }
             }
         }
         return;
@@ -2918,7 +2924,7 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
             std::make_unique<scheduler::RefreshRateStats>(*mTimeStats, currRefreshRate.getFps(),
                                                           hal::PowerMode::OFF);
 
-    mVsyncConfiguration = getFactory().createVsyncConfiguration(*mRefreshRateConfigs);
+    mVsyncConfiguration = getFactory().createVsyncConfiguration(currRefreshRate.getFps());
     mVsyncModulator.emplace(mVsyncConfiguration->getCurrentConfigs());
 
     // start the EventThread
