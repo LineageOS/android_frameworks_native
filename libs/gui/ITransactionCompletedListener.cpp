@@ -99,15 +99,13 @@ JankData::JankData() :
 
 status_t JankData::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(output->writeInt64, frameVsyncId);
-    SAFE_PARCEL(output->writeInt32, static_cast<int32_t>(jankType));
+    SAFE_PARCEL(output->writeInt32, jankType);
     return NO_ERROR;
 }
 
 status_t JankData::readFromParcel(const Parcel* input) {
     SAFE_PARCEL(input->readInt64, &frameVsyncId);
-    int32_t jankTypeInt;
-    SAFE_PARCEL(input->readInt32, &jankTypeInt);
-    jankType = static_cast<JankType>(jankTypeInt);
+    SAFE_PARCEL(input->readInt32, &jankType);
     return NO_ERROR;
 }
 

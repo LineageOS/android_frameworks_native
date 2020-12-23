@@ -110,7 +110,7 @@ public:
     virtual sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) = 0;
     virtual std::unique_ptr<FrameTracer> createFrameTracer() = 0;
     virtual std::unique_ptr<frametimeline::FrameTimeline> createFrameTimeline(
-            std::shared_ptr<TimeStats> timeStats) = 0;
+            std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid) = 0;
 
 protected:
     ~Factory() = default;

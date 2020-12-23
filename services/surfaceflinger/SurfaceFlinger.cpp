@@ -339,7 +339,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInterceptor(mFactory.createSurfaceInterceptor()),
         mTimeStats(std::make_shared<impl::TimeStats>()),
         mFrameTracer(mFactory.createFrameTracer()),
-        mFrameTimeline(mFactory.createFrameTimeline(mTimeStats)),
+        mFrameTimeline(mFactory.createFrameTimeline(mTimeStats, getpid())),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
@@ -1872,7 +1872,7 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
         const bool tracePreComposition = mTracingEnabled && !mTracePostComposition;
         ConditionalLockGuard<std::mutex> lock(mTracingLock, tracePreComposition);
 
-        mFrameTimeline->setSfWakeUp(vsyncId, frameStart);
+        mFrameTimeline->setSfWakeUp(vsyncId, frameStart, stats.vsyncPeriod);
 
         refreshNeeded = handleMessageTransaction();
         refreshNeeded |= handleMessageInvalidate();
@@ -5366,8 +5366,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 const auto refreshRate = data.readFloat();
                 mScheduler->setPreferredRefreshRateForUid(FrameRateOverride{inUid, refreshRate});
                 mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
-            }
                 return NO_ERROR;
+            }
         }
     }
     return err;
