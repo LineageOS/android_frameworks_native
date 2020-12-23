@@ -169,17 +169,16 @@ std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
         config = chooseEglConfig(display, args.pixelFormat, /*logConfig*/ true);
     }
 
-    bool useContextPriority =
-            extensions.hasContextPriority() && args.contextPriority == ContextPriority::HIGH;
     EGLContext protectedContext = EGL_NO_CONTEXT;
+    const std::optional<RenderEngine::ContextPriority> priority = createContextPriority(args);
     if (args.enableProtectedContext && extensions.hasProtectedContent()) {
-        protectedContext = createEglContext(display, config, nullptr, useContextPriority,
-                                            Protection::PROTECTED);
+        protectedContext =
+                createEglContext(display, config, nullptr, priority, Protection::PROTECTED);
         ALOGE_IF(protectedContext == EGL_NO_CONTEXT, "Can't create protected context");
     }
 
-    EGLContext ctxt = createEglContext(display, config, protectedContext, useContextPriority,
-                                       Protection::UNPROTECTED);
+    EGLContext ctxt =
+            createEglContext(display, config, protectedContext, priority, Protection::UNPROTECTED);
 
     // if can't create a GL context, we can only abort.
     LOG_ALWAYS_FATAL_IF(ctxt == EGL_NO_CONTEXT, "EGLContext creation failed");
@@ -832,7 +831,8 @@ SkMatrix SkiaGLRenderEngine::getBlurShaderTransform(const SkCanvas* canvas,
 }
 
 EGLContext SkiaGLRenderEngine::createEglContext(EGLDisplay display, EGLConfig config,
-                                                EGLContext shareContext, bool useContextPriority,
+                                                EGLContext shareContext,
+                                                std::optional<ContextPriority> contextPriority,
                                                 Protection protection) {
     EGLint renderableType = 0;
     if (config == EGL_NO_CONFIG_KHR) {
@@ -855,9 +855,23 @@ EGLContext SkiaGLRenderEngine::createEglContext(EGLDisplay display, EGLConfig co
     contextAttributes.reserve(7);
     contextAttributes.push_back(EGL_CONTEXT_CLIENT_VERSION);
     contextAttributes.push_back(contextClientVersion);
-    if (useContextPriority) {
+    if (contextPriority) {
         contextAttributes.push_back(EGL_CONTEXT_PRIORITY_LEVEL_IMG);
-        contextAttributes.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
+        switch (*contextPriority) {
+            case ContextPriority::REALTIME:
+                contextAttributes.push_back(EGL_CONTEXT_PRIORITY_REALTIME_NV);
+                break;
+            case ContextPriority::MEDIUM:
+                contextAttributes.push_back(EGL_CONTEXT_PRIORITY_MEDIUM_IMG);
+                break;
+            case ContextPriority::LOW:
+                contextAttributes.push_back(EGL_CONTEXT_PRIORITY_LOW_IMG);
+                break;
+            case ContextPriority::HIGH:
+            default:
+                contextAttributes.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
+                break;
+        }
     }
     if (protection == Protection::PROTECTED) {
         contextAttributes.push_back(EGL_PROTECTED_CONTENT_EXT);
@@ -880,6 +894,29 @@ EGLContext SkiaGLRenderEngine::createEglContext(EGLDisplay display, EGLConfig co
     }
 
     return context;
+}
+
+std::optional<RenderEngine::ContextPriority> SkiaGLRenderEngine::createContextPriority(
+        const RenderEngineCreationArgs& args) {
+    if (!gl::GLExtensions::getInstance().hasContextPriority()) {
+        return std::nullopt;
+    }
+
+    switch (args.contextPriority) {
+        case RenderEngine::ContextPriority::REALTIME:
+            if (gl::GLExtensions::getInstance().hasRealtimePriority()) {
+                return RenderEngine::ContextPriority::REALTIME;
+            } else {
+                ALOGI("Realtime priority unsupported, degrading gracefully to high priority");
+                return RenderEngine::ContextPriority::HIGH;
+            }
+        case RenderEngine::ContextPriority::HIGH:
+        case RenderEngine::ContextPriority::MEDIUM:
+        case RenderEngine::ContextPriority::LOW:
+            return args.contextPriority;
+        default:
+            return std::nullopt;
+    }
 }
 
 EGLSurface SkiaGLRenderEngine::createPlaceholderEglPbufferSurface(EGLDisplay display,
@@ -905,6 +942,12 @@ EGLSurface SkiaGLRenderEngine::createPlaceholderEglPbufferSurface(EGLDisplay dis
 }
 
 void SkiaGLRenderEngine::cleanFramebufferCache() {}
+
+int SkiaGLRenderEngine::getContextPriority() {
+    int value;
+    eglQueryContext(mEGLDisplay, mEGLContext, EGL_CONTEXT_PRIORITY_LEVEL_IMG, &value);
+    return value;
+}
 
 } // namespace skia
 } // namespace renderengine

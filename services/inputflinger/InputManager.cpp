@@ -148,7 +148,7 @@ binder::Status InputManager::createInputChannel(const std::string& name, InputCh
     }
 
     base::Result<std::unique_ptr<InputChannel>> channel = mDispatcher->createInputChannel(name);
-    if (!channel) {
+    if (!channel.ok()) {
         return binder::Status::fromExceptionCode(exceptionCodeFromStatusT(channel.error().code()),
                                                  channel.error().message().c_str());
     }
