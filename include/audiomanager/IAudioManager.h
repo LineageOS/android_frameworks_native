@@ -49,8 +49,7 @@ public:
                 audio_content_type_t content, const sp<IBinder>& player) = 0;
     /*oneway*/ virtual status_t playerAttributes(audio_unique_id_t piid, audio_usage_t usage,
                 audio_content_type_t content)= 0;
-    /*oneway*/ virtual status_t playerEvent(audio_unique_id_t piid, player_state_t event,
-                audio_port_handle_t deviceId) = 0;
+    /*oneway*/ virtual status_t playerEvent(audio_unique_id_t piid, player_state_t event) = 0;
     /*oneway*/ virtual status_t releasePlayer(audio_unique_id_t piid) = 0;
     virtual audio_unique_id_t trackRecorder(const sp<IBinder>& recorder) = 0;
     /*oneway*/ virtual status_t recorderEvent(audio_unique_id_t riid, recorder_state_t event) = 0;

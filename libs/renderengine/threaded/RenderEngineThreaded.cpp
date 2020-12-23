@@ -304,6 +304,21 @@ void RenderEngineThreaded::cleanFramebufferCache() {
     resultFuture.wait();
 }
 
+int RenderEngineThreaded::getContextPriority() {
+    std::promise<int> resultPromise;
+    std::future<int> resultFuture = resultPromise.get_future();
+    {
+        std::lock_guard lock(mThreadMutex);
+        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
+            ATRACE_NAME("REThreaded::getContextPriority");
+            int priority = instance.getContextPriority();
+            resultPromise.set_value(priority);
+        });
+    }
+    mCondition.notify_one();
+    return resultFuture.get();
+}
+
 } // namespace threaded
 } // namespace renderengine
 } // namespace android

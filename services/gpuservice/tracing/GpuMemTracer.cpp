@@ -22,7 +22,6 @@
 
 #include <gpumem/GpuMem.h>
 #include <perfetto/trace/android/gpu_mem_event.pbzero.h>
-#include <perfetto/trace/trace.pb.h>
 #include <unistd.h>
 
 #include <thread>
@@ -61,22 +60,6 @@ void GpuMemTracer::initializeForTest(std::shared_ptr<GpuMem> gpuMem) {
     pthread_setname_np(tracerThread.native_handle(), "GpuMemTracerThreadForTest");
     tracerThread.detach();
     tracerThreadCount++;
-}
-
-std::vector<perfetto::protos::TracePacket> GpuMemTracer::readGpuMemTotalPacketsForTestBlocking(
-        perfetto::TracingSession* tracingSession) {
-    std::vector<char> raw_trace = tracingSession->ReadTraceBlocking();
-    perfetto::protos::Trace trace;
-    trace.ParseFromArray(raw_trace.data(), int(raw_trace.size()));
-
-    std::vector<perfetto::protos::TracePacket> packets;
-    for (const auto& packet : trace.packet()) {
-        if (!packet.has_gpu_mem_total_event()) {
-            continue;
-        }
-        packets.emplace_back(packet);
-    }
-    return packets;
 }
 
 // Each tracing session can be used for a single block of Start -> Stop.

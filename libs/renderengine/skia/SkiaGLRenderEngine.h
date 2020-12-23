@@ -56,6 +56,7 @@ public:
                         const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
     void cleanFramebufferCache() override;
+    int getContextPriority() override;
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
     bool useProtectedContext(bool useProtectedContext) override;
@@ -68,8 +69,11 @@ protected:
 private:
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
     static EGLContext createEglContext(EGLDisplay display, EGLConfig config,
-                                       EGLContext shareContext, bool useContextPriority,
+                                       EGLContext shareContext,
+                                       std::optional<ContextPriority> contextPriority,
                                        Protection protection);
+    static std::optional<RenderEngine::ContextPriority> createContextPriority(
+            const RenderEngineCreationArgs& args);
     static EGLSurface createPlaceholderEglPbufferSurface(EGLDisplay display, EGLConfig config,
                                                          int hwcFormat, Protection protection);
     inline SkRect getSkRect(const FloatRect& layer);

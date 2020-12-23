@@ -43,7 +43,7 @@ protected:
                                                                   KEY_LAYOUT);
         ASSERT_FALSE(path.empty());
         base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(path);
-        ASSERT_TRUE(ret) << "Cannot load KeyLayout at " << path;
+        ASSERT_TRUE(ret.ok()) << "Cannot load KeyLayout at " << path;
         mKeyMap.keyLayoutMap = std::move(*ret);
         mKeyMap.keyLayoutFile = path;
     }
@@ -58,7 +58,7 @@ protected:
         ASSERT_FALSE(path.empty()) << "KeyCharacterMap for " << name << " not found";
         base::Result<std::shared_ptr<KeyCharacterMap>> ret =
                 KeyCharacterMap::load(path, KeyCharacterMap::Format::BASE);
-        ASSERT_TRUE(ret) << "Cannot load KeyCharacterMap at " << path;
+        ASSERT_TRUE(ret.ok()) << "Cannot load KeyCharacterMap at " << path;
         mKeyMap.keyCharacterMap = *ret;
         mKeyMap.keyCharacterMapFile = path;
     }
