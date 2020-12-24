@@ -224,6 +224,18 @@ private:
     std::unique_ptr<compositionengine::LayerFECompositionState> mCompositionState;
 
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
+
+    // Returns true if the next frame is considered too early to present
+    // at the given expectedPresentTime
+    bool frameIsEarly(nsecs_t expectedPresentTime) const;
+
+    // Returns the predicted present time of the next frame if available or
+    // 0 otherwise.
+    virtual nsecs_t nextPredictedPresentTime() const = 0;
+
+    // The amount of time SF can delay a frame if it is considered early based
+    // on the VsyncModulator::VsyncConfig::appWorkDuration
+    static constexpr std::chrono::nanoseconds kEarlyLatchMaxThreshold = 100ms;
 };
 
 } // namespace android

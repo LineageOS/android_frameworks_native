@@ -152,6 +152,8 @@ private:
 
     bool bufferNeedsFiltering() const override;
 
+    nsecs_t nextPredictedPresentTime() const override;
+
     static const std::array<float, 16> IDENTITY_MATRIX;
 
     std::unique_ptr<renderengine::Image> mTextureImage;
