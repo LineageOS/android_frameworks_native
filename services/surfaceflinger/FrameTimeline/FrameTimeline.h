@@ -32,24 +32,44 @@
 
 namespace android::frametimeline {
 
-enum JankMetadata {
-    // Frame was presented earlier than expected
-    EarlyPresent = 0x1,
-    // Frame was presented later than expected
-    LatePresent = 0x2,
-    // App/SF started earlier than expected
-    EarlyStart = 0x4,
-    // App/SF started later than expected
-    LateStart = 0x8,
-    // App/SF finished work earlier than the deadline
-    EarlyFinish = 0x10,
-    // App/SF finished work later than the deadline
-    LateFinish = 0x20,
-    // SF was in GPU composition
-    GpuComposition = 0x40,
+class FrameTimelineTest;
+
+using namespace std::chrono_literals;
+
+// Metadata indicating how the frame was presented w.r.t expected present time.
+enum class FramePresentMetadata : int8_t {
+    // Frame was presented on time
+    OnTimePresent,
+    // Frame was presented late
+    LatePresent,
+    // Frame was presented early
+    EarlyPresent,
+    // Unknown/initial state
+    UnknownPresent,
 };
 
-class FrameTimelineTest;
+// Metadata comparing the frame's actual finish time to the expected deadline.
+enum class FrameReadyMetadata : int8_t {
+    // App/SF finished on time. Early finish is treated as on time since the goal of any component
+    // is to finish before the deadline.
+    OnTimeFinish,
+    // App/SF finished work later than expected
+    LateFinish,
+    // Unknown/initial state
+    UnknownFinish,
+};
+
+// Metadata comparing the frame's actual start time to the expected start time.
+enum class FrameStartMetadata : int8_t {
+    // App/SF started on time
+    OnTimeStart,
+    // App/SF started later than expected
+    LateStart,
+    // App/SF started earlier than expected
+    EarlyStart,
+    // Unknown/initial state
+    UnknownStart,
+};
 
 /*
  * Collection of timestamps that can be used for both predictions and actual times.
@@ -71,6 +91,19 @@ struct TimelineItem {
     bool operator!=(const TimelineItem& other) const { return !(*this == other); }
 };
 
+struct TokenManagerPrediction {
+    nsecs_t timestamp = 0;
+    TimelineItem predictions;
+};
+
+struct JankClassificationThresholds {
+    // The various thresholds for App and SF. If the actual timestamp falls within the threshold
+    // compared to prediction, we treat it as on time.
+    nsecs_t presentThreshold = std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
+    nsecs_t deadlineThreshold = std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
+    nsecs_t startThreshold = std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
+};
+
 /*
  * TokenManager generates a running number token for a set of predictions made by VsyncPredictor. It
  * saves these predictions for a short period of time and returns the predictions for a given token,
@@ -83,6 +116,9 @@ public:
     // Generates a token for the given set of predictions. Stores the predictions for 120ms and
     // destroys it later.
     virtual int64_t generateTokenForPredictions(TimelineItem&& prediction) = 0;
+
+    // Returns the stored predictions for a given token, if the predictions haven't expired.
+    virtual std::optional<TimelineItem> getPredictionsForToken(int64_t token) const = 0;
 };
 
 enum class PredictionState {
@@ -91,10 +127,6 @@ enum class PredictionState {
     None,    // Predictions are either not present or didn't come from TokenManager
 };
 
-/*
- * Stores a set of predictions and the corresponding actual timestamps pertaining to a single frame
- * from the app
- */
 class SurfaceFrame {
 public:
     enum class PresentState {
@@ -103,29 +135,76 @@ public:
         Unknown,   // Initial state, SurfaceFlinger hasn't seen this buffer yet
     };
 
-    virtual ~SurfaceFrame() = default;
+    // Only FrameTimeline can construct a SurfaceFrame as it provides Predictions(through
+    // TokenManager), Thresholds and TimeStats pointer.
+    SurfaceFrame(int64_t token, pid_t ownerPid, uid_t ownerUid, std::string layerName,
+                 std::string debugName, PredictionState predictionState, TimelineItem&& predictions,
+                 std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds);
+    ~SurfaceFrame() = default;
 
-    virtual TimelineItem getPredictions() const = 0;
-    virtual TimelineItem getActuals() const = 0;
-    virtual nsecs_t getActualQueueTime() const = 0;
-    virtual PresentState getPresentState() const = 0;
-    virtual PredictionState getPredictionState() const = 0;
-    virtual pid_t getOwnerPid() const = 0;
+    // Returns std::nullopt if the frame hasn't been classified yet.
+    // Used by both SF and FrameTimeline.
+    std::optional<int32_t> getJankType() const;
 
-    virtual void setPresentState(PresentState state) = 0;
-
+    // Functions called by SF
+    int64_t getToken() const { return mToken; };
+    TimelineItem getPredictions() const { return mPredictions; };
     // Actual timestamps of the app are set individually at different functions.
     // Start time (if the app provides) and Queue time are accessible after queueing the frame,
     // whereas Acquire Fence time is available only during latch.
-    virtual void setActualStartTime(nsecs_t actualStartTime) = 0;
-    virtual void setActualQueueTime(nsecs_t actualQueueTime) = 0;
-    virtual void setAcquireFenceTime(nsecs_t acquireFenceTime) = 0;
+    void setActualStartTime(nsecs_t actualStartTime);
+    void setActualQueueTime(nsecs_t actualQueueTime);
+    void setAcquireFenceTime(nsecs_t acquireFenceTime);
+    void setPresentState(PresentState presentState, nsecs_t lastLatchTime = 0);
 
-    // Retrieves jank classification, if it's already been classified.
-    virtual std::optional<JankType> getJankType() const = 0;
+    // Functions called by FrameTimeline
+    // BaseTime is the smallest timestamp in this SurfaceFrame.
+    // Used for dumping all timestamps relative to the oldest, making it easy to read.
+    nsecs_t getBaseTime() const;
+    // Sets the actual present time, appropriate metadata and classifies the jank.
+    void onPresent(nsecs_t presentTime, int32_t displayFrameJankType, nsecs_t vsyncPeriod);
+    // All the timestamps are dumped relative to the baseTime
+    void dump(std::string& result, const std::string& indent, nsecs_t baseTime) const;
+    // Emits a packet for perfetto tracing. The function body will be executed only if tracing is
+    // enabled. The displayFrameToken is needed to link the SurfaceFrame to the corresponding
+    // DisplayFrame at the trace processor side.
+    void trace(int64_t displayFrameToken);
 
-    // Token identifying the frame.
-    virtual int64_t getToken() const = 0;
+    // Getter functions used only by FrameTimelineTests
+    TimelineItem getActuals() const;
+    pid_t getOwnerPid() const { return mOwnerPid; };
+    PredictionState getPredictionState() const { return mPredictionState; };
+    PresentState getPresentState() const;
+    FrameReadyMetadata getFrameReadyMetadata() const;
+    FramePresentMetadata getFramePresentMetadata() const;
+
+private:
+    const int64_t mToken;
+    const pid_t mOwnerPid;
+    const uid_t mOwnerUid;
+    const std::string mLayerName;
+    const std::string mDebugName;
+    PresentState mPresentState GUARDED_BY(mMutex);
+    const PredictionState mPredictionState;
+    const TimelineItem mPredictions;
+    TimelineItem mActuals GUARDED_BY(mMutex);
+    std::shared_ptr<TimeStats> mTimeStats;
+    const JankClassificationThresholds mJankClassificationThresholds;
+    nsecs_t mActualQueueTime GUARDED_BY(mMutex) = 0;
+    mutable std::mutex mMutex;
+    // Bitmask for the type of jank
+    int32_t mJankType GUARDED_BY(mMutex) = JankType::None;
+    // Indicates if this frame was composited by the GPU or not
+    bool mGpuComposition GUARDED_BY(mMutex) = false;
+    // Enum for the type of present
+    FramePresentMetadata mFramePresentMetadata GUARDED_BY(mMutex) =
+            FramePresentMetadata::UnknownPresent;
+    // Enum for the type of finish
+    FrameReadyMetadata mFrameReadyMetadata GUARDED_BY(mMutex) = FrameReadyMetadata::UnknownFinish;
+    // Time when the previous buffer from the same layer was latched by SF. This is used in checking
+    // for BufferStuffing where the current buffer is expected to be ready but the previous buffer
+    // was latched instead.
+    nsecs_t mLastLatchTime GUARDED_BY(mMutex) = 0;
 };
 
 /*
@@ -142,20 +221,19 @@ public:
     virtual void onBootFinished() = 0;
 
     // Create a new surface frame, set the predictions based on a token and return it to the caller.
-    // Sets the PredictionState of SurfaceFrame.
     // Debug name is the human-readable debugging string for dumpsys.
-    virtual std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(
-            pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
-            std::optional<int64_t> token) = 0;
+    virtual std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(std::optional<int64_t> token,
+                                                                     pid_t ownerPid, uid_t ownerUid,
+                                                                     std::string layerName,
+                                                                     std::string debugName) = 0;
 
     // Adds a new SurfaceFrame to the current DisplayFrame. Frames from multiple layers can be
     // composited into one display frame.
-    virtual void addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame,
-                                 SurfaceFrame::PresentState state) = 0;
+    virtual void addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame) = 0;
 
     // The first function called by SF for the current DisplayFrame. Fetches SF predictions based on
     // the token and sets the actualSfWakeTime for the current DisplayFrame.
-    virtual void setSfWakeUp(int64_t token, nsecs_t wakeupTime) = 0;
+    virtual void setSfWakeUp(int64_t token, nsecs_t wakeupTime, nsecs_t vsyncPeriod) = 0;
 
     // Sets the sfPresentTime and finalizes the current DisplayFrame. Tracks the given present fence
     // until it's signaled, and updates the present timestamps of all presented SurfaceFrames in
@@ -178,15 +256,13 @@ public:
 
 namespace impl {
 
-using namespace std::chrono_literals;
-
 class TokenManager : public android::frametimeline::TokenManager {
 public:
     TokenManager() : mCurrentToken(ISurfaceComposer::INVALID_VSYNC_ID + 1) {}
     ~TokenManager() = default;
 
     int64_t generateTokenForPredictions(TimelineItem&& predictions) override;
-    std::optional<TimelineItem> getPredictionsForToken(int64_t token);
+    std::optional<TimelineItem> getPredictionsForToken(int64_t token) const override;
 
 private:
     // Friend class for testing
@@ -194,62 +270,11 @@ private:
 
     void flushTokens(nsecs_t flushTime) REQUIRES(mMutex);
 
-    std::unordered_map<int64_t, TimelineItem> mPredictions GUARDED_BY(mMutex);
-    std::vector<std::pair<int64_t, nsecs_t>> mTokens GUARDED_BY(mMutex);
+    std::map<int64_t, TokenManagerPrediction> mPredictions GUARDED_BY(mMutex);
     int64_t mCurrentToken GUARDED_BY(mMutex);
-    std::mutex mMutex;
+    mutable std::mutex mMutex;
     static constexpr nsecs_t kMaxRetentionTime =
             std::chrono::duration_cast<std::chrono::nanoseconds>(120ms).count();
-};
-
-class SurfaceFrame : public android::frametimeline::SurfaceFrame {
-public:
-    SurfaceFrame(int64_t token, pid_t ownerPid, uid_t ownerUid, std::string layerName,
-                 std::string debugName, PredictionState predictionState,
-                 TimelineItem&& predictions);
-    ~SurfaceFrame() = default;
-
-    TimelineItem getPredictions() const override { return mPredictions; };
-    TimelineItem getActuals() const override;
-    nsecs_t getActualQueueTime() const override;
-    PresentState getPresentState() const override;
-    PredictionState getPredictionState() const override { return mPredictionState; };
-    pid_t getOwnerPid() const override { return mOwnerPid; };
-    std::optional<JankType> getJankType() const override;
-    int64_t getToken() const override { return mToken; };
-    nsecs_t getBaseTime() const;
-    uid_t getOwnerUid() const { return mOwnerUid; };
-    const std::string& getName() const { return mLayerName; };
-
-    void setActualStartTime(nsecs_t actualStartTime) override;
-    void setActualQueueTime(nsecs_t actualQueueTime) override;
-    void setAcquireFenceTime(nsecs_t acquireFenceTime) override;
-    void setPresentState(PresentState state) override;
-    void setActualPresentTime(nsecs_t presentTime);
-    void setJankInfo(JankType jankType, int32_t jankMetadata);
-
-    // All the timestamps are dumped relative to the baseTime
-    void dump(std::string& result, const std::string& indent, nsecs_t baseTime);
-
-    // Emits a packet for perfetto tracing. The function body will be executed only if tracing is
-    // enabled. The displayFrameToken is needed to link the SurfaceFrame to the corresponding
-    // DisplayFrame at the trace processor side.
-    void traceSurfaceFrame(int64_t displayFrameToken);
-
-private:
-    const int64_t mToken;
-    const pid_t mOwnerPid;
-    const uid_t mOwnerUid;
-    const std::string mLayerName;
-    const std::string mDebugName;
-    PresentState mPresentState GUARDED_BY(mMutex);
-    const PredictionState mPredictionState;
-    const TimelineItem mPredictions;
-    TimelineItem mActuals GUARDED_BY(mMutex);
-    nsecs_t mActualQueueTime GUARDED_BY(mMutex);
-    mutable std::mutex mMutex;
-    JankType mJankType GUARDED_BY(mMutex); // Enum for the type of jank
-    int32_t mJankMetadata GUARDED_BY(mMutex); // Additional details about the jank
 };
 
 class FrameTimeline : public android::frametimeline::FrameTimeline {
@@ -260,16 +285,94 @@ public:
         void OnStop(const StopArgs&) override{};
     };
 
-    FrameTimeline(std::shared_ptr<TimeStats> timeStats);
+    /*
+     * DisplayFrame should be used only internally within FrameTimeline. All members and methods are
+     * guarded by FrameTimeline's mMutex.
+     */
+    class DisplayFrame {
+    public:
+        DisplayFrame(std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds);
+        virtual ~DisplayFrame() = default;
+        // Dumpsys interface - dumps only if the DisplayFrame itself is janky or is at least one
+        // SurfaceFrame is janky.
+        void dumpJank(std::string& result, nsecs_t baseTime, int displayFrameCount) const;
+        // Dumpsys interface - dumps all data irrespective of jank
+        void dumpAll(std::string& result, nsecs_t baseTime) const;
+        // Emits a packet for perfetto tracing. The function body will be executed only if tracing
+        // is enabled.
+        void trace(pid_t surfaceFlingerPid) const;
+        // Sets the token, vsyncPeriod, predictions and SF start time.
+        void onSfWakeUp(int64_t token, nsecs_t vsyncPeriod, std::optional<TimelineItem> predictions,
+                        nsecs_t wakeUpTime);
+        // Sets the appropriate metadata, classifies the jank and returns the classified jankType.
+        void onPresent(nsecs_t signalTime);
+        // Adds the provided SurfaceFrame to the current display frame.
+        void addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame);
+
+        void setTokenAndVsyncPeriod(int64_t token, nsecs_t vsyncPeriod);
+        void setPredictions(PredictionState predictionState, TimelineItem predictions);
+        void setActualStartTime(nsecs_t actualStartTime);
+        void setActualEndTime(nsecs_t actualEndTime);
+
+        // BaseTime is the smallest timestamp in a DisplayFrame.
+        // Used for dumping all timestamps relative to the oldest, making it easy to read.
+        nsecs_t getBaseTime() const;
+
+        // Functions to be used only in testing.
+        TimelineItem getActuals() const { return mSurfaceFlingerActuals; };
+        TimelineItem getPredictions() const { return mSurfaceFlingerPredictions; };
+        FramePresentMetadata getFramePresentMetadata() const { return mFramePresentMetadata; };
+        FrameReadyMetadata getFrameReadyMetadata() const { return mFrameReadyMetadata; };
+        int32_t getJankType() const { return mJankType; }
+        const std::vector<std::shared_ptr<SurfaceFrame>>& getSurfaceFrames() const {
+            return mSurfaceFrames;
+        }
+
+    private:
+        void dump(std::string& result, nsecs_t baseTime) const;
+
+        int64_t mToken = ISurfaceComposer::INVALID_VSYNC_ID;
+
+        /* Usage of TimelineItem w.r.t SurfaceFlinger
+         * startTime    Time when SurfaceFlinger wakes up to handle transactions and buffer updates
+         * endTime      Time when SurfaceFlinger sends a composited frame to Display
+         * presentTime  Time when the composited frame was presented on screen
+         */
+        TimelineItem mSurfaceFlingerPredictions;
+        TimelineItem mSurfaceFlingerActuals;
+        std::shared_ptr<TimeStats> mTimeStats;
+        const JankClassificationThresholds mJankClassificationThresholds;
+
+        // Collection of predictions and actual values sent over by Layers
+        std::vector<std::shared_ptr<SurfaceFrame>> mSurfaceFrames;
+
+        PredictionState mPredictionState = PredictionState::None;
+        // Bitmask for the type of jank
+        int32_t mJankType = JankType::None;
+        // Indicates if this frame was composited by the GPU or not
+        bool mGpuComposition = false;
+        // Enum for the type of present
+        FramePresentMetadata mFramePresentMetadata = FramePresentMetadata::UnknownPresent;
+        // Enum for the type of finish
+        FrameReadyMetadata mFrameReadyMetadata = FrameReadyMetadata::UnknownFinish;
+        // Enum for the type of start
+        FrameStartMetadata mFrameStartMetadata = FrameStartMetadata::UnknownStart;
+        // The refresh rate (vsync period) in nanoseconds as seen by SF during this DisplayFrame's
+        // timeline
+        nsecs_t mVsyncPeriod = 0;
+    };
+
+    FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid,
+                  JankClassificationThresholds thresholds = {});
     ~FrameTimeline() = default;
 
     frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
-    std::shared_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForToken(
-            pid_t ownerPid, uid_t ownerUid, std::string layerName, std::string debugName,
-            std::optional<int64_t> token) override;
-    void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame,
-                         SurfaceFrame::PresentState state) override;
-    void setSfWakeUp(int64_t token, nsecs_t wakeupTime) override;
+    std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(std::optional<int64_t> token,
+                                                             pid_t ownerPid, uid_t ownerUid,
+                                                             std::string layerName,
+                                                             std::string debugName) override;
+    void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame) override;
+    void setSfWakeUp(int64_t token, nsecs_t wakeupTime, nsecs_t vsyncPeriod) override;
     void setSfPresent(nsecs_t sfPresentTime,
                       const std::shared_ptr<FenceTime>& presentFence) override;
     void parseArgs(const Vector<String16>& args, std::string& result) override;
@@ -288,43 +391,10 @@ private:
     // Friend class for testing
     friend class android::frametimeline::FrameTimelineTest;
 
-    /*
-     * DisplayFrame should be used only internally within FrameTimeline.
-     */
-    struct DisplayFrame {
-        DisplayFrame();
-
-        int64_t token = ISurfaceComposer::INVALID_VSYNC_ID;
-
-        /* Usage of TimelineItem w.r.t SurfaceFlinger
-         * startTime    Time when SurfaceFlinger wakes up to handle transactions and buffer updates
-         * endTime      Time when SurfaceFlinger sends a composited frame to Display
-         * presentTime  Time when the composited frame was presented on screen
-         */
-        TimelineItem surfaceFlingerPredictions;
-        TimelineItem surfaceFlingerActuals;
-
-        // Collection of predictions and actual values sent over by Layers
-        std::vector<std::shared_ptr<SurfaceFrame>> surfaceFrames;
-
-        PredictionState predictionState = PredictionState::None;
-        JankType jankType = JankType::None; // Enum for the type of jank
-        int32_t jankMetadata = 0x0; // Additional details about the jank
-    };
-
     void flushPendingPresentFences() REQUIRES(mMutex);
     void finalizeCurrentDisplayFrame() REQUIRES(mMutex);
-    // BaseTime is the smallest timestamp in a DisplayFrame.
-    // Used for dumping all timestamps relative to the oldest, making it easy to read.
-    nsecs_t findBaseTime(const std::shared_ptr<DisplayFrame>&) REQUIRES(mMutex);
-    void dumpDisplayFrame(std::string& result, const std::shared_ptr<DisplayFrame>&,
-                          nsecs_t baseTime) REQUIRES(mMutex);
     void dumpAll(std::string& result);
     void dumpJank(std::string& result);
-
-    // Emits a packet for perfetto tracing. The function body will be executed only if tracing is
-    // enabled.
-    void traceDisplayFrame(const DisplayFrame& displayFrame) REQUIRES(mMutex);
 
     // Sliding window of display frames. TODO(b/168072834): compare perf with fixed size array
     std::deque<std::shared_ptr<DisplayFrame>> mDisplayFrames GUARDED_BY(mMutex);
@@ -332,23 +402,17 @@ private:
             mPendingPresentFences GUARDED_BY(mMutex);
     std::shared_ptr<DisplayFrame> mCurrentDisplayFrame GUARDED_BY(mMutex);
     TokenManager mTokenManager;
-    std::mutex mMutex;
+    mutable std::mutex mMutex;
     uint32_t mMaxDisplayFrames;
     std::shared_ptr<TimeStats> mTimeStats;
+    const pid_t mSurfaceFlingerPid;
+    const JankClassificationThresholds mJankClassificationThresholds;
     static constexpr uint32_t kDefaultMaxDisplayFrames = 64;
     // The initial container size for the vector<SurfaceFrames> inside display frame. Although
     // this number doesn't represent any bounds on the number of surface frames that can go in a
     // display frame, this is a good starting size for the vector so that we can avoid the
     // internal vector resizing that happens with push_back.
     static constexpr uint32_t kNumSurfaceFramesInitial = 10;
-    // The various thresholds for App and SF. If the actual timestamp falls within the threshold
-    // compared to prediction, we don't treat it as a jank.
-    static constexpr nsecs_t kPresentThreshold =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
-    static constexpr nsecs_t kDeadlineThreshold =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
-    static constexpr nsecs_t kSFStartThreshold =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count();
 };
 
 } // namespace impl

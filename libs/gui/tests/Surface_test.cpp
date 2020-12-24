@@ -700,7 +700,7 @@ public:
                                  const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
                                  const sp<IBinder>& /*applyToken*/,
                                  const InputWindowCommands& /*inputWindowCommands*/,
-                                 int64_t /*desiredPresentTime*/,
+                                 int64_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
                                  const client_cache_t& /*cachedBuffer*/,
                                  bool /*hasListenerCallbacks*/,
                                  const std::vector<ListenerCallbacks>& /*listenerCallbacks*/,

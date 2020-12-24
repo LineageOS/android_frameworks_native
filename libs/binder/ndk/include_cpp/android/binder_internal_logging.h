@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,25 @@
  * limitations under the License.
  */
 
-#include "mock/MockFrameTimeline.h"
+/**
+ * @addtogroup NdkBinder
+ * @{
+ */
 
-namespace android::mock {
+/**
+ * @file binder_internal_logging.h
+ * @brief This provides the ability to use syslog from binder headers, since
+ * other logging functionality might be inaccessable.
+ */
 
-// Explicit default instantiation is recommended.
-FrameTimeline::FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid)
-      : android::frametimeline::impl::FrameTimeline(timeStats, surfaceFlingerPid) {}
-FrameTimeline::~FrameTimeline() = default;
+#pragma once
 
-} // namespace android::mock
+// defined differently by liblog
+#pragma push_macro("LOG_PRI")
+#ifdef LOG_PRI
+#undef LOG_PRI
+#endif
+#include <syslog.h>
+#pragma pop_macro("LOG_PRI")
+
+/** @} */

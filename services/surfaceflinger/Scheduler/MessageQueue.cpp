@@ -69,17 +69,33 @@ void MessageQueue::init(const sp<SurfaceFlinger>& flinger) {
 
 // TODO(b/169865816): refactor VSyncInjections to use MessageQueue directly
 // and remove the EventThread from MessageQueue
-void MessageQueue::setEventConnection(const sp<EventThreadConnection>& connection) {
-    if (mEventTube.getFd() >= 0) {
-        mLooper->removeFd(mEventTube.getFd());
+void MessageQueue::setInjector(sp<EventThreadConnection> connection) {
+    auto& tube = mInjector.tube;
+
+    if (const int fd = tube.getFd(); fd >= 0) {
+        mLooper->removeFd(fd);
     }
 
-    mEvents = connection;
-    if (mEvents) {
-        mEvents->stealReceiveChannel(&mEventTube);
-        mLooper->addFd(mEventTube.getFd(), 0, Looper::EVENT_INPUT, MessageQueue::cb_eventReceiver,
-                       this);
+    if (connection) {
+        // The EventThreadConnection is retained when disabling injection, so avoid subsequently
+        // stealing invalid FDs. Note that the stolen FDs are kept open.
+        if (tube.getFd() < 0) {
+            connection->stealReceiveChannel(&tube);
+        } else {
+            ALOGW("Recycling channel for VSYNC injection.");
+        }
+
+        mLooper->addFd(
+                tube.getFd(), 0, Looper::EVENT_INPUT,
+                [](int, int, void* data) {
+                    reinterpret_cast<MessageQueue*>(data)->injectorCallback();
+                    return 1; // Keep registration.
+                },
+                this);
     }
+
+    std::lock_guard lock(mInjector.mutex);
+    mInjector.connection = std::move(connection);
 }
 
 void MessageQueue::vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, nsecs_t readyTime) {
@@ -149,29 +165,31 @@ void MessageQueue::postMessage(sp<MessageHandler>&& handler) {
 
 void MessageQueue::invalidate() {
     ATRACE_CALL();
-    if (mEvents) {
-        mEvents->requestNextVsync();
-    } else {
-        std::lock_guard lock(mVsync.mutex);
-        mVsync.mScheduled = true;
-        mVsync.registration->schedule({mVsync.workDuration.get().count(), /*readyDuration=*/0,
-                                       mVsync.lastCallbackTime.count()});
+
+    {
+        std::lock_guard lock(mInjector.mutex);
+        if (CC_UNLIKELY(mInjector.connection)) {
+            ALOGD("%s while injecting VSYNC", __FUNCTION__);
+            mInjector.connection->requestNextVsync();
+            return;
+        }
     }
+
+    std::lock_guard lock(mVsync.mutex);
+    mVsync.mScheduled = true;
+    mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
+                                   .readyDuration = 0,
+                                   .earliestVsync = mVsync.lastCallbackTime.count()});
 }
 
 void MessageQueue::refresh() {
     mHandler->dispatchRefresh();
 }
 
-int MessageQueue::cb_eventReceiver(int fd, int events, void* data) {
-    MessageQueue* queue = reinterpret_cast<MessageQueue*>(data);
-    return queue->eventReceiver(fd, events);
-}
-
-int MessageQueue::eventReceiver(int /*fd*/, int /*events*/) {
+void MessageQueue::injectorCallback() {
     ssize_t n;
     DisplayEventReceiver::Event buffer[8];
-    while ((n = DisplayEventReceiver::getEvents(&mEventTube, buffer, 8)) > 0) {
+    while ((n = DisplayEventReceiver::getEvents(&mInjector.tube, buffer, 8)) > 0) {
         for (int i = 0; i < n; i++) {
             if (buffer[i].header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
                 mHandler->dispatchInvalidate(buffer[i].vsync.vsyncId,
@@ -180,8 +198,6 @@ int MessageQueue::eventReceiver(int /*fd*/, int /*events*/) {
             }
         }
     }
-    return 1;
 }
 
 } // namespace android::impl
-

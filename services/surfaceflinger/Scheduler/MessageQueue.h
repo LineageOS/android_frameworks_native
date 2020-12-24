@@ -21,12 +21,11 @@
 #include <type_traits>
 #include <utility>
 
-#include <utils/Looper.h>
-#include <utils/Timers.h>
-#include <utils/threads.h>
-
+#include <android-base/thread_annotations.h>
 #include <gui/IDisplayEventConnection.h>
 #include <private/gui/BitTube.h>
+#include <utils/Looper.h>
+#include <utils/Timers.h>
 
 #include "EventThread.h"
 #include "TracedOrdinal.h"
@@ -68,7 +67,7 @@ public:
     virtual void initVsync(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
                            std::chrono::nanoseconds workDuration) = 0;
     virtual void setDuration(std::chrono::nanoseconds workDuration) = 0;
-    virtual void setEventConnection(const sp<EventThreadConnection>& connection) = 0;
+    virtual void setInjector(sp<EventThreadConnection>) = 0;
     virtual void waitMessage() = 0;
     virtual void postMessage(sp<MessageHandler>&&) = 0;
     virtual void invalidate() = 0;
@@ -99,7 +98,6 @@ protected:
 
     sp<SurfaceFlinger> mFlinger;
     sp<Looper> mLooper;
-    sp<EventThreadConnection> mEvents;
 
     struct Vsync {
         frametimeline::TokenManager* tokenManager = nullptr;
@@ -113,14 +111,19 @@ protected:
         TracedOrdinal<int> value = {"VSYNC-sf", 0};
     };
 
-    Vsync mVsync;
+    struct Injector {
+        gui::BitTube tube;
+        std::mutex mutex;
+        sp<EventThreadConnection> connection GUARDED_BY(mutex);
+    };
 
-    gui::BitTube mEventTube;
+    Vsync mVsync;
+    Injector mInjector;
+
     sp<Handler> mHandler;
 
-    static int cb_eventReceiver(int fd, int events, void* data);
-    int eventReceiver(int fd, int events);
     void vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, nsecs_t readyTime);
+    void injectorCallback();
 
 public:
     ~MessageQueue() override = default;
@@ -128,7 +131,7 @@ public:
     void initVsync(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
                    std::chrono::nanoseconds workDuration) override;
     void setDuration(std::chrono::nanoseconds workDuration) override;
-    void setEventConnection(const sp<EventThreadConnection>& connection) override;
+    void setInjector(sp<EventThreadConnection>) override;
 
     void waitMessage() override;
     void postMessage(sp<MessageHandler>&&) override;

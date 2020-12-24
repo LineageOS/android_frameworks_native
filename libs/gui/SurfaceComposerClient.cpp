@@ -395,6 +395,7 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
         mExplicitEarlyWakeupEnd(other.mExplicitEarlyWakeupEnd),
         mContainsBuffer(other.mContainsBuffer),
         mDesiredPresentTime(other.mDesiredPresentTime),
+        mIsAutoTimestamp(other.mIsAutoTimestamp),
         mFrameTimelineVsyncId(other.mFrameTimelineVsyncId) {
     mDisplayStates = other.mDisplayStates;
     mComposerStates = other.mComposerStates;
@@ -424,6 +425,7 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     const bool explicitEarlyWakeupEnd = parcel->readBool();
     const bool containsBuffer = parcel->readBool();
     const int64_t desiredPresentTime = parcel->readInt64();
+    const bool isAutoTimestamp = parcel->readBool();
     const int64_t frameTimelineVsyncId = parcel->readInt64();
 
     size_t count = static_cast<size_t>(parcel->readUint32());
@@ -497,6 +499,7 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     mExplicitEarlyWakeupEnd = explicitEarlyWakeupEnd;
     mContainsBuffer = containsBuffer;
     mDesiredPresentTime = desiredPresentTime;
+    mIsAutoTimestamp = isAutoTimestamp;
     mFrameTimelineVsyncId = frameTimelineVsyncId;
     mDisplayStates = displayStates;
     mListenerCallbacks = listenerCallbacks;
@@ -527,6 +530,7 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     parcel->writeBool(mExplicitEarlyWakeupEnd);
     parcel->writeBool(mContainsBuffer);
     parcel->writeInt64(mDesiredPresentTime);
+    parcel->writeBool(mIsAutoTimestamp);
     parcel->writeInt64(mFrameTimelineVsyncId);
     parcel->writeUint32(static_cast<uint32_t>(mDisplayStates.size()));
     for (auto const& displayState : mDisplayStates) {
@@ -628,7 +632,8 @@ void SurfaceComposerClient::Transaction::clear() {
     mEarlyWakeup = false;
     mExplicitEarlyWakeupStart = false;
     mExplicitEarlyWakeupEnd = false;
-    mDesiredPresentTime = -1;
+    mDesiredPresentTime = 0;
+    mIsAutoTimestamp = true;
     mFrameTimelineVsyncId = ISurfaceComposer::INVALID_VSYNC_ID;
 }
 
@@ -640,8 +645,9 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     uncacheBuffer.id = cacheId;
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
-    sf->setTransactionState(ISurfaceComposer::INVALID_VSYNC_ID, {}, {}, 0, applyToken, {}, -1,
-                            uncacheBuffer, false, {}, 0 /* Undefined transactionId */);
+    sf->setTransactionState(ISurfaceComposer::INVALID_VSYNC_ID, {}, {}, 0, applyToken, {},
+                            systemTime(), true, uncacheBuffer, false, {},
+                            0 /* Undefined transactionId */);
 }
 
 void SurfaceComposerClient::Transaction::cacheBuffers() {
@@ -759,7 +765,7 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
     sf->setTransactionState(mFrameTimelineVsyncId, composerStates, displayStates, flags, applyToken,
-                            mInputWindowCommands, mDesiredPresentTime,
+                            mInputWindowCommands, mDesiredPresentTime, mIsAutoTimestamp,
                             {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/,
                             hasListenerCallbacks, listenerCallbacks, mId);
     mId = generateId();
@@ -1201,6 +1207,9 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
     }
     s->what |= layer_state_t::eBufferChanged;
     s->buffer = buffer;
+    if (mIsAutoTimestamp) {
+        mDesiredPresentTime = systemTime();
+    }
 
     registerSurfaceControlForCallback(sc);
 
@@ -1295,6 +1304,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setSideb
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDesiredPresentTime(
         nsecs_t desiredPresentTime) {
     mDesiredPresentTime = desiredPresentTime;
+    mIsAutoTimestamp = false;
     return *this;
 }
 

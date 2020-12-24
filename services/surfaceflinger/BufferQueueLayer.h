@@ -146,6 +146,11 @@ private:
     // a buffer to correlate the buffer with the vsync id. Can only be accessed
     // with the SF state lock held.
     std::optional<int64_t> mFrameTimelineVsyncId;
+
+    // Keeps track of the time SF latched the last buffer from this layer.
+    // Used in buffer stuffing analysis in FrameTimeline.
+    // TODO(b/176106798): Find a way to do this for BLASTBufferQueue as well.
+    nsecs_t mLastLatchTime = 0;
 };
 
 } // namespace android

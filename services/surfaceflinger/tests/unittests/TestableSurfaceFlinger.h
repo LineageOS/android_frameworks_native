@@ -78,7 +78,7 @@ public:
     }
 
     std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
-            const scheduler::RefreshRateConfigs& /*refreshRateConfigs*/) override {
+            Fps /*currentRefreshRate*/) override {
         return std::make_unique<scheduler::FakePhaseOffsets>();
     }
 
@@ -156,8 +156,8 @@ public:
     }
 
     std::unique_ptr<frametimeline::FrameTimeline> createFrameTimeline(
-            std::shared_ptr<TimeStats> timeStats) override {
-        return std::make_unique<mock::FrameTimeline>(timeStats);
+            std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid = 0) override {
+        return std::make_unique<mock::FrameTimeline>(timeStats, surfaceFlingerPid);
     }
 
     using CreateBufferQueueFunction =
@@ -231,8 +231,7 @@ public:
         mFlinger->mRefreshRateStats =
                 std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, currFps,
                                                               /*powerMode=*/hal::PowerMode::OFF);
-        mFlinger->mVsyncConfiguration =
-                mFactory.createVsyncConfiguration(*mFlinger->mRefreshRateConfigs);
+        mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(currFps);
         mFlinger->mVsyncModulator.emplace(mFlinger->mVsyncConfiguration->getCurrentConfigs());
 
         mScheduler = new TestableScheduler(std::move(vsyncController), std::move(vsyncTracker),
@@ -372,14 +371,14 @@ public:
                              const Vector<DisplayState>& displays, uint32_t flags,
                              const sp<IBinder>& applyToken,
                              const InputWindowCommands& inputWindowCommands,
-                             int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
-                             bool hasListenerCallbacks,
+                             int64_t desiredPresentTime, bool isAutoTimestamp,
+                             const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
                              std::vector<ListenerCallbacks>& listenerCallbacks,
                              uint64_t transactionId) {
         return mFlinger->setTransactionState(frameTimelineVsyncId, states, displays, flags,
                                              applyToken, inputWindowCommands, desiredPresentTime,
-                                             uncacheBuffer, hasListenerCallbacks, listenerCallbacks,
-                                             transactionId);
+                                             isAutoTimestamp, uncacheBuffer, hasListenerCallbacks,
+                                             listenerCallbacks, transactionId);
     }
 
     auto flushTransactionQueues() { return mFlinger->flushTransactionQueues(); };
@@ -692,6 +691,7 @@ private:
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ConfigEvent) override {}
     void repaintEverythingForHWC() override {}
     void kernelTimerChanged(bool) override {}
+    void triggerOnFrameRateOverridesChanged() {}
 
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);

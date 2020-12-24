@@ -275,7 +275,8 @@ public:
         // recent callback handle.
         std::deque<sp<CallbackHandle>> callbackHandles;
         bool colorSpaceAgnostic;
-        nsecs_t desiredPresentTime = -1;
+        nsecs_t desiredPresentTime = 0;
+        bool isAutoTimestamp = true;
 
         // Length of the cast shadow. If the radius is > 0, a shadow of length shadowRadius will
         // be rendered around the layer.
@@ -444,7 +445,8 @@ public:
     virtual bool setFrame(const Rect& /*frame*/) { return false; };
     virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, const sp<Fence>& /*acquireFence*/,
                            nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
-                           const client_cache_t& /*clientCacheId*/, uint64_t /* frameNumber */) {
+                           bool /*isAutoTimestamp*/, const client_cache_t& /*clientCacheId*/,
+                           uint64_t /* frameNumber */) {
         return false;
     };
     virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
@@ -881,7 +883,7 @@ public:
      */
     bool hasInputInfo() const;
 
-    uid_t getOwnerUid() { return mOwnerUid; }
+    virtual uid_t getOwnerUid() const { return mOwnerUid; }
 
     pid_t getOwnerPid() { return mOwnerPid; }
 

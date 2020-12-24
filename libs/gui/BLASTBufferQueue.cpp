@@ -311,7 +311,9 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     t->setCrop(mSurfaceControl, computeCrop(bufferItem));
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
-    t->setDesiredPresentTime(bufferItem.mTimestamp);
+    if (!bufferItem.mIsAutoTimestamp) {
+        t->setDesiredPresentTime(bufferItem.mTimestamp);
+    }
     t->setFrameNumber(mSurfaceControl, bufferItem.mFrameNumber);
 
     if (!mNextFrameTimelineVsyncIdQueue.empty()) {

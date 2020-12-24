@@ -680,19 +680,18 @@ template <class T>
 static void updateJankPayload(T& t, int32_t reasons) {
     t.jankPayload.totalFrames++;
 
-    static const constexpr int32_t kValidJankyReason =
-            JankType::SurfaceFlingerDeadlineMissed |
-            JankType::SurfaceFlingerGpuDeadlineMissed |
-            JankType::AppDeadlineMissed | JankType::Display;
+    static const constexpr int32_t kValidJankyReason = JankType::SurfaceFlingerCpuDeadlineMissed |
+            JankType::SurfaceFlingerGpuDeadlineMissed | JankType::AppDeadlineMissed |
+            JankType::DisplayHAL;
     if (reasons & kValidJankyReason) {
         t.jankPayload.totalJankyFrames++;
-        if ((reasons & JankType::SurfaceFlingerDeadlineMissed) != 0) {
+        if ((reasons & JankType::SurfaceFlingerCpuDeadlineMissed) != 0) {
             t.jankPayload.totalSFLongCpu++;
         }
         if ((reasons & JankType::SurfaceFlingerGpuDeadlineMissed) != 0) {
             t.jankPayload.totalSFLongGpu++;
         }
-        if ((reasons & JankType::Display) != 0) {
+        if ((reasons & JankType::DisplayHAL) != 0) {
             t.jankPayload.totalSFUnattributed++;
         }
         if ((reasons & JankType::AppDeadlineMissed) != 0) {
