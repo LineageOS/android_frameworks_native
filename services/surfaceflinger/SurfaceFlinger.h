@@ -341,7 +341,7 @@ protected:
 
     virtual uint32_t setClientStateLocked(
             int64_t frameTimelineVsyncId, const ComposerState& composerState,
-            int64_t desiredPresentTime, int64_t postTime, bool privileged,
+            int64_t desiredPresentTime, bool isAutoTimestamp, int64_t postTime, bool privileged,
             std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
             REQUIRES(mStateLock);
     virtual void commitTransactionLocked();
@@ -434,8 +434,9 @@ private:
     struct TransactionState {
         TransactionState(int64_t frameTimelineVsyncId, const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
-                         int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
-                         int64_t postTime, bool privileged, bool hasListenerCallbacks,
+                         int64_t desiredPresentTime, bool isAutoTimestamp,
+                         const client_cache_t& uncacheBuffer, int64_t postTime, bool privileged,
+                         bool hasListenerCallbacks,
                          std::vector<ListenerCallbacks> listenerCallbacks, int originPid,
                          int originUid, uint64_t transactionId)
               : frameTimelineVsyncId(frameTimelineVsyncId),
@@ -443,6 +444,7 @@ private:
                 displays(displayStates),
                 flags(transactionFlags),
                 desiredPresentTime(desiredPresentTime),
+                isAutoTimestamp(isAutoTimestamp),
                 buffer(uncacheBuffer),
                 postTime(postTime),
                 privileged(privileged),
@@ -457,6 +459,7 @@ private:
         Vector<DisplayState> displays;
         uint32_t flags;
         const int64_t desiredPresentTime;
+        const bool isAutoTimestamp;
         client_cache_t buffer;
         const int64_t postTime;
         bool privileged;
@@ -520,8 +523,8 @@ private:
                                  const Vector<DisplayState>& displays, uint32_t flags,
                                  const sp<IBinder>& applyToken,
                                  const InputWindowCommands& inputWindowCommands,
-                                 int64_t desiredPresentTime, const client_cache_t& uncacheBuffer,
-                                 bool hasListenerCallbacks,
+                                 int64_t desiredPresentTime, bool isAutoTimestamp,
+                                 const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
                                  const std::vector<ListenerCallbacks>& listenerCallbacks,
                                  uint64_t transactionId) override;
     void bootFinished() override;
@@ -641,6 +644,8 @@ private:
     void repaintEverythingForHWC() override;
     // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
     void kernelTimerChanged(bool expired) override;
+    // Called when the frame rate override list changed to trigger an event.
+    void triggerOnFrameRateOverridesChanged() override;
     // Toggles the kernel idle timer on or off depending the policy decisions around refresh rates.
     void toggleKernelIdleTimer();
     // Keeps track of whether the kernel idle timer is currently enabled, so we don't have to
@@ -721,7 +726,7 @@ private:
     void applyTransactionState(int64_t frameTimelineVsyncId, const Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
                                const InputWindowCommands& inputWindowCommands,
-                               const int64_t desiredPresentTime,
+                               const int64_t desiredPresentTime, bool isAutoTimestamp,
                                const client_cache_t& uncacheBuffer, const int64_t postTime,
                                bool privileged, bool hasListenerCallbacks,
                                const std::vector<ListenerCallbacks>& listenerCallbacks,

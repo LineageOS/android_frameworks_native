@@ -29,7 +29,7 @@ public:
     std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) override;
     std::unique_ptr<MessageQueue> createMessageQueue() override;
     std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
-            const scheduler::RefreshRateConfigs&) override;
+            Fps currentRefreshRate) override;
     std::unique_ptr<Scheduler> createScheduler(const scheduler::RefreshRateConfigs&,
                                                ISchedulerCallback&) override;
     sp<SurfaceInterceptor> createSurfaceInterceptor() override;
@@ -56,7 +56,7 @@ public:
     sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) override;
     std::unique_ptr<FrameTracer> createFrameTracer() override;
     std::unique_ptr<frametimeline::FrameTimeline> createFrameTimeline(
-            std::shared_ptr<TimeStats> timeStats) override;
+            std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid) override;
 };
 
 } // namespace android::surfaceflinger

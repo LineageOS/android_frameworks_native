@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "Fps.h"
+
 #include <cutils/compiler.h>
 #include <utils/StrongPointer.h>
 
@@ -76,7 +78,7 @@ public:
     virtual std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) = 0;
     virtual std::unique_ptr<MessageQueue> createMessageQueue() = 0;
     virtual std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
-            const scheduler::RefreshRateConfigs&) = 0;
+            Fps currentRefreshRate) = 0;
     virtual std::unique_ptr<Scheduler> createScheduler(const scheduler::RefreshRateConfigs&,
                                                        ISchedulerCallback&) = 0;
     virtual sp<SurfaceInterceptor> createSurfaceInterceptor() = 0;
@@ -108,7 +110,7 @@ public:
     virtual sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) = 0;
     virtual std::unique_ptr<FrameTracer> createFrameTracer() = 0;
     virtual std::unique_ptr<frametimeline::FrameTimeline> createFrameTimeline(
-            std::shared_ptr<TimeStats> timeStats) = 0;
+            std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid) = 0;
 
 protected:
     ~Factory() = default;

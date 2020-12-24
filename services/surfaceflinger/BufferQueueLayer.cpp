@@ -274,8 +274,8 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
             mConsumer->mergeSurfaceDamage(mQueueItems[0].item.mSurfaceDamage);
             mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].item.mFrameNumber);
             if (mQueueItems[0].surfaceFrame) {
-                mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mQueueItems[0].surfaceFrame),
-                                                          PresentState::Dropped);
+                mQueueItems[0].surfaceFrame->setPresentState(PresentState::Dropped);
+                mFlinger->mFrameTimeline->addSurfaceFrame(mQueueItems[0].surfaceFrame);
             }
             mQueueItems.erase(mQueueItems.begin());
             mQueuedFrames--;
@@ -290,8 +290,8 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
             Mutex::Autolock lock(mQueueItemLock);
             for (auto& [item, surfaceFrame] : mQueueItems) {
                 if (surfaceFrame) {
-                    mFlinger->mFrameTimeline->addSurfaceFrame(std::move(surfaceFrame),
-                                                              PresentState::Dropped);
+                    surfaceFrame->setPresentState(PresentState::Dropped);
+                    mFlinger->mFrameTimeline->addSurfaceFrame(surfaceFrame);
                 }
             }
             mQueueItems.clear();
@@ -321,8 +321,8 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
             mConsumer->mergeSurfaceDamage(mQueueItems[0].item.mSurfaceDamage);
             mFlinger->mTimeStats->removeTimeRecord(layerId, mQueueItems[0].item.mFrameNumber);
             if (mQueueItems[0].surfaceFrame) {
-                mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mQueueItems[0].surfaceFrame),
-                                                          PresentState::Dropped);
+                mQueueItems[0].surfaceFrame->setPresentState(PresentState::Dropped);
+                mFlinger->mFrameTimeline->addSurfaceFrame(mQueueItems[0].surfaceFrame);
             }
             mQueueItems.erase(mQueueItems.begin());
             mQueuedFrames--;
@@ -336,8 +336,9 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         if (mQueueItems[0].surfaceFrame) {
             mQueueItems[0].surfaceFrame->setAcquireFenceTime(
                     mQueueItems[0].item.mFenceTime->getSignalTime());
-            mFlinger->mFrameTimeline->addSurfaceFrame(std::move(mQueueItems[0].surfaceFrame),
-                                                      PresentState::Presented);
+            mQueueItems[0].surfaceFrame->setPresentState(PresentState::Presented, mLastLatchTime);
+            mFlinger->mFrameTimeline->addSurfaceFrame(mQueueItems[0].surfaceFrame);
+            mLastLatchTime = latchTime;
         }
         mQueueItems.erase(mQueueItems.begin());
     }
@@ -436,8 +437,9 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
         }
 
         auto surfaceFrame =
-                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mOwnerPid, mOwnerUid, mName,
-                                                                     mName, mFrameTimelineVsyncId);
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mFrameTimelineVsyncId,
+                                                                     mOwnerPid, mOwnerUid, mName,
+                                                                     mName);
         surfaceFrame->setActualQueueTime(systemTime());
 
         mQueueItems.push_back({item, surfaceFrame});
@@ -475,8 +477,9 @@ void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
         }
 
         auto surfaceFrame =
-                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mOwnerPid, mOwnerUid, mName,
-                                                                     mName, mFrameTimelineVsyncId);
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mFrameTimelineVsyncId,
+                                                                     mOwnerPid, mOwnerUid, mName,
+                                                                     mName);
         surfaceFrame->setActualQueueTime(systemTime());
         mQueueItems[mQueueItems.size() - 1].item = item;
         mQueueItems[mQueueItems.size() - 1].surfaceFrame = std::move(surfaceFrame);

@@ -16,12 +16,14 @@
 
 #pragma once
 
+#include <mutex>
+#include <type_traits>
 #include <unordered_map>
+#include <vector>
 
 #include <utils/Timers.h>
 
 #include "Fps.h"
-#include "RefreshRateConfigs.h"
 #include "VsyncModulator.h"
 
 namespace android::scheduler {
@@ -39,9 +41,9 @@ public:
     virtual ~VsyncConfiguration() = default;
     virtual VsyncConfigSet getCurrentConfigs() const = 0;
     virtual VsyncConfigSet getConfigsForRefreshRate(Fps fps) const = 0;
+    virtual void reset() = 0;
 
     virtual void setRefreshRateFps(Fps fps) = 0;
-
     virtual void dump(std::string& result) const = 0;
 };
 
@@ -57,26 +59,39 @@ public:
     explicit VsyncConfiguration(Fps currentFps);
 
     // Returns early, early GL, and late offsets for Apps and SF for a given refresh rate.
-    VsyncConfigSet getConfigsForRefreshRate(Fps fps) const override;
+    VsyncConfigSet getConfigsForRefreshRate(Fps fps) const override EXCLUDES(mLock);
 
     // Returns early, early GL, and late offsets for Apps and SF.
-    VsyncConfigSet getCurrentConfigs() const override {
-        return getConfigsForRefreshRate(mRefreshRateFps);
+    VsyncConfigSet getCurrentConfigs() const override EXCLUDES(mLock) {
+        std::lock_guard lock(mLock);
+        return getConfigsForRefreshRateLocked(mRefreshRateFps);
+    }
+
+    // Cleans the internal cache.
+    void reset() override EXCLUDES(mLock) {
+        std::lock_guard lock(mLock);
+        mOffsetsCache.clear();
     }
 
     // This function should be called when the device is switching between different
     // refresh rates, to properly update the offsets.
-    void setRefreshRateFps(Fps fps) override { mRefreshRateFps = fps; }
+    void setRefreshRateFps(Fps fps) override EXCLUDES(mLock) {
+        std::lock_guard lock(mLock);
+        mRefreshRateFps = fps;
+    }
 
     // Returns current offsets in human friendly format.
     void dump(std::string& result) const override;
 
 protected:
-    void initializeOffsets(const std::vector<Fps>& refreshRates);
     virtual VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const = 0;
 
-    std::unordered_map<Fps, VsyncConfigSet, std::hash<Fps>, Fps::EqualsInBuckets> mOffsets;
-    std::atomic<Fps> mRefreshRateFps;
+    VsyncConfigSet getConfigsForRefreshRateLocked(Fps fps) const REQUIRES(mLock);
+
+    mutable std::unordered_map<Fps, VsyncConfigSet, std::hash<Fps>, Fps::EqualsInBuckets>
+            mOffsetsCache GUARDED_BY(mLock);
+    std::atomic<Fps> mRefreshRateFps GUARDED_BY(mLock);
+    mutable std::mutex mLock;
 };
 
 /*
@@ -85,13 +100,13 @@ protected:
  */
 class PhaseOffsets : public VsyncConfiguration {
 public:
-    explicit PhaseOffsets(const scheduler::RefreshRateConfigs&);
+    explicit PhaseOffsets(Fps currentRefreshRate);
 
 protected:
     // Used for unit tests
-    PhaseOffsets(const std::vector<Fps>& refreshRates, Fps currentFps, nsecs_t vsyncPhaseOffsetNs,
-                 nsecs_t sfVSyncPhaseOffsetNs, std::optional<nsecs_t> earlySfOffsetNs,
-                 std::optional<nsecs_t> earlyGpuSfOffsetNs, std::optional<nsecs_t> earlyAppOffsetNs,
+    PhaseOffsets(Fps currentRefreshRate, nsecs_t vsyncPhaseOffsetNs, nsecs_t sfVSyncPhaseOffsetNs,
+                 std::optional<nsecs_t> earlySfOffsetNs, std::optional<nsecs_t> earlyGpuSfOffsetNs,
+                 std::optional<nsecs_t> earlyAppOffsetNs,
                  std::optional<nsecs_t> earlyGpuAppOffsetNs, nsecs_t highFpsVsyncPhaseOffsetNs,
                  nsecs_t highFpsSfVSyncPhaseOffsetNs, std::optional<nsecs_t> highFpsEarlySfOffsetNs,
                  std::optional<nsecs_t> highFpsEarlyGpuSfOffsetNs,
@@ -128,13 +143,12 @@ private:
  */
 class WorkDuration : public VsyncConfiguration {
 public:
-    explicit WorkDuration(const scheduler::RefreshRateConfigs&);
+    explicit WorkDuration(Fps currentRefrshRate);
 
 protected:
     // Used for unit tests
-    WorkDuration(const std::vector<Fps>& refreshRates, Fps currentFps, nsecs_t sfDuration,
-                 nsecs_t appDuration, nsecs_t sfEarlyDuration, nsecs_t appEarlyDuration,
-                 nsecs_t sfEarlyGpuDuration, nsecs_t appEarlyGpuDuration);
+    WorkDuration(Fps currentFps, nsecs_t sfDuration, nsecs_t appDuration, nsecs_t sfEarlyDuration,
+                 nsecs_t appEarlyDuration, nsecs_t sfEarlyGpuDuration, nsecs_t appEarlyGpuDuration);
 
 private:
     VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const override;

@@ -37,6 +37,7 @@ struct FakePhaseOffsets : VsyncConfiguration {
                  FAKE_DURATION_OFFSET_NS}};
     }
 
+    void reset() override {}
     void setRefreshRateFps(Fps) override {}
     void dump(std::string&) const override {}
 };

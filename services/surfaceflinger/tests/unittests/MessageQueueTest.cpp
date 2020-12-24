@@ -69,6 +69,7 @@ public:
     ~MockTokenManager() override = default;
 
     MOCK_METHOD1(generateTokenForPredictions, int64_t(frametimeline::TimelineItem&& prediction));
+    MOCK_CONST_METHOD1(getPredictionsForToken, std::optional<frametimeline::TimelineItem>(int64_t));
 };
 
 class MessageQueueTest : public testing::Test {

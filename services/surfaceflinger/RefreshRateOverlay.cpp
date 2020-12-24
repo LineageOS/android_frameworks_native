@@ -235,7 +235,7 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
 void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
     mCurrentFps = refreshRate.getFps().getIntValue();
     auto buffer = getOrCreateBuffers(*mCurrentFps)[mFrame];
-    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {},
+    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
                       mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */));
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
@@ -247,7 +247,7 @@ void RefreshRateOverlay::onInvalidate() {
     const auto& buffers = getOrCreateBuffers(*mCurrentFps);
     mFrame = (mFrame + 1) % buffers.size();
     auto buffer = buffers[mFrame];
-    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, {},
+    mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
                       mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */));
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);

@@ -71,7 +71,7 @@ public:
     virtual status_t setTransactionState(
             int64_t frameTimelineVsyncId, const Vector<ComposerState>& state,
             const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
-            const InputWindowCommands& commands, int64_t desiredPresentTime,
+            const InputWindowCommands& commands, int64_t desiredPresentTime, bool isAutoTimestamp,
             const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
             const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) {
         Parcel data, reply;
@@ -92,6 +92,7 @@ public:
         SAFE_PARCEL(data.writeStrongBinder, applyToken);
         SAFE_PARCEL(commands.write, data);
         SAFE_PARCEL(data.writeInt64, desiredPresentTime);
+        SAFE_PARCEL(data.writeBool, isAutoTimestamp);
         SAFE_PARCEL(data.writeStrongBinder, uncacheBuffer.token.promote());
         SAFE_PARCEL(data.writeUint64, uncacheBuffer.id);
         SAFE_PARCEL(data.writeBool, hasListenerCallbacks);
@@ -1297,7 +1298,9 @@ status_t BnSurfaceComposer::onTransact(
             SAFE_PARCEL(inputWindowCommands.read, data);
 
             int64_t desiredPresentTime = 0;
+            bool isAutoTimestamp = true;
             SAFE_PARCEL(data.readInt64, &desiredPresentTime);
+            SAFE_PARCEL(data.readBool, &isAutoTimestamp);
 
             client_cache_t uncachedBuffer;
             sp<IBinder> tmpBinder;
@@ -1323,8 +1326,8 @@ status_t BnSurfaceComposer::onTransact(
 
             return setTransactionState(frameTimelineVsyncId, state, displays, stateFlags,
                                        applyToken, inputWindowCommands, desiredPresentTime,
-                                       uncachedBuffer, hasListenerCallbacks, listenerCallbacks,
-                                       transactionId);
+                                       isAutoTimestamp, uncachedBuffer, hasListenerCallbacks,
+                                       listenerCallbacks, transactionId);
         }
         case BOOT_FINISHED: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
