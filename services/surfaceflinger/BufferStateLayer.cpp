@@ -601,6 +601,14 @@ bool BufferStateLayer::hasFrameUpdate() const {
     return mCurrentStateModified && (c.buffer != nullptr || c.bgColorLayer != nullptr);
 }
 
+nsecs_t BufferStateLayer::nextPredictedPresentTime() const {
+    if (!getDrawingState().isAutoTimestamp || !mSurfaceFrame) {
+        return 0;
+    }
+
+    return mSurfaceFrame->getPredictions().presentTime;
+}
+
 status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,
                                           nsecs_t /*expectedPresentTime*/) {
     const State& s(getDrawingState());

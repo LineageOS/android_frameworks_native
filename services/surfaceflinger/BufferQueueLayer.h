@@ -116,6 +116,8 @@ private:
     // Temporary - Used only for LEGACY camera mode.
     uint32_t getProducerStickyTransform() const;
 
+    nsecs_t nextPredictedPresentTime() const override;
+
     sp<BufferLayerConsumer> mConsumer;
     sp<IGraphicBufferProducer> mProducer;
 

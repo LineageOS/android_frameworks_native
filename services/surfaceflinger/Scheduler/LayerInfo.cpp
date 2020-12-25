@@ -33,10 +33,8 @@ namespace android::scheduler {
 const RefreshRateConfigs* LayerInfo::sRefreshRateConfigs = nullptr;
 bool LayerInfo::sTraceEnabled = false;
 
-LayerInfo::LayerInfo(const std::string& name, nsecs_t highRefreshRatePeriod,
-                     LayerHistory::LayerVoteType defaultVote)
+LayerInfo::LayerInfo(const std::string& name, LayerHistory::LayerVoteType defaultVote)
       : mName(name),
-        mHighRefreshRatePeriod(highRefreshRatePeriod),
         mDefaultVote(defaultVote),
         mLayerVote({defaultVote, Fps(0.0f)}),
         mRefreshRateHistory(name) {}
@@ -133,7 +131,7 @@ std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
         }
 
         totalQueueTimeDeltas +=
-                std::max(((it + 1)->queueTime - it->queueTime), mHighRefreshRatePeriod);
+                std::max(((it + 1)->queueTime - it->queueTime), kMinPeriodBetweenFrames);
         numFrames++;
 
         if (!missingPresentTime && (it->presetTime == 0 || (it + 1)->presetTime == 0)) {
@@ -147,7 +145,7 @@ std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
         }
 
         totalPresentTimeDeltas +=
-                std::max(((it + 1)->presetTime - it->presetTime), mHighRefreshRatePeriod);
+                std::max(((it + 1)->presetTime - it->presetTime), kMinPeriodBetweenFrames);
     }
 
     // Calculate the average frame time based on presentation timestamps. If those

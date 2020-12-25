@@ -551,23 +551,19 @@ void Scheduler::setIgnorePresentFences(bool ignore) {
 void Scheduler::registerLayer(Layer* layer) {
     if (!mLayerHistory) return;
 
-    const auto maxFps = mRefreshRateConfigs.getMaxRefreshRate().getFps();
-
     if (layer->getWindowType() == InputWindowInfo::Type::STATUS_BAR) {
-        mLayerHistory->registerLayer(layer, maxFps, scheduler::LayerHistory::LayerVoteType::NoVote);
+        mLayerHistory->registerLayer(layer, scheduler::LayerHistory::LayerVoteType::NoVote);
     } else if (!mOptions.useContentDetection) {
         // If the content detection feature is off, all layers are registered at Max. We still keep
         // the layer history, since we use it for other features (like Frame Rate API), so layers
         // still need to be registered.
-        mLayerHistory->registerLayer(layer, maxFps, scheduler::LayerHistory::LayerVoteType::Max);
+        mLayerHistory->registerLayer(layer, scheduler::LayerHistory::LayerVoteType::Max);
     } else {
         if (layer->getWindowType() == InputWindowInfo::Type::WALLPAPER) {
             // Running Wallpaper at Min is considered as part of content detection.
-            mLayerHistory->registerLayer(layer, maxFps,
-                                         scheduler::LayerHistory::LayerVoteType::Min);
+            mLayerHistory->registerLayer(layer, scheduler::LayerHistory::LayerVoteType::Min);
         } else {
-            mLayerHistory->registerLayer(layer, maxFps,
-                                         scheduler::LayerHistory::LayerVoteType::Heuristic);
+            mLayerHistory->registerLayer(layer, scheduler::LayerHistory::LayerVoteType::Heuristic);
         }
     }
 }
