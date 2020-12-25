@@ -68,15 +68,15 @@ static std::vector<apex::ApexFile> ActivateApexPackages() {
                                        apex::kApexPackageVendorDir};
     for (const auto& dir : apex_dirs) {
         // Cast call to void to suppress warn_unused_result.
-        static_cast<void>(apex::scanPackagesDirAndActivate(dir));
+        static_cast<void>(apex::ScanPackagesDirAndActivate(dir));
     }
-    return apex::getActivePackages();
+    return apex::GetActivePackages();
 }
 
 static void DeactivateApexPackages(const std::vector<apex::ApexFile>& active_packages) {
     for (const apex::ApexFile& apex_file : active_packages) {
         const std::string& package_path = apex_file.GetPath();
-        base::Result<void> status = apex::deactivatePackage(package_path);
+        base::Result<void> status = apex::DeactivatePackage(package_path);
         if (!status.ok()) {
             LOG(ERROR) << "Failed to deactivate " << package_path << ": "
                        << status.error();

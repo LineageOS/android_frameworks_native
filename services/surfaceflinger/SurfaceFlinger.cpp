@@ -5309,12 +5309,17 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 return NO_ERROR;
             }
             case 1035: {
-                n = data.readInt32();
+                const int newConfigId = data.readInt32();
                 mDebugDisplayConfigSetByBackdoor = false;
-                const auto numConfigs = mRefreshRateConfigs->getAllRefreshRates().size();
-                if (n >= 0 && n < numConfigs) {
+                const auto displayId = getInternalDisplayId();
+                if (!displayId) {
+                    ALOGE("No internal display found.");
+                    return NO_ERROR;
+                }
+                const auto numConfigs = getHwComposer().getConfigs(*displayId).size();
+                if (newConfigId >= 0 && newConfigId < numConfigs) {
                     const auto displayToken = getInternalDisplayToken();
-                    status_t result = setActiveConfig(displayToken, n);
+                    status_t result = setActiveConfig(displayToken, newConfigId);
                     if (result != NO_ERROR) {
                         return result;
                     }

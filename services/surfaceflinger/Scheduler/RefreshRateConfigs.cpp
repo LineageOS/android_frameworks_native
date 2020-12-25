@@ -463,10 +463,6 @@ const RefreshRate* RefreshRateConfigs::getBestRefreshRate(Iter begin, Iter end) 
     return bestRefreshRate;
 }
 
-const AllRefreshRatesMapType& RefreshRateConfigs::getAllRefreshRates() const {
-    return mRefreshRates;
-}
-
 const RefreshRate& RefreshRateConfigs::getMinRefreshRateByPolicy() const {
     std::lock_guard lock(mLock);
     return getMinRefreshRateByPolicyLocked();

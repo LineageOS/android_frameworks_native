@@ -432,7 +432,7 @@ TEST_P(SetFrameRateTest, SetAndGetParentNotInTree) {
     EXPECT_EQ(FRAME_RATE_NO_VOTE, child2_1->getFrameRateForLayerTree());
 }
 
-TEST_P(SetFrameRateTest, SetAndGetRearentChildren) {
+TEST_P(SetFrameRateTest, SetAndGetReparentChildren) {
     EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
 
     const auto& layerFactory = GetParam();
