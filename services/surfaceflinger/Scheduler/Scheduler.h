@@ -60,7 +60,6 @@ struct ISchedulerCallback {
                                    scheduler::RefreshRateConfigEvent) = 0;
     virtual void repaintEverythingForHWC() = 0;
     virtual void kernelTimerChanged(bool expired) = 0;
-    virtual void triggerOnFrameRateOverridesChanged() = 0;
 
 protected:
     ~ISchedulerCallback() = default;
@@ -94,7 +93,8 @@ public:
     void onScreenAcquired(ConnectionHandle);
     void onScreenReleased(ConnectionHandle);
 
-    void onFrameRateOverridesChanged(ConnectionHandle, PhysicalDisplayId);
+    void onFrameRateOverridesChanged(ConnectionHandle, PhysicalDisplayId,
+                                     std::vector<FrameRateOverride>);
 
     // Modifies work duration in the event thread.
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
@@ -169,10 +169,6 @@ public:
                                                            std::chrono::nanoseconds readyDuration,
                                                            bool traceVsync = true);
 
-    // Stores the preferred refresh rate that an app should run at.
-    // FrameRateOverride.refreshRateHz == 0 means no preference.
-    void setPreferredRefreshRateForUid(FrameRateOverride) EXCLUDES(mFeatureStateLock);
-
 private:
     friend class TestableScheduler;
 
@@ -230,10 +226,6 @@ private:
             REQUIRES(mFeatureStateLock);
 
     void dispatchCachedReportedConfig() REQUIRES(mFeatureStateLock);
-    bool updateFrameRateOverrides(scheduler::RefreshRateConfigs::GlobalSignals consideredSignals,
-                                  Fps displayRefreshRate) REQUIRES(mFeatureStateLock);
-
-    std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mFeatureStateLock);
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -272,7 +264,7 @@ private:
 
     // In order to make sure that the features don't override themselves, we need a state machine
     // to keep track which feature requested the config change.
-    mutable std::mutex mFeatureStateLock;
+    std::mutex mFeatureStateLock;
 
     struct {
         TimerState idleTimer = TimerState::Reset;
@@ -293,7 +285,6 @@ private:
         };
 
         std::optional<ConfigChangedParams> cachedConfigChangedParams;
-        scheduler::RefreshRateConfigs::UidToFrameRateOverride frameRateOverrides;
     } mFeatures GUARDED_BY(mFeatureStateLock);
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
@@ -304,11 +295,6 @@ private:
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
 
     const std::unique_ptr<PredictedVsyncTracer> mPredictedVsyncTracer;
-
-    // mappings between a UID and a preferred refresh rate that this app would
-    // run at.
-    scheduler::RefreshRateConfigs::UidToFrameRateOverride mFrameRateOverridesFromBackdoor
-            GUARDED_BY(mFeatureStateLock);
 };
 
 } // namespace android
