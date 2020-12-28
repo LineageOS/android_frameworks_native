@@ -883,7 +883,7 @@ public:
      */
     bool hasInputInfo() const;
 
-    virtual uid_t getOwnerUid() const { return mOwnerUid; }
+    uid_t getOwnerUid() { return mOwnerUid; }
 
     pid_t getOwnerPid() { return mOwnerPid; }
 

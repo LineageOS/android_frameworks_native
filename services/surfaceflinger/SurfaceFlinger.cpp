@@ -2890,19 +2890,10 @@ void SurfaceFlinger::changeRefreshRate(const RefreshRate& refreshRate,
                                        Scheduler::ConfigEvent event) {
     // If this is called from the main thread mStateLock must be locked before
     // Currently the only way to call this function from the main thread is from
-    // Scheduler::chooseRefreshRateForContent
+    // Sheduler::chooseRefreshRateForContent
 
     ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
     changeRefreshRateLocked(refreshRate, event);
-}
-
-void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
-    PhysicalDisplayId displayId = [&]() {
-        ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
-        return getDefaultDisplayDeviceLocked()->getPhysicalId();
-    }();
-
-    mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
 }
 
 void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
@@ -5373,8 +5364,11 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
 
                 auto inUid = static_cast<uid_t>(data.readInt32());
                 const auto refreshRate = data.readFloat();
-                mScheduler->setPreferredRefreshRateForUid(FrameRateOverride{inUid, refreshRate});
-                mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
+                mRefreshRateConfigs->setPreferredRefreshRateForUid(
+                        FrameRateOverride{inUid, refreshRate});
+                const auto mappings = mRefreshRateConfigs->getFrameRateOverrides();
+                mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId,
+                                                        std::move(mappings));
                 return NO_ERROR;
             }
         }
