@@ -139,7 +139,7 @@ struct AImageDecoder;
  * After creation, {@link AImageDecoder_getHeaderInfo} can be used to retrieve
  * information about the encoded image. Other functions, like
  * {@link AImageDecoder_setTargetSize}, can be used to specify how to decode, and
- * {@link AImageDecoder_decode} will decode into client provided memory.
+ * {@link AImageDecoder_decodeImage} will decode into client provided memory.
  *
  * {@link AImageDecoder} objects are NOT thread-safe, and should not be shared across
  * threads.
@@ -514,6 +514,10 @@ int32_t AImageDecoderHeaderInfo_getAndroidBitmapFormat(
  * {@link AImageDecoder_decodeImage} will premultiply pixels by default.
  *
  * Available since API level 30.
+ *
+ * Starting in API level 31, an AImageDecoder may contain multiple frames of an
+ * animation, but this method still only reports whether the first frame has
+ * alpha.
  */
 int AImageDecoderHeaderInfo_getAlphaFlags(
         const AImageDecoderHeaderInfo* _Nonnull) __INTRODUCED_IN(30);
@@ -753,6 +757,223 @@ int AImageDecoder_advanceFrame(AImageDecoder* _Nonnull decoder)
  *   descriptor failed to seek.
  */
 int AImageDecoder_rewind(AImageDecoder* _Nonnull decoder)
+        __INTRODUCED_IN(31);
+
+#endif // __ANDROID_API__ >= 31
+
+struct AImageDecoderFrameInfo;
+
+/**
+ * Opaque handle to animation information about a single frame.
+ *
+ * Introduced in API 31
+ *
+ * The duration (retrieved with {@link AImageDecoderFrameInfo_getDuration}) is
+ * necessary for clients to display the animation at the proper speed. The other
+ * information is helpful for a client that wants to determine what frames are
+ * independent (or what frames they depend on), but is unnecessary for
+ * a simple client that wants to sequentially display all frames.
+ */
+typedef struct AImageDecoderFrameInfo AImageDecoderFrameInfo;
+
+#if __ANDROID_API__ >= 31
+
+/**
+ * Create an uninitialized AImageDecoderFrameInfo.
+ *
+ * Introduced in API 31.
+ *
+ * This can be passed to {@link AImageDecoder_getFrameInfo} to fill
+ * in information about the current frame. It may be reused.
+ *
+ * Must be deleted with {@link AImageDecoderFrameInfo_delete}.
+ */
+AImageDecoderFrameInfo* _Nullable AImageDecoderFrameInfo_create()
+        __INTRODUCED_IN(31);
+
+/**
+ * Delete an AImageDecoderFrameInfo.
+ *
+ * Introduced in API 31.
+ */
+void AImageDecoderFrameInfo_delete(
+        AImageDecoderFrameInfo* _Nullable info) __INTRODUCED_IN(31);
+
+/**
+ * Fill |info| with information about the current frame.
+ *
+ * Introduced in API 31.
+ *
+ * Initially, this will return information about the first frame.
+ * {@link AImageDecoder_advanceFrame} and
+ * {@link AImageDecoder_rewind} can be used to change which frame
+ * is the current frame.
+ *
+ * If the image only has one frame, this will fill the {@link
+ * AImageDecoderFrameInfo} with the encoded info, if any, or reasonable
+ * defaults.
+ *
+ * @param decoder Opaque object representing the decoder.
+ * @param info Opaque object to hold frame information. On success, will be
+ *             filled with information regarding the current frame.
+ * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
+ *         indicating the reason for the failure.
+ *
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: One of the parameters is null.
+ * - {@link ANDROID_IMAGE_DECODER_FINISHED}: The input contains no
+ *   more frames. The client must call {@link AImageDecoder_rewind} to reset the
+ *   current frame to a valid frame (0).
+ */
+int AImageDecoder_getFrameInfo(AImageDecoder* _Nonnull decoder,
+        AImageDecoderFrameInfo* _Nonnull info) __INTRODUCED_IN(31);
+
+/**
+ * Report the number of nanoseconds to show the current frame.
+ *
+ * Introduced in API 31.
+ *
+ * Errors:
+ * - returns 0 if |info| is null.
+ */
+int64_t AImageDecoderFrameInfo_getDuration(
+        const AImageDecoderFrameInfo* _Nonnull info) __INTRODUCED_IN(31);
+
+/**
+ * The rectangle of the image (within 0, 0,
+ * {@link AImageDecoder_getWidth}, {@link AImageDecoder_getHeight})
+ * updated by this frame.
+ *
+ * Introduced in API 31.
+ *
+ * Note that this is unaffected by calls to
+ * {@link AImageDecoder_setTargetSize} or
+ * {@link AImageDecoder_setCrop}.
+ *
+ * A frame may update only part of the image. This will always be
+ * contained by the image’s dimensions.
+ *
+ * This, along with other information in AImageDecoderFrameInfo,
+ * can be useful for determining whether a frame is independent, but
+ * the decoder handles blending frames, so a simple
+ * sequential client does not need this.
+ *
+ * Errors:
+ * - returns an empty ARect if |info| is null.
+ */
+ARect AImageDecoderFrameInfo_getFrameRect(
+        const AImageDecoderFrameInfo* _Nonnull info) __INTRODUCED_IN(31);
+
+/**
+ * Whether the new portion of this frame may contain alpha.
+ *
+ * Introduced in API 31.
+ *
+ * Note that this may differ from whether the composed frame has
+ * alpha. If this frame does not fill the entire image dimensions
+ * (see {@link AImageDecoderFrameInfo_getFrameRect}) or it blends
+ * with an opaque frame, for example, the composed frame’s alpha
+ * may not match. It is also conservative; for example, if a color
+ * index-based frame has a color with alpha but does not use it,
+ * this will still return true.
+ *
+ * This, along with other information in AImageDecoderFrameInfo,
+ * can be useful for determining whether a frame is independent, but
+ * the decoder handles blending frames, so a simple
+ * sequential client does not need this.
+ *
+ * Errors:
+ * - returns false if |info| is null.
+ */
+bool AImageDecoderFrameInfo_hasAlphaWithinBounds(
+        const AImageDecoderFrameInfo* _Nonnull info) __INTRODUCED_IN(31);
+
+#endif // __ANDROID_API__ >= 31
+
+/**
+ * How a frame is “disposed” before showing the next one.
+ *
+ * Introduced in API 31.
+ *
+ * This, along with other information in AImageDecoderFrameInfo,
+ * can be useful for determining whether a frame is independent, but
+ * the decoder handles disposing of frames, so a simple
+ * sequential client does not need this.
+ */
+enum {
+    // No disposal. The following frame will be drawn directly
+    // on top of this one.
+    ANDROID_IMAGE_DECODER_DISPOSE_OP_NONE = 1,
+    // The frame’s rectangle is cleared (by AImageDecoder) before
+    // decoding the next frame.
+    ANDROID_IMAGE_DECODER_DISPOSE_OP_BACKGROUND = 2,
+    // The frame’s rectangle is reverted (by AImageDecoder) to the
+    // prior frame before decoding the next frame.
+    ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS = 3,
+};
+
+#if __ANDROID_API__ >= 31
+
+/**
+ * Return how this frame is “disposed” before showing the next one.
+ *
+ * Introduced in API 31.
+ *
+ * This, along with other information in AImageDecoderFrameInfo,
+ * can be useful for determining whether a frame is independent, but
+ * the decoder handles disposing of frames, so a simple
+ * sequential client does not need this.
+ *
+ * @return one of:
+ * - {@link ANDROID_IMAGE_DECODER_DISPOSE_OP_NONE}
+ * - {@link ANDROID_IMAGE_DECODER_DISPOSE_OP_BACKGROUND}
+ * - {@link ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS}
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER} if |info| is null.
+ */
+int32_t AImageDecoderFrameInfo_getDisposeOp(
+        const AImageDecoderFrameInfo* _Nonnull info) __INTRODUCED_IN(31);
+
+#endif // __ANDROID_API__ >= 31
+
+/**
+ * How a frame is blended with the previous frame.
+ *
+ * Introduced in API 31.
+ *
+ * This, along with other information in AImageDecoderFrameInfo,
+ * can be useful for determining whether a frame is independent, but
+ * the decoder handles blending frames, so a simple
+ * sequential client does not need this.
+ */
+enum {
+    // This frame replaces existing content. This corresponds
+    // to webp’s “do not blend”.
+    ANDROID_IMAGE_DECODER_BLEND_OP_SRC = 1,
+    // This frame blends with the previous frame.
+    ANDROID_IMAGE_DECODER_BLEND_OP_SRC_OVER = 2,
+};
+
+#if __ANDROID_API__ >= 31
+
+/**
+ * Return how this frame is blended with the previous frame.
+ *
+ * Introduced in API 31.
+ *
+ * This, along with other information in AImageDecoderFrameInfo,
+ * can be useful for determining whether a frame is independent, but
+ * the decoder handles blending frames, so a simple
+ * sequential client does not need this.
+ *
+ * @return one of:
+ * - {@link ANDROID_IMAGE_DECODER_BLEND_OP_SRC}
+ * - {@link ANDROID_IMAGE_DECODER_BLEND_OP_SRC_OVER}
+ * Errors:
+ * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER} if |info| is null.
+ */
+int32_t AImageDecoderFrameInfo_getBlendOp(
+        const AImageDecoderFrameInfo* _Nonnull info)
         __INTRODUCED_IN(31);
 
 #endif // __ANDROID_API__ >= 31
