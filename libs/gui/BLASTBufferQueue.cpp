@@ -600,6 +600,14 @@ public:
         return BufferQueueProducer::connect(new AsyncProducerListener(listener), api,
                                             producerControlledByApp, output);
     }
+
+    int query(int what, int* value) override {
+        if (what == NATIVE_WINDOW_QUEUES_TO_WINDOW_COMPOSER) {
+            *value = 1;
+            return NO_ERROR;
+        }
+        return BufferQueueProducer::query(what, value);
+    }
 };
 
 // Similar to BufferQueue::createBufferQueue but creates an adapter specific bufferqueue producer.
