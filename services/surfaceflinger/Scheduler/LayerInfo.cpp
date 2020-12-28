@@ -54,7 +54,7 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUp
             break;
         case LayerUpdateType::SetFrameRate:
         case LayerUpdateType::Buffer:
-            FrameTimeData frameTime = {.presetTime = lastPresentTime,
+            FrameTimeData frameTime = {.presentTime = lastPresentTime,
                                        .queueTime = mLastUpdatedTime,
                                        .pendingConfigChange = pendingConfigChange};
             mFrameTimes.push_back(frameTime);
@@ -74,7 +74,7 @@ bool LayerInfo::isFrameTimeValid(const FrameTimeData& frameTime) const {
 bool LayerInfo::isFrequent(nsecs_t now) const {
     // If we know nothing about this layer we consider it as frequent as it might be the start
     // of an animation.
-    if (mFrameTimes.size() < FREQUENT_LAYER_WINDOW_SIZE) {
+    if (mFrameTimes.size() < kFrequentLayerWindowSize) {
         return true;
     }
 
@@ -87,14 +87,14 @@ bool LayerInfo::isFrequent(nsecs_t now) const {
     }
 
     const auto numFrames = std::distance(it, mFrameTimes.end());
-    if (numFrames < FREQUENT_LAYER_WINDOW_SIZE) {
+    if (numFrames < kFrequentLayerWindowSize) {
         return false;
     }
 
     // Layer is considered frequent if the average frame rate is higher than the threshold
     const auto totalTime = mFrameTimes.back().queueTime - it->queueTime;
     return Fps::fromPeriodNsecs(totalTime / (numFrames - 1))
-            .greaterThanOrEqualWithMargin(MIN_FPS_FOR_FREQUENT_LAYER);
+            .greaterThanOrEqualWithMargin(kMinFpsForFrequentLayer);
 }
 
 bool LayerInfo::isAnimating(nsecs_t now) const {
@@ -124,32 +124,21 @@ bool LayerInfo::hasEnoughDataForHeuristic() const {
 }
 
 std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
-    nsecs_t totalPresentTimeDeltas = 0;
-    nsecs_t totalQueueTimeDeltas = 0;
-    bool missingPresentTime = false;
-    int numFrames = 0;
-    for (auto it = mFrameTimes.begin(); it != mFrameTimes.end() - 1; ++it) {
-        // Ignore frames captured during a config change
-        if (it->pendingConfigChange || (it + 1)->pendingConfigChange) {
-            return std::nullopt;
-        }
+    // Ignore frames captured during a config change
+    const bool isDuringConfigChange =
+            std::any_of(mFrameTimes.begin(), mFrameTimes.end(),
+                        [](auto frame) { return frame.pendingConfigChange; });
+    if (isDuringConfigChange) {
+        return std::nullopt;
+    }
 
-        totalQueueTimeDeltas +=
-                std::max(((it + 1)->queueTime - it->queueTime), kMinPeriodBetweenFrames);
-        numFrames++;
-
-        if (!missingPresentTime && (it->presetTime == 0 || (it + 1)->presetTime == 0)) {
-            missingPresentTime = true;
-            // If there are no presentation timestamps and we haven't calculated
-            // one in the past then we can't calculate the refresh rate
-            if (!mLastRefreshRate.reported.isValid()) {
-                return std::nullopt;
-            }
-            continue;
-        }
-
-        totalPresentTimeDeltas +=
-                std::max(((it + 1)->presetTime - it->presetTime), kMinPeriodBetweenFrames);
+    const bool isMissingPresentTime =
+            std::any_of(mFrameTimes.begin(), mFrameTimes.end(),
+                        [](auto frame) { return frame.presentTime == 0; });
+    if (isMissingPresentTime && !mLastRefreshRate.reported.isValid()) {
+        // If there are no presentation timestamps and we haven't calculated
+        // one in the past then we can't calculate the refresh rate
+        return std::nullopt;
     }
 
     // Calculate the average frame time based on presentation timestamps. If those
@@ -160,9 +149,35 @@ std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
     // presentation timestamps we look at the queue time to see if the current refresh rate still
     // matches the content.
 
-    const auto averageFrameTime =
-            static_cast<float>(missingPresentTime ? totalQueueTimeDeltas : totalPresentTimeDeltas) /
-            numFrames;
+    auto getFrameTime = isMissingPresentTime ? [](FrameTimeData data) { return data.queueTime; }
+                                             : [](FrameTimeData data) { return data.presentTime; };
+
+    nsecs_t totalDeltas = 0;
+    int numDeltas = 0;
+    auto prevFrame = mFrameTimes.begin();
+    for (auto it = mFrameTimes.begin() + 1; it != mFrameTimes.end(); ++it) {
+        const auto currDelta = getFrameTime(*it) - getFrameTime(*prevFrame);
+        if (currDelta < kMinPeriodBetweenFrames) {
+            // Skip this frame, but count the delta into the next frame
+            continue;
+        }
+
+        prevFrame = it;
+
+        if (currDelta > kMaxPeriodBetweenFrames) {
+            // Skip this frame and the current delta.
+            continue;
+        }
+
+        totalDeltas += currDelta;
+        numDeltas++;
+    }
+
+    if (numDeltas == 0) {
+        return std::nullopt;
+    }
+
+    const auto averageFrameTime = static_cast<double>(totalDeltas) / static_cast<double>(numDeltas);
     return static_cast<nsecs_t>(averageFrameTime);
 }
 

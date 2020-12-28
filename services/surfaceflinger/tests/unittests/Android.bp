@@ -49,6 +49,7 @@ cc_test {
         "HWComposerTest.cpp",
         "OneShotTimerTest.cpp",
         "LayerHistoryTest.cpp",
+        "LayerInfoTest.cpp",
         "LayerMetadataTest.cpp",
         "MessageQueueTest.cpp",
         "SurfaceFlinger_CreateDisplayTest.cpp",
