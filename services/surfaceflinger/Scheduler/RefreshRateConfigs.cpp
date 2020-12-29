@@ -17,6 +17,10 @@
 // #define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wextra"
+
 #include "RefreshRateConfigs.h"
 #include <android-base/stringprintf.h>
 #include <utils/Trace.h>
@@ -714,3 +718,6 @@ void RefreshRateConfigs::dump(std::string& result) const {
 }
 
 } // namespace android::scheduler
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wextra"
