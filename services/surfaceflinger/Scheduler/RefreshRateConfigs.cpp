@@ -390,8 +390,9 @@ std::vector<RefreshRateScore> initializeScoresForAllRefreshRates(
 RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverrides(
         const std::vector<LayerRequirement>& layers, Fps displayFrameRate) const {
     ATRACE_CALL();
-    ALOGV("getFrameRateOverrides %zu layers", layers.size());
+    if (!mSupportsFrameRateOverride) return {};
 
+    ALOGV("getFrameRateOverrides %zu layers", layers.size());
     std::lock_guard lock(mLock);
     std::vector<RefreshRateScore> scores = initializeScoresForAllRefreshRates(mRefreshRates);
     std::unordered_map<uid_t, std::vector<const LayerRequirement*>> layersByUid =
@@ -547,6 +548,16 @@ RefreshRateConfigs::RefreshRateConfigs(
     mDisplayManagerPolicy.defaultConfig = currentConfigId;
     mMinSupportedRefreshRate = sortedConfigs.front();
     mMaxSupportedRefreshRate = sortedConfigs.back();
+
+    mSupportsFrameRateOverride = false;
+    for (const auto& config1 : sortedConfigs) {
+        for (const auto& config2 : sortedConfigs) {
+            if (getFrameRateDivider(config1->getFps(), config2->getFps()) >= 2) {
+                mSupportsFrameRateOverride = true;
+                break;
+            }
+        }
+    }
     constructAvailableRefreshRates();
 }
 
@@ -783,6 +794,8 @@ void RefreshRateConfigs::dump(std::string& result) const {
         base::StringAppendF(&result, "\t%s\n", refreshRate->toString().c_str());
     }
 
+    base::StringAppendF(&result, "Supports Frame Rate Override: %s\n",
+                        mSupportsFrameRateOverride ? "yes" : "no");
     result.append("\n");
 }
 

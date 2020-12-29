@@ -237,6 +237,7 @@ private:
             EXCLUDES(mFrameRateOverridesMutex);
 
     std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mFrameRateOverridesMutex);
+    impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const;
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
