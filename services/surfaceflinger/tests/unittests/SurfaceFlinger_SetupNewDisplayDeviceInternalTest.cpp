@@ -223,6 +223,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     // Various native window calls will be made.
     Case::Display::setupNativeWindowSurfaceCreationCallExpectations(this);
     Case::Display::setupHwcGetActiveConfigCallExpectations(this);
+    Case::Display::setupHwcGetConfigsCallExpectations(this);
     Case::WideColorSupport::setupComposerCallExpectations(this);
     Case::HdrSupport::setupComposerCallExpectations(this);
     Case::PerFrameMetadataSupport::setupComposerCallExpectations(this);
@@ -236,6 +237,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
         ASSERT_TRUE(hwcDisplayId);
+        mFlinger.getHwComposer().allocatePhysicalDisplay(*hwcDisplayId, *displayId);
         state.physical = {.id = *displayId, .type = *connectionType, .hwcDisplayId = *hwcDisplayId};
     }
 
