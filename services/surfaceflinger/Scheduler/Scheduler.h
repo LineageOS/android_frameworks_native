@@ -101,7 +101,7 @@ public:
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
 
-    void getDisplayStatInfo(DisplayStatInfo* stats, nsecs_t now);
+    DisplayStatInfo getDisplayStatInfo(nsecs_t now);
 
     // Returns injector handle if injection has toggled, or an invalid handle otherwise.
     ConnectionHandle enableVSyncInjection(bool enable);

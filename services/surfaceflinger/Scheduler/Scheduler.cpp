@@ -426,9 +426,10 @@ void Scheduler::setDuration(ConnectionHandle handle, std::chrono::nanoseconds wo
     thread->setDuration(workDuration, readyDuration);
 }
 
-void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats, nsecs_t now) {
-    stats->vsyncTime = mVsyncSchedule.tracker->nextAnticipatedVSyncTimeFrom(now);
-    stats->vsyncPeriod = mVsyncSchedule.tracker->currentPeriod();
+DisplayStatInfo Scheduler::getDisplayStatInfo(nsecs_t now) {
+    const auto vsyncTime = mVsyncSchedule.tracker->nextAnticipatedVSyncTimeFrom(now);
+    const auto vsyncPeriod = mVsyncSchedule.tracker->currentPeriod();
+    return DisplayStatInfo{.vsyncTime = vsyncTime, .vsyncPeriod = vsyncPeriod};
 }
 
 Scheduler::ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
