@@ -1440,7 +1440,9 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
 
 status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     Mutex::Autolock lock(mStateLock);
-    const auto expectedPresent = calculateExpectedPresentTime(when);
+    DisplayStatInfo stats;
+    mScheduler->getDisplayStatInfo(&stats, when);
+    const auto expectedPresent = calculateExpectedPresentTime(stats);
     return mScheduler->injectVSync(when, /*expectedVSyncTime=*/expectedPresent,
                                    /*deadlineTimestamp=*/expectedPresent)
             ? NO_ERROR
@@ -1719,9 +1721,7 @@ nsecs_t SurfaceFlinger::previousFramePresentTime() {
     return fence->getSignalTime();
 }
 
-nsecs_t SurfaceFlinger::calculateExpectedPresentTime(nsecs_t now) const {
-    DisplayStatInfo stats;
-    mScheduler->getDisplayStatInfo(&stats, now);
+nsecs_t SurfaceFlinger::calculateExpectedPresentTime(DisplayStatInfo stats) const {
     // Inflate the expected present time if we're targetting the next vsync.
     return mVsyncModulator->getVsyncConfig().sfOffset > 0 ? stats.vsyncTime
                                                           : stats.vsyncTime + stats.vsyncPeriod;
@@ -3362,11 +3362,17 @@ status_t SurfaceFlinger::setTransactionState(
     const bool pendingTransactions = itr != mTransactionQueues.end();
     // Expected present time is computed and cached on invalidate, so it may be stale.
     if (!pendingTransactions) {
+        const auto now = systemTime();
+        const bool nextVsyncPending = now < mExpectedPresentTime.load();
+        DisplayStatInfo stats;
+        mScheduler->getDisplayStatInfo(&stats, now);
+        mExpectedPresentTime = calculateExpectedPresentTime(stats);
         // The transaction might arrive just before the next vsync but after
         // invalidate was called. In that case we need to get the next vsync
         // afterwards.
-        const auto referenceTime = std::max(mExpectedPresentTime.load(), systemTime());
-        mExpectedPresentTime = calculateExpectedPresentTime(referenceTime);
+        if (nextVsyncPending) {
+            mExpectedPresentTime += stats.vsyncPeriod;
+        }
     }
 
     IPCThreadState* ipc = IPCThreadState::self();

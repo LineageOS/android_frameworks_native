@@ -950,7 +950,7 @@ private:
 
     // Calculates the expected present time for this frame. For negative offsets, performs a
     // correction using the predicted vsync for the next frame instead.
-    nsecs_t calculateExpectedPresentTime(nsecs_t now) const;
+    nsecs_t calculateExpectedPresentTime(DisplayStatInfo) const;
 
     /*
      * Display identification
