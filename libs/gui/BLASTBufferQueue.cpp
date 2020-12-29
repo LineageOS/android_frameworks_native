@@ -184,49 +184,64 @@ static void transactionCallbackThunk(void* context, nsecs_t latchTime,
 
 void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence>& /*presentFence*/,
                                            const std::vector<SurfaceControlStats>& stats) {
-    std::unique_lock _lock{mMutex};
-    ATRACE_CALL();
-    BQA_LOGV("transactionCallback");
-    mInitialCallbackReceived = true;
+    std::function<void(int64_t)> transactionCompleteCallback = nullptr;
+    uint64_t currFrameNumber = 0;
 
-    if (!stats.empty()) {
-        mTransformHint = stats[0].transformHint;
-        mBufferItemConsumer->setTransformHint(mTransformHint);
-        mBufferItemConsumer->updateFrameTimestamps(stats[0].frameEventStats.frameNumber,
-                                                   stats[0].frameEventStats.refreshStartTime,
-                                                   stats[0].frameEventStats.gpuCompositionDoneFence,
-                                                   stats[0].presentFence,
-                                                   stats[0].previousReleaseFence,
-                                                   stats[0].frameEventStats.compositorTiming,
-                                                   stats[0].latchTime,
-                                                   stats[0].frameEventStats.dequeueReadyTime);
-    }
-    if (mPendingReleaseItem.item.mGraphicBuffer != nullptr) {
+    {
+        std::unique_lock _lock{mMutex};
+        ATRACE_CALL();
+        BQA_LOGV("transactionCallback");
+        mInitialCallbackReceived = true;
+
         if (!stats.empty()) {
-            mPendingReleaseItem.releaseFence = stats[0].previousReleaseFence;
-        } else {
-            BQA_LOGE("Warning: no SurfaceControlStats returned in BLASTBufferQueue callback");
+            mTransformHint = stats[0].transformHint;
+            mBufferItemConsumer->setTransformHint(mTransformHint);
+            mBufferItemConsumer
+                    ->updateFrameTimestamps(stats[0].frameEventStats.frameNumber,
+                                            stats[0].frameEventStats.refreshStartTime,
+                                            stats[0].frameEventStats.gpuCompositionDoneFence,
+                                            stats[0].presentFence, stats[0].previousReleaseFence,
+                                            stats[0].frameEventStats.compositorTiming,
+                                            stats[0].latchTime,
+                                            stats[0].frameEventStats.dequeueReadyTime);
+        }
+        if (mPendingReleaseItem.item.mGraphicBuffer != nullptr) {
+            if (!stats.empty()) {
+                mPendingReleaseItem.releaseFence = stats[0].previousReleaseFence;
+            } else {
+                BQA_LOGE("Warning: no SurfaceControlStats returned in BLASTBufferQueue callback");
+                mPendingReleaseItem.releaseFence = nullptr;
+            }
+            mBufferItemConsumer->releaseBuffer(mPendingReleaseItem.item,
+                                               mPendingReleaseItem.releaseFence
+                                                       ? mPendingReleaseItem.releaseFence
+                                                       : Fence::NO_FENCE);
+            mNumAcquired--;
+            mPendingReleaseItem.item = BufferItem();
             mPendingReleaseItem.releaseFence = nullptr;
         }
-        mBufferItemConsumer->releaseBuffer(mPendingReleaseItem.item,
-                                           mPendingReleaseItem.releaseFence
-                                                   ? mPendingReleaseItem.releaseFence
-                                                   : Fence::NO_FENCE);
-        mNumAcquired--;
-        mPendingReleaseItem.item = BufferItem();
-        mPendingReleaseItem.releaseFence = nullptr;
+
+        if (mSubmitted.empty()) {
+            BQA_LOGE("ERROR: callback with no corresponding submitted buffer item");
+        }
+        mPendingReleaseItem.item = std::move(mSubmitted.front());
+        mSubmitted.pop();
+
+        processNextBufferLocked(false);
+
+        currFrameNumber = mPendingReleaseItem.item.mFrameNumber;
+        if (mTransactionCompleteCallback && mTransactionCompleteFrameNumber == currFrameNumber) {
+            transactionCompleteCallback = std::move(mTransactionCompleteCallback);
+            mTransactionCompleteFrameNumber = 0;
+        }
+
+        mCallbackCV.notify_all();
+        decStrong((void*)transactionCallbackThunk);
     }
 
-    if (mSubmitted.empty()) {
-        BQA_LOGE("ERROR: callback with no corresponding submitted buffer item");
+    if (transactionCompleteCallback) {
+        transactionCompleteCallback(currFrameNumber);
     }
-    mPendingReleaseItem.item = std::move(mSubmitted.front());
-    mSubmitted.pop();
-
-    processNextBufferLocked(false);
-
-    mCallbackCV.notify_all();
-    decStrong((void*)transactionCallbackThunk);
 }
 
 void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
@@ -394,6 +409,17 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
 
     // reject buffers if the buffer size doesn't match.
     return mSize != bufferSize;
+}
+
+void BLASTBufferQueue::setTransactionCompleteCallback(
+        uint64_t frameNumber, std::function<void(int64_t)>&& transactionCompleteCallback) {
+    std::lock_guard _lock{mMutex};
+    if (transactionCompleteCallback == nullptr) {
+        mTransactionCompleteCallback = nullptr;
+    } else {
+        mTransactionCompleteCallback = std::move(transactionCompleteCallback);
+        mTransactionCompleteFrameNumber = frameNumber;
+    }
 }
 
 // Check if we have acquired the maximum number of buffers.
