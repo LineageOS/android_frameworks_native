@@ -226,6 +226,10 @@ std::optional<Fps> Scheduler::getFrameRateOverride(uid_t uid) const {
 }
 
 bool Scheduler::isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const {
+    if (!mRefreshRateConfigs.supportsFrameRateOverride()) {
+        return true;
+    }
+
     const auto frameRate = getFrameRateOverride(uid);
     if (!frameRate.has_value()) {
         return true;
@@ -239,14 +243,22 @@ bool Scheduler::isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const {
     return mVsyncSchedule.tracker->isVSyncInPhase(expectedVsyncTimestamp, divider);
 }
 
+impl::EventThread::ThrottleVsyncCallback Scheduler::makeThrottleVsyncCallback() const {
+    if (!mRefreshRateConfigs.supportsFrameRateOverride()) {
+        return {};
+    }
+
+    return [this](nsecs_t expectedVsyncTimestamp, uid_t uid) {
+        return !isVsyncValid(expectedVsyncTimestamp, uid);
+    };
+}
+
 Scheduler::ConnectionHandle Scheduler::createConnection(
         const char* connectionName, frametimeline::TokenManager* tokenManager,
         std::chrono::nanoseconds workDuration, std::chrono::nanoseconds readyDuration,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     auto vsyncSource = makePrimaryDispSyncSource(connectionName, workDuration, readyDuration);
-    auto throttleVsync = [this](nsecs_t expectedVsyncTimestamp, uid_t uid) {
-        return !isVsyncValid(expectedVsyncTimestamp, uid);
-    };
+    auto throttleVsync = makeThrottleVsyncCallback();
     auto eventThread = std::make_unique<impl::EventThread>(std::move(vsyncSource), tokenManager,
                                                            std::move(interceptCallback),
                                                            std::move(throttleVsync));
@@ -414,9 +426,10 @@ void Scheduler::setDuration(ConnectionHandle handle, std::chrono::nanoseconds wo
     thread->setDuration(workDuration, readyDuration);
 }
 
-void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats, nsecs_t now) {
-    stats->vsyncTime = mVsyncSchedule.tracker->nextAnticipatedVSyncTimeFrom(now);
-    stats->vsyncPeriod = mVsyncSchedule.tracker->currentPeriod();
+DisplayStatInfo Scheduler::getDisplayStatInfo(nsecs_t now) {
+    const auto vsyncTime = mVsyncSchedule.tracker->nextAnticipatedVSyncTimeFrom(now);
+    const auto vsyncPeriod = mVsyncSchedule.tracker->currentPeriod();
+    return DisplayStatInfo{.vsyncTime = vsyncTime, .vsyncPeriod = vsyncPeriod};
 }
 
 Scheduler::ConnectionHandle Scheduler::enableVSyncInjection(bool enable) {
@@ -744,6 +757,10 @@ void Scheduler::dumpVsync(std::string& s) const {
 
 bool Scheduler::updateFrameRateOverrides(
         scheduler::RefreshRateConfigs::GlobalSignals consideredSignals, Fps displayRefreshRate) {
+    if (!mRefreshRateConfigs.supportsFrameRateOverride()) {
+        return false;
+    }
+
     if (consideredSignals.touch) {
         std::lock_guard lock(mFrameRateOverridesMutex);
         const bool changed = !mFrameRateOverridesByContent.empty();

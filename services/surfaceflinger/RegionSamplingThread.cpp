@@ -251,8 +251,7 @@ void RegionSamplingThread::doSample() {
         // If there is relatively little time left for surfaceflinger
         // until the next vsync deadline, defer this sampling work
         // to a later frame, when hopefully there will be more time.
-        DisplayStatInfo stats;
-        mScheduler.getDisplayStatInfo(&stats, systemTime());
+        const DisplayStatInfo stats = mScheduler.getDisplayStatInfo(systemTime());
         if (std::chrono::nanoseconds(stats.vsyncTime) - now < timeForRegionSampling) {
             ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForQuietFrame));
             mDiscardedFrames++;

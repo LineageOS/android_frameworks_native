@@ -102,7 +102,7 @@ public:
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
 
-    void getDisplayStatInfo(DisplayStatInfo* stats, nsecs_t now);
+    DisplayStatInfo getDisplayStatInfo(nsecs_t now);
 
     // Returns injector handle if injection has toggled, or an invalid handle otherwise.
     ConnectionHandle enableVSyncInjection(bool enable);
@@ -238,6 +238,7 @@ private:
             EXCLUDES(mFrameRateOverridesMutex);
 
     std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mFrameRateOverridesMutex);
+    impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const;
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {

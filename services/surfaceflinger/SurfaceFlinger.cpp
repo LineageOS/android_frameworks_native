@@ -964,7 +964,7 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* st
         return BAD_VALUE;
     }
 
-    mScheduler->getDisplayStatInfo(stats, systemTime());
+    *stats = mScheduler->getDisplayStatInfo(systemTime());
     return NO_ERROR;
 }
 
@@ -1441,8 +1441,7 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
 
 status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     Mutex::Autolock lock(mStateLock);
-    DisplayStatInfo stats;
-    mScheduler->getDisplayStatInfo(&stats, when);
+    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(when);
     const auto expectedPresent = calculateExpectedPresentTime(stats);
     return mScheduler->injectVSync(when, /*expectedVSyncTime=*/expectedPresent,
                                    /*deadlineTimestamp=*/expectedPresent)
@@ -1770,8 +1769,7 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     // Add some slop to correct for drift. This should generally be
     // smaller than a typical frame duration, but should not be so small
     // that it reports reasonable drift as a missed frame.
-    DisplayStatInfo stats;
-    mScheduler->getDisplayStatInfo(&stats, systemTime());
+    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(systemTime());
     const nsecs_t frameMissedSlop = stats.vsyncPeriod / 2;
     const nsecs_t previousPresentTime = previousFramePresentTime();
     const TracedOrdinal<bool> frameMissed = {"PrevFrameMissed",
@@ -2148,8 +2146,7 @@ void SurfaceFlinger::postComposition() {
     auto presentFenceTime = std::make_shared<FenceTime>(mPreviousPresentFences[0]);
     getBE().mDisplayTimeline.push(presentFenceTime);
 
-    DisplayStatInfo stats;
-    mScheduler->getDisplayStatInfo(&stats, systemTime());
+    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(systemTime());
 
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
@@ -3365,8 +3362,7 @@ status_t SurfaceFlinger::setTransactionState(
     if (!pendingTransactions) {
         const auto now = systemTime();
         const bool nextVsyncPending = now < mExpectedPresentTime.load();
-        DisplayStatInfo stats;
-        mScheduler->getDisplayStatInfo(&stats, now);
+        const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(now);
         mExpectedPresentTime = calculateExpectedPresentTime(stats);
         // The transaction might arrive just before the next vsync but after
         // invalidate was called. In that case we need to get the next vsync
