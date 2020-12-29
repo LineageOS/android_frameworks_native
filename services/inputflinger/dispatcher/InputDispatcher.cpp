@@ -321,6 +321,17 @@ static bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
 static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarget,
                                                           std::shared_ptr<EventEntry> eventEntry,
                                                           int32_t inputTargetFlags) {
+    if (eventEntry->type == EventEntry::Type::MOTION) {
+        const MotionEntry& motionEntry = static_cast<const MotionEntry&>(*eventEntry);
+        if (motionEntry.source & AINPUT_SOURCE_CLASS_JOYSTICK) {
+            const ui::Transform identityTransform;
+            // Use identity transform for joystick events events because they don't depend on
+            // the window info
+            return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, identityTransform,
+                                                   1.0f /*globalScaleFactor*/);
+        }
+    }
+
     if (inputTarget.useDefaultPointerTransform()) {
         const ui::Transform& transform = inputTarget.getDefaultPointerTransform();
         return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, transform,
