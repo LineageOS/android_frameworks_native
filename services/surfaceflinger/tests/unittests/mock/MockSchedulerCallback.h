@@ -29,6 +29,7 @@ struct SchedulerCallback final : ISchedulerCallback {
                       scheduler::RefreshRateConfigEvent));
     MOCK_METHOD0(repaintEverythingForHWC, void());
     MOCK_METHOD1(kernelTimerChanged, void(bool));
+    MOCK_METHOD0(triggerOnFrameRateOverridesChanged, void());
 };
 
 struct NoOpSchedulerCallback final : ISchedulerCallback {
@@ -37,6 +38,7 @@ struct NoOpSchedulerCallback final : ISchedulerCallback {
                            scheduler::RefreshRateConfigEvent) override {}
     void repaintEverythingForHWC() override {}
     void kernelTimerChanged(bool) override {}
+    void triggerOnFrameRateOverridesChanged() {}
 };
 
 } // namespace android::mock
