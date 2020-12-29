@@ -151,6 +151,19 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mPendingReleaseItem.releaseFence = nullptr;
 }
 
+BLASTBufferQueue::~BLASTBufferQueue() {
+    if (mPendingTransactions.empty()) {
+        return;
+    }
+    BQA_LOGE("Applying pending transactions on dtor %d",
+             static_cast<uint32_t>(mPendingTransactions.size()));
+    SurfaceComposerClient::Transaction t;
+    for (auto& [targetFrameNumber, transaction] : mPendingTransactions) {
+        t.merge(std::move(transaction));
+    }
+    t.apply();
+}
+
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height) {
     std::unique_lock _lock{mMutex};
     mSurfaceControl = surface;
@@ -312,6 +325,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     incStrong((void*)transactionCallbackThunk);
 
     mLastBufferScalingMode = bufferItem.mScalingMode;
+    mLastAcquiredFrameNumber = bufferItem.mFrameNumber;
 
     t->setBuffer(mSurfaceControl, buffer);
     t->setDataspace(mSurfaceControl, static_cast<ui::Dataspace>(bufferItem.mDataSpace));
@@ -341,14 +355,29 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
         mAutoRefresh = bufferItem.mAutoRefresh;
     }
 
+    auto mergeTransaction =
+            [&t, currentFrameNumber = bufferItem.mFrameNumber](
+                    std::tuple<uint64_t, SurfaceComposerClient::Transaction> pendingTransaction) {
+                auto& [targetFrameNumber, transaction] = pendingTransaction;
+                if (currentFrameNumber < targetFrameNumber) {
+                    return false;
+                }
+                t->merge(std::move(transaction));
+                return true;
+            };
+
+    mPendingTransactions.erase(std::remove_if(mPendingTransactions.begin(),
+                                              mPendingTransactions.end(), mergeTransaction),
+                               mPendingTransactions.end());
+
     if (applyTransaction) {
         t->apply();
     }
 
     BQA_LOGV("processNextBufferLocked size=%dx%d mFrameNumber=%" PRIu64
-             " applyTransaction=%s mTimestamp=%" PRId64,
+             " applyTransaction=%s mTimestamp=%" PRId64 " mPendingTransactions.size=%d",
              mSize.width, mSize.height, bufferItem.mFrameNumber, toString(applyTransaction),
-             bufferItem.mTimestamp);
+             bufferItem.mTimestamp, static_cast<uint32_t>(mPendingTransactions.size()));
 }
 
 Rect BLASTBufferQueue::computeCrop(const BufferItem& item) {
@@ -485,6 +514,17 @@ sp<Surface> BLASTBufferQueue::getSurface(bool includeSurfaceControlHandle) {
         scHandle = mSurfaceControl->getHandle();
     }
     return new BBQSurface(mProducer, true, scHandle, this);
+}
+
+void BLASTBufferQueue::mergeWithNextTransaction(SurfaceComposerClient::Transaction* t,
+                                                uint64_t frameNumber) {
+    std::lock_guard _lock{mMutex};
+    if (mLastAcquiredFrameNumber >= frameNumber) {
+        // Apply the transaction since we have already acquired the desired frame.
+        t->apply();
+    } else {
+        mPendingTransactions.emplace_back(frameNumber, std::move(*t));
+    }
 }
 
 // Maintains a single worker thread per process that services a list of runnables.
