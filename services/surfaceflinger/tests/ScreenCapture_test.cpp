@@ -837,3 +837,6 @@ TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresTransform) {
 }
 
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wconversion"

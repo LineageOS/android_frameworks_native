@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wextra"
+
 #include "gmock/gmock-spec-builders.h"
 #include "mock/MockTimeStats.h"
 #undef LOG_TAG
@@ -1333,3 +1337,6 @@ TEST_F(FrameTimelineTest, jankClassification_multiJankBufferStuffingAndAppDeadli
               JankType::AppDeadlineMissed | JankType::BufferStuffing);
 }
 } // namespace android::frametimeline
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wextra"

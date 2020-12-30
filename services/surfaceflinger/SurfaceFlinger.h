@@ -865,26 +865,12 @@ private:
     /*
      * H/W composer
      */
-
-    // The current hardware composer interface.
-    //
-    // The following thread safety rules apply when accessing mHwc, either
-    // directly or via getHwComposer():
-    //
-    // 1. When recreating mHwc, acquire mStateLock. Recreating mHwc must only be
-    //    done on the main thread.
-    //
-    // 2. When accessing mHwc on the main thread, it's not necessary to acquire
-    //    mStateLock.
-    //
-    // 3. When accessing mHwc on a thread other than the main thread, we always
+    // The following thread safety rules apply when accessing HWComposer:
+    // 1. When reading display state from HWComposer on the main thread, it's not necessary to
+    //    acquire mStateLock.
+    // 2. When accessing HWComposer on a thread other than the main thread, we always
     //    need to acquire mStateLock. This is because the main thread could be
-    //    in the process of destroying the current mHwc instance.
-    //
-    // The above thread safety rules only apply to SurfaceFlinger.cpp. In
-    // SurfaceFlinger_hwc1.cpp we create mHwc at surface flinger init and never
-    // destroy it, so it's always safe to access mHwc from any thread without
-    // acquiring mStateLock.
+    //    in the process of writing display state, e.g. creating or destroying a display.
     HWComposer& getHwComposer() const;
 
     /*
@@ -950,7 +936,7 @@ private:
 
     // Calculates the expected present time for this frame. For negative offsets, performs a
     // correction using the predicted vsync for the next frame instead.
-    nsecs_t calculateExpectedPresentTime(nsecs_t now) const;
+    nsecs_t calculateExpectedPresentTime(DisplayStatInfo) const;
 
     /*
      * Display identification

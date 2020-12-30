@@ -862,6 +862,8 @@ public:
 
     void setWindowScale(float xScale, float yScale) { setWindowTransform(xScale, 0, 0, yScale); }
 
+    void setWindowOffset(float offsetX, float offsetY) { mInfo.transform.set(offsetX, offsetY); }
+
     void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
         consumeEvent(AINPUT_EVENT_TYPE_KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
                      expectedFlags);
@@ -1785,6 +1787,71 @@ TEST_F(InputDispatcherTest, UnfocusedWindow_ReceivesMotionsButNotKeys) {
     window->assertNoEvents(); // Key event or focus event will not be received
 }
 
+TEST_F(InputDispatcherTest, PointerCancel_SendCancelWhenSplitTouch) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    // Create first non touch modal window that supports split touch
+    sp<FakeWindowHandle> firstWindow =
+            new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
+    firstWindow->setFrame(Rect(0, 0, 600, 400));
+    firstWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
+                          InputWindowInfo::Flag::SPLIT_TOUCH);
+
+    // Create second non touch modal window that supports split touch
+    sp<FakeWindowHandle> secondWindow =
+            new FakeWindowHandle(application, mDispatcher, "Second Window", ADISPLAY_ID_DEFAULT);
+    secondWindow->setFrame(Rect(0, 400, 600, 800));
+    secondWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
+                           InputWindowInfo::Flag::SPLIT_TOUCH);
+
+    // Add the windows to the dispatcher
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
+
+    PointF pointInFirst = {300, 200};
+    PointF pointInSecond = {300, 600};
+
+    // Send down to the first window
+    NotifyMotionArgs firstDownMotionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT, {pointInFirst});
+    mDispatcher->notifyMotion(&firstDownMotionArgs);
+    // Only the first window should get the down event
+    firstWindow->consumeMotionDown();
+    secondWindow->assertNoEvents();
+
+    // Send down to the second window
+    NotifyMotionArgs secondDownMotionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {pointInFirst, pointInSecond});
+    mDispatcher->notifyMotion(&secondDownMotionArgs);
+    // The first window gets a move and the second a down
+    firstWindow->consumeMotionMove();
+    secondWindow->consumeMotionDown();
+
+    // Send pointer cancel to the second window
+    NotifyMotionArgs pointerUpMotionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_UP |
+                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {pointInFirst, pointInSecond});
+    pointerUpMotionArgs.flags |= AMOTION_EVENT_FLAG_CANCELED;
+    mDispatcher->notifyMotion(&pointerUpMotionArgs);
+    // The first window gets move and the second gets cancel.
+    firstWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_CANCELED);
+    secondWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_CANCELED);
+
+    // Send up event.
+    NotifyMotionArgs upMotionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&upMotionArgs);
+    // The first window gets up and the second gets nothing.
+    firstWindow->consumeMotionUp();
+    secondWindow->assertNoEvents();
+}
+
 class FakeMonitorReceiver {
 public:
     FakeMonitorReceiver(const sp<InputDispatcher>& dispatcher, const std::string name,
@@ -2049,6 +2116,50 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
     EXPECT_EQ(motionArgs.flags & VERIFIED_MOTION_EVENT_FLAGS, verifiedMotion.flags);
     EXPECT_EQ(motionArgs.metaState, verifiedMotion.metaState);
     EXPECT_EQ(motionArgs.buttonState, verifiedMotion.buttonState);
+}
+
+TEST_F(InputDispatcherTest, NonPointerMotionEvent_JoystickNotTransformed) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
+    const std::string name = window->getName();
+
+    // Window gets transformed by offset values.
+    window->setWindowOffset(500.0f, 500.0f);
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    window->setFocusable(true);
+
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+
+    // First, we set focused window so that focusedWindowHandle is not null.
+    setFocusedWindow(window);
+
+    // Second, we consume focus event if it is right or wrong according to onFocusChangedLocked.
+    window->consumeFocusEvent(true);
+
+    NotifyMotionArgs motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_MOVE,
+                                                     AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&motionArgs);
+
+    // Third, we consume motion event.
+    InputEvent* event = window->consume();
+    ASSERT_NE(event, nullptr);
+    ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType())
+            << name.c_str() << "expected " << inputEventTypeToString(AINPUT_EVENT_TYPE_MOTION)
+            << " event, got " << inputEventTypeToString(event->getType()) << " event";
+
+    const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
+    EXPECT_EQ(AINPUT_EVENT_TYPE_MOTION, motionEvent.getAction());
+
+    float expectedX = motionArgs.pointerCoords[0].getX();
+    float expectedY = motionArgs.pointerCoords[0].getY();
+
+    // Finally we test if the axis values from the final motion event are not transformed
+    EXPECT_EQ(expectedX, motionEvent.getX(0)) << "expected " << expectedX << " for x coord of "
+                                              << name.c_str() << ", got " << motionEvent.getX(0);
+    EXPECT_EQ(expectedY, motionEvent.getY(0)) << "expected " << expectedY << " for y coord of "
+                                              << name.c_str() << ", got " << motionEvent.getY(0);
 }
 
 /**

@@ -17,6 +17,7 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
 
 #undef LOG_TAG
 #define LOG_TAG "CompositionTest"
@@ -1533,4 +1534,4 @@ TEST_F(CompositionTest, DebugOptionForcingClientCompositionOfBufferLayerWithDirt
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"

@@ -318,6 +318,8 @@ public:
     // refresh rates.
     KernelIdleTimerAction getIdleTimerAction() const;
 
+    bool supportsFrameRateOverride() const { return mSupportsFrameRateOverride; }
+
     // Returns a divider for the current refresh rate
     int getRefreshRateDivider(Fps frameRate) const EXCLUDES(mLock);
 
@@ -405,6 +407,8 @@ private:
     // A sorted list of known frame rates that a Heuristic layer will choose
     // from based on the closest value.
     const std::vector<Fps> mKnownFrameRates;
+
+    bool mSupportsFrameRateOverride;
 };
 
 } // namespace android::scheduler

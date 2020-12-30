@@ -144,7 +144,7 @@ void HandleTransactionLockedTest::verifyPhysicalDisplayIsConnected() {
     // SF should have a display token.
     const auto displayId = Case::Display::DISPLAY_ID::get();
     ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 1);
+    ASSERT_EQ(mFlinger.mutablePhysicalDisplayTokens().count(displayId), 1);
     auto& displayToken = mFlinger.mutablePhysicalDisplayTokens()[displayId];
 
     verifyDisplayIsConnected<Case>(displayToken);
@@ -256,14 +256,6 @@ void HandleTransactionLockedTest::processesHotplugDisconnectCommon() {
 }
 
 TEST_F(HandleTransactionLockedTest, processesHotplugConnectPrimaryDisplay) {
-    processesHotplugConnectCommon<SimplePrimaryDisplayCase>();
-}
-
-TEST_F(HandleTransactionLockedTest,
-       processesHotplugConnectPrimaryDisplayWithExternalAlreadyConnected) {
-    // Inject an external display.
-    ExternalDisplayVariant::injectHwcDisplay(this);
-
     processesHotplugConnectCommon<SimplePrimaryDisplayCase>();
 }
 

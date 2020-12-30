@@ -82,6 +82,7 @@ public:
     void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
             const std::vector<SurfaceControlStats>& stats);
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
+    void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
     void setTransactionCompleteCallback(uint64_t frameNumber,
                                         std::function<void(int64_t)>&& transactionCompleteCallback);
 
@@ -91,7 +92,7 @@ public:
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
     status_t setFrameTimelineVsync(int64_t frameTimelineVsyncId);
 
-    virtual ~BLASTBufferQueue() = default;
+    virtual ~BLASTBufferQueue();
 
 private:
     friend class BLASTBufferQueueHelper;
@@ -141,6 +142,9 @@ private:
     sp<BLASTBufferItemConsumer> mBufferItemConsumer;
 
     SurfaceComposerClient::Transaction* mNextTransaction GUARDED_BY(mMutex);
+    std::vector<std::tuple<uint64_t /* framenumber */, SurfaceComposerClient::Transaction>>
+            mPendingTransactions GUARDED_BY(mMutex);
+
     // If set to true, the next queue buffer will wait until the shadow queue has been processed by
     // the adapter.
     bool mFlushShadowQueue = false;
@@ -155,6 +159,9 @@ private:
     // layer size immediately or wait until we get the next buffer. This will support scenarios
     // where the layer can change sizes and the buffer will scale to fit the new size.
     uint32_t mLastBufferScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
+
+    // Tracks the last acquired frame number
+    uint64_t mLastAcquiredFrameNumber GUARDED_BY(mMutex) = 0;
 
     std::function<void(int64_t)> mTransactionCompleteCallback GUARDED_BY(mMutex) = nullptr;
     uint64_t mTransactionCompleteFrameNumber GUARDED_BY(mMutex){0};

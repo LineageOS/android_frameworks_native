@@ -42,7 +42,10 @@
 namespace android {
 namespace {
 
-namespace hal = android::hardware::graphics::composer::hal;
+namespace V2_1 = hardware::graphics::composer::V2_1;
+namespace V2_4 = hardware::graphics::composer::V2_4;
+
+using Hwc2::Config;
 
 using ::testing::_;
 using ::testing::DoAll;
@@ -168,6 +171,89 @@ TEST_F(HWComposerLayerGenericMetadataTest, forwardsSupportedMetadata) {
                                             kLayerGenericMetadata2Mandatory,
                                             kLayerGenericMetadata2Value);
     EXPECT_EQ(hal::Error::UNSUPPORTED, result);
+}
+
+class HWComposerConfigsTest : public testing::Test {
+public:
+    Hwc2::mock::Composer* mHal = new StrictMock<Hwc2::mock::Composer>();
+    MockHWC2ComposerCallback mCallback;
+
+    void setActiveConfig(Config config) {
+        EXPECT_CALL(*mHal, getActiveConfig(_, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(config), Return(V2_1::Error::NONE)));
+    }
+
+    void setDisplayConfigs(std::vector<Config> configs) {
+        EXPECT_CALL(*mHal, getDisplayConfigs(_, _))
+                .WillOnce(DoAll(SetArgPointee<1>(configs), Return(V2_1::Error::NONE)));
+        EXPECT_CALL(*mHal, getDisplayAttribute(_, _, _, _))
+                .WillRepeatedly(DoAll(SetArgPointee<3>(1), Return(V2_1::Error::NONE)));
+    }
+
+    void testSetActiveConfigWithConstraintsCommon(bool isVsyncPeriodSwitchSupported);
+};
+
+void HWComposerConfigsTest::testSetActiveConfigWithConstraintsCommon(
+        bool isVsyncPeriodSwitchSupported) {
+    EXPECT_CALL(*mHal, getMaxVirtualDisplayCount()).WillOnce(Return(0));
+    EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<hal::Capability>{}));
+    EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_)).WillOnce(Return(V2_4::Error::UNSUPPORTED));
+    EXPECT_CALL(*mHal, registerCallback(_));
+    EXPECT_CALL(*mHal, setVsyncEnabled(_, _)).WillRepeatedly(Return(V2_1::Error::NONE));
+    EXPECT_CALL(*mHal, getDisplayIdentificationData(_, _, _))
+            .WillRepeatedly(Return(V2_1::Error::UNSUPPORTED));
+    EXPECT_CALL(*mHal, setClientTargetSlotCount(_)).WillRepeatedly(Return(V2_1::Error::NONE));
+
+    EXPECT_CALL(*mHal, isVsyncPeriodSwitchSupported())
+            .WillRepeatedly(Return(isVsyncPeriodSwitchSupported));
+
+    if (isVsyncPeriodSwitchSupported) {
+        EXPECT_CALL(*mHal, setActiveConfigWithConstraints(_, _, _, _))
+                .WillRepeatedly(Return(V2_4::Error::NONE));
+    } else {
+        EXPECT_CALL(*mHal, setActiveConfig(_, _)).WillRepeatedly(Return(V2_1::Error::NONE));
+    }
+
+    impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
+    hwc.setConfiguration(&mCallback, 123);
+
+    setDisplayConfigs({15});
+    setActiveConfig(15);
+
+    const auto physicalId = PhysicalDisplayId::fromPort(0);
+    const hal::HWDisplayId hwcId = 0;
+    hwc.allocatePhysicalDisplay(hwcId, physicalId);
+
+    hal::VsyncPeriodChangeConstraints constraints;
+    constraints.desiredTimeNanos = systemTime();
+    constraints.seamlessRequired = false;
+
+    hal::VsyncPeriodChangeTimeline timeline = {0, 0, 0};
+    constexpr size_t kConfigIndex = 0;
+    const auto status =
+            hwc.setActiveConfigWithConstraints(physicalId, kConfigIndex, constraints, &timeline);
+    EXPECT_EQ(NO_ERROR, status);
+
+    const std::vector<Config> kConfigs{7, 8, 9, 10, 11};
+    // Change the set of supported modes.
+    setDisplayConfigs(kConfigs);
+    setActiveConfig(11);
+    hwc.onHotplug(hwcId, hal::Connection::CONNECTED);
+    hwc.allocatePhysicalDisplay(hwcId, physicalId);
+
+    for (size_t configIndex = 0; configIndex < kConfigs.size(); configIndex++) {
+        const auto status =
+                hwc.setActiveConfigWithConstraints(physicalId, configIndex, constraints, &timeline);
+        EXPECT_EQ(NO_ERROR, status) << "Error when switching to config " << configIndex;
+    }
+}
+
+TEST_F(HWComposerConfigsTest, setActiveConfigWithConstraintsWithVsyncSwitchingSupported) {
+    testSetActiveConfigWithConstraintsCommon(/*supported=*/true);
+}
+
+TEST_F(HWComposerConfigsTest, setActiveConfigWithConstraintsWithVsyncSwitchingNotSupported) {
+    testSetActiveConfigWithConstraintsCommon(/*supported=*/false);
 }
 
 } // namespace

@@ -3,6 +3,7 @@ cc_defaults {
     cflags: [
         "-Wall",
         "-Werror",
+        "-Wextra",
         "-Wformat",
         "-Wthread-safety",
         "-Wunused",

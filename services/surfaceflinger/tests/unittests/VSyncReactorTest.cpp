@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wextra"
+
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 #define LOG_NDEBUG 0
@@ -491,3 +495,6 @@ TEST_F(VSyncReactorTest, periodIsMeasuredIfIgnoringComposer) {
 }
 
 } // namespace android::scheduler
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wextra"
