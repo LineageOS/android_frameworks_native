@@ -17,6 +17,7 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
 
 //#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -250,8 +251,7 @@ void RegionSamplingThread::doSample() {
         // If there is relatively little time left for surfaceflinger
         // until the next vsync deadline, defer this sampling work
         // to a later frame, when hopefully there will be more time.
-        DisplayStatInfo stats;
-        mScheduler.getDisplayStatInfo(&stats, systemTime());
+        const DisplayStatInfo stats = mScheduler.getDisplayStatInfo(systemTime());
         if (std::chrono::nanoseconds(stats.vsyncTime) - now < timeForRegionSampling) {
             ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::waitForQuietFrame));
             mDiscardedFrames++;
@@ -501,4 +501,4 @@ void RegionSamplingThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"

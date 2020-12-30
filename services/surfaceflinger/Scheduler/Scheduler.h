@@ -26,8 +26,9 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
 #include <ui/GraphicTypes.h>
-#pragma clang diagnostic pop
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 #include "EventThread.h"
 #include "LayerHistory.h"
@@ -94,13 +95,14 @@ public:
     void onScreenAcquired(ConnectionHandle);
     void onScreenReleased(ConnectionHandle);
 
-    void onFrameRateOverridesChanged(ConnectionHandle, PhysicalDisplayId);
+    void onFrameRateOverridesChanged(ConnectionHandle, PhysicalDisplayId)
+            EXCLUDES(mFrameRateOverridesMutex) EXCLUDES(mConnectionsLock);
 
     // Modifies work duration in the event thread.
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
 
-    void getDisplayStatInfo(DisplayStatInfo* stats, nsecs_t now);
+    DisplayStatInfo getDisplayStatInfo(nsecs_t now);
 
     // Returns injector handle if injection has toggled, or an invalid handle otherwise.
     ConnectionHandle enableVSyncInjection(bool enable);
@@ -144,7 +146,8 @@ public:
 
     // Returns true if a given vsync timestamp is considered valid vsync
     // for a given uid
-    bool isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const;
+    bool isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const
+            EXCLUDES(mFrameRateOverridesMutex);
 
     void dump(std::string&) const;
     void dump(ConnectionHandle, std::string&) const;
@@ -171,7 +174,7 @@ public:
 
     // Stores the preferred refresh rate that an app should run at.
     // FrameRateOverride.refreshRateHz == 0 means no preference.
-    void setPreferredRefreshRateForUid(FrameRateOverride) EXCLUDES(mFeatureStateLock);
+    void setPreferredRefreshRateForUid(FrameRateOverride) EXCLUDES(mFrameRateOverridesMutex);
 
 private:
     friend class TestableScheduler;
@@ -231,9 +234,11 @@ private:
 
     void dispatchCachedReportedConfig() REQUIRES(mFeatureStateLock);
     bool updateFrameRateOverrides(scheduler::RefreshRateConfigs::GlobalSignals consideredSignals,
-                                  Fps displayRefreshRate) REQUIRES(mFeatureStateLock);
+                                  Fps displayRefreshRate) REQUIRES(mFeatureStateLock)
+            EXCLUDES(mFrameRateOverridesMutex);
 
-    std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mFeatureStateLock);
+    std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mFrameRateOverridesMutex);
+    impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const;
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -293,7 +298,6 @@ private:
         };
 
         std::optional<ConfigChangedParams> cachedConfigChangedParams;
-        scheduler::RefreshRateConfigs::UidToFrameRateOverride frameRateOverrides;
     } mFeatures GUARDED_BY(mFeatureStateLock);
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;
@@ -305,10 +309,16 @@ private:
 
     const std::unique_ptr<PredictedVsyncTracer> mPredictedVsyncTracer;
 
+    // The frame rate override lists need their own mutex as they are being read
+    // by SurfaceFlinger, Scheduler and EventThread (as a callback) to prevent deadlocks
+    mutable std::mutex mFrameRateOverridesMutex;
+
     // mappings between a UID and a preferred refresh rate that this app would
     // run at.
+    scheduler::RefreshRateConfigs::UidToFrameRateOverride mFrameRateOverridesByContent
+            GUARDED_BY(mFrameRateOverridesMutex);
     scheduler::RefreshRateConfigs::UidToFrameRateOverride mFrameRateOverridesFromBackdoor
-            GUARDED_BY(mFeatureStateLock);
+            GUARDED_BY(mFrameRateOverridesMutex);
 };
 
 } // namespace android

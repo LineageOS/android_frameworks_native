@@ -26,6 +26,7 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
 
 #include <android/hardware/graphics/common/1.1/types.h>
 #include <android/hardware/graphics/composer/2.4/IComposer.h>
@@ -38,7 +39,7 @@
 #include <utils/StrongPointer.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 namespace android {
 

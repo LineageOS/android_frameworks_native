@@ -17,6 +17,7 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
 
 #include <frameworks/native/cmds/surfacereplayer/proto/src/trace.pb.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
@@ -1043,4 +1044,4 @@ TEST_F(SurfaceInterceptorTest, InterceptSimultaneousUpdatesWorks) {
 }
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"

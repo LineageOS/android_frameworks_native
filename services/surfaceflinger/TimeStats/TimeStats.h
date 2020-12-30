@@ -20,11 +20,12 @@
 #include <cstdint>
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
 
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 #include <stats_event.h>
 #include <stats_pull_atom_callback.h>

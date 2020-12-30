@@ -17,6 +17,10 @@
 // #define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wextra"
+
 #include "RefreshRateConfigs.h"
 #include <android-base/stringprintf.h>
 #include <utils/Trace.h>
@@ -390,8 +394,9 @@ std::vector<RefreshRateScore> initializeScoresForAllRefreshRates(
 RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverrides(
         const std::vector<LayerRequirement>& layers, Fps displayFrameRate) const {
     ATRACE_CALL();
-    ALOGV("getFrameRateOverrides %zu layers", layers.size());
+    if (!mSupportsFrameRateOverride) return {};
 
+    ALOGV("getFrameRateOverrides %zu layers", layers.size());
     std::lock_guard lock(mLock);
     std::vector<RefreshRateScore> scores = initializeScoresForAllRefreshRates(mRefreshRates);
     std::unordered_map<uid_t, std::vector<const LayerRequirement*>> layersByUid =
@@ -528,6 +533,7 @@ RefreshRateConfigs::RefreshRateConfigs(
         HwcConfigIndexType currentConfigId)
       : mKnownFrameRates(constructKnownFrameRates(configs)) {
     LOG_ALWAYS_FATAL_IF(configs.empty());
+    LOG_ALWAYS_FATAL_IF(currentConfigId.value() < 0);
     LOG_ALWAYS_FATAL_IF(currentConfigId.value() >= configs.size());
 
     for (auto configId = HwcConfigIndexType(0); configId.value() < configs.size(); configId++) {
@@ -547,6 +553,16 @@ RefreshRateConfigs::RefreshRateConfigs(
     mDisplayManagerPolicy.defaultConfig = currentConfigId;
     mMinSupportedRefreshRate = sortedConfigs.front();
     mMaxSupportedRefreshRate = sortedConfigs.back();
+
+    mSupportsFrameRateOverride = false;
+    for (const auto& config1 : sortedConfigs) {
+        for (const auto& config2 : sortedConfigs) {
+            if (getFrameRateDivider(config1->getFps(), config2->getFps()) >= 2) {
+                mSupportsFrameRateOverride = true;
+                break;
+            }
+        }
+    }
     constructAvailableRefreshRates();
 }
 
@@ -783,7 +799,12 @@ void RefreshRateConfigs::dump(std::string& result) const {
         base::StringAppendF(&result, "\t%s\n", refreshRate->toString().c_str());
     }
 
+    base::StringAppendF(&result, "Supports Frame Rate Override: %s\n",
+                        mSupportsFrameRateOverride ? "yes" : "no");
     result.append("\n");
 }
 
 } // namespace android::scheduler
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wextra"
