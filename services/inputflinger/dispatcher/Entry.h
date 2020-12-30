@@ -38,6 +38,7 @@ struct EventEntry {
         MOTION,
         SENSOR,
         POINTER_CAPTURE_CHANGED,
+        DRAG,
     };
 
     int32_t id;
@@ -109,6 +110,18 @@ struct PointerCaptureChangedEntry : EventEntry {
     std::string getDescription() const override;
 
     virtual ~PointerCaptureChangedEntry();
+};
+
+struct DragEntry : EventEntry {
+    sp<IBinder> connectionToken;
+    bool isExiting;
+    float x, y;
+
+    DragEntry(int32_t id, nsecs_t eventTime, sp<IBinder> connectionToken, bool isExiting, float x,
+              float y);
+    std::string getDescription() const override;
+
+    ~DragEntry() override;
 };
 
 struct KeyEntry : EventEntry {
