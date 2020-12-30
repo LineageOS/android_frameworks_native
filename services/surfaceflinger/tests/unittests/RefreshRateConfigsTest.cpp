@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wextra"
+
 #undef LOG_TAG
 #define LOG_TAG "SchedulerUnittests"
 
@@ -1545,40 +1549,117 @@ TEST_F(RefreshRateConfigsTest, testKernelIdleTimerAction) {
     EXPECT_EQ(KernelIdleTimerAction::TurnOff, refreshRateConfigs->getIdleTimerAction());
 }
 
-TEST_F(RefreshRateConfigsTest, RefreshRateDividerForUnknownUid) {
-    auto refreshRateConfigs =
-            std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
-                                                 /*currentConfigId=*/HWC_CONFIG_ID_30);
-    EXPECT_EQ(1, refreshRateConfigs->getRefreshRateDividerForUid(1234));
-}
-
 TEST_F(RefreshRateConfigsTest, RefreshRateDividerForUid) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_30);
-    const uid_t uid = 1234;
-    refreshRateConfigs->setPreferredRefreshRateForUid({uid, 30});
-    EXPECT_EQ(1, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+
+    const auto frameRate = Fps(30.f);
+    EXPECT_EQ(1, refreshRateConfigs->getRefreshRateDivider(frameRate));
 
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_60);
-    EXPECT_EQ(2, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+    EXPECT_EQ(2, refreshRateConfigs->getRefreshRateDivider(frameRate));
 
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_72);
-    EXPECT_EQ(1, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+    EXPECT_EQ(0, refreshRateConfigs->getRefreshRateDivider(frameRate));
 
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
-    EXPECT_EQ(3, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+    EXPECT_EQ(3, refreshRateConfigs->getRefreshRateDivider(frameRate));
 
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_120);
-    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDivider(frameRate));
 
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
-    refreshRateConfigs->setPreferredRefreshRateForUid({uid, 22.5f});
-    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDividerForUid(uid));
-    refreshRateConfigs->setPreferredRefreshRateForUid({uid, 22.6f});
-    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDividerForUid(uid));
+    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDivider(Fps(22.5f)));
+    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDivider(Fps(22.6f)));
+}
+
+TEST_F(RefreshRateConfigsTest, populatePreferredFrameRate_noLayers) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device, /*currentConfigId=*/
+                                                 HWC_CONFIG_ID_120);
+
+    auto layers = std::vector<LayerRequirement>{};
+    ASSERT_TRUE(refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f)).empty());
+}
+
+TEST_F(RefreshRateConfigsTest, getFrameRateOverrides_60on120) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device, /*currentConfigId=*/
+                                                 HWC_CONFIG_ID_120);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    layers[0].name = "Test layer";
+    layers[0].ownerUid = 1234;
+    layers[0].desiredRefreshRate = Fps(60.0f);
+    layers[0].vote = LayerVoteType::ExplicitDefault;
+    auto frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    ASSERT_EQ(1, frameRateOverrides.size());
+    ASSERT_EQ(1, frameRateOverrides.count(1234));
+    ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
+
+    layers[0].vote = LayerVoteType::ExplicitExactOrMultiple;
+    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    ASSERT_EQ(1, frameRateOverrides.size());
+    ASSERT_EQ(1, frameRateOverrides.count(1234));
+    ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
+
+    layers[0].vote = LayerVoteType::NoVote;
+    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    ASSERT_TRUE(frameRateOverrides.empty());
+
+    layers[0].vote = LayerVoteType::Min;
+    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    ASSERT_TRUE(frameRateOverrides.empty());
+
+    layers[0].vote = LayerVoteType::Max;
+    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    ASSERT_TRUE(frameRateOverrides.empty());
+
+    layers[0].vote = LayerVoteType::Heuristic;
+    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    ASSERT_TRUE(frameRateOverrides.empty());
+}
+
+TEST_F(RefreshRateConfigsTest, populatePreferredFrameRate_twoUids) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device, /*currentConfigId=*/
+                                                 HWC_CONFIG_ID_120);
+
+    auto layers = std::vector<LayerRequirement>{
+            LayerRequirement{.ownerUid = 1234, .weight = 1.0f},
+            LayerRequirement{.ownerUid = 5678, .weight = 1.0f},
+    };
+
+    layers[0].name = "Test layer 1234";
+    layers[0].desiredRefreshRate = Fps(60.0f);
+    layers[0].vote = LayerVoteType::ExplicitDefault;
+
+    layers[1].name = "Test layer 5678";
+    layers[1].desiredRefreshRate = Fps(30.0f);
+    layers[1].vote = LayerVoteType::ExplicitDefault;
+    auto frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+
+    ASSERT_EQ(2, frameRateOverrides.size());
+    ASSERT_EQ(1, frameRateOverrides.count(1234));
+    ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
+    ASSERT_EQ(1, frameRateOverrides.count(5678));
+    ASSERT_EQ(30.0f, frameRateOverrides.at(5678).getValue());
+
+    layers[1].vote = LayerVoteType::Heuristic;
+    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    ASSERT_EQ(1, frameRateOverrides.size());
+    ASSERT_EQ(1, frameRateOverrides.count(1234));
+    ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
+
+    layers[1].ownerUid = 1234;
+    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    ASSERT_TRUE(frameRateOverrides.empty());
 }
 
 } // namespace
 } // namespace scheduler
 } // namespace android
+
+// TODO(b/129481165): remove the #pragma below and fix conversion issues
+#pragma clang diagnostic pop // ignored "-Wextra"

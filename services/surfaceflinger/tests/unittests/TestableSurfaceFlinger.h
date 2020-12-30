@@ -561,8 +561,15 @@ public:
                 const auto physicalId = PhysicalDisplayId::tryCast(mDisplayId);
                 LOG_ALWAYS_FATAL_IF(!physicalId);
                 flinger->mutableHwcPhysicalDisplayIdMap().emplace(mHwcDisplayId, *physicalId);
-                (mIsPrimary ? flinger->mutableInternalHwcDisplayId()
-                            : flinger->mutableExternalHwcDisplayId()) = mHwcDisplayId;
+                if (mIsPrimary) {
+                    flinger->mutableInternalHwcDisplayId() = mHwcDisplayId;
+                } else {
+                    // If there is an external HWC display there should always be an internal ID
+                    // as well. Set it to some arbitrary value.
+                    auto& internalId = flinger->mutableInternalHwcDisplayId();
+                    if (!internalId) internalId = mHwcDisplayId - 1;
+                    flinger->mutableExternalHwcDisplayId() = mHwcDisplayId;
+                }
             }
         }
 
@@ -691,6 +698,7 @@ private:
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ConfigEvent) override {}
     void repaintEverythingForHWC() override {}
     void kernelTimerChanged(bool) override {}
+    void triggerOnFrameRateOverridesChanged() {}
 
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);

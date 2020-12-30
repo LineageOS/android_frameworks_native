@@ -17,6 +17,7 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wextra"
 
 //#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -963,7 +964,7 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* st
         return BAD_VALUE;
     }
 
-    mScheduler->getDisplayStatInfo(stats, systemTime());
+    *stats = mScheduler->getDisplayStatInfo(systemTime());
     return NO_ERROR;
 }
 
@@ -1440,7 +1441,8 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
 
 status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     Mutex::Autolock lock(mStateLock);
-    const auto expectedPresent = calculateExpectedPresentTime(when);
+    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(when);
+    const auto expectedPresent = calculateExpectedPresentTime(stats);
     return mScheduler->injectVSync(when, /*expectedVSyncTime=*/expectedPresent,
                                    /*deadlineTimestamp=*/expectedPresent)
             ? NO_ERROR
@@ -1719,9 +1721,7 @@ nsecs_t SurfaceFlinger::previousFramePresentTime() {
     return fence->getSignalTime();
 }
 
-nsecs_t SurfaceFlinger::calculateExpectedPresentTime(nsecs_t now) const {
-    DisplayStatInfo stats;
-    mScheduler->getDisplayStatInfo(&stats, now);
+nsecs_t SurfaceFlinger::calculateExpectedPresentTime(DisplayStatInfo stats) const {
     // Inflate the expected present time if we're targetting the next vsync.
     return mVsyncModulator->getVsyncConfig().sfOffset > 0 ? stats.vsyncTime
                                                           : stats.vsyncTime + stats.vsyncPeriod;
@@ -1769,8 +1769,7 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     // Add some slop to correct for drift. This should generally be
     // smaller than a typical frame duration, but should not be so small
     // that it reports reasonable drift as a missed frame.
-    DisplayStatInfo stats;
-    mScheduler->getDisplayStatInfo(&stats, systemTime());
+    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(systemTime());
     const nsecs_t frameMissedSlop = stats.vsyncPeriod / 2;
     const nsecs_t previousPresentTime = previousFramePresentTime();
     const TracedOrdinal<bool> frameMissed = {"PrevFrameMissed",
@@ -2147,8 +2146,7 @@ void SurfaceFlinger::postComposition() {
     auto presentFenceTime = std::make_shared<FenceTime>(mPreviousPresentFences[0]);
     getBE().mDisplayTimeline.push(presentFenceTime);
 
-    DisplayStatInfo stats;
-    mScheduler->getDisplayStatInfo(&stats, systemTime());
+    const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(systemTime());
 
     // We use the CompositionEngine::getLastFrameRefreshTimestamp() which might
     // be sampled a little later than when we started doing work for this frame,
@@ -2890,10 +2888,19 @@ void SurfaceFlinger::changeRefreshRate(const RefreshRate& refreshRate,
                                        Scheduler::ConfigEvent event) {
     // If this is called from the main thread mStateLock must be locked before
     // Currently the only way to call this function from the main thread is from
-    // Sheduler::chooseRefreshRateForContent
+    // Scheduler::chooseRefreshRateForContent
 
     ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
     changeRefreshRateLocked(refreshRate, event);
+}
+
+void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
+    PhysicalDisplayId displayId = [&]() {
+        ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
+        return getDefaultDisplayDeviceLocked()->getPhysicalId();
+    }();
+
+    mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
 }
 
 void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
@@ -3353,11 +3360,16 @@ status_t SurfaceFlinger::setTransactionState(
     const bool pendingTransactions = itr != mTransactionQueues.end();
     // Expected present time is computed and cached on invalidate, so it may be stale.
     if (!pendingTransactions) {
+        const auto now = systemTime();
+        const bool nextVsyncPending = now < mExpectedPresentTime.load();
+        const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(now);
+        mExpectedPresentTime = calculateExpectedPresentTime(stats);
         // The transaction might arrive just before the next vsync but after
         // invalidate was called. In that case we need to get the next vsync
         // afterwards.
-        const auto referenceTime = std::max(mExpectedPresentTime.load(), systemTime());
-        mExpectedPresentTime = calculateExpectedPresentTime(referenceTime);
+        if (nextVsyncPending) {
+            mExpectedPresentTime += stats.vsyncPeriod;
+        }
     }
 
     IPCThreadState* ipc = IPCThreadState::self();
@@ -5364,11 +5376,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
 
                 auto inUid = static_cast<uid_t>(data.readInt32());
                 const auto refreshRate = data.readFloat();
-                mRefreshRateConfigs->setPreferredRefreshRateForUid(
-                        FrameRateOverride{inUid, refreshRate});
-                const auto mappings = mRefreshRateConfigs->getFrameRateOverrides();
-                mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId,
-                                                        std::move(mappings));
+                mScheduler->setPreferredRefreshRateForUid(FrameRateOverride{inUid, refreshRate});
+                mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
                 return NO_ERROR;
             }
         }
@@ -6393,4 +6402,4 @@ int SurfaceFlinger::getGPUContextPriority() {
 #endif
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
+#pragma clang diagnostic pop // ignored "-Wconversion -Wextra"

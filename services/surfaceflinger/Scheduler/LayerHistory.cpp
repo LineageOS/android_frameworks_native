@@ -142,8 +142,8 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
 
         const float layerArea = transformed.getWidth() * transformed.getHeight();
         float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
-        summary.push_back(
-                {strong->getName(), vote.type, vote.fps, vote.seamlessness, weight, layerFocused});
+        summary.push_back({strong->getName(), strong->getOwnerUid(), vote.type, vote.fps,
+                           vote.seamlessness, weight, layerFocused});
 
         if (CC_UNLIKELY(mTraceEnabled)) {
             trace(layer, *info, vote.type, vote.fps.getIntValue());

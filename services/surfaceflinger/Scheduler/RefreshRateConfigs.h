@@ -221,6 +221,8 @@ public:
     struct LayerRequirement {
         // Layer's name. Used for debugging purposes.
         std::string name;
+        // Layer's owner uid
+        uid_t ownerUid = static_cast<uid_t>(-1);
         // Layer vote type.
         LayerVoteType vote = LayerVoteType::NoVote;
         // Layer's desired refresh rate, if applicable.
@@ -316,17 +318,17 @@ public:
     // refresh rates.
     KernelIdleTimerAction getIdleTimerAction() const;
 
-    // Stores the preferred refresh rate that an app should run at.
-    // FrameRateOverride.refreshRateHz == 0 means no preference.
-    void setPreferredRefreshRateForUid(FrameRateOverride) EXCLUDES(mLock);
+    bool supportsFrameRateOverride() const { return mSupportsFrameRateOverride; }
 
     // Returns a divider for the current refresh rate
-    int getRefreshRateDividerForUid(uid_t) const EXCLUDES(mLock);
+    int getRefreshRateDivider(Fps frameRate) const EXCLUDES(mLock);
+
+    // Returns the frame rate override for each uid
+    using UidToFrameRateOverride = std::map<uid_t, Fps>;
+    UidToFrameRateOverride getFrameRateOverrides(const std::vector<LayerRequirement>& layers,
+                                                 Fps displayFrameRate) const EXCLUDES(mLock);
 
     void dump(std::string& result) const EXCLUDES(mLock);
-
-    // Returns the current frame rate overrides
-    std::vector<FrameRateOverride> getFrameRateOverrides() EXCLUDES(mLock);
 
 private:
     friend class RefreshRateConfigsTest;
@@ -364,6 +366,16 @@ private:
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
     bool isPolicyValid(const Policy& policy);
 
+    // Return the display refresh rate divider to match the layer
+    // frame rate, or 0 if the display refresh rate is not a multiple of the
+    // layer refresh rate.
+    static int getFrameRateDivider(Fps displayFrameRate, Fps layerFrameRate);
+
+    // calculates a score for a layer. Used to determine the display refresh rate
+    // and the frame rate override for certains applications.
+    float calculateLayerScoreLocked(const LayerRequirement&, const RefreshRate&,
+                                    bool isSeamlessSwitch) const REQUIRES(mLock);
+
     // The list of refresh rates, indexed by display config ID. This must not change after this
     // object is initialized.
     AllRefreshRatesMapType mRefreshRates;
@@ -385,10 +397,6 @@ private:
     Policy mDisplayManagerPolicy GUARDED_BY(mLock);
     std::optional<Policy> mOverridePolicy GUARDED_BY(mLock);
 
-    // A mapping between a UID and a preferred refresh rate that this app would
-    // run at.
-    std::unordered_map<uid_t, Fps> mPreferredRefreshRateForUid GUARDED_BY(mLock);
-
     // The min and max refresh rates supported by the device.
     // This will not change at runtime.
     const RefreshRate* mMinSupportedRefreshRate;
@@ -399,6 +407,8 @@ private:
     // A sorted list of known frame rates that a Heuristic layer will choose
     // from based on the closest value.
     const std::vector<Fps> mKnownFrameRates;
+
+    bool mSupportsFrameRateOverride;
 };
 
 } // namespace android::scheduler
