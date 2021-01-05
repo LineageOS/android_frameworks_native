@@ -113,6 +113,8 @@ private:
 
     void setPointerCapture(bool enabled) override {}
 
+    void notifyDropWindow(const sp<IBinder>&, float x, float y) override {}
+
     InputDispatcherConfiguration mConfig;
 };
 

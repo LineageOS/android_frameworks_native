@@ -2345,6 +2345,10 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry, TouchState& s
         }
     } else if (maskedAction == AMOTION_EVENT_ACTION_UP ||
                maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
+        if (state.dragHoverWindowHandle && maskedAction == AMOTION_EVENT_ACTION_UP) {
+            vec2 local = state.dragHoverWindowHandle->getInfo()->transform.transform(x, y);
+            notifyDropWindowLocked(state.dragHoverWindowHandle->getToken(), local.x, local.y);
+        }
         state.dragWindow = nullptr;
         state.dragHoverWindowHandle = nullptr;
     }
@@ -5302,6 +5306,15 @@ void InputDispatcher::notifyFocusChangedLocked(const sp<IBinder>& oldToken,
     postCommandLocked(std::move(commandEntry));
 }
 
+void InputDispatcher::notifyDropWindowLocked(const sp<IBinder>& token, float x, float y) {
+    std::unique_ptr<CommandEntry> commandEntry =
+            std::make_unique<CommandEntry>(&InputDispatcher::doNotifyDropWindowLockedInterruptible);
+    commandEntry->newToken = token;
+    commandEntry->x = x;
+    commandEntry->y = y;
+    postCommandLocked(std::move(commandEntry));
+}
+
 void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
     if (connection == nullptr) {
         LOG_ALWAYS_FATAL("Caller must check for nullness");
@@ -5408,6 +5421,13 @@ void InputDispatcher::doNotifyFocusChangedLockedInterruptible(CommandEntry* comm
     sp<IBinder> newToken = commandEntry->newToken;
     mLock.unlock();
     mPolicy->notifyFocusChanged(oldToken, newToken);
+    mLock.lock();
+}
+
+void InputDispatcher::doNotifyDropWindowLockedInterruptible(CommandEntry* commandEntry) {
+    sp<IBinder> newToken = commandEntry->newToken;
+    mLock.unlock();
+    mPolicy->notifyDropWindow(newToken, commandEntry->x, commandEntry->y);
     mLock.lock();
 }
 
