@@ -18,7 +18,7 @@
 rm -rf /data/media/0/Android/obb/test_probe
 mkdir -p /data/media/0/Android/obb/
 touch /data/media/0/Android/obb/test_probe
-if ! test -f /data/media/0/Android/obb/test_probe ; then
+if ! test -f /data/media/0/Android/obb/test_probe  || [ "$(adb shell getprop ro.vndk.version)" -le 28 ]; then
   log -p i -t migrate_legacy_obb_data "No support for 'unshared_obb'. Not migrating"
   rm -rf /data/media/0/Android/obb/test_probe
   exit 0
