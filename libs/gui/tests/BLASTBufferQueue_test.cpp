@@ -24,6 +24,7 @@
 #include <gui/FrameTimestamps.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
+#include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <gui/SyncScreenCaptureListener.h>
 #include <private/gui/ComposerService.h>
@@ -513,6 +514,18 @@ TEST_F(BLASTBufferQueueTest, CustomProducerListener) {
         igbProducer->queueBuffer(slot, input, &qbOutput);
     }
     adapter.waitForCallbacks();
+}
+
+TEST_F(BLASTBufferQueueTest, QueryNativeWindowQueuesToWindowComposer) {
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+
+    sp<android::Surface> surface = new Surface(adapter.getIGraphicBufferProducer());
+    ANativeWindow* nativeWindow = (ANativeWindow*)(surface.get());
+    int queuesToNativeWindow = 0;
+    int err = nativeWindow->query(nativeWindow, NATIVE_WINDOW_QUEUES_TO_WINDOW_COMPOSER,
+                                  &queuesToNativeWindow);
+    ASSERT_EQ(NO_ERROR, err);
+    ASSERT_EQ(queuesToNativeWindow, 1);
 }
 
 class BLASTBufferQueueTransformTest : public BLASTBufferQueueTest {
