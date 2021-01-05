@@ -108,6 +108,7 @@
 #include "DisplayRenderArea.h"
 #include "EffectLayer.h"
 #include "Effects/Daltonizer.h"
+#include "FpsReporter.h"
 #include "FrameTimeline/FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
 #include "Layer.h"
@@ -1452,6 +1453,25 @@ status_t SurfaceFlinger::removeRegionSamplingListener(const sp<IRegionSamplingLi
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::addFpsListener(const sp<IBinder>& layerHandle,
+                                        const sp<gui::IFpsListener>& listener) {
+    if (!listener) {
+        return BAD_VALUE;
+    }
+
+    const wp<Layer> layer = fromHandle(layerHandle);
+    mFpsReporter->addListener(listener, layer);
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::removeFpsListener(const sp<gui::IFpsListener>& listener) {
+    if (!listener) {
+        return BAD_VALUE;
+    }
+    mFpsReporter->removeListener(listener);
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
                                                      bool* outSupport) const {
     if (!displayToken || !outSupport) {
@@ -2137,6 +2157,13 @@ void SurfaceFlinger::postComposition() {
             recordBufferingStats(layer->getName(), layer->getOccupancyHistory(false));
         }
     });
+
+    {
+        Mutex::Autolock lock(mStateLock);
+        if (mFpsReporter) {
+            mFpsReporter->dispatchLayerFps();
+        }
+    }
 
     mTransactionCallbackInvoker.addPresentFence(mPreviousPresentFences[0]);
     mTransactionCallbackInvoker.sendCallbacks();
@@ -2954,6 +2981,7 @@ void SurfaceFlinger::initScheduler(const DisplayDeviceState& displayState) {
     mRegionSamplingThread =
             new RegionSamplingThread(*this, *mScheduler,
                                      RegionSamplingThread::EnvironmentTimingTunables());
+    mFpsReporter = new FpsReporter(*mFrameTimeline);
     // Dispatch a mode change request for the primary display on scheduler
     // initialization, so that the EventThreads always contain a reference to a
     // prior configuration.
@@ -4940,6 +4968,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAYED_CONTENT_SAMPLE:
         case NOTIFY_POWER_BOOST:
         case SET_GLOBAL_SHADOW_SETTINGS:
+        case ADD_FPS_LISTENER:
+        case REMOVE_FPS_LISTENER:
         case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
             // ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN is used by CTS tests, which acquire the
             // necessary permission dynamically. Don't use the permission cache for this check.

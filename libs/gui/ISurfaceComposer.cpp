@@ -17,15 +17,10 @@
 // tag as surfaceflinger
 #define LOG_TAG "SurfaceFlinger"
 
-#include <stdint.h>
-#include <sys/types.h>
-
 #include <android/gui/ITransactionTraceListener.h>
-
-#include <binder/Parcel.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
-
+#include <binder/Parcel.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IRegionSamplingListener.h>
@@ -33,16 +28,15 @@
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/LayerState.h>
-
+#include <stdint.h>
+#include <sys/types.h>
 #include <system/graphics.h>
-
 #include <ui/DisplayMode.h>
 #include <ui/DisplayStatInfo.h>
 #include <ui/DisplayState.h>
 #include <ui/DynamicDisplayInfo.h>
 #include <ui/HdrCapabilities.h>
 #include <ui/StaticDisplayInfo.h>
-
 #include <utils/Log.h>
 
 // ---------------------------------------------------------------------------
@@ -792,6 +786,33 @@ public:
                                    &reply);
         if (error != NO_ERROR) {
             ALOGE("removeRegionSamplingListener: Failed to transact");
+        }
+        return error;
+    }
+
+    virtual status_t addFpsListener(const sp<IBinder>& layerHandle,
+                                    const sp<gui::IFpsListener>& listener) {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, layerHandle);
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
+        const status_t error =
+                remote()->transact(BnSurfaceComposer::ADD_FPS_LISTENER, data, &reply);
+        if (error != OK) {
+            ALOGE("addFpsListener: Failed to transact");
+        }
+        return error;
+    }
+
+    virtual status_t removeFpsListener(const sp<gui::IFpsListener>& listener) {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
+
+        const status_t error =
+                remote()->transact(BnSurfaceComposer::REMOVE_FPS_LISTENER, data, &reply);
+        if (error != OK) {
+            ALOGE("removeFpsListener: Failed to transact");
         }
         return error;
     }
@@ -1715,6 +1736,32 @@ status_t BnSurfaceComposer::onTransact(
                 return result;
             }
             return removeRegionSamplingListener(listener);
+        }
+        case ADD_FPS_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> layerHandle;
+            status_t result = data.readNullableStrongBinder(&layerHandle);
+            if (result != NO_ERROR) {
+                ALOGE("addFpsListener: Failed to read layer handle");
+                return result;
+            }
+            sp<gui::IFpsListener> listener;
+            result = data.readNullableStrongBinder(&listener);
+            if (result != NO_ERROR) {
+                ALOGE("addFpsListener: Failed to read listener");
+                return result;
+            }
+            return addFpsListener(layerHandle, listener);
+        }
+        case REMOVE_FPS_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<gui::IFpsListener> listener;
+            status_t result = data.readNullableStrongBinder(&listener);
+            if (result != NO_ERROR) {
+                ALOGE("removeFpsListener: Failed to read listener");
+                return result;
+            }
+            return removeFpsListener(listener);
         }
         case SET_DESIRED_DISPLAY_MODE_SPECS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

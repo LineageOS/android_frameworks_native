@@ -16,21 +16,17 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <sys/types.h>
-
-#include <binder/IBinder.h>
-#include <binder/IInterface.h>
-
+#include <android/gui/IFpsListener.h>
 #include <android/gui/IScreenCaptureListener.h>
 #include <android/gui/ITransactionTraceListener.h>
+#include <binder/IBinder.h>
+#include <binder/IInterface.h>
 #include <gui/FrameTimelineInfo.h>
 #include <gui/ITransactionCompletedListener.h>
-
 #include <input/Flags.h>
-
 #include <math/vec4.h>
-
+#include <stdint.h>
+#include <sys/types.h>
 #include <ui/ConfigStoreTypes.h>
 #include <ui/DisplayId.h>
 #include <ui/DisplayMode.h>
@@ -40,7 +36,6 @@
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rotation.h>
-
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
@@ -369,6 +364,23 @@ public:
      */
     virtual status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) = 0;
 
+    /* Registers a listener that streams fps updates from SurfaceFlinger.
+     *
+     * The listener will stream fps updates for the layer tree rooted at layerHandle. Usually, this
+     * should be tied to a task. Layers that are not descendants of that task are out of scope for
+     * FPS computations.
+     *
+     * Multiple listeners may be supported.
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t addFpsListener(const sp<IBinder>& layerHandle,
+                                    const sp<gui::IFpsListener>& listener) = 0;
+    /*
+     * Removes a listener that was streaming fps updates from SurfaceFlinger.
+     */
+    virtual status_t removeFpsListener(const sp<gui::IFpsListener>& listener) = 0;
+
     /* Sets the refresh rate boundaries for the display.
      *
      * The primary refresh rate range represents display manager's general guidance on the display
@@ -574,6 +586,8 @@ public:
         GET_GPU_CONTEXT_PRIORITY,
         GET_EXTRA_BUFFER_COUNT,
         GET_DYNAMIC_DISPLAY_INFO,
+        ADD_FPS_LISTENER,
+        REMOVE_FPS_LISTENER,
         // Always append new enum to the end.
     };
 

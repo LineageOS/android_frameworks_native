@@ -832,6 +832,11 @@ public:
             const sp<IRegionSamplingListener>& /*listener*/) override {
         return NO_ERROR;
     }
+    status_t addFpsListener(const sp<IBinder>& /*layerHandle*/,
+                            const sp<gui::IFpsListener>& /*listener*/) {
+        return NO_ERROR;
+    }
+    status_t removeFpsListener(const sp<gui::IFpsListener>& /*listener*/) { return NO_ERROR; }
     status_t setDesiredDisplayModeSpecs(const sp<IBinder>& /*displayToken*/,
                                         ui::DisplayModeId /*defaultMode*/,
                                         bool /*allowGroupSwitching*/,

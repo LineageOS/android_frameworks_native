@@ -89,6 +89,7 @@ namespace android {
 
 class Client;
 class EventThread;
+class FpsReporter;
 class HWComposer;
 struct SetInputWindowsListener;
 class IGraphicBufferProducer;
@@ -592,6 +593,9 @@ private:
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
+    status_t addFpsListener(const sp<IBinder>& layerHandle,
+                            const sp<gui::IFpsListener>& listener) override;
+    status_t removeFpsListener(const sp<gui::IFpsListener>& listener) override;
     status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
                                         ui::DisplayModeId displayModeId, bool allowGroupSwitching,
                                         float primaryRefreshRateMin, float primaryRefreshRateMax,
@@ -1268,6 +1272,7 @@ private:
 
     bool mLumaSampling = true;
     sp<RegionSamplingThread> mRegionSamplingThread;
+    sp<FpsReporter> mFpsReporter;
     ui::DisplayPrimaries mInternalDisplayPrimaries;
 
     const float mInternalDisplayDensity;
