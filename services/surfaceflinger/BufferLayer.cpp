@@ -389,32 +389,57 @@ void BufferLayer::gatherBufferInfo() {
     mBufferInfo.mFrameLatencyNeeded = true;
 }
 
+bool BufferLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
+    // If this is not a valid vsync for the layer's uid, return and try again later
+    const bool isVsyncValidForUid =
+            mFlinger->mScheduler->isVsyncValid(expectedPresentTime, mOwnerUid);
+    if (!isVsyncValidForUid) {
+        ATRACE_NAME("!isVsyncValidForUid");
+        return false;
+    }
+
+    // AutoRefresh layers and sideband streams should always be presented
+    if (getSidebandStreamChanged() || getAutoRefresh()) {
+        return true;
+    }
+
+    // If the next planned present time is not current, return and try again later
+    if (frameIsEarly(expectedPresentTime)) {
+        ATRACE_NAME("frameIsEarly()");
+        return false;
+    }
+
+    // If this layer doesn't have a frame is shouldn't be presented
+    if (!hasFrameUpdate()) {
+        return false;
+    }
+
+    // Defer to the derived class to decide whether the next buffer is due for
+    // presentation.
+    return isBufferDue(expectedPresentTime);
+}
+
 bool BufferLayer::frameIsEarly(nsecs_t expectedPresentTime) const {
     // TODO(b/169901895): kEarlyLatchVsyncThreshold should be based on the
     // vsync period. We can do this change as soon as ag/13100772 is merged.
     constexpr static std::chrono::nanoseconds kEarlyLatchVsyncThreshold = 5ms;
 
     const auto presentTime = nextPredictedPresentTime();
-    if (std::abs(presentTime - expectedPresentTime) >= kEarlyLatchMaxThreshold.count()) {
+    if (!presentTime.has_value()) {
         return false;
     }
 
-    return presentTime >= expectedPresentTime &&
-            presentTime - expectedPresentTime >= kEarlyLatchVsyncThreshold.count();
+    if (std::abs(*presentTime - expectedPresentTime) >= kEarlyLatchMaxThreshold.count()) {
+        return false;
+    }
+
+    return *presentTime >= expectedPresentTime &&
+            *presentTime - expectedPresentTime >= kEarlyLatchVsyncThreshold.count();
 }
 
 bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
                               nsecs_t expectedPresentTime) {
     ATRACE_CALL();
-
-    // If this is not a valid vsync for the layer's uid, return and try again later
-    const bool isVsyncValidForUid =
-            mFlinger->mScheduler->isVsyncValid(expectedPresentTime, mOwnerUid);
-    if (!isVsyncValidForUid) {
-        ATRACE_NAME("!isVsyncValidForUid");
-        mFlinger->setTransactionFlags(eTraversalNeeded);
-        return false;
-    }
 
     bool refreshRequired = latchSidebandStream(recomputeVisibleRegions);
 
@@ -432,12 +457,6 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
     // compositionComplete() call.
     // we'll trigger an update in onPreComposition().
     if (mRefreshPending) {
-        return false;
-    }
-
-    if (frameIsEarly(expectedPresentTime)) {
-        ATRACE_NAME("frameIsEarly()");
-        mFlinger->signalLayerUpdate();
         return false;
     }
 
