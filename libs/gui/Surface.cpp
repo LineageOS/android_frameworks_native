@@ -985,6 +985,10 @@ int Surface::query(int what, int* value) const {
                 }
                 break;
             case NATIVE_WINDOW_QUEUES_TO_WINDOW_COMPOSER: {
+                status_t err = mGraphicBufferProducer->query(what, value);
+                if (err == NO_ERROR) {
+                    return NO_ERROR;
+                }
                 if (composerService()->authenticateSurfaceTexture(
                         mGraphicBufferProducer)) {
                     *value = 1;

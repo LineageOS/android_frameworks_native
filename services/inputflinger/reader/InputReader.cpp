@@ -222,7 +222,9 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t eventHubId) {
     }
 
     // Sensor input device is noisy, to save power disable it by default.
-    if (device->getClasses().test(InputDeviceClass::SENSOR)) {
+    // Input device is classified as SENSOR when any sub device is a SENSOR device, check Eventhub
+    // device class to disable SENSOR sub device only.
+    if (mEventHub->getDeviceClasses(eventHubId).test(InputDeviceClass::SENSOR)) {
         mEventHub->disableDevice(eventHubId);
     }
 }
