@@ -388,6 +388,10 @@ public:
         // The vsync Id provided by Choreographer.getVsyncId
         int64_t mFrameTimelineVsyncId = ISurfaceComposer::INVALID_VSYNC_ID;
 
+        // If not null, transactions will be queued up using this token otherwise a common token
+        // per process will be used.
+        sp<IBinder> mApplyToken = nullptr;
+
         InputWindowCommands mInputWindowCommands;
         int mStatus = NO_ERROR;
 
@@ -554,6 +558,11 @@ public:
         // can and not wait for a frame to become available. This is only relevant
         // in shared buffer mode.
         Transaction& setAutoRefresh(const sp<SurfaceControl>& sc, bool autoRefresh);
+
+        // Queues up transactions using this token in SurfaceFlinger.  By default, all transactions
+        // from a client are placed on the same queue. This can be used to prevent multiple
+        // transactions from blocking each other.
+        Transaction& setApplyToken(const sp<IBinder>& token);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
