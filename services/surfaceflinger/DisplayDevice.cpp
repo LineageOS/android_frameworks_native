@@ -51,12 +51,16 @@ using android::base::StringAppendF;
 ui::Transform::RotationFlags DisplayDevice::sPrimaryDisplayRotationFlags = ui::Transform::ROT_0;
 
 DisplayDeviceCreationArgs::DisplayDeviceCreationArgs(
-        const sp<SurfaceFlinger>& flinger, const wp<IBinder>& displayToken,
+        const sp<SurfaceFlinger>& flinger, HWComposer& hwComposer, const wp<IBinder>& displayToken,
         std::shared_ptr<compositionengine::Display> compositionDisplay)
-      : flinger(flinger), displayToken(displayToken), compositionDisplay(compositionDisplay) {}
+      : flinger(flinger),
+        hwComposer(hwComposer),
+        displayToken(displayToken),
+        compositionDisplay(compositionDisplay) {}
 
 DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
       : mFlinger(args.flinger),
+        mHwComposer(args.hwComposer),
         mDisplayToken(args.displayToken),
         mSequenceId(args.sequenceId),
         mConnectionType(args.connectionType),
@@ -144,6 +148,19 @@ void DisplayDevice::setActiveMode(DisplayModeId id) {
     LOG_FATAL_IF(id.value() >= mSupportedModes.size(),
                  "Cannot set active mode which is not supported.");
     mActiveModeId = id;
+}
+
+status_t DisplayDevice::initiateModeChange(DisplayModeId modeId,
+                                           const hal::VsyncPeriodChangeConstraints& constraints,
+                                           hal::VsyncPeriodChangeTimeline* outTimeline) const {
+    const auto mode = getMode(modeId);
+    if (!mode) {
+        ALOGE("Trying to initiate a mode change to invalid mode %s on display %s",
+              std::to_string(modeId.value()).c_str(), to_string(getId()).c_str());
+        return BAD_VALUE;
+    }
+    return mHwComposer.setActiveModeWithConstraints(getPhysicalId(), mode->getHwcId(), constraints,
+                                                    outTimeline);
 }
 
 const DisplayModePtr& DisplayDevice::getActiveMode() const {

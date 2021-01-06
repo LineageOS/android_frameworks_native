@@ -1173,7 +1173,6 @@ void SurfaceFlinger::performSetActiveConfig() {
     }
 
     mUpcomingActiveConfig = *desiredActiveConfig;
-    const auto displayId = display->getPhysicalId();
 
     ATRACE_INT("ActiveConfigFPS_HWC", refreshRate.getValue());
 
@@ -1184,12 +1183,11 @@ void SurfaceFlinger::performSetActiveConfig() {
 
     hal::VsyncPeriodChangeTimeline outTimeline;
     const auto status =
-            getHwComposer().setActiveModeWithConstraints(displayId, mUpcomingActiveConfig.configId,
-                                                         constraints, &outTimeline);
+            display->initiateModeChange(mUpcomingActiveConfig.configId, constraints, &outTimeline);
     if (status != NO_ERROR) {
-        // setActiveModeWithConstraints may fail if a hotplug event is just about
+        // initiateModeChange may fail if a hotplug event is just about
         // to be sent. We just log the error in this case.
-        ALOGW("setActiveModeWithConstraints failed: %d", status);
+        ALOGW("initiateModeChange failed: %d", status);
         return;
     }
 
@@ -2431,8 +2429,9 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const DisplayDeviceState& state,
         const sp<compositionengine::DisplaySurface>& displaySurface,
         const sp<IGraphicBufferProducer>& producer) {
-    DisplayDeviceCreationArgs creationArgs(this, displayToken, compositionDisplay);
+    DisplayDeviceCreationArgs creationArgs(this, getHwComposer(), displayToken, compositionDisplay);
     creationArgs.sequenceId = state.sequenceId;
+    creationArgs.hwComposer = getHwComposer();
     creationArgs.isSecure = state.isSecure;
     creationArgs.displaySurface = displaySurface;
     creationArgs.hasWideColorGamut = false;
@@ -6044,7 +6043,7 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
 
     if (!display->isPrimary()) {
         // TODO(b/144711714): For non-primary displays we should be able to set an active config
-        // as well. For now, just call directly to setActiveModeWithConstraints but ideally
+        // as well. For now, just call directly to initiateModeChange but ideally
         // it should go thru setDesiredActiveConfig, similar to primary display.
         ALOGV("setAllowedDisplayConfigsInternal for non-primary display");
         const auto displayId = display->getPhysicalId();
@@ -6054,8 +6053,8 @@ status_t SurfaceFlinger::setDesiredDisplayConfigSpecsInternal(
         constraints.seamlessRequired = false;
 
         hal::VsyncPeriodChangeTimeline timeline = {0, 0, 0};
-        if (getHwComposer().setActiveModeWithConstraints(displayId, policy->defaultConfig,
-                                                         constraints, &timeline) < 0) {
+        if (display->initiateModeChange(policy->defaultConfig, constraints, &timeline) !=
+            NO_ERROR) {
             return BAD_VALUE;
         }
         if (timeline.refreshRequired) {
