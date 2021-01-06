@@ -128,6 +128,7 @@ const char* const gExtensionString  =
         "EGL_KHR_stream_producer_eglsurface "
         "EGL_KHR_surfaceless_context "
         "EGL_KHR_wait_sync "                    // strongly recommended
+        "EGL_NV_context_priority_realtime "
         "EGL_NV_system_time "
         ;
 
