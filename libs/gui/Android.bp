@@ -38,9 +38,10 @@ filegroup {
 
 cc_library_shared {
     name: "libgui",
-    vendor_available: false,
+    vendor_available: true,
     vndk: {
         enabled: true,
+        private: true,
     },
     double_loadable: true,
 
