@@ -196,7 +196,7 @@ typedef struct AImageDecoder AImageDecoder;
  *   supported.
  */
 int AImageDecoder_createFromAAsset(struct AAsset* _Nonnull asset,
-                                   AImageDecoder* _Nonnull * _Nonnull outDecoder)
+                                   AImageDecoder* _Nullable * _Nonnull outDecoder)
         __INTRODUCED_IN(30);
 
 /**
@@ -227,7 +227,7 @@ int AImageDecoder_createFromAAsset(struct AAsset* _Nonnull asset,
  * - {@link ANDROID_IMAGE_DECODER_UNSUPPORTED_FORMAT}: The format is not
  *   supported.
  */
-int AImageDecoder_createFromFd(int fd, AImageDecoder* _Nonnull * _Nonnull outDecoder)
+int AImageDecoder_createFromFd(int fd, AImageDecoder* _Nullable * _Nonnull outDecoder)
         __INTRODUCED_IN(30);
 
 /**
@@ -258,7 +258,7 @@ int AImageDecoder_createFromFd(int fd, AImageDecoder* _Nonnull * _Nonnull outDec
  *   supported.
  */
 int AImageDecoder_createFromBuffer(const void* _Nonnull buffer, size_t length,
-                                   AImageDecoder* _Nonnull * _Nonnull outDecoder)
+                                   AImageDecoder* _Nullable * _Nonnull outDecoder)
         __INTRODUCED_IN(30);
 
 /**
@@ -266,7 +266,7 @@ int AImageDecoder_createFromBuffer(const void* _Nonnull buffer, size_t length,
  *
  * Available since API level 30.
  */
-void AImageDecoder_delete(AImageDecoder* _Nonnull decoder) __INTRODUCED_IN(30);
+void AImageDecoder_delete(AImageDecoder* _Nullable decoder) __INTRODUCED_IN(30);
 
 /**
  * Choose the desired output format.
