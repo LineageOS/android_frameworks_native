@@ -175,11 +175,23 @@ protected:
     void setTransformHint(ui::Transform::RotationFlags displayTransformHint) override;
 
     // Transform hint provided to the producer. This must be accessed holding
-    /// the mStateLock.
+    // the mStateLock.
     ui::Transform::RotationFlags mTransformHint = ui::Transform::ROT_0;
 
     bool getAutoRefresh() const { return mAutoRefresh; }
     bool getSidebandStreamChanged() const { return mSidebandStreamChanged; }
+
+    // Returns true if the next buffer should be presented at the expected present time
+    bool shouldPresentNow(nsecs_t expectedPresentTime) const final;
+
+    // Returns true if the next buffer should be presented at the expected present time,
+    // overridden by BufferStateLayer and BufferQueueLayer for implementation
+    // specific logic
+    virtual bool isBufferDue(nsecs_t /*expectedPresentTime*/) const = 0;
+
+    // Returns true if the next frame is considered too early to present
+    // at the given expectedPresentTime
+    bool frameIsEarly(nsecs_t expectedPresentTime) const;
 
     std::atomic<bool> mAutoRefresh{false};
     std::atomic<bool> mSidebandStreamChanged{false};
@@ -225,13 +237,8 @@ private:
 
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
 
-    // Returns true if the next frame is considered too early to present
-    // at the given expectedPresentTime
-    bool frameIsEarly(nsecs_t expectedPresentTime) const;
-
-    // Returns the predicted present time of the next frame if available or
-    // 0 otherwise.
-    virtual nsecs_t nextPredictedPresentTime() const = 0;
+    // Returns the predicted present time of the next frame if available
+    virtual std::optional<nsecs_t> nextPredictedPresentTime() const = 0;
 
     // The amount of time SF can delay a frame if it is considered early based
     // on the VsyncModulator::VsyncConfig::appWorkDuration
