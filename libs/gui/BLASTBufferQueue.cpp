@@ -371,7 +371,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
                                mPendingTransactions.end());
 
     if (applyTransaction) {
-        t->apply();
+        t->setApplyToken(mApplyToken).apply();
     }
 
     BQA_LOGV("processNextBufferLocked size=%dx%d mFrameNumber=%" PRIu64

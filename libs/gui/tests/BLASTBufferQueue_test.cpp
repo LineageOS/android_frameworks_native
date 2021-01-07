@@ -221,6 +221,32 @@ protected:
         return captureResults.result;
     }
 
+    void queueBuffer(sp<IGraphicBufferProducer> igbp, uint8_t r, uint8_t g, uint8_t b,
+                     nsecs_t presentTimeDelay) {
+        int slot;
+        sp<Fence> fence;
+        sp<GraphicBuffer> buf;
+        auto ret = igbp->dequeueBuffer(&slot, &fence, mDisplayWidth, mDisplayHeight,
+                                       PIXEL_FORMAT_RGBA_8888, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                       nullptr, nullptr);
+        ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+        ASSERT_EQ(OK, igbp->requestBuffer(slot, &buf));
+
+        uint32_t* bufData;
+        buf->lock(static_cast<uint32_t>(GraphicBuffer::USAGE_SW_WRITE_OFTEN),
+                  reinterpret_cast<void**>(&bufData));
+        fillBuffer(bufData, Rect(buf->getWidth(), buf->getHeight() / 2), buf->getStride(), r, g, b);
+        buf->unlock();
+
+        IGraphicBufferProducer::QueueBufferOutput qbOutput;
+        nsecs_t timestampNanos = systemTime() + presentTimeDelay;
+        IGraphicBufferProducer::QueueBufferInput input(timestampNanos, false, HAL_DATASPACE_UNKNOWN,
+                                                       Rect(mDisplayWidth, mDisplayHeight / 2),
+                                                       NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
+                                                       Fence::NO_FENCE);
+        igbp->queueBuffer(slot, input, &qbOutput);
+    }
+
     sp<SurfaceComposerClient> mClient;
     sp<ISurfaceComposer> mComposer;
 
@@ -526,6 +552,41 @@ TEST_F(BLASTBufferQueueTest, QueryNativeWindowQueuesToWindowComposer) {
                                   &queuesToNativeWindow);
     ASSERT_EQ(NO_ERROR, err);
     ASSERT_EQ(queuesToNativeWindow, 1);
+}
+
+TEST_F(BLASTBufferQueueTest, OutOfOrderTransactionTest) {
+    sp<SurfaceControl> bgSurface =
+            mClient->createSurface(String8("BGTest"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceBufferState);
+    ASSERT_NE(nullptr, bgSurface.get());
+    Transaction t;
+    t.setLayerStack(bgSurface, 0)
+            .show(bgSurface)
+            .setDataspace(bgSurface, ui::Dataspace::V0_SRGB)
+            .setFrame(bgSurface, Rect(0, 0, mDisplayWidth, mDisplayHeight))
+            .setLayer(bgSurface, std::numeric_limits<int32_t>::max() - 1)
+            .apply();
+
+    BLASTBufferQueueHelper slowAdapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    sp<IGraphicBufferProducer> slowIgbProducer;
+    setUpProducer(slowAdapter, slowIgbProducer);
+    nsecs_t presentTimeDelay = std::chrono::nanoseconds(500ms).count();
+    queueBuffer(slowIgbProducer, 0 /* r */, 0 /* g */, 0 /* b */, presentTimeDelay);
+
+    BLASTBufferQueueHelper fastAdapter(bgSurface, mDisplayWidth, mDisplayHeight);
+    sp<IGraphicBufferProducer> fastIgbProducer;
+    setUpProducer(fastAdapter, fastIgbProducer);
+    uint8_t r = 255;
+    uint8_t g = 0;
+    uint8_t b = 0;
+    queueBuffer(fastIgbProducer, r, g, b, 0 /* presentTimeDelay */);
+    fastAdapter.waitForCallbacks();
+
+    // capture screen and verify that it is red
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+
+    ASSERT_NO_FATAL_FAILURE(
+            checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
 
 class BLASTBufferQueueTransformTest : public BLASTBufferQueueTest {

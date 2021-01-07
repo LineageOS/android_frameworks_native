@@ -165,6 +165,10 @@ private:
 
     std::function<void(int64_t)> mTransactionCompleteCallback GUARDED_BY(mMutex) = nullptr;
     uint64_t mTransactionCompleteFrameNumber GUARDED_BY(mMutex){0};
+
+    // Queues up transactions using this token in SurfaceFlinger. This prevents queued up
+    // transactions from other parts of the client from blocking this transaction.
+    const sp<IBinder> mApplyToken = new BBinder();
 };
 
 } // namespace android
