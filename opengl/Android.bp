@@ -54,6 +54,7 @@ ndk_headers {
 
 cc_library_headers {
     name: "gl_headers",
+    host_supported: true,
     vendor_available: true,
     export_include_dirs: ["include"],
 }
