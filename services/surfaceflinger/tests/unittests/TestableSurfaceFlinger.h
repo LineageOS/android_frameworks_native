@@ -41,6 +41,7 @@
 #include "SurfaceFlingerDefaultFactory.h"
 #include "SurfaceInterceptor.h"
 #include "TestableScheduler.h"
+#include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockDisplayIdGenerator.h"
 #include "mock/MockFrameTimeline.h"
 #include "mock/MockFrameTracer.h"
@@ -477,7 +478,7 @@ public:
         static constexpr hal::HWDisplayId DEFAULT_HWC_DISPLAY_ID = 1000;
         static constexpr int32_t DEFAULT_WIDTH = 1920;
         static constexpr int32_t DEFAULT_HEIGHT = 1280;
-        static constexpr int32_t DEFAULT_REFRESH_RATE = 16'666'666;
+        static constexpr int32_t DEFAULT_VSYNC_PERIOD = 16'666'666;
         static constexpr int32_t DEFAULT_CONFIG_GROUP = 7;
         static constexpr int32_t DEFAULT_DPI = 320;
         static constexpr hal::HWConfigId DEFAULT_ACTIVE_CONFIG = 0;
@@ -502,8 +503,8 @@ public:
             return *this;
         }
 
-        auto& setRefreshRate(int32_t refreshRate) {
-            mRefreshRate = refreshRate;
+        auto& setVsyncPeriod(int32_t vsyncPeriod) {
+            mVsyncPeriod = vsyncPeriod;
             return *this;
         }
 
@@ -532,7 +533,12 @@ public:
             return *this;
         }
 
-        void inject(TestableSurfaceFlinger* flinger, Hwc2::Composer* composer) {
+        void inject(TestableSurfaceFlinger* flinger, Hwc2::mock::Composer* composer) {
+            using ::testing::_;
+            using ::testing::DoAll;
+            using ::testing::Return;
+            using ::testing::SetArgPointee;
+
             static const std::unordered_set<hal::Capability> defaultCapabilities;
             if (mCapabilities == nullptr) mCapabilities = &defaultCapabilities;
 
@@ -547,15 +553,39 @@ public:
             display->setPowerMode(mPowerMode);
             flinger->mutableHwcDisplayData()[mDisplayId].hwcDisplay = std::move(display);
 
-            auto config = DisplayMode::Builder(mActiveConfig)
-                                  .setWidth(mWidth)
-                                  .setHeight(mHeight)
-                                  .setVsyncPeriod(mRefreshRate)
-                                  .setDpiX(mDpiX)
-                                  .setDpiY(mDpiY)
-                                  .setConfigGroup(mConfigGroup)
-                                  .build();
-            flinger->mutableHwcDisplayData()[mDisplayId].modes.push_back(config);
+            EXPECT_CALL(*composer, getDisplayConfigs(mHwcDisplayId, _))
+                    .WillRepeatedly(
+                            DoAll(SetArgPointee<1>(std::vector<hal::HWConfigId>{mActiveConfig}),
+                                  Return(hal::Error::NONE)));
+
+            EXPECT_CALL(*composer,
+                        getDisplayAttribute(mHwcDisplayId, mActiveConfig, hal::Attribute::WIDTH, _))
+                    .WillRepeatedly(DoAll(SetArgPointee<3>(mWidth), Return(hal::Error::NONE)));
+
+            EXPECT_CALL(*composer,
+                        getDisplayAttribute(mHwcDisplayId, mActiveConfig, hal::Attribute::HEIGHT,
+                                            _))
+                    .WillRepeatedly(DoAll(SetArgPointee<3>(mHeight), Return(hal::Error::NONE)));
+
+            EXPECT_CALL(*composer,
+                        getDisplayAttribute(mHwcDisplayId, mActiveConfig,
+                                            hal::Attribute::VSYNC_PERIOD, _))
+                    .WillRepeatedly(
+                            DoAll(SetArgPointee<3>(mVsyncPeriod), Return(hal::Error::NONE)));
+
+            EXPECT_CALL(*composer,
+                        getDisplayAttribute(mHwcDisplayId, mActiveConfig, hal::Attribute::DPI_X, _))
+                    .WillRepeatedly(DoAll(SetArgPointee<3>(mDpiX), Return(hal::Error::NONE)));
+
+            EXPECT_CALL(*composer,
+                        getDisplayAttribute(mHwcDisplayId, mActiveConfig, hal::Attribute::DPI_Y, _))
+                    .WillRepeatedly(DoAll(SetArgPointee<3>(mDpiY), Return(hal::Error::NONE)));
+
+            EXPECT_CALL(*composer,
+                        getDisplayAttribute(mHwcDisplayId, mActiveConfig,
+                                            hal::Attribute::CONFIG_GROUP, _))
+                    .WillRepeatedly(
+                            DoAll(SetArgPointee<3>(mConfigGroup), Return(hal::Error::NONE)));
 
             if (mHwcDisplayType == hal::DisplayType::PHYSICAL) {
                 const auto physicalId = PhysicalDisplayId::tryCast(mDisplayId);
@@ -581,10 +611,10 @@ public:
         hal::HWDisplayId mHwcDisplayId = DEFAULT_HWC_DISPLAY_ID;
         int32_t mWidth = DEFAULT_WIDTH;
         int32_t mHeight = DEFAULT_HEIGHT;
-        int32_t mRefreshRate = DEFAULT_REFRESH_RATE;
+        int32_t mVsyncPeriod = DEFAULT_VSYNC_PERIOD;
         int32_t mDpiX = DEFAULT_DPI;
-        int32_t mConfigGroup = DEFAULT_CONFIG_GROUP;
         int32_t mDpiY = DEFAULT_DPI;
+        int32_t mConfigGroup = DEFAULT_CONFIG_GROUP;
         hal::HWConfigId mActiveConfig = DEFAULT_ACTIVE_CONFIG;
         hal::PowerMode mPowerMode = DEFAULT_POWER_MODE;
         const std::unordered_set<hal::Capability>* mCapabilities = nullptr;
@@ -602,6 +632,21 @@ public:
                 mHwcDisplayId(hwcDisplayId) {
             mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;
+
+            mActiveModeId = DisplayModeId(0);
+            DisplayModePtr activeMode =
+                    DisplayMode::Builder(FakeHwcDisplayInjector::DEFAULT_ACTIVE_CONFIG)
+                            .setId(mActiveModeId)
+                            .setWidth(FakeHwcDisplayInjector::DEFAULT_WIDTH)
+                            .setHeight(FakeHwcDisplayInjector::DEFAULT_HEIGHT)
+                            .setVsyncPeriod(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD)
+                            .setDpiX(FakeHwcDisplayInjector::DEFAULT_DPI)
+                            .setDpiY(FakeHwcDisplayInjector::DEFAULT_DPI)
+                            .setConfigGroup(0)
+                            .build();
+
+            DisplayModes modes{activeMode};
+            mCreationArgs.supportedModes = modes;
         }
 
         sp<IBinder> token() const { return mDisplayToken; }
@@ -623,6 +668,16 @@ public:
         }
 
         auto& mutableDisplayDevice() { return mFlinger.mutableDisplays()[mDisplayToken]; }
+
+        auto& setActiveMode(DisplayModeId mode) {
+            mActiveModeId = mode;
+            return *this;
+        }
+
+        auto& setSupportedModes(DisplayModes mode) {
+            mCreationArgs.supportedModes = mode;
+            return *this;
+        }
 
         auto& setNativeWindow(const sp<ANativeWindow>& nativeWindow) {
             mCreationArgs.nativeWindow = nativeWindow;
@@ -676,6 +731,9 @@ public:
             state.isSecure = mCreationArgs.isSecure;
 
             sp<DisplayDevice> device = new DisplayDevice(mCreationArgs);
+            if (!device->isVirtual()) {
+                device->setActiveMode(mActiveModeId);
+            }
             mFlinger.mutableDisplays().emplace(mDisplayToken, device);
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);
@@ -692,6 +750,7 @@ public:
         sp<BBinder> mDisplayToken = new BBinder();
         DisplayDeviceCreationArgs mCreationArgs;
         const std::optional<hal::HWDisplayId> mHwcDisplayId;
+        DisplayModeId mActiveModeId;
     };
 
 private:

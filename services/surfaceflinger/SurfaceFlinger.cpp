@@ -68,6 +68,7 @@
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayConfig.h>
+#include <ui/DisplayId.h>
 #include <ui/DisplayInfo.h>
 #include <ui/DisplayStatInfo.h>
 #include <ui/DisplayState.h>
@@ -1586,12 +1587,11 @@ void SurfaceFlinger::signalRefresh() {
 }
 
 nsecs_t SurfaceFlinger::getVsyncPeriodFromHWC() const {
-    const auto displayId = getInternalDisplayIdLocked();
-    if (!displayId || !getHwComposer().isConnected(*displayId)) {
-        return 0;
+    if (const auto display = getDefaultDisplayDeviceLocked()) {
+        return display->getVsyncPeriodFromHWC();
     }
 
-    return getHwComposer().getDisplayVsyncPeriod(*displayId);
+    return 0;
 }
 
 void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hal::HWDisplayId hwcDisplayId,
@@ -1603,6 +1603,12 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hal::HWDisplayId hwcDis
     // Ignore any vsyncs from a previous hardware composer.
     if (sequenceId != getBE().mComposerSequenceId) {
         return;
+    }
+
+    if (const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId)) {
+        auto token = getPhysicalDisplayTokenLocked(*displayId);
+        auto display = getDisplayDeviceLocked(token);
+        display->onVsync(timestamp);
     }
 
     if (!getHwComposer().onVsync(hwcDisplayId, timestamp)) {
@@ -2223,8 +2229,7 @@ void SurfaceFlinger::postComposition() {
         } else if (isDisplayConnected) {
             // The HWC doesn't support present fences, so use the refresh
             // timestamp instead.
-            const nsecs_t presentTime =
-                    getHwComposer().getRefreshTimestamp(display->getPhysicalId());
+            const nsecs_t presentTime = display->getRefreshTimestamp();
             mAnimFrameTracker.setActualPresentTime(presentTime);
         }
         mAnimFrameTracker.advanceFrame();
@@ -2361,6 +2366,24 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags) {
     // here the transaction has been committed
 }
 
+DisplayModes SurfaceFlinger::loadSupportedDisplayModes(PhysicalDisplayId displayId) const {
+    const auto hwcModes = getHwComposer().getModes(displayId);
+    DisplayModes modes;
+    size_t nextModeId = 0;
+    for (const auto& hwcMode : hwcModes) {
+        modes.push_back(DisplayMode::Builder(hwcMode.hwcId)
+                                .setId(DisplayModeId{nextModeId++})
+                                .setWidth(hwcMode.width)
+                                .setHeight(hwcMode.height)
+                                .setVsyncPeriod(hwcMode.vsyncPeriod)
+                                .setDpiX(hwcMode.dpiX)
+                                .setDpiY(hwcMode.dpiY)
+                                .setConfigGroup(hwcMode.configGroup)
+                                .build());
+    }
+    return modes;
+}
+
 void SurfaceFlinger::processDisplayHotplugEventsLocked() {
     for (const auto& event : mPendingHotplugEvents) {
         std::optional<DisplayIdentificationInfo> info =
@@ -2374,8 +2397,14 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
         const auto it = mPhysicalDisplayTokens.find(displayId);
 
         if (event.connection == hal::Connection::CONNECTED) {
-            auto supportedModes = getHwComposer().getModes(displayId);
-            const auto activeMode = getHwComposer().getActiveMode(displayId);
+            auto supportedModes = loadSupportedDisplayModes(displayId);
+            const auto activeModeHwcId = getHwComposer().getActiveMode(displayId);
+            LOG_ALWAYS_FATAL_IF(!activeModeHwcId, "HWC returned no active config");
+
+            const auto activeMode = *std::find_if(supportedModes.begin(), supportedModes.end(),
+                                                  [activeModeHwcId](const DisplayModePtr& mode) {
+                                                      return mode->getHwcId() == *activeModeHwcId;
+                                                  });
             // TODO(b/175678215) Handle the case when activeMode is not in supportedModes
 
             if (it == mPhysicalDisplayTokens.end()) {
@@ -2526,17 +2555,15 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
 void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
                                          const DisplayDeviceState& state) {
-    int width = 0;
-    int height = 0;
+    ui::Size resolution(0, 0);
     ui::PixelFormat pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_UNKNOWN);
     if (state.physical) {
-        width = state.physical->activeMode->getWidth();
-        height = state.physical->activeMode->getHeight();
+        resolution = state.physical->activeMode->getSize();
         pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_RGBA_8888);
     } else if (state.surface != nullptr) {
-        int status = state.surface->query(NATIVE_WINDOW_WIDTH, &width);
+        int status = state.surface->query(NATIVE_WINDOW_WIDTH, &resolution.width);
         ALOGE_IF(status != NO_ERROR, "Unable to query width (%d)", status);
-        status = state.surface->query(NATIVE_WINDOW_HEIGHT, &height);
+        status = state.surface->query(NATIVE_WINDOW_HEIGHT, &resolution.height);
         ALOGE_IF(status != NO_ERROR, "Unable to query height (%d)", status);
         int intPixelFormat;
         status = state.surface->query(NATIVE_WINDOW_FORMAT, &intPixelFormat);
@@ -2553,7 +2580,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     if (const auto& physical = state.physical) {
         builder.setPhysical({physical->id, physical->type});
     }
-    builder.setPixels(ui::Size(width, height));
+    builder.setPixels(resolution);
     builder.setPixelFormat(pixelFormat);
     builder.setIsSecure(state.isSecure);
     builder.setLayerStackId(state.layerStack);
@@ -2588,7 +2615,8 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
         const auto physicalId = PhysicalDisplayId::tryCast(displayId);
         LOG_FATAL_IF(!physicalId);
         displaySurface = new FramebufferSurface(getHwComposer(), *physicalId, bqConsumer,
-                                                maxGraphicsWidth, maxGraphicsHeight);
+                                                state.physical->activeMode->getSize(),
+                                                ui::Size(maxGraphicsWidth, maxGraphicsHeight));
         producer = bqProducer;
     }
 
@@ -4843,15 +4871,12 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
                   "  gpu_to_cpu_unsupported    : %d\n",
                   mTransactionFlags.load(), !mGpuToCpuSupported);
 
-    if (const auto displayId = getInternalDisplayIdLocked();
-        displayId && getHwComposer().isConnected(*displayId)) {
-        const auto activeConfig = getHwComposer().getActiveMode(*displayId);
+    if (const auto display = getDefaultDisplayDeviceLocked()) {
         std::string fps, xDpi, yDpi;
-        if (activeConfig) {
-            const auto vsyncPeriod = getHwComposer().getDisplayVsyncPeriod(*displayId);
-            fps = base::StringPrintf("%s", to_string(Fps::fromPeriodNsecs(vsyncPeriod)).c_str());
-            xDpi = base::StringPrintf("%.2f", activeConfig->getDpiX());
-            yDpi = base::StringPrintf("%.2f", activeConfig->getDpiY());
+        if (const auto activeMode = display->getActiveMode()) {
+            fps = to_string(activeMode->getFps());
+            xDpi = base::StringPrintf("%.2f", activeMode->getDpiX());
+            yDpi = base::StringPrintf("%.2f", activeMode->getDpiY());
         } else {
             fps = "unknown";
             xDpi = "unknown";

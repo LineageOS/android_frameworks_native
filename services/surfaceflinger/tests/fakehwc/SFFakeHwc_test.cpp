@@ -63,9 +63,7 @@ namespace {
 
 // Mock test helpers
 using ::testing::_;
-using ::testing::AtLeast;
 using ::testing::DoAll;
-using ::testing::Invoke;
 using ::testing::Return;
 using ::testing::SetArgPointee;
 
@@ -74,9 +72,11 @@ using Attribute = V2_4::IComposerClient::Attribute;
 using Display = V2_1::Display;
 
 ///////////////////////////////////////////////
-
-constexpr PhysicalDisplayId kPrimaryDisplayId = PhysicalDisplayId::fromPort(PRIMARY_DISPLAY);
-constexpr PhysicalDisplayId kExternalDisplayId = PhysicalDisplayId::fromPort(EXTERNAL_DISPLAY);
+constexpr PhysicalDisplayId physicalIdFromHwcDisplayId(Display hwcId) {
+    return PhysicalDisplayId::fromPort(hwcId);
+}
+constexpr PhysicalDisplayId kPrimaryDisplayId = physicalIdFromHwcDisplayId(PRIMARY_DISPLAY);
+constexpr PhysicalDisplayId kExternalDisplayId = physicalIdFromHwcDisplayId(EXTERNAL_DISPLAY);
 
 struct TestColor {
 public:
@@ -158,7 +158,7 @@ protected:
                 self->mReceivedDisplayEvents.push_back(buffer[i]);
             }
         }
-        ALOGD_IF(n < 0, "Error reading events (%s)\n", strerror(-n));
+        ALOGD_IF(n < 0, "Error reading events (%s)", strerror(-n));
         return 1;
     }
 
@@ -174,7 +174,7 @@ protected:
     void setExpectationsForConfigs(Display display, std::vector<TestConfig> testConfigs,
                                    Config activeConfig, V2_4::VsyncPeriodNanos defaultVsyncPeriod) {
         std::vector<Config> configIds;
-        for (int i = 0; i < testConfigs.size(); i++) {
+        for (size_t i = 0; i < testConfigs.size(); i++) {
             configIds.push_back(testConfigs[i].id);
 
             EXPECT_CALL(*mMockComposer,
@@ -269,10 +269,10 @@ protected:
         mMockComposer = nullptr;
     }
 
-    void waitForDisplayTransaction() {
+    void waitForDisplayTransaction(Display display) {
         // Both a refresh and a vsync event are needed to apply pending display
         // transactions.
-        mFakeComposerClient->refreshDisplay(EXTERNAL_DISPLAY);
+        mFakeComposerClient->refreshDisplay(display);
         mFakeComposerClient->runVSyncAndWait();
 
         // Extra vsync and wait to avoid a 10% flake due to a race.
@@ -291,7 +291,7 @@ protected:
                 mReceivedDisplayEvents.pop_front();
 
                 ALOGV_IF(event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG,
-                         "event hotplug: displayId %s, connected %d\t",
+                         "event hotplug: displayId %s, connected %d",
                          to_string(event.header.displayId).c_str(), event.hotplug.connected);
 
                 if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG &&
@@ -314,7 +314,7 @@ protected:
                 mReceivedDisplayEvents.pop_front();
 
                 ALOGV_IF(event.header.type == DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED,
-                         "event config: displayId %s, configId %d\t",
+                         "event config: displayId %s, configId %d",
                          to_string(event.header.displayId).c_str(), event.config.configId);
 
                 if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED &&
@@ -341,7 +341,7 @@ protected:
 
         mFakeComposerClient->hotplugDisplay(EXTERNAL_DISPLAY,
                                             V2_1::IComposerCallback::Connection::CONNECTED);
-        waitForDisplayTransaction();
+        waitForDisplayTransaction(EXTERNAL_DISPLAY);
         EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, true));
 
         {
@@ -372,7 +372,7 @@ protected:
 
         mFakeComposerClient->hotplugDisplay(EXTERNAL_DISPLAY,
                                             V2_1::IComposerCallback::Connection::DISCONNECTED);
-        waitForDisplayTransaction();
+        waitForDisplayTransaction(EXTERNAL_DISPLAY);
         mFakeComposerClient->clearFrames();
         EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, false));
 
@@ -403,7 +403,7 @@ protected:
 
         mFakeComposerClient->hotplugDisplay(EXTERNAL_DISPLAY,
                                             V2_1::IComposerCallback::Connection::CONNECTED);
-        waitForDisplayTransaction();
+        waitForDisplayTransaction(EXTERNAL_DISPLAY);
         EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, true));
 
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kExternalDisplayId);
@@ -456,7 +456,7 @@ protected:
                                                                               config.refreshRate,
                                                                               config.refreshRate,
                                                                               config.refreshRate));
-                waitForDisplayTransaction();
+                waitForDisplayTransaction(EXTERNAL_DISPLAY);
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
@@ -487,7 +487,7 @@ protected:
 
         mFakeComposerClient->hotplugDisplay(EXTERNAL_DISPLAY,
                                             V2_1::IComposerCallback::Connection::DISCONNECTED);
-        waitForDisplayTransaction();
+        waitForDisplayTransaction(EXTERNAL_DISPLAY);
         mFakeComposerClient->clearFrames();
         EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, false));
     }
@@ -510,7 +510,7 @@ protected:
 
         mFakeComposerClient->hotplugDisplay(EXTERNAL_DISPLAY,
                                             V2_1::IComposerCallback::Connection::CONNECTED);
-        waitForDisplayTransaction();
+        waitForDisplayTransaction(EXTERNAL_DISPLAY);
         EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, true));
 
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kExternalDisplayId);
@@ -562,7 +562,7 @@ protected:
                                                                               config.refreshRate,
                                                                               config.refreshRate,
                                                                               config.refreshRate));
-                waitForDisplayTransaction();
+                waitForDisplayTransaction(EXTERNAL_DISPLAY);
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
@@ -593,7 +593,7 @@ protected:
 
         mFakeComposerClient->hotplugDisplay(EXTERNAL_DISPLAY,
                                             V2_1::IComposerCallback::Connection::DISCONNECTED);
-        waitForDisplayTransaction();
+        waitForDisplayTransaction(EXTERNAL_DISPLAY);
         mFakeComposerClient->clearFrames();
         EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, false));
     }
@@ -626,7 +626,7 @@ protected:
 
         mFakeComposerClient->hotplugDisplay(EXTERNAL_DISPLAY,
                                             V2_1::IComposerCallback::Connection::CONNECTED);
-        waitForDisplayTransaction();
+        waitForDisplayTransaction(EXTERNAL_DISPLAY);
         EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, true));
 
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kExternalDisplayId);
@@ -669,7 +669,7 @@ protected:
                     .WillOnce(Return(V2_1::Error::NONE));
         }
 
-        for (int i = 0; i < configs.size(); i++) {
+        for (size_t i = 0; i < configs.size(); i++) {
             const auto& config = configs[i];
             if (config.resolution.getWidth() == 800 && config.refreshRate == 1e9f / 11'111'111) {
                 EXPECT_EQ(NO_ERROR,
@@ -679,7 +679,7 @@ protected:
                                                                configs[i].refreshRate,
                                                                configs[i].refreshRate,
                                                                configs[i].refreshRate));
-                waitForDisplayTransaction();
+                waitForDisplayTransaction(EXTERNAL_DISPLAY);
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
@@ -726,7 +726,7 @@ protected:
                                                                               config.refreshRate,
                                                                               config.refreshRate,
                                                                               config.refreshRate));
-                waitForDisplayTransaction();
+                waitForDisplayTransaction(EXTERNAL_DISPLAY);
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
@@ -773,7 +773,7 @@ protected:
                                                                               config.refreshRate,
                                                                               config.refreshRate,
                                                                               config.refreshRate));
-                waitForDisplayTransaction();
+                waitForDisplayTransaction(EXTERNAL_DISPLAY);
                 EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
@@ -804,7 +804,7 @@ protected:
 
         mFakeComposerClient->hotplugDisplay(EXTERNAL_DISPLAY,
                                             V2_1::IComposerCallback::Connection::DISCONNECTED);
-        waitForDisplayTransaction();
+        waitForDisplayTransaction(EXTERNAL_DISPLAY);
         mFakeComposerClient->clearFrames();
         EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, false));
     }
@@ -815,7 +815,7 @@ protected:
         mFakeComposerClient->hotplugDisplay(PRIMARY_DISPLAY,
                                             V2_1::IComposerCallback::Connection::DISCONNECTED);
 
-        waitForDisplayTransaction();
+        waitForDisplayTransaction(PRIMARY_DISPLAY);
 
         EXPECT_TRUE(waitForHotplugEvent(PRIMARY_DISPLAY, false));
         {
@@ -840,7 +840,7 @@ protected:
         mFakeComposerClient->hotplugDisplay(PRIMARY_DISPLAY,
                                             V2_1::IComposerCallback::Connection::CONNECTED);
 
-        waitForDisplayTransaction();
+        waitForDisplayTransaction(PRIMARY_DISPLAY);
 
         EXPECT_TRUE(waitForHotplugEvent(PRIMARY_DISPLAY, true));
 
@@ -853,6 +853,121 @@ protected:
             EXPECT_EQ(NO_ERROR, result);
             ASSERT_EQ(ui::Size(400, 200), config.resolution);
             EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
+        }
+    }
+
+    void Test_SubsequentHotplugConnectUpdatesDisplay(Display hwcDisplayId) {
+        ALOGD("DisplayTest::Test_SubsequentHotplugConnectUpdatesDisplay");
+
+        // Send a hotplug connected event to set up the initial display modes.
+        // The primary display is already connected so this will update it.
+        // If we're running the test of an external display this will create it.
+        setExpectationsForConfigs(hwcDisplayId,
+                                  {{.id = 1,
+                                    .w = 800,
+                                    .h = 1600,
+                                    .vsyncPeriod = 11'111'111,
+                                    .group = 1}},
+                                  /* activeConfig */ 1, 11'111'111);
+
+        mFakeComposerClient->hotplugDisplay(hwcDisplayId,
+                                            V2_1::IComposerCallback::Connection::CONNECTED);
+        waitForDisplayTransaction(hwcDisplayId);
+        EXPECT_TRUE(waitForHotplugEvent(hwcDisplayId, true));
+
+        const auto displayId = physicalIdFromHwcDisplayId(hwcDisplayId);
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(displayId);
+        EXPECT_FALSE(display == nullptr);
+
+        // Verify that the active mode and the supported moded are updated
+        {
+            DisplayConfig config;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+            EXPECT_EQ(ui::Size(800, 1600), config.resolution);
+            EXPECT_EQ(1e9f / 11'111'111, config.refreshRate);
+
+            Vector<DisplayConfig> configs;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
+            EXPECT_EQ(configs.size(), 1);
+        }
+
+        // Send another hotplug connected event
+        setExpectationsForConfigs(hwcDisplayId,
+                                  {
+                                          {.id = 1,
+                                           .w = 800,
+                                           .h = 1600,
+                                           .vsyncPeriod = 16'666'666,
+                                           .group = 1},
+                                          {.id = 2,
+                                           .w = 800,
+                                           .h = 1600,
+                                           .vsyncPeriod = 11'111'111,
+                                           .group = 1},
+                                          {.id = 3,
+                                           .w = 800,
+                                           .h = 1600,
+                                           .vsyncPeriod = 8'333'333,
+                                           .group = 1},
+                                  },
+                                  /* activeConfig */ 1, 16'666'666);
+
+        mFakeComposerClient->hotplugDisplay(hwcDisplayId,
+                                            V2_1::IComposerCallback::Connection::CONNECTED);
+        waitForDisplayTransaction(hwcDisplayId);
+        EXPECT_TRUE(waitForHotplugEvent(hwcDisplayId, true));
+
+        // Verify that the active mode and the supported moded are updated
+        {
+            DisplayConfig config;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+            EXPECT_EQ(ui::Size(800, 1600), config.resolution);
+            EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
+        }
+
+        Vector<DisplayConfig> configs;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
+        EXPECT_EQ(configs.size(), 3);
+
+        EXPECT_EQ(ui::Size(800, 1600), configs[0].resolution);
+        EXPECT_EQ(1e9f / 16'666'666, configs[0].refreshRate);
+
+        EXPECT_EQ(ui::Size(800, 1600), configs[1].resolution);
+        EXPECT_EQ(1e9f / 11'111'111, configs[1].refreshRate);
+
+        EXPECT_EQ(ui::Size(800, 1600), configs[2].resolution);
+        EXPECT_EQ(1e9f / 8'333'333, configs[2].refreshRate);
+
+        // Verify that we are able to switch to any of the modes
+        for (int i = configs.size() - 1; i >= 0; i--) {
+            const auto hwcId = i + 1;
+            // Set up HWC expectations for the mode change
+            if (mIs2_4Client) {
+                EXPECT_CALL(*mMockComposer,
+                            setActiveConfigWithConstraints(hwcDisplayId, hwcId, _, _))
+                        .WillOnce(Return(V2_4::Error::NONE));
+            } else {
+                EXPECT_CALL(*mMockComposer, setActiveConfig(hwcDisplayId, hwcId))
+                        .WillOnce(Return(V2_1::Error::NONE));
+            }
+
+            EXPECT_EQ(NO_ERROR,
+                      SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i, false,
+                                                                          configs[i].refreshRate,
+                                                                          configs[i].refreshRate,
+                                                                          configs[i].refreshRate,
+                                                                          configs[i].refreshRate));
+            // We need to refresh twice - once to apply the pending mode change request,
+            // and once to process the change.
+            waitForDisplayTransaction(hwcDisplayId);
+            waitForDisplayTransaction(hwcDisplayId);
+            EXPECT_TRUE(waitForConfigChangedEvent(hwcDisplayId, i))
+                    << "Failure while switching to mode " << i;
+
+            DisplayConfig config;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+            EXPECT_EQ(ui::Size(800, 1600), config.resolution);
+            EXPECT_EQ(configs[i].refreshRate, config.refreshRate);
         }
     }
 
@@ -911,6 +1026,14 @@ TEST_F(DisplayTest_2_1, HotplugPrimaryOneConfig) {
     Test_HotplugPrimaryDisplay();
 }
 
+TEST_F(DisplayTest_2_1, SubsequentHotplugConnectUpdatesPrimaryDisplay) {
+    Test_SubsequentHotplugConnectUpdatesDisplay(PRIMARY_DISPLAY);
+}
+
+TEST_F(DisplayTest_2_1, SubsequentHotplugConnectUpdatesExternalDisplay) {
+    Test_SubsequentHotplugConnectUpdatesDisplay(EXTERNAL_DISPLAY);
+}
+
 using DisplayTest_2_2 = DisplayTest<FakeComposerService_2_2>;
 
 TEST_F(DisplayTest_2_2, HotplugOneConfig) {
@@ -931,6 +1054,14 @@ TEST_F(DisplayTest_2_2, HotplugThreeConfigsMixedGroups) {
 
 TEST_F(DisplayTest_2_2, HotplugPrimaryOneConfig) {
     Test_HotplugPrimaryDisplay();
+}
+
+TEST_F(DisplayTest_2_2, SubsequentHotplugConnectUpdatesPrimaryDisplay) {
+    Test_SubsequentHotplugConnectUpdatesDisplay(PRIMARY_DISPLAY);
+}
+
+TEST_F(DisplayTest_2_2, SubsequentHotplugConnectUpdatesExternalDisplay) {
+    Test_SubsequentHotplugConnectUpdatesDisplay(EXTERNAL_DISPLAY);
 }
 
 using DisplayTest_2_3 = DisplayTest<FakeComposerService_2_3>;
@@ -955,6 +1086,14 @@ TEST_F(DisplayTest_2_3, HotplugPrimaryOneConfig) {
     Test_HotplugPrimaryDisplay();
 }
 
+TEST_F(DisplayTest_2_3, SubsequentHotplugConnectUpdatesPrimaryDisplay) {
+    Test_SubsequentHotplugConnectUpdatesDisplay(PRIMARY_DISPLAY);
+}
+
+TEST_F(DisplayTest_2_3, SubsequentHotplugConnectUpdatesExternalDisplay) {
+    Test_SubsequentHotplugConnectUpdatesDisplay(EXTERNAL_DISPLAY);
+}
+
 using DisplayTest_2_4 = DisplayTest<FakeComposerService_2_4>;
 
 TEST_F(DisplayTest_2_4, HotplugOneConfig) {
@@ -975,6 +1114,14 @@ TEST_F(DisplayTest_2_4, HotplugThreeConfigsMixedGroups) {
 
 TEST_F(DisplayTest_2_4, HotplugPrimaryOneConfig) {
     Test_HotplugPrimaryDisplay();
+}
+
+TEST_F(DisplayTest_2_4, SubsequentHotplugConnectUpdatesPrimaryDisplay) {
+    Test_SubsequentHotplugConnectUpdatesDisplay(PRIMARY_DISPLAY);
+}
+
+TEST_F(DisplayTest_2_4, SubsequentHotplugConnectUpdatesExternalDisplay) {
+    Test_SubsequentHotplugConnectUpdatesDisplay(EXTERNAL_DISPLAY);
 }
 
 ////////////////////////////////////////////////
