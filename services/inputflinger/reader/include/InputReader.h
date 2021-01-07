@@ -127,11 +127,30 @@ protected:
         void dispatchExternalStylusState(const StylusState& outState)
                 NO_THREAD_SAFETY_ANALYSIS override;
         InputReaderPolicyInterface* getPolicy() NO_THREAD_SAFETY_ANALYSIS override;
-        InputListenerInterface* getListener() NO_THREAD_SAFETY_ANALYSIS override;
         EventHubInterface* getEventHub() NO_THREAD_SAFETY_ANALYSIS override;
-        int32_t getNextId() NO_THREAD_SAFETY_ANALYSIS override;
         void updateLedMetaState(int32_t metaState) NO_THREAD_SAFETY_ANALYSIS override;
         int32_t getLedMetaState() NO_THREAD_SAFETY_ANALYSIS override;
+
+        // Send events to InputListener interface
+        void notifyConfigurationChanged(nsecs_t when) override;
+        void notifyKey(nsecs_t eventTime, int32_t deviceId, uint32_t source, int32_t displayId,
+                       uint32_t policyFlags, int32_t action, int32_t flags, int32_t keyCode,
+                       int32_t scanCode, int32_t metaState, nsecs_t downTime) override;
+        void notifyMotion(nsecs_t eventTime, int32_t deviceId, uint32_t source, int32_t displayId,
+                          uint32_t policyFlags, int32_t action, int32_t actionButton, int32_t flags,
+                          int32_t metaState, int32_t buttonState,
+                          MotionClassification classification, int32_t edgeFlags,
+                          uint32_t pointerCount, const PointerProperties* pointerProperties,
+                          const PointerCoords* pointerCoords, float xPrecision, float yPrecision,
+                          float xCursorPosition, float yCursorPosition, nsecs_t downTime,
+                          const std::vector<TouchVideoFrame>& videoFrames) override;
+        void notifySwitch(nsecs_t eventTime, uint32_t switchValues, uint32_t switchMask) override;
+        void notifySensor(nsecs_t when, int32_t deviceId, InputDeviceSensorType sensorType,
+                          InputDeviceSensorAccuracy accuracy, bool accuracyChanged,
+                          nsecs_t timestamp, std::vector<float> values) override;
+        void notifyDeviceReset(nsecs_t when, int32_t deviceId) override;
+        void notifyPointerCaptureChanged(nsecs_t when, bool hasCapture) override;
+
     } mContext;
 
     friend class ContextImpl;

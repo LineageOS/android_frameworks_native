@@ -672,13 +672,17 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                     ? getSkRect(layer->geometry.roundedCornersCrop)
                     : dest;
             drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
+        } else {
+            // Shadows are assumed to live only on their own layer - it's not valid
+            // to draw the boundary retangles when there is already a caster shadow
+            // TODO(b/175915334): consider relaxing this restriction to enable more flexible
+            // composition - using a well-defined invalid color is long-term less error-prone.
+            // Push the clipRRect onto the clip stack. Draw the image. Pop the clip.
+            if (layer->geometry.roundedCornersRadius > 0) {
+                canvas->clipRRect(getRoundedRect(layer), true);
+            }
+            canvas->drawRect(dest, paint);
         }
-
-        // Push the clipRRect onto the clip stack. Draw the image. Pop the clip.
-        if (layer->geometry.roundedCornersRadius > 0) {
-            canvas->clipRRect(getRoundedRect(layer), true);
-        }
-        canvas->drawRect(dest, paint);
         canvas->restore();
     }
     canvas->restore();

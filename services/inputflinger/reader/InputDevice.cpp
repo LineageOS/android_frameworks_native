@@ -54,10 +54,11 @@ bool InputDevice::isEnabled() {
     if (!hasEventHubDevices()) {
         return false;
     }
-    // devices are either all enabled or all disabled, so we only need to check the first
-    auto& devicePair = mDevices.begin()->second;
-    auto& contextPtr = devicePair.first;
-    return contextPtr->isDeviceEnabled();
+    // An input device composed of sub devices can be individually enabled or disabled.
+    // If any of the sub device is enabled then the input device is considered as enabled.
+    bool enabled = false;
+    for_each_subdevice([&enabled](auto& context) { enabled |= context.isDeviceEnabled(); });
+    return enabled;
 }
 
 void InputDevice::setEnabled(bool enabled, nsecs_t when) {
@@ -504,8 +505,7 @@ void InputDevice::bumpGeneration() {
 }
 
 void InputDevice::notifyReset(nsecs_t when) {
-    NotifyDeviceResetArgs args(mContext->getNextId(), when, mId);
-    mContext->getListener()->notifyDeviceReset(&args);
+    mContext->notifyDeviceReset(when, mId);
 }
 
 std::optional<int32_t> InputDevice::getAssociatedDisplayId() {

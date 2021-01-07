@@ -427,7 +427,7 @@ status_t Dumpsys::writeDump(int fd, const String16& serviceName, std::chrono::mi
                  << strerror(errno) << std::endl;
             status = -errno;
             break;
-        } else if (rc == 0) {
+        } else if (rc == 0 || time_left_ms() == 0) {
             status = TIMED_OUT;
             break;
         }

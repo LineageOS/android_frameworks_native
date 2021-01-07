@@ -100,15 +100,7 @@ int32_t BufferQueueLayer::getQueuedFrameCount() const {
     return mQueuedFrames;
 }
 
-bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
-    if (getSidebandStreamChanged() || getAutoRefresh()) {
-        return true;
-    }
-
-    if (!hasFrameUpdate()) {
-        return false;
-    }
-
+bool BufferQueueLayer::isBufferDue(nsecs_t expectedPresentTime) const {
     Mutex::Autolock lock(mQueueItemLock);
 
     const int64_t addedTime = mQueueItems[0].item.mTimestamp;
@@ -223,16 +215,16 @@ bool BufferQueueLayer::hasFrameUpdate() const {
     return mQueuedFrames > 0;
 }
 
-nsecs_t BufferQueueLayer::nextPredictedPresentTime() const {
+std::optional<nsecs_t> BufferQueueLayer::nextPredictedPresentTime() const {
     Mutex::Autolock lock(mQueueItemLock);
     if (mQueueItems.empty()) {
-        return 0;
+        return std::nullopt;
     }
 
     const auto& bufferData = mQueueItems[0];
 
     if (!bufferData.item.mIsAutoTimestamp || !bufferData.surfaceFrame) {
-        return 0;
+        return std::nullopt;
     }
 
     return bufferData.surfaceFrame->getPredictions().presentTime;

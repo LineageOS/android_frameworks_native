@@ -57,13 +57,15 @@ extern "C" {
 
 struct AAsset;
 
-#if __ANDROID_API__ >= 30
-
 /**
- *  {@link AImageDecoder} functions result code. Many functions will return one of these
- *  to indicate success ({@link ANDROID_IMAGE_DECODER_SUCCESS}) or the reason
- *  for the failure. On failure, any out-parameters should be considered
- *  uninitialized, except where specified.
+ *  {@link AImageDecoder} functions result code.
+ *
+ *  Introduced in API 30.
+ *
+ *  Many functions will return this to indicate success
+ *  ({@link ANDROID_IMAGE_DECODER_SUCCESS}) or the reason for the failure. On
+ *  failure, any out-parameters should be considered uninitialized, except where
+ *  specified.
  */
 enum {
     /**
@@ -115,6 +117,8 @@ struct AImageDecoder;
 /**
  * Opaque handle for decoding images.
  *
+ * Introduced in API 30
+ *
  * Create using one of the following:
  * - {@link AImageDecoder_createFromAAsset}
  * - {@link AImageDecoder_createFromFd}
@@ -129,6 +133,8 @@ struct AImageDecoder;
  * threads.
  */
 typedef struct AImageDecoder AImageDecoder;
+
+#if __ANDROID_API__ >= 30
 
 /**
  * Create a new {@link AImageDecoder} from an {@link AAsset}.
@@ -331,7 +337,6 @@ int AImageDecoder_setDataSpace(AImageDecoder* _Nonnull decoder, int32_t dataspac
 int AImageDecoder_setTargetSize(AImageDecoder* _Nonnull decoder, int32_t width,
                                 int32_t height) __INTRODUCED_IN(30);
 
-
 /**
  * Compute the dimensions to use for a given sampleSize.
  *
@@ -361,6 +366,7 @@ int AImageDecoder_setTargetSize(AImageDecoder* _Nonnull decoder, int32_t width,
 int AImageDecoder_computeSampledSize(const AImageDecoder* _Nonnull decoder, int sampleSize,
                                      int32_t* _Nonnull width, int32_t* _Nonnull height)
         __INTRODUCED_IN(30);
+
 /**
  * Specify how to crop the output after scaling (if any).
  *
@@ -388,14 +394,21 @@ int AImageDecoder_computeSampledSize(const AImageDecoder* _Nonnull decoder, int 
  */
 int AImageDecoder_setCrop(AImageDecoder* _Nonnull decoder, ARect crop) __INTRODUCED_IN(30);
 
+#endif // __ANDROID_API__ >= 30
+
 struct AImageDecoderHeaderInfo;
 /**
- * Opaque handle for representing information about the encoded image. Retrieved
- * using {@link AImageDecoder_getHeaderInfo} and passed to methods like
- * {@link AImageDecoderHeaderInfo_getWidth} and
+ * Opaque handle for representing information about the encoded image.
+ *
+ * Introduced in API 30
+ *
+ * Retrieved using {@link AImageDecoder_getHeaderInfo} and passed to methods
+ * like {@link AImageDecoderHeaderInfo_getWidth} and
  * {@link AImageDecoderHeaderInfo_getHeight}.
  */
 typedef struct AImageDecoderHeaderInfo AImageDecoderHeaderInfo;
+
+#if __ANDROID_API__ >= 30
 
 /**
  * Return an opaque handle for reading header info.
@@ -557,13 +570,19 @@ int AImageDecoder_decodeImage(AImageDecoder* _Nonnull decoder,
 bool AImageDecoder_isAnimated(AImageDecoder* _Nonnull decoder)
         __INTRODUCED_IN(31);
 
+#endif // __ANDROID_API__ >= 31
+
 enum {
     /*
      * Reported by {@link AImageDecoder_getRepeatCount} if the
      * animation should repeat forever.
+     *
+     * Introduced in API 31
      */
     ANDROID_IMAGE_DECODER_INFINITE = INT32_MAX,
 };
+
+#if __ANDROID_API__ >= 31
 
 /**
  * Report how many times the animation should repeat.

@@ -1481,6 +1481,32 @@ TEST_F(InputReaderTest, GetMergedInputDevices) {
     ASSERT_EQ(1U, mReader->getInputDevices().size());
 }
 
+TEST_F(InputReaderTest, GetMergedInputDevicesEnabled) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    constexpr int32_t eventHubIds[2] = {END_RESERVED_ID, END_RESERVED_ID + 1};
+    // Add two subdevices to device
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake");
+    // Must add at least one mapper or the device will be ignored!
+    device->addMapper<FakeInputMapper>(eventHubIds[0], AINPUT_SOURCE_KEYBOARD);
+    device->addMapper<FakeInputMapper>(eventHubIds[1], AINPUT_SOURCE_KEYBOARD);
+
+    // Push same device instance for next device to be added, so they'll have same identifier.
+    mReader->pushNextDevice(device);
+    mReader->pushNextDevice(device);
+    // Sensor device is initially disabled
+    ASSERT_NO_FATAL_FAILURE(addDevice(eventHubIds[0], "fake1",
+                                      InputDeviceClass::KEYBOARD | InputDeviceClass::SENSOR,
+                                      nullptr));
+    // Device is disabled because the only sub device is a sensor device and disabled initially.
+    ASSERT_FALSE(mFakeEventHub->isDeviceEnabled(eventHubIds[0]));
+    ASSERT_FALSE(device->isEnabled());
+    ASSERT_NO_FATAL_FAILURE(
+            addDevice(eventHubIds[1], "fake2", InputDeviceClass::KEYBOARD, nullptr));
+    // The merged device is enabled if any sub device is enabled
+    ASSERT_TRUE(mFakeEventHub->isDeviceEnabled(eventHubIds[1]));
+    ASSERT_TRUE(device->isEnabled());
+}
+
 TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     constexpr int32_t deviceId = END_RESERVED_ID + 1000;
     constexpr Flags<InputDeviceClass> deviceClass(InputDeviceClass::KEYBOARD);
@@ -2721,6 +2747,7 @@ TEST_F(SensorInputMapperTest, ProcessAccelerometerSensor) {
     ASSERT_TRUE(mapper.enableSensor(InputDeviceSensorType::ACCELEROMETER,
                                     std::chrono::microseconds(10000),
                                     std::chrono::microseconds(0)));
+    ASSERT_TRUE(mFakeEventHub->isDeviceEnabled(EVENTHUB_ID));
     process(mapper, ARBITRARY_TIME, EV_ABS, ABS_X, 20000);
     process(mapper, ARBITRARY_TIME, EV_ABS, ABS_Y, -20000);
     process(mapper, ARBITRARY_TIME, EV_ABS, ABS_Z, 40000);
@@ -2750,6 +2777,7 @@ TEST_F(SensorInputMapperTest, ProcessGyroscopeSensor) {
     ASSERT_TRUE(mapper.enableSensor(InputDeviceSensorType::GYROSCOPE,
                                     std::chrono::microseconds(10000),
                                     std::chrono::microseconds(0)));
+    ASSERT_TRUE(mFakeEventHub->isDeviceEnabled(EVENTHUB_ID));
     process(mapper, ARBITRARY_TIME, EV_ABS, ABS_RX, 20000);
     process(mapper, ARBITRARY_TIME, EV_ABS, ABS_RY, -20000);
     process(mapper, ARBITRARY_TIME, EV_ABS, ABS_RZ, 40000);
@@ -8015,6 +8043,34 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270) {
     constexpr int32_t xExpected = DISPLAY_HEIGHT - y;
     constexpr int32_t yExpected = (x + 1) - DISPLAY_WIDTH / 4;
     processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
+}
+
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_Corner) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    const int32_t x = 0;
+    const int32_t y = 0;
+
+    const int32_t xExpected = x;
+    const int32_t yExpected = y;
+    processPositionAndVerify(mapper, x - 1, y, x, y, xExpected, yExpected);
+
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_90);
+    // expect x/y = swap x/y then reverse y.
+    const int32_t xExpected90 = y;
+    const int32_t yExpected90 = DISPLAY_WIDTH - 1;
+    processPositionAndVerify(mapper, x - 1, y, x, y, xExpected90, yExpected90);
+
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_270);
+    // expect x/y = swap x/y then reverse x.
+    const int32_t xExpected270 = DISPLAY_HEIGHT - 1;
+    const int32_t yExpected270 = x;
+    processPositionAndVerify(mapper, x - 1, y, x, y, xExpected270, yExpected270);
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
