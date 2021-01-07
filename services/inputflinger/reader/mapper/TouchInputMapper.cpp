@@ -397,8 +397,7 @@ void TouchInputMapper::configure(nsecs_t when, const InputReaderConfiguration* c
     if (changes && resetNeeded) {
         // Send reset, unless this is the first time the device has been configured,
         // in which case the reader will call reset itself after all mappers are ready.
-        NotifyDeviceResetArgs args(getContext()->getNextId(), when, getDeviceId());
-        getListener()->notifyDeviceReset(&args);
+        getContext()->notifyDeviceReset(when, getDeviceId());
     }
 }
 
@@ -1829,10 +1828,9 @@ void TouchInputMapper::dispatchVirtualKey(nsecs_t when, uint32_t policyFlags,
     int32_t metaState = getContext()->getGlobalMetaState();
     policyFlags |= POLICY_FLAG_VIRTUAL;
 
-    NotifyKeyArgs args(getContext()->getNextId(), when, getDeviceId(), AINPUT_SOURCE_KEYBOARD,
-                       mViewport.displayId, policyFlags, keyEventAction, keyEventFlags, keyCode,
-                       scanCode, metaState, downTime);
-    getListener()->notifyKey(&args);
+    getContext()->notifyKey(when, getDeviceId(), AINPUT_SOURCE_KEYBOARD, mViewport.displayId,
+                            policyFlags, keyEventAction, keyEventFlags, keyCode, scanCode,
+                            metaState, downTime);
 }
 
 void TouchInputMapper::abortTouches(nsecs_t when, uint32_t policyFlags) {
@@ -2508,12 +2506,11 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
 
         const int32_t displayId = mPointerController->getDisplayId();
-        NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, displayId,
-                              policyFlags, AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
-                              buttonState, MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
-                              1, &pointerProperties, &pointerCoords, 0, 0, x, y,
-                              mPointerGesture.downTime, /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
+                                   AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState, buttonState,
+                                   MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                                   &pointerProperties, &pointerCoords, 0, 0, x, y,
+                                   mPointerGesture.downTime, /* videoFrames */ {});
     }
 
     // Update state.
@@ -3428,28 +3425,28 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         mPointerSimple.down = false;
 
         // Send up.
-        NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, displayId,
-                              policyFlags, AMOTION_EVENT_ACTION_UP, 0, 0, metaState,
-                              mLastRawState.buttonState, MotionClassification::NONE,
-                              AMOTION_EVENT_EDGE_FLAG_NONE, 1, &mPointerSimple.lastProperties,
-                              &mPointerSimple.lastCoords, mOrientedXPrecision, mOrientedYPrecision,
-                              xCursorPosition, yCursorPosition, mPointerSimple.downTime,
-                              /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
+                                   AMOTION_EVENT_ACTION_UP, 0, 0, metaState,
+                                   mLastRawState.buttonState, MotionClassification::NONE,
+                                   AMOTION_EVENT_EDGE_FLAG_NONE, 1, &mPointerSimple.lastProperties,
+                                   &mPointerSimple.lastCoords, mOrientedXPrecision,
+                                   mOrientedYPrecision, xCursorPosition, yCursorPosition,
+                                   mPointerSimple.downTime,
+                                   /* videoFrames */ {});
     }
 
     if (mPointerSimple.hovering && !hovering) {
         mPointerSimple.hovering = false;
 
         // Send hover exit.
-        NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, displayId,
-                              policyFlags, AMOTION_EVENT_ACTION_HOVER_EXIT, 0, 0, metaState,
-                              mLastRawState.buttonState, MotionClassification::NONE,
-                              AMOTION_EVENT_EDGE_FLAG_NONE, 1, &mPointerSimple.lastProperties,
-                              &mPointerSimple.lastCoords, mOrientedXPrecision, mOrientedYPrecision,
-                              xCursorPosition, yCursorPosition, mPointerSimple.downTime,
-                              /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
+                                   AMOTION_EVENT_ACTION_HOVER_EXIT, 0, 0, metaState,
+                                   mLastRawState.buttonState, MotionClassification::NONE,
+                                   AMOTION_EVENT_EDGE_FLAG_NONE, 1, &mPointerSimple.lastProperties,
+                                   &mPointerSimple.lastCoords, mOrientedXPrecision,
+                                   mOrientedYPrecision, xCursorPosition, yCursorPosition,
+                                   mPointerSimple.downTime,
+                                   /* videoFrames */ {});
     }
 
     if (down) {
@@ -3458,25 +3455,24 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
             mPointerSimple.downTime = when;
 
             // Send down.
-            NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), mSource,
-                                  displayId, policyFlags, AMOTION_EVENT_ACTION_DOWN, 0, 0,
-                                  metaState, mCurrentRawState.buttonState,
-                                  MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
-                                  &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
-                                  mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
-                                  yCursorPosition, mPointerSimple.downTime, /* videoFrames */ {});
-            getListener()->notifyMotion(&args);
+            getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
+                                       AMOTION_EVENT_ACTION_DOWN, 0, 0, metaState,
+                                       mCurrentRawState.buttonState, MotionClassification::NONE,
+                                       AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                                       &mPointerSimple.currentProperties,
+                                       &mPointerSimple.currentCoords, mOrientedXPrecision,
+                                       mOrientedYPrecision, xCursorPosition, yCursorPosition,
+                                       mPointerSimple.downTime, /* videoFrames */ {});
         }
 
         // Send move.
-        NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, displayId,
-                              policyFlags, AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState,
-                              mCurrentRawState.buttonState, MotionClassification::NONE,
-                              AMOTION_EVENT_EDGE_FLAG_NONE, 1, &mPointerSimple.currentProperties,
-                              &mPointerSimple.currentCoords, mOrientedXPrecision,
-                              mOrientedYPrecision, xCursorPosition, yCursorPosition,
-                              mPointerSimple.downTime, /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
+                                   AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState,
+                                   mCurrentRawState.buttonState, MotionClassification::NONE,
+                                   AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                                   &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
+                                   mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
+                                   yCursorPosition, mPointerSimple.downTime, /* videoFrames */ {});
     }
 
     if (hovering) {
@@ -3484,25 +3480,24 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
             mPointerSimple.hovering = true;
 
             // Send hover enter.
-            NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), mSource,
-                                  displayId, policyFlags, AMOTION_EVENT_ACTION_HOVER_ENTER, 0, 0,
-                                  metaState, mCurrentRawState.buttonState,
-                                  MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
-                                  &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
-                                  mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
-                                  yCursorPosition, mPointerSimple.downTime, /* videoFrames */ {});
-            getListener()->notifyMotion(&args);
+            getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
+                                       AMOTION_EVENT_ACTION_HOVER_ENTER, 0, 0, metaState,
+                                       mCurrentRawState.buttonState, MotionClassification::NONE,
+                                       AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                                       &mPointerSimple.currentProperties,
+                                       &mPointerSimple.currentCoords, mOrientedXPrecision,
+                                       mOrientedYPrecision, xCursorPosition, yCursorPosition,
+                                       mPointerSimple.downTime, /* videoFrames */ {});
         }
 
         // Send hover move.
-        NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, displayId,
-                              policyFlags, AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
-                              mCurrentRawState.buttonState, MotionClassification::NONE,
-                              AMOTION_EVENT_EDGE_FLAG_NONE, 1, &mPointerSimple.currentProperties,
-                              &mPointerSimple.currentCoords, mOrientedXPrecision,
-                              mOrientedYPrecision, xCursorPosition, yCursorPosition,
-                              mPointerSimple.downTime, /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
+                                   AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
+                                   mCurrentRawState.buttonState, MotionClassification::NONE,
+                                   AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                                   &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
+                                   mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
+                                   yCursorPosition, mPointerSimple.downTime, /* videoFrames */ {});
     }
 
     if (mCurrentRawState.rawVScroll || mCurrentRawState.rawHScroll) {
@@ -3517,14 +3512,14 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
-        NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, displayId,
-                              policyFlags, AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState,
-                              mCurrentRawState.buttonState, MotionClassification::NONE,
-                              AMOTION_EVENT_EDGE_FLAG_NONE, 1, &mPointerSimple.currentProperties,
-                              &pointerCoords, mOrientedXPrecision, mOrientedYPrecision,
-                              xCursorPosition, yCursorPosition, mPointerSimple.downTime,
-                              /* videoFrames */ {});
-        getListener()->notifyMotion(&args);
+        getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
+                                   AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState,
+                                   mCurrentRawState.buttonState, MotionClassification::NONE,
+                                   AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                                   &mPointerSimple.currentProperties, &pointerCoords,
+                                   mOrientedXPrecision, mOrientedYPrecision, xCursorPosition,
+                                   yCursorPosition, mPointerSimple.downTime,
+                                   /* videoFrames */ {});
     }
 
     // Save state.
@@ -3595,12 +3590,11 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
     std::vector<TouchVideoFrame> frames = getDeviceContext().getVideoFrames();
     std::for_each(frames.begin(), frames.end(),
                   [this](TouchVideoFrame& frame) { frame.rotate(this->mSurfaceOrientation); });
-    NotifyMotionArgs args(getContext()->getNextId(), when, deviceId, source, displayId, policyFlags,
-                          action, actionButton, flags, metaState, buttonState,
-                          MotionClassification::NONE, edgeFlags, pointerCount, pointerProperties,
-                          pointerCoords, xPrecision, yPrecision, xCursorPosition, yCursorPosition,
-                          downTime, std::move(frames));
-    getListener()->notifyMotion(&args);
+    getContext()->notifyMotion(when, deviceId, source, displayId, policyFlags, action, actionButton,
+                               flags, metaState, buttonState, MotionClassification::NONE, edgeFlags,
+                               pointerCount, pointerProperties, pointerCoords, xPrecision,
+                               yPrecision, xCursorPosition, yCursorPosition, downTime,
+                               std::move(frames));
 }
 
 bool TouchInputMapper::updateMovedPointers(const PointerProperties* inProperties,
