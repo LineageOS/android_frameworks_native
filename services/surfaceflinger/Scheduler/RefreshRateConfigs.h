@@ -211,8 +211,11 @@ public:
         Heuristic,       // Specific refresh rate that was calculated by platform using a heuristic
         ExplicitDefault, // Specific refresh rate that was provided by the app with Default
                          // compatibility
-        ExplicitExactOrMultiple // Specific refresh rate that was provided by the app with
-                                // ExactOrMultiple compatibility
+        ExplicitExactOrMultiple, // Specific refresh rate that was provided by the app with
+                                 // ExactOrMultiple compatibility
+        ExplicitExact,           // Specific refresh rate that was provided by the app with
+                                 // Exact compatibility
+
     };
 
     // Captures the layer requirements for a refresh rate. This will be used to determine the
@@ -298,7 +301,8 @@ public:
     // Returns a known frame rate that is the closest to frameRate
     Fps findClosestKnownFrameRate(Fps frameRate) const;
 
-    RefreshRateConfigs(const DisplayModes& configs, DisplayModeId currentConfigId);
+    RefreshRateConfigs(const DisplayModes& configs, DisplayModeId currentConfigId,
+                       bool enableFrameRateOverride = false);
 
     void updateDisplayConfigs(const DisplayModes& configs, DisplayModeId currentConfig)
             EXCLUDES(mLock);
@@ -327,10 +331,15 @@ public:
     // Returns a divider for the current refresh rate
     int getRefreshRateDivider(Fps frameRate) const EXCLUDES(mLock);
 
-    // Returns the frame rate override for each uid
     using UidToFrameRateOverride = std::map<uid_t, Fps>;
+    // Returns the frame rate override for each uid.
+    //
+    // @param layers list of visible layers
+    // @param displayFrameRate the display frame rate
+    // @param touch whether touch timer is active (i.e. user touched the screen recently)
     UidToFrameRateOverride getFrameRateOverrides(const std::vector<LayerRequirement>& layers,
-                                                 Fps displayFrameRate) const EXCLUDES(mLock);
+                                                 Fps displayFrameRate, bool touch) const
+            EXCLUDES(mLock);
 
     void dump(std::string& result) const EXCLUDES(mLock);
 
@@ -410,6 +419,7 @@ private:
     // from based on the closest value.
     const std::vector<Fps> mKnownFrameRates;
 
+    const bool mEnableFrameRateOverride;
     bool mSupportsFrameRateOverride;
 };
 

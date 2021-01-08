@@ -16,6 +16,7 @@
 
 #define LOG_TAG "LayerState"
 
+#include <apex/window.h>
 #include <inttypes.h>
 
 #include <binder/Parcel.h>
@@ -620,7 +621,8 @@ status_t InputWindowCommands::read(const Parcel& input) {
     return NO_ERROR;
 }
 
-bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* inFunctionName) {
+bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* inFunctionName,
+                       bool privileged) {
     const char* functionName = inFunctionName != nullptr ? inFunctionName : "call";
     int floatClassification = std::fpclassify(frameRate);
     if (frameRate < 0 || floatClassification == FP_INFINITE || floatClassification == FP_NAN) {
@@ -629,8 +631,10 @@ bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* inFunc
     }
 
     if (compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT &&
-        compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE) {
-        ALOGE("%s failed - invalid compatibility value %d", functionName, compatibility);
+        compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE &&
+        (!privileged || compatibility != ANATIVEWINDOW_FRAME_RATE_EXACT)) {
+        ALOGE("%s failed - invalid compatibility value %d privileged: %s", functionName,
+              compatibility, privileged ? "yes" : "no");
         return false;
     }
 

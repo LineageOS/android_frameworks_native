@@ -763,17 +763,11 @@ bool Scheduler::updateFrameRateOverrides(
         return false;
     }
 
-    if (consideredSignals.touch) {
-        std::lock_guard lock(mFrameRateOverridesMutex);
-        const bool changed = !mFrameRateOverridesByContent.empty();
-        mFrameRateOverridesByContent.clear();
-        return changed;
-    }
-
     if (!consideredSignals.idle) {
         const auto frameRateOverrides =
                 mRefreshRateConfigs.getFrameRateOverrides(mFeatures.contentRequirements,
-                                                          displayRefreshRate);
+                                                          displayRefreshRate,
+                                                          consideredSignals.touch);
         std::lock_guard lock(mFrameRateOverridesMutex);
         if (!std::equal(mFrameRateOverridesByContent.begin(), mFrameRateOverridesByContent.end(),
                         frameRateOverrides.begin(), frameRateOverrides.end(),
