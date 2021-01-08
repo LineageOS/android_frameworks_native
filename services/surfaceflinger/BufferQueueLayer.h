@@ -53,7 +53,8 @@ public:
 
     int32_t getQueuedFrameCount() const override;
 
-    bool shouldPresentNow(nsecs_t expectedPresentTime) const override;
+    // Returns true if the next buffer should be presented at the expected present time
+    bool isBufferDue(nsecs_t expectedPresentTime) const override;
 
     // Implements BufferLayer.
     bool fenceHasSignaled() const override;
@@ -116,7 +117,7 @@ private:
     // Temporary - Used only for LEGACY camera mode.
     uint32_t getProducerStickyTransform() const;
 
-    nsecs_t nextPredictedPresentTime() const override;
+    std::optional<nsecs_t> nextPredictedPresentTime() const override;
 
     sp<BufferLayerConsumer> mConsumer;
     sp<IGraphicBufferProducer> mProducer;

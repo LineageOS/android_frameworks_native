@@ -212,14 +212,6 @@ void BufferStateLayer::finalizeFrameEventHistory(const std::shared_ptr<FenceTime
     }
 }
 
-bool BufferStateLayer::shouldPresentNow(nsecs_t /*expectedPresentTime*/) const {
-    if (getSidebandStreamChanged() || getAutoRefresh()) {
-        return true;
-    }
-
-    return hasFrameUpdate();
-}
-
 bool BufferStateLayer::willPresentCurrentTransaction() const {
     // Returns true if the most recent Transaction applied to CurrentState will be presented.
     return (getSidebandStreamChanged() || getAutoRefresh() ||
@@ -602,9 +594,9 @@ bool BufferStateLayer::hasFrameUpdate() const {
     return mCurrentStateModified && (c.buffer != nullptr || c.bgColorLayer != nullptr);
 }
 
-nsecs_t BufferStateLayer::nextPredictedPresentTime() const {
+std::optional<nsecs_t> BufferStateLayer::nextPredictedPresentTime() const {
     if (!getDrawingState().isAutoTimestamp || !mSurfaceFrame) {
-        return 0;
+        return std::nullopt;
     }
 
     return mSurfaceFrame->getPredictions().presentTime;

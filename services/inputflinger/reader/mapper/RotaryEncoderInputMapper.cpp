@@ -121,13 +121,12 @@ void RotaryEncoderInputMapper::sync(nsecs_t when) {
         int32_t metaState = getContext()->getGlobalMetaState();
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_SCROLL, scroll * mScalingFactor);
 
-        NotifyMotionArgs scrollArgs(getContext()->getNextId(), when, getDeviceId(), mSource,
-                                    displayId, policyFlags, AMOTION_EVENT_ACTION_SCROLL, 0, 0,
-                                    metaState, /* buttonState */ 0, MotionClassification::NONE,
-                                    AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                    &pointerCoords, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                    AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
-        getListener()->notifyMotion(&scrollArgs);
+        getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
+                                   AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState,
+                                   /* buttonState */ 0, MotionClassification::NONE,
+                                   AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                   &pointerCoords, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                   AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
     }
 
     mRotaryEncoderScrollAccumulator.finishSync();
