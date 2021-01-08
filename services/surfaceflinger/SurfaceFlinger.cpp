@@ -3841,7 +3841,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             ALOGE("Attempt to update InputWindowInfo without permission ACCESS_SURFACE_FLINGER");
         }
     }
+    std::optional<nsecs_t> dequeueBufferTimestamp;
     if (what & layer_state_t::eMetadataChanged) {
+        dequeueBufferTimestamp = s.metadata.getInt64(METADATA_DEQUEUE_TIME);
         if (layer->setMetadata(s.metadata)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eColorSpaceAgnosticChanged) {
@@ -3929,7 +3931,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 : layer->getHeadFrameNumber(-1 /* expectedPresentTime */) + 1;
 
         if (layer->setBuffer(buffer, s.acquireFence, postTime, desiredPresentTime, isAutoTimestamp,
-                             s.cachedBuffer, frameNumber)) {
+                             s.cachedBuffer, frameNumber, dequeueBufferTimestamp)) {
             flags |= eTraversalNeeded;
         }
     }
