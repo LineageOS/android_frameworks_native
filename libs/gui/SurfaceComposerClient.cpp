@@ -1925,6 +1925,11 @@ status_t SurfaceComposerClient::getAnimationFrameStats(FrameStats* outStats) {
     return ComposerService::getComposerService()->getAnimationFrameStats(outStats);
 }
 
+status_t SurfaceComposerClient::overrideHdrTypes(const sp<IBinder>& display,
+                                                 const std::vector<ui::Hdr>& hdrTypes) {
+    return ComposerService::getComposerService()->overrideHdrTypes(display, hdrTypes);
+}
+
 status_t SurfaceComposerClient::getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
                                                                       ui::PixelFormat* outFormat,
                                                                       ui::Dataspace* outDataspace,

@@ -270,6 +270,13 @@ public:
      */
     virtual status_t getAnimationFrameStats(FrameStats* outStats) const = 0;
 
+    /* Overrides the supported HDR modes for the given display device.
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t overrideHdrTypes(const sp<IBinder>& display,
+                                      const std::vector<ui::Hdr>& hdrTypes) = 0;
+
     virtual status_t enableVSyncInjections(bool enable) = 0;
 
     virtual status_t injectVSync(nsecs_t when) = 0;
@@ -573,6 +580,7 @@ public:
         GET_DYNAMIC_DISPLAY_INFO,
         ADD_FPS_LISTENER,
         REMOVE_FPS_LISTENER,
+        OVERRIDE_HDR_TYPES,
         // Always append new enum to the end.
     };
 
