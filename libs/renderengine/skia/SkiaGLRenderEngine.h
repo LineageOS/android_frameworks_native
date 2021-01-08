@@ -91,6 +91,11 @@ private:
     void drawBlurRegion(SkCanvas* canvas, const BlurRegion& blurRegion, const SkRect& layerRect,
                         sk_sp<SkSurface> blurredSurface);
     SkMatrix getBlurShaderTransform(const SkCanvas* canvas, const SkRect& layerRect);
+    // If mUseColorManagement is correct and layer needsLinearEffect, it returns a linear runtime
+    // shader. Otherwise it returns the input shader.
+    sk_sp<SkShader> createRuntimeEffectShader(sk_sp<SkShader> shader, const LayerSettings* layer,
+                                              const DisplaySettings& display,
+                                              bool undoPremultipliedAlpha);
 
     EGLDisplay mEGLDisplay;
     EGLContext mEGLContext;

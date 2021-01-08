@@ -227,7 +227,6 @@ static const std::string DUMP_INCIDENT_REPORT_TASK = "INCIDENT REPORT";
 static const std::string DUMP_HALS_TASK = "DUMP HALS";
 static const std::string DUMP_BOARD_TASK = "dumpstate_board()";
 static const std::string DUMP_CHECKINS_TASK = "DUMP CHECKINS";
-static const std::string DUMP_APP_INFOS_TASK = "DUMP APP INFOS";
 
 namespace android {
 namespace os {
@@ -1577,7 +1576,6 @@ static Dumpstate::RunStatus dumpstate() {
         ds.dump_pool_->enqueueTask(DUMP_INCIDENT_REPORT_TASK, &DumpIncidentReport);
         ds.dump_pool_->enqueueTaskWithFd(DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
         ds.dump_pool_->enqueueTaskWithFd(DUMP_CHECKINS_TASK, &DumpCheckins, _1);
-        ds.dump_pool_->enqueueTaskWithFd(DUMP_APP_INFOS_TASK, &DumpAppInfos, _1);
     }
 
     // Dump various things. Note that anything that takes "long" (i.e. several seconds) should
@@ -1730,11 +1728,7 @@ static Dumpstate::RunStatus dumpstate() {
         RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_CHECKINS_TASK, DumpCheckins);
     }
 
-    if (ds.dump_pool_) {
-        WAIT_TASK_WITH_CONSENT_CHECK(DUMP_APP_INFOS_TASK, ds.dump_pool_);
-    } else {
-        RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_APP_INFOS_TASK, DumpAppInfos);
-    }
+    RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(DumpAppInfos);
 
     printf("========================================================\n");
     printf("== Dropbox crashes\n");

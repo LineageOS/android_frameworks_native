@@ -31,6 +31,7 @@ bool StartPropertySetThread::threadLoop() {
     property_set(kTimestampProperty, mTimestampPropertyValue ? "1" : "0");
     // Clear BootAnimation exit flag
     property_set("service.bootanim.exit", "0");
+    property_set("service.bootanim.progress", "0");
     // Start BootAnimation if not started
     property_set("ctl.start", "bootanim");
     // Exit immediately

@@ -45,7 +45,7 @@ public:
     void finalizeFrameEventHistory(const std::shared_ptr<FenceTime>& glDoneFence,
                                    const CompositorTiming& compositorTiming) override;
 
-    bool shouldPresentNow(nsecs_t expectedPresentTime) const override;
+    bool isBufferDue(nsecs_t /*expectedPresentTime*/) const override { return true; }
 
     uint32_t doTransactionResize(uint32_t flags, Layer::State* /*stateToCommit*/) override {
         return flags;
@@ -152,7 +152,7 @@ private:
 
     bool bufferNeedsFiltering() const override;
 
-    nsecs_t nextPredictedPresentTime() const override;
+    std::optional<nsecs_t> nextPredictedPresentTime() const override;
 
     static const std::array<float, 16> IDENTITY_MATRIX;
 

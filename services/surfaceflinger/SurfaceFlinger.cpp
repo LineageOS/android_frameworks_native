@@ -1994,11 +1994,6 @@ void SurfaceFlinger::onMessageRefresh() {
 
     mScheduler->onDisplayRefreshed(presentTime);
 
-    // Set presentation information before calling postComposition, such that jank information from
-    // this' frame classification is already available when sending jank info to clients.
-    mFrameTimeline->setSfPresent(systemTime(),
-                                 std::make_shared<FenceTime>(mPreviousPresentFences[0]));
-
     postFrame();
     postComposition();
 
@@ -2120,11 +2115,6 @@ void SurfaceFlinger::postComposition() {
     ATRACE_CALL();
     ALOGV("postComposition");
 
-    nsecs_t dequeueReadyTime = systemTime();
-    for (const auto& layer : mLayersWithQueuedFrames) {
-        layer->releasePendingBuffer(dequeueReadyTime);
-    }
-
     const auto* display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked()).get();
 
     getBE().mGlCompositionDoneTimeline.updateSignalTimes();
@@ -2145,6 +2135,17 @@ void SurfaceFlinger::postComposition() {
             display ? getHwComposer().getPresentFence(display->getPhysicalId()) : Fence::NO_FENCE;
     auto presentFenceTime = std::make_shared<FenceTime>(mPreviousPresentFences[0]);
     getBE().mDisplayTimeline.push(presentFenceTime);
+
+    // Set presentation information before calling Layer::releasePendingBuffer, such that jank
+    // information from previous' frame classification is already available when sending jank info
+    // to clients, so they get jank classification as early as possible.
+    mFrameTimeline->setSfPresent(systemTime(),
+                                 std::make_shared<FenceTime>(mPreviousPresentFences[0]));
+
+    nsecs_t dequeueReadyTime = systemTime();
+    for (const auto& layer : mLayersWithQueuedFrames) {
+        layer->releasePendingBuffer(dequeueReadyTime);
+    }
 
     const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(systemTime());
 

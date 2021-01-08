@@ -418,6 +418,32 @@ void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
     mProtectedTextureCache.erase(bufferId);
 }
 
+sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> shader,
+                                                              const LayerSettings* layer,
+                                                              const DisplaySettings& display,
+                                                              bool undoPremultipliedAlpha) {
+    if (mUseColorManagement &&
+        needsLinearEffect(layer->colorTransform, layer->sourceDataspace, display.outputDataspace)) {
+        LinearEffect effect = LinearEffect{.inputDataspace = layer->sourceDataspace,
+                                           .outputDataspace = display.outputDataspace,
+                                           .undoPremultipliedAlpha = undoPremultipliedAlpha};
+
+        auto effectIter = mRuntimeEffects.find(effect);
+        sk_sp<SkRuntimeEffect> runtimeEffect = nullptr;
+        if (effectIter == mRuntimeEffects.end()) {
+            runtimeEffect = buildRuntimeEffect(effect);
+            mRuntimeEffects.insert({effect, runtimeEffect});
+        } else {
+            runtimeEffect = effectIter->second;
+        }
+        return createLinearEffectShader(shader, effect, runtimeEffect, layer->colorTransform,
+                                        display.maxLuminance,
+                                        layer->source.buffer.maxMasteringLuminance,
+                                        layer->source.buffer.maxContentLuminance);
+    }
+    return shader;
+}
+
 status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                         const std::vector<const LayerSettings*>& layers,
                                         const sp<GraphicBuffer>& buffer,
@@ -624,41 +650,22 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 shader = image->makeShader(SkSamplingOptions(), matrix);
             }
 
-            if (mUseColorManagement &&
-                needsLinearEffect(layer->colorTransform, layer->sourceDataspace,
-                                  display.outputDataspace)) {
-                LinearEffect effect = LinearEffect{.inputDataspace = layer->sourceDataspace,
-                                                   .outputDataspace = display.outputDataspace,
-                                                   .undoPremultipliedAlpha = !item.isOpaque &&
-                                                           item.usePremultipliedAlpha};
+            paint.setShader(
+                    createRuntimeEffectShader(shader, layer, display,
+                                              !item.isOpaque && item.usePremultipliedAlpha));
 
-                auto effectIter = mRuntimeEffects.find(effect);
-                sk_sp<SkRuntimeEffect> runtimeEffect = nullptr;
-                if (effectIter == mRuntimeEffects.end()) {
-                    runtimeEffect = buildRuntimeEffect(effect);
-                    mRuntimeEffects.insert({effect, runtimeEffect});
-                } else {
-                    runtimeEffect = effectIter->second;
-                }
-
-                paint.setShader(createLinearEffectShader(shader, effect, runtimeEffect,
-                                                         layer->colorTransform,
-                                                         display.maxLuminance,
-                                                         layer->source.buffer.maxMasteringLuminance,
-                                                         layer->source.buffer.maxContentLuminance));
-            } else {
-                paint.setShader(shader);
-            }
             // Make sure to take into the account the alpha set on the layer.
             paint.setAlphaf(layer->alpha);
         } else {
             ATRACE_NAME("DrawColor");
             const auto color = layer->source.solidColor;
-            paint.setShader(SkShaders::Color(SkColor4f{.fR = color.r,
-                                                       .fG = color.g,
-                                                       .fB = color.b,
-                                                       layer->alpha},
-                                             nullptr));
+            sk_sp<SkShader> shader = SkShaders::Color(SkColor4f{.fR = color.r,
+                                                                .fG = color.g,
+                                                                .fB = color.b,
+                                                                layer->alpha},
+                                                      nullptr);
+            paint.setShader(createRuntimeEffectShader(shader, layer, display,
+                                                      /* undoPremultipliedAlpha */ false));
         }
 
         paint.setColorFilter(SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform)));

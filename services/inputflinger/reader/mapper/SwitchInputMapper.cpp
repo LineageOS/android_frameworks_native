@@ -56,10 +56,7 @@ void SwitchInputMapper::processSwitch(int32_t switchCode, int32_t switchValue) {
 void SwitchInputMapper::sync(nsecs_t when) {
     if (mUpdatedSwitchMask) {
         uint32_t updatedSwitchValues = mSwitchValues & mUpdatedSwitchMask;
-        NotifySwitchArgs args(getContext()->getNextId(), when, 0 /*policyFlags*/,
-                              updatedSwitchValues, mUpdatedSwitchMask);
-        getListener()->notifySwitch(&args);
-
+        getContext()->notifySwitch(when, updatedSwitchValues, mUpdatedSwitchMask);
         mUpdatedSwitchMask = 0;
     }
 }

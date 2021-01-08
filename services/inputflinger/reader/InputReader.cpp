@@ -339,8 +339,7 @@ void InputReader::handleConfigurationChangedLocked(nsecs_t when) {
     updateGlobalMetaStateLocked();
 
     // Enqueue configuration changed.
-    NotifyConfigurationChangedArgs args(mContext.getNextId(), when);
-    mQueuedListener->notifyConfigurationChanged(&args);
+    mContext.notifyConfigurationChanged(when);
 }
 
 void InputReader::refreshConfigurationLocked(uint32_t changes) {
@@ -367,9 +366,7 @@ void InputReader::refreshConfigurationLocked(uint32_t changes) {
     }
 
     if (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE) {
-        const NotifyPointerCaptureChangedArgs args(mContext.getNextId(), now,
-                                                   mConfig.pointerCapture);
-        mQueuedListener->notifyPointerCaptureChanged(&args);
+        mContext.notifyPointerCaptureChanged(now, mConfig.pointerCapture);
     }
 }
 
@@ -868,16 +865,64 @@ InputReaderPolicyInterface* InputReader::ContextImpl::getPolicy() {
     return mReader->mPolicy.get();
 }
 
-InputListenerInterface* InputReader::ContextImpl::getListener() {
-    return mReader->mQueuedListener.get();
-}
-
 EventHubInterface* InputReader::ContextImpl::getEventHub() {
     return mReader->mEventHub.get();
 }
 
-int32_t InputReader::ContextImpl::getNextId() {
-    return mIdGenerator.nextId();
+void InputReader::ContextImpl::notifyConfigurationChanged(nsecs_t when) {
+    NotifyConfigurationChangedArgs args(mIdGenerator.nextId(), when);
+    mReader->mQueuedListener->notifyConfigurationChanged(&args);
+}
+
+void InputReader::ContextImpl::notifyKey(nsecs_t eventTime, int32_t deviceId, uint32_t source,
+                                         int32_t displayId, uint32_t policyFlags, int32_t action,
+                                         int32_t flags, int32_t keyCode, int32_t scanCode,
+                                         int32_t metaState, nsecs_t downTime) {
+    NotifyKeyArgs args(mIdGenerator.nextId(), eventTime, deviceId, source, displayId, policyFlags,
+                       action, flags, keyCode, scanCode, metaState, downTime);
+    mReader->mQueuedListener->notifyKey(&args);
+}
+void InputReader::ContextImpl::notifyMotion(
+        nsecs_t eventTime, int32_t deviceId, uint32_t source, int32_t displayId,
+        uint32_t policyFlags, int32_t action, int32_t actionButton, int32_t flags,
+        int32_t metaState, int32_t buttonState, MotionClassification classification,
+        int32_t edgeFlags, uint32_t pointerCount, const PointerProperties* pointerProperties,
+        const PointerCoords* pointerCoords, float xPrecision, float yPrecision,
+        float xCursorPosition, float yCursorPosition, nsecs_t downTime,
+        const std::vector<TouchVideoFrame>& videoFrames) {
+    NotifyMotionArgs args(mIdGenerator.nextId(), eventTime, deviceId, source, displayId,
+                          policyFlags, action, actionButton, flags, metaState, buttonState,
+                          classification, edgeFlags, pointerCount, pointerProperties, pointerCoords,
+                          xPrecision, yPrecision, xCursorPosition, yCursorPosition, downTime,
+                          videoFrames);
+    mReader->mQueuedListener->notifyMotion(&args);
+}
+
+void InputReader::ContextImpl::notifySensor(nsecs_t when, int32_t deviceId,
+                                            InputDeviceSensorType sensorType,
+                                            InputDeviceSensorAccuracy accuracy,
+                                            bool accuracyChanged, nsecs_t timestamp,
+                                            std::vector<float> values) {
+    NotifySensorArgs args(mIdGenerator.nextId(), when, deviceId, AINPUT_SOURCE_SENSOR, sensorType,
+                          accuracy, accuracyChanged, timestamp, std::move(values));
+    mReader->mQueuedListener->notifySensor(&args);
+}
+
+void InputReader::ContextImpl::notifySwitch(nsecs_t eventTime, uint32_t switchValues,
+                                            uint32_t switchMask) {
+    NotifySwitchArgs args(mIdGenerator.nextId(), eventTime, 0 /*policyFlags*/, switchValues,
+                          switchMask);
+    mReader->mQueuedListener->notifySwitch(&args);
+}
+
+void InputReader::ContextImpl::notifyDeviceReset(nsecs_t when, int32_t deviceId) {
+    NotifyDeviceResetArgs args(mIdGenerator.nextId(), when, deviceId);
+    mReader->mQueuedListener->notifyDeviceReset(&args);
+}
+
+void InputReader::ContextImpl::notifyPointerCaptureChanged(nsecs_t when, bool hasCapture) {
+    const NotifyPointerCaptureChangedArgs args(mIdGenerator.nextId(), when, hasCapture);
+    mReader->mQueuedListener->notifyPointerCaptureChanged(&args);
 }
 
 } // namespace android
