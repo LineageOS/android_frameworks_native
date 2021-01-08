@@ -3377,8 +3377,10 @@ status_t SurfaceFlinger::setTransactionState(
     const int originPid = ipc->getCallingPid();
     const int originUid = ipc->getCallingUid();
 
-    if (pendingTransactions ||
-        !transactionIsReadyToBeApplied(isAutoTimestamp ? 0 : desiredPresentTime, states, true)) {
+    // Call transactionIsReadyToBeApplied first in case we need to incrementPendingBufferCount
+    // if the transaction contains a buffer.
+    if (!transactionIsReadyToBeApplied(isAutoTimestamp ? 0 : desiredPresentTime, states, true) ||
+        pendingTransactions) {
         mTransactionQueues[applyToken].emplace(frameTimelineVsyncId, states, displays, flags,
                                                desiredPresentTime, isAutoTimestamp, uncacheBuffer,
                                                postTime, privileged, hasListenerCallbacks,

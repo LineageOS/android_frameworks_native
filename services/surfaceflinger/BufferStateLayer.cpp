@@ -637,7 +637,10 @@ status_t BufferStateLayer::updateActiveBuffer() {
     if (s.buffer == nullptr) {
         return BAD_VALUE;
     }
-    decrementPendingBufferCount();
+
+    if (s.buffer != mBufferInfo.mBuffer) {
+        decrementPendingBufferCount();
+    }
 
     mPreviousBufferId = getCurrentBufferId();
     mBufferInfo.mBuffer = s.buffer;
