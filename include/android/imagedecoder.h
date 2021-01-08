@@ -65,7 +65,8 @@ struct AAsset;
  *  Many functions will return this to indicate success
  *  ({@link ANDROID_IMAGE_DECODER_SUCCESS}) or the reason for the failure. On
  *  failure, any out-parameters should be considered uninitialized, except where
- *  specified.
+ *  specified. Use {@link AImageDecoder_resultToString} for a readable
+ *  version of the result code.
  */
 enum {
     /**
@@ -124,6 +125,24 @@ enum {
     ANDROID_IMAGE_DECODER_INVALID_STATE = -11,
 };
 
+#if __ANDROID_API__ >= 31
+
+/**
+ * Return a constant string value representing the error code.
+ *
+ * Introduced in API 31.
+ *
+ * Pass the return value from an {@link AImageDecoder} method (e.g.
+ * {@link AImageDecoder_decodeImage}) for a text string representing the error
+ * code.
+ *
+ * Errors:
+ * - Returns null for a value out of range.
+ */
+const char* _Nullable AImageDecoder_resultToString(int)__INTRODUCED_IN(31);
+
+#endif // __ANDROID_API__ >= 31
+
 struct AImageDecoder;
 
 /**
@@ -177,7 +196,7 @@ typedef struct AImageDecoder AImageDecoder;
  *   supported.
  */
 int AImageDecoder_createFromAAsset(struct AAsset* _Nonnull asset,
-                                   AImageDecoder* _Nonnull * _Nonnull outDecoder)
+                                   AImageDecoder* _Nullable * _Nonnull outDecoder)
         __INTRODUCED_IN(30);
 
 /**
@@ -208,7 +227,7 @@ int AImageDecoder_createFromAAsset(struct AAsset* _Nonnull asset,
  * - {@link ANDROID_IMAGE_DECODER_UNSUPPORTED_FORMAT}: The format is not
  *   supported.
  */
-int AImageDecoder_createFromFd(int fd, AImageDecoder* _Nonnull * _Nonnull outDecoder)
+int AImageDecoder_createFromFd(int fd, AImageDecoder* _Nullable * _Nonnull outDecoder)
         __INTRODUCED_IN(30);
 
 /**
@@ -239,7 +258,7 @@ int AImageDecoder_createFromFd(int fd, AImageDecoder* _Nonnull * _Nonnull outDec
  *   supported.
  */
 int AImageDecoder_createFromBuffer(const void* _Nonnull buffer, size_t length,
-                                   AImageDecoder* _Nonnull * _Nonnull outDecoder)
+                                   AImageDecoder* _Nullable * _Nonnull outDecoder)
         __INTRODUCED_IN(30);
 
 /**
@@ -247,7 +266,7 @@ int AImageDecoder_createFromBuffer(const void* _Nonnull buffer, size_t length,
  *
  * Available since API level 30.
  */
-void AImageDecoder_delete(AImageDecoder* _Nonnull decoder) __INTRODUCED_IN(30);
+void AImageDecoder_delete(AImageDecoder* _Nullable decoder) __INTRODUCED_IN(30);
 
 /**
  * Choose the desired output format.
