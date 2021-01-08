@@ -28,6 +28,7 @@ cc_library_headers {
     // TODO(b/153609531): remove when no longer needed.
     native_bridge_supported: true,
     min_sdk_version: "29",
+    host_supported: true,
 }
 
 ndk_library {
