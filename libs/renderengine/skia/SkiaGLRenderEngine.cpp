@@ -19,25 +19,10 @@
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <cstdint>
-#include <memory>
-
-#include "SkImageInfo.h"
-#include "log/log_main.h"
-#include "system/graphics-base-v1.0.h"
+#include "SkiaGLRenderEngine.h"
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <sync/sync.h>
-#include <ui/BlurRegion.h>
-#include <ui/GraphicBuffer.h>
-#include <utils/Trace.h>
-#include "../gl/GLExtensions.h"
-#include "SkiaGLRenderEngine.h"
-#include "filters/BlurFilter.h"
-#include "filters/LinearEffect.h"
-#include "skia/debug/SkiaCapture.h"
-
 #include <GrContextOptions.h>
 #include <SkCanvas.h>
 #include <SkColorFilter.h>
@@ -48,8 +33,23 @@
 #include <SkShadowUtils.h>
 #include <SkSurface.h>
 #include <gl/GrGLInterface.h>
+#include <sync/sync.h>
+#include <ui/BlurRegion.h>
+#include <ui/GraphicBuffer.h>
+#include <utils/Trace.h>
 
 #include <cmath>
+#include <cstdint>
+#include <memory>
+
+#include "../gl/GLExtensions.h"
+#include "SkBlendMode.h"
+#include "SkImageInfo.h"
+#include "filters/BlurFilter.h"
+#include "filters/LinearEffect.h"
+#include "log/log_main.h"
+#include "skia/debug/SkiaCapture.h"
+#include "system/graphics-base-v1.0.h"
 
 bool checkGlError(const char* op, int lineNumber);
 
@@ -661,7 +661,35 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                              nullptr));
         }
 
-        paint.setColorFilter(SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform)));
+        sk_sp<SkColorFilter> filter =
+                SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform));
+
+        // Handle opaque images - it's a little nonstandard how we do this.
+        // Fundamentally we need to support SurfaceControl.Builder#setOpaque:
+        // https://developer.android.com/reference/android/view/SurfaceControl.Builder#setOpaque(boolean)
+        // The important language is that when isOpaque is set, opacity is not sampled from the
+        // alpha channel, but blending may still be supported on a transaction via setAlpha. So,
+        // here's the conundrum:
+        // 1. We can't force the SkImage alpha type to kOpaque_SkAlphaType, because it's treated as
+        // an internal hint - composition is undefined when there are alpha bits present.
+        // 2. We can try to lie about the pixel layout, but that only works for RGBA8888 buffers,
+        // i.e., treating them as RGBx8888 instead. But we can't do the same for RGBA1010102 because
+        // RGBx1010102 is not supported as a pixel layout for SkImages. It's also not clear what to
+        // use for F16 either, and lying about the pixel layout is a bit of a hack anyways.
+        // 3. We can't change the blendmode to src, because while this satisfies the requirement for
+        // ignoring the alpha channel, it doesn't quite satisfy the blending requirement because
+        // src always clobbers the destination content.
+        //
+        // So, what we do here instead is an additive blend mode where we compose the input image
+        // with a solid black. This might need to be reassess if this does not support FP16
+        // incredibly well, but FP16 end-to-end isn't well supported anyway at the moment.
+        if (layer->source.buffer.buffer && layer->source.buffer.isOpaque) {
+            filter = SkColorFilters::Compose(filter,
+                                             SkColorFilters::Blend(SK_ColorBLACK,
+                                                                   SkBlendMode::kPlus));
+        }
+
+        paint.setColorFilter(filter);
 
         for (const auto effectRegion : layer->blurRegions) {
             drawBlurRegion(canvas, effectRegion, layerRect, cachedBlurs[effectRegion.blurRadius]);
