@@ -129,8 +129,14 @@ bool SkiaCapture::setupMultiFrameCapture() {
         // SkDocuments don't take ownership of the streams they write.
         // we need to keep it until after mMultiPic.close()
         // procs is passed as a pointer, but just as a method of having an optional default.
-        // procs doesn't need to outlive this Make call.
-        mMultiPic = SkMakeMultiPictureDocument(mOpenMultiPicStream.get(), &procs);
+        // procs doesn't need to outlive this Make call
+        // The last argument is a callback for the endPage behavior.
+        // See SkSharingProc.h for more explanation of this callback.
+        mMultiPic = SkMakeMultiPictureDocument(
+                mOpenMultiPicStream.get(), &procs,
+                [sharingCtx = mSerialContext.get()](const SkPicture* pic) {
+                    SkSharingSerialContext::collectNonTextureImagesFromPicture(pic, sharingCtx);
+                });
         mCaptureRunning = true;
         return true;
     } else {
