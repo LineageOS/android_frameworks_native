@@ -28,11 +28,19 @@ namespace android {
 class SensorPrivacyManager
 {
 public:
+    enum {
+        INDIVIDUAL_SENSOR_MICROPHONE = 1,
+        INDIVIDUAL_SENSOR_CAMERA = 2
+    };
+
     SensorPrivacyManager();
 
     void addSensorPrivacyListener(const sp<hardware::ISensorPrivacyListener>& listener);
+    void addIndividualSensorPrivacyListener(int userId, int sensor,
+            const sp<hardware::ISensorPrivacyListener>& listener);
     void removeSensorPrivacyListener(const sp<hardware::ISensorPrivacyListener>& listener);
     bool isSensorPrivacyEnabled();
+    bool isIndividualSensorPrivacyEnabled(int userId, int sensor);
 
     status_t linkToDeath(const sp<IBinder::DeathRecipient>& recipient);
     status_t unlinkToDeath(const sp<IBinder::DeathRecipient>& recipient);

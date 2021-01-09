@@ -64,6 +64,15 @@ void SensorPrivacyManager::addSensorPrivacyListener(
     }
 }
 
+void SensorPrivacyManager::addIndividualSensorPrivacyListener(int userId, int sensor,
+        const sp<hardware::ISensorPrivacyListener>& listener)
+{
+    sp<hardware::ISensorPrivacyManager> service = getService();
+    if (service != nullptr) {
+        service->addIndividualSensorPrivacyListener(userId, sensor, listener);
+    }
+}
+
 void SensorPrivacyManager::removeSensorPrivacyListener(
         const sp<hardware::ISensorPrivacyListener>& listener)
 {
@@ -79,6 +88,18 @@ bool SensorPrivacyManager::isSensorPrivacyEnabled()
     if (service != nullptr) {
         bool result;
         service->isSensorPrivacyEnabled(&result);
+        return result;
+    }
+    // if the SensorPrivacyManager is not available then assume sensor privacy is disabled
+    return false;
+}
+
+bool SensorPrivacyManager::isIndividualSensorPrivacyEnabled(int userId, int sensor)
+{
+    sp<hardware::ISensorPrivacyManager> service = getService();
+    if (service != nullptr) {
+        bool result;
+        service->isIndividualSensorPrivacyEnabled(userId, sensor, &result);
         return result;
     }
     // if the SensorPrivacyManager is not available then assume sensor privacy is disabled
