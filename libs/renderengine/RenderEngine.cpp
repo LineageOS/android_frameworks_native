@@ -41,6 +41,9 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
     if (strcmp(prop, "skiagl") == 0) {
         renderEngineType = RenderEngineType::SKIA_GL;
     }
+    if (strcmp(prop, "skiaglthreaded") == 0) {
+        renderEngineType = RenderEngineType::SKIA_GL_THREADED;
+    }
 
     switch (renderEngineType) {
         case RenderEngineType::THREADED:
@@ -49,6 +52,10 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
                     [args]() { return android::renderengine::gl::GLESRenderEngine::create(args); });
         case RenderEngineType::SKIA_GL:
             return renderengine::skia::SkiaGLRenderEngine::create(args);
+        case RenderEngineType::SKIA_GL_THREADED:
+            return renderengine::threaded::RenderEngineThreaded::create([args]() {
+                return android::renderengine::skia::SkiaGLRenderEngine::create(args);
+            });
         case RenderEngineType::GLES:
         default:
             ALOGD("RenderEngine with GLES Backend");
