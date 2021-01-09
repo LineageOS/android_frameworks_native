@@ -335,7 +335,8 @@ bool BufferStateLayer::addFrameEvent(const sp<Fence>& acquireFence, nsecs_t post
 
 bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence,
                                  nsecs_t postTime, nsecs_t desiredPresentTime, bool isAutoTimestamp,
-                                 const client_cache_t& clientCacheId, uint64_t frameNumber) {
+                                 const client_cache_t& clientCacheId, uint64_t frameNumber,
+                                 std::optional<nsecs_t> /* dequeueTime */) {
     ATRACE_CALL();
 
     if (mCurrentState.buffer) {
@@ -636,7 +637,10 @@ status_t BufferStateLayer::updateActiveBuffer() {
     if (s.buffer == nullptr) {
         return BAD_VALUE;
     }
-    decrementPendingBufferCount();
+
+    if (s.buffer != mBufferInfo.mBuffer) {
+        decrementPendingBufferCount();
+    }
 
     mPreviousBufferId = getCurrentBufferId();
     mBufferInfo.mBuffer = s.buffer;

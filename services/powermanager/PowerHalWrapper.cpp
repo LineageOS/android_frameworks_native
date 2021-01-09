@@ -114,14 +114,15 @@ HalResult HidlHalWrapperV1_1::sendPowerHint(V1_0::PowerHint hintId, uint32_t dat
 
 HalResult AidlHalWrapper::setBoost(Boost boost, int32_t durationMs) {
     std::unique_lock<std::mutex> lock(mBoostMutex);
+    size_t idx = static_cast<size_t>(boost);
+
     // Quick return if boost is not supported by HAL
-    if (boost > Boost::DISPLAY_UPDATE_IMMINENT ||
-        mBoostSupportedArray[static_cast<int32_t>(boost)] == HalSupport::OFF) {
+    if (idx >= mBoostSupportedArray.size() || mBoostSupportedArray[idx] == HalSupport::OFF) {
         ALOGV("Skipped setBoost %s because Power HAL doesn't support it", toString(boost).c_str());
         return HalResult::UNSUPPORTED;
     }
 
-    if (mBoostSupportedArray[static_cast<int32_t>(boost)] == HalSupport::UNKNOWN) {
+    if (mBoostSupportedArray[idx] == HalSupport::UNKNOWN) {
         bool isSupported = false;
         auto isSupportedRet = mHandle->isBoostSupported(boost, &isSupported);
         if (!isSupportedRet.isOk()) {
@@ -130,8 +131,7 @@ HalResult AidlHalWrapper::setBoost(Boost boost, int32_t durationMs) {
             return HalResult::FAILED;
         }
 
-        mBoostSupportedArray[static_cast<int32_t>(boost)] =
-                isSupported ? HalSupport::ON : HalSupport::OFF;
+        mBoostSupportedArray[idx] = isSupported ? HalSupport::ON : HalSupport::OFF;
         if (!isSupported) {
             ALOGV("Skipped setBoost %s because Power HAL doesn't support it",
                   toString(boost).c_str());
@@ -145,14 +145,15 @@ HalResult AidlHalWrapper::setBoost(Boost boost, int32_t durationMs) {
 
 HalResult AidlHalWrapper::setMode(Mode mode, bool enabled) {
     std::unique_lock<std::mutex> lock(mModeMutex);
+    size_t idx = static_cast<size_t>(mode);
+
     // Quick return if mode is not supported by HAL
-    if (mode > Mode::DISPLAY_INACTIVE ||
-        mModeSupportedArray[static_cast<int32_t>(mode)] == HalSupport::OFF) {
+    if (idx >= mModeSupportedArray.size() || mModeSupportedArray[idx] == HalSupport::OFF) {
         ALOGV("Skipped setMode %s because Power HAL doesn't support it", toString(mode).c_str());
         return HalResult::UNSUPPORTED;
     }
 
-    if (mModeSupportedArray[static_cast<int32_t>(mode)] == HalSupport::UNKNOWN) {
+    if (mModeSupportedArray[idx] == HalSupport::UNKNOWN) {
         bool isSupported = false;
         auto isSupportedRet = mHandle->isModeSupported(mode, &isSupported);
         if (!isSupportedRet.isOk()) {
@@ -161,8 +162,7 @@ HalResult AidlHalWrapper::setMode(Mode mode, bool enabled) {
             return HalResult::FAILED;
         }
 
-        mModeSupportedArray[static_cast<int32_t>(mode)] =
-                isSupported ? HalSupport::ON : HalSupport::OFF;
+        mModeSupportedArray[idx] = isSupported ? HalSupport::ON : HalSupport::OFF;
         if (!isSupported) {
             ALOGV("Skipped setMode %s because Power HAL doesn't support it",
                   toString(mode).c_str());

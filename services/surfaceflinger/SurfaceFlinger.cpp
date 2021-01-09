@@ -3377,8 +3377,10 @@ status_t SurfaceFlinger::setTransactionState(
     const int originPid = ipc->getCallingPid();
     const int originUid = ipc->getCallingUid();
 
-    if (pendingTransactions ||
-        !transactionIsReadyToBeApplied(isAutoTimestamp ? 0 : desiredPresentTime, states, true)) {
+    // Call transactionIsReadyToBeApplied first in case we need to incrementPendingBufferCount
+    // if the transaction contains a buffer.
+    if (!transactionIsReadyToBeApplied(isAutoTimestamp ? 0 : desiredPresentTime, states, true) ||
+        pendingTransactions) {
         mTransactionQueues[applyToken].emplace(frameTimelineVsyncId, states, displays, flags,
                                                desiredPresentTime, isAutoTimestamp, uncacheBuffer,
                                                postTime, privileged, hasListenerCallbacks,
@@ -3841,7 +3843,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             ALOGE("Attempt to update InputWindowInfo without permission ACCESS_SURFACE_FLINGER");
         }
     }
+    std::optional<nsecs_t> dequeueBufferTimestamp;
     if (what & layer_state_t::eMetadataChanged) {
+        dequeueBufferTimestamp = s.metadata.getInt64(METADATA_DEQUEUE_TIME);
         if (layer->setMetadata(s.metadata)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eColorSpaceAgnosticChanged) {
@@ -3929,7 +3933,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 : layer->getHeadFrameNumber(-1 /* expectedPresentTime */) + 1;
 
         if (layer->setBuffer(buffer, s.acquireFence, postTime, desiredPresentTime, isAutoTimestamp,
-                             s.cachedBuffer, frameNumber)) {
+                             s.cachedBuffer, frameNumber, dequeueBufferTimestamp)) {
             flags |= eTraversalNeeded;
         }
     }
@@ -4508,12 +4512,9 @@ void SurfaceFlinger::recordBufferingStats(const std::string& layerName,
 
 void SurfaceFlinger::dumpFrameEventsLocked(std::string& result) {
     result.append("Layer frame timestamps:\n");
-
-    const LayerVector& currentLayers = mCurrentState.layersSortedByZ;
-    const size_t count = currentLayers.size();
-    for (size_t i=0 ; i<count ; i++) {
-        currentLayers[i]->dumpFrameEvents(result);
-    }
+    // Traverse all layers to dump frame-events for each layer
+    mCurrentState.traverseInZOrder(
+        [&] (Layer* layer) { layer->dumpFrameEvents(result); });
 }
 
 void SurfaceFlinger::dumpBufferingStats(std::string& result) const {
