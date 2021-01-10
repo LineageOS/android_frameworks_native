@@ -1823,10 +1823,8 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
     RunCommand("IOTOP", {"iotop", "-n", "1", "-m", "100"});
 
     // Gather shared memory buffer info if the product implements it
-    struct stat st;
-    if (!stat("/product/bin/dmabuf_dump", &st)) {
-        RunCommand("Dmabuf dump", {"/product/bin/dmabuf_dump"});
-    }
+    RunCommand("Dmabuf dump", {"dmabuf_dump"});
+    RunCommand("Dmabuf per-buffer/per-exporter/per-device stats", {"dmabuf_dump", "-b"});
 
     DumpFile("PSI cpu", "/proc/pressure/cpu");
     DumpFile("PSI memory", "/proc/pressure/memory");
