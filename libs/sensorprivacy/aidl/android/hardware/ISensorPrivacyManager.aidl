@@ -22,9 +22,17 @@ import android.hardware.ISensorPrivacyListener;
 interface ISensorPrivacyManager {
     void addSensorPrivacyListener(in ISensorPrivacyListener listener);
 
+    void addIndividualSensorPrivacyListener(int userId, int sensor, in ISensorPrivacyListener listener);
+
     void removeSensorPrivacyListener(in ISensorPrivacyListener listener);
 
     boolean isSensorPrivacyEnabled();
 
+    boolean isIndividualSensorPrivacyEnabled(int userId, int sensor);
+
     void setSensorPrivacy(boolean enable);
+
+    void setIndividualSensorPrivacy(int userId, int sensor, boolean enable);
+
+    void setIndividualSensorPrivacyForProfileGroup(int userId, int sensor, boolean enable);
 }

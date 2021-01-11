@@ -1186,6 +1186,37 @@ TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
     drawEmptyLayers();
 }
 
+TEST_P(RenderEngineTest, drawLayers_withoutBuffers_withColorTransform) {
+    const auto& renderEngineFactory = GetParam();
+    mRE = renderEngineFactory->createRenderEngine();
+
+    renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+
+    // 255, 255, 255, 255 is full opaque white.
+    const ubyte4 backgroundColor(255.f, 255.f, 255.f, 255.f);
+    // Create layer with given color.
+    renderengine::LayerSettings bgLayer;
+    bgLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+    bgLayer.geometry.boundaries = fullscreenRect().toFloatRect();
+    bgLayer.source.solidColor = half3(backgroundColor.r / 255.0f, backgroundColor.g / 255.0f,
+                                      backgroundColor.b / 255.0f);
+    bgLayer.alpha = backgroundColor.a / 255.0f;
+    // Transform the red color.
+    bgLayer.colorTransform = mat4(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+
+    std::vector<const renderengine::LayerSettings*> layers;
+    layers.push_back(&bgLayer);
+
+    invokeDraw(settings, layers, mBuffer);
+
+    // Expect to see full opaque pixel (with inverted red from the transform).
+    expectBufferColor(Rect(0, 0, 1, 1), 0.f, backgroundColor.g, backgroundColor.b,
+                      backgroundColor.a);
+}
+
 TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
     const auto& renderEngineFactory = GetParam();
     mRE = renderEngineFactory->createRenderEngine();

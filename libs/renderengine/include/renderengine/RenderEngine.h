@@ -82,6 +82,7 @@ public:
         GLES = 1,
         THREADED = 2,
         SKIA_GL = 3,
+        SKIA_GL_THREADED = 4,
     };
 
     static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);

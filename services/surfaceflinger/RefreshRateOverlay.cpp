@@ -237,7 +237,8 @@ void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
     mCurrentFps = refreshRate.getFps().getIntValue();
     auto buffer = getOrCreateBuffers(*mCurrentFps)[mFrame];
     mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
-                      mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */));
+                      mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */),
+                      std::nullopt /* dequeueTime */);
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
@@ -249,7 +250,8 @@ void RefreshRateOverlay::onInvalidate() {
     mFrame = (mFrame + 1) % buffers.size();
     auto buffer = buffers[mFrame];
     mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
-                      mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */));
+                      mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */),
+                      std::nullopt /* dequeueTime */);
 
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
