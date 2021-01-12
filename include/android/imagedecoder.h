@@ -712,7 +712,7 @@ enum {
  * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The AImageDecoder
  *   is null.
  */
-int32_t AImageDecoder_getRepeatCount(AImageDecoder* _Nonnull decoder);
+int32_t AImageDecoder_getRepeatCount(AImageDecoder* _Nonnull decoder)
         __INTRODUCED_IN(31);
 
 /**
