@@ -56,6 +56,7 @@ static uint32_t gNCpus = 0;
 static std::vector<std::vector<uint32_t>> gPolicyFreqs;
 static std::vector<std::vector<uint32_t>> gPolicyCpus;
 static std::set<uint32_t> gAllFreqs;
+static unique_fd gTisTotalMapFd;
 static unique_fd gTisMapFd;
 static unique_fd gConcurrentMapFd;
 static unique_fd gUidLastUpdateMapFd;
@@ -128,6 +129,10 @@ static bool initGlobals() {
         if (!cpus) return false;
         gPolicyCpus.emplace_back(*cpus);
     }
+
+    gTisTotalMapFd =
+            unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_total_time_in_state_map")};
+    if (gTisTotalMapFd < 0) return false;
 
     gTisMapFd = unique_fd{bpf_obj_get(BPF_FS_PATH "map_time_in_state_uid_time_in_state_map")};
     if (gTisMapFd < 0) return false;
@@ -239,6 +244,31 @@ std::optional<std::vector<std::vector<uint32_t>>> getCpuFreqs() {
     return gPolicyFreqs;
 }
 
+std::optional<std::vector<std::vector<uint64_t>>> getTotalCpuFreqTimes() {
+    if (!gInitialized && !initGlobals()) return {};
+
+    std::vector<std::vector<uint64_t>> out;
+    uint32_t maxFreqCount = 0;
+    for (const auto &freqList : gPolicyFreqs) {
+        if (freqList.size() > maxFreqCount) maxFreqCount = freqList.size();
+        out.emplace_back(freqList.size(), 0);
+    }
+
+    std::vector<uint64_t> vals(gNCpus);
+    const uint32_t freqCount = maxFreqCount <= MAX_FREQS_FOR_TOTAL ? maxFreqCount :
+            MAX_FREQS_FOR_TOTAL;
+    for (uint32_t freqIdx = 0; freqIdx < freqCount; ++freqIdx) {
+        if (findMapEntry(gTisTotalMapFd, &freqIdx, vals.data())) return {};
+        for (uint32_t policyIdx = 0; policyIdx < gNPolicies; ++policyIdx) {
+            if (freqIdx >= gPolicyFreqs[policyIdx].size()) continue;
+            for (const auto &cpu : gPolicyCpus[policyIdx]) {
+                out[policyIdx][freqIdx] += vals[cpu];
+            }
+        }
+    }
+
+    return out;
+}
 // Retrieve the times in ns that uid spent running at each CPU frequency.
 // Return contains no value on error, otherwise it contains a vector of vectors using the format:
 // [[t0_0, t0_1, ...],
