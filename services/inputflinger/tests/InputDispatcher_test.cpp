@@ -4172,6 +4172,7 @@ TEST_F(InputDispatcherPointerCaptureTests, UnexpectedStateChangeDisablesPointerC
     notifyPointerCaptureChanged(true);
 
     // Ensure that Pointer Capture is disabled.
+    mFakePolicy->waitForSetPointerCapture(false);
     mWindow->consumeCaptureEvent(false);
     mWindow->assertNoEvents();
 }

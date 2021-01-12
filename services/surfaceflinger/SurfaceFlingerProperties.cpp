@@ -376,5 +376,9 @@ bool update_device_product_info_on_hotplug_reconnect(bool defaultValue) {
             defaultValue);
 }
 
+bool enable_frame_rate_override(bool defaultValue) {
+    return SurfaceFlingerProperties::enable_frame_rate_override().value_or(defaultValue);
+}
+
 } // namespace sysprop
 } // namespace android

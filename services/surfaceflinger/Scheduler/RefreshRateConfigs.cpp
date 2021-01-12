@@ -26,6 +26,7 @@
 #include <utils/Trace.h>
 #include <chrono>
 #include <cmath>
+#include "../SurfaceFlingerProperties.h"
 
 #undef LOG_TAG
 #define LOG_TAG "RefreshRateConfigs"
@@ -555,14 +556,17 @@ RefreshRateConfigs::RefreshRateConfigs(
     mMaxSupportedRefreshRate = sortedConfigs.back();
 
     mSupportsFrameRateOverride = false;
-    for (const auto& config1 : sortedConfigs) {
-        for (const auto& config2 : sortedConfigs) {
-            if (getFrameRateDivider(config1->getFps(), config2->getFps()) >= 2) {
-                mSupportsFrameRateOverride = true;
-                break;
+    if (android::sysprop::enable_frame_rate_override(true)) {
+        for (const auto& config1 : sortedConfigs) {
+            for (const auto& config2 : sortedConfigs) {
+                if (getFrameRateDivider(config1->getFps(), config2->getFps()) >= 2) {
+                    mSupportsFrameRateOverride = true;
+                    break;
+                }
             }
         }
     }
+
     constructAvailableRefreshRates();
 }
 

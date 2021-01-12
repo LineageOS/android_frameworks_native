@@ -72,6 +72,7 @@ static sk_sp<SkColorSpace> toSkColorSpace(ui::Dataspace dataspace) {
 
 AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer,
                                        bool isRender) {
+    ATRACE_CALL();
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
     bool createProtectedImage = 0 != (desc.usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT);
