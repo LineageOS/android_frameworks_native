@@ -22,16 +22,18 @@
 #pragma clang diagnostic ignored "-Wconversion"
 #pragma clang diagnostic ignored "-Wextra"
 
-#include <chrono>
-#include <condition_variable>
-#include <fstream>
-
 #include <cutils/properties.h>
 #include <gtest/gtest.h>
 #include <renderengine/RenderEngine.h>
 #include <sync/sync.h>
 #include <ui/PixelFormat.h>
+
+#include <chrono>
+#include <condition_variable>
+#include <fstream>
+
 #include "../gl/GLESRenderEngine.h"
+#include "../skia/SkiaGLRenderEngine.h"
 #include "../threaded/RenderEngineThreaded.h"
 
 constexpr int DEFAULT_DISPLAY_WIDTH = 128;
@@ -46,14 +48,26 @@ public:
     virtual ~RenderEngineFactory() = default;
 
     virtual std::string name() = 0;
-    virtual std::unique_ptr<renderengine::gl::GLESRenderEngine> createRenderEngine() = 0;
+    virtual renderengine::RenderEngine::RenderEngineType type() = 0;
+    virtual std::unique_ptr<renderengine::RenderEngine> createRenderEngine() = 0;
+    virtual std::unique_ptr<renderengine::gl::GLESRenderEngine> createGLESRenderEngine() {
+        return nullptr;
+    }
 };
 
 class GLESRenderEngineFactory : public RenderEngineFactory {
 public:
     std::string name() override { return "GLESRenderEngineFactory"; }
 
-    std::unique_ptr<renderengine::gl::GLESRenderEngine> createRenderEngine() override {
+    renderengine::RenderEngine::RenderEngineType type() {
+        return renderengine::RenderEngine::RenderEngineType::GLES;
+    }
+
+    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
+        return createGLESRenderEngine();
+    }
+
+    std::unique_ptr<renderengine::gl::GLESRenderEngine> createGLESRenderEngine() {
         renderengine::RenderEngineCreationArgs reCreationArgs =
                 renderengine::RenderEngineCreationArgs::Builder()
                         .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
@@ -63,7 +77,7 @@ public:
                         .setPrecacheToneMapperShaderOnly(false)
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(renderengine::RenderEngine::RenderEngineType::GLES)
+                        .setRenderEngineType(type())
                         .build();
         return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
     }
@@ -73,7 +87,15 @@ class GLESCMRenderEngineFactory : public RenderEngineFactory {
 public:
     std::string name() override { return "GLESCMRenderEngineFactory"; }
 
-    std::unique_ptr<renderengine::gl::GLESRenderEngine> createRenderEngine() override {
+    renderengine::RenderEngine::RenderEngineType type() {
+        return renderengine::RenderEngine::RenderEngineType::GLES;
+    }
+
+    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
+        return createGLESRenderEngine();
+    }
+
+    std::unique_ptr<renderengine::gl::GLESRenderEngine> createGLESRenderEngine() override {
         renderengine::RenderEngineCreationArgs reCreationArgs =
                 renderengine::RenderEngineCreationArgs::Builder()
                         .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
@@ -82,7 +104,7 @@ public:
                         .setPrecacheToneMapperShaderOnly(false)
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(renderengine::RenderEngine::RenderEngineType::GLES)
+                        .setRenderEngineType(type())
                         .setUseColorManagerment(true)
                         .build();
         return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
@@ -91,9 +113,13 @@ public:
 
 class SkiaGLESRenderEngineFactory : public RenderEngineFactory {
 public:
-    std::string name() override { return "SkiaGLESRenderEngineFactory"; }
+    std::string name() override { return "SkiaGLRenderEngineFactory"; }
 
-    std::unique_ptr<renderengine::gl::GLESRenderEngine> createRenderEngine() override {
+    renderengine::RenderEngine::RenderEngineType type() {
+        return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
+    }
+
+    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
         renderengine::RenderEngineCreationArgs reCreationArgs =
                 renderengine::RenderEngineCreationArgs::Builder()
                         .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
@@ -102,17 +128,21 @@ public:
                         .setPrecacheToneMapperShaderOnly(false)
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(renderengine::RenderEngine::RenderEngineType::SKIA_GL)
+                        .setRenderEngineType(type())
                         .build();
-        return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
+        return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
     }
 };
 
 class SkiaGLESCMRenderEngineFactory : public RenderEngineFactory {
 public:
-    std::string name() override { return "SkiaGLESCMRenderEngineFactory"; }
+    std::string name() override { return "SkiaGLCMRenderEngineFactory"; }
 
-    std::unique_ptr<renderengine::gl::GLESRenderEngine> createRenderEngine() override {
+    renderengine::RenderEngine::RenderEngineType type() {
+        return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
+    }
+
+    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
         renderengine::RenderEngineCreationArgs reCreationArgs =
                 renderengine::RenderEngineCreationArgs::Builder()
                         .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
@@ -121,10 +151,10 @@ public:
                         .setPrecacheToneMapperShaderOnly(false)
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(renderengine::RenderEngine::RenderEngineType::SKIA_GL)
+                        .setRenderEngineType(type())
                         .setUseColorManagerment(true)
                         .build();
-        return renderengine::gl::GLESRenderEngine::create(reCreationArgs);
+        return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
     }
 };
 
@@ -134,7 +164,7 @@ public:
         return new GraphicBuffer(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT,
                                  HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                  GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                         GRALLOC_USAGE_HW_RENDER,
+                                         GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE,
                                  "output");
     }
 
@@ -159,7 +189,9 @@ public:
         }
         for (uint32_t texName : mTexNames) {
             mRE->deleteTextures(1, &texName);
-            EXPECT_FALSE(mRE->isTextureNameKnownForTesting(texName));
+            if (mGLESRE != nullptr) {
+                EXPECT_FALSE(mGLESRE->isTextureNameKnownForTesting(texName));
+            }
         }
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
@@ -351,12 +383,11 @@ public:
     }
 
     void invokeDraw(renderengine::DisplaySettings settings,
-                    std::vector<const renderengine::LayerSettings*> layers,
-                    sp<GraphicBuffer> buffer) {
+                    std::vector<const renderengine::LayerSettings*> layers) {
         base::unique_fd fence;
         status_t status =
-                mRE->drawLayers(settings, layers, buffer, true, base::unique_fd(), &fence);
-        mCurrentBuffer = buffer;
+                mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(), &fence);
+        mCurrentBuffer = mBuffer;
 
         int fd = fence.release();
         if (fd >= 0) {
@@ -365,17 +396,15 @@ public:
         }
 
         ASSERT_EQ(NO_ERROR, status);
-        if (layers.size() > 0) {
-            ASSERT_TRUE(mRE->isFramebufferImageCachedForTesting(buffer->getId()));
+        if (layers.size() > 0 && mGLESRE != nullptr) {
+            ASSERT_TRUE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getId()));
         }
     }
 
     void drawEmptyLayers() {
         renderengine::DisplaySettings settings;
         std::vector<const renderengine::LayerSettings*> layers;
-        // Meaningless buffer since we don't do any drawing
-        sp<GraphicBuffer> buffer = new GraphicBuffer();
-        invokeDraw(settings, layers, buffer);
+        invokeDraw(settings, layers);
     }
 
     template <typename SourceVariant>
@@ -471,7 +500,12 @@ public:
                                  const renderengine::ShadowSettings& shadow,
                                  const ubyte4& backgroundColor);
 
-    std::unique_ptr<renderengine::gl::GLESRenderEngine> mRE;
+    void initializeRenderEngine();
+
+    std::unique_ptr<renderengine::RenderEngine> mRE;
+    // GLESRenderEngine for testing GLES-specific behavior.
+    // Owened by mRE, but this is downcasted.
+    renderengine::gl::GLESRenderEngine* mGLESRE = nullptr;
 
     // Dumb hack to avoid NPE in the EGL driver: the GraphicBuffer needs to
     // be freed *after* RenderEngine is destroyed, so that the EGL image is
@@ -482,6 +516,21 @@ public:
 
     std::vector<uint32_t> mTexNames;
 };
+
+void RenderEngineTest::initializeRenderEngine() {
+    const auto& renderEngineFactory = GetParam();
+    if (renderEngineFactory->type() == renderengine::RenderEngine::RenderEngineType::GLES) {
+        // Only GLESRenderEngine exposes test-only methods. Provide a pointer to the
+        // GLESRenderEngine if we're using it so that we don't need to dynamic_cast
+        // every time.
+        std::unique_ptr<renderengine::gl::GLESRenderEngine> renderEngine =
+                renderEngineFactory->createGLESRenderEngine();
+        mGLESRE = renderEngine.get();
+        mRE = std::move(renderEngine);
+    } else {
+        mRE = renderEngineFactory->createRenderEngine();
+    }
+}
 
 struct ColorSourceVariant {
     static void fillColor(renderengine::LayerSettings& layer, half r, half g, half b,
@@ -509,7 +558,7 @@ struct ForceOpaqueBufferVariant {
     static uint8_t getAlphaChannel() {
         // The isOpaque bit will override the alpha channel, so this should be
         // arbitrary.
-        return 10;
+        return 50;
     }
 };
 
@@ -563,7 +612,7 @@ void RenderEngineTest::fillBuffer(half r, half g, half b, half a) {
 
     layers.push_back(&layer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 template <typename SourceVariant>
@@ -606,7 +655,7 @@ void RenderEngineTest::fillRedOffsetBuffer() {
     layer.alpha = 1.0f;
 
     layers.push_back(&layer);
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 template <typename SourceVariant>
@@ -659,7 +708,7 @@ void RenderEngineTest::fillBufferCheckers(uint32_t orientationFlag) {
     layers.push_back(&layerTwo);
     layers.push_back(&layerThree);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 template <typename SourceVariant>
@@ -747,7 +796,7 @@ void RenderEngineTest::fillBufferWithLayerTransform() {
 
     layers.push_back(&layer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 template <typename SourceVariant>
@@ -786,7 +835,7 @@ void RenderEngineTest::fillBufferWithColorTransform() {
 
     layers.push_back(&layer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 template <typename SourceVariant>
@@ -816,7 +865,7 @@ void RenderEngineTest::fillBufferWithColorTransformZeroLayerAlpha() {
 
     layers.push_back(&layer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 template <typename SourceVariant>
@@ -844,7 +893,7 @@ void RenderEngineTest::fillRedBufferWithRoundedCorners() {
 
     layers.push_back(&layer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 template <typename SourceVariant>
@@ -904,7 +953,7 @@ void RenderEngineTest::fillBufferAndBlurBackground() {
     blurLayer.alpha = 0;
     layers.push_back(&blurLayer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 
     expectBufferColor(Rect(center - 1, center - 5, center, center + 5), 150, 150, 0, 255,
                       50 /* tolerance */);
@@ -929,7 +978,7 @@ void RenderEngineTest::overlayCorners() {
     layerOne.alpha = 0.2;
 
     layersFirst.push_back(&layerOne);
-    invokeDraw(settings, layersFirst, mBuffer);
+    invokeDraw(settings, layersFirst);
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 3, DEFAULT_DISPLAY_HEIGHT / 3), 51, 0, 0, 51);
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 3 + 1, DEFAULT_DISPLAY_HEIGHT / 3 + 1,
                            DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
@@ -945,7 +994,7 @@ void RenderEngineTest::overlayCorners() {
     layerTwo.alpha = 1.0f;
 
     layersSecond.push_back(&layerTwo);
-    invokeDraw(settings, layersSecond, mBuffer);
+    invokeDraw(settings, layersSecond);
 
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 3, DEFAULT_DISPLAY_HEIGHT / 3), 0, 0, 0, 0);
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 3 + 1, DEFAULT_DISPLAY_HEIGHT / 3 + 1,
@@ -997,7 +1046,7 @@ void RenderEngineTest::fillRedBufferTextureTransform() {
 
     layers.push_back(&layer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 void RenderEngineTest::fillBufferTextureTransform() {
@@ -1036,7 +1085,7 @@ void RenderEngineTest::fillRedBufferWithPremultiplyAlpha() {
 
     layers.push_back(&layer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 void RenderEngineTest::fillBufferWithPremultiplyAlpha() {
@@ -1075,7 +1124,7 @@ void RenderEngineTest::fillRedBufferWithoutPremultiplyAlpha() {
 
     layers.push_back(&layer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 void RenderEngineTest::fillBufferWithoutPremultiplyAlpha() {
@@ -1093,7 +1142,7 @@ void RenderEngineTest::clearLeftRegion() {
     // fake layer, without bounds should not render anything
     renderengine::LayerSettings layer;
     layers.push_back(&layer);
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 void RenderEngineTest::clearRegion() {
@@ -1140,7 +1189,7 @@ void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLaye
                              casterColor.b / 255.0f, this);
     layers.push_back(&layer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 void RenderEngineTest::drawShadowWithoutCaster(const FloatRect& castingBounds,
@@ -1171,7 +1220,7 @@ void RenderEngineTest::drawShadowWithoutCaster(const FloatRect& castingBounds,
     shadowLayer.shadow = shadow;
     layers.push_back(&shadowLayer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 }
 
 INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
@@ -1181,8 +1230,7 @@ INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
                                          std::make_shared<SkiaGLESCMRenderEngineFactory>()));
 
 TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
     drawEmptyLayers();
 }
 
@@ -1210,16 +1258,15 @@ TEST_P(RenderEngineTest, drawLayers_withoutBuffers_withColorTransform) {
     std::vector<const renderengine::LayerSettings*> layers;
     layers.push_back(&bgLayer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 
     // Expect to see full opaque pixel (with inverted red from the transform).
-    expectBufferColor(Rect(0, 0, 1, 1), 0.f, backgroundColor.g, backgroundColor.b,
+    expectBufferColor(Rect(0, 0, 10, 10), 0.f, backgroundColor.g, backgroundColor.b,
                       backgroundColor.a);
 }
 
 TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
 
     renderengine::DisplaySettings settings;
     settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
@@ -1235,8 +1282,7 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_nullOutputFence) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
 
     renderengine::DisplaySettings settings;
     settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
@@ -1258,7 +1304,13 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputFence) {
 
 TEST_P(RenderEngineTest, drawLayers_doesNotCacheFramebuffer) {
     const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        // GLES-specific test
+        return;
+    }
+
+    initializeRenderEngine();
 
     renderengine::DisplaySettings settings;
     settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
@@ -1275,355 +1327,264 @@ TEST_P(RenderEngineTest, drawLayers_doesNotCacheFramebuffer) {
     status_t status = mRE->drawLayers(settings, layers, mBuffer, false, base::unique_fd(), nullptr);
     mCurrentBuffer = mBuffer;
     ASSERT_EQ(NO_ERROR, status);
-    ASSERT_FALSE(mRE->isFramebufferImageCachedForTesting(mBuffer->getId()));
+    ASSERT_FALSE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getId()));
     expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedBuffer_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillRedBuffer<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillGreenBuffer_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillGreenBuffer<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBlueBuffer_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBlueBuffer<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedTransparentBuffer_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillRedTransparentBuffer<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferPhysicalOffset<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate0<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate90<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate180<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate270<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferLayerTransform_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferLayerTransform<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferColorTransform<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferWithRoundedCorners<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferColorTransformZeroLayerAlpha<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferAndBlurBackground<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_overlayCorners_colorSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     overlayCorners<ColorSourceVariant>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedBuffer_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillRedBuffer<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillGreenBuffer_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillGreenBuffer<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBlueBuffer_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBlueBuffer<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedTransparentBuffer_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillRedTransparentBuffer<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferPhysicalOffset<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate0<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate90<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate180<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate270<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferLayerTransform_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferLayerTransform<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferColorTransform<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferWithRoundedCorners<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
-TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
 
+TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_opaqueBufferSource) {
+    initializeRenderEngine();
     fillBufferColorTransformZeroLayerAlpha<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferAndBlurBackground<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_overlayCorners_opaqueBufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     overlayCorners<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedBuffer_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillRedBuffer<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillGreenBuffer_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillGreenBuffer<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBlueBuffer_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBlueBuffer<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedTransparentBuffer_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillRedTransparentBuffer<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferPhysicalOffset<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate0<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate90<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate180<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferCheckersRotate270<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferLayerTransform_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferLayerTransform<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferColorTransform<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferWithRoundedCorners<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferColorTransformZeroLayerAlpha<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferAndBlurBackground<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_overlayCorners_bufferSource) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     overlayCorners<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferTextureTransform) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferTextureTransform();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBuffer_premultipliesAlpha) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferWithPremultiplyAlpha();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBuffer_withoutPremultiplyingAlpha) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     fillBufferWithoutPremultiplyAlpha();
 }
 
 TEST_P(RenderEngineTest, drawLayers_clearRegion) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
-
+    initializeRenderEngine();
     clearRegion();
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillsBufferAndCachesImages) {
     const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        // GLES-specific test
+        return;
+    }
+
+    initializeRenderEngine();
 
     renderengine::DisplaySettings settings;
     settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
@@ -1637,26 +1598,32 @@ TEST_P(RenderEngineTest, drawLayers_fillsBufferAndCachesImages) {
     BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
 
     layers.push_back(&layer);
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
     uint64_t bufferId = layer.source.buffer.buffer->getId();
-    EXPECT_TRUE(mRE->isImageCachedForTesting(bufferId));
+    EXPECT_TRUE(mGLESRE->isImageCachedForTesting(bufferId));
     std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
-            mRE->unbindExternalTextureBufferForTesting(bufferId);
+            mGLESRE->unbindExternalTextureBufferForTesting(bufferId);
     std::lock_guard<std::mutex> lock(barrier->mutex);
     ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
                                             [&]() REQUIRES(barrier->mutex) {
                                                 return barrier->isOpen;
                                             }));
-    EXPECT_FALSE(mRE->isImageCachedForTesting(bufferId));
+    EXPECT_FALSE(mGLESRE->isImageCachedForTesting(bufferId));
     EXPECT_EQ(NO_ERROR, barrier->result);
 }
 
 TEST_P(RenderEngineTest, cacheExternalBuffer_withNullBuffer) {
     const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        // GLES-specific test
+        return;
+    }
+
+    initializeRenderEngine();
 
     std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
-            mRE->cacheExternalTextureBufferForTesting(nullptr);
+            mGLESRE->cacheExternalTextureBufferForTesting(nullptr);
     std::lock_guard<std::mutex> lock(barrier->mutex);
     ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
                                             [&]() REQUIRES(barrier->mutex) {
@@ -1668,12 +1635,18 @@ TEST_P(RenderEngineTest, cacheExternalBuffer_withNullBuffer) {
 
 TEST_P(RenderEngineTest, cacheExternalBuffer_cachesImages) {
     const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        // GLES-specific test
+        return;
+    }
+
+    initializeRenderEngine();
 
     sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
     uint64_t bufferId = buf->getId();
     std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
-            mRE->cacheExternalTextureBufferForTesting(buf);
+            mGLESRE->cacheExternalTextureBufferForTesting(buf);
     {
         std::lock_guard<std::mutex> lock(barrier->mutex);
         ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
@@ -1682,8 +1655,8 @@ TEST_P(RenderEngineTest, cacheExternalBuffer_cachesImages) {
                                                 }));
         EXPECT_EQ(NO_ERROR, barrier->result);
     }
-    EXPECT_TRUE(mRE->isImageCachedForTesting(bufferId));
-    barrier = mRE->unbindExternalTextureBufferForTesting(bufferId);
+    EXPECT_TRUE(mGLESRE->isImageCachedForTesting(bufferId));
+    barrier = mGLESRE->unbindExternalTextureBufferForTesting(bufferId);
     {
         std::lock_guard<std::mutex> lock(barrier->mutex);
         ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
@@ -1692,12 +1665,11 @@ TEST_P(RenderEngineTest, cacheExternalBuffer_cachesImages) {
                                                 }));
         EXPECT_EQ(NO_ERROR, barrier->result);
     }
-    EXPECT_FALSE(mRE->isImageCachedForTesting(bufferId));
+    EXPECT_FALSE(mGLESRE->isImageCachedForTesting(bufferId));
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_castsWithoutCasterLayer) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
 
     const ubyte4 backgroundColor(255, 255, 255, 255);
     const float shadowLength = 5.0f;
@@ -1712,8 +1684,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_castsWithoutCasterLayer) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_casterLayerMinSize) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
 
     const ubyte4 casterColor(255, 0, 0, 255);
     const ubyte4 backgroundColor(255, 255, 255, 255);
@@ -1732,8 +1703,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterLayerMinSize) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_casterColorLayer) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
 
     const ubyte4 casterColor(255, 0, 0, 255);
     const ubyte4 backgroundColor(255, 255, 255, 255);
@@ -1753,8 +1723,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterColorLayer) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_casterOpaqueBufferLayer) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
 
     const ubyte4 casterColor(255, 0, 0, 255);
     const ubyte4 backgroundColor(255, 255, 255, 255);
@@ -1775,8 +1744,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterOpaqueBufferLayer) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_casterWithRoundedCorner) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
 
     const ubyte4 casterColor(255, 0, 0, 255);
     const ubyte4 backgroundColor(255, 255, 255, 255);
@@ -1798,8 +1766,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterWithRoundedCorner) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_translucentCasterWithAlpha) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
 
     const ubyte4 casterColor(255, 0, 0, 255);
     const ubyte4 backgroundColor(255, 255, 255, 255);
@@ -1827,7 +1794,13 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_translucentCasterWithAlpha) {
 
 TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
     const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        // GLES-specific test
+        return;
+    }
+
+    initializeRenderEngine();
 
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
@@ -1859,7 +1832,13 @@ TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
 
 TEST_P(RenderEngineTest, cleanupPostRender_whenCleaningAll_replacesTextureMemory) {
     const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+
+    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
+        // GLES-specific test
+        return;
+    }
+
+    initializeRenderEngine();
 
     renderengine::DisplaySettings settings;
     settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
@@ -1883,20 +1862,19 @@ TEST_P(RenderEngineTest, cleanupPostRender_whenCleaningAll_replacesTextureMemory
 
     uint64_t bufferId = layer.source.buffer.buffer->getId();
     uint32_t texName = layer.source.buffer.textureName;
-    EXPECT_TRUE(mRE->isImageCachedForTesting(bufferId));
-    EXPECT_EQ(bufferId, mRE->getBufferIdForTextureNameForTesting(texName));
+    EXPECT_TRUE(mGLESRE->isImageCachedForTesting(bufferId));
+    EXPECT_EQ(bufferId, mGLESRE->getBufferIdForTextureNameForTesting(texName));
 
     EXPECT_TRUE(mRE->cleanupPostRender(renderengine::RenderEngine::CleanupMode::CLEAN_ALL));
 
     // Now check that our view of memory is good.
-    EXPECT_FALSE(mRE->isImageCachedForTesting(bufferId));
-    EXPECT_EQ(std::nullopt, mRE->getBufferIdForTextureNameForTesting(bufferId));
-    EXPECT_TRUE(mRE->isTextureNameKnownForTesting(texName));
+    EXPECT_FALSE(mGLESRE->isImageCachedForTesting(bufferId));
+    EXPECT_EQ(std::nullopt, mGLESRE->getBufferIdForTextureNameForTesting(bufferId));
+    EXPECT_TRUE(mGLESRE->isTextureNameKnownForTesting(texName));
 }
 
 TEST_P(RenderEngineTest, testRoundedCornersCrop) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
 
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
@@ -1931,7 +1909,7 @@ TEST_P(RenderEngineTest, testRoundedCornersCrop) {
 
     layers.push_back(&greenLayer);
 
-    invokeDraw(settings, layers, mBuffer);
+    invokeDraw(settings, layers);
 
     // Corners should be ignored...
     // Screen size: width is 128, height is 256.
