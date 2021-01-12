@@ -167,15 +167,10 @@ void Output::setDisplaySize(const ui::Size& size) {
 
     // Update framebuffer space
     const Rect newBounds(size);
-    ScaleVector scale;
-    scale = getScale(state.framebufferSpace.bounds, newBounds);
     state.framebufferSpace.bounds = newBounds;
-    state.framebufferSpace.content.scaleSelf(scale.x, scale.y);
 
     // Update display space
-    scale = getScale(state.displaySpace.bounds, newBounds);
     state.displaySpace.bounds = newBounds;
-    state.displaySpace.content.scaleSelf(scale.x, scale.y);
     state.transform = state.layerStackSpace.getTransform(state.displaySpace);
 
     // Update oriented display space
@@ -185,9 +180,7 @@ void Output::setDisplaySize(const ui::Size& size) {
         std::swap(orientedSize.width, orientedSize.height);
     }
     const Rect newOrientedBounds(orientedSize);
-    scale = getScale(state.orientedDisplaySpace.bounds, newOrientedBounds);
     state.orientedDisplaySpace.bounds = newOrientedBounds;
-    state.orientedDisplaySpace.content.scaleSelf(scale.x, scale.y);
 
     dirtyEntireOutput();
 }

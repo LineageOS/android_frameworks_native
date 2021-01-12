@@ -604,11 +604,11 @@ TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackRectChanges) {
     EXPECT_EQ(newLayerStackRect, display.mutableDisplayDevice()->getLayerStackSpaceRect());
 }
 
-TEST_F(HandleTransactionLockedTest, processesDisplayFrameChanges) {
+TEST_F(HandleTransactionLockedTest, processesDisplayRectChanges) {
     using Case = NonHwcVirtualDisplayCase;
 
-    const Rect oldFrame(0, 0, 0, 0);
-    const Rect newFrame(0, 0, 123, 456);
+    const Rect oldDisplayRect(0, 0);
+    const Rect newDisplayRect(123, 456);
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -618,8 +618,8 @@ TEST_F(HandleTransactionLockedTest, processesDisplayFrameChanges) {
     display.inject();
 
     // There is a change to the layerStackSpaceRect state
-    display.mutableDrawingDisplayState().orientedDisplaySpaceRect = oldFrame;
-    display.mutableCurrentDisplayState().orientedDisplaySpaceRect = newFrame;
+    display.mutableDrawingDisplayState().orientedDisplaySpaceRect = oldDisplayRect;
+    display.mutableCurrentDisplayState().orientedDisplaySpaceRect = newDisplayRect;
 
     // --------------------------------------------------------------------
     // Invocation
@@ -629,7 +629,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayFrameChanges) {
     // --------------------------------------------------------------------
     // Postconditions
 
-    EXPECT_EQ(newFrame, display.mutableDisplayDevice()->getOrientedDisplaySpaceRect());
+    EXPECT_EQ(newDisplayRect, display.mutableDisplayDevice()->getOrientedDisplaySpaceRect());
 }
 
 TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
@@ -720,6 +720,62 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     // Invocation
 
     mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplaySizeDisplayRectAndLayerStackRectChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    constexpr uint32_t kOldWidth = 567;
+    constexpr uint32_t kOldHeight = 456;
+    const auto kOldSize = Rect(kOldWidth, kOldHeight);
+
+    constexpr uint32_t kNewWidth = 234;
+    constexpr uint32_t kNewHeight = 123;
+    const auto kNewSize = Rect(kNewWidth, kNewHeight);
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto nativeWindow = new mock::NativeWindow();
+    auto displaySurface = new compositionengine::mock::DisplaySurface();
+    sp<GraphicBuffer> buf = new GraphicBuffer();
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.setNativeWindow(nativeWindow);
+    display.setDisplaySurface(displaySurface);
+    // Setup injection expectations
+    EXPECT_CALL(*nativeWindow, query(NATIVE_WINDOW_WIDTH, _))
+            .WillOnce(DoAll(SetArgPointee<1>(kOldWidth), Return(0)));
+    EXPECT_CALL(*nativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
+            .WillOnce(DoAll(SetArgPointee<1>(kOldHeight), Return(0)));
+    display.inject();
+
+    // There is a change to the layerStackSpaceRect state
+    display.mutableDrawingDisplayState().width = kOldWidth;
+    display.mutableDrawingDisplayState().height = kOldHeight;
+    display.mutableDrawingDisplayState().layerStackSpaceRect = kOldSize;
+    display.mutableDrawingDisplayState().orientedDisplaySpaceRect = kOldSize;
+
+    display.mutableCurrentDisplayState().width = kNewWidth;
+    display.mutableCurrentDisplayState().height = kNewHeight;
+    display.mutableCurrentDisplayState().layerStackSpaceRect = kNewSize;
+    display.mutableCurrentDisplayState().orientedDisplaySpaceRect = kNewSize;
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    EXPECT_CALL(*displaySurface, resizeBuffers(kNewWidth, kNewHeight)).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+
+    EXPECT_EQ(display.mutableDisplayDevice()->getBounds(), kNewSize);
+    EXPECT_EQ(display.mutableDisplayDevice()->getWidth(), kNewWidth);
+    EXPECT_EQ(display.mutableDisplayDevice()->getHeight(), kNewHeight);
+    EXPECT_EQ(display.mutableDisplayDevice()->getOrientedDisplaySpaceRect(), kNewSize);
+    EXPECT_EQ(display.mutableDisplayDevice()->getLayerStackSpaceRect(), kNewSize);
 }
 
 } // namespace
