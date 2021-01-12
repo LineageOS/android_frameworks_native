@@ -583,7 +583,7 @@ size_t AImageDecoder_getMinimumStride(AImageDecoder* _Nonnull decoder) __INTRODU
  * Available since API level 30.
  *
  * Starting in API level 31, it can be used to decode all of the frames of an
- * animated image (i.e. GIF, WebP, HEIF) using new APIs. Internally,
+ * animated image (i.e. GIF, WebP) using new APIs. Internally,
  * AImageDecoder keeps track of its "current frame" - that is, the frame that
  * will be decoded by a call to AImageDecoder_decodeImage. At creation time, the
  * current frame is always the first frame, and multiple calls to this method
