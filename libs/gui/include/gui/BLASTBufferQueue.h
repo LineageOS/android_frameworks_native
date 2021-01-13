@@ -92,7 +92,7 @@ public:
     void flushShadowQueue() { mFlushShadowQueue = true; }
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
-    status_t setFrameTimelineVsync(int64_t frameTimelineVsyncId);
+    status_t setFrameTimelineInfo(const FrameTimelineInfo& info);
 
     virtual ~BLASTBufferQueue();
 
@@ -156,7 +156,7 @@ private:
     // This is only relevant for shared buffer mode.
     bool mAutoRefresh GUARDED_BY(mMutex) = false;
 
-    std::queue<int64_t> mNextFrameTimelineVsyncIdQueue GUARDED_BY(mMutex);
+    std::queue<FrameTimelineInfo> mNextFrameTimelineInfoQueue GUARDED_BY(mMutex);
 
     // Last acquired buffer's scaling mode. This is used to check if we should update the blast
     // layer size immediately or wait until we get the next buffer. This will support scenarios

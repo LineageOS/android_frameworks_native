@@ -385,8 +385,8 @@ public:
         int64_t mDesiredPresentTime = 0;
         bool mIsAutoTimestamp = true;
 
-        // The vsync Id provided by Choreographer.getVsyncId
-        int64_t mFrameTimelineVsyncId = ISurfaceComposer::INVALID_VSYNC_ID;
+        // The vsync id provided by Choreographer.getVsyncId and the input event id
+        FrameTimelineInfo mFrameTimelineInfo;
 
         // If not null, transactions will be queued up using this token otherwise a common token
         // per process will be used.
@@ -546,11 +546,12 @@ public:
         Transaction& setFixedTransformHint(const sp<SurfaceControl>& sc, int32_t transformHint);
 
         // Sets the frame timeline vsync id received from choreographer that corresponds
-        // to the transaction.
-        Transaction& setFrameTimelineVsync(int64_t frameTimelineVsyncId);
+        // to the transaction, and the input event id that identifies the input event that caused
+        // the current frame.
+        Transaction& setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo);
         // Variant that only applies to a specific SurfaceControl.
-        Transaction& setFrameTimelineVsync(const sp<SurfaceControl>& sc,
-                int64_t frameTimelineVsyncId);
+        Transaction& setFrameTimelineInfo(const sp<SurfaceControl>& sc,
+                                          const FrameTimelineInfo& frameTimelineInfo);
 
         // Indicates that the consumer should acquire the next frame as soon as it
         // can and not wait for a frame to become available. This is only relevant
