@@ -275,13 +275,15 @@ int64_t TraceCookieCounter::getCookieForTracing() {
     return ++mTraceCookie;
 }
 
-SurfaceFrame::SurfaceFrame(int64_t token, pid_t ownerPid, uid_t ownerUid, std::string layerName,
-                           std::string debugName, PredictionState predictionState,
+SurfaceFrame::SurfaceFrame(const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid,
+                           uid_t ownerUid, std::string layerName, std::string debugName,
+                           PredictionState predictionState,
                            frametimeline::TimelineItem&& predictions,
                            std::shared_ptr<TimeStats> timeStats,
                            JankClassificationThresholds thresholds,
                            TraceCookieCounter* traceCookieCounter)
-      : mToken(token),
+      : mToken(frameTimelineInfo.vsyncId),
+        mInputEventId(frameTimelineInfo.inputEventId),
         mOwnerPid(ownerPid),
         mOwnerUid(ownerUid),
         mLayerName(std::move(layerName)),
@@ -295,27 +297,27 @@ SurfaceFrame::SurfaceFrame(int64_t token, pid_t ownerPid, uid_t ownerUid, std::s
         mTraceCookieCounter(*traceCookieCounter) {}
 
 void SurfaceFrame::setActualStartTime(nsecs_t actualStartTime) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     mActuals.startTime = actualStartTime;
 }
 
 void SurfaceFrame::setActualQueueTime(nsecs_t actualQueueTime) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     mActualQueueTime = actualQueueTime;
 }
 void SurfaceFrame::setAcquireFenceTime(nsecs_t acquireFenceTime) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     mActuals.endTime = std::max(acquireFenceTime, mActualQueueTime);
 }
 
 void SurfaceFrame::setPresentState(PresentState presentState, nsecs_t lastLatchTime) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     mPresentState = presentState;
     mLastLatchTime = lastLatchTime;
 }
 
 std::optional<int32_t> SurfaceFrame::getJankType() const {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     if (mActuals.presentTime == 0) {
         return std::nullopt;
     }
@@ -323,32 +325,32 @@ std::optional<int32_t> SurfaceFrame::getJankType() const {
 }
 
 nsecs_t SurfaceFrame::getBaseTime() const {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     return getMinTime(mPredictionState, mPredictions, mActuals);
 }
 
 TimelineItem SurfaceFrame::getActuals() const {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     return mActuals;
 }
 
 SurfaceFrame::PresentState SurfaceFrame::getPresentState() const {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     return mPresentState;
 }
 
 FramePresentMetadata SurfaceFrame::getFramePresentMetadata() const {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     return mFramePresentMetadata;
 }
 
 FrameReadyMetadata SurfaceFrame::getFrameReadyMetadata() const {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     return mFrameReadyMetadata;
 }
 
 void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t baseTime) const {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     StringAppendF(&result, "%s", indent.c_str());
     StringAppendF(&result, "Layer - %s", mDebugName.c_str());
     if (mJankType != JankType::None) {
@@ -387,7 +389,7 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
 
 void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType,
                              nsecs_t vsyncPeriod) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     if (mPresentState != PresentState::Presented) {
         // No need to update dropped buffers
         return;
@@ -479,6 +481,9 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType,
     mTimeStats->incrementJankyFrames(mOwnerUid, mLayerName, mJankType);
 }
 
+/**
+ * TODO(b/178637512): add inputEventId to the perfetto trace.
+ */
 void SurfaceFrame::trace(int64_t displayFrameToken) {
     using FrameTimelineDataSource = impl::FrameTimeline::FrameTimelineDataSource;
 
@@ -486,12 +491,12 @@ void SurfaceFrame::trace(int64_t displayFrameToken) {
     bool missingToken = false;
     // Expected timeline start
     FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
-        std::lock_guard<std::mutex> lock(mMutex);
-        if (mToken == ISurfaceComposer::INVALID_VSYNC_ID) {
+        std::scoped_lock lock(mMutex);
+        if (mToken == FrameTimelineInfo::INVALID_VSYNC_ID) {
             ALOGD("Cannot trace SurfaceFrame - %s with invalid token", mLayerName.c_str());
             missingToken = true;
             return;
-        } else if (displayFrameToken == ISurfaceComposer::INVALID_VSYNC_ID) {
+        } else if (displayFrameToken == FrameTimelineInfo::INVALID_VSYNC_ID) {
             ALOGD("Cannot trace SurfaceFrame  - %s with invalid displayFrameToken",
                   mLayerName.c_str());
             missingToken = true;
@@ -521,7 +526,7 @@ void SurfaceFrame::trace(int64_t displayFrameToken) {
 
     // Expected timeline end
     FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
-        std::lock_guard<std::mutex> lock(mMutex);
+        std::scoped_lock lock(mMutex);
         auto packet = ctx.NewTracePacket();
         packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
         packet->set_timestamp(static_cast<uint64_t>(mPredictions.endTime));
@@ -535,7 +540,7 @@ void SurfaceFrame::trace(int64_t displayFrameToken) {
     int64_t actualTimelineCookie = mTraceCookieCounter.getCookieForTracing();
     // Actual timeline start
     FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
-        std::lock_guard<std::mutex> lock(mMutex);
+        std::scoped_lock lock(mMutex);
         auto packet = ctx.NewTracePacket();
         packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
         // Actual start time is not yet available, so use expected start instead
@@ -566,7 +571,7 @@ void SurfaceFrame::trace(int64_t displayFrameToken) {
     });
     // Actual timeline end
     FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
-        std::lock_guard<std::mutex> lock(mMutex);
+        std::scoped_lock lock(mMutex);
         auto packet = ctx.NewTracePacket();
         packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
         packet->set_timestamp(static_cast<uint64_t>(mActuals.endTime));
@@ -582,7 +587,7 @@ namespace impl {
 
 int64_t TokenManager::generateTokenForPredictions(TimelineItem&& predictions) {
     ATRACE_CALL();
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     const int64_t assignedToken = mCurrentToken++;
     mPredictions[assignedToken] = {systemTime(), predictions};
     flushTokens(systemTime());
@@ -590,7 +595,7 @@ int64_t TokenManager::generateTokenForPredictions(TimelineItem&& predictions) {
 }
 
 std::optional<TimelineItem> TokenManager::getPredictionsForToken(int64_t token) const {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     auto predictionsIterator = mPredictions.find(token);
     if (predictionsIterator != mPredictions.end()) {
         return predictionsIterator->second.predictions;
@@ -634,26 +639,28 @@ void FrameTimeline::registerDataSource() {
 }
 
 std::shared_ptr<SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
-        std::optional<int64_t> token, pid_t ownerPid, uid_t ownerUid, std::string layerName,
-        std::string debugName) {
+        const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
+        std::string layerName, std::string debugName) {
     ATRACE_CALL();
-    if (!token) {
-        return std::make_shared<SurfaceFrame>(ISurfaceComposer::INVALID_VSYNC_ID, ownerPid,
-                                              ownerUid, std::move(layerName), std::move(debugName),
+    if (frameTimelineInfo.vsyncId == FrameTimelineInfo::INVALID_VSYNC_ID) {
+        return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid,
+                                              std::move(layerName), std::move(debugName),
                                               PredictionState::None, TimelineItem(), mTimeStats,
                                               mJankClassificationThresholds, &mTraceCookieCounter);
     }
-    std::optional<TimelineItem> predictions = mTokenManager.getPredictionsForToken(*token);
+    std::optional<TimelineItem> predictions =
+            mTokenManager.getPredictionsForToken(frameTimelineInfo.vsyncId);
     if (predictions) {
-        return std::make_shared<SurfaceFrame>(*token, ownerPid, ownerUid, std::move(layerName),
-                                              std::move(debugName), PredictionState::Valid,
-                                              std::move(*predictions), mTimeStats,
-                                              mJankClassificationThresholds, &mTraceCookieCounter);
+        return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid,
+                                              std::move(layerName), std::move(debugName),
+                                              PredictionState::Valid, std::move(*predictions),
+                                              mTimeStats, mJankClassificationThresholds,
+                                              &mTraceCookieCounter);
     }
-    return std::make_shared<SurfaceFrame>(*token, ownerPid, ownerUid, std::move(layerName),
-                                          std::move(debugName), PredictionState::Expired,
-                                          TimelineItem(), mTimeStats, mJankClassificationThresholds,
-                                          &mTraceCookieCounter);
+    return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid,
+                                          std::move(layerName), std::move(debugName),
+                                          PredictionState::Expired, TimelineItem(), mTimeStats,
+                                          mJankClassificationThresholds, &mTraceCookieCounter);
 }
 
 FrameTimeline::DisplayFrame::DisplayFrame(std::shared_ptr<TimeStats> timeStats,
@@ -669,13 +676,13 @@ FrameTimeline::DisplayFrame::DisplayFrame(std::shared_ptr<TimeStats> timeStats,
 
 void FrameTimeline::addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame) {
     ATRACE_CALL();
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     mCurrentDisplayFrame->addSurfaceFrame(surfaceFrame);
 }
 
 void FrameTimeline::setSfWakeUp(int64_t token, nsecs_t wakeUpTime, nsecs_t vsyncPeriod) {
     ATRACE_CALL();
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     mCurrentDisplayFrame->onSfWakeUp(token, vsyncPeriod,
                                      mTokenManager.getPredictionsForToken(token), wakeUpTime);
 }
@@ -683,7 +690,7 @@ void FrameTimeline::setSfWakeUp(int64_t token, nsecs_t wakeUpTime, nsecs_t vsync
 void FrameTimeline::setSfPresent(nsecs_t sfPresentTime,
                                  const std::shared_ptr<FenceTime>& presentFence) {
     ATRACE_CALL();
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     mCurrentDisplayFrame->setActualEndTime(sfPresentTime);
     mPendingPresentFences.emplace_back(std::make_pair(presentFence, mCurrentDisplayFrame));
     flushPendingPresentFences();
@@ -826,7 +833,7 @@ void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid) const {
     // Expected timeline start
     FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
         auto packet = ctx.NewTracePacket();
-        if (mToken == ISurfaceComposer::INVALID_VSYNC_ID) {
+        if (mToken == FrameTimelineInfo::INVALID_VSYNC_ID) {
             ALOGD("Cannot trace DisplayFrame with invalid token");
             missingToken = true;
             return;
@@ -999,7 +1006,7 @@ void FrameTimeline::DisplayFrame::dump(std::string& result, nsecs_t baseTime) co
 }
 
 void FrameTimeline::dumpAll(std::string& result) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     StringAppendF(&result, "Number of display frames : %d\n", (int)mDisplayFrames.size());
     nsecs_t baseTime = (mDisplayFrames.empty()) ? 0 : mDisplayFrames[0]->getBaseTime();
     for (size_t i = 0; i < mDisplayFrames.size(); i++) {
@@ -1009,7 +1016,7 @@ void FrameTimeline::dumpAll(std::string& result) {
 }
 
 void FrameTimeline::dumpJank(std::string& result) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
     nsecs_t baseTime = (mDisplayFrames.empty()) ? 0 : mDisplayFrames[0]->getBaseTime();
     for (size_t i = 0; i < mDisplayFrames.size(); i++) {
         mDisplayFrames[i]->dumpJank(result, baseTime, static_cast<int>(i));
@@ -1031,7 +1038,7 @@ void FrameTimeline::parseArgs(const Vector<String16>& args, std::string& result)
 }
 
 void FrameTimeline::setMaxDisplayFrames(uint32_t size) {
-    std::lock_guard<std::mutex> lock(mMutex);
+    std::scoped_lock lock(mMutex);
 
     // The size can either increase or decrease, clear everything, to be consistent
     mDisplayFrames.clear();

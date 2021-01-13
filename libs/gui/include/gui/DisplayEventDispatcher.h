@@ -25,7 +25,7 @@ struct VsyncEventData {
     // The Vsync Id corresponsing to this vsync event. This will be used to
     // populate ISurfaceComposer::setFrameTimelineVsync and
     // SurfaceComposerClient::setFrameTimelineVsync
-    int64_t id = ISurfaceComposer::INVALID_VSYNC_ID;
+    int64_t id = FrameTimelineInfo::INVALID_VSYNC_ID;
 
     // The deadline in CLOCK_MONOTONIC that the app needs to complete its
     // frame by (both on the CPU and the GPU)
