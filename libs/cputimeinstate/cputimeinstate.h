@@ -23,6 +23,7 @@ namespace android {
 namespace bpf {
 
 bool startTrackingUidTimes();
+std::optional<std::vector<std::vector<uint64_t>>> getTotalCpuFreqTimes();
 std::optional<std::vector<std::vector<uint64_t>>> getUidCpuFreqTimes(uint32_t uid);
 std::optional<std::unordered_map<uint32_t, std::vector<std::vector<uint64_t>>>>
     getUidsCpuFreqTimes();
