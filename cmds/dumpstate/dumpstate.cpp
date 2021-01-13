@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mount.h>
 #include <sys/poll.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
@@ -2157,6 +2158,22 @@ void Dumpstate::DumpstateBoard(int out_fd) {
         return;
     }
 
+    /*
+     * mount debugfs for non-user builds which launch with S and unmount it
+     * after invoking dumpstateBoard_* methods. This is to enable debug builds
+     * to not have debugfs mounted during runtime. It will also ensure that
+     * debugfs is only accessed by the dumpstate HAL.
+     */
+    auto api_level = android::base::GetIntProperty("ro.product.first_api_level", 0);
+    bool mount_debugfs = !PropertiesHelper::IsUserBuild() && api_level >= 31;
+
+    if (mount_debugfs) {
+        RunCommand("mount debugfs", {"mount", "-t", "debugfs", "debugfs", "/sys/kernel/debug"},
+                   AS_ROOT_20);
+        RunCommand("chmod debugfs", {"chmod", "0755", "/sys/kernel/debug"},
+                   AS_ROOT_20);
+    }
+
     std::vector<std::string> paths;
     std::vector<android::base::ScopeGuard<std::function<void()>>> remover;
     for (int i = 0; i < NUM_OF_DUMPS; i++) {
@@ -2254,6 +2271,10 @@ void Dumpstate::DumpstateBoard(int out_fd) {
     if (result.wait_for(std::chrono::seconds(killing_timeout_sec)) != std::future_status::ready) {
         MYLOGE("killing dumpstateBoard timed out after %zus, continue and "
                "there might be racing in content\n", killing_timeout_sec);
+    }
+
+    if (mount_debugfs) {
+        RunCommand("unmount debugfs", {"umount", "/sys/kernel/debug"}, AS_ROOT_20);
     }
 
     auto file_sizes = std::make_unique<ssize_t[]>(paths.size());
