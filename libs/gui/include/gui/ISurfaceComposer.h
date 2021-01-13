@@ -22,8 +22,8 @@
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
 
+#include <android/gui/IScreenCaptureListener.h>
 #include <android/gui/ITransactionTraceListener.h>
-#include <gui/IScreenCaptureListener.h>
 #include <gui/ITransactionCompletedListener.h>
 
 #include <input/Flags.h>
@@ -59,7 +59,6 @@ struct DisplayStatInfo;
 struct DisplayState;
 struct InputWindowCommands;
 struct LayerCaptureArgs;
-struct ScreenCaptureResults;
 class LayerDebugInfo;
 class HdrCapabilities;
 class IDisplayEventConnection;
@@ -68,6 +67,8 @@ class ISurfaceComposerClient;
 class IRegionSamplingListener;
 class Rect;
 enum class FrameEvent;
+
+using gui::IScreenCaptureListener;
 
 namespace ui {
 

@@ -714,33 +714,4 @@ status_t LayerCaptureArgs::read(const Parcel& input) {
     return NO_ERROR;
 }
 
-status_t ScreenCaptureResults::write(Parcel& output) const {
-    if (buffer != nullptr) {
-        SAFE_PARCEL(output.writeBool, true);
-        SAFE_PARCEL(output.write, *buffer);
-    } else {
-        SAFE_PARCEL(output.writeBool, false);
-    }
-    SAFE_PARCEL(output.writeBool, capturedSecureLayers);
-    SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(capturedDataspace));
-    SAFE_PARCEL(output.writeInt32, result);
-    return NO_ERROR;
-}
-
-status_t ScreenCaptureResults::read(const Parcel& input) {
-    bool hasGraphicBuffer;
-    SAFE_PARCEL(input.readBool, &hasGraphicBuffer);
-    if (hasGraphicBuffer) {
-        buffer = new GraphicBuffer();
-        SAFE_PARCEL(input.read, *buffer);
-    }
-
-    SAFE_PARCEL(input.readBool, &capturedSecureLayers);
-    uint32_t dataspace = 0;
-    SAFE_PARCEL(input.readUint32, &dataspace);
-    capturedDataspace = static_cast<ui::Dataspace>(dataspace);
-    SAFE_PARCEL(input.readInt32, &result);
-    return NO_ERROR;
-}
-
 }; // namespace android
