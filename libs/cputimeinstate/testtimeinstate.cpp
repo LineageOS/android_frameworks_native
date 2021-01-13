@@ -40,6 +40,12 @@ static constexpr uint64_t NSEC_PER_YEAR = NSEC_PER_SEC * 60 * 60 * 24 * 365;
 
 using std::vector;
 
+TEST(TimeInStateTest, TotalTimeInState) {
+    auto times = getTotalCpuFreqTimes();
+    ASSERT_TRUE(times.has_value());
+    EXPECT_FALSE(times->empty());
+}
+
 TEST(TimeInStateTest, SingleUidTimeInState) {
     auto times = getUidCpuFreqTimes(0);
     ASSERT_TRUE(times.has_value());
@@ -186,6 +192,31 @@ TEST(TimeInStateTest, AllUidUpdatedTimeInState) {
     }
 }
 
+TEST(TimeInStateTest, TotalAndAllUidTimeInStateConsistent) {
+    auto allUid = getUidsCpuFreqTimes();
+    auto total = getTotalCpuFreqTimes();
+
+    ASSERT_TRUE(allUid.has_value() && total.has_value());
+
+    // Check the number of policies.
+    ASSERT_EQ(allUid->at(0).size(), total->size());
+
+    for (uint32_t policyIdx = 0; policyIdx < total->size(); ++policyIdx) {
+        std::vector<uint64_t> totalTimes = total->at(policyIdx);
+        uint32_t totalFreqsCount = totalTimes.size();
+        std::vector<uint64_t> allUidTimes(totalFreqsCount, 0);
+        for (auto const &[uid, uidTimes]: *allUid) {
+            for (uint32_t freqIdx = 0; freqIdx < uidTimes[policyIdx].size(); ++freqIdx) {
+                allUidTimes[std::min(freqIdx, totalFreqsCount - 1)] += uidTimes[policyIdx][freqIdx];
+            }
+        }
+
+        for (uint32_t freqIdx = 0; freqIdx < totalFreqsCount; ++freqIdx) {
+            ASSERT_LE(allUidTimes[freqIdx], totalTimes[freqIdx]);
+        }
+    }
+}
+
 TEST(TimeInStateTest, SingleAndAllUidTimeInStateConsistent) {
     uint64_t zero = 0;
     auto maps = {getUidsCpuFreqTimes(), getUidsUpdatedCpuFreqTimes(&zero)};
@@ -290,6 +321,22 @@ void TestCheckDelta(uint64_t before, uint64_t after) {
     ASSERT_LE(before, after);
     // UID can't have run for more than ~1s on each CPU
     ASSERT_LE(after - before, NSEC_PER_SEC * 2 * get_nprocs_conf());
+}
+
+TEST(TimeInStateTest, TotalTimeInStateMonotonic) {
+    auto before = getTotalCpuFreqTimes();
+    ASSERT_TRUE(before.has_value());
+    sleep(1);
+    auto after = getTotalCpuFreqTimes();
+    ASSERT_TRUE(after.has_value());
+
+    for (uint32_t policyIdx = 0; policyIdx < after->size(); ++policyIdx) {
+        auto timesBefore = before->at(policyIdx);
+        auto timesAfter = after->at(policyIdx);
+        for (uint32_t freqIdx = 0; freqIdx < timesAfter.size(); ++freqIdx) {
+            ASSERT_NO_FATAL_FAILURE(TestCheckDelta(timesBefore[freqIdx], timesAfter[freqIdx]));
+        }
+    }
 }
 
 TEST(TimeInStateTest, AllUidTimeInStateMonotonic) {
