@@ -1550,7 +1550,7 @@ static void DumpAppInfos(int out_fd = STDOUT_FILENO) {
     dprintf(out_fd, "========================================================\n");
 
     RunDumpsys("APP PROVIDERS PLATFORM", {"activity", "provider", "all-platform"},
-            DUMPSYS_COMPONENTS_OPTIONS, out_fd);
+            DUMPSYS_COMPONENTS_OPTIONS, 0, out_fd);
 
     dprintf(out_fd, "========================================================\n");
     dprintf(out_fd, "== Running Application Providers (non-platform)\n");
