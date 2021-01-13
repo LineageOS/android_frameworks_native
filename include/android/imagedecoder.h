@@ -601,11 +601,12 @@ size_t AImageDecoder_getMinimumStride(AImageDecoder* _Nonnull decoder) __INTRODU
  * to determine whether other frames are independent, or what frames they rely on.
  *
  * If the current frame is marked {@link ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS},
- * AImageDecoder_decodeImage will cache the |pixels| buffer prior to decoding
+ * AImageDecoder_decodeImage will store the |pixels| buffer prior to decoding
  * (note: this only happens for the first in a string of consecutive
  * ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS frames). After advancing to the
- * following frame, AImageDecoder_decodeImage will restore the cached buffer
- * prior to decoding that frame.
+ * following frame, AImageDecoder_decodeImage will restore that buffer prior to
+ * decoding that frame. This is the default behavior, but it can be disabled
+ * by passing false to {@link AImageDecoder_setInternallyHandleDisposePrevious}.
  *
  * Ignoring timing information, display, etc, a client wishing to decode all
  * frames of an animated image may conceptually use code like the following:
@@ -923,11 +924,12 @@ enum {
     // No disposal. The following frame will be drawn directly
     // on top of this one.
     ANDROID_IMAGE_DECODER_DISPOSE_OP_NONE = 1,
-    // The frame’s rectangle is cleared (by AImageDecoder) before
-    // decoding the next frame.
+    // The frame’s rectangle is cleared to transparent (by AImageDecoder)
+    // before decoding the next frame.
     ANDROID_IMAGE_DECODER_DISPOSE_OP_BACKGROUND = 2,
-    // The frame’s rectangle is reverted (by AImageDecoder) to the
-    // prior frame before decoding the next frame.
+    // The frame’s rectangle is reverted to the prior frame before decoding
+    // the next frame. This is handled by AImageDecoder, unless
+    // {@link AImageDecoder_setInternallyHandleDisposePrevious} is set to false.
     ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS = 3,
 };
 
@@ -994,6 +996,42 @@ enum {
 int32_t AImageDecoderFrameInfo_getBlendOp(
         const AImageDecoderFrameInfo* _Nonnull info)
         __INTRODUCED_IN(31);
+
+/**
+ * Whether to have AImageDecoder store the frame prior to a
+ * frame marked {@link ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS}.
+ *
+ * Introduced in API 31.
+ *
+ * The default is true. Many images will not have such a frame (it
+ * is not supported by WebP, and only some GIFs use it). But
+ * if frame i is ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS, then i+1
+ * may depend on i-1. When this setting is true, AImageDecoder will
+ * defensively copy frame i-1 (i.e. the contents of |pixels| in
+ * {@link AImageDecoder_decodeImage}) into an internal buffer so that
+ * it can be used to decode i+1.
+ *
+ * AImageDecoder will only store a single frame, at the size specified
+ * by {@link AImageDecoder_setTargetSize} (or the original dimensions
+ * if that method has not been called), and will discard it when it is
+ * no longer necessary.
+ *
+ * A client that desires to manually store such frames may set this to
+ * false, so that AImageDecoder does not need to store this extra
+ * frame. Instead, when decoding the same
+ * ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS frame i, AImageDecoder
+ * will decode directly into |pixels|, assuming the client stored i-1.
+ * When asked to decode frame i+1, AImageDecoder will now assume that
+ * the client provided i-1 in |pixels|.
+ *
+ * @param handleInternally Whether AImageDecoder will internally
+ *               handle ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS
+ *               frames.
+ */
+void AImageDecoder_setInternallyHandleDisposePrevious(
+        AImageDecoder* _Nonnull decoder, bool handleInternally)
+        __INTRODUCED_IN(31);
+
 
 #endif // __ANDROID_API__ >= 31
 
