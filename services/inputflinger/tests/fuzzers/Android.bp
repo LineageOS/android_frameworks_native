@@ -120,6 +120,16 @@ cc_fuzz {
 }
 
 cc_fuzz {
+    name: "inputflinger_input_reader_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "InputReaderFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
     name: "inputflinger_blocking_queue_fuzzer",
     defaults: [
         "inputflinger_fuzz_defaults",
