@@ -319,6 +319,16 @@ TEST_F(ZippedBugReportContentsTest, ContainsSomeFileSystemFiles) {
  */
 class BugreportSectionTest : public Test {
   public:
+    ZipArchiveHandle handle;
+
+    void SetUp() {
+        ASSERT_EQ(OpenArchive(ZippedBugreportGenerationTest::getZipFilePath().c_str(), &handle), 0);
+    }
+
+    void TearDown() {
+        CloseArchive(handle);
+    }
+
     static void SetUpTestCase() {
         ParseSections(ZippedBugreportGenerationTest::getZipFilePath().c_str(),
                       ZippedBugreportGenerationTest::sections.get());
@@ -342,6 +352,19 @@ class BugreportSectionTest : public Test {
             }
         }
         FAIL() << sectionName << " not found.";
+    }
+
+    /**
+     * Whether or not the content of the section is injected by other commands.
+     */
+    bool IsContentInjectedByOthers(const std::string& line) {
+        // Command header such as `------ APP ACTIVITIES (/system/bin/dumpsys activity -v) ------`.
+        static const std::regex kCommandHeader = std::regex{"------ .+ \\(.+\\) ------"};
+        std::smatch match;
+        if (std::regex_match(line, match, kCommandHeader)) {
+          return true;
+        }
+        return false;
     }
 };
 
@@ -398,6 +421,28 @@ TEST_F(BugreportSectionTest, BatteryStatsSectionGenerated) {
 
 TEST_F(BugreportSectionTest, DISABLED_WifiSectionGenerated) {
     SectionExists("wifi", /* bytes= */ 100000);
+}
+
+TEST_F(BugreportSectionTest, NoInjectedContentByOtherCommand) {
+    // Extract the main entry to a temp file
+    TemporaryFile tmp_binary;
+    ASSERT_NE(-1, tmp_binary.fd);
+    ExtractBugreport(&handle, tmp_binary.fd);
+
+    // Read line by line and identify sections
+    std::ifstream ifs(tmp_binary.path, std::ifstream::in);
+    std::string line;
+    std::string current_section_name;
+    while (std::getline(ifs, line)) {
+        std::string section_name;
+        if (IsSectionStart(line, &section_name)) {
+            current_section_name = section_name;
+        } else if (IsSectionEnd(line)) {
+            current_section_name = "";
+        } else if (!current_section_name.empty()) {
+            EXPECT_FALSE(IsContentInjectedByOthers(line));
+        }
+    }
 }
 
 class DumpstateBinderTest : public Test {
