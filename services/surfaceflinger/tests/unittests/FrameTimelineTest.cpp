@@ -33,8 +33,13 @@ using namespace std::chrono_literals;
 using testing::AtLeast;
 using testing::Contains;
 using FrameTimelineEvent = perfetto::protos::FrameTimelineEvent;
-using ProtoDisplayFrame = perfetto::protos::FrameTimelineEvent_DisplayFrame;
-using ProtoSurfaceFrame = perfetto::protos::FrameTimelineEvent_SurfaceFrame;
+using ProtoExpectedDisplayFrameStart =
+        perfetto::protos::FrameTimelineEvent_ExpectedDisplayFrameStart;
+using ProtoExpectedSurfaceFrameStart =
+        perfetto::protos::FrameTimelineEvent_ExpectedSurfaceFrameStart;
+using ProtoActualDisplayFrameStart = perfetto::protos::FrameTimelineEvent_ActualDisplayFrameStart;
+using ProtoActualSurfaceFrameStart = perfetto::protos::FrameTimelineEvent_ActualSurfaceFrameStart;
+using ProtoFrameEnd = perfetto::protos::FrameTimelineEvent_FrameEnd;
 using ProtoPresentType = perfetto::protos::FrameTimelineEvent_PresentType;
 using ProtoJankType = perfetto::protos::FrameTimelineEvent_JankType;
 
@@ -67,10 +72,11 @@ public:
 
     void SetUp() override {
         mTimeStats = std::make_shared<mock::TimeStats>();
-        mFrameTimeline = std::make_unique<impl::FrameTimeline>(mTimeStats, mSurfaceFlingerPid,
+        mFrameTimeline = std::make_unique<impl::FrameTimeline>(mTimeStats, kSurfaceFlingerPid,
                                                                kTestThresholds);
         mFrameTimeline->registerDataSource();
         mTokenManager = &mFrameTimeline->mTokenManager;
+        mTraceCookieCounter = &mFrameTimeline->mTraceCookieCounter;
         maxDisplayFrames = &mFrameTimeline->mMaxDisplayFrames;
         maxTokenRetentionTime = mTokenManager->kMaxRetentionTime;
     }
@@ -130,22 +136,31 @@ public:
                 a.presentTime == b.presentTime;
     }
 
-    const std::map<int64_t, TokenManagerPrediction>& getPredictions() {
+    const std::map<int64_t, TokenManagerPrediction>& getPredictions() const {
         return mTokenManager->mPredictions;
     }
 
-    uint32_t getNumberOfDisplayFrames() {
+    uint32_t getNumberOfDisplayFrames() const {
         std::lock_guard<std::mutex> lock(mFrameTimeline->mMutex);
         return static_cast<uint32_t>(mFrameTimeline->mDisplayFrames.size());
+    }
+
+    int64_t snoopCurrentTraceCookie() const { return mTraceCookieCounter->mTraceCookie; }
+
+    void flushTrace() {
+        using FrameTimelineDataSource = impl::FrameTimeline::FrameTimelineDataSource;
+        FrameTimelineDataSource::Trace(
+                [&](FrameTimelineDataSource::TraceContext ctx) { ctx.Flush(); });
     }
 
     std::shared_ptr<mock::TimeStats> mTimeStats;
     std::unique_ptr<impl::FrameTimeline> mFrameTimeline;
     impl::TokenManager* mTokenManager;
+    TraceCookieCounter* mTraceCookieCounter;
     FenceToFenceTimeMap fenceFactory;
     uint32_t* maxDisplayFrames;
     nsecs_t maxTokenRetentionTime;
-    pid_t mSurfaceFlingerPid = 666;
+    static constexpr pid_t kSurfaceFlingerPid = 666;
     static constexpr nsecs_t kPresentThreshold =
             std::chrono::duration_cast<std::chrono::nanoseconds>(2ns).count();
     static constexpr nsecs_t kDeadlineThreshold =
@@ -549,7 +564,7 @@ TEST_F(FrameTimelineTest, tracing_noPacketsSentWithoutTraceStart) {
 TEST_F(FrameTimelineTest, tracing_sanityTest) {
     auto tracingSession = getTracingSessionForTest();
     // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
+    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     // Layer specific increment
     EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
@@ -574,23 +589,18 @@ TEST_F(FrameTimelineTest, tracing_sanityTest) {
     mFrameTimeline->setSfPresent(55, presentFence2);
     presentFence2->signalForTest(55);
 
-    // The SurfaceFrame packet from the first frame is emitted, but not flushed yet. Emitting a new
-    // packet will flush it. To emit a new packet, we'll need to call flushPendingPresentFences()
-    // again, which is done by setSfPresent().
-    addEmptyDisplayFrame();
+    flushTrace();
     tracingSession->StopBlocking();
 
     auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
-    // Display Frame 1 has two packets - DisplayFrame and a SurfaceFrame.
-    // Display Frame 2 has one packet - DisplayFrame. However, this packet has been emitted but not
-    // flushed through traced, so this is not counted.
-    EXPECT_EQ(packets.size(), 2);
+    // Display Frame 1 has 8 packets - 4 from DisplayFrame and 4 from SurfaceFrame.
+    EXPECT_EQ(packets.size(), 8);
 }
 
 TEST_F(FrameTimelineTest, traceDisplayFrame_invalidTokenDoesNotEmitTracePacket) {
     auto tracingSession = getTracingSessionForTest();
     // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
+    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -608,20 +618,17 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_invalidTokenDoesNotEmitTracePacket) 
     mFrameTimeline->setSfPresent(55, presentFence2);
     presentFence2->signalForTest(60);
 
-    addEmptyDisplayFrame();
+    flushTrace();
     tracingSession->StopBlocking();
 
     auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
-    // Display Frame 1 has no packets.
-    // Display Frame 2 has one packet - DisplayFrame. However, this packet has
-    // been emitted but not flushed through traced, so this is not counted.
     EXPECT_EQ(packets.size(), 0);
 }
 
 TEST_F(FrameTimelineTest, traceSurfaceFrame_invalidTokenDoesNotEmitTracePacket) {
     auto tracingSession = getTracingSessionForTest();
     // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
+    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -644,20 +651,37 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_invalidTokenDoesNotEmitTracePacket) 
     mFrameTimeline->setSfPresent(55, presentFence2);
     presentFence2->signalForTest(60);
 
-    addEmptyDisplayFrame();
+    flushTrace();
     tracingSession->StopBlocking();
 
     auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
-    // Display Frame 1 has one packet - DisplayFrame (SurfaceFrame shouldn't be traced since it has
-    // an invalid token).
-    // Display Frame 2 has one packet - DisplayFrame. However, this packet has
-    // been emitted but not flushed through traced, so this is not counted.
-    EXPECT_EQ(packets.size(), 1);
+    // Display Frame 1 has 4 packets (SurfaceFrame shouldn't be traced since it has an invalid
+    // token).
+    EXPECT_EQ(packets.size(), 4);
 }
 
-void validateDisplayFrameEvent(const ProtoDisplayFrame& received, const ProtoDisplayFrame& source) {
+void validateTraceEvent(const ProtoExpectedDisplayFrameStart& received,
+                        const ProtoExpectedDisplayFrameStart& source) {
+    ASSERT_TRUE(received.has_cookie());
+    EXPECT_EQ(received.cookie(), source.cookie());
+
     ASSERT_TRUE(received.has_token());
     EXPECT_EQ(received.token(), source.token());
+
+    ASSERT_TRUE(received.has_pid());
+    EXPECT_EQ(received.pid(), source.pid());
+}
+
+void validateTraceEvent(const ProtoActualDisplayFrameStart& received,
+                        const ProtoActualDisplayFrameStart& source) {
+    ASSERT_TRUE(received.has_cookie());
+    EXPECT_EQ(received.cookie(), source.cookie());
+
+    ASSERT_TRUE(received.has_token());
+    EXPECT_EQ(received.token(), source.token());
+
+    ASSERT_TRUE(received.has_pid());
+    EXPECT_EQ(received.pid(), source.pid());
 
     ASSERT_TRUE(received.has_present_type());
     EXPECT_EQ(received.present_type(), source.present_type());
@@ -667,25 +691,43 @@ void validateDisplayFrameEvent(const ProtoDisplayFrame& received, const ProtoDis
     EXPECT_EQ(received.gpu_composition(), source.gpu_composition());
     ASSERT_TRUE(received.has_jank_type());
     EXPECT_EQ(received.jank_type(), source.jank_type());
-
-    ASSERT_TRUE(received.has_expected_start_ns());
-    EXPECT_EQ(received.expected_start_ns(), source.expected_start_ns());
-    ASSERT_TRUE(received.has_expected_end_ns());
-    EXPECT_EQ(received.expected_end_ns(), source.expected_end_ns());
-
-    ASSERT_TRUE(received.has_actual_start_ns());
-    EXPECT_EQ(received.actual_start_ns(), source.actual_start_ns());
-    ASSERT_TRUE(received.has_actual_end_ns());
-    EXPECT_EQ(received.actual_end_ns(), source.actual_end_ns());
 }
 
-void validateSurfaceFrameEvent(const ProtoSurfaceFrame& received, const ProtoSurfaceFrame& source) {
+void validateTraceEvent(const ProtoExpectedSurfaceFrameStart& received,
+                        const ProtoExpectedSurfaceFrameStart& source) {
+    ASSERT_TRUE(received.has_cookie());
+    EXPECT_EQ(received.cookie(), source.cookie());
+
     ASSERT_TRUE(received.has_token());
     EXPECT_EQ(received.token(), source.token());
 
     ASSERT_TRUE(received.has_display_frame_token());
     EXPECT_EQ(received.display_frame_token(), source.display_frame_token());
 
+    ASSERT_TRUE(received.has_pid());
+    EXPECT_EQ(received.pid(), source.pid());
+
+    ASSERT_TRUE(received.has_layer_name());
+    EXPECT_EQ(received.layer_name(), source.layer_name());
+}
+
+void validateTraceEvent(const ProtoActualSurfaceFrameStart& received,
+                        const ProtoActualSurfaceFrameStart& source) {
+    ASSERT_TRUE(received.has_cookie());
+    EXPECT_EQ(received.cookie(), source.cookie());
+
+    ASSERT_TRUE(received.has_token());
+    EXPECT_EQ(received.token(), source.token());
+
+    ASSERT_TRUE(received.has_display_frame_token());
+    EXPECT_EQ(received.display_frame_token(), source.display_frame_token());
+
+    ASSERT_TRUE(received.has_pid());
+    EXPECT_EQ(received.pid(), source.pid());
+
+    ASSERT_TRUE(received.has_layer_name());
+    EXPECT_EQ(received.layer_name(), source.layer_name());
+
     ASSERT_TRUE(received.has_present_type());
     EXPECT_EQ(received.present_type(), source.present_type());
     ASSERT_TRUE(received.has_on_time_finish());
@@ -694,27 +736,17 @@ void validateSurfaceFrameEvent(const ProtoSurfaceFrame& received, const ProtoSur
     EXPECT_EQ(received.gpu_composition(), source.gpu_composition());
     ASSERT_TRUE(received.has_jank_type());
     EXPECT_EQ(received.jank_type(), source.jank_type());
+}
 
-    ASSERT_TRUE(received.has_expected_start_ns());
-    EXPECT_EQ(received.expected_start_ns(), source.expected_start_ns());
-    ASSERT_TRUE(received.has_expected_end_ns());
-    EXPECT_EQ(received.expected_end_ns(), source.expected_end_ns());
-
-    ASSERT_TRUE(received.has_actual_start_ns());
-    EXPECT_EQ(received.actual_start_ns(), source.actual_start_ns());
-    ASSERT_TRUE(received.has_actual_end_ns());
-    EXPECT_EQ(received.actual_end_ns(), source.actual_end_ns());
-
-    ASSERT_TRUE(received.has_layer_name());
-    EXPECT_EQ(received.layer_name(), source.layer_name());
-    ASSERT_TRUE(received.has_pid());
-    EXPECT_EQ(received.pid(), source.pid());
+void validateTraceEvent(const ProtoFrameEnd& received, const ProtoFrameEnd& source) {
+    ASSERT_TRUE(received.has_cookie());
+    EXPECT_EQ(received.cookie(), source.cookie());
 }
 
 TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     auto tracingSession = getTracingSessionForTest();
     // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
+    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -727,16 +759,27 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     mFrameTimeline->setSfPresent(26, presentFence1);
     presentFence1->signalForTest(31);
 
-    ProtoDisplayFrame protoDisplayFrame;
-    protoDisplayFrame.set_token(displayFrameToken1);
-    protoDisplayFrame.set_present_type(ProtoPresentType(FrameTimelineEvent::PRESENT_ON_TIME));
-    protoDisplayFrame.set_on_time_finish(true);
-    protoDisplayFrame.set_gpu_composition(false);
-    protoDisplayFrame.set_jank_type(ProtoJankType(FrameTimelineEvent::JANK_NONE));
-    protoDisplayFrame.set_expected_start_ns(10);
-    protoDisplayFrame.set_expected_end_ns(25);
-    protoDisplayFrame.set_actual_start_ns(20);
-    protoDisplayFrame.set_actual_end_ns(26);
+    int64_t traceCookie = snoopCurrentTraceCookie();
+    ProtoExpectedDisplayFrameStart protoExpectedDisplayFrameStart;
+    protoExpectedDisplayFrameStart.set_cookie(traceCookie + 1);
+    protoExpectedDisplayFrameStart.set_token(displayFrameToken1);
+    protoExpectedDisplayFrameStart.set_pid(kSurfaceFlingerPid);
+
+    ProtoFrameEnd protoExpectedDisplayFrameEnd;
+    protoExpectedDisplayFrameEnd.set_cookie(traceCookie + 1);
+
+    ProtoActualDisplayFrameStart protoActualDisplayFrameStart;
+    protoActualDisplayFrameStart.set_cookie(traceCookie + 2);
+    protoActualDisplayFrameStart.set_token(displayFrameToken1);
+    protoActualDisplayFrameStart.set_pid(kSurfaceFlingerPid);
+    protoActualDisplayFrameStart.set_present_type(
+            ProtoPresentType(FrameTimelineEvent::PRESENT_ON_TIME));
+    protoActualDisplayFrameStart.set_on_time_finish(true);
+    protoActualDisplayFrameStart.set_gpu_composition(false);
+    protoActualDisplayFrameStart.set_jank_type(ProtoJankType(FrameTimelineEvent::JANK_NONE));
+
+    ProtoFrameEnd protoActualDisplayFrameEnd;
+    protoActualDisplayFrameEnd.set_cookie(traceCookie + 2);
 
     // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
     // next frame
@@ -744,30 +787,61 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     mFrameTimeline->setSfPresent(55, presentFence2);
     presentFence2->signalForTest(55);
 
-    addEmptyDisplayFrame();
+    flushTrace();
     tracingSession->StopBlocking();
 
     auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
-    // Display Frame 1 has one packet - DisplayFrame.
-    // Display Frame 2 has one packet - DisplayFrame. However, this packet has been emitted but not
-    // flushed through traced, so this is not counted.
-    EXPECT_EQ(packets.size(), 1);
+    EXPECT_EQ(packets.size(), 4);
 
-    const auto& packet = packets[0];
-    ASSERT_TRUE(packet.has_timestamp());
-    ASSERT_TRUE(packet.has_frame_timeline_event());
+    // Packet - 0 : ExpectedDisplayFrameStart
+    const auto& packet0 = packets[0];
+    ASSERT_TRUE(packet0.has_timestamp());
+    EXPECT_EQ(packet0.timestamp(), 10);
+    ASSERT_TRUE(packet0.has_frame_timeline_event());
 
-    const auto& event = packet.frame_timeline_event();
-    ASSERT_TRUE(event.has_display_frame());
-    ASSERT_FALSE(event.has_surface_frame());
-    const auto& displayFrameEvent = event.display_frame();
-    validateDisplayFrameEvent(displayFrameEvent, protoDisplayFrame);
+    const auto& event0 = packet0.frame_timeline_event();
+    ASSERT_TRUE(event0.has_expected_display_frame_start());
+    const auto& expectedDisplayFrameStart = event0.expected_display_frame_start();
+    validateTraceEvent(expectedDisplayFrameStart, protoExpectedDisplayFrameStart);
+
+    // Packet - 1 : FrameEnd (ExpectedDisplayFrame)
+    const auto& packet1 = packets[1];
+    ASSERT_TRUE(packet1.has_timestamp());
+    EXPECT_EQ(packet1.timestamp(), 25);
+    ASSERT_TRUE(packet1.has_frame_timeline_event());
+
+    const auto& event1 = packet1.frame_timeline_event();
+    ASSERT_TRUE(event1.has_frame_end());
+    const auto& expectedDisplayFrameEnd = event1.frame_end();
+    validateTraceEvent(expectedDisplayFrameEnd, protoExpectedDisplayFrameEnd);
+
+    // Packet - 2 : ActualDisplayFrameStart
+    const auto& packet2 = packets[2];
+    ASSERT_TRUE(packet2.has_timestamp());
+    EXPECT_EQ(packet2.timestamp(), 20);
+    ASSERT_TRUE(packet2.has_frame_timeline_event());
+
+    const auto& event2 = packet2.frame_timeline_event();
+    ASSERT_TRUE(event2.has_actual_display_frame_start());
+    const auto& actualDisplayFrameStart = event2.actual_display_frame_start();
+    validateTraceEvent(actualDisplayFrameStart, protoActualDisplayFrameStart);
+
+    // Packet - 3 : FrameEnd (ActualDisplayFrame)
+    const auto& packet3 = packets[3];
+    ASSERT_TRUE(packet3.has_timestamp());
+    EXPECT_EQ(packet3.timestamp(), 26);
+    ASSERT_TRUE(packet3.has_frame_timeline_event());
+
+    const auto& event3 = packet3.frame_timeline_event();
+    ASSERT_TRUE(event3.has_frame_end());
+    const auto& actualDisplayFrameEnd = event3.frame_end();
+    validateTraceEvent(actualDisplayFrameEnd, protoActualDisplayFrameEnd);
 }
 
 TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     auto tracingSession = getTracingSessionForTest();
     // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
+    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     // Layer specific increment
     EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
@@ -785,19 +859,33 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     surfaceFrame1->setActualQueueTime(15);
     surfaceFrame1->setAcquireFenceTime(20);
 
-    ProtoSurfaceFrame protoSurfaceFrame;
-    protoSurfaceFrame.set_token(surfaceFrameToken);
-    protoSurfaceFrame.set_display_frame_token(displayFrameToken1);
-    protoSurfaceFrame.set_present_type(ProtoPresentType(FrameTimelineEvent::PRESENT_ON_TIME));
-    protoSurfaceFrame.set_on_time_finish(true);
-    protoSurfaceFrame.set_gpu_composition(false);
-    protoSurfaceFrame.set_jank_type(ProtoJankType(FrameTimelineEvent::JANK_NONE));
-    protoSurfaceFrame.set_expected_start_ns(10);
-    protoSurfaceFrame.set_expected_end_ns(25);
-    protoSurfaceFrame.set_actual_start_ns(0);
-    protoSurfaceFrame.set_actual_end_ns(20);
-    protoSurfaceFrame.set_layer_name(sLayerNameOne);
-    protoSurfaceFrame.set_pid(sPidOne);
+    // First 2 cookies will be used by the DisplayFrame
+    int64_t traceCookie = snoopCurrentTraceCookie() + 2;
+
+    ProtoExpectedSurfaceFrameStart protoExpectedSurfaceFrameStart;
+    protoExpectedSurfaceFrameStart.set_cookie(traceCookie + 1);
+    protoExpectedSurfaceFrameStart.set_token(surfaceFrameToken);
+    protoExpectedSurfaceFrameStart.set_display_frame_token(displayFrameToken1);
+    protoExpectedSurfaceFrameStart.set_pid(sPidOne);
+    protoExpectedSurfaceFrameStart.set_layer_name(sLayerNameOne);
+
+    ProtoFrameEnd protoExpectedSurfaceFrameEnd;
+    protoExpectedSurfaceFrameEnd.set_cookie(traceCookie + 1);
+
+    ProtoActualSurfaceFrameStart protoActualSurfaceFrameStart;
+    protoActualSurfaceFrameStart.set_cookie(traceCookie + 2);
+    protoActualSurfaceFrameStart.set_token(surfaceFrameToken);
+    protoActualSurfaceFrameStart.set_display_frame_token(displayFrameToken1);
+    protoActualSurfaceFrameStart.set_pid(sPidOne);
+    protoActualSurfaceFrameStart.set_layer_name(sLayerNameOne);
+    protoActualSurfaceFrameStart.set_present_type(
+            ProtoPresentType(FrameTimelineEvent::PRESENT_ON_TIME));
+    protoActualSurfaceFrameStart.set_on_time_finish(true);
+    protoActualSurfaceFrameStart.set_gpu_composition(false);
+    protoActualSurfaceFrameStart.set_jank_type(ProtoJankType(FrameTimelineEvent::JANK_NONE));
+
+    ProtoFrameEnd protoActualSurfaceFrameEnd;
+    protoActualSurfaceFrameEnd.set_cookie(traceCookie + 2);
 
     // Set up the display frame
     mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, 11);
@@ -812,24 +900,55 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     mFrameTimeline->setSfPresent(55, presentFence2);
     presentFence2->signalForTest(55);
 
-    addEmptyDisplayFrame();
+    flushTrace();
     tracingSession->StopBlocking();
 
     auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
-    // Display Frame 1 has one packet - DisplayFrame and a SurfaceFrame.
-    // Display Frame 2 has one packet - DisplayFrame. However, this packet has been emitted but not
-    // flushed through traced, so this is not counted.
-    EXPECT_EQ(packets.size(), 2);
+    EXPECT_EQ(packets.size(), 8);
 
-    const auto& packet = packets[1];
-    ASSERT_TRUE(packet.has_timestamp());
-    ASSERT_TRUE(packet.has_frame_timeline_event());
+    // Packet - 4 : ExpectedSurfaceFrameStart
+    const auto& packet4 = packets[4];
+    ASSERT_TRUE(packet4.has_timestamp());
+    EXPECT_EQ(packet4.timestamp(), 10);
+    ASSERT_TRUE(packet4.has_frame_timeline_event());
 
-    const auto& event = packet.frame_timeline_event();
-    ASSERT_TRUE(!event.has_display_frame());
-    ASSERT_TRUE(event.has_surface_frame());
-    const auto& surfaceFrameEvent = event.surface_frame();
-    validateSurfaceFrameEvent(surfaceFrameEvent, protoSurfaceFrame);
+    const auto& event4 = packet4.frame_timeline_event();
+    ASSERT_TRUE(event4.has_expected_surface_frame_start());
+    const auto& expectedSurfaceFrameStart = event4.expected_surface_frame_start();
+    validateTraceEvent(expectedSurfaceFrameStart, protoExpectedSurfaceFrameStart);
+
+    // Packet - 5 : FrameEnd (ExpectedSurfaceFrame)
+    const auto& packet5 = packets[5];
+    ASSERT_TRUE(packet5.has_timestamp());
+    EXPECT_EQ(packet5.timestamp(), 25);
+    ASSERT_TRUE(packet5.has_frame_timeline_event());
+
+    const auto& event5 = packet5.frame_timeline_event();
+    ASSERT_TRUE(event5.has_frame_end());
+    const auto& expectedSurfaceFrameEnd = event5.frame_end();
+    validateTraceEvent(expectedSurfaceFrameEnd, protoExpectedSurfaceFrameEnd);
+
+    // Packet - 6 : ActualSurfaceFrameStart
+    const auto& packet6 = packets[6];
+    ASSERT_TRUE(packet6.has_timestamp());
+    EXPECT_EQ(packet6.timestamp(), 10);
+    ASSERT_TRUE(packet6.has_frame_timeline_event());
+
+    const auto& event6 = packet6.frame_timeline_event();
+    ASSERT_TRUE(event6.has_actual_surface_frame_start());
+    const auto& actualSurfaceFrameStart = event6.actual_surface_frame_start();
+    validateTraceEvent(actualSurfaceFrameStart, protoActualSurfaceFrameStart);
+
+    // Packet - 7 : FrameEnd (ActualSurfaceFrame)
+    const auto& packet7 = packets[7];
+    ASSERT_TRUE(packet7.has_timestamp());
+    EXPECT_EQ(packet7.timestamp(), 20);
+    ASSERT_TRUE(packet7.has_frame_timeline_event());
+
+    const auto& event7 = packet7.frame_timeline_event();
+    ASSERT_TRUE(event7.has_frame_end());
+    const auto& actualSurfaceFrameEnd = event7.frame_end();
+    validateTraceEvent(actualSurfaceFrameEnd, protoActualSurfaceFrameEnd);
 }
 
 // Tests for Jank classification
