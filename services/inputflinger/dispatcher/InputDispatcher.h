@@ -233,6 +233,8 @@ private:
     // Finds the display ID of the gesture monitor identified by the provided token.
     std::optional<int32_t> findGestureMonitorDisplayByTokenLocked(const sp<IBinder>& token)
             REQUIRES(mLock);
+    // Find a monitor pid by the provided token.
+    std::optional<int32_t> findMonitorPidByTokenLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
     std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay GUARDED_BY(mLock);
@@ -433,6 +435,34 @@ private:
     void processNoFocusedWindowAnrLocked() REQUIRES(mLock);
 
     /**
+     * Tell policy about a window or a monitor that just became unresponsive. Starts ANR.
+     */
+    void processConnectionUnresponsiveLocked(const Connection& connection, std::string reason)
+            REQUIRES(mLock);
+    /**
+     * Tell policy about a window or a monitor that just became responsive.
+     */
+    void processConnectionResponsiveLocked(const Connection& connection) REQUIRES(mLock);
+
+    /**
+     * Post `doNotifyMonitorUnresponsiveLockedInterruptible` command.
+     */
+    void sendMonitorUnresponsiveCommandLocked(int32_t pid, std::string reason) REQUIRES(mLock);
+    /**
+     * Post `doNotifyWindowUnresponsiveLockedInterruptible` command.
+     */
+    void sendWindowUnresponsiveCommandLocked(sp<IBinder> connectionToken, std::string reason)
+            REQUIRES(mLock);
+    /**
+     * Post `doNotifyMonitorResponsiveLockedInterruptible` command.
+     */
+    void sendMonitorResponsiveCommandLocked(int32_t pid) REQUIRES(mLock);
+    /**
+     * Post `doNotifyWindowResponsiveLockedInterruptible` command.
+     */
+    void sendWindowResponsiveCommandLocked(sp<IBinder> connectionToken) REQUIRES(mLock);
+
+    /**
      * This map will store the pending focus requests that cannot be currently processed. This can
      * happen if the window requested to be focused is not currently visible. Such a window might
      * become visible later, and these requests would be processed at that time.
@@ -577,7 +607,7 @@ private:
                               int32_t displayId, std::string_view reason) REQUIRES(mLock);
     void notifyFocusChangedLocked(const sp<IBinder>& oldFocus, const sp<IBinder>& newFocus)
             REQUIRES(mLock);
-    void onAnrLocked(const Connection& connection) REQUIRES(mLock);
+    void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
     void onAnrLocked(std::shared_ptr<InputApplicationHandle> application) REQUIRES(mLock);
     void onUntrustedTouchLocked(const std::string& obscuringPackage) REQUIRES(mLock);
     void updateLastAnrStateLocked(const sp<InputWindowHandle>& window, const std::string& reason)
@@ -592,11 +622,13 @@ private:
             REQUIRES(mLock);
     void doNotifyInputChannelBrokenLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doNotifyFocusChangedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+    // ANR-related callbacks - start
     void doNotifyNoFocusedWindowAnrLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
-    void doNotifyConnectionUnresponsiveLockedInterruptible(CommandEntry* commandEntry)
-            REQUIRES(mLock);
-    void doNotifyConnectionResponsiveLockedInterruptible(CommandEntry* commandEntry)
-            REQUIRES(mLock);
+    void doNotifyWindowUnresponsiveLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+    void doNotifyMonitorUnresponsiveLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+    void doNotifyWindowResponsiveLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+    void doNotifyMonitorResponsiveLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+    // ANR-related callbacks - end
     void doNotifySensorLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doNotifyUntrustedTouchLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doInterceptKeyBeforeDispatchingLockedInterruptible(CommandEntry* commandEntry)
