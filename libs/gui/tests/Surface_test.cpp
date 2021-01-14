@@ -2024,4 +2024,86 @@ TEST_F(SurfaceTest, DefaultMaxBufferCountSetAndUpdated) {
     EXPECT_EQ(BufferQueueDefs::NUM_BUFFER_SLOTS, count);
 }
 
+TEST_F(SurfaceTest, BatchOperations) {
+    const int BUFFER_COUNT = 16;
+    const int BATCH_SIZE = 8;
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
+    sp<Surface> surface = new Surface(producer);
+    sp<ANativeWindow> window(surface);
+    sp<StubProducerListener> listener = new StubProducerListener();
+
+    ASSERT_EQ(OK, surface->connect(NATIVE_WINDOW_API_CPU, /*listener*/listener,
+            /*reportBufferRemoval*/false));
+
+    ASSERT_EQ(NO_ERROR, native_window_set_buffer_count(window.get(), BUFFER_COUNT));
+
+    std::vector<Surface::BatchBuffer> buffers(BATCH_SIZE);
+
+    // Batch dequeued buffers can be queued individually
+    ASSERT_EQ(NO_ERROR, surface->dequeueBuffers(&buffers));
+    for (size_t i = 0; i < BATCH_SIZE; i++) {
+        ANativeWindowBuffer* buffer = buffers[i].buffer;
+        int fence = buffers[i].fenceFd;
+        ASSERT_EQ(NO_ERROR, window->queueBuffer(window.get(), buffer, fence));
+    }
+
+    // Batch dequeued buffers can be canceled individually
+    ASSERT_EQ(NO_ERROR, surface->dequeueBuffers(&buffers));
+    for (size_t i = 0; i < BATCH_SIZE; i++) {
+        ANativeWindowBuffer* buffer = buffers[i].buffer;
+        int fence = buffers[i].fenceFd;
+        ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffer, fence));
+    }
+
+    // Batch dequeued buffers can be batch cancelled
+    ASSERT_EQ(NO_ERROR, surface->dequeueBuffers(&buffers));
+    ASSERT_EQ(NO_ERROR, surface->cancelBuffers(buffers));
+
+    // Batch dequeued buffers can be batch queued
+    ASSERT_EQ(NO_ERROR, surface->dequeueBuffers(&buffers));
+    std::vector<Surface::BatchQueuedBuffer> queuedBuffers(BATCH_SIZE);
+    for (size_t i = 0; i < BATCH_SIZE; i++) {
+        queuedBuffers[i].buffer = buffers[i].buffer;
+        queuedBuffers[i].fenceFd = buffers[i].fenceFd;
+        queuedBuffers[i].timestamp = NATIVE_WINDOW_TIMESTAMP_AUTO;
+    }
+    ASSERT_EQ(NO_ERROR, surface->queueBuffers(queuedBuffers));
+
+    ASSERT_EQ(NO_ERROR, surface->disconnect(NATIVE_WINDOW_API_CPU));
+}
+
+TEST_F(SurfaceTest, BatchIllegalOperations) {
+    const int BUFFER_COUNT = 16;
+    const int BATCH_SIZE = 8;
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
+    sp<Surface> surface = new Surface(producer);
+    sp<ANativeWindow> window(surface);
+    sp<StubProducerListener> listener = new StubProducerListener();
+
+    ASSERT_EQ(OK, surface->connect(NATIVE_WINDOW_API_CPU, /*listener*/listener,
+            /*reportBufferRemoval*/false));
+
+    ASSERT_EQ(NO_ERROR, native_window_set_buffer_count(window.get(), BUFFER_COUNT));
+
+    std::vector<Surface::BatchBuffer> buffers(BATCH_SIZE);
+    std::vector<Surface::BatchQueuedBuffer> queuedBuffers(BATCH_SIZE);
+
+    // Batch operations are invalid in shared buffer mode
+    surface->setSharedBufferMode(true);
+    ASSERT_EQ(INVALID_OPERATION, surface->dequeueBuffers(&buffers));
+    ASSERT_EQ(INVALID_OPERATION, surface->cancelBuffers(buffers));
+    ASSERT_EQ(INVALID_OPERATION, surface->queueBuffers(queuedBuffers));
+    surface->setSharedBufferMode(false);
+
+    ASSERT_EQ(NO_ERROR, surface->disconnect(NATIVE_WINDOW_API_CPU));
+}
+
 } // namespace android
