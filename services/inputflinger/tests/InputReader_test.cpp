@@ -7449,8 +7449,8 @@ protected:
         configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     }
 
-    void processPositionAndVerify(MultiTouchInputMapper& mapper, int32_t xInside, int32_t yInside,
-                                  int32_t xOutside, int32_t yOutside, int32_t xExpected,
+    void processPositionAndVerify(MultiTouchInputMapper& mapper, int32_t xOutside, int32_t yOutside,
+                                  int32_t xInside, int32_t yInside, int32_t xExpected,
                                   int32_t yExpected) {
         // touch on outside area should not work.
         processPosition(mapper, toRawX(xOutside), toRawY(yOutside));
@@ -7530,6 +7530,34 @@ TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_270) {
     constexpr int32_t xExpected = DISPLAY_HEIGHT - y;
     constexpr int32_t yExpected = (x + 1) - DISPLAY_WIDTH / 4;
     processPositionAndVerify(mapper, x - 1, y, x + 1, y, xExpected, yExpected);
+}
+
+TEST_F(MultiTouchInputMapperTest_SurfaceRange, Viewports_SurfaceRange_Corner) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    const int32_t x = 0;
+    const int32_t y = 0;
+
+    const int32_t xExpected = x;
+    const int32_t yExpected = y;
+    processPositionAndVerify(mapper, x - 1, y, x, y, xExpected, yExpected);
+
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_90);
+    // expect x/y = swap x/y then reverse y.
+    const int32_t xExpected90 = y;
+    const int32_t yExpected90 = DISPLAY_WIDTH - 1;
+    processPositionAndVerify(mapper, x - 1, y, x, y, xExpected90, yExpected90);
+
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_270);
+    // expect x/y = swap x/y then reverse x.
+    const int32_t xExpected270 = DISPLAY_HEIGHT - 1;
+    const int32_t yExpected270 = x;
+    processPositionAndVerify(mapper, x - 1, y, x, y, xExpected270, yExpected270);
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
