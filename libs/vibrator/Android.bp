@@ -55,3 +55,21 @@ cc_library {
         },
     },
 }
+
+cc_library_headers {
+    name: "libvibrator_headers",
+    vendor_available: true,
+    host_supported: true,
+
+    export_include_dirs: [
+        "include",
+    ],
+
+    static_libs: [
+        "libvibrator",
+    ],
+
+    export_static_lib_headers: [
+        "libvibrator",
+    ],
+}
