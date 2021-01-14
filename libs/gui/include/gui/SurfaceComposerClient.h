@@ -80,6 +80,10 @@ using TransactionCompletedCallbackTakesContext =
 using TransactionCompletedCallback =
         std::function<void(nsecs_t /*latchTime*/, const sp<Fence>& /*presentFence*/,
                            const std::vector<SurfaceControlStats>& /*stats*/)>;
+using SurfaceStatsCallback =
+        std::function<void(void* /*context*/, nsecs_t /*latchTime*/,
+                           const sp<Fence>& /*presentFence*/,
+                           const SurfaceStats& /*stats*/)>;
 
 // ---------------------------------------------------------------------------
 
@@ -650,8 +654,21 @@ class TransactionCompletedListener : public BnTransactionCompletedListener {
                 surfaceControls;
     };
 
+    struct SurfaceStatsCallbackEntry {
+        SurfaceStatsCallbackEntry(void* context, void* cookie, SurfaceStatsCallback callback)
+                : context(context),
+                cookie(cookie),
+                callback(callback) {}
+
+        void* context;
+        void* cookie;
+        SurfaceStatsCallback callback;
+    };
+
     std::unordered_map<CallbackId, CallbackTranslation> mCallbacks GUARDED_BY(mMutex);
     std::multimap<sp<IBinder>, sp<JankDataListener>> mJankListeners GUARDED_BY(mMutex);
+    std::multimap<sp<IBinder>, SurfaceStatsCallbackEntry>
+                mSurfaceStatsListeners GUARDED_BY(mMutex);
 
 public:
     static sp<TransactionCompletedListener> getInstance();
@@ -678,6 +695,10 @@ public:
      * Removes a jank listener previously added to addJankCallback.
      */
     void removeJankListener(const sp<JankDataListener>& listener);
+
+    void addSurfaceStatsListener(void* context, void* cookie, sp<SurfaceControl> surfaceControl,
+                SurfaceStatsCallback listener);
+    void removeSurfaceStatsListener(void* context, void* cookie);
 
     // Overrides BnTransactionCompletedListener's onTransactionCompleted
     void onTransactionCompleted(ListenerStats stats) override;
