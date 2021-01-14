@@ -127,6 +127,23 @@ enum class PredictionState {
     None,    // Predictions are either not present or didn't come from TokenManager
 };
 
+/*
+ * Trace cookie is used to send start and end timestamps of <Surface/Display>Frames separately
+ * without needing to resend all the other information. We send all info to perfetto, along with a
+ * new cookie, in the start of a frame. For the corresponding end, we just send the same cookie.
+ * This helps in reducing the amount of data emitted by the producer.
+ */
+class TraceCookieCounter {
+public:
+    int64_t getCookieForTracing();
+
+private:
+    // Friend class for testing
+    friend class android::frametimeline::FrameTimelineTest;
+
+    std::atomic<int64_t> mTraceCookie = 0;
+};
+
 class SurfaceFrame {
 public:
     enum class PresentState {
@@ -139,7 +156,8 @@ public:
     // TokenManager), Thresholds and TimeStats pointer.
     SurfaceFrame(int64_t token, pid_t ownerPid, uid_t ownerUid, std::string layerName,
                  std::string debugName, PredictionState predictionState, TimelineItem&& predictions,
-                 std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds);
+                 std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds,
+                 TraceCookieCounter* traceCookieCounter);
     ~SurfaceFrame() = default;
 
     // Returns std::nullopt if the frame hasn't been classified yet.
@@ -205,6 +223,9 @@ private:
     // for BufferStuffing where the current buffer is expected to be ready but the previous buffer
     // was latched instead.
     nsecs_t mLastLatchTime GUARDED_BY(mMutex) = 0;
+    // TraceCookieCounter is used to obtain the cookie for sendig trace packets to perfetto. Using a
+    // reference here because the counter is owned by FrameTimeline, which outlives SurfaceFrame.
+    TraceCookieCounter& mTraceCookieCounter;
 };
 
 /*
@@ -291,7 +312,8 @@ public:
      */
     class DisplayFrame {
     public:
-        DisplayFrame(std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds);
+        DisplayFrame(std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds,
+                     TraceCookieCounter* traceCookieCounter);
         virtual ~DisplayFrame() = default;
         // Dumpsys interface - dumps only if the DisplayFrame itself is janky or is at least one
         // SurfaceFrame is janky.
@@ -360,6 +382,10 @@ public:
         // The refresh rate (vsync period) in nanoseconds as seen by SF during this DisplayFrame's
         // timeline
         nsecs_t mVsyncPeriod = 0;
+        // TraceCookieCounter is used to obtain the cookie for sendig trace packets to perfetto.
+        // Using a reference here because the counter is owned by FrameTimeline, which outlives
+        // DisplayFrame.
+        TraceCookieCounter& mTraceCookieCounter;
     };
 
     FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid,
@@ -402,6 +428,7 @@ private:
             mPendingPresentFences GUARDED_BY(mMutex);
     std::shared_ptr<DisplayFrame> mCurrentDisplayFrame GUARDED_BY(mMutex);
     TokenManager mTokenManager;
+    TraceCookieCounter mTraceCookieCounter;
     mutable std::mutex mMutex;
     uint32_t mMaxDisplayFrames;
     std::shared_ptr<TimeStats> mTimeStats;

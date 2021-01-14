@@ -23,6 +23,7 @@
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/DisplaySurface.h>
+#include <gui/ScreenCaptureResults.h>
 
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"

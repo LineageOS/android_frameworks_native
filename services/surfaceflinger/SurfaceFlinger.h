@@ -99,6 +99,8 @@ class RenderArea;
 class TimeStats;
 class FrameTracer;
 
+using gui::ScreenCaptureResults;
+
 namespace frametimeline {
 class FrameTimeline;
 }

@@ -239,11 +239,16 @@ nsecs_t getMinTime(PredictionState predictionState, TimelineItem predictions,
     return minTime;
 }
 
+int64_t TraceCookieCounter::getCookieForTracing() {
+    return ++mTraceCookie;
+}
+
 SurfaceFrame::SurfaceFrame(int64_t token, pid_t ownerPid, uid_t ownerUid, std::string layerName,
                            std::string debugName, PredictionState predictionState,
                            frametimeline::TimelineItem&& predictions,
                            std::shared_ptr<TimeStats> timeStats,
-                           JankClassificationThresholds thresholds)
+                           JankClassificationThresholds thresholds,
+                           TraceCookieCounter* traceCookieCounter)
       : mToken(token),
         mOwnerPid(ownerPid),
         mOwnerUid(ownerUid),
@@ -254,7 +259,8 @@ SurfaceFrame::SurfaceFrame(int64_t token, pid_t ownerPid, uid_t ownerUid, std::s
         mPredictions(predictions),
         mActuals({0, 0, 0}),
         mTimeStats(timeStats),
-        mJankClassificationThresholds(thresholds) {}
+        mJankClassificationThresholds(thresholds),
+        mTraceCookieCounter(*traceCookieCounter) {}
 
 void SurfaceFrame::setActualStartTime(nsecs_t actualStartTime) {
     std::lock_guard<std::mutex> lock(mMutex);
@@ -443,7 +449,7 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType,
 
 void SurfaceFrame::trace(int64_t displayFrameToken) {
     using FrameTimelineDataSource = impl::FrameTimeline::FrameTimelineDataSource;
-    FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
+    {
         std::lock_guard<std::mutex> lock(mMutex);
         if (mToken == ISurfaceComposer::INVALID_VSYNC_ID) {
             ALOGD("Cannot trace SurfaceFrame - %s with invalid token", mLayerName.c_str());
@@ -453,36 +459,83 @@ void SurfaceFrame::trace(int64_t displayFrameToken) {
                   mLayerName.c_str());
             return;
         }
+    }
+
+    int64_t expectedTimelineCookie = mTraceCookieCounter.getCookieForTracing();
+    // Expected timeline start
+    FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
+        std::lock_guard<std::mutex> lock(mMutex);
         auto packet = ctx.NewTracePacket();
         packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
-        packet->set_timestamp(static_cast<uint64_t>(systemTime()));
+        packet->set_timestamp(static_cast<uint64_t>(mPredictions.startTime));
 
         auto* event = packet->set_frame_timeline_event();
-        auto* surfaceFrameEvent = event->set_surface_frame();
+        auto* expectedSurfaceFrameStartEvent = event->set_expected_surface_frame_start();
 
-        surfaceFrameEvent->set_token(mToken);
-        surfaceFrameEvent->set_display_frame_token(displayFrameToken);
+        expectedSurfaceFrameStartEvent->set_cookie(expectedTimelineCookie);
+
+        expectedSurfaceFrameStartEvent->set_token(mToken);
+        expectedSurfaceFrameStartEvent->set_display_frame_token(displayFrameToken);
+
+        expectedSurfaceFrameStartEvent->set_pid(mOwnerPid);
+        expectedSurfaceFrameStartEvent->set_layer_name(mDebugName);
+    });
+    // Expected timeline end
+    FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+        packet->set_timestamp(static_cast<uint64_t>(mPredictions.endTime));
+
+        auto* event = packet->set_frame_timeline_event();
+        auto* expectedSurfaceFrameEndEvent = event->set_frame_end();
+
+        expectedSurfaceFrameEndEvent->set_cookie(expectedTimelineCookie);
+    });
+
+    int64_t actualTimelineCookie = mTraceCookieCounter.getCookieForTracing();
+    // Actual timeline start
+    FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+        // Actual start time is not yet available, so use expected start instead
+        packet->set_timestamp(static_cast<uint64_t>(mPredictions.startTime));
+
+        auto* event = packet->set_frame_timeline_event();
+        auto* actualSurfaceFrameStartEvent = event->set_actual_surface_frame_start();
+
+        actualSurfaceFrameStartEvent->set_cookie(actualTimelineCookie);
+
+        actualSurfaceFrameStartEvent->set_token(mToken);
+        actualSurfaceFrameStartEvent->set_display_frame_token(displayFrameToken);
+
+        actualSurfaceFrameStartEvent->set_pid(mOwnerPid);
+        actualSurfaceFrameStartEvent->set_layer_name(mDebugName);
 
         if (mPresentState == PresentState::Dropped) {
-            surfaceFrameEvent->set_present_type(FrameTimelineEvent::PRESENT_DROPPED);
+            actualSurfaceFrameStartEvent->set_present_type(FrameTimelineEvent::PRESENT_DROPPED);
         } else if (mPresentState == PresentState::Unknown) {
-            surfaceFrameEvent->set_present_type(FrameTimelineEvent::PRESENT_UNSPECIFIED);
+            actualSurfaceFrameStartEvent->set_present_type(FrameTimelineEvent::PRESENT_UNSPECIFIED);
         } else {
-            surfaceFrameEvent->set_present_type(toProto(mFramePresentMetadata));
+            actualSurfaceFrameStartEvent->set_present_type(toProto(mFramePresentMetadata));
         }
-        surfaceFrameEvent->set_on_time_finish(mFrameReadyMetadata ==
-                                              FrameReadyMetadata::OnTimeFinish);
-        surfaceFrameEvent->set_gpu_composition(mGpuComposition);
-        surfaceFrameEvent->set_jank_type(jankTypeBitmaskToProto(mJankType));
+        actualSurfaceFrameStartEvent->set_on_time_finish(mFrameReadyMetadata ==
+                                                         FrameReadyMetadata::OnTimeFinish);
+        actualSurfaceFrameStartEvent->set_gpu_composition(mGpuComposition);
+        actualSurfaceFrameStartEvent->set_jank_type(jankTypeBitmaskToProto(mJankType));
+    });
+    // Actual timeline end
+    FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+        packet->set_timestamp(static_cast<uint64_t>(mActuals.endTime));
 
-        surfaceFrameEvent->set_expected_start_ns(mPredictions.startTime);
-        surfaceFrameEvent->set_expected_end_ns(mPredictions.endTime);
+        auto* event = packet->set_frame_timeline_event();
+        auto* actualSurfaceFrameEndEvent = event->set_frame_end();
 
-        surfaceFrameEvent->set_actual_start_ns(mActuals.startTime);
-        surfaceFrameEvent->set_actual_end_ns(mActuals.endTime);
-
-        surfaceFrameEvent->set_layer_name(mDebugName);
-        surfaceFrameEvent->set_pid(mOwnerPid);
+        actualSurfaceFrameEndEvent->set_cookie(actualTimelineCookie);
     });
 }
 
@@ -520,11 +573,13 @@ void TokenManager::flushTokens(nsecs_t flushTime) {
 
 FrameTimeline::FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid,
                              JankClassificationThresholds thresholds)
-      : mCurrentDisplayFrame(std::make_shared<DisplayFrame>(timeStats, thresholds)),
-        mMaxDisplayFrames(kDefaultMaxDisplayFrames),
+      : mMaxDisplayFrames(kDefaultMaxDisplayFrames),
         mTimeStats(std::move(timeStats)),
         mSurfaceFlingerPid(surfaceFlingerPid),
-        mJankClassificationThresholds(thresholds) {}
+        mJankClassificationThresholds(thresholds) {
+    mCurrentDisplayFrame =
+            std::make_shared<DisplayFrame>(mTimeStats, thresholds, &mTraceCookieCounter);
+}
 
 void FrameTimeline::onBootFinished() {
     perfetto::TracingInitArgs args;
@@ -547,27 +602,29 @@ std::shared_ptr<SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
         return std::make_shared<SurfaceFrame>(ISurfaceComposer::INVALID_VSYNC_ID, ownerPid,
                                               ownerUid, std::move(layerName), std::move(debugName),
                                               PredictionState::None, TimelineItem(), mTimeStats,
-                                              mJankClassificationThresholds);
+                                              mJankClassificationThresholds, &mTraceCookieCounter);
     }
     std::optional<TimelineItem> predictions = mTokenManager.getPredictionsForToken(*token);
     if (predictions) {
         return std::make_shared<SurfaceFrame>(*token, ownerPid, ownerUid, std::move(layerName),
                                               std::move(debugName), PredictionState::Valid,
                                               std::move(*predictions), mTimeStats,
-                                              mJankClassificationThresholds);
+                                              mJankClassificationThresholds, &mTraceCookieCounter);
     }
     return std::make_shared<SurfaceFrame>(*token, ownerPid, ownerUid, std::move(layerName),
                                           std::move(debugName), PredictionState::Expired,
-                                          TimelineItem(), mTimeStats,
-                                          mJankClassificationThresholds);
+                                          TimelineItem(), mTimeStats, mJankClassificationThresholds,
+                                          &mTraceCookieCounter);
 }
 
 FrameTimeline::DisplayFrame::DisplayFrame(std::shared_ptr<TimeStats> timeStats,
-                                          JankClassificationThresholds thresholds)
+                                          JankClassificationThresholds thresholds,
+                                          TraceCookieCounter* traceCookieCounter)
       : mSurfaceFlingerPredictions(TimelineItem()),
         mSurfaceFlingerActuals(TimelineItem()),
         mTimeStats(timeStats),
-        mJankClassificationThresholds(thresholds) {
+        mJankClassificationThresholds(thresholds),
+        mTraceCookieCounter(*traceCookieCounter) {
     mSurfaceFrames.reserve(kNumSurfaceFramesInitial);
 }
 
@@ -725,32 +782,69 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
 }
 
 void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid) const {
+    if (mToken == ISurfaceComposer::INVALID_VSYNC_ID) {
+        ALOGD("Cannot trace DisplayFrame with invalid token");
+        return;
+    }
+
+    int64_t expectedTimelineCookie = mTraceCookieCounter.getCookieForTracing();
+    // Expected timeline start
     FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
-        if (mToken == ISurfaceComposer::INVALID_VSYNC_ID) {
-            ALOGD("Cannot trace DisplayFrame with invalid token");
-            return;
-        }
         auto packet = ctx.NewTracePacket();
         packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
-        packet->set_timestamp(static_cast<uint64_t>(systemTime()));
+        packet->set_timestamp(static_cast<uint64_t>(mSurfaceFlingerPredictions.startTime));
 
         auto* event = packet->set_frame_timeline_event();
-        auto* displayFrameEvent = event->set_display_frame();
+        auto* expectedDisplayFrameStartEvent = event->set_expected_display_frame_start();
 
-        displayFrameEvent->set_token(mToken);
-        displayFrameEvent->set_present_type(toProto(mFramePresentMetadata));
-        displayFrameEvent->set_on_time_finish(mFrameReadyMetadata ==
-                                              FrameReadyMetadata::OnTimeFinish);
-        displayFrameEvent->set_gpu_composition(mGpuComposition);
-        displayFrameEvent->set_jank_type(jankTypeBitmaskToProto(mJankType));
+        expectedDisplayFrameStartEvent->set_cookie(expectedTimelineCookie);
 
-        displayFrameEvent->set_expected_start_ns(mSurfaceFlingerPredictions.startTime);
-        displayFrameEvent->set_expected_end_ns(mSurfaceFlingerPredictions.endTime);
+        expectedDisplayFrameStartEvent->set_token(mToken);
+        expectedDisplayFrameStartEvent->set_pid(surfaceFlingerPid);
+    });
+    // Expected timeline end
+    FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+        packet->set_timestamp(static_cast<uint64_t>(mSurfaceFlingerPredictions.endTime));
 
-        displayFrameEvent->set_actual_start_ns(mSurfaceFlingerActuals.startTime);
-        displayFrameEvent->set_actual_end_ns(mSurfaceFlingerActuals.endTime);
+        auto* event = packet->set_frame_timeline_event();
+        auto* expectedDisplayFrameEndEvent = event->set_frame_end();
 
-        displayFrameEvent->set_pid(surfaceFlingerPid);
+        expectedDisplayFrameEndEvent->set_cookie(expectedTimelineCookie);
+    });
+
+    int64_t actualTimelineCookie = mTraceCookieCounter.getCookieForTracing();
+    // Expected timeline start
+    FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+        packet->set_timestamp(static_cast<uint64_t>(mSurfaceFlingerActuals.startTime));
+
+        auto* event = packet->set_frame_timeline_event();
+        auto* actualDisplayFrameStartEvent = event->set_actual_display_frame_start();
+
+        actualDisplayFrameStartEvent->set_cookie(actualTimelineCookie);
+
+        actualDisplayFrameStartEvent->set_token(mToken);
+        actualDisplayFrameStartEvent->set_pid(surfaceFlingerPid);
+
+        actualDisplayFrameStartEvent->set_present_type(toProto(mFramePresentMetadata));
+        actualDisplayFrameStartEvent->set_on_time_finish(mFrameReadyMetadata ==
+                                                         FrameReadyMetadata::OnTimeFinish);
+        actualDisplayFrameStartEvent->set_gpu_composition(mGpuComposition);
+        actualDisplayFrameStartEvent->set_jank_type(jankTypeBitmaskToProto(mJankType));
+    });
+    // Expected timeline end
+    FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+        packet->set_timestamp(static_cast<uint64_t>(mSurfaceFlingerActuals.endTime));
+
+        auto* event = packet->set_frame_timeline_event();
+        auto* actualDisplayFrameEndEvent = event->set_frame_end();
+
+        actualDisplayFrameEndEvent->set_cookie(actualTimelineCookie);
     });
 
     for (auto& surfaceFrame : mSurfaceFrames) {
@@ -786,8 +880,8 @@ void FrameTimeline::finalizeCurrentDisplayFrame() {
     }
     mDisplayFrames.push_back(mCurrentDisplayFrame);
     mCurrentDisplayFrame.reset();
-    mCurrentDisplayFrame =
-            std::make_shared<DisplayFrame>(mTimeStats, mJankClassificationThresholds);
+    mCurrentDisplayFrame = std::make_shared<DisplayFrame>(mTimeStats, mJankClassificationThresholds,
+                                                          &mTraceCookieCounter);
 }
 
 nsecs_t FrameTimeline::DisplayFrame::getBaseTime() const {
