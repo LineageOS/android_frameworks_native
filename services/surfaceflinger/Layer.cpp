@@ -841,13 +841,35 @@ void Layer::pushPendingState() {
         setTransactionFlags(eTransactionNeeded);
         mFlinger->setTransactionFlags(eTraversalNeeded);
     }
+    if (mCurrentState.bufferlessSurfaceFramesTX.size() >= State::kStateSurfaceFramesThreshold) {
+        // Ideally, the currentState would only contain one SurfaceFrame per transaction (assuming
+        // each Tx uses a different token). We don't expect the current state to hold a huge amount
+        // of SurfaceFrames. However, in the event it happens, this debug statement will leave a
+        // trail that can help in debugging.
+        ALOGW("Bufferless SurfaceFrames size on current state of layer %s is %" PRIu32 "",
+              mName.c_str(), static_cast<uint32_t>(mCurrentState.bufferlessSurfaceFramesTX.size()));
+    }
     mPendingStates.push_back(mCurrentState);
+    // Since the current state along with the SurfaceFrames has been pushed into the pendingState,
+    // we no longer need to retain them. If multiple states are pushed and applied together, we have
+    // a merging logic to address the SurfaceFrames at mergeSurfaceFrames().
+    mCurrentState.bufferlessSurfaceFramesTX.clear();
     ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
+}
+
+void Layer::mergeSurfaceFrames(State& source, State& target) {
+    // No need to merge BufferSurfaceFrame as the target's surfaceFrame, if it exists, will be used
+    // directly. Dropping of source's SurfaceFrame is taken care of at setBuffer().
+    target.bufferlessSurfaceFramesTX.merge(source.bufferlessSurfaceFramesTX);
+    source.bufferlessSurfaceFramesTX.clear();
 }
 
 void Layer::popPendingState(State* stateToCommit) {
     ATRACE_CALL();
 
+    if (stateToCommit != nullptr) {
+        mergeSurfaceFrames(*stateToCommit, mPendingStates[0]);
+    }
     *stateToCommit = mPendingStates[0];
     mPendingStates.pop_front();
     ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
@@ -904,20 +926,6 @@ bool Layer::applyPendingStates(State* stateToCommit) {
     if (!mPendingStates.empty()) {
         setTransactionFlags(eTransactionNeeded);
         mFlinger->setTraversalNeeded();
-    }
-
-    if (stateUpdateAvailable) {
-        mSurfaceFrame =
-                mFlinger->mFrameTimeline
-                        ->createSurfaceFrameForToken(stateToCommit->frameTimelineInfo, mOwnerPid,
-                                                     mOwnerUid, mName, mTransactionName);
-        mSurfaceFrame->setActualQueueTime(stateToCommit->postTime);
-        // For transactions we set the acquire fence time to the post time as we
-        // don't have a buffer. For BufferStateLayer it is overridden in
-        // BufferStateLayer::applyPendingStates
-        mSurfaceFrame->setAcquireFenceTime(stateToCommit->postTime);
-
-        onSurfaceFrameCreated(mSurfaceFrame);
     }
 
     mCurrentState.modified = false;
@@ -1048,10 +1056,22 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     return flags;
 }
 
-void Layer::commitTransaction(const State& stateToCommit) {
+void Layer::commitTransaction(State& stateToCommit) {
     mDrawingState = stateToCommit;
-    mSurfaceFrame->setPresentState(PresentState::Presented);
-    mFlinger->mFrameTimeline->addSurfaceFrame(mSurfaceFrame);
+
+    // Set the present state for all bufferlessSurfaceFramesTX to Presented. The
+    // bufferSurfaceFrameTX will be presented in latchBuffer.
+    for (auto& [token, surfaceFrame] : mDrawingState.bufferlessSurfaceFramesTX) {
+        if (surfaceFrame->getPresentState() != PresentState::Presented) {
+            // With applyPendingStates, we could end up having presented surfaceframes from previous
+            // states
+            surfaceFrame->setPresentState(PresentState::Presented);
+            mFlinger->mFrameTimeline->addSurfaceFrame(surfaceFrame);
+        }
+    }
+    // Clear the surfaceFrames from the old state now that it has been copied into DrawingState.
+    stateToCommit.bufferSurfaceFrameTX.reset();
+    stateToCommit.bufferlessSurfaceFramesTX.clear();
 }
 
 uint32_t Layer::getTransactionFlags(uint32_t flags) {
@@ -1474,11 +1494,94 @@ bool Layer::setFrameRate(FrameRate frameRate) {
     return true;
 }
 
-void Layer::setFrameTimelineInfoForTransaction(const FrameTimelineInfo& info, nsecs_t postTime) {
+void Layer::setFrameTimelineVsyncForBufferTransaction(const FrameTimelineInfo& info,
+                                                      nsecs_t postTime) {
+    mCurrentState.postTime = postTime;
+
+    // Check if one of the bufferlessSurfaceFramesTX contains the same vsyncId. This can happen if
+    // there are two transactions with the same token, the first one without a buffer and the
+    // second one with a buffer. We promote the bufferlessSurfaceFrame to a bufferSurfaceFrameTX
+    // in that case.
+    auto it = mCurrentState.bufferlessSurfaceFramesTX.find(info.vsyncId);
+    if (it != mCurrentState.bufferlessSurfaceFramesTX.end()) {
+        // Promote the bufferlessSurfaceFrame to a bufferSurfaceFrameTX
+        mCurrentState.bufferSurfaceFrameTX = it->second;
+        mCurrentState.bufferlessSurfaceFramesTX.erase(it);
+        mCurrentState.bufferSurfaceFrameTX->setActualQueueTime(postTime);
+    } else {
+        mCurrentState.bufferSurfaceFrameTX =
+                createSurfaceFrameForBuffer(info, postTime, mTransactionName);
+    }
+}
+
+void Layer::setFrameTimelineVsyncForBufferlessTransaction(const FrameTimelineInfo& info,
+                                                          nsecs_t postTime) {
     mCurrentState.frameTimelineInfo = info;
     mCurrentState.postTime = postTime;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
+
+    if (const auto& bufferSurfaceFrameTX = mCurrentState.bufferSurfaceFrameTX;
+        bufferSurfaceFrameTX != nullptr) {
+        if (bufferSurfaceFrameTX->getToken() == info.vsyncId) {
+            // BufferSurfaceFrame takes precedence over BufferlessSurfaceFrame. If the same token is
+            // being used for BufferSurfaceFrame, don't create a new one.
+            return;
+        }
+    }
+    // For Transactions without a buffer, we create only one SurfaceFrame per vsyncId. If multiple
+    // transactions use the same vsyncId, we just treat them as one SurfaceFrame (unless they are
+    // targeting different vsyncs).
+    auto it = mCurrentState.bufferlessSurfaceFramesTX.find(info.vsyncId);
+    if (it == mCurrentState.bufferlessSurfaceFramesTX.end()) {
+        auto surfaceFrame = createSurfaceFrameForTransaction(info, postTime);
+        mCurrentState.bufferlessSurfaceFramesTX[info.vsyncId] = surfaceFrame;
+    } else {
+        if (it->second->getPresentState() == PresentState::Presented) {
+            // If the SurfaceFrame was already presented, its safe to overwrite it since it must
+            // have been from previous vsync.
+            it->second = createSurfaceFrameForTransaction(info, postTime);
+        }
+    }
+}
+
+void Layer::addSurfaceFrameDroppedForBuffer(
+        std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
+    surfaceFrame->setPresentState(PresentState::Dropped);
+    mFlinger->mFrameTimeline->addSurfaceFrame(surfaceFrame);
+}
+
+void Layer::addSurfaceFramePresentedForBuffer(
+        std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame, nsecs_t acquireFenceTime,
+        nsecs_t currentLatchTime) {
+    surfaceFrame->setAcquireFenceTime(acquireFenceTime);
+    surfaceFrame->setPresentState(PresentState::Presented, mLastLatchTime);
+    mFlinger->mFrameTimeline->addSurfaceFrame(surfaceFrame);
+    mLastLatchTime = currentLatchTime;
+}
+
+std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForTransaction(
+        const FrameTimelineInfo& info, nsecs_t postTime) {
+    auto surfaceFrame =
+            mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid, mName,
+                                                                 mTransactionName);
+    // For Transactions, the post time is considered to be both queue and acquire fence time.
+    surfaceFrame->setActualQueueTime(postTime);
+    surfaceFrame->setAcquireFenceTime(postTime);
+    onSurfaceFrameCreated(surfaceFrame);
+    return surfaceFrame;
+}
+
+std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
+        const FrameTimelineInfo& info, nsecs_t queueTime, std::string debugName) {
+    auto surfaceFrame =
+            mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid, mName,
+                                                                 debugName);
+    // For buffers, acquire fence time will set during latch.
+    surfaceFrame->setActualQueueTime(queueTime);
+    // TODO(b/178542907): Implement onSurfaceFrameCreated for BQLayer as well.
+    onSurfaceFrameCreated(surfaceFrame);
+    return surfaceFrame;
 }
 
 Layer::FrameRate Layer::getFrameRateForLayerTree() const {
