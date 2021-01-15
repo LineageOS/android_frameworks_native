@@ -188,7 +188,7 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
                 JankData(surfaceFrame->getToken(), surfaceFrame->getJankType().value()));
     }
 
-    mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
+    mFlinger->getTransactionCallbackInvoker().finalizePendingCallbackHandles(
             mDrawingState.callbackHandles, jankData);
 
     mDrawingState.callbackHandles = {};
@@ -443,14 +443,14 @@ bool BufferStateLayer::setTransactionCompletedListeners(
 
             // Notify the transaction completed thread that there is a pending latched callback
             // handle
-            mFlinger->getTransactionCompletedThread().registerPendingCallbackHandle(handle);
+            mFlinger->getTransactionCallbackInvoker().registerPendingCallbackHandle(handle);
 
             // Store so latched time and release fence can be set
             mCurrentState.callbackHandles.push_back(handle);
 
         } else { // If this layer will NOT need to be relatched and presented this frame
             // Notify the transaction completed thread this handle is done
-            mFlinger->getTransactionCompletedThread().registerUnpresentedCallbackHandle(handle);
+            mFlinger->getTransactionCallbackInvoker().registerUnpresentedCallbackHandle(handle);
         }
     }
 
