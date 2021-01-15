@@ -618,29 +618,31 @@ private:
     std::mutex mMutex;
 };
 
+void Surface::getDequeueBufferInputLocked(
+        IGraphicBufferProducer::DequeueBufferInput* dequeueInput) {
+    LOG_ALWAYS_FATAL_IF(dequeueInput == nullptr, "input is null");
+
+    dequeueInput->width = mReqWidth ? mReqWidth : mUserWidth;
+    dequeueInput->height = mReqHeight ? mReqHeight : mUserHeight;
+
+    dequeueInput->format = mReqFormat;
+    dequeueInput->usage = mReqUsage;
+
+    dequeueInput->getTimestamps = mEnableFrameTimestamps;
+}
+
 int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     ATRACE_CALL();
     ALOGV("Surface::dequeueBuffer");
 
-    uint32_t reqWidth;
-    uint32_t reqHeight;
-    PixelFormat reqFormat;
-    uint64_t reqUsage;
-    bool enableFrameTimestamps;
-
+    IGraphicBufferProducer::DequeueBufferInput dqInput;
     {
         Mutex::Autolock lock(mMutex);
         if (mReportRemovedBuffers) {
             mRemovedBuffers.clear();
         }
 
-        reqWidth = mReqWidth ? mReqWidth : mUserWidth;
-        reqHeight = mReqHeight ? mReqHeight : mUserHeight;
-
-        reqFormat = mReqFormat;
-        reqUsage = mReqUsage;
-
-        enableFrameTimestamps = mEnableFrameTimestamps;
+        getDequeueBufferInputLocked(&dqInput);
 
         if (mSharedBufferMode && mAutoRefresh && mSharedBufferSlot !=
                 BufferItem::INVALID_BUFFER_SLOT) {
@@ -658,16 +660,17 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     nsecs_t startTime = systemTime();
 
     FrameEventHistoryDelta frameTimestamps;
-    status_t result = mGraphicBufferProducer->dequeueBuffer(&buf, &fence, reqWidth, reqHeight,
-                                                            reqFormat, reqUsage, &mBufferAge,
-                                                            enableFrameTimestamps ? &frameTimestamps
-                                                                                  : nullptr);
+    status_t result = mGraphicBufferProducer->dequeueBuffer(&buf, &fence, dqInput.width,
+                                                            dqInput.height, dqInput.format,
+                                                            dqInput.usage, &mBufferAge,
+                                                            dqInput.getTimestamps ?
+                                                                    &frameTimestamps : nullptr);
     mLastDequeueDuration = systemTime() - startTime;
 
     if (result < 0) {
         ALOGV("dequeueBuffer: IGraphicBufferProducer::dequeueBuffer"
                 "(%d, %d, %d, %#" PRIx64 ") failed: %d",
-                reqWidth, reqHeight, reqFormat, reqUsage, result);
+                dqInput.width, dqInput.height, dqInput.format, dqInput.usage, result);
         return result;
     }
 
@@ -696,7 +699,7 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
         freeAllBuffers();
     }
 
-    if (enableFrameTimestamps) {
+    if (dqInput.getTimestamps) {
          mFrameEventHistory->applyDelta(frameTimestamps);
     }
 
@@ -739,6 +742,176 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     return OK;
 }
 
+int Surface::dequeueBuffers(std::vector<BatchBuffer>* buffers) {
+    using DequeueBufferInput = IGraphicBufferProducer::DequeueBufferInput;
+    using DequeueBufferOutput = IGraphicBufferProducer::DequeueBufferOutput;
+    using CancelBufferInput = IGraphicBufferProducer::CancelBufferInput;
+    using RequestBufferOutput = IGraphicBufferProducer::RequestBufferOutput;
+
+    ATRACE_CALL();
+    ALOGV("Surface::dequeueBuffers");
+
+    if (buffers->size() == 0) {
+        ALOGE("%s: must dequeue at least 1 buffer!", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    if (mSharedBufferMode) {
+        ALOGE("%s: batch operation is not supported in shared buffer mode!",
+                __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+
+    size_t numBufferRequested = buffers->size();
+    DequeueBufferInput input;
+
+    {
+        Mutex::Autolock lock(mMutex);
+        if (mReportRemovedBuffers) {
+            mRemovedBuffers.clear();
+        }
+
+        getDequeueBufferInputLocked(&input);
+    } // Drop the lock so that we can still touch the Surface while blocking in IGBP::dequeueBuffers
+
+    std::vector<DequeueBufferInput> dequeueInput(numBufferRequested, input);
+    std::vector<DequeueBufferOutput> dequeueOutput;
+
+    nsecs_t startTime = systemTime();
+
+    status_t result = mGraphicBufferProducer->dequeueBuffers(dequeueInput, &dequeueOutput);
+
+    mLastDequeueDuration = systemTime() - startTime;
+
+    if (result < 0) {
+        ALOGV("%s: IGraphicBufferProducer::dequeueBuffers"
+                "(%d, %d, %d, %#" PRIx64 ") failed: %d",
+                __FUNCTION__, input.width, input.height, input.format, input.usage, result);
+        return result;
+    }
+
+    std::vector<CancelBufferInput> cancelBufferInputs(numBufferRequested);
+    std::vector<status_t> cancelBufferOutputs;
+    for (size_t i = 0; i < numBufferRequested; i++) {
+        cancelBufferInputs[i].slot = dequeueOutput[i].slot;
+        cancelBufferInputs[i].fence = dequeueOutput[i].fence;
+    }
+
+    for (const auto& output : dequeueOutput) {
+        if (output.result < 0) {
+            mGraphicBufferProducer->cancelBuffers(cancelBufferInputs, &cancelBufferOutputs);
+            ALOGV("%s: IGraphicBufferProducer::dequeueBuffers"
+                    "(%d, %d, %d, %#" PRIx64 ") failed: %d",
+                    __FUNCTION__, input.width, input.height, input.format, input.usage,
+                    output.result);
+            return output.result;
+        }
+
+        if (output.slot < 0 || output.slot >= NUM_BUFFER_SLOTS) {
+            mGraphicBufferProducer->cancelBuffers(cancelBufferInputs, &cancelBufferOutputs);
+            ALOGE("%s: IGraphicBufferProducer returned invalid slot number %d",
+                    __FUNCTION__, output.slot);
+            android_errorWriteLog(0x534e4554, "36991414"); // SafetyNet logging
+            return FAILED_TRANSACTION;
+        }
+
+        if (input.getTimestamps && !output.timestamps.has_value()) {
+            mGraphicBufferProducer->cancelBuffers(cancelBufferInputs, &cancelBufferOutputs);
+            ALOGE("%s: no frame timestamp returns!", __FUNCTION__);
+            return FAILED_TRANSACTION;
+        }
+
+        // this should never happen
+        ALOGE_IF(output.fence == nullptr,
+                "%s: received null Fence! slot=%d", __FUNCTION__, output.slot);
+    }
+
+    Mutex::Autolock lock(mMutex);
+
+    // Write this while holding the mutex
+    mLastDequeueStartTime = startTime;
+
+    std::vector<int32_t> requestBufferSlots;
+    requestBufferSlots.reserve(numBufferRequested);
+    // handle release all buffers and request buffers
+    for (const auto& output : dequeueOutput) {
+        if (output.result & IGraphicBufferProducer::RELEASE_ALL_BUFFERS) {
+            ALOGV("%s: RELEASE_ALL_BUFFERS during batch operation", __FUNCTION__);
+            freeAllBuffers();
+            break;
+        }
+    }
+
+    for (const auto& output : dequeueOutput) {
+        // Collect slots that needs requesting buffer
+        sp<GraphicBuffer>& gbuf(mSlots[output.slot].buffer);
+        if ((result & IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) || gbuf == nullptr) {
+            if (mReportRemovedBuffers && (gbuf != nullptr)) {
+                mRemovedBuffers.push_back(gbuf);
+            }
+            requestBufferSlots.push_back(output.slot);
+        }
+    }
+
+    // Batch request Buffer
+    std::vector<RequestBufferOutput> reqBufferOutput;
+    if (requestBufferSlots.size() > 0) {
+        result = mGraphicBufferProducer->requestBuffers(requestBufferSlots, &reqBufferOutput);
+        if (result != NO_ERROR) {
+            ALOGE("%s: IGraphicBufferProducer::requestBuffers failed: %d",
+                    __FUNCTION__, result);
+            mGraphicBufferProducer->cancelBuffers(cancelBufferInputs, &cancelBufferOutputs);
+            return result;
+        }
+
+        // Check if we have any single failure
+        for (size_t i = 0; i < requestBufferSlots.size(); i++) {
+            if (reqBufferOutput[i].result != OK) {
+                ALOGE("%s: IGraphicBufferProducer::requestBuffers failed at %zu-th buffer, slot %d",
+                        __FUNCTION__, i, requestBufferSlots[i]);
+                mGraphicBufferProducer->cancelBuffers(cancelBufferInputs, &cancelBufferOutputs);
+                return reqBufferOutput[i].result;
+            }
+        }
+
+        // Fill request buffer results to mSlots
+        for (size_t i = 0; i < requestBufferSlots.size(); i++) {
+            mSlots[requestBufferSlots[i]].buffer = reqBufferOutput[i].buffer;
+        }
+    }
+
+    for (size_t batchIdx = 0; batchIdx < numBufferRequested; batchIdx++) {
+        const auto& output = dequeueOutput[batchIdx];
+        int slot = output.slot;
+        sp<GraphicBuffer>& gbuf(mSlots[slot].buffer);
+
+        if (CC_UNLIKELY(atrace_is_tag_enabled(ATRACE_TAG_GRAPHICS))) {
+            static FenceMonitor hwcReleaseThread("HWC release");
+            hwcReleaseThread.queueFence(output.fence);
+        }
+
+        if (input.getTimestamps) {
+             mFrameEventHistory->applyDelta(output.timestamps.value());
+        }
+
+        if (output.fence->isValid()) {
+            buffers->at(batchIdx).fenceFd = output.fence->dup();
+            if (buffers->at(batchIdx).fenceFd == -1) {
+                ALOGE("%s: error duping fence: %d", __FUNCTION__, errno);
+                // dup() should never fail; something is badly wrong. Soldier on
+                // and hope for the best; the worst that should happen is some
+                // visible corruption that lasts until the next frame.
+            }
+        } else {
+            buffers->at(batchIdx).fenceFd = -1;
+        }
+
+        buffers->at(batchIdx).buffer = gbuf.get();
+        mDequeuedSlots.insert(slot);
+    }
+    return OK;
+}
+
 int Surface::cancelBuffer(android_native_buffer_t* buffer,
         int fenceFd) {
     ATRACE_CALL();
@@ -769,15 +942,65 @@ int Surface::cancelBuffer(android_native_buffer_t* buffer,
     return OK;
 }
 
+int Surface::cancelBuffers(const std::vector<BatchBuffer>& buffers) {
+    using CancelBufferInput = IGraphicBufferProducer::CancelBufferInput;
+    ATRACE_CALL();
+    ALOGV("Surface::cancelBuffers");
+
+    if (mSharedBufferMode) {
+        ALOGE("%s: batch operation is not supported in shared buffer mode!",
+                __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+
+    size_t numBuffers = buffers.size();
+    std::vector<CancelBufferInput> cancelBufferInputs(numBuffers);
+    std::vector<status_t> cancelBufferOutputs;
+    size_t numBuffersCancelled = 0;
+    int badSlotResult = 0;
+    for (size_t i = 0; i < numBuffers; i++) {
+        int slot = getSlotFromBufferLocked(buffers[i].buffer);
+        int fenceFd = buffers[i].fenceFd;
+        if (slot < 0) {
+            if (fenceFd >= 0) {
+                close(fenceFd);
+            }
+            ALOGE("%s: cannot find slot number for cancelled buffer", __FUNCTION__);
+            badSlotResult = slot;
+        } else {
+            sp<Fence> fence(fenceFd >= 0 ? new Fence(fenceFd) : Fence::NO_FENCE);
+            cancelBufferInputs[numBuffersCancelled].slot = slot;
+            cancelBufferInputs[numBuffersCancelled++].fence = fence;
+        }
+    }
+    cancelBufferInputs.resize(numBuffersCancelled);
+    mGraphicBufferProducer->cancelBuffers(cancelBufferInputs, &cancelBufferOutputs);
+
+
+    for (size_t i = 0; i < numBuffersCancelled; i++) {
+        mDequeuedSlots.erase(cancelBufferInputs[i].slot);
+    }
+
+    if (badSlotResult != 0) {
+        return badSlotResult;
+    }
+    return OK;
+}
+
 int Surface::getSlotFromBufferLocked(
         android_native_buffer_t* buffer) const {
+    if (buffer == nullptr) {
+        ALOGE("%s: input buffer is null!", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
     for (int i = 0; i < NUM_BUFFER_SLOTS; i++) {
         if (mSlots[i].buffer != nullptr &&
                 mSlots[i].buffer->handle == buffer->handle) {
             return i;
         }
     }
-    ALOGE("getSlotFromBufferLocked: unknown buffer: %p", buffer->handle);
+    ALOGE("%s: unknown buffer: %p", __FUNCTION__, buffer->handle);
     return BAD_VALUE;
 }
 
@@ -787,42 +1010,22 @@ int Surface::lockBuffer_DEPRECATED(android_native_buffer_t* buffer __attribute__
     return OK;
 }
 
-int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
-    ATRACE_CALL();
-    ALOGV("Surface::queueBuffer");
-    Mutex::Autolock lock(mMutex);
-    int64_t timestamp;
+void Surface::getQueueBufferInputLocked(android_native_buffer_t* buffer, int fenceFd,
+        nsecs_t timestamp, IGraphicBufferProducer::QueueBufferInput* out) {
     bool isAutoTimestamp = false;
 
-    if (mTimestamp == NATIVE_WINDOW_TIMESTAMP_AUTO) {
+    if (timestamp == NATIVE_WINDOW_TIMESTAMP_AUTO) {
         timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
         isAutoTimestamp = true;
         ALOGV("Surface::queueBuffer making up timestamp: %.2f ms",
             timestamp / 1000000.0);
-    } else {
-        timestamp = mTimestamp;
     }
-    int i = getSlotFromBufferLocked(buffer);
-    if (i < 0) {
-        if (fenceFd >= 0) {
-            close(fenceFd);
-        }
-        return i;
-    }
-    if (mSharedBufferSlot == i && mSharedBufferHasBeenQueued) {
-        if (fenceFd >= 0) {
-            close(fenceFd);
-        }
-        return OK;
-    }
-
 
     // Make sure the crop rectangle is entirely inside the buffer.
     Rect crop(Rect::EMPTY_RECT);
     mCrop.intersect(Rect(buffer->width, buffer->height), &crop);
 
     sp<Fence> fence(fenceFd >= 0 ? new Fence(fenceFd) : Fence::NO_FENCE);
-    IGraphicBufferProducer::QueueBufferOutput output;
     IGraphicBufferProducer::QueueBufferInput input(timestamp, isAutoTimestamp,
             static_cast<android_dataspace>(mDataSpace), crop, mScalingMode,
             mTransform ^ mStickyTransform, fence, mStickyTransform,
@@ -893,15 +1096,12 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
 
         input.setSurfaceDamage(flippedRegion);
     }
+    *out = input;
+}
 
-    nsecs_t now = systemTime();
-    status_t err = mGraphicBufferProducer->queueBuffer(i, input, &output);
-    mLastQueueDuration = systemTime() - now;
-    if (err != OK)  {
-        ALOGE("queueBuffer: error queuing buffer to SurfaceTexture, %d", err);
-    }
-
-    mDequeuedSlots.erase(i);
+void Surface::onBufferQueuedLocked(int slot, sp<Fence> fence,
+        const IGraphicBufferProducer::QueueBufferOutput& output) {
+    mDequeuedSlots.erase(slot);
 
     if (mEnableFrameTimestamps) {
         mFrameEventHistory->applyDelta(output.frameTimestamps);
@@ -935,7 +1135,7 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
         mDirtyRegion = Region::INVALID_REGION;
     }
 
-    if (mSharedBufferMode && mAutoRefresh && mSharedBufferSlot == i) {
+    if (mSharedBufferMode && mAutoRefresh && mSharedBufferSlot == slot) {
         mSharedBufferHasBeenQueued = true;
     }
 
@@ -944,6 +1144,89 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
     if (CC_UNLIKELY(atrace_is_tag_enabled(ATRACE_TAG_GRAPHICS))) {
         static FenceMonitor gpuCompletionThread("GPU completion");
         gpuCompletionThread.queueFence(fence);
+    }
+}
+
+int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
+    ATRACE_CALL();
+    ALOGV("Surface::queueBuffer");
+    Mutex::Autolock lock(mMutex);
+
+    int i = getSlotFromBufferLocked(buffer);
+    if (i < 0) {
+        if (fenceFd >= 0) {
+            close(fenceFd);
+        }
+        return i;
+    }
+    if (mSharedBufferSlot == i && mSharedBufferHasBeenQueued) {
+        if (fenceFd >= 0) {
+            close(fenceFd);
+        }
+        return OK;
+    }
+
+    IGraphicBufferProducer::QueueBufferOutput output;
+    IGraphicBufferProducer::QueueBufferInput input;
+    getQueueBufferInputLocked(buffer, fenceFd, mTimestamp, &input);
+    sp<Fence> fence = input.fence;
+
+    nsecs_t now = systemTime();
+    status_t err = mGraphicBufferProducer->queueBuffer(i, input, &output);
+    mLastQueueDuration = systemTime() - now;
+    if (err != OK)  {
+        ALOGE("queueBuffer: error queuing buffer, %d", err);
+    }
+
+    onBufferQueuedLocked(i, fence, output);
+    return err;
+}
+
+int Surface::queueBuffers(const std::vector<BatchQueuedBuffer>& buffers) {
+    ATRACE_CALL();
+    ALOGV("Surface::queueBuffers");
+    Mutex::Autolock lock(mMutex);
+
+    if (mSharedBufferMode) {
+        ALOGE("%s: batched operation is not supported in shared buffer mode", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+
+    size_t numBuffers = buffers.size();
+    std::vector<IGraphicBufferProducer::QueueBufferInput> queueBufferInputs(numBuffers);
+    std::vector<IGraphicBufferProducer::QueueBufferOutput> queueBufferOutputs;
+    std::vector<int> bufferSlots(numBuffers, -1);
+    std::vector<sp<Fence>> bufferFences(numBuffers);
+
+    for (size_t batchIdx = 0; batchIdx < numBuffers; batchIdx++) {
+        int i = getSlotFromBufferLocked(buffers[batchIdx].buffer);
+        if (i < 0) {
+            if (buffers[batchIdx].fenceFd >= 0) {
+                close(buffers[batchIdx].fenceFd);
+            }
+            return i;
+        }
+        bufferSlots[batchIdx] = i;
+
+        IGraphicBufferProducer::QueueBufferInput input;
+        getQueueBufferInputLocked(
+                buffers[batchIdx].buffer, buffers[batchIdx].fenceFd, buffers[batchIdx].timestamp,
+                &input);
+        bufferFences[batchIdx] = input.fence;
+        queueBufferInputs[batchIdx] = input;
+    }
+
+    nsecs_t now = systemTime();
+    status_t err = mGraphicBufferProducer->queueBuffers(queueBufferInputs, &queueBufferOutputs);
+    mLastQueueDuration = systemTime() - now;
+    if (err != OK)  {
+        ALOGE("%s: error queuing buffer, %d", __FUNCTION__, err);
+    }
+
+
+    for (size_t batchIdx = 0; batchIdx < numBuffers; batchIdx++) {
+        onBufferQueuedLocked(bufferSlots[batchIdx], bufferFences[batchIdx],
+                queueBufferOutputs[batchIdx]);
     }
 
     return err;

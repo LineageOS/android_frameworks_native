@@ -344,6 +344,23 @@ public:
     static status_t attachAndQueueBufferWithDataspace(Surface* surface, sp<GraphicBuffer> buffer,
                                                       ui::Dataspace dataspace);
 
+    // Batch version of dequeueBuffer, cancelBuffer and queueBuffer
+    // Note that these batched operations are not supported when shared buffer mode is being used.
+    struct BatchBuffer {
+        ANativeWindowBuffer* buffer = nullptr;
+        int fenceFd = -1;
+    };
+    virtual int dequeueBuffers(std::vector<BatchBuffer>* buffers);
+    virtual int cancelBuffers(const std::vector<BatchBuffer>& buffers);
+
+    struct BatchQueuedBuffer {
+        ANativeWindowBuffer* buffer = nullptr;
+        int fenceFd = -1;
+        nsecs_t timestamp = NATIVE_WINDOW_TIMESTAMP_AUTO;
+    };
+    virtual int queueBuffers(
+            const std::vector<BatchQueuedBuffer>& buffers);
+
 protected:
     enum { NUM_BUFFER_SLOTS = BufferQueueDefs::NUM_BUFFER_SLOTS };
     enum { DEFAULT_FORMAT = PIXEL_FORMAT_RGBA_8888 };
@@ -372,6 +389,14 @@ protected:
 
     void freeAllBuffers();
     int getSlotFromBufferLocked(android_native_buffer_t* buffer) const;
+
+    void getDequeueBufferInputLocked(IGraphicBufferProducer::DequeueBufferInput* dequeueInput);
+
+    void getQueueBufferInputLocked(android_native_buffer_t* buffer, int fenceFd, nsecs_t timestamp,
+            IGraphicBufferProducer::QueueBufferInput* out);
+
+    void onBufferQueuedLocked(int slot, sp<Fence> fence,
+            const IGraphicBufferProducer::QueueBufferOutput& output);
 
     struct BufferSlot {
         sp<GraphicBuffer> buffer;

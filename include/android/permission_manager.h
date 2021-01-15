@@ -64,8 +64,6 @@ enum {
     PERMISSION_MANAGER_STATUS_SERVICE_UNAVAILABLE = -2,
 };
 
-#if __ANDROID_API__ >= 31
-
 /**
  * Checks whether the package with the given pid/uid has been granted a permission.
  *
@@ -83,8 +81,6 @@ int32_t APermissionManager_checkPermission(const char* permission,
                                            pid_t pid,
                                            uid_t uid,
                                            int32_t* outResult) __INTRODUCED_IN(31);
-
-#endif // __ANDROID_API__ >= 31
 
 __END_DECLS
 
