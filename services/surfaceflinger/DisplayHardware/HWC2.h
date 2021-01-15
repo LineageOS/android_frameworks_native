@@ -79,80 +79,6 @@ class Display {
 public:
     virtual ~Display();
 
-    class Config {
-    public:
-        class Builder
-        {
-        public:
-            Builder(Display& display, hal::HWConfigId id);
-
-            std::shared_ptr<const Config> build() {
-                return std::const_pointer_cast<const Config>(
-                        std::move(mConfig));
-            }
-
-            Builder& setWidth(int32_t width) {
-                mConfig->mWidth = width;
-                return *this;
-            }
-            Builder& setHeight(int32_t height) {
-                mConfig->mHeight = height;
-                return *this;
-            }
-            Builder& setVsyncPeriod(int32_t vsyncPeriod) {
-                mConfig->mVsyncPeriod = vsyncPeriod;
-                return *this;
-            }
-            Builder& setDpiX(int32_t dpiX) {
-                if (dpiX == -1) {
-                    mConfig->mDpiX = getDefaultDensity();
-                } else {
-                    mConfig->mDpiX = dpiX / 1000.0f;
-                }
-                return *this;
-            }
-            Builder& setDpiY(int32_t dpiY) {
-                if (dpiY == -1) {
-                    mConfig->mDpiY = getDefaultDensity();
-                } else {
-                    mConfig->mDpiY = dpiY / 1000.0f;
-                }
-                return *this;
-            }
-            Builder& setConfigGroup(int32_t configGroup) {
-                mConfig->mConfigGroup = configGroup;
-                return *this;
-            }
-
-        private:
-            float getDefaultDensity();
-            std::shared_ptr<Config> mConfig;
-        };
-
-        hal::HWDisplayId getDisplayId() const { return mDisplay.getId(); }
-        hal::HWConfigId getId() const { return mId; }
-
-        int32_t getWidth() const { return mWidth; }
-        int32_t getHeight() const { return mHeight; }
-        nsecs_t getVsyncPeriod() const { return mVsyncPeriod; }
-        float getDpiX() const { return mDpiX; }
-        float getDpiY() const { return mDpiY; }
-        int32_t getConfigGroup() const { return mConfigGroup; }
-
-    private:
-        Config(Display& display, hal::HWConfigId id);
-
-        Display& mDisplay;
-        hal::HWConfigId mId;
-
-        int32_t mWidth;
-        int32_t mHeight;
-        nsecs_t mVsyncPeriod;
-        float mDpiX;
-        float mDpiY;
-        int32_t mConfigGroup;
-    };
-
     virtual hal::HWDisplayId getId() const = 0;
     virtual bool isConnected() const = 0;
     virtual void setConnected(bool connected) = 0; // For use by Device only
@@ -162,9 +88,6 @@ public:
     [[clang::warn_unused_result]] virtual hal::Error acceptChanges() = 0;
     [[clang::warn_unused_result]] virtual hal::Error createLayer(Layer** outLayer) = 0;
     [[clang::warn_unused_result]] virtual hal::Error destroyLayer(Layer* layer) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getActiveConfig(
-            std::shared_ptr<const Config>* outConfig) const = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getActiveConfigIndex(int* outIndex) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error getChangedCompositionTypes(
             std::unordered_map<Layer*, hal::Composition>* outTypes) = 0;
     [[clang::warn_unused_result]] virtual hal::Error getColorModes(
@@ -175,10 +98,6 @@ public:
             hal::ColorMode colorMode, std::vector<hal::RenderIntent>* outRenderIntents) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error getDataspaceSaturationMatrix(
             hal::Dataspace dataspace, android::mat4* outMatrix) = 0;
-
-    // Doesn't call into the HWC2 device, so no errors are possible
-    [[clang::warn_unused_result]] virtual std::vector<std::shared_ptr<const Config>> getConfigs()
-            const = 0;
 
     [[clang::warn_unused_result]] virtual hal::Error getName(std::string* outName) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error getRequests(
@@ -201,8 +120,6 @@ public:
             std::unordered_map<Layer*, android::sp<android::Fence>>* outFences) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error present(
             android::sp<android::Fence>* outPresentFence) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setActiveConfig(
-            const std::shared_ptr<const Config>& config) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setClientTarget(
             uint32_t slot, const android::sp<android::GraphicBuffer>& target,
             const android::sp<android::Fence>& acquireFence, hal::Dataspace dataspace) = 0;
@@ -222,11 +139,8 @@ public:
             android::sp<android::Fence>* outPresentFence, uint32_t* state) = 0;
     [[clang::warn_unused_result]] virtual std::future<hal::Error> setDisplayBrightness(
             float brightness) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error getDisplayVsyncPeriod(
-            nsecs_t* outVsyncPeriod) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error setActiveConfigWithConstraints(
-            const std::shared_ptr<const HWC2::Display::Config>& config,
-            const hal::VsyncPeriodChangeConstraints& constraints,
+            hal::HWConfigId configId, const hal::VsyncPeriodChangeConstraints& constraints,
             hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setAutoLowLatencyMode(bool on) = 0;
     [[clang::warn_unused_result]] virtual hal::Error getSupportedContentTypes(
@@ -248,8 +162,6 @@ public:
     hal::Error acceptChanges() override;
     hal::Error createLayer(Layer** outLayer) override;
     hal::Error destroyLayer(Layer*) override;
-    hal::Error getActiveConfig(std::shared_ptr<const Config>* outConfig) const override;
-    hal::Error getActiveConfigIndex(int* outIndex) const override;
     hal::Error getChangedCompositionTypes(
             std::unordered_map<Layer*, hal::Composition>* outTypes) override;
     hal::Error getColorModes(std::vector<hal::ColorMode>* outModes) const override;
@@ -258,9 +170,6 @@ public:
     hal::Error getRenderIntents(hal::ColorMode colorMode,
                                 std::vector<hal::RenderIntent>* outRenderIntents) const override;
     hal::Error getDataspaceSaturationMatrix(hal::Dataspace, android::mat4* outMatrix) override;
-
-    // Doesn't call into the HWC2 device, so no errors are possible
-    std::vector<std::shared_ptr<const Config>> getConfigs() const override;
 
     hal::Error getName(std::string* outName) const override;
     hal::Error getRequests(
@@ -279,7 +188,6 @@ public:
     hal::Error getReleaseFences(
             std::unordered_map<Layer*, android::sp<android::Fence>>* outFences) const override;
     hal::Error present(android::sp<android::Fence>* outPresentFence) override;
-    hal::Error setActiveConfig(const std::shared_ptr<const HWC2::Display::Config>& config) override;
     hal::Error setClientTarget(uint32_t slot, const android::sp<android::GraphicBuffer>& target,
                                const android::sp<android::Fence>& acquireFence,
                                hal::Dataspace dataspace) override;
@@ -294,11 +202,9 @@ public:
                                  android::sp<android::Fence>* outPresentFence,
                                  uint32_t* state) override;
     std::future<hal::Error> setDisplayBrightness(float brightness) override;
-    hal::Error getDisplayVsyncPeriod(nsecs_t* outVsyncPeriod) const override;
-    hal::Error setActiveConfigWithConstraints(
-            const std::shared_ptr<const HWC2::Display::Config>& config,
-            const hal::VsyncPeriodChangeConstraints& constraints,
-            hal::VsyncPeriodChangeTimeline* outTimeline) override;
+    hal::Error setActiveConfigWithConstraints(hal::HWConfigId configId,
+                                              const hal::VsyncPeriodChangeConstraints& constraints,
+                                              hal::VsyncPeriodChangeTimeline* outTimeline) override;
     hal::Error setAutoLowLatencyMode(bool on) override;
     hal::Error getSupportedContentTypes(
             std::vector<hal::ContentType>* outSupportedContentTypes) const override;
@@ -315,9 +221,6 @@ public:
     virtual bool isVsyncPeriodSwitchSupported() const override;
 
 private:
-    int32_t getAttribute(hal::HWConfigId, hal::Attribute);
-    void loadConfig(hal::HWConfigId);
-    void loadConfigs();
 
     // This may fail (and return a null pointer) if no layer with this ID exists
     // on this display
@@ -338,7 +241,6 @@ private:
     bool mIsConnected = false;
 
     std::unordered_map<hal::HWLayerId, std::unique_ptr<Layer>> mLayers;
-    std::unordered_map<hal::HWConfigId, std::shared_ptr<const Config>> mConfigs;
 
     std::once_flag mDisplayCapabilityQueryFlag;
     std::unordered_set<hal::DisplayCapability> mDisplayCapabilities;
