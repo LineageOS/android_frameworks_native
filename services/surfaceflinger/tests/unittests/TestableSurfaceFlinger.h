@@ -360,7 +360,7 @@ public:
         return mFlinger->SurfaceFlinger::getDisplayNativePrimaries(displayToken, primaries);
     }
 
-    auto& getPendingTransactionQueue() { return mFlinger->mPendingTransactionQueues; }
+    auto& getTransactionQueue() { return mFlinger->mTransactionQueues; }
 
     auto setTransactionState(int64_t frameTimelineVsyncId, const Vector<ComposerState>& states,
                              const Vector<DisplayState>& displays, uint32_t flags,
@@ -376,7 +376,7 @@ public:
                                              listenerCallbacks, transactionId);
     }
 
-    auto flushPendingTransactionQueues() { return mFlinger->flushPendingTransactionQueues(); };
+    auto flushTransactionQueues() { return mFlinger->flushTransactionQueues(); };
 
     auto onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) {
         return mFlinger->onTransact(code, data, reply, flags);
