@@ -202,8 +202,14 @@ public:
 
     void requestFocus() {
         SurfaceComposerClient::Transaction t;
-        t.setFocusedWindow(mInputInfo.token, nullptr, systemTime(SYSTEM_TIME_MONOTONIC),
-                           0 /* displayId */);
+        FocusRequest request;
+        request.token = mInputInfo.token;
+        request.windowName = mInputInfo.name;
+        request.focusedToken = nullptr;
+        request.focusedWindowName = "";
+        request.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
+        request.displayId = 0;
+        t.setFocusedWindow(request);
         t.apply(true);
     }
 
