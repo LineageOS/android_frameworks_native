@@ -27,9 +27,6 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
-#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
-#include <android/frameworks/vr/composer/2.0/IVrComposerClient.h>
-#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 #include <android/hardware/graphics/common/1.1/types.h>
 #include <android/hardware/graphics/composer/2.4/IComposer.h>
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
@@ -46,10 +43,6 @@
 namespace android {
 
 namespace Hwc2 {
-
-#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
-using frameworks::vr::composer::V2_0::IVrComposerClient;
-#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
 namespace types = hardware::graphics::common;
 
@@ -91,11 +84,6 @@ public:
 
     virtual void registerCallback(const sp<IComposerCallback>& callback) = 0;
 
-    // Returns true if the connected composer service is running in a remote
-    // process, false otherwise. This will return false if the service is
-    // configured in passthrough mode, for example.
-    virtual bool isRemote() = 0;
-
     // Reset all pending commands in the command buffer. Useful if you want to
     // skip a frame but have already queued some commands.
     virtual void resetCommands() = 0;
@@ -104,7 +92,6 @@ public:
     virtual Error executeCommands() = 0;
 
     virtual uint32_t getMaxVirtualDisplayCount() = 0;
-    virtual bool isUsingVrComposer() const = 0;
     virtual Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat* format,
                                        Display* outDisplay) = 0;
     virtual Error destroyVirtualDisplay(Display display) = 0;
@@ -188,7 +175,6 @@ public:
     virtual Error setLayerVisibleRegion(Display display, Layer layer,
                                         const std::vector<IComposerClient::Rect>& visible) = 0;
     virtual Error setLayerZOrder(Display display, Layer layer, uint32_t z) = 0;
-    virtual Error setLayerInfo(Display display, Layer layer, uint32_t type, uint32_t appId) = 0;
 
     // Composer HAL 2.2
     virtual Error setLayerPerFrameMetadata(
@@ -344,11 +330,6 @@ public:
 
     void registerCallback(const sp<IComposerCallback>& callback) override;
 
-    // Returns true if the connected composer service is running in a remote
-    // process, false otherwise. This will return false if the service is
-    // configured in passthrough mode, for example.
-    bool isRemote() override;
-
     // Reset all pending commands in the command buffer. Useful if you want to
     // skip a frame but have already queued some commands.
     void resetCommands() override;
@@ -357,7 +338,6 @@ public:
     Error executeCommands() override;
 
     uint32_t getMaxVirtualDisplayCount() override;
-    bool isUsingVrComposer() const override { return mIsUsingVrComposer; }
     Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat* format,
                                Display* outDisplay) override;
     Error destroyVirtualDisplay(Display display) override;
@@ -436,7 +416,6 @@ public:
     Error setLayerVisibleRegion(Display display, Layer layer,
                                 const std::vector<IComposerClient::Rect>& visible) override;
     Error setLayerZOrder(Display display, Layer layer, uint32_t z) override;
-    Error setLayerInfo(Display display, Layer layer, uint32_t type, uint32_t appId) override;
 
     // Composer HAL 2.2
     Error setLayerPerFrameMetadata(
@@ -490,29 +469,11 @@ public:
             IComposerClient::ClientTargetProperty* outClientTargetProperty) override;
 
 private:
-#if defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
-    class CommandWriter : public CommandWriterBase {
-    public:
-        explicit CommandWriter(uint32_t initialMaxSize);
-        ~CommandWriter() override;
-
-        void setLayerInfo(uint32_t type, uint32_t appId);
-        void setClientTargetMetadata(
-                const IVrComposerClient::BufferMetadata& metadata);
-        void setLayerBufferMetadata(
-                const IVrComposerClient::BufferMetadata& metadata);
-
-    private:
-        void writeBufferMetadata(
-                const IVrComposerClient::BufferMetadata& metadata);
-    };
-#else
     class CommandWriter : public CommandWriterBase {
     public:
         explicit CommandWriter(uint32_t initialMaxSize) : CommandWriterBase(initialMaxSize) {}
         ~CommandWriter() override {}
     };
-#endif // defined(USE_VR_COMPOSER) && USE_VR_COMPOSER
 
     // Many public functions above simply write a command into the command
     // queue to batch the calls.  validateDisplay and presentDisplay will call
@@ -531,10 +492,6 @@ private:
         64 * 1024 / sizeof(uint32_t) - 16;
     CommandWriter mWriter;
     CommandReader mReader;
-
-    // When true, the we attach to the vr_hwcomposer service instead of the
-    // hwcomposer. This allows us to redirect surfaces to 3d surfaces in vr.
-    const bool mIsUsingVrComposer;
 };
 
 } // namespace impl
