@@ -56,6 +56,21 @@ protected:
         return refreshRateConfigs.mKnownFrameRates;
     }
 
+    RefreshRate getMinRefreshRateByPolicy(const RefreshRateConfigs& refreshRateConfigs) {
+        std::lock_guard lock(refreshRateConfigs.mLock);
+        return refreshRateConfigs.getMinRefreshRateByPolicyLocked();
+    }
+
+    RefreshRate getMinSupportedRefreshRate(const RefreshRateConfigs& refreshRateConfigs) {
+        std::lock_guard lock(refreshRateConfigs.mLock);
+        return *refreshRateConfigs.mMinSupportedRefreshRate;
+    }
+
+    RefreshRate getMaxSupportedRefreshRate(const RefreshRateConfigs& refreshRateConfigs) {
+        std::lock_guard lock(refreshRateConfigs.mLock);
+        return *refreshRateConfigs.mMaxSupportedRefreshRate;
+    }
+
     // Test config IDs
     static inline const HwcConfigIndexType HWC_CONFIG_ID_60 = HwcConfigIndexType(0);
     static inline const HwcConfigIndexType HWC_CONFIG_ID_90 = HwcConfigIndexType(1);
@@ -209,13 +224,13 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap) {
             std::make_unique<RefreshRateConfigs>(m60_90Device,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
 
-    const auto& minRate = refreshRateConfigs->getMinRefreshRate();
-    const auto& performanceRate = refreshRateConfigs->getMaxRefreshRate();
+    const auto& minRate = getMinSupportedRefreshRate(*refreshRateConfigs);
+    const auto& performanceRate = getMaxSupportedRefreshRate(*refreshRateConfigs);
 
     ASSERT_EQ(mExpected60Config, minRate);
     ASSERT_EQ(mExpected90Config, performanceRate);
 
-    const auto& minRateByPolicy = refreshRateConfigs->getMinRefreshRateByPolicy();
+    const auto& minRateByPolicy = getMinRefreshRateByPolicy(*refreshRateConfigs);
     const auto& performanceRateByPolicy = refreshRateConfigs->getMaxRefreshRateByPolicy();
     ASSERT_EQ(minRateByPolicy, minRate);
     ASSERT_EQ(performanceRateByPolicy, performanceRate);
@@ -226,9 +241,9 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
             std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
 
-    const auto& minRate = refreshRateConfigs->getMinRefreshRateByPolicy();
-    const auto& performanceRate = refreshRateConfigs->getMaxRefreshRate();
-    const auto& minRate60 = refreshRateConfigs->getMinRefreshRateByPolicy();
+    const auto& minRate = getMinRefreshRateByPolicy(*refreshRateConfigs);
+    const auto& performanceRate = getMaxSupportedRefreshRate(*refreshRateConfigs);
+    const auto& minRate60 = getMinRefreshRateByPolicy(*refreshRateConfigs);
     const auto& performanceRate60 = refreshRateConfigs->getMaxRefreshRateByPolicy();
 
     ASSERT_EQ(mExpected60Config, minRate);
@@ -239,7 +254,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
               0);
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
 
-    const auto& minRate90 = refreshRateConfigs->getMinRefreshRateByPolicy();
+    const auto& minRate90 = getMinRefreshRateByPolicy(*refreshRateConfigs);
     const auto& performanceRate90 = refreshRateConfigs->getMaxRefreshRateByPolicy();
 
     ASSERT_EQ(mExpected90DifferentGroupConfig, performanceRate);
@@ -252,9 +267,9 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
             std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentResolutions,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
 
-    const auto& minRate = refreshRateConfigs->getMinRefreshRateByPolicy();
-    const auto& performanceRate = refreshRateConfigs->getMaxRefreshRate();
-    const auto& minRate60 = refreshRateConfigs->getMinRefreshRateByPolicy();
+    const auto& minRate = getMinRefreshRateByPolicy(*refreshRateConfigs);
+    const auto& performanceRate = getMaxSupportedRefreshRate(*refreshRateConfigs);
+    const auto& minRate60 = getMinRefreshRateByPolicy(*refreshRateConfigs);
     const auto& performanceRate60 = refreshRateConfigs->getMaxRefreshRateByPolicy();
 
     ASSERT_EQ(mExpected60Config, minRate);
@@ -265,7 +280,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
               0);
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
 
-    const auto& minRate90 = refreshRateConfigs->getMinRefreshRateByPolicy();
+    const auto& minRate90 = getMinRefreshRateByPolicy(*refreshRateConfigs);
     const auto& performanceRate90 = refreshRateConfigs->getMaxRefreshRateByPolicy();
 
     ASSERT_EQ(mExpected90DifferentResolutionConfig, performanceRate);
@@ -278,8 +293,8 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_policyChange) {
             std::make_unique<RefreshRateConfigs>(m60_90Device,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
 
-    auto& minRate = refreshRateConfigs->getMinRefreshRateByPolicy();
-    auto& performanceRate = refreshRateConfigs->getMaxRefreshRateByPolicy();
+    auto minRate = getMinRefreshRateByPolicy(*refreshRateConfigs);
+    auto performanceRate = refreshRateConfigs->getMaxRefreshRateByPolicy();
 
     ASSERT_EQ(mExpected60Config, minRate);
     ASSERT_EQ(mExpected90Config, performanceRate);
@@ -287,8 +302,8 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_policyChange) {
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {Fps(60), Fps(60)}}),
               0);
 
-    auto& minRate60 = refreshRateConfigs->getMinRefreshRateByPolicy();
-    auto& performanceRate60 = refreshRateConfigs->getMaxRefreshRateByPolicy();
+    auto minRate60 = getMinRefreshRateByPolicy(*refreshRateConfigs);
+    auto performanceRate60 = refreshRateConfigs->getMaxRefreshRateByPolicy();
     ASSERT_EQ(mExpected60Config, minRate60);
     ASSERT_EQ(mExpected60Config, performanceRate60);
 }
@@ -298,20 +313,20 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getCurrentRefreshRate) {
             std::make_unique<RefreshRateConfigs>(m60_90Device,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
     {
-        auto& current = refreshRateConfigs->getCurrentRefreshRate();
+        auto current = refreshRateConfigs->getCurrentRefreshRate();
         EXPECT_EQ(current.getConfigId(), HWC_CONFIG_ID_60);
     }
 
     refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
     {
-        auto& current = refreshRateConfigs->getCurrentRefreshRate();
+        auto current = refreshRateConfigs->getCurrentRefreshRate();
         EXPECT_EQ(current.getConfigId(), HWC_CONFIG_ID_90);
     }
 
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {Fps(90), Fps(90)}}),
               0);
     {
-        auto& current = refreshRateConfigs->getCurrentRefreshRate();
+        auto current = refreshRateConfigs->getCurrentRefreshRate();
         EXPECT_EQ(current.getConfigId(), HWC_CONFIG_ID_90);
     }
 }
