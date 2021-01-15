@@ -458,6 +458,11 @@ class Dumpstate {
     // Whether it should take an screenshot earlier in the process.
     bool do_early_screenshot_ = false;
 
+    // This is set to true when the trace snapshot request in the early call to
+    // MaybeSnapshotSystemTrace(). When this is true, the later stages of
+    // dumpstate will append the trace to the zip archive.
+    bool has_system_trace_ = false;
+
     std::unique_ptr<Progress> progress_;
 
     // When set, defines a socket file-descriptor use to report progress to bugreportz
@@ -543,6 +548,7 @@ class Dumpstate {
     RunStatus DumpstateDefaultAfterCritical();
 
     void MaybeTakeEarlyScreenshot();
+    void MaybeSnapshotSystemTrace();
 
     void onUiIntensiveBugreportDumpsFinished(int32_t calling_uid);
 

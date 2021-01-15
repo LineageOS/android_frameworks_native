@@ -453,6 +453,20 @@ static KeyEvent createKeyEvent(const KeyEntry& entry) {
     return event;
 }
 
+static std::optional<int32_t> findMonitorPidByToken(
+        const std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay,
+        const sp<IBinder>& token) {
+    for (const auto& it : monitorsByDisplay) {
+        const std::vector<Monitor>& monitors = it.second;
+        for (const Monitor& monitor : monitors) {
+            if (monitor.inputChannel->getConnectionToken() == token) {
+                return monitor.pid;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
@@ -615,7 +629,7 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     connection->responsive = false;
     // Stop waking up for this unresponsive connection
     mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
-    onAnrLocked(*connection);
+    onAnrLocked(connection);
     return LONG_LONG_MIN;
 }
 
@@ -5154,6 +5168,14 @@ std::optional<int32_t> InputDispatcher::findGestureMonitorDisplayByTokenLocked(
     return std::nullopt;
 }
 
+std::optional<int32_t> InputDispatcher::findMonitorPidByTokenLocked(const sp<IBinder>& token) {
+    std::optional<int32_t> gesturePid = findMonitorPidByToken(mGestureMonitorsByDisplay, token);
+    if (gesturePid.has_value()) {
+        return gesturePid;
+    }
+    return findMonitorPidByToken(mGlobalMonitorsByDisplay, token);
+}
+
 sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConnectionToken) const {
     if (inputConnectionToken == nullptr) {
         return nullptr;
@@ -5214,12 +5236,15 @@ void InputDispatcher::notifyFocusChangedLocked(const sp<IBinder>& oldToken,
     postCommandLocked(std::move(commandEntry));
 }
 
-void InputDispatcher::onAnrLocked(const Connection& connection) {
+void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
+    if (connection == nullptr) {
+        LOG_ALWAYS_FATAL("Caller must check for nullness");
+    }
     // Since we are allowing the policy to extend the timeout, maybe the waitQueue
     // is already healthy again. Don't raise ANR in this situation
-    if (connection.waitQueue.empty()) {
+    if (connection->waitQueue.empty()) {
         ALOGI("Not raising ANR because the connection %s has recovered",
-              connection.inputChannel->getName().c_str());
+              connection->inputChannel->getName().c_str());
         return;
     }
     /**
@@ -5230,21 +5255,20 @@ void InputDispatcher::onAnrLocked(const Connection& connection) {
      * processes the events linearly. So providing information about the oldest entry seems to be
      * most useful.
      */
-    DispatchEntry* oldestEntry = *connection.waitQueue.begin();
+    DispatchEntry* oldestEntry = *connection->waitQueue.begin();
     const nsecs_t currentWait = now() - oldestEntry->deliveryTime;
     std::string reason =
             android::base::StringPrintf("%s is not responding. Waited %" PRId64 "ms for %s",
-                                        connection.inputChannel->getName().c_str(),
+                                        connection->inputChannel->getName().c_str(),
                                         ns2ms(currentWait),
                                         oldestEntry->eventEntry->getDescription().c_str());
-    sp<IBinder> connectionToken = connection.inputChannel->getConnectionToken();
+    sp<IBinder> connectionToken = connection->inputChannel->getConnectionToken();
     updateLastAnrStateLocked(getWindowHandleLocked(connectionToken), reason);
 
-    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyConnectionUnresponsiveLockedInterruptible);
-    commandEntry->connectionToken = connectionToken;
-    commandEntry->reason = std::move(reason);
-    postCommandLocked(std::move(commandEntry));
+    processConnectionUnresponsiveLocked(*connection, std::move(reason));
+
+    // Stop waking up for events on this connection, it is already unresponsive
+    cancelEventsForAnrLocked(connection);
 }
 
 void InputDispatcher::onAnrLocked(std::shared_ptr<InputApplicationHandle> application) {
@@ -5329,26 +5353,34 @@ void InputDispatcher::doNotifyNoFocusedWindowAnrLockedInterruptible(CommandEntry
     mLock.lock();
 }
 
-void InputDispatcher::doNotifyConnectionUnresponsiveLockedInterruptible(
-        CommandEntry* commandEntry) {
+void InputDispatcher::doNotifyWindowUnresponsiveLockedInterruptible(CommandEntry* commandEntry) {
     mLock.unlock();
 
-    mPolicy->notifyConnectionUnresponsive(commandEntry->connectionToken, commandEntry->reason);
+    mPolicy->notifyWindowUnresponsive(commandEntry->connectionToken, commandEntry->reason);
 
     mLock.lock();
-
-    // stop waking up for events in this connection, it is already not responding
-    sp<Connection> connection = getConnectionLocked(commandEntry->connectionToken);
-    if (connection == nullptr) {
-        return;
-    }
-    cancelEventsForAnrLocked(connection);
 }
 
-void InputDispatcher::doNotifyConnectionResponsiveLockedInterruptible(CommandEntry* commandEntry) {
+void InputDispatcher::doNotifyMonitorUnresponsiveLockedInterruptible(CommandEntry* commandEntry) {
     mLock.unlock();
 
-    mPolicy->notifyConnectionResponsive(commandEntry->connectionToken);
+    mPolicy->notifyMonitorUnresponsive(commandEntry->pid, commandEntry->reason);
+
+    mLock.lock();
+}
+
+void InputDispatcher::doNotifyWindowResponsiveLockedInterruptible(CommandEntry* commandEntry) {
+    mLock.unlock();
+
+    mPolicy->notifyWindowResponsive(commandEntry->connectionToken);
+
+    mLock.lock();
+}
+
+void InputDispatcher::doNotifyMonitorResponsiveLockedInterruptible(CommandEntry* commandEntry) {
+    mLock.unlock();
+
+    mPolicy->notifyMonitorResponsive(commandEntry->pid);
 
     mLock.lock();
 }
@@ -5453,13 +5485,8 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
         if (!connection->responsive) {
             connection->responsive = isConnectionResponsive(*connection);
             if (connection->responsive) {
-                // The connection was unresponsive, and now it's responsive. Tell the policy
-                // about it so that it can stop ANR.
-                std::unique_ptr<CommandEntry> connectionResponsiveCommand =
-                        std::make_unique<CommandEntry>(
-                                &InputDispatcher::doNotifyConnectionResponsiveLockedInterruptible);
-                connectionResponsiveCommand->connectionToken = connectionToken;
-                postCommandLocked(std::move(connectionResponsiveCommand));
+                // The connection was unresponsive, and now it's responsive.
+                processConnectionResponsiveLocked(*connection);
             }
         }
         traceWaitQueueLength(connection);
@@ -5473,6 +5500,82 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
 
     // Start the next dispatch cycle for this connection.
     startDispatchCycleLocked(now(), connection);
+}
+
+void InputDispatcher::sendMonitorUnresponsiveCommandLocked(int32_t pid, std::string reason) {
+    std::unique_ptr<CommandEntry> monitorUnresponsiveCommand = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyMonitorUnresponsiveLockedInterruptible);
+    monitorUnresponsiveCommand->pid = pid;
+    monitorUnresponsiveCommand->reason = std::move(reason);
+    postCommandLocked(std::move(monitorUnresponsiveCommand));
+}
+
+void InputDispatcher::sendWindowUnresponsiveCommandLocked(sp<IBinder> connectionToken,
+                                                          std::string reason) {
+    std::unique_ptr<CommandEntry> windowUnresponsiveCommand = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyWindowUnresponsiveLockedInterruptible);
+    windowUnresponsiveCommand->connectionToken = std::move(connectionToken);
+    windowUnresponsiveCommand->reason = std::move(reason);
+    postCommandLocked(std::move(windowUnresponsiveCommand));
+}
+
+void InputDispatcher::sendMonitorResponsiveCommandLocked(int32_t pid) {
+    std::unique_ptr<CommandEntry> monitorResponsiveCommand = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyMonitorResponsiveLockedInterruptible);
+    monitorResponsiveCommand->pid = pid;
+    postCommandLocked(std::move(monitorResponsiveCommand));
+}
+
+void InputDispatcher::sendWindowResponsiveCommandLocked(sp<IBinder> connectionToken) {
+    std::unique_ptr<CommandEntry> windowResponsiveCommand = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyWindowResponsiveLockedInterruptible);
+    windowResponsiveCommand->connectionToken = std::move(connectionToken);
+    postCommandLocked(std::move(windowResponsiveCommand));
+}
+
+/**
+ * Tell the policy that a connection has become unresponsive so that it can start ANR.
+ * Check whether the connection of interest is a monitor or a window, and add the corresponding
+ * command entry to the command queue.
+ */
+void InputDispatcher::processConnectionUnresponsiveLocked(const Connection& connection,
+                                                          std::string reason) {
+    const sp<IBinder>& connectionToken = connection.inputChannel->getConnectionToken();
+    if (connection.monitor) {
+        ALOGW("Monitor %s is unresponsive: %s", connection.inputChannel->getName().c_str(),
+              reason.c_str());
+        std::optional<int32_t> pid = findMonitorPidByTokenLocked(connectionToken);
+        if (!pid.has_value()) {
+            ALOGE("Could not find unresponsive monitor for connection %s",
+                  connection.inputChannel->getName().c_str());
+            return;
+        }
+        sendMonitorUnresponsiveCommandLocked(pid.value(), std::move(reason));
+        return;
+    }
+    // If not a monitor, must be a window
+    ALOGW("Window %s is unresponsive: %s", connection.inputChannel->getName().c_str(),
+          reason.c_str());
+    sendWindowUnresponsiveCommandLocked(connectionToken, std::move(reason));
+}
+
+/**
+ * Tell the policy that a connection has become responsive so that it can stop ANR.
+ */
+void InputDispatcher::processConnectionResponsiveLocked(const Connection& connection) {
+    const sp<IBinder>& connectionToken = connection.inputChannel->getConnectionToken();
+    if (connection.monitor) {
+        std::optional<int32_t> pid = findMonitorPidByTokenLocked(connectionToken);
+        if (!pid.has_value()) {
+            ALOGE("Could not find responsive monitor for connection %s",
+                  connection.inputChannel->getName().c_str());
+            return;
+        }
+        sendMonitorResponsiveCommandLocked(pid.value());
+        return;
+    }
+    // If not a monitor, must be a window
+    sendWindowResponsiveCommandLocked(connectionToken);
 }
 
 bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& connection,

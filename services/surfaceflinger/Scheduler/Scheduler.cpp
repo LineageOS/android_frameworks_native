@@ -612,7 +612,7 @@ void Scheduler::chooseRefreshRateForContent() {
         mFeatures.contentRequirements = summary;
 
         newConfigId = calculateRefreshRateConfigIndexType(&consideredSignals);
-        auto& newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
+        auto newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
         frameRateOverridesChanged =
                 updateFrameRateOverrides(consideredSignals, newRefreshRate.getFps());
 
@@ -629,7 +629,7 @@ void Scheduler::chooseRefreshRateForContent() {
         }
     }
     if (frameRateChanged) {
-        auto& newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
+        auto newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
         mSchedulerCallback.changeRefreshRate(newRefreshRate,
                                              consideredSignals.idle ? ConfigEvent::None
                                                                     : ConfigEvent::Changed);
