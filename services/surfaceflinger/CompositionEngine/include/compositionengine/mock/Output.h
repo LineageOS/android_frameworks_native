@@ -45,6 +45,7 @@ public:
     MOCK_METHOD1(setColorProfile, void(const ColorProfile&));
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
+    MOCK_CONST_METHOD2(dumpPlannerInfo, void(const Vector<String16>&, std::string&));
     MOCK_CONST_METHOD0(getName, const std::string&());
     MOCK_METHOD1(setName, void(const std::string&));
 
@@ -85,7 +86,9 @@ public:
     MOCK_METHOD1(setReleasedLayers, void(const compositionengine::CompositionRefreshArgs&));
 
     MOCK_CONST_METHOD1(updateLayerStateFromFE, void(const CompositionRefreshArgs&));
-    MOCK_METHOD1(updateAndWriteCompositionState, void(const CompositionRefreshArgs&));
+    MOCK_METHOD1(updateCompositionState, void(const CompositionRefreshArgs&));
+    MOCK_METHOD0(planComposition, void());
+    MOCK_METHOD1(writeCompositionState, void(const CompositionRefreshArgs&));
     MOCK_METHOD1(updateColorProfile, void(const compositionengine::CompositionRefreshArgs&));
 
     MOCK_METHOD0(beginFrame, void());

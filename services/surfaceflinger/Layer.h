@@ -723,7 +723,7 @@ public:
     // Returns the bounds of the layer without any buffer scaling.
     FloatRect getBoundsPreScaling(const ui::Transform& bufferScaleTransform) const;
 
-    int32_t getSequence() const { return sequence; }
+    int32_t getSequence() const override { return sequence; }
 
     // For tracing.
     // TODO: Replace with raw buffer id from buffer metadata when that becomes available.

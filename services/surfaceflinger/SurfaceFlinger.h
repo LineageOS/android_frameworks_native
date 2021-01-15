@@ -1013,6 +1013,7 @@ private:
     LayersProto dumpProtoFromMainThread(uint32_t traceFlags = SurfaceTracing::TRACE_ALL)
             EXCLUDES(mStateLock);
     void dumpOffscreenLayers(std::string& result) EXCLUDES(mStateLock);
+    void dumpPlannerInfo(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
