@@ -140,7 +140,6 @@ public:
                                      transaction.uncacheBuffer, mHasListenerCallbacks, mCallbacks,
                                      transaction.id);
 
-        // This transaction should not have been placed on the transaction queue.
         // If transaction is synchronous or syncs input windows, SF
         // applyTransactionState should time out (5s) wating for SF to commit
         // the transaction or to receive a signal that syncInputWindows has
@@ -151,8 +150,9 @@ public:
         } else {
             EXPECT_LE(returnedTime, applicationTime + s2ns(5));
         }
+        // Each transaction should have been placed on the transaction queue
         auto transactionQueue = mFlinger.getTransactionQueue();
-        EXPECT_EQ(0u, transactionQueue.size());
+        EXPECT_EQ(1u, transactionQueue.size());
     }
 
     void PlaceOnTransactionQueue(uint32_t flags, bool syncInputWindows) {
@@ -214,6 +214,8 @@ public:
         // (5s is the timeout period that applyTransactionState waits for SF to
         // commit the transaction)
         EXPECT_LE(systemTime(), applicationSentTime + s2ns(5));
+        // transaction that would goes to pending transaciton queue.
+        mFlinger.flushTransactionQueues();
 
         applicationSentTime = systemTime();
         mFlinger.setTransactionState(transactionB.frameTimelineInfo, transactionB.states,
@@ -233,8 +235,11 @@ public:
             EXPECT_LE(systemTime(), applicationSentTime + s2ns(5));
         }
 
+        // transaction that would goes to pending transaciton queue.
+        mFlinger.flushTransactionQueues();
+
         // check that there is one binder on the pending queue.
-        auto transactionQueue = mFlinger.getTransactionQueue();
+        auto transactionQueue = mFlinger.getPendingTransactionQueue();
         EXPECT_EQ(1u, transactionQueue.size());
 
         auto& [applyToken, transactionStates] = *(transactionQueue.begin());
@@ -273,10 +278,7 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     auto& transactionQueue = mFlinger.getTransactionQueue();
     ASSERT_EQ(1u, transactionQueue.size());
 
-    auto& [applyToken, transactionStates] = *(transactionQueue.begin());
-    ASSERT_EQ(1u, transactionStates.size());
-
-    auto& transactionState = transactionStates.front();
+    auto& transactionState = transactionQueue.front();
     checkEqual(transactionA, transactionState);
 
     // because flushing uses the cached expected present time, we send an empty
