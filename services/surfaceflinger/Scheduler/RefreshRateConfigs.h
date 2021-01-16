@@ -24,6 +24,7 @@
 #include <optional>
 #include <type_traits>
 
+#include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "Fps.h"
 #include "HwcStrongTypes.h"
@@ -64,8 +65,7 @@ public:
         };
 
     public:
-        RefreshRate(HwcConfigIndexType configId,
-                    std::shared_ptr<const HWC2::Display::Config> config, Fps fps, ConstructorTag)
+        RefreshRate(HwcConfigIndexType configId, DisplayModePtr config, Fps fps, ConstructorTag)
               : configId(configId), hwcConfig(config), fps(std::move(fps)) {}
 
         HwcConfigIndexType getConfigId() const { return configId; }
@@ -101,7 +101,7 @@ public:
         // on the device.
         const HwcConfigIndexType configId;
         // The config itself
-        std::shared_ptr<const HWC2::Display::Config> hwcConfig;
+        DisplayModePtr hwcConfig;
         // Refresh rate in frames per second
         const Fps fps{0.0f};
     };
@@ -296,12 +296,10 @@ public:
     // Returns a known frame rate that is the closest to frameRate
     Fps findClosestKnownFrameRate(Fps frameRate) const;
 
-    RefreshRateConfigs(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
-                       HwcConfigIndexType currentConfigId);
+    RefreshRateConfigs(const DisplayModes& configs, HwcConfigIndexType currentConfigId);
 
-    void updateDisplayConfigs(
-            const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
-            HwcConfigIndexType currentConfig) EXCLUDES(mLock);
+    void updateDisplayConfigs(const DisplayModes& configs, HwcConfigIndexType currentConfig)
+            EXCLUDES(mLock);
 
     // Returns whether switching configs (refresh rate or resolution) is possible.
     // TODO(b/158780872): Consider HAL support, and skip frame rate detection if the configs only

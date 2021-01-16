@@ -110,12 +110,11 @@ protected:
                 << "Frame rate is " << frameRate;
     }
 
-    Hwc2::mock::Display mDisplay;
-    RefreshRateConfigs mConfigs{{HWC2::Display::Config::Builder(mDisplay, 0)
+    RefreshRateConfigs mConfigs{{DisplayMode::Builder(0)
                                          .setVsyncPeriod(int32_t(LO_FPS_PERIOD))
                                          .setConfigGroup(0)
                                          .build(),
-                                 HWC2::Display::Config::Builder(mDisplay, 1)
+                                 DisplayMode::Builder(1)
                                          .setVsyncPeriod(int32_t(HI_FPS_PERIOD))
                                          .setConfigGroup(0)
                                          .build()},

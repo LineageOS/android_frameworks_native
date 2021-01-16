@@ -68,33 +68,6 @@ inline bool hasMetadataKey(const std::set<Hwc2::PerFrameMetadataKey>& keys,
 // Display methods
 Display::~Display() = default;
 
-Display::Config::Config(Display& display, HWConfigId id)
-      : mDisplay(display),
-        mId(id),
-        mWidth(-1),
-        mHeight(-1),
-        mVsyncPeriod(-1),
-        mDpiX(-1),
-        mDpiY(-1) {}
-
-Display::Config::Builder::Builder(Display& display, HWConfigId id)
-      : mConfig(new Config(display, id)) {}
-
-float Display::Config::Builder::getDefaultDensity() {
-    // Default density is based on TVs: 1080p displays get XHIGH density, lower-
-    // resolution displays get TV density. Maybe eventually we'll need to update
-    // it for 4k displays, though hopefully those will just report accurate DPI
-    // information to begin with. This is also used for virtual displays and
-    // older HWC implementations, so be careful about orientation.
-
-    auto longDimension = std::max(mConfig->mWidth, mConfig->mHeight);
-    if (longDimension >= 1080) {
-        return ACONFIGURATION_DENSITY_XHIGH;
-    } else {
-        return ACONFIGURATION_DENSITY_TV;
-    }
-}
-
 namespace impl {
 
 Display::Display(android::Hwc2::Composer& composer,
@@ -162,91 +135,10 @@ Error Display::destroyLayer(HWC2::Layer* layer) {
     return Error::NONE;
 }
 
-Error Display::getActiveConfig(
-        std::shared_ptr<const Display::Config>* outConfig) const
-{
-    ALOGV("[%" PRIu64 "] getActiveConfig", mId);
-    HWConfigId configId = 0;
-    auto intError = mComposer.getActiveConfig(mId, &configId);
-    auto error = static_cast<Error>(intError);
-
-    if (error != Error::NONE) {
-        ALOGE("Unable to get active config for mId:[%" PRIu64 "]", mId);
-        *outConfig = nullptr;
-        return error;
-    }
-
-    if (mConfigs.count(configId) != 0) {
-        *outConfig = mConfigs.at(configId);
-    } else {
-        ALOGE("[%" PRIu64 "] getActiveConfig returned unknown config %u", mId,
-                configId);
-        // Return no error, but the caller needs to check for a null pointer to
-        // detect this case
-        *outConfig = nullptr;
-    }
-
-    return Error::NONE;
-}
-
 bool Display::isVsyncPeriodSwitchSupported() const {
     ALOGV("[%" PRIu64 "] isVsyncPeriodSwitchSupported()", mId);
 
     return mComposer.isVsyncPeriodSwitchSupported();
-}
-
-Error Display::getDisplayVsyncPeriod(nsecs_t* outVsyncPeriod) const {
-    ALOGV("[%" PRIu64 "] getDisplayVsyncPeriod", mId);
-
-    Error error;
-
-    if (isVsyncPeriodSwitchSupported()) {
-        Hwc2::VsyncPeriodNanos vsyncPeriodNanos = 0;
-        auto intError = mComposer.getDisplayVsyncPeriod(mId, &vsyncPeriodNanos);
-        error = static_cast<Error>(intError);
-        *outVsyncPeriod = static_cast<nsecs_t>(vsyncPeriodNanos);
-    } else {
-        // Get the default vsync period
-        std::shared_ptr<const Display::Config> config;
-        error = getActiveConfig(&config);
-        if (error != Error::NONE) {
-            return error;
-        }
-        if (!config) {
-            // HWC has updated the display modes and hasn't notified us yet.
-            return Error::BAD_CONFIG;
-        }
-
-        *outVsyncPeriod = config->getVsyncPeriod();
-    }
-
-    return error;
-}
-
-Error Display::getActiveConfigIndex(int* outIndex) const {
-    ALOGV("[%" PRIu64 "] getActiveConfigIndex", mId);
-    HWConfigId configId = 0;
-    auto intError = mComposer.getActiveConfig(mId, &configId);
-    auto error = static_cast<Error>(intError);
-
-    if (error != Error::NONE) {
-        ALOGE("Unable to get active config for mId:[%" PRIu64 "]", mId);
-        *outIndex = -1;
-        return error;
-    }
-
-    auto pos = mConfigs.find(configId);
-    if (pos != mConfigs.end()) {
-        *outIndex = std::distance(mConfigs.begin(), pos);
-        ALOGV("[%" PRIu64 "] index = %d", mId, *outIndex);
-    } else {
-        ALOGE("[%" PRIu64 "] getActiveConfig returned unknown config %u", mId, configId);
-        // Return no error, but the caller needs to check for a negative index
-        // to detect this case
-        *outIndex = -1;
-    }
-
-    return Error::NONE;
 }
 
 Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Composition>* outTypes) {
@@ -333,15 +225,6 @@ Error Display::getDataspaceSaturationMatrix(Dataspace dataspace, android::mat4* 
 {
     auto intError = mComposer.getDataspaceSaturationMatrix(dataspace, outMatrix);
     return static_cast<Error>(intError);
-}
-
-std::vector<std::shared_ptr<const Display::Config>> Display::getConfigs() const
-{
-    std::vector<std::shared_ptr<const Config>> configs;
-    for (const auto& element : mConfigs) {
-        configs.emplace_back(element.second);
-    }
-    return configs;
 }
 
 Error Display::getName(std::string* outName) const
@@ -486,16 +369,10 @@ Error Display::present(sp<Fence>* outPresentFence)
     return Error::NONE;
 }
 
-Error Display::setActiveConfigWithConstraints(
-        const std::shared_ptr<const HWC2::Display::Config>& config,
-        const VsyncPeriodChangeConstraints& constraints, VsyncPeriodChangeTimeline* outTimeline) {
+Error Display::setActiveConfigWithConstraints(hal::HWConfigId configId,
+                                              const VsyncPeriodChangeConstraints& constraints,
+                                              VsyncPeriodChangeTimeline* outTimeline) {
     ALOGV("[%" PRIu64 "] setActiveConfigWithConstraints", mId);
-    if (config->getDisplayId() != mId) {
-        ALOGE("setActiveConfigWithConstraints received config %u for the wrong display %" PRIu64
-              " (expected %" PRIu64 ")",
-              config->getId(), config->getDisplayId(), mId);
-        return Error::BAD_CONFIG;
-    }
 
     if (isVsyncPeriodSwitchSupported()) {
         Hwc2::IComposerClient::VsyncPeriodChangeConstraints hwc2Constraints;
@@ -503,9 +380,8 @@ Error Display::setActiveConfigWithConstraints(
         hwc2Constraints.seamlessRequired = constraints.seamlessRequired;
 
         Hwc2::VsyncPeriodChangeTimeline vsyncPeriodChangeTimeline = {};
-        auto intError =
-                mComposer.setActiveConfigWithConstraints(mId, config->getId(), hwc2Constraints,
-                                                         &vsyncPeriodChangeTimeline);
+        auto intError = mComposer.setActiveConfigWithConstraints(mId, configId, hwc2Constraints,
+                                                                 &vsyncPeriodChangeTimeline);
         outTimeline->newVsyncAppliedTimeNanos = vsyncPeriodChangeTimeline.newVsyncAppliedTimeNanos;
         outTimeline->refreshRequired = vsyncPeriodChangeTimeline.refreshRequired;
         outTimeline->refreshTimeNanos = vsyncPeriodChangeTimeline.refreshTimeNanos;
@@ -519,23 +395,11 @@ Error Display::setActiveConfigWithConstraints(
         ALOGE("setActiveConfigWithConstraints received constraints that can't be satisfied");
     }
 
-    auto intError_2_4 = mComposer.setActiveConfig(mId, config->getId());
+    auto intError_2_4 = mComposer.setActiveConfig(mId, configId);
     outTimeline->newVsyncAppliedTimeNanos = std::max(now, constraints.desiredTimeNanos);
     outTimeline->refreshRequired = true;
     outTimeline->refreshTimeNanos = now;
     return static_cast<Error>(intError_2_4);
-}
-
-Error Display::setActiveConfig(const std::shared_ptr<const Config>& config)
-{
-    if (config->getDisplayId() != mId) {
-        ALOGE("setActiveConfig received config %u for the wrong display %"
-                PRIu64 " (expected %" PRIu64 ")", config->getId(),
-                config->getDisplayId(), mId);
-        return Error::BAD_CONFIG;
-    }
-    auto intError = mComposer.setActiveConfig(mId, config->getId());
-    return static_cast<Error>(intError);
 }
 
 Error Display::setClientTarget(uint32_t slot, const sp<GraphicBuffer>& target,
@@ -681,56 +545,8 @@ Error Display::getClientTargetProperty(ClientTargetProperty* outClientTargetProp
 void Display::setConnected(bool connected) {
     if (!mIsConnected && connected) {
         mComposer.setClientTargetSlotCount(mId);
-        if (mType == DisplayType::PHYSICAL) {
-            loadConfigs();
-        }
     }
     mIsConnected = connected;
-}
-
-int32_t Display::getAttribute(HWConfigId configId, Attribute attribute) {
-    int32_t value = 0;
-    auto intError = mComposer.getDisplayAttribute(mId, configId, attribute, &value);
-    auto error = static_cast<Error>(intError);
-    if (error != Error::NONE) {
-        ALOGE("getDisplayAttribute(%" PRIu64 ", %u, %s) failed: %s (%d)", mId,
-                configId, to_string(attribute).c_str(),
-                to_string(error).c_str(), intError);
-        return -1;
-    }
-    return value;
-}
-
-void Display::loadConfig(HWConfigId configId) {
-    ALOGV("[%" PRIu64 "] loadConfig(%u)", mId, configId);
-
-    auto config = Config::Builder(*this, configId)
-                          .setWidth(getAttribute(configId, hal::Attribute::WIDTH))
-                          .setHeight(getAttribute(configId, hal::Attribute::HEIGHT))
-                          .setVsyncPeriod(getAttribute(configId, hal::Attribute::VSYNC_PERIOD))
-                          .setDpiX(getAttribute(configId, hal::Attribute::DPI_X))
-                          .setDpiY(getAttribute(configId, hal::Attribute::DPI_Y))
-                          .setConfigGroup(getAttribute(configId, hal::Attribute::CONFIG_GROUP))
-                          .build();
-    mConfigs.emplace(configId, std::move(config));
-}
-
-void Display::loadConfigs()
-{
-    ALOGV("[%" PRIu64 "] loadConfigs", mId);
-
-    std::vector<HWConfigId> configIds;
-    auto intError = mComposer.getDisplayConfigs(mId, &configIds);
-    auto error = static_cast<Error>(intError);
-    if (error != Error::NONE) {
-        ALOGE("[%" PRIu64 "] getDisplayConfigs [2] failed: %s (%d)", mId,
-                to_string(error).c_str(), intError);
-        return;
-    }
-
-    for (auto configId : configIds) {
-        loadConfig(configId);
-    }
 }
 
 // Other Display methods
