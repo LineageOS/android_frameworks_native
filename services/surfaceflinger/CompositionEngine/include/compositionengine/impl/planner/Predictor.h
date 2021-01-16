@@ -210,8 +210,8 @@ public:
     std::optional<PredictedPlan> getPredictedPlan(const std::vector<const LayerState*>&,
                                                   NonBufferHash) const;
 
-    void recordResult(std::optional<PredictedPlan> predictedPlan,
-                      const std::vector<const LayerState*>&, Plan result);
+    void recordResult(std::optional<PredictedPlan> predictedPlan, NonBufferHash flattenedHash,
+                      const std::vector<const LayerState*>&, bool hasSkippedLayers, Plan result);
 
     void dump(std::string&) const;
 

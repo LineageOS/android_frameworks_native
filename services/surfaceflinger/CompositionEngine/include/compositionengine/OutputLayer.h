@@ -30,6 +30,8 @@
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/DisplayIdentification.h"
 
+#include "LayerFE.h"
+
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
@@ -43,7 +45,6 @@ namespace compositionengine {
 
 class CompositionEngine;
 class Output;
-class LayerFE;
 
 namespace impl {
 struct OutputLayerCompositionState;
@@ -88,8 +89,9 @@ public:
 
     // Writes the geometry state to the HWC, or does nothing if this layer does
     // not use the HWC. If includeGeometry is false, the geometry state can be
-    // skipped.
-    virtual void writeStateToHWC(bool includeGeometry) = 0;
+    // skipped. If skipLayer is true, then the alpha of the layer is forced to
+    // 0 so that HWC will ignore it.
+    virtual void writeStateToHWC(bool includeGeometry, bool skipLayer) = 0;
 
     // Updates the cursor position with the HWC
     virtual void writeCursorPositionToHWC() const = 0;
@@ -114,6 +116,10 @@ public:
 
     // Returns true if the composition settings scale pixels
     virtual bool needsFiltering() const = 0;
+
+    // Returns a composition list to be used by RenderEngine if the layer has been overridden
+    // during the composition process
+    virtual std::vector<LayerFE::LayerSettings> getOverrideCompositionList() const = 0;
 
     // Debugging
     virtual void dump(std::string& result) const = 0;

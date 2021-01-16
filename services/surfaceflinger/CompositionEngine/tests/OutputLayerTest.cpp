@@ -840,19 +840,19 @@ const std::vector<uint8_t> OutputLayerWriteStateToHWCTest::kLayerGenericMetadata
 TEST_F(OutputLayerWriteStateToHWCTest, doesNothingIfNoFECompositionState) {
     EXPECT_CALL(*mLayerFE, getCompositionState()).WillOnce(Return(nullptr));
 
-    mOutputLayer.writeStateToHWC(true);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, doesNothingIfNoHWCState) {
     mOutputLayer.editState().hwc.reset();
 
-    mOutputLayer.writeStateToHWC(true);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, doesNothingIfNoHWCLayer) {
     mOutputLayer.editState().hwc = impl::OutputLayerCompositionState::Hwc(nullptr);
 
-    mOutputLayer.writeStateToHWC(true);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, canSetAllState) {
@@ -861,7 +861,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetAllState) {
 
     expectNoSetCompositionTypeCall();
 
-    mOutputLayer.writeStateToHWC(true);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerTest, displayInstallOrientationBufferTransformSetTo90) {
@@ -891,7 +891,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForSolidColor) {
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::SOLID_COLOR);
     expectSetColorCall();
 
-    mOutputLayer.writeStateToHWC(false);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForSideband) {
@@ -901,7 +901,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForSideband) {
     expectSetSidebandHandleCall();
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::SIDEBAND);
 
-    mOutputLayer.writeStateToHWC(false);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForCursor) {
@@ -911,7 +911,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForCursor) {
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::CURSOR);
 
-    mOutputLayer.writeStateToHWC(false);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForDevice) {
@@ -921,7 +921,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForDevice) {
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
 
-    mOutputLayer.writeStateToHWC(false);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsNotSetIfUnchanged) {
@@ -934,7 +934,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsNotSetIfUnchanged) {
     expectSetColorCall();
     expectNoSetCompositionTypeCall();
 
-    mOutputLayer.writeStateToHWC(false);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsSetToClientIfColorTransformNotSupported) {
@@ -944,7 +944,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsSetToClientIfColorTransf
     expectSetColorCall();
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::CLIENT);
 
-    mOutputLayer.writeStateToHWC(false);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsSetToClientIfClientCompositionForced) {
@@ -956,7 +956,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsSetToClientIfClientCompo
     expectSetColorCall();
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::CLIENT);
 
-    mOutputLayer.writeStateToHWC(false);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, allStateIncludesMetadataIfPresent) {
@@ -969,7 +969,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, allStateIncludesMetadataIfPresent) {
     expectGenericLayerMetadataCalls();
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
 
-    mOutputLayer.writeStateToHWC(true);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false);
 }
 
 TEST_F(OutputLayerWriteStateToHWCTest, perFrameStateDoesNotIncludeMetadataIfPresent) {
@@ -980,7 +980,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, perFrameStateDoesNotIncludeMetadataIfPres
     expectSetHdrMetadataAndBufferCalls();
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
 
-    mOutputLayer.writeStateToHWC(false);
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false);
 }
 
 /*

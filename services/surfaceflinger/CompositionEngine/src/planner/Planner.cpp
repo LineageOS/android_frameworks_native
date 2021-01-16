@@ -19,9 +19,15 @@
 #undef LOG_TAG
 #define LOG_TAG "Planner"
 
+#include <compositionengine/LayerFECompositionState.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/impl/planner/Planner.h>
 
 namespace android::compositionengine::impl::planner {
+
+void Planner::setDisplaySize(ui::Size size) {
+    mFlattener.setDisplaySize(size);
+}
 
 void Planner::plan(
         compositionengine::Output::OutputLayersEnumerator<compositionengine::Output>&& layers) {
@@ -39,7 +45,9 @@ void Planner::plan(
             // Track changes from previous info
             LayerState& state = layerEntry->second;
             Flags<LayerStateField> differences = state.update(layer);
-            if (differences.get() != 0) {
+            if (differences.get() == 0) {
+                state.incrementFramesSinceBufferUpdate();
+            } else {
                 ALOGV("Layer %s changed: %s", state.getName().c_str(),
                       differences.string().c_str());
 
@@ -74,10 +82,21 @@ void Planner::plan(
     mCurrentLayers.clear();
     mCurrentLayers.reserve(currentLayerIds.size());
     std::transform(currentLayerIds.cbegin(), currentLayerIds.cend(),
-                   std::back_inserter(mCurrentLayers),
-                   [this](LayerId id) { return &mPreviousLayers.at(id); });
+                   std::back_inserter(mCurrentLayers), [this](LayerId id) {
+                       LayerState* state = &mPreviousLayers.at(id);
+                       state->getOutputLayer()->editState().overrideInfo = {};
+                       return state;
+                   });
 
-    mPredictedPlan = mPredictor.getPredictedPlan(mCurrentLayers, getNonBufferHash(mCurrentLayers));
+    const NonBufferHash hash = getNonBufferHash(mCurrentLayers);
+    mFlattenedHash = mFlattener.flattenLayers(mCurrentLayers, hash);
+    const bool layersWereFlattened = hash != mFlattenedHash;
+    ALOGV("[%s] Initial hash %zx flattened hash %zx", __func__, hash, mFlattenedHash);
+
+    mPredictedPlan =
+            mPredictor.getPredictedPlan(layersWereFlattened ? std::vector<const LayerState*>()
+                                                            : mCurrentLayers,
+                                        mFlattenedHash);
     if (mPredictedPlan) {
         ALOGV("[%s] Predicting plan %s", __func__, to_string(mPredictedPlan->plan).c_str());
     } else {
@@ -88,7 +107,18 @@ void Planner::plan(
 void Planner::reportFinalPlan(
         compositionengine::Output::OutputLayersEnumerator<compositionengine::Output>&& layers) {
     Plan finalPlan;
+    const GraphicBuffer* currentOverrideBuffer = nullptr;
+    bool hasSkippedLayers = false;
     for (auto layer : layers) {
+        const GraphicBuffer* overrideBuffer = layer->getState().overrideInfo.buffer.get();
+        if (overrideBuffer != nullptr && overrideBuffer == currentOverrideBuffer) {
+            // Skip this layer since it is part of a previous cached set
+            hasSkippedLayers = true;
+            continue;
+        }
+
+        currentOverrideBuffer = overrideBuffer;
+
         const bool forcedOrRequestedClient =
                 layer->getState().forceClientComposition || layer->requiresClientComposition();
 
@@ -98,7 +128,12 @@ void Planner::reportFinalPlan(
                         : layer->getLayerFE().getCompositionState()->compositionType);
     }
 
-    mPredictor.recordResult(mPredictedPlan, mCurrentLayers, finalPlan);
+    mPredictor.recordResult(mPredictedPlan, mFlattenedHash, mCurrentLayers, hasSkippedLayers,
+                            finalPlan);
+}
+
+void Planner::renderCachedSets(renderengine::RenderEngine& renderEngine) {
+    mFlattener.renderCachedSets(renderEngine);
 }
 
 void Planner::dump(const Vector<String16>& args, std::string& result) {
@@ -194,6 +229,10 @@ void Planner::dump(const Vector<String16>& args, std::string& result) {
     }
 
     // If there are no specific commands, dump the usual state
+
+    mFlattener.dump(result);
+    result.append("\n");
+
     mPredictor.dump(result);
 }
 
