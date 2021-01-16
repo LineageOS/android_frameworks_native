@@ -891,6 +891,9 @@ TEST_F(OutputPrepareFrameTest, delegatesToChooseCompositionStrategyAndRenderSurf
     mOutput.editState().usesDeviceComposition = true;
 
     EXPECT_CALL(mOutput, chooseCompositionStrategy()).Times(1);
+    if (mOutput.plannerEnabled()) {
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    }
     EXPECT_CALL(*mRenderSurface, prepareFrame(false, true));
 
     mOutput.prepareFrame();
