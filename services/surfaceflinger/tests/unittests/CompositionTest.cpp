@@ -577,8 +577,6 @@ struct BaseLayerProperties {
                     .Times(1);
             // TODO: Coverage of other values
             EXPECT_CALL(*test->mComposer, setLayerZOrder(HWC_DISPLAY, HWC_LAYER, 0u)).Times(1);
-            // TODO: Coverage of other values
-            EXPECT_CALL(*test->mComposer, setLayerInfo(HWC_DISPLAY, HWC_LAYER, 0u, 0u)).Times(1);
 
             // These expectations retire on saturation as the code path these
             // expectations are for appears to make an extra call to them.
