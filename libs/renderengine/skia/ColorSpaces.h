@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,25 @@
  * limitations under the License.
  */
 
-#include "mock/DisplayHardware/MockDisplay.h"
+#pragma once
 
-namespace android::Hwc2::mock {
+#include "SkColorSpace.h"
+#include "ui/GraphicTypes.h"
 
-// Explicit default instantiation is recommended.
-Display::Display() = default;
-Display::~Display() = default;
+namespace android {
+namespace renderengine {
+namespace skia {
 
-} // namespace android::Hwc2::mock
+// Converts an android dataspace to a supported SkColorSpace
+// Supported dataspaces are
+// 1. sRGB
+// 2. Display P3
+// 3. BT2020 PQ
+// 4. BT2020 HLG
+// Unknown primaries are mapped to BT709, and unknown transfer functions
+// are mapped to sRGB.
+sk_sp<SkColorSpace> toSkColorSpace(ui::Dataspace dataspace);
+
+} // namespace skia
+} // namespace renderengine
+} // namespace android

@@ -14,17 +14,21 @@
 
 cc_test {
     name: "librenderengine_test",
-    defaults: ["surfaceflinger_defaults"],
+    defaults: ["skia_deps", "surfaceflinger_defaults"],
     test_suites: ["device-tests"],
     srcs: [
         "RenderEngineTest.cpp",
         "RenderEngineThreadedTest.cpp",
+    ],
+    include_dirs: [
+        "external/skia/src/gpu",
     ],
     static_libs: [
         "libgmock",
         "librenderengine",
         "librenderengine_mocks",
     ],
+
     shared_libs: [
         "libbase",
         "libcutils",

@@ -40,8 +40,7 @@ std::string formatLayerInfo(const RefreshRateConfigs::LayerRequirement& layer, f
                               to_string(layer.desiredRefreshRate).c_str());
 }
 
-std::vector<Fps> constructKnownFrameRates(
-        const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
+std::vector<Fps> constructKnownFrameRates(const DisplayModes& configs) {
     std::vector<Fps> knownFrameRates = {Fps(24.0f), Fps(30.0f), Fps(45.0f), Fps(60.0f), Fps(72.0f)};
     knownFrameRates.reserve(knownFrameRates.size() + configs.size());
 
@@ -65,8 +64,8 @@ using AllRefreshRatesMapType = RefreshRateConfigs::AllRefreshRatesMapType;
 using RefreshRate = RefreshRateConfigs::RefreshRate;
 
 std::string RefreshRate::toString() const {
-    return base::StringPrintf("{id=%d, hwcId=%d, fps=%.2f, width=%d, height=%d group=%d}",
-                              getConfigId().value(), hwcConfig->getId(), getFps().getValue(),
+    return base::StringPrintf("{id=%zu, hwcId=%d, fps=%.2f, width=%d, height=%d group=%d}",
+                              getConfigId().value(), hwcConfig->getHwcId(), getFps().getValue(),
                               hwcConfig->getWidth(), hwcConfig->getHeight(), getConfigGroup());
 }
 
@@ -88,7 +87,7 @@ std::string RefreshRateConfigs::layerVoteTypeString(LayerVoteType vote) {
 }
 
 std::string RefreshRateConfigs::Policy::toString() const {
-    return base::StringPrintf("default config ID: %d, allowGroupSwitching = %d"
+    return base::StringPrintf("default config ID: %zu, allowGroupSwitching = %d"
                               ", primary range: %s, app request range: %s",
                               defaultConfig.value(), allowGroupSwitching,
                               primaryRange.toString().c_str(), appRequestRange.toString().c_str());
@@ -560,19 +559,16 @@ void RefreshRateConfigs::setCurrentConfigId(HwcConfigIndexType configId) {
     mCurrentRefreshRate = mRefreshRates.at(configId).get();
 }
 
-RefreshRateConfigs::RefreshRateConfigs(
-        const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
-        HwcConfigIndexType currentConfigId)
+RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& configs,
+                                       HwcConfigIndexType currentConfigId)
       : mKnownFrameRates(constructKnownFrameRates(configs)) {
     updateDisplayConfigs(configs, currentConfigId);
 }
 
-void RefreshRateConfigs::updateDisplayConfigs(
-        const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
-        HwcConfigIndexType currentConfigId) {
+void RefreshRateConfigs::updateDisplayConfigs(const DisplayModes& configs,
+                                              HwcConfigIndexType currentConfigId) {
     std::lock_guard lock(mLock);
     LOG_ALWAYS_FATAL_IF(configs.empty());
-    LOG_ALWAYS_FATAL_IF(currentConfigId.value() < 0);
     LOG_ALWAYS_FATAL_IF(currentConfigId.value() >= configs.size());
 
     mRefreshRates.clear();
@@ -684,7 +680,7 @@ void RefreshRateConfigs::getSortedRefreshRateListLocked(
     outRefreshRates->reserve(mRefreshRates.size());
     for (const auto& [type, refreshRate] : mRefreshRates) {
         if (shouldAddRefreshRate(*refreshRate)) {
-            ALOGV("getSortedRefreshRateListLocked: config %d added to list policy",
+            ALOGV("getSortedRefreshRateListLocked: config %zu added to list policy",
                   refreshRate->configId.value());
             outRefreshRates->push_back(refreshRate.get());
         }

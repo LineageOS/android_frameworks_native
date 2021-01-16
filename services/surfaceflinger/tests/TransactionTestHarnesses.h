@@ -68,9 +68,6 @@ public:
                                        Rect(displayState.layerStackSpaceRect), Rect(resolution));
                 t.apply();
                 SurfaceComposerClient::Transaction().apply(true);
-                // wait for 3 vsyncs to ensure the buffer is latched.
-                usleep(static_cast<int32_t>(1e6 / displayConfig.refreshRate) * 3);
-
                 BufferItem item;
                 itemConsumer->acquireBuffer(&item, 0, true);
                 auto sc = std::make_unique<ScreenCapture>(item.mGraphicBuffer);

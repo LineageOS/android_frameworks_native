@@ -190,10 +190,10 @@ public:
                 .WillRepeatedly(DoAll(SetArgPointee<3>(1), Return(V2_1::Error::NONE)));
     }
 
-    void testSetActiveConfigWithConstraintsCommon(bool isVsyncPeriodSwitchSupported);
+    void testSetActiveModeWithConstraintsCommon(bool isVsyncPeriodSwitchSupported);
 };
 
-void HWComposerConfigsTest::testSetActiveConfigWithConstraintsCommon(
+void HWComposerConfigsTest::testSetActiveModeWithConstraintsCommon(
         bool isVsyncPeriodSwitchSupported) {
     EXPECT_CALL(*mHal, getMaxVirtualDisplayCount()).WillOnce(Return(0));
     EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<hal::Capability>{}));
@@ -229,9 +229,9 @@ void HWComposerConfigsTest::testSetActiveConfigWithConstraintsCommon(
     constraints.seamlessRequired = false;
 
     hal::VsyncPeriodChangeTimeline timeline = {0, 0, 0};
-    constexpr size_t kConfigIndex = 0;
+    constexpr HwcConfigIndexType kConfigIndex(0);
     const auto status =
-            hwc.setActiveConfigWithConstraints(physicalId, kConfigIndex, constraints, &timeline);
+            hwc.setActiveModeWithConstraints(physicalId, kConfigIndex, constraints, &timeline);
     EXPECT_EQ(NO_ERROR, status);
 
     const std::vector<Config> kConfigs{7, 8, 9, 10, 11};
@@ -243,17 +243,18 @@ void HWComposerConfigsTest::testSetActiveConfigWithConstraintsCommon(
 
     for (size_t configIndex = 0; configIndex < kConfigs.size(); configIndex++) {
         const auto status =
-                hwc.setActiveConfigWithConstraints(physicalId, configIndex, constraints, &timeline);
+                hwc.setActiveModeWithConstraints(physicalId, HwcConfigIndexType(configIndex),
+                                                 constraints, &timeline);
         EXPECT_EQ(NO_ERROR, status) << "Error when switching to config " << configIndex;
     }
 }
 
-TEST_F(HWComposerConfigsTest, setActiveConfigWithConstraintsWithVsyncSwitchingSupported) {
-    testSetActiveConfigWithConstraintsCommon(/*supported=*/true);
+TEST_F(HWComposerConfigsTest, setActiveModeWithConstraintsWithVsyncSwitchingSupported) {
+    testSetActiveModeWithConstraintsCommon(/*supported=*/true);
 }
 
-TEST_F(HWComposerConfigsTest, setActiveConfigWithConstraintsWithVsyncSwitchingNotSupported) {
-    testSetActiveConfigWithConstraintsCommon(/*supported=*/false);
+TEST_F(HWComposerConfigsTest, setActiveModeWithConstraintsWithVsyncSwitchingNotSupported) {
+    testSetActiveModeWithConstraintsCommon(/*supported=*/false);
 }
 
 } // namespace

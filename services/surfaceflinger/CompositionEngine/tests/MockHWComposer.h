@@ -87,20 +87,17 @@ public:
     MOCK_METHOD2(setVsyncEnabled, void(PhysicalDisplayId, hal::Vsync));
     MOCK_CONST_METHOD1(getRefreshTimestamp, nsecs_t(PhysicalDisplayId));
     MOCK_CONST_METHOD1(isConnected, bool(PhysicalDisplayId));
-    MOCK_CONST_METHOD1(
-            getConfigs,
-            std::vector<std::shared_ptr<const HWC2::Display::Config>>(PhysicalDisplayId));
-    MOCK_CONST_METHOD1(getActiveConfig,
-                       std::shared_ptr<const HWC2::Display::Config>(PhysicalDisplayId));
-    MOCK_CONST_METHOD1(getActiveConfigIndex, int(PhysicalDisplayId));
+    MOCK_CONST_METHOD1(getModes, DisplayModes(PhysicalDisplayId));
+    MOCK_CONST_METHOD1(getActiveMode, DisplayModePtr(PhysicalDisplayId));
     MOCK_CONST_METHOD1(getColorModes, std::vector<ui::ColorMode>(PhysicalDisplayId));
     MOCK_METHOD3(setActiveColorMode, status_t(PhysicalDisplayId, ui::ColorMode, ui::RenderIntent));
     MOCK_CONST_METHOD0(isUsingVrComposer, bool());
     MOCK_CONST_METHOD1(getDisplayConnectionType, DisplayConnectionType(PhysicalDisplayId));
     MOCK_CONST_METHOD1(isVsyncPeriodSwitchSupported, bool(PhysicalDisplayId));
     MOCK_CONST_METHOD1(getDisplayVsyncPeriod, nsecs_t(PhysicalDisplayId));
-    MOCK_METHOD4(setActiveConfigWithConstraints,
-                 status_t(PhysicalDisplayId, size_t, const hal::VsyncPeriodChangeConstraints&,
+    MOCK_METHOD4(setActiveModeWithConstraints,
+                 status_t(PhysicalDisplayId, HwcConfigIndexType,
+                          const hal::VsyncPeriodChangeConstraints&,
                           hal::VsyncPeriodChangeTimeline*));
     MOCK_METHOD2(setAutoLowLatencyMode, status_t(PhysicalDisplayId, bool));
     MOCK_METHOD2(getSupportedContentTypes,
