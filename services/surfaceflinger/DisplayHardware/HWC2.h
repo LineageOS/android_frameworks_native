@@ -380,7 +380,6 @@ public:
     [[clang::warn_unused_result]] virtual hal::Error setVisibleRegion(
             const android::Region& region) = 0;
     [[clang::warn_unused_result]] virtual hal::Error setZOrder(uint32_t z) = 0;
-    [[clang::warn_unused_result]] virtual hal::Error setInfo(uint32_t type, uint32_t appId) = 0;
 
     // Composer HAL 2.3
     [[clang::warn_unused_result]] virtual hal::Error setColorTransform(
@@ -422,7 +421,6 @@ public:
     hal::Error setTransform(hal::Transform transform) override;
     hal::Error setVisibleRegion(const android::Region& region) override;
     hal::Error setZOrder(uint32_t z) override;
-    hal::Error setInfo(uint32_t type, uint32_t appId) override;
 
     // Composer HAL 2.3
     hal::Error setColorTransform(const android::mat4& matrix) override;

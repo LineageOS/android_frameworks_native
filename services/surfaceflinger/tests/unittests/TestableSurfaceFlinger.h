@@ -289,8 +289,6 @@ public:
         return mFlinger->destroyDisplay(displayToken);
     }
 
-    auto resetDisplayState() NO_THREAD_SAFETY_ANALYSIS { return mFlinger->resetDisplayState(); }
-
     auto setupNewDisplayDeviceInternal(
             const wp<IBinder>& displayToken,
             std::shared_ptr<compositionengine::Display> compositionDisplay,

@@ -402,13 +402,6 @@ void OutputLayer::writeOutputIndependentGeometryStateToHWC(
               outputIndependentState.alpha, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
-    if (auto error = hwcLayer->setInfo(static_cast<uint32_t>(outputIndependentState.type),
-                                       static_cast<uint32_t>(outputIndependentState.appId));
-        error != hal::Error::NONE) {
-        ALOGE("[%s] Failed to set info %s (%d)", getLayerFE().getDebugName(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
     for (const auto& [name, entry] : outputIndependentState.metadata) {
         if (auto error = hwcLayer->setLayerGenericMetadata(name, entry.mandatory, entry.value);
             error != hal::Error::NONE) {
