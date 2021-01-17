@@ -454,11 +454,18 @@ sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader, const LinearEff
 
     effectBuilder.child("input") = shader;
 
-    ColorSpace inputColorSpace = toColorSpace(linearEffect.inputDataspace);
-    ColorSpace outputColorSpace = toColorSpace(linearEffect.outputDataspace);
+    if (linearEffect.inputDataspace == linearEffect.outputDataspace) {
+        effectBuilder.uniform("in_rgbToXyz") = mat4();
+        effectBuilder.uniform("in_xyzToRgb") = colorTransform;
+    } else {
+        ColorSpace inputColorSpace = toColorSpace(linearEffect.inputDataspace);
+        ColorSpace outputColorSpace = toColorSpace(linearEffect.outputDataspace);
 
-    effectBuilder.uniform("in_rgbToXyz") = mat4(inputColorSpace.getRGBtoXYZ());
-    effectBuilder.uniform("in_xyzToRgb") = colorTransform * mat4(outputColorSpace.getXYZtoRGB());
+        effectBuilder.uniform("in_rgbToXyz") = mat4(inputColorSpace.getRGBtoXYZ());
+        effectBuilder.uniform("in_xyzToRgb") =
+                colorTransform * mat4(outputColorSpace.getXYZtoRGB());
+    }
+
     effectBuilder.uniform("in_displayMaxLuminance") = maxDisplayLuminance;
     effectBuilder.uniform("in_inputMaxLuminance") =
             std::min(maxMasteringLuminance, maxContentLuminance);
