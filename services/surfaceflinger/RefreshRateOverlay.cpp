@@ -233,8 +233,8 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
 
-void RefreshRateOverlay::changeRefreshRate(const RefreshRate& refreshRate) {
-    mCurrentFps = refreshRate.getFps().getIntValue();
+void RefreshRateOverlay::changeRefreshRate(const Fps& fps) {
+    mCurrentFps = fps.getIntValue();
     auto buffer = getOrCreateBuffers(*mCurrentFps)[mFrame];
     mLayer->setBuffer(buffer, Fence::NO_FENCE, 0, 0, true, {},
                       mLayer->getHeadFrameNumber(-1 /* expectedPresentTime */),
@@ -258,8 +258,9 @@ void RefreshRateOverlay::onInvalidate() {
 
 void RefreshRateOverlay::reset() {
     mBufferCache.clear();
-    mLowFps = mFlinger.mRefreshRateConfigs->getMinRefreshRate().getFps().getIntValue();
-    mHighFps = mFlinger.mRefreshRateConfigs->getMaxRefreshRate().getFps().getIntValue();
+    const auto range = mFlinger.mRefreshRateConfigs->getSupportedRefreshRateRange();
+    mLowFps = range.min.getIntValue();
+    mHighFps = range.max.getIntValue();
 }
 
 } // namespace android

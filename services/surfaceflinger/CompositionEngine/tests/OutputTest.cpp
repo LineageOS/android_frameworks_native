@@ -338,15 +338,12 @@ TEST_F(OutputTest, setDisplaySpaceSizeUpdatesOutputStateAndDirtiesEntireOutput) 
     EXPECT_EQ(Rect(0, 0, 2000, 1000), state.layerStackSpace.bounds);
 
     EXPECT_EQ(ui::ROTATION_0, state.orientedDisplaySpace.orientation);
-    EXPECT_EQ(Rect(0, 0, 900, 450), state.orientedDisplaySpace.content);
     EXPECT_EQ(Rect(0, 0, 1000, 500), state.orientedDisplaySpace.bounds);
 
     EXPECT_EQ(displayRect, state.displaySpace.bounds);
-    EXPECT_EQ(Rect(0, 0, 450, 900), state.displaySpace.content);
     EXPECT_EQ(ui::ROTATION_90, state.displaySpace.orientation);
 
     EXPECT_EQ(displayRect, state.framebufferSpace.bounds);
-    EXPECT_EQ(Rect(0, 0, 450, 900), state.framebufferSpace.content);
     EXPECT_EQ(ui::ROTATION_90, state.framebufferSpace.orientation);
 
     EXPECT_EQ(state.displaySpace.content, state.transform.transform(state.layerStackSpace.content));

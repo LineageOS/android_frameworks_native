@@ -41,6 +41,7 @@
 
 #include "DisplayIdGenerator.h"
 #include "DisplayIdentification.h"
+#include "DisplayMode.h"
 #include "HWC2.h"
 #include "Hal.h"
 
@@ -184,12 +185,9 @@ public:
     virtual nsecs_t getRefreshTimestamp(PhysicalDisplayId) const = 0;
     virtual bool isConnected(PhysicalDisplayId) const = 0;
 
-    virtual std::vector<std::shared_ptr<const HWC2::Display::Config>> getConfigs(
-            PhysicalDisplayId) const = 0;
+    virtual DisplayModes getModes(PhysicalDisplayId) const = 0;
 
-    virtual std::shared_ptr<const HWC2::Display::Config> getActiveConfig(
-            PhysicalDisplayId) const = 0;
-    virtual int getActiveConfigIndex(PhysicalDisplayId) const = 0;
+    virtual DisplayModePtr getActiveMode(PhysicalDisplayId) const = 0;
 
     virtual std::vector<ui::ColorMode> getColorModes(PhysicalDisplayId) const = 0;
 
@@ -200,9 +198,9 @@ public:
     virtual DisplayConnectionType getDisplayConnectionType(PhysicalDisplayId) const = 0;
     virtual bool isVsyncPeriodSwitchSupported(PhysicalDisplayId) const = 0;
     virtual nsecs_t getDisplayVsyncPeriod(PhysicalDisplayId) const = 0;
-    virtual status_t setActiveConfigWithConstraints(
-            PhysicalDisplayId, size_t configId, const hal::VsyncPeriodChangeConstraints&,
-            hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
+    virtual status_t setActiveModeWithConstraints(PhysicalDisplayId, HwcConfigIndexType,
+                                                  const hal::VsyncPeriodChangeConstraints&,
+                                                  hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
     virtual status_t setAutoLowLatencyMode(PhysicalDisplayId, bool on) = 0;
     virtual status_t getSupportedContentTypes(
             PhysicalDisplayId, std::vector<hal::ContentType>* outSupportedContentTypes) = 0;
@@ -319,11 +317,9 @@ public:
     nsecs_t getRefreshTimestamp(PhysicalDisplayId) const override;
     bool isConnected(PhysicalDisplayId) const override;
 
-    std::vector<std::shared_ptr<const HWC2::Display::Config>> getConfigs(
-            PhysicalDisplayId) const override;
+    DisplayModes getModes(PhysicalDisplayId) const override;
 
-    std::shared_ptr<const HWC2::Display::Config> getActiveConfig(PhysicalDisplayId) const override;
-    int getActiveConfigIndex(PhysicalDisplayId) const override;
+    DisplayModePtr getActiveMode(PhysicalDisplayId) const override;
 
     std::vector<ui::ColorMode> getColorModes(PhysicalDisplayId) const override;
 
@@ -332,10 +328,10 @@ public:
     // Composer 2.4
     DisplayConnectionType getDisplayConnectionType(PhysicalDisplayId) const override;
     bool isVsyncPeriodSwitchSupported(PhysicalDisplayId) const override;
-    nsecs_t getDisplayVsyncPeriod(PhysicalDisplayId) const override;
-    status_t setActiveConfigWithConstraints(PhysicalDisplayId, size_t configId,
-                                            const hal::VsyncPeriodChangeConstraints&,
-                                            hal::VsyncPeriodChangeTimeline* outTimeline) override;
+    nsecs_t getDisplayVsyncPeriod(PhysicalDisplayId displayId) const override;
+    status_t setActiveModeWithConstraints(PhysicalDisplayId, HwcConfigIndexType,
+                                          const hal::VsyncPeriodChangeConstraints&,
+                                          hal::VsyncPeriodChangeTimeline* outTimeline) override;
     status_t setAutoLowLatencyMode(PhysicalDisplayId, bool) override;
     status_t getSupportedContentTypes(PhysicalDisplayId, std::vector<hal::ContentType>*) override;
     status_t setContentType(PhysicalDisplayId, hal::ContentType) override;
@@ -362,14 +358,6 @@ private:
     // For unit tests
     friend TestableSurfaceFlinger;
 
-    std::optional<DisplayIdentificationInfo> onHotplugConnect(hal::HWDisplayId);
-    std::optional<DisplayIdentificationInfo> onHotplugDisconnect(hal::HWDisplayId);
-    bool shouldIgnoreHotplugConnect(hal::HWDisplayId, bool hasDisplayIdentificationData) const;
-
-    void loadCapabilities();
-    void loadLayerMetadataSupport();
-    uint32_t getMaxVirtualDisplayCount() const;
-
     struct DisplayData {
         bool isVirtual = false;
         std::unique_ptr<HWC2::Display> hwcDisplay;
@@ -377,7 +365,7 @@ private:
         std::unordered_map<HWC2::Layer*, sp<Fence>> releaseFences;
         buffer_handle_t outbufHandle = nullptr;
         sp<Fence> outbufAcquireFence = Fence::NO_FENCE;
-        std::vector<std::shared_ptr<const HWC2::Display::Config>> configs;
+        DisplayModes modes;
 
         bool validateWasSkipped;
         hal::Error presentError;
@@ -390,6 +378,18 @@ private:
         mutable std::mutex lastHwVsyncLock;
         nsecs_t lastHwVsync GUARDED_BY(lastHwVsyncLock) = 0;
     };
+
+    std::optional<DisplayIdentificationInfo> onHotplugConnect(hal::HWDisplayId);
+    std::optional<DisplayIdentificationInfo> onHotplugDisconnect(hal::HWDisplayId);
+    bool shouldIgnoreHotplugConnect(hal::HWDisplayId, bool hasDisplayIdentificationData) const;
+
+    int32_t getAttribute(hal::HWDisplayId hwcDisplayId, hal::HWConfigId configId,
+                         hal::Attribute attribute);
+    void loadModes(DisplayData& displayData, hal::HWDisplayId hwcDisplayId);
+
+    void loadCapabilities();
+    void loadLayerMetadataSupport();
+    uint32_t getMaxVirtualDisplayCount() const;
 
     std::unordered_map<HalDisplayId, DisplayData> mDisplayData;
 

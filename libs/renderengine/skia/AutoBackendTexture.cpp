@@ -20,8 +20,7 @@
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <utils/Trace.h>
-
+#include "ColorSpaces.h"
 #include "log/log_main.h"
 #include "utils/Trace.h"
 
@@ -29,49 +28,9 @@ namespace android {
 namespace renderengine {
 namespace skia {
 
-// Converts an android dataspace to a supported SkColorSpace
-// Supported dataspaces are
-// 1. sRGB
-// 2. Display P3
-// 3. BT2020 PQ
-// 4. BT2020 HLG
-// Unknown primaries are mapped to BT709, and unknown transfer functions
-// are mapped to sRGB.
-static sk_sp<SkColorSpace> toSkColorSpace(ui::Dataspace dataspace) {
-    skcms_Matrix3x3 gamut;
-    switch (dataspace & HAL_DATASPACE_STANDARD_MASK) {
-        case HAL_DATASPACE_STANDARD_BT709:
-            gamut = SkNamedGamut::kSRGB;
-            break;
-        case HAL_DATASPACE_STANDARD_BT2020:
-            gamut = SkNamedGamut::kRec2020;
-            break;
-        case HAL_DATASPACE_STANDARD_DCI_P3:
-            gamut = SkNamedGamut::kDisplayP3;
-            break;
-        default:
-            ALOGV("Unsupported Gamut: %d, defaulting to sRGB", dataspace);
-            gamut = SkNamedGamut::kSRGB;
-            break;
-    }
-
-    switch (dataspace & HAL_DATASPACE_TRANSFER_MASK) {
-        case HAL_DATASPACE_TRANSFER_LINEAR:
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kLinear, gamut);
-        case HAL_DATASPACE_TRANSFER_SRGB:
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, gamut);
-        case HAL_DATASPACE_TRANSFER_ST2084:
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kPQ, gamut);
-        case HAL_DATASPACE_TRANSFER_HLG:
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kHLG, gamut);
-        default:
-            ALOGV("Unsupported Gamma: %d, defaulting to sRGB transfer", dataspace);
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kSRGB, gamut);
-    }
-}
-
 AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer,
                                        bool isRender) {
+    ATRACE_CALL();
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
     bool createProtectedImage = 0 != (desc.usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT);

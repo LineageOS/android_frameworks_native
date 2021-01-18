@@ -34,9 +34,9 @@
 #include "SkImageInfo.h"
 #include "SkiaRenderEngine.h"
 #include "android-base/macros.h"
+#include "debug/SkiaCapture.h"
 #include "filters/BlurFilter.h"
-#include "skia/debug/SkiaCapture.h"
-#include "skia/filters/LinearEffect.h"
+#include "filters/LinearEffect.h"
 
 namespace android {
 namespace renderengine {
@@ -48,7 +48,7 @@ public:
     SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display, EGLContext ctxt,
                        EGLSurface placeholder, EGLContext protectedContext,
                        EGLSurface protectedPlaceholder);
-    ~SkiaGLRenderEngine() override{};
+    ~SkiaGLRenderEngine() override EXCLUDES(mRenderingMutex);
 
     void unbindExternalTextureBuffer(uint64_t bufferId) override;
     status_t drawLayers(const DisplaySettings& display,
@@ -127,7 +127,7 @@ private:
 
     bool mInProtectedContext = false;
     // Object to capture commands send to Skia.
-    SkiaCapture mCapture;
+    std::unique_ptr<SkiaCapture> mCapture;
 };
 
 } // namespace skia

@@ -28,7 +28,6 @@
 #include "Scheduler/HwcStrongTypes.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
-#include "mock/DisplayHardware/MockDisplay.h"
 #include "mock/MockTimeStats.h"
 
 using namespace std::chrono_literals;
@@ -50,7 +49,7 @@ protected:
     RefreshRateStatsTest();
     ~RefreshRateStatsTest();
 
-    void init(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
+    void init(const DisplayModes& configs) {
         mRefreshRateConfigs =
                 std::make_unique<RefreshRateConfigs>(configs, /*currentConfig=*/CONFIG_ID_0);
 
@@ -59,14 +58,12 @@ protected:
                                                                /*currentPowerMode=*/PowerMode::OFF);
     }
 
-    Hwc2::mock::Display mDisplay;
     mock::TimeStats mTimeStats;
     std::unique_ptr<RefreshRateConfigs> mRefreshRateConfigs;
     std::unique_ptr<RefreshRateStats> mRefreshRateStats;
 
-    std::shared_ptr<const HWC2::Display::Config> createConfig(HwcConfigIndexType configId,
-                                                              int32_t configGroup,
-                                                              int64_t vsyncPeriod);
+    DisplayModePtr createConfig(HwcConfigIndexType configId, int32_t configGroup,
+                                int64_t vsyncPeriod);
 };
 
 RefreshRateStatsTest::RefreshRateStatsTest() {
@@ -81,9 +78,9 @@ RefreshRateStatsTest::~RefreshRateStatsTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-std::shared_ptr<const HWC2::Display::Config> RefreshRateStatsTest::createConfig(
-        HwcConfigIndexType configId, int32_t configGroup, int64_t vsyncPeriod) {
-    return HWC2::Display::Config::Builder(mDisplay, static_cast<hal::HWConfigId>(configId.value()))
+DisplayModePtr RefreshRateStatsTest::createConfig(HwcConfigIndexType configId, int32_t configGroup,
+                                                  int64_t vsyncPeriod) {
+    return DisplayMode::Builder(static_cast<hal::HWConfigId>(configId.value()))
             .setVsyncPeriod(static_cast<int32_t>(vsyncPeriod))
             .setConfigGroup(configGroup)
             .build();

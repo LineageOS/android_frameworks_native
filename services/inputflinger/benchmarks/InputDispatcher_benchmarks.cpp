@@ -55,12 +55,18 @@ private:
         ALOGE("There is no focused window for %s", applicationHandle->getName().c_str());
     }
 
-    void notifyConnectionUnresponsive(const sp<IBinder>& connectionToken,
-                                      const std::string& reason) override {
-        ALOGE("Connection is not responding: %s", reason.c_str());
+    void notifyWindowUnresponsive(const sp<IBinder>& connectionToken,
+                                  const std::string& reason) override {
+        ALOGE("Window is not responding: %s", reason.c_str());
     }
 
-    void notifyConnectionResponsive(const sp<IBinder>& connectionToken) override {}
+    void notifyWindowResponsive(const sp<IBinder>& connectionToken) override {}
+
+    void notifyMonitorUnresponsive(int32_t pid, const std::string& reason) override {
+        ALOGE("Monitor is not responding: %s", reason.c_str());
+    }
+
+    void notifyMonitorResponsive(int32_t pid) override {}
 
     void notifyInputChannelBroken(const sp<IBinder>&) override {}
 

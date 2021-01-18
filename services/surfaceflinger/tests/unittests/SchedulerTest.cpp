@@ -24,7 +24,6 @@
 #include "Scheduler/RefreshRateConfigs.h"
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
-#include "mock/DisplayHardware/MockDisplay.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockLayer.h"
 #include "mock/MockSchedulerCallback.h"
@@ -52,12 +51,9 @@ protected:
 
     SchedulerTest();
 
-    Hwc2::mock::Display mDisplay;
-    const scheduler::RefreshRateConfigs mConfigs{{HWC2::Display::Config::Builder(mDisplay, 0)
-                                                          .setVsyncPeriod(16'666'667)
-                                                          .setConfigGroup(0)
-                                                          .build()},
-                                                 HwcConfigIndexType(0)};
+    const scheduler::RefreshRateConfigs
+            mConfigs{{DisplayMode::Builder(0).setVsyncPeriod(16'666'667).setConfigGroup(0).build()},
+                     HwcConfigIndexType(0)};
 
     mock::SchedulerCallback mSchedulerCallback;
 
