@@ -43,8 +43,8 @@ namespace scheduler {
 class LayerHistoryTest : public testing::Test {
 protected:
     static constexpr auto PRESENT_TIME_HISTORY_SIZE = LayerInfo::HISTORY_SIZE;
-    static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfo::MAX_FREQUENT_LAYER_PERIOD_NS;
-    static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfo::FREQUENT_LAYER_WINDOW_SIZE;
+    static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfo::kMaxPeriodForFrequentLayerNs;
+    static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfo::kFrequentLayerWindowSize;
     static constexpr auto PRESENT_TIME_HISTORY_DURATION = LayerInfo::HISTORY_DURATION;
     static constexpr auto REFRESH_RATE_AVERAGE_HISTORY_DURATION =
             LayerInfo::RefreshRateHistory::HISTORY_DURATION;

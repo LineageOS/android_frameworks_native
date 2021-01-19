@@ -19,7 +19,6 @@
 namespace android {
 
 // Jank information tracked by SurfaceFlinger(SF) for perfetto tracing and telemetry.
-// TODO(b/175843808): Change JankType from enum to enum class
 enum JankType {
     // No Jank
     None = 0x0,

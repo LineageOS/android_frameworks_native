@@ -49,12 +49,13 @@ class LayerInfo {
     // Layer is considered frequent if the earliest value in the window of most recent present times
     // is within a threshold. If a layer is infrequent, its average refresh rate is disregarded in
     // favor of a low refresh rate.
-    static constexpr size_t FREQUENT_LAYER_WINDOW_SIZE = 3;
-    static constexpr Fps MIN_FPS_FOR_FREQUENT_LAYER{10.0f};
-    static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS =
-            std::chrono::nanoseconds(MIN_FPS_FOR_FREQUENT_LAYER.getPeriodNsecs()) + 1ms;
+    static constexpr size_t kFrequentLayerWindowSize = 3;
+    static constexpr Fps kMinFpsForFrequentLayer{10.0f};
+    static constexpr auto kMaxPeriodForFrequentLayerNs =
+            std::chrono::nanoseconds(kMinFpsForFrequentLayer.getPeriodNsecs()) + 1ms;
 
     friend class LayerHistoryTest;
+    friend class LayerInfoTest;
 
 public:
     // Holds information about the layer vote
@@ -121,7 +122,7 @@ public:
 private:
     // Used to store the layer timestamps
     struct FrameTimeData {
-        nsecs_t presetTime; // desiredPresentTime, if provided
+        nsecs_t presentTime; // desiredPresentTime, if provided
         nsecs_t queueTime;  // buffer queue time
         bool pendingConfigChange;
     };
@@ -196,6 +197,10 @@ private:
     // Used for sanitizing the heuristic data. If two frames are less than
     // this period apart from each other they'll be considered as duplicates.
     static constexpr nsecs_t kMinPeriodBetweenFrames = Fps(120.f).getPeriodNsecs();
+    // Used for sanitizing the heuristic data. If two frames are more than
+    // this period apart from each other, the interval between them won't be
+    // taken into account when calculating average frame rate.
+    static constexpr nsecs_t kMaxPeriodBetweenFrames = kMinFpsForFrequentLayer.getPeriodNsecs();
     LayerHistory::LayerVoteType mDefaultVote;
 
     LayerVote mLayerVote;
