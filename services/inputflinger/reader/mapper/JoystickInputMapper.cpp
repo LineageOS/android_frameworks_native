@@ -206,7 +206,7 @@ JoystickInputMapper::Axis JoystickInputMapper::createAxis(const AxisInfo& axisIn
 }
 
 bool JoystickInputMapper::haveAxis(int32_t axisId) {
-    for (const std::pair<int32_t, Axis>& pair : mAxes) {
+    for (const std::pair<const int32_t, Axis>& pair : mAxes) {
         const Axis& axis = pair.second;
         if (axis.axisInfo.axis == axisId ||
             (axis.axisInfo.mode == AxisInfo::MODE_SPLIT && axis.axisInfo.highAxis == axisId)) {
