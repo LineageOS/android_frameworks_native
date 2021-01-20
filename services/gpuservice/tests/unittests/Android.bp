@@ -20,6 +20,7 @@ cc_test {
     },
     srcs: [
         "GpuMemTest.cpp",
+        "GpuMemTracerTest.cpp",
         "GpuStatsTest.cpp",
     ],
     shared_libs: [
@@ -29,14 +30,19 @@ cc_test {
         "libcutils",
         "libgfxstats",
         "libgpumem",
+        "libgpumemtracer",
         "libgraphicsenv",
         "liblog",
+        "libprotobuf-cpp-lite",
+        "libprotoutil",
         "libstatslog",
         "libstatspull",
         "libutils",
     ],
     static_libs: [
         "libgmock",
+        "libperfetto_client_experimental",
+        "perfetto_trace_protos",
     ],
     require_root: true,
 }

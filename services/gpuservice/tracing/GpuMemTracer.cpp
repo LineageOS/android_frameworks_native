@@ -44,9 +44,35 @@ void GpuMemTracer::initialize(std::shared_ptr<GpuMem> gpuMem) {
     args.backends = perfetto::kSystemBackend;
     perfetto::Tracing::Initialize(args);
     registerDataSource();
-    std::thread tracerThread(&GpuMemTracer::threadLoop, this);
+    std::thread tracerThread(&GpuMemTracer::threadLoop, this, true);
     pthread_setname_np(tracerThread.native_handle(), "GpuMemTracerThread");
     tracerThread.detach();
+    tracerThreadCount++;
+}
+
+void GpuMemTracer::initializeForTest(std::shared_ptr<GpuMem> gpuMem) {
+    mGpuMem = gpuMem;
+    perfetto::TracingInitArgs args;
+    args.backends = perfetto::kInProcessBackend;
+    perfetto::Tracing::Initialize(args);
+    registerDataSource();
+    std::thread tracerThread(&GpuMemTracer::threadLoop, this, false);
+    pthread_setname_np(tracerThread.native_handle(), "GpuMemTracerThreadForTest");
+    tracerThread.detach();
+    tracerThreadCount++;
+}
+
+// Each tracing session can be used for a single block of Start -> Stop.
+std::unique_ptr<perfetto::TracingSession> GpuMemTracer::getTracingSessionForTest() {
+    perfetto::TraceConfig cfg;
+    cfg.set_duration_ms(500);
+    cfg.add_buffers()->set_size_kb(1024);
+    auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+    ds_cfg->set_name(GpuMemTracer::kGpuMemDataSource);
+
+    auto tracingSession = perfetto::Tracing::NewTrace(perfetto::kInProcessBackend);
+    tracingSession->Setup(cfg);
+    return tracingSession;
 }
 
 void GpuMemTracer::registerDataSource() {
@@ -55,8 +81,8 @@ void GpuMemTracer::registerDataSource() {
     GpuMemDataSource::Register(dsd);
 }
 
-void GpuMemTracer::threadLoop() {
-    while (true) {
+void GpuMemTracer::threadLoop(bool infiniteLoop) {
+    do {
         {
             std::unique_lock<std::mutex> lock(GpuMemTracer::sTraceMutex);
             while (!sTraceStarted) {
@@ -68,7 +94,11 @@ void GpuMemTracer::threadLoop() {
             std::lock_guard<std::mutex> lock(GpuMemTracer::sTraceMutex);
             sTraceStarted = false;
         }
-    }
+    } while (infiniteLoop);
+
+    // Thread loop is exiting. Reduce the tracerThreadCount to reflect the number of active threads
+    // in the wait loop.
+    tracerThreadCount--;
 }
 
 void GpuMemTracer::traceInitialCounters() {
