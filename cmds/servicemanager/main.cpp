@@ -45,10 +45,6 @@ public:
         IPCThreadState::self()->setupPolling(&binder_fd);
         LOG_ALWAYS_FATAL_IF(binder_fd < 0, "Failed to setupPolling: %d", binder_fd);
 
-        // Flush after setupPolling(), to make sure the binder driver
-        // knows about this thread handling commands.
-        IPCThreadState::self()->flushCommands();
-
         int ret = looper->addFd(binder_fd,
                                 Looper::POLL_CALLBACK,
                                 Looper::EVENT_INPUT,

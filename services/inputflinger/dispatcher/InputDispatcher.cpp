@@ -314,6 +314,14 @@ static bool haveSameToken(const sp<InputWindowHandle>& first, const sp<InputWind
     return first->getToken() == second->getToken();
 }
 
+static bool haveSameApplicationToken(const InputWindowInfo* first, const InputWindowInfo* second) {
+    if (first == nullptr || second == nullptr) {
+        return false;
+    }
+    return first->applicationInfo.token != nullptr &&
+            first->applicationInfo.token == second->applicationInfo.token;
+}
+
 static bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
     return currentTime - entry.eventTime >= STALE_EVENT_TIMEOUT;
 }
@@ -2422,8 +2430,8 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
             break; // All future windows are below us. Exit early.
         }
         const InputWindowInfo* otherInfo = otherHandle->getInfo();
-        if (canBeObscuredBy(windowHandle, otherHandle) &&
-            windowInfo->ownerUid != otherInfo->ownerUid && otherInfo->frameContainsPoint(x, y)) {
+        if (canBeObscuredBy(windowHandle, otherHandle) && otherInfo->frameContainsPoint(x, y) &&
+            !haveSameApplicationToken(windowInfo, otherInfo)) {
             if (DEBUG_TOUCH_OCCLUSION) {
                 info.debugInfo.push_back(
                         dumpWindowForTouchOcclusion(otherInfo, /* isTouchedWindow */ false));
