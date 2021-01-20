@@ -20,6 +20,10 @@
 
 #include <mutex>
 
+namespace perfetto::protos {
+class TracePacket;
+}
+
 namespace android {
 
 class GpuMem;
@@ -45,16 +49,37 @@ public:
     // perfetto::kInProcessBackend in tests.
     void registerDataSource();
 
+    // TODO(b/175904796): Refactor gpuservice lib to include perfetto lib and move the test
+    // functions into the unittests.
+    // Functions only used for testing with in-process backend. These functions require the static
+    // perfetto lib to be linked. If the tests have a perfetto linked, while libgpumemtracer.so also
+    // has one linked, they will both use different static states maintained in perfetto. Since the
+    // static perfetto states are not shared, tracing sessions created in the unit test are not
+    // recognized by GpuMemTracer. As a result, we cannot use any of the perfetto functions from
+    // this class, which defeats the purpose of the unit test. To solve this, we restrict all
+    // tracing functionality to this class, while the unit test validates the data.
+    // Sets up the perfetto in-process backend and calls into registerDataSource.
+    void initializeForTest(std::shared_ptr<GpuMem>);
+    // Creates a tracing session with in process backend, for testing.
+    std::unique_ptr<perfetto::TracingSession> getTracingSessionForTest();
+    // Read and filter the gpu memory packets from the created trace.
+    std::vector<perfetto::protos::TracePacket> readGpuMemTotalPacketsForTestBlocking(
+            perfetto::TracingSession* tracingSession);
+
     static constexpr char kGpuMemDataSource[] = "android.gpu.memory";
     static std::condition_variable sCondition;
     static std::mutex sTraceMutex;
     static bool sTraceStarted;
 
 private:
-    void traceInitialCounters();
-    void threadLoop();
+    // Friend class for testing
+    friend class GpuMemTracerTest;
 
+    void threadLoop(bool infiniteLoop);
+    void traceInitialCounters();
     std::shared_ptr<GpuMem> mGpuMem;
+    // Count of how many tracer threads are currently active. Useful for testing.
+    std::atomic<int32_t> tracerThreadCount = 0;
 };
 
 } // namespace android
