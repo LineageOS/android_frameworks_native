@@ -41,6 +41,7 @@ cc_test {
     ],
     static_libs: [
         "libgmock",
+        "libperfetto_client_experimental",
         "perfetto_trace_protos",
     ],
     require_root: true,
