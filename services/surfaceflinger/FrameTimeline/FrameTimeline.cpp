@@ -481,22 +481,22 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType,
 
 void SurfaceFrame::trace(int64_t displayFrameToken) {
     using FrameTimelineDataSource = impl::FrameTimeline::FrameTimelineDataSource;
-    {
+
+    int64_t expectedTimelineCookie = mTraceCookieCounter.getCookieForTracing();
+    bool missingToken = false;
+    // Expected timeline start
+    FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
         std::lock_guard<std::mutex> lock(mMutex);
         if (mToken == ISurfaceComposer::INVALID_VSYNC_ID) {
             ALOGD("Cannot trace SurfaceFrame - %s with invalid token", mLayerName.c_str());
+            missingToken = true;
             return;
         } else if (displayFrameToken == ISurfaceComposer::INVALID_VSYNC_ID) {
             ALOGD("Cannot trace SurfaceFrame  - %s with invalid displayFrameToken",
                   mLayerName.c_str());
+            missingToken = true;
             return;
         }
-    }
-
-    int64_t expectedTimelineCookie = mTraceCookieCounter.getCookieForTracing();
-    // Expected timeline start
-    FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
-        std::lock_guard<std::mutex> lock(mMutex);
         auto packet = ctx.NewTracePacket();
         packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
         packet->set_timestamp(static_cast<uint64_t>(mPredictions.startTime));
@@ -512,6 +512,13 @@ void SurfaceFrame::trace(int64_t displayFrameToken) {
         expectedSurfaceFrameStartEvent->set_pid(mOwnerPid);
         expectedSurfaceFrameStartEvent->set_layer_name(mDebugName);
     });
+
+    if (missingToken) {
+        // If one packet can't be traced because of missing token, then no packets can be traced.
+        // Exit early in this case.
+        return;
+    }
+
     // Expected timeline end
     FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
         std::lock_guard<std::mutex> lock(mMutex);
@@ -814,15 +821,16 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
 }
 
 void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid) const {
-    if (mToken == ISurfaceComposer::INVALID_VSYNC_ID) {
-        ALOGD("Cannot trace DisplayFrame with invalid token");
-        return;
-    }
-
     int64_t expectedTimelineCookie = mTraceCookieCounter.getCookieForTracing();
+    bool missingToken = false;
     // Expected timeline start
     FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
         auto packet = ctx.NewTracePacket();
+        if (mToken == ISurfaceComposer::INVALID_VSYNC_ID) {
+            ALOGD("Cannot trace DisplayFrame with invalid token");
+            missingToken = true;
+            return;
+        }
         packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
         packet->set_timestamp(static_cast<uint64_t>(mSurfaceFlingerPredictions.startTime));
 
@@ -834,6 +842,13 @@ void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid) const {
         expectedDisplayFrameStartEvent->set_token(mToken);
         expectedDisplayFrameStartEvent->set_pid(surfaceFlingerPid);
     });
+
+    if (missingToken) {
+        // If one packet can't be traced because of missing token, then no packets can be traced.
+        // Exit early in this case.
+        return;
+    }
+
     // Expected timeline end
     FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
         auto packet = ctx.NewTracePacket();
