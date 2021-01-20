@@ -75,6 +75,22 @@ public:
 
     int getTracerThreadCount() { return mGpuMemTracer->tracerThreadCount; }
 
+    std::vector<perfetto::protos::TracePacket> readGpuMemTotalPacketsBlocking(
+            perfetto::TracingSession* tracingSession) {
+        std::vector<char> raw_trace = tracingSession->ReadTraceBlocking();
+        perfetto::protos::Trace trace;
+        trace.ParseFromArray(raw_trace.data(), int(raw_trace.size()));
+
+        std::vector<perfetto::protos::TracePacket> packets;
+        for (const auto& packet : trace.packet()) {
+            if (!packet.has_gpu_mem_total_event()) {
+                continue;
+            }
+            packets.emplace_back(packet);
+        }
+        return packets;
+    }
+
     std::shared_ptr<GpuMem> mGpuMem;
     TestableGpuMem mTestableGpuMem;
     std::unique_ptr<GpuMemTracer> mGpuMemTracer;
@@ -125,7 +141,7 @@ TEST_F(GpuMemTracerTest, traceInitialCountersAfterGpuMemInitialize) {
     // The test tracer thread should have finished its execution by now.
     EXPECT_EQ(getTracerThreadCount(), 0);
 
-    auto packets = mGpuMemTracer->readGpuMemTotalPacketsForTestBlocking(tracingSession.get());
+    auto packets = readGpuMemTotalPacketsBlocking(tracingSession.get());
     EXPECT_EQ(packets.size(), 3);
 
     const auto& packet0 = packets[0];
@@ -176,7 +192,7 @@ TEST_F(GpuMemTracerTest, noTracingWithoutGpuMemInitialize) {
     // The test tracer thread should have finished its execution by now.
     EXPECT_EQ(getTracerThreadCount(), 0);
 
-    auto packets = mGpuMemTracer->readGpuMemTotalPacketsForTestBlocking(tracingSession.get());
+    auto packets = readGpuMemTotalPacketsBlocking(tracingSession.get());
     EXPECT_EQ(packets.size(), 0);
 }
 } // namespace android

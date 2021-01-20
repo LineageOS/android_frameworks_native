@@ -21,13 +21,10 @@ cc_library_shared {
         "libgpumem",
         "libbase",
         "liblog",
-        "libprotobuf-cpp-lite",
-        "libprotoutil",
         "libutils",
     ],
     static_libs: [
         "libperfetto_client_experimental",
-        "perfetto_trace_protos",
     ],
     export_include_dirs: ["include"],
     export_static_lib_headers: [
