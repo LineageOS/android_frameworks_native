@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <unordered_map>
 #undef LOG_TAG
 #define LOG_TAG "TimeStats"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -87,6 +88,18 @@ std::string histogramToProtoByteString(const std::unordered_map<int32_t, int32_t
     proto.serializeToString(&byteString);
     return byteString;
 }
+
+std::string frameRateVoteToProtoByteString(float refreshRate, int frameRateCompatibility,
+                                           int seamlessness) {
+    util::ProtoOutputStream proto;
+    proto.write(android::util::FIELD_TYPE_FLOAT | 1 /* field id */, refreshRate);
+    proto.write(android::util::FIELD_TYPE_ENUM | 2 /* field id */, frameRateCompatibility);
+    proto.write(android::util::FIELD_TYPE_ENUM | 3 /* field id */, seamlessness);
+
+    std::string byteString;
+    proto.serializeToString(&byteString);
+    return byteString;
+}
 } // namespace
 
 AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventList* data) {
@@ -121,6 +134,23 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventLi
     mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalSFLongGpu);
     mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalSFUnattributed);
     mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalAppUnattributed);
+
+    // TODO: populate these with real values
+    mStatsDelegate->statsEventWriteInt32(event, 0); // total_janky_frames_sf_scheduling
+    mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_sf_prediction_error
+    mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_app_buffer_stuffing
+    mStatsDelegate->statsEventWriteInt32(event, 0); // display_refresh_rate_bucket
+    std::string sfDeadlineMissedBytes =
+            histogramToProtoByteString(std::unordered_map<int32_t, int32_t>(),
+                                       mMaxPulledHistogramBuckets);
+    mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)sfDeadlineMissedBytes.c_str(),
+                                             sfDeadlineMissedBytes.size()); // sf_deadline_misses
+    std::string sfPredictionErrorBytes =
+            histogramToProtoByteString(std::unordered_map<int32_t, int32_t>(),
+                                       mMaxPulledHistogramBuckets);
+    mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)sfPredictionErrorBytes.c_str(),
+                                             sfPredictionErrorBytes.size()); // sf_prediction_errors
+    mStatsDelegate->statsEventWriteInt32(event, 0); // render_rate_bucket
     mStatsDelegate->statsEventBuild(event);
     clearGlobalLocked();
 
@@ -173,6 +203,22 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
         mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFLongGpu);
         mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFUnattributed);
         mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalAppUnattributed);
+
+        // TODO: populate these with real values
+        mStatsDelegate->statsEventWriteInt32(event, 0); // total_janky_frames_sf_scheduling
+        mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_sf_prediction_error
+        mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_app_buffer_stuffing
+        mStatsDelegate->statsEventWriteInt32(event, 0); // display_refresh_rate_bucket
+        mStatsDelegate->statsEventWriteInt32(event, 0); // render_rate_bucket
+        std::string frameRateVoteBytes = frameRateVoteToProtoByteString(0.0, 0, 0);
+        mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)frameRateVoteBytes.c_str(),
+                                                 frameRateVoteBytes.size()); // set_frame_rate_vote
+        std::string appDeadlineMissedBytes =
+                histogramToProtoByteString(std::unordered_map<int32_t, int32_t>(),
+                                           mMaxPulledHistogramBuckets);
+        mStatsDelegate
+                ->statsEventWriteByteArray(event, (const uint8_t*)appDeadlineMissedBytes.c_str(),
+                                           appDeadlineMissedBytes.size()); // app_deadline_misses
 
         mStatsDelegate->statsEventBuild(event);
     }
