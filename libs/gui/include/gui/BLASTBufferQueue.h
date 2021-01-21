@@ -68,7 +68,7 @@ class BLASTBufferQueue
 {
 public:
     BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface, int width,
-                     int height, int32_t format, bool enableTripleBuffering = true);
+                     int height, bool enableTripleBuffering = true);
 
     sp<IGraphicBufferProducer> getIGraphicBufferProducer() const {
         return mProducer;
@@ -88,7 +88,7 @@ public:
     void setTransactionCompleteCallback(uint64_t frameNumber,
                                         std::function<void(int64_t)>&& transactionCompleteCallback);
 
-    void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format);
+    void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height);
     void flushShadowQueue() { mFlushShadowQueue = true; }
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
@@ -136,7 +136,6 @@ private:
 
     ui::Size mSize GUARDED_BY(mMutex);
     ui::Size mRequestedSize GUARDED_BY(mMutex);
-    int32_t mFormat GUARDED_BY(mMutex);
 
     uint32_t mTransformHint GUARDED_BY(mMutex);
 

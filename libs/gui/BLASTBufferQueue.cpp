@@ -117,13 +117,11 @@ void BLASTBufferItemConsumer::getConnectionEvents(uint64_t frameNumber, bool* ne
 }
 
 BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceControl>& surface,
-                                   int width, int height, int32_t format,
-                                   bool enableTripleBuffering)
+                                   int width, int height, bool enableTripleBuffering)
       : mName(name),
         mSurfaceControl(surface),
         mSize(width, height),
         mRequestedSize(mSize),
-        mFormat(format),
         mNextTransaction(nullptr) {
     createBufferQueue(&mProducer, &mConsumer);
     // since the adapter is in the client process, set dequeue timeout
@@ -142,7 +140,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mBufferItemConsumer->setFrameAvailableListener(this);
     mBufferItemConsumer->setBufferFreedListener(this);
     mBufferItemConsumer->setDefaultBufferSize(mSize.width, mSize.height);
-    mBufferItemConsumer->setDefaultBufferFormat(format);
+    mBufferItemConsumer->setDefaultBufferFormat(PIXEL_FORMAT_RGBA_8888);
 
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
@@ -166,15 +164,9 @@ BLASTBufferQueue::~BLASTBufferQueue() {
     t.apply();
 }
 
-void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height,
-                              int32_t format) {
+void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height) {
     std::unique_lock _lock{mMutex};
     mSurfaceControl = surface;
-
-    if (mFormat != format) {
-        mFormat = format;
-        mBufferItemConsumer->setDefaultBufferFormat(format);
-    }
 
     ui::Size newSize(width, height);
     if (mRequestedSize != newSize) {
