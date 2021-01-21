@@ -267,7 +267,8 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
         mPlaceholderSurface(placeholder),
         mProtectedEGLContext(protectedContext),
         mProtectedPlaceholderSurface(protectedPlaceholder),
-        mUseColorManagement(args.useColorManagement) {
+        mUseColorManagement(args.useColorManagement),
+        mRenderEngineType(args.renderEngineType) {
     sk_sp<const GrGLInterface> glInterface(GrGLCreateNativeInterface());
     LOG_ALWAYS_FATAL_IF(!glInterface.get());
 
@@ -453,7 +454,30 @@ static bool needsLinearEffect(const mat4& colorTransform, ui::Dataspace sourceDa
     return colorTransform != mat4() || needsToneMapping(sourceDataspace, destinationDataspace);
 }
 
+void SkiaGLRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+    // Only run this if RE is running on its own thread. This way the access to GL
+    // operations is guaranteed to be happening on the same thread.
+    if (mRenderEngineType != RenderEngineType::SKIA_GL_THREADED) {
+        return;
+    }
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    auto iter = mTextureCache.find(buffer->getId());
+    if (iter != mTextureCache.end()) {
+        ALOGV("Texture already exists in cache.");
+        return;
+    } else {
+        std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
+                std::make_shared<AutoBackendTexture::LocalRef>();
+        imageTextureRef->setTexture(
+                new AutoBackendTexture(mGrContext.get(), buffer->toAHardwareBuffer(), false));
+        mTextureCache.insert({buffer->getId(), imageTextureRef});
+    }
+}
+
 void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
+    ATRACE_CALL();
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     mTextureCache.erase(bufferId);
     mProtectedTextureCache.erase(bufferId);
@@ -523,11 +547,13 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         auto iter = cache.find(buffer->getId());
         if (iter != cache.end()) {
             ALOGV("Cache hit!");
+            ATRACE_NAME("Cache hit");
             surfaceTextureRef = iter->second;
         }
     }
 
     if (surfaceTextureRef == nullptr || surfaceTextureRef->getTexture() == nullptr) {
+        ATRACE_NAME("Cache miss");
         surfaceTextureRef = std::make_shared<AutoBackendTexture::LocalRef>();
         surfaceTextureRef->setTexture(
                 new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer(), true));

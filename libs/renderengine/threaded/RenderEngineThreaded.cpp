@@ -147,33 +147,29 @@ void RenderEngineThreaded::deleteTextures(size_t count, uint32_t const* names) {
 }
 
 void RenderEngineThreaded::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
-    std::promise<void> resultPromise;
-    std::future<void> resultFuture = resultPromise.get_future();
+    // This function is designed so it can run asynchronously, so we do not need to wait
+    // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise, &buffer](renderengine::RenderEngine& instance) {
+        mFunctionCalls.push([=](renderengine::RenderEngine& instance) {
             ATRACE_NAME("REThreaded::cacheExternalTextureBuffer");
             instance.cacheExternalTextureBuffer(buffer);
-            resultPromise.set_value();
         });
     }
     mCondition.notify_one();
-    resultFuture.wait();
 }
 
 void RenderEngineThreaded::unbindExternalTextureBuffer(uint64_t bufferId) {
-    std::promise<void> resultPromise;
-    std::future<void> resultFuture = resultPromise.get_future();
+    // This function is designed so it can run asynchronously, so we do not need to wait
+    // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise, &bufferId](renderengine::RenderEngine& instance) {
+        mFunctionCalls.push([=](renderengine::RenderEngine& instance) {
             ATRACE_NAME("REThreaded::unbindExternalTextureBuffer");
             instance.unbindExternalTextureBuffer(bufferId);
-            resultPromise.set_value();
         });
     }
     mCondition.notify_one();
-    resultFuture.wait();
 }
 
 size_t RenderEngineThreaded::getMaxTextureSize() const {
