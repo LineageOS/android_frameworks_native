@@ -51,13 +51,13 @@ int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc, AHardwareBuffer**
             std::string("AHardwareBuffer pid [") + std::to_string(getpid()) + "]"));
 
     status_t err = gbuffer->initCheck();
-    if (err != 0 || gbuffer->handle == 0) {
+    if (err != 0 || gbuffer->handle == nullptr) {
         if (err == NO_MEMORY) {
             GraphicBuffer::dumpAllocationsToSystemLog();
         }
         ALOGE("GraphicBuffer(w=%u, h=%u, lc=%u) failed (%s), handle=%p",
                 desc->width, desc->height, desc->layers, strerror(-err), gbuffer->handle);
-        return err;
+        return err == 0 ? UNKNOWN_ERROR : err;
     }
 
     *outBuffer = AHardwareBuffer_from_GraphicBuffer(gbuffer.get());
