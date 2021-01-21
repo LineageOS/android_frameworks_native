@@ -22,6 +22,7 @@ parcelable FocusRequest {
      * Input channel token used to identify the window that should gain focus.
      */
     IBinder token;
+    @utf8InCpp String windowName;
     /**
      * The token that the caller expects currently to be focused. If the
      * specified token does not match the currently focused window, this request will be dropped.
@@ -30,6 +31,7 @@ parcelable FocusRequest {
      * is.
      */
     @nullable IBinder focusedToken;
+    @utf8InCpp String focusedWindowName;
     /**
      * SYSTEM_TIME_MONOTONIC timestamp in nanos set by the client (wm) when requesting the focus
      * change. This determines which request gets precedence if there is a focus change request

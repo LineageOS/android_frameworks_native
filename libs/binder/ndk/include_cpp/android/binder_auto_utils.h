@@ -259,10 +259,24 @@ class ScopedAStatus : public impl::ScopedAResource<AStatus*, AStatus_delete, nul
     const char* getMessage() const { return AStatus_getMessage(get()); }
 
     std::string getDescription() const {
-        const char* cStr = AStatus_getDescription(get());
-        std::string ret = cStr;
-        AStatus_deleteDescription(cStr);
-        return ret;
+        if (__builtin_available(android 30, *)) {
+            const char* cStr = AStatus_getDescription(get());
+            std::string ret = cStr;
+            AStatus_deleteDescription(cStr);
+            return ret;
+        }
+        binder_exception_t exception = getExceptionCode();
+        std::string desc = std::to_string(exception);
+        if (exception == EX_SERVICE_SPECIFIC) {
+            desc += " (" + std::to_string(getServiceSpecificError()) + ")";
+        } else if (exception == EX_TRANSACTION_FAILED) {
+            desc += " (" + std::to_string(getStatus()) + ")";
+        }
+        if (const char* msg = getMessage(); msg != nullptr) {
+            desc += ": ";
+            desc += msg;
+        }
+        return desc;
     }
 
     /**
