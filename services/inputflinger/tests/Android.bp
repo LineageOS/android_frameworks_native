@@ -30,6 +30,7 @@ cc_test {
         "AnrTracker_test.cpp",
         "BlockingQueue_test.cpp",
         "EventHub_test.cpp",
+        "FocusResolver_test.cpp",
         "IInputFlingerQuery.aidl",
         "InputClassifier_test.cpp",
         "InputClassifierConverter_test.cpp",
