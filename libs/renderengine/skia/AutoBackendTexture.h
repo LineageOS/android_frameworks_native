@@ -30,7 +30,7 @@ namespace renderengine {
 namespace skia {
 
 /**
- * AutoBackendTexture manages GPU image  lifetime. It is a ref-counted object
+ * AutoBackendTexture manages GPU image lifetime. It is a ref-counted object
  * that keeps GPU resources alive until the last SkImage or SkSurface object using them is
  * destroyed.
  */
