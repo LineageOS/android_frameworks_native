@@ -1453,8 +1453,6 @@ void TouchInputMapper::processRawTouches(bool timeout) {
     if (mDeviceMode == DeviceMode::DISABLED) {
         // Drop all input if the device is disabled.
         cancelTouch(mCurrentRawState.when);
-        mCurrentRawState.clear();
-        mRawStatesPending.clear();
         mCurrentCookedState.clear();
         updateTouchSpots();
         return;
