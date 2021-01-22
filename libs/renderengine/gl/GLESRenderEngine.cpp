@@ -746,6 +746,7 @@ void GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, const sp<Grap
 }
 
 void GLESRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+    ATRACE_CALL();
     mImageManager->cacheAsync(buffer, nullptr);
 }
 

@@ -45,11 +45,12 @@ using android::hardware::graphics::common::V1_2::BufferUsage;
 class BLASTBufferQueueHelper {
 public:
     BLASTBufferQueueHelper(const sp<SurfaceControl>& sc, int width, int height) {
-        mBlastBufferQueueAdapter = new BLASTBufferQueue("TestBLASTBufferQueue", sc, width, height);
+        mBlastBufferQueueAdapter = new BLASTBufferQueue("TestBLASTBufferQueue", sc, width, height,
+                                                        PIXEL_FORMAT_RGBA_8888);
     }
 
     void update(const sp<SurfaceControl>& sc, int width, int height) {
-        mBlastBufferQueueAdapter->update(sc, width, height);
+        mBlastBufferQueueAdapter->update(sc, width, height, PIXEL_FORMAT_RGBA_8888);
     }
 
     void setNextTransaction(Transaction* next) {
