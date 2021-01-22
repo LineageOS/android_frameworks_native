@@ -127,6 +127,13 @@ static inline const char* toString(bool value) {
     return value ? "true" : "false";
 }
 
+static inline const std::string toString(sp<IBinder> binder) {
+    if (binder == nullptr) {
+        return "<null>";
+    }
+    return StringPrintf("%p", binder.get());
+}
+
 static inline int32_t getMotionEventActionPointerIndex(int32_t action) {
     return (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >>
             AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
@@ -2470,19 +2477,20 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
 
 std::string InputDispatcher::dumpWindowForTouchOcclusion(const InputWindowInfo* info,
                                                          bool isTouchedWindow) const {
-    return StringPrintf(INDENT2 "* %stype=%s, package=%s/%" PRId32 ", id=%" PRId32
-                                ", mode=%s, alpha=%.2f, "
-                                "frame=[%" PRId32 ",%" PRId32 "][%" PRId32 ",%" PRId32
-                                "], touchableRegion=%s, window={%s}, applicationInfo=%s, "
-                                "flags={%s}, inputFeatures={%s}, hasToken=%s\n",
+    return StringPrintf(INDENT2
+                        "* %stype=%s, package=%s/%" PRId32 ", id=%" PRId32 ", mode=%s, alpha=%.2f, "
+                        "frame=[%" PRId32 ",%" PRId32 "][%" PRId32 ",%" PRId32
+                        "], touchableRegion=%s, window={%s}, flags={%s}, inputFeatures={%s}, "
+                        "hasToken=%s, applicationInfo.name=%s, applicationInfo.token=%s\n",
                         (isTouchedWindow) ? "[TOUCHED] " : "",
                         NamedEnum::string(info->type, "%" PRId32).c_str(),
                         info->packageName.c_str(), info->ownerUid, info->id,
                         toString(info->touchOcclusionMode).c_str(), info->alpha, info->frameLeft,
                         info->frameTop, info->frameRight, info->frameBottom,
                         dumpRegion(info->touchableRegion).c_str(), info->name.c_str(),
-                        info->applicationInfo.name.c_str(), info->flags.string().c_str(),
-                        info->inputFeatures.string().c_str(), toString(info->token != nullptr));
+                        info->flags.string().c_str(), info->inputFeatures.string().c_str(),
+                        toString(info->token != nullptr), info->applicationInfo.name.c_str(),
+                        toString(info->applicationInfo.token).c_str());
 }
 
 bool InputDispatcher::isTouchTrustedLocked(const TouchOcclusionInfo& occlusionInfo) const {
@@ -4797,7 +4805,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                                  "hasWallpaper=%s, visible=%s, alpha=%.2f, "
                                                  "flags=%s, type=%s, "
                                                  "frame=[%d,%d][%d,%d], globalScale=%f, "
-                                                 "applicationInfo=%s, "
+                                                 "applicationInfo.name=%s, "
+                                                 "applicationInfo.token=%s, "
                                                  "touchableRegion=",
                                          i, windowInfo->name.c_str(), windowInfo->id,
                                          windowInfo->displayId, windowInfo->portalToDisplayId,
@@ -4810,7 +4819,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          windowInfo->frameLeft, windowInfo->frameTop,
                                          windowInfo->frameRight, windowInfo->frameBottom,
                                          windowInfo->globalScaleFactor,
-                                         windowInfo->applicationInfo.name.c_str());
+                                         windowInfo->applicationInfo.name.c_str(),
+                                         toString(windowInfo->applicationInfo.token).c_str());
                     dump += dumpRegion(windowInfo->touchableRegion);
                     dump += StringPrintf(", inputFeatures=%s",
                                          windowInfo->inputFeatures.string().c_str());
