@@ -20,6 +20,7 @@
 #include "AnrTracker.h"
 #include "CancelationOptions.h"
 #include "Entry.h"
+#include "FocusResolver.h"
 #include "InjectionState.h"
 #include "InputDispatcherConfiguration.h"
 #include "InputDispatcherInterface.h"
@@ -146,14 +147,6 @@ private:
         NO_POINTER_CAPTURE,
     };
 
-    enum class FocusResult {
-        OK,
-        NO_WINDOW,
-        NOT_FOCUSABLE,
-        NOT_VISIBLE,
-    };
-    static const char* typeToString(FocusResult result);
-
     std::unique_ptr<InputThread> mThread;
 
     sp<InputDispatcherPolicyInterface> mPolicy;
@@ -190,7 +183,7 @@ private:
 
     // Enqueues a focus event.
     void enqueueFocusEventLocked(const sp<IBinder>& windowToken, bool hasFocus,
-                                 std::string_view reason) REQUIRES(mLock);
+                                 const std::string& reason) REQUIRES(mLock);
 
     // Adds an event to a queue of recent events for debugging purposes.
     void addRecentEventLocked(std::shared_ptr<EventEntry> entry) REQUIRES(mLock);
@@ -333,9 +326,6 @@ private:
     sp<InputWindowHandle> getFocusedWindowHandleLocked(int displayId) const REQUIRES(mLock);
     bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
     bool hasResponsiveConnectionLocked(InputWindowHandle& windowHandle) const REQUIRES(mLock);
-    FocusResult handleFocusRequestLocked(const FocusRequest&) REQUIRES(mLock);
-    FocusResult checkTokenFocusableLocked(const sp<IBinder>& token, int32_t displayId) const
-            REQUIRES(mLock);
 
     /*
      * Validate and update InputWindowHandles for a given display.
@@ -343,12 +333,6 @@ private:
     void updateWindowHandlesForDisplayLocked(
             const std::vector<sp<InputWindowHandle>>& inputWindowHandles, int32_t displayId)
             REQUIRES(mLock);
-
-    // Focus tracking for keys, trackball, etc. A window token can be associated with one or more
-    // InputWindowHandles. If a window is mirrored, the window and its mirror will share the same
-    // token. Focus is tracked by the token per display and the events are dispatched to the
-    // channel associated by this token.
-    std::unordered_map<int32_t, sp<IBinder>> mFocusedWindowTokenByDisplay GUARDED_BY(mLock);
 
     std::unordered_map<int32_t, TouchState> mTouchStatesByDisplay GUARDED_BY(mLock);
 
@@ -359,6 +343,8 @@ private:
     // Top focused display.
     int32_t mFocusedDisplayId GUARDED_BY(mLock);
 
+    // Keeps track of the focused window per display and determines focus changes.
+    FocusResolver mFocusResolver GUARDED_BY(mLock);
     // Whether the focused window on the focused display has requested Pointer Capture.
     // The state of this variable should always be in sync with the state of Pointer Capture in the
     // policy, which is updated through setPointerCaptureLocked(enabled).
@@ -462,13 +448,6 @@ private:
      */
     void sendWindowResponsiveCommandLocked(sp<IBinder> connectionToken) REQUIRES(mLock);
 
-    /**
-     * This map will store the pending focus requests that cannot be currently processed. This can
-     * happen if the window requested to be focused is not currently visible. Such a window might
-     * become visible later, and these requests would be processed at that time.
-     */
-    std::unordered_map<int32_t /* displayId */, FocusRequest> mPendingFocusRequests
-            GUARDED_BY(mLock);
 
     // Optimization: AnrTracker is used to quickly find which connection is due for a timeout next.
     // AnrTracker must be kept in-sync with all responsive connection.waitQueues.
@@ -586,8 +565,6 @@ private:
     void dumpDispatchStateLocked(std::string& dump) REQUIRES(mLock);
     void dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors);
     void logDispatchStateLocked() REQUIRES(mLock);
-    std::string dumpFocusedWindowsLocked() REQUIRES(mLock);
-    std::string dumpPendingFocusRequestsLocked() REQUIRES(mLock);
     std::string dumpPointerCaptureStateLocked() REQUIRES(mLock);
 
     // Registration.
@@ -603,8 +580,7 @@ private:
                                        uint32_t seq, bool handled) REQUIRES(mLock);
     void onDispatchCycleBrokenLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
-    void onFocusChangedLocked(const sp<IBinder>& oldFocus, const sp<IBinder>& newFocus,
-                              int32_t displayId, std::string_view reason) REQUIRES(mLock);
+    void onFocusChangedLocked(const FocusResolver::FocusChanges& changes) REQUIRES(mLock);
     void notifyFocusChangedLocked(const sp<IBinder>& oldFocus, const sp<IBinder>& newFocus)
             REQUIRES(mLock);
     void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
