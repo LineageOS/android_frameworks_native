@@ -93,10 +93,10 @@ struct DeviceResetEntry : EventEntry {
 struct FocusEntry : EventEntry {
     sp<IBinder> connectionToken;
     bool hasFocus;
-    std::string_view reason;
+    std::string reason;
 
     FocusEntry(int32_t id, nsecs_t eventTime, sp<IBinder> connectionToken, bool hasFocus,
-               std::string_view reason);
+               const std::string& reason);
     std::string getDescription() const override;
 
     virtual ~FocusEntry();
