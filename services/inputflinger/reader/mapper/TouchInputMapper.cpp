@@ -608,8 +608,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         if (hasStylus()) {
             mSource |= AINPUT_SOURCE_STYLUS;
         }
-    } else if (mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN &&
-               mParameters.hasAssociatedDisplay) {
+    } else if (isTouchScreen()) {
         mSource = AINPUT_SOURCE_TOUCHSCREEN;
         mDeviceMode = DeviceMode::DIRECT;
         if (hasStylus()) {
@@ -1453,8 +1452,11 @@ void TouchInputMapper::sync(nsecs_t when) {
 void TouchInputMapper::processRawTouches(bool timeout) {
     if (mDeviceMode == DeviceMode::DISABLED) {
         // Drop all input if the device is disabled.
+        cancelTouch(mCurrentRawState.when);
         mCurrentRawState.clear();
         mRawStatesPending.clear();
+        mCurrentCookedState.clear();
+        updateTouchSpots();
         return;
     }
 
@@ -1586,17 +1588,7 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
 
         dispatchPointerUsage(when, policyFlags, pointerUsage);
     } else {
-        if (mDeviceMode == DeviceMode::DIRECT && mConfig.showTouches &&
-            mPointerController != nullptr) {
-            mPointerController->setPresentation(PointerControllerInterface::Presentation::SPOT);
-            mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
-
-            mPointerController->setButtonState(mCurrentRawState.buttonState);
-            mPointerController->setSpots(mCurrentCookedState.cookedPointerData.pointerCoords,
-                                         mCurrentCookedState.cookedPointerData.idToIndex,
-                                         mCurrentCookedState.cookedPointerData.touchingIdBits,
-                                         mViewport.displayId);
-        }
+        updateTouchSpots();
 
         if (!mCurrentMotionAborted) {
             dispatchButtonRelease(when, policyFlags);
@@ -1623,6 +1615,33 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
     // Copy current touch to last touch in preparation for the next cycle.
     mLastRawState.copyFrom(mCurrentRawState);
     mLastCookedState.copyFrom(mCurrentCookedState);
+}
+
+void TouchInputMapper::updateTouchSpots() {
+    if (!mConfig.showTouches || mPointerController == nullptr) {
+        return;
+    }
+
+    // Update touch spots when this is a touchscreen even when it's not enabled so that we can
+    // clear touch spots.
+    if (mDeviceMode != DeviceMode::DIRECT &&
+        (mDeviceMode != DeviceMode::DISABLED || !isTouchScreen())) {
+        return;
+    }
+
+    mPointerController->setPresentation(PointerControllerInterface::Presentation::SPOT);
+    mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
+
+    mPointerController->setButtonState(mCurrentRawState.buttonState);
+    mPointerController->setSpots(mCurrentCookedState.cookedPointerData.pointerCoords,
+                                 mCurrentCookedState.cookedPointerData.idToIndex,
+                                 mCurrentCookedState.cookedPointerData.touchingIdBits,
+                                 mViewport.displayId);
+}
+
+bool TouchInputMapper::isTouchScreen() {
+    return mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN &&
+            mParameters.hasAssociatedDisplay;
 }
 
 void TouchInputMapper::applyExternalStylusButtonState(nsecs_t when) {

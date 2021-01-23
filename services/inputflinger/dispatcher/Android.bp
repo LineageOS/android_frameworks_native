@@ -25,6 +25,7 @@ filegroup {
         "AnrTracker.cpp",
         "Connection.cpp",
         "Entry.cpp",
+        "FocusResolver.cpp",
         "InjectionState.cpp",
         "InputDispatcher.cpp",
         "InputDispatcherFactory.cpp",

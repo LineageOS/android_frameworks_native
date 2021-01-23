@@ -7362,6 +7362,57 @@ TEST_F(MultiTouchInputMapperTest, WhenViewportIsNotActive_TouchesAreDropped) {
     mFakeListener->assertNotifyMotionWasNotCalled();
 }
 
+TEST_F(MultiTouchInputMapperTest, Process_DeactivateViewport_AbortTouches) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                    DISPLAY_ORIENTATION_0, true /*isActive*/, UNIQUE_ID, NO_PORT,
+                                    ViewportType::INTERNAL);
+    std::optional<DisplayViewport> optionalDisplayViewport =
+            mFakePolicy->getDisplayViewportByUniqueId(UNIQUE_ID);
+    ASSERT_TRUE(optionalDisplayViewport.has_value());
+    DisplayViewport displayViewport = *optionalDisplayViewport;
+
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    prepareAxes(POSITION);
+    MultiTouchInputMapper& mapper = addMapperAndConfigure<MultiTouchInputMapper>();
+
+    // Finger down
+    int32_t x = 100, y = 100;
+    processPosition(mapper, x, y);
+    processSync(mapper);
+
+    NotifyMotionArgs motionArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+
+    // Deactivate display viewport
+    displayViewport.isActive = false;
+    ASSERT_TRUE(mFakePolicy->updateViewport(displayViewport));
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    // Finger move
+    x += 10, y += 10;
+    processPosition(mapper, x, y);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    EXPECT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionArgs.action);
+
+    // Reactivate display viewport
+    displayViewport.isActive = true;
+    ASSERT_TRUE(mFakePolicy->updateViewport(displayViewport));
+    configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    // Finger move again
+    x += 10, y += 10;
+    processPosition(mapper, x, y);
+    processSync(mapper);
+
+    // Gesture is aborted, so events after display is activated won't be dispatched until there is
+    // no pointer on the touch device.
+    mFakeListener->assertNotifyMotionWasNotCalled();
+}
+
 TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
     // Setup the first touch screen device.
     prepareAxes(POSITION | ID | SLOT);
