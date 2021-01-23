@@ -24,6 +24,7 @@
 namespace android::os {
 
 enum class LocationMode : int32_t;
+enum class SoundTriggerMode : int32_t;
 /**
  * PowerSaveState is a structure to encapsulate PowerSaveState status.
  * This file needs to be kept in sync with frameworks/base/core/java/android/os/PowerSaveState.java
@@ -33,16 +34,19 @@ struct PowerSaveState : public android::Parcelable {
     PowerSaveState(bool batterySaverEnabled = false,
                    bool globalBatterySaverEnabled = false,
                    LocationMode locationMode = static_cast<LocationMode>(0),
+                   SoundTriggerMode soundTriggerMode = static_cast<SoundTriggerMode>(0),
                    float brightnessFactor = 0.5f)
             : mBatterySaverEnabled(batterySaverEnabled),
               mGlobalBatterySaverEnabled(globalBatterySaverEnabled),
               mLocationMode(locationMode),
+              mSoundTriggerMode(soundTriggerMode),
               mBrightnessFactor(brightnessFactor) {
     }
 
     bool getBatterySaverEnabled() const { return mBatterySaverEnabled; }
     bool getGlobalBatterySaverEnabled() const { return mGlobalBatterySaverEnabled; }
     LocationMode getLocationMode() const { return mLocationMode; }
+    SoundTriggerMode getSoundTriggerMode() const { return mSoundTriggerMode; }
     float getBrightnessFactor() const { return mBrightnessFactor; }
     bool operator == (const PowerSaveState &ps) const {
         return mBatterySaverEnabled == ps.mBatterySaverEnabled &&
@@ -61,6 +65,8 @@ private:
     bool mGlobalBatterySaverEnabled;
     /** Location mode */
     LocationMode mLocationMode;
+    /** SoundTrigger mode */
+    SoundTriggerMode mSoundTriggerMode;
     /** Screen brightness factor. */
     float mBrightnessFactor;
 };
