@@ -299,6 +299,7 @@ protected:
         mChild = createSurface(mClient, "Child surface", 10, 15, PIXEL_FORMAT_RGBA_8888, 0,
                                mFGSurfaceControl.get());
         TransactionUtils::fillSurfaceRGBA8(mChild, 200, 200, 200);
+        waitForPostedBuffers();
 
         {
             SCOPED_TRACE("before anything");
