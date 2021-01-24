@@ -544,9 +544,47 @@ status_t HWComposer::getDeviceCompositionChanges(
     DeviceRequestedChanges::ClientTargetProperty clientTargetProperty;
     error = hwcDisplay->getClientTargetProperty(&clientTargetProperty);
 
+<<<<<<< HEAD   (f1201c Merge tag 'android-11.0.0_r29' into staging/lineage-18.1_mer)
     outChanges->emplace(DeviceRequestedChanges{std::move(changedTypes), std::move(displayRequests),
                                                std::move(layerRequests),
                                                std::move(clientTargetProperty)});
+=======
+        if (auto it = changedTypes.find(hwcLayer.get()); it != changedTypes.end()) {
+            auto newCompositionType = it->second;
+            validateChange(static_cast<HWC2::Composition>((*state.hwc).hwcCompositionType),
+                           newCompositionType);
+            (*state.hwc).hwcCompositionType =
+                    static_cast<Hwc2::IComposerClient::Composition>(newCompositionType);
+        }
+
+        switch ((*state.hwc).hwcCompositionType) {
+            case Hwc2::IComposerClient::Composition::CLIENT:
+                displayData.hasClientComposition = true;
+                break;
+            case Hwc2::IComposerClient::Composition::DEVICE:
+            case Hwc2::IComposerClient::Composition::SOLID_COLOR:
+            case Hwc2::IComposerClient::Composition::CURSOR:
+            case Hwc2::IComposerClient::Composition::SIDEBAND:
+                displayData.hasDeviceComposition = true;
+                break;
+            default:
+                break;
+        }
+
+        state.clearClientTarget = false;
+        if (auto it = layerRequests.find(hwcLayer.get()); it != layerRequests.end()) {
+            auto request = std::underlying_type_t<HWC2::LayerRequest>(it->second);
+            if (request & static_cast<std::underlying_type_t<HWC2::LayerRequest>>(
+                 HWC2::LayerRequest::ClearClientTarget)) {
+                state.clearClientTarget = true;
+            } else {
+                LOG_DISPLAY_ERROR(displayId,
+                                  ("Unknown layer request " + std::to_string(request)).c_str());
+            }
+        }
+    }
+
+>>>>>>> CHANGE (aa860f SF: Correctly handle the LayerRequest bitfield)
     error = hwcDisplay->acceptChanges();
     RETURN_IF_HWC_ERROR_FOR("acceptChanges", error, displayId, BAD_INDEX);
 
