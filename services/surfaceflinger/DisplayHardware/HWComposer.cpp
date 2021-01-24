@@ -492,12 +492,13 @@ status_t HWComposer::prepare(DisplayId displayId, const compositionengine::Outpu
 
         state.clearClientTarget = false;
         if (auto it = layerRequests.find(hwcLayer.get()); it != layerRequests.end()) {
-            auto request = it->second;
-            if (request == HWC2::LayerRequest::ClearClientTarget) {
+            auto request = std::underlying_type_t<HWC2::LayerRequest>(it->second);
+            if (request & static_cast<std::underlying_type_t<HWC2::LayerRequest>>(
+                 HWC2::LayerRequest::ClearClientTarget)) {
                 state.clearClientTarget = true;
             } else {
                 LOG_DISPLAY_ERROR(displayId,
-                                  ("Unknown layer request " + to_string(request)).c_str());
+                                  ("Unknown layer request " + std::to_string(request)).c_str());
             }
         }
     }
