@@ -646,15 +646,12 @@ void OutputLayer::prepareForDeviceLayerRequests() {
 
 void OutputLayer::applyDeviceLayerRequest(hal::LayerRequest request) {
     auto& state = editState();
-    switch (request) {
-        case hal::LayerRequest::CLEAR_CLIENT_TARGET:
-            state.clearClientTarget = true;
-            break;
-
-        default:
-            ALOGE("[%s] Unknown device layer request %s (%d)", getLayerFE().getDebugName(),
-                  toString(request).c_str(), static_cast<int>(request));
-            break;
+    auto requestInt = static_cast<int>(request);
+    if (requestInt & static_cast<int>( hal::LayerRequest::CLEAR_CLIENT_TARGET)) {
+        state.clearClientTarget = true;
+    } else {
+        ALOGE("[%s] Unknown device layer request %s (%d)", getLayerFE().getDebugName(),
+                  toString(request).c_str(), requestInt);
     }
 }
 
