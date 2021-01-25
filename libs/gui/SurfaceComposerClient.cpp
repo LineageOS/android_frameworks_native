@@ -1390,19 +1390,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::detachChildren(
-        const sp<SurfaceControl>& sc) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-    s->what |= layer_state_t::eDetachChildren;
-
-    registerSurfaceControlForCallback(sc);
-    return *this;
-}
-
 #ifndef NO_INPUT
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInputWindowInfo(
         const sp<SurfaceControl>& sc,
