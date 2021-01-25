@@ -55,7 +55,6 @@ status_t BatterySaverPolicyConfig::readFromParcel(const android::Parcel *parcel)
         ?: parcel->readBool(&mDisableAod)
         ?: parcel->readBool(&mDisableLaunchBoost)
         ?: parcel->readBool(&mDisableOptionalSensors)
-        ?: parcel->readBool(&mDisableSoundTrigger)
         ?: parcel->readBool(&mDisableVibration)
         ?: parcel->readBool(&mEnableAdjustBrightness)
         ?: parcel->readBool(&mEnableDataSaver)
@@ -64,7 +63,8 @@ status_t BatterySaverPolicyConfig::readFromParcel(const android::Parcel *parcel)
         ?: parcel->readBool(&mEnableQuickDoze)
         ?: parcel->readBool(&mForceAllAppsStandby)
         ?: parcel->readBool(&mForceBackgroundCheck)
-        ?: parcel->readInt32(reinterpret_cast<int32_t *>(&mLocationMode));
+        ?: parcel->readInt32(reinterpret_cast<int32_t *>(&mLocationMode))
+        ?: parcel->readInt32(reinterpret_cast<int32_t *>(&mSoundTriggerMode));
 }
 
 status_t BatterySaverPolicyConfig::writeDeviceSpecificSettings(android::Parcel *parcel) const {
@@ -97,7 +97,6 @@ status_t BatterySaverPolicyConfig::writeToParcel(android::Parcel *parcel) const 
         ?: parcel->writeBool(mDisableAod)
         ?: parcel->writeBool(mDisableLaunchBoost)
         ?: parcel->writeBool(mDisableOptionalSensors)
-        ?: parcel->writeBool(mDisableSoundTrigger)
         ?: parcel->writeBool(mDisableVibration)
         ?: parcel->writeBool(mEnableAdjustBrightness)
         ?: parcel->writeBool(mEnableDataSaver)
@@ -106,7 +105,8 @@ status_t BatterySaverPolicyConfig::writeToParcel(android::Parcel *parcel) const 
         ?: parcel->writeBool(mEnableQuickDoze)
         ?: parcel->writeBool(mForceAllAppsStandby)
         ?: parcel->writeBool(mForceBackgroundCheck)
-        ?: parcel->writeInt32(static_cast<int32_t>(mLocationMode));
+        ?: parcel->writeInt32(static_cast<int32_t>(mLocationMode))
+        ?: parcel->writeInt32(static_cast<int32_t>(mSoundTriggerMode));
 }
 
 } // namespace android::os

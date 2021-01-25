@@ -24,6 +24,7 @@
 namespace android::os {
 
 enum class LocationMode : int32_t;
+enum class SoundTriggerMode : int32_t;
 /**
  * BatterySaverPolicyConfig is a structure of configs to set Battery Saver policy flags.
  * This file needs to be kept in sync with
@@ -40,7 +41,6 @@ struct BatterySaverPolicyConfig : public android::Parcelable {
                              bool disableAod = false,
                              bool disableLaunchBoost = false,
                              bool disableOptionalSensors = false,
-                             bool disableSoundTrigger = false,
                              bool disableVibration = false,
                              bool enableAdjustBrightness = false,
                              bool enableDataSaver = false,
@@ -49,7 +49,8 @@ struct BatterySaverPolicyConfig : public android::Parcelable {
                              bool enableQuickDoze = false,
                              bool forceAllAppsStandby = false,
                              bool forceBackgroundCheck = false,
-                             LocationMode locationMode = static_cast<LocationMode>(0))
+                             LocationMode locationMode = static_cast<LocationMode>(0),
+                             SoundTriggerMode soundTriggerMode = static_cast<SoundTriggerMode>(0))
         : mAdjustBrightnessFactor(adjustBrightnessFactor),
           mAdvertiseIsEnabled(advertiseIsEnabled),
           mDeferFullBackup(deferFullBackup),
@@ -59,7 +60,6 @@ struct BatterySaverPolicyConfig : public android::Parcelable {
           mDisableAod(disableAod),
           mDisableLaunchBoost(disableLaunchBoost),
           mDisableOptionalSensors(disableOptionalSensors),
-          mDisableSoundTrigger(disableSoundTrigger),
           mDisableVibration(disableVibration),
           mEnableAdjustBrightness(enableAdjustBrightness),
           mEnableDataSaver(enableDataSaver),
@@ -68,7 +68,8 @@ struct BatterySaverPolicyConfig : public android::Parcelable {
           mEnableQuickDoze(enableQuickDoze),
           mForceAllAppsStandby(forceAllAppsStandby),
           mForceBackgroundCheck(forceBackgroundCheck),
-          mLocationMode(locationMode) {
+          mLocationMode(locationMode),
+          mSoundTriggerMode(soundTriggerMode) {
     }
 
     status_t readFromParcel(const android::Parcel* parcel) override;
@@ -83,7 +84,6 @@ struct BatterySaverPolicyConfig : public android::Parcelable {
                mDisableAod == bsp.mDisableAod &&
                mDisableLaunchBoost == bsp.mDisableLaunchBoost &&
                mDisableOptionalSensors == bsp.mDisableOptionalSensors &&
-               mDisableSoundTrigger == bsp.mDisableSoundTrigger &&
                mDisableVibration == bsp.mDisableVibration &&
                mEnableAdjustBrightness == bsp.mEnableAdjustBrightness &&
                mEnableDataSaver == bsp.mEnableDataSaver &&
@@ -92,7 +92,8 @@ struct BatterySaverPolicyConfig : public android::Parcelable {
                mEnableQuickDoze == bsp.mEnableQuickDoze &&
                mForceAllAppsStandby == bsp.mForceAllAppsStandby &&
                mForceBackgroundCheck == bsp.mForceBackgroundCheck &&
-               mLocationMode == bsp.mLocationMode;
+               mLocationMode == bsp.mLocationMode &&
+               mSoundTriggerMode == bsp.mSoundTriggerMode;
     }
 
 private:
@@ -116,8 +117,6 @@ private:
     bool mDisableLaunchBoost;
     /** Disable optional sensors */
     bool mDisableOptionalSensors;
-    /** Disable sound trigger */
-    bool mDisableSoundTrigger;
     /** Disable vibration */
     bool mDisableVibration;
     /** Enable adjust brightness */
@@ -136,6 +135,8 @@ private:
     bool mForceBackgroundCheck;
     /** Location mode */
     LocationMode mLocationMode;
+    /** SoundTrigger mode */
+    SoundTriggerMode mSoundTriggerMode;
 };
 
 } // namespace android::os

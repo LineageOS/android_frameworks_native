@@ -757,6 +757,12 @@ private:
                              PointerCoords* outCoords, const uint32_t* outIdToIndex,
                              BitSet32 idBits) const;
 
+    // Returns if this touch device is a touch screen with an associated display.
+    bool isTouchScreen();
+    // Updates touch spots if they are enabled. Should only be used when this device is a
+    // touchscreen.
+    void updateTouchSpots();
+
     bool isPointInsideSurface(int32_t x, int32_t y);
     const VirtualKey* findVirtualKeyHit(int32_t x, int32_t y);
 

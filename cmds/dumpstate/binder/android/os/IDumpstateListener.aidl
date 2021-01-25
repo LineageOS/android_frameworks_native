@@ -21,8 +21,6 @@ package android.os;
   *
   * <p>When bugreport creation is complete one of {@code onError} or {@code onFinished} is called.
   *
-  * <p>These methods are synchronous by design in order to make dumpstate's lifecycle simpler
-  * to handle.
   *
   * {@hide}
   */
@@ -54,10 +52,8 @@ interface IDumpstateListener {
 
     /**
      * Called on an error condition with one of the error codes listed above.
-     * This is not an asynchronous method since it can race with dumpstate exiting, thus triggering
-     * death recipient.
      */
-    void onError(int errorCode);
+    oneway void onError(int errorCode);
 
     /**
      * Called when taking bugreport finishes successfully.
