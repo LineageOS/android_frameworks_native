@@ -39,9 +39,9 @@
 #include <utils/Timers.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
+#include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
-#include "Scheduler/HwcStrongTypes.h"
 
 namespace android {
 
@@ -159,8 +159,8 @@ public:
     /* ------------------------------------------------------------------------
      * Display active config management.
      */
-    HwcConfigIndexType getActiveConfig() const;
-    void setActiveConfig(HwcConfigIndexType mode);
+    DisplayModeId getActiveMode() const;
+    void setActiveMode(DisplayModeId mode);
 
     // release HWC resources (if any) for removable displays
     void disconnect();
@@ -189,7 +189,7 @@ private:
 
     hardware::graphics::composer::hal::PowerMode mPowerMode =
             hardware::graphics::composer::hal::PowerMode::OFF;
-    HwcConfigIndexType mActiveConfig;
+    DisplayModeId mActiveMode;
 
     // TODO(b/74619554): Remove special cases for primary display.
     const bool mIsPrimary;

@@ -91,7 +91,7 @@ public:
     }
 
     void onNonPrimaryDisplayConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                          HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
+                                          DisplayModeId configId, nsecs_t vsyncPeriod) {
         return Scheduler::onNonPrimaryDisplayConfigChanged(handle, displayId, configId,
                                                            vsyncPeriod);
     }

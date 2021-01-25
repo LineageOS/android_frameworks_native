@@ -41,9 +41,10 @@
 #include <utils/Errors.h>
 #include <utils/Trace.h>
 
-#include "EventThread.h"
+#include "DisplayHardware/DisplayMode.h"
 #include "FrameTimeline.h"
-#include "HwcStrongTypes.h"
+
+#include "EventThread.h"
 
 #undef LOG_TAG
 #define LOG_TAG "EventThread"
@@ -117,8 +118,8 @@ DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t times
     return event;
 }
 
-DisplayEventReceiver::Event makeConfigChanged(PhysicalDisplayId displayId,
-                                              HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
+DisplayEventReceiver::Event makeConfigChanged(PhysicalDisplayId displayId, DisplayModeId configId,
+                                              nsecs_t vsyncPeriod) {
     DisplayEventReceiver::Event event;
     event.header = {DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED, displayId, systemTime()};
     event.config.configId = configId.value();
@@ -368,7 +369,7 @@ void EventThread::onHotplugReceived(PhysicalDisplayId displayId, bool connected)
     mCondition.notify_all();
 }
 
-void EventThread::onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId,
+void EventThread::onConfigChanged(PhysicalDisplayId displayId, DisplayModeId configId,
                                   nsecs_t vsyncPeriod) {
     std::lock_guard<std::mutex> lock(mMutex);
 
