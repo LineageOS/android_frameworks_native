@@ -62,22 +62,6 @@ TEST_F(RenderEngineThreadedTest, deleteTextures) {
     mThreadedRE->deleteTextures(1, &texName);
 }
 
-TEST_F(RenderEngineThreadedTest, cacheExternalTextureBuffer_nullptr) {
-    EXPECT_CALL(*mRenderEngine, cacheExternalTextureBuffer(Eq(nullptr)));
-    mThreadedRE->cacheExternalTextureBuffer(nullptr);
-}
-
-TEST_F(RenderEngineThreadedTest, cacheExternalTextureBuffer_withBuffer) {
-    sp<GraphicBuffer> buf = new GraphicBuffer();
-    EXPECT_CALL(*mRenderEngine, cacheExternalTextureBuffer(buf));
-    mThreadedRE->cacheExternalTextureBuffer(buf);
-}
-
-TEST_F(RenderEngineThreadedTest, unbindExternalTextureBuffer) {
-    EXPECT_CALL(*mRenderEngine, unbindExternalTextureBuffer(0x0));
-    mThreadedRE->unbindExternalTextureBuffer(0x0);
-}
-
 TEST_F(RenderEngineThreadedTest, getMaxTextureSize_returns20) {
     size_t size = 20;
     EXPECT_CALL(*mRenderEngine, getMaxTextureSize()).WillOnce(Return(size));

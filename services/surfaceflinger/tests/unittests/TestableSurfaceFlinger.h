@@ -23,6 +23,7 @@
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/DisplaySurface.h>
+#include <gui/ScreenCaptureResults.h>
 
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
@@ -40,7 +41,6 @@
 #include "SurfaceFlingerDefaultFactory.h"
 #include "SurfaceInterceptor.h"
 #include "TestableScheduler.h"
-#include "mock/DisplayHardware/MockDisplay.h"
 #include "mock/MockDisplayIdGenerator.h"
 #include "mock/MockFrameTimeline.h"
 #include "mock/MockFrameTracer.h"
@@ -210,20 +210,21 @@ public:
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
                         ISchedulerCallback* callback = nullptr, bool hasMultipleConfigs = false) {
-        std::vector<std::shared_ptr<const HWC2::Display::Config>> configs{
-                HWC2::Display::Config::Builder(mDisplay, 0)
-                        .setVsyncPeriod(16'666'667)
-                        .setConfigGroup(0)
-                        .build()};
+        DisplayModes configs{DisplayMode::Builder(0)
+                                     .setId(DisplayModeId(0))
+                                     .setVsyncPeriod(16'666'667)
+                                     .setConfigGroup(0)
+                                     .build()};
 
         if (hasMultipleConfigs) {
-            configs.emplace_back(HWC2::Display::Config::Builder(mDisplay, 1)
+            configs.emplace_back(DisplayMode::Builder(1)
+                                         .setId(DisplayModeId(1))
                                          .setVsyncPeriod(11'111'111)
                                          .setConfigGroup(0)
                                          .build());
         }
 
-        const auto currConfig = HwcConfigIndexType(0);
+        const auto currConfig = DisplayModeId(0);
         mFlinger->mRefreshRateConfigs =
                 std::make_unique<scheduler::RefreshRateConfigs>(configs, currConfig);
         const auto currFps =
@@ -469,7 +470,6 @@ public:
         }
 
         auto& mutableIsConnected() { return this->mIsConnected; }
-        auto& mutableConfigs() { return this->mConfigs; }
         auto& mutableLayers() { return this->mLayers; }
     };
 
@@ -544,18 +544,19 @@ public:
             auto display = std::make_unique<HWC2Display>(*composer, *mCapabilities, mHwcDisplayId,
                                                          mHwcDisplayType);
 
-            auto config = HWC2::Display::Config::Builder(*display, mActiveConfig);
-            config.setWidth(mWidth);
-            config.setHeight(mHeight);
-            config.setVsyncPeriod(mRefreshRate);
-            config.setDpiX(mDpiX);
-            config.setDpiY(mDpiY);
-            config.setConfigGroup(mConfigGroup);
-            display->mutableConfigs().emplace(static_cast<int32_t>(mActiveConfig), config.build());
             display->mutableIsConnected() = true;
             display->setPowerMode(mPowerMode);
-
             flinger->mutableHwcDisplayData()[mDisplayId].hwcDisplay = std::move(display);
+
+            auto config = DisplayMode::Builder(mActiveConfig)
+                                  .setWidth(mWidth)
+                                  .setHeight(mHeight)
+                                  .setVsyncPeriod(mRefreshRate)
+                                  .setDpiX(mDpiX)
+                                  .setDpiY(mDpiY)
+                                  .setConfigGroup(mConfigGroup)
+                                  .build();
+            flinger->mutableHwcDisplayData()[mDisplayId].modes.push_back(config);
 
             if (mHwcDisplayType == hal::DisplayType::PHYSICAL) {
                 const auto physicalId = PhysicalDisplayId::tryCast(mDisplayId);
@@ -703,7 +704,6 @@ private:
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);
     TestableScheduler* mScheduler = nullptr;
-    Hwc2::mock::Display mDisplay;
     mock::DisplayIdGenerator<GpuVirtualDisplayId> mGpuVirtualDisplayIdGenerator;
 };
 

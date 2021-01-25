@@ -264,8 +264,8 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     EXPECT_EQ(Case::HdrSupport::HDR_DOLBY_VISION_SUPPORTED, device->hasDolbyVisionSupport());
     // Note: This is not Case::Display::HWC_ACTIVE_CONFIG_ID as the ids are
     // remapped, and the test only ever sets up one config. If there were an error
-    // looking up the remapped index, device->getActiveConfig() would be -1 instead.
-    EXPECT_EQ(0, device->getActiveConfig().value());
+    // looking up the remapped index, device->getActiveMode() would be -1 instead.
+    EXPECT_EQ(0, device->getActiveMode().value());
     EXPECT_EQ(Case::PerFrameMetadataSupport::PER_FRAME_METADATA_KEYS,
               device->getSupportedPerFrameMetadata());
 }

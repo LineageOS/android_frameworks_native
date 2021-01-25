@@ -22,6 +22,8 @@
 #include <gui/LayerState.h>
 
 namespace android {
+using gui::ScreenCaptureResults;
+
 namespace test {
 
 TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
@@ -86,11 +88,11 @@ TEST(LayerStateTest, ParcellingScreenCaptureResults) {
     results.result = BAD_VALUE;
 
     Parcel p;
-    results.write(p);
+    results.writeToParcel(&p);
     p.setDataPosition(0);
 
     ScreenCaptureResults results2;
-    results2.read(p);
+    results2.readFromParcel(&p);
 
     // GraphicBuffer object is reallocated so compare the data in the graphic buffer
     // rather than the object itself

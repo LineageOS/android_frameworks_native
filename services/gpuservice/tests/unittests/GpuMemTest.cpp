@@ -59,7 +59,6 @@ public:
     }
 
     void SetUp() override {
-        SKIP_IF_BPF_NOT_SUPPORTED;
         bpf::setrlimitForTest();
 
         mGpuMem = std::make_unique<GpuMem>();
@@ -87,8 +86,6 @@ public:
 };
 
 TEST_F(GpuMemTest, validGpuMemTotalBpfPaths) {
-    SKIP_IF_BPF_NOT_SUPPORTED;
-
     EXPECT_EQ(mTestableGpuMem.getGpuMemTraceGroup(), "gpu_mem");
     EXPECT_EQ(mTestableGpuMem.getGpuMemTotalTracepoint(), "gpu_mem_total");
     EXPECT_EQ(mTestableGpuMem.getGpuMemTotalProgPath(),
@@ -97,20 +94,16 @@ TEST_F(GpuMemTest, validGpuMemTotalBpfPaths) {
 }
 
 TEST_F(GpuMemTest, bpfInitializationFailed) {
-    SKIP_IF_BPF_NOT_SUPPORTED;
-
     EXPECT_EQ(dumpsys(), "Failed to initialize GPU memory eBPF\n");
 }
 
 TEST_F(GpuMemTest, gpuMemTotalMapEmpty) {
-    SKIP_IF_BPF_NOT_SUPPORTED;
     mTestableGpuMem.setGpuMemTotalMap(mTestMap);
 
     EXPECT_EQ(dumpsys(), "GPU memory total usage map is empty\n");
 }
 
 TEST_F(GpuMemTest, globalMemTotal) {
-    SKIP_IF_BPF_NOT_SUPPORTED;
     ASSERT_RESULT_OK(mTestMap.writeValue(TEST_GLOBAL_KEY, TEST_GLOBAL_VAL, BPF_ANY));
     mTestableGpuMem.setGpuMemTotalMap(mTestMap);
 
@@ -118,7 +111,6 @@ TEST_F(GpuMemTest, globalMemTotal) {
 }
 
 TEST_F(GpuMemTest, missingGlobalMemTotal) {
-    SKIP_IF_BPF_NOT_SUPPORTED;
     ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_1, TEST_PROC_VAL_1, BPF_ANY));
     mTestableGpuMem.setGpuMemTotalMap(mTestMap);
 
@@ -126,7 +118,6 @@ TEST_F(GpuMemTest, missingGlobalMemTotal) {
 }
 
 TEST_F(GpuMemTest, procMemTotal) {
-    SKIP_IF_BPF_NOT_SUPPORTED;
     ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_1, TEST_PROC_VAL_1, BPF_ANY));
     ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_2, TEST_PROC_VAL_2, BPF_ANY));
     mTestableGpuMem.setGpuMemTotalMap(mTestMap);
@@ -146,7 +137,6 @@ TEST_F(GpuMemTest, procMemTotal) {
 }
 
 TEST_F(GpuMemTest, traverseGpuMemTotals) {
-    SKIP_IF_BPF_NOT_SUPPORTED;
     ASSERT_RESULT_OK(mTestMap.writeValue(TEST_GLOBAL_KEY, TEST_GLOBAL_VAL, BPF_ANY));
     ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_1, TEST_PROC_VAL_1, BPF_ANY));
     ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_2, TEST_PROC_VAL_2, BPF_ANY));

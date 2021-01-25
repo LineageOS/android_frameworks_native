@@ -43,8 +43,8 @@ namespace scheduler {
 class LayerHistoryTest : public testing::Test {
 protected:
     static constexpr auto PRESENT_TIME_HISTORY_SIZE = LayerInfo::HISTORY_SIZE;
-    static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfo::MAX_FREQUENT_LAYER_PERIOD_NS;
-    static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfo::FREQUENT_LAYER_WINDOW_SIZE;
+    static constexpr auto MAX_FREQUENT_LAYER_PERIOD_NS = LayerInfo::kMaxPeriodForFrequentLayerNs;
+    static constexpr auto FREQUENT_LAYER_WINDOW_SIZE = LayerInfo::kFrequentLayerWindowSize;
     static constexpr auto PRESENT_TIME_HISTORY_DURATION = LayerInfo::HISTORY_DURATION;
     static constexpr auto REFRESH_RATE_AVERAGE_HISTORY_DURATION =
             LayerInfo::RefreshRateHistory::HISTORY_DURATION;
@@ -110,16 +110,17 @@ protected:
                 << "Frame rate is " << frameRate;
     }
 
-    Hwc2::mock::Display mDisplay;
-    RefreshRateConfigs mConfigs{{HWC2::Display::Config::Builder(mDisplay, 0)
+    RefreshRateConfigs mConfigs{{DisplayMode::Builder(0)
+                                         .setId(DisplayModeId(0))
                                          .setVsyncPeriod(int32_t(LO_FPS_PERIOD))
                                          .setConfigGroup(0)
                                          .build(),
-                                 HWC2::Display::Config::Builder(mDisplay, 1)
+                                 DisplayMode::Builder(1)
+                                         .setId(DisplayModeId(1))
                                          .setVsyncPeriod(int32_t(HI_FPS_PERIOD))
                                          .setConfigGroup(0)
                                          .build()},
-                                HwcConfigIndexType(0)};
+                                DisplayModeId(0)};
 
     mock::NoOpSchedulerCallback mSchedulerCallback;
 

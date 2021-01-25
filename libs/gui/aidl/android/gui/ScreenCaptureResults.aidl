@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,6 @@
  * limitations under the License.
  */
 
-#include "mock/DisplayHardware/MockDisplay.h"
+package android.gui;
 
-namespace android::Hwc2::mock {
-
-// Explicit default instantiation is recommended.
-Display::Display() = default;
-Display::~Display() = default;
-
-} // namespace android::Hwc2::mock
+parcelable ScreenCaptureResults cpp_header "gui/ScreenCaptureResults.h";

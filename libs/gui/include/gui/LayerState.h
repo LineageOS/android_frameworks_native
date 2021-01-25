@@ -362,16 +362,6 @@ struct LayerCaptureArgs : CaptureArgs {
     status_t read(const Parcel& input) override;
 };
 
-struct ScreenCaptureResults {
-    sp<GraphicBuffer> buffer;
-    bool capturedSecureLayers{false};
-    ui::Dataspace capturedDataspace{ui::Dataspace::V0_SRGB};
-    status_t result = OK;
-
-    status_t write(Parcel& output) const;
-    status_t read(const Parcel& input);
-};
-
 }; // namespace android
 
 #endif // ANDROID_SF_LAYER_STATE_H

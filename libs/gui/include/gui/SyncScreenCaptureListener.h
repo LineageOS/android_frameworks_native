@@ -16,16 +16,19 @@
 
 #pragma once
 
+#include <android/gui/BnScreenCaptureListener.h>
 #include <gui/SurfaceComposerClient.h>
 #include <future>
 
 namespace android {
 
-class SyncScreenCaptureListener : public BnScreenCaptureListener {
+using gui::ScreenCaptureResults;
+
+struct SyncScreenCaptureListener : gui::BnScreenCaptureListener {
 public:
-    status_t onScreenCaptureComplete(const ScreenCaptureResults& captureResults) override {
+    binder::Status onScreenCaptureComplete(const ScreenCaptureResults& captureResults) override {
         resultsPromise.set_value(captureResults);
-        return NO_ERROR;
+        return binder::Status::ok();
     }
 
     ScreenCaptureResults waitForResults() {

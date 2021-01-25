@@ -23,7 +23,7 @@
 #include <ui/Size.h>
 #include <utils/StrongPointer.h>
 
-#include "Scheduler/RefreshRateConfigs.h"
+#include "Fps.h"
 
 namespace android {
 
@@ -34,14 +34,12 @@ class IGraphicBufferProducer;
 class Layer;
 class SurfaceFlinger;
 
-using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
-
 class RefreshRateOverlay {
 public:
     RefreshRateOverlay(SurfaceFlinger&, bool showSpinner);
 
     void setViewport(ui::Size);
-    void changeRefreshRate(const RefreshRate&);
+    void changeRefreshRate(const Fps&);
     void onInvalidate();
     void reset();
 

@@ -30,6 +30,7 @@
 #include <SkColorSpace.h>
 #include <SkImage.h>
 #include <SkImageFilters.h>
+#include <SkRegion.h>
 #include <SkShadowUtils.h>
 #include <SkSurface.h>
 #include <gl/GrGLInterface.h>
@@ -43,6 +44,7 @@
 #include <memory>
 
 #include "../gl/GLExtensions.h"
+#include "ColorSpaces.h"
 #include "SkBlendMode.h"
 #include "SkImageInfo.h"
 #include "filters/BlurFilter.h"
@@ -265,7 +267,8 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
         mPlaceholderSurface(placeholder),
         mProtectedEGLContext(protectedContext),
         mProtectedPlaceholderSurface(protectedPlaceholder),
-        mUseColorManagement(args.useColorManagement) {
+        mUseColorManagement(args.useColorManagement),
+        mRenderEngineType(args.renderEngineType) {
     sk_sp<const GrGLInterface> glInterface(GrGLCreateNativeInterface());
     LOG_ALWAYS_FATAL_IF(!glInterface.get());
 
@@ -281,6 +284,44 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
     if (args.supportsBackgroundBlur) {
         mBlurFilter = new BlurFilter();
     }
+    mCapture = std::make_unique<SkiaCapture>();
+}
+
+SkiaGLRenderEngine::~SkiaGLRenderEngine() {
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    mRuntimeEffects.clear();
+    mProtectedTextureCache.clear();
+    mTextureCache.clear();
+
+    if (mBlurFilter) {
+        delete mBlurFilter;
+    }
+
+    mCapture = nullptr;
+
+    mGrContext->flushAndSubmit(true);
+    mGrContext->abandonContext();
+
+    if (mProtectedGrContext) {
+        mProtectedGrContext->flushAndSubmit(true);
+        mProtectedGrContext->abandonContext();
+    }
+
+    if (mPlaceholderSurface != EGL_NO_SURFACE) {
+        eglDestroySurface(mEGLDisplay, mPlaceholderSurface);
+    }
+    if (mProtectedPlaceholderSurface != EGL_NO_SURFACE) {
+        eglDestroySurface(mEGLDisplay, mProtectedPlaceholderSurface);
+    }
+    if (mEGLContext != EGL_NO_CONTEXT) {
+        eglDestroyContext(mEGLDisplay, mEGLContext);
+    }
+    if (mProtectedEGLContext != EGL_NO_CONTEXT) {
+        eglDestroyContext(mEGLDisplay, mProtectedEGLContext);
+    }
+    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglTerminate(mEGLDisplay);
+    eglReleaseThread();
 }
 
 bool SkiaGLRenderEngine::supportsProtectedContent() const {
@@ -298,6 +339,7 @@ bool SkiaGLRenderEngine::useProtectedContext(bool useProtectedContext) {
             useProtectedContext ? mProtectedPlaceholderSurface : mPlaceholderSurface;
     const EGLContext context = useProtectedContext ? mProtectedEGLContext : mEGLContext;
     const bool success = eglMakeCurrent(mEGLDisplay, surface, surface, context) == EGL_TRUE;
+
     if (success) {
         mInProtectedContext = useProtectedContext;
     }
@@ -412,7 +454,30 @@ static bool needsLinearEffect(const mat4& colorTransform, ui::Dataspace sourceDa
     return colorTransform != mat4() || needsToneMapping(sourceDataspace, destinationDataspace);
 }
 
+void SkiaGLRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+    // Only run this if RE is running on its own thread. This way the access to GL
+    // operations is guaranteed to be happening on the same thread.
+    if (mRenderEngineType != RenderEngineType::SKIA_GL_THREADED) {
+        return;
+    }
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    auto iter = mTextureCache.find(buffer->getId());
+    if (iter != mTextureCache.end()) {
+        ALOGV("Texture already exists in cache.");
+        return;
+    } else {
+        std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
+                std::make_shared<AutoBackendTexture::LocalRef>();
+        imageTextureRef->setTexture(
+                new AutoBackendTexture(mGrContext.get(), buffer->toAHardwareBuffer(), false));
+        mTextureCache.insert({buffer->getId(), imageTextureRef});
+    }
+}
+
 void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
+    ATRACE_CALL();
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     mTextureCache.erase(bufferId);
     mProtectedTextureCache.erase(bufferId);
@@ -450,6 +515,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                         const bool useFramebufferCache,
                                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) {
     ATRACE_NAME("SkiaGL::drawLayers");
+
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     if (layers.empty()) {
         ALOGV("Drawing empty layer stack");
@@ -481,14 +547,16 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         auto iter = cache.find(buffer->getId());
         if (iter != cache.end()) {
             ALOGV("Cache hit!");
+            ATRACE_NAME("Cache hit");
             surfaceTextureRef = iter->second;
         }
     }
 
     if (surfaceTextureRef == nullptr || surfaceTextureRef->getTexture() == nullptr) {
+        ATRACE_NAME("Cache miss");
         surfaceTextureRef = std::make_shared<AutoBackendTexture::LocalRef>();
         surfaceTextureRef->setTexture(
-                new AutoBackendTexture(mGrContext.get(), buffer->toAHardwareBuffer(), true));
+                new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer(), true));
         if (useFramebufferCache) {
             ALOGD("Adding to cache");
             cache.insert({buffer->getId(), surfaceTextureRef});
@@ -498,10 +566,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     sk_sp<SkSurface> surface =
             surfaceTextureRef->getTexture()->getOrCreateSurface(mUseColorManagement
                                                                         ? display.outputDataspace
-                                                                        : ui::Dataspace::SRGB,
-                                                                mGrContext.get());
+                                                                        : ui::Dataspace::UNKNOWN,
+                                                                grContext.get());
 
-    SkCanvas* canvas = mCapture.tryCapture(surface.get());
+    SkCanvas* canvas = mCapture->tryCapture(surface.get());
     if (canvas == nullptr) {
         ALOGE("Cannot acquire canvas from Skia.");
         return BAD_VALUE;
@@ -510,7 +578,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     canvas->clear(SK_ColorTRANSPARENT);
     canvas->save();
 
-    if (mCapture.isCaptureRunning()) {
+    if (mCapture->isCaptureRunning()) {
         // Record display settings when capture is running.
         std::stringstream displaySettings;
         PrintTo(display, &displaySettings);
@@ -546,10 +614,33 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     canvas->rotate(toDegrees(display.orientation));
     canvas->translate(-clipWidth / 2, -clipHeight / 2);
     canvas->translate(-display.clip.left, -display.clip.top);
+
+    // TODO: clearRegion was required for SurfaceView when a buffer is not yet available but the
+    // view is still on-screen. The clear region could be re-specified as a black color layer,
+    // however.
+    if (!display.clearRegion.isEmpty()) {
+        size_t numRects = 0;
+        Rect const* rects = display.clearRegion.getArray(&numRects);
+        SkIRect skRects[numRects];
+        for (int i = 0; i < numRects; ++i) {
+            skRects[i] =
+                    SkIRect::MakeLTRB(rects[i].left, rects[i].top, rects[i].right, rects[i].bottom);
+        }
+        SkRegion clearRegion;
+        SkPaint paint;
+        sk_sp<SkShader> shader =
+                SkShaders::Color(SkColor4f{.fR = 0., .fG = 0., .fB = 0., .fA = 1.0},
+                                 toSkColorSpace(mUseColorManagement ? display.outputDataspace
+                                                                    : ui::Dataspace::UNKNOWN));
+        paint.setShader(shader);
+        clearRegion.setRects(skRects, numRects);
+        canvas->drawRegion(clearRegion, paint);
+    }
+
     for (const auto& layer : layers) {
         canvas->save();
 
-        if (mCapture.isCaptureRunning()) {
+        if (mCapture->isCaptureRunning()) {
             // Record the name of the layer if the capture is running.
             std::stringstream layerSettings;
             PrintTo(*layer, &layerSettings);
@@ -588,6 +679,16 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             }
         }
 
+        const ui::Dataspace targetDataspace = mUseColorManagement
+                ? (needsLinearEffect(layer->colorTransform, layer->sourceDataspace,
+                                     display.outputDataspace)
+                           // If we need to map to linear space, then mark the source image with the
+                           // same colorspace as the destination surface so that Skia's color
+                           // management is a no-op.
+                           ? display.outputDataspace
+                           : layer->sourceDataspace)
+                : ui::Dataspace::UNKNOWN;
+
         if (layer->source.buffer.buffer) {
             ATRACE_NAME("DrawImage");
             const auto& item = layer->source.buffer;
@@ -597,31 +698,18 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 imageTextureRef = iter->second;
             } else {
                 imageTextureRef = std::make_shared<AutoBackendTexture::LocalRef>();
-                imageTextureRef->setTexture(new AutoBackendTexture(mGrContext.get(),
+                imageTextureRef->setTexture(new AutoBackendTexture(grContext.get(),
                                                                    item.buffer->toAHardwareBuffer(),
                                                                    false));
-                mTextureCache.insert({buffer->getId(), imageTextureRef});
+                mTextureCache.insert({item.buffer->getId(), imageTextureRef});
             }
 
             sk_sp<SkImage> image =
-                    imageTextureRef->getTexture()
-                            ->makeImage(mUseColorManagement
-                                                ? (needsLinearEffect(layer->colorTransform,
-                                                                     layer->sourceDataspace,
-                                                                     display.outputDataspace)
-                                                           // If we need to map to linear space,
-                                                           // then mark the source image with the
-                                                           // same colorspace as the destination
-                                                           // surface so that Skia's color
-                                                           // management is a no-op.
-                                                           ? display.outputDataspace
-                                                           : layer->sourceDataspace)
-                                                : ui::Dataspace::SRGB,
-                                        item.isOpaque ? kOpaque_SkAlphaType
-                                                      : (item.usePremultipliedAlpha
-                                                                 ? kPremul_SkAlphaType
-                                                                 : kUnpremul_SkAlphaType),
-                                        mGrContext.get());
+                    imageTextureRef->getTexture()->makeImage(targetDataspace,
+                                                             item.usePremultipliedAlpha
+                                                                     ? kPremul_SkAlphaType
+                                                                     : kUnpremul_SkAlphaType,
+                                                             grContext.get());
 
             auto texMatrix = getSkM44(item.textureTransform).asM33();
             // textureTansform was intended to be passed directly into a shader, so when
@@ -650,11 +738,35 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 shader = image->makeShader(SkSamplingOptions(), matrix);
             }
 
+            // Handle opaque images - it's a little nonstandard how we do this.
+            // Fundamentally we need to support SurfaceControl.Builder#setOpaque:
+            // https://developer.android.com/reference/android/view/SurfaceControl.Builder#setOpaque(boolean)
+            // The important language is that when isOpaque is set, opacity is not sampled from the
+            // alpha channel, but blending may still be supported on a transaction via setAlpha. So,
+            // here's the conundrum:
+            // 1. We can't force the SkImage alpha type to kOpaque_SkAlphaType, because it's treated
+            // as an internal hint - composition is undefined when there are alpha bits present.
+            // 2. We can try to lie about the pixel layout, but that only works for RGBA8888
+            // buffers, i.e., treating them as RGBx8888 instead. But we can't do the same for
+            // RGBA1010102 because RGBx1010102 is not supported as a pixel layout for SkImages. It's
+            // also not clear what to use for F16 either, and lying about the pixel layout is a bit
+            // of a hack anyways.
+            // 3. We can't change the blendmode to src, because while this satisfies the requirement
+            // for ignoring the alpha channel, it doesn't quite satisfy the blending requirement
+            // because src always clobbers the destination content.
+            //
+            // So, what we do here instead is an additive blend mode where we compose the input
+            // image with a solid black. This might need to be reassess if this does not support
+            // FP16 incredibly well, but FP16 end-to-end isn't well supported anyway at the moment.
+            if (item.isOpaque) {
+                shader = SkShaders::Blend(SkBlendMode::kPlus, shader,
+                                          SkShaders::Color(SkColors::kBlack,
+                                                           toSkColorSpace(targetDataspace)));
+            }
+
             paint.setShader(
                     createRuntimeEffectShader(shader, layer, display,
                                               !item.isOpaque && item.usePremultipliedAlpha));
-
-            // Make sure to take into the account the alpha set on the layer.
             paint.setAlphaf(layer->alpha);
         } else {
             ATRACE_NAME("DrawColor");
@@ -662,39 +774,14 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             sk_sp<SkShader> shader = SkShaders::Color(SkColor4f{.fR = color.r,
                                                                 .fG = color.g,
                                                                 .fB = color.b,
-                                                                layer->alpha},
-                                                      nullptr);
+                                                                .fA = layer->alpha},
+                                                      toSkColorSpace(targetDataspace));
             paint.setShader(createRuntimeEffectShader(shader, layer, display,
                                                       /* undoPremultipliedAlpha */ false));
         }
 
         sk_sp<SkColorFilter> filter =
                 SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform));
-
-        // Handle opaque images - it's a little nonstandard how we do this.
-        // Fundamentally we need to support SurfaceControl.Builder#setOpaque:
-        // https://developer.android.com/reference/android/view/SurfaceControl.Builder#setOpaque(boolean)
-        // The important language is that when isOpaque is set, opacity is not sampled from the
-        // alpha channel, but blending may still be supported on a transaction via setAlpha. So,
-        // here's the conundrum:
-        // 1. We can't force the SkImage alpha type to kOpaque_SkAlphaType, because it's treated as
-        // an internal hint - composition is undefined when there are alpha bits present.
-        // 2. We can try to lie about the pixel layout, but that only works for RGBA8888 buffers,
-        // i.e., treating them as RGBx8888 instead. But we can't do the same for RGBA1010102 because
-        // RGBx1010102 is not supported as a pixel layout for SkImages. It's also not clear what to
-        // use for F16 either, and lying about the pixel layout is a bit of a hack anyways.
-        // 3. We can't change the blendmode to src, because while this satisfies the requirement for
-        // ignoring the alpha channel, it doesn't quite satisfy the blending requirement because
-        // src always clobbers the destination content.
-        //
-        // So, what we do here instead is an additive blend mode where we compose the input image
-        // with a solid black. This might need to be reassess if this does not support FP16
-        // incredibly well, but FP16 end-to-end isn't well supported anyway at the moment.
-        if (layer->source.buffer.buffer && layer->source.buffer.isOpaque) {
-            filter = SkColorFilters::Compose(filter,
-                                             SkColorFilters::Blend(SK_ColorBLACK,
-                                                                   SkBlendMode::kPlus));
-        }
 
         paint.setColorFilter(filter);
 
@@ -721,7 +808,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         canvas->restore();
     }
     canvas->restore();
-    mCapture.endCapture();
+    mCapture->endCapture();
     {
         ATRACE_NAME("flush surface");
         surface->flush();

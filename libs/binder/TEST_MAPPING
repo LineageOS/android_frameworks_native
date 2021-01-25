@@ -10,6 +10,9 @@
       "name": "binderAllocationLimits"
     },
     {
+      "name": "binderClearBufTest"
+    },
+    {
       "name": "binderDriverInterfaceTest"
     },
     {
@@ -62,6 +65,9 @@
     },
     {
       "name": "binderRustNdkInteropTest"
+    },
+    {
+      "name": "rustBinderSerializationTest"
     }
   ]
 }

@@ -127,6 +127,13 @@ static inline const char* toString(bool value) {
     return value ? "true" : "false";
 }
 
+static inline const std::string toString(sp<IBinder> binder) {
+    if (binder == nullptr) {
+        return "<null>";
+    }
+    return StringPrintf("%p", binder.get());
+}
+
 static inline int32_t getMotionEventActionPointerIndex(int32_t action) {
     return (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >>
             AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
@@ -293,15 +300,6 @@ static bool removeByValue(std::unordered_map<K, V>& map, const V& value) {
     return removed;
 }
 
-/**
- * Find the entry in std::unordered_map by key and return the value as an optional.
- */
-template <typename K, typename V>
-static std::optional<V> getOptionalValueByKey(const std::unordered_map<K, V>& map, K key) {
-    auto it = map.find(key);
-    return it != map.end() ? std::optional<V>{it->second} : std::nullopt;
-}
-
 static bool haveSameToken(const sp<InputWindowHandle>& first, const sp<InputWindowHandle>& second) {
     if (first == second) {
         return true;
@@ -312,6 +310,14 @@ static bool haveSameToken(const sp<InputWindowHandle>& first, const sp<InputWind
     }
 
     return first->getToken() == second->getToken();
+}
+
+static bool haveSameApplicationToken(const InputWindowInfo* first, const InputWindowInfo* second) {
+    if (first == nullptr || second == nullptr) {
+        return false;
+    }
+    return first->applicationInfo.token != nullptr &&
+            first->applicationInfo.token == second->applicationInfo.token;
 }
 
 static bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
@@ -412,19 +418,6 @@ static status_t openInputChannelPair(const std::string& name,
     return result;
 }
 
-const char* InputDispatcher::typeToString(InputDispatcher::FocusResult result) {
-    switch (result) {
-        case InputDispatcher::FocusResult::OK:
-            return "Ok";
-        case InputDispatcher::FocusResult::NO_WINDOW:
-            return "Window not found";
-        case InputDispatcher::FocusResult::NOT_FOCUSABLE:
-            return "Window not focusable";
-        case InputDispatcher::FocusResult::NOT_VISIBLE:
-            return "Window not visible";
-    }
-}
-
 template <typename T>
 static bool sharedPointersEqual(const std::shared_ptr<T>& lhs, const std::shared_ptr<T>& rhs) {
     if (lhs == nullptr && rhs == nullptr) {
@@ -451,6 +444,20 @@ static KeyEvent createKeyEvent(const KeyEntry& entry) {
                      entry.action, entry.flags, entry.keyCode, entry.scanCode, entry.metaState,
                      entry.repeatCount, entry.downTime, entry.eventTime);
     return event;
+}
+
+static std::optional<int32_t> findMonitorPidByToken(
+        const std::unordered_map<int32_t, std::vector<Monitor>>& monitorsByDisplay,
+        const sp<IBinder>& token) {
+    for (const auto& it : monitorsByDisplay) {
+        const std::vector<Monitor>& monitors = it.second;
+        for (const Monitor& monitor : monitors) {
+            if (monitor.inputChannel->getConnectionToken() == token) {
+                return monitor.pid;
+            }
+        }
+    }
+    return std::nullopt;
 }
 
 // --- InputDispatcher ---
@@ -615,7 +622,7 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     connection->responsive = false;
     // Stop waking up for this unresponsive connection
     mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
-    onAnrLocked(*connection);
+    onAnrLocked(connection);
     return LONG_LONG_MIN;
 }
 
@@ -1196,7 +1203,7 @@ bool InputDispatcher::dispatchDeviceResetLocked(nsecs_t currentTime,
 }
 
 void InputDispatcher::enqueueFocusEventLocked(const sp<IBinder>& windowToken, bool hasFocus,
-                                              std::string_view reason) {
+                                              const std::string& reason) {
     if (mPendingEvent != nullptr) {
         // Move the pending event to the front of the queue. This will give the chance
         // for the pending event to get dispatched to the newly focused window
@@ -1259,21 +1266,27 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
             ALOGW("No window requested Pointer Capture.");
             return;
         }
-        token = getValueByKey(mFocusedWindowTokenByDisplay, mFocusedDisplayId);
+        token = mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
         LOG_ALWAYS_FATAL_IF(!token, "Cannot find focused window for Pointer Capture.");
         mWindowTokenWithPointerCapture = token;
     } else {
         // Disable Pointer Capture
         token = mWindowTokenWithPointerCapture;
         mWindowTokenWithPointerCapture = nullptr;
-        mFocusedWindowRequestedPointerCapture = false;
+        if (mFocusedWindowRequestedPointerCapture) {
+            mFocusedWindowRequestedPointerCapture = false;
+            setPointerCaptureLocked(false);
+        }
     }
 
     auto channel = getInputChannelLocked(token);
     if (channel == nullptr) {
         // Window has gone away, clean up Pointer Capture state.
         mWindowTokenWithPointerCapture = nullptr;
-        mFocusedWindowRequestedPointerCapture = false;
+        if (mFocusedWindowRequestedPointerCapture) {
+            mFocusedWindowRequestedPointerCapture = false;
+            setPointerCaptureLocked(false);
+        }
         return;
     }
     InputTarget target;
@@ -1352,7 +1365,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<Key
             std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
                     &InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible);
             sp<IBinder> focusedWindowToken =
-                    getValueByKey(mFocusedWindowTokenByDisplay, getTargetDisplayId(*entry));
+                    mFocusResolver.getFocusedWindowToken(getTargetDisplayId(*entry));
             commandEntry->connectionToken = focusedWindowToken;
             commandEntry->keyEntry = entry;
             postCommandLocked(std::move(commandEntry));
@@ -2402,8 +2415,8 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
             break; // All future windows are below us. Exit early.
         }
         const InputWindowInfo* otherInfo = otherHandle->getInfo();
-        if (canBeObscuredBy(windowHandle, otherHandle) &&
-            windowInfo->ownerUid != otherInfo->ownerUid && otherInfo->frameContainsPoint(x, y)) {
+        if (canBeObscuredBy(windowHandle, otherHandle) && otherInfo->frameContainsPoint(x, y) &&
+            !haveSameApplicationToken(windowInfo, otherInfo)) {
             if (DEBUG_TOUCH_OCCLUSION) {
                 info.debugInfo.push_back(
                         dumpWindowForTouchOcclusion(otherInfo, /* isTouchedWindow */ false));
@@ -2442,19 +2455,20 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
 
 std::string InputDispatcher::dumpWindowForTouchOcclusion(const InputWindowInfo* info,
                                                          bool isTouchedWindow) const {
-    return StringPrintf(INDENT2 "* %stype=%s, package=%s/%" PRId32 ", id=%" PRId32
-                                ", mode=%s, alpha=%.2f, "
-                                "frame=[%" PRId32 ",%" PRId32 "][%" PRId32 ",%" PRId32
-                                "], touchableRegion=%s, window={%s}, applicationInfo=%s, "
-                                "flags={%s}, inputFeatures={%s}, hasToken=%s\n",
+    return StringPrintf(INDENT2
+                        "* %stype=%s, package=%s/%" PRId32 ", id=%" PRId32 ", mode=%s, alpha=%.2f, "
+                        "frame=[%" PRId32 ",%" PRId32 "][%" PRId32 ",%" PRId32
+                        "], touchableRegion=%s, window={%s}, flags={%s}, inputFeatures={%s}, "
+                        "hasToken=%s, applicationInfo.name=%s, applicationInfo.token=%s\n",
                         (isTouchedWindow) ? "[TOUCHED] " : "",
                         NamedEnum::string(info->type, "%" PRId32).c_str(),
                         info->packageName.c_str(), info->ownerUid, info->id,
                         toString(info->touchOcclusionMode).c_str(), info->alpha, info->frameLeft,
                         info->frameTop, info->frameRight, info->frameBottom,
                         dumpRegion(info->touchableRegion).c_str(), info->name.c_str(),
-                        info->applicationInfo.name.c_str(), info->flags.string().c_str(),
-                        info->inputFeatures.string().c_str(), toString(info->token != nullptr));
+                        info->flags.string().c_str(), info->inputFeatures.string().c_str(),
+                        toString(info->token != nullptr), info->applicationInfo.name.c_str(),
+                        toString(info->applicationInfo.token).c_str());
 }
 
 bool InputDispatcher::isTouchTrustedLocked(const TouchOcclusionInfo& occlusionInfo) const {
@@ -2882,7 +2896,7 @@ void InputDispatcher::dispatchPointerDownOutsideFocus(uint32_t source, int32_t a
         return;
     }
 
-    sp<IBinder> focusedToken = getValueByKey(mFocusedWindowTokenByDisplay, mFocusedDisplayId);
+    sp<IBinder> focusedToken = mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
     if (focusedToken == token) {
         // ignore since token is focused
         return;
@@ -4131,7 +4145,7 @@ sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(const sp<IBinder>& 
 }
 
 sp<InputWindowHandle> InputDispatcher::getFocusedWindowHandleLocked(int displayId) const {
-    sp<IBinder> focusedToken = getValueByKey(mFocusedWindowTokenByDisplay, displayId);
+    sp<IBinder> focusedToken = mFocusResolver.getFocusedWindowToken(displayId);
     return getWindowHandleLocked(focusedToken, displayId);
 }
 
@@ -4295,24 +4309,10 @@ void InputDispatcher::setInputWindowsLocked(
         mLastHoverWindowHandle = nullptr;
     }
 
-    sp<IBinder> focusedToken = getValueByKey(mFocusedWindowTokenByDisplay, displayId);
-    if (focusedToken) {
-        FocusResult result = checkTokenFocusableLocked(focusedToken, displayId);
-        if (result != FocusResult::OK) {
-            onFocusChangedLocked(focusedToken, nullptr, displayId, typeToString(result));
-        }
-    }
-
-    std::optional<FocusRequest> focusRequest =
-            getOptionalValueByKey(mPendingFocusRequests, displayId);
-    if (focusRequest) {
-        // If the window from the pending request is now visible, provide it focus.
-        FocusResult result = handleFocusRequestLocked(*focusRequest);
-        if (result != FocusResult::NOT_VISIBLE) {
-            // Drop the request if we were able to change the focus or we cannot change
-            // it for another reason.
-            mPendingFocusRequests.erase(displayId);
-        }
+    std::optional<FocusResolver::FocusChanges> changes =
+            mFocusResolver.setInputWindows(displayId, windowHandles);
+    if (changes) {
+        onFocusChangedLocked(*changes);
     }
 
     std::unordered_map<int32_t, TouchState>::iterator stateIt =
@@ -4416,7 +4416,7 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
 
         if (mFocusedDisplayId != displayId) {
             sp<IBinder> oldFocusedWindowToken =
-                    getValueByKey(mFocusedWindowTokenByDisplay, mFocusedDisplayId);
+                    mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
             if (oldFocusedWindowToken != nullptr) {
                 std::shared_ptr<InputChannel> inputChannel =
                         getInputChannelLocked(oldFocusedWindowToken);
@@ -4431,15 +4431,14 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
             mFocusedDisplayId = displayId;
 
             // Find new focused window and validate
-            sp<IBinder> newFocusedWindowToken =
-                    getValueByKey(mFocusedWindowTokenByDisplay, displayId);
+            sp<IBinder> newFocusedWindowToken = mFocusResolver.getFocusedWindowToken(displayId);
             notifyFocusChangedLocked(oldFocusedWindowToken, newFocusedWindowToken);
 
             if (newFocusedWindowToken == nullptr) {
                 ALOGW("Focused display #%" PRId32 " does not have a focused window.", displayId);
-                if (!mFocusedWindowTokenByDisplay.empty()) {
+                if (mFocusResolver.hasFocusedWindowTokens()) {
                     ALOGE("But another display has a focused window\n%s",
-                          dumpFocusedWindowsLocked().c_str());
+                          mFocusResolver.dumpFocusedWindows().c_str());
                 }
             }
         }
@@ -4639,46 +4638,6 @@ void InputDispatcher::logDispatchStateLocked() {
     }
 }
 
-std::string InputDispatcher::dumpFocusedWindowsLocked() {
-    if (mFocusedWindowTokenByDisplay.empty()) {
-        return INDENT "FocusedWindows: <none>\n";
-    }
-
-    std::string dump;
-    dump += INDENT "FocusedWindows:\n";
-    for (auto& it : mFocusedWindowTokenByDisplay) {
-        const int32_t displayId = it.first;
-        const sp<InputWindowHandle> windowHandle = getFocusedWindowHandleLocked(displayId);
-        if (windowHandle) {
-            dump += StringPrintf(INDENT2 "displayId=%" PRId32 ", name='%s'\n", displayId,
-                                 windowHandle->getName().c_str());
-        } else {
-            dump += StringPrintf(INDENT2 "displayId=%" PRId32
-                                         " has focused token without a window'\n",
-                                 displayId);
-        }
-    }
-    return dump;
-}
-
-std::string InputDispatcher::dumpPendingFocusRequestsLocked() {
-    if (mPendingFocusRequests.empty()) {
-        return INDENT "mPendingFocusRequests: <none>\n";
-    }
-
-    std::string dump;
-    dump += INDENT "mPendingFocusRequests:\n";
-    for (const auto& [displayId, focusRequest] : mPendingFocusRequests) {
-        // Rather than printing raw values for focusRequest.token and focusRequest.focusedToken,
-        // try to resolve them to actual windows.
-        std::string windowName = getConnectionNameLocked(focusRequest.token);
-        std::string focusedWindowName = getConnectionNameLocked(focusRequest.focusedToken);
-        dump += StringPrintf(INDENT2 "displayId=%" PRId32 ", token->%s, focusedToken->%s\n",
-                             displayId, windowName.c_str(), focusedWindowName.c_str());
-    }
-    return dump;
-}
-
 std::string InputDispatcher::dumpPointerCaptureStateLocked() {
     std::string dump;
 
@@ -4718,8 +4677,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += StringPrintf(INDENT "FocusedApplications: <none>\n");
     }
 
-    dump += dumpFocusedWindowsLocked();
-    dump += dumpPendingFocusRequestsLocked();
+    dump += mFocusResolver.dump();
     dump += dumpPointerCaptureStateLocked();
 
     if (!mTouchStatesByDisplay.empty()) {
@@ -4769,7 +4727,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                                  "hasWallpaper=%s, visible=%s, alpha=%.2f, "
                                                  "flags=%s, type=%s, "
                                                  "frame=[%d,%d][%d,%d], globalScale=%f, "
-                                                 "applicationInfo=%s, "
+                                                 "applicationInfo.name=%s, "
+                                                 "applicationInfo.token=%s, "
                                                  "touchableRegion=",
                                          i, windowInfo->name.c_str(), windowInfo->id,
                                          windowInfo->displayId, windowInfo->portalToDisplayId,
@@ -4782,7 +4741,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                                          windowInfo->frameLeft, windowInfo->frameTop,
                                          windowInfo->frameRight, windowInfo->frameBottom,
                                          windowInfo->globalScaleFactor,
-                                         windowInfo->applicationInfo.name.c_str());
+                                         windowInfo->applicationInfo.name.c_str(),
+                                         toString(windowInfo->applicationInfo.token).c_str());
                     dump += dumpRegion(windowInfo->touchableRegion);
                     dump += StringPrintf(", inputFeatures=%s",
                                          windowInfo->inputFeatures.string().c_str());
@@ -5112,8 +5072,7 @@ void InputDispatcher::requestPointerCapture(const sp<IBinder>& windowToken, bool
                                           : "token without window");
         }
 
-        const sp<IBinder> focusedToken =
-                getValueByKey(mFocusedWindowTokenByDisplay, mFocusedDisplayId);
+        const sp<IBinder> focusedToken = mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
         if (focusedToken != windowToken) {
             ALOGW("Ignoring request to %s Pointer Capture: window does not have focus.",
                   enabled ? "enable" : "disable");
@@ -5146,6 +5105,14 @@ std::optional<int32_t> InputDispatcher::findGestureMonitorDisplayByTokenLocked(
         }
     }
     return std::nullopt;
+}
+
+std::optional<int32_t> InputDispatcher::findMonitorPidByTokenLocked(const sp<IBinder>& token) {
+    std::optional<int32_t> gesturePid = findMonitorPidByToken(mGestureMonitorsByDisplay, token);
+    if (gesturePid.has_value()) {
+        return gesturePid;
+    }
+    return findMonitorPidByToken(mGlobalMonitorsByDisplay, token);
 }
 
 sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConnectionToken) const {
@@ -5208,12 +5175,15 @@ void InputDispatcher::notifyFocusChangedLocked(const sp<IBinder>& oldToken,
     postCommandLocked(std::move(commandEntry));
 }
 
-void InputDispatcher::onAnrLocked(const Connection& connection) {
+void InputDispatcher::onAnrLocked(const sp<Connection>& connection) {
+    if (connection == nullptr) {
+        LOG_ALWAYS_FATAL("Caller must check for nullness");
+    }
     // Since we are allowing the policy to extend the timeout, maybe the waitQueue
     // is already healthy again. Don't raise ANR in this situation
-    if (connection.waitQueue.empty()) {
+    if (connection->waitQueue.empty()) {
         ALOGI("Not raising ANR because the connection %s has recovered",
-              connection.inputChannel->getName().c_str());
+              connection->inputChannel->getName().c_str());
         return;
     }
     /**
@@ -5224,21 +5194,20 @@ void InputDispatcher::onAnrLocked(const Connection& connection) {
      * processes the events linearly. So providing information about the oldest entry seems to be
      * most useful.
      */
-    DispatchEntry* oldestEntry = *connection.waitQueue.begin();
+    DispatchEntry* oldestEntry = *connection->waitQueue.begin();
     const nsecs_t currentWait = now() - oldestEntry->deliveryTime;
     std::string reason =
             android::base::StringPrintf("%s is not responding. Waited %" PRId64 "ms for %s",
-                                        connection.inputChannel->getName().c_str(),
+                                        connection->inputChannel->getName().c_str(),
                                         ns2ms(currentWait),
                                         oldestEntry->eventEntry->getDescription().c_str());
-    sp<IBinder> connectionToken = connection.inputChannel->getConnectionToken();
+    sp<IBinder> connectionToken = connection->inputChannel->getConnectionToken();
     updateLastAnrStateLocked(getWindowHandleLocked(connectionToken), reason);
 
-    std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
-            &InputDispatcher::doNotifyConnectionUnresponsiveLockedInterruptible);
-    commandEntry->connectionToken = connectionToken;
-    commandEntry->reason = std::move(reason);
-    postCommandLocked(std::move(commandEntry));
+    processConnectionUnresponsiveLocked(*connection, std::move(reason));
+
+    // Stop waking up for events on this connection, it is already unresponsive
+    cancelEventsForAnrLocked(connection);
 }
 
 void InputDispatcher::onAnrLocked(std::shared_ptr<InputApplicationHandle> application) {
@@ -5323,26 +5292,34 @@ void InputDispatcher::doNotifyNoFocusedWindowAnrLockedInterruptible(CommandEntry
     mLock.lock();
 }
 
-void InputDispatcher::doNotifyConnectionUnresponsiveLockedInterruptible(
-        CommandEntry* commandEntry) {
+void InputDispatcher::doNotifyWindowUnresponsiveLockedInterruptible(CommandEntry* commandEntry) {
     mLock.unlock();
 
-    mPolicy->notifyConnectionUnresponsive(commandEntry->connectionToken, commandEntry->reason);
+    mPolicy->notifyWindowUnresponsive(commandEntry->connectionToken, commandEntry->reason);
 
     mLock.lock();
-
-    // stop waking up for events in this connection, it is already not responding
-    sp<Connection> connection = getConnectionLocked(commandEntry->connectionToken);
-    if (connection == nullptr) {
-        return;
-    }
-    cancelEventsForAnrLocked(connection);
 }
 
-void InputDispatcher::doNotifyConnectionResponsiveLockedInterruptible(CommandEntry* commandEntry) {
+void InputDispatcher::doNotifyMonitorUnresponsiveLockedInterruptible(CommandEntry* commandEntry) {
     mLock.unlock();
 
-    mPolicy->notifyConnectionResponsive(commandEntry->connectionToken);
+    mPolicy->notifyMonitorUnresponsive(commandEntry->pid, commandEntry->reason);
+
+    mLock.lock();
+}
+
+void InputDispatcher::doNotifyWindowResponsiveLockedInterruptible(CommandEntry* commandEntry) {
+    mLock.unlock();
+
+    mPolicy->notifyWindowResponsive(commandEntry->connectionToken);
+
+    mLock.lock();
+}
+
+void InputDispatcher::doNotifyMonitorResponsiveLockedInterruptible(CommandEntry* commandEntry) {
+    mLock.unlock();
+
+    mPolicy->notifyMonitorResponsive(commandEntry->pid);
 
     mLock.lock();
 }
@@ -5447,13 +5424,8 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
         if (!connection->responsive) {
             connection->responsive = isConnectionResponsive(*connection);
             if (connection->responsive) {
-                // The connection was unresponsive, and now it's responsive. Tell the policy
-                // about it so that it can stop ANR.
-                std::unique_ptr<CommandEntry> connectionResponsiveCommand =
-                        std::make_unique<CommandEntry>(
-                                &InputDispatcher::doNotifyConnectionResponsiveLockedInterruptible);
-                connectionResponsiveCommand->connectionToken = connectionToken;
-                postCommandLocked(std::move(connectionResponsiveCommand));
+                // The connection was unresponsive, and now it's responsive.
+                processConnectionResponsiveLocked(*connection);
             }
         }
         traceWaitQueueLength(connection);
@@ -5467,6 +5439,82 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
 
     // Start the next dispatch cycle for this connection.
     startDispatchCycleLocked(now(), connection);
+}
+
+void InputDispatcher::sendMonitorUnresponsiveCommandLocked(int32_t pid, std::string reason) {
+    std::unique_ptr<CommandEntry> monitorUnresponsiveCommand = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyMonitorUnresponsiveLockedInterruptible);
+    monitorUnresponsiveCommand->pid = pid;
+    monitorUnresponsiveCommand->reason = std::move(reason);
+    postCommandLocked(std::move(monitorUnresponsiveCommand));
+}
+
+void InputDispatcher::sendWindowUnresponsiveCommandLocked(sp<IBinder> connectionToken,
+                                                          std::string reason) {
+    std::unique_ptr<CommandEntry> windowUnresponsiveCommand = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyWindowUnresponsiveLockedInterruptible);
+    windowUnresponsiveCommand->connectionToken = std::move(connectionToken);
+    windowUnresponsiveCommand->reason = std::move(reason);
+    postCommandLocked(std::move(windowUnresponsiveCommand));
+}
+
+void InputDispatcher::sendMonitorResponsiveCommandLocked(int32_t pid) {
+    std::unique_ptr<CommandEntry> monitorResponsiveCommand = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyMonitorResponsiveLockedInterruptible);
+    monitorResponsiveCommand->pid = pid;
+    postCommandLocked(std::move(monitorResponsiveCommand));
+}
+
+void InputDispatcher::sendWindowResponsiveCommandLocked(sp<IBinder> connectionToken) {
+    std::unique_ptr<CommandEntry> windowResponsiveCommand = std::make_unique<CommandEntry>(
+            &InputDispatcher::doNotifyWindowResponsiveLockedInterruptible);
+    windowResponsiveCommand->connectionToken = std::move(connectionToken);
+    postCommandLocked(std::move(windowResponsiveCommand));
+}
+
+/**
+ * Tell the policy that a connection has become unresponsive so that it can start ANR.
+ * Check whether the connection of interest is a monitor or a window, and add the corresponding
+ * command entry to the command queue.
+ */
+void InputDispatcher::processConnectionUnresponsiveLocked(const Connection& connection,
+                                                          std::string reason) {
+    const sp<IBinder>& connectionToken = connection.inputChannel->getConnectionToken();
+    if (connection.monitor) {
+        ALOGW("Monitor %s is unresponsive: %s", connection.inputChannel->getName().c_str(),
+              reason.c_str());
+        std::optional<int32_t> pid = findMonitorPidByTokenLocked(connectionToken);
+        if (!pid.has_value()) {
+            ALOGE("Could not find unresponsive monitor for connection %s",
+                  connection.inputChannel->getName().c_str());
+            return;
+        }
+        sendMonitorUnresponsiveCommandLocked(pid.value(), std::move(reason));
+        return;
+    }
+    // If not a monitor, must be a window
+    ALOGW("Window %s is unresponsive: %s", connection.inputChannel->getName().c_str(),
+          reason.c_str());
+    sendWindowUnresponsiveCommandLocked(connectionToken, std::move(reason));
+}
+
+/**
+ * Tell the policy that a connection has become responsive so that it can stop ANR.
+ */
+void InputDispatcher::processConnectionResponsiveLocked(const Connection& connection) {
+    const sp<IBinder>& connectionToken = connection.inputChannel->getConnectionToken();
+    if (connection.monitor) {
+        std::optional<int32_t> pid = findMonitorPidByTokenLocked(connectionToken);
+        if (!pid.has_value()) {
+            ALOGE("Could not find responsive monitor for connection %s",
+                  connection.inputChannel->getName().c_str());
+            return;
+        }
+        sendMonitorResponsiveCommandLocked(pid.value());
+        return;
+    }
+    // If not a monitor, must be a window
+    sendWindowResponsiveCommandLocked(connectionToken);
 }
 
 bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& connection,
@@ -5768,81 +5816,28 @@ bool InputDispatcher::waitForIdle() {
 void InputDispatcher::setFocusedWindow(const FocusRequest& request) {
     { // acquire lock
         std::scoped_lock _l(mLock);
-
-        const int32_t displayId = request.displayId;
-        const sp<IBinder> oldFocusedToken = getValueByKey(mFocusedWindowTokenByDisplay, displayId);
-        if (request.focusedToken && oldFocusedToken != request.focusedToken) {
-            ALOGD_IF(DEBUG_FOCUS,
-                     "setFocusedWindow on display %" PRId32
-                     " ignored, reason: focusedToken is not focused",
-                     displayId);
-            return;
-        }
-
-        mPendingFocusRequests.erase(displayId);
-        FocusResult result = handleFocusRequestLocked(request);
-        if (result == FocusResult::NOT_VISIBLE) {
-            // The requested window is not currently visible. Wait for the window to become visible
-            // and then provide it focus. This is to handle situations where a user action triggers
-            // a new window to appear. We want to be able to queue any key events after the user
-            // action and deliver it to the newly focused window. In order for this to happen, we
-            // take focus from the currently focused window so key events can be queued.
-            ALOGD_IF(DEBUG_FOCUS,
-                     "setFocusedWindow on display %" PRId32
-                     " pending, reason: window is not visible",
-                     displayId);
-            mPendingFocusRequests[displayId] = request;
-            onFocusChangedLocked(oldFocusedToken, nullptr, displayId,
-                                 "setFocusedWindow_AwaitingWindowVisibility");
-        } else if (result != FocusResult::OK) {
-            ALOGW("setFocusedWindow on display %" PRId32 " ignored, reason:%s", displayId,
-                  typeToString(result));
+        std::optional<FocusResolver::FocusChanges> changes =
+                mFocusResolver.setFocusedWindow(request, getWindowHandlesLocked(request.displayId));
+        if (changes) {
+            onFocusChangedLocked(*changes);
         }
     } // release lock
     // Wake up poll loop since it may need to make new input dispatching choices.
     mLooper->wake();
 }
 
-InputDispatcher::FocusResult InputDispatcher::handleFocusRequestLocked(
-        const FocusRequest& request) {
-    const int32_t displayId = request.displayId;
-    const sp<IBinder> newFocusedToken = request.token;
-    const sp<IBinder> oldFocusedToken = getValueByKey(mFocusedWindowTokenByDisplay, displayId);
-
-    if (oldFocusedToken == request.token) {
-        ALOGD_IF(DEBUG_FOCUS,
-                 "setFocusedWindow on display %" PRId32 " ignored, reason: already focused",
-                 displayId);
-        return FocusResult::OK;
-    }
-
-    FocusResult result = checkTokenFocusableLocked(newFocusedToken, displayId);
-    if (result != FocusResult::OK) {
-        return result;
-    }
-
-    std::string_view reason =
-            (request.focusedToken) ? "setFocusedWindow_FocusCheck" : "setFocusedWindow";
-    onFocusChangedLocked(oldFocusedToken, newFocusedToken, displayId, reason);
-    return FocusResult::OK;
-}
-
-void InputDispatcher::onFocusChangedLocked(const sp<IBinder>& oldFocusedToken,
-                                           const sp<IBinder>& newFocusedToken, int32_t displayId,
-                                           std::string_view reason) {
-    if (oldFocusedToken) {
-        std::shared_ptr<InputChannel> focusedInputChannel = getInputChannelLocked(oldFocusedToken);
+void InputDispatcher::onFocusChangedLocked(const FocusResolver::FocusChanges& changes) {
+    if (changes.oldFocus) {
+        std::shared_ptr<InputChannel> focusedInputChannel = getInputChannelLocked(changes.oldFocus);
         if (focusedInputChannel) {
             CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
                                        "focus left window");
             synthesizeCancelationEventsForInputChannelLocked(focusedInputChannel, options);
-            enqueueFocusEventLocked(oldFocusedToken, false /*hasFocus*/, reason);
+            enqueueFocusEventLocked(changes.oldFocus, false /*hasFocus*/, changes.reason);
         }
-        mFocusedWindowTokenByDisplay.erase(displayId);
     }
-    if (newFocusedToken) {
-        mFocusedWindowTokenByDisplay[displayId] = newFocusedToken;
-        enqueueFocusEventLocked(newFocusedToken, true /*hasFocus*/, reason);
+    if (changes.newFocus) {
+        enqueueFocusEventLocked(changes.newFocus, true /*hasFocus*/, changes.reason);
     }
 
     // If a window has pointer capture, then it must have focus. We need to ensure that this
@@ -5855,8 +5850,8 @@ void InputDispatcher::onFocusChangedLocked(const sp<IBinder>& oldFocusedToken,
     // front.
     disablePointerCaptureForcedLocked();
 
-    if (mFocusedDisplayId == displayId) {
-        notifyFocusChangedLocked(oldFocusedToken, newFocusedToken);
+    if (mFocusedDisplayId == changes.displayId) {
+        notifyFocusChangedLocked(changes.oldFocus, changes.newFocus);
     }
 }
 
@@ -5887,50 +5882,6 @@ void InputDispatcher::disablePointerCaptureForcedLocked() {
     auto entry = std::make_unique<PointerCaptureChangedEntry>(mIdGenerator.nextId(), now(),
                                                               false /* hasCapture */);
     mInboundQueue.push_front(std::move(entry));
-}
-
-/**
- * Checks if the window token can be focused on a display. The token can be focused if there is
- * at least one window handle that is visible with the same token and all window handles with the
- * same token are focusable.
- *
- * In the case of mirroring, two windows may share the same window token and their visibility
- * might be different. Example, the mirrored window can cover the window its mirroring. However,
- * we expect the focusability of the windows to match since its hard to reason why one window can
- * receive focus events and the other cannot when both are backed by the same input channel.
- */
-InputDispatcher::FocusResult InputDispatcher::checkTokenFocusableLocked(const sp<IBinder>& token,
-                                                                        int32_t displayId) const {
-    bool allWindowsAreFocusable = true;
-    bool visibleWindowFound = false;
-    bool windowFound = false;
-    for (const sp<InputWindowHandle>& window : getWindowHandlesLocked(displayId)) {
-        if (window->getToken() != token) {
-            continue;
-        }
-        windowFound = true;
-        if (window->getInfo()->visible) {
-            // Check if at least a single window is visible.
-            visibleWindowFound = true;
-        }
-        if (!window->getInfo()->focusable) {
-            // Check if all windows with the window token are focusable.
-            allWindowsAreFocusable = false;
-            break;
-        }
-    }
-
-    if (!windowFound) {
-        return FocusResult::NO_WINDOW;
-    }
-    if (!allWindowsAreFocusable) {
-        return FocusResult::NOT_FOCUSABLE;
-    }
-    if (!visibleWindowFound) {
-        return FocusResult::NOT_VISIBLE;
-    }
-
-    return FocusResult::OK;
 }
 
 void InputDispatcher::setPointerCaptureLocked(bool enabled) {

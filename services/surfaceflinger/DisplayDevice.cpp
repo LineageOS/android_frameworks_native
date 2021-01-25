@@ -139,12 +139,12 @@ bool DisplayDevice::isPoweredOn() const {
     return mPowerMode != hal::PowerMode::OFF;
 }
 
-void DisplayDevice::setActiveConfig(HwcConfigIndexType mode) {
-    mActiveConfig = mode;
+void DisplayDevice::setActiveMode(DisplayModeId mode) {
+    mActiveMode = mode;
 }
 
-HwcConfigIndexType DisplayDevice::getActiveConfig() const {
-    return mActiveConfig;
+DisplayModeId DisplayDevice::getActiveMode() const {
+    return mActiveMode;
 }
 
 ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
@@ -210,7 +210,7 @@ void DisplayDevice::dump(std::string& result) const {
     result.append("   ");
     StringAppendF(&result, "powerMode=%s (%d), ", to_string(mPowerMode).c_str(),
                   static_cast<int32_t>(mPowerMode));
-    StringAppendF(&result, "activeConfig=%d, ", mActiveConfig.value());
+    StringAppendF(&result, "activeConfig=%zu, ", mActiveMode.value());
     StringAppendF(&result, "deviceProductInfo=");
     if (mDeviceProductInfo) {
         mDeviceProductInfo->dump(result);

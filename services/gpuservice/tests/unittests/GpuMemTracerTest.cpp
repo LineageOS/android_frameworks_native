@@ -56,7 +56,6 @@ public:
     }
 
     void SetUp() override {
-        SKIP_IF_BPF_NOT_SUPPORTED;
         bpf::setrlimitForTest();
 
         mGpuMem = std::make_shared<GpuMem>();
@@ -122,7 +121,6 @@ static constexpr uint32_t getGpuIdForPid(uint32_t pid) {
 }
 
 TEST_F(GpuMemTracerTest, traceInitialCountersAfterGpuMemInitialize) {
-    SKIP_IF_BPF_NOT_SUPPORTED;
     ASSERT_RESULT_OK(mTestMap.writeValue(TEST_GLOBAL_KEY, TEST_GLOBAL_VAL, BPF_ANY));
     ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_1, TEST_PROC_VAL_1, BPF_ANY));
     ASSERT_RESULT_OK(mTestMap.writeValue(TEST_PROC_KEY_2, TEST_PROC_VAL_2, BPF_ANY));

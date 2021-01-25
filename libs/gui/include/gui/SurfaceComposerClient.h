@@ -522,8 +522,6 @@ public:
 
 #ifndef NO_INPUT
         Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const InputWindowInfo& info);
-        Transaction& setFocusedWindow(const sp<IBinder>& token, const sp<IBinder>& focusedToken,
-                                      nsecs_t timestampNanos, int32_t displayId);
         Transaction& setFocusedWindow(const FocusRequest& request);
         Transaction& syncInputWindows();
 #endif

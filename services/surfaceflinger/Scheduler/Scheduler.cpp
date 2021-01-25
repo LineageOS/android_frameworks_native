@@ -349,7 +349,7 @@ void Scheduler::onFrameRateOverridesChanged(ConnectionHandle handle, PhysicalDis
 }
 
 void Scheduler::onPrimaryDisplayConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                              HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
+                                              DisplayModeId configId, nsecs_t vsyncPeriod) {
     {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
         // Cache the last reported config for primary display.
@@ -389,7 +389,7 @@ void Scheduler::dispatchCachedReportedConfig() {
 
 void Scheduler::onNonPrimaryDisplayConfigChanged(ConnectionHandle handle,
                                                  PhysicalDisplayId displayId,
-                                                 HwcConfigIndexType configId, nsecs_t vsyncPeriod) {
+                                                 DisplayModeId configId, nsecs_t vsyncPeriod) {
     android::EventThread* thread;
     {
         std::lock_guard<std::mutex> lock(mConnectionsLock);
@@ -564,21 +564,23 @@ void Scheduler::setIgnorePresentFences(bool ignore) {
 void Scheduler::registerLayer(Layer* layer) {
     if (!mLayerHistory) return;
 
+    scheduler::LayerHistory::LayerVoteType voteType;
+
     if (layer->getWindowType() == InputWindowInfo::Type::STATUS_BAR) {
-        mLayerHistory->registerLayer(layer, scheduler::LayerHistory::LayerVoteType::NoVote);
+        voteType = scheduler::LayerHistory::LayerVoteType::NoVote;
     } else if (!mOptions.useContentDetection) {
         // If the content detection feature is off, all layers are registered at Max. We still keep
         // the layer history, since we use it for other features (like Frame Rate API), so layers
         // still need to be registered.
-        mLayerHistory->registerLayer(layer, scheduler::LayerHistory::LayerVoteType::Max);
+        voteType = scheduler::LayerHistory::LayerVoteType::Max;
+    } else if (layer->getWindowType() == InputWindowInfo::Type::WALLPAPER) {
+        // Running Wallpaper at Min is considered as part of content detection.
+        voteType = scheduler::LayerHistory::LayerVoteType::Min;
     } else {
-        if (layer->getWindowType() == InputWindowInfo::Type::WALLPAPER) {
-            // Running Wallpaper at Min is considered as part of content detection.
-            mLayerHistory->registerLayer(layer, scheduler::LayerHistory::LayerVoteType::Min);
-        } else {
-            mLayerHistory->registerLayer(layer, scheduler::LayerHistory::LayerVoteType::Heuristic);
-        }
+        voteType = scheduler::LayerHistory::LayerVoteType::Heuristic;
     }
+
+    mLayerHistory->registerLayer(layer, voteType);
 }
 
 void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime,
@@ -601,7 +603,7 @@ void Scheduler::chooseRefreshRateForContent() {
 
     scheduler::LayerHistory::Summary summary = mLayerHistory->summarize(systemTime());
     scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
-    HwcConfigIndexType newConfigId;
+    DisplayModeId newConfigId;
     bool frameRateChanged;
     bool frameRateOverridesChanged;
     {
@@ -612,7 +614,7 @@ void Scheduler::chooseRefreshRateForContent() {
         mFeatures.contentRequirements = summary;
 
         newConfigId = calculateRefreshRateConfigIndexType(&consideredSignals);
-        auto& newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
+        auto newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
         frameRateOverridesChanged =
                 updateFrameRateOverrides(consideredSignals, newRefreshRate.getFps());
 
@@ -629,7 +631,7 @@ void Scheduler::chooseRefreshRateForContent() {
         }
     }
     if (frameRateChanged) {
-        auto& newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
+        auto newRefreshRate = mRefreshRateConfigs.getRefreshRateFromConfigId(newConfigId);
         mSchedulerCallback.changeRefreshRate(newRefreshRate,
                                              consideredSignals.idle ? ConfigEvent::None
                                                                     : ConfigEvent::Changed);
@@ -787,7 +789,7 @@ bool Scheduler::updateFrameRateOverrides(
 
 template <class T>
 bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
-    HwcConfigIndexType newConfigId;
+    DisplayModeId newConfigId;
     bool refreshRateChanged = false;
     bool frameRateOverridesChanged;
     scheduler::RefreshRateConfigs::GlobalSignals consideredSignals;
@@ -827,7 +829,7 @@ bool Scheduler::handleTimerStateChanged(T* currentState, T newState) {
     return consideredSignals.touch;
 }
 
-HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(
+DisplayModeId Scheduler::calculateRefreshRateConfigIndexType(
         scheduler::RefreshRateConfigs::GlobalSignals* consideredSignals) {
     ATRACE_CALL();
     if (consideredSignals) *consideredSignals = {};
@@ -849,7 +851,7 @@ HwcConfigIndexType Scheduler::calculateRefreshRateConfigIndexType(
             .getConfigId();
 }
 
-std::optional<HwcConfigIndexType> Scheduler::getPreferredConfigId() {
+std::optional<DisplayModeId> Scheduler::getPreferredConfigId() {
     std::lock_guard<std::mutex> lock(mFeatureStateLock);
     // Make sure that the default config ID is first updated, before returned.
     if (mFeatures.configId.has_value()) {

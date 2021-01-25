@@ -140,27 +140,49 @@ public:
         ASSERT_EQ(expectedApplication, application);
     }
 
-    void assertNotifyConnectionUnresponsiveWasCalled(std::chrono::nanoseconds timeout,
-                                                     const sp<IBinder>& expectedConnectionToken) {
-        sp<IBinder> connectionToken = getUnresponsiveConnectionToken(timeout);
+    void assertNotifyWindowUnresponsiveWasCalled(std::chrono::nanoseconds timeout,
+                                                 const sp<IBinder>& expectedConnectionToken) {
+        sp<IBinder> connectionToken = getUnresponsiveWindowToken(timeout);
         ASSERT_EQ(expectedConnectionToken, connectionToken);
     }
 
-    void assertNotifyConnectionResponsiveWasCalled(const sp<IBinder>& expectedConnectionToken) {
-        sp<IBinder> connectionToken = getResponsiveConnectionToken();
+    void assertNotifyWindowResponsiveWasCalled(const sp<IBinder>& expectedConnectionToken) {
+        sp<IBinder> connectionToken = getResponsiveWindowToken();
         ASSERT_EQ(expectedConnectionToken, connectionToken);
     }
 
-    sp<IBinder> getUnresponsiveConnectionToken(std::chrono::nanoseconds timeout) {
-        std::unique_lock lock(mLock);
-        android::base::ScopedLockAssertion assumeLocked(mLock);
-        return getAnrTokenLockedInterruptible(timeout, mAnrConnectionTokens, lock);
+    void assertNotifyMonitorUnresponsiveWasCalled(std::chrono::nanoseconds timeout) {
+        int32_t pid = getUnresponsiveMonitorPid(timeout);
+        ASSERT_EQ(MONITOR_PID, pid);
     }
 
-    sp<IBinder> getResponsiveConnectionToken() {
+    void assertNotifyMonitorResponsiveWasCalled() {
+        int32_t pid = getResponsiveMonitorPid();
+        ASSERT_EQ(MONITOR_PID, pid);
+    }
+
+    sp<IBinder> getUnresponsiveWindowToken(std::chrono::nanoseconds timeout) {
         std::unique_lock lock(mLock);
         android::base::ScopedLockAssertion assumeLocked(mLock);
-        return getAnrTokenLockedInterruptible(0s, mResponsiveConnectionTokens, lock);
+        return getAnrTokenLockedInterruptible(timeout, mAnrWindowTokens, lock);
+    }
+
+    sp<IBinder> getResponsiveWindowToken() {
+        std::unique_lock lock(mLock);
+        android::base::ScopedLockAssertion assumeLocked(mLock);
+        return getAnrTokenLockedInterruptible(0s, mResponsiveWindowTokens, lock);
+    }
+
+    int32_t getUnresponsiveMonitorPid(std::chrono::nanoseconds timeout) {
+        std::unique_lock lock(mLock);
+        android::base::ScopedLockAssertion assumeLocked(mLock);
+        return getAnrTokenLockedInterruptible(timeout, mAnrMonitorPids, lock);
+    }
+
+    int32_t getResponsiveMonitorPid() {
+        std::unique_lock lock(mLock);
+        android::base::ScopedLockAssertion assumeLocked(mLock);
+        return getAnrTokenLockedInterruptible(0s, mResponsiveMonitorPids, lock);
     }
 
     // All three ANR-related callbacks behave the same way, so we use this generic function to wait
@@ -182,7 +204,7 @@ public:
         const std::chrono::duration waited = std::chrono::steady_clock::now() - start;
         if (storage.empty()) {
             ADD_FAILURE() << "Did not receive the ANR callback";
-            return nullptr;
+            return {};
         }
         // Ensure that the ANR didn't get raised too early. We can't be too strict here because
         // the dispatcher started counting before this function was called
@@ -201,10 +223,14 @@ public:
     void assertNotifyAnrWasNotCalled() {
         std::scoped_lock lock(mLock);
         ASSERT_TRUE(mAnrApplications.empty());
-        ASSERT_TRUE(mAnrConnectionTokens.empty());
-        ASSERT_TRUE(mResponsiveConnectionTokens.empty())
+        ASSERT_TRUE(mAnrWindowTokens.empty());
+        ASSERT_TRUE(mAnrMonitorPids.empty());
+        ASSERT_TRUE(mResponsiveWindowTokens.empty())
                 << "ANR was not called, but please also consume the 'connection is responsive' "
                    "signal";
+        ASSERT_TRUE(mResponsiveMonitorPids.empty())
+                << "Monitor ANR was not called, but please also consume the 'monitor is responsive'"
+                   " signal";
     }
 
     void setKeyRepeatConfiguration(nsecs_t timeout, nsecs_t delay) {
@@ -251,8 +277,10 @@ private:
 
     // ANR handling
     std::queue<std::shared_ptr<InputApplicationHandle>> mAnrApplications GUARDED_BY(mLock);
-    std::queue<sp<IBinder>> mAnrConnectionTokens GUARDED_BY(mLock);
-    std::queue<sp<IBinder>> mResponsiveConnectionTokens GUARDED_BY(mLock);
+    std::queue<sp<IBinder>> mAnrWindowTokens GUARDED_BY(mLock);
+    std::queue<sp<IBinder>> mResponsiveWindowTokens GUARDED_BY(mLock);
+    std::queue<int32_t> mAnrMonitorPids GUARDED_BY(mLock);
+    std::queue<int32_t> mResponsiveMonitorPids GUARDED_BY(mLock);
     std::condition_variable mNotifyAnr;
 
     void notifyConfigurationChanged(nsecs_t when) override {
@@ -260,16 +288,27 @@ private:
         mConfigurationChangedTime = when;
     }
 
-    void notifyConnectionUnresponsive(const sp<IBinder>& connectionToken,
-                                      const std::string&) override {
+    void notifyWindowUnresponsive(const sp<IBinder>& connectionToken, const std::string&) override {
         std::scoped_lock lock(mLock);
-        mAnrConnectionTokens.push(connectionToken);
+        mAnrWindowTokens.push(connectionToken);
         mNotifyAnr.notify_all();
     }
 
-    void notifyConnectionResponsive(const sp<IBinder>& connectionToken) override {
+    void notifyMonitorUnresponsive(int32_t pid, const std::string&) override {
         std::scoped_lock lock(mLock);
-        mResponsiveConnectionTokens.push(connectionToken);
+        mAnrMonitorPids.push(pid);
+        mNotifyAnr.notify_all();
+    }
+
+    void notifyWindowResponsive(const sp<IBinder>& connectionToken) override {
+        std::scoped_lock lock(mLock);
+        mResponsiveWindowTokens.push(connectionToken);
+        mNotifyAnr.notify_all();
+    }
+
+    void notifyMonitorResponsive(int32_t pid) override {
+        std::scoped_lock lock(mLock);
+        mResponsiveMonitorPids.push(pid);
         mNotifyAnr.notify_all();
     }
 
@@ -1962,11 +2001,10 @@ TEST_F(InputDispatcherTest, UnresponsiveGestureMonitor_GetsAnr) {
     std::optional<uint32_t> consumeSeq = monitor.receiveEvent();
     ASSERT_TRUE(consumeSeq);
 
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(DISPATCHING_TIMEOUT,
-                                                             monitor.getToken());
+    mFakePolicy->assertNotifyMonitorUnresponsiveWasCalled(DISPATCHING_TIMEOUT);
     monitor.finishEvent(*consumeSeq);
     ASSERT_TRUE(mDispatcher->waitForIdle());
-    mFakePolicy->assertNotifyConnectionResponsiveWasCalled(monitor.getToken());
+    mFakePolicy->assertNotifyMonitorResponsiveWasCalled();
 }
 
 TEST_F(InputDispatcherTest, TestMoveEvent) {
@@ -3194,13 +3232,13 @@ TEST_F(InputDispatcherSingleWindowAnr, OnPointerDown_BasicAnr) {
     std::optional<uint32_t> sequenceNum = mWindow->receiveEvent(); // ACTION_DOWN
     ASSERT_TRUE(sequenceNum);
     const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(timeout, mWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow->getToken());
 
     mWindow->finishEvent(*sequenceNum);
     mWindow->consumeEvent(AINPUT_EVENT_TYPE_MOTION, AMOTION_EVENT_ACTION_CANCEL,
                           ADISPLAY_ID_DEFAULT, 0 /*flags*/);
     ASSERT_TRUE(mDispatcher->waitForIdle());
-    mFakePolicy->assertNotifyConnectionResponsiveWasCalled(mWindow->getToken());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken());
 }
 
 // Send a key to the app and have the app not respond right away.
@@ -3210,7 +3248,7 @@ TEST_F(InputDispatcherSingleWindowAnr, OnKeyDown_BasicAnr) {
     std::optional<uint32_t> sequenceNum = mWindow->receiveEvent();
     ASSERT_TRUE(sequenceNum);
     const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(timeout, mWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow->getToken());
     ASSERT_TRUE(mDispatcher->waitForIdle());
 }
 
@@ -3315,7 +3353,7 @@ TEST_F(InputDispatcherSingleWindowAnr, Anr_HandlesEventsWithIdenticalTimestamps)
     // We have now sent down and up. Let's consume first event and then ANR on the second.
     mWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT);
     const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(timeout, mWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow->getToken());
 }
 
 // If an app is not responding to a key event, gesture monitors should continue to receive
@@ -3332,7 +3370,7 @@ TEST_F(InputDispatcherSingleWindowAnr, GestureMonitors_ReceiveEventsDuringAppAnr
 
     // Stuck on the ACTION_UP
     const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(timeout, mWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow->getToken());
 
     // New tap will go to the gesture monitor, but not to the window
     tapOnWindow();
@@ -3341,7 +3379,7 @@ TEST_F(InputDispatcherSingleWindowAnr, GestureMonitors_ReceiveEventsDuringAppAnr
 
     mWindow->consumeKeyUp(ADISPLAY_ID_DEFAULT); // still the previous motion
     mDispatcher->waitForIdle();
-    mFakePolicy->assertNotifyConnectionResponsiveWasCalled(mWindow->getToken());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken());
     mWindow->assertNoEvents();
     monitor.assertNoEvents();
 }
@@ -3360,7 +3398,7 @@ TEST_F(InputDispatcherSingleWindowAnr, GestureMonitors_ReceiveEventsDuringAppAnr
     mWindow->consumeMotionDown();
     // Stuck on the ACTION_UP
     const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(timeout, mWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow->getToken());
 
     // New tap will go to the gesture monitor, but not to the window
     tapOnWindow();
@@ -3369,7 +3407,7 @@ TEST_F(InputDispatcherSingleWindowAnr, GestureMonitors_ReceiveEventsDuringAppAnr
 
     mWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT); // still the previous motion
     mDispatcher->waitForIdle();
-    mFakePolicy->assertNotifyConnectionResponsiveWasCalled(mWindow->getToken());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken());
     mWindow->assertNoEvents();
     monitor.assertNoEvents();
 }
@@ -3386,19 +3424,19 @@ TEST_F(InputDispatcherSingleWindowAnr, SameWindow_CanReceiveAnrTwice) {
     mWindow->consumeMotionDown();
     // Block on ACTION_UP
     const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(timeout, mWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow->getToken());
     mWindow->consumeMotionUp(); // Now the connection should be healthy again
     mDispatcher->waitForIdle();
-    mFakePolicy->assertNotifyConnectionResponsiveWasCalled(mWindow->getToken());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken());
     mWindow->assertNoEvents();
 
     tapOnWindow();
     mWindow->consumeMotionDown();
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(timeout, mWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow->getToken());
     mWindow->consumeMotionUp();
 
     mDispatcher->waitForIdle();
-    mFakePolicy->assertNotifyConnectionResponsiveWasCalled(mWindow->getToken());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken());
     mFakePolicy->assertNotifyAnrWasNotCalled();
     mWindow->assertNoEvents();
 }
@@ -3411,7 +3449,7 @@ TEST_F(InputDispatcherSingleWindowAnr, Policy_DoesNotGetDuplicateAnr) {
                                WINDOW_LOCATION));
 
     const std::chrono::duration windowTimeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(windowTimeout, mWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(windowTimeout, mWindow->getToken());
     std::this_thread::sleep_for(windowTimeout);
     // 'notifyConnectionUnresponsive' should only be called once per connection
     mFakePolicy->assertNotifyAnrWasNotCalled();
@@ -3421,7 +3459,7 @@ TEST_F(InputDispatcherSingleWindowAnr, Policy_DoesNotGetDuplicateAnr) {
                           ADISPLAY_ID_DEFAULT, 0 /*flags*/);
     mWindow->assertNoEvents();
     mDispatcher->waitForIdle();
-    mFakePolicy->assertNotifyConnectionResponsiveWasCalled(mWindow->getToken());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken());
     mFakePolicy->assertNotifyAnrWasNotCalled();
 }
 
@@ -3589,7 +3627,7 @@ TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsive) {
 
     const std::chrono::duration timeout =
             mFocusedWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(timeout, mFocusedWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mFocusedWindow->getToken());
     // Because we injected two DOWN events in a row, CANCEL is enqueued for the first event
     // sequence to make it consistent
     mFocusedWindow->consumeMotionCancel();
@@ -3600,7 +3638,7 @@ TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsive) {
     mFocusedWindow->assertNoEvents();
     mUnfocusedWindow->assertNoEvents();
     ASSERT_TRUE(mDispatcher->waitForIdle());
-    mFakePolicy->assertNotifyConnectionResponsiveWasCalled(mFocusedWindow->getToken());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mFocusedWindow->getToken());
     mFakePolicy->assertNotifyAnrWasNotCalled();
 }
 
@@ -3614,8 +3652,8 @@ TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsiveWithSameTimeout
 
     tapOnFocusedWindow();
     // we should have ACTION_DOWN/ACTION_UP on focused window and ACTION_OUTSIDE on unfocused window
-    sp<IBinder> anrConnectionToken1 = mFakePolicy->getUnresponsiveConnectionToken(10ms);
-    sp<IBinder> anrConnectionToken2 = mFakePolicy->getUnresponsiveConnectionToken(0ms);
+    sp<IBinder> anrConnectionToken1 = mFakePolicy->getUnresponsiveWindowToken(10ms);
+    sp<IBinder> anrConnectionToken2 = mFakePolicy->getUnresponsiveWindowToken(0ms);
 
     // We don't know which window will ANR first. But both of them should happen eventually.
     ASSERT_TRUE(mFocusedWindow->getToken() == anrConnectionToken1 ||
@@ -3630,8 +3668,8 @@ TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsiveWithSameTimeout
     mFocusedWindow->consumeMotionUp();
     mUnfocusedWindow->consumeMotionOutside();
 
-    sp<IBinder> responsiveToken1 = mFakePolicy->getResponsiveConnectionToken();
-    sp<IBinder> responsiveToken2 = mFakePolicy->getResponsiveConnectionToken();
+    sp<IBinder> responsiveToken1 = mFakePolicy->getResponsiveWindowToken();
+    sp<IBinder> responsiveToken2 = mFakePolicy->getResponsiveWindowToken();
 
     // Both applications should be marked as responsive, in any order
     ASSERT_TRUE(mFocusedWindow->getToken() == responsiveToken1 ||
@@ -3655,7 +3693,7 @@ TEST_F(InputDispatcherMultiWindowAnr, DuringAnr_SecondTapIsIgnored) {
     ASSERT_TRUE(upEventSequenceNum);
     const std::chrono::duration timeout =
             mFocusedWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(timeout, mFocusedWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mFocusedWindow->getToken());
 
     // Tap once again
     // We cannot use "tapOnFocusedWindow" because it asserts the injection result to be success
@@ -3676,7 +3714,7 @@ TEST_F(InputDispatcherMultiWindowAnr, DuringAnr_SecondTapIsIgnored) {
     // The second tap did not go to the focused window
     mFocusedWindow->assertNoEvents();
     // Since all events are finished, connection should be deemed healthy again
-    mFakePolicy->assertNotifyConnectionResponsiveWasCalled(mFocusedWindow->getToken());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mFocusedWindow->getToken());
     mFakePolicy->assertNotifyAnrWasNotCalled();
 }
 
@@ -3788,7 +3826,7 @@ TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
 
     const std::chrono::duration timeout =
             mFocusedWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyConnectionUnresponsiveWasCalled(timeout, mFocusedWindow->getToken());
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mFocusedWindow->getToken());
 
     mUnfocusedWindow->consumeMotionDown();
     mFocusedWindow->consumeMotionDown();
@@ -3807,7 +3845,7 @@ TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
         ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, motionEvent.getAction());
     }
     ASSERT_TRUE(mDispatcher->waitForIdle());
-    mFakePolicy->assertNotifyConnectionResponsiveWasCalled(mFocusedWindow->getToken());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mFocusedWindow->getToken());
 
     mUnfocusedWindow->assertNoEvents();
     mFocusedWindow->assertNoEvents();
@@ -4172,6 +4210,7 @@ TEST_F(InputDispatcherPointerCaptureTests, UnexpectedStateChangeDisablesPointerC
     notifyPointerCaptureChanged(true);
 
     // Ensure that Pointer Capture is disabled.
+    mFakePolicy->waitForSetPointerCapture(false);
     mWindow->consumeCaptureEvent(false);
     mWindow->assertNoEvents();
 }

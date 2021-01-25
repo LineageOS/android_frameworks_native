@@ -268,6 +268,10 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
             if (id) {
                 outState->rawPointerData.canceledIdBits.markBit(id.value());
             }
+#if DEBUG_POINTERS
+            ALOGI("Stop processing slot %zu for it received a palm event from device %s", inIndex,
+                  getDeviceName().c_str());
+#endif
             continue;
         }
 
