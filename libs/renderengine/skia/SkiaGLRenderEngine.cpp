@@ -593,6 +593,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     // view is still on-screen. The clear region could be re-specified as a black color layer,
     // however.
     if (!display.clearRegion.isEmpty()) {
+        ATRACE_NAME("ClearRegion");
         size_t numRects = 0;
         Rect const* rects = display.clearRegion.getArray(&numRects);
         SkIRect skRects[numRects];
@@ -612,6 +613,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     }
 
     for (const auto& layer : layers) {
+        ATRACE_NAME("DrawLayer");
         canvas->save();
 
         if (mCapture->isCaptureRunning()) {
@@ -630,7 +632,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         const auto& bounds = layer->geometry.boundaries;
         const auto dest = getSkRect(bounds);
         const auto layerRect = canvas->getTotalMatrix().mapRect(dest);
-        std::unordered_map<uint32_t, sk_sp<SkSurface>> cachedBlurs;
+        std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
         if (mBlurFilter) {
             if (layer->backgroundBlurRadius > 0) {
                 ATRACE_NAME("BackgroundBlur");
@@ -882,17 +884,15 @@ void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRect& casterRect, 
 }
 
 void SkiaGLRenderEngine::drawBlurRegion(SkCanvas* canvas, const BlurRegion& effectRegion,
-                                        const SkRect& layerRect, sk_sp<SkSurface> blurredSurface) {
+                                        const SkRect& layerRect, sk_sp<SkImage> blurredImage) {
     ATRACE_CALL();
 
     SkPaint paint;
     paint.setAlpha(static_cast<int>(effectRegion.alpha * 255));
     const auto matrix = getBlurShaderTransform(canvas, layerRect);
-    paint.setShader(blurredSurface->makeImageSnapshot()->makeShader(
-            SkTileMode::kClamp,
-            SkTileMode::kClamp,
-            SkSamplingOptions({SkFilterMode::kLinear, SkMipmapMode::kNone}),
-            &matrix));
+    SkSamplingOptions linearSampling(SkFilterMode::kLinear, SkMipmapMode::kNone);
+    paint.setShader(blurredImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linearSampling,
+                                             &matrix));
 
     auto rect = SkRect::MakeLTRB(effectRegion.left, effectRegion.top, effectRegion.right,
                                  effectRegion.bottom);
