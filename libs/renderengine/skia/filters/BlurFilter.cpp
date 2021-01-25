@@ -57,8 +57,8 @@ BlurFilter::BlurFilter() {
     mBlurEffect = std::move(blurEffect);
 }
 
-sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> input,
-                                      const uint32_t blurRadius, SkRect rect) const {
+sk_sp<SkImage> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> input,
+                                    const uint32_t blurRadius, SkRect rect) const {
     // Kawase is an approximation of Gaussian, but it behaves differently from it.
     // A radius transformation is required for approximating them, and also to introduce
     // non-integer steps, necessary to smoothly interpolate large radii.
@@ -68,9 +68,6 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
 
     SkImageInfo scaledInfo = SkImageInfo::MakeN32Premul((float)rect.width() * kInputScale,
                                                         (float)rect.height() * kInputScale);
-    SkRect scaledRect = SkRect::MakeWH(scaledInfo.width(), scaledInfo.height());
-
-    auto drawSurface = canvas->makeSurface(scaledInfo);
 
     const float stepX = radiusByPasses;
     const float stepY = radiusByPasses;
@@ -85,49 +82,20 @@ sk_sp<SkSurface> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> i
     blurBuilder.uniform("in_blurOffset") =
             SkV2{stepX * kInverseInputScale, stepY * kInverseInputScale};
 
-    {
-        // limit the lifetime of the input surface's snapshot to ensure that it goes out of
-        // scope before the surface is written into to avoid any copy-on-write behavior.
-        SkPaint paint;
-        paint.setShader(blurBuilder.makeShader(nullptr, false));
-        paint.setFilterQuality(kLow_SkFilterQuality);
+    sk_sp<SkImage> tmpBlur(
+            blurBuilder.makeImage(canvas->recordingContext(), nullptr, scaledInfo, false));
 
-        drawSurface->getCanvas()->drawRect(scaledRect, paint);
-
-        blurBuilder.child("input") = nullptr;
+    // And now we'll build our chain of scaled blur stages
+    blurBuilder.uniform("in_inverseScale") = 1.0f;
+    for (auto i = 1; i < numberOfPasses; i++) {
+        const float stepScale = (float)i * kInputScale;
+        blurBuilder.child("input") =
+                tmpBlur->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
+        blurBuilder.uniform("in_blurOffset") = SkV2{stepX * stepScale, stepY * stepScale};
+        tmpBlur = blurBuilder.makeImage(canvas->recordingContext(), nullptr, scaledInfo, false);
     }
 
-    // And now we'll ping pong between our surfaces, to accumulate the result of various offsets.
-    auto lastDrawTarget = drawSurface;
-    if (numberOfPasses > 1) {
-        auto readSurface = drawSurface;
-        drawSurface = canvas->makeSurface(scaledInfo);
-
-        for (auto i = 1; i < numberOfPasses; i++) {
-            const float stepScale = (float)i * kInputScale;
-
-            blurBuilder.child("input") =
-                    readSurface->makeImageSnapshot()->makeShader(SkTileMode::kClamp,
-                                                                 SkTileMode::kClamp, linear);
-            blurBuilder.uniform("in_inverseScale") = 1.0f;
-            blurBuilder.uniform("in_blurOffset") = SkV2{stepX * stepScale, stepY * stepScale};
-
-            SkPaint paint;
-            paint.setShader(blurBuilder.makeShader(nullptr, false));
-            paint.setFilterQuality(kLow_SkFilterQuality);
-
-            drawSurface->getCanvas()->drawRect(scaledRect, paint);
-
-            // Swap buffers for next iteration
-            const auto tmp = drawSurface;
-            drawSurface = readSurface;
-            readSurface = tmp;
-            blurBuilder.child("input") = nullptr;
-        }
-        lastDrawTarget = readSurface;
-    }
-
-    return lastDrawTarget;
+    return tmpBlur;
 }
 
 SkMatrix BlurFilter::getShaderMatrix() const {

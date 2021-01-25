@@ -48,8 +48,8 @@ public:
     virtual ~BlurFilter(){};
 
     // Execute blur, saving it to a texture
-    sk_sp<SkSurface> generate(SkCanvas* canvas, const sk_sp<SkSurface> input, const uint32_t radius,
-                              SkRect rect) const;
+    sk_sp<SkImage> generate(SkCanvas* canvas, const sk_sp<SkSurface> input, const uint32_t radius,
+                            SkRect rect) const;
     // Returns a matrix that should be applied to the blur shader
     SkMatrix getShaderMatrix() const;
 
