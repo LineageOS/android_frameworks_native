@@ -98,7 +98,7 @@ static bool initGlobals() {
     struct dirent **dirlist;
     const char basepath[] = "/sys/devices/system/cpu/cpufreq";
     int ret = scandir(basepath, &dirlist, isPolicyFile, comparePolicyFiles);
-    if (ret == -1) return false;
+    if (ret == -1 || ret == 0) return false;
     gNPolicies = ret;
 
     std::vector<std::string> policyFileNames;
