@@ -117,8 +117,6 @@ typedef struct {
 int AndroidBitmap_getInfo(JNIEnv* env, jobject jbitmap,
                           AndroidBitmapInfo* info);
 
-#if __ANDROID_API__ >= 30
-
 /**
  * Given a java bitmap object, return its {@link ADataSpace}.
  *
@@ -129,8 +127,6 @@ int AndroidBitmap_getInfo(JNIEnv* env, jobject jbitmap,
  * Available since API level 30.
  */
 int32_t AndroidBitmap_getDataSpace(JNIEnv* env, jobject jbitmap)  __INTRODUCED_IN(30);
-
-#endif // __ANDROID_API__ >= 30
 
 /**
  * Given a java bitmap object, attempt to lock the pixel address.
@@ -151,8 +147,6 @@ int AndroidBitmap_lockPixels(JNIEnv* env, jobject jbitmap, void** addrPtr);
  * Call this to balance a successful call to AndroidBitmap_lockPixels.
  */
 int AndroidBitmap_unlockPixels(JNIEnv* env, jobject jbitmap);
-
-#if __ANDROID_API__ >= 30
 
 // Note: these values match android.graphics.Bitmap#compressFormat.
 
@@ -253,8 +247,6 @@ typedef struct AHardwareBuffer AHardwareBuffer;
  */
 int AndroidBitmap_getHardwareBuffer(JNIEnv* env, jobject bitmap,
         AHardwareBuffer** outBuffer) __INTRODUCED_IN(30);
-
-#endif // __ANDROID_API__ >= 30
 
 #ifdef __cplusplus
 }

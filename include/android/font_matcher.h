@@ -97,8 +97,6 @@
 
 __BEGIN_DECLS
 
-#if __ANDROID_API__ >= 29
-
 enum {
     /** A family variant value for the system default variant. */
     AFAMILY_VARIANT_DEFAULT = 0,
@@ -216,8 +214,6 @@ AFont* _Nonnull AFontMatcher_match(
         const uint16_t* _Nonnull text,
         const uint32_t textLength,
         uint32_t* _Nullable runLengthOut) __INTRODUCED_IN(29);
-
-#endif // __ANDROID_API__ >= 29
 
 __END_DECLS
 
