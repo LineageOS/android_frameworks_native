@@ -489,7 +489,7 @@ const RefreshRate* RefreshRateConfigs::getBestRefreshRate(Iter begin, Iter end) 
 }
 
 std::optional<Fps> RefreshRateConfigs::onKernelTimerChanged(
-        std::optional<HwcConfigIndexType> desiredActiveConfigId, bool timerExpired) const {
+        std::optional<DisplayModeId> desiredActiveConfigId, bool timerExpired) const {
     std::lock_guard lock(mLock);
 
     const auto& current = desiredActiveConfigId ? *mRefreshRates.at(*desiredActiveConfigId)
@@ -554,26 +554,25 @@ const RefreshRate& RefreshRateConfigs::getCurrentRefreshRateByPolicyLocked() con
     return *mRefreshRates.at(getCurrentPolicyLocked()->defaultConfig);
 }
 
-void RefreshRateConfigs::setCurrentConfigId(HwcConfigIndexType configId) {
+void RefreshRateConfigs::setCurrentConfigId(DisplayModeId configId) {
     std::lock_guard lock(mLock);
     mCurrentRefreshRate = mRefreshRates.at(configId).get();
 }
 
-RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& configs,
-                                       HwcConfigIndexType currentConfigId)
+RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& configs, DisplayModeId currentConfigId)
       : mKnownFrameRates(constructKnownFrameRates(configs)) {
     updateDisplayConfigs(configs, currentConfigId);
 }
 
 void RefreshRateConfigs::updateDisplayConfigs(const DisplayModes& configs,
-                                              HwcConfigIndexType currentConfigId) {
+                                              DisplayModeId currentConfigId) {
     std::lock_guard lock(mLock);
     LOG_ALWAYS_FATAL_IF(configs.empty());
     LOG_ALWAYS_FATAL_IF(currentConfigId.value() >= configs.size());
 
     mRefreshRates.clear();
-    for (auto configId = HwcConfigIndexType(0); configId.value() < configs.size(); configId++) {
-        const auto& config = configs.at(static_cast<size_t>(configId.value()));
+    for (const auto& config : configs) {
+        const auto configId = config->getId();
         const auto fps = Fps::fromPeriodNsecs(config->getVsyncPeriod());
         mRefreshRates.emplace(configId,
                               std::make_unique<RefreshRate>(configId, config, fps,
@@ -663,7 +662,7 @@ RefreshRateConfigs::Policy RefreshRateConfigs::getDisplayManagerPolicy() const {
     return mDisplayManagerPolicy;
 }
 
-bool RefreshRateConfigs::isConfigAllowed(HwcConfigIndexType config) const {
+bool RefreshRateConfigs::isConfigAllowed(DisplayModeId config) const {
     std::lock_guard lock(mLock);
     for (const RefreshRate* refreshRate : mAppRequestRefreshRates) {
         if (refreshRate->configId == config) {

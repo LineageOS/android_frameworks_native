@@ -87,11 +87,10 @@ public:
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
-    void onPrimaryDisplayConfigChanged(ConnectionHandle, PhysicalDisplayId,
-                                       HwcConfigIndexType configId, nsecs_t vsyncPeriod)
-            EXCLUDES(mFeatureStateLock);
+    void onPrimaryDisplayConfigChanged(ConnectionHandle, PhysicalDisplayId, DisplayModeId configId,
+                                       nsecs_t vsyncPeriod) EXCLUDES(mFeatureStateLock);
     void onNonPrimaryDisplayConfigChanged(ConnectionHandle, PhysicalDisplayId,
-                                          HwcConfigIndexType configId, nsecs_t vsyncPeriod);
+                                          DisplayModeId configId, nsecs_t vsyncPeriod);
     void onScreenAcquired(ConnectionHandle);
     void onScreenReleased(ConnectionHandle);
 
@@ -154,7 +153,7 @@ public:
     void dumpVsync(std::string&) const;
 
     // Get the appropriate refresh for current conditions.
-    std::optional<HwcConfigIndexType> getPreferredConfigId();
+    std::optional<DisplayModeId> getPreferredConfigId();
 
     // Notifies the scheduler about a refresh rate timeline change.
     void onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline);
@@ -226,9 +225,9 @@ private:
     void setVsyncPeriod(nsecs_t period);
 
     // This function checks whether individual features that are affecting the refresh rate
-    // selection were initialized, prioritizes them, and calculates the HwcConfigIndexType
+    // selection were initialized, prioritizes them, and calculates the DisplayModeId
     // for the suggested refresh rate.
-    HwcConfigIndexType calculateRefreshRateConfigIndexType(
+    DisplayModeId calculateRefreshRateConfigIndexType(
             scheduler::RefreshRateConfigs::GlobalSignals* consideredSignals = nullptr)
             REQUIRES(mFeatureStateLock);
 
@@ -284,7 +283,7 @@ private:
         TouchState touch = TouchState::Inactive;
         TimerState displayPowerTimer = TimerState::Expired;
 
-        std::optional<HwcConfigIndexType> configId;
+        std::optional<DisplayModeId> configId;
         LayerHistory::Summary contentRequirements;
 
         bool isDisplayPowerStateNormal = true;
@@ -293,7 +292,7 @@ private:
         struct ConfigChangedParams {
             ConnectionHandle handle;
             PhysicalDisplayId displayId;
-            HwcConfigIndexType configId;
+            DisplayModeId configId;
             nsecs_t vsyncPeriod;
         };
 

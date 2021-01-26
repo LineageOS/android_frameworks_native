@@ -1907,6 +1907,9 @@ void TouchInputMapper::dispatchTouches(nsecs_t when, uint32_t policyFlags) {
         while (!upIdBits.isEmpty()) {
             uint32_t upId = upIdBits.clearFirstMarkedBit();
             bool isCanceled = mCurrentCookedState.cookedPointerData.canceledIdBits.hasBit(upId);
+            if (isCanceled) {
+                ALOGI("Canceling pointer %d for the palm event was detected.", upId);
+            }
             dispatchMotion(when, policyFlags, mSource, AMOTION_EVENT_ACTION_POINTER_UP, 0,
                            isCanceled ? AMOTION_EVENT_FLAG_CANCELED : 0, metaState, buttonState, 0,
                            mLastCookedState.cookedPointerData.pointerProperties,

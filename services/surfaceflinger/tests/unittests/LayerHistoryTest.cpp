@@ -111,14 +111,16 @@ protected:
     }
 
     RefreshRateConfigs mConfigs{{DisplayMode::Builder(0)
+                                         .setId(DisplayModeId(0))
                                          .setVsyncPeriod(int32_t(LO_FPS_PERIOD))
                                          .setConfigGroup(0)
                                          .build(),
                                  DisplayMode::Builder(1)
+                                         .setId(DisplayModeId(1))
                                          .setVsyncPeriod(int32_t(HI_FPS_PERIOD))
                                          .setConfigGroup(0)
                                          .build()},
-                                HwcConfigIndexType(0)};
+                                DisplayModeId(0)};
 
     mock::NoOpSchedulerCallback mSchedulerCallback;
 
