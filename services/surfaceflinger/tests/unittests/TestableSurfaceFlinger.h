@@ -210,15 +210,21 @@ public:
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
                         ISchedulerCallback* callback = nullptr, bool hasMultipleConfigs = false) {
-        DisplayModes configs{
-                DisplayMode::Builder(0).setVsyncPeriod(16'666'667).setConfigGroup(0).build()};
+        DisplayModes configs{DisplayMode::Builder(0)
+                                     .setId(DisplayModeId(0))
+                                     .setVsyncPeriod(16'666'667)
+                                     .setConfigGroup(0)
+                                     .build()};
 
         if (hasMultipleConfigs) {
-            configs.emplace_back(
-                    DisplayMode::Builder(1).setVsyncPeriod(11'111'111).setConfigGroup(0).build());
+            configs.emplace_back(DisplayMode::Builder(1)
+                                         .setId(DisplayModeId(1))
+                                         .setVsyncPeriod(11'111'111)
+                                         .setConfigGroup(0)
+                                         .build());
         }
 
-        const auto currConfig = HwcConfigIndexType(0);
+        const auto currConfig = DisplayModeId(0);
         mFlinger->mRefreshRateConfigs =
                 std::make_unique<scheduler::RefreshRateConfigs>(configs, currConfig);
         const auto currFps =

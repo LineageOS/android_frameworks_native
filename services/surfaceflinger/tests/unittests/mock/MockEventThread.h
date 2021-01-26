@@ -33,7 +33,7 @@ public:
     MOCK_METHOD0(onScreenReleased, void());
     MOCK_METHOD0(onScreenAcquired, void());
     MOCK_METHOD2(onHotplugReceived, void(PhysicalDisplayId, bool));
-    MOCK_METHOD3(onConfigChanged, void(PhysicalDisplayId, HwcConfigIndexType, nsecs_t));
+    MOCK_METHOD3(onConfigChanged, void(PhysicalDisplayId, DisplayModeId, nsecs_t));
     MOCK_METHOD2(onFrameRateOverridesChanged,
                  void(PhysicalDisplayId, std::vector<FrameRateOverride>));
     MOCK_CONST_METHOD1(dump, void(std::string&));

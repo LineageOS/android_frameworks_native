@@ -72,13 +72,13 @@ protected:
     }
 
     // Test config IDs
-    static inline const HwcConfigIndexType HWC_CONFIG_ID_60 = HwcConfigIndexType(0);
-    static inline const HwcConfigIndexType HWC_CONFIG_ID_90 = HwcConfigIndexType(1);
-    static inline const HwcConfigIndexType HWC_CONFIG_ID_72 = HwcConfigIndexType(2);
-    static inline const HwcConfigIndexType HWC_CONFIG_ID_120 = HwcConfigIndexType(3);
-    static inline const HwcConfigIndexType HWC_CONFIG_ID_30 = HwcConfigIndexType(4);
-    static inline const HwcConfigIndexType HWC_CONFIG_ID_25 = HwcConfigIndexType(5);
-    static inline const HwcConfigIndexType HWC_CONFIG_ID_50 = HwcConfigIndexType(6);
+    static inline const DisplayModeId HWC_CONFIG_ID_60 = DisplayModeId(0);
+    static inline const DisplayModeId HWC_CONFIG_ID_90 = DisplayModeId(1);
+    static inline const DisplayModeId HWC_CONFIG_ID_72 = DisplayModeId(2);
+    static inline const DisplayModeId HWC_CONFIG_ID_120 = DisplayModeId(3);
+    static inline const DisplayModeId HWC_CONFIG_ID_30 = DisplayModeId(4);
+    static inline const DisplayModeId HWC_CONFIG_ID_25 = DisplayModeId(5);
+    static inline const DisplayModeId HWC_CONFIG_ID_50 = DisplayModeId(6);
 
     // Test configs
     DisplayModePtr mConfig60 = createConfig(HWC_CONFIG_ID_60, 0, Fps(60.0f).getPeriodNsecs());
@@ -144,8 +144,8 @@ protected:
     RefreshRate mExpected120Config = {HWC_CONFIG_ID_120, mConfig120, Fps(120),
                                       RefreshRate::ConstructorTag(0)};
 private:
-    DisplayModePtr createConfig(HwcConfigIndexType configId, int32_t configGroup,
-                                int64_t vsyncPeriod, ui::Size resolution = ui::Size());
+    DisplayModePtr createConfig(DisplayModeId configId, int32_t configGroup, int64_t vsyncPeriod,
+                                ui::Size resolution = ui::Size());
 };
 
 using Builder = DisplayMode::Builder;
@@ -162,10 +162,10 @@ RefreshRateConfigsTest::~RefreshRateConfigsTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-DisplayModePtr RefreshRateConfigsTest::createConfig(HwcConfigIndexType configId,
-                                                    int32_t configGroup, int64_t vsyncPeriod,
-                                                    ui::Size resolution) {
+DisplayModePtr RefreshRateConfigsTest::createConfig(DisplayModeId configId, int32_t configGroup,
+                                                    int64_t vsyncPeriod, ui::Size resolution) {
     return DisplayMode::Builder(hal::HWConfigId(configId.value()))
+            .setId(configId)
             .setVsyncPeriod(int32_t(vsyncPeriod))
             .setConfigGroup(configGroup)
             .setHeight(resolution.height)
@@ -187,8 +187,7 @@ TEST_F(RefreshRateConfigsTest, invalidPolicy) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m60OnlyConfigDevice,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
-    ASSERT_LT(refreshRateConfigs->setDisplayManagerPolicy(
-                      {HwcConfigIndexType(10), {Fps(60), Fps(60)}}),
+    ASSERT_LT(refreshRateConfigs->setDisplayManagerPolicy({DisplayModeId(10), {Fps(60), Fps(60)}}),
               0);
     ASSERT_LT(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_60, {Fps(20), Fps(40)}}),
               0);
@@ -1334,7 +1333,7 @@ TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
     // Return the config ID from calling getBestRefreshRate() for a single layer with the
     // given voteType and fps.
     auto getFrameRate = [&](LayerVoteType voteType, Fps fps, bool touchActive = false,
-                            bool focused = true) -> HwcConfigIndexType {
+                            bool focused = true) -> DisplayModeId {
         layers[0].vote = voteType;
         layers[0].desiredRefreshRate = fps;
         layers[0].focused = focused;
@@ -1391,8 +1390,7 @@ TEST_F(RefreshRateConfigsTest, idle) {
     auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
     layers[0].name = "Test layer";
 
-    const auto getIdleFrameRate = [&](LayerVoteType voteType,
-                                      bool touchActive) -> HwcConfigIndexType {
+    const auto getIdleFrameRate = [&](LayerVoteType voteType, bool touchActive) -> DisplayModeId {
         layers[0].vote = voteType;
         layers[0].desiredRefreshRate = Fps(90.f);
         RefreshRateConfigs::GlobalSignals consideredSignals;

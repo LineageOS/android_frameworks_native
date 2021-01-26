@@ -27,7 +27,6 @@
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "Fps.h"
-#include "HwcStrongTypes.h"
 #include "Scheduler/SchedulerUtils.h"
 #include "Scheduler/Seamlessness.h"
 #include "Scheduler/StrongTyping.h"
@@ -65,10 +64,10 @@ public:
         };
 
     public:
-        RefreshRate(HwcConfigIndexType configId, DisplayModePtr config, Fps fps, ConstructorTag)
+        RefreshRate(DisplayModeId configId, DisplayModePtr config, Fps fps, ConstructorTag)
               : configId(configId), hwcConfig(config), fps(std::move(fps)) {}
 
-        HwcConfigIndexType getConfigId() const { return configId; }
+        DisplayModeId getConfigId() const { return configId; }
         nsecs_t getVsyncPeriod() const { return hwcConfig->getVsyncPeriod(); }
         int32_t getConfigGroup() const { return hwcConfig->getConfigGroup(); }
         std::string getName() const { return to_string(fps); }
@@ -99,7 +98,7 @@ public:
 
         // This config ID corresponds to the position of the config in the vector that is stored
         // on the device.
-        const HwcConfigIndexType configId;
+        const DisplayModeId configId;
         // The config itself
         DisplayModePtr hwcConfig;
         // Refresh rate in frames per second
@@ -107,7 +106,7 @@ public:
     };
 
     using AllRefreshRatesMapType =
-            std::unordered_map<HwcConfigIndexType, std::unique_ptr<const RefreshRate>>;
+            std::unordered_map<DisplayModeId, std::unique_ptr<const RefreshRate>>;
 
     struct FpsRange {
         Fps min{0.0f};
@@ -131,7 +130,7 @@ public:
     public:
         // The default config, used to ensure we only initiate display config switches within the
         // same config group as defaultConfigId's group.
-        HwcConfigIndexType defaultConfig;
+        DisplayModeId defaultConfig;
         // Whether or not we switch config groups to get the best frame rate.
         bool allowGroupSwitching = kAllowGroupSwitchingDefault;
         // The primary refresh rate range represents display manager's general guidance on the
@@ -148,18 +147,18 @@ public:
 
         Policy() = default;
 
-        Policy(HwcConfigIndexType defaultConfig, const FpsRange& range)
+        Policy(DisplayModeId defaultConfig, const FpsRange& range)
               : Policy(defaultConfig, kAllowGroupSwitchingDefault, range, range) {}
 
-        Policy(HwcConfigIndexType defaultConfig, bool allowGroupSwitching, const FpsRange& range)
+        Policy(DisplayModeId defaultConfig, bool allowGroupSwitching, const FpsRange& range)
               : Policy(defaultConfig, allowGroupSwitching, range, range) {}
 
-        Policy(HwcConfigIndexType defaultConfig, const FpsRange& primaryRange,
+        Policy(DisplayModeId defaultConfig, const FpsRange& primaryRange,
                const FpsRange& appRequestRange)
               : Policy(defaultConfig, kAllowGroupSwitchingDefault, primaryRange, appRequestRange) {}
 
-        Policy(HwcConfigIndexType defaultConfig, bool allowGroupSwitching,
-               const FpsRange& primaryRange, const FpsRange& appRequestRange)
+        Policy(DisplayModeId defaultConfig, bool allowGroupSwitching, const FpsRange& primaryRange,
+               const FpsRange& appRequestRange)
               : defaultConfig(defaultConfig),
                 allowGroupSwitching(allowGroupSwitching),
                 primaryRange(primaryRange),
@@ -199,7 +198,7 @@ public:
     Policy getDisplayManagerPolicy() const EXCLUDES(mLock);
 
     // Returns true if config is allowed by the current policy.
-    bool isConfigAllowed(HwcConfigIndexType config) const EXCLUDES(mLock);
+    bool isConfigAllowed(DisplayModeId config) const EXCLUDES(mLock);
 
     // Describes the different options the layer voted for refresh rate
     enum class LayerVoteType {
@@ -265,7 +264,7 @@ public:
         return {mMinSupportedRefreshRate->getFps(), mMaxSupportedRefreshRate->getFps()};
     }
 
-    std::optional<Fps> onKernelTimerChanged(std::optional<HwcConfigIndexType> desiredActiveConfigId,
+    std::optional<Fps> onKernelTimerChanged(std::optional<DisplayModeId> desiredActiveConfigId,
                                             bool timerExpired) const EXCLUDES(mLock);
 
     // Returns the highest refresh rate according to the current policy. May change at runtime. Only
@@ -279,16 +278,16 @@ public:
     // the policy.
     RefreshRate getCurrentRefreshRateByPolicy() const;
 
-    // Returns the refresh rate that corresponds to a HwcConfigIndexType. This may change at
+    // Returns the refresh rate that corresponds to a DisplayModeId. This may change at
     // runtime.
     // TODO(b/159590486) An invalid config id may be given here if the dipslay configs have changed.
-    RefreshRate getRefreshRateFromConfigId(HwcConfigIndexType configId) const EXCLUDES(mLock) {
+    RefreshRate getRefreshRateFromConfigId(DisplayModeId configId) const EXCLUDES(mLock) {
         std::lock_guard lock(mLock);
         return *mRefreshRates.at(configId);
     };
 
     // Stores the current configId the device operates at
-    void setCurrentConfigId(HwcConfigIndexType configId) EXCLUDES(mLock);
+    void setCurrentConfigId(DisplayModeId configId) EXCLUDES(mLock);
 
     // Returns a string that represents the layer vote type
     static std::string layerVoteTypeString(LayerVoteType vote);
@@ -296,9 +295,9 @@ public:
     // Returns a known frame rate that is the closest to frameRate
     Fps findClosestKnownFrameRate(Fps frameRate) const;
 
-    RefreshRateConfigs(const DisplayModes& configs, HwcConfigIndexType currentConfigId);
+    RefreshRateConfigs(const DisplayModes& configs, DisplayModeId currentConfigId);
 
-    void updateDisplayConfigs(const DisplayModes& configs, HwcConfigIndexType currentConfig)
+    void updateDisplayConfigs(const DisplayModes& configs, DisplayModeId currentConfig)
             EXCLUDES(mLock);
 
     // Returns whether switching configs (refresh rate or resolution) is possible.

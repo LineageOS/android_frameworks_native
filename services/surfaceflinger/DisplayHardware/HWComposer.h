@@ -198,7 +198,7 @@ public:
     virtual DisplayConnectionType getDisplayConnectionType(PhysicalDisplayId) const = 0;
     virtual bool isVsyncPeriodSwitchSupported(PhysicalDisplayId) const = 0;
     virtual nsecs_t getDisplayVsyncPeriod(PhysicalDisplayId) const = 0;
-    virtual status_t setActiveModeWithConstraints(PhysicalDisplayId, HwcConfigIndexType,
+    virtual status_t setActiveModeWithConstraints(PhysicalDisplayId, DisplayModeId,
                                                   const hal::VsyncPeriodChangeConstraints&,
                                                   hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
     virtual status_t setAutoLowLatencyMode(PhysicalDisplayId, bool on) = 0;
@@ -329,7 +329,7 @@ public:
     DisplayConnectionType getDisplayConnectionType(PhysicalDisplayId) const override;
     bool isVsyncPeriodSwitchSupported(PhysicalDisplayId) const override;
     nsecs_t getDisplayVsyncPeriod(PhysicalDisplayId displayId) const override;
-    status_t setActiveModeWithConstraints(PhysicalDisplayId, HwcConfigIndexType,
+    status_t setActiveModeWithConstraints(PhysicalDisplayId, DisplayModeId,
                                           const hal::VsyncPeriodChangeConstraints&,
                                           hal::VsyncPeriodChangeTimeline* outTimeline) override;
     status_t setAutoLowLatencyMode(PhysicalDisplayId, bool) override;

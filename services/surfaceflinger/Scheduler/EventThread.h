@@ -31,7 +31,7 @@
 #include <thread>
 #include <vector>
 
-#include "HwcStrongTypes.h"
+#include "DisplayHardware/DisplayMode.h"
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -124,7 +124,7 @@ public:
     virtual void onHotplugReceived(PhysicalDisplayId displayId, bool connected) = 0;
 
     // called when SF changes the active config and apps needs to be notified about the change
-    virtual void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId,
+    virtual void onConfigChanged(PhysicalDisplayId displayId, DisplayModeId configId,
                                  nsecs_t vsyncPeriod) = 0;
 
     // called when SF updates the Frame Rate Override list
@@ -173,7 +173,7 @@ public:
 
     void onHotplugReceived(PhysicalDisplayId displayId, bool connected) override;
 
-    void onConfigChanged(PhysicalDisplayId displayId, HwcConfigIndexType configId,
+    void onConfigChanged(PhysicalDisplayId displayId, DisplayModeId configId,
                          nsecs_t vsyncPeriod) override;
 
     void onFrameRateOverridesChanged(PhysicalDisplayId displayId,
