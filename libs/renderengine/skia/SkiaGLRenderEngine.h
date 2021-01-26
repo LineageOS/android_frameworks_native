@@ -90,7 +90,7 @@ private:
     void drawShadow(SkCanvas* canvas, const SkRect& casterRect, float casterCornerRadius,
                     const ShadowSettings& shadowSettings);
     void drawBlurRegion(SkCanvas* canvas, const BlurRegion& blurRegion, const SkRect& layerRect,
-                        sk_sp<SkSurface> blurredSurface);
+                        sk_sp<SkImage> blurredImage);
     SkMatrix getBlurShaderTransform(const SkCanvas* canvas, const SkRect& layerRect);
     // If mUseColorManagement is correct and layer needsLinearEffect, it returns a linear runtime
     // shader. Otherwise it returns the input shader.
