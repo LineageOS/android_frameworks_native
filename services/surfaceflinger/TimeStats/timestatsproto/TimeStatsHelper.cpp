@@ -91,6 +91,37 @@ std::string TimeStatsHelper::JankPayload::toString() const {
     return result;
 }
 
+std::string TimeStatsHelper::SetFrameRateVote::toString(FrameRateCompatibility compatibility) {
+    switch (compatibility) {
+        case FrameRateCompatibility::Undefined:
+            return "Undefined";
+        case FrameRateCompatibility::Default:
+            return "Default";
+        case FrameRateCompatibility::ExactOrMultiple:
+            return "ExactOrMultiple";
+    }
+}
+
+std::string TimeStatsHelper::SetFrameRateVote::toString(Seamlessness seamlessness) {
+    switch (seamlessness) {
+        case Seamlessness::Undefined:
+            return "Undefined";
+        case Seamlessness::ShouldBeSeamless:
+            return "ShouldBeSeamless";
+        case Seamlessness::NotRequired:
+            return "NotRequired";
+    }
+}
+
+std::string TimeStatsHelper::SetFrameRateVote::toString() const {
+    std::string result;
+    StringAppendF(&result, "frameRate = %.2f\n", frameRate);
+    StringAppendF(&result, "frameRateCompatibility = %s\n",
+                  toString(frameRateCompatibility).c_str());
+    StringAppendF(&result, "seamlessness = %s\n", toString(seamlessness).c_str());
+    return result;
+}
+
 std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     std::string result = "\n";
     StringAppendF(&result, "displayRefreshRate = %d fps\n", displayRefreshRateBucket);
@@ -104,6 +135,8 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     StringAppendF(&result, "badDesiredPresentFrames = %d\n", badDesiredPresentFrames);
     result.append("Jank payload for this layer:\n");
     result.append(jankPayload.toString());
+    result.append("SetFrateRate vote for this layer:\n");
+    result.append(setFrameRateVote.toString());
     const auto iter = deltas.find("present2present");
     if (iter != deltas.end()) {
         const float averageTime = iter->second.averageTime();

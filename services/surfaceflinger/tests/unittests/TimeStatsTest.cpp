@@ -142,15 +142,16 @@ public:
 
     std::string inputCommand(InputCommand cmd, bool useProto);
 
-    void setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts);
+    void setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts,
+                      TimeStats::SetFrameRateVote frameRateVote);
 
     int32_t genRandomInt32(int32_t begin, int32_t end);
 
     template <size_t N>
     void insertTimeRecord(const TimeStamp (&sequence)[N], int32_t id, uint64_t frameNumber,
-                          nsecs_t ts) {
+                          nsecs_t ts, TimeStats::SetFrameRateVote frameRateVote = {}) {
         for (size_t i = 0; i < N; i++, ts += 1000000) {
-            setTimeStamp(sequence[i], id, frameNumber, ts);
+            setTimeStamp(sequence[i], id, frameNumber, ts, frameRateVote);
         }
     }
 
@@ -234,7 +235,8 @@ static std::string genLayerName(int32_t layerId) {
     return (layerId < 0 ? "PopupWindow:b54fcd1#0" : "com.example.fake#") + std::to_string(layerId);
 }
 
-void TimeStatsTest::setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts) {
+void TimeStatsTest::setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumber, nsecs_t ts,
+                                 TimeStats::SetFrameRateVote frameRateVote) {
     switch (type) {
         case TimeStamp::POST:
             ASSERT_NO_FATAL_FAILURE(
@@ -254,13 +256,13 @@ void TimeStatsTest::setTimeStamp(TimeStamp type, int32_t id, uint64_t frameNumbe
             ASSERT_NO_FATAL_FAILURE(mTimeStats->setDesiredTime(id, frameNumber, ts));
             break;
         case TimeStamp::PRESENT:
-            ASSERT_NO_FATAL_FAILURE(
-                    mTimeStats->setPresentTime(id, frameNumber, ts, kRefreshRate0, kRenderRate0));
+            ASSERT_NO_FATAL_FAILURE(mTimeStats->setPresentTime(id, frameNumber, ts, kRefreshRate0,
+                                                               kRenderRate0, frameRateVote));
             break;
         case TimeStamp::PRESENT_FENCE:
-            ASSERT_NO_FATAL_FAILURE(mTimeStats->setPresentFence(id, frameNumber,
-                                                                std::make_shared<FenceTime>(ts),
-                                                                kRefreshRate0, kRenderRate0));
+            ASSERT_NO_FATAL_FAILURE(
+                    mTimeStats->setPresentFence(id, frameNumber, std::make_shared<FenceTime>(ts),
+                                                kRefreshRate0, kRenderRate0, frameRateVote));
             break;
         default:
             ALOGD("Invalid timestamp type");
@@ -408,6 +410,96 @@ TEST_F(TimeStatsTest, canIncreaseJankyFramesForLayer) {
     expectedResult = "sfPredictionErrorJankyFrames = " + std::to_string(1);
     EXPECT_THAT(result, HasSubstr(expectedResult));
     expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+}
+
+TEST_F(TimeStatsTest, canCaptureSetFrameRateVote) {
+    // this stat is not in the proto so verify by checking the string dump
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+
+    const auto frameRate60 = TimeStats::SetFrameRateVote{
+            .frameRate = 60.0f,
+            .frameRateCompatibility = TimeStats::SetFrameRateVote::FrameRateCompatibility::Default,
+            .seamlessness = TimeStats::SetFrameRateVote::Seamlessness::ShouldBeSeamless,
+    };
+    const auto frameRate90 = TimeStats::SetFrameRateVote{
+            .frameRate = 90.0f,
+            .frameRateCompatibility =
+                    TimeStats::SetFrameRateVote::FrameRateCompatibility::ExactOrMultiple,
+            .seamlessness = TimeStats::SetFrameRateVote::Seamlessness::NotRequired,
+    };
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000, frameRate60);
+    std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    std::string expectedResult = "frameRate = 60.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = Default";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = ShouldBeSeamless";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 3000000, frameRate90);
+    result = inputCommand(InputCommand::DUMP_ALL, FMT_STRING);
+    expectedResult = "frameRate = 90.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = ExactOrMultiple";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = NotRequired";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+
+    insertTimeRecord(NORMAL_SEQUENCE_2, LAYER_ID_0, 4, 4000000, frameRate60);
+    result = inputCommand(InputCommand::DUMP_ALL, FMT_STRING);
+    expectedResult = "frameRate = 60.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = Default";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = ShouldBeSeamless";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+}
+
+TEST_F(TimeStatsTest, canCaptureSetFrameRateVoteAfterZeroForLayer) {
+    // this stat is not in the proto so verify by checking the string dump
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+
+    const auto frameRate90 = TimeStats::SetFrameRateVote{
+            .frameRate = 90.0f,
+            .frameRateCompatibility =
+                    TimeStats::SetFrameRateVote::FrameRateCompatibility::ExactOrMultiple,
+            .seamlessness = TimeStats::SetFrameRateVote::Seamlessness::NotRequired,
+    };
+    const auto frameRateDefault = TimeStats::SetFrameRateVote{
+            .frameRate = 0.0f,
+            .frameRateCompatibility = TimeStats::SetFrameRateVote::FrameRateCompatibility::Default,
+            .seamlessness = TimeStats::SetFrameRateVote::Seamlessness::ShouldBeSeamless,
+    };
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000, frameRate90);
+    std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    std::string expectedResult = "frameRate = 90.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = ExactOrMultiple";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = NotRequired";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 3, 3000000, frameRateDefault);
+    result = inputCommand(InputCommand::DUMP_ALL, FMT_STRING);
+    expectedResult = "frameRate = 90.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = ExactOrMultiple";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = NotRequired";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+
+    insertTimeRecord(NORMAL_SEQUENCE_2, LAYER_ID_0, 4, 4000000, frameRateDefault);
+    result = inputCommand(InputCommand::DUMP_ALL, FMT_STRING);
+    expectedResult = "frameRate = 90.00";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "frameRateCompatibility = ExactOrMultiple";
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "seamlessness = NotRequired";
     EXPECT_THAT(result, HasSubstr(expectedResult));
 }
 
@@ -936,12 +1028,15 @@ std::string buildExpectedHistogramBytestring(const std::vector<int32_t>& times,
     return byteString;
 }
 
-std::string frameRateVoteToProtoByteString(float refreshRate, int frameRateCompatibility,
-                                           int seamlessness) {
+std::string frameRateVoteToProtoByteString(
+        float refreshRate,
+        TimeStats::SetFrameRateVote::FrameRateCompatibility frameRateCompatibility,
+        TimeStats::SetFrameRateVote::Seamlessness seamlessness) {
     util::ProtoOutputStream proto;
     proto.write(android::util::FIELD_TYPE_FLOAT | 1 /* field id */, refreshRate);
-    proto.write(android::util::FIELD_TYPE_ENUM | 2 /* field id */, frameRateCompatibility);
-    proto.write(android::util::FIELD_TYPE_ENUM | 3 /* field id */, seamlessness);
+    proto.write(android::util::FIELD_TYPE_ENUM | 2 /* field id */,
+                static_cast<int>(frameRateCompatibility));
+    proto.write(android::util::FIELD_TYPE_ENUM | 3 /* field id */, static_cast<int>(seamlessness));
 
     std::string byteString;
     proto.serializeToString(&byteString);
@@ -1149,7 +1244,13 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
     for (size_t i = 0; i < BAD_DESIRED_PRESENT_FRAMES; i++) {
         mTimeStats->incrementBadDesiredPresent(LAYER_ID_0);
     }
-    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
+    const auto frameRate60 = TimeStats::SetFrameRateVote{
+            .frameRate = 60.0f,
+            .frameRateCompatibility =
+                    TimeStats::SetFrameRateVote::FrameRateCompatibility::ExactOrMultiple,
+            .seamlessness = TimeStats::SetFrameRateVote::Seamlessness::NotRequired,
+    };
+    insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000, frameRate60);
 
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
                                       JankType::SurfaceFlingerCpuDeadlineMissed, 1, 2, 3});
@@ -1181,7 +1282,10 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
     std::string expectedLatchToPresent = buildExpectedHistogramBytestring({2}, {1});
     std::string expectedDesiredToPresent = buildExpectedHistogramBytestring({1}, {1});
     std::string expectedPostToAcquire = buildExpectedHistogramBytestring({1}, {1});
-    std::string expectedFrameRateOverride = frameRateVoteToProtoByteString(0.0, 0, 0);
+    std::string expectedFrameRateOverride =
+            frameRateVoteToProtoByteString(frameRate60.frameRate,
+                                           frameRate60.frameRateCompatibility,
+                                           frameRate60.seamlessness);
     std::string expectedAppDeadlineMissed = buildExpectedHistogramBytestring({3, 2}, {4, 3});
     {
         InSequence seq;
@@ -1455,7 +1559,7 @@ TEST_F(TimeStatsTest, canSurviveMonkey) {
         TimeStamp type = static_cast<TimeStamp>(genRandomInt32(TIME_STAMP_BEGIN, TIME_STAMP_END));
         const int32_t ts = genRandomInt32(1, 1000000000);
         ALOGV("type[%d], layerId[%d], frameNumber[%d], ts[%d]", type, layerId, frameNumber, ts);
-        setTimeStamp(type, layerId, frameNumber, ts);
+        setTimeStamp(type, layerId, frameNumber, ts, {});
     }
 }
 
