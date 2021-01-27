@@ -83,6 +83,8 @@ std::string RefreshRateConfigs::layerVoteTypeString(LayerVoteType vote) {
             return "ExplicitDefault";
         case LayerVoteType::ExplicitExactOrMultiple:
             return "ExplicitExactOrMultiple";
+        case LayerVoteType::ExplicitExact:
+            return "ExplicitExact";
     }
 }
 
@@ -165,6 +167,18 @@ float RefreshRateConfigs::calculateLayerScoreLocked(const LayerRequirement& laye
         return (1.0f / iter) * seamlessness;
     }
 
+    if (layer.vote == LayerVoteType::ExplicitExact) {
+        const int divider = getFrameRateDivider(refreshRate.getFps(), layer.desiredRefreshRate);
+        if (mSupportsFrameRateOverride) {
+            // Since we support frame rate override, allow refresh rates which are
+            // multiples of the layer's request, as those apps would be throttled
+            // down to run at the desired refresh rate.
+            return divider > 0;
+        }
+
+        return divider == 1;
+    }
+
     return 0;
 }
 
@@ -199,21 +213,34 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
     int maxVoteLayers = 0;
     int explicitDefaultVoteLayers = 0;
     int explicitExactOrMultipleVoteLayers = 0;
+    int explicitExact = 0;
     float maxExplicitWeight = 0;
     int seamedLayers = 0;
     for (const auto& layer : layers) {
-        if (layer.vote == LayerVoteType::NoVote) {
-            noVoteLayers++;
-        } else if (layer.vote == LayerVoteType::Min) {
-            minVoteLayers++;
-        } else if (layer.vote == LayerVoteType::Max) {
-            maxVoteLayers++;
-        } else if (layer.vote == LayerVoteType::ExplicitDefault) {
-            explicitDefaultVoteLayers++;
-            maxExplicitWeight = std::max(maxExplicitWeight, layer.weight);
-        } else if (layer.vote == LayerVoteType::ExplicitExactOrMultiple) {
-            explicitExactOrMultipleVoteLayers++;
-            maxExplicitWeight = std::max(maxExplicitWeight, layer.weight);
+        switch (layer.vote) {
+            case LayerVoteType::NoVote:
+                noVoteLayers++;
+                break;
+            case LayerVoteType::Min:
+                minVoteLayers++;
+                break;
+            case LayerVoteType::Max:
+                maxVoteLayers++;
+                break;
+            case LayerVoteType::ExplicitDefault:
+                explicitDefaultVoteLayers++;
+                maxExplicitWeight = std::max(maxExplicitWeight, layer.weight);
+                break;
+            case LayerVoteType::ExplicitExactOrMultiple:
+                explicitExactOrMultipleVoteLayers++;
+                maxExplicitWeight = std::max(maxExplicitWeight, layer.weight);
+                break;
+            case LayerVoteType::ExplicitExact:
+                explicitExact++;
+                maxExplicitWeight = std::max(maxExplicitWeight, layer.weight);
+                break;
+            case LayerVoteType::Heuristic:
+                break;
         }
 
         if (layer.seamlessness == Seamlessness::SeamedAndSeamless) {
@@ -221,8 +248,8 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
         }
     }
 
-    const bool hasExplicitVoteLayers =
-            explicitDefaultVoteLayers > 0 || explicitExactOrMultipleVoteLayers > 0;
+    const bool hasExplicitVoteLayers = explicitDefaultVoteLayers > 0 ||
+            explicitExactOrMultipleVoteLayers > 0 || explicitExact > 0;
 
     // Consider the touch event if there are no Explicit* layers. Otherwise wait until after we've
     // selected a refresh rate to see if we should apply touch boost.
@@ -318,7 +345,9 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
             bool inPrimaryRange = scores[i].refreshRate->inPolicy(policy->primaryRange.min,
                                                                   policy->primaryRange.max);
             if ((primaryRangeIsSingleRate || !inPrimaryRange) &&
-                !(layer.focused && layer.vote == LayerVoteType::ExplicitDefault)) {
+                !(layer.focused &&
+                  (layer.vote == LayerVoteType::ExplicitDefault ||
+                   layer.vote == LayerVoteType::ExplicitExact))) {
                 // Only focused layers with ExplicitDefault frame rate settings are allowed to score
                 // refresh rates outside the primary range.
                 continue;
@@ -358,7 +387,8 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
     // actually increase the refresh rate over the normal selection.
     const RefreshRate& touchRefreshRate = getMaxRefreshRateByPolicyLocked();
 
-    if (globalSignals.touch && explicitDefaultVoteLayers == 0 &&
+    bool touchBoostForExplicitExact = explicitExact == 0 || mSupportsFrameRateOverride;
+    if (globalSignals.touch && explicitDefaultVoteLayers == 0 && touchBoostForExplicitExact &&
         bestRefreshRate->fps.lessThanWithMargin(touchRefreshRate.fps)) {
         setTouchConsidered();
         ALOGV("TouchBoost - choose %s", touchRefreshRate.getName().c_str());
@@ -412,7 +442,7 @@ std::vector<RefreshRateScore> initializeScoresForAllRefreshRates(
 }
 
 RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverrides(
-        const std::vector<LayerRequirement>& layers, Fps displayFrameRate) const {
+        const std::vector<LayerRequirement>& layers, Fps displayFrameRate, bool touch) const {
     ATRACE_CALL();
     if (!mSupportsFrameRateOverride) return {};
 
@@ -423,6 +453,17 @@ RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverr
             groupLayersByUid(layers);
     UidToFrameRateOverride frameRateOverrides;
     for (const auto& [uid, layersWithSameUid] : layersByUid) {
+        // Layers with ExplicitExactOrMultiple expect touch boost
+        const bool hasExplicitExactOrMultiple =
+                std::any_of(layersWithSameUid.cbegin(), layersWithSameUid.cend(),
+                            [](const auto& layer) {
+                                return layer->vote == LayerVoteType::ExplicitExactOrMultiple;
+                            });
+
+        if (touch && hasExplicitExactOrMultiple) {
+            continue;
+        }
+
         for (auto& score : scores) {
             score.score = 0;
         }
@@ -433,7 +474,8 @@ RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverr
             }
 
             LOG_ALWAYS_FATAL_IF(layer->vote != LayerVoteType::ExplicitDefault &&
-                                layer->vote != LayerVoteType::ExplicitExactOrMultiple);
+                                layer->vote != LayerVoteType::ExplicitExactOrMultiple &&
+                                layer->vote != LayerVoteType::ExplicitExact);
             for (RefreshRateScore& score : scores) {
                 const auto layerScore = calculateLayerScoreLocked(*layer, *score.refreshRate,
                                                                   /*isSeamlessSwitch*/ true);
@@ -559,8 +601,10 @@ void RefreshRateConfigs::setCurrentConfigId(DisplayModeId configId) {
     mCurrentRefreshRate = mRefreshRates.at(configId).get();
 }
 
-RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& configs, DisplayModeId currentConfigId)
-      : mKnownFrameRates(constructKnownFrameRates(configs)) {
+RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& configs, DisplayModeId currentConfigId,
+                                       bool enableFrameRateOverride)
+      : mKnownFrameRates(constructKnownFrameRates(configs)),
+        mEnableFrameRateOverride(enableFrameRateOverride) {
     updateDisplayConfigs(configs, currentConfigId);
 }
 
@@ -589,7 +633,7 @@ void RefreshRateConfigs::updateDisplayConfigs(const DisplayModes& configs,
     mMaxSupportedRefreshRate = sortedConfigs.back();
 
     mSupportsFrameRateOverride = false;
-    if (android::sysprop::enable_frame_rate_override(true)) {
+    if (mEnableFrameRateOverride) {
         for (const auto& config1 : sortedConfigs) {
             for (const auto& config2 : sortedConfigs) {
                 if (getFrameRateDivider(config1->getFps(), config2->getFps()) >= 2) {
