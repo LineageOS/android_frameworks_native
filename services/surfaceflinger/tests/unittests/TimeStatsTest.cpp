@@ -932,6 +932,18 @@ std::string buildExpectedHistogramBytestring(const std::vector<int32_t>& times,
     return byteString;
 }
 
+std::string frameRateVoteToProtoByteString(float refreshRate, int frameRateCompatibility,
+                                           int seamlessness) {
+    util::ProtoOutputStream proto;
+    proto.write(android::util::FIELD_TYPE_FLOAT | 1 /* field id */, refreshRate);
+    proto.write(android::util::FIELD_TYPE_ENUM | 2 /* field id */, frameRateCompatibility);
+    proto.write(android::util::FIELD_TYPE_ENUM | 3 /* field id */, seamlessness);
+
+    std::string byteString;
+    proto.serializeToString(&byteString);
+    return byteString;
+}
+
 std::string dumpByteStringHex(const std::string& str) {
     std::stringstream ss;
     ss << std::hex;
@@ -1002,6 +1014,7 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
 
     std::string expectedFrameDuration = buildExpectedHistogramBytestring({2}, {1});
     std::string expectedRenderEngineTiming = buildExpectedHistogramBytestring({1, 2}, {1, 1});
+    std::string expectedEmptyHistogram = buildExpectedHistogramBytestring({}, {});
 
     {
         InSequence seq;
@@ -1031,6 +1044,22 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
         EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 1));
         EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 1));
         EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 1));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 0));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 0));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 0));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 0));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)expectedEmptyHistogram.c_str(),
+                                                     expectedEmptyHistogram.size()),
+                                             expectedEmptyHistogram.size()));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)expectedEmptyHistogram.c_str(),
+                                                     expectedEmptyHistogram.size()),
+                                             expectedEmptyHistogram.size()));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 0));
+
         EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
     }
     EXPECT_EQ(AStatsManager_PULL_SUCCESS,
@@ -1083,6 +1112,8 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
     std::string expectedLatchToPresent = buildExpectedHistogramBytestring({2}, {1});
     std::string expectedDesiredToPresent = buildExpectedHistogramBytestring({1}, {1});
     std::string expectedPostToAcquire = buildExpectedHistogramBytestring({1}, {1});
+    std::string expectedFrameRateOverride = frameRateVoteToProtoByteString(0.0, 0, 0);
+    std::string expectedEmptyHistogram = buildExpectedHistogramBytestring({}, {});
     {
         InSequence seq;
         EXPECT_CALL(*mDelegate,
@@ -1136,6 +1167,22 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
         EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 1));
         EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 1));
         EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 1));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 0));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 0));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 0));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 0));
+        EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, 0));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)
+                                                             expectedFrameRateOverride.c_str(),
+                                                     expectedFrameRateOverride.size()),
+                                             expectedFrameRateOverride.size()));
+        EXPECT_CALL(*mDelegate,
+                    statsEventWriteByteArray(mDelegate->mEvent,
+                                             BytesEq((const uint8_t*)expectedEmptyHistogram.c_str(),
+                                                     expectedEmptyHistogram.size()),
+                                             expectedEmptyHistogram.size()));
 
         EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
     }
