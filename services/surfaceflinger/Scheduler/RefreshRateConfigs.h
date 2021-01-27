@@ -91,6 +91,9 @@ public:
         bool operator==(const RefreshRate& other) const { return !(*this != other); }
 
         std::string toString() const;
+        friend std::ostream& operator<<(std::ostream& os, const RefreshRate& refreshRate) {
+            return os << refreshRate.toString();
+        }
 
     private:
         friend RefreshRateConfigs;
