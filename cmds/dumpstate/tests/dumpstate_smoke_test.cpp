@@ -310,8 +310,12 @@ TEST_F(ZippedBugReportContentsTest, ContainsSomeFileSystemFiles) {
     // FS/proc/*/mountinfo size > 0
     FileExists("FS/proc/1/mountinfo", 0U, 100000U);
 
-    // FS/data/misc/profiles/cur/0/*/primary.prof size > 0
-    FileExists("FS/data/misc/profiles/cur/0/com.android.phone/primary.prof", 0U, 100000U);
+    // FS/data/misc/profiles/cur/0/*/primary.prof should exist. Also, since dumpstate only adds
+    // profiles to the zip in the non-user build, a build checking is necessary here.
+    if (!PropertiesHelper::IsUserBuild()) {
+        ZipEntry entry;
+        GetEntry(handle, "FS/data/misc/profiles/cur/0/com.android.phone/primary.prof", &entry);
+    }
 }
 
 /**
