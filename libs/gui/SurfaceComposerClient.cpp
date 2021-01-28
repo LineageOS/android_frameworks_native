@@ -1518,7 +1518,10 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
         mStatus = BAD_INDEX;
         return *this;
     }
-    if (!ValidateFrameRate(frameRate, compatibility, "Transaction::setFrameRate")) {
+    // Allow privileged values as well here, those will be ignored by SF if
+    // the caller is not privileged
+    if (!ValidateFrameRate(frameRate, compatibility, "Transaction::setFrameRate",
+                           /*privileged=*/true)) {
         mStatus = BAD_VALUE;
         return *this;
     }
