@@ -33,9 +33,11 @@
 #include <SkRegion.h>
 #include <SkShadowUtils.h>
 #include <SkSurface.h>
+#include <android-base/stringprintf.h>
 #include <gl/GrGLInterface.h>
 #include <sync/sync.h>
 #include <ui/BlurRegion.h>
+#include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/Trace.h>
 
@@ -58,6 +60,8 @@ bool checkGlError(const char* op, int lineNumber);
 namespace android {
 namespace renderengine {
 namespace skia {
+
+using base::StringAppendF;
 
 static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs, EGLint attribute,
                                          EGLint wanted, EGLConfig* outConfig) {
@@ -1073,6 +1077,53 @@ int SkiaGLRenderEngine::getContextPriority() {
     int value;
     eglQueryContext(mEGLDisplay, mEGLContext, EGL_CONTEXT_PRIORITY_LEVEL_IMG, &value);
     return value;
+}
+
+void SkiaGLRenderEngine::dump(std::string& result) {
+    const gl::GLExtensions& extensions = gl::GLExtensions::getInstance();
+
+    StringAppendF(&result, "\n ------------RE-----------------\n");
+    StringAppendF(&result, "EGL implementation : %s\n", extensions.getEGLVersion());
+    StringAppendF(&result, "%s\n", extensions.getEGLExtensions());
+    StringAppendF(&result, "GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
+                  extensions.getVersion());
+    StringAppendF(&result, "%s\n", extensions.getExtensions());
+    StringAppendF(&result, "RenderEngine supports protected context: %d\n",
+                  supportsProtectedContent());
+    StringAppendF(&result, "RenderEngine is in protected context: %d\n", mInProtectedContext);
+
+    {
+        std::lock_guard<std::mutex> lock(mRenderingMutex);
+        StringAppendF(&result, "RenderEngine texture cache size: %zu\n", mTextureCache.size());
+        StringAppendF(&result, "Dumping buffer ids...\n");
+        // TODO(178539829): It would be nice to know which layer these are coming from and what
+        // the texture sizes are.
+        for (const auto& [id, unused] : mTextureCache) {
+            StringAppendF(&result, "- 0x%" PRIx64 "\n", id);
+        }
+        StringAppendF(&result, "\n");
+        StringAppendF(&result, "RenderEngine protected texture cache size: %zu\n",
+                      mProtectedTextureCache.size());
+        StringAppendF(&result, "Dumping buffer ids...\n");
+        for (const auto& [id, unused] : mProtectedTextureCache) {
+            StringAppendF(&result, "- 0x%" PRIx64 "\n", id);
+        }
+        StringAppendF(&result, "\n");
+        StringAppendF(&result, "RenderEngine runtime effects: %zu\n", mRuntimeEffects.size());
+        for (const auto& [linearEffect, unused] : mRuntimeEffects) {
+            StringAppendF(&result, "- inputDataspace: %s\n",
+                          dataspaceDetails(
+                                  static_cast<android_dataspace>(linearEffect.inputDataspace))
+                                  .c_str());
+            StringAppendF(&result, "- outputDataspace: %s\n",
+                          dataspaceDetails(
+                                  static_cast<android_dataspace>(linearEffect.outputDataspace))
+                                  .c_str());
+            StringAppendF(&result, "undoPremultipliedAlpha: %s\n",
+                          linearEffect.undoPremultipliedAlpha ? "true" : "false");
+        }
+    }
+    StringAppendF(&result, "\n");
 }
 
 } // namespace skia
