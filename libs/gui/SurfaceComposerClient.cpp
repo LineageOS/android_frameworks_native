@@ -40,6 +40,7 @@
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <ui/DisplayMode.h>
+#include <ui/DynamicDisplayInfo.h>
 
 #ifndef NO_INPUT
 #include <input/InputWindow.h>
@@ -1815,39 +1816,35 @@ status_t SurfaceComposerClient::getDisplayState(const sp<IBinder>& display,
     return ComposerService::getComposerService()->getDisplayState(display, state);
 }
 
-status_t SurfaceComposerClient::getDisplayInfo(const sp<IBinder>& display, DisplayInfo* info) {
-    return ComposerService::getComposerService()->getDisplayInfo(display, info);
+status_t SurfaceComposerClient::getStaticDisplayInfo(const sp<IBinder>& display,
+                                                     ui::StaticDisplayInfo* info) {
+    return ComposerService::getComposerService()->getStaticDisplayInfo(display, info);
 }
 
-status_t SurfaceComposerClient::getDisplayModes(const sp<IBinder>& display,
-                                                Vector<ui::DisplayMode>* modes) {
-    return ComposerService::getComposerService()->getDisplayModes(display, modes);
+status_t SurfaceComposerClient::getDynamicDisplayInfo(const sp<IBinder>& display,
+                                                      ui::DynamicDisplayInfo* info) {
+    return ComposerService::getComposerService()->getDynamicDisplayInfo(display, info);
 }
 
 status_t SurfaceComposerClient::getActiveDisplayMode(const sp<IBinder>& display,
                                                      ui::DisplayMode* mode) {
-    Vector<ui::DisplayMode> modes;
-    status_t result = getDisplayModes(display, &modes);
+    ui::DynamicDisplayInfo info;
+    status_t result = getDynamicDisplayInfo(display, &info);
     if (result != NO_ERROR) {
         return result;
     }
 
-    int activeId = getActiveDisplayModeId(display);
-    if (activeId < 0) {
-        ALOGE("No active mode found");
-        return NAME_NOT_FOUND;
+    if (const auto activeMode = info.getActiveDisplayMode()) {
+        *mode = *activeMode;
+        return NO_ERROR;
     }
 
-    *mode = modes[static_cast<size_t>(activeId)];
-    return NO_ERROR;
-}
-
-int SurfaceComposerClient::getActiveDisplayModeId(const sp<IBinder>& display) {
-    return ComposerService::getComposerService()->getActiveDisplayModeId(display);
+    ALOGE("Active display mode not found.");
+    return NAME_NOT_FOUND;
 }
 
 status_t SurfaceComposerClient::setDesiredDisplayModeSpecs(
-        const sp<IBinder>& displayToken, size_t defaultMode, bool allowGroupSwitching,
+        const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode, bool allowGroupSwitching,
         float primaryRefreshRateMin, float primaryRefreshRateMax, float appRequestRefreshRateMin,
         float appRequestRefreshRateMax) {
     return ComposerService::getComposerService()
@@ -1856,28 +1853,22 @@ status_t SurfaceComposerClient::setDesiredDisplayModeSpecs(
                                          appRequestRefreshRateMin, appRequestRefreshRateMax);
 }
 
-status_t SurfaceComposerClient::getDesiredDisplayModeSpecs(
-        const sp<IBinder>& displayToken, size_t* outDefaultMode, bool* outAllowGroupSwitching,
-        float* outPrimaryRefreshRateMin, float* outPrimaryRefreshRateMax,
-        float* outAppRequestRefreshRateMin, float* outAppRequestRefreshRateMax) {
+status_t SurfaceComposerClient::getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                                           ui::DisplayModeId* outDefaultMode,
+                                                           bool* outAllowGroupSwitching,
+                                                           float* outPrimaryRefreshRateMin,
+                                                           float* outPrimaryRefreshRateMax,
+                                                           float* outAppRequestRefreshRateMin,
+                                                           float* outAppRequestRefreshRateMax) {
     return ComposerService::getComposerService()
             ->getDesiredDisplayModeSpecs(displayToken, outDefaultMode, outAllowGroupSwitching,
                                          outPrimaryRefreshRateMin, outPrimaryRefreshRateMax,
                                          outAppRequestRefreshRateMin, outAppRequestRefreshRateMax);
 }
 
-status_t SurfaceComposerClient::getDisplayColorModes(const sp<IBinder>& display,
-        Vector<ColorMode>* outColorModes) {
-    return ComposerService::getComposerService()->getDisplayColorModes(display, outColorModes);
-}
-
 status_t SurfaceComposerClient::getDisplayNativePrimaries(const sp<IBinder>& display,
         ui::DisplayPrimaries& outPrimaries) {
     return ComposerService::getComposerService()->getDisplayNativePrimaries(display, outPrimaries);
-}
-
-ColorMode SurfaceComposerClient::getActiveColorMode(const sp<IBinder>& display) {
-    return ComposerService::getComposerService()->getActiveColorMode(display);
 }
 
 status_t SurfaceComposerClient::setActiveColorMode(const sp<IBinder>& display,
@@ -1930,12 +1921,6 @@ status_t SurfaceComposerClient::clearAnimationFrameStats() {
 
 status_t SurfaceComposerClient::getAnimationFrameStats(FrameStats* outStats) {
     return ComposerService::getComposerService()->getAnimationFrameStats(outStats);
-}
-
-status_t SurfaceComposerClient::getHdrCapabilities(const sp<IBinder>& display,
-        HdrCapabilities* outCapabilities) {
-    return ComposerService::getComposerService()->getHdrCapabilities(display,
-            outCapabilities);
 }
 
 status_t SurfaceComposerClient::getDisplayedContentSamplingAttributes(const sp<IBinder>& display,

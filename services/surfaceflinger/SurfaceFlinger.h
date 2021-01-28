@@ -552,14 +552,14 @@ private:
                            const sp<IScreenCaptureListener>& captureListener) override;
 
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
-    status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*) override;
-    status_t getDisplayInfo(const sp<IBinder>& displayToken, DisplayInfo*) override;
-    status_t getDisplayModes(const sp<IBinder>& displayToken, Vector<ui::DisplayMode>*) override;
-    int getActiveDisplayModeId(const sp<IBinder>& displayToken) override;
-    status_t getDisplayColorModes(const sp<IBinder>& displayToken, Vector<ui::ColorMode>*) override;
+    status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*)
+            EXCLUDES(mStateLock) override;
+    status_t getStaticDisplayInfo(const sp<IBinder>& displayToken, ui::StaticDisplayInfo*)
+            EXCLUDES(mStateLock) override;
+    status_t getDynamicDisplayInfo(const sp<IBinder>& displayToken, ui::DynamicDisplayInfo*)
+            EXCLUDES(mStateLock) override;
     status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken,
                                        ui::DisplayPrimaries&) override;
-    ui::ColorMode getActiveColorMode(const sp<IBinder>& displayToken) override;
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode) override;
     status_t getAutoLowLatencyModeSupport(const sp<IBinder>& displayToken,
                                           bool* outSupported) const override;
@@ -570,8 +570,6 @@ private:
     void setPowerMode(const sp<IBinder>& displayToken, int mode) override;
     status_t clearAnimationFrameStats() override;
     status_t getAnimationFrameStats(FrameStats* outStats) const override;
-    status_t getHdrCapabilities(const sp<IBinder>& displayToken,
-                                HdrCapabilities* outCapabilities) const override;
     status_t enableVSyncInjections(bool enable) override;
     status_t injectVSync(nsecs_t when) override;
     status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) override;
@@ -594,11 +592,13 @@ private:
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
-    status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, size_t displayModeId,
-                                        bool allowGroupSwitching, float primaryRefreshRateMin,
-                                        float primaryRefreshRateMax, float appRequestRefreshRateMin,
+    status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                        ui::DisplayModeId displayModeId, bool allowGroupSwitching,
+                                        float primaryRefreshRateMin, float primaryRefreshRateMax,
+                                        float appRequestRefreshRateMin,
                                         float appRequestRefreshRateMax) override;
-    status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, size_t* outDefaultMode,
+    status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                        ui::DisplayModeId* outDefaultMode,
                                         bool* outAllowGroupSwitching,
                                         float* outPrimaryRefreshRateMin,
                                         float* outPrimaryRefreshRateMax,
@@ -1053,6 +1053,9 @@ private:
         if (mDesiredActiveModeChanged) return mDesiredActiveMode;
         return std::nullopt;
     }
+
+    std::vector<ui::ColorMode> getDisplayColorModes(PhysicalDisplayId displayId)
+            REQUIRES(mStateLock);
 
     static int calculateExtraBufferCount(Fps maxSupportedRefreshRate,
                                          std::chrono::nanoseconds presentLatency);

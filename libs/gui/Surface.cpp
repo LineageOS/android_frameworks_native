@@ -34,9 +34,9 @@
 #include <utils/NativeHandle.h>
 
 #include <ui/DisplayStatInfo.h>
+#include <ui/DynamicDisplayInfo.h>
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
-#include <ui/HdrCapabilities.h>
 #include <ui/Region.h>
 
 #include <gui/BufferItem.h>
@@ -48,7 +48,6 @@
 
 namespace android {
 
-using ui::ColorMode;
 using ui::Dataspace;
 
 namespace {
@@ -361,15 +360,12 @@ status_t Surface::getHdrSupport(bool* supported) {
         return NAME_NOT_FOUND;
     }
 
-    HdrCapabilities hdrCapabilities;
-    status_t err =
-        composerService()->getHdrCapabilities(display, &hdrCapabilities);
-
-    if (err)
+    ui::DynamicDisplayInfo info;
+    if (status_t err = composerService()->getDynamicDisplayInfo(display, &info); err != NO_ERROR) {
         return err;
+    }
 
-    *supported = !hdrCapabilities.getSupportedHdrTypes().empty();
-
+    *supported = !info.hdrCapabilities.getSupportedHdrTypes().empty();
     return NO_ERROR;
 }
 

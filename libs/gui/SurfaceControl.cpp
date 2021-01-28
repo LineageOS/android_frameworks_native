@@ -30,9 +30,9 @@
 
 #include <binder/IPCThreadState.h>
 
-#include <ui/DisplayInfo.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
+#include <ui/StaticDisplayInfo.h>
 
 #include <gui/BufferQueueCore.h>
 #include <gui/ISurfaceComposer.h>

@@ -68,12 +68,13 @@
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayId.h>
-#include <ui/DisplayInfo.h>
 #include <ui/DisplayMode.h>
 #include <ui/DisplayStatInfo.h>
 #include <ui/DisplayState.h>
+#include <ui/DynamicDisplayInfo.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/PixelFormat.h>
+#include <ui/StaticDisplayInfo.h>
 #include <utils/StopWatch.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
@@ -854,7 +855,8 @@ status_t SurfaceFlinger::getDisplayState(const sp<IBinder>& displayToken, ui::Di
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getDisplayInfo(const sp<IBinder>& displayToken, DisplayInfo* info) {
+status_t SurfaceFlinger::getStaticDisplayInfo(const sp<IBinder>& displayToken,
+                                              ui::StaticDisplayInfo* info) {
     if (!displayToken || !info) {
         return BAD_VALUE;
     }
@@ -875,7 +877,7 @@ status_t SurfaceFlinger::getDisplayInfo(const sp<IBinder>& displayToken, Display
     if (mEmulatedDisplayDensity) {
         info->density = mEmulatedDisplayDensity;
     } else {
-        info->density = info->connectionType == DisplayConnectionType::Internal
+        info->density = info->connectionType == ui::DisplayConnectionType::Internal
                 ? mInternalDisplayDensity
                 : FALLBACK_DENSITY;
     }
@@ -887,9 +889,9 @@ status_t SurfaceFlinger::getDisplayInfo(const sp<IBinder>& displayToken, Display
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getDisplayModes(const sp<IBinder>& displayToken,
-                                         Vector<ui::DisplayMode>* modes) {
-    if (!displayToken || !modes) {
+status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
+                                               ui::DynamicDisplayInfo* info) {
+    if (!displayToken || !info) {
         return BAD_VALUE;
     }
 
@@ -900,16 +902,25 @@ status_t SurfaceFlinger::getDisplayModes(const sp<IBinder>& displayToken,
         return NAME_NOT_FOUND;
     }
 
-    modes->clear();
+    info->activeDisplayModeId = static_cast<int32_t>(display->getActiveMode()->getId().value());
+    if (display->isPrimary()) {
+        if (const auto mode = getDesiredActiveMode()) {
+            info->activeDisplayModeId = static_cast<int32_t>(mode->modeId.value());
+        }
+    }
 
-    for (const auto& supportedMode : display->getSupportedModes()) {
-        ui::DisplayMode mode;
+    const auto& supportedModes = display->getSupportedModes();
+    info->supportedDisplayModes.clear();
+    info->supportedDisplayModes.reserve(supportedModes.size());
+    for (const auto& mode : supportedModes) {
+        ui::DisplayMode outMode;
+        outMode.id = static_cast<int32_t>(mode->getId().value());
 
-        auto width = supportedMode->getWidth();
-        auto height = supportedMode->getHeight();
+        auto width = mode->getWidth();
+        auto height = mode->getHeight();
 
-        auto xDpi = supportedMode->getDpiX();
-        auto yDpi = supportedMode->getDpiY();
+        auto xDpi = mode->getDpiX();
+        auto yDpi = mode->getDpiY();
 
         if (display->isPrimary() &&
             (internalDisplayOrientation == ui::ROTATION_90 ||
@@ -918,24 +929,24 @@ status_t SurfaceFlinger::getDisplayModes(const sp<IBinder>& displayToken,
             std::swap(xDpi, yDpi);
         }
 
-        mode.resolution = ui::Size(width, height);
+        outMode.resolution = ui::Size(width, height);
 
         if (mEmulatedDisplayDensity) {
-            mode.xDpi = mEmulatedDisplayDensity;
-            mode.yDpi = mEmulatedDisplayDensity;
+            outMode.xDpi = mEmulatedDisplayDensity;
+            outMode.yDpi = mEmulatedDisplayDensity;
         } else {
-            mode.xDpi = xDpi;
-            mode.yDpi = yDpi;
+            outMode.xDpi = xDpi;
+            outMode.yDpi = yDpi;
         }
 
-        const nsecs_t period = supportedMode->getVsyncPeriod();
-        mode.refreshRate = Fps::fromPeriodNsecs(period).getValue();
+        const nsecs_t period = mode->getVsyncPeriod();
+        outMode.refreshRate = Fps::fromPeriodNsecs(period).getValue();
 
         const auto vsyncConfigSet =
-                mVsyncConfiguration->getConfigsForRefreshRate(Fps(mode.refreshRate));
-        mode.appVsyncOffset = vsyncConfigSet.late.appOffset;
-        mode.sfVsyncOffset = vsyncConfigSet.late.sfOffset;
-        mode.group = supportedMode->getGroup();
+                mVsyncConfiguration->getConfigsForRefreshRate(Fps(outMode.refreshRate));
+        outMode.appVsyncOffset = vsyncConfigSet.late.appOffset;
+        outMode.sfVsyncOffset = vsyncConfigSet.late.sfOffset;
+        outMode.group = mode->getGroup();
 
         // This is how far in advance a buffer must be queued for
         // presentation at a given time.  If you want a buffer to appear
@@ -949,11 +960,15 @@ status_t SurfaceFlinger::getDisplayModes(const sp<IBinder>& displayToken,
         //
         // We add an additional 1ms to allow for processing time and
         // differences between the ideal and actual refresh rate.
-        mode.presentationDeadline = period - mode.sfVsyncOffset + 1000000;
+        outMode.presentationDeadline = period - outMode.sfVsyncOffset + 1000000;
 
-        modes->push_back(mode);
+        info->supportedDisplayModes.push_back(outMode);
     }
 
+    info->activeColorMode = display->getCompositionDisplay()->getState().colorMode;
+    info->supportedColorModes = getDisplayColorModes(display->getPhysicalId());
+
+    info->hdrCapabilities = display->getHdrCapabilities();
     return NO_ERROR;
 }
 
@@ -964,31 +979,6 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* st
 
     *stats = mScheduler->getDisplayStatInfo(systemTime());
     return NO_ERROR;
-}
-
-int SurfaceFlinger::getActiveDisplayModeId(const sp<IBinder>& displayToken) {
-    int activeMode;
-    bool isPrimary;
-
-    {
-        Mutex::Autolock lock(mStateLock);
-
-        if (const auto display = getDisplayDeviceLocked(displayToken)) {
-            activeMode = display->getActiveMode()->getId().value();
-            isPrimary = display->isPrimary();
-        } else {
-            ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
-            return NAME_NOT_FOUND;
-        }
-    }
-
-    if (isPrimary) {
-        if (const auto mode = getDesiredActiveMode()) {
-            return mode->modeId.value();
-        }
-    }
-
-    return activeMode;
 }
 
 void SurfaceFlinger::setDesiredActiveMode(const ActiveModeInfo& info) {
@@ -1082,7 +1072,7 @@ void SurfaceFlinger::setActiveModeInternal() {
 
     const auto upcomingMode = display->getMode(mUpcomingActiveMode.modeId);
     if (!upcomingMode) {
-        ALOGW("Upcoming active mode is no longer supported. Mode ID = %zu",
+        ALOGW("Upcoming active mode is no longer supported. Mode ID = %d",
               mUpcomingActiveMode.modeId.value());
         // TODO(b/159590486) Handle the error better. Some parts of SurfaceFlinger may
         // have been already updated with the upcoming active mode.
@@ -1142,13 +1132,13 @@ void SurfaceFlinger::performSetActiveMode() {
     const auto display = getDefaultDisplayDeviceLocked();
     const auto desiredMode = display->getMode(desiredActiveMode->modeId);
     if (!desiredMode) {
-        ALOGW("Desired display mode is no longer supported. Mode ID = %zu",
+        ALOGW("Desired display mode is no longer supported. Mode ID = %d",
               desiredActiveMode->modeId.value());
         clearDesiredActiveModeState();
         return;
     }
     const auto refreshRate = desiredMode->getFps();
-    ALOGV("%s changing active mode to %zu(%s)", __FUNCTION__, desiredMode->getId().value(),
+    ALOGV("%s changing active mode to %d(%s)", __FUNCTION__, desiredMode->getId().value(),
           to_string(refreshRate).c_str());
 
     if (!display || display->getActiveMode()->getId() == desiredActiveMode->modeId) {
@@ -1190,39 +1180,20 @@ void SurfaceFlinger::performSetActiveMode() {
     mSetActiveModePending = true;
 }
 
-status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
-                                              Vector<ColorMode>* outColorModes) {
-    if (!displayToken || !outColorModes) {
-        return BAD_VALUE;
-    }
-
-    std::vector<ColorMode> modes;
-    bool isInternalDisplay = false;
-    {
-        ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
-
-        const auto displayId = getPhysicalDisplayIdLocked(displayToken);
-        if (!displayId) {
-            return NAME_NOT_FOUND;
-        }
-
-        modes = getHwComposer().getColorModes(*displayId);
-        isInternalDisplay = displayId == getInternalDisplayIdLocked();
-    }
-    outColorModes->clear();
+std::vector<ColorMode> SurfaceFlinger::getDisplayColorModes(PhysicalDisplayId displayId) {
+    auto modes = getHwComposer().getColorModes(displayId);
+    bool isInternalDisplay = displayId == getInternalDisplayIdLocked();
 
     // If it's built-in display and the configuration claims it's not wide color capable,
     // filter out all wide color modes. The typical reason why this happens is that the
     // hardware is not good enough to support GPU composition of wide color, and thus the
     // OEMs choose to disable this capability.
     if (isInternalDisplay && !hasWideColorDisplay) {
-        std::remove_copy_if(modes.cbegin(), modes.cend(), std::back_inserter(*outColorModes),
-                            isWideColorMode);
-    } else {
-        std::copy(modes.cbegin(), modes.cend(), std::back_inserter(*outColorModes));
+        const auto newEnd = std::remove_if(modes.begin(), modes.end(), isWideColorMode);
+        modes.erase(newEnd, modes.end());
     }
 
-    return NO_ERROR;
+    return modes;
 }
 
 status_t SurfaceFlinger::getDisplayNativePrimaries(const sp<IBinder>& displayToken,
@@ -1240,19 +1211,14 @@ status_t SurfaceFlinger::getDisplayNativePrimaries(const sp<IBinder>& displayTok
     return NO_ERROR;
 }
 
-ColorMode SurfaceFlinger::getActiveColorMode(const sp<IBinder>& displayToken) {
-    Mutex::Autolock lock(mStateLock);
-
-    if (const auto display = getDisplayDeviceLocked(displayToken)) {
-        return display->getCompositionDisplay()->getState().colorMode;
-    }
-    return static_cast<ColorMode>(BAD_VALUE);
-}
-
 status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, ColorMode mode) {
     schedule([=]() MAIN_THREAD {
-        Vector<ColorMode> modes;
-        getDisplayColorModes(displayToken, &modes);
+        const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+        if (!displayId) {
+            ALOGE("Invalid display token %p", displayToken.get());
+            return;
+        }
+        const auto modes = getDisplayColorModes(*displayId);
         bool exists = std::find(std::begin(modes), std::end(modes), mode) != std::end(modes);
         if (mode < ColorMode::NATIVE || !exists) {
             ALOGE("Attempt to set invalid active color mode %s (%d) for display token %p",
@@ -1346,28 +1312,6 @@ status_t SurfaceFlinger::clearAnimationFrameStats() {
 status_t SurfaceFlinger::getAnimationFrameStats(FrameStats* outStats) const {
     Mutex::Autolock _l(mStateLock);
     mAnimFrameTracker.getStats(outStats);
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& displayToken,
-                                            HdrCapabilities* outCapabilities) const {
-    Mutex::Autolock lock(mStateLock);
-
-    const auto display = getDisplayDeviceLocked(displayToken);
-    if (!display) {
-        ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
-        return NAME_NOT_FOUND;
-    }
-
-    // At this point the DisplayDevice should already be set up,
-    // meaning the luminance information is already queried from
-    // hardware composer and stored properly.
-    const HdrCapabilities& capabilities = display->getHdrCapabilities();
-    *outCapabilities = HdrCapabilities(capabilities.getSupportedHdrTypes(),
-                                       capabilities.getDesiredMaxLuminance(),
-                                       capabilities.getDesiredMaxAverageLuminance(),
-                                       capabilities.getDesiredMinLuminance());
-
     return NO_ERROR;
 }
 
@@ -1640,7 +1584,7 @@ void SurfaceFlinger::changeRefreshRateLocked(const RefreshRate& refreshRate,
 
     // Don't do any updating if the current fps is the same as the new one.
     if (!isDisplayModeAllowed(refreshRate.getModeId())) {
-        ALOGV("Skipping mode %zu as it is not part of allowed modes",
+        ALOGV("Skipping mode %d as it is not part of allowed modes",
               refreshRate.getModeId().value());
         return;
     }
@@ -2360,7 +2304,7 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags) {
 DisplayModes SurfaceFlinger::loadSupportedDisplayModes(PhysicalDisplayId displayId) const {
     const auto hwcModes = getHwComposer().getModes(displayId);
     DisplayModes modes;
-    size_t nextModeId = 0;
+    int32_t nextModeId = 0;
     for (const auto& hwcMode : hwcModes) {
         modes.push_back(DisplayMode::Builder(hwcMode.hwcId)
                                 .setId(DisplayModeId{nextModeId++})
@@ -5013,7 +4957,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_PHYSICAL_DISPLAY_TOKEN:
         case GET_DISPLAY_COLOR_MODES:
         case GET_DISPLAY_NATIVE_PRIMARIES:
-        case GET_DISPLAY_INFO:
+        case GET_STATIC_DISPLAY_INFO:
+        case GET_DYNAMIC_DISPLAY_INFO:
         case GET_DISPLAY_MODES:
         case GET_DISPLAY_STATE:
         case GET_DISPLAY_STATS:
@@ -6141,27 +6086,25 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
             ? mRefreshRateConfigs->getRefreshRateFromModeId(*modeId)
             // NOTE: Choose the default mode ID, if Scheduler doesn't have one in mind.
             : mRefreshRateConfigs->getRefreshRateFromModeId(currentPolicy.defaultMode);
-    ALOGV("trying to switch to Scheduler preferred mode %zu (%s)",
+    ALOGV("trying to switch to Scheduler preferred mode %d (%s)",
           preferredRefreshRate.getModeId().value(), preferredRefreshRate.getName().c_str());
 
     if (isDisplayModeAllowed(preferredRefreshRate.getModeId())) {
-        ALOGV("switching to Scheduler preferred display mode %zu",
+        ALOGV("switching to Scheduler preferred display mode %d",
               preferredRefreshRate.getModeId().value());
         setDesiredActiveMode({preferredRefreshRate.getModeId(), Scheduler::ModeEvent::Changed});
     } else {
-        LOG_ALWAYS_FATAL("Desired display mode not allowed: %zu",
+        LOG_ALWAYS_FATAL("Desired display mode not allowed: %d",
                          preferredRefreshRate.getModeId().value());
     }
 
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
-                                                    size_t defaultMode, bool allowGroupSwitching,
-                                                    float primaryRefreshRateMin,
-                                                    float primaryRefreshRateMax,
-                                                    float appRequestRefreshRateMin,
-                                                    float appRequestRefreshRateMax) {
+status_t SurfaceFlinger::setDesiredDisplayModeSpecs(
+        const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode, bool allowGroupSwitching,
+        float primaryRefreshRateMin, float primaryRefreshRateMax, float appRequestRefreshRateMin,
+        float appRequestRefreshRateMax) {
     ATRACE_CALL();
 
     if (!displayToken) {
@@ -6192,10 +6135,13 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecs(const sp<IBinder>& displayTo
     return future.get();
 }
 
-status_t SurfaceFlinger::getDesiredDisplayModeSpecs(
-        const sp<IBinder>& displayToken, size_t* outDefaultMode, bool* outAllowGroupSwitching,
-        float* outPrimaryRefreshRateMin, float* outPrimaryRefreshRateMax,
-        float* outAppRequestRefreshRateMin, float* outAppRequestRefreshRateMax) {
+status_t SurfaceFlinger::getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                                    ui::DisplayModeId* outDefaultMode,
+                                                    bool* outAllowGroupSwitching,
+                                                    float* outPrimaryRefreshRateMin,
+                                                    float* outPrimaryRefreshRateMax,
+                                                    float* outAppRequestRefreshRateMin,
+                                                    float* outAppRequestRefreshRateMax) {
     ATRACE_CALL();
 
     if (!displayToken || !outDefaultMode || !outPrimaryRefreshRateMin ||
