@@ -3258,7 +3258,8 @@ bool SurfaceFlinger::flushTransactionQueues() {
 
             while (!transactionQueue.empty()) {
                 const auto& transaction = transactionQueue.front();
-                if (!transactionIsReadyToBeApplied(transaction.desiredPresentTime,
+                if (!transactionIsReadyToBeApplied(transaction.isAutoTimestamp,
+                                                   transaction.desiredPresentTime,
                                                    transaction.states)) {
                     setTransactionFlags(eTransactionFlushNeeded);
                     break;
@@ -3291,16 +3292,14 @@ bool SurfaceFlinger::transactionFlushNeeded() {
     return !mTransactionQueues.empty();
 }
 
-
-bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
+bool SurfaceFlinger::transactionIsReadyToBeApplied(bool isAutoTimestamp, int64_t desiredPresentTime,
                                                    const Vector<ComposerState>& states,
                                                    bool updateTransactionCounters) {
-
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     bool ready = true;
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
-    if (desiredPresentTime > 0 && desiredPresentTime >= expectedPresentTime &&
+    if (!isAutoTimestamp && desiredPresentTime >= expectedPresentTime &&
         desiredPresentTime < expectedPresentTime + s2ns(1)) {
         ready = false;
     }
@@ -3320,14 +3319,26 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
             ALOGW("Transaction with buffer, but no Layer?");
             continue;
         }
-        if (layer && !mScheduler->isVsyncValid(expectedPresentTime, layer->getOwnerUid())) {
+        if (!layer) {
+            continue;
+        }
+
+        if (!mScheduler->isVsyncValid(expectedPresentTime, layer->getOwnerUid())) {
             ATRACE_NAME("!isVsyncValidForUid");
             ready = false;
         }
         if (updateTransactionCounters) {
-              // See BufferStateLayer::mPendingBufferTransactions
-              if (layer) layer->incrementPendingBufferCount();
+            // See BufferStateLayer::mPendingBufferTransactions
+            layer->incrementPendingBufferCount();
+        }
 
+        // If backpressure is enabled and we already have a buffer to commit, keep the transaction
+        // in the queue.
+        bool hasBuffer = s.what & layer_state_t::eBufferChanged ||
+                s.what & layer_state_t::eCachedBufferChanged;
+        if (hasBuffer && layer->backpressureEnabled() && layer->hasPendingBuffer() &&
+            isAutoTimestamp) {
+            ready = false;
         }
     }
     return ready;
@@ -3385,7 +3396,7 @@ status_t SurfaceFlinger::setTransactionState(
 
     // Call transactionIsReadyToBeApplied first in case we need to incrementPendingBufferCount
     // if the transaction contains a buffer.
-    if (!transactionIsReadyToBeApplied(isAutoTimestamp ? 0 : desiredPresentTime, states, true) ||
+    if (!transactionIsReadyToBeApplied(isAutoTimestamp, desiredPresentTime, states, true) ||
         pendingTransactions) {
         mTransactionQueues[applyToken].emplace(frameTimelineVsyncId, states, displays, flags,
                                                desiredPresentTime, isAutoTimestamp, uncacheBuffer,
