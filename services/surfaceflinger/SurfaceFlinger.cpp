@@ -5851,23 +5851,18 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
         if (!renderArea) {
             ALOGW("Skipping screen capture because of invalid render area.");
             captureResults.result = NO_MEMORY;
-            captureListener->onScreenCaptureComplete(captureResults);
+            captureListener->onScreenCaptureCompleted(captureResults);
             return;
         }
 
         status_t result = NO_ERROR;
-        int syncFd = -1;
         renderArea->render([&] {
-            result = renderScreenImplLocked(*renderArea, traverseLayers, buffer, forSystem, &syncFd,
+            result = renderScreenImplLocked(*renderArea, traverseLayers, buffer, forSystem,
                                             regionSampling, captureResults);
         });
 
-        if (result == NO_ERROR) {
-            sync_wait(syncFd, -1);
-            close(syncFd);
-        }
         captureResults.result = result;
-        captureListener->onScreenCaptureComplete(captureResults);
+        captureListener->onScreenCaptureCompleted(captureResults);
     }));
 
     return NO_ERROR;
@@ -5876,7 +5871,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
 status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                                 TraverseLayersFunction traverseLayers,
                                                 const sp<GraphicBuffer>& buffer, bool forSystem,
-                                                int* outSyncFd, bool regionSampling,
+                                                bool regionSampling,
                                                 ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
@@ -5985,14 +5980,14 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, buffer,
                                  /*useFramebufferCache=*/false, std::move(bufferFence), &drawFence);
 
-    *outSyncFd = drawFence.release();
-
-    if (*outSyncFd >= 0) {
-        sp<Fence> releaseFence = new Fence(dup(*outSyncFd));
+    if (drawFence >= 0) {
+        sp<Fence> releaseFence = new Fence(dup(drawFence));
         for (auto* layer : renderedLayers) {
             layer->onLayerDisplayed(releaseFence);
         }
     }
+
+    captureResults.fence = new Fence(drawFence.release());
     // Always switch back to unprotected context.
     getRenderEngine().useProtectedContext(false);
 
