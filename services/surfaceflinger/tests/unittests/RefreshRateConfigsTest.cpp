@@ -1506,6 +1506,89 @@ TEST_F(RefreshRateConfigsTest, getBestRefreshRate_KnownFrameRate) {
     }
 }
 
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_ExplicitExact) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f},
+                                                LayerRequirement{.weight = 0.5f}};
+    auto& explicitExactLayer = layers[0];
+    auto& explicitExactOrMultipleLayer = layers[1];
+
+    explicitExactOrMultipleLayer.vote = LayerVoteType::ExplicitExactOrMultiple;
+    explicitExactOrMultipleLayer.name = "ExplicitExactOrMultiple";
+    explicitExactOrMultipleLayer.desiredRefreshRate = Fps(60);
+
+    explicitExactLayer.vote = LayerVoteType::ExplicitExact;
+    explicitExactLayer.name = "ExplicitExact";
+    explicitExactLayer.desiredRefreshRate = Fps(30);
+
+    EXPECT_EQ(mExpected30Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+    EXPECT_EQ(mExpected30Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = true, .idle = false}));
+
+    explicitExactOrMultipleLayer.desiredRefreshRate = Fps(120);
+    explicitExactLayer.desiredRefreshRate = Fps(60);
+    EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    explicitExactLayer.desiredRefreshRate = Fps(72);
+    EXPECT_EQ(mExpected72Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    explicitExactLayer.desiredRefreshRate = Fps(90);
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    explicitExactLayer.desiredRefreshRate = Fps(120);
+    EXPECT_EQ(mExpected120Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+}
+
+TEST_F(RefreshRateConfigsTest, getBestRefreshRate_ExplicitExactEnableFrameRateOverride) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60,
+                                                 /*enableFrameRateOverride=*/true);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f},
+                                                LayerRequirement{.weight = 0.5f}};
+    auto& explicitExactLayer = layers[0];
+    auto& explicitExactOrMultipleLayer = layers[1];
+
+    explicitExactOrMultipleLayer.vote = LayerVoteType::ExplicitExactOrMultiple;
+    explicitExactOrMultipleLayer.name = "ExplicitExactOrMultiple";
+    explicitExactOrMultipleLayer.desiredRefreshRate = Fps(60);
+
+    explicitExactLayer.vote = LayerVoteType::ExplicitExact;
+    explicitExactLayer.name = "ExplicitExact";
+    explicitExactLayer.desiredRefreshRate = Fps(30);
+
+    EXPECT_EQ(mExpected60Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+    EXPECT_EQ(mExpected120Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = true, .idle = false}));
+
+    explicitExactOrMultipleLayer.desiredRefreshRate = Fps(120);
+    explicitExactLayer.desiredRefreshRate = Fps(60);
+    EXPECT_EQ(mExpected120Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    explicitExactLayer.desiredRefreshRate = Fps(72);
+    EXPECT_EQ(mExpected72Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    explicitExactLayer.desiredRefreshRate = Fps(90);
+    EXPECT_EQ(mExpected90Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+
+    explicitExactLayer.desiredRefreshRate = Fps(120);
+    EXPECT_EQ(mExpected120Config,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
+}
+
 TEST_F(RefreshRateConfigsTest, testComparisonOperator) {
     EXPECT_TRUE(mExpected60Config < mExpected90Config);
     EXPECT_FALSE(mExpected60Config < mExpected60Config);
@@ -1537,7 +1620,7 @@ TEST_F(RefreshRateConfigsTest, testKernelIdleTimerAction) {
     EXPECT_EQ(KernelIdleTimerAction::TurnOff, refreshRateConfigs->getIdleTimerAction());
 }
 
-TEST_F(RefreshRateConfigsTest, RefreshRateDividerForUid) {
+TEST_F(RefreshRateConfigsTest, getRefreshRateDivider) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_30);
@@ -1562,57 +1645,66 @@ TEST_F(RefreshRateConfigsTest, RefreshRateDividerForUid) {
     EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDivider(Fps(22.6f)));
 }
 
-TEST_F(RefreshRateConfigsTest, populatePreferredFrameRate_noLayers) {
+TEST_F(RefreshRateConfigsTest, getFrameRateOverrides_noLayers) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device, /*currentConfigId=*/
                                                  HWC_CONFIG_ID_120);
 
     auto layers = std::vector<LayerRequirement>{};
-    ASSERT_TRUE(refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f)).empty());
+    ASSERT_TRUE(refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false)
+                        .empty());
 }
 
 TEST_F(RefreshRateConfigsTest, getFrameRateOverrides_60on120) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device, /*currentConfigId=*/
-                                                 HWC_CONFIG_ID_120);
+                                                 HWC_CONFIG_ID_120,
+                                                 /*enableFrameRateOverride=*/true);
 
     auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
     layers[0].name = "Test layer";
     layers[0].ownerUid = 1234;
     layers[0].desiredRefreshRate = Fps(60.0f);
     layers[0].vote = LayerVoteType::ExplicitDefault;
-    auto frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    auto frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
     ASSERT_EQ(1, frameRateOverrides.size());
     ASSERT_EQ(1, frameRateOverrides.count(1234));
     ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
 
     layers[0].vote = LayerVoteType::ExplicitExactOrMultiple;
-    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
     ASSERT_EQ(1, frameRateOverrides.size());
     ASSERT_EQ(1, frameRateOverrides.count(1234));
     ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
 
     layers[0].vote = LayerVoteType::NoVote;
-    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
     ASSERT_TRUE(frameRateOverrides.empty());
 
     layers[0].vote = LayerVoteType::Min;
-    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
     ASSERT_TRUE(frameRateOverrides.empty());
 
     layers[0].vote = LayerVoteType::Max;
-    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
     ASSERT_TRUE(frameRateOverrides.empty());
 
     layers[0].vote = LayerVoteType::Heuristic;
-    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
     ASSERT_TRUE(frameRateOverrides.empty());
 }
 
-TEST_F(RefreshRateConfigsTest, populatePreferredFrameRate_twoUids) {
+TEST_F(RefreshRateConfigsTest, getFrameRateOverrides_twoUids) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device, /*currentConfigId=*/
-                                                 HWC_CONFIG_ID_120);
+                                                 HWC_CONFIG_ID_120,
+                                                 /*enableFrameRateOverride=*/true);
 
     auto layers = std::vector<LayerRequirement>{
             LayerRequirement{.ownerUid = 1234, .weight = 1.0f},
@@ -1626,7 +1718,8 @@ TEST_F(RefreshRateConfigsTest, populatePreferredFrameRate_twoUids) {
     layers[1].name = "Test layer 5678";
     layers[1].desiredRefreshRate = Fps(30.0f);
     layers[1].vote = LayerVoteType::ExplicitDefault;
-    auto frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    auto frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
 
     ASSERT_EQ(2, frameRateOverrides.size());
     ASSERT_EQ(1, frameRateOverrides.count(1234));
@@ -1635,13 +1728,66 @@ TEST_F(RefreshRateConfigsTest, populatePreferredFrameRate_twoUids) {
     ASSERT_EQ(30.0f, frameRateOverrides.at(5678).getValue());
 
     layers[1].vote = LayerVoteType::Heuristic;
-    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
     ASSERT_EQ(1, frameRateOverrides.size());
     ASSERT_EQ(1, frameRateOverrides.count(1234));
     ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
 
     layers[1].ownerUid = 1234;
-    frameRateOverrides = refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f));
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
+    ASSERT_TRUE(frameRateOverrides.empty());
+}
+
+TEST_F(RefreshRateConfigsTest, getFrameRateOverrides_touch) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device, /*currentConfigId=*/
+                                                 HWC_CONFIG_ID_120,
+                                                 /*enableFrameRateOverride=*/true);
+
+    auto layers = std::vector<LayerRequirement>{
+            LayerRequirement{.ownerUid = 1234, .weight = 1.0f},
+    };
+
+    layers[0].name = "Test layer";
+    layers[0].desiredRefreshRate = Fps(60.0f);
+    layers[0].vote = LayerVoteType::ExplicitDefault;
+
+    auto frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
+    ASSERT_EQ(1, frameRateOverrides.size());
+    ASSERT_EQ(1, frameRateOverrides.count(1234));
+    ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
+
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/true);
+    ASSERT_EQ(1, frameRateOverrides.size());
+    ASSERT_EQ(1, frameRateOverrides.count(1234));
+    ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
+
+    layers[0].vote = LayerVoteType::ExplicitExact;
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
+    ASSERT_EQ(1, frameRateOverrides.size());
+    ASSERT_EQ(1, frameRateOverrides.count(1234));
+    ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
+
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/true);
+    ASSERT_EQ(1, frameRateOverrides.size());
+    ASSERT_EQ(1, frameRateOverrides.count(1234));
+    ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
+
+    layers[0].vote = LayerVoteType::ExplicitExactOrMultiple;
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/false);
+    ASSERT_EQ(1, frameRateOverrides.size());
+    ASSERT_EQ(1, frameRateOverrides.count(1234));
+    ASSERT_EQ(60.0f, frameRateOverrides.at(1234).getValue());
+
+    frameRateOverrides =
+            refreshRateConfigs->getFrameRateOverrides(layers, Fps(120.0f), /*touch=*/true);
     ASSERT_TRUE(frameRateOverrides.empty());
 }
 

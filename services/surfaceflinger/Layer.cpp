@@ -1441,11 +1441,14 @@ void Layer::updateTreeHasFrameRateVote() {
                 layer->mCurrentState.frameRate.type == FrameRateCompatibility::Default;
         const auto layerVotedWithNoVote =
                 layer->mCurrentState.frameRate.type == FrameRateCompatibility::NoVote;
+        const auto layerVotedWithExactCompatibility =
+                layer->mCurrentState.frameRate.type == FrameRateCompatibility::Exact;
 
         // We do not count layers that are ExactOrMultiple for the same reason
         // we are allowing touch boost for those layers. See
         // RefreshRateConfigs::getBestRefreshRate for more details.
-        if (layerVotedWithDefaultCompatibility || layerVotedWithNoVote) {
+        if (layerVotedWithDefaultCompatibility || layerVotedWithNoVote ||
+            layerVotedWithExactCompatibility) {
             layersWithVote++;
         }
 
@@ -1662,6 +1665,8 @@ std::string Layer::frameRateCompatibilityString(Layer::FrameRateCompatibility co
             return "ExactOrMultiple";
         case FrameRateCompatibility::NoVote:
             return "NoVote";
+        case FrameRateCompatibility::Exact:
+            return "Exact";
     }
 }
 
@@ -2763,6 +2768,8 @@ Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t comp
             return FrameRateCompatibility::Default;
         case ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE:
             return FrameRateCompatibility::ExactOrMultiple;
+        case ANATIVEWINDOW_FRAME_RATE_EXACT:
+            return FrameRateCompatibility::Exact;
         default:
             LOG_ALWAYS_FATAL("Invalid frame rate compatibility value %d", compatibility);
             return FrameRateCompatibility::Default;

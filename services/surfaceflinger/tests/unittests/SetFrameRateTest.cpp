@@ -473,5 +473,20 @@ INSTANTIATE_TEST_SUITE_P(PerLayerType, SetFrameRateTest,
                                          std::make_shared<EffectLayerFactory>()),
                          PrintToStringParamName);
 
+TEST_F(SetFrameRateTest, ValidateFrameRate) {
+    EXPECT_TRUE(ValidateFrameRate(60.0f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT, ""));
+    EXPECT_TRUE(ValidateFrameRate(60.0f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT, ""));
+    EXPECT_TRUE(ValidateFrameRate(60.0f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE, ""));
+    EXPECT_TRUE(ValidateFrameRate(60.0f, ANATIVEWINDOW_FRAME_RATE_EXACT, "", /*privileged=*/true));
+
+    EXPECT_FALSE(ValidateFrameRate(-1, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT, ""));
+    EXPECT_FALSE(
+            ValidateFrameRate(1.0f / 0.0f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT, ""));
+    EXPECT_FALSE(
+            ValidateFrameRate(0.0f / 0.0f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT, ""));
+
+    EXPECT_FALSE(ValidateFrameRate(60.0f, ANATIVEWINDOW_FRAME_RATE_EXACT, ""));
+}
+
 } // namespace
 } // namespace android
