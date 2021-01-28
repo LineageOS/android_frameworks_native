@@ -30,6 +30,7 @@ filegroup {
         "mapper/accumulator/CursorScrollAccumulator.cpp",
         "mapper/accumulator/SingleTouchMotionAccumulator.cpp",
         "mapper/accumulator/TouchButtonAccumulator.cpp",
+        "mapper/BatteryInputMapper.cpp",
         "mapper/CursorInputMapper.cpp",
         "mapper/ExternalStylusInputMapper.cpp",
         "mapper/InputMapper.cpp",
@@ -60,7 +61,11 @@ cc_defaults {
         "libui",
         "libutils",
     ],
+    static_libs: [
+        "libc++fs",
+    ],
     header_libs: [
+        "libbatteryservice_headers",
         "libinputreader_headers",
     ],
 }
