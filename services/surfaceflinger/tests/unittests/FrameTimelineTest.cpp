@@ -238,7 +238,6 @@ TEST_F(FrameTimelineTest, createSurfaceFrameForToken_validInputEventId) {
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_droppedFramesNotUpdated) {
     // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -249,14 +248,14 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_droppedFramesNotUpdated) {
                                                        sLayerNameOne, sLayerNameOne);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(token1, 20, 11);
+    mFrameTimeline->setSfWakeUp(token1, 20, Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(25, presentFence1);
     presentFence1->signalForTest(30);
 
     // Trigger a flush by calling setSfPresent for the next frame
-    mFrameTimeline->setSfWakeUp(token2, 50, 11);
+    mFrameTimeline->setSfWakeUp(token2, 50, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(55, presentFence2);
 
     auto& droppedSurfaceFrame = getSurfaceFrame(0, 0);
@@ -265,10 +264,10 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_droppedFramesNotUpdated) {
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_presentedFramesUpdated) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_)).Times(2);
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(testing::_, testing::_, testing::_, testing::_, testing::_))
+            .Times(2);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
     int64_t surfaceFrameToken2 = mTokenManager->generateTokenForPredictions({40, 50, 60});
@@ -280,7 +279,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_presentedFramesUpdated) {
     auto surfaceFrame2 =
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken1, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameTwo, sLayerNameTwo);
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, 11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
@@ -301,7 +300,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_presentedFramesUpdated) {
     auto surfaceFrame3 =
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken2, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, 11);
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
     surfaceFrame3->setPresentState(SurfaceFrame::PresentState::Dropped);
     mFrameTimeline->addSurfaceFrame(surfaceFrame3);
     mFrameTimeline->setSfPresent(56, presentFence2);
@@ -318,11 +317,9 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_presentedFramesUpdated) {
 TEST_F(FrameTimelineTest, displayFramesSlidingWindowMovesAfterLimit) {
     // Insert kMaxDisplayFrames' count of DisplayFrames to fill the deque
     int frameTimeFactor = 0;
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_))
-            .Times(static_cast<int32_t>(*maxDisplayFrames));
     // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_))
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(static_cast<int32_t>(*maxDisplayFrames));
     for (size_t i = 0; i < *maxDisplayFrames; i++) {
         auto presentFence = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
@@ -334,7 +331,7 @@ TEST_F(FrameTimelineTest, displayFramesSlidingWindowMovesAfterLimit) {
                 mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken, sInputEventId},
                                                            sPidOne, sUidOne, sLayerNameOne,
                                                            sLayerNameOne);
-        mFrameTimeline->setSfWakeUp(sfToken, 22 + frameTimeFactor, 11);
+        mFrameTimeline->setSfWakeUp(sfToken, 22 + frameTimeFactor, Fps::fromPeriodNsecs(11));
         surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
         mFrameTimeline->addSurfaceFrame(surfaceFrame);
         mFrameTimeline->setSfPresent(27 + frameTimeFactor, presentFence);
@@ -355,7 +352,7 @@ TEST_F(FrameTimelineTest, displayFramesSlidingWindowMovesAfterLimit) {
     auto surfaceFrame =
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
-    mFrameTimeline->setSfWakeUp(sfToken, 22 + frameTimeFactor, 11);
+    mFrameTimeline->setSfWakeUp(sfToken, 22 + frameTimeFactor, Fps::fromPeriodNsecs(11));
     surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame);
     mFrameTimeline->setSfPresent(27 + frameTimeFactor, presentFence);
@@ -386,9 +383,6 @@ TEST_F(FrameTimelineTest, surfaceFrameEndTimeAcquireFenceBeforeQueue) {
 }
 
 TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_))
-            .Times(static_cast<int32_t>(*maxDisplayFrames + 10));
     auto presentFence = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     presentFence->signalForTest(2);
 
@@ -398,7 +392,7 @@ TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
                 mFrameTimeline->createSurfaceFrameForToken({}, sPidOne, sUidOne, sLayerNameOne,
                                                            sLayerNameOne);
         int64_t sfToken = mTokenManager->generateTokenForPredictions({22, 26, 30});
-        mFrameTimeline->setSfWakeUp(sfToken, 22, 11);
+        mFrameTimeline->setSfWakeUp(sfToken, 22, Fps::fromPeriodNsecs(11));
         surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
         mFrameTimeline->addSurfaceFrame(surfaceFrame);
         mFrameTimeline->setSfPresent(27, presentFence);
@@ -408,16 +402,13 @@ TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
     // Increase the size to 256
     mFrameTimeline->setMaxDisplayFrames(256);
     EXPECT_EQ(*maxDisplayFrames, 256u);
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_))
-            .Times(static_cast<int32_t>(*maxDisplayFrames + 10));
 
     for (size_t i = 0; i < *maxDisplayFrames + 10; i++) {
         auto surfaceFrame =
                 mFrameTimeline->createSurfaceFrameForToken({}, sPidOne, sUidOne, sLayerNameOne,
                                                            sLayerNameOne);
         int64_t sfToken = mTokenManager->generateTokenForPredictions({22, 26, 30});
-        mFrameTimeline->setSfWakeUp(sfToken, 22, 11);
+        mFrameTimeline->setSfWakeUp(sfToken, 22, Fps::fromPeriodNsecs(11));
         surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
         mFrameTimeline->addSurfaceFrame(surfaceFrame);
         mFrameTimeline->setSfPresent(27, presentFence);
@@ -427,16 +418,13 @@ TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
     // Shrink the size to 128
     mFrameTimeline->setMaxDisplayFrames(128);
     EXPECT_EQ(*maxDisplayFrames, 128u);
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_))
-            .Times(static_cast<int32_t>(*maxDisplayFrames + 10));
 
     for (size_t i = 0; i < *maxDisplayFrames + 10; i++) {
         auto surfaceFrame =
                 mFrameTimeline->createSurfaceFrameForToken({}, sPidOne, sUidOne, sLayerNameOne,
                                                            sLayerNameOne);
         int64_t sfToken = mTokenManager->generateTokenForPredictions({22, 26, 30});
-        mFrameTimeline->setSfWakeUp(sfToken, 22, 11);
+        mFrameTimeline->setSfWakeUp(sfToken, 22, Fps::fromPeriodNsecs(11));
         surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
         mFrameTimeline->addSurfaceFrame(surfaceFrame);
         mFrameTimeline->setSfPresent(27, presentFence);
@@ -447,10 +435,8 @@ TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
 // Tests related to TimeStats
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
     EXPECT_CALL(*mTimeStats,
-                incrementJankyFrames(sUidOne, sLayerNameOne,
+                incrementJankyFrames(testing::_, testing::_, sUidOne, sLayerNameOne,
                                      HasBit(JankType::SurfaceFlingerCpuDeadlineMissed)));
-    EXPECT_CALL(*mTimeStats,
-                incrementJankyFrames(HasBit(JankType::SurfaceFlingerCpuDeadlineMissed)));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions(
             {std::chrono::duration_cast<std::chrono::nanoseconds>(10ms).count(),
@@ -465,7 +451,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     mFrameTimeline->setSfWakeUp(sfToken1,
                                 std::chrono::duration_cast<std::chrono::nanoseconds>(52ms).count(),
-                                11);
+                                Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     presentFence1->signalForTest(
@@ -477,8 +463,8 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
     EXPECT_CALL(*mTimeStats,
-                incrementJankyFrames(sUidOne, sLayerNameOne, HasBit(JankType::DisplayHAL)));
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(HasBit(JankType::DisplayHAL)));
+                incrementJankyFrames(testing::_, testing::_, sUidOne, sLayerNameOne,
+                                     HasBit(JankType::DisplayHAL)));
 
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions(
@@ -494,7 +480,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     mFrameTimeline->setSfWakeUp(sfToken1,
                                 std::chrono::duration_cast<std::chrono::nanoseconds>(52ms).count(),
-                                30);
+                                Fps::fromPeriodNsecs(30));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     presentFence1->signalForTest(
@@ -506,9 +492,8 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMiss) {
     EXPECT_CALL(*mTimeStats,
-                incrementJankyFrames(sUidOne, sLayerNameOne,
+                incrementJankyFrames(testing::_, testing::_, sUidOne, sLayerNameOne,
                                      HasBit(JankType::AppDeadlineMissed)));
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(HasBit(JankType::AppDeadlineMissed)));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions(
             {std::chrono::duration_cast<std::chrono::nanoseconds>(10ms).count(),
@@ -525,7 +510,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMiss) {
             std::chrono::duration_cast<std::chrono::nanoseconds>(45ms).count());
     mFrameTimeline->setSfWakeUp(sfToken1,
                                 std::chrono::duration_cast<std::chrono::nanoseconds>(52ms).count(),
-                                11);
+                                Fps::fromPeriodNsecs(11));
 
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -547,8 +532,6 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMiss) {
  */
 TEST_F(FrameTimelineTest, tracing_noPacketsSentWithoutTraceStart) {
     auto tracingSession = getTracingSessionForTest();
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -559,7 +542,7 @@ TEST_F(FrameTimelineTest, tracing_noPacketsSentWithoutTraceStart) {
                                                        sLayerNameOne, sLayerNameOne);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(token1, 20, 11);
+    mFrameTimeline->setSfWakeUp(token1, 20, Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(25, presentFence1);
@@ -567,7 +550,7 @@ TEST_F(FrameTimelineTest, tracing_noPacketsSentWithoutTraceStart) {
 
     // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
     // next frame
-    mFrameTimeline->setSfWakeUp(token2, 50, 11);
+    mFrameTimeline->setSfWakeUp(token2, 50, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(55, presentFence2);
 
     auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
@@ -576,10 +559,9 @@ TEST_F(FrameTimelineTest, tracing_noPacketsSentWithoutTraceStart) {
 
 TEST_F(FrameTimelineTest, tracing_sanityTest) {
     auto tracingSession = getTracingSessionForTest();
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_));
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(testing::_, testing::_, testing::_, testing::_, testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -591,7 +573,7 @@ TEST_F(FrameTimelineTest, tracing_sanityTest) {
                                                        sLayerNameOne, sLayerNameOne);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(token2, 20, 11);
+    mFrameTimeline->setSfWakeUp(token2, 20, Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(25, presentFence1);
@@ -599,7 +581,7 @@ TEST_F(FrameTimelineTest, tracing_sanityTest) {
 
     // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
     // next frame
-    mFrameTimeline->setSfWakeUp(token2, 50, 11);
+    mFrameTimeline->setSfWakeUp(token2, 50, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(55, presentFence2);
     presentFence2->signalForTest(55);
 
@@ -613,8 +595,6 @@ TEST_F(FrameTimelineTest, tracing_sanityTest) {
 
 TEST_F(FrameTimelineTest, traceDisplayFrame_invalidTokenDoesNotEmitTracePacket) {
     auto tracingSession = getTracingSessionForTest();
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -622,13 +602,13 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_invalidTokenDoesNotEmitTracePacket) 
     int64_t token1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(-1, 20, 11);
+    mFrameTimeline->setSfWakeUp(-1, 20, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(25, presentFence1);
     presentFence1->signalForTest(30);
 
     // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
     // next frame
-    mFrameTimeline->setSfWakeUp(token1, 50, 11);
+    mFrameTimeline->setSfWakeUp(token1, 50, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(55, presentFence2);
     presentFence2->signalForTest(60);
 
@@ -641,8 +621,6 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_invalidTokenDoesNotEmitTracePacket) 
 
 TEST_F(FrameTimelineTest, traceSurfaceFrame_invalidTokenDoesNotEmitTracePacket) {
     auto tracingSession = getTracingSessionForTest();
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -653,7 +631,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_invalidTokenDoesNotEmitTracePacket) 
                                                                     sLayerNameOne, sLayerNameOne);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(token1, 20, 11);
+    mFrameTimeline->setSfWakeUp(token1, 20, Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(25, presentFence1);
@@ -661,7 +639,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_invalidTokenDoesNotEmitTracePacket) 
 
     // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
     // next frame
-    mFrameTimeline->setSfWakeUp(token2, 50, 11);
+    mFrameTimeline->setSfWakeUp(token2, 50, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(55, presentFence2);
     presentFence2->signalForTest(60);
 
@@ -759,8 +737,6 @@ void validateTraceEvent(const ProtoFrameEnd& received, const ProtoFrameEnd& sour
 
 TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     auto tracingSession = getTracingSessionForTest();
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -769,7 +745,7 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     int64_t displayFrameToken2 = mTokenManager->generateTokenForPredictions({40, 50, 60});
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, 11);
+    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(26, presentFence1);
     presentFence1->signalForTest(31);
 
@@ -797,7 +773,7 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
 
     // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
     // next frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken2, 50, 11);
+    mFrameTimeline->setSfWakeUp(displayFrameToken2, 50, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(55, presentFence2);
     presentFence2->signalForTest(55);
 
@@ -854,10 +830,9 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
 
 TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     auto tracingSession = getTracingSessionForTest();
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_));
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(testing::_, testing::_, testing::_, testing::_, testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
@@ -902,7 +877,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     protoActualSurfaceFrameEnd.set_cookie(traceCookie + 2);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, 11);
+    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(26, presentFence1);
@@ -910,7 +885,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
 
     // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
     // next frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken2, 50, 11);
+    mFrameTimeline->setSfWakeUp(displayFrameToken2, 50, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(55, presentFence2);
     presentFence2->signalForTest(55);
 
@@ -967,17 +942,16 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
 
 // Tests for Jank classification
 TEST_F(FrameTimelineTest, jankClassification_presentOnTimeDoesNotClassify) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_));
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(testing::_, testing::_, testing::_, testing::_, testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken = mTokenManager->generateTokenForPredictions({10, 20, 30});
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 30});
     auto surfaceFrame =
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, 11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
     surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame);
     mFrameTimeline->setSfPresent(26, presentFence1);
@@ -1001,12 +975,10 @@ TEST_F(FrameTimelineTest, jankClassification_presentOnTimeDoesNotClassify) {
 }
 
 TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishEarlyPresent) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 40});
     int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 56, 70});
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, 11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(26, presentFence1);
     auto displayFrame = getDisplayFrame(0);
     presentFence1->signalForTest(30);
@@ -1016,7 +988,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishEarlyPresen
 
     // Trigger a flush by finalizing the next DisplayFrame
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, 11);
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(56, presentFence2);
     displayFrame = getDisplayFrame(0);
 
@@ -1042,12 +1014,10 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishEarlyPresen
 }
 
 TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishLatePresent) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 40});
     int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 56, 70});
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, 11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(26, presentFence1);
     auto displayFrame = getDisplayFrame(0);
     presentFence1->signalForTest(50);
@@ -1057,7 +1027,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishLatePresent
 
     // Trigger a flush by finalizing the next DisplayFrame
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, 11);
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(56, presentFence2);
     displayFrame = getDisplayFrame(0);
 
@@ -1083,11 +1053,9 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishLatePresent
 }
 
 TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishEarlyPresent) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({12, 18, 40});
-    mFrameTimeline->setSfWakeUp(sfToken1, 12, 11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 12, Fps::fromPeriodNsecs(11));
 
     mFrameTimeline->setSfPresent(22, presentFence1);
     auto displayFrame = getDisplayFrame(0);
@@ -1107,11 +1075,9 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishEarlyPresent)
 }
 
 TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 40});
-    mFrameTimeline->setSfWakeUp(sfToken1, 12, 11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 12, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(36, presentFence1);
     auto displayFrame = getDisplayFrame(0);
     presentFence1->signalForTest(52);
@@ -1130,10 +1096,9 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent) 
 }
 
 TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishEarlyPresent) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
-    // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_)).Times(2);
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(testing::_, testing::_, testing::_, testing::_, testing::_))
+            .Times(2);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 40});
     int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 56, 70});
@@ -1143,7 +1108,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishEarlyPresen
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken1, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     surfaceFrame1->setAcquireFenceTime(16);
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, 11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(26, presentFence1);
@@ -1162,7 +1127,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishEarlyPresen
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken2, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     surfaceFrame2->setAcquireFenceTime(36);
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, 11);
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame2);
     mFrameTimeline->setSfPresent(56, presentFence2);
@@ -1203,10 +1168,9 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishEarlyPresen
 }
 
 TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishLatePresent) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
-    // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_)).Times(2);
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(testing::_, testing::_, testing::_, testing::_, testing::_))
+            .Times(2);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 40});
     int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 56, 70});
@@ -1216,7 +1180,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishLatePresent
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken1, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     surfaceFrame1->setAcquireFenceTime(16);
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, 11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(26, presentFence1);
@@ -1235,7 +1199,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishLatePresent
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken2, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     surfaceFrame2->setAcquireFenceTime(36);
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, 11);
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame2);
     mFrameTimeline->setSfPresent(56, presentFence2);
@@ -1276,10 +1240,9 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishLatePresent
 }
 
 TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishEarlyPresent) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_));
-    // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_));
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(testing::_, testing::_, testing::_, testing::_, testing::_));
+
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({42, 46, 50});
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({5, 26, 60});
@@ -1287,7 +1250,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishEarlyPresent)
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken1, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     surfaceFrame1->setAcquireFenceTime(40);
-    mFrameTimeline->setSfWakeUp(sfToken1, 42, 11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 42, Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(46, presentFence1);
@@ -1320,10 +1283,9 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishLatePresent) 
     // AppDeadlineMissed. Second frame - DisplayFrame is janky. This should propagate DisplayFrame's
     // jank to the SurfaceFrame.
 
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
-    // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_)).Times(2);
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(testing::_, testing::_, testing::_, testing::_, testing::_))
+            .Times(2);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({32, 36, 40});
     int64_t sfToken2 = mTokenManager->generateTokenForPredictions({42, 46, 50});
@@ -1333,7 +1295,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishLatePresent) 
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken1, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     surfaceFrame1->setAcquireFenceTime(26);
-    mFrameTimeline->setSfWakeUp(sfToken1, 32, 11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 32, Fps::fromPeriodNsecs(11));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(36, presentFence1);
@@ -1352,7 +1314,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishLatePresent) 
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken2, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     surfaceFrame2->setAcquireFenceTime(40);
-    mFrameTimeline->setSfWakeUp(sfToken2, 43, 11);
+    mFrameTimeline->setSfWakeUp(sfToken2, 43, Fps::fromPeriodNsecs(11));
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame2);
     mFrameTimeline->setSfPresent(56, presentFence2);
@@ -1393,10 +1355,10 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishLatePresent) 
 }
 
 TEST_F(FrameTimelineTest, jankClassification_multiJankBufferStuffingAndAppDeadlineMissed) {
-    // Global increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_)).Times(2);
     // Layer specific increment
-    EXPECT_CALL(*mTimeStats, incrementJankyFrames(testing::_, testing::_, testing::_)).Times(2);
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(testing::_, testing::_, testing::_, testing::_, testing::_))
+            .Times(2);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
     int64_t surfaceFrameToken2 = mTokenManager->generateTokenForPredictions({40, 50, 60});
@@ -1407,7 +1369,7 @@ TEST_F(FrameTimelineTest, jankClassification_multiJankBufferStuffingAndAppDeadli
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken1, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     surfaceFrame1->setAcquireFenceTime(50);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, 30);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, Fps::fromPeriodNsecs(30));
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(56, presentFence1);
@@ -1426,7 +1388,7 @@ TEST_F(FrameTimelineTest, jankClassification_multiJankBufferStuffingAndAppDeadli
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken2, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
     surfaceFrame2->setAcquireFenceTime(84);
-    mFrameTimeline->setSfWakeUp(sfToken2, 112, 30);
+    mFrameTimeline->setSfWakeUp(sfToken2, 112, Fps::fromPeriodNsecs(30));
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented, 54);
     mFrameTimeline->addSurfaceFrame(surfaceFrame2);
     mFrameTimeline->setSfPresent(116, presentFence2);

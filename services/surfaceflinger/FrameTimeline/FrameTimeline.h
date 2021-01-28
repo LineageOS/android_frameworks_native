@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <../Fps.h>
 #include <../TimeStats/TimeStats.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/JankInfo.h>
@@ -175,13 +176,14 @@ public:
     void setActualQueueTime(nsecs_t actualQueueTime);
     void setAcquireFenceTime(nsecs_t acquireFenceTime);
     void setPresentState(PresentState presentState, nsecs_t lastLatchTime = 0);
+    void setRenderRate(Fps renderRate);
 
     // Functions called by FrameTimeline
     // BaseTime is the smallest timestamp in this SurfaceFrame.
     // Used for dumping all timestamps relative to the oldest, making it easy to read.
     nsecs_t getBaseTime() const;
     // Sets the actual present time, appropriate metadata and classifies the jank.
-    void onPresent(nsecs_t presentTime, int32_t displayFrameJankType, nsecs_t vsyncPeriod);
+    void onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate);
     // All the timestamps are dumped relative to the baseTime
     void dump(std::string& result, const std::string& indent, nsecs_t baseTime) const;
     // Emits a packet for perfetto tracing. The function body will be executed only if tracing is
@@ -216,6 +218,8 @@ private:
     int32_t mJankType GUARDED_BY(mMutex) = JankType::None;
     // Indicates if this frame was composited by the GPU or not
     bool mGpuComposition GUARDED_BY(mMutex) = false;
+    // Rendering rate for this frame.
+    std::optional<Fps> mRenderRate GUARDED_BY(mMutex);
     // Enum for the type of present
     FramePresentMetadata mFramePresentMetadata GUARDED_BY(mMutex) =
             FramePresentMetadata::UnknownPresent;
@@ -255,7 +259,7 @@ public:
 
     // The first function called by SF for the current DisplayFrame. Fetches SF predictions based on
     // the token and sets the actualSfWakeTime for the current DisplayFrame.
-    virtual void setSfWakeUp(int64_t token, nsecs_t wakeupTime, nsecs_t vsyncPeriod) = 0;
+    virtual void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) = 0;
 
     // Sets the sfPresentTime and finalizes the current DisplayFrame. Tracks the given present fence
     // until it's signaled, and updates the present timestamps of all presented SurfaceFrames in
@@ -325,14 +329,13 @@ public:
         // is enabled.
         void trace(pid_t surfaceFlingerPid) const;
         // Sets the token, vsyncPeriod, predictions and SF start time.
-        void onSfWakeUp(int64_t token, nsecs_t vsyncPeriod, std::optional<TimelineItem> predictions,
+        void onSfWakeUp(int64_t token, Fps refreshRate, std::optional<TimelineItem> predictions,
                         nsecs_t wakeUpTime);
         // Sets the appropriate metadata, classifies the jank and returns the classified jankType.
         void onPresent(nsecs_t signalTime);
         // Adds the provided SurfaceFrame to the current display frame.
         void addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame);
 
-        void setTokenAndVsyncPeriod(int64_t token, nsecs_t vsyncPeriod);
         void setPredictions(PredictionState predictionState, TimelineItem predictions);
         void setActualStartTime(nsecs_t actualStartTime);
         void setActualEndTime(nsecs_t actualEndTime);
@@ -382,7 +385,7 @@ public:
         FrameStartMetadata mFrameStartMetadata = FrameStartMetadata::UnknownStart;
         // The refresh rate (vsync period) in nanoseconds as seen by SF during this DisplayFrame's
         // timeline
-        nsecs_t mVsyncPeriod = 0;
+        Fps mRefreshRate;
         // TraceCookieCounter is used to obtain the cookie for sendig trace packets to perfetto.
         // Using a reference here because the counter is owned by FrameTimeline, which outlives
         // DisplayFrame.
@@ -398,7 +401,7 @@ public:
             const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
             std::string layerName, std::string debugName) override;
     void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame) override;
-    void setSfWakeUp(int64_t token, nsecs_t wakeupTime, nsecs_t vsyncPeriod) override;
+    void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) override;
     void setSfPresent(nsecs_t sfPresentTime,
                       const std::shared_ptr<FenceTime>& presentFence) override;
     void parseArgs(const Vector<String16>& args, std::string& result) override;

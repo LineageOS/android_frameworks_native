@@ -105,53 +105,63 @@ std::string frameRateVoteToProtoByteString(float refreshRate, int frameRateCompa
 AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventList* data) {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    if (mTimeStats.statsStart == 0) {
+    if (mTimeStats.statsStartLegacy == 0) {
         return AStatsManager_PULL_SKIP;
     }
     flushPowerTimeLocked();
 
-    AStatsEvent* event = mStatsDelegate->addStatsEventToPullData(data);
-    mStatsDelegate->statsEventSetAtomId(event, android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
-    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.totalFrames);
-    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.missedFrames);
-    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.clientCompositionFrames);
-    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.displayOnTime);
-    mStatsDelegate->statsEventWriteInt64(event, mTimeStats.presentToPresent.totalTime());
-    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.displayEventConnectionsCount);
-    std::string frameDurationBytes =
-            histogramToProtoByteString(mTimeStats.frameDuration.hist, mMaxPulledHistogramBuckets);
-    mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)frameDurationBytes.c_str(),
-                                             frameDurationBytes.size());
-    std::string renderEngineTimingBytes =
-            histogramToProtoByteString(mTimeStats.renderEngineTiming.hist,
-                                       mMaxPulledHistogramBuckets);
-    mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)renderEngineTimingBytes.c_str(),
-                                             renderEngineTimingBytes.size());
+    for (const auto& globalSlice : mTimeStats.stats) {
+        AStatsEvent* event = mStatsDelegate->addStatsEventToPullData(data);
+        mStatsDelegate->statsEventSetAtomId(event, android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
+        mStatsDelegate->statsEventWriteInt64(event, mTimeStats.totalFramesLegacy);
+        mStatsDelegate->statsEventWriteInt64(event, mTimeStats.missedFramesLegacy);
+        mStatsDelegate->statsEventWriteInt64(event, mTimeStats.clientCompositionFramesLegacy);
+        mStatsDelegate->statsEventWriteInt64(event, mTimeStats.displayOnTimeLegacy);
+        mStatsDelegate->statsEventWriteInt64(event, mTimeStats.presentToPresentLegacy.totalTime());
+        mStatsDelegate->statsEventWriteInt32(event, mTimeStats.displayEventConnectionsCountLegacy);
+        std::string frameDurationBytes =
+                histogramToProtoByteString(mTimeStats.frameDurationLegacy.hist,
+                                           mMaxPulledHistogramBuckets);
+        mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)frameDurationBytes.c_str(),
+                                                 frameDurationBytes.size());
+        std::string renderEngineTimingBytes =
+                histogramToProtoByteString(mTimeStats.renderEngineTimingLegacy.hist,
+                                           mMaxPulledHistogramBuckets);
+        mStatsDelegate->statsEventWriteByteArray(event,
+                                                 (const uint8_t*)renderEngineTimingBytes.c_str(),
+                                                 renderEngineTimingBytes.size());
 
-    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalFrames);
-    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalJankyFrames);
-    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalSFLongCpu);
-    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalSFLongGpu);
-    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalSFUnattributed);
-    mStatsDelegate->statsEventWriteInt32(event, mTimeStats.jankPayload.totalAppUnattributed);
+        mStatsDelegate->statsEventWriteInt32(event, globalSlice.second.jankPayload.totalFrames);
+        mStatsDelegate->statsEventWriteInt32(event,
+                                             globalSlice.second.jankPayload.totalJankyFrames);
+        mStatsDelegate->statsEventWriteInt32(event, globalSlice.second.jankPayload.totalSFLongCpu);
+        mStatsDelegate->statsEventWriteInt32(event, globalSlice.second.jankPayload.totalSFLongGpu);
+        mStatsDelegate->statsEventWriteInt32(event,
+                                             globalSlice.second.jankPayload.totalSFUnattributed);
+        mStatsDelegate->statsEventWriteInt32(event,
+                                             globalSlice.second.jankPayload.totalAppUnattributed);
 
-    // TODO: populate these with real values
-    mStatsDelegate->statsEventWriteInt32(event, 0); // total_janky_frames_sf_scheduling
-    mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_sf_prediction_error
-    mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_app_buffer_stuffing
-    mStatsDelegate->statsEventWriteInt32(event, 0); // display_refresh_rate_bucket
-    std::string sfDeadlineMissedBytes =
-            histogramToProtoByteString(std::unordered_map<int32_t, int32_t>(),
-                                       mMaxPulledHistogramBuckets);
-    mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)sfDeadlineMissedBytes.c_str(),
-                                             sfDeadlineMissedBytes.size()); // sf_deadline_misses
-    std::string sfPredictionErrorBytes =
-            histogramToProtoByteString(std::unordered_map<int32_t, int32_t>(),
-                                       mMaxPulledHistogramBuckets);
-    mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)sfPredictionErrorBytes.c_str(),
-                                             sfPredictionErrorBytes.size()); // sf_prediction_errors
-    mStatsDelegate->statsEventWriteInt32(event, 0); // render_rate_bucket
-    mStatsDelegate->statsEventBuild(event);
+        // TODO: populate these with real values
+        mStatsDelegate->statsEventWriteInt32(event, 0); // total_janky_frames_sf_scheduling
+        mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_sf_prediction_error
+        mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_app_buffer_stuffing
+        mStatsDelegate->statsEventWriteInt32(event, globalSlice.first.displayRefreshRateBucket);
+        std::string sfDeadlineMissedBytes =
+                histogramToProtoByteString(std::unordered_map<int32_t, int32_t>(),
+                                           mMaxPulledHistogramBuckets);
+        mStatsDelegate
+                ->statsEventWriteByteArray(event, (const uint8_t*)sfDeadlineMissedBytes.c_str(),
+                                           sfDeadlineMissedBytes.size()); // sf_deadline_misses
+        std::string sfPredictionErrorBytes =
+                histogramToProtoByteString(std::unordered_map<int32_t, int32_t>(),
+                                           mMaxPulledHistogramBuckets);
+        mStatsDelegate
+                ->statsEventWriteByteArray(event, (const uint8_t*)sfPredictionErrorBytes.c_str(),
+                                           sfPredictionErrorBytes.size()); // sf_prediction_errors
+        mStatsDelegate->statsEventWriteInt32(event, globalSlice.first.renderRateBucket);
+        mStatsDelegate->statsEventBuild(event);
+    }
+
     clearGlobalLocked();
 
     return AStatsManager_PULL_SUCCESS;
@@ -161,8 +171,17 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
     std::lock_guard<std::mutex> lock(mMutex);
 
     std::vector<TimeStatsHelper::TimeStatsLayer const*> dumpStats;
-    for (const auto& ele : mTimeStats.stats) {
-        dumpStats.push_back(&ele.second);
+    uint32_t numLayers = 0;
+    for (const auto& globalSlice : mTimeStats.stats) {
+        numLayers += globalSlice.second.stats.size();
+    }
+
+    dumpStats.reserve(numLayers);
+
+    for (const auto& globalSlice : mTimeStats.stats) {
+        for (const auto& layerSlice : globalSlice.second.stats) {
+            dumpStats.push_back(&layerSlice.second);
+        }
     }
 
     std::sort(dumpStats.begin(), dumpStats.end(),
@@ -208,8 +227,9 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
         mStatsDelegate->statsEventWriteInt32(event, 0); // total_janky_frames_sf_scheduling
         mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_sf_prediction_error
         mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_app_buffer_stuffing
-        mStatsDelegate->statsEventWriteInt32(event, 0); // display_refresh_rate_bucket
-        mStatsDelegate->statsEventWriteInt32(event, 0); // render_rate_bucket
+        mStatsDelegate->statsEventWriteInt32(
+                event, layer->displayRefreshRateBucket); // display_refresh_rate_bucket
+        mStatsDelegate->statsEventWriteInt32(event, layer->renderRateBucket); // render_rate_bucket
         std::string frameRateVoteBytes = frameRateVoteToProtoByteString(0.0, 0, 0);
         mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)frameRateVoteBytes.c_str(),
                                                  frameRateVoteBytes.size()); // set_frame_rate_vote
@@ -310,7 +330,7 @@ void TimeStats::incrementTotalFrames() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    mTimeStats.totalFrames++;
+    mTimeStats.totalFramesLegacy++;
 }
 
 void TimeStats::incrementMissedFrames() {
@@ -319,7 +339,7 @@ void TimeStats::incrementMissedFrames() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    mTimeStats.missedFrames++;
+    mTimeStats.missedFramesLegacy++;
 }
 
 void TimeStats::incrementClientCompositionFrames() {
@@ -328,7 +348,7 @@ void TimeStats::incrementClientCompositionFrames() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    mTimeStats.clientCompositionFrames++;
+    mTimeStats.clientCompositionFramesLegacy++;
 }
 
 void TimeStats::incrementClientCompositionReusedFrames() {
@@ -337,7 +357,7 @@ void TimeStats::incrementClientCompositionReusedFrames() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    mTimeStats.clientCompositionReusedFrames++;
+    mTimeStats.clientCompositionReusedFramesLegacy++;
 }
 
 void TimeStats::incrementRefreshRateSwitches() {
@@ -346,7 +366,7 @@ void TimeStats::incrementRefreshRateSwitches() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    mTimeStats.refreshRateSwitches++;
+    mTimeStats.refreshRateSwitchesLegacy++;
 }
 
 void TimeStats::incrementCompositionStrategyChanges() {
@@ -355,7 +375,7 @@ void TimeStats::incrementCompositionStrategyChanges() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    mTimeStats.compositionStrategyChanges++;
+    mTimeStats.compositionStrategyChangesLegacy++;
 }
 
 void TimeStats::recordDisplayEventConnectionCount(int32_t count) {
@@ -364,8 +384,8 @@ void TimeStats::recordDisplayEventConnectionCount(int32_t count) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    mTimeStats.displayEventConnectionsCount =
-            std::max(mTimeStats.displayEventConnectionsCount, count);
+    mTimeStats.displayEventConnectionsCountLegacy =
+            std::max(mTimeStats.displayEventConnectionsCountLegacy, count);
 }
 
 static int32_t msBetween(nsecs_t start, nsecs_t end) {
@@ -381,7 +401,7 @@ void TimeStats::recordFrameDuration(nsecs_t startTime, nsecs_t endTime) {
 
     std::lock_guard<std::mutex> lock(mMutex);
     if (mPowerTime.powerMode == PowerMode::ON) {
-        mTimeStats.frameDuration.insert(msBetween(startTime, endTime));
+        mTimeStats.frameDurationLegacy.insert(msBetween(startTime, endTime));
     }
 }
 
@@ -444,12 +464,22 @@ bool TimeStats::recordReadyLocked(int32_t layerId, TimeRecord* timeRecord) {
     return true;
 }
 
-void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId) {
+static int32_t clampToSmallestBucket(Fps fps, size_t bucketWidth) {
+    return (fps.getIntValue() / bucketWidth) * bucketWidth;
+}
+
+void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayRefreshRate,
+                                                   std::optional<Fps> renderRate) {
     ATRACE_CALL();
 
     LayerRecord& layerRecord = mTimeStatsTracker[layerId];
     TimeRecord& prevTimeRecord = layerRecord.prevTimeRecord;
     std::deque<TimeRecord>& timeRecords = layerRecord.timeRecords;
+    const int32_t refreshRateBucket =
+            clampToSmallestBucket(displayRefreshRate, REFRESH_RATE_BUCKET_WIDTH);
+    const int32_t renderRateBucket =
+            clampToSmallestBucket(renderRate ? *renderRate : displayRefreshRate,
+                                  RENDER_RATE_BUCKET_WIDTH);
     while (!timeRecords.empty()) {
         if (!recordReadyLocked(layerId, &timeRecords[0])) break;
         ALOGV("[%d]-[%" PRIu64 "]-presentFenceTime[%" PRId64 "]", layerId,
@@ -458,11 +488,21 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId) {
         if (prevTimeRecord.ready) {
             uid_t uid = layerRecord.uid;
             const std::string& layerName = layerRecord.layerName;
-            if (!mTimeStats.stats.count({uid, layerName})) {
-                mTimeStats.stats[{uid, layerName}].uid = uid;
-                mTimeStats.stats[{uid, layerName}].layerName = layerName;
+            TimeStatsHelper::TimelineStatsKey timelineKey = {refreshRateBucket, renderRateBucket};
+            if (!mTimeStats.stats.count(timelineKey)) {
+                mTimeStats.stats[timelineKey].key = timelineKey;
             }
-            TimeStatsHelper::TimeStatsLayer& timeStatsLayer = mTimeStats.stats[{uid, layerName}];
+
+            TimeStatsHelper::TimelineStats& displayStats = mTimeStats.stats[timelineKey];
+
+            TimeStatsHelper::LayerStatsKey layerKey = {uid, layerName};
+            if (!displayStats.stats.count(layerKey)) {
+                displayStats.stats[layerKey].displayRefreshRateBucket = refreshRateBucket;
+                displayStats.stats[layerKey].renderRateBucket = renderRateBucket;
+                displayStats.stats[layerKey].uid = uid;
+                displayStats.stats[layerKey].layerName = layerName;
+            }
+            TimeStatsHelper::TimeStatsLayer& timeStatsLayer = displayStats.stats[layerKey];
             timeStatsLayer.totalFrames++;
             timeStatsLayer.droppedFrames += layerRecord.droppedFrames;
             timeStatsLayer.lateAcquireFrames += layerRecord.lateAcquireFrames;
@@ -524,8 +564,16 @@ static bool layerNameIsValid(const std::string& layerName) {
 }
 
 bool TimeStats::canAddNewAggregatedStats(uid_t uid, const std::string& layerName) {
-    return mTimeStats.stats.count({uid, layerName}) > 0 ||
-            mTimeStats.stats.size() < MAX_NUM_LAYER_STATS;
+    uint32_t layerRecords = 0;
+    for (const auto& record : mTimeStats.stats) {
+        if (record.second.stats.count({uid, layerName}) > 0) {
+            return true;
+        }
+
+        layerRecords += record.second.stats.size();
+    }
+
+    return mTimeStats.stats.size() < MAX_NUM_LAYER_STATS;
 }
 
 void TimeStats::setPostTime(int32_t layerId, uint64_t frameNumber, const std::string& layerName,
@@ -676,7 +724,8 @@ void TimeStats::setAcquireFence(int32_t layerId, uint64_t frameNumber,
     }
 }
 
-void TimeStats::setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime) {
+void TimeStats::setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime,
+                               Fps displayRefreshRate, std::optional<Fps> renderRate) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
@@ -695,11 +744,12 @@ void TimeStats::setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t pr
         layerRecord.waitData++;
     }
 
-    flushAvailableRecordsToStatsLocked(layerId);
+    flushAvailableRecordsToStatsLocked(layerId, displayRefreshRate, renderRate);
 }
 
 void TimeStats::setPresentFence(int32_t layerId, uint64_t frameNumber,
-                                const std::shared_ptr<FenceTime>& presentFence) {
+                                const std::shared_ptr<FenceTime>& presentFence,
+                                Fps displayRefreshRate, std::optional<Fps> renderRate) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
@@ -719,7 +769,7 @@ void TimeStats::setPresentFence(int32_t layerId, uint64_t frameNumber,
         layerRecord.waitData++;
     }
 
-    flushAvailableRecordsToStatsLocked(layerId);
+    flushAvailableRecordsToStatsLocked(layerId, displayRefreshRate, renderRate);
 }
 
 template <class T>
@@ -746,16 +796,8 @@ static void updateJankPayload(T& t, int32_t reasons) {
     }
 }
 
-void TimeStats::incrementJankyFrames(int32_t reasons) {
-    if (!mEnabled.load()) return;
-
-    ATRACE_CALL();
-    std::lock_guard<std::mutex> lock(mMutex);
-
-    updateJankPayload<TimeStatsHelper::TimeStatsGlobal>(mTimeStats, reasons);
-}
-
-void TimeStats::incrementJankyFrames(uid_t uid, const std::string& layerName, int32_t reasons) {
+void TimeStats::incrementJankyFrames(Fps refreshRate, std::optional<Fps> renderRate, uid_t uid,
+                                     const std::string& layerName, int32_t reasons) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
@@ -772,16 +814,31 @@ void TimeStats::incrementJankyFrames(uid_t uid, const std::string& layerName, in
     // TimeStats will flush the first present fence for a layer *before* FrameTimeline does so that
     // the first jank record is not dropped.
 
-    bool useDefaultLayerKey = false;
     static const std::string kDefaultLayerName = "none";
-    if (!mTimeStats.stats.count({uid, layerName})) {
-        mTimeStats.stats[{uid, kDefaultLayerName}].uid = uid;
-        mTimeStats.stats[{uid, kDefaultLayerName}].layerName = kDefaultLayerName;
-        useDefaultLayerKey = true;
+
+    const int32_t refreshRateBucket = clampToSmallestBucket(refreshRate, REFRESH_RATE_BUCKET_WIDTH);
+    const int32_t renderRateBucket =
+            clampToSmallestBucket(renderRate ? *renderRate : refreshRate, RENDER_RATE_BUCKET_WIDTH);
+    const TimeStatsHelper::TimelineStatsKey timelineKey = {refreshRateBucket, renderRateBucket};
+
+    if (!mTimeStats.stats.count(timelineKey)) {
+        mTimeStats.stats[timelineKey].key = timelineKey;
     }
 
-    TimeStatsHelper::TimeStatsLayer& timeStatsLayer =
-            mTimeStats.stats[{uid, useDefaultLayerKey ? kDefaultLayerName : layerName}];
+    TimeStatsHelper::TimelineStats& timelineStats = mTimeStats.stats[timelineKey];
+
+    updateJankPayload<TimeStatsHelper::TimelineStats>(timelineStats, reasons);
+
+    TimeStatsHelper::LayerStatsKey layerKey = {uid, layerName};
+    if (!timelineStats.stats.count(layerKey)) {
+        layerKey = {uid, kDefaultLayerName};
+        timelineStats.stats[layerKey].displayRefreshRateBucket = refreshRateBucket;
+        timelineStats.stats[layerKey].renderRateBucket = renderRateBucket;
+        timelineStats.stats[layerKey].uid = uid;
+        timelineStats.stats[layerKey].layerName = kDefaultLayerName;
+    }
+
+    TimeStatsHelper::TimeStatsLayer& timeStatsLayer = timelineStats.stats[layerKey];
     updateJankPayload<TimeStatsHelper::TimeStatsLayer>(timeStatsLayer, reasons);
 }
 
@@ -823,7 +880,7 @@ void TimeStats::flushPowerTimeLocked() {
 
     switch (mPowerTime.powerMode) {
         case PowerMode::ON:
-            mTimeStats.displayOnTime += elapsedTime;
+            mTimeStats.displayOnTimeLegacy += elapsedTime;
             break;
         case PowerMode::OFF:
         case PowerMode::DOZE:
@@ -852,10 +909,10 @@ void TimeStats::setPowerMode(PowerMode powerMode) {
 
 void TimeStats::recordRefreshRate(uint32_t fps, nsecs_t duration) {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (mTimeStats.refreshRateStats.count(fps)) {
-        mTimeStats.refreshRateStats[fps] += duration;
+    if (mTimeStats.refreshRateStatsLegacy.count(fps)) {
+        mTimeStats.refreshRateStatsLegacy[fps] += duration;
     } else {
-        mTimeStats.refreshRateStats.insert({fps, duration});
+        mTimeStats.refreshRateStatsLegacy.insert({fps, duration});
     }
 }
 
@@ -881,7 +938,7 @@ void TimeStats::flushAvailableGlobalRecordsToStatsLocked() {
                     msBetween(mGlobalRecord.prevPresentTime, curPresentTime);
             ALOGV("Global present2present[%d] prev[%" PRId64 "] curr[%" PRId64 "]",
                   presentToPresentMs, mGlobalRecord.prevPresentTime, curPresentTime);
-            mTimeStats.presentToPresent.insert(presentToPresentMs);
+            mTimeStats.presentToPresentLegacy.insert(presentToPresentMs);
         }
 
         mGlobalRecord.prevPresentTime = curPresentTime;
@@ -908,7 +965,7 @@ void TimeStats::flushAvailableGlobalRecordsToStatsLocked() {
         }
 
         const int32_t renderEngineMs = msBetween(duration.startTime, endNs);
-        mTimeStats.renderEngineTiming.insert(renderEngineMs);
+        mTimeStats.renderEngineTimingLegacy.insert(renderEngineMs);
 
         mGlobalRecord.renderEngineDurations.pop_front();
     }
@@ -951,7 +1008,7 @@ void TimeStats::enable() {
 
     std::lock_guard<std::mutex> lock(mMutex);
     mEnabled.store(true);
-    mTimeStats.statsStart = static_cast<int64_t>(std::time(0));
+    mTimeStats.statsStartLegacy = static_cast<int64_t>(std::time(0));
     mPowerTime.prevTime = systemTime();
     ALOGD("Enabled");
 }
@@ -964,7 +1021,7 @@ void TimeStats::disable() {
     std::lock_guard<std::mutex> lock(mMutex);
     flushPowerTimeLocked();
     mEnabled.store(false);
-    mTimeStats.statsEnd = static_cast<int64_t>(std::time(0));
+    mTimeStats.statsEndLegacy = static_cast<int64_t>(std::time(0));
     ALOGD("Disabled");
 }
 
@@ -977,21 +1034,20 @@ void TimeStats::clearAll() {
 void TimeStats::clearGlobalLocked() {
     ATRACE_CALL();
 
-    mTimeStats.statsStart = (mEnabled.load() ? static_cast<int64_t>(std::time(0)) : 0);
-    mTimeStats.statsEnd = 0;
-    mTimeStats.totalFrames = 0;
-    mTimeStats.missedFrames = 0;
-    mTimeStats.clientCompositionFrames = 0;
-    mTimeStats.clientCompositionReusedFrames = 0;
-    mTimeStats.refreshRateSwitches = 0;
-    mTimeStats.compositionStrategyChanges = 0;
-    mTimeStats.displayEventConnectionsCount = 0;
-    mTimeStats.displayOnTime = 0;
-    mTimeStats.presentToPresent.hist.clear();
-    mTimeStats.frameDuration.hist.clear();
-    mTimeStats.renderEngineTiming.hist.clear();
-    mTimeStats.jankPayload = TimeStatsHelper::JankPayload();
-    mTimeStats.refreshRateStats.clear();
+    mTimeStats.statsStartLegacy = (mEnabled.load() ? static_cast<int64_t>(std::time(0)) : 0);
+    mTimeStats.statsEndLegacy = 0;
+    mTimeStats.totalFramesLegacy = 0;
+    mTimeStats.missedFramesLegacy = 0;
+    mTimeStats.clientCompositionFramesLegacy = 0;
+    mTimeStats.clientCompositionReusedFramesLegacy = 0;
+    mTimeStats.refreshRateSwitchesLegacy = 0;
+    mTimeStats.compositionStrategyChangesLegacy = 0;
+    mTimeStats.displayEventConnectionsCountLegacy = 0;
+    mTimeStats.displayOnTimeLegacy = 0;
+    mTimeStats.presentToPresentLegacy.hist.clear();
+    mTimeStats.frameDurationLegacy.hist.clear();
+    mTimeStats.renderEngineTimingLegacy.hist.clear();
+    mTimeStats.refreshRateStatsLegacy.clear();
     mPowerTime.prevTime = systemTime();
     mGlobalRecord.prevPresentTime = 0;
     mGlobalRecord.presentFences.clear();
@@ -1014,11 +1070,11 @@ void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, std::strin
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (mTimeStats.statsStart == 0) {
+    if (mTimeStats.statsStartLegacy == 0) {
         return;
     }
 
-    mTimeStats.statsEnd = static_cast<int64_t>(std::time(0));
+    mTimeStats.statsEndLegacy = static_cast<int64_t>(std::time(0));
 
     flushPowerTimeLocked();
 
