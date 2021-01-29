@@ -28,4 +28,7 @@ interface IInputConstants
       * to identify apps that are using this flag.
       */
     const long BLOCK_FLAG_SLIPPERY = 157929241;
+
+    // Indicate invalid battery capacity
+    const int INVALID_BATTERY_CAPACITY = -1;
 }

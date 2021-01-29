@@ -414,7 +414,7 @@ private:
     };
 
     struct ActiveConfigInfo {
-        HwcConfigIndexType configId;
+        DisplayModeId configId;
         Scheduler::ConfigEvent event = Scheduler::ConfigEvent::None;
 
         bool operator!=(const ActiveConfigInfo& other) const {
@@ -918,7 +918,7 @@ private:
     // the desired refresh rate.
     void changeRefreshRateLocked(const RefreshRate&, Scheduler::ConfigEvent) REQUIRES(mStateLock);
 
-    bool isDisplayConfigAllowed(HwcConfigIndexType configId) const REQUIRES(mStateLock);
+    bool isDisplayConfigAllowed(DisplayModeId configId) const REQUIRES(mStateLock);
 
     // Gets the fence for the previous frame.
     // Must be called on the main thread.

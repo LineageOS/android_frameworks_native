@@ -33,6 +33,7 @@
 #include <gui/LayerMetadata.h>
 #include <log/log.h>
 
+#include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "mock/DisplayHardware/MockComposer.h"
 
@@ -229,7 +230,7 @@ void HWComposerConfigsTest::testSetActiveModeWithConstraintsCommon(
     constraints.seamlessRequired = false;
 
     hal::VsyncPeriodChangeTimeline timeline = {0, 0, 0};
-    constexpr HwcConfigIndexType kConfigIndex(0);
+    constexpr DisplayModeId kConfigIndex(0);
     const auto status =
             hwc.setActiveModeWithConstraints(physicalId, kConfigIndex, constraints, &timeline);
     EXPECT_EQ(NO_ERROR, status);
@@ -242,9 +243,8 @@ void HWComposerConfigsTest::testSetActiveModeWithConstraintsCommon(
     hwc.allocatePhysicalDisplay(hwcId, physicalId);
 
     for (size_t configIndex = 0; configIndex < kConfigs.size(); configIndex++) {
-        const auto status =
-                hwc.setActiveModeWithConstraints(physicalId, HwcConfigIndexType(configIndex),
-                                                 constraints, &timeline);
+        const auto status = hwc.setActiveModeWithConstraints(physicalId, DisplayModeId(configIndex),
+                                                             constraints, &timeline);
         EXPECT_EQ(NO_ERROR, status) << "Error when switching to config " << configIndex;
     }
 }

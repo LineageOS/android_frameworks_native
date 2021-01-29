@@ -108,6 +108,10 @@ public:
     virtual bool isVibrating(int32_t deviceId) = 0;
 
     virtual std::vector<int32_t> getVibratorIds(int32_t deviceId) = 0;
+    /* Get battery level of a particular input device. */
+    virtual std::optional<int32_t> getBatteryCapacity(int32_t deviceId) = 0;
+    /* Get battery status of a particular input device. */
+    virtual std::optional<int32_t> getBatteryStatus(int32_t deviceId) = 0;
 
     /* Return true if the device can send input events to the specified display. */
     virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) = 0;

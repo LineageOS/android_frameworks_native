@@ -53,7 +53,7 @@ protected:
 
     const scheduler::RefreshRateConfigs
             mConfigs{{DisplayMode::Builder(0).setVsyncPeriod(16'666'667).setConfigGroup(0).build()},
-                     HwcConfigIndexType(0)};
+                     DisplayModeId(0)};
 
     mock::SchedulerCallback mSchedulerCallback;
 
@@ -175,7 +175,7 @@ TEST_F(SchedulerTest, testDispatchCachedReportedConfig) {
 }
 
 TEST_F(SchedulerTest, onNonPrimaryDisplayConfigChanged_invalidParameters) {
-    HwcConfigIndexType configId = HwcConfigIndexType(111);
+    DisplayModeId configId = DisplayModeId(111);
     nsecs_t vsyncPeriod = 111111;
 
     // If the handle is incorrect, the function should return before

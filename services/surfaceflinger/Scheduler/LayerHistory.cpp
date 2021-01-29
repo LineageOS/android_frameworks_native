@@ -71,6 +71,7 @@ void trace(const wp<Layer>& weak, const LayerInfo& info, LayerHistory::LayerVote
     traceType(LayerHistory::LayerVoteType::Heuristic, fps);
     traceType(LayerHistory::LayerVoteType::ExplicitDefault, fps);
     traceType(LayerHistory::LayerVoteType::ExplicitExactOrMultiple, fps);
+    traceType(LayerHistory::LayerVoteType::ExplicitExact, fps);
     traceType(LayerHistory::LayerVoteType::Min, 1);
     traceType(LayerHistory::LayerVoteType::Max, 1);
 
@@ -172,6 +173,8 @@ void LayerHistory::partitionLayers(nsecs_t now) {
                         return LayerVoteType::ExplicitExactOrMultiple;
                     case Layer::FrameRateCompatibility::NoVote:
                         return LayerVoteType::NoVote;
+                    case Layer::FrameRateCompatibility::Exact:
+                        return LayerVoteType::ExplicitExact;
                 }
             }();
 

@@ -17,11 +17,12 @@
 #pragma once
 
 #include "DisplayHardware/Hal.h"
-#include "Scheduler/HwcStrongTypes.h"
+#include "Scheduler/StrongTyping.h"
 
 #include <android/configuration.h>
 #include <utils/Timers.h>
 
+#include <cstddef>
 #include <memory>
 #include <vector>
 
@@ -32,6 +33,7 @@ namespace hal = android::hardware::graphics::composer::hal;
 class DisplayMode;
 using DisplayModePtr = std::shared_ptr<const DisplayMode>;
 using DisplayModes = std::vector<DisplayModePtr>;
+using DisplayModeId = StrongTyping<size_t, struct DisplayModeIdTag, Compare, Hash>;
 
 class DisplayMode {
 public:
@@ -43,7 +45,7 @@ public:
             return std::const_pointer_cast<const DisplayMode>(std::move(mDisplayMode));
         }
 
-        Builder& setId(HwcConfigIndexType id) {
+        Builder& setId(DisplayModeId id) {
             mDisplayMode->mId = id;
             return *this;
         }
@@ -104,7 +106,7 @@ public:
         std::shared_ptr<DisplayMode> mDisplayMode;
     };
 
-    HwcConfigIndexType getId() const { return mId; }
+    DisplayModeId getId() const { return mId; }
     hal::HWConfigId getHwcId() const { return mHwcId; }
 
     int32_t getWidth() const { return mWidth; }
@@ -118,7 +120,7 @@ private:
     explicit DisplayMode(hal::HWConfigId id) : mHwcId(id) {}
 
     hal::HWConfigId mHwcId;
-    HwcConfigIndexType mId;
+    DisplayModeId mId;
 
     int32_t mWidth = -1;
     int32_t mHeight = -1;

@@ -33,9 +33,11 @@
 #include <SkRegion.h>
 #include <SkShadowUtils.h>
 #include <SkSurface.h>
+#include <android-base/stringprintf.h>
 #include <gl/GrGLInterface.h>
 #include <sync/sync.h>
 #include <ui/BlurRegion.h>
+#include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/Trace.h>
 
@@ -58,6 +60,8 @@ bool checkGlError(const char* op, int lineNumber);
 namespace android {
 namespace renderengine {
 namespace skia {
+
+using base::StringAppendF;
 
 static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs, EGLint attribute,
                                          EGLint wanted, EGLConfig* outConfig) {
@@ -619,6 +623,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     // view is still on-screen. The clear region could be re-specified as a black color layer,
     // however.
     if (!display.clearRegion.isEmpty()) {
+        ATRACE_NAME("ClearRegion");
         size_t numRects = 0;
         Rect const* rects = display.clearRegion.getArray(&numRects);
         SkIRect skRects[numRects];
@@ -638,6 +643,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     }
 
     for (const auto& layer : layers) {
+        ATRACE_NAME("DrawLayer");
         canvas->save();
 
         if (mCapture->isCaptureRunning()) {
@@ -656,7 +662,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         const auto& bounds = layer->geometry.boundaries;
         const auto dest = getSkRect(bounds);
         const auto layerRect = canvas->getTotalMatrix().mapRect(dest);
-        std::unordered_map<uint32_t, sk_sp<SkSurface>> cachedBlurs;
+        std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
         if (mBlurFilter) {
             if (layer->backgroundBlurRadius > 0) {
                 ATRACE_NAME("BackgroundBlur");
@@ -908,17 +914,15 @@ void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRect& casterRect, 
 }
 
 void SkiaGLRenderEngine::drawBlurRegion(SkCanvas* canvas, const BlurRegion& effectRegion,
-                                        const SkRect& layerRect, sk_sp<SkSurface> blurredSurface) {
+                                        const SkRect& layerRect, sk_sp<SkImage> blurredImage) {
     ATRACE_CALL();
 
     SkPaint paint;
     paint.setAlpha(static_cast<int>(effectRegion.alpha * 255));
     const auto matrix = getBlurShaderTransform(canvas, layerRect);
-    paint.setShader(blurredSurface->makeImageSnapshot()->makeShader(
-            SkTileMode::kClamp,
-            SkTileMode::kClamp,
-            SkSamplingOptions({SkFilterMode::kLinear, SkMipmapMode::kNone}),
-            &matrix));
+    SkSamplingOptions linearSampling(SkFilterMode::kLinear, SkMipmapMode::kNone);
+    paint.setShader(blurredImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linearSampling,
+                                             &matrix));
 
     auto rect = SkRect::MakeLTRB(effectRegion.left, effectRegion.top, effectRegion.right,
                                  effectRegion.bottom);
@@ -1073,6 +1077,53 @@ int SkiaGLRenderEngine::getContextPriority() {
     int value;
     eglQueryContext(mEGLDisplay, mEGLContext, EGL_CONTEXT_PRIORITY_LEVEL_IMG, &value);
     return value;
+}
+
+void SkiaGLRenderEngine::dump(std::string& result) {
+    const gl::GLExtensions& extensions = gl::GLExtensions::getInstance();
+
+    StringAppendF(&result, "\n ------------RE-----------------\n");
+    StringAppendF(&result, "EGL implementation : %s\n", extensions.getEGLVersion());
+    StringAppendF(&result, "%s\n", extensions.getEGLExtensions());
+    StringAppendF(&result, "GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
+                  extensions.getVersion());
+    StringAppendF(&result, "%s\n", extensions.getExtensions());
+    StringAppendF(&result, "RenderEngine supports protected context: %d\n",
+                  supportsProtectedContent());
+    StringAppendF(&result, "RenderEngine is in protected context: %d\n", mInProtectedContext);
+
+    {
+        std::lock_guard<std::mutex> lock(mRenderingMutex);
+        StringAppendF(&result, "RenderEngine texture cache size: %zu\n", mTextureCache.size());
+        StringAppendF(&result, "Dumping buffer ids...\n");
+        // TODO(178539829): It would be nice to know which layer these are coming from and what
+        // the texture sizes are.
+        for (const auto& [id, unused] : mTextureCache) {
+            StringAppendF(&result, "- 0x%" PRIx64 "\n", id);
+        }
+        StringAppendF(&result, "\n");
+        StringAppendF(&result, "RenderEngine protected texture cache size: %zu\n",
+                      mProtectedTextureCache.size());
+        StringAppendF(&result, "Dumping buffer ids...\n");
+        for (const auto& [id, unused] : mProtectedTextureCache) {
+            StringAppendF(&result, "- 0x%" PRIx64 "\n", id);
+        }
+        StringAppendF(&result, "\n");
+        StringAppendF(&result, "RenderEngine runtime effects: %zu\n", mRuntimeEffects.size());
+        for (const auto& [linearEffect, unused] : mRuntimeEffects) {
+            StringAppendF(&result, "- inputDataspace: %s\n",
+                          dataspaceDetails(
+                                  static_cast<android_dataspace>(linearEffect.inputDataspace))
+                                  .c_str());
+            StringAppendF(&result, "- outputDataspace: %s\n",
+                          dataspaceDetails(
+                                  static_cast<android_dataspace>(linearEffect.outputDataspace))
+                                  .c_str());
+            StringAppendF(&result, "undoPremultipliedAlpha: %s\n",
+                          linearEffect.undoPremultipliedAlpha ? "true" : "false");
+        }
+    }
+    StringAppendF(&result, "\n");
 }
 
 } // namespace skia

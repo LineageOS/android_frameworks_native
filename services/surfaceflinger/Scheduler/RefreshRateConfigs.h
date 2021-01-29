@@ -27,7 +27,6 @@
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "Fps.h"
-#include "HwcStrongTypes.h"
 #include "Scheduler/SchedulerUtils.h"
 #include "Scheduler/Seamlessness.h"
 #include "Scheduler/StrongTyping.h"
@@ -65,10 +64,10 @@ public:
         };
 
     public:
-        RefreshRate(HwcConfigIndexType configId, DisplayModePtr config, Fps fps, ConstructorTag)
+        RefreshRate(DisplayModeId configId, DisplayModePtr config, Fps fps, ConstructorTag)
               : configId(configId), hwcConfig(config), fps(std::move(fps)) {}
 
-        HwcConfigIndexType getConfigId() const { return configId; }
+        DisplayModeId getConfigId() const { return configId; }
         nsecs_t getVsyncPeriod() const { return hwcConfig->getVsyncPeriod(); }
         int32_t getConfigGroup() const { return hwcConfig->getConfigGroup(); }
         std::string getName() const { return to_string(fps); }
@@ -92,6 +91,9 @@ public:
         bool operator==(const RefreshRate& other) const { return !(*this != other); }
 
         std::string toString() const;
+        friend std::ostream& operator<<(std::ostream& os, const RefreshRate& refreshRate) {
+            return os << refreshRate.toString();
+        }
 
     private:
         friend RefreshRateConfigs;
@@ -99,7 +101,7 @@ public:
 
         // This config ID corresponds to the position of the config in the vector that is stored
         // on the device.
-        const HwcConfigIndexType configId;
+        const DisplayModeId configId;
         // The config itself
         DisplayModePtr hwcConfig;
         // Refresh rate in frames per second
@@ -107,7 +109,7 @@ public:
     };
 
     using AllRefreshRatesMapType =
-            std::unordered_map<HwcConfigIndexType, std::unique_ptr<const RefreshRate>>;
+            std::unordered_map<DisplayModeId, std::unique_ptr<const RefreshRate>>;
 
     struct FpsRange {
         Fps min{0.0f};
@@ -131,7 +133,7 @@ public:
     public:
         // The default config, used to ensure we only initiate display config switches within the
         // same config group as defaultConfigId's group.
-        HwcConfigIndexType defaultConfig;
+        DisplayModeId defaultConfig;
         // Whether or not we switch config groups to get the best frame rate.
         bool allowGroupSwitching = kAllowGroupSwitchingDefault;
         // The primary refresh rate range represents display manager's general guidance on the
@@ -148,18 +150,18 @@ public:
 
         Policy() = default;
 
-        Policy(HwcConfigIndexType defaultConfig, const FpsRange& range)
+        Policy(DisplayModeId defaultConfig, const FpsRange& range)
               : Policy(defaultConfig, kAllowGroupSwitchingDefault, range, range) {}
 
-        Policy(HwcConfigIndexType defaultConfig, bool allowGroupSwitching, const FpsRange& range)
+        Policy(DisplayModeId defaultConfig, bool allowGroupSwitching, const FpsRange& range)
               : Policy(defaultConfig, allowGroupSwitching, range, range) {}
 
-        Policy(HwcConfigIndexType defaultConfig, const FpsRange& primaryRange,
+        Policy(DisplayModeId defaultConfig, const FpsRange& primaryRange,
                const FpsRange& appRequestRange)
               : Policy(defaultConfig, kAllowGroupSwitchingDefault, primaryRange, appRequestRange) {}
 
-        Policy(HwcConfigIndexType defaultConfig, bool allowGroupSwitching,
-               const FpsRange& primaryRange, const FpsRange& appRequestRange)
+        Policy(DisplayModeId defaultConfig, bool allowGroupSwitching, const FpsRange& primaryRange,
+               const FpsRange& appRequestRange)
               : defaultConfig(defaultConfig),
                 allowGroupSwitching(allowGroupSwitching),
                 primaryRange(primaryRange),
@@ -199,7 +201,7 @@ public:
     Policy getDisplayManagerPolicy() const EXCLUDES(mLock);
 
     // Returns true if config is allowed by the current policy.
-    bool isConfigAllowed(HwcConfigIndexType config) const EXCLUDES(mLock);
+    bool isConfigAllowed(DisplayModeId config) const EXCLUDES(mLock);
 
     // Describes the different options the layer voted for refresh rate
     enum class LayerVoteType {
@@ -209,8 +211,11 @@ public:
         Heuristic,       // Specific refresh rate that was calculated by platform using a heuristic
         ExplicitDefault, // Specific refresh rate that was provided by the app with Default
                          // compatibility
-        ExplicitExactOrMultiple // Specific refresh rate that was provided by the app with
-                                // ExactOrMultiple compatibility
+        ExplicitExactOrMultiple, // Specific refresh rate that was provided by the app with
+                                 // ExactOrMultiple compatibility
+        ExplicitExact,           // Specific refresh rate that was provided by the app with
+                                 // Exact compatibility
+
     };
 
     // Captures the layer requirements for a refresh rate. This will be used to determine the
@@ -265,7 +270,7 @@ public:
         return {mMinSupportedRefreshRate->getFps(), mMaxSupportedRefreshRate->getFps()};
     }
 
-    std::optional<Fps> onKernelTimerChanged(std::optional<HwcConfigIndexType> desiredActiveConfigId,
+    std::optional<Fps> onKernelTimerChanged(std::optional<DisplayModeId> desiredActiveConfigId,
                                             bool timerExpired) const EXCLUDES(mLock);
 
     // Returns the highest refresh rate according to the current policy. May change at runtime. Only
@@ -279,16 +284,16 @@ public:
     // the policy.
     RefreshRate getCurrentRefreshRateByPolicy() const;
 
-    // Returns the refresh rate that corresponds to a HwcConfigIndexType. This may change at
+    // Returns the refresh rate that corresponds to a DisplayModeId. This may change at
     // runtime.
     // TODO(b/159590486) An invalid config id may be given here if the dipslay configs have changed.
-    RefreshRate getRefreshRateFromConfigId(HwcConfigIndexType configId) const EXCLUDES(mLock) {
+    RefreshRate getRefreshRateFromConfigId(DisplayModeId configId) const EXCLUDES(mLock) {
         std::lock_guard lock(mLock);
         return *mRefreshRates.at(configId);
     };
 
     // Stores the current configId the device operates at
-    void setCurrentConfigId(HwcConfigIndexType configId) EXCLUDES(mLock);
+    void setCurrentConfigId(DisplayModeId configId) EXCLUDES(mLock);
 
     // Returns a string that represents the layer vote type
     static std::string layerVoteTypeString(LayerVoteType vote);
@@ -296,9 +301,10 @@ public:
     // Returns a known frame rate that is the closest to frameRate
     Fps findClosestKnownFrameRate(Fps frameRate) const;
 
-    RefreshRateConfigs(const DisplayModes& configs, HwcConfigIndexType currentConfigId);
+    RefreshRateConfigs(const DisplayModes& configs, DisplayModeId currentConfigId,
+                       bool enableFrameRateOverride = false);
 
-    void updateDisplayConfigs(const DisplayModes& configs, HwcConfigIndexType currentConfig)
+    void updateDisplayConfigs(const DisplayModes& configs, DisplayModeId currentConfig)
             EXCLUDES(mLock);
 
     // Returns whether switching configs (refresh rate or resolution) is possible.
@@ -325,10 +331,15 @@ public:
     // Returns a divider for the current refresh rate
     int getRefreshRateDivider(Fps frameRate) const EXCLUDES(mLock);
 
-    // Returns the frame rate override for each uid
     using UidToFrameRateOverride = std::map<uid_t, Fps>;
+    // Returns the frame rate override for each uid.
+    //
+    // @param layers list of visible layers
+    // @param displayFrameRate the display frame rate
+    // @param touch whether touch timer is active (i.e. user touched the screen recently)
     UidToFrameRateOverride getFrameRateOverrides(const std::vector<LayerRequirement>& layers,
-                                                 Fps displayFrameRate) const EXCLUDES(mLock);
+                                                 Fps displayFrameRate, bool touch) const
+            EXCLUDES(mLock);
 
     void dump(std::string& result) const EXCLUDES(mLock);
 
@@ -408,6 +419,7 @@ private:
     // from based on the closest value.
     const std::vector<Fps> mKnownFrameRates;
 
+    const bool mEnableFrameRateOverride;
     bool mSupportsFrameRateOverride;
 };
 

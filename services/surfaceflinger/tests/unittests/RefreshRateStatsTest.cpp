@@ -25,7 +25,7 @@
 #include <log/log.h>
 #include <thread>
 
-#include "Scheduler/HwcStrongTypes.h"
+#include "DisplayHardware/DisplayMode.h"
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "mock/MockTimeStats.h"
@@ -40,8 +40,8 @@ namespace scheduler {
 
 class RefreshRateStatsTest : public testing::Test {
 protected:
-    static inline const auto CONFIG_ID_0 = HwcConfigIndexType(0);
-    static inline const auto CONFIG_ID_1 = HwcConfigIndexType(1);
+    static inline const auto CONFIG_ID_0 = DisplayModeId(0);
+    static inline const auto CONFIG_ID_1 = DisplayModeId(1);
     static inline const auto CONFIG_GROUP_0 = 0;
     static constexpr int64_t VSYNC_90 = 11111111;
     static constexpr int64_t VSYNC_60 = 16666667;
@@ -62,8 +62,7 @@ protected:
     std::unique_ptr<RefreshRateConfigs> mRefreshRateConfigs;
     std::unique_ptr<RefreshRateStats> mRefreshRateStats;
 
-    DisplayModePtr createConfig(HwcConfigIndexType configId, int32_t configGroup,
-                                int64_t vsyncPeriod);
+    DisplayModePtr createConfig(DisplayModeId configId, int32_t configGroup, int64_t vsyncPeriod);
 };
 
 RefreshRateStatsTest::RefreshRateStatsTest() {
@@ -78,9 +77,10 @@ RefreshRateStatsTest::~RefreshRateStatsTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-DisplayModePtr RefreshRateStatsTest::createConfig(HwcConfigIndexType configId, int32_t configGroup,
+DisplayModePtr RefreshRateStatsTest::createConfig(DisplayModeId configId, int32_t configGroup,
                                                   int64_t vsyncPeriod) {
     return DisplayMode::Builder(static_cast<hal::HWConfigId>(configId.value()))
+            .setId(configId)
             .setVsyncPeriod(static_cast<int32_t>(vsyncPeriod))
             .setConfigGroup(configGroup)
             .build();
