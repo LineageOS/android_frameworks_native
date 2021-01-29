@@ -17,6 +17,8 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
+#include "DisplayHardware/DisplayMode.h"
+
 #include "DisplayTransactionTestHelpers.h"
 
 namespace android {
@@ -232,13 +234,26 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     // Invocation
 
     DisplayDeviceState state;
-    if (const auto connectionType = Case::Display::CONNECTION_TYPE::value) {
+    if constexpr (constexpr auto connectionType = Case::Display::CONNECTION_TYPE::value) {
         const auto displayId = PhysicalDisplayId::tryCast(Case::Display::DISPLAY_ID::get());
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
         ASSERT_TRUE(hwcDisplayId);
         mFlinger.getHwComposer().allocatePhysicalDisplay(*hwcDisplayId, *displayId);
-        state.physical = {.id = *displayId, .type = *connectionType, .hwcDisplayId = *hwcDisplayId};
+        DisplayModePtr activeMode = DisplayMode::Builder(Case::Display::HWC_ACTIVE_CONFIG_ID)
+                                            .setWidth(Case::Display::WIDTH)
+                                            .setHeight(Case::Display::HEIGHT)
+                                            .setVsyncPeriod(DEFAULT_VSYNC_PERIOD)
+                                            .setDpiX(DEFAULT_DPI)
+                                            .setDpiY(DEFAULT_DPI)
+                                            .setConfigGroup(0)
+                                            .build();
+        DisplayModes modes{activeMode};
+        state.physical = {.id = *displayId,
+                          .type = *connectionType,
+                          .hwcDisplayId = *hwcDisplayId,
+                          .supportedModes = modes,
+                          .activeMode = activeMode};
     }
 
     state.isSecure = static_cast<bool>(Case::Display::SECURE);

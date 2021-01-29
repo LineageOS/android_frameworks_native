@@ -716,7 +716,7 @@ private:
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
 
-    void initScheduler(PhysicalDisplayId primaryDisplayId) REQUIRES(mStateLock);
+    void initScheduler(const DisplayDeviceState&) REQUIRES(mStateLock);
     void updatePhaseConfiguration(const Fps&) REQUIRES(mStateLock);
     void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
 

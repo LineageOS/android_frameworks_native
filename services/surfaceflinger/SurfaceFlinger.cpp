@@ -155,7 +155,6 @@ using base::StringAppendF;
 using ui::ColorMode;
 using ui::Dataspace;
 using ui::DisplayPrimaries;
-using ui::Hdr;
 using ui::RenderIntent;
 
 namespace hal = android::hardware::graphics::composer::hal;
@@ -1130,7 +1129,7 @@ void SurfaceFlinger::desiredActiveConfigChangeDone() {
 
     clearDesiredActiveConfigState();
 
-    const auto& refreshRate = getDefaultDisplayDeviceLocked()->getMode(modeId)->getFps();
+    const auto refreshRate = getDefaultDisplayDeviceLocked()->getMode(modeId)->getFps();
     mScheduler->resyncToHardwareVsync(true, refreshRate.getPeriodNsecs());
     updatePhaseConfiguration(refreshRate);
 }
@@ -2368,24 +2367,30 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
         const auto it = mPhysicalDisplayTokens.find(displayId);
 
         if (event.connection == hal::Connection::CONNECTED) {
+            auto supportedModes = getHwComposer().getModes(displayId);
+            const auto activeMode = getHwComposer().getActiveMode(displayId);
+            // TODO(b/175678215) Handle the case when activeMode is not in supportedModes
+
             if (it == mPhysicalDisplayTokens.end()) {
                 ALOGV("Creating display %s", to_string(displayId).c_str());
-
-                if (event.hwcDisplayId == getHwComposer().getInternalHwcDisplayId()) {
-                    initScheduler(displayId);
-                }
 
                 DisplayDeviceState state;
                 state.physical = {.id = displayId,
                                   .type = getHwComposer().getDisplayConnectionType(displayId),
                                   .hwcDisplayId = event.hwcDisplayId,
-                                  .deviceProductInfo = std::move(info->deviceProductInfo)};
+                                  .deviceProductInfo = std::move(info->deviceProductInfo),
+                                  .supportedModes = std::move(supportedModes),
+                                  .activeMode = activeMode};
                 state.isSecure = true; // All physical displays are currently considered secure.
                 state.displayName = std::move(info->name);
 
                 sp<IBinder> token = new BBinder();
                 mCurrentState.displays.add(token, state);
                 mPhysicalDisplayTokens.emplace(displayId, std::move(token));
+
+                if (event.hwcDisplayId == getHwComposer().getInternalHwcDisplayId()) {
+                    initScheduler(state);
+                }
 
                 mInterceptor->saveDisplayCreation(state);
             } else {
@@ -2394,6 +2399,8 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 const auto token = it->second;
                 auto& state = mCurrentState.displays.editValueFor(token);
                 state.sequenceId = DisplayDeviceState{}.sequenceId; // Generate new sequenceId
+                state.physical->supportedModes = std::move(supportedModes);
+                state.physical->activeMode = activeMode;
                 if (getHwComposer().updatesDeviceProductInfoOnHotplugReconnect()) {
                     state.physical->deviceProductInfo = std::move(info->deviceProductInfo);
                 }
@@ -2439,11 +2446,11 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
     if (const auto& physical = state.physical) {
         creationArgs.connectionType = physical->type;
+        creationArgs.supportedModes = physical->supportedModes;
     }
 
     if (const auto id = PhysicalDisplayId::tryCast(compositionDisplay->getId())) {
         creationArgs.isPrimary = id == getInternalDisplayIdLocked();
-        creationArgs.supportedModes = getHwComposer().getModes(*id);
 
         if (useColorManagement) {
             std::vector<ColorMode> modes = getHwComposer().getColorModes(*id);
@@ -2498,9 +2505,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                                                     RenderIntent::COLORIMETRIC,
                                                     Dataspace::UNKNOWN});
     if (!state.isVirtual()) {
-        const auto physicalId = display->getPhysicalId();
-        auto activeConfigId = getHwComposer().getActiveMode(physicalId)->getId();
-        display->setActiveMode(activeConfigId);
+        display->setActiveMode(state.physical->activeMode->getId());
         display->setDeviceProductInfo(state.physical->deviceProductInfo);
     }
 
@@ -2518,10 +2523,8 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     int height = 0;
     ui::PixelFormat pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_UNKNOWN);
     if (state.physical) {
-        const auto& activeConfig =
-                getCompositionEngine().getHwComposer().getActiveMode(state.physical->id);
-        width = activeConfig->getWidth();
-        height = activeConfig->getHeight();
+        width = state.physical->activeMode->getWidth();
+        height = state.physical->activeMode->getHeight();
         pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_RGBA_8888);
     } else if (state.surface != nullptr) {
         int status = state.surface->query(NATIVE_WINDOW_WIDTH, &width);
@@ -2645,11 +2648,9 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
 
             // TODO(b/175678251) Call a listener instead.
             if (currentState.physical->hwcDisplayId == getHwComposer().getInternalHwcDisplayId()) {
-                const auto displayId = currentState.physical->id;
-                const auto configs = getHwComposer().getModes(displayId);
-                const auto currentConfig = getHwComposer().getActiveMode(displayId)->getId();
-                // TODO(b/175678215) Handle the case when currentConfig is not in configs
-                mRefreshRateConfigs->updateDisplayConfigs(configs, currentConfig);
+                mRefreshRateConfigs
+                        ->updateDisplayConfigs(currentState.physical->supportedModes,
+                                               currentState.physical->activeMode->getId());
                 mVsyncConfiguration->reset();
                 updatePhaseConfiguration(mRefreshRateConfigs->getCurrentRefreshRate().getFps());
                 if (mRefreshRateOverlay) {
@@ -2932,31 +2933,29 @@ void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
     mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
 }
 
-void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
+void SurfaceFlinger::initScheduler(const DisplayDeviceState& displayState) {
     if (mScheduler) {
         // In practice it's not allowed to hotplug in/out the primary display once it's been
         // connected during startup, but some tests do it, so just warn and return.
         ALOGW("Can't re-init scheduler");
         return;
     }
-
-    auto currentConfig = getHwComposer().getActiveMode(primaryDisplayId)->getId();
-    const auto modes = getHwComposer().getModes(primaryDisplayId);
+    const auto displayId = displayState.physical->id;
     mRefreshRateConfigs = std::make_unique<
-            scheduler::RefreshRateConfigs>(modes, currentConfig,
+            scheduler::RefreshRateConfigs>(displayState.physical->supportedModes,
+                                           displayState.physical->activeMode->getId(),
                                            android::sysprop::enable_frame_rate_override(true));
-    const auto& currRefreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig);
-    mRefreshRateStats =
-            std::make_unique<scheduler::RefreshRateStats>(*mTimeStats, currRefreshRate.getFps(),
-                                                          hal::PowerMode::OFF);
+    const auto currRefreshRate = displayState.physical->activeMode->getFps();
+    mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(*mTimeStats, currRefreshRate,
+                                                                      hal::PowerMode::OFF);
 
-    mVsyncConfiguration = getFactory().createVsyncConfiguration(currRefreshRate.getFps());
+    mVsyncConfiguration = getFactory().createVsyncConfiguration(currRefreshRate);
     mVsyncModulator.emplace(mVsyncConfiguration->getCurrentConfigs());
 
     // start the EventThread
     mScheduler = getFactory().createScheduler(*mRefreshRateConfigs, *this);
     const auto configs = mVsyncConfiguration->getCurrentConfigs();
-    const nsecs_t vsyncPeriod = currRefreshRate.getVsyncPeriod();
+    const nsecs_t vsyncPeriod = currRefreshRate.getPeriodNsecs();
     mAppConnectionHandle =
             mScheduler->createConnection("app", mFrameTimeline->getTokenManager(),
                                          /*workDuration=*/configs.late.appWorkDuration,
@@ -2983,7 +2982,8 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
     // This is a bit hacky, but this avoids a back-pointer into the main SF
     // classes from EventThread, and there should be no run-time binder cost
     // anyway since there are no connected apps at this point.
-    mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, primaryDisplayId, currentConfig,
+    mScheduler->onPrimaryDisplayConfigChanged(mAppConnectionHandle, displayId,
+                                              displayState.physical->activeMode->getId(),
                                               vsyncPeriod);
     static auto ignorePresentFences =
             base::GetBoolProperty("debug.sf.vsync_reactor_ignore_present_fences"s, false);
