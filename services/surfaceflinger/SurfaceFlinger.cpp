@@ -2920,7 +2920,9 @@ void SurfaceFlinger::initScheduler(PhysicalDisplayId primaryDisplayId) {
 
     auto currentConfig = getHwComposer().getActiveMode(primaryDisplayId)->getId();
     const auto modes = getHwComposer().getModes(primaryDisplayId);
-    mRefreshRateConfigs = std::make_unique<scheduler::RefreshRateConfigs>(modes, currentConfig);
+    mRefreshRateConfigs = std::make_unique<
+            scheduler::RefreshRateConfigs>(modes, currentConfig,
+                                           android::sysprop::enable_frame_rate_override(true));
     const auto& currRefreshRate = mRefreshRateConfigs->getRefreshRateFromConfigId(currentConfig);
     mRefreshRateStats =
             std::make_unique<scheduler::RefreshRateStats>(*mTimeStats, currRefreshRate.getFps(),
@@ -3873,7 +3875,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eFrameRateChanged) {
         if (ValidateFrameRate(s.frameRate, s.frameRateCompatibility,
-                              "SurfaceFlinger::setClientStateLocked") &&
+                              "SurfaceFlinger::setClientStateLocked", privileged) &&
             layer->setFrameRate(Layer::FrameRate(Fps(s.frameRate),
                                                  Layer::FrameRate::convertCompatibility(
                                                          s.frameRateCompatibility),

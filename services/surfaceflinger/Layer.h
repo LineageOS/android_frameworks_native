@@ -145,6 +145,8 @@ public:
     enum class FrameRateCompatibility {
         Default, // Layer didn't specify any specific handling strategy
 
+        Exact, // Layer needs the exact frame rate.
+
         ExactOrMultiple, // Layer needs the exact frame rate (or a multiple of it) to present the
                          // content properly. Any other value will result in a pull down.
 

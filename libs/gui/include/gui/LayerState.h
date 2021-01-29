@@ -309,11 +309,14 @@ static inline int compare_type(const DisplayState& lhs, const DisplayState& rhs)
     return compare_type(lhs.token, rhs.token);
 }
 
-// Returns true if the frameRate and compatibility are valid values, false
-// othwerise. If either of the params are invalid, an error log is printed, and
-// functionName is added to the log to indicate which function call failed.
-// functionName can be null.
-bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* functionName);
+// Returns true if the frameRate is valid.
+//
+// @param frameRate the frame rate in Hz
+// @param compatibility a ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_*
+// @param functionName calling function or nullptr. Used for logging
+// @param privileged whether caller has unscoped surfaceflinger access
+bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* functionName,
+                       bool privileged = false);
 
 struct CaptureArgs {
     const static int32_t UNSET_UID = -1;
