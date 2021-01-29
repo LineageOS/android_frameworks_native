@@ -20,5 +20,5 @@ import android.gui.ScreenCaptureResults;
 
 /** @hide */
 oneway interface IScreenCaptureListener {
-    void onScreenCaptureComplete(in ScreenCaptureResults captureResults);
+    void onScreenCaptureCompleted(in ScreenCaptureResults captureResults);
 }
