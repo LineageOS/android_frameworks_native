@@ -596,7 +596,8 @@ public:
                                   std::optional<DisplayConnectionType> connectionType,
                                   std::optional<hal::HWDisplayId> hwcDisplayId, bool isPrimary)
               : mFlinger(flinger),
-                mCreationArgs(flinger.mFlinger.get(), mDisplayToken, compositionDisplay),
+                mCreationArgs(flinger.mFlinger.get(), flinger.mFlinger->getHwComposer(),
+                              mDisplayToken, compositionDisplay),
                 mHwcDisplayId(hwcDisplayId) {
             mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;

@@ -54,6 +54,7 @@
 #include "DisplayHardware/PowerAdvisor.h"
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
+#include "Fps.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
 #include "Scheduler/RefreshRateConfigs.h"
@@ -669,7 +670,7 @@ private:
     void signalLayerUpdate();
     void signalRefresh();
 
-    // called on the main thread in response to initializeDisplays()
+    // Called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
     // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
     void setDesiredActiveConfig(const ActiveConfigInfo& info) REQUIRES(mStateLock);
@@ -680,9 +681,10 @@ private:
     // Calls to setActiveConfig on the main thread if there is a pending config
     // that needs to be applied.
     void performSetActiveConfig() REQUIRES(mStateLock);
+    void clearDesiredActiveConfigState() REQUIRES(mStateLock) EXCLUDES(mActiveConfigLock);
     // Called when active config is no longer is progress
     void desiredActiveConfigChangeDone() REQUIRES(mStateLock);
-    // called on the main thread in response to setPowerMode()
+    // Called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
             REQUIRES(mStateLock);
 
@@ -714,8 +716,8 @@ private:
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
 
-    void initScheduler(PhysicalDisplayId primaryDisplayId);
-    void updatePhaseConfiguration(const RefreshRate&);
+    void initScheduler(PhysicalDisplayId primaryDisplayId) REQUIRES(mStateLock);
+    void updatePhaseConfiguration(const Fps&) REQUIRES(mStateLock);
     void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
