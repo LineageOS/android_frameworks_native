@@ -817,8 +817,8 @@ private:
     status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, sp<GraphicBuffer>&,
                                  bool regionSampling, const sp<IScreenCaptureListener>&);
     status_t renderScreenImplLocked(const RenderArea&, TraverseLayersFunction,
-                                    const sp<GraphicBuffer>&, bool forSystem, int* outSyncFd,
-                                    bool regionSampling, ScreenCaptureResults&);
+                                    const sp<GraphicBuffer>&, bool forSystem, bool regionSampling,
+                                    ScreenCaptureResults&);
 
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack) REQUIRES(mStateLock);

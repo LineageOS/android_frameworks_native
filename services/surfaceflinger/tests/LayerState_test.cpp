@@ -83,6 +83,7 @@ TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
 TEST(LayerStateTest, ParcellingScreenCaptureResults) {
     ScreenCaptureResults results;
     results.buffer = new GraphicBuffer(100, 200, PIXEL_FORMAT_RGBA_8888, 1, 0);
+    results.fence = new Fence(dup(fileno(tmpfile())));
     results.capturedSecureLayers = true;
     results.capturedDataspace = ui::Dataspace::DISPLAY_P3;
     results.result = BAD_VALUE;
@@ -99,6 +100,7 @@ TEST(LayerStateTest, ParcellingScreenCaptureResults) {
     ASSERT_EQ(results.buffer->getWidth(), results2.buffer->getWidth());
     ASSERT_EQ(results.buffer->getHeight(), results2.buffer->getHeight());
     ASSERT_EQ(results.buffer->getPixelFormat(), results2.buffer->getPixelFormat());
+    ASSERT_EQ(results.fence->isValid(), results2.fence->isValid());
     ASSERT_EQ(results.capturedSecureLayers, results2.capturedSecureLayers);
     ASSERT_EQ(results.capturedDataspace, results2.capturedDataspace);
     ASSERT_EQ(results.result, results2.result);
