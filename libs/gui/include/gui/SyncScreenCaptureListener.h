@@ -26,14 +26,16 @@ using gui::ScreenCaptureResults;
 
 struct SyncScreenCaptureListener : gui::BnScreenCaptureListener {
 public:
-    binder::Status onScreenCaptureComplete(const ScreenCaptureResults& captureResults) override {
+    binder::Status onScreenCaptureCompleted(const ScreenCaptureResults& captureResults) override {
         resultsPromise.set_value(captureResults);
         return binder::Status::ok();
     }
 
     ScreenCaptureResults waitForResults() {
         std::future<ScreenCaptureResults> resultsFuture = resultsPromise.get_future();
-        return resultsFuture.get();
+        const auto screenCaptureResults = resultsFuture.get();
+        screenCaptureResults.fence->waitForever("");
+        return screenCaptureResults;
     }
 
 private:
