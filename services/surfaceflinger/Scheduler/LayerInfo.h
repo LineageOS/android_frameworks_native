@@ -80,7 +80,7 @@ public:
     // the layer was last updated. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
     void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUpdateType updateType,
-                            bool pendingConfigChange);
+                            bool pendingModeChange);
 
     // Sets an explicit layer vote. This usually comes directly from the application via
     // ANativeWindow_setFrameRate API
@@ -124,7 +124,7 @@ private:
     struct FrameTimeData {
         nsecs_t presentTime; // desiredPresentTime, if provided
         nsecs_t queueTime;  // buffer queue time
-        bool pendingConfigChange;
+        bool pendingModeChange;
     };
 
     // Holds information about the calculated and reported refresh rate

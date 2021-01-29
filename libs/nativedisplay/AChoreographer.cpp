@@ -138,8 +138,8 @@ private:
     void dispatchVsync(nsecs_t timestamp, PhysicalDisplayId displayId, uint32_t count,
                        VsyncEventData vsyncEventData) override;
     void dispatchHotplug(nsecs_t timestamp, PhysicalDisplayId displayId, bool connected) override;
-    void dispatchConfigChanged(nsecs_t timestamp, PhysicalDisplayId displayId, int32_t configId,
-                               nsecs_t vsyncPeriod) override;
+    void dispatchModeChanged(nsecs_t timestamp, PhysicalDisplayId displayId, int32_t modeId,
+                             nsecs_t vsyncPeriod) override;
     void dispatchNullEvent(nsecs_t, PhysicalDisplayId) override;
     void dispatchFrameRateOverrides(nsecs_t timestamp, PhysicalDisplayId displayId,
                                     std::vector<FrameRateOverride> overrides) override;
@@ -382,8 +382,8 @@ void Choreographer::dispatchHotplug(nsecs_t, PhysicalDisplayId displayId, bool c
             this, to_string(displayId).c_str(), toString(connected));
 }
 
-void Choreographer::dispatchConfigChanged(nsecs_t, PhysicalDisplayId, int32_t, nsecs_t) {
-    LOG_ALWAYS_FATAL("dispatchConfigChanged was called but was never registered");
+void Choreographer::dispatchModeChanged(nsecs_t, PhysicalDisplayId, int32_t, nsecs_t) {
+    LOG_ALWAYS_FATAL("dispatchModeChanged was called but was never registered");
 }
 
 void Choreographer::dispatchFrameRateOverrides(nsecs_t, PhysicalDisplayId,

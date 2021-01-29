@@ -184,9 +184,9 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                 case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
                     dispatchHotplug(ev.header.timestamp, ev.header.displayId, ev.hotplug.connected);
                     break;
-                case DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED:
-                    dispatchConfigChanged(ev.header.timestamp, ev.header.displayId,
-                                          ev.config.configId, ev.config.vsyncPeriod);
+                case DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE:
+                    dispatchModeChanged(ev.header.timestamp, ev.header.displayId,
+                                        ev.modeChange.modeId, ev.modeChange.vsyncPeriod);
                     break;
                 case DisplayEventReceiver::DISPLAY_EVENT_NULL:
                     dispatchNullEvent(ev.header.timestamp, ev.header.displayId);

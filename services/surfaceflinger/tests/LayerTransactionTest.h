@@ -25,7 +25,7 @@
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
 
 #include "BufferGenerator.h"
 #include "utils/ScreenshotUtils.h"
@@ -265,16 +265,16 @@ private:
         mDisplay = mClient->getInternalDisplayToken();
         ASSERT_FALSE(mDisplay == nullptr) << "failed to get display";
 
-        DisplayConfig config;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(mDisplay, &config));
-        mDisplayRect = Rect(config.resolution);
+        ui::DisplayMode mode;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(mDisplay, &mode));
+        mDisplayRect = Rect(mode.resolution);
         mDisplayWidth = mDisplayRect.getWidth();
         mDisplayHeight = mDisplayRect.getHeight();
 
         // After a new buffer is queued, SurfaceFlinger is notified and will
         // latch the new buffer on next vsync.  Let's heuristically wait for 3
         // vsyncs.
-        mBufferPostDelay = static_cast<int32_t>(1e6 / config.refreshRate) * 3;
+        mBufferPostDelay = static_cast<int32_t>(1e6 / mode.refreshRate) * 3;
 
         mDisplayLayerStack = 0;
 

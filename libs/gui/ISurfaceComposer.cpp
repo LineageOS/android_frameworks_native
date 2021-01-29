@@ -36,8 +36,8 @@
 
 #include <system/graphics.h>
 
-#include <ui/DisplayConfig.h>
 #include <ui/DisplayInfo.h>
+#include <ui/DisplayMode.h>
 #include <ui/DisplayStatInfo.h>
 #include <ui/DisplayState.h>
 #include <ui/HdrCapabilities.h>
@@ -333,20 +333,19 @@ public:
         return reply.read(*info);
     }
 
-    status_t getDisplayConfigs(const sp<IBinder>& display,
-                               Vector<DisplayConfig>* configs) override {
+    status_t getDisplayModes(const sp<IBinder>& display, Vector<ui::DisplayMode>* modes) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
-        remote()->transact(BnSurfaceComposer::GET_DISPLAY_CONFIGS, data, &reply);
+        remote()->transact(BnSurfaceComposer::GET_DISPLAY_MODES, data, &reply);
         const status_t result = reply.readInt32();
         if (result == NO_ERROR) {
-            const size_t numConfigs = reply.readUint32();
-            configs->clear();
-            configs->resize(numConfigs);
-            for (size_t c = 0; c < numConfigs; ++c) {
-                memcpy(&(configs->editItemAt(c)), reply.readInplace(sizeof(DisplayConfig)),
-                       sizeof(DisplayConfig));
+            const size_t numModes = reply.readUint32();
+            modes->clear();
+            modes->resize(numModes);
+            for (size_t i = 0; i < numModes; i++) {
+                memcpy(&(modes->editItemAt(i)), reply.readInplace(sizeof(ui::DisplayMode)),
+                       sizeof(ui::DisplayMode));
             }
         }
         return result;
@@ -366,11 +365,11 @@ public:
         return result;
     }
 
-    int getActiveConfig(const sp<IBinder>& display) override {
+    int getActiveDisplayModeId(const sp<IBinder>& display) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
-        remote()->transact(BnSurfaceComposer::GET_ACTIVE_CONFIG, data, &reply);
+        remote()->transact(BnSurfaceComposer::GET_ACTIVE_DISPLAY_MODE, data, &reply);
         return reply.readInt32();
     }
 
@@ -882,71 +881,70 @@ public:
         return error;
     }
 
-    status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken, int32_t defaultConfig,
-                                          bool allowGroupSwitching, float primaryRefreshRateMin,
-                                          float primaryRefreshRateMax,
-                                          float appRequestRefreshRateMin,
-                                          float appRequestRefreshRateMax) override {
+    status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, size_t defaultMode,
+                                        bool allowGroupSwitching, float primaryRefreshRateMin,
+                                        float primaryRefreshRateMax, float appRequestRefreshRateMin,
+                                        float appRequestRefreshRateMax) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs: failed to writeInterfaceToken: %d", result);
+            ALOGE("setDesiredDisplayModeSpecs: failed to writeInterfaceToken: %d", result);
             return result;
         }
         result = data.writeStrongBinder(displayToken);
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs: failed to write display token: %d", result);
+            ALOGE("setDesiredDisplayModeSpecs: failed to write display token: %d", result);
             return result;
         }
-        result = data.writeInt32(defaultConfig);
+        result = data.writeInt32(defaultMode);
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs failed to write defaultConfig: %d", result);
+            ALOGE("setDesiredDisplayModeSpecs failed to write defaultMode: %d", result);
             return result;
         }
         result = data.writeBool(allowGroupSwitching);
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs failed to write allowGroupSwitching: %d", result);
+            ALOGE("setDesiredDisplayModeSpecs failed to write allowGroupSwitching: %d", result);
             return result;
         }
         result = data.writeFloat(primaryRefreshRateMin);
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs failed to write primaryRefreshRateMin: %d", result);
+            ALOGE("setDesiredDisplayModeSpecs failed to write primaryRefreshRateMin: %d", result);
             return result;
         }
         result = data.writeFloat(primaryRefreshRateMax);
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs failed to write primaryRefreshRateMax: %d", result);
+            ALOGE("setDesiredDisplayModeSpecs failed to write primaryRefreshRateMax: %d", result);
             return result;
         }
         result = data.writeFloat(appRequestRefreshRateMin);
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs failed to write appRequestRefreshRateMin: %d",
+            ALOGE("setDesiredDisplayModeSpecs failed to write appRequestRefreshRateMin: %d",
                   result);
             return result;
         }
         result = data.writeFloat(appRequestRefreshRateMax);
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs failed to write appRequestRefreshRateMax: %d",
+            ALOGE("setDesiredDisplayModeSpecs failed to write appRequestRefreshRateMax: %d",
                   result);
             return result;
         }
 
-        result = remote()->transact(BnSurfaceComposer::SET_DESIRED_DISPLAY_CONFIG_SPECS, data,
-                                    &reply);
+        result =
+                remote()->transact(BnSurfaceComposer::SET_DESIRED_DISPLAY_MODE_SPECS, data, &reply);
         if (result != NO_ERROR) {
-            ALOGE("setDesiredDisplayConfigSpecs failed to transact: %d", result);
+            ALOGE("setDesiredDisplayModeSpecs failed to transact: %d", result);
             return result;
         }
         return reply.readInt32();
     }
 
-    status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                          int32_t* outDefaultConfig, bool* outAllowGroupSwitching,
-                                          float* outPrimaryRefreshRateMin,
-                                          float* outPrimaryRefreshRateMax,
-                                          float* outAppRequestRefreshRateMin,
-                                          float* outAppRequestRefreshRateMax) override {
-        if (!outDefaultConfig || !outAllowGroupSwitching || !outPrimaryRefreshRateMin ||
+    status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, size_t* outDefaultMode,
+                                        bool* outAllowGroupSwitching,
+                                        float* outPrimaryRefreshRateMin,
+                                        float* outPrimaryRefreshRateMax,
+                                        float* outAppRequestRefreshRateMin,
+                                        float* outAppRequestRefreshRateMax) override {
+        if (!outDefaultMode || !outAllowGroupSwitching || !outPrimaryRefreshRateMin ||
             !outPrimaryRefreshRateMax || !outAppRequestRefreshRateMin ||
             !outAppRequestRefreshRateMax) {
             return BAD_VALUE;
@@ -954,50 +952,55 @@ public:
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to writeInterfaceToken: %d", result);
+            ALOGE("getDesiredDisplayModeSpecs failed to writeInterfaceToken: %d", result);
             return result;
         }
         result = data.writeStrongBinder(displayToken);
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to writeStrongBinder: %d", result);
+            ALOGE("getDesiredDisplayModeSpecs failed to writeStrongBinder: %d", result);
             return result;
         }
-        result = remote()->transact(BnSurfaceComposer::GET_DESIRED_DISPLAY_CONFIG_SPECS, data,
-                                    &reply);
+        result =
+                remote()->transact(BnSurfaceComposer::GET_DESIRED_DISPLAY_MODE_SPECS, data, &reply);
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to transact: %d", result);
+            ALOGE("getDesiredDisplayModeSpecs failed to transact: %d", result);
             return result;
         }
-        result = reply.readInt32(outDefaultConfig);
+        int32_t defaultMode;
+        result = reply.readInt32(&defaultMode);
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to read defaultConfig: %d", result);
+            ALOGE("getDesiredDisplayModeSpecs failed to read defaultMode: %d", result);
             return result;
         }
+        if (defaultMode < 0) {
+            ALOGE("%s: defaultMode must be non-negative but it was %d", __func__, defaultMode);
+            return BAD_VALUE;
+        }
+        *outDefaultMode = static_cast<size_t>(defaultMode);
+
         result = reply.readBool(outAllowGroupSwitching);
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to read allowGroupSwitching: %d", result);
+            ALOGE("getDesiredDisplayModeSpecs failed to read allowGroupSwitching: %d", result);
             return result;
         }
         result = reply.readFloat(outPrimaryRefreshRateMin);
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to read primaryRefreshRateMin: %d", result);
+            ALOGE("getDesiredDisplayModeSpecs failed to read primaryRefreshRateMin: %d", result);
             return result;
         }
         result = reply.readFloat(outPrimaryRefreshRateMax);
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to read primaryRefreshRateMax: %d", result);
+            ALOGE("getDesiredDisplayModeSpecs failed to read primaryRefreshRateMax: %d", result);
             return result;
         }
         result = reply.readFloat(outAppRequestRefreshRateMin);
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to read appRequestRefreshRateMin: %d",
-                  result);
+            ALOGE("getDesiredDisplayModeSpecs failed to read appRequestRefreshRateMin: %d", result);
             return result;
         }
         result = reply.readFloat(outAppRequestRefreshRateMax);
         if (result != NO_ERROR) {
-            ALOGE("getDesiredDisplayConfigSpecs failed to read appRequestRefreshRateMax: %d",
-                  result);
+            ALOGE("getDesiredDisplayModeSpecs failed to read appRequestRefreshRateMax: %d", result);
             return result;
         }
         return reply.readInt32();
@@ -1430,17 +1433,17 @@ status_t BnSurfaceComposer::onTransact(
             if (result != NO_ERROR) return result;
             return reply->write(info);
         }
-        case GET_DISPLAY_CONFIGS: {
+        case GET_DISPLAY_MODES: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            Vector<DisplayConfig> configs;
+            Vector<ui::DisplayMode> modes;
             const sp<IBinder> display = data.readStrongBinder();
-            const status_t result = getDisplayConfigs(display, &configs);
+            const status_t result = getDisplayModes(display, &modes);
             reply->writeInt32(result);
             if (result == NO_ERROR) {
-                reply->writeUint32(static_cast<uint32_t>(configs.size()));
-                for (size_t c = 0; c < configs.size(); ++c) {
-                    memcpy(reply->writeInplace(sizeof(DisplayConfig)), &configs[c],
-                           sizeof(DisplayConfig));
+                reply->writeUint32(static_cast<uint32_t>(modes.size()));
+                for (size_t i = 0; i < modes.size(); i++) {
+                    memcpy(reply->writeInplace(sizeof(ui::DisplayMode)), &modes[i],
+                           sizeof(ui::DisplayMode));
                 }
             }
             return NO_ERROR;
@@ -1457,10 +1460,10 @@ status_t BnSurfaceComposer::onTransact(
             }
             return NO_ERROR;
         }
-        case GET_ACTIVE_CONFIG: {
+        case GET_ACTIVE_DISPLAY_MODE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> display = data.readStrongBinder();
-            int id = getActiveConfig(display);
+            int id = getActiveDisplayModeId(display);
             reply->writeInt32(id);
             return NO_ERROR;
         }
@@ -1844,56 +1847,59 @@ status_t BnSurfaceComposer::onTransact(
             }
             return removeRegionSamplingListener(listener);
         }
-        case SET_DESIRED_DISPLAY_CONFIG_SPECS: {
+        case SET_DESIRED_DISPLAY_MODE_SPECS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> displayToken = data.readStrongBinder();
-            int32_t defaultConfig;
-            status_t result = data.readInt32(&defaultConfig);
+            int32_t defaultMode;
+            status_t result = data.readInt32(&defaultMode);
             if (result != NO_ERROR) {
-                ALOGE("setDesiredDisplayConfigSpecs: failed to read defaultConfig: %d", result);
+                ALOGE("setDesiredDisplayModeSpecs: failed to read defaultMode: %d", result);
                 return result;
+            }
+            if (defaultMode < 0) {
+                ALOGE("%s: defaultMode must be non-negative but it was %d", __func__, defaultMode);
+                return BAD_VALUE;
             }
             bool allowGroupSwitching;
             result = data.readBool(&allowGroupSwitching);
             if (result != NO_ERROR) {
-                ALOGE("setDesiredDisplayConfigSpecs: failed to read allowGroupSwitching: %d",
-                      result);
+                ALOGE("setDesiredDisplayModeSpecs: failed to read allowGroupSwitching: %d", result);
                 return result;
             }
             float primaryRefreshRateMin;
             result = data.readFloat(&primaryRefreshRateMin);
             if (result != NO_ERROR) {
-                ALOGE("setDesiredDisplayConfigSpecs: failed to read primaryRefreshRateMin: %d",
+                ALOGE("setDesiredDisplayModeSpecs: failed to read primaryRefreshRateMin: %d",
                       result);
                 return result;
             }
             float primaryRefreshRateMax;
             result = data.readFloat(&primaryRefreshRateMax);
             if (result != NO_ERROR) {
-                ALOGE("setDesiredDisplayConfigSpecs: failed to read primaryRefreshRateMax: %d",
+                ALOGE("setDesiredDisplayModeSpecs: failed to read primaryRefreshRateMax: %d",
                       result);
                 return result;
             }
             float appRequestRefreshRateMin;
             result = data.readFloat(&appRequestRefreshRateMin);
             if (result != NO_ERROR) {
-                ALOGE("setDesiredDisplayConfigSpecs: failed to read appRequestRefreshRateMin: %d",
+                ALOGE("setDesiredDisplayModeSpecs: failed to read appRequestRefreshRateMin: %d",
                       result);
                 return result;
             }
             float appRequestRefreshRateMax;
             result = data.readFloat(&appRequestRefreshRateMax);
             if (result != NO_ERROR) {
-                ALOGE("setDesiredDisplayConfigSpecs: failed to read appRequestRefreshRateMax: %d",
+                ALOGE("setDesiredDisplayModeSpecs: failed to read appRequestRefreshRateMax: %d",
                       result);
                 return result;
             }
-            result = setDesiredDisplayConfigSpecs(displayToken, defaultConfig, allowGroupSwitching,
-                                                  primaryRefreshRateMin, primaryRefreshRateMax,
-                                                  appRequestRefreshRateMin,
-                                                  appRequestRefreshRateMax);
+            result = setDesiredDisplayModeSpecs(displayToken, static_cast<size_t>(defaultMode),
+                                                allowGroupSwitching, primaryRefreshRateMin,
+                                                primaryRefreshRateMax, appRequestRefreshRateMin,
+                                                appRequestRefreshRateMax);
             if (result != NO_ERROR) {
-                ALOGE("setDesiredDisplayConfigSpecs: failed to call setDesiredDisplayConfigSpecs: "
+                ALOGE("setDesiredDisplayModeSpecs: failed to call setDesiredDisplayModeSpecs: "
                       "%d",
                       result);
                 return result;
@@ -1901,10 +1907,10 @@ status_t BnSurfaceComposer::onTransact(
             reply->writeInt32(result);
             return result;
         }
-        case GET_DESIRED_DISPLAY_CONFIG_SPECS: {
+        case GET_DESIRED_DISPLAY_MODE_SPECS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> displayToken = data.readStrongBinder();
-            int32_t defaultConfig;
+            size_t defaultMode;
             bool allowGroupSwitching;
             float primaryRefreshRateMin;
             float primaryRefreshRateMax;
@@ -1912,49 +1918,49 @@ status_t BnSurfaceComposer::onTransact(
             float appRequestRefreshRateMax;
 
             status_t result =
-                    getDesiredDisplayConfigSpecs(displayToken, &defaultConfig, &allowGroupSwitching,
-                                                 &primaryRefreshRateMin, &primaryRefreshRateMax,
-                                                 &appRequestRefreshRateMin,
-                                                 &appRequestRefreshRateMax);
+                    getDesiredDisplayModeSpecs(displayToken, &defaultMode, &allowGroupSwitching,
+                                               &primaryRefreshRateMin, &primaryRefreshRateMax,
+                                               &appRequestRefreshRateMin,
+                                               &appRequestRefreshRateMax);
             if (result != NO_ERROR) {
-                ALOGE("getDesiredDisplayConfigSpecs: failed to get getDesiredDisplayConfigSpecs: "
+                ALOGE("getDesiredDisplayModeSpecs: failed to get getDesiredDisplayModeSpecs: "
                       "%d",
                       result);
                 return result;
             }
 
-            result = reply->writeInt32(defaultConfig);
+            result = reply->writeInt32(static_cast<int32_t>(defaultMode));
             if (result != NO_ERROR) {
-                ALOGE("getDesiredDisplayConfigSpecs: failed to write defaultConfig: %d", result);
+                ALOGE("getDesiredDisplayModeSpecs: failed to write defaultMode: %d", result);
                 return result;
             }
             result = reply->writeBool(allowGroupSwitching);
             if (result != NO_ERROR) {
-                ALOGE("getDesiredDisplayConfigSpecs: failed to write allowGroupSwitching: %d",
+                ALOGE("getDesiredDisplayModeSpecs: failed to write allowGroupSwitching: %d",
                       result);
                 return result;
             }
             result = reply->writeFloat(primaryRefreshRateMin);
             if (result != NO_ERROR) {
-                ALOGE("getDesiredDisplayConfigSpecs: failed to write primaryRefreshRateMin: %d",
+                ALOGE("getDesiredDisplayModeSpecs: failed to write primaryRefreshRateMin: %d",
                       result);
                 return result;
             }
             result = reply->writeFloat(primaryRefreshRateMax);
             if (result != NO_ERROR) {
-                ALOGE("getDesiredDisplayConfigSpecs: failed to write primaryRefreshRateMax: %d",
+                ALOGE("getDesiredDisplayModeSpecs: failed to write primaryRefreshRateMax: %d",
                       result);
                 return result;
             }
             result = reply->writeFloat(appRequestRefreshRateMin);
             if (result != NO_ERROR) {
-                ALOGE("getDesiredDisplayConfigSpecs: failed to write appRequestRefreshRateMin: %d",
+                ALOGE("getDesiredDisplayModeSpecs: failed to write appRequestRefreshRateMin: %d",
                       result);
                 return result;
             }
             result = reply->writeFloat(appRequestRefreshRateMax);
             if (result != NO_ERROR) {
-                ALOGE("getDesiredDisplayConfigSpecs: failed to write appRequestRefreshRateMax: %d",
+                ALOGE("getDesiredDisplayModeSpecs: failed to write appRequestRefreshRateMax: %d",
                       result);
                 return result;
             }

@@ -246,7 +246,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
                                             .setVsyncPeriod(DEFAULT_VSYNC_PERIOD)
                                             .setDpiX(DEFAULT_DPI)
                                             .setDpiY(DEFAULT_DPI)
-                                            .setConfigGroup(0)
+                                            .setGroup(0)
                                             .build();
         DisplayModes modes{activeMode};
         state.physical = {.id = *displayId,

@@ -19,7 +19,7 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <gui/SurfaceComposerClient.h>
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
 
 namespace android {
 
@@ -227,15 +227,15 @@ bool GLHelper::computeWindowScale(uint32_t w, uint32_t h, float* scale) {
         return false;
     }
 
-    DisplayConfig config;
-    status_t err = mSurfaceComposerClient->getActiveDisplayConfig(dpy, &config);
+    ui::DisplayMode mode;
+    status_t err = mSurfaceComposerClient->getActiveDisplayMode(dpy, &mode);
     if (err != NO_ERROR) {
-        fprintf(stderr, "SurfaceComposer::getActiveDisplayConfig failed: %#x\n", err);
+        fprintf(stderr, "SurfaceComposer::getActiveDisplayMode failed: %#x\n", err);
         return false;
     }
 
-    float scaleX = static_cast<float>(config.resolution.getWidth()) / w;
-    float scaleY = static_cast<float>(config.resolution.getHeight()) / h;
+    float scaleX = static_cast<float>(mode.resolution.getWidth()) / w;
+    float scaleY = static_cast<float>(mode.resolution.getHeight()) / h;
     *scale = scaleX < scaleY ? scaleX : scaleY;
 
     return true;

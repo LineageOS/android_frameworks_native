@@ -52,7 +52,7 @@ protected:
     SchedulerTest();
 
     const scheduler::RefreshRateConfigs
-            mConfigs{{DisplayMode::Builder(0).setVsyncPeriod(16'666'667).setConfigGroup(0).build()},
+            mConfigs{{DisplayMode::Builder(0).setVsyncPeriod(16'666'667).setGroup(0).build()},
                      DisplayModeId(0)};
 
     mock::SchedulerCallback mSchedulerCallback;
@@ -166,25 +166,25 @@ TEST_F(SchedulerTest, noLayerHistory) {
     mScheduler.chooseRefreshRateForContent();
 }
 
-TEST_F(SchedulerTest, testDispatchCachedReportedConfig) {
+TEST_F(SchedulerTest, testDispatchCachedReportedMode) {
     // If the optional fields are cleared, the function should return before
-    // onConfigChange is called.
+    // onModeChange is called.
     mScheduler.clearOptionalFieldsInFeatures();
-    EXPECT_NO_FATAL_FAILURE(mScheduler.dispatchCachedReportedConfig());
-    EXPECT_CALL(*mEventThread, onConfigChanged(_, _, _)).Times(0);
+    EXPECT_NO_FATAL_FAILURE(mScheduler.dispatchCachedReportedMode());
+    EXPECT_CALL(*mEventThread, onModeChanged(_, _, _)).Times(0);
 }
 
-TEST_F(SchedulerTest, onNonPrimaryDisplayConfigChanged_invalidParameters) {
-    DisplayModeId configId = DisplayModeId(111);
+TEST_F(SchedulerTest, onNonPrimaryDisplayModeChanged_invalidParameters) {
+    DisplayModeId modeId = DisplayModeId(111);
     nsecs_t vsyncPeriod = 111111;
 
     // If the handle is incorrect, the function should return before
-    // onConfigChange is called.
+    // onModeChange is called.
     Scheduler::ConnectionHandle invalidHandle = {.id = 123};
-    EXPECT_NO_FATAL_FAILURE(mScheduler.onNonPrimaryDisplayConfigChanged(invalidHandle,
-                                                                        PHYSICAL_DISPLAY_ID,
-                                                                        configId, vsyncPeriod));
-    EXPECT_CALL(*mEventThread, onConfigChanged(_, _, _)).Times(0);
+    EXPECT_NO_FATAL_FAILURE(mScheduler.onNonPrimaryDisplayModeChanged(invalidHandle,
+                                                                      PHYSICAL_DISPLAY_ID, modeId,
+                                                                      vsyncPeriod));
+    EXPECT_CALL(*mEventThread, onModeChanged(_, _, _)).Times(0);
 }
 
 } // namespace android
