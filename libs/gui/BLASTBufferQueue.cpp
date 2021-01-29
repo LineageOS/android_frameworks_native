@@ -353,9 +353,9 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     }
     t->setFrameNumber(mSurfaceControl, bufferItem.mFrameNumber);
 
-    if (!mNextFrameTimelineVsyncIdQueue.empty()) {
-        t->setFrameTimelineVsync(mSurfaceControl, mNextFrameTimelineVsyncIdQueue.front());
-        mNextFrameTimelineVsyncIdQueue.pop();
+    if (!mNextFrameTimelineInfoQueue.empty()) {
+        t->setFrameTimelineInfo(mSurfaceControl, mNextFrameTimelineInfoQueue.front());
+        mNextFrameTimelineInfoQueue.pop();
     }
 
     if (mAutoRefresh != bufferItem.mAutoRefresh) {
@@ -514,8 +514,8 @@ public:
         return mBbq->setFrameRate(frameRate, compatibility, shouldBeSeamless);
     }
 
-    status_t setFrameTimelineVsync(int64_t frameTimelineVsyncId) override {
-        return mBbq->setFrameTimelineVsync(frameTimelineVsyncId);
+    status_t setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo) override {
+        return mBbq->setFrameTimelineInfo(frameTimelineInfo);
     }
 };
 
@@ -529,9 +529,9 @@ status_t BLASTBufferQueue::setFrameRate(float frameRate, int8_t compatibility,
     return t.setFrameRate(mSurfaceControl, frameRate, compatibility, shouldBeSeamless).apply();
 }
 
-status_t BLASTBufferQueue::setFrameTimelineVsync(int64_t frameTimelineVsyncId) {
+status_t BLASTBufferQueue::setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo) {
     std::unique_lock _lock{mMutex};
-    mNextFrameTimelineVsyncIdQueue.push(frameTimelineVsyncId);
+    mNextFrameTimelineInfoQueue.push(frameTimelineInfo);
     return OK;
 }
 

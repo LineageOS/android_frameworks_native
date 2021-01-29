@@ -3264,7 +3264,7 @@ bool SurfaceFlinger::flushTransactionQueues() {
                     break;
                 }
                 transactions.push_back(transaction);
-                applyTransactionState(transaction.frameTimelineVsyncId, transaction.states,
+                applyTransactionState(transaction.frameTimelineInfo, transaction.states,
                                       transaction.displays, transaction.flags,
                                       mPendingInputWindowCommands, transaction.desiredPresentTime,
                                       transaction.isAutoTimestamp, transaction.buffer,
@@ -3334,7 +3334,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
 }
 
 status_t SurfaceFlinger::setTransactionState(
-        int64_t frameTimelineVsyncId, const Vector<ComposerState>& states,
+        const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
         const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
         const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
         bool isAutoTimestamp, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
@@ -3387,7 +3387,7 @@ status_t SurfaceFlinger::setTransactionState(
     // if the transaction contains a buffer.
     if (!transactionIsReadyToBeApplied(isAutoTimestamp ? 0 : desiredPresentTime, states, true) ||
         pendingTransactions) {
-        mTransactionQueues[applyToken].emplace(frameTimelineVsyncId, states, displays, flags,
+        mTransactionQueues[applyToken].emplace(frameTimelineInfo, states, displays, flags,
                                                desiredPresentTime, isAutoTimestamp, uncacheBuffer,
                                                postTime, privileged, hasListenerCallbacks,
                                                listenerCallbacks, originPid, originUid,
@@ -3396,7 +3396,7 @@ status_t SurfaceFlinger::setTransactionState(
         return NO_ERROR;
     }
 
-    applyTransactionState(frameTimelineVsyncId, states, displays, flags, inputWindowCommands,
+    applyTransactionState(frameTimelineInfo, states, displays, flags, inputWindowCommands,
                           desiredPresentTime, isAutoTimestamp, uncacheBuffer, postTime, privileged,
                           hasListenerCallbacks, listenerCallbacks, originPid, originUid,
                           transactionId, /*isMainThread*/ false);
@@ -3404,7 +3404,7 @@ status_t SurfaceFlinger::setTransactionState(
 }
 
 void SurfaceFlinger::applyTransactionState(
-        int64_t frameTimelineVsyncId, const Vector<ComposerState>& states,
+        const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
         const Vector<DisplayState>& displays, uint32_t flags,
         const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
         bool isAutoTimestamp, const client_cache_t& uncacheBuffer, const int64_t postTime,
@@ -3445,9 +3445,9 @@ void SurfaceFlinger::applyTransactionState(
     uint32_t clientStateFlags = 0;
     for (const ComposerState& state : states) {
         clientStateFlags |=
-                setClientStateLocked(frameTimelineVsyncId, state, desiredPresentTime,
-                                     isAutoTimestamp, postTime, privileged,
-                                     listenerCallbacksWithSurfaces, originPid, originUid);
+                setClientStateLocked(frameTimelineInfo, state, desiredPresentTime, isAutoTimestamp,
+                                     postTime, privileged, listenerCallbacksWithSurfaces, originPid,
+                                     originUid);
         if ((flags & eAnimation) && state.state.surface) {
             if (const auto layer = fromHandleLocked(state.state.surface).promote(); layer) {
                 mScheduler->recordLayerHistory(layer.get(),
@@ -3625,7 +3625,7 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermis
 }
 
 uint32_t SurfaceFlinger::setClientStateLocked(
-        int64_t frameTimelineVsyncId, const ComposerState& composerState,
+        const FrameTimelineInfo& frameTimelineInfo, const ComposerState& composerState,
         int64_t desiredPresentTime, bool isAutoTimestamp, int64_t postTime, bool privileged,
         std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks,
         int originPid, int originUid) {
@@ -3883,10 +3883,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTraversalNeeded;
         }
     }
-    if (what & layer_state_t::eFrameTimelineVsyncChanged) {
-        layer->setFrameTimelineVsyncForTransaction(s.frameTimelineVsyncId, postTime);
-    } else if (frameTimelineVsyncId != ISurfaceComposer::INVALID_VSYNC_ID) {
-        layer->setFrameTimelineVsyncForTransaction(frameTimelineVsyncId, postTime);
+    if (what & layer_state_t::eFrameTimelineInfoChanged) {
+        layer->setFrameTimelineInfoForTransaction(s.frameTimelineInfo, postTime);
+    } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
+        layer->setFrameTimelineInfoForTransaction(frameTimelineInfo, postTime);
     }
     if (what & layer_state_t::eFixedTransformHintChanged) {
         if (layer->setFixedTransformHint(s.fixedTransformHint)) {
@@ -4222,7 +4222,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(ISurfaceComposer::INVALID_VSYNC_ID, state, displays, 0, nullptr,
+    setTransactionState(FrameTimelineInfo{}, state, displays, 0, nullptr,
                         mPendingInputWindowCommands, systemTime(), true, {}, false, {},
                         0 /* Undefined transactionId */);
 
@@ -4973,7 +4973,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CAPTURE_LAYERS:
         case CAPTURE_DISPLAY:
         case SET_DISPLAY_BRIGHTNESS:
-        case SET_FRAME_TIMELINE_VSYNC:
+        case SET_FRAME_TIMELINE_INFO:
         // This is not sensitive information, so should not require permission control.
         case GET_GPU_CONTEXT_PRIORITY: {
             return OK;
@@ -6350,21 +6350,21 @@ void SurfaceFlinger::onFrameRateFlexibilityTokenReleased() {
     }));
 }
 
-status_t SurfaceFlinger::setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
-                                               int64_t frameTimelineVsyncId) {
+status_t SurfaceFlinger::setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
+                                              const FrameTimelineInfo& frameTimelineInfo) {
     Mutex::Autolock lock(mStateLock);
     if (!authenticateSurfaceTextureLocked(surface)) {
-        ALOGE("Attempt to set frame timeline vsync on an unrecognized IGraphicBufferProducer");
+        ALOGE("Attempt to set frame timeline info on an unrecognized IGraphicBufferProducer");
         return BAD_VALUE;
     }
 
     sp<Layer> layer = (static_cast<MonitoredProducer*>(surface.get()))->getLayer();
     if (layer == nullptr) {
-        ALOGE("Attempt to set frame timeline vsync on a layer that no longer exists");
+        ALOGE("Attempt to set frame timeline info on a layer that no longer exists");
         return BAD_VALUE;
     }
 
-    layer->setFrameTimelineVsyncForBuffer(frameTimelineVsyncId);
+    layer->setFrameTimelineInfoForBuffer(frameTimelineInfo);
     return NO_ERROR;
 }
 

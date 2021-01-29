@@ -128,7 +128,7 @@ struct layer_state_t {
         eProducerDisconnect = 0x100'00000000,
         eFixedTransformHintChanged = 0x200'00000000,
         eFrameNumberChanged = 0x400'00000000,
-        eFrameTimelineVsyncChanged = 0x800'00000000,
+        eFrameTimelineInfoChanged = 0x800'00000000,
         eBlurRegionsChanged = 0x1000'00000000,
         eAutoRefreshChanged = 0x2000'00000000,
     };
@@ -234,7 +234,7 @@ struct layer_state_t {
     // graphics producer.
     uint64_t frameNumber;
 
-    int64_t frameTimelineVsyncId;
+    FrameTimelineInfo frameTimelineInfo;
 
     // Indicates that the consumer should acquire the next frame as soon as it
     // can and not wait for a frame to become available. This is only relevant

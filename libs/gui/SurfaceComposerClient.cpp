@@ -396,7 +396,7 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
         mContainsBuffer(other.mContainsBuffer),
         mDesiredPresentTime(other.mDesiredPresentTime),
         mIsAutoTimestamp(other.mIsAutoTimestamp),
-        mFrameTimelineVsyncId(other.mFrameTimelineVsyncId),
+        mFrameTimelineInfo(other.mFrameTimelineInfo),
         mApplyToken(other.mApplyToken) {
     mDisplayStates = other.mDisplayStates;
     mComposerStates = other.mComposerStates;
@@ -427,7 +427,9 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     const bool containsBuffer = parcel->readBool();
     const int64_t desiredPresentTime = parcel->readInt64();
     const bool isAutoTimestamp = parcel->readBool();
-    const int64_t frameTimelineVsyncId = parcel->readInt64();
+    FrameTimelineInfo frameTimelineInfo;
+    SAFE_PARCEL(frameTimelineInfo.read, *parcel);
+
     sp<IBinder> applyToken;
     parcel->readNullableStrongBinder(&applyToken);
     size_t count = static_cast<size_t>(parcel->readUint32());
@@ -502,7 +504,7 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     mContainsBuffer = containsBuffer;
     mDesiredPresentTime = desiredPresentTime;
     mIsAutoTimestamp = isAutoTimestamp;
-    mFrameTimelineVsyncId = frameTimelineVsyncId;
+    mFrameTimelineInfo = frameTimelineInfo;
     mDisplayStates = displayStates;
     mListenerCallbacks = listenerCallbacks;
     mComposerStates = composerStates;
@@ -534,7 +536,7 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     parcel->writeBool(mContainsBuffer);
     parcel->writeInt64(mDesiredPresentTime);
     parcel->writeBool(mIsAutoTimestamp);
-    parcel->writeInt64(mFrameTimelineVsyncId);
+    SAFE_PARCEL(mFrameTimelineInfo.write, *parcel);
     parcel->writeStrongBinder(mApplyToken);
     parcel->writeUint32(static_cast<uint32_t>(mDisplayStates.size()));
     for (auto const& displayState : mDisplayStates) {
@@ -613,13 +615,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
     mExplicitEarlyWakeupEnd = mExplicitEarlyWakeupEnd || other.mExplicitEarlyWakeupEnd;
     mApplyToken = other.mApplyToken;
 
-    // When merging vsync Ids we take the oldest one
-    if (mFrameTimelineVsyncId != ISurfaceComposer::INVALID_VSYNC_ID &&
-        other.mFrameTimelineVsyncId != ISurfaceComposer::INVALID_VSYNC_ID) {
-        mFrameTimelineVsyncId = std::max(mFrameTimelineVsyncId, other.mFrameTimelineVsyncId);
-    } else if (mFrameTimelineVsyncId == ISurfaceComposer::INVALID_VSYNC_ID) {
-        mFrameTimelineVsyncId = other.mFrameTimelineVsyncId;
-    }
+    mFrameTimelineInfo.merge(other.mFrameTimelineInfo);
 
     other.clear();
     return *this;
@@ -639,7 +635,7 @@ void SurfaceComposerClient::Transaction::clear() {
     mExplicitEarlyWakeupEnd = false;
     mDesiredPresentTime = 0;
     mIsAutoTimestamp = true;
-    mFrameTimelineVsyncId = ISurfaceComposer::INVALID_VSYNC_ID;
+    mFrameTimelineInfo.clear();
     mApplyToken = nullptr;
 }
 
@@ -651,9 +647,8 @@ void SurfaceComposerClient::doUncacheBufferTransaction(uint64_t cacheId) {
     uncacheBuffer.id = cacheId;
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
-    sf->setTransactionState(ISurfaceComposer::INVALID_VSYNC_ID, {}, {}, 0, applyToken, {},
-                            systemTime(), true, uncacheBuffer, false, {},
-                            0 /* Undefined transactionId */);
+    sf->setTransactionState(FrameTimelineInfo{}, {}, {}, 0, applyToken, {}, systemTime(), true,
+                            uncacheBuffer, false, {}, 0 /* Undefined transactionId */);
 }
 
 void SurfaceComposerClient::Transaction::cacheBuffers() {
@@ -773,7 +768,7 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
             ? mApplyToken
             : IInterface::asBinder(TransactionCompletedListener::getIInstance());
 
-    sf->setTransactionState(mFrameTimelineVsyncId, composerStates, displayStates, flags, applyToken,
+    sf->setTransactionState(mFrameTimelineInfo, composerStates, displayStates, flags, applyToken,
                             mInputWindowCommands, mDesiredPresentTime, mIsAutoTimestamp,
                             {} /*uncacheBuffer - only set in doUncacheBufferTransaction*/,
                             hasListenerCallbacks, listenerCallbacks, mId);
@@ -1548,22 +1543,22 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFixed
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameTimelineVsync(
-        int64_t frameTimelineVsyncId) {
-    mFrameTimelineVsyncId = frameTimelineVsyncId;
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameTimelineInfo(
+        const FrameTimelineInfo& frameTimelineInfo) {
+    mFrameTimelineInfo = frameTimelineInfo;
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameTimelineVsync(
-        const sp<SurfaceControl>& sc, int64_t frameTimelineVsyncId) {
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameTimelineInfo(
+        const sp<SurfaceControl>& sc, const FrameTimelineInfo& frameTimelineInfo) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
 
-    s->what |= layer_state_t::eFrameTimelineVsyncChanged;
-    s->frameTimelineVsyncId = frameTimelineVsyncId;
+    s->what |= layer_state_t::eFrameTimelineInfoChanged;
+    s->frameTimelineInfo = frameTimelineInfo;
     return *this;
 }
 
