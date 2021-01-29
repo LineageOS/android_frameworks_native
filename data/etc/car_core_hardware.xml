@@ -34,6 +34,8 @@
     <feature name="android.hardware.microphone" />
     <!-- Feature to specify if the device is a car -->
     <feature name="android.hardware.type.automotive" />
+    <!-- Indicate support for the Android security model per the CDD. -->
+    <feature name="android.hardware.security.model.compatible" />
 
     <!-- basic system services -->
     <feature name="android.software.connectionservice" />
