@@ -207,7 +207,7 @@ public:
         // to achieve mirroring.
         uint32_t layerStack;
 
-        uint8_t flags;
+        uint32_t flags;
         uint8_t reserved[2];
         int32_t sequence; // changes when visible regions can change
         bool modified;
@@ -425,7 +425,7 @@ public:
     virtual bool setBackgroundBlurRadius(int backgroundBlurRadius);
     virtual bool setBlurRegions(const std::vector<BlurRegion>& effectRegions);
     virtual bool setTransparentRegionHint(const Region& transparent);
-    virtual bool setFlags(uint8_t flags, uint8_t mask);
+    virtual bool setFlags(uint32_t flags, uint32_t mask);
     virtual bool setLayerStack(uint32_t layerStack);
     virtual uint32_t getLayerStack() const;
     virtual void deferTransactionUntil_legacy(const sp<IBinder>& barrierHandle,
@@ -906,6 +906,9 @@ public:
     int32_t sequence{sSequence++};
 
     bool mPendingHWCDestroy{false};
+
+    bool backpressureEnabled() { return mDrawingState.flags & layer_state_t::eEnableBackpressure; }
+    bool hasPendingBuffer() { return mCurrentState.buffer != mDrawingState.buffer; };
 
 protected:
     class SyncPoint {

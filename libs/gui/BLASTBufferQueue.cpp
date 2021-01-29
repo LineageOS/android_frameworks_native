@@ -146,6 +146,10 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
 
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
+    SurfaceComposerClient::Transaction()
+            .setFlags(surface, layer_state_t::eEnableBackpressure,
+                      layer_state_t::eEnableBackpressure)
+            .apply();
 
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
@@ -169,11 +173,18 @@ BLASTBufferQueue::~BLASTBufferQueue() {
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height,
                               int32_t format) {
     std::unique_lock _lock{mMutex};
-    mSurfaceControl = surface;
-
     if (mFormat != format) {
         mFormat = format;
         mBufferItemConsumer->setDefaultBufferFormat(format);
+    }
+
+    SurfaceComposerClient::Transaction t;
+    bool applyTransaction = false;
+    if (!SurfaceControl::isSameSurface(mSurfaceControl, surface)) {
+        mSurfaceControl = surface;
+        t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
+                   layer_state_t::eEnableBackpressure);
+        applyTransaction = true;
     }
 
     ui::Size newSize(width, height);
@@ -184,12 +195,14 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
             // If the buffer supports scaling, update the frame immediately since the client may
             // want to scale the existing buffer to the new size.
             mSize = mRequestedSize;
-            SurfaceComposerClient::Transaction t;
             t.setFrame(mSurfaceControl,
                        {0, 0, static_cast<int32_t>(mSize.width),
                         static_cast<int32_t>(mSize.height)});
-            t.apply();
+            applyTransaction = true;
         }
+    }
+    if (applyTransaction) {
+        t.apply();
     }
 }
 
@@ -248,7 +261,7 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
         mPendingReleaseItem.item = std::move(mSubmitted.front());
         mSubmitted.pop();
 
-        processNextBufferLocked(false);
+        processNextBufferLocked(false /* useNextTransaction */);
 
         currFrameNumber = mPendingReleaseItem.item.mFrameNumber;
         if (mTransactionCompleteCallback && mTransactionCompleteFrameNumber == currFrameNumber) {
@@ -269,9 +282,10 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     ATRACE_CALL();
     BQA_LOGV("processNextBufferLocked useNextTransaction=%s", toString(useNextTransaction));
 
-    // Wait to acquire a buffer if there are no frames available or we have acquired the max
-    // number of buffers.
-    if (mNumFrameAvailable == 0 || maxBuffersAcquired()) {
+    // If the next transaction is set, we want to guarantee the our acquire will not fail, so don't
+    // include the extra buffer when checking if we can acquire the next buffer.
+    const bool includeExtraAcquire = !useNextTransaction;
+    if (mNumFrameAvailable == 0 || maxBuffersAcquired(includeExtraAcquire)) {
         BQA_LOGV("processNextBufferLocked waiting for frame available or callback");
         mCallbackCV.notify_all();
         return;
@@ -295,7 +309,10 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
 
     status_t status =
             mBufferItemConsumer->acquireBuffer(&bufferItem, 0 /* expectedPresent */, false);
-    if (status != OK) {
+    if (status == BufferQueue::NO_BUFFER_AVAILABLE) {
+        BQA_LOGV("Failed to acquire a buffer, err=NO_BUFFER_AVAILABLE");
+        return;
+    } else if (status != OK) {
         BQA_LOGE("Failed to acquire a buffer, err=%s", statusToString(status).c_str());
         return;
     }
@@ -414,7 +431,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
              item.mFrameNumber, toString(nextTransactionSet), toString(mFlushShadowQueue));
 
     if (nextTransactionSet || mFlushShadowQueue) {
-        while (mNumFrameAvailable > 0 || maxBuffersAcquired()) {
+        while (mNumFrameAvailable > 0 || maxBuffersAcquired(false /* includeExtraAcquire */)) {
             BQA_LOGV("waiting in onFrameAvailable...");
             mCallbackCV.wait(_lock);
         }
@@ -422,7 +439,7 @@ void BLASTBufferQueue::onFrameAvailable(const BufferItem& item) {
     mFlushShadowQueue = false;
     // add to shadow queue
     mNumFrameAvailable++;
-    processNextBufferLocked(true);
+    processNextBufferLocked(nextTransactionSet /* useNextTransaction */);
 }
 
 void BLASTBufferQueue::onFrameReplaced(const BufferItem& item) {
@@ -482,9 +499,12 @@ void BLASTBufferQueue::setTransactionCompleteCallback(
 // Check if we have acquired the maximum number of buffers.
 // As a special case, we wait for the first callback before acquiring the second buffer so we
 // can ensure the first buffer is presented if multiple buffers are queued in succession.
-bool BLASTBufferQueue::maxBuffersAcquired() const {
-    return mNumAcquired == MAX_ACQUIRED_BUFFERS + 1 ||
-            (!mInitialCallbackReceived && mNumAcquired == 1);
+// Consumer can acquire an additional buffer if that buffer is not droppable. Set
+// includeExtraAcquire is true to include this buffer to the count. Since this depends on the state
+// of the buffer, the next acquire may return with NO_BUFFER_AVAILABLE.
+bool BLASTBufferQueue::maxBuffersAcquired(bool includeExtraAcquire) const {
+    int maxAcquiredBuffers = MAX_ACQUIRED_BUFFERS + (includeExtraAcquire ? 2 : 1);
+    return mNumAcquired == maxAcquiredBuffers || (!mInitialCallbackReceived && mNumAcquired == 1);
 }
 
 class BBQSurface : public Surface {
@@ -654,7 +674,8 @@ void BLASTBufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer
     LOG_ALWAYS_FATAL_IF(producer == nullptr,
                         "BLASTBufferQueue: failed to create BBQBufferQueueProducer");
 
-    sp<IGraphicBufferConsumer> consumer(new BufferQueueConsumer(core));
+    sp<BufferQueueConsumer> consumer(new BufferQueueConsumer(core));
+    consumer->setAllowExtraAcquire(true);
     LOG_ALWAYS_FATAL_IF(consumer == nullptr,
                         "BLASTBufferQueue: failed to create BufferQueueConsumer");
 

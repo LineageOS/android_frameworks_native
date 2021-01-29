@@ -1308,8 +1308,8 @@ bool Layer::setBlurRegions(const std::vector<BlurRegion>& blurRegions) {
     return true;
 }
 
-bool Layer::setFlags(uint8_t flags, uint8_t mask) {
-    const uint8_t newFlags = (mCurrentState.flags & ~mask) | (flags & mask);
+bool Layer::setFlags(uint32_t flags, uint32_t mask) {
+    const uint32_t newFlags = (mCurrentState.flags & ~mask) | (flags & mask);
     if (mCurrentState.flags == newFlags) return false;
     mCurrentState.sequence++;
     mCurrentState.flags = newFlags;
