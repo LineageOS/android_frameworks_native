@@ -1432,21 +1432,28 @@ void Layer::updateTreeHasFrameRateVote() {
     };
 
     // update parents and children about the vote
-    // First traverse the tree and count how many layers has votes
+    // First traverse the tree and count how many layers has votes. In addition
+    // activate the layers in Scheduler's LayerHistory for it to check for changes
     int layersWithVote = 0;
-    traverseTree([&layersWithVote](Layer* layer) {
+    traverseTree([&layersWithVote, this](Layer* layer) {
         const auto layerVotedWithDefaultCompatibility =
                 layer->mCurrentState.frameRate.rate.isValid() &&
                 layer->mCurrentState.frameRate.type == FrameRateCompatibility::Default;
         const auto layerVotedWithNoVote =
                 layer->mCurrentState.frameRate.type == FrameRateCompatibility::NoVote;
+        const auto layerVotedWithExactCompatibility =
+                layer->mCurrentState.frameRate.type == FrameRateCompatibility::Exact;
 
         // We do not count layers that are ExactOrMultiple for the same reason
         // we are allowing touch boost for those layers. See
         // RefreshRateConfigs::getBestRefreshRate for more details.
-        if (layerVotedWithDefaultCompatibility || layerVotedWithNoVote) {
+        if (layerVotedWithDefaultCompatibility || layerVotedWithNoVote ||
+            layerVotedWithExactCompatibility) {
             layersWithVote++;
         }
+
+        mFlinger->mScheduler->recordLayerHistory(layer, systemTime(),
+                                                 LayerHistory::LayerUpdateType::SetFrameRate);
     });
 
     // Now update the other layers
@@ -1474,10 +1481,6 @@ bool Layer::setFrameRate(FrameRate frameRate) {
         return false;
     }
 
-    // Activate the layer in Scheduler's LayerHistory
-    mFlinger->mScheduler->recordLayerHistory(this, systemTime(),
-                                             LayerHistory::LayerUpdateType::SetFrameRate);
-
     mCurrentState.sequence++;
     mCurrentState.frameRate = frameRate;
     mCurrentState.modified = true;
@@ -1501,8 +1504,16 @@ Layer::FrameRate Layer::getFrameRateForLayerTree() const {
         return frameRate;
     }
 
-    // This layer doesn't have a frame rate. If one of its ancestors or successors
-    // have a vote, return a NoVote for ancestors/successors to set the vote
+    // This layer doesn't have a frame rate. Check if its ancestors have a vote
+    if (sp<Layer> parent = getParent(); parent) {
+        if (const auto parentFrameRate = parent->getFrameRateForLayerTree();
+            parentFrameRate.rate.isValid()) {
+            return parentFrameRate;
+        }
+    }
+
+    // This layer and its ancestors don't have a frame rate. If one of successors
+    // has a vote, return a NoVote for successors to set the vote
     if (getDrawingState().treeHasFrameRateVote) {
         return {Fps(0.0f), FrameRateCompatibility::NoVote};
     }
@@ -1654,6 +1665,8 @@ std::string Layer::frameRateCompatibilityString(Layer::FrameRateCompatibility co
             return "ExactOrMultiple";
         case FrameRateCompatibility::NoVote:
             return "NoVote";
+        case FrameRateCompatibility::Exact:
+            return "Exact";
     }
 }
 
@@ -1692,11 +1705,11 @@ void Layer::miniDump(std::string& result, const DisplayDevice& display) const {
     const FloatRect& crop = outputLayerState.sourceCrop;
     StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f | ", crop.left, crop.top, crop.right,
                   crop.bottom);
-    if (layerState.frameRate.rate.isValid() ||
-        layerState.frameRate.type != FrameRateCompatibility::Default) {
-        StringAppendF(&result, "%s %15s %17s", to_string(layerState.frameRate.rate).c_str(),
-                      frameRateCompatibilityString(layerState.frameRate.type).c_str(),
-                      toString(layerState.frameRate.seamlessness).c_str());
+    const auto frameRate = getFrameRateForLayerTree();
+    if (frameRate.rate.isValid() || frameRate.type != FrameRateCompatibility::Default) {
+        StringAppendF(&result, "%s %15s %17s", to_string(frameRate.rate).c_str(),
+                      frameRateCompatibilityString(frameRate.type).c_str(),
+                      toString(frameRate.seamlessness).c_str());
     } else {
         result.append(41, ' ');
     }
@@ -2755,6 +2768,8 @@ Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t comp
             return FrameRateCompatibility::Default;
         case ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE:
             return FrameRateCompatibility::ExactOrMultiple;
+        case ANATIVEWINDOW_FRAME_RATE_EXACT:
+            return FrameRateCompatibility::Exact;
         default:
             LOG_ALWAYS_FATAL("Invalid frame rate compatibility value %d", compatibility);
             return FrameRateCompatibility::Default;
