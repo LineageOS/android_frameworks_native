@@ -136,7 +136,7 @@ protected:
     DisplayTransactionTest();
 };
 
-constexpr int32_t DEFAULT_REFRESH_RATE = 16'666'667;
+constexpr int32_t DEFAULT_VSYNC_PERIOD = 16'666'667;
 constexpr int32_t DEFAULT_DPI = 320;
 constexpr int DEFAULT_VIRTUAL_DISPLAY_SURFACE_FORMAT = HAL_PIXEL_FORMAT_RGB_565;
 
@@ -436,7 +436,7 @@ struct HwcDisplayVariant {
                         getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
                                             IComposerClient::Attribute::VSYNC_PERIOD, _))
                     .WillRepeatedly(
-                            DoAll(SetArgPointee<3>(DEFAULT_REFRESH_RATE), Return(Error::NONE)));
+                            DoAll(SetArgPointee<3>(DEFAULT_VSYNC_PERIOD), Return(Error::NONE)));
             EXPECT_CALL(*test->mComposer,
                         getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
                                             IComposerClient::Attribute::DPI_X, _))
