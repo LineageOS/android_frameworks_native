@@ -753,7 +753,7 @@ private:
     uint32_t setTransactionFlags(uint32_t flags, TransactionSchedule);
     void commitTransaction() REQUIRES(mStateLock);
     void commitOffscreenLayers();
-    bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
+    bool transactionIsReadyToBeApplied(bool isAutoTimestamp, int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states,
                                        bool updateTransactionCounters = false) REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);

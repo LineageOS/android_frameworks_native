@@ -146,6 +146,10 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
 
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
+    SurfaceComposerClient::Transaction()
+            .setFlags(surface, layer_state_t::eEnableBackpressure,
+                      layer_state_t::eEnableBackpressure)
+            .apply();
 
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
@@ -169,11 +173,18 @@ BLASTBufferQueue::~BLASTBufferQueue() {
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height,
                               int32_t format) {
     std::unique_lock _lock{mMutex};
-    mSurfaceControl = surface;
-
     if (mFormat != format) {
         mFormat = format;
         mBufferItemConsumer->setDefaultBufferFormat(format);
+    }
+
+    SurfaceComposerClient::Transaction t;
+    bool applyTransaction = false;
+    if (!SurfaceControl::isSameSurface(mSurfaceControl, surface)) {
+        mSurfaceControl = surface;
+        t.setFlags(mSurfaceControl, layer_state_t::eEnableBackpressure,
+                   layer_state_t::eEnableBackpressure);
+        applyTransaction = true;
     }
 
     ui::Size newSize(width, height);
@@ -184,12 +195,14 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
             // If the buffer supports scaling, update the frame immediately since the client may
             // want to scale the existing buffer to the new size.
             mSize = mRequestedSize;
-            SurfaceComposerClient::Transaction t;
             t.setFrame(mSurfaceControl,
                        {0, 0, static_cast<int32_t>(mSize.width),
                         static_cast<int32_t>(mSize.height)});
-            t.apply();
+            applyTransaction = true;
         }
+    }
+    if (applyTransaction) {
+        t.apply();
     }
 }
 

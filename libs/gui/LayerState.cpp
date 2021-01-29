@@ -183,12 +183,9 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &layerStack);
     SAFE_PARCEL(input.readFloat, &alpha);
 
-    uint32_t tmpUint32 = 0;
-    SAFE_PARCEL(input.readUint32, &tmpUint32);
-    flags = static_cast<uint8_t>(tmpUint32);
+    SAFE_PARCEL(input.readUint32, &flags);
 
-    SAFE_PARCEL(input.readUint32, &tmpUint32);
-    mask = static_cast<uint8_t>(tmpUint32);
+    SAFE_PARCEL(input.readUint32, &mask);
 
     SAFE_PARCEL(matrix.read, input);
     SAFE_PARCEL(input.read, crop_legacy);
@@ -229,6 +226,7 @@ status_t layer_state_t::read(const Parcel& input)
         SAFE_PARCEL(input.read, *acquireFence);
     }
 
+    uint32_t tmpUint32 = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     dataspace = static_cast<ui::Dataspace>(tmpUint32);
 
