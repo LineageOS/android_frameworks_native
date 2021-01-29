@@ -17,8 +17,10 @@
 #pragma once
 
 #include "DisplayHardware/Hal.h"
+#include "Fps.h"
 #include "Scheduler/StrongTyping.h"
 
+#include <android-base/stringprintf.h>
 #include <android/configuration.h>
 #include <utils/Timers.h>
 
@@ -61,7 +63,7 @@ public:
         }
 
         Builder& setVsyncPeriod(int32_t vsyncPeriod) {
-            mDisplayMode->mVsyncPeriod = vsyncPeriod;
+            mDisplayMode->mFps = Fps::fromPeriodNsecs(vsyncPeriod);
             return *this;
         }
 
@@ -111,7 +113,8 @@ public:
 
     int32_t getWidth() const { return mWidth; }
     int32_t getHeight() const { return mHeight; }
-    nsecs_t getVsyncPeriod() const { return mVsyncPeriod; }
+    Fps getFps() const { return mFps; }
+    nsecs_t getVsyncPeriod() const { return mFps.getPeriodNsecs(); }
     float getDpiX() const { return mDpiX; }
     float getDpiY() const { return mDpiY; }
     int32_t getConfigGroup() const { return mConfigGroup; }
@@ -124,10 +127,18 @@ private:
 
     int32_t mWidth = -1;
     int32_t mHeight = -1;
-    nsecs_t mVsyncPeriod = -1;
+    Fps mFps;
     float mDpiX = -1;
     float mDpiY = -1;
     int32_t mConfigGroup = -1;
 };
+
+inline std::string to_string(const DisplayMode& mode) {
+    return base::StringPrintf("{id=%zu, hwcId=%d, width=%d, height=%d, refreshRate=%s, "
+                              "dpiX=%.2f, dpiY=%.2f, configGroup=%d}",
+                              mode.getId().value(), mode.getHwcId(), mode.getWidth(),
+                              mode.getHeight(), to_string(mode.getFps()).c_str(), mode.getDpiX(),
+                              mode.getDpiY(), mode.getConfigGroup());
+}
 
 } // namespace android

@@ -262,12 +262,14 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     EXPECT_EQ(Case::HdrSupport::HDR10_SUPPORTED, device->hasHDR10Support());
     EXPECT_EQ(Case::HdrSupport::HDR_HLG_SUPPORTED, device->hasHLGSupport());
     EXPECT_EQ(Case::HdrSupport::HDR_DOLBY_VISION_SUPPORTED, device->hasDolbyVisionSupport());
-    // Note: This is not Case::Display::HWC_ACTIVE_CONFIG_ID as the ids are
-    // remapped, and the test only ever sets up one config. If there were an error
-    // looking up the remapped index, device->getActiveMode() would be -1 instead.
-    EXPECT_EQ(0, device->getActiveMode().value());
     EXPECT_EQ(Case::PerFrameMetadataSupport::PER_FRAME_METADATA_KEYS,
               device->getSupportedPerFrameMetadata());
+
+    if constexpr (Case::Display::CONNECTION_TYPE::value) {
+        EXPECT_EQ(1, device->getSupportedModes().size());
+        EXPECT_NE(nullptr, device->getActiveMode());
+        EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID, device->getActiveMode()->getHwcId());
+    }
 }
 
 TEST_F(SetupNewDisplayDeviceInternalTest, createSimplePrimaryDisplay) {

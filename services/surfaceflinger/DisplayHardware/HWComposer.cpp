@@ -674,20 +674,14 @@ status_t HWComposer::setPowerMode(PhysicalDisplayId displayId, hal::PowerMode mo
 }
 
 status_t HWComposer::setActiveModeWithConstraints(
-        PhysicalDisplayId displayId, DisplayModeId modeId,
+        PhysicalDisplayId displayId, hal::HWConfigId hwcModeId,
         const hal::VsyncPeriodChangeConstraints& constraints,
         hal::VsyncPeriodChangeTimeline* outTimeline) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
 
-    auto& displayData = mDisplayData[displayId];
-    if (modeId.value() >= displayData.modes.size()) {
-        LOG_DISPLAY_ERROR(displayId, ("Invalid mode " + std::to_string(modeId.value())).c_str());
-        return BAD_INDEX;
-    }
-
-    const auto hwcConfigId = displayData.modes[modeId.value()]->getHwcId();
-    auto error = displayData.hwcDisplay->setActiveConfigWithConstraints(hwcConfigId, constraints,
-                                                                        outTimeline);
+    auto error = mDisplayData[displayId].hwcDisplay->setActiveConfigWithConstraints(hwcModeId,
+                                                                                    constraints,
+                                                                                    outTimeline);
     RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
     return NO_ERROR;
 }
