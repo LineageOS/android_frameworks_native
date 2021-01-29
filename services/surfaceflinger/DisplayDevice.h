@@ -219,6 +219,9 @@ struct DisplayDeviceState {
         DisplayConnectionType type;
         hardware::graphics::composer::hal::HWDisplayId hwcDisplayId;
         std::optional<DeviceProductInfo> deviceProductInfo;
+        DisplayModes supportedModes;
+        DisplayModePtr activeMode;
+
         bool operator==(const Physical& other) const {
             return id == other.id && type == other.type && hwcDisplayId == other.hwcDisplayId;
         }
