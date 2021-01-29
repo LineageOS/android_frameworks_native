@@ -328,7 +328,8 @@ struct CaptureArgs {
 
     ui::PixelFormat pixelFormat{ui::PixelFormat::RGBA_8888};
     Rect sourceCrop;
-    float frameScale{1};
+    float frameScaleX{1};
+    float frameScaleY{1};
     bool captureSecureLayers{false};
     int32_t uid{UNSET_UID};
     // Force capture to be in a color space. If the value is ui::Dataspace::UNKNOWN, the captured
@@ -345,6 +346,8 @@ struct CaptureArgs {
     // secure property of the surface, which is specified by the application explicitly to avoid
     // the contents being accessed/captured by screenshot or unsecure display.
     bool allowProtected = false;
+
+    bool grayscale = false;
 
     virtual status_t write(Parcel& output) const;
     virtual status_t read(const Parcel& input);
