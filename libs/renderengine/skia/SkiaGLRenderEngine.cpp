@@ -661,30 +661,33 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         // Layers have a local transform that should be applied to them
         canvas->concat(getSkM44(layer->geometry.positionTransform).asM33());
 
-        SkPaint paint;
-        const auto& bounds = layer->geometry.boundaries;
-        const auto dest = getSkRect(bounds);
-        const auto layerRect = canvas->getTotalMatrix().mapRect(dest);
-        std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
-        if (mBlurFilter) {
+        const auto bounds = getSkRect(layer->geometry.boundaries);
+        if (mBlurFilter && layerHasBlur(layer)) {
+            std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
+
+            // image to be blurred
+            sk_sp<SkImage> blurInput = surface->makeImageSnapshot();
+            // rect to be blurred in the coordinate space of blurInput
+            const auto blurRect = canvas->getTotalMatrix().mapRect(bounds);
+
             if (layer->backgroundBlurRadius > 0) {
                 ATRACE_NAME("BackgroundBlur");
-                auto blurredSurface = mBlurFilter->generate(canvas, surface,
-                                                            layer->backgroundBlurRadius, layerRect);
-                cachedBlurs[layer->backgroundBlurRadius] = blurredSurface;
+                auto blurredImage =
+                        mBlurFilter->generate(grContext.get(), layer->backgroundBlurRadius,
+                                              blurInput, blurRect);
 
-                drawBlurRegion(canvas, getBlurRegion(layer), layerRect, blurredSurface);
+                cachedBlurs[layer->backgroundBlurRadius] = blurredImage;
+
+                drawBlurRegion(canvas, getBlurRegion(layer), blurRect, blurredImage);
             }
-            if (layer->blurRegions.size() > 0) {
-                for (auto region : layer->blurRegions) {
-                    if (cachedBlurs[region.blurRadius]) {
-                        continue;
-                    }
+            for (auto region : layer->blurRegions) {
+                if (cachedBlurs[region.blurRadius] != nullptr) {
                     ATRACE_NAME("BlurRegion");
-                    auto blurredSurface =
-                            mBlurFilter->generate(canvas, surface, region.blurRadius, layerRect);
-                    cachedBlurs[region.blurRadius] = blurredSurface;
+                    cachedBlurs[region.blurRadius] =
+                            mBlurFilter->generate(grContext.get(), region.blurRadius, blurInput,
+                                                  blurRect);
                 }
+                drawBlurRegion(canvas, region, blurRect, cachedBlurs[region.blurRadius]);
             }
         }
 
@@ -698,6 +701,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                            : layer->sourceDataspace)
                 : ui::Dataspace::UNKNOWN;
 
+        SkPaint paint;
         if (layer->source.buffer.buffer) {
             ATRACE_NAME("DrawImage");
             const auto& item = layer->source.buffer;
@@ -724,7 +728,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             // textureTansform was intended to be passed directly into a shader, so when
             // building the total matrix with the textureTransform we need to first
             // normalize it, then apply the textureTransform, then scale back up.
-            texMatrix.preScale(1.0f / bounds.getWidth(), 1.0f / bounds.getHeight());
+            texMatrix.preScale(1.0f / bounds.width(), 1.0f / bounds.height());
             texMatrix.postScale(image->width(), image->height());
 
             SkMatrix matrix;
@@ -794,14 +798,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
         paint.setColorFilter(filter);
 
-        for (const auto effectRegion : layer->blurRegions) {
-            drawBlurRegion(canvas, effectRegion, layerRect, cachedBlurs[effectRegion.blurRadius]);
-        }
-
         if (layer->shadow.length > 0) {
             const auto rect = layer->geometry.roundedCornersRadius > 0
                     ? getSkRect(layer->geometry.roundedCornersCrop)
-                    : dest;
+                    : bounds;
             drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
         } else {
             // Shadows are assumed to live only on their own layer - it's not valid
@@ -812,7 +812,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             if (layer->geometry.roundedCornersRadius > 0) {
                 canvas->clipRRect(getRoundedRect(layer), true);
             }
-            canvas->drawRect(dest, paint);
+            canvas->drawRect(bounds, paint);
         }
         canvas->restore();
     }
@@ -875,6 +875,10 @@ inline BlurRegion SkiaGLRenderEngine::getBlurRegion(const LayerSettings* layer) 
                       .top = static_cast<int>(rect.fTop),
                       .right = static_cast<int>(rect.fRight),
                       .bottom = static_cast<int>(rect.fBottom)};
+}
+
+inline bool SkiaGLRenderEngine::layerHasBlur(const LayerSettings* layer) {
+    return layer->backgroundBlurRadius > 0 || layer->blurRegions.size();
 }
 
 inline SkColor SkiaGLRenderEngine::getSkColor(const vec4& color) {

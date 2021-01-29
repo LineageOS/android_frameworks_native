@@ -81,6 +81,7 @@ private:
     inline SkRect getSkRect(const Rect& layer);
     inline SkRRect getRoundedRect(const LayerSettings* layer);
     inline BlurRegion getBlurRegion(const LayerSettings* layer);
+    inline bool layerHasBlur(const LayerSettings* layer);
     inline SkColor getSkColor(const vec4& color);
     inline SkM44 getSkM44(const mat4& matrix);
     inline SkPoint3 getSkPoint3(const vec3& vector);

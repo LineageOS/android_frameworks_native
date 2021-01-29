@@ -34,17 +34,14 @@ namespace skia {
 BlurFilter::BlurFilter() {
     SkString blurString(R"(
         in shader input;
-        uniform float in_inverseScale;
         uniform float2 in_blurOffset;
 
         half4 main(float2 xy) {
-            float2 scaled_xy = float2(xy.x * in_inverseScale, xy.y * in_inverseScale);
-
-            half4 c = sample(input, scaled_xy);
-            c += sample(input, scaled_xy + float2( in_blurOffset.x,  in_blurOffset.y));
-            c += sample(input, scaled_xy + float2( in_blurOffset.x, -in_blurOffset.y));
-            c += sample(input, scaled_xy + float2(-in_blurOffset.x,  in_blurOffset.y));
-            c += sample(input, scaled_xy + float2(-in_blurOffset.x, -in_blurOffset.y));
+            half4 c = sample(input, xy);
+            c += sample(input, xy + float2( in_blurOffset.x,  in_blurOffset.y));
+            c += sample(input, xy + float2( in_blurOffset.x, -in_blurOffset.y));
+            c += sample(input, xy + float2(-in_blurOffset.x,  in_blurOffset.y));
+            c += sample(input, xy + float2(-in_blurOffset.x, -in_blurOffset.y));
 
             return half4(c.rgb * 0.2, 1.0);
         }
@@ -57,8 +54,8 @@ BlurFilter::BlurFilter() {
     mBlurEffect = std::move(blurEffect);
 }
 
-sk_sp<SkImage> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> input,
-                                    const uint32_t blurRadius, SkRect rect) const {
+sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t blurRadius,
+                                    const sk_sp<SkImage> input, const SkRect& blurRect) const {
     // Kawase is an approximation of Gaussian, but it behaves differently from it.
     // A radius transformation is required for approximating them, and also to introduce
     // non-integer steps, necessary to smoothly interpolate large radii.
@@ -66,33 +63,35 @@ sk_sp<SkImage> BlurFilter::generate(SkCanvas* canvas, const sk_sp<SkSurface> inp
     float numberOfPasses = std::min(kMaxPasses, (uint32_t)ceil(tmpRadius));
     float radiusByPasses = tmpRadius / (float)numberOfPasses;
 
-    SkImageInfo scaledInfo = SkImageInfo::MakeN32Premul((float)rect.width() * kInputScale,
-                                                        (float)rect.height() * kInputScale);
+    // create blur surface with the bit depth and colorspace of the original surface
+    SkImageInfo scaledInfo = input->imageInfo().makeWH(blurRect.width() * kInputScale,
+                                                       blurRect.height() * kInputScale);
 
     const float stepX = radiusByPasses;
     const float stepY = radiusByPasses;
 
-    // start by drawing and downscaling and doing the first blur pass
+    // For sampling Skia's API expects the inverse of what logically seems appropriate. In this
+    // case you might expect Translate(blurRect.fLeft, blurRect.fTop) X Scale(kInverseInputScale)
+    // but instead we must do the inverse.
+    SkMatrix blurMatrix = SkMatrix::Translate(-blurRect.fLeft, -blurRect.fTop);
+    blurMatrix.postScale(kInputScale, kInputScale);
+
+    // start by downscaling and doing the first blur pass
     SkSamplingOptions linear(SkFilterMode::kLinear, SkMipmapMode::kNone);
     SkRuntimeShaderBuilder blurBuilder(mBlurEffect);
     blurBuilder.child("input") =
-            input->makeImageSnapshot(rect.round())
-                    ->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
-    blurBuilder.uniform("in_inverseScale") = kInverseInputScale;
-    blurBuilder.uniform("in_blurOffset") =
-            SkV2{stepX * kInverseInputScale, stepY * kInverseInputScale};
+            input->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear, blurMatrix);
+    blurBuilder.uniform("in_blurOffset") = SkV2{stepX * kInputScale, stepY * kInputScale};
 
-    sk_sp<SkImage> tmpBlur(
-            blurBuilder.makeImage(canvas->recordingContext(), nullptr, scaledInfo, false));
+    sk_sp<SkImage> tmpBlur(blurBuilder.makeImage(context, nullptr, scaledInfo, false));
 
     // And now we'll build our chain of scaled blur stages
-    blurBuilder.uniform("in_inverseScale") = 1.0f;
     for (auto i = 1; i < numberOfPasses; i++) {
         const float stepScale = (float)i * kInputScale;
         blurBuilder.child("input") =
                 tmpBlur->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
         blurBuilder.uniform("in_blurOffset") = SkV2{stepX * stepScale, stepY * stepScale};
-        tmpBlur = blurBuilder.makeImage(canvas->recordingContext(), nullptr, scaledInfo, false);
+        tmpBlur = blurBuilder.makeImage(context, nullptr, scaledInfo, false);
     }
 
     return tmpBlur;
