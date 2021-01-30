@@ -147,17 +147,17 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventLi
         mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_app_buffer_stuffing
         mStatsDelegate->statsEventWriteInt32(event, globalSlice.first.displayRefreshRateBucket);
         std::string sfDeadlineMissedBytes =
-                histogramToProtoByteString(std::unordered_map<int32_t, int32_t>(),
+                histogramToProtoByteString(globalSlice.second.displayDeadlineDeltas.hist,
                                            mMaxPulledHistogramBuckets);
-        mStatsDelegate
-                ->statsEventWriteByteArray(event, (const uint8_t*)sfDeadlineMissedBytes.c_str(),
-                                           sfDeadlineMissedBytes.size()); // sf_deadline_misses
+        mStatsDelegate->statsEventWriteByteArray(event,
+                                                 (const uint8_t*)sfDeadlineMissedBytes.c_str(),
+                                                 sfDeadlineMissedBytes.size());
         std::string sfPredictionErrorBytes =
-                histogramToProtoByteString(std::unordered_map<int32_t, int32_t>(),
+                histogramToProtoByteString(globalSlice.second.displayPresentDeltas.hist,
                                            mMaxPulledHistogramBuckets);
-        mStatsDelegate
-                ->statsEventWriteByteArray(event, (const uint8_t*)sfPredictionErrorBytes.c_str(),
-                                           sfPredictionErrorBytes.size()); // sf_prediction_errors
+        mStatsDelegate->statsEventWriteByteArray(event,
+                                                 (const uint8_t*)sfPredictionErrorBytes.c_str(),
+                                                 sfPredictionErrorBytes.size());
         mStatsDelegate->statsEventWriteInt32(event, globalSlice.first.renderRateBucket);
         mStatsDelegate->statsEventBuild(event);
     }
@@ -170,7 +170,7 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventLi
 AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventList* data) {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    std::vector<TimeStatsHelper::TimeStatsLayer const*> dumpStats;
+    std::vector<TimeStatsHelper::TimeStatsLayer*> dumpStats;
     uint32_t numLayers = 0;
     for (const auto& globalSlice : mTimeStats.stats) {
         numLayers += globalSlice.second.stats.size();
@@ -178,8 +178,8 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
 
     dumpStats.reserve(numLayers);
 
-    for (const auto& globalSlice : mTimeStats.stats) {
-        for (const auto& layerSlice : globalSlice.second.stats) {
+    for (auto& globalSlice : mTimeStats.stats) {
+        for (auto& layerSlice : globalSlice.second.stats) {
             dumpStats.push_back(&layerSlice.second);
         }
     }
@@ -194,7 +194,7 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
         dumpStats.resize(mMaxPulledLayers);
     }
 
-    for (const auto& layer : dumpStats) {
+    for (auto& layer : dumpStats) {
         AStatsEvent* event = mStatsDelegate->addStatsEventToPullData(data);
         mStatsDelegate->statsEventSetAtomId(event, android::util::SURFACEFLINGER_STATS_LAYER_INFO);
         mStatsDelegate->statsEventWriteString8(event, layer->layerName.c_str());
@@ -234,11 +234,11 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
         mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)frameRateVoteBytes.c_str(),
                                                  frameRateVoteBytes.size()); // set_frame_rate_vote
         std::string appDeadlineMissedBytes =
-                histogramToProtoByteString(std::unordered_map<int32_t, int32_t>(),
+                histogramToProtoByteString(layer->deltas["appDeadlineDeltas"].hist,
                                            mMaxPulledHistogramBuckets);
-        mStatsDelegate
-                ->statsEventWriteByteArray(event, (const uint8_t*)appDeadlineMissedBytes.c_str(),
-                                           appDeadlineMissedBytes.size()); // app_deadline_misses
+        mStatsDelegate->statsEventWriteByteArray(event,
+                                                 (const uint8_t*)appDeadlineMissedBytes.c_str(),
+                                                 appDeadlineMissedBytes.size());
 
         mStatsDelegate->statsEventBuild(event);
     }
@@ -772,13 +772,14 @@ void TimeStats::setPresentFence(int32_t layerId, uint64_t frameNumber,
     flushAvailableRecordsToStatsLocked(layerId, displayRefreshRate, renderRate);
 }
 
+static const constexpr int32_t kValidJankyReason = JankType::SurfaceFlingerCpuDeadlineMissed |
+        JankType::SurfaceFlingerGpuDeadlineMissed | JankType::AppDeadlineMissed |
+        JankType::DisplayHAL;
+
 template <class T>
 static void updateJankPayload(T& t, int32_t reasons) {
     t.jankPayload.totalFrames++;
 
-    static const constexpr int32_t kValidJankyReason = JankType::SurfaceFlingerCpuDeadlineMissed |
-            JankType::SurfaceFlingerGpuDeadlineMissed | JankType::AppDeadlineMissed |
-            JankType::DisplayHAL;
     if (reasons & kValidJankyReason) {
         t.jankPayload.totalJankyFrames++;
         if ((reasons & JankType::SurfaceFlingerCpuDeadlineMissed) != 0) {
@@ -796,8 +797,7 @@ static void updateJankPayload(T& t, int32_t reasons) {
     }
 }
 
-void TimeStats::incrementJankyFrames(Fps refreshRate, std::optional<Fps> renderRate, uid_t uid,
-                                     const std::string& layerName, int32_t reasons) {
+void TimeStats::incrementJankyFrames(const JankyFramesInfo& info) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
@@ -816,9 +816,11 @@ void TimeStats::incrementJankyFrames(Fps refreshRate, std::optional<Fps> renderR
 
     static const std::string kDefaultLayerName = "none";
 
-    const int32_t refreshRateBucket = clampToSmallestBucket(refreshRate, REFRESH_RATE_BUCKET_WIDTH);
+    const int32_t refreshRateBucket =
+            clampToSmallestBucket(info.refreshRate, REFRESH_RATE_BUCKET_WIDTH);
     const int32_t renderRateBucket =
-            clampToSmallestBucket(renderRate ? *renderRate : refreshRate, RENDER_RATE_BUCKET_WIDTH);
+            clampToSmallestBucket(info.renderRate ? *info.renderRate : info.refreshRate,
+                                  RENDER_RATE_BUCKET_WIDTH);
     const TimeStatsHelper::TimelineStatsKey timelineKey = {refreshRateBucket, renderRateBucket};
 
     if (!mTimeStats.stats.count(timelineKey)) {
@@ -827,19 +829,29 @@ void TimeStats::incrementJankyFrames(Fps refreshRate, std::optional<Fps> renderR
 
     TimeStatsHelper::TimelineStats& timelineStats = mTimeStats.stats[timelineKey];
 
-    updateJankPayload<TimeStatsHelper::TimelineStats>(timelineStats, reasons);
+    updateJankPayload<TimeStatsHelper::TimelineStats>(timelineStats, info.reasons);
 
-    TimeStatsHelper::LayerStatsKey layerKey = {uid, layerName};
+    TimeStatsHelper::LayerStatsKey layerKey = {info.uid, info.layerName};
     if (!timelineStats.stats.count(layerKey)) {
-        layerKey = {uid, kDefaultLayerName};
+        layerKey = {info.uid, kDefaultLayerName};
         timelineStats.stats[layerKey].displayRefreshRateBucket = refreshRateBucket;
         timelineStats.stats[layerKey].renderRateBucket = renderRateBucket;
-        timelineStats.stats[layerKey].uid = uid;
+        timelineStats.stats[layerKey].uid = info.uid;
         timelineStats.stats[layerKey].layerName = kDefaultLayerName;
     }
 
     TimeStatsHelper::TimeStatsLayer& timeStatsLayer = timelineStats.stats[layerKey];
-    updateJankPayload<TimeStatsHelper::TimeStatsLayer>(timeStatsLayer, reasons);
+    updateJankPayload<TimeStatsHelper::TimeStatsLayer>(timeStatsLayer, info.reasons);
+
+    if (info.reasons & kValidJankyReason) {
+        // TimeStats Histograms only retain positive values, so we don't need to check if these
+        // deadlines were really missed if we know that the frame had jank, since deadlines
+        // that were met will be dropped.
+        timelineStats.displayDeadlineDeltas.insert(static_cast<int32_t>(info.displayDeadlineDelta));
+        timelineStats.displayPresentDeltas.insert(static_cast<int32_t>(info.displayPresentJitter));
+        timeStatsLayer.deltas["appDeadlineDeltas"].insert(
+                static_cast<int32_t>(info.appDeadlineDelta));
+    }
 }
 
 void TimeStats::onDestroy(int32_t layerId) {

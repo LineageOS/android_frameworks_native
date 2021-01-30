@@ -52,8 +52,7 @@ public:
     MOCK_METHOD5(setPresentFence,
                  void(int32_t, uint64_t, const std::shared_ptr<FenceTime>&, Fps,
                       std::optional<Fps>));
-    MOCK_METHOD5(incrementJankyFrames,
-                 void(Fps, std::optional<Fps>, uid_t, const std::string&, int32_t));
+    MOCK_METHOD1(incrementJankyFrames, void(const JankyFramesInfo&));
     MOCK_METHOD1(onDestroy, void(int32_t));
     MOCK_METHOD2(removeTimeRecord, void(int32_t, uint64_t));
     MOCK_METHOD1(setPowerMode,

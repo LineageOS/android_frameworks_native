@@ -366,16 +366,16 @@ TEST_F(TimeStatsTest, canIncreaseJankyFramesForLayer) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::SurfaceFlingerCpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::SurfaceFlingerGpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::DisplayHAL);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::AppDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::None);
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::SurfaceFlingerCpuDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::SurfaceFlingerGpuDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::DisplayHAL, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::AppDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::None, 1, 2, 3});
 
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
     std::string expectedResult =
@@ -838,16 +838,16 @@ TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count()));
 
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::SurfaceFlingerCpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::SurfaceFlingerGpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::DisplayHAL);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::AppDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::None);
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::SurfaceFlingerCpuDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::SurfaceFlingerGpuDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::DisplayHAL, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::AppDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::None, 1, 2, 3});
 
     EXPECT_TRUE(inputCommand(InputCommand::CLEAR, FMT_STRING).empty());
 
@@ -987,16 +987,16 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(3000000));
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
 
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::SurfaceFlingerCpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::SurfaceFlingerGpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::DisplayHAL);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::AppDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::None);
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::SurfaceFlingerCpuDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::SurfaceFlingerGpuDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::DisplayHAL, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::AppDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::None, 1, 2, 3});
 
     EXPECT_THAT(mDelegate->mAtomTags,
                 UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
@@ -1007,6 +1007,8 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     std::string expectedFrameDuration = buildExpectedHistogramBytestring({2}, {1});
     std::string expectedRenderEngineTiming = buildExpectedHistogramBytestring({1, 2}, {1, 1});
     std::string expectedEmptyHistogram = buildExpectedHistogramBytestring({}, {});
+    std::string expectedSfDeadlineMissed = buildExpectedHistogramBytestring({1}, {4});
+    std::string expectedSfPredictionErrors = buildExpectedHistogramBytestring({2}, {4});
 
     {
         InSequence seq;
@@ -1042,14 +1044,16 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
         EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, REFRESH_RATE_BUCKET_0));
         EXPECT_CALL(*mDelegate,
                     statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)expectedEmptyHistogram.c_str(),
-                                                     expectedEmptyHistogram.size()),
-                                             expectedEmptyHistogram.size()));
+                                             BytesEq((const uint8_t*)
+                                                             expectedSfDeadlineMissed.c_str(),
+                                                     expectedSfDeadlineMissed.size()),
+                                             expectedSfDeadlineMissed.size()));
         EXPECT_CALL(*mDelegate,
                     statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)expectedEmptyHistogram.c_str(),
-                                                     expectedEmptyHistogram.size()),
-                                             expectedEmptyHistogram.size()));
+                                             BytesEq((const uint8_t*)
+                                                             expectedSfPredictionErrors.c_str(),
+                                                     expectedSfPredictionErrors.size()),
+                                             expectedSfPredictionErrors.size()));
         EXPECT_CALL(*mDelegate, statsEventWriteInt32(mDelegate->mEvent, RENDER_RATE_BUCKET_0));
 
         EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
@@ -1083,16 +1087,16 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
     }
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000);
 
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::SurfaceFlingerCpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::SurfaceFlingerGpuDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::DisplayHAL);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::AppDeadlineMissed);
-    mTimeStats->incrementJankyFrames(kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                     JankType::None);
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::SurfaceFlingerCpuDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::SurfaceFlingerGpuDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::DisplayHAL, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::AppDeadlineMissed, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::None, 1, 2, 3});
 
     EXPECT_THAT(mDelegate->mAtomTags,
                 UnorderedElementsAre(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
@@ -1107,7 +1111,7 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
     std::string expectedDesiredToPresent = buildExpectedHistogramBytestring({1}, {1});
     std::string expectedPostToAcquire = buildExpectedHistogramBytestring({1}, {1});
     std::string expectedFrameRateOverride = frameRateVoteToProtoByteString(0.0, 0, 0);
-    std::string expectedEmptyHistogram = buildExpectedHistogramBytestring({}, {});
+    std::string expectedAppDeadlineMissed = buildExpectedHistogramBytestring({3}, {4});
     {
         InSequence seq;
         EXPECT_CALL(*mDelegate,
@@ -1174,9 +1178,10 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
                                              expectedFrameRateOverride.size()));
         EXPECT_CALL(*mDelegate,
                     statsEventWriteByteArray(mDelegate->mEvent,
-                                             BytesEq((const uint8_t*)expectedEmptyHistogram.c_str(),
-                                                     expectedEmptyHistogram.size()),
-                                             expectedEmptyHistogram.size()));
+                                             BytesEq((const uint8_t*)
+                                                             expectedAppDeadlineMissed.c_str(),
+                                                     expectedAppDeadlineMissed.size()),
+                                             expectedAppDeadlineMissed.size()));
 
         EXPECT_CALL(*mDelegate, statsEventBuild(mDelegate->mEvent));
     }

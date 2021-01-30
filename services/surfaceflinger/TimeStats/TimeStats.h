@@ -121,10 +121,48 @@ public:
     // from FrameTimeline, rather than directly from SurfaceFlinger or individual layers. If there
     // are no jank reasons, then total frames are incremented but jank is not, for accurate
     // accounting of janky frames.
-    // When these frame counts are incremented, these are also aggregated into a global reporting
-    // packet to help with data validation and assessing of overall device health.
-    virtual void incrementJankyFrames(Fps refreshRate, std::optional<Fps> renderRate, uid_t uid,
-                                      const std::string& layerName, int32_t reasons) = 0;
+    // displayDeadlineDelta, displayPresentJitter, and appDeadlineDelta are also provided in order
+    // to provide contextual information about a janky frame. These values may only be uploaded if
+    // there was an associated valid jank reason, and they must be positive. When these frame counts
+    // are incremented, these are also aggregated into a global reporting packet to help with data
+    // validation and assessing of overall device health.
+    struct JankyFramesInfo {
+        Fps refreshRate;
+        std::optional<Fps> renderRate;
+        uid_t uid = 0;
+        std::string layerName;
+        int32_t reasons = 0;
+        nsecs_t displayDeadlineDelta = 0;
+        nsecs_t displayPresentJitter = 0;
+        nsecs_t appDeadlineDelta = 0;
+
+        bool operator==(const JankyFramesInfo& o) const {
+            return Fps::EqualsInBuckets{}(refreshRate, o.refreshRate) &&
+                    ((renderRate == std::nullopt && o.renderRate == std::nullopt) ||
+                     (renderRate != std::nullopt && o.renderRate != std::nullopt &&
+                      Fps::EqualsInBuckets{}(*renderRate, *o.renderRate))) &&
+                    uid == o.uid && layerName == o.layerName && reasons == o.reasons &&
+                    displayDeadlineDelta == o.displayDeadlineDelta &&
+                    displayPresentJitter == o.displayPresentJitter &&
+                    appDeadlineDelta == o.appDeadlineDelta;
+        }
+
+        friend std::ostream& operator<<(std::ostream& os, const JankyFramesInfo& info) {
+            os << "JankyFramesInfo {";
+            os << "\n    .refreshRate = " << info.refreshRate;
+            os << "\n    .renderRate = "
+               << (info.renderRate ? to_string(*info.renderRate) : "nullopt");
+            os << "\n    .uid = " << info.uid;
+            os << "\n    .layerName = " << info.layerName;
+            os << "\n    .reasons = " << info.reasons;
+            os << "\n    .displayDeadlineDelta = " << info.displayDeadlineDelta;
+            os << "\n    .displayPresentJitter = " << info.displayPresentJitter;
+            os << "\n    .appDeadlineDelta = " << info.appDeadlineDelta;
+            return os << "\n}";
+        }
+    };
+
+    virtual void incrementJankyFrames(const JankyFramesInfo& info) = 0;
     // Clean up the layer record
     virtual void onDestroy(int32_t layerId) = 0;
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
@@ -273,8 +311,8 @@ public:
     void setPresentFence(int32_t layerId, uint64_t frameNumber,
                          const std::shared_ptr<FenceTime>& presentFence, Fps displayRefreshRate,
                          std::optional<Fps> renderRate) override;
-    void incrementJankyFrames(Fps refreshRate, std::optional<Fps> renderRate, uid_t uid,
-                              const std::string& layerName, int32_t reasons) override;
+
+    void incrementJankyFrames(const JankyFramesInfo& info) override;
     // Clean up the layer record
     void onDestroy(int32_t layerId) override;
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.

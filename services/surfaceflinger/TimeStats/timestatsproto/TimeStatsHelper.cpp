@@ -41,7 +41,7 @@ void TimeStatsHelper::Histogram::insert(int32_t delta) {
     if (delta < 0) return;
     // std::lower_bound won't work on out of range values
     if (delta > histogramConfig[HISTOGRAM_SIZE - 1]) {
-        hist[histogramConfig[HISTOGRAM_SIZE - 1]] += delta / histogramConfig[HISTOGRAM_SIZE - 1];
+        hist[histogramConfig[HISTOGRAM_SIZE - 1]]++;
         return;
     }
     auto iter = std::lower_bound(histogramConfig.begin(), histogramConfig.end(), delta);
@@ -154,6 +154,10 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
                       ele.second.key.displayRefreshRateBucket);
         StringAppendF(&result, "renderRate = %d fps\n", ele.second.key.renderRateBucket);
         result.append(ele.second.jankPayload.toString());
+        StringAppendF(&result, "sfDeadlineMisses histogram is as below:\n");
+        result.append(ele.second.displayDeadlineDeltas.toString());
+        StringAppendF(&result, "sfPredictionErrors histogram is as below:\n");
+        result.append(ele.second.displayPresentDeltas.toString());
     }
 
     const auto dumpStats = generateDumpStats(maxLayers);

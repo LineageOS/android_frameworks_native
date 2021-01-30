@@ -121,6 +121,8 @@ public:
     struct TimelineStats {
         TimelineStatsKey key;
         JankPayload jankPayload;
+        Histogram displayDeadlineDeltas;
+        Histogram displayPresentDeltas;
         std::unordered_map<LayerStatsKey, TimeStatsLayer, LayerStatsKey::Hasher> stats;
     };
 

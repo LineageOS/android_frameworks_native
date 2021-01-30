@@ -183,7 +183,10 @@ public:
     // Used for dumping all timestamps relative to the oldest, making it easy to read.
     nsecs_t getBaseTime() const;
     // Sets the actual present time, appropriate metadata and classifies the jank.
-    void onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate);
+    // displayRefreshRate, displayDeadlineDelta, and displayPresentDelta are propagated from the
+    // display frame.
+    void onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate,
+                   nsecs_t displayDeadlineDelta, nsecs_t displayPresentDelta);
     // All the timestamps are dumped relative to the baseTime
     void dump(std::string& result, const std::string& indent, nsecs_t baseTime) const;
     // Emits a packet for perfetto tracing. The function body will be executed only if tracing is

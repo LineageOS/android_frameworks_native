@@ -399,10 +399,10 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
     dumpTable(result, mPredictions, mActuals, indent, mPredictionState, baseTime);
 }
 
-void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate) {
+void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate,
+                             nsecs_t displayDeadlineDelta, nsecs_t displayPresentDelta) {
     std::scoped_lock lock(mMutex);
 
-    const Fps renderRate = mRenderRate ? *mRenderRate : refreshRate;
     if (mPresentState != PresentState::Presented) {
         // No need to update dropped buffers
         return;
@@ -421,7 +421,10 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, 
         mJankType = JankType::Unknown;
         mFramePresentMetadata = FramePresentMetadata::UnknownPresent;
         mFrameReadyMetadata = FrameReadyMetadata::UnknownFinish;
-        mTimeStats->incrementJankyFrames(refreshRate, renderRate, mOwnerUid, mLayerName, mJankType);
+        const constexpr nsecs_t kAppDeadlineDelta = -1;
+        mTimeStats->incrementJankyFrames({refreshRate, mRenderRate, mOwnerUid, mLayerName,
+                                          mJankType, displayDeadlineDelta, displayPresentDelta,
+                                          kAppDeadlineDelta});
         return;
     }
 
@@ -493,7 +496,8 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, 
             }
         }
     }
-    mTimeStats->incrementJankyFrames(refreshRate, renderRate, mOwnerUid, mLayerName, mJankType);
+    mTimeStats->incrementJankyFrames({refreshRate, mRenderRate, mOwnerUid, mLayerName, mJankType,
+                                      displayDeadlineDelta, displayPresentDelta, deadlineDelta});
 }
 
 /**
@@ -750,6 +754,9 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
     // Delta between the expected present and the actual present
     const nsecs_t presentDelta =
             mSurfaceFlingerActuals.presentTime - mSurfaceFlingerPredictions.presentTime;
+    const nsecs_t deadlineDelta =
+            mSurfaceFlingerActuals.endTime - mSurfaceFlingerPredictions.endTime;
+
     // How far off was the presentDelta when compared to the vsyncPeriod. Used in checking if there
     // was a prediction error or not.
     nsecs_t deltaToVsync = std::abs(presentDelta) % mRefreshRate.getPeriodNsecs();
@@ -825,7 +832,7 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
         }
     }
     for (auto& surfaceFrame : mSurfaceFrames) {
-        surfaceFrame->onPresent(signalTime, mJankType, mRefreshRate);
+        surfaceFrame->onPresent(signalTime, mJankType, mRefreshRate, deadlineDelta, deltaToVsync);
     }
 }
 
