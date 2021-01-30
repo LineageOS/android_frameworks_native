@@ -54,6 +54,7 @@
 #include "DisplayHardware/PowerAdvisor.h"
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
+#include "Fps.h"
 #include "FrameTracker.h"
 #include "LayerVector.h"
 #include "Scheduler/RefreshRateConfigs.h"
@@ -667,7 +668,7 @@ private:
     void signalLayerUpdate();
     void signalRefresh();
 
-    // called on the main thread in response to initializeDisplays()
+    // Called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
     // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
     void setDesiredActiveConfig(const ActiveConfigInfo& info) REQUIRES(mStateLock);
@@ -678,9 +679,10 @@ private:
     // Calls to setActiveConfig on the main thread if there is a pending config
     // that needs to be applied.
     void performSetActiveConfig() REQUIRES(mStateLock);
+    void clearDesiredActiveConfigState() REQUIRES(mStateLock) EXCLUDES(mActiveConfigLock);
     // Called when active config is no longer is progress
     void desiredActiveConfigChangeDone() REQUIRES(mStateLock);
-    // called on the main thread in response to setPowerMode()
+    // Called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
             REQUIRES(mStateLock);
 
@@ -712,8 +714,8 @@ private:
     void commitInputWindowCommands() REQUIRES(mStateLock);
     void updateCursorAsync();
 
-    void initScheduler(PhysicalDisplayId primaryDisplayId);
-    void updatePhaseConfiguration(const RefreshRate&);
+    void initScheduler(const DisplayDeviceState&) REQUIRES(mStateLock);
+    void updatePhaseConfiguration(const Fps&) REQUIRES(mStateLock);
     void setVsyncConfig(const VsyncModulator::VsyncConfig&, nsecs_t vsyncPeriod);
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
@@ -751,7 +753,7 @@ private:
     uint32_t setTransactionFlags(uint32_t flags, TransactionSchedule);
     void commitTransaction() REQUIRES(mStateLock);
     void commitOffscreenLayers();
-    bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
+    bool transactionIsReadyToBeApplied(bool isAutoTimestamp, int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states,
                                        bool updateTransactionCounters = false) REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
@@ -813,8 +815,8 @@ private:
     status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, sp<GraphicBuffer>&,
                                  bool regionSampling, const sp<IScreenCaptureListener>&);
     status_t renderScreenImplLocked(const RenderArea&, TraverseLayersFunction,
-                                    const sp<GraphicBuffer>&, bool forSystem, int* outSyncFd,
-                                    bool regionSampling, ScreenCaptureResults&);
+                                    const sp<GraphicBuffer>&, bool forSystem, bool regionSampling,
+                                    ScreenCaptureResults&);
 
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack) REQUIRES(mStateLock);
