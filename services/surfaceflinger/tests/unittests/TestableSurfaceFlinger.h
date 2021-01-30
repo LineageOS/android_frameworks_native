@@ -349,11 +349,11 @@ public:
 
     auto renderScreenImplLocked(const RenderArea& renderArea,
                                 SurfaceFlinger::TraverseLayersFunction traverseLayers,
-                                const sp<GraphicBuffer>& buffer, bool forSystem, int* outSyncFd,
+                                const sp<GraphicBuffer>& buffer, bool forSystem,
                                 bool regionSampling) {
         ScreenCaptureResults captureResults;
         return mFlinger->renderScreenImplLocked(renderArea, traverseLayers, buffer, forSystem,
-                                                outSyncFd, regionSampling, captureResults);
+                                                regionSampling, captureResults);
     }
 
     auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,
@@ -598,7 +598,8 @@ public:
                                   std::optional<DisplayConnectionType> connectionType,
                                   std::optional<hal::HWDisplayId> hwcDisplayId, bool isPrimary)
               : mFlinger(flinger),
-                mCreationArgs(flinger.mFlinger.get(), mDisplayToken, compositionDisplay),
+                mCreationArgs(flinger.mFlinger.get(), flinger.mFlinger->getHwComposer(),
+                              mDisplayToken, compositionDisplay),
                 mHwcDisplayId(hwcDisplayId) {
             mCreationArgs.connectionType = connectionType;
             mCreationArgs.isPrimary = isPrimary;

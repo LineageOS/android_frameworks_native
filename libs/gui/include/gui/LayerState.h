@@ -82,6 +82,10 @@ struct layer_state_t {
         eLayerOpaque = 0x02,         // SURFACE_OPAQUE
         eLayerSkipScreenshot = 0x40, // SKIP_SCREENSHOT
         eLayerSecure = 0x80,         // SECURE
+        // Queue up BufferStateLayer buffers instead of dropping the oldest buffer when this flag is
+        // set. This blocks the client until all the buffers have been presented. If the buffers
+        // have presentation timestamps, then we may drop buffers.
+        eEnableBackpressure = 0x100, // ENABLE_BACKPRESSURE
     };
 
     enum {
@@ -157,8 +161,8 @@ struct layer_state_t {
     uint32_t h;
     uint32_t layerStack;
     float alpha;
-    uint8_t flags;
-    uint8_t mask;
+    uint32_t flags;
+    uint32_t mask;
     uint8_t reserved;
     matrix22_t matrix;
     Rect crop_legacy;
