@@ -253,14 +253,9 @@ void CompositionTest::captureScreenComposition() {
     mCaptureScreenBuffer = new GraphicBuffer(renderArea->getReqWidth(), renderArea->getReqHeight(),
                                              HAL_PIXEL_FORMAT_RGBA_8888, 1, usage, "screenshot");
 
-    int fd = -1;
     status_t result =
             mFlinger.renderScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer.get(),
-                                            forSystem, &fd, regionSampling);
-    if (fd >= 0) {
-        close(fd);
-    }
-
+                                            forSystem, regionSampling);
     EXPECT_EQ(NO_ERROR, result);
 
     LayerCase::cleanup(this);

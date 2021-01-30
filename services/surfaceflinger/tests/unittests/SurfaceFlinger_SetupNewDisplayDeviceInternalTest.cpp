@@ -17,6 +17,8 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
+#include "DisplayHardware/DisplayMode.h"
+
 #include "DisplayTransactionTestHelpers.h"
 
 namespace android {
@@ -232,13 +234,26 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     // Invocation
 
     DisplayDeviceState state;
-    if (const auto connectionType = Case::Display::CONNECTION_TYPE::value) {
+    if constexpr (constexpr auto connectionType = Case::Display::CONNECTION_TYPE::value) {
         const auto displayId = PhysicalDisplayId::tryCast(Case::Display::DISPLAY_ID::get());
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
         ASSERT_TRUE(hwcDisplayId);
         mFlinger.getHwComposer().allocatePhysicalDisplay(*hwcDisplayId, *displayId);
-        state.physical = {.id = *displayId, .type = *connectionType, .hwcDisplayId = *hwcDisplayId};
+        DisplayModePtr activeMode = DisplayMode::Builder(Case::Display::HWC_ACTIVE_CONFIG_ID)
+                                            .setWidth(Case::Display::WIDTH)
+                                            .setHeight(Case::Display::HEIGHT)
+                                            .setVsyncPeriod(DEFAULT_VSYNC_PERIOD)
+                                            .setDpiX(DEFAULT_DPI)
+                                            .setDpiY(DEFAULT_DPI)
+                                            .setConfigGroup(0)
+                                            .build();
+        DisplayModes modes{activeMode};
+        state.physical = {.id = *displayId,
+                          .type = *connectionType,
+                          .hwcDisplayId = *hwcDisplayId,
+                          .supportedModes = modes,
+                          .activeMode = activeMode};
     }
 
     state.isSecure = static_cast<bool>(Case::Display::SECURE);
@@ -262,12 +277,14 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     EXPECT_EQ(Case::HdrSupport::HDR10_SUPPORTED, device->hasHDR10Support());
     EXPECT_EQ(Case::HdrSupport::HDR_HLG_SUPPORTED, device->hasHLGSupport());
     EXPECT_EQ(Case::HdrSupport::HDR_DOLBY_VISION_SUPPORTED, device->hasDolbyVisionSupport());
-    // Note: This is not Case::Display::HWC_ACTIVE_CONFIG_ID as the ids are
-    // remapped, and the test only ever sets up one config. If there were an error
-    // looking up the remapped index, device->getActiveMode() would be -1 instead.
-    EXPECT_EQ(0, device->getActiveMode().value());
     EXPECT_EQ(Case::PerFrameMetadataSupport::PER_FRAME_METADATA_KEYS,
               device->getSupportedPerFrameMetadata());
+
+    if constexpr (Case::Display::CONNECTION_TYPE::value) {
+        EXPECT_EQ(1, device->getSupportedModes().size());
+        EXPECT_NE(nullptr, device->getActiveMode());
+        EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID, device->getActiveMode()->getHwcId());
+    }
 }
 
 TEST_F(SetupNewDisplayDeviceInternalTest, createSimplePrimaryDisplay) {

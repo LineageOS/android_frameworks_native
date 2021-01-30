@@ -315,8 +315,9 @@ private:
 
     static const size_t MAX_NUM_LAYER_RECORDS = 200;
     static const size_t MAX_NUM_LAYER_STATS = 200;
+    static const size_t MAX_NUM_PULLED_LAYERS = MAX_NUM_LAYER_STATS;
     std::unique_ptr<StatsEventDelegate> mStatsDelegate = std::make_unique<StatsEventDelegate>();
-    size_t mMaxPulledLayers = 8;
+    size_t mMaxPulledLayers = MAX_NUM_PULLED_LAYERS;
     size_t mMaxPulledHistogramBuckets = 6;
 };
 

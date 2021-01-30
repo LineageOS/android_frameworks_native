@@ -86,16 +86,16 @@ TEST_F(OnInitializeDisplaysTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
     // The display refresh period should be set in the orientedDisplaySpaceRect tracker.
     FrameStats stats;
     mFlinger.getAnimFrameTracker().getStats(&stats);
-    EXPECT_EQ(DEFAULT_REFRESH_RATE, stats.refreshPeriodNano);
+    EXPECT_EQ(DEFAULT_VSYNC_PERIOD, stats.refreshPeriodNano);
 
     // The display transaction needed flag should be set.
     EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
 
     // The compositor timing should be set to default values
     const auto& compositorTiming = mFlinger.getCompositorTiming();
-    EXPECT_EQ(-DEFAULT_REFRESH_RATE, compositorTiming.deadline);
-    EXPECT_EQ(DEFAULT_REFRESH_RATE, compositorTiming.interval);
-    EXPECT_EQ(DEFAULT_REFRESH_RATE, compositorTiming.presentLatency);
+    EXPECT_EQ(-DEFAULT_VSYNC_PERIOD, compositorTiming.deadline);
+    EXPECT_EQ(DEFAULT_VSYNC_PERIOD, compositorTiming.interval);
+    EXPECT_EQ(DEFAULT_VSYNC_PERIOD, compositorTiming.presentLatency);
 }
 
 } // namespace
