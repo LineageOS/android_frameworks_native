@@ -26,6 +26,7 @@ namespace android {
 
 using os::IClientCallback;
 using os::IServiceCallback;
+using os::ServiceDebugInfo;
 
 class ServiceManager : public os::BnServiceManager, public IBinder::DeathRecipient {
 public:
@@ -48,6 +49,7 @@ public:
     binder::Status registerClientCallback(const std::string& name, const sp<IBinder>& service,
                                           const sp<IClientCallback>& cb) override;
     binder::Status tryUnregisterService(const std::string& name, const sp<IBinder>& binder) override;
+    binder::Status getServiceDebugInfo(std::vector<ServiceDebugInfo>* outReturn) override;
     void binderDied(const wp<IBinder>& who) override;
     void handleClientCallbacks();
 
