@@ -83,6 +83,7 @@ TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
 TEST(LayerStateTest, ParcellingScreenCaptureResults) {
     ScreenCaptureResults results;
     results.buffer = new GraphicBuffer(100, 200, PIXEL_FORMAT_RGBA_8888, 1, 0);
+    results.fence = new Fence(dup(fileno(tmpfile())));
     results.capturedSecureLayers = true;
     results.capturedDataspace = ui::Dataspace::DISPLAY_P3;
     results.result = BAD_VALUE;
@@ -99,9 +100,39 @@ TEST(LayerStateTest, ParcellingScreenCaptureResults) {
     ASSERT_EQ(results.buffer->getWidth(), results2.buffer->getWidth());
     ASSERT_EQ(results.buffer->getHeight(), results2.buffer->getHeight());
     ASSERT_EQ(results.buffer->getPixelFormat(), results2.buffer->getPixelFormat());
+    ASSERT_EQ(results.fence->isValid(), results2.fence->isValid());
     ASSERT_EQ(results.capturedSecureLayers, results2.capturedSecureLayers);
     ASSERT_EQ(results.capturedDataspace, results2.capturedDataspace);
     ASSERT_EQ(results.result, results2.result);
+}
+
+/**
+ * Parcel a layer_state_t struct, and then unparcel. Ensure that the object that was parceled
+ * matches the object that's unparceled.
+ */
+TEST(LayerStateTest, ParcelUnparcelLayerStateT) {
+    layer_state_t input;
+    input.frameTimelineInfo.vsyncId = 1;
+    input.frameTimelineInfo.inputEventId = 2;
+    Parcel p;
+    input.write(p);
+    layer_state_t output;
+    p.setDataPosition(0);
+    output.read(p);
+    ASSERT_EQ(input.frameTimelineInfo.vsyncId, output.frameTimelineInfo.vsyncId);
+    ASSERT_EQ(input.frameTimelineInfo.inputEventId, output.frameTimelineInfo.inputEventId);
+}
+
+TEST(LayerStateTest, LayerStateMerge_SelectsValidInputEvent) {
+    layer_state_t layer1;
+    layer1.frameTimelineInfo.inputEventId = android::os::IInputConstants::INVALID_INPUT_EVENT_ID;
+    layer_state_t layer2;
+    layer2.frameTimelineInfo.inputEventId = 1;
+    layer2.what |= layer_state_t::eFrameTimelineInfoChanged;
+
+    layer1.merge(layer2);
+
+    ASSERT_EQ(1, layer1.frameTimelineInfo.inputEventId);
 }
 
 } // namespace test

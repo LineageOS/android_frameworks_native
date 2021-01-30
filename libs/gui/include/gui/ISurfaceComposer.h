@@ -24,6 +24,7 @@
 
 #include <android/gui/IScreenCaptureListener.h>
 #include <android/gui/ITransactionTraceListener.h>
+#include <gui/FrameTimelineInfo.h>
 #include <gui/ITransactionCompletedListener.h>
 
 #include <input/Flags.h>
@@ -117,9 +118,6 @@ public:
 
     using EventRegistrationFlags = Flags<EventRegistration>;
 
-    // Needs to be in sync with android.graphics.FrameInfo.INVALID_VSYNC_ID in java
-    static constexpr int64_t INVALID_VSYNC_ID = -1;
-
     /*
      * Create a connection with SurfaceFlinger.
      */
@@ -164,7 +162,7 @@ public:
 
     /* open/close transactions. requires ACCESS_SURFACE_FLINGER permission */
     virtual status_t setTransactionState(
-            int64_t frameTimelineVsyncId, const Vector<ComposerState>& state,
+            const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& state,
             const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
             const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
             bool isAutoTimestamp, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
@@ -494,11 +492,11 @@ public:
     virtual status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) = 0;
 
     /*
-     * Sets the frame timeline vsync id received from choreographer that corresponds to next
+     * Sets the frame timeline vsync info received from choreographer that corresponds to next
      * buffer submitted on that surface.
      */
-    virtual status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
-                                           int64_t frameTimelineVsyncId) = 0;
+    virtual status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
+                                          const FrameTimelineInfo& frameTimelineInfo) = 0;
 
     /*
      * Adds a TransactionTraceListener to listen for transaction tracing state updates.
@@ -569,7 +567,7 @@ public:
         SET_GAME_CONTENT_TYPE,
         SET_FRAME_RATE,
         ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN,
-        SET_FRAME_TIMELINE_VSYNC,
+        SET_FRAME_TIMELINE_INFO,
         ADD_TRANSACTION_TRACE_LISTENER,
         GET_GPU_CONTEXT_PRIORITY,
         // Always append new enum to the end.

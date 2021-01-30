@@ -129,7 +129,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.shadowRadius = 0.f;
     mCurrentState.treeHasFrameRateVote = false;
     mCurrentState.fixedTransformHint = ui::Transform::ROT_INVALID;
-    mCurrentState.frameTimelineVsyncId = ISurfaceComposer::INVALID_VSYNC_ID;
+    mCurrentState.frameTimelineInfo = {};
     mCurrentState.postTime = -1;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
@@ -907,14 +907,10 @@ bool Layer::applyPendingStates(State* stateToCommit) {
     }
 
     if (stateUpdateAvailable) {
-        const auto vsyncId =
-                stateToCommit->frameTimelineVsyncId == ISurfaceComposer::INVALID_VSYNC_ID
-                ? std::nullopt
-                : std::make_optional(stateToCommit->frameTimelineVsyncId);
-
         mSurfaceFrame =
-                mFlinger->mFrameTimeline->createSurfaceFrameForToken(vsyncId, mOwnerPid, mOwnerUid,
-                                                                     mName, mTransactionName);
+                mFlinger->mFrameTimeline
+                        ->createSurfaceFrameForToken(stateToCommit->frameTimelineInfo, mOwnerPid,
+                                                     mOwnerUid, mName, mTransactionName);
         mSurfaceFrame->setActualQueueTime(stateToCommit->postTime);
         // For transactions we set the acquire fence time to the post time as we
         // don't have a buffer. For BufferStateLayer it is overridden in
@@ -1312,7 +1308,7 @@ bool Layer::setBlurRegions(const std::vector<BlurRegion>& blurRegions) {
     return true;
 }
 
-bool Layer::setFlags(uint8_t flags, uint8_t mask) {
+bool Layer::setFlags(uint32_t flags, uint32_t mask) {
     const uint32_t newFlags = (mCurrentState.flags & ~mask) | (flags & mask);
     if (mCurrentState.flags == newFlags) return false;
     mCurrentState.sequence++;
@@ -1491,8 +1487,8 @@ bool Layer::setFrameRate(FrameRate frameRate) {
     return true;
 }
 
-void Layer::setFrameTimelineVsyncForTransaction(int64_t frameTimelineVsyncId, nsecs_t postTime) {
-    mCurrentState.frameTimelineVsyncId = frameTimelineVsyncId;
+void Layer::setFrameTimelineInfoForTransaction(const FrameTimelineInfo& info, nsecs_t postTime) {
+    mCurrentState.frameTimelineInfo = info;
     mCurrentState.postTime = postTime;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);

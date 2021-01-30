@@ -25,6 +25,14 @@ status_t ScreenCaptureResults::writeToParcel(android::Parcel* parcel) const {
     } else {
         SAFE_PARCEL(parcel->writeBool, false);
     }
+
+    if (fence != Fence::NO_FENCE) {
+        SAFE_PARCEL(parcel->writeBool, true);
+        SAFE_PARCEL(parcel->write, *fence);
+    } else {
+        SAFE_PARCEL(parcel->writeBool, false);
+    }
+
     SAFE_PARCEL(parcel->writeBool, capturedSecureLayers);
     SAFE_PARCEL(parcel->writeUint32, static_cast<uint32_t>(capturedDataspace));
     SAFE_PARCEL(parcel->writeInt32, result);
@@ -37,6 +45,13 @@ status_t ScreenCaptureResults::readFromParcel(const android::Parcel* parcel) {
     if (hasGraphicBuffer) {
         buffer = new GraphicBuffer();
         SAFE_PARCEL(parcel->read, *buffer);
+    }
+
+    bool hasFence;
+    SAFE_PARCEL(parcel->readBool, &hasFence);
+    if (hasFence) {
+        fence = new Fence();
+        SAFE_PARCEL(parcel->read, *fence);
     }
 
     SAFE_PARCEL(parcel->readBool, &capturedSecureLayers);

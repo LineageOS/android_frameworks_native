@@ -105,7 +105,7 @@ struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
 
 struct DispSyncIsSupportedVariant {
     static void setupResetModelCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mVsyncController, startPeriodTransition(DEFAULT_REFRESH_RATE)).Times(1);
+        EXPECT_CALL(*test->mVsyncController, startPeriodTransition(DEFAULT_VSYNC_PERIOD)).Times(1);
         EXPECT_CALL(*test->mVSyncTracker, resetModel()).Times(1);
     }
 };

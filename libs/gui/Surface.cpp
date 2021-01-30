@@ -1496,8 +1496,8 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER:
         res = dispatchGetLastQueuedBuffer(args);
         break;
-    case NATIVE_WINDOW_SET_FRAME_TIMELINE_VSYNC:
-        res = dispatchSetFrameTimelineVsync(args);
+    case NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO:
+        res = dispatchSetFrameTimelineInfo(args);
         break;
     default:
         res = NAME_NOT_FOUND;
@@ -1806,12 +1806,13 @@ int Surface::dispatchGetLastQueuedBuffer(va_list args) {
     return result;
 }
 
-int Surface::dispatchSetFrameTimelineVsync(va_list args) {
+int Surface::dispatchSetFrameTimelineInfo(va_list args) {
     ATRACE_CALL();
     auto frameTimelineVsyncId = static_cast<int64_t>(va_arg(args, int64_t));
+    auto inputEventId = static_cast<int32_t>(va_arg(args, int32_t));
 
-    ALOGV("Surface::dispatchSetFrameTimelineVsync");
-    return setFrameTimelineVsync(frameTimelineVsyncId);
+    ALOGV("Surface::%s", __func__);
+    return setFrameTimelineInfo({frameTimelineVsyncId, inputEventId});
 }
 
 bool Surface::transformToDisplayInverse() {
@@ -2579,9 +2580,8 @@ status_t Surface::setFrameRate(float frameRate, int8_t compatibility, bool shoul
                                            shouldBeSeamless);
 }
 
-status_t Surface::setFrameTimelineVsync(int64_t frameTimelineVsyncId) {
-    return composerService()->setFrameTimelineVsync(mGraphicBufferProducer,
-        frameTimelineVsyncId);
+status_t Surface::setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo) {
+    return composerService()->setFrameTimelineInfo(mGraphicBufferProducer, frameTimelineInfo);
 }
 
 }; // namespace android

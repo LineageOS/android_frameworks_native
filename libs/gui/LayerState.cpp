@@ -63,7 +63,7 @@ layer_state_t::layer_state_t()
         shouldBeSeamless(true),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         frameNumber(0),
-        frameTimelineVsyncId(ISurfaceComposer::INVALID_VSYNC_ID),
+        frameTimelineInfo(),
         autoRefresh(false) {
     matrix.dsdx = matrix.dtdy = 1.0f;
     matrix.dsdy = matrix.dtdx = 0.0f;
@@ -151,7 +151,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeBool, shouldBeSeamless);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
     SAFE_PARCEL(output.writeUint64, frameNumber);
-    SAFE_PARCEL(output.writeInt64, frameTimelineVsyncId);
+    SAFE_PARCEL(frameTimelineInfo.write, output);
     SAFE_PARCEL(output.writeBool, autoRefresh);
 
     SAFE_PARCEL(output.writeUint32, blurRegions.size());
@@ -183,12 +183,9 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &layerStack);
     SAFE_PARCEL(input.readFloat, &alpha);
 
-    uint32_t tmpUint32 = 0;
-    SAFE_PARCEL(input.readUint32, &tmpUint32);
-    flags = static_cast<uint8_t>(tmpUint32);
+    SAFE_PARCEL(input.readUint32, &flags);
 
-    SAFE_PARCEL(input.readUint32, &tmpUint32);
-    mask = static_cast<uint8_t>(tmpUint32);
+    SAFE_PARCEL(input.readUint32, &mask);
 
     SAFE_PARCEL(matrix.read, input);
     SAFE_PARCEL(input.read, crop_legacy);
@@ -229,6 +226,7 @@ status_t layer_state_t::read(const Parcel& input)
         SAFE_PARCEL(input.read, *acquireFence);
     }
 
+    uint32_t tmpUint32 = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     dataspace = static_cast<ui::Dataspace>(tmpUint32);
 
@@ -272,7 +270,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
     SAFE_PARCEL(input.readUint64, &frameNumber);
-    SAFE_PARCEL(input.readInt64, &frameTimelineVsyncId);
+    SAFE_PARCEL(frameTimelineInfo.read, input);
     SAFE_PARCEL(input.readBool, &autoRefresh);
 
     uint32_t numRegions = 0;
@@ -539,15 +537,9 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eFrameNumberChanged;
         frameNumber = other.frameNumber;
     }
-    if (other.what & eFrameTimelineVsyncChanged) {
-        // When merging vsync Ids we take the oldest valid one
-        if (frameTimelineVsyncId != ISurfaceComposer::INVALID_VSYNC_ID &&
-            other.frameTimelineVsyncId != ISurfaceComposer::INVALID_VSYNC_ID) {
-            frameTimelineVsyncId = std::max(frameTimelineVsyncId, other.frameTimelineVsyncId);
-        } else if (frameTimelineVsyncId == ISurfaceComposer::INVALID_VSYNC_ID) {
-            frameTimelineVsyncId = other.frameTimelineVsyncId;
-        }
-        what |= eFrameTimelineVsyncChanged;
+    if (other.what & eFrameTimelineInfoChanged) {
+        what |= eFrameTimelineInfoChanged;
+        frameTimelineInfo.merge(other.frameTimelineInfo);
     }
     if (other.what & eAutoRefreshChanged) {
         what |= eAutoRefreshChanged;
