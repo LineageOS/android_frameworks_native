@@ -3734,9 +3734,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eRelativeLayerChanged) {
         // NOTE: index needs to be calculated before we update the state
         const auto& p = layer->getParent();
+        const auto& relativeHandle = s.relativeLayerSurfaceControl ?
+                s.relativeLayerSurfaceControl->getHandle() : nullptr;
         if (p == nullptr) {
             ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
-            if (layer->setRelativeLayer(s.relativeLayerSurfaceControl->getHandle(), s.z) &&
+            if (layer->setRelativeLayer(relativeHandle, s.z) &&
                 idx >= 0) {
                 mCurrentState.layersSortedByZ.removeAt(idx);
                 mCurrentState.layersSortedByZ.add(layer);
@@ -3745,7 +3747,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
         } else {
-            if (p->setChildRelativeLayer(layer, s.relativeLayerSurfaceControl->getHandle(), s.z)) {
+            if (p->setChildRelativeLayer(layer, relativeHandle, s.z)) {
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
         }
