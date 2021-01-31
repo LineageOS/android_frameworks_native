@@ -1770,8 +1770,15 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     // calculate the expected present time once and use the cached
     // value throughout this frame to make sure all layers are
     // seeing this same value.
-    const nsecs_t lastExpectedPresentTime = mExpectedPresentTime.load();
-    mExpectedPresentTime = expectedVSyncTime;
+    if (expectedVSyncTime >= frameStart) {
+        mExpectedPresentTime = expectedVSyncTime;
+    } else {
+        const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(frameStart);
+        mExpectedPresentTime = calculateExpectedPresentTime(stats);
+    }
+
+    const nsecs_t lastScheduledPresentTime = mScheduledPresentTime;
+    mScheduledPresentTime = expectedVSyncTime;
 
     // When Backpressure propagation is enabled we want to give a small grace period
     // for the present fence to fire instead of just giving up on this frame to handle cases
@@ -1797,7 +1804,7 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     const TracedOrdinal<bool> frameMissed = {"PrevFrameMissed",
                                              framePending ||
                                                      (previousPresentTime >= 0 &&
-                                                      (lastExpectedPresentTime <
+                                                      (lastScheduledPresentTime <
                                                        previousPresentTime - frameMissedSlop))};
     const TracedOrdinal<bool> hwcFrameMissed = {"PrevHwcFrameMissed",
                                                 mHadDeviceComposition && frameMissed};
@@ -3727,9 +3734,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eRelativeLayerChanged) {
         // NOTE: index needs to be calculated before we update the state
         const auto& p = layer->getParent();
+        const auto& relativeHandle = s.relativeLayerSurfaceControl ?
+                s.relativeLayerSurfaceControl->getHandle() : nullptr;
         if (p == nullptr) {
             ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
-            if (layer->setRelativeLayer(s.relativeLayerSurfaceControl->getHandle(), s.z) &&
+            if (layer->setRelativeLayer(relativeHandle, s.z) &&
                 idx >= 0) {
                 mCurrentState.layersSortedByZ.removeAt(idx);
                 mCurrentState.layersSortedByZ.add(layer);
@@ -3738,7 +3747,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
         } else {
-            if (p->setChildRelativeLayer(layer, s.relativeLayerSurfaceControl->getHandle(), s.z)) {
+            if (p->setChildRelativeLayer(layer, relativeHandle, s.z)) {
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
         }
