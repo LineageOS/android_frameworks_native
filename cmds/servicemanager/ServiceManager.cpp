@@ -623,4 +623,21 @@ Status ServiceManager::tryUnregisterService(const std::string& name, const sp<IB
     return Status::ok();
 }
 
+Status ServiceManager::getServiceDebugInfo(std::vector<ServiceDebugInfo>* outReturn) {
+    if (!mAccess->canList(mAccess->getCallingContext())) {
+        return Status::fromExceptionCode(Status::EX_SECURITY);
+    }
+
+    outReturn->reserve(mNameToService.size());
+    for (auto const& [name, service] : mNameToService) {
+        ServiceDebugInfo info;
+        info.name = name;
+        info.debugPid = service.debugPid;
+
+        outReturn->push_back(std::move(info));
+    }
+
+    return Status::ok();
+}
+
 }  // namespace android
