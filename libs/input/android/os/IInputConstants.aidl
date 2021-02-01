@@ -28,4 +28,13 @@ interface IInputConstants
       * to identify apps that are using this flag.
       */
     const long BLOCK_FLAG_SLIPPERY = 157929241;
+
+    // Indicate invalid battery capacity
+    const int INVALID_BATTERY_CAPACITY = -1;
+
+    /**
+     * Every input event has an id. This constant value is used when a valid input event id is not
+     * available.
+     */
+    const int INVALID_INPUT_EVENT_ID = 0;
 }
