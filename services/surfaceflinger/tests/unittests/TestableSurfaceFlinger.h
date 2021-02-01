@@ -353,7 +353,8 @@ public:
                                 bool regionSampling) {
         ScreenCaptureResults captureResults;
         return mFlinger->renderScreenImplLocked(renderArea, traverseLayers, buffer, forSystem,
-                                                regionSampling, captureResults);
+                                                regionSampling, false /* grayscale */,
+                                                captureResults);
     }
 
     auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,

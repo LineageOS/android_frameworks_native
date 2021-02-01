@@ -644,11 +644,13 @@ bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* inFunc
 status_t CaptureArgs::write(Parcel& output) const {
     SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(pixelFormat));
     SAFE_PARCEL(output.write, sourceCrop);
-    SAFE_PARCEL(output.writeFloat, frameScale);
+    SAFE_PARCEL(output.writeFloat, frameScaleX);
+    SAFE_PARCEL(output.writeFloat, frameScaleY);
     SAFE_PARCEL(output.writeBool, captureSecureLayers);
     SAFE_PARCEL(output.writeInt32, uid);
     SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(dataspace));
     SAFE_PARCEL(output.writeBool, allowProtected);
+    SAFE_PARCEL(output.writeBool, grayscale);
     return NO_ERROR;
 }
 
@@ -657,12 +659,14 @@ status_t CaptureArgs::read(const Parcel& input) {
     SAFE_PARCEL(input.readInt32, &value);
     pixelFormat = static_cast<ui::PixelFormat>(value);
     SAFE_PARCEL(input.read, sourceCrop);
-    SAFE_PARCEL(input.readFloat, &frameScale);
+    SAFE_PARCEL(input.readFloat, &frameScaleX);
+    SAFE_PARCEL(input.readFloat, &frameScaleY);
     SAFE_PARCEL(input.readBool, &captureSecureLayers);
     SAFE_PARCEL(input.readInt32, &uid);
     SAFE_PARCEL(input.readInt32, &value);
     dataspace = static_cast<ui::Dataspace>(value);
     SAFE_PARCEL(input.readBool, &allowProtected);
+    SAFE_PARCEL(input.readBool, &grayscale);
     return NO_ERROR;
 }
 
