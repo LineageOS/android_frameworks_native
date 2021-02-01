@@ -186,8 +186,6 @@ int32_t ANativeWindow_lock(ANativeWindow* window, ANativeWindow_Buffer* outBuffe
  */
 int32_t ANativeWindow_unlockAndPost(ANativeWindow* window);
 
-#if __ANDROID_API__ >= 26
-
 /**
  * Set a transform that will be applied to future buffers posted to the window.
  *
@@ -197,10 +195,6 @@ int32_t ANativeWindow_unlockAndPost(ANativeWindow* window);
  * \return 0 for success, or -EINVAL if \p transform is invalid
  */
 int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transform) __INTRODUCED_IN(26);
-
-#endif // __ANDROID_API__ >= 26
-
-#if __ANDROID_API__ >= 28
 
 /**
  * All buffers queued after this call will be associated with the dataSpace
@@ -229,10 +223,6 @@ int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpa
  * dataspace is unknown, or -EINVAL if window is invalid.
  */
 int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN(28);
-
-#endif // __ANDROID_API__ >= 28
-
-#if __ANDROID_API__ >= 30
 
 /** Compatibility value for ANativeWindow_setFrameRate. */
 enum ANativeWindow_FrameRateCompatibility {
@@ -275,11 +265,7 @@ int32_t ANativeWindow_setFrameRate(ANativeWindow* window, float frameRate, int8_
  *
  * Available since API level 30.
  */
-void ANativeWindow_tryAllocateBuffers(ANativeWindow* window);
-
-#endif // __ANDROID_API__ >= 30
-
-#if __ANDROID_API__ >= 31
+void ANativeWindow_tryAllocateBuffers(ANativeWindow* window) __INTRODUCED_IN(30);
 
 /**
  * Sets the intended frame rate for this window.
@@ -321,8 +307,6 @@ void ANativeWindow_tryAllocateBuffers(ANativeWindow* window);
  */
 int32_t ANativeWindow_setFrameRateWithSeamlessness(ANativeWindow* window, float frameRate,
         int8_t compatibility, bool shouldBeSeamless) __INTRODUCED_IN(31);
-
-#endif // __ANDROID_API__ >= 31
 
 #ifdef __cplusplus
 };

@@ -35,8 +35,6 @@
 
 __BEGIN_DECLS
 
-#if __ANDROID_API__ >= 29
-
 struct ASurfaceControl;
 
 /**
@@ -409,10 +407,6 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
                                                  struct AHdrMetadata_cta861_3* metadata)
                                                  __INTRODUCED_IN(29);
 
-#endif // __ANDROID_API__ >= 29
-
-#if __ANDROID_API__ >= 30
-
 /**
  * Same as ASurfaceTransaction_setFrameRateWithSeamlessness(transaction, surface_control,
  * frameRate, compatibility, true).
@@ -424,10 +418,6 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
 void ASurfaceTransaction_setFrameRate(ASurfaceTransaction* transaction,
                                       ASurfaceControl* surface_control, float frameRate,
                                       int8_t compatibility) __INTRODUCED_IN(30);
-
-#endif // __ANDROID_API__ >= 30
-
-#if __ANDROID_API__ >= 31
 
 /**
  * Sets the intended frame rate for \a surface_control.
@@ -462,7 +452,6 @@ void ASurfaceTransaction_setFrameRateWithSeamlessness(ASurfaceTransaction* trans
                                       int8_t compatibility, bool shouldBeSeamless)
                                       __INTRODUCED_IN(31);
 
-#endif // __ANDROID_API__ >= 31
 __END_DECLS
 
 #endif // ANDROID_SURFACE_CONTROL_H

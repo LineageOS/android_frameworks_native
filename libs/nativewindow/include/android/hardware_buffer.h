@@ -334,8 +334,6 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 
 // clang-format on
 
-#if __ANDROID_API__ >= 26
-
 /**
  * Allocates a buffer that matches the passed AHardwareBuffer_Desc.
  *
@@ -478,10 +476,6 @@ int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd,
                                              AHardwareBuffer* _Nullable* _Nonnull outBuffer)
         __INTRODUCED_IN(26);
 
-#endif // __ANDROID_API__ >= 26
-
-#if __ANDROID_API__ >= 29
-
 /**
  * Lock a potentially multi-planar AHardwareBuffer for direct CPU access.
  *
@@ -551,9 +545,6 @@ int AHardwareBuffer_lockAndGetInfo(AHardwareBuffer* _Nonnull buffer, uint64_t us
                                    int32_t* _Nonnull outBytesPerPixel,
                                    int32_t* _Nonnull outBytesPerStride) __INTRODUCED_IN(29);
 
-#endif // __ANDROID_API__ >= 29
-
-#if __ANDROID_API__ >= 31
 
 /**
  * Get the system wide unique id for an AHardwareBuffer.
@@ -565,8 +556,6 @@ int AHardwareBuffer_lockAndGetInfo(AHardwareBuffer* _Nonnull buffer, uint64_t us
  */
 int AHardwareBuffer_getId(const AHardwareBuffer* _Nonnull buffer, uint64_t* _Nonnull outId)
         __INTRODUCED_IN(31);
-
-#endif // __ANDROID_API__ >= 31
 
 __END_DECLS
 
