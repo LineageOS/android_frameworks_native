@@ -4909,22 +4909,23 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     result.append("\n");
 }
 
-void SurfaceFlinger::updateColorMatrixLocked() {
-    mat4 colorMatrix;
-    if (mGlobalSaturationFactor != 1.0f) {
-        // Rec.709 luma coefficients
-        float3 luminance{0.213f, 0.715f, 0.072f};
-        luminance *= 1.0f - mGlobalSaturationFactor;
-        mat4 saturationMatrix = mat4(
-            vec4{luminance.r + mGlobalSaturationFactor, luminance.r, luminance.r, 0.0f},
-            vec4{luminance.g, luminance.g + mGlobalSaturationFactor, luminance.g, 0.0f},
-            vec4{luminance.b, luminance.b, luminance.b + mGlobalSaturationFactor, 0.0f},
-            vec4{0.0f, 0.0f, 0.0f, 1.0f}
-        );
-        colorMatrix = mClientColorMatrix * saturationMatrix * mDaltonizer();
-    } else {
-        colorMatrix = mClientColorMatrix * mDaltonizer();
+mat4 SurfaceFlinger::calculateColorMatrix(float saturation) {
+    if (saturation == 1) {
+        return mat4();
     }
+
+    float3 luminance{0.213f, 0.715f, 0.072f};
+    luminance *= 1.0f - saturation;
+    mat4 saturationMatrix = mat4(vec4{luminance.r + saturation, luminance.r, luminance.r, 0.0f},
+                                 vec4{luminance.g, luminance.g + saturation, luminance.g, 0.0f},
+                                 vec4{luminance.b, luminance.b, luminance.b + saturation, 0.0f},
+                                 vec4{0.0f, 0.0f, 0.0f, 1.0f});
+    return saturationMatrix;
+}
+
+void SurfaceFlinger::updateColorMatrixLocked() {
+    mat4 colorMatrix =
+            mClientColorMatrix * calculateColorMatrix(mGlobalSaturationFactor) * mDaltonizer();
 
     if (mCurrentState.colorMatrix != colorMatrix) {
         mCurrentState.colorMatrix = colorMatrix;
@@ -5637,7 +5638,8 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               args.pixelFormat, args.allowProtected, captureListener);
+                               args.pixelFormat, args.allowProtected, args.grayscale,
+                               captureListener);
 }
 
 status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
@@ -5673,7 +5675,7 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
                                ui::PixelFormat::RGBA_8888, false /* allowProtected */,
-                               captureListener);
+                               false /* grayscale */, captureListener);
 }
 
 status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
@@ -5719,12 +5721,12 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
             crop.bottom = parentSourceBounds.getHeight();
         }
 
-        if (crop.isEmpty() || args.frameScale <= 0.0f) {
+        if (crop.isEmpty() || args.frameScaleX <= 0.0f || args.frameScaleY <= 0.0f) {
             // Error out if the layer has no source bounds (i.e. they are boundless) and a source
             // crop was not specified, or an invalid frame scale was provided.
             return BAD_VALUE;
         }
-        reqSize = ui::Size(crop.width() * args.frameScale, crop.height() * args.frameScale);
+        reqSize = ui::Size(crop.width() * args.frameScaleX, crop.height() * args.frameScaleY);
 
         for (const auto& handle : args.excludeHandles) {
             sp<Layer> excludeLayer = fromHandleLocked(handle).promote();
@@ -5794,13 +5796,14 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               args.pixelFormat, args.allowProtected, captureListener);
+                               args.pixelFormat, args.allowProtected, args.grayscale,
+                               captureListener);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
                                              ui::Size bufferSize, ui::PixelFormat reqPixelFormat,
-                                             const bool allowProtected,
+                                             bool allowProtected, bool grayscale,
                                              const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
@@ -5831,12 +5834,13 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              static_cast<android_pixel_format>(reqPixelFormat),
                                              1 /* layerCount */, usage, "screenshot");
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                               false /* regionSampling */, captureListener);
+                               false /* regionSampling */, grayscale, captureListener);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
-                                             sp<GraphicBuffer>& buffer, const bool regionSampling,
+                                             sp<GraphicBuffer>& buffer, bool regionSampling,
+                                             bool grayscale,
                                              const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
@@ -5852,7 +5856,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
         if (mRefreshPending) {
             ALOGW("Skipping screenshot for now");
             captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer, regionSampling,
-                                captureListener);
+                                grayscale, captureListener);
             return;
         }
         ScreenCaptureResults captureResults;
@@ -5867,7 +5871,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
         status_t result = NO_ERROR;
         renderArea->render([&] {
             result = renderScreenImplLocked(*renderArea, traverseLayers, buffer, forSystem,
-                                            regionSampling, captureResults);
+                                            regionSampling, grayscale, captureResults);
         });
 
         captureResults.result = result;
@@ -5880,7 +5884,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
 status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                                 TraverseLayersFunction traverseLayers,
                                                 const sp<GraphicBuffer>& buffer, bool forSystem,
-                                                bool regionSampling,
+                                                bool regionSampling, bool grayscale,
                                                 ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
@@ -5920,6 +5924,9 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     clientCompositionDisplay.outputDataspace = renderArea.getReqDataSpace();
     clientCompositionDisplay.maxLuminance = DisplayDevice::sDefaultMaxLumiance;
+
+    const float colorSaturation = grayscale ? 0 : 1;
+    clientCompositionDisplay.colorTransform = calculateColorMatrix(colorSaturation);
 
     const float alpha = RenderArea::getCaptureFillValue(renderArea.getCaptureFill());
 
