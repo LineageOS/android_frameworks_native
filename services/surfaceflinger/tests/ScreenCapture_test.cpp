@@ -487,7 +487,9 @@ TEST_F(ScreenCaptureTest, CaptureSize) {
     // red area to the right of the blue area
     mCapture->expectColor(Rect(30, 0, 59, 59), Color::RED);
 
-    captureArgs.frameScale = 0.5f;
+    captureArgs.frameScaleX = 0.5f;
+    captureArgs.frameScaleY = 0.5f;
+
     ScreenCapture::captureLayers(&mCapture, captureArgs);
     // Capturing the downsized area (30x30) should leave both red and blue but in a smaller area.
     mCapture->expectColor(Rect(0, 0, 14, 14), Color::BLUE);
@@ -766,6 +768,41 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithUid) {
     ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectColor(Rect(128, 128, 160, 160), Color::RED);
     mCapture->expectBorder(Rect(128, 128, 160, 160), {63, 63, 195, 255});
+}
+
+TEST_F(ScreenCaptureTest, CaptureWithGrayscale) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
+                                                ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                mBGSurfaceControl.get()));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+    Transaction().show(layer).setLayer(layer, INT32_MAX).apply();
+
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = layer->getHandle();
+
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+    mCapture->expectColor(Rect(0, 0, 32, 32), Color::RED);
+
+    captureArgs.grayscale = true;
+
+    const uint8_t tolerance = 1;
+
+    // Values based on SurfaceFlinger::calculateColorMatrix
+    float3 luminance{0.213f, 0.715f, 0.072f};
+
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+
+    uint8_t expectedColor = luminance.r * 255;
+    mCapture->expectColor(Rect(0, 0, 32, 32),
+                          Color{expectedColor, expectedColor, expectedColor, 255}, tolerance);
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::BLUE, 32, 32));
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+
+    expectedColor = luminance.b * 255;
+    mCapture->expectColor(Rect(0, 0, 32, 32),
+                          Color{expectedColor, expectedColor, expectedColor, 255}, tolerance);
 }
 
 // In the following tests we verify successful skipping of a parent layer,
