@@ -1725,8 +1725,14 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
     // calculate the expected present time once and use the cached
     // value throughout this frame to make sure all layers are
     // seeing this same value.
-    const nsecs_t lastExpectedPresentTime = mExpectedPresentTime.load();
-    mExpectedPresentTime = expectedVSyncTime;
+    if (expectedVSyncTime >= frameStart) {
+        mExpectedPresentTime = expectedVSyncTime;
+    } else {
+        mExpectedPresentTime = mScheduler->getDispSyncExpectedPresentTime(frameStart);
+    }
+
+    const nsecs_t lastScheduledPresentTime = mScheduledPresentTime;
+    mScheduledPresentTime = expectedVSyncTime;
 
     // When Backpressure propagation is enabled we want to give a small grace period
     // for the present fence to fire instead of just giving up on this frame to handle cases
@@ -1756,7 +1762,7 @@ void SurfaceFlinger::onMessageInvalidate(nsecs_t expectedVSyncTime) {
     const TracedOrdinal<bool> frameMissed = {"PrevFrameMissed",
                                              framePending ||
                                                      (previousPresentTime >= 0 &&
-                                                      (lastExpectedPresentTime <
+                                                      (lastScheduledPresentTime <
                                                        previousPresentTime - frameMissedSlop))};
     const TracedOrdinal<bool> hwcFrameMissed = {"PrevHwcFrameMissed",
                                                 mHadDeviceComposition && frameMissed};
