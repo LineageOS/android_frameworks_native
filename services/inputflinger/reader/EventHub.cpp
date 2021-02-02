@@ -29,11 +29,14 @@
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
 #include <sys/limits.h>
+#include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 
 #define LOG_TAG "EventHub"
 
 // #define LOG_NDEBUG 0
+#include <android-base/file.h>
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
 #include <input/KeyCharacterMap.h>
@@ -63,6 +66,23 @@ static const char* VIDEO_DEVICE_PATH = "/dev";
 
 static constexpr int32_t FF_STRONG_MAGNITUDE_CHANNEL_IDX = 0;
 static constexpr int32_t FF_WEAK_MAGNITUDE_CHANNEL_IDX = 1;
+
+// must be kept in sync with definitions in kernel /drivers/power/supply/power_supply_sysfs.c
+static const std::unordered_map<std::string, int32_t> BATTERY_STATUS =
+        {{"Unknown", BATTERY_STATUS_UNKNOWN},
+         {"Charging", BATTERY_STATUS_CHARGING},
+         {"Discharging", BATTERY_STATUS_DISCHARGING},
+         {"Not charging", BATTERY_STATUS_NOT_CHARGING},
+         {"Full", BATTERY_STATUS_FULL}};
+
+// Mapping taken from
+// https://gitlab.freedesktop.org/upower/upower/-/blob/master/src/linux/up-device-supply.c#L484
+static const std::unordered_map<std::string, int32_t> BATTERY_LEVEL = {{"Critical", 5},
+                                                                       {"Low", 10},
+                                                                       {"Normal", 55},
+                                                                       {"High", 70},
+                                                                       {"Full", 100},
+                                                                       {"Unknown", 50}};
 
 static inline const char* toString(bool value) {
     return value ? "true" : "false";
@@ -125,6 +145,73 @@ static nsecs_t processEventTimestamp(const struct input_event& event) {
     const nsecs_t inputEventTime = seconds_to_nanoseconds(event.time.tv_sec) +
             microseconds_to_nanoseconds(event.time.tv_usec);
     return inputEventTime;
+}
+
+/**
+ * Returns the sysfs root path of the input device
+ *
+ */
+static std::filesystem::path getSysfsRootPath(const char* devicePath) {
+    std::error_code errorCode;
+
+    // Stat the device path to get the major and minor number of the character file
+    struct stat statbuf;
+    if (stat(devicePath, &statbuf) == -1) {
+        ALOGE("Could not stat device %s due to error: %s.", devicePath, std::strerror(errno));
+        return std::filesystem::path();
+    }
+
+    unsigned int major_num = major(statbuf.st_rdev);
+    unsigned int minor_num = minor(statbuf.st_rdev);
+
+    // Realpath "/sys/dev/char/{major}:{minor}" to get the sysfs path to the input event
+    auto sysfsPath = std::filesystem::path("/sys/dev/char/");
+    sysfsPath /= std::to_string(major_num) + ":" + std::to_string(minor_num);
+    sysfsPath = std::filesystem::canonical(sysfsPath, errorCode);
+
+    // Make sure nothing went wrong in call to canonical()
+    if (errorCode) {
+        ALOGW("Could not run filesystem::canonical() due to error %d : %s.", errorCode.value(),
+              errorCode.message().c_str());
+        return std::filesystem::path();
+    }
+
+    // Continue to go up a directory until we reach a directory named "input"
+    while (sysfsPath != "/" && sysfsPath.filename() != "input") {
+        sysfsPath = sysfsPath.parent_path();
+    }
+
+    // Then go up one more and you will be at the sysfs root of the device
+    sysfsPath = sysfsPath.parent_path();
+
+    // Make sure we didn't reach root path and that directory actually exists
+    if (sysfsPath == "/" || !std::filesystem::exists(sysfsPath, errorCode)) {
+        if (errorCode) {
+            ALOGW("Could not run filesystem::exists() due to error %d : %s.", errorCode.value(),
+                  errorCode.message().c_str());
+        }
+
+        // Not found
+        return std::filesystem::path();
+    }
+
+    return sysfsPath;
+}
+
+/**
+ * Returns the power supply node in sys fs
+ *
+ */
+static std::filesystem::path findPowerSupplyNode(const std::filesystem::path& sysfsRootPath) {
+    for (auto path = sysfsRootPath; path != "/"; path = path.parent_path()) {
+        std::error_code errorCode;
+        auto iter = std::filesystem::directory_iterator(path / "power_supply", errorCode);
+        if (!errorCode && iter != std::filesystem::directory_iterator()) {
+            return iter->path();
+        }
+    }
+    // Not found
+    return std::filesystem::path();
 }
 
 // --- Global Functions ---
@@ -976,6 +1063,56 @@ EventHub::Device* EventHub::getDeviceByFdLocked(int fd) const {
     return nullptr;
 }
 
+std::optional<int32_t> EventHub::getBatteryCapacity(int32_t deviceId) const {
+    std::scoped_lock _l(mLock);
+    Device* device = getDeviceLocked(deviceId);
+    std::string buffer;
+
+    if (!device || (device->sysfsBatteryPath.empty())) {
+        return std::nullopt;
+    }
+
+    // Some devices report battery capacity as an integer through the "capacity" file
+    if (base::ReadFileToString(device->sysfsBatteryPath / "capacity", &buffer)) {
+        return std::stoi(buffer);
+    }
+
+    // Other devices report capacity as an enum value POWER_SUPPLY_CAPACITY_LEVEL_XXX
+    // These values are taken from kernel source code include/linux/power_supply.h
+    if (base::ReadFileToString(device->sysfsBatteryPath / "capacity_level", &buffer)) {
+        const auto it = BATTERY_LEVEL.find(buffer);
+        if (it != BATTERY_LEVEL.end()) {
+            return it->second;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<int32_t> EventHub::getBatteryStatus(int32_t deviceId) const {
+    std::scoped_lock _l(mLock);
+    Device* device = getDeviceLocked(deviceId);
+    std::string buffer;
+
+    if (!device || (device->sysfsBatteryPath.empty())) {
+        return std::nullopt;
+    }
+
+    if (!base::ReadFileToString(device->sysfsBatteryPath / "status", &buffer)) {
+        ALOGE("Failed to read sysfs battery info: %s", strerror(errno));
+        return std::nullopt;
+    }
+
+    // Remove trailing new line
+    buffer.erase(std::remove(buffer.begin(), buffer.end(), '\n'), buffer.end());
+    const auto it = BATTERY_STATUS.find(buffer);
+
+    if (it != BATTERY_STATUS.end()) {
+        return it->second;
+    }
+
+    return std::nullopt;
+}
+
 size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) {
     ALOG_ASSERT(bufferSize >= 1);
 
@@ -1582,6 +1719,18 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
         ALOGV("Dropping device: id=%d, path='%s', name='%s'", deviceId, devicePath.c_str(),
               device->identifier.name.c_str());
         return -1;
+    }
+
+    // Grab the device's sysfs path
+    device->sysfsRootPath = getSysfsRootPath(devicePath.c_str());
+
+    if (!device->sysfsRootPath.empty()) {
+        device->sysfsBatteryPath = findPowerSupplyNode(device->sysfsRootPath);
+
+        // Check if a battery exists
+        if (!device->sysfsBatteryPath.empty()) {
+            device->classes |= InputDeviceClass::BATTERY;
+        }
     }
 
     // Determine whether the device has a mic.

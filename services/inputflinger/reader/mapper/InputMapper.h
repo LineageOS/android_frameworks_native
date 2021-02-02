@@ -72,6 +72,9 @@ public:
     virtual void disableSensor(InputDeviceSensorType sensorType);
     virtual void flushSensor(InputDeviceSensorType sensorType);
 
+    virtual std::optional<int32_t> getBatteryCapacity() { return std::nullopt; }
+    virtual std::optional<int32_t> getBatteryStatus() { return std::nullopt; }
+
     virtual int32_t getMetaState();
     virtual void updateMetaState(int32_t keyCode);
 
