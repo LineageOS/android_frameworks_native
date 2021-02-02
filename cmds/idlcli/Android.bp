@@ -44,6 +44,8 @@ cc_library {
         "vibrator/CommandGetCompositionDelayMax.cpp",
         "vibrator/CommandGetCompositionSizeMax.cpp",
         "vibrator/CommandGetPrimitiveDuration.cpp",
+        "vibrator/CommandGetQFactor.cpp",
+        "vibrator/CommandGetResonantFrequency.cpp",
         "vibrator/CommandGetSupportedAlwaysOnEffects.cpp",
         "vibrator/CommandGetSupportedEffects.cpp",
         "vibrator/CommandGetSupportedPrimitives.cpp",
