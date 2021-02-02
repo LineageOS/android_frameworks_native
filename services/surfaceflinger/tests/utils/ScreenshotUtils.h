@@ -84,11 +84,13 @@ public:
     }
 
     void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
+        ASSERT_NE(nullptr, mOutBuffer);
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
         TransactionUtils::expectBufferColor(mOutBuffer, mPixels, rect, color, tolerance);
     }
 
     void expectBorder(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
+        ASSERT_NE(nullptr, mOutBuffer);
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
         const bool leftBorder = rect.left > 0;
         const bool topBorder = rect.top > 0;
@@ -146,6 +148,7 @@ public:
     }
 
     void checkPixel(uint32_t x, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
+        ASSERT_NE(nullptr, mOutBuffer);
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
         const uint8_t* pixel = mPixels + (4 * (y * mOutBuffer->getStride() + x));
         if (r != pixel[0] || g != pixel[1] || b != pixel[2]) {
@@ -163,10 +166,14 @@ public:
     void expectChildColor(uint32_t x, uint32_t y) { checkPixel(x, y, 200, 200, 200); }
 
     explicit ScreenCapture(const sp<GraphicBuffer>& outBuffer) : mOutBuffer(outBuffer) {
-        mOutBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&mPixels));
+        if (mOutBuffer) {
+            mOutBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&mPixels));
+        }
     }
 
-    ~ScreenCapture() { mOutBuffer->unlock(); }
+    ~ScreenCapture() {
+        if (mOutBuffer) mOutBuffer->unlock();
+    }
 
 private:
     sp<GraphicBuffer> mOutBuffer;

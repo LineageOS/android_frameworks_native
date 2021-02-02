@@ -367,7 +367,8 @@ public:
         return mFlinger->SurfaceFlinger::getDisplayNativePrimaries(displayToken, primaries);
     }
 
-    auto& getTransactionQueue() { return mFlinger->mTransactionQueues; }
+    auto& getTransactionQueue() { return mFlinger->mTransactionQueue; }
+    auto& getPendingTransactionQueue() { return mFlinger->mPendingTransactionQueues; }
 
     auto setTransactionState(
             const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
