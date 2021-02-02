@@ -52,8 +52,6 @@
 extern "C" {
 #endif
 
-#if __ANDROID_API__ >= 27
-
 /**
  * Returns a dup'd FD from the given Java android.os.SharedMemory object. The returned file
  * descriptor has all the same properties & capabilities as the FD returned from
@@ -71,8 +69,6 @@ extern "C" {
  *      descriptors (errno=EMFILE)
  */
 int ASharedMemory_dupFromJava(JNIEnv* env, jobject sharedMemory) __INTRODUCED_IN(27);
-
-#endif // __ANDROID_API__ >= 27
 
 #ifdef __cplusplus
 };

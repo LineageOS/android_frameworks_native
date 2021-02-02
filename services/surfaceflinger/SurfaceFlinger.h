@@ -812,13 +812,14 @@ private:
     void startBootAnim();
 
     status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize,
-                                 ui::PixelFormat, const bool allowProtected,
+                                 ui::PixelFormat, bool allowProtected, bool grayscale,
                                  const sp<IScreenCaptureListener>&);
     status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, sp<GraphicBuffer>&,
-                                 bool regionSampling, const sp<IScreenCaptureListener>&);
+                                 bool regionSampling, bool grayscale,
+                                 const sp<IScreenCaptureListener>&);
     status_t renderScreenImplLocked(const RenderArea&, TraverseLayersFunction,
                                     const sp<GraphicBuffer>&, bool forSystem, bool regionSampling,
-                                    ScreenCaptureResults&);
+                                    bool grayscale, ScreenCaptureResults&);
 
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack) REQUIRES(mStateLock);
@@ -1020,6 +1021,8 @@ private:
     }
 
     void onFrameRateFlexibilityTokenReleased();
+
+    static mat4 calculateColorMatrix(float saturation);
 
     void updateColorMatrixLocked();
 

@@ -645,14 +645,12 @@ int32_t AConfiguration_getScreenLong(AConfiguration* config);
  */
 void AConfiguration_setScreenLong(AConfiguration* config, int32_t screenLong);
 
-#if __ANDROID_API__ >= 30
 /**
  * Return the current ACONFIGURATION_SCREENROUND_* set in the configuration.
  *
  * Available since API level 30.
  */
 int32_t AConfiguration_getScreenRound(AConfiguration* config) __INTRODUCED_IN(30);
-#endif
 
 /**
  * Set the current screen round in the configuration.
@@ -712,7 +710,6 @@ int32_t AConfiguration_getSmallestScreenWidthDp(AConfiguration* config);
  */
 void AConfiguration_setSmallestScreenWidthDp(AConfiguration* config, int32_t value);
 
-#if __ANDROID_API__ >= 17
 /**
  * Return the configuration's layout direction, or
  * ACONFIGURATION_LAYOUTDIR_ANY if not set.
@@ -727,7 +724,6 @@ int32_t AConfiguration_getLayoutDirection(AConfiguration* config) __INTRODUCED_I
  * Available since API level 17.
  */
 void AConfiguration_setLayoutDirection(AConfiguration* config, int32_t value) __INTRODUCED_IN(17);
-#endif /* __ANDROID_API__ >= 17 */
 
 /**
  * Perform a diff between two configurations.  Returns a bit mask of

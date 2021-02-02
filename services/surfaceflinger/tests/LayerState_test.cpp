@@ -30,12 +30,14 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
     DisplayCaptureArgs args;
     args.pixelFormat = ui::PixelFormat::RGB_565;
     args.sourceCrop = Rect(0, 0, 500, 200);
-    args.frameScale = 2;
+    args.frameScaleX = 2;
+    args.frameScaleY = 4;
     args.captureSecureLayers = true;
     args.displayToken = new BBinder();
     args.width = 10;
     args.height = 20;
     args.useIdentityTransform = true;
+    args.grayscale = true;
 
     Parcel p;
     args.write(p);
@@ -46,23 +48,27 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
 
     ASSERT_EQ(args.pixelFormat, args2.pixelFormat);
     ASSERT_EQ(args.sourceCrop, args2.sourceCrop);
-    ASSERT_EQ(args.frameScale, args2.frameScale);
+    ASSERT_EQ(args.frameScaleX, args2.frameScaleX);
+    ASSERT_EQ(args.frameScaleY, args2.frameScaleY);
     ASSERT_EQ(args.captureSecureLayers, args2.captureSecureLayers);
     ASSERT_EQ(args.displayToken, args2.displayToken);
     ASSERT_EQ(args.width, args2.width);
     ASSERT_EQ(args.height, args2.height);
     ASSERT_EQ(args.useIdentityTransform, args2.useIdentityTransform);
+    ASSERT_EQ(args.grayscale, args2.grayscale);
 }
 
 TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
     LayerCaptureArgs args;
     args.pixelFormat = ui::PixelFormat::RGB_565;
     args.sourceCrop = Rect(0, 0, 500, 200);
-    args.frameScale = 2;
+    args.frameScaleX = 2;
+    args.frameScaleY = 4;
     args.captureSecureLayers = true;
     args.layerHandle = new BBinder();
     args.excludeHandles = {new BBinder(), new BBinder()};
     args.childrenOnly = false;
+    args.grayscale = true;
 
     Parcel p;
     args.write(p);
@@ -73,11 +79,13 @@ TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
 
     ASSERT_EQ(args.pixelFormat, args2.pixelFormat);
     ASSERT_EQ(args.sourceCrop, args2.sourceCrop);
-    ASSERT_EQ(args.frameScale, args2.frameScale);
+    ASSERT_EQ(args.frameScaleX, args2.frameScaleX);
+    ASSERT_EQ(args.frameScaleY, args2.frameScaleY);
     ASSERT_EQ(args.captureSecureLayers, args2.captureSecureLayers);
     ASSERT_EQ(args.layerHandle, args2.layerHandle);
     ASSERT_EQ(args.excludeHandles, args2.excludeHandles);
     ASSERT_EQ(args.childrenOnly, args2.childrenOnly);
+    ASSERT_EQ(args.grayscale, args2.grayscale);
 }
 
 TEST(LayerStateTest, ParcellingScreenCaptureResults) {
