@@ -132,7 +132,7 @@ struct layer_state_t {
         eProducerDisconnect = 0x100'00000000,
         eFixedTransformHintChanged = 0x200'00000000,
         eFrameNumberChanged = 0x400'00000000,
-        eFrameTimelineVsyncChanged = 0x800'00000000,
+        eFrameTimelineInfoChanged = 0x800'00000000,
         eBlurRegionsChanged = 0x1000'00000000,
         eAutoRefreshChanged = 0x2000'00000000,
     };
@@ -238,7 +238,7 @@ struct layer_state_t {
     // graphics producer.
     uint64_t frameNumber;
 
-    int64_t frameTimelineVsyncId;
+    FrameTimelineInfo frameTimelineInfo;
 
     // Indicates that the consumer should acquire the next frame as soon as it
     // can and not wait for a frame to become available. This is only relevant
@@ -328,7 +328,8 @@ struct CaptureArgs {
 
     ui::PixelFormat pixelFormat{ui::PixelFormat::RGBA_8888};
     Rect sourceCrop;
-    float frameScale{1};
+    float frameScaleX{1};
+    float frameScaleY{1};
     bool captureSecureLayers{false};
     int32_t uid{UNSET_UID};
     // Force capture to be in a color space. If the value is ui::Dataspace::UNKNOWN, the captured
@@ -345,6 +346,8 @@ struct CaptureArgs {
     // secure property of the surface, which is specified by the application explicitly to avoid
     // the contents being accessed/captured by screenshot or unsecure display.
     bool allowProtected = false;
+
+    bool grayscale = false;
 
     virtual status_t write(Parcel& output) const;
     virtual status_t read(const Parcel& input);

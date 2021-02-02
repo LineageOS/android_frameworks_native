@@ -451,7 +451,7 @@ void RegionSamplingThread::captureSample() {
 
     const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
     mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                                 true /* regionSampling */, captureListener);
+                                 true /* regionSampling */, false /* grayscale */, captureListener);
     ScreenCaptureResults captureResults = captureListener->waitForResults();
 
     std::vector<Descriptor> activeDescriptors;

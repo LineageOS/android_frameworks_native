@@ -30,12 +30,14 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
     DisplayCaptureArgs args;
     args.pixelFormat = ui::PixelFormat::RGB_565;
     args.sourceCrop = Rect(0, 0, 500, 200);
-    args.frameScale = 2;
+    args.frameScaleX = 2;
+    args.frameScaleY = 4;
     args.captureSecureLayers = true;
     args.displayToken = new BBinder();
     args.width = 10;
     args.height = 20;
     args.useIdentityTransform = true;
+    args.grayscale = true;
 
     Parcel p;
     args.write(p);
@@ -46,23 +48,27 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
 
     ASSERT_EQ(args.pixelFormat, args2.pixelFormat);
     ASSERT_EQ(args.sourceCrop, args2.sourceCrop);
-    ASSERT_EQ(args.frameScale, args2.frameScale);
+    ASSERT_EQ(args.frameScaleX, args2.frameScaleX);
+    ASSERT_EQ(args.frameScaleY, args2.frameScaleY);
     ASSERT_EQ(args.captureSecureLayers, args2.captureSecureLayers);
     ASSERT_EQ(args.displayToken, args2.displayToken);
     ASSERT_EQ(args.width, args2.width);
     ASSERT_EQ(args.height, args2.height);
     ASSERT_EQ(args.useIdentityTransform, args2.useIdentityTransform);
+    ASSERT_EQ(args.grayscale, args2.grayscale);
 }
 
 TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
     LayerCaptureArgs args;
     args.pixelFormat = ui::PixelFormat::RGB_565;
     args.sourceCrop = Rect(0, 0, 500, 200);
-    args.frameScale = 2;
+    args.frameScaleX = 2;
+    args.frameScaleY = 4;
     args.captureSecureLayers = true;
     args.layerHandle = new BBinder();
     args.excludeHandles = {new BBinder(), new BBinder()};
     args.childrenOnly = false;
+    args.grayscale = true;
 
     Parcel p;
     args.write(p);
@@ -73,11 +79,13 @@ TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
 
     ASSERT_EQ(args.pixelFormat, args2.pixelFormat);
     ASSERT_EQ(args.sourceCrop, args2.sourceCrop);
-    ASSERT_EQ(args.frameScale, args2.frameScale);
+    ASSERT_EQ(args.frameScaleX, args2.frameScaleX);
+    ASSERT_EQ(args.frameScaleY, args2.frameScaleY);
     ASSERT_EQ(args.captureSecureLayers, args2.captureSecureLayers);
     ASSERT_EQ(args.layerHandle, args2.layerHandle);
     ASSERT_EQ(args.excludeHandles, args2.excludeHandles);
     ASSERT_EQ(args.childrenOnly, args2.childrenOnly);
+    ASSERT_EQ(args.grayscale, args2.grayscale);
 }
 
 TEST(LayerStateTest, ParcellingScreenCaptureResults) {
@@ -104,6 +112,35 @@ TEST(LayerStateTest, ParcellingScreenCaptureResults) {
     ASSERT_EQ(results.capturedSecureLayers, results2.capturedSecureLayers);
     ASSERT_EQ(results.capturedDataspace, results2.capturedDataspace);
     ASSERT_EQ(results.result, results2.result);
+}
+
+/**
+ * Parcel a layer_state_t struct, and then unparcel. Ensure that the object that was parceled
+ * matches the object that's unparceled.
+ */
+TEST(LayerStateTest, ParcelUnparcelLayerStateT) {
+    layer_state_t input;
+    input.frameTimelineInfo.vsyncId = 1;
+    input.frameTimelineInfo.inputEventId = 2;
+    Parcel p;
+    input.write(p);
+    layer_state_t output;
+    p.setDataPosition(0);
+    output.read(p);
+    ASSERT_EQ(input.frameTimelineInfo.vsyncId, output.frameTimelineInfo.vsyncId);
+    ASSERT_EQ(input.frameTimelineInfo.inputEventId, output.frameTimelineInfo.inputEventId);
+}
+
+TEST(LayerStateTest, LayerStateMerge_SelectsValidInputEvent) {
+    layer_state_t layer1;
+    layer1.frameTimelineInfo.inputEventId = android::os::IInputConstants::INVALID_INPUT_EVENT_ID;
+    layer_state_t layer2;
+    layer2.frameTimelineInfo.inputEventId = 1;
+    layer2.what |= layer_state_t::eFrameTimelineInfoChanged;
+
+    layer1.merge(layer2);
+
+    ASSERT_EQ(1, layer1.frameTimelineInfo.inputEventId);
 }
 
 } // namespace test

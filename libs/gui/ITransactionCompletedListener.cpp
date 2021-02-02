@@ -92,10 +92,8 @@ status_t FrameEventHistoryStats::readFromParcel(const Parcel* input) {
     return err;
 }
 
-JankData::JankData() :
-        frameVsyncId(ISurfaceComposer::INVALID_VSYNC_ID),
-        jankType(JankType::None) {
-}
+JankData::JankData()
+      : frameVsyncId(FrameTimelineInfo::INVALID_VSYNC_ID), jankType(JankType::None) {}
 
 status_t JankData::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(output->writeInt64, frameVsyncId);
