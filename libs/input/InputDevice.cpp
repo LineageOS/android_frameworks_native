@@ -166,6 +166,7 @@ InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
         mKeyboardType(other.mKeyboardType),
         mKeyCharacterMap(other.mKeyCharacterMap),
         mHasVibrator(other.mHasVibrator),
+        mHasBattery(other.mHasBattery),
         mHasButtonUnderPad(other.mHasButtonUnderPad),
         mHasSensor(other.mHasSensor),
         mMotionRanges(other.mMotionRanges),
@@ -187,6 +188,7 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
     mSources = 0;
     mKeyboardType = AINPUT_KEYBOARD_TYPE_NONE;
     mHasVibrator = false;
+    mHasBattery = false;
     mHasButtonUnderPad = false;
     mHasSensor = false;
     mMotionRanges.clear();

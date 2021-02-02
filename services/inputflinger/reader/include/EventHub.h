@@ -23,6 +23,9 @@
 #include <vector>
 
 #include <input/Flags.h>
+#include <filesystem>
+
+#include <batteryservice/BatteryService.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/KeyCharacterMap.h>
@@ -120,6 +123,9 @@ enum class InputDeviceClass : uint32_t {
 
     /* The input device has a sensor like accelerometer, gyro, etc */
     SENSOR = 0x00002000,
+
+    /* The input device has a battery */
+    BATTERY = 0x00004000,
 
     /* The input device is virtual (not a real device, not part of UI configuration). */
     VIRTUAL = 0x40000000,
@@ -241,6 +247,12 @@ public:
     virtual void vibrate(int32_t deviceId, const VibrationElement& effect) = 0;
     virtual void cancelVibrate(int32_t deviceId) = 0;
     virtual std::vector<int32_t> getVibratorIds(int32_t deviceId) = 0;
+
+    /* Query battery level. */
+    virtual std::optional<int32_t> getBatteryCapacity(int32_t deviceId) const = 0;
+
+    /* Query battery status. */
+    virtual std::optional<int32_t> getBatteryStatus(int32_t deviceId) const = 0;
 
     /* Requests the EventHub to reopen all input devices on the next call to getEvents(). */
     virtual void requestReopenDevices() = 0;
@@ -404,6 +416,10 @@ public:
 
     void monitor() override final;
 
+    std::optional<int32_t> getBatteryCapacity(int32_t deviceId) const override final;
+
+    std::optional<int32_t> getBatteryStatus(int32_t deviceId) const override final;
+
     bool isDeviceEnabled(int32_t deviceId) override final;
 
     status_t enableDevice(int32_t deviceId) override final;
@@ -441,6 +457,10 @@ private:
 
         bool ffEffectPlaying;
         int16_t ffEffectId; // initially -1
+
+        // The paths are invalid when .empty() returns true
+        std::filesystem::path sysfsRootPath;
+        std::filesystem::path sysfsBatteryPath;
 
         int32_t controllerNumber;
 

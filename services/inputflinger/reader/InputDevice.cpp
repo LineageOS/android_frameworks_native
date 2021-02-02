@@ -21,6 +21,7 @@
 #include <input/Flags.h>
 #include <algorithm>
 
+#include "BatteryInputMapper.h"
 #include "CursorInputMapper.h"
 #include "ExternalStylusInputMapper.h"
 #include "InputReaderContext.h"
@@ -158,6 +159,11 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
     // Vibrator-like devices.
     if (classes.test(InputDeviceClass::VIBRATOR)) {
         mappers.push_back(std::make_unique<VibratorInputMapper>(*contextPtr));
+    }
+
+    // Battery-like devices.
+    if (classes.test(InputDeviceClass::BATTERY)) {
+        mappers.push_back(std::make_unique<BatteryInputMapper>(*contextPtr));
     }
 
     // Keyboard-like devices.
@@ -488,6 +494,15 @@ void InputDevice::flushSensor(InputDeviceSensorType sensorType) {
 
 void InputDevice::cancelTouch(nsecs_t when) {
     for_each_mapper([when](InputMapper& mapper) { mapper.cancelTouch(when); });
+}
+
+std::optional<int32_t> InputDevice::getBatteryCapacity() {
+    return first_in_mappers<int32_t>(
+            [](InputMapper& mapper) { return mapper.getBatteryCapacity(); });
+}
+
+std::optional<int32_t> InputDevice::getBatteryStatus() {
+    return first_in_mappers<int32_t>([](InputMapper& mapper) { return mapper.getBatteryStatus(); });
 }
 
 int32_t InputDevice::getMetaState() {
