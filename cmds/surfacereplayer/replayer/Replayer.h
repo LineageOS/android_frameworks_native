@@ -116,8 +116,6 @@ class Replayer {
             layer_id id, const ReparentChange& c);
     void setRelativeParentChange(SurfaceComposerClient::Transaction& t,
             layer_id id, const RelativeParentChange& c);
-    void setDetachChildrenChange(SurfaceComposerClient::Transaction& t,
-            layer_id id, const DetachChildrenChange& c);
     void setReparentChildrenChange(SurfaceComposerClient::Transaction& t,
             layer_id id, const ReparentChildrenChange& c);
     void setShadowRadiusChange(SurfaceComposerClient::Transaction& t,

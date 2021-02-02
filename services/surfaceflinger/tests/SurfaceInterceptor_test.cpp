@@ -194,7 +194,6 @@ public:
     bool deferredTransactionUpdateFound(const SurfaceChange& change, bool foundDeferred);
     bool reparentUpdateFound(const SurfaceChange& change, bool found);
     bool relativeParentUpdateFound(const SurfaceChange& change, bool found);
-    bool detachChildrenUpdateFound(const SurfaceChange& change, bool found);
     bool reparentChildrenUpdateFound(const SurfaceChange& change, bool found);
     bool shadowRadiusUpdateFound(const SurfaceChange& change, bool found);
     bool surfaceUpdateFound(const Trace& trace, SurfaceChange::SurfaceChangeCase changeCase);
@@ -232,7 +231,6 @@ public:
     void deferredTransactionUpdate(Transaction&);
     void reparentUpdate(Transaction&);
     void relativeParentUpdate(Transaction&);
-    void detachChildrenUpdate(Transaction&);
     void reparentChildrenUpdate(Transaction&);
     void shadowRadiusUpdate(Transaction&);
     void surfaceCreation(Transaction&);
@@ -412,10 +410,6 @@ void SurfaceInterceptorTest::relativeParentUpdate(Transaction& t) {
     t.setRelativeLayer(mBGSurfaceControl, mFGSurfaceControl, RELATIVE_Z);
 }
 
-void SurfaceInterceptorTest::detachChildrenUpdate(Transaction& t) {
-    t.detachChildren(mBGSurfaceControl);
-}
-
 void SurfaceInterceptorTest::reparentChildrenUpdate(Transaction& t) {
     t.reparentChildren(mBGSurfaceControl, mFGSurfaceControl);
 }
@@ -452,7 +446,6 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::deferredTransactionUpdate);
     runInTransaction(&SurfaceInterceptorTest::reparentUpdate);
     runInTransaction(&SurfaceInterceptorTest::reparentChildrenUpdate);
-    runInTransaction(&SurfaceInterceptorTest::detachChildrenUpdate);
     runInTransaction(&SurfaceInterceptorTest::relativeParentUpdate);
     runInTransaction(&SurfaceInterceptorTest::shadowRadiusUpdate);
 }
@@ -667,16 +660,6 @@ bool SurfaceInterceptorTest::relativeParentUpdateFound(const SurfaceChange& chan
     return found;
 }
 
-bool SurfaceInterceptorTest::detachChildrenUpdateFound(const SurfaceChange& change, bool found) {
-    bool detachChildren(change.detach_children().detach_children());
-    if (detachChildren && !found) {
-        found = true;
-    } else if (detachChildren && found) {
-        []() { FAIL(); }();
-    }
-    return found;
-}
-
 bool SurfaceInterceptorTest::reparentChildrenUpdateFound(const SurfaceChange& change, bool found) {
     bool hasId(change.reparent_children().parent_id() == mFGLayerId);
     if (hasId && !found) {
@@ -761,9 +744,6 @@ bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
                         case SurfaceChange::SurfaceChangeCase::kRelativeParent:
                             foundUpdate = relativeParentUpdateFound(change, foundUpdate);
                             break;
-                        case SurfaceChange::SurfaceChangeCase::kDetachChildren:
-                            foundUpdate = detachChildrenUpdateFound(change, foundUpdate);
-                            break;
                         case SurfaceChange::SurfaceChangeCase::kShadowRadius:
                             foundUpdate = shadowRadiusUpdateFound(change, foundUpdate);
                             break;
@@ -793,7 +773,6 @@ void SurfaceInterceptorTest::assertAllUpdatesFound(const Trace& trace) {
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kReparent));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kReparentChildren));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kRelativeParent));
-    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kDetachChildren));
 }
 
 bool SurfaceInterceptorTest::surfaceCreationFound(const Increment& increment, bool foundSurface) {
@@ -966,11 +945,6 @@ TEST_F(SurfaceInterceptorTest, InterceptReparentChildrenUpdateWorks) {
 TEST_F(SurfaceInterceptorTest, InterceptRelativeParentUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::relativeParentUpdate,
                 SurfaceChange::SurfaceChangeCase::kRelativeParent);
-}
-
-TEST_F(SurfaceInterceptorTest, InterceptDetachChildrenUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::detachChildrenUpdate,
-                SurfaceChange::SurfaceChangeCase::kDetachChildren);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptShadowRadiusUpdateWorks) {

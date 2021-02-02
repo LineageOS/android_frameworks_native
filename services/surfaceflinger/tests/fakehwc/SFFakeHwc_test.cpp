@@ -1639,82 +1639,6 @@ protected:
         EXPECT_TRUE(framesAreSame(referenceFrame2, Base::sFakeComposer->getLatestFrame()));
     }
 
-    void Test_DetachChildrenSameClient() {
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.show(mChild);
-            ts.setPosition(mChild, 10, 10);
-            ts.setPosition(Base::mFGSurfaceControl, 64, 64);
-        }
-
-        auto referenceFrame = Base::mBaseFrame;
-        referenceFrame[Base::FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 64, 64 + 64};
-        referenceFrame[CHILD_LAYER].mDisplayFrame =
-                hwc_rect_t{64 + 10, 64 + 10, 64 + 10 + 10, 64 + 10 + 10};
-        EXPECT_TRUE(framesAreSame(referenceFrame, Base::sFakeComposer->getLatestFrame()));
-
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.setPosition(Base::mFGSurfaceControl, 0, 0);
-            ts.detachChildren(Base::mFGSurfaceControl);
-        }
-
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.setPosition(Base::mFGSurfaceControl, 64, 64);
-            ts.hide(mChild);
-        }
-
-        std::vector<RenderState> refFrame(2);
-        refFrame[Base::BG_LAYER] = Base::mBaseFrame[Base::BG_LAYER];
-        refFrame[Base::FG_LAYER] = Base::mBaseFrame[Base::FG_LAYER];
-
-        EXPECT_TRUE(framesAreSame(refFrame, Base::sFakeComposer->getLatestFrame()));
-    }
-
-    void Test_DetachChildrenDifferentClient() {
-        sp<SurfaceComposerClient> newComposerClient = new SurfaceComposerClient;
-        sp<SurfaceControl> childNewClient =
-                newComposerClient->createSurface(String8("New Child Test Surface"), 10, 10,
-                                                 PIXEL_FORMAT_RGBA_8888, 0,
-                                                 Base::mFGSurfaceControl->getHandle());
-        ASSERT_TRUE(childNewClient != nullptr);
-        ASSERT_TRUE(childNewClient->isValid());
-        fillSurfaceRGBA8(childNewClient, LIGHT_GRAY);
-
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.hide(mChild);
-            ts.show(childNewClient);
-            ts.setPosition(childNewClient, 10, 10);
-            ts.setPosition(Base::mFGSurfaceControl, 64, 64);
-        }
-
-        auto referenceFrame = Base::mBaseFrame;
-        referenceFrame[Base::FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 64, 64 + 64};
-        referenceFrame[CHILD_LAYER].mDisplayFrame =
-                hwc_rect_t{64 + 10, 64 + 10, 64 + 10 + 10, 64 + 10 + 10};
-        EXPECT_TRUE(framesAreSame(referenceFrame, Base::sFakeComposer->getLatestFrame()));
-
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.detachChildren(Base::mFGSurfaceControl);
-            ts.setPosition(Base::mFGSurfaceControl, 0, 0);
-        }
-
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.setPosition(Base::mFGSurfaceControl, 64, 64);
-            ts.setPosition(childNewClient, 0, 0);
-            ts.hide(childNewClient);
-        }
-
-        // Nothing should have changed. The child control becomes a no-op
-        // zombie on detach. See comments for detachChildren in the
-        // SurfaceControl.h file.
-        EXPECT_TRUE(framesAreSame(referenceFrame, Base::sFakeComposer->getLatestFrame()));
-    }
-
     // Regression test for b/37673612
     void Test_ChildrenWithParentBufferTransform() {
         {
@@ -1813,14 +1737,6 @@ TEST_F(ChildLayerTest_2_1, DISABLED_LayerAlpha) {
 
 TEST_F(ChildLayerTest_2_1, DISABLED_ReparentChildren) {
     Test_ReparentChildren();
-}
-
-TEST_F(ChildLayerTest_2_1, DISABLED_DetachChildrenSameClient) {
-    Test_DetachChildrenSameClient();
-}
-
-TEST_F(ChildLayerTest_2_1, DISABLED_DetachChildrenDifferentClient) {
-    Test_DetachChildrenDifferentClient();
 }
 
 // Regression test for b/37673612

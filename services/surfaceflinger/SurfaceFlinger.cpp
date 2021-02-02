@@ -3836,9 +3836,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTransactionNeeded|eTraversalNeeded;
         }
     }
-    if (what & layer_state_t::eDetachChildren) {
-        layer->detachChildren();
-    }
     if (what & layer_state_t::eTransformChanged) {
         if (layer->setTransform(s.transform)) flags |= eTraversalNeeded;
     }
