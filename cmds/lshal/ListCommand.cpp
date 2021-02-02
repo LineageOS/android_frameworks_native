@@ -81,7 +81,7 @@ std::string ListCommand::GetName() {
     return "list";
 }
 std::string ListCommand::getSimpleDescription() const {
-    return "List HALs.";
+    return "List HIDL HALs.";
 }
 
 std::string ListCommand::parseCmdline(pid_t pid) const {
@@ -295,21 +295,21 @@ void ListCommand::postprocess() {
     }
 
     mServicesTable.setDescription(
-            "| All binderized services (registered with hwservicemanager)");
+            "| All HIDL binderized services (registered with hwservicemanager)");
     mPassthroughRefTable.setDescription(
-            "| All interfaces that getService() has ever returned as a passthrough interface;\n"
+            "| All HIDL interfaces getService() has ever returned as a passthrough interface;\n"
             "| PIDs / processes shown below might be inaccurate because the process\n"
             "| might have relinquished the interface or might have died.\n"
             "| The Server / Server CMD column can be ignored.\n"
             "| The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
             "| the library and successfully fetched the passthrough implementation.");
     mImplementationsTable.setDescription(
-            "| All available passthrough implementations (all -impl.so files).\n"
+            "| All available HIDL passthrough implementations (all -impl.so files).\n"
             "| These may return subclasses through their respective HIDL_FETCH_I* functions.");
     mManifestHalsTable.setDescription(
-            "| All HALs that are in VINTF manifest.");
+            "| All HIDL HALs that are in VINTF manifest.");
     mLazyHalsTable.setDescription(
-            "| All HALs that are declared in VINTF manifest:\n"
+            "| All HIDL HALs that are declared in VINTF manifest:\n"
             "|    - as hwbinder HALs but are not registered to hwservicemanager, and\n"
             "|    - as hwbinder/passthrough HALs with no implementation.");
 }
@@ -903,11 +903,11 @@ void ListCommand::registerAllOptions() {
         thiz->mSelectedColumns.push_back(TableColumnType::VINTF);
         return OK;
     }, "print VINTF info. This column contains a comma-separated list of:\n"
-       "    - DM: if the HAL is in the device manifest\n"
-       "    - DC: if the HAL is in the device compatibility matrix\n"
-       "    - FM: if the HAL is in the framework manifest\n"
-       "    - FC: if the HAL is in the framework compatibility matrix\n"
-       "    - X: if the HAL is in none of the above lists"});
+       "    - DM: if the HIDL HAL is in the device manifest\n"
+       "    - DC: if the HIDL HAL is in the device compatibility matrix\n"
+       "    - FM: if the HIDL HAL is in the framework manifest\n"
+       "    - FC: if the HIDL HAL is in the framework compatibility matrix\n"
+       "    - X: if the HIDL HAL is in none of the above lists"});
     mOptions.push_back({'S', "service-status", no_argument, v++, [](ListCommand* thiz, const char*) {
         thiz->mSelectedColumns.push_back(TableColumnType::SERVICE_STATUS);
         return OK;
