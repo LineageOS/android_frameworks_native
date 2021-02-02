@@ -101,7 +101,7 @@ private:
 
     status_t updateActiveBuffer() override;
     status_t updateFrameNumber(nsecs_t latchTime) override;
-    void setFrameTimelineVsyncForBuffer(int64_t frameTimelineVsyncId) override;
+    void setFrameTimelineInfoForBuffer(const FrameTimelineInfo& frameTimelineInfo) override;
 
     sp<Layer> createClone() override;
 
@@ -145,10 +145,10 @@ private:
 
     sp<ContentsChangedListener> mContentsChangedListener;
 
-    // The last vsync id received on this layer. This will be used when we get
+    // The last vsync info received on this layer. This will be used when we get
     // a buffer to correlate the buffer with the vsync id. Can only be accessed
     // with the SF state lock held.
-    std::optional<int64_t> mFrameTimelineVsyncId;
+    FrameTimelineInfo mFrameTimelineInfo;
 
     // Keeps track of the time SF latched the last buffer from this layer.
     // Used in buffer stuffing analysis in FrameTimeline.

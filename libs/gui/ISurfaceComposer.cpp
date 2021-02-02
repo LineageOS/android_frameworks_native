@@ -68,16 +68,19 @@ public:
         return interface_cast<ISurfaceComposerClient>(reply.readStrongBinder());
     }
 
-    virtual status_t setTransactionState(
-            int64_t frameTimelineVsyncId, const Vector<ComposerState>& state,
-            const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
-            const InputWindowCommands& commands, int64_t desiredPresentTime, bool isAutoTimestamp,
-            const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
-            const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) {
+    status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
+                                 const Vector<ComposerState>& state,
+                                 const Vector<DisplayState>& displays, uint32_t flags,
+                                 const sp<IBinder>& applyToken, const InputWindowCommands& commands,
+                                 int64_t desiredPresentTime, bool isAutoTimestamp,
+                                 const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
+                                 const std::vector<ListenerCallbacks>& listenerCallbacks,
+                                 uint64_t transactionId) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
-        SAFE_PARCEL(data.writeInt64, frameTimelineVsyncId);
+        SAFE_PARCEL(frameTimelineInfo.write, data);
+
         SAFE_PARCEL(data.writeUint32, static_cast<uint32_t>(state.size()));
         for (const auto& s : state) {
             SAFE_PARCEL(s.write, data);
@@ -108,15 +111,14 @@ public:
         return remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
     }
 
-    virtual void bootFinished()
-    {
+    void bootFinished() override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         remote()->transact(BnSurfaceComposer::BOOT_FINISHED, data, &reply);
     }
 
-    virtual status_t captureDisplay(const DisplayCaptureArgs& args,
-                                    const sp<IScreenCaptureListener>& captureListener) {
+    status_t captureDisplay(const DisplayCaptureArgs& args,
+                            const sp<IScreenCaptureListener>& captureListener) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         SAFE_PARCEL(args.write, data);
@@ -125,8 +127,8 @@ public:
         return remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY, data, &reply);
     }
 
-    virtual status_t captureDisplay(uint64_t displayOrLayerStack,
-                                    const sp<IScreenCaptureListener>& captureListener) {
+    status_t captureDisplay(uint64_t displayOrLayerStack,
+                            const sp<IScreenCaptureListener>& captureListener) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         SAFE_PARCEL(data.writeUint64, displayOrLayerStack);
@@ -135,8 +137,8 @@ public:
         return remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY_BY_ID, data, &reply);
     }
 
-    virtual status_t captureLayers(const LayerCaptureArgs& args,
-                                   const sp<IScreenCaptureListener>& captureListener) {
+    status_t captureLayers(const LayerCaptureArgs& args,
+                           const sp<IScreenCaptureListener>& captureListener) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         SAFE_PARCEL(args.write, data);
@@ -145,9 +147,8 @@ public:
         return remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
     }
 
-    virtual bool authenticateSurfaceTexture(
-            const sp<IGraphicBufferProducer>& bufferProducer) const
-    {
+    bool authenticateSurfaceTexture(
+            const sp<IGraphicBufferProducer>& bufferProducer) const override {
         Parcel data, reply;
         int err = NO_ERROR;
         err = data.writeInterfaceToken(
@@ -180,8 +181,7 @@ public:
         return result != 0;
     }
 
-    virtual status_t getSupportedFrameTimestamps(
-            std::vector<FrameEvent>* outSupported) const {
+    status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const override {
         if (!outSupported) {
             return UNEXPECTED_NULL;
         }
@@ -224,8 +224,8 @@ public:
         return NO_ERROR;
     }
 
-    virtual sp<IDisplayEventConnection> createDisplayEventConnection(
-            VsyncSource vsyncSource, EventRegistrationFlags eventRegistration) {
+    sp<IDisplayEventConnection> createDisplayEventConnection(
+            VsyncSource vsyncSource, EventRegistrationFlags eventRegistration) override {
         Parcel data, reply;
         sp<IDisplayEventConnection> result;
         int err = data.writeInterfaceToken(
@@ -247,8 +247,7 @@ public:
         return result;
     }
 
-    virtual sp<IBinder> createDisplay(const String8& displayName, bool secure)
-    {
+    sp<IBinder> createDisplay(const String8& displayName, bool secure) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         status_t status = data.writeString8(displayName);
@@ -272,15 +271,14 @@ public:
         return display;
     }
 
-    virtual void destroyDisplay(const sp<IBinder>& display)
-    {
+    void destroyDisplay(const sp<IBinder>& display) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
         remote()->transact(BnSurfaceComposer::DESTROY_DISPLAY, data, &reply);
     }
 
-    virtual std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const {
+    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (remote()->transact(BnSurfaceComposer::GET_PHYSICAL_DISPLAY_IDS, data, &reply) ==
@@ -297,7 +295,7 @@ public:
         return {};
     }
 
-    virtual sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const {
+    sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeUint64(displayId.value);
@@ -305,8 +303,7 @@ public:
         return reply.readStrongBinder();
     }
 
-    virtual void setPowerMode(const sp<IBinder>& display, int mode)
-    {
+    void setPowerMode(const sp<IBinder>& display, int mode) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
@@ -314,7 +311,7 @@ public:
         remote()->transact(BnSurfaceComposer::SET_POWER_MODE, data, &reply);
     }
 
-    virtual status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState* state) {
+    status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState* state) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
@@ -326,7 +323,7 @@ public:
         return result;
     }
 
-    virtual status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo* info) {
+    status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo* info) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
@@ -336,7 +333,8 @@ public:
         return reply.read(*info);
     }
 
-    virtual status_t getDisplayConfigs(const sp<IBinder>& display, Vector<DisplayConfig>* configs) {
+    status_t getDisplayConfigs(const sp<IBinder>& display,
+                               Vector<DisplayConfig>* configs) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
@@ -354,9 +352,7 @@ public:
         return result;
     }
 
-    virtual status_t getDisplayStats(const sp<IBinder>& display,
-            DisplayStatInfo* stats)
-    {
+    status_t getDisplayStats(const sp<IBinder>& display, DisplayStatInfo* stats) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
@@ -370,8 +366,7 @@ public:
         return result;
     }
 
-    virtual int getActiveConfig(const sp<IBinder>& display)
-    {
+    int getActiveConfig(const sp<IBinder>& display) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
@@ -379,8 +374,8 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t getDisplayColorModes(const sp<IBinder>& display,
-            Vector<ColorMode>* outColorModes) {
+    status_t getDisplayColorModes(const sp<IBinder>& display,
+                                  Vector<ColorMode>* outColorModes) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -409,8 +404,8 @@ public:
         return result;
     }
 
-    virtual status_t getDisplayNativePrimaries(const sp<IBinder>& display,
-            ui::DisplayPrimaries& primaries) {
+    status_t getDisplayNativePrimaries(const sp<IBinder>& display,
+                                       ui::DisplayPrimaries& primaries) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -435,7 +430,7 @@ public:
         return result;
     }
 
-    virtual ColorMode getActiveColorMode(const sp<IBinder>& display) {
+    ColorMode getActiveColorMode(const sp<IBinder>& display) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -455,8 +450,7 @@ public:
         return static_cast<ColorMode>(reply.readInt32());
     }
 
-    virtual status_t setActiveColorMode(const sp<IBinder>& display,
-            ColorMode colorMode) {
+    status_t setActiveColorMode(const sp<IBinder>& display, ColorMode colorMode) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -481,8 +475,8 @@ public:
         return static_cast<status_t>(reply.readInt32());
     }
 
-    virtual status_t getAutoLowLatencyModeSupport(const sp<IBinder>& display,
-                                                  bool* outSupport) const {
+    status_t getAutoLowLatencyModeSupport(const sp<IBinder>& display,
+                                          bool* outSupport) const override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         status_t result = data.writeStrongBinder(display);
@@ -499,7 +493,7 @@ public:
         return reply.readBool(outSupport);
     }
 
-    virtual void setAutoLowLatencyMode(const sp<IBinder>& display, bool on) {
+    void setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -524,7 +518,8 @@ public:
         }
     }
 
-    virtual status_t getGameContentTypeSupport(const sp<IBinder>& display, bool* outSupport) const {
+    status_t getGameContentTypeSupport(const sp<IBinder>& display,
+                                       bool* outSupport) const override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         status_t result = data.writeStrongBinder(display);
@@ -540,7 +535,7 @@ public:
         return reply.readBool(outSupport);
     }
 
-    virtual void setGameContentType(const sp<IBinder>& display, bool on) {
+    void setGameContentType(const sp<IBinder>& display, bool on) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -563,7 +558,7 @@ public:
         }
     }
 
-    virtual status_t clearAnimationFrameStats() {
+    status_t clearAnimationFrameStats() override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -578,7 +573,7 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t getAnimationFrameStats(FrameStats* outStats) const {
+    status_t getAnimationFrameStats(FrameStats* outStats) const override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         remote()->transact(BnSurfaceComposer::GET_ANIMATION_FRAME_STATS, data, &reply);
@@ -586,8 +581,8 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t getHdrCapabilities(const sp<IBinder>& display,
-            HdrCapabilities* outCapabilities) const {
+    status_t getHdrCapabilities(const sp<IBinder>& display,
+                                HdrCapabilities* outCapabilities) const override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         status_t result = data.writeStrongBinder(display);
@@ -608,7 +603,7 @@ public:
         return result;
     }
 
-    virtual status_t enableVSyncInjections(bool enable) {
+    status_t enableVSyncInjections(bool enable) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -629,7 +624,7 @@ public:
         return result;
     }
 
-    virtual status_t injectVSync(nsecs_t when) {
+    status_t injectVSync(nsecs_t when) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -650,7 +645,7 @@ public:
         return result;
     }
 
-    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) {
+    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) override {
         if (!outLayers) {
             return UNEXPECTED_NULL;
         }
@@ -680,10 +675,10 @@ public:
         return reply.readParcelableVector(outLayers);
     }
 
-    virtual status_t getCompositionPreference(ui::Dataspace* defaultDataspace,
-                                              ui::PixelFormat* defaultPixelFormat,
-                                              ui::Dataspace* wideColorGamutDataspace,
-                                              ui::PixelFormat* wideColorGamutPixelFormat) const {
+    status_t getCompositionPreference(ui::Dataspace* defaultDataspace,
+                                      ui::PixelFormat* defaultPixelFormat,
+                                      ui::Dataspace* wideColorGamutDataspace,
+                                      ui::PixelFormat* wideColorGamutPixelFormat) const override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -703,7 +698,7 @@ public:
         return error;
     }
 
-    virtual status_t getColorManagement(bool* outGetColorManagement) const {
+    status_t getColorManagement(bool* outGetColorManagement) const override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         remote()->transact(BnSurfaceComposer::GET_COLOR_MANAGEMENT, data, &reply);
@@ -715,10 +710,10 @@ public:
         return err;
     }
 
-    virtual status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
-                                                           ui::PixelFormat* outFormat,
-                                                           ui::Dataspace* outDataspace,
-                                                           uint8_t* outComponentMask) const {
+    status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
+                                                   ui::PixelFormat* outFormat,
+                                                   ui::Dataspace* outDataspace,
+                                                   uint8_t* outComponentMask) const override {
         if (!outFormat || !outDataspace || !outComponentMask) return BAD_VALUE;
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -752,8 +747,8 @@ public:
         return error;
     }
 
-    virtual status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
-                                                      uint8_t componentMask, uint64_t maxFrames) {
+    status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
+                                              uint8_t componentMask, uint64_t maxFrames) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
@@ -766,9 +761,9 @@ public:
         return result;
     }
 
-    virtual status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
-                                               uint64_t timestamp,
-                                               DisplayedFrameStats* outStats) const {
+    status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
+                                       uint64_t timestamp,
+                                       DisplayedFrameStats* outStats) const override {
         if (!outStats) return BAD_VALUE;
 
         Parcel data, reply;
@@ -805,7 +800,7 @@ public:
         return result;
     }
 
-    virtual status_t getProtectedContentSupport(bool* outSupported) const {
+    status_t getProtectedContentSupport(bool* outSupported) const override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         status_t error =
@@ -817,8 +812,8 @@ public:
         return error;
     }
 
-    virtual status_t isWideColorDisplay(const sp<IBinder>& token,
-                                        bool* outIsWideColorDisplay) const {
+    status_t isWideColorDisplay(const sp<IBinder>& token,
+                                bool* outIsWideColorDisplay) const override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -837,9 +832,8 @@ public:
         return error;
     }
 
-    virtual status_t addRegionSamplingListener(const Rect& samplingArea,
-                                               const sp<IBinder>& stopLayerHandle,
-                                               const sp<IRegionSamplingListener>& listener) {
+    status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
+                                       const sp<IRegionSamplingListener>& listener) override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -868,7 +862,7 @@ public:
         return error;
     }
 
-    virtual status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) {
+    status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -888,12 +882,11 @@ public:
         return error;
     }
 
-    virtual status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                  int32_t defaultConfig, bool allowGroupSwitching,
-                                                  float primaryRefreshRateMin,
-                                                  float primaryRefreshRateMax,
-                                                  float appRequestRefreshRateMin,
-                                                  float appRequestRefreshRateMax) {
+    status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken, int32_t defaultConfig,
+                                          bool allowGroupSwitching, float primaryRefreshRateMin,
+                                          float primaryRefreshRateMax,
+                                          float appRequestRefreshRateMin,
+                                          float appRequestRefreshRateMax) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -947,13 +940,12 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                  int32_t* outDefaultConfig,
-                                                  bool* outAllowGroupSwitching,
-                                                  float* outPrimaryRefreshRateMin,
-                                                  float* outPrimaryRefreshRateMax,
-                                                  float* outAppRequestRefreshRateMin,
-                                                  float* outAppRequestRefreshRateMax) {
+    status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
+                                          int32_t* outDefaultConfig, bool* outAllowGroupSwitching,
+                                          float* outPrimaryRefreshRateMin,
+                                          float* outPrimaryRefreshRateMax,
+                                          float* outAppRequestRefreshRateMin,
+                                          float* outAppRequestRefreshRateMax) override {
         if (!outDefaultConfig || !outAllowGroupSwitching || !outPrimaryRefreshRateMin ||
             !outPrimaryRefreshRateMax || !outAppRequestRefreshRateMin ||
             !outAppRequestRefreshRateMax) {
@@ -1011,8 +1003,8 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
-                                                 bool* outSupport) const {
+    status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
+                                         bool* outSupport) const override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -1039,7 +1031,7 @@ public:
         return NO_ERROR;
     }
 
-    virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) {
+    status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -1064,7 +1056,7 @@ public:
         return NO_ERROR;
     }
 
-    virtual status_t notifyPowerBoost(int32_t boostId) {
+    status_t notifyPowerBoost(int32_t boostId) override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -1085,8 +1077,8 @@ public:
         return NO_ERROR;
     }
 
-    virtual status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
-                                             float lightPosY, float lightPosZ, float lightRadius) {
+    status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
+                                     float lightPosY, float lightPosZ, float lightRadius) override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -1114,8 +1106,8 @@ public:
         return NO_ERROR;
     }
 
-    virtual status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
-                                  int8_t compatibility, bool shouldBeSeamless) {
+    status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
+                          int8_t compatibility, bool shouldBeSeamless) override {
         Parcel data, reply;
         status_t err = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (err != NO_ERROR) {
@@ -1156,7 +1148,7 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) {
+    status_t acquireFrameRateFlexibilityToken(sp<IBinder>* outToken) override {
         if (!outToken) return BAD_VALUE;
 
         Parcel data, reply;
@@ -1191,40 +1183,34 @@ public:
         return NO_ERROR;
     }
 
-    virtual status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
-                                           int64_t frameTimelineVsyncId) {
+    status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
+                                  const FrameTimelineInfo& frameTimelineInfo) override {
         Parcel data, reply;
         status_t err = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (err != NO_ERROR) {
-            ALOGE("setFrameTimelineVsync: failed writing interface token: %s (%d)", strerror(-err),
-                  -err);
+            ALOGE("%s: failed writing interface token: %s (%d)", __func__, strerror(-err), -err);
             return err;
         }
 
         err = data.writeStrongBinder(IInterface::asBinder(surface));
         if (err != NO_ERROR) {
-            ALOGE("setFrameTimelineVsync: failed writing strong binder: %s (%d)", strerror(-err),
-                  -err);
+            ALOGE("%s: failed writing strong binder: %s (%d)", __func__, strerror(-err), -err);
             return err;
         }
 
-        err = data.writeInt64(frameTimelineVsyncId);
-        if (err != NO_ERROR) {
-            ALOGE("setFrameTimelineVsync: failed writing int64_t: %s (%d)", strerror(-err), -err);
-            return err;
-        }
+        SAFE_PARCEL(frameTimelineInfo.write, data);
 
-        err = remote()->transact(BnSurfaceComposer::SET_FRAME_TIMELINE_VSYNC, data, &reply);
+        err = remote()->transact(BnSurfaceComposer::SET_FRAME_TIMELINE_INFO, data, &reply);
         if (err != NO_ERROR) {
-            ALOGE("setFrameTimelineVsync: failed to transact: %s (%d)", strerror(-err), err);
+            ALOGE("%s: failed to transact: %s (%d)", __func__, strerror(-err), err);
             return err;
         }
 
         return reply.readInt32();
     }
 
-    virtual status_t addTransactionTraceListener(
-            const sp<gui::ITransactionTraceListener>& listener) {
+    status_t addTransactionTraceListener(
+            const sp<gui::ITransactionTraceListener>& listener) override {
         Parcel data, reply;
         SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
         SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
@@ -1235,7 +1221,7 @@ public:
     /**
      * Get priority of the RenderEngine in surface flinger.
      */
-    virtual int getGPUContextPriority() {
+    int getGPUContextPriority() override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         status_t err =
@@ -1269,8 +1255,9 @@ status_t BnSurfaceComposer::onTransact(
         case SET_TRANSACTION_STATE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
 
-            int64_t frameTimelineVsyncId;
-            SAFE_PARCEL(data.readInt64, &frameTimelineVsyncId);
+            FrameTimelineInfo frameTimelineInfo;
+            SAFE_PARCEL(frameTimelineInfo.read, data);
+
             uint32_t count = 0;
             SAFE_PARCEL_READ_SIZE(data.readUint32, &count, data.dataSize());
             Vector<ComposerState> state;
@@ -1324,10 +1311,10 @@ status_t BnSurfaceComposer::onTransact(
             uint64_t transactionId = -1;
             SAFE_PARCEL(data.readUint64, &transactionId);
 
-            return setTransactionState(frameTimelineVsyncId, state, displays, stateFlags,
-                                       applyToken, inputWindowCommands, desiredPresentTime,
-                                       isAutoTimestamp, uncachedBuffer, hasListenerCallbacks,
-                                       listenerCallbacks, transactionId);
+            return setTransactionState(frameTimelineInfo, state, displays, stateFlags, applyToken,
+                                       inputWindowCommands, desiredPresentTime, isAutoTimestamp,
+                                       uncachedBuffer, hasListenerCallbacks, listenerCallbacks,
+                                       transactionId);
         }
         case BOOT_FINISHED: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
@@ -2078,30 +2065,26 @@ status_t BnSurfaceComposer::onTransact(
             }
             return NO_ERROR;
         }
-        case SET_FRAME_TIMELINE_VSYNC: {
+        case SET_FRAME_TIMELINE_INFO: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> binder;
             status_t err = data.readStrongBinder(&binder);
             if (err != NO_ERROR) {
-                ALOGE("setFrameTimelineVsync: failed to read strong binder: %s (%d)",
-                      strerror(-err), -err);
+                ALOGE("setFrameTimelineInfo: failed to read strong binder: %s (%d)", strerror(-err),
+                      -err);
                 return err;
             }
             sp<IGraphicBufferProducer> surface = interface_cast<IGraphicBufferProducer>(binder);
             if (!surface) {
-                ALOGE("setFrameTimelineVsync: failed to cast to IGraphicBufferProducer: %s (%d)",
+                ALOGE("setFrameTimelineInfo: failed to cast to IGraphicBufferProducer: %s (%d)",
                       strerror(-err), -err);
                 return err;
             }
-            int64_t frameTimelineVsyncId;
-            err = data.readInt64(&frameTimelineVsyncId);
-            if (err != NO_ERROR) {
-                ALOGE("setFrameTimelineVsync: failed to read int64_t: %s (%d)", strerror(-err),
-                      -err);
-                return err;
-            }
 
-            status_t result = setFrameTimelineVsync(surface, frameTimelineVsyncId);
+            FrameTimelineInfo frameTimelineInfo;
+            SAFE_PARCEL(frameTimelineInfo.read, data);
+
+            status_t result = setFrameTimelineInfo(surface, frameTimelineInfo);
             reply->writeInt32(result);
             return NO_ERROR;
         }
