@@ -49,6 +49,7 @@ cc_library_shared {
 
     srcs: [
         ":framework_native_aidl",
+        ":inputconstants_aidl",
         ":libgui_aidl",
         ":libgui_bufferqueue_sources",
 
@@ -62,6 +63,7 @@ cc_library_shared {
         "DebugEGLImageTracker.cpp",
         "DisplayEventDispatcher.cpp",
         "DisplayEventReceiver.cpp",
+        "FrameTimelineInfo.cpp",
         "GLConsumer.cpp",
         "IConsumerListener.cpp",
         "IDisplayEventConnection.cpp",
@@ -154,6 +156,7 @@ cc_library_static {
     defaults: ["libgui_bufferqueue-defaults"],
 
     srcs: [
+        ":inputconstants_aidl",
         ":libgui_aidl",
         ":libgui_bufferqueue_sources",
     ],
