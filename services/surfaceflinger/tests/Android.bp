@@ -21,7 +21,6 @@ cc_test {
         "CommonTypes_test.cpp",
         "Credentials_test.cpp",
         "DereferenceSurfaceControl_test.cpp",
-        "DetachChildren_test.cpp",
         "DisplayConfigs_test.cpp",
         "EffectLayer_test.cpp",
         "InvalidHandles_test.cpp",

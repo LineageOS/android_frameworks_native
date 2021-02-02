@@ -50,11 +50,10 @@ message SurfaceChange {
         CornerRadiusChange          corner_radius           = 16;
         ReparentChange              reparent                = 17;
         RelativeParentChange        relative_parent         = 18;
-        DetachChildrenChange        detach_children         = 19;
-        ReparentChildrenChange      reparent_children       = 20;
-        BackgroundBlurRadiusChange  background_blur_radius  = 21;
-        ShadowRadiusChange          shadow_radius           = 22;
-        BlurRegionsChange           blur_regions            = 23;
+        ReparentChildrenChange      reparent_children       = 19;
+        BackgroundBlurRadiusChange  background_blur_radius  = 20;
+        ShadowRadiusChange          shadow_radius           = 21;
+        BlurRegionsChange           blur_regions            = 22;
     }
 }
 
@@ -198,10 +197,6 @@ message ReparentChildrenChange {
 message RelativeParentChange {
     required int32 relative_parent_id = 1;
     required int32 z = 2;
-}
-
-message DetachChildrenChange {
-    required bool detach_children = 1;
 }
 
 message ShadowRadiusChange {
