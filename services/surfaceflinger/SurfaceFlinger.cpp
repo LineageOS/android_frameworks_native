@@ -3294,7 +3294,7 @@ bool SurfaceFlinger::flushTransactionQueues() {
                     break;
                 }
                 transactions.push_back(transaction);
-                applyTransactionState(transaction.frameTimelineVsyncId, transaction.states,
+                applyTransactionState(transaction.frameTimelineInfo, transaction.states,
                                       transaction.displays, transaction.flags,
                                       mPendingInputWindowCommands, transaction.desiredPresentTime,
                                       transaction.isAutoTimestamp, transaction.buffer,
@@ -3374,7 +3374,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(bool isAutoTimestamp, int64_t
 }
 
 status_t SurfaceFlinger::setTransactionState(
-        int64_t frameTimelineVsyncId, const Vector<ComposerState>& states,
+        const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
         const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
         const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
         bool isAutoTimestamp, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
@@ -3427,7 +3427,7 @@ status_t SurfaceFlinger::setTransactionState(
     // if the transaction contains a buffer.
     if (!transactionIsReadyToBeApplied(isAutoTimestamp, desiredPresentTime, states, true) ||
         pendingTransactions) {
-        mTransactionQueues[applyToken].emplace(frameTimelineVsyncId, states, displays, flags,
+        mTransactionQueues[applyToken].emplace(frameTimelineInfo, states, displays, flags,
                                                desiredPresentTime, isAutoTimestamp, uncacheBuffer,
                                                postTime, privileged, hasListenerCallbacks,
                                                listenerCallbacks, originPid, originUid,
@@ -3436,7 +3436,7 @@ status_t SurfaceFlinger::setTransactionState(
         return NO_ERROR;
     }
 
-    applyTransactionState(frameTimelineVsyncId, states, displays, flags, inputWindowCommands,
+    applyTransactionState(frameTimelineInfo, states, displays, flags, inputWindowCommands,
                           desiredPresentTime, isAutoTimestamp, uncacheBuffer, postTime, privileged,
                           hasListenerCallbacks, listenerCallbacks, originPid, originUid,
                           transactionId, /*isMainThread*/ false);
@@ -3444,7 +3444,7 @@ status_t SurfaceFlinger::setTransactionState(
 }
 
 void SurfaceFlinger::applyTransactionState(
-        int64_t frameTimelineVsyncId, const Vector<ComposerState>& states,
+        const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
         const Vector<DisplayState>& displays, uint32_t flags,
         const InputWindowCommands& inputWindowCommands, const int64_t desiredPresentTime,
         bool isAutoTimestamp, const client_cache_t& uncacheBuffer, const int64_t postTime,
@@ -3485,9 +3485,9 @@ void SurfaceFlinger::applyTransactionState(
     uint32_t clientStateFlags = 0;
     for (const ComposerState& state : states) {
         clientStateFlags |=
-                setClientStateLocked(frameTimelineVsyncId, state, desiredPresentTime,
-                                     isAutoTimestamp, postTime, privileged,
-                                     listenerCallbacksWithSurfaces, originPid, originUid);
+                setClientStateLocked(frameTimelineInfo, state, desiredPresentTime, isAutoTimestamp,
+                                     postTime, privileged, listenerCallbacksWithSurfaces, originPid,
+                                     originUid);
         if ((flags & eAnimation) && state.state.surface) {
             if (const auto layer = fromHandleLocked(state.state.surface).promote(); layer) {
                 mScheduler->recordLayerHistory(layer.get(),
@@ -3665,7 +3665,7 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermis
 }
 
 uint32_t SurfaceFlinger::setClientStateLocked(
-        int64_t frameTimelineVsyncId, const ComposerState& composerState,
+        const FrameTimelineInfo& frameTimelineInfo, const ComposerState& composerState,
         int64_t desiredPresentTime, bool isAutoTimestamp, int64_t postTime, bool privileged,
         std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks,
         int originPid, int originUid) {
@@ -3925,10 +3925,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTraversalNeeded;
         }
     }
-    if (what & layer_state_t::eFrameTimelineVsyncChanged) {
-        layer->setFrameTimelineVsyncForTransaction(s.frameTimelineVsyncId, postTime);
-    } else if (frameTimelineVsyncId != ISurfaceComposer::INVALID_VSYNC_ID) {
-        layer->setFrameTimelineVsyncForTransaction(frameTimelineVsyncId, postTime);
+    if (what & layer_state_t::eFrameTimelineInfoChanged) {
+        layer->setFrameTimelineInfoForTransaction(s.frameTimelineInfo, postTime);
+    } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
+        layer->setFrameTimelineInfoForTransaction(frameTimelineInfo, postTime);
     }
     if (what & layer_state_t::eFixedTransformHintChanged) {
         if (layer->setFixedTransformHint(s.fixedTransformHint)) {
@@ -4264,7 +4264,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(ISurfaceComposer::INVALID_VSYNC_ID, state, displays, 0, nullptr,
+    setTransactionState(FrameTimelineInfo{}, state, displays, 0, nullptr,
                         mPendingInputWindowCommands, systemTime(), true, {}, false, {},
                         0 /* Undefined transactionId */);
 
@@ -4909,22 +4909,23 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     result.append("\n");
 }
 
-void SurfaceFlinger::updateColorMatrixLocked() {
-    mat4 colorMatrix;
-    if (mGlobalSaturationFactor != 1.0f) {
-        // Rec.709 luma coefficients
-        float3 luminance{0.213f, 0.715f, 0.072f};
-        luminance *= 1.0f - mGlobalSaturationFactor;
-        mat4 saturationMatrix = mat4(
-            vec4{luminance.r + mGlobalSaturationFactor, luminance.r, luminance.r, 0.0f},
-            vec4{luminance.g, luminance.g + mGlobalSaturationFactor, luminance.g, 0.0f},
-            vec4{luminance.b, luminance.b, luminance.b + mGlobalSaturationFactor, 0.0f},
-            vec4{0.0f, 0.0f, 0.0f, 1.0f}
-        );
-        colorMatrix = mClientColorMatrix * saturationMatrix * mDaltonizer();
-    } else {
-        colorMatrix = mClientColorMatrix * mDaltonizer();
+mat4 SurfaceFlinger::calculateColorMatrix(float saturation) {
+    if (saturation == 1) {
+        return mat4();
     }
+
+    float3 luminance{0.213f, 0.715f, 0.072f};
+    luminance *= 1.0f - saturation;
+    mat4 saturationMatrix = mat4(vec4{luminance.r + saturation, luminance.r, luminance.r, 0.0f},
+                                 vec4{luminance.g, luminance.g + saturation, luminance.g, 0.0f},
+                                 vec4{luminance.b, luminance.b, luminance.b + saturation, 0.0f},
+                                 vec4{0.0f, 0.0f, 0.0f, 1.0f});
+    return saturationMatrix;
+}
+
+void SurfaceFlinger::updateColorMatrixLocked() {
+    mat4 colorMatrix =
+            mClientColorMatrix * calculateColorMatrix(mGlobalSaturationFactor) * mDaltonizer();
 
     if (mCurrentState.colorMatrix != colorMatrix) {
         mCurrentState.colorMatrix = colorMatrix;
@@ -5015,7 +5016,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CAPTURE_LAYERS:
         case CAPTURE_DISPLAY:
         case SET_DISPLAY_BRIGHTNESS:
-        case SET_FRAME_TIMELINE_VSYNC:
+        case SET_FRAME_TIMELINE_INFO:
         // This is not sensitive information, so should not require permission control.
         case GET_GPU_CONTEXT_PRIORITY: {
             return OK;
@@ -5637,7 +5638,8 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               args.pixelFormat, args.allowProtected, captureListener);
+                               args.pixelFormat, args.allowProtected, args.grayscale,
+                               captureListener);
 }
 
 status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
@@ -5673,7 +5675,7 @@ status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, size,
                                ui::PixelFormat::RGBA_8888, false /* allowProtected */,
-                               captureListener);
+                               false /* grayscale */, captureListener);
 }
 
 status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
@@ -5719,12 +5721,12 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
             crop.bottom = parentSourceBounds.getHeight();
         }
 
-        if (crop.isEmpty() || args.frameScale <= 0.0f) {
+        if (crop.isEmpty() || args.frameScaleX <= 0.0f || args.frameScaleY <= 0.0f) {
             // Error out if the layer has no source bounds (i.e. they are boundless) and a source
             // crop was not specified, or an invalid frame scale was provided.
             return BAD_VALUE;
         }
-        reqSize = ui::Size(crop.width() * args.frameScale, crop.height() * args.frameScale);
+        reqSize = ui::Size(crop.width() * args.frameScaleX, crop.height() * args.frameScaleY);
 
         for (const auto& handle : args.excludeHandles) {
             sp<Layer> excludeLayer = fromHandleLocked(handle).promote();
@@ -5794,13 +5796,14 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     };
 
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, reqSize,
-                               args.pixelFormat, args.allowProtected, captureListener);
+                               args.pixelFormat, args.allowProtected, args.grayscale,
+                               captureListener);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
                                              ui::Size bufferSize, ui::PixelFormat reqPixelFormat,
-                                             const bool allowProtected,
+                                             bool allowProtected, bool grayscale,
                                              const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
@@ -5831,12 +5834,13 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              static_cast<android_pixel_format>(reqPixelFormat),
                                              1 /* layerCount */, usage, "screenshot");
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                               false /* regionSampling */, captureListener);
+                               false /* regionSampling */, grayscale, captureListener);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                              TraverseLayersFunction traverseLayers,
-                                             sp<GraphicBuffer>& buffer, const bool regionSampling,
+                                             sp<GraphicBuffer>& buffer, bool regionSampling,
+                                             bool grayscale,
                                              const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
@@ -5852,7 +5856,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
         if (mRefreshPending) {
             ALOGW("Skipping screenshot for now");
             captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer, regionSampling,
-                                captureListener);
+                                grayscale, captureListener);
             return;
         }
         ScreenCaptureResults captureResults;
@@ -5867,7 +5871,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
         status_t result = NO_ERROR;
         renderArea->render([&] {
             result = renderScreenImplLocked(*renderArea, traverseLayers, buffer, forSystem,
-                                            regionSampling, captureResults);
+                                            regionSampling, grayscale, captureResults);
         });
 
         captureResults.result = result;
@@ -5880,7 +5884,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
 status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                                 TraverseLayersFunction traverseLayers,
                                                 const sp<GraphicBuffer>& buffer, bool forSystem,
-                                                bool regionSampling,
+                                                bool regionSampling, bool grayscale,
                                                 ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
@@ -5920,6 +5924,9 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     clientCompositionDisplay.outputDataspace = renderArea.getReqDataSpace();
     clientCompositionDisplay.maxLuminance = DisplayDevice::sDefaultMaxLumiance;
+
+    const float colorSaturation = grayscale ? 0 : 1;
+    clientCompositionDisplay.colorTransform = calculateColorMatrix(colorSaturation);
 
     const float alpha = RenderArea::getCaptureFillValue(renderArea.getCaptureFill());
 
@@ -6383,21 +6390,21 @@ void SurfaceFlinger::onFrameRateFlexibilityTokenReleased() {
     }));
 }
 
-status_t SurfaceFlinger::setFrameTimelineVsync(const sp<IGraphicBufferProducer>& surface,
-                                               int64_t frameTimelineVsyncId) {
+status_t SurfaceFlinger::setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
+                                              const FrameTimelineInfo& frameTimelineInfo) {
     Mutex::Autolock lock(mStateLock);
     if (!authenticateSurfaceTextureLocked(surface)) {
-        ALOGE("Attempt to set frame timeline vsync on an unrecognized IGraphicBufferProducer");
+        ALOGE("Attempt to set frame timeline info on an unrecognized IGraphicBufferProducer");
         return BAD_VALUE;
     }
 
     sp<Layer> layer = (static_cast<MonitoredProducer*>(surface.get()))->getLayer();
     if (layer == nullptr) {
-        ALOGE("Attempt to set frame timeline vsync on a layer that no longer exists");
+        ALOGE("Attempt to set frame timeline info on a layer that no longer exists");
         return BAD_VALUE;
     }
 
-    layer->setFrameTimelineVsyncForBuffer(frameTimelineVsyncId);
+    layer->setFrameTimelineInfoForBuffer(frameTimelineInfo);
     return NO_ERROR;
 }
 

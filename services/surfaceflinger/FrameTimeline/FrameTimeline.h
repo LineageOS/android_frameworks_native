@@ -154,10 +154,10 @@ public:
 
     // Only FrameTimeline can construct a SurfaceFrame as it provides Predictions(through
     // TokenManager), Thresholds and TimeStats pointer.
-    SurfaceFrame(int64_t token, pid_t ownerPid, uid_t ownerUid, std::string layerName,
-                 std::string debugName, PredictionState predictionState, TimelineItem&& predictions,
-                 std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds,
-                 TraceCookieCounter* traceCookieCounter);
+    SurfaceFrame(const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
+                 std::string layerName, std::string debugName, PredictionState predictionState,
+                 TimelineItem&& predictions, std::shared_ptr<TimeStats> timeStats,
+                 JankClassificationThresholds thresholds, TraceCookieCounter* traceCookieCounter);
     ~SurfaceFrame() = default;
 
     // Returns std::nullopt if the frame hasn't been classified yet.
@@ -166,6 +166,7 @@ public:
 
     // Functions called by SF
     int64_t getToken() const { return mToken; };
+    int32_t getInputEventId() const { return mInputEventId; };
     TimelineItem getPredictions() const { return mPredictions; };
     // Actual timestamps of the app are set individually at different functions.
     // Start time (if the app provides) and Queue time are accessible after queueing the frame,
@@ -198,6 +199,7 @@ public:
 
 private:
     const int64_t mToken;
+    const int32_t mInputEventId;
     const pid_t mOwnerPid;
     const uid_t mOwnerUid;
     const std::string mLayerName;
@@ -243,10 +245,9 @@ public:
 
     // Create a new surface frame, set the predictions based on a token and return it to the caller.
     // Debug name is the human-readable debugging string for dumpsys.
-    virtual std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(std::optional<int64_t> token,
-                                                                     pid_t ownerPid, uid_t ownerUid,
-                                                                     std::string layerName,
-                                                                     std::string debugName) = 0;
+    virtual std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(
+            const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
+            std::string layerName, std::string debugName) = 0;
 
     // Adds a new SurfaceFrame to the current DisplayFrame. Frames from multiple layers can be
     // composited into one display frame.
@@ -279,7 +280,7 @@ namespace impl {
 
 class TokenManager : public android::frametimeline::TokenManager {
 public:
-    TokenManager() : mCurrentToken(ISurfaceComposer::INVALID_VSYNC_ID + 1) {}
+    TokenManager() : mCurrentToken(FrameTimelineInfo::INVALID_VSYNC_ID + 1) {}
     ~TokenManager() = default;
 
     int64_t generateTokenForPredictions(TimelineItem&& predictions) override;
@@ -353,7 +354,7 @@ public:
     private:
         void dump(std::string& result, nsecs_t baseTime) const;
 
-        int64_t mToken = ISurfaceComposer::INVALID_VSYNC_ID;
+        int64_t mToken = FrameTimelineInfo::INVALID_VSYNC_ID;
 
         /* Usage of TimelineItem w.r.t SurfaceFlinger
          * startTime    Time when SurfaceFlinger wakes up to handle transactions and buffer updates
@@ -393,10 +394,9 @@ public:
     ~FrameTimeline() = default;
 
     frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
-    std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(std::optional<int64_t> token,
-                                                             pid_t ownerPid, uid_t ownerUid,
-                                                             std::string layerName,
-                                                             std::string debugName) override;
+    std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(
+            const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
+            std::string layerName, std::string debugName) override;
     void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame) override;
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime, nsecs_t vsyncPeriod) override;
     void setSfPresent(nsecs_t sfPresentTime,

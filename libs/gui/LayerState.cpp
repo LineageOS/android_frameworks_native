@@ -63,7 +63,7 @@ layer_state_t::layer_state_t()
         shouldBeSeamless(true),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         frameNumber(0),
-        frameTimelineVsyncId(ISurfaceComposer::INVALID_VSYNC_ID),
+        frameTimelineInfo(),
         autoRefresh(false) {
     matrix.dsdx = matrix.dtdy = 1.0f;
     matrix.dsdy = matrix.dtdx = 0.0f;
@@ -151,7 +151,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeBool, shouldBeSeamless);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
     SAFE_PARCEL(output.writeUint64, frameNumber);
-    SAFE_PARCEL(output.writeInt64, frameTimelineVsyncId);
+    SAFE_PARCEL(frameTimelineInfo.write, output);
     SAFE_PARCEL(output.writeBool, autoRefresh);
 
     SAFE_PARCEL(output.writeUint32, blurRegions.size());
@@ -270,7 +270,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
     SAFE_PARCEL(input.readUint64, &frameNumber);
-    SAFE_PARCEL(input.readInt64, &frameTimelineVsyncId);
+    SAFE_PARCEL(frameTimelineInfo.read, input);
     SAFE_PARCEL(input.readBool, &autoRefresh);
 
     uint32_t numRegions = 0;
@@ -537,15 +537,9 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eFrameNumberChanged;
         frameNumber = other.frameNumber;
     }
-    if (other.what & eFrameTimelineVsyncChanged) {
-        // When merging vsync Ids we take the oldest valid one
-        if (frameTimelineVsyncId != ISurfaceComposer::INVALID_VSYNC_ID &&
-            other.frameTimelineVsyncId != ISurfaceComposer::INVALID_VSYNC_ID) {
-            frameTimelineVsyncId = std::max(frameTimelineVsyncId, other.frameTimelineVsyncId);
-        } else if (frameTimelineVsyncId == ISurfaceComposer::INVALID_VSYNC_ID) {
-            frameTimelineVsyncId = other.frameTimelineVsyncId;
-        }
-        what |= eFrameTimelineVsyncChanged;
+    if (other.what & eFrameTimelineInfoChanged) {
+        what |= eFrameTimelineInfoChanged;
+        frameTimelineInfo.merge(other.frameTimelineInfo);
     }
     if (other.what & eAutoRefreshChanged) {
         what |= eAutoRefreshChanged;
@@ -644,11 +638,13 @@ bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* inFunc
 status_t CaptureArgs::write(Parcel& output) const {
     SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(pixelFormat));
     SAFE_PARCEL(output.write, sourceCrop);
-    SAFE_PARCEL(output.writeFloat, frameScale);
+    SAFE_PARCEL(output.writeFloat, frameScaleX);
+    SAFE_PARCEL(output.writeFloat, frameScaleY);
     SAFE_PARCEL(output.writeBool, captureSecureLayers);
     SAFE_PARCEL(output.writeInt32, uid);
     SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(dataspace));
     SAFE_PARCEL(output.writeBool, allowProtected);
+    SAFE_PARCEL(output.writeBool, grayscale);
     return NO_ERROR;
 }
 
@@ -657,12 +653,14 @@ status_t CaptureArgs::read(const Parcel& input) {
     SAFE_PARCEL(input.readInt32, &value);
     pixelFormat = static_cast<ui::PixelFormat>(value);
     SAFE_PARCEL(input.read, sourceCrop);
-    SAFE_PARCEL(input.readFloat, &frameScale);
+    SAFE_PARCEL(input.readFloat, &frameScaleX);
+    SAFE_PARCEL(input.readFloat, &frameScaleY);
     SAFE_PARCEL(input.readBool, &captureSecureLayers);
     SAFE_PARCEL(input.readInt32, &uid);
     SAFE_PARCEL(input.readInt32, &value);
     dataspace = static_cast<ui::Dataspace>(value);
     SAFE_PARCEL(input.readBool, &allowProtected);
+    SAFE_PARCEL(input.readBool, &grayscale);
     return NO_ERROR;
 }
 
