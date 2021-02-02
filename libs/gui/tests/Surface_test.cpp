@@ -695,7 +695,7 @@ public:
     void destroyDisplay(const sp<IBinder>& /*display */) override {}
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override { return {}; }
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId) const override { return nullptr; }
-    status_t setTransactionState(int64_t /*frameTimelineVsyncId*/,
+    status_t setTransactionState(const FrameTimelineInfo& /*frameTimelineInfo*/,
                                  const Vector<ComposerState>& /*state*/,
                                  const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
                                  const sp<IBinder>& /*applyToken*/,
@@ -877,8 +877,8 @@ public:
         return NO_ERROR;
     }
 
-    status_t setFrameTimelineVsync(const sp<IGraphicBufferProducer>& /*surface*/,
-                                   int64_t /*frameTimelineVsyncId*/) override {
+    status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& /*surface*/,
+                                  const FrameTimelineInfo& /*frameTimelineInfo*/) override {
         return NO_ERROR;
     }
 

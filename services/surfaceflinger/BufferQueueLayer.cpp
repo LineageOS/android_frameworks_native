@@ -384,8 +384,8 @@ status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
-void BufferQueueLayer::setFrameTimelineVsyncForBuffer(int64_t frameTimelineVsyncId) {
-    mFrameTimelineVsyncId = frameTimelineVsyncId;
+void BufferQueueLayer::setFrameTimelineInfoForBuffer(const FrameTimelineInfo& frameTimelineInfo) {
+    mFrameTimelineInfo = frameTimelineInfo;
 }
 
 // -----------------------------------------------------------------------
@@ -445,9 +445,8 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
         }
 
         auto surfaceFrame =
-                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mFrameTimelineVsyncId,
-                                                                     mOwnerPid, mOwnerUid, mName,
-                                                                     mName);
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mFrameTimelineInfo, mOwnerPid,
+                                                                     mOwnerUid, mName, mName);
         surfaceFrame->setActualQueueTime(systemTime());
 
         mQueueItems.push_back({item, surfaceFrame});
@@ -485,9 +484,8 @@ void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
         }
 
         auto surfaceFrame =
-                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mFrameTimelineVsyncId,
-                                                                     mOwnerPid, mOwnerUid, mName,
-                                                                     mName);
+                mFlinger->mFrameTimeline->createSurfaceFrameForToken(mFrameTimelineInfo, mOwnerPid,
+                                                                     mOwnerUid, mName, mName);
         surfaceFrame->setActualQueueTime(systemTime());
         mQueueItems[mQueueItems.size() - 1].item = item;
         mQueueItems[mQueueItems.size() - 1].surfaceFrame = std::move(surfaceFrame);
