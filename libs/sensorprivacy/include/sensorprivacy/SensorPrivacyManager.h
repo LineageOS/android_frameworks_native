@@ -36,11 +36,12 @@ public:
     SensorPrivacyManager();
 
     void addSensorPrivacyListener(const sp<hardware::ISensorPrivacyListener>& listener);
-    void addIndividualSensorPrivacyListener(int userId, int sensor,
+    status_t addIndividualSensorPrivacyListener(int userId, int sensor,
             const sp<hardware::ISensorPrivacyListener>& listener);
     void removeSensorPrivacyListener(const sp<hardware::ISensorPrivacyListener>& listener);
     bool isSensorPrivacyEnabled();
     bool isIndividualSensorPrivacyEnabled(int userId, int sensor);
+    status_t isIndividualSensorPrivacyEnabled(int userId, int sensor, bool &result);
 
     status_t linkToDeath(const sp<IBinder::DeathRecipient>& recipient);
     status_t unlinkToDeath(const sp<IBinder::DeathRecipient>& recipient);

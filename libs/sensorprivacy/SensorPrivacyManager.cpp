@@ -64,13 +64,15 @@ void SensorPrivacyManager::addSensorPrivacyListener(
     }
 }
 
-void SensorPrivacyManager::addIndividualSensorPrivacyListener(int userId, int sensor,
+status_t SensorPrivacyManager::addIndividualSensorPrivacyListener(int userId, int sensor,
         const sp<hardware::ISensorPrivacyListener>& listener)
 {
     sp<hardware::ISensorPrivacyManager> service = getService();
     if (service != nullptr) {
-        service->addIndividualSensorPrivacyListener(userId, sensor, listener);
+        return service->addIndividualSensorPrivacyListener(userId, sensor, listener)
+                .transactionError();
     }
+    return UNEXPECTED_NULL;
 }
 
 void SensorPrivacyManager::removeSensorPrivacyListener(
@@ -104,6 +106,19 @@ bool SensorPrivacyManager::isIndividualSensorPrivacyEnabled(int userId, int sens
     }
     // if the SensorPrivacyManager is not available then assume sensor privacy is disabled
     return false;
+}
+
+status_t SensorPrivacyManager::isIndividualSensorPrivacyEnabled(int userId, int sensor,
+        bool &returnVal)
+{
+    sp<hardware::ISensorPrivacyManager> service = getService();
+    if (service != nullptr) {
+        binder::Status res = service->isIndividualSensorPrivacyEnabled(userId, sensor, &returnVal);
+        return res.transactionError();
+    }
+    // if the SensorPrivacyManager is not available then assume sensor privacy is disabled
+    returnVal = false;
+    return UNKNOWN_ERROR;
 }
 
 status_t SensorPrivacyManager::linkToDeath(const sp<IBinder::DeathRecipient>& recipient)
