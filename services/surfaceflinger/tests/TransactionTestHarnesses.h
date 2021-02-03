@@ -57,6 +57,8 @@ public:
                                                       // Sample usage bits from screenrecord
                                                       GRALLOC_USAGE_HW_VIDEO_ENCODER |
                                                               GRALLOC_USAGE_SW_READ_OFTEN);
+                sp<BufferListener> listener = new BufferListener(this);
+                itemConsumer->setFrameAvailableListener(listener);
 
                 vDisplay = SurfaceComposerClient::createDisplay(String8("VirtualDisplay"),
                                                                 false /*secure*/);
@@ -68,6 +70,13 @@ public:
                                        Rect(displayState.layerStackSpaceRect), Rect(resolution));
                 t.apply();
                 SurfaceComposerClient::Transaction().apply(true);
+
+                std::unique_lock lock(mMutex);
+                mAvailable = false;
+                // Wait for frame buffer ready.
+                mCondition.wait_for(lock, std::chrono::seconds(2),
+                                    [this]() NO_THREAD_SAFETY_ANALYSIS { return mAvailable; });
+
                 BufferItem item;
                 itemConsumer->acquireBuffer(&item, 0, true);
                 auto sc = std::make_unique<ScreenCapture>(item.mGraphicBuffer);
@@ -80,6 +89,23 @@ public:
 protected:
     LayerTransactionTest* mDelegate;
     RenderPath mRenderPath;
+    std::mutex mMutex;
+    std::condition_variable mCondition;
+    bool mAvailable = false;
+
+    void onFrameAvailable() {
+        std::unique_lock lock(mMutex);
+        mAvailable = true;
+        mCondition.notify_all();
+    }
+
+    class BufferListener : public ConsumerBase::FrameAvailableListener {
+    public:
+        BufferListener(LayerRenderPathTestHarness* owner) : mOwner(owner) {}
+        LayerRenderPathTestHarness* mOwner;
+
+        void onFrameAvailable(const BufferItem& /*item*/) { mOwner->onFrameAvailable(); }
+    };
 };
 
 class LayerTypeTransactionHarness : public LayerTransactionTest {

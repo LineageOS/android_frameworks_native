@@ -216,8 +216,7 @@ bool BufferStateLayer::willPresentCurrentTransaction() const {
     // Returns true if the most recent Transaction applied to CurrentState will be presented.
     return (getSidebandStreamChanged() || getAutoRefresh() ||
             (mCurrentState.modified &&
-             (mCurrentState.buffer != nullptr || mCurrentState.bgColorLayer != nullptr))) &&
-        !mLayerDetached;
+             (mCurrentState.buffer != nullptr || mCurrentState.bgColorLayer != nullptr)));
 }
 
 /* TODO: vhau uncomment once deferred transaction migration complete in
@@ -459,11 +458,6 @@ bool BufferStateLayer::setTransactionCompletedListeners(
     mCallbackHandleAcquireTime = -1;
 
     return willPresent;
-}
-
-void BufferStateLayer::forceSendCallbacks() {
-    mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
-            mCurrentState.callbackHandles, std::vector<JankData>());
 }
 
 bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {

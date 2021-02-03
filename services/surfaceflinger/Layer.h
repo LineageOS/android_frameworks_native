@@ -434,7 +434,6 @@ public:
     virtual bool setMetadata(const LayerMetadata& data);
     virtual void setChildrenDrawingParent(const sp<Layer>&);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
-    virtual bool detachChildren();
     virtual bool setColorTransform(const mat4& matrix);
     virtual mat4 getColorTransform() const;
     virtual bool hasColorTransform() const;
@@ -461,7 +460,6 @@ public:
             const std::vector<sp<CallbackHandle>>& /*handles*/) {
         return false;
     };
-    virtual void forceSendCallbacks() {}
     virtual bool addFrameEvent(const sp<Fence>& /*acquireFence*/, nsecs_t /*postedTime*/,
                                nsecs_t /*requestedPresentTime*/) {
         return false;
@@ -666,8 +664,6 @@ public:
 
     bool reparentChildren(const sp<IBinder>& newParentHandle);
     void reparentChildren(const sp<Layer>& newParent);
-    bool attachChildren();
-    bool isLayerDetached() const { return mLayerDetached; }
     bool setShadowRadius(float shadowRadius);
 
     // Before color management is introduced, contents on Android have to be
@@ -1103,8 +1099,6 @@ protected:
     wp<Layer> mCurrentParent;
     wp<Layer> mDrawingParent;
 
-    // Can only be accessed with the SF state lock held.
-    bool mLayerDetached{false};
     // Can only be accessed with the SF state lock held.
     bool mChildrenChanged{false};
 

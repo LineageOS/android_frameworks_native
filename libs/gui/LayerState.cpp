@@ -426,9 +426,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eReparentChildren;
         reparentSurfaceControl = other.reparentSurfaceControl;
     }
-    if (other.what & eDetachChildren) {
-        what |= eDetachChildren;
-    }
     if (other.what & eRelativeLayerChanged) {
         what |= eRelativeLayerChanged;
         what &= ~eLayerChanged;
