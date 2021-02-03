@@ -102,7 +102,7 @@ struct layer_state_t {
         /* was ScalingModeChanged, now available 0x00000400, */
         eShadowRadiusChanged = 0x00000800,
         eReparentChildren = 0x00001000,
-        eDetachChildren = 0x00002000,
+        /* was eDetachChildren, now available 0x00002000, */
         eRelativeLayerChanged = 0x00004000,
         eReparent = 0x00008000,
         eColorChanged = 0x00010000,

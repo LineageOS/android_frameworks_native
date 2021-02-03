@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <BatteryInputMapper.h>
 #include <CursorInputMapper.h>
 #include <InputDevice.h>
 #include <InputMapper.h>
@@ -67,6 +68,8 @@ static constexpr int32_t INVALID_TRACKING_ID = -1;
 static constexpr int32_t FIRST_TRACKING_ID = 0;
 static constexpr int32_t SECOND_TRACKING_ID = 1;
 static constexpr int32_t THIRD_TRACKING_ID = 2;
+static constexpr int32_t BATTERY_STATUS = 4;
+static constexpr int32_t BATTERY_CAPACITY = 66;
 
 // Error tolerance for floating point assertions.
 static const float EPSILON = 0.001f;
@@ -862,6 +865,10 @@ private:
     void cancelVibrate(int32_t) override {}
 
     std::vector<int32_t> getVibratorIds(int32_t deviceId) override { return mVibrators; };
+
+    std::optional<int32_t> getBatteryCapacity(int32_t) const override { return BATTERY_CAPACITY; }
+
+    std::optional<int32_t> getBatteryStatus(int32_t) const override { return BATTERY_STATUS; }
 
     virtual bool isExternal(int32_t) const {
         return false;
@@ -1924,6 +1931,52 @@ TEST_F(InputReaderTest, VibratorGetVibratorIds) {
     ASSERT_EQ(mReader->getVibratorIds(deviceId).size(), 2U);
 }
 
+class FakeBatteryInputMapper : public FakeInputMapper {
+public:
+    FakeBatteryInputMapper(InputDeviceContext& deviceContext, uint32_t sources)
+          : FakeInputMapper(deviceContext, sources) {}
+
+    std::optional<int32_t> getBatteryCapacity() override {
+        return getDeviceContext().getBatteryCapacity();
+    }
+
+    std::optional<int32_t> getBatteryStatus() override {
+        return getDeviceContext().getBatteryStatus();
+    }
+};
+
+TEST_F(InputReaderTest, BatteryGetCapacity) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD | InputDeviceClass::BATTERY;
+    constexpr int32_t eventHubId = 1;
+    const char* DEVICE_LOCATION = "BLUETOOTH";
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake", DEVICE_LOCATION);
+    FakeBatteryInputMapper& mapper =
+            device->addMapper<FakeBatteryInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
+    mReader->pushNextDevice(device);
+
+    ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
+    ASSERT_NO_FATAL_FAILURE(mapper.assertConfigureWasCalled());
+
+    ASSERT_EQ(mReader->getBatteryCapacity(deviceId), BATTERY_CAPACITY);
+}
+
+TEST_F(InputReaderTest, BatteryGetStatus) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD | InputDeviceClass::BATTERY;
+    constexpr int32_t eventHubId = 1;
+    const char* DEVICE_LOCATION = "BLUETOOTH";
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake", DEVICE_LOCATION);
+    FakeBatteryInputMapper& mapper =
+            device->addMapper<FakeBatteryInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
+    mReader->pushNextDevice(device);
+
+    ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
+    ASSERT_NO_FATAL_FAILURE(mapper.assertConfigureWasCalled());
+
+    ASSERT_EQ(mReader->getBatteryStatus(deviceId), BATTERY_STATUS);
+}
+
 // --- InputReaderIntegrationTest ---
 
 // These tests create and interact with the InputReader only through its interface.
@@ -2797,6 +2850,32 @@ TEST_F(SensorInputMapperTest, ProcessGyroscopeSensor) {
     ASSERT_EQ(args.hwTimestamp, ARBITRARY_TIME);
     ASSERT_EQ(args.values, values);
     mapper.flushSensor(InputDeviceSensorType::GYROSCOPE);
+}
+
+// --- BatteryInputMapperTest ---
+class BatteryInputMapperTest : public InputMapperTest {
+protected:
+    void SetUp() override { InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::BATTERY); }
+};
+
+TEST_F(BatteryInputMapperTest, GetSources) {
+    BatteryInputMapper& mapper = addMapperAndConfigure<BatteryInputMapper>();
+
+    ASSERT_EQ(AINPUT_SOURCE_UNKNOWN, mapper.getSources());
+}
+
+TEST_F(BatteryInputMapperTest, GetBatteryCapacity) {
+    BatteryInputMapper& mapper = addMapperAndConfigure<BatteryInputMapper>();
+
+    ASSERT_TRUE(mapper.getBatteryCapacity());
+    ASSERT_EQ(*mapper.getBatteryCapacity(), BATTERY_CAPACITY);
+}
+
+TEST_F(BatteryInputMapperTest, GetBatteryStatus) {
+    BatteryInputMapper& mapper = addMapperAndConfigure<BatteryInputMapper>();
+
+    ASSERT_TRUE(mapper.getBatteryStatus());
+    ASSERT_EQ(*mapper.getBatteryStatus(), BATTERY_STATUS);
 }
 
 // --- KeyboardInputMapperTest ---
