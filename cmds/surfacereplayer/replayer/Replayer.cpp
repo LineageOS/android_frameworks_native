@@ -417,9 +417,6 @@ status_t Replayer::doSurfaceTransaction(
             case SurfaceChange::SurfaceChangeCase::kRelativeParent:
                 setRelativeParentChange(transaction, change.id(), change.relative_parent());
                 break;
-            case SurfaceChange::SurfaceChangeCase::kDetachChildren:
-                setDetachChildrenChange(transaction, change.id(), change.detach_children());
-                break;
             case SurfaceChange::SurfaceChangeCase::kShadowRadius:
                 setShadowRadiusChange(transaction, change.id(), change.shadow_radius());
                 break;
@@ -711,11 +708,6 @@ void Replayer::setRelativeParentChange(SurfaceComposerClient::Transaction& t,
         return;
     }
     t.setRelativeLayer(mLayers[id], mLayers[c.relative_parent_id()], c.z());
-}
-
-void Replayer::setDetachChildrenChange(SurfaceComposerClient::Transaction& t,
-        layer_id id, const DetachChildrenChange& c) {
-    t.detachChildren(mLayers[id]);
 }
 
 void Replayer::setReparentChildrenChange(SurfaceComposerClient::Transaction& t,

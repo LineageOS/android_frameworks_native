@@ -213,6 +213,9 @@ public:
     inline void setVibrator(bool hasVibrator) { mHasVibrator = hasVibrator; }
     inline bool hasVibrator() const { return mHasVibrator; }
 
+    inline void setHasBattery(bool hasBattery) { mHasBattery = hasBattery; }
+    inline bool hasBattery() const { return mHasBattery; }
+
     inline void setButtonUnderPad(bool hasButton) { mHasButtonUnderPad = hasButton; }
     inline bool hasButtonUnderPad() const { return mHasButtonUnderPad; }
 
@@ -239,6 +242,7 @@ private:
     int32_t mKeyboardType;
     std::shared_ptr<KeyCharacterMap> mKeyCharacterMap;
     bool mHasVibrator;
+    bool mHasBattery;
     bool mHasButtonUnderPad;
     bool mHasSensor;
 

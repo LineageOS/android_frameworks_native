@@ -150,7 +150,6 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
                    layer_state_t::eLayerHidden | layer_state_t::eLayerOpaque |
                            layer_state_t::eLayerSecure);
     addReparentLocked(transaction, layerId, getLayerIdFromWeakRef(layer->mCurrentParent));
-    addDetachChildrenLocked(transaction, layerId, layer->isLayerDetached());
     addRelativeParentLocked(transaction, layerId,
                             getLayerIdFromWeakRef(layer->mCurrentState.zOrderRelativeOf),
                             layer->mCurrentState.z);
@@ -409,13 +408,6 @@ void SurfaceInterceptor::addReparentChildrenLocked(Transaction* transaction, int
     overrideChange->set_parent_id(parentId);
 }
 
-void SurfaceInterceptor::addDetachChildrenLocked(Transaction* transaction, int32_t layerId,
-                                                 bool detached) {
-    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
-    DetachChildrenChange* overrideChange(change->mutable_detach_children());
-    overrideChange->set_detach_children(detached);
-}
-
 void SurfaceInterceptor::addRelativeParentLocked(Transaction* transaction, int32_t layerId,
                                                  int32_t parentId, int z) {
     SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
@@ -497,9 +489,6 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     if (state.what & layer_state_t::eReparentChildren) {
         addReparentChildrenLocked(transaction, layerId,
                                   getLayerIdFromHandle(state.reparentSurfaceControl->getHandle()));
-    }
-    if (state.what & layer_state_t::eDetachChildren) {
-        addDetachChildrenLocked(transaction, layerId, true);
     }
     if (state.what & layer_state_t::eRelativeLayerChanged) {
         addRelativeParentLocked(transaction, layerId,

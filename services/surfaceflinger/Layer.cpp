@@ -1000,19 +1000,6 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
 uint32_t Layer::doTransaction(uint32_t flags) {
     ATRACE_CALL();
 
-    if (mLayerDetached) {
-        // Ensure BLAST buffer callbacks are processed.
-        // detachChildren and mLayerDetached were implemented to avoid geometry updates
-        // to layers in the cases of animation. For BufferQueue layers buffers are still
-        // consumed as normal. This is useful as otherwise the client could get hung
-        // inevitably waiting on a buffer to return. We recreate this semantic for BufferQueue
-        // even though it is a little consistent. detachChildren is shortly slated for removal
-        // by the hierarchy mirroring work so we don't need to worry about it too much.
-        forceSendCallbacks();
-        mCurrentState.callbackHandles = {};
-        return flags;
-    }
-
     if (mChildrenChanged) {
         flags |= eVisibleRegion;
         mChildrenChanged = false;
@@ -1519,12 +1506,6 @@ Layer::FrameRate Layer::getFrameRateForLayerTree() const {
 
 void Layer::deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber) {
     ATRACE_CALL();
-    if (mLayerDetached) {
-        // If the layer is detached, then we don't defer this transaction since we will not
-        // commit the pending state while the layer is detached. Adding sync points may cause
-        // the barrier layer to wait for the states to be committed before dequeuing a buffer.
-        return;
-    }
 
     mCurrentState.barrierLayer_legacy = barrierLayer;
     mCurrentState.barrierFrameNumber = frameNumber;
@@ -1810,10 +1791,6 @@ ssize_t Layer::removeChild(const sp<Layer>& layer) {
 }
 
 void Layer::reparentChildren(const sp<Layer>& newParent) {
-    if (attachChildren()) {
-        setTransactionFlags(eTransactionNeeded);
-    }
-
     for (const sp<Layer>& child : mCurrentChildren) {
         newParent->addChild(child);
     }
@@ -1849,17 +1826,6 @@ void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
 }
 
 bool Layer::reparent(const sp<IBinder>& newParentHandle) {
-    bool callSetTransactionFlags = false;
-
-    // While layers are detached, we allow most operations
-    // and simply halt performing the actual transaction. However
-    // for reparent != null we would enter the mRemovedFromCurrentState
-    // state, regardless of whether doTransaction was called, and
-    // so we need to prevent the update here.
-    if (mLayerDetached && newParentHandle == nullptr) {
-        return false;
-    }
-
     sp<Layer> newParent;
     if (newParentHandle != nullptr) {
         auto handle = static_cast<Handle*>(newParentHandle.get());
@@ -1886,50 +1852,11 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
         } else {
             onRemovedFromCurrentState();
         }
-
-        if (mLayerDetached) {
-            mLayerDetached = false;
-            callSetTransactionFlags = true;
-        }
     } else {
         onRemovedFromCurrentState();
     }
 
-    if (attachChildren() || callSetTransactionFlags) {
-        setTransactionFlags(eTransactionNeeded);
-    }
     return true;
-}
-
-bool Layer::detachChildren() {
-    for (const sp<Layer>& child : mCurrentChildren) {
-        sp<Client> parentClient = mClientRef.promote();
-        sp<Client> client(child->mClientRef.promote());
-        if (client != nullptr && parentClient != client) {
-            child->mLayerDetached = true;
-            child->detachChildren();
-            child->removeRemoteSyncPoints();
-        }
-    }
-
-    return true;
-}
-
-bool Layer::attachChildren() {
-    bool changed = false;
-    for (const sp<Layer>& child : mCurrentChildren) {
-        sp<Client> parentClient = mClientRef.promote();
-        sp<Client> client(child->mClientRef.promote());
-        if (client != nullptr && parentClient != client) {
-            if (child->mLayerDetached) {
-                child->mLayerDetached = false;
-                child->attachChildren();
-                changed = true;
-            }
-        }
-    }
-
-    return changed;
 }
 
 bool Layer::setColorTransform(const mat4& matrix) {
