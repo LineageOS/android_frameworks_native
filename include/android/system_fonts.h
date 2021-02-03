@@ -87,8 +87,6 @@
 
 __BEGIN_DECLS
 
-#if __ANDROID_API__ >= 29
-
 /**
  * ASystemFontIterator provides access to the system font configuration.
  *
@@ -127,8 +125,6 @@ void ASystemFontIterator_close(ASystemFontIterator* _Nullable iterator) __INTROD
  *         font by ASystemFont_close when it is no longer needed.
  */
 AFont* _Nullable ASystemFontIterator_next(ASystemFontIterator* _Nonnull iterator) __INTRODUCED_IN(29);
-
-#endif // __ANDROID_API__ >= 29
 
 __END_DECLS
 
