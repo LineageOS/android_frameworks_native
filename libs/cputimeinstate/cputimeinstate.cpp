@@ -155,10 +155,14 @@ static bool initGlobals() {
     return true;
 }
 
-static bool attachTracepointProgram(const std::string &eventType, const std::string &eventName) {
+static int retrieveProgramFd(const std::string &eventType, const std::string &eventName) {
     std::string path = StringPrintf(BPF_FS_PATH "prog_time_in_state_tracepoint_%s_%s",
                                     eventType.c_str(), eventName.c_str());
-    int prog_fd = retrieveProgram(path.c_str());
+    return retrieveProgram(path.c_str());
+}
+
+static bool attachTracepointProgram(const std::string &eventType, const std::string &eventName) {
+    int prog_fd = retrieveProgramFd(eventType, eventName);
     if (prog_fd < 0) return false;
     return bpf_attach_tracepoint(prog_fd, eventType.c_str(), eventName.c_str()) >= 0;
 }
@@ -172,6 +176,17 @@ static std::optional<uint32_t> getPolicyFreqIdx(uint32_t policy) {
         if ((*freqVec)[0] == gPolicyFreqs[policy][idx]) return idx + 1;
     }
     return {};
+}
+
+// Check if tracking is expected to work without activating it.
+bool isTrackingUidTimesSupported() {
+    auto freqs = getCpuFreqs();
+    if (!freqs || freqs->empty()) return false;
+    if (gTracking) return true;
+    if (retrieveProgramFd("sched", "sched_switch") < 0) return false;
+    if (retrieveProgramFd("power", "cpu_frequency") < 0) return false;
+    if (retrieveProgramFd("sched", "sched_process_free") < 0) return false;
+    return true;
 }
 
 // Start tracking and aggregating data to be reported by getUidCpuFreqTimes and getUidsCpuFreqTimes.
