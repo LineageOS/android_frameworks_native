@@ -59,7 +59,6 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 #include <log/log.h>
 #include <log/log_event_list.h>
 #include <powermanager/PowerManager.h>
-#include <statslog.h>
 #include <unistd.h>
 #include <utils/Trace.h>
 
@@ -2921,7 +2920,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
 
     // Enqueue the dispatch entry.
     connection->outboundQueue.push_back(dispatchEntry.release());
-    traceOutboundQueueLength(connection);
+    traceOutboundQueueLength(*connection);
 }
 
 /**
@@ -3102,7 +3101,6 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                      motionEntry.downTime, motionEntry.eventTime,
                                                      motionEntry.pointerCount,
                                                      motionEntry.pointerProperties, usingCoords);
-                reportTouchEventForStatistics(motionEntry);
                 break;
             }
 
@@ -3176,13 +3174,13 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         connection->outboundQueue.erase(std::remove(connection->outboundQueue.begin(),
                                                     connection->outboundQueue.end(),
                                                     dispatchEntry));
-        traceOutboundQueueLength(connection);
+        traceOutboundQueueLength(*connection);
         connection->waitQueue.push_back(dispatchEntry);
         if (connection->responsive) {
             mAnrTracker.insert(dispatchEntry->timeoutTime,
                                connection->inputChannel->getConnectionToken());
         }
-        traceWaitQueueLength(connection);
+        traceWaitQueueLength(*connection);
     }
 }
 
@@ -3251,9 +3249,9 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
 
     // Clear the dispatch queues.
     drainDispatchQueue(connection->outboundQueue);
-    traceOutboundQueueLength(connection);
+    traceOutboundQueueLength(*connection);
     drainDispatchQueue(connection->waitQueue);
-    traceWaitQueueLength(connection);
+    traceWaitQueueLength(*connection);
 
     // The connection appears to be unrecoverably broken.
     // Ignore already broken or zombie connections.
@@ -5622,7 +5620,10 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
         ALOGI("%s spent %" PRId64 "ms processing %s", connection->getWindowName().c_str(),
               ns2ms(eventDuration), dispatchEntry->eventEntry->getDescription().c_str());
     }
-    reportDispatchStatistics(std::chrono::nanoseconds(eventDuration), *connection, handled);
+    // TODO(b/167947340): report event latency information to the policy
+    // Example: mPolicy->reportFinishedEvent(commandEntry->eventId, eventEntry.eventTime,
+    //                                       dispatchEntry->deliveryTime, commandEntry->consumeTime,
+    //                                       finishTime);
 
     bool restartEvent;
     if (dispatchEntry->eventEntry->type == EventEntry::Type::KEY) {
@@ -5654,10 +5655,10 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
                 processConnectionResponsiveLocked(*connection);
             }
         }
-        traceWaitQueueLength(connection);
+        traceWaitQueueLength(*connection);
         if (restartEvent && connection->status == Connection::STATUS_NORMAL) {
             connection->outboundQueue.push_front(dispatchEntry);
-            traceOutboundQueueLength(connection);
+            traceOutboundQueueLength(*connection);
         } else {
             releaseDispatchEntry(dispatchEntry);
         }
@@ -5934,58 +5935,25 @@ void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* comman
     mLock.lock();
 }
 
-void InputDispatcher::reportDispatchStatistics(std::chrono::nanoseconds eventDuration,
-                                               const Connection& connection, bool handled) {
-    // TODO Write some statistics about how long we spend waiting.
-}
-
-/**
- * Report the touch event latency to the statsd server.
- * Input events are reported for statistics if:
- * - This is a touchscreen event
- * - InputFilter is not enabled
- * - Event is not injected or synthesized
- *
- * Statistics should be reported before calling addValue, to prevent a fresh new sample
- * from getting aggregated with the "old" data.
- */
-void InputDispatcher::reportTouchEventForStatistics(const MotionEntry& motionEntry)
-        REQUIRES(mLock) {
-    const bool reportForStatistics = (motionEntry.source == AINPUT_SOURCE_TOUCHSCREEN) &&
-            !(motionEntry.isSynthesized()) && !mInputFilterEnabled;
-    if (!reportForStatistics) {
-        return;
-    }
-
-    if (mTouchStatistics.shouldReport()) {
-        android::util::stats_write(android::util::TOUCH_EVENT_REPORTED, mTouchStatistics.getMin(),
-                                   mTouchStatistics.getMax(), mTouchStatistics.getMean(),
-                                   mTouchStatistics.getStDev(), mTouchStatistics.getCount());
-        mTouchStatistics.reset();
-    }
-    const float latencyMicros = nanoseconds_to_microseconds(now() - motionEntry.eventTime);
-    mTouchStatistics.addValue(latencyMicros);
-}
-
 void InputDispatcher::traceInboundQueueLengthLocked() {
     if (ATRACE_ENABLED()) {
         ATRACE_INT("iq", mInboundQueue.size());
     }
 }
 
-void InputDispatcher::traceOutboundQueueLength(const sp<Connection>& connection) {
+void InputDispatcher::traceOutboundQueueLength(const Connection& connection) {
     if (ATRACE_ENABLED()) {
         char counterName[40];
-        snprintf(counterName, sizeof(counterName), "oq:%s", connection->getWindowName().c_str());
-        ATRACE_INT(counterName, connection->outboundQueue.size());
+        snprintf(counterName, sizeof(counterName), "oq:%s", connection.getWindowName().c_str());
+        ATRACE_INT(counterName, connection.outboundQueue.size());
     }
 }
 
-void InputDispatcher::traceWaitQueueLength(const sp<Connection>& connection) {
+void InputDispatcher::traceWaitQueueLength(const Connection& connection) {
     if (ATRACE_ENABLED()) {
         char counterName[40];
-        snprintf(counterName, sizeof(counterName), "wq:%s", connection->getWindowName().c_str());
-        ATRACE_INT(counterName, connection->waitQueue.size());
+        snprintf(counterName, sizeof(counterName), "wq:%s", connection.getWindowName().c_str());
+        ATRACE_INT(counterName, connection.waitQueue.size());
     }
 }
 

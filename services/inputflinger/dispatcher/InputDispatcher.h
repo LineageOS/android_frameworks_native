@@ -39,7 +39,6 @@
 #include <input/InputApplication.h>
 #include <input/InputTransport.h>
 #include <input/InputWindow.h>
-#include <input/LatencyStatistics.h>
 #include <limits.h>
 #include <stddef.h>
 #include <ui/Region.h>
@@ -636,15 +635,9 @@ private:
     void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
 
     // Statistics gathering.
-    static constexpr std::chrono::duration TOUCH_STATS_REPORT_PERIOD = 5min;
-    LatencyStatistics mTouchStatistics{TOUCH_STATS_REPORT_PERIOD};
-
-    void reportTouchEventForStatistics(const MotionEntry& entry);
-    void reportDispatchStatistics(std::chrono::nanoseconds eventDuration,
-                                  const Connection& connection, bool handled);
     void traceInboundQueueLengthLocked() REQUIRES(mLock);
-    void traceOutboundQueueLength(const sp<Connection>& connection);
-    void traceWaitQueueLength(const sp<Connection>& connection);
+    void traceOutboundQueueLength(const Connection& connection);
+    void traceWaitQueueLength(const Connection& connection);
 
     sp<InputReporterInterface> mReporter;
     sp<com::android::internal::compat::IPlatformCompatNative> mCompatService;
