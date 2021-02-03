@@ -58,11 +58,10 @@ using ui::Dataspace;
 
 FramebufferSurface::FramebufferSurface(HWComposer& hwc, PhysicalDisplayId displayId,
                                        const sp<IGraphicBufferConsumer>& consumer,
-                                       uint32_t maxWidth, uint32_t maxHeight)
+                                       const ui::Size& size, const ui::Size& maxSize)
       : ConsumerBase(consumer),
         mDisplayId(displayId),
-        mMaxWidth(maxWidth),
-        mMaxHeight(maxHeight),
+        mMaxSize(maxSize),
         mCurrentBufferSlot(-1),
         mCurrentBuffer(),
         mCurrentFence(Fence::NO_FENCE),
@@ -77,15 +76,14 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, PhysicalDisplayId displa
     mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_FB |
                                        GRALLOC_USAGE_HW_RENDER |
                                        GRALLOC_USAGE_HW_COMPOSER);
-    const auto& activeMode = mHwc.getActiveMode(displayId);
-    ui::Size limitedSize = limitFramebufferSize(activeMode->getWidth(), activeMode->getHeight());
+    const auto limitedSize = limitFramebufferSize(size);
     mConsumer->setDefaultBufferSize(limitedSize.width, limitedSize.height);
     mConsumer->setMaxAcquiredBufferCount(
             SurfaceFlinger::maxFrameBufferAcquiredBuffers - 1);
 }
 
-void FramebufferSurface::resizeBuffers(uint32_t width, uint32_t height) {
-    ui::Size limitedSize = limitFramebufferSize(width, height);
+void FramebufferSurface::resizeBuffers(const ui::Size& newSize) {
+    const auto limitedSize = limitFramebufferSize(newSize);
     mConsumer->setDefaultBufferSize(limitedSize.width, limitedSize.height);
 }
 
@@ -181,24 +179,24 @@ void FramebufferSurface::onFrameCommitted() {
     }
 }
 
-ui::Size FramebufferSurface::limitFramebufferSize(uint32_t width, uint32_t height) {
-    ui::Size framebufferSize(width, height);
-    bool wasLimited = true;
-    if (width > mMaxWidth && mMaxWidth != 0) {
-        float aspectRatio = float(width) / float(height);
-        framebufferSize.height = mMaxWidth / aspectRatio;
-        framebufferSize.width = mMaxWidth;
+ui::Size FramebufferSurface::limitFramebufferSize(const ui::Size& size) {
+    ui::Size limitedSize = size;
+    bool wasLimited = false;
+    if (size.width > mMaxSize.width && mMaxSize.width != 0) {
+        const float aspectRatio = static_cast<float>(size.width) / size.height;
+        limitedSize.height = mMaxSize.width / aspectRatio;
+        limitedSize.width = mMaxSize.width;
         wasLimited = true;
     }
-    if (height > mMaxHeight && mMaxHeight != 0) {
-        float aspectRatio = float(width) / float(height);
-        framebufferSize.height = mMaxHeight;
-        framebufferSize.width = mMaxHeight * aspectRatio;
+    if (size.height > mMaxSize.height && mMaxSize.height != 0) {
+        const float aspectRatio = static_cast<float>(size.width) / size.height;
+        limitedSize.height = mMaxSize.height;
+        limitedSize.width = mMaxSize.height * aspectRatio;
         wasLimited = true;
     }
     ALOGI_IF(wasLimited, "framebuffer size has been limited to [%dx%d] from [%dx%d]",
-             framebufferSize.width, framebufferSize.height, width, height);
-    return framebufferSize;
+             limitedSize.width, limitedSize.height, size.width, size.height);
+    return limitedSize;
 }
 
 void FramebufferSurface::dumpAsString(String8& result) const {

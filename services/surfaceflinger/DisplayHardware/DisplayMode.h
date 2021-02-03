@@ -22,6 +22,7 @@
 
 #include <android-base/stringprintf.h>
 #include <android/configuration.h>
+#include <ui/Size.h>
 #include <utils/Timers.h>
 
 #include <cstddef>
@@ -113,6 +114,7 @@ public:
 
     int32_t getWidth() const { return mWidth; }
     int32_t getHeight() const { return mHeight; }
+    ui::Size getSize() const { return {mWidth, mHeight}; }
     Fps getFps() const { return mFps; }
     nsecs_t getVsyncPeriod() const { return mFps.getPeriodNsecs(); }
     float getDpiX() const { return mDpiX; }

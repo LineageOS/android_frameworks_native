@@ -902,6 +902,7 @@ private:
     /*
      * Display management
      */
+    DisplayModes loadSupportedDisplayModes(PhysicalDisplayId) const;
     sp<DisplayDevice> setupNewDisplayDeviceInternal(
             const wp<IBinder>& displayToken,
             std::shared_ptr<compositionengine::Display> compositionDisplay,

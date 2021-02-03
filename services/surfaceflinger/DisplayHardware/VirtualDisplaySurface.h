@@ -90,7 +90,7 @@ public:
     virtual status_t advanceFrame();
     virtual void onFrameCommitted();
     virtual void dumpAsString(String8& result) const;
-    virtual void resizeBuffers(const uint32_t w, const uint32_t h);
+    virtual void resizeBuffers(const ui::Size&) override;
     virtual const sp<Fence>& getClientTargetAcquireFence() const override;
 
 private:
