@@ -275,7 +275,6 @@ const String16 sHardwareTest("android.permission.HARDWARE_TEST");
 const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER");
 const String16 sRotateSurfaceFlinger("android.permission.ROTATE_SURFACE_FLINGER");
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
-const String16 sUseBackgroundBlur("android.permission.USE_BACKGROUND_BLUR");
 const String16 sDump("android.permission.DUMP");
 const char* KERNEL_IDLE_TIMER_PROP = "graphics.display.kernel_idle_timer.enabled";
 
@@ -331,10 +330,6 @@ bool callingThreadHasRotateSurfaceFlingerAccess() {
     const int uid = ipc->getCallingUid();
     return uid == AID_GRAPHICS || uid == AID_SYSTEM ||
             PermissionCache::checkPermission(sRotateSurfaceFlinger, pid, uid);
-}
-
-bool originalCallerCanUseBlurs(int originPid, int originUid) {
-    return PermissionCache::checkPermission(sUseBackgroundBlur, originPid, originUid);
 }
 
 SurfaceFlingerBE::SurfaceFlingerBE() : mHwcServiceName(getHwcServiceName()) {}
@@ -3533,8 +3528,7 @@ void SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     for (const ComposerState& state : states) {
         clientStateFlags |=
                 setClientStateLocked(frameTimelineInfo, state, desiredPresentTime, isAutoTimestamp,
-                                     postTime, privileged, listenerCallbacksWithSurfaces, originPid,
-                                     originUid);
+                                     postTime, privileged, listenerCallbacksWithSurfaces);
         if ((flags & eAnimation) && state.state.surface) {
             if (const auto layer = fromHandleLocked(state.state.surface).promote(); layer) {
                 mScheduler->recordLayerHistory(layer.get(),
@@ -3659,8 +3653,7 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermis
 uint32_t SurfaceFlinger::setClientStateLocked(
         const FrameTimelineInfo& frameTimelineInfo, const ComposerState& composerState,
         int64_t desiredPresentTime, bool isAutoTimestamp, int64_t postTime, bool privileged,
-        std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks,
-        int originPid, int originUid) {
+        std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks) {
     const layer_state_t& s = composerState.state;
 
     for (auto& listener : s.listeners) {
@@ -3806,14 +3799,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         if (layer->setCornerRadius(s.cornerRadius))
             flags |= eTraversalNeeded;
     }
-
-    if (what & layer_state_t::eBackgroundBlurRadiusChanged && !mDisableBlurs && mSupportsBlur &&
-        originalCallerCanUseBlurs(originPid, originUid)) {
+    if (what & layer_state_t::eBackgroundBlurRadiusChanged && !mDisableBlurs && mSupportsBlur) {
         if (layer->setBackgroundBlurRadius(s.backgroundBlurRadius)) flags |= eTraversalNeeded;
     }
-
-    if (what & layer_state_t::eBlurRegionsChanged &&
-        originalCallerCanUseBlurs(originPid, originUid)) {
+    if (what & layer_state_t::eBlurRegionsChanged) {
         if (layer->setBlurRegions(s.blurRegions)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eLayerStackChanged) {
