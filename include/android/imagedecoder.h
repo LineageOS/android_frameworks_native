@@ -139,8 +139,6 @@ enum {
     ANDROID_IMAGE_DECODER_INVALID_STATE = -11,
 };
 
-#if __ANDROID_API__ >= 31
-
 /**
  * Return a constant string value representing the error code.
  *
@@ -154,8 +152,6 @@ enum {
  * - Returns null for a value out of range.
  */
 const char* _Nullable AImageDecoder_resultToString(int)__INTRODUCED_IN(31);
-
-#endif // __ANDROID_API__ >= 31
 
 struct AImageDecoder;
 
@@ -178,8 +174,6 @@ struct AImageDecoder;
  * threads.
  */
 typedef struct AImageDecoder AImageDecoder;
-
-#if __ANDROID_API__ >= 30
 
 /**
  * Create a new {@link AImageDecoder} from an {@link AAsset}.
@@ -469,8 +463,6 @@ int AImageDecoder_computeSampledSize(const AImageDecoder* _Nonnull decoder, int 
  */
 int AImageDecoder_setCrop(AImageDecoder* _Nonnull decoder, ARect crop) __INTRODUCED_IN(30);
 
-#endif // __ANDROID_API__ >= 30
-
 struct AImageDecoderHeaderInfo;
 /**
  * Opaque handle for representing information about the encoded image.
@@ -482,8 +474,6 @@ struct AImageDecoderHeaderInfo;
  * {@link AImageDecoderHeaderInfo_getHeight}.
  */
 typedef struct AImageDecoderHeaderInfo AImageDecoderHeaderInfo;
-
-#if __ANDROID_API__ >= 30
 
 /**
  * Return an opaque handle for reading header info.
@@ -672,10 +662,6 @@ int AImageDecoder_decodeImage(AImageDecoder* _Nonnull decoder,
                               void* _Nonnull pixels, size_t stride,
                               size_t size) __INTRODUCED_IN(30);
 
-#endif // __ANDROID_API__ >= 30
-
-#if __ANDROID_API__ >= 31
-
 /**
  * Return true iff the image is animated - i.e. has multiple frames.
  *
@@ -690,8 +676,6 @@ int AImageDecoder_decodeImage(AImageDecoder* _Nonnull decoder,
 bool AImageDecoder_isAnimated(AImageDecoder* _Nonnull decoder)
         __INTRODUCED_IN(31);
 
-#endif // __ANDROID_API__ >= 31
-
 enum {
     /*
      * Reported by {@link AImageDecoder_getRepeatCount} if the
@@ -701,8 +685,6 @@ enum {
      */
     ANDROID_IMAGE_DECODER_INFINITE = INT32_MAX,
 };
-
-#if __ANDROID_API__ >= 31
 
 /**
  * Report how many times the animation should repeat.
@@ -793,8 +775,6 @@ int AImageDecoder_advanceFrame(AImageDecoder* _Nonnull decoder)
 int AImageDecoder_rewind(AImageDecoder* _Nonnull decoder)
         __INTRODUCED_IN(31);
 
-#endif // __ANDROID_API__ >= 31
-
 struct AImageDecoderFrameInfo;
 
 /**
@@ -809,8 +789,6 @@ struct AImageDecoderFrameInfo;
  * a simple client that wants to sequentially display all frames.
  */
 typedef struct AImageDecoderFrameInfo AImageDecoderFrameInfo;
-
-#if __ANDROID_API__ >= 31
 
 /**
  * Create an uninitialized AImageDecoderFrameInfo.
@@ -922,8 +900,6 @@ ARect AImageDecoderFrameInfo_getFrameRect(
 bool AImageDecoderFrameInfo_hasAlphaWithinBounds(
         const AImageDecoderFrameInfo* _Nonnull info) __INTRODUCED_IN(31);
 
-#endif // __ANDROID_API__ >= 31
-
 /**
  * How a frame is “disposed” before showing the next one.
  *
@@ -947,8 +923,6 @@ enum {
     ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS = 3,
 };
 
-#if __ANDROID_API__ >= 31
-
 /**
  * Return how this frame is “disposed” before showing the next one.
  *
@@ -969,8 +943,6 @@ enum {
 int32_t AImageDecoderFrameInfo_getDisposeOp(
         const AImageDecoderFrameInfo* _Nonnull info) __INTRODUCED_IN(31);
 
-#endif // __ANDROID_API__ >= 31
-
 /**
  * How a frame is blended with the previous frame.
  *
@@ -988,8 +960,6 @@ enum {
     // This frame blends with the previous frame.
     ANDROID_IMAGE_DECODER_BLEND_OP_SRC_OVER = 2,
 };
-
-#if __ANDROID_API__ >= 31
 
 /**
  * Return how this frame is blended with the previous frame.
@@ -1046,8 +1016,6 @@ void AImageDecoder_setInternallyHandleDisposePrevious(
         AImageDecoder* _Nonnull decoder, bool handleInternally)
         __INTRODUCED_IN(31);
 
-
-#endif // __ANDROID_API__ >= 31
 
 #ifdef __cplusplus
 }
