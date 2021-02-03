@@ -377,7 +377,7 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
                displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
-        const nsecs_t actualPresentTime = mFlinger->getHwComposer().getRefreshTimestamp(*displayId);
+        const nsecs_t actualPresentTime = display->getRefreshTimestamp();
         mFlinger->mTimeStats->setPresentTime(layerId, mCurrentFrameNumber, actualPresentTime);
         mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(), mCurrentFrameNumber,
                                                actualPresentTime,

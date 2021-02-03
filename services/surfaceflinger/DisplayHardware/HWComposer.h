@@ -83,6 +83,16 @@ public:
         ClientTargetProperty clientTargetProperty;
     };
 
+    struct HWCDisplayMode {
+        hal::HWConfigId hwcId;
+        int32_t width = -1;
+        int32_t height = -1;
+        nsecs_t vsyncPeriod = -1;
+        int32_t dpiX = -1;
+        int32_t dpiY = -1;
+        int32_t configGroup = -1;
+    };
+
     virtual ~HWComposer();
 
     virtual void setConfiguration(HWC2::ComposerCallback* callback, int32_t sequenceId) = 0;
@@ -182,12 +192,11 @@ public:
     virtual bool onVsync(hal::HWDisplayId, int64_t timestamp) = 0;
     virtual void setVsyncEnabled(PhysicalDisplayId, hal::Vsync enabled) = 0;
 
-    virtual nsecs_t getRefreshTimestamp(PhysicalDisplayId) const = 0;
     virtual bool isConnected(PhysicalDisplayId) const = 0;
 
-    virtual DisplayModes getModes(PhysicalDisplayId) const = 0;
+    virtual std::vector<HWCDisplayMode> getModes(PhysicalDisplayId) const = 0;
 
-    virtual DisplayModePtr getActiveMode(PhysicalDisplayId) const = 0;
+    virtual std::optional<hal::HWConfigId> getActiveMode(PhysicalDisplayId) const = 0;
 
     virtual std::vector<ui::ColorMode> getColorModes(PhysicalDisplayId) const = 0;
 
@@ -197,7 +206,8 @@ public:
     // Composer 2.4
     virtual DisplayConnectionType getDisplayConnectionType(PhysicalDisplayId) const = 0;
     virtual bool isVsyncPeriodSwitchSupported(PhysicalDisplayId) const = 0;
-    virtual nsecs_t getDisplayVsyncPeriod(PhysicalDisplayId) const = 0;
+    virtual status_t getDisplayVsyncPeriod(PhysicalDisplayId displayId,
+                                           nsecs_t* outVsyncPeriod) const = 0;
     virtual status_t setActiveModeWithConstraints(PhysicalDisplayId, hal::HWConfigId,
                                                   const hal::VsyncPeriodChangeConstraints&,
                                                   hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
@@ -314,12 +324,11 @@ public:
     bool onVsync(hal::HWDisplayId, int64_t timestamp) override;
     void setVsyncEnabled(PhysicalDisplayId, hal::Vsync enabled) override;
 
-    nsecs_t getRefreshTimestamp(PhysicalDisplayId) const override;
     bool isConnected(PhysicalDisplayId) const override;
 
-    DisplayModes getModes(PhysicalDisplayId) const override;
+    std::vector<HWCDisplayMode> getModes(PhysicalDisplayId) const override;
 
-    DisplayModePtr getActiveMode(PhysicalDisplayId) const override;
+    std::optional<hal::HWConfigId> getActiveMode(PhysicalDisplayId) const override;
 
     std::vector<ui::ColorMode> getColorModes(PhysicalDisplayId) const override;
 
@@ -328,7 +337,8 @@ public:
     // Composer 2.4
     DisplayConnectionType getDisplayConnectionType(PhysicalDisplayId) const override;
     bool isVsyncPeriodSwitchSupported(PhysicalDisplayId) const override;
-    nsecs_t getDisplayVsyncPeriod(PhysicalDisplayId displayId) const override;
+    status_t getDisplayVsyncPeriod(PhysicalDisplayId displayId,
+                                   nsecs_t* outVsyncPeriod) const override;
     status_t setActiveModeWithConstraints(PhysicalDisplayId, hal::HWConfigId,
                                           const hal::VsyncPeriodChangeConstraints&,
                                           hal::VsyncPeriodChangeTimeline* outTimeline) override;
@@ -365,7 +375,6 @@ private:
         std::unordered_map<HWC2::Layer*, sp<Fence>> releaseFences;
         buffer_handle_t outbufHandle = nullptr;
         sp<Fence> outbufAcquireFence = Fence::NO_FENCE;
-        DisplayModes modes;
 
         bool validateWasSkipped;
         hal::Error presentError;
@@ -375,8 +384,7 @@ private:
         std::mutex vsyncEnabledLock;
         hal::Vsync vsyncEnabled GUARDED_BY(vsyncEnabledLock) = hal::Vsync::DISABLE;
 
-        mutable std::mutex lastHwVsyncLock;
-        nsecs_t lastHwVsync GUARDED_BY(lastHwVsyncLock) = 0;
+        nsecs_t lastHwVsync = 0;
     };
 
     std::optional<DisplayIdentificationInfo> onHotplugConnect(hal::HWDisplayId);
@@ -384,8 +392,7 @@ private:
     bool shouldIgnoreHotplugConnect(hal::HWDisplayId, bool hasDisplayIdentificationData) const;
 
     int32_t getAttribute(hal::HWDisplayId hwcDisplayId, hal::HWConfigId configId,
-                         hal::Attribute attribute);
-    void loadModes(DisplayData& displayData, hal::HWDisplayId hwcDisplayId);
+                         hal::Attribute attribute) const;
 
     void loadCapabilities();
     void loadLayerMetadataSupport();

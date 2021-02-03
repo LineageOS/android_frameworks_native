@@ -176,6 +176,10 @@ public:
     // set-top boxes after a hotplug reconnect.
     DisplayModePtr getMode(DisplayModeId) const;
 
+    void onVsync(nsecs_t timestamp);
+    nsecs_t getVsyncPeriodFromHWC() const;
+    nsecs_t getRefreshTimestamp() const;
+
     // release HWC resources (if any) for removable displays
     void disconnect();
 
@@ -206,6 +210,8 @@ private:
             hardware::graphics::composer::hal::PowerMode::OFF;
     DisplayModeId mActiveModeId;
     const DisplayModes mSupportedModes;
+
+    std::atomic<nsecs_t> mLastHwVsync = 0;
 
     // TODO(b/74619554): Remove special cases for primary display.
     const bool mIsPrimary;
