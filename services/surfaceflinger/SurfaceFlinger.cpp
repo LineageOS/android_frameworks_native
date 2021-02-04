@@ -3931,10 +3931,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTraversalNeeded;
         }
     }
+    FrameTimelineInfo info;
     if (what & layer_state_t::eFrameTimelineInfoChanged) {
-        layer->setFrameTimelineInfoForTransaction(s.frameTimelineInfo, postTime);
+        info = s.frameTimelineInfo;
     } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
-        layer->setFrameTimelineInfoForTransaction(frameTimelineInfo, postTime);
+        info = frameTimelineInfo;
     }
     if (what & layer_state_t::eFixedTransformHintChanged) {
         if (layer->setFixedTransformHint(s.fixedTransformHint)) {
@@ -3993,9 +3994,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 : layer->getHeadFrameNumber(-1 /* expectedPresentTime */) + 1;
 
         if (layer->setBuffer(buffer, s.acquireFence, postTime, desiredPresentTime, isAutoTimestamp,
-                             s.cachedBuffer, frameNumber, dequeueBufferTimestamp)) {
+                             s.cachedBuffer, frameNumber, dequeueBufferTimestamp, info)) {
             flags |= eTraversalNeeded;
         }
+    } else if (info.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
+        layer->setFrameTimelineVsyncForBufferlessTransaction(info, postTime);
     }
 
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
