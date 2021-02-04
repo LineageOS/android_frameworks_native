@@ -345,8 +345,8 @@ protected:
     virtual uint32_t setClientStateLocked(
             const FrameTimelineInfo& info, const ComposerState& composerState,
             int64_t desiredPresentTime, bool isAutoTimestamp, int64_t postTime, bool privileged,
-            std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks,
-            int originPid, int originUid) REQUIRES(mStateLock);
+            std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
+            REQUIRES(mStateLock);
     virtual void commitTransactionLocked();
 
     // Used internally by computeLayerBounds() to gets the clip rectangle to use for the
@@ -902,6 +902,7 @@ private:
     /*
      * Display management
      */
+    DisplayModes loadSupportedDisplayModes(PhysicalDisplayId) const;
     sp<DisplayDevice> setupNewDisplayDeviceInternal(
             const wp<IBinder>& displayToken,
             std::shared_ptr<compositionengine::Display> compositionDisplay,

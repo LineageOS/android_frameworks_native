@@ -72,7 +72,7 @@ public:
 
         EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
         EXPECT_CALL(*mVSyncTracker, currentPeriod())
-                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
+                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
 
         mFlinger.setupScheduler(std::unique_ptr<mock::VsyncController>(mVsyncController),
                                 std::unique_ptr<mock::VSyncTracker>(mVSyncTracker),

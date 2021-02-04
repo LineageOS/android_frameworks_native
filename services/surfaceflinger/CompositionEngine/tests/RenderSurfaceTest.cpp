@@ -119,9 +119,10 @@ TEST_F(RenderSurfaceTest, getClientTargetAcquireFenceForwardsCall) {
  */
 
 TEST_F(RenderSurfaceTest, setDisplaySizeAppliesChange) {
-    EXPECT_CALL(*mDisplaySurface, resizeBuffers(640, 480)).Times(1);
+    const ui::Size size(640, 480);
+    EXPECT_CALL(*mDisplaySurface, resizeBuffers(size)).Times(1);
 
-    mSurface.setDisplaySize(ui::Size(640, 480));
+    mSurface.setDisplaySize(size);
 }
 
 /*
