@@ -223,8 +223,6 @@ bool HWComposer::onVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp) {
                  __FUNCTION__, to_string(*displayId).c_str());
 
     {
-        std::lock_guard lock(displayData.lastHwVsyncLock);
-
         // There have been reports of HWCs that signal several vsync events
         // with the same timestamp when turning the display off and on. This
         // is a bug in the HWC implementation, but filter the extra events
@@ -295,41 +293,16 @@ void HWComposer::allocatePhysicalDisplay(hal::HWDisplayId hwcDisplayId,
                                                   hal::DisplayType::PHYSICAL);
     newDisplay->setConnected(true);
     displayData.hwcDisplay = std::move(newDisplay);
-    loadModes(displayData, hwcDisplayId);
 }
 
 int32_t HWComposer::getAttribute(hal::HWDisplayId hwcDisplayId, hal::HWConfigId configId,
-                                 hal::Attribute attribute) {
+                                 hal::Attribute attribute) const {
     int32_t value = 0;
     auto error = static_cast<hal::Error>(
             mComposer->getDisplayAttribute(hwcDisplayId, configId, attribute, &value));
 
     RETURN_IF_HWC_ERROR_FOR("getDisplayAttribute", error, *toPhysicalDisplayId(hwcDisplayId), -1);
     return value;
-}
-
-void HWComposer::loadModes(DisplayData& displayData, hal::HWDisplayId hwcDisplayId) {
-    ALOGV("[HWC display %" PRIu64 "] %s", hwcDisplayId, __FUNCTION__);
-
-    std::vector<hal::HWConfigId> configIds;
-    auto error = static_cast<hal::Error>(mComposer->getDisplayConfigs(hwcDisplayId, &configIds));
-    RETURN_IF_HWC_ERROR_FOR("getDisplayConfigs", error, *toPhysicalDisplayId(hwcDisplayId));
-
-    displayData.modes.clear();
-    for (auto configId : configIds) {
-        auto mode = DisplayMode::Builder(configId)
-                            .setId(DisplayModeId(displayData.modes.size()))
-                            .setWidth(getAttribute(hwcDisplayId, configId, hal::Attribute::WIDTH))
-                            .setHeight(getAttribute(hwcDisplayId, configId, hal::Attribute::HEIGHT))
-                            .setVsyncPeriod(getAttribute(hwcDisplayId, configId,
-                                                         hal::Attribute::VSYNC_PERIOD))
-                            .setDpiX(getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_X))
-                            .setDpiY(getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_Y))
-                            .setConfigGroup(getAttribute(hwcDisplayId, configId,
-                                                         hal::Attribute::CONFIG_GROUP))
-                            .build();
-        displayData.modes.push_back(std::move(mode));
-    }
 }
 
 HWC2::Layer* HWComposer::createLayer(HalDisplayId displayId) {
@@ -348,55 +321,50 @@ void HWComposer::destroyLayer(HalDisplayId displayId, HWC2::Layer* layer) {
     RETURN_IF_HWC_ERROR(error, displayId);
 }
 
-nsecs_t HWComposer::getRefreshTimestamp(PhysicalDisplayId displayId) const {
-    RETURN_IF_INVALID_DISPLAY(displayId, 0);
-    const auto& displayData = mDisplayData.at(displayId);
-    // this returns the last refresh timestamp.
-    // if the last one is not available, we estimate it based on
-    // the refresh period and whatever closest timestamp we have.
-    std::lock_guard lock(displayData.lastHwVsyncLock);
-    nsecs_t now = systemTime(CLOCK_MONOTONIC);
-    auto vsyncPeriodNanos = getDisplayVsyncPeriod(displayId);
-    return now - ((now - displayData.lastHwVsync) % vsyncPeriodNanos);
-}
-
 bool HWComposer::isConnected(PhysicalDisplayId displayId) const {
     RETURN_IF_INVALID_DISPLAY(displayId, false);
     return mDisplayData.at(displayId).hwcDisplay->isConnected();
 }
 
-DisplayModes HWComposer::getModes(PhysicalDisplayId displayId) const {
+std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId displayId) const {
     RETURN_IF_INVALID_DISPLAY(displayId, {});
 
-    // We cache the modes when the DisplayData is created on hotplug. If the modes need to
-    // change HWC will send a hotplug event which will recreate displayData.
-    return mDisplayData.at(displayId).modes;
+    const auto hwcDisplayId = mDisplayData.at(displayId).hwcDisplay->getId();
+    std::vector<hal::HWConfigId> configIds;
+    auto error = static_cast<hal::Error>(mComposer->getDisplayConfigs(hwcDisplayId, &configIds));
+    RETURN_IF_HWC_ERROR_FOR("getDisplayConfigs", error, *toPhysicalDisplayId(hwcDisplayId), {});
+
+    std::vector<HWCDisplayMode> modes;
+    modes.reserve(configIds.size());
+    for (auto configId : configIds) {
+        modes.push_back(HWCDisplayMode{
+                .hwcId = configId,
+                .width = getAttribute(hwcDisplayId, configId, hal::Attribute::WIDTH),
+                .height = getAttribute(hwcDisplayId, configId, hal::Attribute::HEIGHT),
+                .vsyncPeriod = getAttribute(hwcDisplayId, configId, hal::Attribute::VSYNC_PERIOD),
+                .dpiX = getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_X),
+                .dpiY = getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_Y),
+                .configGroup = getAttribute(hwcDisplayId, configId, hal::Attribute::CONFIG_GROUP),
+        });
+    }
+
+    return modes;
 }
 
-DisplayModePtr HWComposer::getActiveMode(PhysicalDisplayId displayId) const {
-    RETURN_IF_INVALID_DISPLAY(displayId, nullptr);
+std::optional<hal::HWConfigId> HWComposer::getActiveMode(PhysicalDisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, std::nullopt);
 
     const auto hwcId = *fromPhysicalDisplayId(displayId);
     ALOGV("[%" PRIu64 "] getActiveMode", hwcId);
     hal::HWConfigId configId;
     auto error = static_cast<hal::Error>(mComposer->getActiveConfig(hwcId, &configId));
 
-    const auto& modes = mDisplayData.at(displayId).modes;
     if (error == hal::Error::BAD_CONFIG) {
         LOG_DISPLAY_ERROR(displayId, "No active mode");
-        return nullptr;
+        return std::nullopt;
     }
 
-    RETURN_IF_HWC_ERROR(error, displayId, nullptr);
-
-    const auto it = std::find_if(modes.begin(), modes.end(),
-                                 [configId](auto mode) { return mode->getHwcId() == configId; });
-    if (it == modes.end()) {
-        LOG_DISPLAY_ERROR(displayId, "Unknown mode");
-        return nullptr;
-    }
-
-    return *it;
+    return configId;
 }
 
 // Composer 2.4
@@ -421,27 +389,20 @@ bool HWComposer::isVsyncPeriodSwitchSupported(PhysicalDisplayId displayId) const
     return mDisplayData.at(displayId).hwcDisplay->isVsyncPeriodSwitchSupported();
 }
 
-nsecs_t HWComposer::getDisplayVsyncPeriod(PhysicalDisplayId displayId) const {
+status_t HWComposer::getDisplayVsyncPeriod(PhysicalDisplayId displayId,
+                                           nsecs_t* outVsyncPeriod) const {
     RETURN_IF_INVALID_DISPLAY(displayId, 0);
 
-    if (isVsyncPeriodSwitchSupported(displayId)) {
-        const auto hwcId = *fromPhysicalDisplayId(displayId);
-        Hwc2::VsyncPeriodNanos vsyncPeriodNanos = 0;
-        auto error =
-                static_cast<hal::Error>(mComposer->getDisplayVsyncPeriod(hwcId, &vsyncPeriodNanos));
-        RETURN_IF_HWC_ERROR(error, displayId, 0);
-        return static_cast<nsecs_t>(vsyncPeriodNanos);
+    if (!isVsyncPeriodSwitchSupported(displayId)) {
+        return INVALID_OPERATION;
     }
-
-    // Get the default vsync period
-    auto mode = getActiveMode(displayId);
-
-    if (!mode) {
-        // HWC has updated the display modes and hasn't notified us yet.
-        RETURN_IF_HWC_ERROR(hal::Error::BAD_CONFIG, displayId, 0);
-    }
-
-    return mode->getVsyncPeriod();
+    const auto hwcId = *fromPhysicalDisplayId(displayId);
+    Hwc2::VsyncPeriodNanos vsyncPeriodNanos = 0;
+    auto error =
+            static_cast<hal::Error>(mComposer->getDisplayVsyncPeriod(hwcId, &vsyncPeriodNanos));
+    RETURN_IF_HWC_ERROR(error, displayId, 0);
+    *outVsyncPeriod = static_cast<nsecs_t>(vsyncPeriodNanos);
+    return NO_ERROR;
 }
 
 std::vector<ui::ColorMode> HWComposer::getColorModes(PhysicalDisplayId displayId) const {

@@ -669,7 +669,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
     // --------------------------------------------------------------------
     // Call Expectations
 
-    EXPECT_CALL(*displaySurface, resizeBuffers(newWidth, oldHeight)).Times(1);
+    EXPECT_CALL(*displaySurface, resizeBuffers(ui::Size(newWidth, oldHeight))).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation
@@ -714,7 +714,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     // --------------------------------------------------------------------
     // Call Expectations
 
-    EXPECT_CALL(*displaySurface, resizeBuffers(oldWidth, newHeight)).Times(1);
+    EXPECT_CALL(*displaySurface, resizeBuffers(ui::Size(oldWidth, newHeight))).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation
@@ -764,7 +764,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplaySizeDisplayRectAndLayerStack
     // --------------------------------------------------------------------
     // Call Expectations
 
-    EXPECT_CALL(*displaySurface, resizeBuffers(kNewWidth, kNewHeight)).Times(1);
+    EXPECT_CALL(*displaySurface, resizeBuffers(kNewSize.getSize())).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation

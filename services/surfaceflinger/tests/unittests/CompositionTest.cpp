@@ -62,15 +62,9 @@ using hal::Transform;
 
 using testing::_;
 using testing::AtLeast;
-using testing::Between;
-using testing::ByMove;
 using testing::DoAll;
-using testing::Field;
-using testing::Invoke;
 using testing::IsNull;
 using testing::Mock;
-using testing::NotNull;
-using testing::Ref;
 using testing::Return;
 using testing::ReturnRef;
 using testing::SetArgPointee;
@@ -86,7 +80,6 @@ constexpr PhysicalDisplayId DEFAULT_DISPLAY_ID(42);
 constexpr int DEFAULT_DISPLAY_WIDTH = 1920;
 constexpr int DEFAULT_DISPLAY_HEIGHT = 1024;
 
-constexpr int DEFAULT_CONFIG_ID = 0;
 constexpr int DEFAULT_TEXTURE_ID = 6000;
 constexpr int DEFAULT_LAYER_STACK = 7000;
 
@@ -147,7 +140,7 @@ public:
 
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
         EXPECT_CALL(*vsyncTracker, currentPeriod())
-                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
+                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
 
         constexpr ISchedulerCallback* kCallback = nullptr;
@@ -548,12 +541,6 @@ struct BaseLayerProperties {
         setupLatchedBuffer(test, layer);
     }
 
-    static void setupBufferLayerPostFrameCallExpectations(CompositionTest* test) {
-        // BufferLayer::onPostComposition(), when there is no present fence
-        EXPECT_CALL(*test->mComposer, getActiveConfig(HWC_DISPLAY, _))
-                .WillOnce(DoAll(SetArgPointee<1>(DEFAULT_CONFIG_ID), Return(Error::NONE)));
-    }
-
     static void setupHwcSetGeometryCallExpectations(CompositionTest* test) {
         if (!test->mDisplayOff) {
             // TODO: Coverage of other values
@@ -632,8 +619,6 @@ struct BaseLayerProperties {
                     .Times(1);
             EXPECT_CALL(*test->mComposer, setLayerBuffer(HWC_DISPLAY, HWC_LAYER, _, _, _)).Times(1);
         }
-
-        setupBufferLayerPostFrameCallExpectations(test);
     }
 
     static void setupREBufferCompositionCommonCallExpectations(CompositionTest* test) {
@@ -793,7 +778,6 @@ struct CommonSecureLayerProperties : public BaseLayerProperties<LayerProperties>
 
     static void setupInsecureREBufferCompositionCallExpectations(CompositionTest* test) {
         setupInsecureREBufferCompositionCommonCallExpectations(test);
-        Base::setupBufferLayerPostFrameCallExpectations(test);
     }
 
     static void setupInsecureREBufferScreenshotCompositionCallExpectations(CompositionTest* test) {
