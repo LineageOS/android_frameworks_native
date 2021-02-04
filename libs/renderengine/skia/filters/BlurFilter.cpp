@@ -52,6 +52,22 @@ BlurFilter::BlurFilter() {
         LOG_ALWAYS_FATAL("RuntimeShader error: %s", error.c_str());
     }
     mBlurEffect = std::move(blurEffect);
+
+    SkString mixString(R"(
+        in shader blurredInput;
+        in shader originalInput;
+        uniform float mixFactor;
+
+        half4 main(float2 xy) {
+            return half4(mix(sample(originalInput), sample(blurredInput), mixFactor));
+        }
+    )");
+
+    auto [mixEffect, mixError] = SkRuntimeEffect::Make(mixString);
+    if (!mixEffect) {
+        LOG_ALWAYS_FATAL("RuntimeShader error: %s", mixError.c_str());
+    }
+    mMixEffect = std::move(mixEffect);
 }
 
 sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t blurRadius,
@@ -97,8 +113,76 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
     return tmpBlur;
 }
 
-SkMatrix BlurFilter::getShaderMatrix() const {
-    return SkMatrix::Scale(kInverseInputScale, kInverseInputScale);
+static SkMatrix getShaderTransform(const SkCanvas* canvas, const SkRect& blurRect, float scale) {
+    // 1. Apply the blur shader matrix, which scales up the blured surface to its real size
+    auto matrix = SkMatrix::Scale(scale, scale);
+    // 2. Since the blurred surface has the size of the layer, we align it with the
+    // top left corner of the layer position.
+    matrix.postConcat(SkMatrix::Translate(blurRect.fLeft, blurRect.fTop));
+    // 3. Finally, apply the inverse canvas matrix. The snapshot made in the BlurFilter is in the
+    // original surface orientation. The inverse matrix has to be applied to align the blur
+    // surface with the current orientation/position of the canvas.
+    SkMatrix drawInverse;
+    if (canvas != nullptr && canvas->getTotalMatrix().invert(&drawInverse)) {
+        matrix.postConcat(drawInverse);
+    }
+    return matrix;
+}
+
+void BlurFilter::drawBlurRegion(SkCanvas* canvas, const BlurRegion& effectRegion,
+                                const SkRect& blurRect, sk_sp<SkImage> blurredImage,
+                                sk_sp<SkImage> input) {
+    ATRACE_CALL();
+
+    SkPaint paint;
+    paint.setAlphaf(effectRegion.alpha);
+    if (effectRegion.alpha == 1.0f) {
+        paint.setBlendMode(SkBlendMode::kSrc);
+    }
+
+    const auto blurMatrix = getShaderTransform(canvas, blurRect, kInverseInputScale);
+    SkSamplingOptions linearSampling(SkFilterMode::kLinear, SkMipmapMode::kNone);
+    const auto blurShader = blurredImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp,
+                                                     linearSampling, &blurMatrix);
+
+    if (effectRegion.blurRadius < kMaxCrossFadeRadius) {
+        // For sampling Skia's API expects the inverse of what logically seems appropriate. In this
+        // case you might expect the matrix to simply be the canvas matrix.
+        SkMatrix inputMatrix;
+        if (!canvas->getTotalMatrix().invert(&inputMatrix)) {
+            ALOGE("matrix was unable to be inverted");
+        }
+
+        SkRuntimeShaderBuilder blurBuilder(mMixEffect);
+        blurBuilder.child("blurredInput") = blurShader;
+        blurBuilder.child("originalInput") =
+                input->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linearSampling,
+                                  inputMatrix);
+        blurBuilder.uniform("mixFactor") = effectRegion.blurRadius / kMaxCrossFadeRadius;
+
+        paint.setShader(blurBuilder.makeShader(nullptr, true));
+    } else {
+        paint.setShader(blurShader);
+    }
+
+    // TODO we should AA at least the drawRoundRect which would mean no SRC blending
+    // TODO this round rect calculation doesn't match the one used to draw in RenderEngine
+    auto rect = SkRect::MakeLTRB(effectRegion.left, effectRegion.top, effectRegion.right,
+                                 effectRegion.bottom);
+
+    if (effectRegion.cornerRadiusTL > 0 || effectRegion.cornerRadiusTR > 0 ||
+        effectRegion.cornerRadiusBL > 0 || effectRegion.cornerRadiusBR > 0) {
+        const SkVector radii[4] =
+                {SkVector::Make(effectRegion.cornerRadiusTL, effectRegion.cornerRadiusTL),
+                 SkVector::Make(effectRegion.cornerRadiusTR, effectRegion.cornerRadiusTR),
+                 SkVector::Make(effectRegion.cornerRadiusBL, effectRegion.cornerRadiusBL),
+                 SkVector::Make(effectRegion.cornerRadiusBR, effectRegion.cornerRadiusBR)};
+        SkRRect roundedRect;
+        roundedRect.setRectRadii(rect, radii);
+        canvas->drawRRect(roundedRect, paint);
+    } else {
+        canvas->drawRect(rect, paint);
+    }
 }
 
 } // namespace skia

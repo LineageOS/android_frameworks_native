@@ -286,6 +286,7 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
     }
 
     if (args.supportsBackgroundBlur) {
+        ALOGD("Background Blurs Enabled");
         mBlurFilter = new BlurFilter();
     }
     mCapture = std::make_unique<SkiaCapture>();
@@ -516,6 +517,45 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> sh
     return shader;
 }
 
+void SkiaGLRenderEngine::initCanvas(SkCanvas* canvas, const DisplaySettings& display) {
+    if (mCapture->isCaptureRunning()) {
+        // Record display settings when capture is running.
+        std::stringstream displaySettings;
+        PrintTo(display, &displaySettings);
+        // Store the DisplaySettings in additional information.
+        canvas->drawAnnotation(SkRect::MakeEmpty(), "DisplaySettings",
+                               SkData::MakeWithCString(displaySettings.str().c_str()));
+    }
+
+    // Before doing any drawing, let's make sure that we'll start at the origin of the display.
+    // Some displays don't start at 0,0 for example when we're mirroring the screen. Also, virtual
+    // displays might have different scaling when compared to the physical screen.
+
+    canvas->clipRect(getSkRect(display.physicalDisplay));
+    canvas->translate(display.physicalDisplay.left, display.physicalDisplay.top);
+
+    const auto clipWidth = display.clip.width();
+    const auto clipHeight = display.clip.height();
+    auto rotatedClipWidth = clipWidth;
+    auto rotatedClipHeight = clipHeight;
+    // Scale is contingent on the rotation result.
+    if (display.orientation & ui::Transform::ROT_90) {
+        std::swap(rotatedClipWidth, rotatedClipHeight);
+    }
+    const auto scaleX = static_cast<SkScalar>(display.physicalDisplay.width()) /
+            static_cast<SkScalar>(rotatedClipWidth);
+    const auto scaleY = static_cast<SkScalar>(display.physicalDisplay.height()) /
+            static_cast<SkScalar>(rotatedClipHeight);
+    canvas->scale(scaleX, scaleY);
+
+    // Canvas rotation is done by centering the clip window at the origin, rotating, translating
+    // back so that the top left corner of the clip is at (0, 0).
+    canvas->translate(rotatedClipWidth / 2, rotatedClipHeight / 2);
+    canvas->rotate(toDegrees(display.orientation));
+    canvas->translate(-clipWidth / 2, -clipHeight / 2);
+    canvas->translate(-display.clip.left, -display.clip.top);
+}
+
 status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                         const std::vector<const LayerSettings*>& layers,
                                         const sp<GraphicBuffer>& buffer,
@@ -570,57 +610,49 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         }
     }
 
-    sk_sp<SkSurface> surface =
+    sk_sp<SkSurface> dstSurface =
             surfaceTextureRef->getTexture()->getOrCreateSurface(mUseColorManagement
                                                                         ? display.outputDataspace
                                                                         : ui::Dataspace::UNKNOWN,
                                                                 grContext.get());
 
-    SkCanvas* canvas = mCapture->tryCapture(surface.get());
-    if (canvas == nullptr) {
+    SkCanvas* dstCanvas = mCapture->tryCapture(dstSurface.get());
+    if (dstCanvas == nullptr) {
         ALOGE("Cannot acquire canvas from Skia.");
         return BAD_VALUE;
     }
+
+    // Find if any layers have requested blur, we'll use that info to decide when to render to an
+    // offscreen buffer and when to render to the native buffer.
+    sk_sp<SkSurface> activeSurface(dstSurface);
+    SkCanvas* canvas = dstCanvas;
+    const LayerSettings* blurCompositionLayer = nullptr;
+    if (mBlurFilter) {
+        bool requiresCompositionLayer = false;
+        for (const auto& layer : layers) {
+            if (layer->backgroundBlurRadius > 0) {
+                // when skbug.com/11208 and b/176903027 are resolved we can add the additional
+                // restriction for layer->backgroundBlurRadius < BlurFilter::kMaxCrossFadeRadius
+                requiresCompositionLayer = true;
+            }
+            for (auto region : layer->blurRegions) {
+                if (region.blurRadius < BlurFilter::kMaxCrossFadeRadius) {
+                    requiresCompositionLayer = true;
+                }
+            }
+            if (requiresCompositionLayer) {
+                activeSurface = dstSurface->makeSurface(dstSurface->imageInfo());
+                canvas = activeSurface->getCanvas();
+                blurCompositionLayer = layer;
+                break;
+            }
+        }
+    }
+
+    canvas->save();
     // Clear the entire canvas with a transparent black to prevent ghost images.
     canvas->clear(SK_ColorTRANSPARENT);
-    canvas->save();
-
-    if (mCapture->isCaptureRunning()) {
-        // Record display settings when capture is running.
-        std::stringstream displaySettings;
-        PrintTo(display, &displaySettings);
-        // Store the DisplaySettings in additional information.
-        canvas->drawAnnotation(SkRect::MakeEmpty(), "DisplaySettings",
-                               SkData::MakeWithCString(displaySettings.str().c_str()));
-    }
-
-    // Before doing any drawing, let's make sure that we'll start at the origin of the display.
-    // Some displays don't start at 0,0 for example when we're mirroring the screen. Also, virtual
-    // displays might have different scaling when compared to the physical screen.
-
-    canvas->clipRect(getSkRect(display.physicalDisplay));
-    canvas->translate(display.physicalDisplay.left, display.physicalDisplay.top);
-
-    const auto clipWidth = display.clip.width();
-    const auto clipHeight = display.clip.height();
-    auto rotatedClipWidth = clipWidth;
-    auto rotatedClipHeight = clipHeight;
-    // Scale is contingent on the rotation result.
-    if (display.orientation & ui::Transform::ROT_90) {
-        std::swap(rotatedClipWidth, rotatedClipHeight);
-    }
-    const auto scaleX = static_cast<SkScalar>(display.physicalDisplay.width()) /
-            static_cast<SkScalar>(rotatedClipWidth);
-    const auto scaleY = static_cast<SkScalar>(display.physicalDisplay.height()) /
-            static_cast<SkScalar>(rotatedClipHeight);
-    canvas->scale(scaleX, scaleY);
-
-    // Canvas rotation is done by centering the clip window at the origin, rotating, translating
-    // back so that the top left corner of the clip is at (0, 0).
-    canvas->translate(rotatedClipWidth / 2, rotatedClipHeight / 2);
-    canvas->rotate(toDegrees(display.orientation));
-    canvas->translate(-clipWidth / 2, -clipHeight / 2);
-    canvas->translate(-display.clip.left, -display.clip.top);
+    initCanvas(canvas, display);
 
     // TODO: clearRegion was required for SurfaceView when a buffer is not yet available but the
     // view is still on-screen. The clear region could be re-specified as a black color layer,
@@ -647,8 +679,36 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
     for (const auto& layer : layers) {
         ATRACE_NAME("DrawLayer");
-        canvas->save();
 
+        sk_sp<SkImage> blurInput;
+        if (blurCompositionLayer == layer) {
+            LOG_ALWAYS_FATAL_IF(activeSurface == dstSurface);
+            LOG_ALWAYS_FATAL_IF(canvas == dstCanvas);
+
+            // save a snapshot of the activeSurface to use as input to the blur shaders
+            blurInput = activeSurface->makeImageSnapshot();
+
+            // TODO we could skip this step if we know the blur will cover the entire image
+            //  blit the offscreen framebuffer into the destination AHB
+            SkPaint paint;
+            paint.setBlendMode(SkBlendMode::kSrc);
+            activeSurface->draw(dstCanvas, 0, 0, SkSamplingOptions(), &paint);
+
+            // assign dstCanvas to canvas and ensure that the canvas state is up to date
+            canvas = dstCanvas;
+            canvas->save();
+            initCanvas(canvas, display);
+
+            LOG_ALWAYS_FATAL_IF(activeSurface->getCanvas()->getSaveCount() !=
+                                dstSurface->getCanvas()->getSaveCount());
+            LOG_ALWAYS_FATAL_IF(activeSurface->getCanvas()->getTotalMatrix() !=
+                                dstSurface->getCanvas()->getTotalMatrix());
+
+            // assign dstSurface to activeSurface
+            activeSurface = dstSurface;
+        }
+
+        canvas->save();
         if (mCapture->isCaptureRunning()) {
             // Record the name of the layer if the capture is running.
             std::stringstream layerSettings;
@@ -657,7 +717,6 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             canvas->drawAnnotation(SkRect::MakeEmpty(), layer->name.c_str(),
                                    SkData::MakeWithCString(layerSettings.str().c_str()));
         }
-
         // Layers have a local transform that should be applied to them
         canvas->concat(getSkM44(layer->geometry.positionTransform).asM33());
 
@@ -665,8 +724,11 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         if (mBlurFilter && layerHasBlur(layer)) {
             std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
 
-            // image to be blurred
-            sk_sp<SkImage> blurInput = surface->makeImageSnapshot();
+            // if multiple layers have blur, then we need to take a snapshot now because
+            // only the lowest layer will have blurImage populated earlier
+            if (!blurInput) {
+                blurInput = activeSurface->makeImageSnapshot();
+            }
             // rect to be blurred in the coordinate space of blurInput
             const auto blurRect = canvas->getTotalMatrix().mapRect(bounds);
 
@@ -678,7 +740,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
                 cachedBlurs[layer->backgroundBlurRadius] = blurredImage;
 
-                drawBlurRegion(canvas, getBlurRegion(layer), blurRect, blurredImage);
+                mBlurFilter->drawBlurRegion(canvas, getBlurRegion(layer), blurRect, blurredImage,
+                                            blurInput);
             }
             for (auto region : layer->blurRegions) {
                 if (cachedBlurs[region.blurRadius] != nullptr) {
@@ -687,7 +750,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                             mBlurFilter->generate(grContext.get(), region.blurRadius, blurInput,
                                                   blurRect);
                 }
-                drawBlurRegion(canvas, region, blurRect, cachedBlurs[region.blurRadius]);
+
+                mBlurFilter->drawBlurRegion(canvas, region, blurRect,
+                                            cachedBlurs[region.blurRadius], blurInput);
             }
         }
 
@@ -820,7 +885,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     mCapture->endCapture();
     {
         ATRACE_NAME("flush surface");
-        surface->flush();
+        LOG_ALWAYS_FATAL_IF(activeSurface != dstSurface);
+        activeSurface->flush();
     }
 
     if (drawFence != nullptr) {
@@ -918,53 +984,6 @@ void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRect& casterRect, 
                               getSkPoint3(settings.lightPos), settings.lightRadius,
                               getSkColor(settings.ambientColor), getSkColor(settings.spotColor),
                               flags);
-}
-
-void SkiaGLRenderEngine::drawBlurRegion(SkCanvas* canvas, const BlurRegion& effectRegion,
-                                        const SkRect& layerRect, sk_sp<SkImage> blurredImage) {
-    ATRACE_CALL();
-
-    SkPaint paint;
-    paint.setAlpha(static_cast<int>(effectRegion.alpha * 255));
-    const auto matrix = getBlurShaderTransform(canvas, layerRect);
-    SkSamplingOptions linearSampling(SkFilterMode::kLinear, SkMipmapMode::kNone);
-    paint.setShader(blurredImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linearSampling,
-                                             &matrix));
-
-    auto rect = SkRect::MakeLTRB(effectRegion.left, effectRegion.top, effectRegion.right,
-                                 effectRegion.bottom);
-
-    if (effectRegion.cornerRadiusTL > 0 || effectRegion.cornerRadiusTR > 0 ||
-        effectRegion.cornerRadiusBL > 0 || effectRegion.cornerRadiusBR > 0) {
-        const SkVector radii[4] =
-                {SkVector::Make(effectRegion.cornerRadiusTL, effectRegion.cornerRadiusTL),
-                 SkVector::Make(effectRegion.cornerRadiusTR, effectRegion.cornerRadiusTR),
-                 SkVector::Make(effectRegion.cornerRadiusBL, effectRegion.cornerRadiusBL),
-                 SkVector::Make(effectRegion.cornerRadiusBR, effectRegion.cornerRadiusBR)};
-        SkRRect roundedRect;
-        roundedRect.setRectRadii(rect, radii);
-        canvas->drawRRect(roundedRect, paint);
-    } else {
-        canvas->drawRect(rect, paint);
-    }
-}
-
-SkMatrix SkiaGLRenderEngine::getBlurShaderTransform(const SkCanvas* canvas,
-                                                    const SkRect& layerRect) {
-    // 1. Apply the blur shader matrix, which scales up the blured surface to its real size
-    auto matrix = mBlurFilter->getShaderMatrix();
-    // 2. Since the blurred surface has the size of the layer, we align it with the
-    // top left corner of the layer position.
-    matrix.postConcat(SkMatrix::Translate(layerRect.fLeft, layerRect.fTop));
-    // 3. Finally, apply the inverse canvas matrix. The snapshot made in the BlurFilter is in the
-    // original surface orientation. The inverse matrix has to be applied to align the blur
-    // surface with the current orientation/position of the canvas.
-    SkMatrix drawInverse;
-    if (canvas->getTotalMatrix().invert(&drawInverse)) {
-        matrix.postConcat(drawInverse);
-    }
-
-    return matrix;
 }
 
 EGLContext SkiaGLRenderEngine::createEglContext(EGLDisplay display, EGLConfig config,

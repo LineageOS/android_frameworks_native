@@ -20,6 +20,7 @@
 #include <SkImage.h>
 #include <SkRuntimeEffect.h>
 #include <SkSurface.h>
+#include <ui/BlurRegion.h>
 
 using namespace std;
 
@@ -50,11 +51,13 @@ public:
     // Execute blur, saving it to a texture
     sk_sp<SkImage> generate(GrRecordingContext* context, const uint32_t radius,
                             const sk_sp<SkImage> blurInput, const SkRect& blurRect) const;
-    // Returns a matrix that should be applied to the blur shader
-    SkMatrix getShaderMatrix() const;
+
+    void drawBlurRegion(SkCanvas* canvas, const BlurRegion& blurRegion, const SkRect& blurRect,
+                        sk_sp<SkImage> blurredImage, sk_sp<SkImage> input);
 
 private:
     sk_sp<SkRuntimeEffect> mBlurEffect;
+    sk_sp<SkRuntimeEffect> mMixEffect;
 };
 
 } // namespace skia
