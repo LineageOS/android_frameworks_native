@@ -5030,8 +5030,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CAPTURE_DISPLAY:
         case SET_DISPLAY_BRIGHTNESS:
         case SET_FRAME_TIMELINE_INFO:
-        // This is not sensitive information, so should not require permission control.
-        case GET_GPU_CONTEXT_PRIORITY: {
+        case GET_GPU_CONTEXT_PRIORITY:
+        case GET_EXTRA_BUFFER_COUNT: {
+            // This is not sensitive information, so should not require permission control.
             return OK;
         }
         case ADD_REGION_SAMPLING_LISTENER:
@@ -6456,6 +6457,25 @@ status_t SurfaceFlinger::addTransactionTraceListener(
 
 int SurfaceFlinger::getGPUContextPriority() {
     return getRenderEngine().getContextPriority();
+}
+
+int SurfaceFlinger::calculateExtraBufferCount(Fps maxSupportedRefreshRate,
+                                              std::chrono::nanoseconds presentLatency) {
+    auto pipelineDepth = presentLatency.count() / maxSupportedRefreshRate.getPeriodNsecs();
+    if (presentLatency.count() % maxSupportedRefreshRate.getPeriodNsecs()) {
+        pipelineDepth++;
+    }
+    return std::max(0ll, pipelineDepth - 2);
+}
+
+status_t SurfaceFlinger::getExtraBufferCount(int* extraBuffers) const {
+    const auto maxSupportedRefreshRate = mRefreshRateConfigs->getSupportedRefreshRateRange().max;
+    const auto vsyncConfig =
+            mVsyncConfiguration->getConfigsForRefreshRate(maxSupportedRefreshRate).late;
+    const auto presentLatency = vsyncConfig.appWorkDuration + vsyncConfig.sfWorkDuration;
+
+    *extraBuffers = calculateExtraBufferCount(maxSupportedRefreshRate, presentLatency);
+    return NO_ERROR;
 }
 
 } // namespace android
