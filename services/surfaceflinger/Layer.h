@@ -1004,6 +1004,7 @@ protected:
     friend class TestableSurfaceFlinger;
     friend class RefreshRateSelectionTest;
     friend class SetFrameRateTest;
+    friend class TransactionFrameTracerTest;
     friend class TransactionSurfaceFrameTest;
 
     virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom);
