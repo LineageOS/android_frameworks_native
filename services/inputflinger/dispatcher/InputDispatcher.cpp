@@ -3290,15 +3290,21 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
             bool gotOne = false;
             status_t status = OK;
             for (;;) {
-                Result<InputPublisher::Finished> result =
-                        connection->inputPublisher.receiveFinishedSignal();
+                Result<InputPublisher::ConsumerResponse> result =
+                        connection->inputPublisher.receiveConsumerResponse();
                 if (!result.ok()) {
                     status = result.error().code();
                     break;
                 }
-                const InputPublisher::Finished& finished = *result;
-                d->finishDispatchCycleLocked(currentTime, connection, finished.seq,
-                                             finished.handled, finished.consumeTime);
+
+                if (std::holds_alternative<InputPublisher::Finished>(*result)) {
+                    const InputPublisher::Finished& finish =
+                            std::get<InputPublisher::Finished>(*result);
+                    d->finishDispatchCycleLocked(currentTime, connection, finish.seq,
+                                                 finish.handled, finish.consumeTime);
+                } else if (std::holds_alternative<InputPublisher::Timeline>(*result)) {
+                    // TODO(b/167947340): Report this data to LatencyTracker
+                }
                 gotOne = true;
             }
             if (gotOne) {

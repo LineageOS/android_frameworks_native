@@ -740,6 +740,11 @@ public:
         ASSERT_EQ(OK, status) << mName.c_str() << ": consumer sendFinishedSignal should return OK.";
     }
 
+    void sendTimeline(int32_t inputEventId, std::array<nsecs_t, GraphicsTimeline::SIZE> timeline) {
+        const status_t status = mConsumer->sendTimeline(inputEventId, timeline);
+        ASSERT_EQ(OK, status);
+    }
+
     void consumeEvent(int32_t expectedEventType, int32_t expectedAction,
                       std::optional<int32_t> expectedDisplayId,
                       std::optional<int32_t> expectedFlags) {
@@ -1050,6 +1055,11 @@ public:
     void finishEvent(uint32_t sequenceNum) {
         ASSERT_NE(mInputReceiver, nullptr) << "Invalid receive event on window with no receiver";
         mInputReceiver->finishEvent(sequenceNum);
+    }
+
+    void sendTimeline(int32_t inputEventId, std::array<nsecs_t, GraphicsTimeline::SIZE> timeline) {
+        ASSERT_NE(mInputReceiver, nullptr) << "Invalid receive event on window with no receiver";
+        mInputReceiver->sendTimeline(inputEventId, timeline);
     }
 
     InputEvent* consume() {
@@ -1952,6 +1962,21 @@ TEST_F(InputDispatcherTest, PointerCancel_SendCancelWhenSplitTouch) {
     // The first window gets up and the second gets nothing.
     firstWindow->consumeMotionUp();
     secondWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherTest, SendTimeline_DoesNotCrashDispatcher) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
+    graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME] = 2;
+    graphicsTimeline[GraphicsTimeline::PRESENT_TIME] = 3;
+
+    window->sendTimeline(1 /*inputEventId*/, graphicsTimeline);
+    window->assertNoEvents();
+    mDispatcher->waitForIdle();
 }
 
 class FakeMonitorReceiver {
