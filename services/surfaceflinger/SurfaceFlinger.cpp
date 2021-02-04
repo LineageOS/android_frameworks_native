@@ -3268,65 +3268,74 @@ void SurfaceFlinger::flushTransactionQueues() {
     // we must keep a copy of the transactions (specifically the composer
     // states) around outside the scope of the lock
     std::vector<const TransactionState> transactions;
+    // Layer handles that have transactions with buffers that are ready to be applied.
+    std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> pendingBuffers;
     {
-        Mutex::Autolock _l(mQueueLock);
-        // Collect transactions from pending transaction queue.
-        auto it = mPendingTransactionQueues.begin();
-        while (it != mPendingTransactionQueues.end()) {
-            auto& [applyToken, transactionQueue] = *it;
+        Mutex::Autolock _l(mStateLock);
+        {
+            Mutex::Autolock _l(mQueueLock);
+            // Collect transactions from pending transaction queue.
+            auto it = mPendingTransactionQueues.begin();
+            while (it != mPendingTransactionQueues.end()) {
+                auto& [applyToken, transactionQueue] = *it;
 
-            while (!transactionQueue.empty()) {
-                const auto& transaction = transactionQueue.front();
+                while (!transactionQueue.empty()) {
+                    const auto& transaction = transactionQueue.front();
+                    if (!transactionIsReadyToBeApplied(transaction.isAutoTimestamp,
+                                                       transaction.desiredPresentTime,
+                                                       transaction.states,
+                                                       false /* updateTransactionCounters*/,
+                                                       pendingBuffers)) {
+                        setTransactionFlags(eTransactionFlushNeeded);
+                        break;
+                    }
+                    transactions.push_back(transaction);
+                    transactionQueue.pop();
+                }
+
+                if (transactionQueue.empty()) {
+                    it = mPendingTransactionQueues.erase(it);
+                    mTransactionQueueCV.broadcast();
+                } else {
+                    it = std::next(it, 1);
+                }
+            }
+
+            // Collect transactions from current transaction queue or queue to pending transactions.
+            // Case 1: push to pending when transactionIsReadyToBeApplied is false.
+            // Case 2: push to pending when there exist a pending queue.
+            // Case 3: others are ready to apply.
+            while (!mTransactionQueue.empty()) {
+                const auto& transaction = mTransactionQueue.front();
+                bool pendingTransactions = mPendingTransactionQueues.find(transaction.applyToken) !=
+                        mPendingTransactionQueues.end();
+                // Call transactionIsReadyToBeApplied first in case we need to
+                // incrementPendingBufferCount and keep track of pending buffers
+                // if the transaction contains a buffer.
                 if (!transactionIsReadyToBeApplied(transaction.isAutoTimestamp,
                                                    transaction.desiredPresentTime,
-                                                   transaction.states)) {
-                    setTransactionFlags(eTransactionFlushNeeded);
-                    break;
+                                                   transaction.states,
+                                                   true /* updateTransactionCounters */,
+                                                   pendingBuffers) ||
+                    pendingTransactions) {
+                    mPendingTransactionQueues[transaction.applyToken].push(transaction);
+                } else {
+                    transactions.push_back(transaction);
                 }
-                transactions.push_back(transaction);
-                transactionQueue.pop();
-            }
-
-            if (transactionQueue.empty()) {
-                it = mPendingTransactionQueues.erase(it);
-                mTransactionQueueCV.broadcast();
-            } else {
-                it = std::next(it, 1);
+                mTransactionQueue.pop();
             }
         }
 
-        // Collect transactions from current transaction queue or queue to pending transactions.
-        // Case 1: push to pending when transactionIsReadyToBeApplied is false.
-        // Case 2: push to pending when there exist a pending queue.
-        // Case 3: others are ready to apply.
-        while (!mTransactionQueue.empty()) {
-            const auto& transaction = mTransactionQueue.front();
-            bool pendingTransactions = mPendingTransactionQueues.find(transaction.applyToken) !=
-                    mPendingTransactionQueues.end();
-            // Call transactionIsReadyToBeApplied first in case we need to
-            // incrementPendingBufferCount if the transaction contains a buffer.
-            if (!transactionIsReadyToBeApplied(transaction.isAutoTimestamp,
-                                               transaction.desiredPresentTime, transaction.states,
-                                               true) ||
-                pendingTransactions) {
-                mPendingTransactionQueues[transaction.applyToken].push(transaction);
-            } else {
-                transactions.push_back(transaction);
-            }
-            mTransactionQueue.pop();
+        // Now apply all transactions.
+        for (const auto& transaction : transactions) {
+            applyTransactionState(transaction.frameTimelineInfo, transaction.states,
+                                  transaction.displays, transaction.flags,
+                                  transaction.inputWindowCommands, transaction.desiredPresentTime,
+                                  transaction.isAutoTimestamp, transaction.buffer,
+                                  transaction.postTime, transaction.privileged,
+                                  transaction.hasListenerCallbacks, transaction.listenerCallbacks,
+                                  transaction.originPid, transaction.originUid, transaction.id);
         }
-    }
-
-    // Now apply all transactions.
-    Mutex::Autolock _l(mStateLock);
-    for (const auto& transaction : transactions) {
-        applyTransactionState(transaction.frameTimelineInfo, transaction.states,
-                              transaction.displays, transaction.flags,
-                              transaction.inputWindowCommands, transaction.desiredPresentTime,
-                              transaction.isAutoTimestamp, transaction.buffer, transaction.postTime,
-                              transaction.privileged, transaction.hasListenerCallbacks,
-                              transaction.listenerCallbacks, transaction.originPid,
-                              transaction.originUid, transaction.id);
     }
 }
 
@@ -3335,9 +3344,10 @@ bool SurfaceFlinger::transactionFlushNeeded() {
     return !mPendingTransactionQueues.empty();
 }
 
-bool SurfaceFlinger::transactionIsReadyToBeApplied(bool isAutoTimestamp, int64_t desiredPresentTime,
-                                                   const Vector<ComposerState>& states,
-                                                   bool updateTransactionCounters) {
+bool SurfaceFlinger::transactionIsReadyToBeApplied(
+        bool isAutoTimestamp, int64_t desiredPresentTime, const Vector<ComposerState>& states,
+        bool updateTransactionCounters,
+        std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers) {
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     bool ready = true;
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
@@ -3356,7 +3366,6 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(bool isAutoTimestamp, int64_t
             ready = false;
         }
 
-        Mutex::Autolock _l(mStateLock);
         sp<Layer> layer = nullptr;
         if (s.surface) {
             layer = fromHandleLocked(s.surface).promote();
@@ -3379,12 +3388,11 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(bool isAutoTimestamp, int64_t
 
         // If backpressure is enabled and we already have a buffer to commit, keep the transaction
         // in the queue.
-        bool hasBuffer = s.what & layer_state_t::eBufferChanged ||
-                s.what & layer_state_t::eCachedBufferChanged;
-        if (hasBuffer && layer->backpressureEnabled() && layer->hasPendingBuffer() &&
-            isAutoTimestamp) {
+        const bool hasPendingBuffer = pendingBuffers.find(s.surface) != pendingBuffers.end();
+        if (layer->backpressureEnabled() && hasPendingBuffer && isAutoTimestamp) {
             ready = false;
         }
+        pendingBuffers.insert(s.surface);
     }
     return ready;
 }

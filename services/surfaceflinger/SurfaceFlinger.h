@@ -760,9 +760,11 @@ private:
     uint32_t setTransactionFlags(uint32_t flags, TransactionSchedule);
     void commitTransaction() REQUIRES(mStateLock);
     void commitOffscreenLayers();
-    bool transactionIsReadyToBeApplied(bool isAutoTimestamp, int64_t desiredPresentTime,
-                                       const Vector<ComposerState>& states,
-                                       bool updateTransactionCounters = false);
+    bool transactionIsReadyToBeApplied(
+            bool isAutoTimestamp, int64_t desiredPresentTime, const Vector<ComposerState>& states,
+            bool updateTransactionCounters,
+            std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers)
+            REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
