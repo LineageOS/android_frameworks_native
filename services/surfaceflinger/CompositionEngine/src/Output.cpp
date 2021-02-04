@@ -989,9 +989,16 @@ std::optional<base::unique_fd> Output::composeSurfaces(
                    });
 
     const nsecs_t renderEngineStart = systemTime();
+    // Only use the framebuffer cache when rendering to an internal display
+    // TODO(b/173560331): This is only to help mitigate memory leaks from virtual displays because
+    // right now we don't have a concrete eviction policy for output buffers: GLESRenderEngine
+    // bounds its framebuffer cache but Skia RenderEngine has no current policy. The best fix is
+    // probably to encapsulate the output buffer into a structure that dispatches resource cleanup
+    // over to RenderEngine, in which case this flag can be removed from the drawLayers interface.
+    const bool useFramebufferCache = outputState.layerStackInternal;
     status_t status =
             renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, buf,
-                                    /*useFramebufferCache=*/true, std::move(fd), &readyFence);
+                                    useFramebufferCache, std::move(fd), &readyFence);
 
     if (status != NO_ERROR && mClientCompositionRequestCache) {
         // If rendering was not successful, remove the request from the cache.
