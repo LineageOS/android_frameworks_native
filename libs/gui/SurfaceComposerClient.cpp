@@ -1569,6 +1569,23 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setApply
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setStretchEffect(
+        const sp<SurfaceControl>& sc, float left, float top, float right, float bottom, float vecX,
+        float vecY, float maxAmount) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eStretchChanged;
+    s->stretchEffect = StretchEffect{.area = {left, top, right, bottom},
+                                     .vectorX = vecX,
+                                     .vectorY = vecY,
+                                     .maxAmount = maxAmount};
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 
 DisplayState& SurfaceComposerClient::Transaction::getDisplayState(const sp<IBinder>& token) {
