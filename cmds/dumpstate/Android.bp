@@ -112,6 +112,7 @@ cc_binary {
     ],
     required: [
         "atrace",
+        "dmabuf_dump",
         "ip",
         "iptables",
         "librank",
