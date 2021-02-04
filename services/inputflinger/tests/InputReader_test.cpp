@@ -2678,6 +2678,7 @@ TEST_F(VibratorInputMapperTest, GetVibratorIds) {
 
 TEST_F(VibratorInputMapperTest, Vibrate) {
     constexpr uint8_t DEFAULT_AMPLITUDE = 192;
+    constexpr int32_t VIBRATION_TOKEN = 100;
     VibratorInputMapper& mapper = addMapperAndConfigure<VibratorInputMapper>();
 
     VibrationElement pattern(2);
@@ -2695,8 +2696,23 @@ TEST_F(VibratorInputMapperTest, Vibrate) {
     std::vector<uint8_t> amplitudes = {DEFAULT_AMPLITUDE, DEFAULT_AMPLITUDE / 2};
 
     ASSERT_FALSE(mapper.isVibrating());
-    mapper.vibrate(sequence, -1 /* repeat */, 0 /* token */);
+    // Start vibrating
+    mapper.vibrate(sequence, -1 /* repeat */, VIBRATION_TOKEN);
     ASSERT_TRUE(mapper.isVibrating());
+    // Verify vibrator state listener was notified.
+    mReader->loopOnce();
+    NotifyVibratorStateArgs args;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyVibratorStateWasCalled(&args));
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_TRUE(args.isOn);
+    // Stop vibrating
+    mapper.cancelVibrate(VIBRATION_TOKEN);
+    ASSERT_FALSE(mapper.isVibrating());
+    // Verify vibrator state listener was notified.
+    mReader->loopOnce();
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyVibratorStateWasCalled(&args));
+    ASSERT_EQ(DEVICE_ID, args.deviceId);
+    ASSERT_FALSE(args.isOn);
 }
 
 // --- SensorInputMapperTest ---
