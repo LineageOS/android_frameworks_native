@@ -40,8 +40,6 @@
 extern "C" {
 #endif
 
-#if __ANDROID_API__ >= 23
-
 /**
  * Returns true if tracing is enabled. Use this to avoid expensive computation only necessary
  * when tracing is enabled.
@@ -71,10 +69,6 @@ void ATrace_beginSection(const char* sectionName) __INTRODUCED_IN(23);
  * Available since API level 23.
  */
 void ATrace_endSection() __INTRODUCED_IN(23);
-
-#endif /* __ANDROID_API__ >= 23 */
-
-#if __ANDROID_API__ >= 29
 
 /**
  * Writes a trace message to indicate that a given section of code has
@@ -111,8 +105,6 @@ void ATrace_endAsyncSection(const char* sectionName, int32_t cookie) __INTRODUCE
  * \param counterValue The counter value.
  */
 void ATrace_setCounter(const char* counterName, int64_t counterValue) __INTRODUCED_IN(29);
-
-#endif /* __ANDROID_API__ >= 29 */
 
 #ifdef __cplusplus
 }

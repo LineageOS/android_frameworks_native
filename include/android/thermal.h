@@ -109,8 +109,6 @@ typedef struct AThermalManager AThermalManager;
  */
 typedef void (*AThermal_StatusCallback)(void *data, AThermalStatus status);
 
-#if __ANDROID_API__ >= 30
-
 /**
   * Acquire an instance of the thermal manager. This must be freed using
   * {@link AThermal_releaseManager}.
@@ -178,8 +176,6 @@ int AThermal_registerThermalStatusListener(AThermalManager *manager,
  */
 int AThermal_unregisterThermalStatusListener(AThermalManager *manager,
         AThermal_StatusCallback callback, void *data) __INTRODUCED_IN(30);
-
-#endif  //  __ANDROID_API__ >= 30
 
 #ifdef __cplusplus
 }
