@@ -51,8 +51,6 @@
 
 __BEGIN_DECLS
 
-#if __ANDROID_API__ >= 29
-
 enum {
     /** The minimum value fot the font weight value. */
     AFONT_WEIGHT_MIN = 0,
@@ -296,8 +294,6 @@ uint32_t AFont_getAxisTag(const AFont* _Nonnull font, uint32_t axisIndex)
  */
 float AFont_getAxisValue(const AFont* _Nonnull font, uint32_t axisIndex)
       __INTRODUCED_IN(29);
-
-#endif // __ANDROID_API__ >= 29
 
 __END_DECLS
 

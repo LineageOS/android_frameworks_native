@@ -57,8 +57,6 @@ extern "C" {
 
 struct AAsset;
 
-#if __ANDROID_API__ >= 30
-
 /**
  *  {@link AImageDecoder} functions result code. Many functions will return one of these
  *  to indicate success ({@link ANDROID_IMAGE_DECODER_SUCCESS}) or the reason
@@ -526,8 +524,6 @@ size_t AImageDecoder_getMinimumStride(AImageDecoder*) __INTRODUCED_IN(30);
 int AImageDecoder_decodeImage(AImageDecoder* decoder,
                               void* pixels, size_t stride,
                               size_t size) __INTRODUCED_IN(30);
-
-#endif // __ANDROID_API__ >= 30
 
 #ifdef __cplusplus
 }
