@@ -904,7 +904,6 @@ public:
     bool mPendingHWCDestroy{false};
 
     bool backpressureEnabled() { return mDrawingState.flags & layer_state_t::eEnableBackpressure; }
-    bool hasPendingBuffer() { return mCurrentState.buffer != mDrawingState.buffer; };
 
 protected:
     class SyncPoint {
