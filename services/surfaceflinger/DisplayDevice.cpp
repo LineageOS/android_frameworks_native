@@ -179,6 +179,31 @@ DisplayModePtr DisplayDevice::getMode(DisplayModeId modeId) const {
     return nullptr;
 }
 
+nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
+    const auto physicalId = getPhysicalId();
+    if (!mHwComposer.isConnected(physicalId)) {
+        return 0;
+    }
+
+    nsecs_t vsyncPeriod;
+    const auto status = mHwComposer.getDisplayVsyncPeriod(physicalId, &vsyncPeriod);
+    if (status == NO_ERROR) {
+        return vsyncPeriod;
+    }
+
+    return getActiveMode()->getFps().getPeriodNsecs();
+}
+
+nsecs_t DisplayDevice::getRefreshTimestamp() const {
+    const nsecs_t now = systemTime(CLOCK_MONOTONIC);
+    const auto vsyncPeriodNanos = getVsyncPeriodFromHWC();
+    return now - ((now - mLastHwVsync) % vsyncPeriodNanos);
+}
+
+void DisplayDevice::onVsync(nsecs_t timestamp) {
+    mLastHwVsync = timestamp;
+}
+
 ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
     return mCompositionDisplay->getState().dataspace;
 }

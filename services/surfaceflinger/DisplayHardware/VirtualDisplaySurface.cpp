@@ -291,11 +291,11 @@ void VirtualDisplaySurface::onFrameCommitted() {
 void VirtualDisplaySurface::dumpAsString(String8& /* result */) const {
 }
 
-void VirtualDisplaySurface::resizeBuffers(const uint32_t w, const uint32_t h) {
-    mQueueBufferOutput.width = w;
-    mQueueBufferOutput.height = h;
-    mSinkBufferWidth = w;
-    mSinkBufferHeight = h;
+void VirtualDisplaySurface::resizeBuffers(const ui::Size& newSize) {
+    mQueueBufferOutput.width = newSize.width;
+    mQueueBufferOutput.height = newSize.height;
+    mSinkBufferWidth = newSize.width;
+    mSinkBufferHeight = newSize.height;
 }
 
 const sp<Fence>& VirtualDisplaySurface::getClientTargetAcquireFence() const {

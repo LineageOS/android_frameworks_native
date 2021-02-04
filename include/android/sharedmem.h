@@ -50,8 +50,6 @@
 extern "C" {
 #endif
 
-#if __ANDROID_API__ >= 26
-
 /**
  * Create a shared memory region.
  *
@@ -120,8 +118,6 @@ size_t ASharedMemory_getSize(int fd) __INTRODUCED_IN(26);
  * \return 0 for success, -1 and sets errno on failure.
  */
 int ASharedMemory_setProt(int fd, int prot) __INTRODUCED_IN(26);
-
-#endif // __ANDROID_API__ >= 26
 
 #ifdef __cplusplus
 };

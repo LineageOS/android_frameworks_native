@@ -40,6 +40,11 @@ static constexpr uint64_t NSEC_PER_YEAR = NSEC_PER_SEC * 60 * 60 * 24 * 365;
 
 using std::vector;
 
+TEST(TimeInStateTest, IsTrackingSupported) {
+    isTrackingUidTimesSupported();
+    SUCCEED();
+}
+
 TEST(TimeInStateTest, TotalTimeInState) {
     auto times = getTotalCpuFreqTimes();
     ASSERT_TRUE(times.has_value());
