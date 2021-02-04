@@ -41,8 +41,8 @@ class HWComposer;
 class FramebufferSurface : public ConsumerBase, public compositionengine::DisplaySurface {
 public:
     FramebufferSurface(HWComposer& hwc, PhysicalDisplayId displayId,
-                       const sp<IGraphicBufferConsumer>& consumer, uint32_t maxWidth,
-                       uint32_t maxHeight);
+                       const sp<IGraphicBufferConsumer>& consumer, const ui::Size& size,
+                       const ui::Size& maxSize);
 
     virtual status_t beginFrame(bool mustRecompose);
     virtual status_t prepareFrame(CompositionType compositionType);
@@ -50,7 +50,7 @@ public:
     virtual void onFrameCommitted();
     virtual void dumpAsString(String8& result) const;
 
-    virtual void resizeBuffers(uint32_t width, uint32_t height);
+    virtual void resizeBuffers(const ui::Size&) override;
 
     virtual const sp<Fence>& getClientTargetAcquireFence() const override;
 
@@ -62,7 +62,7 @@ private:
     virtual void dumpLocked(String8& result, const char* prefix) const;
 
     // Limits the width and height by the maximum width specified in the constructor.
-    ui::Size limitFramebufferSize(uint32_t width, uint32_t height);
+    ui::Size limitFramebufferSize(const ui::Size&);
 
     // nextBuffer waits for and then latches the next buffer from the
     // BufferQueue and releases the previously latched buffer to the
@@ -74,11 +74,7 @@ private:
 
     // Framebuffer size has a dimension limitation in pixels based on the graphics capabilities of
     // the device.
-    const uint32_t mMaxWidth;
-
-    // Framebuffer size has a dimension limitation in pixels based on the graphics capabilities of
-    // the device.
-    const uint32_t mMaxHeight;
+    const ui::Size mMaxSize;
 
     // mCurrentBufferIndex is the slot index of the current buffer or
     // INVALID_BUFFER_SLOT to indicate that either there is no current buffer

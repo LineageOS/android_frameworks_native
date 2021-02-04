@@ -63,7 +63,7 @@ public:
     bool useProtectedContext(bool useProtectedContext) override;
 
 protected:
-    void dump(std::string& /*result*/) override{};
+    void dump(std::string& result) override;
     size_t getMaxTextureSize() const override;
     size_t getMaxViewportDims() const override;
 
