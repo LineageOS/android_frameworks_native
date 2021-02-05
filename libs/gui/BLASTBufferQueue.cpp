@@ -133,8 +133,10 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     if (enableTripleBuffering) {
         mProducer->setMaxDequeuedBufferCount(2);
     }
-    mBufferItemConsumer =
-        new BLASTBufferItemConsumer(mConsumer, GraphicBuffer::USAGE_HW_COMPOSER, 1, false);
+    mBufferItemConsumer = new BLASTBufferItemConsumer(mConsumer,
+                                                      GraphicBuffer::USAGE_HW_COMPOSER |
+                                                              GraphicBuffer::USAGE_HW_TEXTURE,
+                                                      1, false);
     static int32_t id = 0;
     auto consumerName = mName + "(BLAST Consumer)" + std::to_string(id);
     id++;
