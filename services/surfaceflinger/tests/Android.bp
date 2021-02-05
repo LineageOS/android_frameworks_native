@@ -44,7 +44,7 @@ cc_test {
         "libtrace_proto",
     ],
     shared_libs: [
-        "android.hardware.graphics.common-unstable-ndk_platform",
+        "android.hardware.graphics.common-V2-ndk_platform",
         "android.hardware.graphics.common@1.2",
         "android.hardware.graphics.composer@2.1",
         "libandroid",
