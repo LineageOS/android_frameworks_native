@@ -28,7 +28,7 @@ std::string DebugCommand::getName() const {
 }
 
 std::string DebugCommand::getSimpleDescription() const {
-    return "Debug a specified HAL.";
+    return "Debug a specified HIDL HAL.";
 }
 
 Status DebugCommand::parseArgs(const Arg &arg) {
@@ -78,7 +78,7 @@ void DebugCommand::usage() const {
             "debug:\n"
             "    lshal debug [-E] <interface> [options [options [...]]] \n"
             "        Print debug information of a specified interface.\n"
-            "        -E: excludes debug output if HAL is actually a subclass.\n"
+            "        -E: excludes debug output if HIDL HAL is actually a subclass.\n"
             "        <interface>: Format is `android.hardware.foo@1.0::IFoo/default`.\n"
             "            If instance name is missing `default` is used.\n"
             "        options: space separated options to IBase::debug.\n";

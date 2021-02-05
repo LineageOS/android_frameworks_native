@@ -29,7 +29,7 @@ std::string WaitCommand::getName() const {
 }
 
 std::string WaitCommand::getSimpleDescription() const {
-    return "Wait for HAL to start if it is not already started.";
+    return "Wait for HIDL HAL to start if it is not already started.";
 }
 
 Status WaitCommand::parseArgs(const Arg &arg) {
