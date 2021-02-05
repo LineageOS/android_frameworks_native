@@ -37,7 +37,7 @@ cc_test {
         "libutils",
         "android.hardware.power@1.0",
         "android.hardware.power@1.1",
-        "android.hardware.power-cpp",
+        "android.hardware.power-V1-cpp",
     ],
     static_libs: [
         "libgmock",
