@@ -100,6 +100,7 @@ PublicFormat mapHalFormatDataspaceToPublicFormat(int format, android_dataspace d
         case HAL_PIXEL_FORMAT_RAW12:
         case HAL_PIXEL_FORMAT_YCbCr_420_888:
         case HAL_PIXEL_FORMAT_YV12:
+        case HAL_PIXEL_FORMAT_YCBCR_P010:
             // Enums overlap in both name and value
             return static_cast<PublicFormat>(format);
         case HAL_PIXEL_FORMAT_RAW16:
