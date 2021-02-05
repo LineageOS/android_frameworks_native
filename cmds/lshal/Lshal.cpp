@@ -59,7 +59,8 @@ void Lshal::forEachCommand(const std::function<void(const Command* c)>& f) const
 }
 
 void Lshal::usage() {
-    err() << "lshal: List and debug HALs." << std::endl << std::endl
+    err() << "lshal: List and debug HIDL HALs." << std::endl
+          << "   (for AIDL HALs, see `dumpsys`)" << std::endl << std::endl
           << "commands:" << std::endl;
 
     size_t nameMaxLength = 0;
