@@ -567,7 +567,10 @@ private:
         bool configureLightsLocked();
     };
 
-    status_t openDeviceLocked(const std::string& devicePath);
+    /**
+     * Create a new device for the provided path.
+     */
+    void openDeviceLocked(const std::string& devicePath);
     void openVideoDeviceLocked(const std::string& devicePath);
     /**
      * Try to associate a video device with an input device. If the association succeeds,
