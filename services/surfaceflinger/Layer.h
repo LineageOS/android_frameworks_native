@@ -309,6 +309,20 @@ public:
 
         // When the transaction was posted
         nsecs_t postTime;
+
+        // SurfaceFrame that tracks the timeline of Transactions that contain a Buffer. Only one
+        // such SurfaceFrame exists because only one buffer can be presented on the layer per vsync.
+        // If multiple buffers are queued, the prior ones will be dropped, along with the
+        // SurfaceFrame that's tracking them.
+        std::shared_ptr<frametimeline::SurfaceFrame> bufferSurfaceFrameTX;
+        // A map of token(frametimelineVsyncId) to the SurfaceFrame that's tracking a transaction
+        // that contains the token. Only one SurfaceFrame exisits for transactions that share the
+        // same token, unless they are presented in different vsyncs.
+        std::unordered_map<int64_t, std::shared_ptr<frametimeline::SurfaceFrame>>
+                bufferlessSurfaceFramesTX;
+        // An arbitrary threshold for the number of BufferlessSurfaceFrames in the state. Used to
+        // trigger a warning if the number of SurfaceFrames crosses the threshold.
+        static constexpr uint32_t kStateSurfaceFramesThreshold = 25;
     };
 
     /*
@@ -447,7 +461,8 @@ public:
     virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, const sp<Fence>& /*acquireFence*/,
                            nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
                            bool /*isAutoTimestamp*/, const client_cache_t& /*clientCacheId*/,
-                           uint64_t /* frameNumber */, std::optional<nsecs_t> /* dequeueTime */) {
+                           uint64_t /* frameNumber */, std::optional<nsecs_t> /* dequeueTime */,
+                           const FrameTimelineInfo& /*info*/) {
         return false;
     };
     virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
@@ -610,6 +625,12 @@ public:
     virtual int32_t getQueuedFrameCount() const { return 0; }
 
     virtual void pushPendingState();
+
+    /*
+     * Merges the BufferlessSurfaceFrames from source with the target. If the same token exists in
+     * both source and target, target's SurfaceFrame will be retained.
+     */
+    void mergeSurfaceFrames(State& source, State& target);
 
     /**
      * Returns active buffer size in the correct orientation. Buffer size is determined by undoing
@@ -866,8 +887,20 @@ public:
     bool setFrameRate(FrameRate);
 
     virtual void setFrameTimelineInfoForBuffer(const FrameTimelineInfo& /*info*/) {}
-    void setFrameTimelineInfoForTransaction(const FrameTimelineInfo& frameTimelineInfo,
-                                            nsecs_t postTime);
+    void setFrameTimelineVsyncForBufferTransaction(const FrameTimelineInfo& info, nsecs_t postTime);
+    void setFrameTimelineVsyncForBufferlessTransaction(const FrameTimelineInfo& info,
+                                                       nsecs_t postTime);
+
+    void addSurfaceFrameDroppedForBuffer(
+            std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame);
+    void addSurfaceFramePresentedForBuffer(
+            std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame, nsecs_t acquireFenceTime,
+            nsecs_t currentLatchTime);
+
+    std::shared_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForTransaction(
+            const FrameTimelineInfo& info, nsecs_t postTime);
+    std::shared_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForBuffer(
+            const FrameTimelineInfo& info, nsecs_t queueTime, std::string debugName);
 
     // Creates a new handle each time, so we only expect
     // this to be called once.
@@ -904,7 +937,6 @@ public:
     bool mPendingHWCDestroy{false};
 
     bool backpressureEnabled() { return mDrawingState.flags & layer_state_t::eEnableBackpressure; }
-    bool hasPendingBuffer() { return mCurrentState.buffer != mDrawingState.buffer; };
 
 protected:
     class SyncPoint {
@@ -972,6 +1004,7 @@ protected:
     friend class TestableSurfaceFlinger;
     friend class RefreshRateSelectionTest;
     friend class SetFrameRateTest;
+    friend class TransactionSurfaceFrameTest;
 
     virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom);
     virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
@@ -980,7 +1013,7 @@ protected:
             const LayerFE::LayerSettings&, const Rect& layerStackRect,
             ui::Dataspace outputDataspace);
     virtual void preparePerFrameCompositionState();
-    virtual void commitTransaction(const State& stateToCommit);
+    virtual void commitTransaction(State& stateToCommit);
     virtual bool applyPendingStates(State* stateToCommit);
     virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit);
     virtual void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&) {}
@@ -1115,6 +1148,10 @@ protected:
     // The owner pid of the layer. If created from a non system process, it will be the calling pid.
     // If created from a system process, the value can be passed in.
     pid_t mOwnerPid;
+
+    // Keeps track of the time SF latched the last buffer from this layer.
+    // Used in buffer stuffing analysis in FrameTimeline.
+    nsecs_t mLastLatchTime = 0;
 
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}

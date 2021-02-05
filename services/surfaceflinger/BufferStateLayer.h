@@ -72,7 +72,7 @@ public:
     bool setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence, nsecs_t postTime,
                    nsecs_t desiredPresentTime, bool isAutoTimestamp,
                    const client_cache_t& clientCacheId, uint64_t frameNumber,
-                   std::optional<nsecs_t> dequeueTime) override;
+                   std::optional<nsecs_t> dequeueTime, const FrameTimelineInfo& info) override;
     bool setAcquireFence(const sp<Fence>& fence) override;
     bool setDataspace(ui::Dataspace dataspace) override;
     bool setHdrMetadata(const HdrMetadata& hdrMetadata) override;
@@ -124,6 +124,8 @@ protected:
 
 private:
     friend class SlotGenerationTest;
+    friend class TransactionSurfaceFrameTest;
+
     inline void tracePendingBufferCount();
 
     bool updateFrameEventHistory(const sp<Fence>& acquireFence, nsecs_t postedTime,
