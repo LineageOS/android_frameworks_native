@@ -38,6 +38,9 @@ cc_defaults {
         "libutils",
         "server_configurable_flags",
     ],
+    export_shared_lib_headers: [
+        "libbinder",
+    ],
 
     product_variables: {
         arc: {
