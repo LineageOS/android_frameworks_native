@@ -49,7 +49,7 @@ cc_test {
         "android.hardware.graphics.composer@2.1",
     ],
     shared_libs: [
-        "android.hardware.graphics.common-unstable-ndk_platform",
+        "android.hardware.graphics.common-V2-ndk_platform",
         "android.hardware.graphics.common@1.2",
         "libandroid",
         "libbase",

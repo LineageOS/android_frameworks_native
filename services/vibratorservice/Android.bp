@@ -36,7 +36,7 @@ cc_library_shared {
         "libhidlbase",
         "liblog",
         "libutils",
-        "android.hardware.vibrator-unstable-cpp",
+        "android.hardware.vibrator-V2-cpp",
         "android.hardware.vibrator@1.0",
         "android.hardware.vibrator@1.1",
         "android.hardware.vibrator@1.2",
