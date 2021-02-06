@@ -142,7 +142,7 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mBufferItemConsumer->setFrameAvailableListener(this);
     mBufferItemConsumer->setBufferFreedListener(this);
     mBufferItemConsumer->setDefaultBufferSize(mSize.width, mSize.height);
-    mBufferItemConsumer->setDefaultBufferFormat(format);
+    mBufferItemConsumer->setDefaultBufferFormat(convertBufferFormat(format));
 
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
@@ -175,7 +175,7 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     std::unique_lock _lock{mMutex};
     if (mFormat != format) {
         mFormat = format;
-        mBufferItemConsumer->setDefaultBufferFormat(format);
+        mBufferItemConsumer->setDefaultBufferFormat(convertBufferFormat(format));
     }
 
     SurfaceComposerClient::Transaction t;
@@ -681,6 +681,20 @@ void BLASTBufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer
 
     *outProducer = producer;
     *outConsumer = consumer;
+}
+
+PixelFormat BLASTBufferQueue::convertBufferFormat(PixelFormat& format) {
+    PixelFormat convertedFormat = format;
+    switch (format) {
+        case PIXEL_FORMAT_TRANSPARENT:
+        case PIXEL_FORMAT_TRANSLUCENT:
+            convertedFormat = PIXEL_FORMAT_RGBA_8888;
+            break;
+        case PIXEL_FORMAT_OPAQUE:
+            convertedFormat = PIXEL_FORMAT_RGBX_8888;
+            break;
+    }
+    return convertedFormat;
 }
 
 } // namespace android
