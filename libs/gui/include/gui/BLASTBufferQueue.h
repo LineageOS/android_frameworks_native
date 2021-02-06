@@ -110,6 +110,7 @@ private:
     // Return true if we need to reject the buffer based on the scaling mode and the buffer size.
     bool rejectBuffer(const BufferItem& item) REQUIRES(mMutex);
     bool maxBuffersAcquired(bool includeExtraAcquire) const REQUIRES(mMutex);
+    static PixelFormat convertBufferFormat(PixelFormat& format);
 
     std::string mName;
     sp<SurfaceControl> mSurfaceControl;
