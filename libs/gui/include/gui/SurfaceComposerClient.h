@@ -110,30 +110,29 @@ public:
     // Get immutable information about given physical display.
     static status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo*);
 
-    // Get configurations supported by given physical display.
-    static status_t getDisplayConfigs(const sp<IBinder>& display, Vector<DisplayConfig>*);
+    // Get modes supported by given physical display.
+    static status_t getDisplayModes(const sp<IBinder>& display, Vector<ui::DisplayMode>*);
 
-    // Get the ID of the active DisplayConfig, as getDisplayConfigs index.
-    static int getActiveConfig(const sp<IBinder>& display);
+    // Get the ID of the active DisplayMode, as getDisplayModes index.
+    static int getActiveDisplayModeId(const sp<IBinder>& display);
 
-    // Shorthand for getDisplayConfigs element at getActiveConfig index.
-    static status_t getActiveDisplayConfig(const sp<IBinder>& display, DisplayConfig*);
+    // Shorthand for getDisplayModes element at getActiveDisplayModeId index.
+    static status_t getActiveDisplayMode(const sp<IBinder>& display, ui::DisplayMode*);
 
     // Sets the refresh rate boundaries for the display.
-    static status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                 int32_t defaultConfig, bool allowGroupSwitching,
-                                                 float primaryRefreshRateMin,
-                                                 float primaryRefreshRateMax,
-                                                 float appRequestRefreshRateMin,
-                                                 float appRequestRefreshRateMax);
+    static status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, size_t defaultMode,
+                                               bool allowGroupSwitching,
+                                               float primaryRefreshRateMin,
+                                               float primaryRefreshRateMax,
+                                               float appRequestRefreshRateMin,
+                                               float appRequestRefreshRateMax);
     // Gets the refresh rate boundaries for the display.
-    static status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                 int32_t* outDefaultConfig,
-                                                 bool* outAllowGroupSwitching,
-                                                 float* outPrimaryRefreshRateMin,
-                                                 float* outPrimaryRefreshRateMax,
-                                                 float* outAppRequestRefreshRateMin,
-                                                 float* outAppRequestRefreshRateMax);
+    static status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                               size_t* outDefaultMode, bool* outAllowGroupSwitching,
+                                               float* outPrimaryRefreshRateMin,
+                                               float* outPrimaryRefreshRateMax,
+                                               float* outAppRequestRefreshRateMin,
+                                               float* outAppRequestRefreshRateMax);
 
     // Gets the list of supported color modes for the given display
     static status_t getDisplayColorModes(const sp<IBinder>& display,

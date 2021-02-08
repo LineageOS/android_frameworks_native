@@ -21,10 +21,10 @@
 #include <ui/Size.h>
 #include <utils/Timers.h>
 
-namespace android {
+namespace android::ui {
 
-// Configuration supported by physical display.
-struct DisplayConfig {
+// Mode supported by physical display.
+struct DisplayMode {
     ui::Size resolution;
     float xDpi = 0;
     float yDpi = 0;
@@ -33,9 +33,9 @@ struct DisplayConfig {
     nsecs_t appVsyncOffset = 0;
     nsecs_t sfVsyncOffset = 0;
     nsecs_t presentationDeadline = 0;
-    int configGroup = -1;
+    int group = -1;
 };
 
-static_assert(std::is_trivially_copyable_v<DisplayConfig>);
+static_assert(std::is_trivially_copyable_v<DisplayMode>);
 
-} // namespace android
+} // namespace android::ui

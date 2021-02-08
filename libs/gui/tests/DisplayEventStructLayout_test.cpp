@@ -25,7 +25,7 @@ namespace android::test {
 TEST(DisplayEventStructLayoutTest, TestEventAlignment) {
     CHECK_OFFSET(DisplayEventReceiver::Event, vsync, 24);
     CHECK_OFFSET(DisplayEventReceiver::Event, hotplug, 24);
-    CHECK_OFFSET(DisplayEventReceiver::Event, config, 24);
+    CHECK_OFFSET(DisplayEventReceiver::Event, modeChange, 24);
 
     CHECK_OFFSET(DisplayEventReceiver::Event::Header, type, 0);
     CHECK_OFFSET(DisplayEventReceiver::Event::Header, displayId, 8);
@@ -38,8 +38,8 @@ TEST(DisplayEventStructLayoutTest, TestEventAlignment) {
 
     CHECK_OFFSET(DisplayEventReceiver::Event::Hotplug, connected, 0);
 
-    CHECK_OFFSET(DisplayEventReceiver::Event::Config, configId, 0);
-    CHECK_OFFSET(DisplayEventReceiver::Event::Config, vsyncPeriod, 8);
+    CHECK_OFFSET(DisplayEventReceiver::Event::ModeChange, modeId, 0);
+    CHECK_OFFSET(DisplayEventReceiver::Event::ModeChange, vsyncPeriod, 8);
 
     CHECK_OFFSET(DisplayEventReceiver::Event::FrameRateOverride, uid, 0);
     CHECK_OFFSET(DisplayEventReceiver::Event::FrameRateOverride, frameRateHz, 8);

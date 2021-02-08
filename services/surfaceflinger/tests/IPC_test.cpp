@@ -23,7 +23,7 @@
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
 #include <utils/String8.h>
 
 #include <limits>
@@ -227,10 +227,10 @@ public:
         ASSERT_EQ(NO_ERROR, mClient->initCheck());
 
         mPrimaryDisplay = mClient->getInternalDisplayToken();
-        DisplayConfig config;
-        mClient->getActiveDisplayConfig(mPrimaryDisplay, &config);
-        mDisplayWidth = config.resolution.getWidth();
-        mDisplayHeight = config.resolution.getHeight();
+        ui::DisplayMode mode;
+        mClient->getActiveDisplayMode(mPrimaryDisplay, &mode);
+        mDisplayWidth = mode.resolution.getWidth();
+        mDisplayHeight = mode.resolution.getHeight();
 
         Transaction setupTransaction;
         setupTransaction.setDisplayLayerStack(mPrimaryDisplay, 0);
