@@ -36,7 +36,7 @@ public:
     }
 
     virtual audio_unique_id_t trackPlayer(player_type_t playerType, audio_usage_t usage,
-            audio_content_type_t content, const sp<IBinder>& player) {
+            audio_content_type_t content, const sp<IBinder>& player, audio_session_t sessionId) {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
         data.writeInt32(1); // non-null PlayerIdCard parcelable
@@ -54,6 +54,8 @@ public:
         data.writeInt32(-1977 /*ATTR_PARCEL_IS_NULL_BUNDLE*/); // no bundle
         //   write IPlayer
         data.writeStrongBinder(player);
+        //   write session Id
+        data.writeInt32((int32_t)sessionId);
         // get new PIId in reply
         const status_t res = remote()->transact(TRACK_PLAYER, data, &reply, 0);
         if (res != OK || reply.readExceptionCode() != 0) {
@@ -130,6 +132,14 @@ public:
         data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
         data.writeInt32((int32_t) riid);
         return remote()->transact(RELEASE_RECORDER, data, &reply, IBinder::FLAG_ONEWAY);
+    }
+
+    virtual status_t playerSessionId(audio_unique_id_t piid, audio_session_t sessionId) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
+        data.writeInt32((int32_t) piid);
+        data.writeInt32((int32_t) sessionId);
+        return remote()->transact(PLAYER_SESSION_ID, data, &reply, IBinder::FLAG_ONEWAY);
     }
 };
 
