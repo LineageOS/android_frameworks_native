@@ -54,7 +54,7 @@
 #include "Scheduler/Seamlessness.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceTracing.h"
-#include "TransactionCompletedThread.h"
+#include "TransactionCallbackInvoker.h"
 
 using namespace android::surfaceflinger;
 
