@@ -1247,9 +1247,10 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
         nsecs_t currentTime, const std::shared_ptr<PointerCaptureChangedEntry>& entry,
         DropReason& dropReason) {
     const bool haveWindowWithPointerCapture = mWindowTokenWithPointerCapture != nullptr;
-    if (entry->pointerCaptureEnabled == haveWindowWithPointerCapture) {
-        LOG_ALWAYS_FATAL_IF(mFocusedWindowRequestedPointerCapture,
-                            "The Pointer Capture state has already been dispatched to the window.");
+    if (entry->pointerCaptureEnabled && haveWindowWithPointerCapture) {
+        LOG_ALWAYS_FATAL("Pointer Capture has already been enabled for the window.");
+    }
+    if (!entry->pointerCaptureEnabled && !haveWindowWithPointerCapture) {
         // Pointer capture was already forcefully disabled because of focus change.
         dropReason = DropReason::NOT_DROPPED;
         return;
