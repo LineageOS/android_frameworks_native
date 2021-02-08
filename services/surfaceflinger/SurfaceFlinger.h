@@ -64,7 +64,7 @@
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceTracing.h"
 #include "TracedOrdinal.h"
-#include "TransactionCompletedThread.h"
+#include "TransactionCallbackInvoker.h"
 
 #include <atomic>
 #include <cstdint>
@@ -319,8 +319,8 @@ public:
 
     void removeFromOffscreenLayers(Layer* layer);
 
-    TransactionCompletedThread& getTransactionCompletedThread() {
-        return mTransactionCompletedThread;
+    TransactionCallbackInvoker& getTransactionCallbackInvoker() {
+        return mTransactionCallbackInvoker;
     }
 
     // Converts from a binder handle to a Layer
@@ -1161,7 +1161,7 @@ private:
     std::atomic<uint32_t> mHwcFrameMissedCount = 0;
     std::atomic<uint32_t> mGpuFrameMissedCount = 0;
 
-    TransactionCompletedThread mTransactionCompletedThread;
+    TransactionCallbackInvoker mTransactionCallbackInvoker;
 
     // Restrict layers to use two buffers in their bufferqueues.
     bool mLayerTripleBufferingDisabled = false;

@@ -2195,8 +2195,8 @@ void SurfaceFlinger::postComposition() {
         }
     });
 
-    mTransactionCompletedThread.addPresentFence(mPreviousPresentFences[0]);
-    mTransactionCompletedThread.sendCallbacks();
+    mTransactionCallbackInvoker.addPresentFence(mPreviousPresentFences[0]);
+    mTransactionCallbackInvoker.sendCallbacks();
 
     if (display && display->isPrimary() && display->getPowerMode() == hal::PowerMode::ON &&
         presentFenceTime->isValid()) {
@@ -3555,8 +3555,8 @@ void SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     // that listeners with SurfaceControls will start registration during setClientStateLocked
     // below.
     for (const auto& listener : listenerCallbacks) {
-        mTransactionCompletedThread.startRegistration(listener);
-        mTransactionCompletedThread.endRegistration(listener);
+        mTransactionCallbackInvoker.startRegistration(listener);
+        mTransactionCallbackInvoker.endRegistration(listener);
     }
 
     std::unordered_set<ListenerCallbacks, ListenerCallbacksHash> listenerCallbacksWithSurfaces;
@@ -3575,12 +3575,12 @@ void SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     }
 
     for (const auto& listenerCallback : listenerCallbacksWithSurfaces) {
-        mTransactionCompletedThread.endRegistration(listenerCallback);
+        mTransactionCallbackInvoker.endRegistration(listenerCallback);
     }
 
     // If the state doesn't require a traversal and there are callbacks, send them now
     if (!(clientStateFlags & eTraversalNeeded) && hasListenerCallbacks) {
-        mTransactionCompletedThread.sendCallbacks();
+        mTransactionCallbackInvoker.sendCallbacks();
     }
     transactionFlags |= clientStateFlags;
 
@@ -3695,7 +3695,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     for (auto& listener : s.listeners) {
         // note that startRegistration will not re-register if the listener has
         // already be registered for a prior surface control
-        mTransactionCompletedThread.startRegistration(listener);
+        mTransactionCallbackInvoker.startRegistration(listener);
         listenerCallbacks.insert(listener);
     }
 
@@ -3708,7 +3708,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (layer == nullptr) {
         for (auto& [listener, callbackIds] : s.listeners) {
-            mTransactionCompletedThread.registerUnpresentedCallbackHandle(
+            mTransactionCallbackInvoker.registerUnpresentedCallbackHandle(
                     new CallbackHandle(listener, callbackIds, s.surface));
         }
         return 0;

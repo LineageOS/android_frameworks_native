@@ -20,10 +20,10 @@
 
 //#define LOG_NDEBUG 0
 #undef LOG_TAG
-#define LOG_TAG "TransactionCompletedThread"
+#define LOG_TAG "TransactionCallbackInvoker"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "TransactionCompletedThread.h"
+#include "TransactionCallbackInvoker.h"
 
 #include <cinttypes>
 
@@ -45,19 +45,7 @@ static int compareCallbackIds(const std::vector<CallbackId>& c1,
     return c1.front() - c2.front();
 }
 
-TransactionCompletedThread::~TransactionCompletedThread() {
-    std::lock_guard lockThread(mThreadMutex);
-
-    {
-        std::lock_guard lock(mMutex);
-        mKeepRunning = false;
-        mConditionVariable.notify_all();
-    }
-
-    if (mThread.joinable()) {
-        mThread.join();
-    }
-
+TransactionCallbackInvoker::~TransactionCallbackInvoker() {
     {
         std::lock_guard lock(mMutex);
         for (const auto& [listener, transactionStats] : mCompletedTransactions) {
@@ -66,26 +54,8 @@ TransactionCompletedThread::~TransactionCompletedThread() {
     }
 }
 
-void TransactionCompletedThread::run() {
+status_t TransactionCallbackInvoker::startRegistration(const ListenerCallbacks& listenerCallbacks) {
     std::lock_guard lock(mMutex);
-    if (mRunning || !mKeepRunning) {
-        return;
-    }
-    mDeathRecipient = new ThreadDeathRecipient();
-    mRunning = true;
-
-    std::lock_guard lockThread(mThreadMutex);
-    mThread = std::thread(&TransactionCompletedThread::threadMain, this);
-}
-
-status_t TransactionCompletedThread::startRegistration(const ListenerCallbacks& listenerCallbacks) {
-    // begin running if not already running
-    run();
-    std::lock_guard lock(mMutex);
-    if (!mRunning) {
-        ALOGE("cannot add callback because the callback thread isn't running");
-        return BAD_VALUE;
-    }
 
     auto [itr, inserted] = mRegisteringTransactions.insert(listenerCallbacks);
     auto& [listener, callbackIds] = listenerCallbacks;
@@ -105,12 +75,8 @@ status_t TransactionCompletedThread::startRegistration(const ListenerCallbacks& 
     return NO_ERROR;
 }
 
-status_t TransactionCompletedThread::endRegistration(const ListenerCallbacks& listenerCallbacks) {
+status_t TransactionCallbackInvoker::endRegistration(const ListenerCallbacks& listenerCallbacks) {
     std::lock_guard lock(mMutex);
-    if (!mRunning) {
-        ALOGE("cannot add callback because the callback thread isn't running");
-        return BAD_VALUE;
-    }
 
     auto itr = mRegisteringTransactions.find(listenerCallbacks);
     if (itr == mRegisteringTransactions.end()) {
@@ -123,7 +89,7 @@ status_t TransactionCompletedThread::endRegistration(const ListenerCallbacks& li
     return NO_ERROR;
 }
 
-bool TransactionCompletedThread::isRegisteringTransaction(
+bool TransactionCallbackInvoker::isRegisteringTransaction(
         const sp<IBinder>& transactionListener, const std::vector<CallbackId>& callbackIds) {
     ListenerCallbacks listenerCallbacks(transactionListener, callbackIds);
 
@@ -131,13 +97,9 @@ bool TransactionCompletedThread::isRegisteringTransaction(
     return itr != mRegisteringTransactions.end();
 }
 
-status_t TransactionCompletedThread::registerPendingCallbackHandle(
+status_t TransactionCallbackInvoker::registerPendingCallbackHandle(
         const sp<CallbackHandle>& handle) {
     std::lock_guard lock(mMutex);
-    if (!mRunning) {
-        ALOGE("cannot register callback handle because the callback thread isn't running");
-        return BAD_VALUE;
-    }
 
     // If we can't find the transaction stats something has gone wrong. The client should call
     // startRegistration before trying to register a pending callback handle.
@@ -152,16 +114,12 @@ status_t TransactionCompletedThread::registerPendingCallbackHandle(
     return NO_ERROR;
 }
 
-status_t TransactionCompletedThread::finalizePendingCallbackHandles(
+status_t TransactionCallbackInvoker::finalizePendingCallbackHandles(
         const std::deque<sp<CallbackHandle>>& handles, const std::vector<JankData>& jankData) {
     if (handles.empty()) {
         return NO_ERROR;
     }
     std::lock_guard lock(mMutex);
-    if (!mRunning) {
-        ALOGE("cannot add presented callback handle because the callback thread isn't running");
-        return BAD_VALUE;
-    }
 
     for (const auto& handle : handles) {
         auto listener = mPendingTransactions.find(handle->listener);
@@ -196,18 +154,14 @@ status_t TransactionCompletedThread::finalizePendingCallbackHandles(
     return NO_ERROR;
 }
 
-status_t TransactionCompletedThread::registerUnpresentedCallbackHandle(
+status_t TransactionCallbackInvoker::registerUnpresentedCallbackHandle(
         const sp<CallbackHandle>& handle) {
     std::lock_guard lock(mMutex);
-    if (!mRunning) {
-        ALOGE("cannot add unpresented callback handle because the callback thread isn't running");
-        return BAD_VALUE;
-    }
 
     return addCallbackHandle(handle, std::vector<JankData>());
 }
 
-status_t TransactionCompletedThread::findTransactionStats(
+status_t TransactionCallbackInvoker::findTransactionStats(
         const sp<IBinder>& listener, const std::vector<CallbackId>& callbackIds,
         TransactionStats** outTransactionStats) {
     auto& transactionStatsDeque = mCompletedTransactions[listener];
@@ -225,7 +179,7 @@ status_t TransactionCompletedThread::findTransactionStats(
     return BAD_VALUE;
 }
 
-status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle,
+status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>& handle,
         const std::vector<JankData>& jankData) {
     // If we can't find the transaction stats something has gone wrong. The client should call
     // startRegistration before trying to add a callback handle.
@@ -252,111 +206,83 @@ status_t TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>&
     return NO_ERROR;
 }
 
-void TransactionCompletedThread::addPresentFence(const sp<Fence>& presentFence) {
+void TransactionCallbackInvoker::addPresentFence(const sp<Fence>& presentFence) {
     std::lock_guard<std::mutex> lock(mMutex);
     mPresentFence = presentFence;
 }
 
-void TransactionCompletedThread::sendCallbacks() {
-    std::lock_guard lock(mMutex);
-    if (mRunning) {
-        mConditionVariable.notify_all();
-    }
-}
-
-void TransactionCompletedThread::threadMain() {
+void TransactionCallbackInvoker::sendCallbacks() {
     std::lock_guard lock(mMutex);
 
-    while (mKeepRunning) {
-        mConditionVariable.wait(mMutex);
-        std::vector<ListenerStats> completedListenerStats;
+    // For each listener
+    auto completedTransactionsItr = mCompletedTransactions.begin();
+    while (completedTransactionsItr != mCompletedTransactions.end()) {
+        auto& [listener, transactionStatsDeque] = *completedTransactionsItr;
+        ListenerStats listenerStats;
+        listenerStats.listener = listener;
 
-        // For each listener
-        auto completedTransactionsItr = mCompletedTransactions.begin();
-        while (completedTransactionsItr != mCompletedTransactions.end()) {
-            auto& [listener, transactionStatsDeque] = *completedTransactionsItr;
-            ListenerStats listenerStats;
-            listenerStats.listener = listener;
+        // For each transaction
+        auto transactionStatsItr = transactionStatsDeque.begin();
+        while (transactionStatsItr != transactionStatsDeque.end()) {
+            auto& transactionStats = *transactionStatsItr;
 
-            // For each transaction
-            auto transactionStatsItr = transactionStatsDeque.begin();
-            while (transactionStatsItr != transactionStatsDeque.end()) {
-                auto& transactionStats = *transactionStatsItr;
-
-                // If this transaction is still registering, it is not safe to send a callback
-                // because there could be surface controls that haven't been added to
-                // transaction stats or mPendingTransactions.
-                if (isRegisteringTransaction(listener, transactionStats.callbackIds)) {
-                    break;
-                }
-
-                // If we are still waiting on the callback handles for this transaction, stop
-                // here because all transaction callbacks for the same listener must come in order
-                auto pendingTransactions = mPendingTransactions.find(listener);
-                if (pendingTransactions != mPendingTransactions.end() &&
-                    pendingTransactions->second.count(transactionStats.callbackIds) != 0) {
-                    break;
-                }
-
-                // If the transaction has been latched
-                if (transactionStats.latchTime >= 0) {
-                    if (!mPresentFence) {
-                        break;
-                    }
-                    transactionStats.presentFence = mPresentFence;
-                }
-
-                // Remove the transaction from completed to the callback
-                listenerStats.transactionStats.push_back(std::move(transactionStats));
-                transactionStatsItr = transactionStatsDeque.erase(transactionStatsItr);
+            // If this transaction is still registering, it is not safe to send a callback
+            // because there could be surface controls that haven't been added to
+            // transaction stats or mPendingTransactions.
+            if (isRegisteringTransaction(listener, transactionStats.callbackIds)) {
+                break;
             }
-            // If the listener has completed transactions
-            if (!listenerStats.transactionStats.empty()) {
-                // If the listener is still alive
-                if (listener->isBinderAlive()) {
-                    // Send callback.  The listener stored in listenerStats
-                    // comes from the cross-process setTransactionState call to
-                    // SF.  This MUST be an ITransactionCompletedListener.  We
-                    // keep it as an IBinder due to consistency reasons: if we
-                    // interface_cast at the IPC boundary when reading a Parcel,
-                    // we get pointers that compare unequal in the SF process.
-                    interface_cast<ITransactionCompletedListener>(listenerStats.listener)
-                            ->onTransactionCompleted(listenerStats);
-                    if (transactionStatsDeque.empty()) {
-                        listener->unlinkToDeath(mDeathRecipient);
-                        completedTransactionsItr =
-                                mCompletedTransactions.erase(completedTransactionsItr);
-                    } else {
-                        completedTransactionsItr++;
-                    }
-                } else {
+
+            // If we are still waiting on the callback handles for this transaction, stop
+            // here because all transaction callbacks for the same listener must come in order
+            auto pendingTransactions = mPendingTransactions.find(listener);
+            if (pendingTransactions != mPendingTransactions.end() &&
+                pendingTransactions->second.count(transactionStats.callbackIds) != 0) {
+                break;
+            }
+
+            // If the transaction has been latched
+            if (transactionStats.latchTime >= 0) {
+                if (!mPresentFence) {
+                    break;
+                }
+                transactionStats.presentFence = mPresentFence;
+            }
+
+            // Remove the transaction from completed to the callback
+            listenerStats.transactionStats.push_back(std::move(transactionStats));
+            transactionStatsItr = transactionStatsDeque.erase(transactionStatsItr);
+        }
+        // If the listener has completed transactions
+        if (!listenerStats.transactionStats.empty()) {
+            // If the listener is still alive
+            if (listener->isBinderAlive()) {
+                // Send callback.  The listener stored in listenerStats
+                // comes from the cross-process setTransactionState call to
+                // SF.  This MUST be an ITransactionCompletedListener.  We
+                // keep it as an IBinder due to consistency reasons: if we
+                // interface_cast at the IPC boundary when reading a Parcel,
+                // we get pointers that compare unequal in the SF process.
+                interface_cast<ITransactionCompletedListener>(listenerStats.listener)
+                        ->onTransactionCompleted(listenerStats);
+                if (transactionStatsDeque.empty()) {
+                    listener->unlinkToDeath(mDeathRecipient);
                     completedTransactionsItr =
                             mCompletedTransactions.erase(completedTransactionsItr);
+                } else {
+                    completedTransactionsItr++;
                 }
             } else {
-                completedTransactionsItr++;
+                completedTransactionsItr =
+                        mCompletedTransactions.erase(completedTransactionsItr);
             }
-
-            completedListenerStats.push_back(std::move(listenerStats));
+        } else {
+            completedTransactionsItr++;
         }
+    }
 
-        if (mPresentFence) {
-            mPresentFence.clear();
-        }
-
-        // If everyone else has dropped their reference to a layer and its listener is dead,
-        // we are about to cause the layer to be deleted. If this happens at the wrong time and
-        // we are holding mMutex, we will cause a deadlock.
-        //
-        // The deadlock happens because this thread is holding on to mMutex and when we delete
-        // the layer, it grabs SF's mStateLock. A different SF binder thread grabs mStateLock,
-        // then call's TransactionCompletedThread::run() which tries to grab mMutex.
-        //
-        // To avoid this deadlock, we need to unlock mMutex when dropping our last reference to
-        // to the layer.
-        mMutex.unlock();
-        completedListenerStats.clear();
-        mMutex.lock();
+    if (mPresentFence) {
+        mPresentFence.clear();
     }
 }
 
