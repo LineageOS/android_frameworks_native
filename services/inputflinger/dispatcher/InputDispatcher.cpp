@@ -3747,6 +3747,14 @@ void InputDispatcher::notifySensor(const NotifySensorArgs* args) {
     }
 }
 
+void InputDispatcher::notifyVibratorState(const NotifyVibratorStateArgs* args) {
+#if DEBUG_INBOUND_EVENT_DETAILS
+    ALOGD("notifyVibratorState - eventTime=%" PRId64 ", device=%d,  isOn=%d", args->eventTime,
+          args->deviceId, args->isOn);
+#endif
+    mPolicy->notifyVibratorState(args->deviceId, args->isOn);
+}
+
 bool InputDispatcher::shouldSendMotionToInputFilterLocked(const NotifyMotionArgs* args) {
     return mInputFilterEnabled;
 }
