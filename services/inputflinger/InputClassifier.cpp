@@ -396,6 +396,11 @@ void InputClassifier::notifySensor(const NotifySensorArgs* args) {
     mListener->notifySensor(args);
 }
 
+void InputClassifier::notifyVibratorState(const NotifyVibratorStateArgs* args) {
+    // pass through
+    mListener->notifyVibratorState(args);
+}
+
 void InputClassifier::notifySwitch(const NotifySwitchArgs* args) {
     // pass through
     mListener->notifySwitch(args);
