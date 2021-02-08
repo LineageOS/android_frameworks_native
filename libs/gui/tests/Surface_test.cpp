@@ -102,14 +102,13 @@ protected:
         //   test flakiness.
         mSurfaceControl = mComposerClient->createSurface(
                 String8("Test Surface"), 32, 32, PIXEL_FORMAT_RGBA_8888, 0);
+        SurfaceComposerClient::Transaction().apply(true);
 
         ASSERT_TRUE(mSurfaceControl != nullptr);
         ASSERT_TRUE(mSurfaceControl->isValid());
 
         Transaction t;
-        ASSERT_EQ(NO_ERROR, t.setLayer(mSurfaceControl, 0x7fffffff)
-                .show(mSurfaceControl)
-                .apply());
+        ASSERT_EQ(NO_ERROR, t.setLayer(mSurfaceControl, 0x7fffffff).show(mSurfaceControl).apply());
 
         mSurface = mSurfaceControl->getSurface();
         ASSERT_TRUE(mSurface != nullptr);
