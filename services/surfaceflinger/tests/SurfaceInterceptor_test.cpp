@@ -27,7 +27,7 @@
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
 
 #include <fstream>
 #include <random>
@@ -267,9 +267,9 @@ void SurfaceInterceptorTest::setupBackgroundSurface() {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     ASSERT_FALSE(display == nullptr);
 
-    DisplayConfig config;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-    const ui::Size& resolution = config.resolution;
+    ui::DisplayMode mode;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+    const ui::Size& resolution = mode.resolution;
 
     // Background surface
     mBGSurfaceControl =

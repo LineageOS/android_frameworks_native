@@ -102,7 +102,7 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
     LOG_FATAL_IF(it == mLayerInfos.end(), "%s: unknown layer %p", __FUNCTION__, layer);
 
     const auto& info = it->second;
-    info->setLastPresentTime(presentTime, now, updateType, mConfigChangePending);
+    info->setLastPresentTime(presentTime, now, updateType, mModeChangePending);
 
     // Activate layer if inactive.
     if (const auto end = activeLayers().end(); it >= end) {

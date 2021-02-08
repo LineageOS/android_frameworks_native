@@ -43,7 +43,7 @@
 #include <hwbinder/ProcessState.h>
 #include <log/log.h>
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
 #include <utils/Looper.h>
 
 #include <gmock/gmock.h>
@@ -243,9 +243,8 @@ protected:
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 
-        mReceiver.reset(
-                new DisplayEventReceiver(ISurfaceComposer::eVsyncSourceApp,
-                                         ISurfaceComposer::EventRegistration::configChanged));
+        mReceiver.reset(new DisplayEventReceiver(ISurfaceComposer::eVsyncSourceApp,
+                                                 ISurfaceComposer::EventRegistration::modeChanged));
         mLooper = new Looper(false);
         mLooper->addFd(mReceiver->getFd(), 0, ALOOPER_EVENT_INPUT, processDisplayEvents, this);
     }
@@ -305,7 +304,7 @@ protected:
         return false;
     }
 
-    bool waitForConfigChangedEvent(Display display, int32_t configId) {
+    bool waitForModeChangedEvent(Display display, int32_t modeId) {
         PhysicalDisplayId displayId(display);
         int waitCount = 20;
         while (waitCount--) {
@@ -313,12 +312,12 @@ protected:
                 auto event = mReceivedDisplayEvents.front();
                 mReceivedDisplayEvents.pop_front();
 
-                ALOGV_IF(event.header.type == DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED,
-                         "event config: displayId %s, configId %d",
-                         to_string(event.header.displayId).c_str(), event.config.configId);
+                ALOGV_IF(event.header.type == DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE,
+                         "event mode: displayId %s, modeId %d",
+                         to_string(event.header.displayId).c_str(), event.modeChange.modeId);
 
-                if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED &&
-                    event.header.displayId == displayId && event.config.configId == configId) {
+                if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE &&
+                    event.header.displayId == displayId && event.modeChange.modeId == modeId) {
                     return true;
                 }
             }
@@ -348,11 +347,11 @@ protected:
             const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kExternalDisplayId);
             EXPECT_FALSE(display == nullptr);
 
-            DisplayConfig config;
-            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-            const ui::Size& resolution = config.resolution;
+            ui::DisplayMode mode;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+            const ui::Size& resolution = mode.resolution;
             EXPECT_EQ(ui::Size(200, 400), resolution);
-            EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
+            EXPECT_EQ(1e9f / 16'666'666, mode.refreshRate);
 
             auto surfaceControl =
                     mComposerClient->createSurface(String8("Display Test Surface Foo"),
@@ -380,8 +379,8 @@ protected:
             const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kExternalDisplayId);
             EXPECT_TRUE(display == nullptr);
 
-            DisplayConfig config;
-            EXPECT_NE(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+            ui::DisplayMode mode;
+            EXPECT_NE(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
         }
     }
 
@@ -409,14 +408,14 @@ protected:
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kExternalDisplayId);
         EXPECT_FALSE(display == nullptr);
 
-        DisplayConfig config;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-        EXPECT_EQ(ui::Size(200, 400), config.resolution);
-        EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
+        ui::DisplayMode mode;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+        EXPECT_EQ(ui::Size(200, 400), mode.resolution);
+        EXPECT_EQ(1e9f / 16'666'666, mode.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
-            const ui::Size& resolution = config.resolution;
+            const ui::Size& resolution = mode.resolution;
             auto surfaceControl =
                     mComposerClient->createSurface(String8("Display Test Surface Foo"),
                                                    resolution.getWidth(), resolution.getHeight(),
@@ -433,11 +432,11 @@ protected:
             }
         }
 
-        Vector<DisplayConfig> configs;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
-        EXPECT_EQ(configs.size(), 2);
+        Vector<ui::DisplayMode> modes;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
+        EXPECT_EQ(modes.size(), 2);
 
-        // change active config
+        // change active mode
 
         if (mIs2_4Client) {
             EXPECT_CALL(*mMockComposer, setActiveConfigWithConstraints(EXTERNAL_DISPLAY, 2, _, _))
@@ -447,28 +446,28 @@ protected:
                     .WillOnce(Return(V2_1::Error::NONE));
         }
 
-        for (int i = 0; i < configs.size(); i++) {
-            const auto& config = configs[i];
-            if (config.resolution.getWidth() == 800) {
+        for (int i = 0; i < modes.size(); i++) {
+            const auto& mode = modes[i];
+            if (mode.resolution.getWidth() == 800) {
                 EXPECT_EQ(NO_ERROR,
-                          SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i, false,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate));
+                          SurfaceComposerClient::setDesiredDisplayModeSpecs(display, i, false,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate));
                 waitForDisplayTransaction(EXTERNAL_DISPLAY);
-                EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
+                EXPECT_TRUE(waitForModeChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
         }
 
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-        EXPECT_EQ(ui::Size(800, 1600), config.resolution);
-        EXPECT_EQ(1e9f / 11'111'111, config.refreshRate);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+        EXPECT_EQ(ui::Size(800, 1600), mode.resolution);
+        EXPECT_EQ(1e9f / 11'111'111, mode.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
-            const ui::Size& resolution = config.resolution;
+            const ui::Size& resolution = mode.resolution;
             auto surfaceControl =
                     mComposerClient->createSurface(String8("Display Test Surface Foo"),
                                                    resolution.getWidth(), resolution.getHeight(),
@@ -516,14 +515,14 @@ protected:
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kExternalDisplayId);
         EXPECT_FALSE(display == nullptr);
 
-        DisplayConfig config;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-        EXPECT_EQ(ui::Size(800, 1600), config.resolution);
-        EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
+        ui::DisplayMode mode;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+        EXPECT_EQ(ui::Size(800, 1600), mode.resolution);
+        EXPECT_EQ(1e9f / 16'666'666, mode.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
-            const ui::Size& resolution = config.resolution;
+            const ui::Size& resolution = mode.resolution;
             auto surfaceControl =
                     mComposerClient->createSurface(String8("Display Test Surface Foo"),
                                                    resolution.getWidth(), resolution.getHeight(),
@@ -540,11 +539,11 @@ protected:
             }
         }
 
-        Vector<DisplayConfig> configs;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
-        EXPECT_EQ(configs.size(), 2);
+        Vector<ui::DisplayMode> modes;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
+        EXPECT_EQ(modes.size(), 2);
 
-        // change active config
+        // change active mode
         if (mIs2_4Client) {
             EXPECT_CALL(*mMockComposer, setActiveConfigWithConstraints(EXTERNAL_DISPLAY, 3, _, _))
                     .WillOnce(Return(V2_4::Error::NONE));
@@ -553,28 +552,28 @@ protected:
                     .WillOnce(Return(V2_1::Error::NONE));
         }
 
-        for (int i = 0; i < configs.size(); i++) {
-            const auto& config = configs[i];
-            if (config.refreshRate == 1e9f / 11'111'111) {
+        for (int i = 0; i < modes.size(); i++) {
+            const auto& mode = modes[i];
+            if (mode.refreshRate == 1e9f / 11'111'111) {
                 EXPECT_EQ(NO_ERROR,
-                          SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i, false,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate));
+                          SurfaceComposerClient::setDesiredDisplayModeSpecs(display, i, false,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate));
                 waitForDisplayTransaction(EXTERNAL_DISPLAY);
-                EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
+                EXPECT_TRUE(waitForModeChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
         }
 
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-        EXPECT_EQ(ui::Size(800, 1600), config.resolution);
-        EXPECT_EQ(1e9f / 11'111'111, config.refreshRate);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+        EXPECT_EQ(ui::Size(800, 1600), mode.resolution);
+        EXPECT_EQ(1e9f / 11'111'111, mode.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
-            const ui::Size& resolution = config.resolution;
+            const ui::Size& resolution = mode.resolution;
             auto surfaceControl =
                     mComposerClient->createSurface(String8("Display Test Surface Foo"),
                                                    resolution.getWidth(), resolution.getHeight(),
@@ -632,14 +631,14 @@ protected:
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kExternalDisplayId);
         EXPECT_FALSE(display == nullptr);
 
-        DisplayConfig config;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-        EXPECT_EQ(ui::Size(800, 1600), config.resolution);
-        EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
+        ui::DisplayMode mode;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+        EXPECT_EQ(ui::Size(800, 1600), mode.resolution);
+        EXPECT_EQ(1e9f / 16'666'666, mode.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
-            const ui::Size& resolution = config.resolution;
+            const ui::Size& resolution = mode.resolution;
             auto surfaceControl =
                     mComposerClient->createSurface(String8("Display Test Surface Foo"),
                                                    resolution.getWidth(), resolution.getHeight(),
@@ -656,11 +655,11 @@ protected:
             }
         }
 
-        Vector<DisplayConfig> configs;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
-        EXPECT_EQ(configs.size(), 4);
+        Vector<ui::DisplayMode> modes;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
+        EXPECT_EQ(modes.size(), 4);
 
-        // change active config to 800x1600@90Hz
+        // change active mode to 800x1600@90Hz
         if (mIs2_4Client) {
             EXPECT_CALL(*mMockComposer, setActiveConfigWithConstraints(EXTERNAL_DISPLAY, 3, _, _))
                     .WillOnce(Return(V2_4::Error::NONE));
@@ -669,29 +668,28 @@ protected:
                     .WillOnce(Return(V2_1::Error::NONE));
         }
 
-        for (size_t i = 0; i < configs.size(); i++) {
-            const auto& config = configs[i];
-            if (config.resolution.getWidth() == 800 && config.refreshRate == 1e9f / 11'111'111) {
+        for (size_t i = 0; i < modes.size(); i++) {
+            const auto& mode = modes[i];
+            if (mode.resolution.getWidth() == 800 && mode.refreshRate == 1e9f / 11'111'111) {
                 EXPECT_EQ(NO_ERROR,
-                          SurfaceComposerClient::
-                                  setDesiredDisplayConfigSpecs(display, i, false,
-                                                               configs[i].refreshRate,
-                                                               configs[i].refreshRate,
-                                                               configs[i].refreshRate,
-                                                               configs[i].refreshRate));
+                          SurfaceComposerClient::setDesiredDisplayModeSpecs(display, i, false,
+                                                                            modes[i].refreshRate,
+                                                                            modes[i].refreshRate,
+                                                                            modes[i].refreshRate,
+                                                                            modes[i].refreshRate));
                 waitForDisplayTransaction(EXTERNAL_DISPLAY);
-                EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
+                EXPECT_TRUE(waitForModeChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
         }
 
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-        EXPECT_EQ(ui::Size(800, 1600), config.resolution);
-        EXPECT_EQ(1e9f / 11'111'111, config.refreshRate);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+        EXPECT_EQ(ui::Size(800, 1600), mode.resolution);
+        EXPECT_EQ(1e9f / 11'111'111, mode.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
-            const ui::Size& resolution = config.resolution;
+            const ui::Size& resolution = mode.resolution;
             auto surfaceControl =
                     mComposerClient->createSurface(String8("Display Test Surface Foo"),
                                                    resolution.getWidth(), resolution.getHeight(),
@@ -708,7 +706,7 @@ protected:
             }
         }
 
-        // change active config to 1600x3200@120Hz
+        // change active mode to 1600x3200@120Hz
         if (mIs2_4Client) {
             EXPECT_CALL(*mMockComposer, setActiveConfigWithConstraints(EXTERNAL_DISPLAY, 4, _, _))
                     .WillOnce(Return(V2_4::Error::NONE));
@@ -717,28 +715,28 @@ protected:
                     .WillOnce(Return(V2_1::Error::NONE));
         }
 
-        for (int i = 0; i < configs.size(); i++) {
-            const auto& config = configs[i];
-            if (config.refreshRate == 1e9f / 8'333'333) {
+        for (int i = 0; i < modes.size(); i++) {
+            const auto& mode = modes[i];
+            if (mode.refreshRate == 1e9f / 8'333'333) {
                 EXPECT_EQ(NO_ERROR,
-                          SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i, false,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate));
+                          SurfaceComposerClient::setDesiredDisplayModeSpecs(display, i, false,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate));
                 waitForDisplayTransaction(EXTERNAL_DISPLAY);
-                EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
+                EXPECT_TRUE(waitForModeChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
         }
 
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-        EXPECT_EQ(ui::Size(1600, 3200), config.resolution);
-        EXPECT_EQ(1e9f / 8'333'333, config.refreshRate);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+        EXPECT_EQ(ui::Size(1600, 3200), mode.resolution);
+        EXPECT_EQ(1e9f / 8'333'333, mode.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
-            const ui::Size& resolution = config.resolution;
+            const ui::Size& resolution = mode.resolution;
             auto surfaceControl =
                     mComposerClient->createSurface(String8("Display Test Surface Foo"),
                                                    resolution.getWidth(), resolution.getHeight(),
@@ -755,7 +753,7 @@ protected:
             }
         }
 
-        // change active config to 1600x3200@90Hz
+        // change active mode to 1600x3200@90Hz
         if (mIs2_4Client) {
             EXPECT_CALL(*mMockComposer, setActiveConfigWithConstraints(EXTERNAL_DISPLAY, 5, _, _))
                     .WillOnce(Return(V2_4::Error::NONE));
@@ -764,28 +762,28 @@ protected:
                     .WillOnce(Return(V2_1::Error::NONE));
         }
 
-        for (int i = 0; i < configs.size(); i++) {
-            const auto& config = configs[i];
-            if (config.resolution.getWidth() == 1600 && config.refreshRate == 1e9f / 11'111'111) {
+        for (int i = 0; i < modes.size(); i++) {
+            const auto& mode = modes[i];
+            if (mode.resolution.getWidth() == 1600 && mode.refreshRate == 1e9f / 11'111'111) {
                 EXPECT_EQ(NO_ERROR,
-                          SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i, false,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate,
-                                                                              config.refreshRate));
+                          SurfaceComposerClient::setDesiredDisplayModeSpecs(display, i, false,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate,
+                                                                            mode.refreshRate));
                 waitForDisplayTransaction(EXTERNAL_DISPLAY);
-                EXPECT_TRUE(waitForConfigChangedEvent(EXTERNAL_DISPLAY, i));
+                EXPECT_TRUE(waitForModeChangedEvent(EXTERNAL_DISPLAY, i));
                 break;
             }
         }
 
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-        EXPECT_EQ(ui::Size(1600, 3200), config.resolution);
-        EXPECT_EQ(1e9f / 11'111'111, config.refreshRate);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+        EXPECT_EQ(ui::Size(1600, 3200), mode.resolution);
+        EXPECT_EQ(1e9f / 11'111'111, mode.refreshRate);
 
         mFakeComposerClient->clearFrames();
         {
-            const ui::Size& resolution = config.resolution;
+            const ui::Size& resolution = mode.resolution;
             auto surfaceControl =
                     mComposerClient->createSurface(String8("Display Test Surface Foo"),
                                                    resolution.getWidth(), resolution.getHeight(),
@@ -822,8 +820,8 @@ protected:
             const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kPrimaryDisplayId);
             EXPECT_TRUE(display == nullptr);
 
-            DisplayConfig config;
-            auto result = SurfaceComposerClient::getActiveDisplayConfig(display, &config);
+            ui::DisplayMode mode;
+            auto result = SurfaceComposerClient::getActiveDisplayMode(display, &mode);
             EXPECT_NE(NO_ERROR, result);
         }
 
@@ -848,11 +846,11 @@ protected:
             const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kPrimaryDisplayId);
             EXPECT_FALSE(display == nullptr);
 
-            DisplayConfig config;
-            auto result = SurfaceComposerClient::getActiveDisplayConfig(display, &config);
+            ui::DisplayMode mode;
+            auto result = SurfaceComposerClient::getActiveDisplayMode(display, &mode);
             EXPECT_EQ(NO_ERROR, result);
-            ASSERT_EQ(ui::Size(400, 200), config.resolution);
-            EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
+            ASSERT_EQ(ui::Size(400, 200), mode.resolution);
+            EXPECT_EQ(1e9f / 16'666'666, mode.refreshRate);
         }
     }
 
@@ -881,14 +879,14 @@ protected:
 
         // Verify that the active mode and the supported moded are updated
         {
-            DisplayConfig config;
-            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-            EXPECT_EQ(ui::Size(800, 1600), config.resolution);
-            EXPECT_EQ(1e9f / 11'111'111, config.refreshRate);
+            ui::DisplayMode mode;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+            EXPECT_EQ(ui::Size(800, 1600), mode.resolution);
+            EXPECT_EQ(1e9f / 11'111'111, mode.refreshRate);
 
-            Vector<DisplayConfig> configs;
-            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
-            EXPECT_EQ(configs.size(), 1);
+            Vector<ui::DisplayMode> modes;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
+            EXPECT_EQ(modes.size(), 1);
         }
 
         // Send another hotplug connected event
@@ -919,27 +917,27 @@ protected:
 
         // Verify that the active mode and the supported moded are updated
         {
-            DisplayConfig config;
-            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-            EXPECT_EQ(ui::Size(800, 1600), config.resolution);
-            EXPECT_EQ(1e9f / 16'666'666, config.refreshRate);
+            ui::DisplayMode mode;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+            EXPECT_EQ(ui::Size(800, 1600), mode.resolution);
+            EXPECT_EQ(1e9f / 16'666'666, mode.refreshRate);
         }
 
-        Vector<DisplayConfig> configs;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
-        EXPECT_EQ(configs.size(), 3);
+        Vector<ui::DisplayMode> modes;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
+        EXPECT_EQ(modes.size(), 3);
 
-        EXPECT_EQ(ui::Size(800, 1600), configs[0].resolution);
-        EXPECT_EQ(1e9f / 16'666'666, configs[0].refreshRate);
+        EXPECT_EQ(ui::Size(800, 1600), modes[0].resolution);
+        EXPECT_EQ(1e9f / 16'666'666, modes[0].refreshRate);
 
-        EXPECT_EQ(ui::Size(800, 1600), configs[1].resolution);
-        EXPECT_EQ(1e9f / 11'111'111, configs[1].refreshRate);
+        EXPECT_EQ(ui::Size(800, 1600), modes[1].resolution);
+        EXPECT_EQ(1e9f / 11'111'111, modes[1].refreshRate);
 
-        EXPECT_EQ(ui::Size(800, 1600), configs[2].resolution);
-        EXPECT_EQ(1e9f / 8'333'333, configs[2].refreshRate);
+        EXPECT_EQ(ui::Size(800, 1600), modes[2].resolution);
+        EXPECT_EQ(1e9f / 8'333'333, modes[2].refreshRate);
 
         // Verify that we are able to switch to any of the modes
-        for (int i = configs.size() - 1; i >= 0; i--) {
+        for (int i = modes.size() - 1; i >= 0; i--) {
             const auto hwcId = i + 1;
             // Set up HWC expectations for the mode change
             if (mIs2_4Client) {
@@ -952,22 +950,22 @@ protected:
             }
 
             EXPECT_EQ(NO_ERROR,
-                      SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, i, false,
-                                                                          configs[i].refreshRate,
-                                                                          configs[i].refreshRate,
-                                                                          configs[i].refreshRate,
-                                                                          configs[i].refreshRate));
+                      SurfaceComposerClient::setDesiredDisplayModeSpecs(display, i, false,
+                                                                        modes[i].refreshRate,
+                                                                        modes[i].refreshRate,
+                                                                        modes[i].refreshRate,
+                                                                        modes[i].refreshRate));
             // We need to refresh twice - once to apply the pending mode change request,
             // and once to process the change.
             waitForDisplayTransaction(hwcDisplayId);
             waitForDisplayTransaction(hwcDisplayId);
-            EXPECT_TRUE(waitForConfigChangedEvent(hwcDisplayId, i))
+            EXPECT_TRUE(waitForModeChangedEvent(hwcDisplayId, i))
                     << "Failure while switching to mode " << i;
 
-            DisplayConfig config;
-            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-            EXPECT_EQ(ui::Size(800, 1600), config.resolution);
-            EXPECT_EQ(configs[i].refreshRate, config.refreshRate);
+            ui::DisplayMode mode;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+            EXPECT_EQ(ui::Size(800, 1600), mode.resolution);
+            EXPECT_EQ(modes[i].refreshRate, mode.refreshRate);
         }
     }
 
@@ -1168,10 +1166,10 @@ protected:
         const auto display = SurfaceComposerClient::getPhysicalDisplayToken(kPrimaryDisplayId);
         ASSERT_FALSE(display == nullptr);
 
-        DisplayConfig config;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+        ui::DisplayMode mode;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
 
-        const ui::Size& resolution = config.resolution;
+        const ui::Size& resolution = mode.resolution;
         mDisplayWidth = resolution.getWidth();
         mDisplayHeight = resolution.getHeight();
 
