@@ -56,6 +56,7 @@ public:
 
     void assertNotifyCaptureWasCalled(NotifyPointerCaptureChangedArgs* outEventArgs = nullptr);
     void assertNotifySensorWasCalled(NotifySensorArgs* outEventArgs = nullptr);
+    void assertNotifyVibratorStateWasCalled(NotifyVibratorStateArgs* outEventArgs = nullptr);
 
 private:
     template <class NotifyArgsType>
@@ -79,6 +80,8 @@ private:
 
     virtual void notifySensor(const NotifySensorArgs* args) override;
 
+    virtual void notifyVibratorState(const NotifyVibratorStateArgs* args) override;
+
     virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
     std::mutex mLock;
@@ -92,6 +95,7 @@ private:
                std::vector<NotifyMotionArgs>,                //
                std::vector<NotifySwitchArgs>,                //
                std::vector<NotifySensorArgs>,                //
+               std::vector<NotifyVibratorStateArgs>,         //
                std::vector<NotifyPointerCaptureChangedArgs>> //
             mQueues GUARDED_BY(mLock);
 };
