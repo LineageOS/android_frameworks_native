@@ -80,20 +80,19 @@ public:
         return mFeatures.touch == Scheduler::TouchState::Active;
     }
 
-    void dispatchCachedReportedConfig() {
+    void dispatchCachedReportedMode() {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        return Scheduler::dispatchCachedReportedConfig();
+        return Scheduler::dispatchCachedReportedMode();
     }
 
     void clearOptionalFieldsInFeatures() {
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
-        mFeatures.cachedConfigChangedParams.reset();
+        mFeatures.cachedModeChangedParams.reset();
     }
 
-    void onNonPrimaryDisplayConfigChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                          DisplayModeId configId, nsecs_t vsyncPeriod) {
-        return Scheduler::onNonPrimaryDisplayConfigChanged(handle, displayId, configId,
-                                                           vsyncPeriod);
+    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
+                                        DisplayModeId modeId, nsecs_t vsyncPeriod) {
+        return Scheduler::onNonPrimaryDisplayModeChanged(handle, displayId, modeId, vsyncPeriod);
     }
 
     ~TestableScheduler() {

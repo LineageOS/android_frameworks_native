@@ -33,9 +33,9 @@ protected:
         const auto display = SurfaceComposerClient::getInternalDisplayToken();
         ASSERT_FALSE(display == nullptr);
 
-        DisplayConfig config;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
-        const ui::Size& resolution = config.resolution;
+        ui::DisplayMode mode;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+        const ui::Size& resolution = mode.resolution;
 
         // Background surface
         mBGSurfaceControl = createLayer(String8("BG Test Surface"), resolution.getWidth(),

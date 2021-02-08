@@ -53,7 +53,7 @@ protected:
         mRefreshRateConfigs =
                 std::make_unique<RefreshRateConfigs>(configs, /*currentConfig=*/CONFIG_ID_0);
 
-        const auto currFps = mRefreshRateConfigs->getRefreshRateFromConfigId(CONFIG_ID_0).getFps();
+        const auto currFps = mRefreshRateConfigs->getRefreshRateFromModeId(CONFIG_ID_0).getFps();
         mRefreshRateStats = std::make_unique<RefreshRateStats>(mTimeStats, currFps,
                                                                /*currentPowerMode=*/PowerMode::OFF);
     }
@@ -62,7 +62,7 @@ protected:
     std::unique_ptr<RefreshRateConfigs> mRefreshRateConfigs;
     std::unique_ptr<RefreshRateStats> mRefreshRateStats;
 
-    DisplayModePtr createConfig(DisplayModeId configId, int32_t configGroup, int64_t vsyncPeriod);
+    DisplayModePtr createDisplayMode(DisplayModeId modeId, int32_t group, int64_t vsyncPeriod);
 };
 
 RefreshRateStatsTest::RefreshRateStatsTest() {
@@ -77,12 +77,12 @@ RefreshRateStatsTest::~RefreshRateStatsTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-DisplayModePtr RefreshRateStatsTest::createConfig(DisplayModeId configId, int32_t configGroup,
-                                                  int64_t vsyncPeriod) {
-    return DisplayMode::Builder(static_cast<hal::HWConfigId>(configId.value()))
-            .setId(configId)
+DisplayModePtr RefreshRateStatsTest::createDisplayMode(DisplayModeId modeId, int32_t group,
+                                                       int64_t vsyncPeriod) {
+    return DisplayMode::Builder(static_cast<hal::HWConfigId>(modeId.value()))
+            .setId(modeId)
             .setVsyncPeriod(static_cast<int32_t>(vsyncPeriod))
-            .setConfigGroup(configGroup)
+            .setGroup(group)
             .build();
 }
 
@@ -91,7 +91,7 @@ namespace {
  * Test cases
  */
 TEST_F(RefreshRateStatsTest, oneConfigTest) {
-    init({createConfig(CONFIG_ID_0, CONFIG_GROUP_0, VSYNC_90)});
+    init({createDisplayMode(CONFIG_ID_0, CONFIG_GROUP_0, VSYNC_90)});
 
     EXPECT_CALL(mTimeStats, recordRefreshRate(0, _)).Times(AtLeast(1));
     EXPECT_CALL(mTimeStats, recordRefreshRate(90, _)).Times(AtLeast(1));
@@ -110,7 +110,7 @@ TEST_F(RefreshRateStatsTest, oneConfigTest) {
     EXPECT_LT(screenOff, times["ScreenOff"]);
     EXPECT_EQ(0u, times.count("90.00fps"));
 
-    const auto config0Fps = mRefreshRateConfigs->getRefreshRateFromConfigId(CONFIG_ID_0).getFps();
+    const auto config0Fps = mRefreshRateConfigs->getRefreshRateFromModeId(CONFIG_ID_0).getFps();
     mRefreshRateStats->setRefreshRate(config0Fps);
     mRefreshRateStats->setPowerMode(PowerMode::ON);
     screenOff = mRefreshRateStats->getTotalTimes()["ScreenOff"];
@@ -138,8 +138,8 @@ TEST_F(RefreshRateStatsTest, oneConfigTest) {
 }
 
 TEST_F(RefreshRateStatsTest, twoConfigsTest) {
-    init({createConfig(CONFIG_ID_0, CONFIG_GROUP_0, VSYNC_90),
-          createConfig(CONFIG_ID_1, CONFIG_GROUP_0, VSYNC_60)});
+    init({createDisplayMode(CONFIG_ID_0, CONFIG_GROUP_0, VSYNC_90),
+          createDisplayMode(CONFIG_ID_1, CONFIG_GROUP_0, VSYNC_60)});
 
     EXPECT_CALL(mTimeStats, recordRefreshRate(0, _)).Times(AtLeast(1));
     EXPECT_CALL(mTimeStats, recordRefreshRate(60, _)).Times(AtLeast(1));
@@ -158,8 +158,8 @@ TEST_F(RefreshRateStatsTest, twoConfigsTest) {
     times = mRefreshRateStats->getTotalTimes();
     EXPECT_LT(screenOff, times["ScreenOff"]);
 
-    const auto config0Fps = mRefreshRateConfigs->getRefreshRateFromConfigId(CONFIG_ID_0).getFps();
-    const auto config1Fps = mRefreshRateConfigs->getRefreshRateFromConfigId(CONFIG_ID_1).getFps();
+    const auto config0Fps = mRefreshRateConfigs->getRefreshRateFromModeId(CONFIG_ID_0).getFps();
+    const auto config1Fps = mRefreshRateConfigs->getRefreshRateFromModeId(CONFIG_ID_1).getFps();
     mRefreshRateStats->setRefreshRate(config0Fps);
     mRefreshRateStats->setPowerMode(PowerMode::ON);
     screenOff = mRefreshRateStats->getTotalTimes()["ScreenOff"];
