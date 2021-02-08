@@ -4217,4 +4217,27 @@ TEST_F(InputDispatcherPointerCaptureTests, UnexpectedStateChangeDisablesPointerC
     mWindow->assertNoEvents();
 }
 
+TEST_F(InputDispatcherPointerCaptureTests, OutOfOrderRequests) {
+    requestAndVerifyPointerCapture(mWindow, true);
+
+    // The first window loses focus.
+    setFocusedWindow(mSecondWindow);
+    mFakePolicy->waitForSetPointerCapture(false);
+    mWindow->consumeCaptureEvent(false);
+
+    // Request Pointer Capture from the second window before the notification from InputReader
+    // arrives.
+    mDispatcher->requestPointerCapture(mSecondWindow->getToken(), true);
+    mFakePolicy->waitForSetPointerCapture(true);
+
+    // InputReader notifies Pointer Capture was disabled (because of the focus change).
+    notifyPointerCaptureChanged(false);
+
+    // InputReader notifies Pointer Capture was enabled (because of mSecondWindow's request).
+    notifyPointerCaptureChanged(true);
+
+    mSecondWindow->consumeFocusEvent(true);
+    mSecondWindow->consumeCaptureEvent(true);
+}
+
 } // namespace android::inputdispatcher
