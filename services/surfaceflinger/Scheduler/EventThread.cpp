@@ -303,10 +303,6 @@ void EventThread::setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& c
     std::lock_guard<std::mutex> lock(mMutex);
 
     const auto request = rate == 0 ? VSyncRequest::None : static_cast<VSyncRequest>(rate);
-    if (request != VSyncRequest::None && connection->resyncCallback) {
-        connection->resyncCallback();
-    }
-
     if (connection->vsyncRequest != request) {
         connection->vsyncRequest = request;
         mCondition.notify_all();
