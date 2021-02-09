@@ -69,6 +69,8 @@ protected:
     Scheduler::ConnectionHandle mConnectionHandle;
     mock::EventThread* mEventThread;
     sp<MockEventThreadConnection> mEventThreadConnection;
+
+    TestableSurfaceFlinger mFlinger;
 };
 
 SchedulerTest::SchedulerTest() {
@@ -185,6 +187,16 @@ TEST_F(SchedulerTest, onNonPrimaryDisplayModeChanged_invalidParameters) {
                                                                       PHYSICAL_DISPLAY_ID, modeId,
                                                                       vsyncPeriod));
     EXPECT_CALL(*mEventThread, onModeChanged(_, _, _)).Times(0);
+}
+
+TEST_F(SchedulerTest, calculateExtraBufferCount) {
+    EXPECT_EQ(0, mFlinger.calculateExtraBufferCount(Fps(60), 30ms));
+    EXPECT_EQ(1, mFlinger.calculateExtraBufferCount(Fps(90), 30ms));
+    EXPECT_EQ(2, mFlinger.calculateExtraBufferCount(Fps(120), 30ms));
+
+    EXPECT_EQ(1, mFlinger.calculateExtraBufferCount(Fps(60), 40ms));
+
+    EXPECT_EQ(0, mFlinger.calculateExtraBufferCount(Fps(60), 10ms));
 }
 
 } // namespace android
