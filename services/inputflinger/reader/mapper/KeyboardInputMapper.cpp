@@ -350,9 +350,10 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, 
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
 
-    getContext()->notifyKey(when, getDeviceId(), mSource, getDisplayId(), policyFlags,
-                            down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
-                            AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
+    NotifyKeyArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, getDisplayId(),
+                       policyFlags, down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
+                       AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
+    getListener()->notifyKey(&args);
 }
 
 ssize_t KeyboardInputMapper::findKeyDown(int32_t scanCode) {
