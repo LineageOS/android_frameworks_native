@@ -36,9 +36,7 @@ static const size_t EVENT_BUFFER_SIZE = 100;
 DisplayEventDispatcher::DisplayEventDispatcher(
         const sp<Looper>& looper, ISurfaceComposer::VsyncSource vsyncSource,
         ISurfaceComposer::EventRegistrationFlags eventRegistration)
-      : mLooper(looper),
-        mReceiver(vsyncSource, eventRegistration),
-        mVsyncState(VsyncState::Unregistered) {
+      : mLooper(looper), mReceiver(vsyncSource, eventRegistration), mWaitingForVsync(false) {
     ALOGV("dispatcher %p ~ Initializing display event dispatcher.", this);
 }
 
@@ -68,37 +66,26 @@ void DisplayEventDispatcher::dispose() {
 }
 
 status_t DisplayEventDispatcher::scheduleVsync() {
-    switch (mVsyncState) {
-        case VsyncState::Unregistered: {
-            ALOGV("dispatcher %p ~ Scheduling vsync.", this);
+    if (!mWaitingForVsync) {
+        ALOGV("dispatcher %p ~ Scheduling vsync.", this);
 
-            // Drain all pending events.
-            nsecs_t vsyncTimestamp;
-            PhysicalDisplayId vsyncDisplayId;
-            uint32_t vsyncCount;
-            VsyncEventData vsyncEventData;
-            if (processPendingEvents(&vsyncTimestamp, &vsyncDisplayId, &vsyncCount,
-                                     &vsyncEventData)) {
-                ALOGE("dispatcher %p ~ last event processed while scheduling was for %" PRId64 "",
-                      this, ns2ms(static_cast<nsecs_t>(vsyncTimestamp)));
-            }
+        // Drain all pending events.
+        nsecs_t vsyncTimestamp;
+        PhysicalDisplayId vsyncDisplayId;
+        uint32_t vsyncCount;
+        VsyncEventData vsyncEventData;
+        if (processPendingEvents(&vsyncTimestamp, &vsyncDisplayId, &vsyncCount, &vsyncEventData)) {
+            ALOGE("dispatcher %p ~ last event processed while scheduling was for %" PRId64 "", this,
+                  ns2ms(static_cast<nsecs_t>(vsyncTimestamp)));
+        }
 
-            status_t status = mReceiver.setVsyncRate(1);
-            if (status) {
-                ALOGW("Failed to set vsync rate, status=%d", status);
-                return status;
-            }
+        status_t status = mReceiver.requestNextVsync();
+        if (status) {
+            ALOGW("Failed to request next vsync, status=%d", status);
+            return status;
+        }
 
-            mVsyncState = VsyncState::RegisteredAndWaitingForVsync;
-            break;
-        }
-        case VsyncState::Registered: {
-            mVsyncState = VsyncState::RegisteredAndWaitingForVsync;
-            break;
-        }
-        case VsyncState::RegisteredAndWaitingForVsync: {
-            break;
-        }
+        mWaitingForVsync = true;
     }
     return OK;
 }
@@ -136,23 +123,8 @@ int DisplayEventDispatcher::handleEvent(int, int events, void*) {
               ", displayId=%s, count=%d, vsyncId=%" PRId64,
               this, ns2ms(vsyncTimestamp), to_string(vsyncDisplayId).c_str(), vsyncCount,
               vsyncEventData.id);
-        switch (mVsyncState) {
-            case VsyncState::Unregistered:
-                ALOGW("Received unexpected VSYNC event");
-                break;
-            case VsyncState::RegisteredAndWaitingForVsync:
-                mVsyncState = VsyncState::Registered;
-                dispatchVsync(vsyncTimestamp, vsyncDisplayId, vsyncCount, vsyncEventData);
-                break;
-            case VsyncState::Registered:
-                status_t status = mReceiver.setVsyncRate(0);
-                if (status) {
-                    ALOGW("Failed to reset vsync rate, status=%d", status);
-                    return status;
-                }
-                mVsyncState = VsyncState::Unregistered;
-                break;
-        }
+        mWaitingForVsync = false;
+        dispatchVsync(vsyncTimestamp, vsyncDisplayId, vsyncCount, vsyncEventData);
     }
 
     return 1; // keep the callback
