@@ -16,8 +16,8 @@
 
 #include <apex/display.h>
 #include <gui/SurfaceComposerClient.h>
-#include <ui/DisplayConfig.h>
 #include <ui/DisplayInfo.h>
+#include <ui/DisplayMode.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
 
@@ -134,8 +134,8 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
         return NO_INIT;
     }
 
-    std::vector<DisplayConfigImpl> configsPerDisplay[size];
-    int numConfigs = 0;
+    std::vector<DisplayConfigImpl> modesPerDisplay[size];
+    int numModes = 0;
     for (int i = 0; i < size; ++i) {
         const sp<IBinder> token = SurfaceComposerClient::getPhysicalDisplayToken(ids[i]);
 
@@ -145,23 +145,23 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
             return status;
         }
 
-        Vector<DisplayConfig> configs;
-        if (const status_t status = SurfaceComposerClient::getDisplayConfigs(token, &configs);
+        Vector<ui::DisplayMode> modes;
+        if (const status_t status = SurfaceComposerClient::getDisplayModes(token, &modes);
             status != OK) {
             return status;
         }
-        if (configs.empty()) {
+        if (modes.empty()) {
             return NO_INIT;
         }
 
-        numConfigs += configs.size();
-        configsPerDisplay[i].reserve(configs.size());
-        for (int j = 0; j < configs.size(); ++j) {
-            const DisplayConfig& config = configs[j];
-            configsPerDisplay[i].emplace_back(
-                    DisplayConfigImpl{config.resolution.getWidth(), config.resolution.getHeight(),
-                                      info.density, config.refreshRate, config.sfVsyncOffset,
-                                      config.appVsyncOffset});
+        numModes += modes.size();
+        modesPerDisplay[i].reserve(modes.size());
+        for (int j = 0; j < modes.size(); ++j) {
+            const ui::DisplayMode& mode = modes[j];
+            modesPerDisplay[i].emplace_back(
+                    DisplayConfigImpl{mode.resolution.getWidth(), mode.resolution.getHeight(),
+                                      info.density, mode.refreshRate, mode.sfVsyncOffset,
+                                      mode.appVsyncOffset});
         }
     }
 
@@ -192,7 +192,7 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
     // contiguous block of DisplayConfigImpls specific to that display.
     DisplayImpl** const impls = reinterpret_cast<DisplayImpl**>(
             malloc((sizeof(DisplayImpl) + sizeof(DisplayImpl*)) * size +
-                   sizeof(DisplayConfigImpl) * numConfigs));
+                   sizeof(DisplayConfigImpl) * numModes));
     DisplayImpl* const displayData = reinterpret_cast<DisplayImpl*>(impls + size);
     DisplayConfigImpl* configData = reinterpret_cast<DisplayConfigImpl*>(displayData + size);
 
@@ -200,7 +200,7 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
         const PhysicalDisplayId id = ids[i];
         const ADisplayType type = (internalId == id) ? ADisplayType::DISPLAY_TYPE_INTERNAL
                                                      : ADisplayType::DISPLAY_TYPE_EXTERNAL;
-        const std::vector<DisplayConfigImpl>& configs = configsPerDisplay[i];
+        const std::vector<DisplayConfigImpl>& configs = modesPerDisplay[i];
         memcpy(configData, configs.data(), sizeof(DisplayConfigImpl) * configs.size());
 
         displayData[i] = DisplayImpl{id,
@@ -257,7 +257,7 @@ int ADisplay_getCurrentConfig(ADisplay* display, ADisplayConfig** outConfig) {
     CHECK_NOT_NULL(display);
 
     sp<IBinder> token = getToken(display);
-    const int index = SurfaceComposerClient::getActiveConfig(token);
+    const int index = SurfaceComposerClient::getActiveDisplayModeId(token);
     if (index < 0) {
         return index;
     }

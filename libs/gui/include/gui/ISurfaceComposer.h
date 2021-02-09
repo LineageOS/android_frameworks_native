@@ -54,7 +54,6 @@ namespace android {
 struct client_cache_t;
 struct ComposerState;
 struct DisplayCaptureArgs;
-struct DisplayConfig;
 struct DisplayInfo;
 struct DisplayStatInfo;
 struct DisplayState;
@@ -73,6 +72,7 @@ using gui::IScreenCaptureListener;
 
 namespace ui {
 
+struct DisplayMode;
 struct DisplayState;
 
 } // namespace ui
@@ -112,7 +112,7 @@ public:
     };
 
     enum class EventRegistration {
-        configChanged = 1 << 0,
+        modeChanged = 1 << 0,
         frameRateOverride = 1 << 1,
     };
 
@@ -207,15 +207,15 @@ public:
     virtual status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo*) = 0;
 
     /**
-     * Get configurations supported by given physical display.
+     * Get modes supported by given physical display.
      */
-    virtual status_t getDisplayConfigs(const sp<IBinder>& display, Vector<DisplayConfig>*) = 0;
+    virtual status_t getDisplayModes(const sp<IBinder>& display, Vector<ui::DisplayMode>*) = 0;
 
     /**
-     * Get the index into configurations returned by getDisplayConfigs,
-     * corresponding to the active configuration.
+     * Get the index into modes returned by getDisplayModes,
+     * corresponding to the active mode.
      */
-    virtual int getActiveConfig(const sp<IBinder>& display) = 0;
+    virtual int getActiveDisplayModeId(const sp<IBinder>& display) = 0;
 
     virtual status_t getDisplayColorModes(const sp<IBinder>& display,
             Vector<ui::ColorMode>* outColorModes) = 0;
@@ -386,34 +386,31 @@ public:
     /* Sets the refresh rate boundaries for the display.
      *
      * The primary refresh rate range represents display manager's general guidance on the display
-     * configs we'll consider when switching refresh rates. Unless we get an explicit signal from an
+     * modes we'll consider when switching refresh rates. Unless we get an explicit signal from an
      * app, we should stay within this range.
      *
-     * The app request refresh rate range allows us to consider more display configs when switching
+     * The app request refresh rate range allows us to consider more display modes when switching
      * refresh rates. Although we should generally stay within the primary range, specific
      * considerations, such as layer frame rate settings specified via the setFrameRate() api, may
      * cause us to go outside the primary range. We never go outside the app request range. The app
      * request range will be greater than or equal to the primary refresh rate range, never smaller.
      *
-     * defaultConfig is used to narrow the list of display configs SurfaceFlinger will consider
-     * switching between. Only configs with a config group and resolution matching defaultConfig
-     * will be considered for switching. The defaultConfig index corresponds to the list of configs
-     * returned from getDisplayConfigs().
+     * defaultMode is used to narrow the list of display modes SurfaceFlinger will consider
+     * switching between. Only modes with a mode group and resolution matching defaultMode
+     * will be considered for switching. The defaultMode index corresponds to the list of modes
+     * returned from getDisplayModes().
      */
-    virtual status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                  int32_t defaultConfig, bool allowGroupSwitching,
-                                                  float primaryRefreshRateMin,
-                                                  float primaryRefreshRateMax,
-                                                  float appRequestRefreshRateMin,
-                                                  float appRequestRefreshRateMax) = 0;
+    virtual status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, size_t defaultMode,
+                                                bool allowGroupSwitching,
+                                                float primaryRefreshRateMin,
+                                                float primaryRefreshRateMax,
+                                                float appRequestRefreshRateMin,
+                                                float appRequestRefreshRateMax) = 0;
 
-    virtual status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                                  int32_t* outDefaultConfig,
-                                                  bool* outAllowGroupSwitching,
-                                                  float* outPrimaryRefreshRateMin,
-                                                  float* outPrimaryRefreshRateMax,
-                                                  float* outAppRequestRefreshRateMin,
-                                                  float* outAppRequestRefreshRateMax) = 0;
+    virtual status_t getDesiredDisplayModeSpecs(
+            const sp<IBinder>& displayToken, size_t* outDefaultMode, bool* outAllowGroupSwitching,
+            float* outPrimaryRefreshRateMin, float* outPrimaryRefreshRateMax,
+            float* outAppRequestRefreshRateMin, float* outAppRequestRefreshRateMax) = 0;
     /*
      * Gets whether brightness operations are supported on a display.
      *
@@ -527,8 +524,8 @@ public:
         SET_TRANSACTION_STATE,
         AUTHENTICATE_SURFACE,
         GET_SUPPORTED_FRAME_TIMESTAMPS,
-        GET_DISPLAY_CONFIGS,
-        GET_ACTIVE_CONFIG,
+        GET_DISPLAY_MODES,
+        GET_ACTIVE_DISPLAY_MODE,
         GET_DISPLAY_STATE,
         CAPTURE_DISPLAY,
         CAPTURE_LAYERS,
@@ -554,8 +551,8 @@ public:
         GET_PHYSICAL_DISPLAY_IDS,
         ADD_REGION_SAMPLING_LISTENER,
         REMOVE_REGION_SAMPLING_LISTENER,
-        SET_DESIRED_DISPLAY_CONFIG_SPECS,
-        GET_DESIRED_DISPLAY_CONFIG_SPECS,
+        SET_DESIRED_DISPLAY_MODE_SPECS,
+        GET_DESIRED_DISPLAY_MODE_SPECS,
         GET_DISPLAY_BRIGHTNESS_SUPPORT,
         SET_DISPLAY_BRIGHTNESS,
         CAPTURE_DISPLAY_BY_ID,

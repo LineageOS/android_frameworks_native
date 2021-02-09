@@ -40,9 +40,9 @@ public:
                 ui::DisplayState displayState;
                 SurfaceComposerClient::getDisplayState(displayToken, &displayState);
 
-                DisplayConfig displayConfig;
-                SurfaceComposerClient::getActiveDisplayConfig(displayToken, &displayConfig);
-                const ui::Size& resolution = displayConfig.resolution;
+                ui::DisplayMode displayMode;
+                SurfaceComposerClient::getActiveDisplayMode(displayToken, &displayMode);
+                const ui::Size& resolution = displayMode.resolution;
 
                 sp<IBinder> vDisplay;
                 sp<IGraphicBufferProducer> producer;

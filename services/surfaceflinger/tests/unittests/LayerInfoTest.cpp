@@ -53,7 +53,7 @@ TEST_F(LayerInfoTest, prefersPresentTime) {
     for (int i = 1; i <= kNumFrames; i++) {
         frameTimes.push_back(FrameTimeData{.presentTime = kPeriod * i,
                                            .queueTime = 0,
-                                           .pendingConfigChange = false});
+                                           .pendingModeChange = false});
     }
     setFrameTimes(frameTimes);
     const auto averageFrameTime = calculateAverageFrameTime();
@@ -71,7 +71,7 @@ TEST_F(LayerInfoTest, fallbacksToQueueTimeIfNoPresentTime) {
     for (int i = 1; i <= kNumFrames; i++) {
         frameTimes.push_back(FrameTimeData{.presentTime = 0,
                                            .queueTime = kPeriod * i,
-                                           .pendingConfigChange = false});
+                                           .pendingModeChange = false});
     }
     setFrameTimes(frameTimes);
     setLastRefreshRate(Fps(20.0f)); // Set to some valid value
@@ -89,7 +89,7 @@ TEST_F(LayerInfoTest, returnsNulloptIfThereWasConfigChange) {
     for (int i = 1; i <= kNumFrames; i++) {
         frameTimesWithoutConfigChange.push_back(FrameTimeData{.presentTime = period * i,
                                                               .queueTime = period * i,
-                                                              .pendingConfigChange = false});
+                                                              .pendingModeChange = false});
     }
 
     setFrameTimes(frameTimesWithoutConfigChange);
@@ -98,7 +98,7 @@ TEST_F(LayerInfoTest, returnsNulloptIfThereWasConfigChange) {
     {
         // Config change in the first record
         auto frameTimes = frameTimesWithoutConfigChange;
-        frameTimes[0].pendingConfigChange = true;
+        frameTimes[0].pendingModeChange = true;
         setFrameTimes(frameTimes);
         ASSERT_FALSE(calculateAverageFrameTime().has_value());
     }
@@ -106,7 +106,7 @@ TEST_F(LayerInfoTest, returnsNulloptIfThereWasConfigChange) {
     {
         // Config change in the last record
         auto frameTimes = frameTimesWithoutConfigChange;
-        frameTimes[frameTimes.size() - 1].pendingConfigChange = true;
+        frameTimes[frameTimes.size() - 1].pendingModeChange = true;
         setFrameTimes(frameTimes);
         ASSERT_FALSE(calculateAverageFrameTime().has_value());
     }
@@ -114,7 +114,7 @@ TEST_F(LayerInfoTest, returnsNulloptIfThereWasConfigChange) {
     {
         // Config change in the middle
         auto frameTimes = frameTimesWithoutConfigChange;
-        frameTimes[frameTimes.size() / 2].pendingConfigChange = true;
+        frameTimes[frameTimes.size() / 2].pendingModeChange = true;
         setFrameTimes(frameTimes);
         ASSERT_FALSE(calculateAverageFrameTime().has_value());
     }
@@ -131,12 +131,12 @@ TEST_F(LayerInfoTest, ignoresSmallPeriods) {
     for (int i = 1; i <= kNumIterations; i++) {
         frameTimes.push_back(FrameTimeData{.presentTime = kExpectedPeriod * i,
                                            .queueTime = 0,
-                                           .pendingConfigChange = false});
+                                           .pendingModeChange = false});
 
         // A duplicate frame
         frameTimes.push_back(FrameTimeData{.presentTime = kExpectedPeriod * i + kSmallPeriod,
                                            .queueTime = 0,
-                                           .pendingConfigChange = false});
+                                           .pendingModeChange = false});
     }
     setFrameTimes(frameTimes);
     const auto averageFrameTime = calculateAverageFrameTime();
@@ -156,7 +156,7 @@ TEST_F(LayerInfoTest, ignoresLargePeriods) {
 
     auto record = [&](nsecs_t time) {
         frameTimes.push_back(
-                FrameTimeData{.presentTime = time, .queueTime = 0, .pendingConfigChange = false});
+                FrameTimeData{.presentTime = time, .queueTime = 0, .pendingModeChange = false});
     };
 
     auto time = kExpectedPeriod; // Start with non-zero time.

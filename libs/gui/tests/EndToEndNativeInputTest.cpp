@@ -41,7 +41,7 @@
 #include <input/InputTransport.h>
 #include <input/InputWindow.h>
 
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
@@ -272,13 +272,13 @@ public:
         const auto display = mComposerClient->getInternalDisplayToken();
         ASSERT_NE(display, nullptr);
 
-        DisplayConfig config;
-        ASSERT_EQ(NO_ERROR, mComposerClient->getActiveDisplayConfig(display, &config));
+        ui::DisplayMode mode;
+        ASSERT_EQ(NO_ERROR, mComposerClient->getActiveDisplayMode(display, &mode));
 
         // After a new buffer is queued, SurfaceFlinger is notified and will
         // latch the new buffer on next vsync.  Let's heuristically wait for 3
         // vsyncs.
-        mBufferPostDelay = static_cast<int32_t>(1e6 / config.refreshRate) * 3;
+        mBufferPostDelay = static_cast<int32_t>(1e6 / mode.refreshRate) * 3;
     }
 
     void TearDown() {

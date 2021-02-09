@@ -44,7 +44,7 @@ LayerInfo::LayerInfo(const std::string& name, LayerHistory::LayerVoteType defaul
         mRefreshRateHistory(name) {}
 
 void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUpdateType updateType,
-                                   bool pendingConfigChange) {
+                                   bool pendingModeChange) {
     lastPresentTime = std::max(lastPresentTime, static_cast<nsecs_t>(0));
 
     mLastUpdatedTime = std::max(lastPresentTime, now);
@@ -56,7 +56,7 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUp
         case LayerUpdateType::Buffer:
             FrameTimeData frameTime = {.presentTime = lastPresentTime,
                                        .queueTime = mLastUpdatedTime,
-                                       .pendingConfigChange = pendingConfigChange};
+                                       .pendingModeChange = pendingModeChange};
             mFrameTimes.push_back(frameTime);
             if (mFrameTimes.size() > HISTORY_SIZE) {
                 mFrameTimes.pop_front();
@@ -124,11 +124,11 @@ bool LayerInfo::hasEnoughDataForHeuristic() const {
 }
 
 std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
-    // Ignore frames captured during a config change
-    const bool isDuringConfigChange =
+    // Ignore frames captured during a mode change
+    const bool isDuringModeChange =
             std::any_of(mFrameTimes.begin(), mFrameTimes.end(),
-                        [](auto frame) { return frame.pendingConfigChange; });
-    if (isDuringConfigChange) {
+                        [](const auto& frame) { return frame.pendingModeChange; });
+    if (isDuringModeChange) {
         return std::nullopt;
     }
 
