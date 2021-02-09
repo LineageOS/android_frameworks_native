@@ -37,13 +37,13 @@ protected:
 
         mMainDisplay = SurfaceComposerClient::getInternalDisplayToken();
         SurfaceComposerClient::getDisplayState(mMainDisplay, &mMainDisplayState);
-        SurfaceComposerClient::getActiveDisplayConfig(mMainDisplay, &mMainDisplayConfig);
+        SurfaceComposerClient::getActiveDisplayMode(mMainDisplay, &mMainDisplayMode);
 
         sp<IGraphicBufferConsumer> consumer;
         BufferQueue::createBufferQueue(&mProducer, &consumer);
         consumer->setConsumerName(String8("Virtual disp consumer"));
-        consumer->setDefaultBufferSize(mMainDisplayConfig.resolution.getWidth(),
-                                       mMainDisplayConfig.resolution.getHeight());
+        consumer->setDefaultBufferSize(mMainDisplayMode.resolution.getWidth(),
+                                       mMainDisplayMode.resolution.getHeight());
     }
 
     virtual void TearDown() {
@@ -59,7 +59,7 @@ protected:
             t.setDisplaySurface(mVirtualDisplay, mProducer);
             t.setDisplayLayerStack(mVirtualDisplay, layerStack);
             t.setDisplayProjection(mVirtualDisplay, mMainDisplayState.orientation,
-                                   Rect(layerStackSize), Rect(mMainDisplayConfig.resolution));
+                                   Rect(layerStackSize), Rect(mMainDisplayMode.resolution));
         });
     }
 
@@ -81,7 +81,7 @@ protected:
     }
 
     ui::DisplayState mMainDisplayState;
-    DisplayConfig mMainDisplayConfig;
+    ui::DisplayMode mMainDisplayMode;
     sp<IBinder> mMainDisplay;
     sp<IBinder> mVirtualDisplay;
     sp<IGraphicBufferProducer> mProducer;

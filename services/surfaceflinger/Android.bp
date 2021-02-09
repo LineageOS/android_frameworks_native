@@ -173,7 +173,7 @@ filegroup {
         "SurfaceFlingerDefaultFactory.cpp",
         "SurfaceInterceptor.cpp",
         "SurfaceTracing.cpp",
-        "TransactionCompletedThread.cpp",
+        "TransactionCallbackInvoker.cpp",
     ],
 }
 

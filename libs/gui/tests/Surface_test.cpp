@@ -737,7 +737,7 @@ public:
     status_t getDisplayInfo(const sp<IBinder>& /*display*/, DisplayInfo*) override {
         return NO_ERROR;
     }
-    status_t getDisplayConfigs(const sp<IBinder>& /*display*/, Vector<DisplayConfig>*) override {
+    status_t getDisplayModes(const sp<IBinder>& /*display*/, Vector<ui::DisplayMode>*) override {
         return NO_ERROR;
     }
     status_t getDisplayState(const sp<IBinder>& /*display*/, ui::DisplayState*) override {
@@ -745,7 +745,7 @@ public:
     }
     status_t getDisplayStats(const sp<IBinder>& /*display*/,
             DisplayStatInfo* /*stats*/) override { return NO_ERROR; }
-    int getActiveConfig(const sp<IBinder>& /*display*/) override { return 0; }
+    int getActiveDisplayModeId(const sp<IBinder>& /*display*/) override { return 0; }
     status_t getDisplayColorModes(const sp<IBinder>& /*display*/,
             Vector<ColorMode>* /*outColorModes*/) override {
         return NO_ERROR;
@@ -843,21 +843,21 @@ public:
             const sp<IRegionSamplingListener>& /*listener*/) override {
         return NO_ERROR;
     }
-    status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& /*displayToken*/,
-                                          int32_t /*defaultConfig*/, bool /*allowGroupSwitching*/,
-                                          float /*primaryRefreshRateMin*/,
-                                          float /*primaryRefreshRateMax*/,
-                                          float /*appRequestRefreshRateMin*/,
-                                          float /*appRequestRefreshRateMax*/) {
+    status_t setDesiredDisplayModeSpecs(const sp<IBinder>& /*displayToken*/, size_t /*defaultMode*/,
+                                        bool /*allowGroupSwitching*/,
+                                        float /*primaryRefreshRateMin*/,
+                                        float /*primaryRefreshRateMax*/,
+                                        float /*appRequestRefreshRateMin*/,
+                                        float /*appRequestRefreshRateMax*/) {
         return NO_ERROR;
     }
-    status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& /*displayToken*/,
-                                          int32_t* /*outDefaultConfig*/,
-                                          bool* /*outAllowGroupSwitching*/,
-                                          float* /*outPrimaryRefreshRateMin*/,
-                                          float* /*outPrimaryRefreshRateMax*/,
-                                          float* /*outAppRequestRefreshRateMin*/,
-                                          float* /*outAppRequestRefreshRateMax*/) override {
+    status_t getDesiredDisplayModeSpecs(const sp<IBinder>& /*displayToken*/,
+                                        size_t* /*outDefaultMode*/,
+                                        bool* /*outAllowGroupSwitching*/,
+                                        float* /*outPrimaryRefreshRateMin*/,
+                                        float* /*outPrimaryRefreshRateMax*/,
+                                        float* /*outAppRequestRefreshRateMin*/,
+                                        float* /*outAppRequestRefreshRateMax*/) override {
         return NO_ERROR;
     };
     status_t notifyPowerBoost(int32_t /*boostId*/) override { return NO_ERROR; }

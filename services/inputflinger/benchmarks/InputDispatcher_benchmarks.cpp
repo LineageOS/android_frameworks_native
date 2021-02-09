@@ -79,6 +79,8 @@ private:
     void notifySensorAccuracy(int32_t deviceId, InputDeviceSensorType sensorType,
                               InputDeviceSensorAccuracy accuracy) override {}
 
+    void notifyVibratorState(int32_t deviceId, bool isOn) override {}
+
     void notifyUntrustedTouch(const std::string& obscuringPackage) override {}
 
     void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {

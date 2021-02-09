@@ -81,24 +81,25 @@ protected:
     static inline const DisplayModeId HWC_CONFIG_ID_50 = DisplayModeId(6);
 
     // Test configs
-    DisplayModePtr mConfig60 = createConfig(HWC_CONFIG_ID_60, 0, Fps(60.0f).getPeriodNsecs());
-    DisplayModePtr mConfig90 = createConfig(HWC_CONFIG_ID_90, 0, Fps(90.0f).getPeriodNsecs());
+    DisplayModePtr mConfig60 = createDisplayMode(HWC_CONFIG_ID_60, 0, Fps(60.0f).getPeriodNsecs());
+    DisplayModePtr mConfig90 = createDisplayMode(HWC_CONFIG_ID_90, 0, Fps(90.0f).getPeriodNsecs());
     DisplayModePtr mConfig90DifferentGroup =
-            createConfig(HWC_CONFIG_ID_90, 1, Fps(90.0f).getPeriodNsecs());
+            createDisplayMode(HWC_CONFIG_ID_90, 1, Fps(90.0f).getPeriodNsecs());
     DisplayModePtr mConfig90DifferentResolution =
-            createConfig(HWC_CONFIG_ID_90, 0, Fps(90.0f).getPeriodNsecs(), ui::Size(111, 222));
-    DisplayModePtr mConfig72 = createConfig(HWC_CONFIG_ID_72, 0, Fps(72.0f).getPeriodNsecs());
+            createDisplayMode(HWC_CONFIG_ID_90, 0, Fps(90.0f).getPeriodNsecs(), ui::Size(111, 222));
+    DisplayModePtr mConfig72 = createDisplayMode(HWC_CONFIG_ID_72, 0, Fps(72.0f).getPeriodNsecs());
     DisplayModePtr mConfig72DifferentGroup =
-            createConfig(HWC_CONFIG_ID_72, 1, Fps(72.0f).getPeriodNsecs());
-    DisplayModePtr mConfig120 = createConfig(HWC_CONFIG_ID_120, 0, Fps(120.0f).getPeriodNsecs());
+            createDisplayMode(HWC_CONFIG_ID_72, 1, Fps(72.0f).getPeriodNsecs());
+    DisplayModePtr mConfig120 =
+            createDisplayMode(HWC_CONFIG_ID_120, 0, Fps(120.0f).getPeriodNsecs());
     DisplayModePtr mConfig120DifferentGroup =
-            createConfig(HWC_CONFIG_ID_120, 1, Fps(120.0f).getPeriodNsecs());
-    DisplayModePtr mConfig30 = createConfig(HWC_CONFIG_ID_30, 0, Fps(30.0f).getPeriodNsecs());
+            createDisplayMode(HWC_CONFIG_ID_120, 1, Fps(120.0f).getPeriodNsecs());
+    DisplayModePtr mConfig30 = createDisplayMode(HWC_CONFIG_ID_30, 0, Fps(30.0f).getPeriodNsecs());
     DisplayModePtr mConfig30DifferentGroup =
-            createConfig(HWC_CONFIG_ID_30, 1, Fps(30.0f).getPeriodNsecs());
+            createDisplayMode(HWC_CONFIG_ID_30, 1, Fps(30.0f).getPeriodNsecs());
     DisplayModePtr mConfig25DifferentGroup =
-            createConfig(HWC_CONFIG_ID_25, 1, Fps(25.0f).getPeriodNsecs());
-    DisplayModePtr mConfig50 = createConfig(HWC_CONFIG_ID_50, 0, Fps(50.0f).getPeriodNsecs());
+            createDisplayMode(HWC_CONFIG_ID_25, 1, Fps(25.0f).getPeriodNsecs());
+    DisplayModePtr mConfig50 = createDisplayMode(HWC_CONFIG_ID_50, 0, Fps(50.0f).getPeriodNsecs());
 
     // Test device configurations
     // The positions of the configs in the arrays below MUST match their IDs. For example,
@@ -128,8 +129,8 @@ protected:
     RefreshRate mExpected60Config = {HWC_CONFIG_ID_60, mConfig60, Fps(60),
                                      RefreshRate::ConstructorTag(0)};
     RefreshRate mExpectedAlmost60Config = {HWC_CONFIG_ID_60,
-                                           createConfig(HWC_CONFIG_ID_60, 0, 16666665), Fps(60),
-                                           RefreshRate::ConstructorTag(0)};
+                                           createDisplayMode(HWC_CONFIG_ID_60, 0, 16666665),
+                                           Fps(60), RefreshRate::ConstructorTag(0)};
     RefreshRate mExpected90Config = {HWC_CONFIG_ID_90, mConfig90, Fps(90),
                                      RefreshRate::ConstructorTag(0)};
     RefreshRate mExpected90DifferentGroupConfig = {HWC_CONFIG_ID_90, mConfig90DifferentGroup,
@@ -144,8 +145,8 @@ protected:
     RefreshRate mExpected120Config = {HWC_CONFIG_ID_120, mConfig120, Fps(120),
                                       RefreshRate::ConstructorTag(0)};
 private:
-    DisplayModePtr createConfig(DisplayModeId configId, int32_t configGroup, int64_t vsyncPeriod,
-                                ui::Size resolution = ui::Size());
+    DisplayModePtr createDisplayMode(DisplayModeId modeId, int32_t group, int64_t vsyncPeriod,
+                                     ui::Size resolution = ui::Size());
 };
 
 using Builder = DisplayMode::Builder;
@@ -162,12 +163,12 @@ RefreshRateConfigsTest::~RefreshRateConfigsTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-DisplayModePtr RefreshRateConfigsTest::createConfig(DisplayModeId configId, int32_t configGroup,
-                                                    int64_t vsyncPeriod, ui::Size resolution) {
-    return DisplayMode::Builder(hal::HWConfigId(configId.value()))
-            .setId(configId)
+DisplayModePtr RefreshRateConfigsTest::createDisplayMode(DisplayModeId modeId, int32_t group,
+                                                         int64_t vsyncPeriod, ui::Size resolution) {
+    return DisplayMode::Builder(hal::HWConfigId(modeId.value()))
+            .setId(modeId)
             .setVsyncPeriod(int32_t(vsyncPeriod))
-            .setConfigGroup(configGroup)
+            .setGroup(group)
             .setHeight(resolution.height)
             .setWidth(resolution.width)
             .build();
@@ -226,7 +227,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
 
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {Fps(60), Fps(90)}}),
               0);
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
 
     const auto& minRate90 = getMinRefreshRateByPolicy(*refreshRateConfigs);
     const auto& performanceRate90 = refreshRateConfigs->getMaxRefreshRateByPolicy();
@@ -252,7 +253,7 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_storesFullRefreshRateMap_differe
 
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {Fps(60), Fps(90)}}),
               0);
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
 
     const auto& minRate90 = getMinRefreshRateByPolicy(*refreshRateConfigs);
     const auto& performanceRate90 = refreshRateConfigs->getMaxRefreshRateByPolicy();
@@ -288,20 +289,20 @@ TEST_F(RefreshRateConfigsTest, twoDeviceConfigs_getCurrentRefreshRate) {
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
     {
         auto current = refreshRateConfigs->getCurrentRefreshRate();
-        EXPECT_EQ(current.getConfigId(), HWC_CONFIG_ID_60);
+        EXPECT_EQ(current.getModeId(), HWC_CONFIG_ID_60);
     }
 
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
     {
         auto current = refreshRateConfigs->getCurrentRefreshRate();
-        EXPECT_EQ(current.getConfigId(), HWC_CONFIG_ID_90);
+        EXPECT_EQ(current.getModeId(), HWC_CONFIG_ID_90);
     }
 
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy({HWC_CONFIG_ID_90, {Fps(90), Fps(90)}}),
               0);
     {
         auto current = refreshRateConfigs->getCurrentRefreshRate();
-        EXPECT_EQ(current.getConfigId(), HWC_CONFIG_ID_90);
+        EXPECT_EQ(current.getModeId(), HWC_CONFIG_ID_90);
     }
 }
 
@@ -1196,30 +1197,30 @@ TEST_F(RefreshRateConfigsTest, groupSwitching) {
 
     ASSERT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 
     RefreshRateConfigs::Policy policy;
-    policy.defaultConfig = refreshRateConfigs->getCurrentPolicy().defaultConfig;
+    policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
     ASSERT_EQ(HWC_CONFIG_ID_90,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 
     // Verify that we won't change the group if seamless switch is required.
     layer.seamlessness = Seamlessness::OnlySeamless;
     ASSERT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 
     // Verify that we won't do a seamless switch if we request the same mode as the default
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
     layer.desiredRefreshRate = Fps(60.0f);
     layer.name = "60Hz ExplicitDefault";
     layer.seamlessness = Seamlessness::OnlySeamless;
     ASSERT_EQ(HWC_CONFIG_ID_90,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 
     // Verify that if the current config is in another group and there are no layers with
     // seamlessness=SeamedAndSeamless we'll go back to the default group.
@@ -1228,11 +1229,11 @@ TEST_F(RefreshRateConfigsTest, groupSwitching) {
     layer.seamlessness = Seamlessness::Default;
     ASSERT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 
     // If there's a layer with seamlessness=SeamedAndSeamless, another layer with
-    // seamlessness=OnlySeamless can't change the config group.
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    // seamlessness=OnlySeamless can't change the mode group.
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
     layer.seamlessness = Seamlessness::OnlySeamless;
 
     layers.push_back(LayerRequirement{.weight = 0.5f});
@@ -1245,14 +1246,14 @@ TEST_F(RefreshRateConfigsTest, groupSwitching) {
 
     ASSERT_EQ(HWC_CONFIG_ID_90,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 
     // If there's a layer with seamlessness=SeamedAndSeamless, another layer with
-    // seamlessness=Default can't change the config group.
+    // seamlessness=Default can't change the mode group.
     layers[0].seamlessness = Seamlessness::Default;
     ASSERT_EQ(HWC_CONFIG_ID_90,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 }
 
 TEST_F(RefreshRateConfigsTest, nonSeamlessVotePrefersSeamlessSwitches) {
@@ -1262,7 +1263,7 @@ TEST_F(RefreshRateConfigsTest, nonSeamlessVotePrefersSeamlessSwitches) {
 
     // Allow group switching.
     RefreshRateConfigs::Policy policy;
-    policy.defaultConfig = refreshRateConfigs->getCurrentPolicy().defaultConfig;
+    policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
 
@@ -1276,12 +1277,12 @@ TEST_F(RefreshRateConfigsTest, nonSeamlessVotePrefersSeamlessSwitches) {
 
     ASSERT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_120);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_120);
     ASSERT_EQ(HWC_CONFIG_ID_120,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 }
 
 TEST_F(RefreshRateConfigsTest, nonSeamlessExactAndSeamlessMultipleLayers) {
@@ -1291,7 +1292,7 @@ TEST_F(RefreshRateConfigsTest, nonSeamlessExactAndSeamlessMultipleLayers) {
 
     // Allow group switching.
     RefreshRateConfigs::Policy policy;
-    policy.defaultConfig = refreshRateConfigs->getCurrentPolicy().defaultConfig;
+    policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
 
@@ -1312,14 +1313,14 @@ TEST_F(RefreshRateConfigsTest, nonSeamlessExactAndSeamlessMultipleLayers) {
 
     ASSERT_EQ(HWC_CONFIG_ID_50,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 
     seamedLayer.name = "30Hz ExplicitDefault", seamedLayer.desiredRefreshRate = Fps(30.0f);
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_30);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_30);
 
     ASSERT_EQ(HWC_CONFIG_ID_25,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
 }
 
 TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
@@ -1338,7 +1339,7 @@ TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
         layers[0].desiredRefreshRate = fps;
         layers[0].focused = focused;
         return refreshRateConfigs->getBestRefreshRate(layers, {.touch = touchActive, .idle = false})
-                .getConfigId();
+                .getModeId();
     };
 
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(
@@ -1346,7 +1347,7 @@ TEST_F(RefreshRateConfigsTest, primaryVsAppRequestPolicy) {
               0);
     EXPECT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate({}, {.touch = false, .idle = false})
-                      .getConfigId());
+                      .getModeId());
     EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::NoVote, Fps(90.f)));
     EXPECT_EQ(HWC_CONFIG_ID_30, getFrameRate(LayerVoteType::Min, Fps(90.f)));
     EXPECT_EQ(HWC_CONFIG_ID_60, getFrameRate(LayerVoteType::Max, Fps(90.f)));
@@ -1398,7 +1399,7 @@ TEST_F(RefreshRateConfigsTest, idle) {
                 refreshRateConfigs
                         ->getBestRefreshRate(layers, {.touch = touchActive, .idle = true},
                                              &consideredSignals)
-                        .getConfigId();
+                        .getModeId();
         // Refresh rate will be chosen by either touch state or idle state
         EXPECT_EQ(!touchActive, consideredSignals.idle);
         return configId;
@@ -1421,10 +1422,10 @@ TEST_F(RefreshRateConfigsTest, idle) {
     // With no layers, idle should still be lower priority than touch boost.
     EXPECT_EQ(HWC_CONFIG_ID_90,
               refreshRateConfigs->getBestRefreshRate({}, {.touch = true, .idle = true})
-                      .getConfigId());
+                      .getModeId());
 
     // Idle should be higher precedence than other layer frame rate considerations.
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
     EXPECT_EQ(HWC_CONFIG_ID_60, getIdleFrameRate(LayerVoteType::NoVote, /*touchActive=*/false));
     EXPECT_EQ(HWC_CONFIG_ID_60, getIdleFrameRate(LayerVoteType::Min, /*touchActive=*/false));
     EXPECT_EQ(HWC_CONFIG_ID_60, getIdleFrameRate(LayerVoteType::Max, /*touchActive=*/false));
@@ -1437,7 +1438,7 @@ TEST_F(RefreshRateConfigsTest, idle) {
     // Idle should be applied rather than the current config when there are no layers.
     EXPECT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate({}, {.touch = false, .idle = true})
-                      .getConfigId());
+                      .getModeId());
 }
 
 TEST_F(RefreshRateConfigsTest, findClosestKnownFrameRate) {
@@ -1628,19 +1629,19 @@ TEST_F(RefreshRateConfigsTest, getRefreshRateDivider) {
     const auto frameRate = Fps(30.f);
     EXPECT_EQ(1, refreshRateConfigs->getRefreshRateDivider(frameRate));
 
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_60);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_60);
     EXPECT_EQ(2, refreshRateConfigs->getRefreshRateDivider(frameRate));
 
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_72);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_72);
     EXPECT_EQ(0, refreshRateConfigs->getRefreshRateDivider(frameRate));
 
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
     EXPECT_EQ(3, refreshRateConfigs->getRefreshRateDivider(frameRate));
 
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_120);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_120);
     EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDivider(frameRate));
 
-    refreshRateConfigs->setCurrentConfigId(HWC_CONFIG_ID_90);
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
     EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDivider(Fps(22.5f)));
     EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDivider(Fps(22.6f)));
 }
