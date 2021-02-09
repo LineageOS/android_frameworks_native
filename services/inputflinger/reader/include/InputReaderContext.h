@@ -80,6 +80,7 @@ public:
     virtual void notifySensor(nsecs_t when, int32_t deviceId, InputDeviceSensorType sensorType,
                               InputDeviceSensorAccuracy accuracy, bool accuracyChanged,
                               nsecs_t timestamp, std::vector<float> values) = 0;
+    virtual void notifyVibratorState(nsecs_t when, int32_t deviceId, bool isOn) = 0;
     virtual void notifyDeviceReset(nsecs_t when, int32_t deviceId) = 0;
     virtual void notifyPointerCaptureChanged(nsecs_t when, bool hasCapture) = 0;
 };

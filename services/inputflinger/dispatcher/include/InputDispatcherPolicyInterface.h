@@ -84,6 +84,7 @@ public:
                                    const std::vector<float>& values) = 0;
     virtual void notifySensorAccuracy(int32_t deviceId, InputDeviceSensorType sensorType,
                                       InputDeviceSensorAccuracy accuracy) = 0;
+    virtual void notifyVibratorState(int32_t deviceId, bool isOn) = 0;
 
     /* Notifies the system that an untrusted touch occurred. */
     virtual void notifyUntrustedTouch(const std::string& obscuringPackage) = 0;

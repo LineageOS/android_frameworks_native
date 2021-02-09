@@ -312,6 +312,10 @@ void SurfaceFrame::setAcquireFenceTime(nsecs_t acquireFenceTime) {
 
 void SurfaceFrame::setPresentState(PresentState presentState, nsecs_t lastLatchTime) {
     std::scoped_lock lock(mMutex);
+    LOG_ALWAYS_FATAL_IF(mPresentState != PresentState::Unknown,
+                        "setPresentState called on a SurfaceFrame from Layer - %s, that has a "
+                        "PresentState - %s set already.",
+                        mDebugName.c_str(), toString(mPresentState).c_str());
     mPresentState = presentState;
     mLastLatchTime = lastLatchTime;
 }

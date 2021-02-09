@@ -223,6 +223,24 @@ struct NotifyPointerCaptureChangedArgs : public NotifyArgs {
     virtual void notify(const sp<InputListenerInterface>& listener) const;
 };
 
+/* Describes a vibrator state event. */
+struct NotifyVibratorStateArgs : public NotifyArgs {
+    int32_t deviceId;
+    bool isOn;
+
+    inline NotifyVibratorStateArgs() {}
+
+    NotifyVibratorStateArgs(int32_t id, nsecs_t eventTIme, int32_t deviceId, bool isOn);
+
+    NotifyVibratorStateArgs(const NotifyVibratorStateArgs& other);
+
+    bool operator==(const NotifyVibratorStateArgs rhs) const;
+
+    virtual ~NotifyVibratorStateArgs() {}
+
+    virtual void notify(const sp<InputListenerInterface>& listener) const;
+};
+
 /*
  * The interface used by the InputReader to notify the InputListener about input events.
  */
@@ -237,6 +255,7 @@ public:
     virtual void notifyMotion(const NotifyMotionArgs* args) = 0;
     virtual void notifySwitch(const NotifySwitchArgs* args) = 0;
     virtual void notifySensor(const NotifySensorArgs* args) = 0;
+    virtual void notifyVibratorState(const NotifyVibratorStateArgs* args) = 0;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) = 0;
     virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) = 0;
 };
@@ -259,6 +278,7 @@ public:
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
     virtual void notifySensor(const NotifySensorArgs* args) override;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
+    void notifyVibratorState(const NotifyVibratorStateArgs* args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 
     void flush();

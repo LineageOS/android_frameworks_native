@@ -70,7 +70,7 @@ protected:
 class Scheduler {
 public:
     using RefreshRate = scheduler::RefreshRateConfigs::RefreshRate;
-    using ConfigEvent = scheduler::RefreshRateConfigEvent;
+    using ModeEvent = scheduler::RefreshRateConfigEvent;
 
     Scheduler(const scheduler::RefreshRateConfigs&, ISchedulerCallback&);
     ~Scheduler();
@@ -87,10 +87,10 @@ public:
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
-    void onPrimaryDisplayConfigChanged(ConnectionHandle, PhysicalDisplayId, DisplayModeId configId,
-                                       nsecs_t vsyncPeriod) EXCLUDES(mFeatureStateLock);
-    void onNonPrimaryDisplayConfigChanged(ConnectionHandle, PhysicalDisplayId,
-                                          DisplayModeId configId, nsecs_t vsyncPeriod);
+    void onPrimaryDisplayModeChanged(ConnectionHandle, PhysicalDisplayId, DisplayModeId,
+                                     nsecs_t vsyncPeriod) EXCLUDES(mFeatureStateLock);
+    void onNonPrimaryDisplayModeChanged(ConnectionHandle, PhysicalDisplayId, DisplayModeId,
+                                        nsecs_t vsyncPeriod);
     void onScreenAcquired(ConnectionHandle);
     void onScreenReleased(ConnectionHandle);
 
@@ -128,7 +128,7 @@ public:
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
     void recordLayerHistory(Layer*, nsecs_t presentTime, LayerHistory::LayerUpdateType updateType);
-    void setConfigChangePending(bool pending);
+    void setModeChangePending(bool pending);
 
     // Detects content using layer history, and selects a matching refresh rate.
     void chooseRefreshRateForContent();
@@ -153,7 +153,7 @@ public:
     void dumpVsync(std::string&) const;
 
     // Get the appropriate refresh for current conditions.
-    std::optional<DisplayModeId> getPreferredConfigId();
+    std::optional<DisplayModeId> getPreferredModeId();
 
     // Notifies the scheduler about a refresh rate timeline change.
     void onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline);
@@ -227,11 +227,11 @@ private:
     // This function checks whether individual features that are affecting the refresh rate
     // selection were initialized, prioritizes them, and calculates the DisplayModeId
     // for the suggested refresh rate.
-    DisplayModeId calculateRefreshRateConfigIndexType(
+    DisplayModeId calculateRefreshRateModeId(
             scheduler::RefreshRateConfigs::GlobalSignals* consideredSignals = nullptr)
             REQUIRES(mFeatureStateLock);
 
-    void dispatchCachedReportedConfig() REQUIRES(mFeatureStateLock);
+    void dispatchCachedReportedMode() REQUIRES(mFeatureStateLock);
     bool updateFrameRateOverrides(scheduler::RefreshRateConfigs::GlobalSignals consideredSignals,
                                   Fps displayRefreshRate) REQUIRES(mFeatureStateLock)
             EXCLUDES(mFrameRateOverridesMutex);
@@ -283,20 +283,20 @@ private:
         TouchState touch = TouchState::Inactive;
         TimerState displayPowerTimer = TimerState::Expired;
 
-        std::optional<DisplayModeId> configId;
+        std::optional<DisplayModeId> modeId;
         LayerHistory::Summary contentRequirements;
 
         bool isDisplayPowerStateNormal = true;
 
-        // Used to cache the last parameters of onPrimaryDisplayConfigChanged
-        struct ConfigChangedParams {
+        // Used to cache the last parameters of onPrimaryDisplayModeChanged
+        struct ModeChangedParams {
             ConnectionHandle handle;
             PhysicalDisplayId displayId;
-            DisplayModeId configId;
+            DisplayModeId modeId;
             nsecs_t vsyncPeriod;
         };
 
-        std::optional<ConfigChangedParams> cachedConfigChangedParams;
+        std::optional<ModeChangedParams> cachedModeChangedParams;
     } mFeatures GUARDED_BY(mFeatureStateLock);
 
     const scheduler::RefreshRateConfigs& mRefreshRateConfigs;

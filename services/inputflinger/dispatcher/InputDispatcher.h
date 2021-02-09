@@ -96,6 +96,7 @@ public:
     virtual void notifyMotion(const NotifyMotionArgs* args) override;
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
     virtual void notifySensor(const NotifySensorArgs* args) override;
+    virtual void notifyVibratorState(const NotifyVibratorStateArgs* args) override;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
     virtual void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs* args) override;
 

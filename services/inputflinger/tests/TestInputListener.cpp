@@ -86,6 +86,12 @@ void TestInputListener::assertNotifySensorWasCalled(NotifySensorArgs* outEventAr
                                            "Expected notifySensor() to have been called."));
 }
 
+void TestInputListener::assertNotifyVibratorStateWasCalled(NotifyVibratorStateArgs* outEventArgs) {
+    ASSERT_NO_FATAL_FAILURE(assertCalled<NotifyVibratorStateArgs>(outEventArgs,
+                                                                  "Expected notifyVibratorState() "
+                                                                  "to have been called."));
+}
+
 void TestInputListener::assertNotifyCaptureWasCalled(
         NotifyPointerCaptureChangedArgs* outEventArgs) {
     ASSERT_NO_FATAL_FAILURE(
@@ -163,6 +169,10 @@ void TestInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureCh
 
 void TestInputListener::notifySensor(const NotifySensorArgs* args) {
     notify<NotifySensorArgs>(args);
+}
+
+void TestInputListener::notifyVibratorState(const NotifyVibratorStateArgs* args) {
+    notify<NotifyVibratorStateArgs>(args);
 }
 
 } // namespace android

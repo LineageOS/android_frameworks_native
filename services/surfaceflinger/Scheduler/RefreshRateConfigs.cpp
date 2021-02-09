@@ -40,13 +40,13 @@ std::string formatLayerInfo(const RefreshRateConfigs::LayerRequirement& layer, f
                               to_string(layer.desiredRefreshRate).c_str());
 }
 
-std::vector<Fps> constructKnownFrameRates(const DisplayModes& configs) {
+std::vector<Fps> constructKnownFrameRates(const DisplayModes& modes) {
     std::vector<Fps> knownFrameRates = {Fps(24.0f), Fps(30.0f), Fps(45.0f), Fps(60.0f), Fps(72.0f)};
-    knownFrameRates.reserve(knownFrameRates.size() + configs.size());
+    knownFrameRates.reserve(knownFrameRates.size() + modes.size());
 
     // Add all supported refresh rates to the set
-    for (const auto& config : configs) {
-        const auto refreshRate = Fps::fromPeriodNsecs(config->getVsyncPeriod());
+    for (const auto& mode : modes) {
+        const auto refreshRate = Fps::fromPeriodNsecs(mode->getVsyncPeriod());
         knownFrameRates.emplace_back(refreshRate);
     }
 
@@ -65,8 +65,8 @@ using RefreshRate = RefreshRateConfigs::RefreshRate;
 
 std::string RefreshRate::toString() const {
     return base::StringPrintf("{id=%zu, hwcId=%d, fps=%.2f, width=%d, height=%d group=%d}",
-                              getConfigId().value(), hwcConfig->getHwcId(), getFps().getValue(),
-                              hwcConfig->getWidth(), hwcConfig->getHeight(), getConfigGroup());
+                              getModeId().value(), mode->getHwcId(), getFps().getValue(),
+                              mode->getWidth(), mode->getHeight(), getModeGroup());
 }
 
 std::string RefreshRateConfigs::layerVoteTypeString(LayerVoteType vote) {
@@ -89,9 +89,9 @@ std::string RefreshRateConfigs::layerVoteTypeString(LayerVoteType vote) {
 }
 
 std::string RefreshRateConfigs::Policy::toString() const {
-    return base::StringPrintf("default config ID: %zu, allowGroupSwitching = %d"
+    return base::StringPrintf("default mode ID: %zu, allowGroupSwitching = %d"
                               ", primary range: %s, app request range: %s",
-                              defaultConfig.value(), allowGroupSwitching,
+                              defaultMode.value(), allowGroupSwitching,
                               primaryRange.toString().c_str(), appRequestRange.toString().c_str());
 }
 
@@ -291,7 +291,7 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
         scores.emplace_back(RefreshRateScore{refreshRate, 0.0f});
     }
 
-    const auto& defaultConfig = mRefreshRates.at(policy->defaultConfig);
+    const auto& defaultMode = mRefreshRates.at(policy->defaultMode);
 
     for (const auto& layer : layers) {
         ALOGV("Calculating score for %s (%s, weight %.2f)", layer.name.c_str(),
@@ -303,11 +303,11 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
         auto weight = layer.weight;
 
         for (auto i = 0u; i < scores.size(); i++) {
-            const bool isSeamlessSwitch = scores[i].refreshRate->getConfigGroup() ==
-                    mCurrentRefreshRate->getConfigGroup();
+            const bool isSeamlessSwitch =
+                    scores[i].refreshRate->getModeGroup() == mCurrentRefreshRate->getModeGroup();
 
             if (layer.seamlessness == Seamlessness::OnlySeamless && !isSeamlessSwitch) {
-                ALOGV("%s ignores %s to avoid non-seamless switch. Current config = %s",
+                ALOGV("%s ignores %s to avoid non-seamless switch. Current mode = %s",
                       formatLayerInfo(layer, weight).c_str(),
                       scores[i].refreshRate->toString().c_str(),
                       mCurrentRefreshRate->toString().c_str());
@@ -317,26 +317,25 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
             if (layer.seamlessness == Seamlessness::SeamedAndSeamless && !isSeamlessSwitch &&
                 !layer.focused) {
                 ALOGV("%s ignores %s because it's not focused and the switch is going to be seamed."
-                      " Current config = %s",
+                      " Current mode = %s",
                       formatLayerInfo(layer, weight).c_str(),
                       scores[i].refreshRate->toString().c_str(),
                       mCurrentRefreshRate->toString().c_str());
                 continue;
             }
 
-            // Layers with default seamlessness vote for the current config group if
+            // Layers with default seamlessness vote for the current mode group if
             // there are layers with seamlessness=SeamedAndSeamless and for the default
-            // config group otherwise. In second case, if the current config group is different
+            // mode group otherwise. In second case, if the current mode group is different
             // from the default, this means a layer with seamlessness=SeamedAndSeamless has just
             // disappeared.
             const bool isInPolicyForDefault = seamedLayers > 0
-                    ? scores[i].refreshRate->getConfigGroup() ==
-                            mCurrentRefreshRate->getConfigGroup()
-                    : scores[i].refreshRate->getConfigGroup() == defaultConfig->getConfigGroup();
+                    ? scores[i].refreshRate->getModeGroup() == mCurrentRefreshRate->getModeGroup()
+                    : scores[i].refreshRate->getModeGroup() == defaultMode->getModeGroup();
 
             if (layer.seamlessness == Seamlessness::Default && !isInPolicyForDefault &&
                 !layer.focused) {
-                ALOGV("%s ignores %s. Current config = %s", formatLayerInfo(layer, weight).c_str(),
+                ALOGV("%s ignores %s. Current mode = %s", formatLayerInfo(layer, weight).c_str(),
                       scores[i].refreshRate->toString().c_str(),
                       mCurrentRefreshRate->toString().c_str());
                 continue;
@@ -548,12 +547,12 @@ std::optional<Fps> RefreshRateConfigs::onKernelTimerChanged(
 
 const RefreshRate& RefreshRateConfigs::getMinRefreshRateByPolicyLocked() const {
     for (auto refreshRate : mPrimaryRefreshRates) {
-        if (mCurrentRefreshRate->getConfigGroup() == refreshRate->getConfigGroup()) {
+        if (mCurrentRefreshRate->getModeGroup() == refreshRate->getModeGroup()) {
             return *refreshRate;
         }
     }
-    ALOGE("Can't find min refresh rate by policy with the same config group"
-          " as the current config %s",
+    ALOGE("Can't find min refresh rate by policy with the same mode group"
+          " as the current mode %s",
           mCurrentRefreshRate->toString().c_str());
     // Defaulting to the lowest refresh rate
     return *mPrimaryRefreshRates.front();
@@ -567,12 +566,12 @@ RefreshRate RefreshRateConfigs::getMaxRefreshRateByPolicy() const {
 const RefreshRate& RefreshRateConfigs::getMaxRefreshRateByPolicyLocked() const {
     for (auto it = mPrimaryRefreshRates.rbegin(); it != mPrimaryRefreshRates.rend(); it++) {
         const auto& refreshRate = (**it);
-        if (mCurrentRefreshRate->getConfigGroup() == refreshRate.getConfigGroup()) {
+        if (mCurrentRefreshRate->getModeGroup() == refreshRate.getModeGroup()) {
             return refreshRate;
         }
     }
-    ALOGE("Can't find max refresh rate by policy with the same config group"
-          " as the current config %s",
+    ALOGE("Can't find max refresh rate by policy with the same mode group"
+          " as the current mode %s",
           mCurrentRefreshRate->toString().c_str());
     // Defaulting to the highest refresh rate
     return *mPrimaryRefreshRates.back();
@@ -593,50 +592,50 @@ const RefreshRate& RefreshRateConfigs::getCurrentRefreshRateByPolicyLocked() con
                   mCurrentRefreshRate) != mAppRequestRefreshRates.end()) {
         return *mCurrentRefreshRate;
     }
-    return *mRefreshRates.at(getCurrentPolicyLocked()->defaultConfig);
+    return *mRefreshRates.at(getCurrentPolicyLocked()->defaultMode);
 }
 
-void RefreshRateConfigs::setCurrentConfigId(DisplayModeId configId) {
+void RefreshRateConfigs::setCurrentModeId(DisplayModeId modeId) {
     std::lock_guard lock(mLock);
-    mCurrentRefreshRate = mRefreshRates.at(configId).get();
+    mCurrentRefreshRate = mRefreshRates.at(modeId).get();
 }
 
-RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& configs, DisplayModeId currentConfigId,
+RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& modes, DisplayModeId currentModeId,
                                        bool enableFrameRateOverride)
-      : mKnownFrameRates(constructKnownFrameRates(configs)),
+      : mKnownFrameRates(constructKnownFrameRates(modes)),
         mEnableFrameRateOverride(enableFrameRateOverride) {
-    updateDisplayConfigs(configs, currentConfigId);
+    updateDisplayModes(modes, currentModeId);
 }
 
-void RefreshRateConfigs::updateDisplayConfigs(const DisplayModes& configs,
-                                              DisplayModeId currentConfigId) {
+void RefreshRateConfigs::updateDisplayModes(const DisplayModes& modes,
+                                            DisplayModeId currentModeId) {
     std::lock_guard lock(mLock);
-    LOG_ALWAYS_FATAL_IF(configs.empty());
-    LOG_ALWAYS_FATAL_IF(currentConfigId.value() >= configs.size());
+    LOG_ALWAYS_FATAL_IF(modes.empty());
+    LOG_ALWAYS_FATAL_IF(currentModeId.value() >= modes.size());
 
     mRefreshRates.clear();
-    for (const auto& config : configs) {
-        const auto configId = config->getId();
-        const auto fps = Fps::fromPeriodNsecs(config->getVsyncPeriod());
-        mRefreshRates.emplace(configId,
-                              std::make_unique<RefreshRate>(configId, config, fps,
+    for (const auto& mode : modes) {
+        const auto modeId = mode->getId();
+        const auto fps = Fps::fromPeriodNsecs(mode->getVsyncPeriod());
+        mRefreshRates.emplace(modeId,
+                              std::make_unique<RefreshRate>(modeId, mode, fps,
                                                             RefreshRate::ConstructorTag(0)));
-        if (configId == currentConfigId) {
-            mCurrentRefreshRate = mRefreshRates.at(configId).get();
+        if (modeId == currentModeId) {
+            mCurrentRefreshRate = mRefreshRates.at(modeId).get();
         }
     }
 
-    std::vector<const RefreshRate*> sortedConfigs;
-    getSortedRefreshRateListLocked([](const RefreshRate&) { return true; }, &sortedConfigs);
-    mDisplayManagerPolicy.defaultConfig = currentConfigId;
-    mMinSupportedRefreshRate = sortedConfigs.front();
-    mMaxSupportedRefreshRate = sortedConfigs.back();
+    std::vector<const RefreshRate*> sortedModes;
+    getSortedRefreshRateListLocked([](const RefreshRate&) { return true; }, &sortedModes);
+    mDisplayManagerPolicy.defaultMode = currentModeId;
+    mMinSupportedRefreshRate = sortedModes.front();
+    mMaxSupportedRefreshRate = sortedModes.back();
 
     mSupportsFrameRateOverride = false;
     if (mEnableFrameRateOverride) {
-        for (const auto& config1 : sortedConfigs) {
-            for (const auto& config2 : sortedConfigs) {
-                if (getFrameRateDivider(config1->getFps(), config2->getFps()) >= 2) {
+        for (const auto& mode1 : sortedModes) {
+            for (const auto& mode2 : sortedModes) {
+                if (getFrameRateDivider(mode1->getFps(), mode2->getFps()) >= 2) {
                     mSupportsFrameRateOverride = true;
                     break;
                 }
@@ -648,15 +647,15 @@ void RefreshRateConfigs::updateDisplayConfigs(const DisplayModes& configs,
 }
 
 bool RefreshRateConfigs::isPolicyValidLocked(const Policy& policy) const {
-    // defaultConfig must be a valid config, and within the given refresh rate range.
-    auto iter = mRefreshRates.find(policy.defaultConfig);
+    // defaultMode must be a valid mode, and within the given refresh rate range.
+    auto iter = mRefreshRates.find(policy.defaultMode);
     if (iter == mRefreshRates.end()) {
-        ALOGE("Default config is not found.");
+        ALOGE("Default mode is not found.");
         return false;
     }
     const RefreshRate& refreshRate = *iter->second;
     if (!refreshRate.inPolicy(policy.primaryRange.min, policy.primaryRange.max)) {
-        ALOGE("Default config is not in the primary range.");
+        ALOGE("Default mode is not in the primary range.");
         return false;
     }
     return policy.appRequestRange.min.lessThanOrEqualWithMargin(policy.primaryRange.min) &&
@@ -706,10 +705,10 @@ RefreshRateConfigs::Policy RefreshRateConfigs::getDisplayManagerPolicy() const {
     return mDisplayManagerPolicy;
 }
 
-bool RefreshRateConfigs::isConfigAllowed(DisplayModeId config) const {
+bool RefreshRateConfigs::isModeAllowed(DisplayModeId modeId) const {
     std::lock_guard lock(mLock);
     for (const RefreshRate* refreshRate : mAppRequestRefreshRates) {
-        if (refreshRate->configId == config) {
+        if (refreshRate->modeId == modeId) {
             return true;
         }
     }
@@ -723,60 +722,59 @@ void RefreshRateConfigs::getSortedRefreshRateListLocked(
     outRefreshRates->reserve(mRefreshRates.size());
     for (const auto& [type, refreshRate] : mRefreshRates) {
         if (shouldAddRefreshRate(*refreshRate)) {
-            ALOGV("getSortedRefreshRateListLocked: config %zu added to list policy",
-                  refreshRate->configId.value());
+            ALOGV("getSortedRefreshRateListLocked: mode %zu added to list policy",
+                  refreshRate->modeId.value());
             outRefreshRates->push_back(refreshRate.get());
         }
     }
 
     std::sort(outRefreshRates->begin(), outRefreshRates->end(),
               [](const auto refreshRate1, const auto refreshRate2) {
-                  if (refreshRate1->hwcConfig->getVsyncPeriod() !=
-                      refreshRate2->hwcConfig->getVsyncPeriod()) {
-                      return refreshRate1->hwcConfig->getVsyncPeriod() >
-                              refreshRate2->hwcConfig->getVsyncPeriod();
+                  if (refreshRate1->mode->getVsyncPeriod() !=
+                      refreshRate2->mode->getVsyncPeriod()) {
+                      return refreshRate1->mode->getVsyncPeriod() >
+                              refreshRate2->mode->getVsyncPeriod();
                   } else {
-                      return refreshRate1->hwcConfig->getConfigGroup() >
-                              refreshRate2->hwcConfig->getConfigGroup();
+                      return refreshRate1->mode->getGroup() > refreshRate2->mode->getGroup();
                   }
               });
 }
 
 void RefreshRateConfigs::constructAvailableRefreshRates() {
-    // Filter configs based on current policy and sort based on vsync period
+    // Filter modes based on current policy and sort based on vsync period
     const Policy* policy = getCurrentPolicyLocked();
-    const auto& defaultConfig = mRefreshRates.at(policy->defaultConfig)->hwcConfig;
+    const auto& defaultMode = mRefreshRates.at(policy->defaultMode)->mode;
     ALOGV("constructAvailableRefreshRates: %s ", policy->toString().c_str());
 
-    auto filterRefreshRates = [&](Fps min, Fps max, const char* listName,
-                                  std::vector<const RefreshRate*>*
-                                          outRefreshRates) REQUIRES(mLock) {
-        getSortedRefreshRateListLocked(
-                [&](const RefreshRate& refreshRate) REQUIRES(mLock) {
-                    const auto& hwcConfig = refreshRate.hwcConfig;
+    auto filterRefreshRates =
+            [&](Fps min, Fps max, const char* listName,
+                std::vector<const RefreshRate*>* outRefreshRates) REQUIRES(mLock) {
+                getSortedRefreshRateListLocked(
+                        [&](const RefreshRate& refreshRate) REQUIRES(mLock) {
+                            const auto& mode = refreshRate.mode;
 
-                    return hwcConfig->getHeight() == defaultConfig->getHeight() &&
-                            hwcConfig->getWidth() == defaultConfig->getWidth() &&
-                            hwcConfig->getDpiX() == defaultConfig->getDpiX() &&
-                            hwcConfig->getDpiY() == defaultConfig->getDpiY() &&
-                            (policy->allowGroupSwitching ||
-                             hwcConfig->getConfigGroup() == defaultConfig->getConfigGroup()) &&
-                            refreshRate.inPolicy(min, max);
-                },
-                outRefreshRates);
+                            return mode->getHeight() == defaultMode->getHeight() &&
+                                    mode->getWidth() == defaultMode->getWidth() &&
+                                    mode->getDpiX() == defaultMode->getDpiX() &&
+                                    mode->getDpiY() == defaultMode->getDpiY() &&
+                                    (policy->allowGroupSwitching ||
+                                     mode->getGroup() == defaultMode->getGroup()) &&
+                                    refreshRate.inPolicy(min, max);
+                        },
+                        outRefreshRates);
 
-        LOG_ALWAYS_FATAL_IF(outRefreshRates->empty(),
-                            "No matching configs for %s range: min=%s max=%s", listName,
-                            to_string(min).c_str(), to_string(max).c_str());
-        auto stringifyRefreshRates = [&]() -> std::string {
-            std::string str;
-            for (auto refreshRate : *outRefreshRates) {
-                base::StringAppendF(&str, "%s ", refreshRate->getName().c_str());
-            }
-            return str;
-        };
-        ALOGV("%s refresh rates: %s", listName, stringifyRefreshRates().c_str());
-    };
+                LOG_ALWAYS_FATAL_IF(outRefreshRates->empty(),
+                                    "No matching modes for %s range: min=%s max=%s", listName,
+                                    to_string(min).c_str(), to_string(max).c_str());
+                auto stringifyRefreshRates = [&]() -> std::string {
+                    std::string str;
+                    for (auto refreshRate : *outRefreshRates) {
+                        base::StringAppendF(&str, "%s ", refreshRate->getName().c_str());
+                    }
+                    return str;
+                };
+                ALOGV("%s refresh rates: %s", listName, stringifyRefreshRates().c_str());
+            };
 
     filterRefreshRates(policy->primaryRange.min, policy->primaryRange.max, "primary",
                        &mPrimaryRefreshRates);
@@ -845,20 +843,20 @@ int RefreshRateConfigs::getRefreshRateDivider(Fps frameRate) const {
 
 void RefreshRateConfigs::dump(std::string& result) const {
     std::lock_guard lock(mLock);
-    base::StringAppendF(&result, "DesiredDisplayConfigSpecs (DisplayManager): %s\n\n",
+    base::StringAppendF(&result, "DesiredDisplayModeSpecs (DisplayManager): %s\n\n",
                         mDisplayManagerPolicy.toString().c_str());
     scheduler::RefreshRateConfigs::Policy currentPolicy = *getCurrentPolicyLocked();
     if (mOverridePolicy && currentPolicy != mDisplayManagerPolicy) {
-        base::StringAppendF(&result, "DesiredDisplayConfigSpecs (Override): %s\n\n",
+        base::StringAppendF(&result, "DesiredDisplayModeSpecs (Override): %s\n\n",
                             currentPolicy.toString().c_str());
     }
 
-    auto config = mCurrentRefreshRate->hwcConfig;
-    base::StringAppendF(&result, "Current config: %s\n", mCurrentRefreshRate->toString().c_str());
+    auto mode = mCurrentRefreshRate->mode;
+    base::StringAppendF(&result, "Current mode: %s\n", mCurrentRefreshRate->toString().c_str());
 
     result.append("Refresh rates:\n");
     for (const auto& [id, refreshRate] : mRefreshRates) {
-        config = refreshRate->hwcConfig;
+        mode = refreshRate->mode;
         base::StringAppendF(&result, "\t%s\n", refreshRate->toString().c_str());
     }
 

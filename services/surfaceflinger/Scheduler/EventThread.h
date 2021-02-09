@@ -123,9 +123,9 @@ public:
 
     virtual void onHotplugReceived(PhysicalDisplayId displayId, bool connected) = 0;
 
-    // called when SF changes the active config and apps needs to be notified about the change
-    virtual void onConfigChanged(PhysicalDisplayId displayId, DisplayModeId configId,
-                                 nsecs_t vsyncPeriod) = 0;
+    // called when SF changes the active mode and apps needs to be notified about the change
+    virtual void onModeChanged(PhysicalDisplayId displayId, DisplayModeId modeId,
+                               nsecs_t vsyncPeriod) = 0;
 
     // called when SF updates the Frame Rate Override list
     virtual void onFrameRateOverridesChanged(PhysicalDisplayId displayId,
@@ -173,8 +173,8 @@ public:
 
     void onHotplugReceived(PhysicalDisplayId displayId, bool connected) override;
 
-    void onConfigChanged(PhysicalDisplayId displayId, DisplayModeId configId,
-                         nsecs_t vsyncPeriod) override;
+    void onModeChanged(PhysicalDisplayId displayId, DisplayModeId modeId,
+                       nsecs_t vsyncPeriod) override;
 
     void onFrameRateOverridesChanged(PhysicalDisplayId displayId,
                                      std::vector<FrameRateOverride> overrides) override;

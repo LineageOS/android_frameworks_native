@@ -152,6 +152,7 @@ protected:
         void notifySensor(nsecs_t when, int32_t deviceId, InputDeviceSensorType sensorType,
                           InputDeviceSensorAccuracy accuracy, bool accuracyChanged,
                           nsecs_t timestamp, std::vector<float> values) override;
+        void notifyVibratorState(nsecs_t when, int32_t deviceId, bool isOn) override;
         void notifyDeviceReset(nsecs_t when, int32_t deviceId) override;
         void notifyPointerCaptureChanged(nsecs_t when, bool hasCapture) override;
 

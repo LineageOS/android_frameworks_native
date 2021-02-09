@@ -41,10 +41,10 @@ AutomotiveDisplayProxyService::getIGraphicBufferProducer(uint64_t id) {
         }
 
         // Get the resolution from stored display state.
-        DisplayConfig displayConfig = {};
-        auto err = SurfaceComposerClient::getActiveDisplayConfig(displayToken, &displayConfig);
+        ui::DisplayMode displayMode = {};
+        auto err = SurfaceComposerClient::getActiveDisplayMode(displayToken, &displayMode);
         if (err != NO_ERROR) {
-            ALOGE("Failed to get display configuration of %lX.  "
+            ALOGE("Failed to get display mode of %lX.  "
                   "This display will be ignored.", (unsigned long)id);
             return nullptr;
         }
@@ -57,8 +57,8 @@ AutomotiveDisplayProxyService::getIGraphicBufferProducer(uint64_t id) {
             return nullptr;
         }
 
-        auto displayWidth  = displayConfig.resolution.getWidth();
-        auto displayHeight = displayConfig.resolution.getHeight();
+        auto displayWidth  = displayMode.resolution.getWidth();
+        auto displayHeight = displayMode.resolution.getHeight();
         if ((displayState.orientation != ui::ROTATION_0) &&
             (displayState.orientation != ui::ROTATION_180)) {
             std::swap(displayWidth, displayHeight);
@@ -161,10 +161,10 @@ Return<void> AutomotiveDisplayProxyService::getDisplayInfo(uint64_t id, getDispl
     if (displayToken == nullptr) {
         ALOGE("Given display id, 0x%lX, is invalid.", (unsigned long)id);
     } else {
-        DisplayConfig displayConfig = {};
-        auto err = SurfaceComposerClient::getActiveDisplayConfig(displayToken, &displayConfig);
+        ui::DisplayMode displayMode = {};
+        auto err = SurfaceComposerClient::getActiveDisplayMode(displayToken, &displayMode);
         if (err != NO_ERROR) {
-            ALOGW("Failed to get display configuration of %lX.  "
+            ALOGW("Failed to get display mode of %lX.  "
                   "This display will be ignored.", (unsigned long)id);
         }
 
@@ -175,7 +175,7 @@ Return<void> AutomotiveDisplayProxyService::getDisplayInfo(uint64_t id, getDispl
                   "This display will be ignored.", (unsigned long)id);
         }
 
-        activeConfig.setToExternal((uint8_t*)&displayConfig, sizeof(DisplayConfig));
+        activeConfig.setToExternal((uint8_t*)&displayMode, sizeof(ui::DisplayMode));
         activeState.setToExternal((uint8_t*)&displayState, sizeof(DisplayState));
     }
 

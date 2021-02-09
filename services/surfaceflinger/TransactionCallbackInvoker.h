@@ -52,11 +52,9 @@ public:
     uint64_t frameNumber = 0;
 };
 
-class TransactionCompletedThread {
+class TransactionCallbackInvoker {
 public:
-    ~TransactionCompletedThread();
-
-    void run();
+    ~TransactionCallbackInvoker();
 
     // Adds listener and callbackIds in case there are no SurfaceControls that are supposed
     // to be included in the callback. This functions should be call before attempting to register
@@ -66,13 +64,13 @@ public:
     // It is safe to send a callback if the Transaction doesn't have any Pending callback handles.
     status_t endRegistration(const ListenerCallbacks& listenerCallbacks);
 
-    // Informs the TransactionCompletedThread that there is a Transaction with a CallbackHandle
+    // Informs the TransactionCallbackInvoker that there is a Transaction with a CallbackHandle
     // that needs to be latched and presented this frame. This function should be called once the
-    // layer has received the CallbackHandle so the TransactionCompletedThread knows not to send
+    // layer has received the CallbackHandle so the TransactionCallbackInvoker knows not to send
     // a callback for that Listener/Transaction pair until that CallbackHandle has been latched and
     // presented.
     status_t registerPendingCallbackHandle(const sp<CallbackHandle>& handle);
-    // Notifies the TransactionCompletedThread that a pending CallbackHandle has been presented.
+    // Notifies the TransactionCallbackInvoker that a pending CallbackHandle has been presented.
     status_t finalizePendingCallbackHandles(const std::deque<sp<CallbackHandle>>& handles,
                                             const std::vector<JankData>& jankData);
 
@@ -85,7 +83,6 @@ public:
     void sendCallbacks();
 
 private:
-    void threadMain();
 
     bool isRegisteringTransaction(const sp<IBinder>& transactionListener,
                                   const std::vector<CallbackId>& callbackIds) REQUIRES(mMutex);
@@ -97,7 +94,7 @@ private:
     status_t addCallbackHandle(const sp<CallbackHandle>& handle,
                                const std::vector<JankData>& jankData) REQUIRES(mMutex);
 
-    class ThreadDeathRecipient : public IBinder::DeathRecipient {
+    class CallbackDeathRecipient : public IBinder::DeathRecipient {
     public:
         // This function is a no-op. isBinderAlive needs a linked DeathRecipient to work.
         // Death recipients needs a binderDied function.
@@ -106,12 +103,8 @@ private:
         // sendObituary is only called if linkToDeath was called with a DeathRecipient.)
         void binderDied(const wp<IBinder>& /*who*/) override {}
     };
-    sp<ThreadDeathRecipient> mDeathRecipient;
-
-    // Protects the creation and destruction of mThread
-    std::mutex mThreadMutex;
-
-    std::thread mThread GUARDED_BY(mThreadMutex);
+    sp<CallbackDeathRecipient> mDeathRecipient =
+        new CallbackDeathRecipient();
 
     std::mutex mMutex;
     std::condition_variable_any mConditionVariable;
@@ -127,9 +120,6 @@ private:
 
     std::unordered_map<sp<IBinder>, std::deque<TransactionStats>, IListenerHash>
             mCompletedTransactions GUARDED_BY(mMutex);
-
-    bool mRunning GUARDED_BY(mMutex) = false;
-    bool mKeepRunning GUARDED_BY(mMutex) = true;
 
     sp<Fence> mPresentFence GUARDED_BY(mMutex);
 };
