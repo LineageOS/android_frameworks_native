@@ -51,8 +51,8 @@ public:
     // Sets the display size. Client is responsible for synchronization.
     void setDisplayArea(uint32_t displayArea) { mDisplayArea = displayArea; }
 
-    // Sets whether a config change is pending to be applied
-    void setConfigChangePending(bool pending) { mConfigChangePending = pending; }
+    // Sets whether a mode change is pending to be applied
+    void setModeChangePending(bool pending) { mModeChangePending = pending; }
 
     // Represents which layer activity is recorded
     enum class LayerUpdateType {
@@ -109,8 +109,8 @@ private:
     // Whether to use priority sent from WindowManager to determine the relevancy of the layer.
     const bool mUseFrameRatePriority;
 
-    // Whether a config change is in progress or not
-    std::atomic<bool> mConfigChangePending = false;
+    // Whether a mode change is in progress or not
+    std::atomic<bool> mModeChangePending = false;
 };
 
 } // namespace scheduler

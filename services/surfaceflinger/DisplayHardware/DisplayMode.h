@@ -86,8 +86,8 @@ public:
             return *this;
         }
 
-        Builder& setConfigGroup(int32_t configGroup) {
-            mDisplayMode->mConfigGroup = configGroup;
+        Builder& setGroup(int32_t group) {
+            mDisplayMode->mGroup = group;
             return *this;
         }
 
@@ -119,7 +119,10 @@ public:
     nsecs_t getVsyncPeriod() const { return mFps.getPeriodNsecs(); }
     float getDpiX() const { return mDpiX; }
     float getDpiY() const { return mDpiY; }
-    int32_t getConfigGroup() const { return mConfigGroup; }
+
+    // Switches between modes in the same group are seamless, i.e.
+    // without visual interruptions such as a black screen.
+    int32_t getGroup() const { return mGroup; }
 
 private:
     explicit DisplayMode(hal::HWConfigId id) : mHwcId(id) {}
@@ -132,15 +135,15 @@ private:
     Fps mFps;
     float mDpiX = -1;
     float mDpiY = -1;
-    int32_t mConfigGroup = -1;
+    int32_t mGroup = -1;
 };
 
 inline std::string to_string(const DisplayMode& mode) {
     return base::StringPrintf("{id=%zu, hwcId=%d, width=%d, height=%d, refreshRate=%s, "
-                              "dpiX=%.2f, dpiY=%.2f, configGroup=%d}",
+                              "dpiX=%.2f, dpiY=%.2f, group=%d}",
                               mode.getId().value(), mode.getHwcId(), mode.getWidth(),
                               mode.getHeight(), to_string(mode.getFps()).c_str(), mode.getDpiX(),
-                              mode.getDpiY(), mode.getConfigGroup());
+                              mode.getDpiY(), mode.getGroup());
 }
 
 } // namespace android

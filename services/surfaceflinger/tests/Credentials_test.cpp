@@ -25,7 +25,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <private/android_filesystem_config.h>
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
 #include <utils/String8.h>
 #include <functional>
 #include "utils/ScreenshotUtils.h"
@@ -81,14 +81,13 @@ protected:
         mDisplay = SurfaceComposerClient::getInternalDisplayToken();
         ASSERT_FALSE(mDisplay == nullptr);
 
-        DisplayConfig config;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(mDisplay, &config));
+        ui::DisplayMode mode;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(mDisplay, &mode));
 
         // Background surface
-        mBGSurfaceControl =
-                mComposerClient->createSurface(SURFACE_NAME, config.resolution.getWidth(),
-                                               config.resolution.getHeight(),
-                                               PIXEL_FORMAT_RGBA_8888, 0);
+        mBGSurfaceControl = mComposerClient->createSurface(SURFACE_NAME, mode.resolution.getWidth(),
+                                                           mode.resolution.getHeight(),
+                                                           PIXEL_FORMAT_RGBA_8888, 0);
         ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
 
@@ -185,13 +184,13 @@ TEST_F(CredentialsTest, AllowedGetterMethodsTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     ASSERT_TRUE(display != nullptr);
 
-    DisplayConfig config;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(display, &config));
+    ui::DisplayMode mode;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
 
-    Vector<DisplayConfig> configs;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayConfigs(display, &configs));
+    Vector<ui::DisplayMode> modes;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
 
-    ASSERT_TRUE(SurfaceComposerClient::getActiveConfig(display) >= 0);
+    ASSERT_TRUE(SurfaceComposerClient::getActiveDisplayModeId(display) >= 0);
 
     ASSERT_NE(static_cast<ui::ColorMode>(BAD_VALUE),
               SurfaceComposerClient::getActiveColorMode(display));
@@ -217,25 +216,23 @@ TEST_F(CredentialsTest, GetDisplayNativePrimariesTest) {
 
 TEST_F(CredentialsTest, SetDesiredDisplayConfigsTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
-    int32_t defaultConfig;
+    size_t defaultMode;
     bool allowGroupSwitching;
     float primaryFpsMin;
     float primaryFpsMax;
     float appRequestFpsMin;
     float appRequestFpsMax;
     status_t res =
-            SurfaceComposerClient::getDesiredDisplayConfigSpecs(display, &defaultConfig,
-                                                                &allowGroupSwitching,
-                                                                &primaryFpsMin, &primaryFpsMax,
-                                                                &appRequestFpsMin,
-                                                                &appRequestFpsMax);
+            SurfaceComposerClient::getDesiredDisplayModeSpecs(display, &defaultMode,
+                                                              &allowGroupSwitching, &primaryFpsMin,
+                                                              &primaryFpsMax, &appRequestFpsMin,
+                                                              &appRequestFpsMax);
     ASSERT_EQ(res, NO_ERROR);
     std::function<status_t()> condition = [=]() {
-        return SurfaceComposerClient::setDesiredDisplayConfigSpecs(display, defaultConfig,
-                                                                   allowGroupSwitching,
-                                                                   primaryFpsMin, primaryFpsMax,
-                                                                   appRequestFpsMin,
-                                                                   appRequestFpsMax);
+        return SurfaceComposerClient::setDesiredDisplayModeSpecs(display, defaultMode,
+                                                                 allowGroupSwitching, primaryFpsMin,
+                                                                 primaryFpsMax, appRequestFpsMin,
+                                                                 appRequestFpsMax);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }

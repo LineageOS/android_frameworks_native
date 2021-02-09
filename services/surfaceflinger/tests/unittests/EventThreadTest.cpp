@@ -141,10 +141,10 @@ EventThreadTest::EventThreadTest() {
 
     createThread(std::move(vsyncSource));
     mConnection = createConnection(mConnectionEventCallRecorder,
-                                   ISurfaceComposer::EventRegistration::configChanged |
+                                   ISurfaceComposer::EventRegistration::modeChanged |
                                            ISurfaceComposer::EventRegistration::frameRateOverride);
     mThrottledConnection = createConnection(mThrottledConnectionEventCallRecorder,
-                                            ISurfaceComposer::EventRegistration::configChanged,
+                                            ISurfaceComposer::EventRegistration::modeChanged,
                                             mThrottledConnectionUid);
 
     // A display must be connected for VSYNC events to be delivered.
@@ -257,10 +257,10 @@ void EventThreadTest::expectConfigChangedEventReceivedByConnection(
     auto args = mConnectionEventCallRecorder.waitForCall();
     ASSERT_TRUE(args.has_value());
     const auto& event = std::get<0>(args.value());
-    EXPECT_EQ(DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED, event.header.type);
+    EXPECT_EQ(DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE, event.header.type);
     EXPECT_EQ(expectedDisplayId, event.header.displayId);
-    EXPECT_EQ(expectedConfigId, event.config.configId);
-    EXPECT_EQ(expectedVsyncPeriod, event.config.vsyncPeriod);
+    EXPECT_EQ(expectedConfigId, event.modeChange.modeId);
+    EXPECT_EQ(expectedVsyncPeriod, event.modeChange.vsyncPeriod);
 }
 
 void EventThreadTest::expectUidFrameRateMappingEventReceivedByConnection(
@@ -540,17 +540,17 @@ TEST_F(EventThreadTest, postHotplugExternalConnect) {
 }
 
 TEST_F(EventThreadTest, postConfigChangedPrimary) {
-    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, DisplayModeId(7), 16666666);
+    mThread->onModeChanged(INTERNAL_DISPLAY_ID, DisplayModeId(7), 16666666);
     expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 7, 16666666);
 }
 
 TEST_F(EventThreadTest, postConfigChangedExternal) {
-    mThread->onConfigChanged(EXTERNAL_DISPLAY_ID, DisplayModeId(5), 16666666);
+    mThread->onModeChanged(EXTERNAL_DISPLAY_ID, DisplayModeId(5), 16666666);
     expectConfigChangedEventReceivedByConnection(EXTERNAL_DISPLAY_ID, 5, 16666666);
 }
 
 TEST_F(EventThreadTest, postConfigChangedPrimary64bit) {
-    mThread->onConfigChanged(DISPLAY_ID_64BIT, DisplayModeId(7), 16666666);
+    mThread->onModeChanged(DISPLAY_ID_64BIT, DisplayModeId(7), 16666666);
     expectConfigChangedEventReceivedByConnection(DISPLAY_ID_64BIT, 7, 16666666);
 }
 
@@ -559,7 +559,7 @@ TEST_F(EventThreadTest, suppressConfigChanged) {
     sp<MockEventThreadConnection> suppressConnection =
             createConnection(suppressConnectionEventRecorder);
 
-    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, DisplayModeId(9), 16666666);
+    mThread->onModeChanged(INTERNAL_DISPLAY_ID, DisplayModeId(9), 16666666);
     expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 9, 16666666);
 
     auto args = suppressConnectionEventRecorder.waitForCall();

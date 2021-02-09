@@ -28,7 +28,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <gui/SyncScreenCaptureListener.h>
 #include <private/gui/ComposerService.h>
-#include <ui/DisplayConfig.h>
+#include <ui/DisplayMode.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
@@ -107,9 +107,9 @@ protected:
         t.apply();
         t.clear();
 
-        DisplayConfig config;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayConfig(mDisplayToken, &config));
-        const ui::Size& resolution = config.resolution;
+        ui::DisplayMode mode;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(mDisplayToken, &mode));
+        const ui::Size& resolution = mode.resolution;
         mDisplayWidth = resolution.getWidth();
         mDisplayHeight = resolution.getHeight();
 

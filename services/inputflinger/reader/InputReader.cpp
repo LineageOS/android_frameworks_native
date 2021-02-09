@@ -928,6 +928,11 @@ void InputReader::ContextImpl::notifySensor(nsecs_t when, int32_t deviceId,
     mReader->mQueuedListener->notifySensor(&args);
 }
 
+void InputReader::ContextImpl::notifyVibratorState(nsecs_t when, int32_t deviceId, bool isOn) {
+    NotifyVibratorStateArgs args(mIdGenerator.nextId(), when, deviceId, isOn);
+    mReader->mQueuedListener->notifyVibratorState(&args);
+}
+
 void InputReader::ContextImpl::notifySwitch(nsecs_t eventTime, uint32_t switchValues,
                                             uint32_t switchMask) {
     NotifySwitchArgs args(mIdGenerator.nextId(), eventTime, 0 /*policyFlags*/, switchValues,

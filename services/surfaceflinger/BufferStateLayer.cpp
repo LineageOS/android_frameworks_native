@@ -28,6 +28,7 @@
 
 #include <limits>
 
+#include <FrameTimeline/FrameTimeline.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <gui/BufferQueue.h>
 #include <private/gui/SyncFeatures.h>
@@ -38,6 +39,7 @@
 
 namespace android {
 
+using PresentState = frametimeline::SurfaceFrame::PresentState;
 // clang-format off
 const std::array<float, 16> BufferStateLayer::IDENTITY_MATRIX{
         1, 0, 0, 0,
@@ -188,7 +190,7 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
                 JankData(surfaceFrame->getToken(), surfaceFrame->getJankType().value()));
     }
 
-    mFlinger->getTransactionCompletedThread().finalizePendingCallbackHandles(
+    mFlinger->getTransactionCallbackInvoker().finalizePendingCallbackHandles(
             mDrawingState.callbackHandles, jankData);
 
     mDrawingState.callbackHandles = {};
@@ -335,7 +337,8 @@ bool BufferStateLayer::addFrameEvent(const sp<Fence>& acquireFence, nsecs_t post
 bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence,
                                  nsecs_t postTime, nsecs_t desiredPresentTime, bool isAutoTimestamp,
                                  const client_cache_t& clientCacheId, uint64_t frameNumber,
-                                 std::optional<nsecs_t> /* dequeueTime */) {
+                                 std::optional<nsecs_t> /* dequeueTime */,
+                                 const FrameTimelineInfo& info) {
     ATRACE_CALL();
 
     if (mCurrentState.buffer) {
@@ -345,6 +348,10 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
             // before swapping to drawing state, then the first buffer will be
             // dropped and we should decrement the pending buffer count.
             decrementPendingBufferCount();
+            if (mCurrentState.bufferSurfaceFrameTX != nullptr) {
+                addSurfaceFrameDroppedForBuffer(mCurrentState.bufferSurfaceFrameTX);
+                mCurrentState.bufferSurfaceFrameTX.reset();
+            }
         }
     }
 
@@ -365,6 +372,11 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
                                              LayerHistory::LayerUpdateType::Buffer);
 
     addFrameEvent(acquireFence, postTime, isAutoTimestamp ? 0 : desiredPresentTime);
+
+    if (info.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
+        setFrameTimelineVsyncForBufferTransaction(info, postTime);
+    }
+
     return true;
 }
 
@@ -443,14 +455,14 @@ bool BufferStateLayer::setTransactionCompletedListeners(
 
             // Notify the transaction completed thread that there is a pending latched callback
             // handle
-            mFlinger->getTransactionCompletedThread().registerPendingCallbackHandle(handle);
+            mFlinger->getTransactionCallbackInvoker().registerPendingCallbackHandle(handle);
 
             // Store so latched time and release fence can be set
             mCurrentState.callbackHandles.push_back(handle);
 
         } else { // If this layer will NOT need to be relatched and presented this frame
             // Notify the transaction completed thread this handle is done
-            mFlinger->getTransactionCompletedThread().registerUnpresentedCallbackHandle(handle);
+            mFlinger->getTransactionCallbackInvoker().registerUnpresentedCallbackHandle(handle);
         }
     }
 
@@ -619,6 +631,17 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     mFlinger->mTimeStats->setAcquireFence(layerId, mDrawingState.frameNumber,
                                           std::make_shared<FenceTime>(mDrawingState.acquireFence));
     mFlinger->mTimeStats->setLatchTime(layerId, mDrawingState.frameNumber, latchTime);
+
+    auto& bufferSurfaceFrame = mDrawingState.bufferSurfaceFrameTX;
+    if (bufferSurfaceFrame != nullptr &&
+        bufferSurfaceFrame->getPresentState() != PresentState::Presented) {
+        // Update only if the bufferSurfaceFrame wasn't already presented. A Presented
+        // bufferSurfaceFrame could be seen here if a pending state was applied successfully and we
+        // are processing the next state.
+        addSurfaceFramePresentedForBuffer(bufferSurfaceFrame,
+                                          mDrawingState.acquireFence->getSignalTime(), latchTime);
+        bufferSurfaceFrame.reset();
+    }
 
     mCurrentStateModified = false;
 

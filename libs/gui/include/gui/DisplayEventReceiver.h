@@ -52,7 +52,7 @@ public:
     enum {
         DISPLAY_EVENT_VSYNC = fourcc('v', 's', 'y', 'n'),
         DISPLAY_EVENT_HOTPLUG = fourcc('p', 'l', 'u', 'g'),
-        DISPLAY_EVENT_CONFIG_CHANGED = fourcc('c', 'o', 'n', 'f'),
+        DISPLAY_EVENT_MODE_CHANGE = fourcc('m', 'o', 'd', 'e'),
         DISPLAY_EVENT_NULL = fourcc('n', 'u', 'l', 'l'),
         DISPLAY_EVENT_FRAME_RATE_OVERRIDE = fourcc('r', 'a', 't', 'e'),
         DISPLAY_EVENT_FRAME_RATE_OVERRIDE_FLUSH = fourcc('f', 'l', 's', 'h'),
@@ -82,8 +82,8 @@ public:
             bool connected;
         };
 
-        struct Config {
-            int32_t configId;
+        struct ModeChange {
+            int32_t modeId;
             nsecs_t vsyncPeriod __attribute__((aligned(8)));
         };
 
@@ -96,7 +96,7 @@ public:
         union {
             VSync vsync;
             Hotplug hotplug;
-            Config config;
+            ModeChange modeChange;
             FrameRateOverride frameRateOverride;
         };
     };
@@ -106,7 +106,7 @@ public:
      * DisplayEventReceiver creates and registers an event connection with
      * SurfaceFlinger. VSync events are disabled by default. Call setVSyncRate
      * or requestNextVsync to receive them.
-     * To receive ConfigChanged and/or FrameRateOverrides events specify this in
+     * To receive ModeChanged and/or FrameRateOverrides events specify this in
      * the constructor. Other events start being delivered immediately.
      */
     explicit DisplayEventReceiver(

@@ -246,6 +246,24 @@ void NotifySensorArgs::notify(const sp<InputListenerInterface>& listener) const 
     listener->notifySensor(this);
 }
 
+// --- NotifyVibratorStateArgs ---
+
+NotifyVibratorStateArgs::NotifyVibratorStateArgs(int32_t id, nsecs_t eventTime, int32_t deviceId,
+                                                 bool isOn)
+      : NotifyArgs(id, eventTime), deviceId(deviceId), isOn(isOn) {}
+
+NotifyVibratorStateArgs::NotifyVibratorStateArgs(const NotifyVibratorStateArgs& other)
+      : NotifyArgs(other.id, other.eventTime), deviceId(other.deviceId), isOn(other.isOn) {}
+
+bool NotifyVibratorStateArgs::operator==(const NotifyVibratorStateArgs rhs) const {
+    return id == rhs.id && eventTime == rhs.eventTime && deviceId == rhs.deviceId &&
+            isOn == rhs.isOn;
+}
+
+void NotifyVibratorStateArgs::notify(const sp<InputListenerInterface>& listener) const {
+    listener->notifyVibratorState(this);
+}
+
 // --- NotifyDeviceResetArgs ---
 
 NotifyDeviceResetArgs::NotifyDeviceResetArgs(int32_t id, nsecs_t eventTime, int32_t deviceId)
@@ -324,6 +342,11 @@ void QueuedInputListener::notifySwitch(const NotifySwitchArgs* args) {
 void QueuedInputListener::notifySensor(const NotifySensorArgs* args) {
     traceEvent(__func__, args->id);
     mArgsQueue.push_back(new NotifySensorArgs(*args));
+}
+
+void QueuedInputListener::notifyVibratorState(const NotifyVibratorStateArgs* args) {
+    traceEvent(__func__, args->id);
+    mArgsQueue.push_back(new NotifyVibratorStateArgs(*args));
 }
 
 void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs* args) {

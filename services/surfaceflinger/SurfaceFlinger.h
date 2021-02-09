@@ -64,7 +64,7 @@
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceTracing.h"
 #include "TracedOrdinal.h"
-#include "TransactionCompletedThread.h"
+#include "TransactionCallbackInvoker.h"
 
 #include <atomic>
 #include <cstdint>
@@ -319,8 +319,8 @@ public:
 
     void removeFromOffscreenLayers(Layer* layer);
 
-    TransactionCompletedThread& getTransactionCompletedThread() {
-        return mTransactionCompletedThread;
+    TransactionCallbackInvoker& getTransactionCallbackInvoker() {
+        return mTransactionCallbackInvoker;
     }
 
     // Converts from a binder handle to a Layer
@@ -414,12 +414,12 @@ private:
         void traverseInReverseZOrder(const LayerVector::Visitor& visitor) const;
     };
 
-    struct ActiveConfigInfo {
-        DisplayModeId configId;
-        Scheduler::ConfigEvent event = Scheduler::ConfigEvent::None;
+    struct ActiveModeInfo {
+        DisplayModeId modeId;
+        Scheduler::ModeEvent event = Scheduler::ModeEvent::None;
 
-        bool operator!=(const ActiveConfigInfo& other) const {
-            return configId != other.configId || event != other.event;
+        bool operator!=(const ActiveModeInfo& other) const {
+            return modeId != other.modeId || event != other.event;
         }
     };
 
@@ -554,8 +554,8 @@ private:
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
     status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*) override;
     status_t getDisplayInfo(const sp<IBinder>& displayToken, DisplayInfo*) override;
-    status_t getDisplayConfigs(const sp<IBinder>& displayToken, Vector<DisplayConfig>*) override;
-    int getActiveConfig(const sp<IBinder>& displayToken) override;
+    status_t getDisplayModes(const sp<IBinder>& displayToken, Vector<ui::DisplayMode>*) override;
+    int getActiveDisplayModeId(const sp<IBinder>& displayToken) override;
     status_t getDisplayColorModes(const sp<IBinder>& displayToken, Vector<ui::ColorMode>*) override;
     status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken,
                                        ui::DisplayPrimaries&) override;
@@ -594,17 +594,16 @@ private:
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
-    status_t setDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken, int32_t displayModeId,
-                                          bool allowGroupSwitching, float primaryRefreshRateMin,
-                                          float primaryRefreshRateMax,
-                                          float appRequestRefreshRateMin,
-                                          float appRequestRefreshRateMax) override;
-    status_t getDesiredDisplayConfigSpecs(const sp<IBinder>& displayToken,
-                                          int32_t* outDefaultConfig, bool* outAllowGroupSwitching,
-                                          float* outPrimaryRefreshRateMin,
-                                          float* outPrimaryRefreshRateMax,
-                                          float* outAppRequestRefreshRateMin,
-                                          float* outAppRequestRefreshRateMax) override;
+    status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, size_t displayModeId,
+                                        bool allowGroupSwitching, float primaryRefreshRateMin,
+                                        float primaryRefreshRateMax, float appRequestRefreshRateMin,
+                                        float appRequestRefreshRateMax) override;
+    status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, size_t* outDefaultMode,
+                                        bool* outAllowGroupSwitching,
+                                        float* outPrimaryRefreshRateMin,
+                                        float* outPrimaryRefreshRateMax,
+                                        float* outAppRequestRefreshRateMin,
+                                        float* outAppRequestRefreshRateMax) override;
     status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
                                          bool* outSupport) const override;
     status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) override;
@@ -649,7 +648,7 @@ private:
     // Toggles hardware VSYNC by calling into HWC.
     void setVsyncEnabled(bool) override;
     // Initiates a refresh rate change to be applied on invalidate.
-    void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ConfigEvent) override;
+    void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ModeEvent) override;
     // Forces full composition on all displays without resetting the scheduler idle timer.
     void repaintEverythingForHWC() override;
     // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
@@ -677,24 +676,24 @@ private:
 
     // Called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
-    // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
-    void setDesiredActiveConfig(const ActiveConfigInfo& info) REQUIRES(mStateLock);
-    status_t setActiveConfig(const sp<IBinder>& displayToken, int id);
-    // Once HWC has returned the present fence, this sets the active config and a new refresh
+    // Sets the desired active mode bit. It obtains the lock, and sets mDesiredActiveMode.
+    void setDesiredActiveMode(const ActiveModeInfo& info) REQUIRES(mStateLock);
+    status_t setActiveMode(const sp<IBinder>& displayToken, int id);
+    // Once HWC has returned the present fence, this sets the active mode and a new refresh
     // rate in SF.
-    void setActiveConfigInternal() REQUIRES(mStateLock);
-    // Calls to setActiveConfig on the main thread if there is a pending config
+    void setActiveModeInternal() REQUIRES(mStateLock);
+    // Calls to setActiveMode on the main thread if there is a pending mode change
     // that needs to be applied.
-    void performSetActiveConfig() REQUIRES(mStateLock);
-    void clearDesiredActiveConfigState() REQUIRES(mStateLock) EXCLUDES(mActiveConfigLock);
-    // Called when active config is no longer is progress
-    void desiredActiveConfigChangeDone() REQUIRES(mStateLock);
+    void performSetActiveMode() REQUIRES(mStateLock);
+    void clearDesiredActiveModeState() REQUIRES(mStateLock) EXCLUDES(mActiveModeLock);
+    // Called when active mode is no longer is progress
+    void desiredActiveModeChangeDone() REQUIRES(mStateLock);
     // Called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
             REQUIRES(mStateLock);
 
-    // Sets the desired display configs.
-    status_t setDesiredDisplayConfigSpecsInternal(
+    // Sets the desired display mode specs.
+    status_t setDesiredDisplayModeSpecsInternal(
             const sp<DisplayDevice>& display,
             const std::optional<scheduler::RefreshRateConfigs::Policy>& policy, bool overridePolicy)
             EXCLUDES(mStateLock);
@@ -929,9 +928,9 @@ private:
 
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
-    void changeRefreshRateLocked(const RefreshRate&, Scheduler::ConfigEvent) REQUIRES(mStateLock);
+    void changeRefreshRateLocked(const RefreshRate&, Scheduler::ModeEvent) REQUIRES(mStateLock);
 
-    bool isDisplayConfigAllowed(DisplayModeId configId) const REQUIRES(mStateLock);
+    bool isDisplayModeAllowed(DisplayModeId) const REQUIRES(mStateLock);
 
     // Gets the fence for the previous frame.
     // Must be called on the main thread.
@@ -1047,9 +1046,9 @@ private:
      * Misc
      */
 
-    std::optional<ActiveConfigInfo> getDesiredActiveConfig() EXCLUDES(mActiveConfigLock) {
-        std::lock_guard<std::mutex> lock(mActiveConfigLock);
-        if (mDesiredActiveConfigChanged) return mDesiredActiveConfig;
+    std::optional<ActiveModeInfo> getDesiredActiveMode() EXCLUDES(mActiveModeLock) {
+        std::lock_guard<std::mutex> lock(mActiveModeLock);
+        if (mDesiredActiveModeChanged) return mDesiredActiveMode;
         return std::nullopt;
     }
 
@@ -1161,7 +1160,7 @@ private:
     std::atomic<uint32_t> mHwcFrameMissedCount = 0;
     std::atomic<uint32_t> mGpuFrameMissedCount = 0;
 
-    TransactionCompletedThread mTransactionCompletedThread;
+    TransactionCallbackInvoker mTransactionCallbackInvoker;
 
     // Restrict layers to use two buffers in their bufferqueues.
     bool mLayerTripleBufferingDisabled = false;
@@ -1246,18 +1245,18 @@ private:
     nsecs_t mScheduledPresentTime = 0;
     hal::Vsync mHWCVsyncPendingState = hal::Vsync::DISABLE;
 
-    std::mutex mActiveConfigLock;
-    // This bit is set once we start setting the config. We read from this bit during the
-    // process. If at the end, this bit is different than mDesiredActiveConfig, we restart
+    std::mutex mActiveModeLock;
+    // This bit is set once we start setting the mode. We read from this bit during the
+    // process. If at the end, this bit is different than mDesiredActiveMode, we restart
     // the process.
-    ActiveConfigInfo mUpcomingActiveConfig; // Always read and written on the main thread.
-    // This bit can be set at any point in time when the system wants the new config.
-    ActiveConfigInfo mDesiredActiveConfig GUARDED_BY(mActiveConfigLock);
+    ActiveModeInfo mUpcomingActiveMode; // Always read and written on the main thread.
+    // This bit can be set at any point in time when the system wants the new mode.
+    ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);
 
     // below flags are set by main thread only
-    TracedOrdinal<bool> mDesiredActiveConfigChanged
-            GUARDED_BY(mActiveConfigLock) = {"DesiredActiveConfigChanged", false};
-    bool mSetActiveConfigPending = false;
+    TracedOrdinal<bool> mDesiredActiveModeChanged
+            GUARDED_BY(mActiveModeLock) = {"DesiredActiveModeChanged", false};
+    bool mSetActiveModePending = false;
 
     bool mLumaSampling = true;
     sp<RegionSamplingThread> mRegionSamplingThread;
@@ -1281,8 +1280,8 @@ private:
     void enableRefreshRateOverlay(bool enable);
     std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay GUARDED_BY(mStateLock);
 
-    // Flag used to set override allowed display configs from backdoor
-    bool mDebugDisplayConfigSetByBackdoor = false;
+    // Flag used to set override desired display mode from backdoor
+    bool mDebugDisplayModeSetByBackdoor = false;
 
     // A set of layers that have no parent so they are not drawn on screen.
     // Should only be accessed by the main thread.
