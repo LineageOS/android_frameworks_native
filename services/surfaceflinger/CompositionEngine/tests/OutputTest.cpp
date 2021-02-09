@@ -3003,7 +3003,7 @@ TEST_F(OutputComposeSurfacesTest, handlesZeroCompositionRequests) {
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, IsEmpty(), _, true, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, IsEmpty(), _, false, _, _))
             .WillRepeatedly(Return(NO_ERROR));
 
     verify().execute().expectAFenceWasReturned();
@@ -3015,6 +3015,36 @@ TEST_F(OutputComposeSurfacesTest, buildsAndRendersRequestList) {
 
     r1.geometry.boundaries = FloatRect{1, 2, 3, 4};
     r2.geometry.boundaries = FloatRect{5, 6, 7, 8};
+
+    EXPECT_CALL(mOutput, getSkipColorTransform()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
+    EXPECT_CALL(mRenderEngine, isProtected()).WillRepeatedly(Return(false));
+    EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
+            .WillRepeatedly(Return(std::vector<LayerFE::LayerSettings>{r1}));
+    EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
+            .WillRepeatedly(
+                    Invoke([&](const Region&,
+                               std::vector<LayerFE::LayerSettings>& clientCompositionLayers) {
+                        clientCompositionLayers.emplace_back(r2);
+                    }));
+
+    EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, false, _, _))
+            .WillRepeatedly(Return(NO_ERROR));
+
+    verify().execute().expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest,
+       buildsAndRendersRequestListAndCachesFramebufferForInternalLayers) {
+    LayerFE::LayerSettings r1;
+    LayerFE::LayerSettings r2;
+
+    r1.geometry.boundaries = FloatRect{1, 2, 3, 4};
+    r2.geometry.boundaries = FloatRect{5, 6, 7, 8};
+    const constexpr uint32_t kInternalLayerStack = 1234;
+    mOutput.setLayerStackFilter(kInternalLayerStack, true);
 
     EXPECT_CALL(mOutput, getSkipColorTransform()).WillRepeatedly(Return(false));
     EXPECT_CALL(*mDisplayColorProfile, hasWideColorGamut()).WillRepeatedly(Return(true));
@@ -3054,7 +3084,7 @@ TEST_F(OutputComposeSurfacesTest, renderDuplicateClientCompositionRequestsWithou
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, true, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, false, _, _))
             .Times(2)
             .WillOnce(Return(NO_ERROR));
 
@@ -3083,7 +3113,7 @@ TEST_F(OutputComposeSurfacesTest, skipDuplicateClientCompositionRequests) {
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, true, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, false, _, _))
             .WillOnce(Return(NO_ERROR));
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
 
@@ -3115,7 +3145,7 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_))
             .WillOnce(Return(mOutputBuffer))
             .WillOnce(Return(otherOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, true, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, false, _, _))
             .WillRepeatedly(Return(NO_ERROR));
 
     verify().execute().expectAFenceWasReturned();
@@ -3145,9 +3175,9 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfRequestChanges) {
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, true, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r2)), _, false, _, _))
             .WillOnce(Return(NO_ERROR));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r3)), _, true, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(Pointee(r1), Pointee(r3)), _, false, _, _))
             .WillOnce(Return(NO_ERROR));
 
     verify().execute().expectAFenceWasReturned();
@@ -3197,7 +3227,7 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
     struct ExpectDisplaySettingsState
           : public CallOrderStateMachineHelper<TestType, ExpectDisplaySettingsState> {
         auto thenExpectDisplaySettingsUsed(renderengine::DisplaySettings settings) {
-            EXPECT_CALL(getInstance()->mRenderEngine, drawLayers(settings, _, _, true, _, _))
+            EXPECT_CALL(getInstance()->mRenderEngine, drawLayers(settings, _, _, false, _, _))
                     .WillOnce(Return(NO_ERROR));
             return nextState<ExecuteState>();
         }
@@ -3296,7 +3326,7 @@ struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeS
         EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
                 .WillRepeatedly(Return());
         EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-        EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _))
+        EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _, _))
                 .WillRepeatedly(Return(NO_ERROR));
     }
 
@@ -3349,7 +3379,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
     EXPECT_CALL(*mRenderSurface, setProtected(true));
     // Must happen after setting the protected content state.
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _, _)).WillOnce(Return(NO_ERROR));
 
     mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }
@@ -3419,7 +3449,7 @@ TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering, IfExepensiveOutputDatas
     InSequence seq;
 
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _, _)).WillOnce(Return(NO_ERROR));
 
     mOutput.composeSurfaces(kDebugRegion, kDefaultRefreshArgs);
 }
@@ -3434,7 +3464,7 @@ struct OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur
         EXPECT_CALL(mLayer.outputLayer, writeStateToHWC(false));
         EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
                 .WillOnce(Return(std::vector<LayerFE::LayerSettings>{}));
-        EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, true, _, _)).WillOnce(Return(NO_ERROR));
+        EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _, _)).WillOnce(Return(NO_ERROR));
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1u));
         EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0u))
                 .WillRepeatedly(Return(&mLayer.outputLayer));
