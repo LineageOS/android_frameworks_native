@@ -53,7 +53,7 @@
 #include <sys/types.h>
 
 #if !defined(__INTRODUCED_IN)
-#define __INTRODUCED_IN(30) /* Introduced in API level 30 */
+#define __INTRODUCED_IN(__api_level) /* nothing */
 #endif
 
 #ifdef __cplusplus
