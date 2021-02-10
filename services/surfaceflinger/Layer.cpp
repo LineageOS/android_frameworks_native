@@ -867,9 +867,7 @@ void Layer::mergeSurfaceFrames(State& source, State& target) {
 void Layer::popPendingState(State* stateToCommit) {
     ATRACE_CALL();
 
-    if (stateToCommit != nullptr) {
-        mergeSurfaceFrames(*stateToCommit, mPendingStates[0]);
-    }
+    mergeSurfaceFrames(*stateToCommit, mPendingStates[0]);
     *stateToCommit = mPendingStates[0];
     mPendingStates.pop_front();
     ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
