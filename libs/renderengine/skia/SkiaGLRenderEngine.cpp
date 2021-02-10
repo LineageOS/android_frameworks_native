@@ -491,6 +491,9 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> sh
                                                               const LayerSettings* layer,
                                                               const DisplaySettings& display,
                                                               bool undoPremultipliedAlpha) {
+    if (layer->stretchEffect.hasEffect()) {
+        // TODO: Implement
+    }
     if (mUseColorManagement &&
         needsLinearEffect(layer->colorTransform, layer->sourceDataspace, display.outputDataspace)) {
         LinearEffect effect = LinearEffect{.inputDataspace = layer->sourceDataspace,
