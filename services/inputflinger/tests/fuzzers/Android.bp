@@ -80,3 +80,33 @@ cc_fuzz {
         "SwitchInputFuzzer.cpp",
     ],
 }
+
+cc_fuzz {
+    name: "inputflinger_input_reader_device_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "InputReaderDeviceFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_blocking_queue_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "BlockingQueueFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_input_classifier_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "InputClassifierFuzzer.cpp",
+    ],
+}
