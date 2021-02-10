@@ -32,6 +32,7 @@
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>
 #include <ui/Region.h>
+#include <ui/StretchEffect.h>
 #include <ui/Transform.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
@@ -323,6 +324,9 @@ public:
         // An arbitrary threshold for the number of BufferlessSurfaceFrames in the state. Used to
         // trigger a warning if the number of SurfaceFrames crosses the threshold.
         static constexpr uint32_t kStateSurfaceFramesThreshold = 25;
+
+        // Stretch effect to apply to this layer
+        StretchEffect stretchEffect;
     };
 
     /*
@@ -937,6 +941,8 @@ public:
     bool mPendingHWCDestroy{false};
 
     bool backpressureEnabled() { return mDrawingState.flags & layer_state_t::eEnableBackpressure; }
+
+    bool setStretchEffect(const StretchEffect& effect);
 
 protected:
     class SyncPoint {

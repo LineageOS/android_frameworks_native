@@ -488,6 +488,7 @@ void Layer::prepareBasicGeometryCompositionState() {
     compositionState->alpha = alpha;
     compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
     compositionState->blurRegions = drawingState.blurRegions;
+    compositionState->stretchEffect = drawingState.stretchEffect;
 }
 
 void Layer::prepareGeometryCompositionState() {
@@ -556,8 +557,8 @@ void Layer::preparePerFrameCompositionState() {
             isOpaque(drawingState) && !usesRoundedCorners && getAlpha() == 1.0_hf;
 
     // Force client composition for special cases known only to the front-end.
-    if (isHdrY410() || usesRoundedCorners || drawShadows() ||
-        getDrawingState().blurRegions.size() > 0) {
+    if (isHdrY410() || usesRoundedCorners || drawShadows() || drawingState.blurRegions.size() > 0 ||
+        drawingState.stretchEffect.hasEffect()) {
         compositionState->forceClientComposition = true;
     }
 }
@@ -656,6 +657,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
         layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
         layerSettings.blurRegions = getBlurRegions();
     }
+    layerSettings.stretchEffect = getDrawingState().stretchEffect;
     // Record the name of the layer for debugging further down the stack.
     layerSettings.name = getName();
     return layerSettings;
@@ -1416,6 +1418,19 @@ bool Layer::setFixedTransformHint(ui::Transform::RotationFlags fixedTransformHin
 
     mCurrentState.sequence++;
     mCurrentState.fixedTransformHint = fixedTransformHint;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::setStretchEffect(const StretchEffect& effect) {
+    StretchEffect temp = effect;
+    temp.sanitize();
+    if (mCurrentState.stretchEffect == temp) {
+        return false;
+    }
+    mCurrentState.sequence++;
+    mCurrentState.stretchEffect = temp;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
