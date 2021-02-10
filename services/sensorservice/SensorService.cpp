@@ -369,6 +369,9 @@ SensorService::~SensorService() {
     }
     mUidPolicy->unregisterSelf();
     mSensorPrivacyPolicy->unregisterSelf();
+    for (auto const& [userId, policy] : mMicSensorPrivacyPolicies) {
+        policy->unregisterSelf();
+    }
 }
 
 status_t SensorService::dump(int fd, const Vector<String16>& args) {
@@ -698,6 +701,35 @@ void SensorService::enableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     }
 }
 
+void SensorService::capRates(userid_t userId) {
+    ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
+    for (const sp<SensorDirectConnection>& conn : connLock.getDirectConnections()) {
+        if (conn->getUserId() == userId) {
+            conn->onMicSensorAccessChanged(true);
+        }
+    }
+
+    for (const sp<SensorEventConnection>& conn : connLock.getActiveConnections()) {
+        if (conn->getUserId() == userId) {
+            conn->onMicSensorAccessChanged(true);
+        }
+    }
+}
+
+void SensorService::uncapRates(userid_t userId) {
+    ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
+    for (const sp<SensorDirectConnection>& conn : connLock.getDirectConnections()) {
+        if (conn->getUserId() == userId) {
+            conn->onMicSensorAccessChanged(false);
+        }
+    }
+
+    for (const sp<SensorEventConnection>& conn : connLock.getActiveConnections()) {
+        if (conn->getUserId() == userId) {
+            conn->onMicSensorAccessChanged(false);
+        }
+    }
+}
 
 // NOTE: This is a remote API - make sure all args are validated
 status_t SensorService::shellCommand(int in, int out, int err, Vector<String16>& args) {
@@ -2049,7 +2081,7 @@ bool SensorService::isSensorInCappedSet(int sensorType) {
 
 status_t SensorService::adjustSamplingPeriodBasedOnMicAndPermission(nsecs_t* requestedPeriodNs,
         const String16& opPackageName) {
-
+    uid_t uid = IPCThreadState::self()->getCallingUid();
     bool shouldCapBasedOnPermission = isRateCappedBasedOnPermission(opPackageName);
     if (*requestedPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
         return OK;
@@ -2061,7 +2093,10 @@ status_t SensorService::adjustSamplingPeriodBasedOnMicAndPermission(nsecs_t* req
         }
         return OK;
     }
-    // Condition based on mic toggle is added later.
+    if (isMicSensorPrivacyEnabledForUid(uid)) {
+        *requestedPeriodNs = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
+        return OK;
+    }
     return OK;
 }
 
@@ -2080,7 +2115,10 @@ status_t SensorService::adjustRateLevelBasedOnMicAndPermission(int* requestedRat
         }
         return OK;
     }
-    // Condition based on mic toggle is added later.
+    if (isMicSensorPrivacyEnabledForUid(uid)) {
+        *requestedRateLevel = SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL;
+        return OK;
+    }
     return OK;
 }
 
@@ -2102,14 +2140,54 @@ bool SensorService::SensorPrivacyPolicy::isSensorPrivacyEnabled() {
 binder::Status SensorService::SensorPrivacyPolicy::onSensorPrivacyChanged(bool enabled) {
     mSensorPrivacyEnabled = enabled;
     sp<SensorService> service = mService.promote();
+
     if (service != nullptr) {
-        if (enabled) {
-            service->disableAllSensors();
+        if (mIsIndividualMic) {
+            if (enabled) {
+                service->capRates(mUserId);
+            } else {
+                service->uncapRates(mUserId);
+            }
         } else {
-            service->enableAllSensors();
+            if (enabled) {
+                service->disableAllSensors();
+            } else {
+                service->enableAllSensors();
+            }
         }
     }
     return binder::Status::ok();
+}
+
+status_t SensorService::SensorPrivacyPolicy::registerSelfForIndividual(int userId) {
+    Mutex::Autolock _l(mSensorPrivacyLock);
+
+    SensorPrivacyManager spm;
+    status_t err = spm.addIndividualSensorPrivacyListener(userId,
+            SensorPrivacyManager::INDIVIDUAL_SENSOR_MICROPHONE, this);
+
+    if (err != OK) {
+        ALOGE("Cannot register a mic listener.");
+        return err;
+    }
+    mSensorPrivacyEnabled = spm.isIndividualSensorPrivacyEnabled(userId,
+                SensorPrivacyManager::INDIVIDUAL_SENSOR_MICROPHONE);
+
+    mIsIndividualMic = true;
+    mUserId = userId;
+    return OK;
+}
+
+bool SensorService::isMicSensorPrivacyEnabledForUid(uid_t uid) {
+    userid_t userId = multiuser_get_user_id(uid);
+    if (mMicSensorPrivacyPolicies.find(userId) == mMicSensorPrivacyPolicies.end()) {
+        sp<SensorPrivacyPolicy> userPolicy = new SensorPrivacyPolicy(this);
+        if (userPolicy->registerSelfForIndividual(userId) != OK) {
+            return false;
+        }
+        mMicSensorPrivacyPolicies[userId] = userPolicy;
+    }
+    return mMicSensorPrivacyPolicies[userId]->isSensorPrivacyEnabled();
 }
 
 SensorService::ConnectionSafeAutolock::ConnectionSafeAutolock(

@@ -62,8 +62,8 @@
 #define SENSOR_REGISTRATIONS_BUF_SIZE 200
 
 // Apps that targets S+ and do not have HIGH_SAMPLING_RATE_SENSORS permission will be capped
-// at 200 Hz. The cap also applies to all requests when the mic toggle is flipped, regardless of
-// their target SDKs and permission.
+// at 200 Hz. The cap also applies to all requests when the mic toggle is flipped to on, regardless
+// of their target SDKs and permission.
 // Capped sampling periods for apps that have non-direct sensor connections.
 #define SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS (5 * 1000 * 1000)
 // Capped sampling rate level for apps that have direct sensor connections.
@@ -227,13 +227,18 @@ private:
             void registerSelf();
             void unregisterSelf();
 
+            status_t registerSelfForIndividual(int userId);
+
             bool isSensorPrivacyEnabled();
 
             binder::Status onSensorPrivacyChanged(bool enabled);
 
         private:
             wp<SensorService> mService;
+            Mutex mSensorPrivacyLock;
             std::atomic_bool mSensorPrivacyEnabled;
+            bool mIsIndividualMic;
+            userid_t mUserId;
     };
 
     enum Mode {
@@ -403,6 +408,11 @@ private:
     void enableAllSensors();
     void enableAllSensorsLocked(ConnectionSafeAutolock* connLock);
 
+    // Caps active direct connections (when the mic toggle is flipped to on)
+    void capRates(userid_t userId);
+    // Removes the capped rate on active direct connections (when the mic toggle is flipped to off)
+    void uncapRates(userid_t userId);
+
     static uint8_t sHmacGlobalKey[128];
     static bool sHmacGlobalKeyIsValid;
 
@@ -444,6 +454,11 @@ private:
     static std::map<String16, int> sPackageTargetVersion;
     static Mutex sPackageTargetVersionLock;
     static String16 sSensorInterfaceDescriptorPrefix;
+
+    // Map from user to SensorPrivacyPolicy
+    std::map<userid_t, sp<SensorPrivacyPolicy>> mMicSensorPrivacyPolicies;
+    // Checks if the mic sensor privacy is enabled for the uid
+    bool isMicSensorPrivacyEnabledForUid(uid_t uid);
 };
 
 } // namespace android
