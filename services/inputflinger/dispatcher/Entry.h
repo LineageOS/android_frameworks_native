@@ -272,6 +272,7 @@ struct CommandEntry {
     std::string obscuringPackage;
     bool enabled;
     int32_t pid;
+    nsecs_t consumeTime; // time when the event was consumed by InputConsumer
 };
 
 } // namespace android::inputdispatcher
