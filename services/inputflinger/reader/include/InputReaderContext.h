@@ -55,34 +55,13 @@ public:
     virtual void dispatchExternalStylusState(const StylusState& outState) = 0;
 
     virtual InputReaderPolicyInterface* getPolicy() = 0;
+    virtual InputListenerInterface* getListener() = 0;
     virtual EventHubInterface* getEventHub() = 0;
+
+    virtual int32_t getNextId() = 0;
 
     virtual void updateLedMetaState(int32_t metaState) = 0;
     virtual int32_t getLedMetaState() = 0;
-
-    // Send events to InputListener interface
-
-    virtual void notifyConfigurationChanged(nsecs_t when) = 0;
-    virtual void notifyKey(nsecs_t eventTime, int32_t deviceId, uint32_t source, int32_t displayId,
-                           uint32_t policyFlags, int32_t action, int32_t flags, int32_t keyCode,
-                           int32_t scanCode, int32_t metaState, nsecs_t downTime) = 0;
-    virtual void notifyMotion(nsecs_t eventTime, int32_t deviceId, uint32_t source,
-                              int32_t displayId, uint32_t policyFlags, int32_t action,
-                              int32_t actionButton, int32_t flags, int32_t metaState,
-                              int32_t buttonState, MotionClassification classification,
-                              int32_t edgeFlags, uint32_t pointerCount,
-                              const PointerProperties* pointerProperties,
-                              const PointerCoords* pointerCoords, float xPrecision,
-                              float yPrecision, float xCursorPosition, float yCursorPosition,
-                              nsecs_t downTime,
-                              const std::vector<TouchVideoFrame>& videoFrames) = 0;
-    virtual void notifySwitch(nsecs_t eventTime, uint32_t switchValues, uint32_t switchMask) = 0;
-    virtual void notifySensor(nsecs_t when, int32_t deviceId, InputDeviceSensorType sensorType,
-                              InputDeviceSensorAccuracy accuracy, bool accuracyChanged,
-                              nsecs_t timestamp, std::vector<float> values) = 0;
-    virtual void notifyVibratorState(nsecs_t when, int32_t deviceId, bool isOn) = 0;
-    virtual void notifyDeviceReset(nsecs_t when, int32_t deviceId) = 0;
-    virtual void notifyPointerCaptureChanged(nsecs_t when, bool hasCapture) = 0;
 };
 
 } // namespace android
