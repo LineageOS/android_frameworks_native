@@ -337,12 +337,13 @@ void JoystickInputMapper::sync(nsecs_t when, bool force) {
     // TODO: Use the input device configuration to control this behavior more finely.
     uint32_t policyFlags = 0;
 
-    getContext()->notifyMotion(when, getDeviceId(), AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_NONE,
-                               policyFlags, AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState,
-                               MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
-                               &pointerProperties, &pointerCoords, 0, 0,
-                               AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                               AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
+    NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), AINPUT_SOURCE_JOYSTICK,
+                          ADISPLAY_ID_NONE, policyFlags, AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState,
+                          buttonState, MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                          &pointerProperties, &pointerCoords, 0, 0,
+                          AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                          AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});
+    getListener()->notifyMotion(&args);
 }
 
 void JoystickInputMapper::setPointerCoordsAxisValue(PointerCoords* pointerCoords, int32_t axis,
