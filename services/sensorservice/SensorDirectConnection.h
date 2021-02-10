@@ -92,6 +92,7 @@ private:
     std::unordered_map<int, int> mActivated;
     std::unordered_map<int, int> mActivatedBackup;
 
+    std::atomic_bool mIsRateCappedBasedOnPermission;
     mutable Mutex mDestroyLock;
     bool mDestroyed;
 };

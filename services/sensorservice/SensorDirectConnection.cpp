@@ -32,6 +32,7 @@ SensorService::SensorDirectConnection::SensorDirectConnection(const sp<SensorSer
         : mService(service), mUid(uid), mMem(*mem),
         mHalChannelHandle(halChannelHandle),
         mOpPackageName(opPackageName), mDestroyed(false) {
+    mIsRateCappedBasedOnPermission = mService->isRateCappedBasedOnPermission(mOpPackageName);
     ALOGD_IF(DEBUG_CONNECTIONS, "Created SensorDirectConnection");
 }
 
@@ -155,6 +156,13 @@ int32_t SensorService::SensorDirectConnection::configureChannel(int handle, int 
             || rateLevel > s.getHighestDirectReportRateLevel()
             || !s.isDirectChannelTypeSupported(mMem.type)) {
         return INVALID_OPERATION;
+    }
+
+    if (mService->isSensorInCappedSet(s.getType()) && rateLevel != SENSOR_DIRECT_RATE_STOP) {
+        status_t err = mService->adjustRateLevelBasedOnMicAndPermission(&rateLevel, mOpPackageName);
+        if (err != OK) {
+            return err;
+        }
     }
 
     struct sensors_direct_cfg_t config = {

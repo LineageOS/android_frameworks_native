@@ -44,6 +44,7 @@ SensorService::SensorEventConnection::SensorEventConnection(
       mCacheSize(0), mMaxCacheSize(0), mTimeOfLastEventDrop(0), mEventsDropped(0),
       mPackageName(packageName), mOpPackageName(opPackageName), mTargetSdk(kTargetSdkUnknown),
       mDestroyed(false) {
+    mIsRateCappedBasedOnPermission = mService->isRateCappedBasedOnPermission(mOpPackageName);
     mChannel = new BitTube(mService->mSocketBufferSize);
 #if DEBUG_CONNECTIONS
     mEventsReceived = mEventsSentFromCache = mEventsSent = 0;
@@ -684,6 +685,21 @@ status_t SensorService::SensorEventConnection::enableDisable(
 
     status_t err;
     if (enabled) {
+        bool isSensorCapped = false;
+        sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+        if (si != nullptr) {
+            const Sensor& s = si->getSensor();
+            if (mService->isSensorInCappedSet(s.getType())) {
+                isSensorCapped = true;
+            }
+        }
+        if (isSensorCapped) {
+            err = mService->adjustSamplingPeriodBasedOnMicAndPermission(&samplingPeriodNs,
+                                String16(mOpPackageName));
+            if (err != OK) {
+                return err;
+            }
+        }
         err = mService->enable(this, handle, samplingPeriodNs, maxBatchReportLatencyNs,
                                reservedFlags, mOpPackageName);
 
@@ -693,14 +709,27 @@ status_t SensorService::SensorEventConnection::enableDisable(
     return err;
 }
 
-status_t SensorService::SensorEventConnection::setEventRate(
-        int handle, nsecs_t samplingPeriodNs)
-{
+status_t SensorService::SensorEventConnection::setEventRate(int handle, nsecs_t samplingPeriodNs) {
     if (mDestroyed) {
         android_errorWriteLog(0x534e4554, "168211968");
         return DEAD_OBJECT;
     }
 
+    bool isSensorCapped = false;
+    sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+    if (si != nullptr) {
+        const Sensor& s = si->getSensor();
+        if (mService->isSensorInCappedSet(s.getType())) {
+            isSensorCapped = true;
+        }
+    }
+    if (isSensorCapped) {
+        status_t err = mService->adjustSamplingPeriodBasedOnMicAndPermission(&samplingPeriodNs,
+                            String16(mOpPackageName));
+        if (err != OK) {
+            return err;
+        }
+    }
     return mService->setEventRate(this, handle, samplingPeriodNs, mOpPackageName);
 }
 

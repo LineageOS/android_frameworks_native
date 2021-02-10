@@ -137,10 +137,10 @@ private:
 
     // Call noteOp for the sensor if the sensor requires a permission
     bool noteOpIfRequired(const sensors_event_t& event);
-
     sp<SensorService> const mService;
     sp<BitTube> mChannel;
     uid_t mUid;
+    std::atomic_bool mIsRateCappedBasedOnPermission;
     mutable Mutex mConnectionLock;
     // Number of events from wake up sensors which are still pending and haven't been delivered to
     // the corresponding application. It is incremented by one unit for each write to the socket.

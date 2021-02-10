@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <android-base/strings.h>
 #include <android/content/pm/IPackageManagerNative.h>
 #include <android/util/ProtoOutputStream.h>
 #include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
@@ -88,6 +89,8 @@ AppOpsManager SensorService::sAppOpsManager;
 #define SENSOR_SERVICE_SCHED_FIFO_PRIORITY 10
 
 // Permissions.
+static const String16 sAccessHighSensorSamplingRatePermission(
+        "android.permission.HIGH_SAMPLING_RATE_SENSORS");
 static const String16 sDumpPermission("android.permission.DUMP");
 static const String16 sLocationHardwarePermission("android.permission.LOCATION_HARDWARE");
 static const String16 sManageSensorsPermission("android.permission.MANAGE_SENSORS");
@@ -2024,6 +2027,63 @@ bool SensorService::isUidActive(uid_t uid) {
     return mUidPolicy->isUidActive(uid);
 }
 
+bool SensorService::isRateCappedBasedOnPermission(const String16& opPackageName) {
+    int targetSdk = getTargetSdkVersion(opPackageName);
+    bool hasSamplingRatePermission = PermissionCache::checkCallingPermission(
+                    sAccessHighSensorSamplingRatePermission);
+    if (targetSdk < __ANDROID_API_S__ ||
+            (targetSdk >= __ANDROID_API_S__ && hasSamplingRatePermission)) {
+        return false;
+    }
+    return true;
+}
+
+bool SensorService::isSensorInCappedSet(int sensorType) {
+    return (sensorType == SENSOR_TYPE_ACCELEROMETER
+            || sensorType == SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED
+            || sensorType == SENSOR_TYPE_GYROSCOPE
+            || sensorType == SENSOR_TYPE_GYROSCOPE_UNCALIBRATED
+            || sensorType == SENSOR_TYPE_MAGNETIC_FIELD
+            || sensorType == SENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED);
+}
+
+status_t SensorService::adjustSamplingPeriodBasedOnMicAndPermission(nsecs_t* requestedPeriodNs,
+        const String16& opPackageName) {
+
+    bool shouldCapBasedOnPermission = isRateCappedBasedOnPermission(opPackageName);
+    if (*requestedPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+        return OK;
+    }
+    if (shouldCapBasedOnPermission) {
+        *requestedPeriodNs = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
+        if (isPackageDebuggable(opPackageName)) {
+            return PERMISSION_DENIED;
+        }
+        return OK;
+    }
+    // Condition based on mic toggle is added later.
+    return OK;
+}
+
+status_t SensorService::adjustRateLevelBasedOnMicAndPermission(int* requestedRateLevel,
+        const String16& opPackageName) {
+    uid_t uid = IPCThreadState::self()->getCallingUid();
+    bool shouldCapBasedOnPermission = isRateCappedBasedOnPermission(opPackageName);
+
+    if (*requestedRateLevel <= SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL) {
+        return OK;
+    }
+    if (shouldCapBasedOnPermission) {
+        *requestedRateLevel = SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL;
+        if (isPackageDebuggable(opPackageName)) {
+            return PERMISSION_DENIED;
+        }
+        return OK;
+    }
+    // Condition based on mic toggle is added later.
+    return OK;
+}
+
 void SensorService::SensorPrivacyPolicy::registerSelf() {
     SensorPrivacyManager spm;
     mSensorPrivacyEnabled = spm.isSensorPrivacyEnabled();
@@ -2109,4 +2169,17 @@ SensorService::ConnectionSafeAutolock SensorService::SensorConnectionHolder::loc
     return ConnectionSafeAutolock(*this, mutex);
 }
 
+bool SensorService::isPackageDebuggable(const String16& opPackageName) {
+    bool debugMode = false;
+    sp<IBinder> binder = defaultServiceManager()->getService(String16("package_native"));
+    if (binder != nullptr) {
+        sp<content::pm::IPackageManagerNative> packageManager =
+                interface_cast<content::pm::IPackageManagerNative>(binder);
+        if (packageManager != nullptr) {
+            binder::Status status = packageManager->isPackageDebuggable(
+                opPackageName, &debugMode);
+        }
+    }
+    return debugMode;
+}
 } // namespace android
