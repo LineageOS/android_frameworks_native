@@ -51,18 +51,8 @@
 #include <android/rect.h>
 #include <stdint.h>
 
-#ifndef __ANDROID__
-    // Value copied from 'bionic/libc/include/android/api-level.h' which is not available on
-    // non Android systems. It is set to 10000 which is same as __ANDROID_API_FUTURE__ value.
-    #ifndef __ANDROID_API__
-        #define __ANDROID_API__ 10000
-    #endif
-
-    // Value copied from 'bionic/libc/include/android/versioning.h' which is not available on
-    // non Android systems
-    #ifndef __INTRODUCED_IN
-        #define __INTRODUCED_IN(api_level)
-    #endif
+#if !defined(__INTRODUCED_IN)
+#define __INTRODUCED_IN(__api_level) /* nothing */
 #endif
 
 #ifdef __cplusplus

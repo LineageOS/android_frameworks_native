@@ -189,6 +189,7 @@ public:
 
     virtual status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
     virtual status_t setFrameTimelineInfo(const FrameTimelineInfo& info);
+    virtual status_t getExtraBufferCount(int* extraBuffers) const;
 
 protected:
     virtual ~Surface();
@@ -275,6 +276,7 @@ private:
     int dispatchAddQueryInterceptor(va_list args);
     int dispatchGetLastQueuedBuffer(va_list args);
     int dispatchSetFrameTimelineInfo(va_list args);
+    int dispatchGetExtraBufferCount(va_list args);
     bool transformToDisplayInverse();
 
 protected:
