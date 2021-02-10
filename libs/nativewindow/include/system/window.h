@@ -256,6 +256,7 @@ enum {
     NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER          = 46,    /* private */
     NATIVE_WINDOW_SET_QUERY_INTERCEPTOR           = 47,    /* private */
     NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO         = 48,    /* private */
+    NATIVE_WINDOW_GET_EXTRA_BUFFER_COUNT          = 49,    /* private */
     // clang-format on
 };
 
@@ -1028,6 +1029,11 @@ static inline int native_window_set_frame_timeline_info(struct ANativeWindow* wi
                                                          int32_t inputEventId) {
     return window->perform(window, NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO,
                            frameTimelineVsyncId, inputEventId);
+}
+
+static inline int native_window_get_extra_buffer_count(
+    struct ANativeWindow* window, int* extraBuffers) {
+    return window->perform(window, NATIVE_WINDOW_GET_EXTRA_BUFFER_COUNT, extraBuffers);
 }
 
 // ------------------------------------------------------------------------------------------------

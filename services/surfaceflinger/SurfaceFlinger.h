@@ -622,6 +622,8 @@ private:
 
     int getGPUContextPriority() override;
 
+    status_t getExtraBufferCount(int* extraBuffers) const override;
+
     // Implements IBinder::DeathRecipient.
     void binderDied(const wp<IBinder>& who) override;
 
@@ -1051,6 +1053,9 @@ private:
         if (mDesiredActiveModeChanged) return mDesiredActiveMode;
         return std::nullopt;
     }
+
+    static int calculateExtraBufferCount(Fps maxSupportedRefreshRate,
+                                         std::chrono::nanoseconds presentLatency);
 
     sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;
