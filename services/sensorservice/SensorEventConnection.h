@@ -144,10 +144,16 @@ private:
     void capRates();
     // Recover sensor connection previously capped by capRates().
     void uncapRates();
+
+    // Add sensorEvent to buffer at position index if the sensorEvent satisfies throttling rules.
+    void addSensorEventsToBuffer(bool shouldResample, const sensors_event_t& sensorEvent,
+                        sensors_event_t* buffer, int* index);
     sp<SensorService> const mService;
     sp<BitTube> mChannel;
     uid_t mUid;
     std::atomic_bool mIsRateCappedBasedOnPermission;
+    // Store a mapping of sensor to the timestamp of their last sensor event.
+    std::unordered_map<int, int64_t> mSensorLastTimestamp;
     mutable Mutex mConnectionLock;
     // Number of events from wake up sensors which are still pending and haven't been delivered to
     // the corresponding application. It is incremented by one unit for each write to the socket.
