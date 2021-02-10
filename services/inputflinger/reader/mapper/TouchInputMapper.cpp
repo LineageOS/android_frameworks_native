@@ -18,8 +18,9 @@
 #include "../Macros.h"
 // clang-format on
 
-#include <ftl/NamedEnum.h>
 #include "TouchInputMapper.h"
+
+#include <ftl/enum.h>
 
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
@@ -259,7 +260,7 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
 
 void TouchInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT2 "Touch Input Mapper (mode - %s):\n",
-                         NamedEnum::string(mDeviceMode).c_str());
+                         ftl::enum_string(mDeviceMode).c_str());
     dumpParameters(dump);
     dumpVirtualKeys(dump);
     dumpRawPointerAxes(dump);
@@ -515,9 +516,9 @@ void TouchInputMapper::configureParameters() {
 void TouchInputMapper::dumpParameters(std::string& dump) {
     dump += INDENT3 "Parameters:\n";
 
-    dump += INDENT4 "GestureMode: " + NamedEnum::string(mParameters.gestureMode) + "\n";
+    dump += INDENT4 "GestureMode: " + ftl::enum_string(mParameters.gestureMode) + "\n";
 
-    dump += INDENT4 "DeviceType: " + NamedEnum::string(mParameters.deviceType) + "\n";
+    dump += INDENT4 "DeviceType: " + ftl::enum_string(mParameters.deviceType) + "\n";
 
     dump += StringPrintf(INDENT4 "AssociatedDisplay: hasAssociatedDisplay=%s, isExternal=%s, "
                                  "displayId='%s'\n",
@@ -525,7 +526,7 @@ void TouchInputMapper::dumpParameters(std::string& dump) {
                          toString(mParameters.associatedDisplayIsExternal),
                          mParameters.uniqueDisplayId.c_str());
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n", toString(mParameters.orientationAware));
-    dump += INDENT4 "Orientation: " + NamedEnum::string(mParameters.orientation) + "\n";
+    dump += INDENT4 "Orientation: " + ftl::enum_string(mParameters.orientation) + "\n";
 }
 
 void TouchInputMapper::configureRawPointerAxes() {

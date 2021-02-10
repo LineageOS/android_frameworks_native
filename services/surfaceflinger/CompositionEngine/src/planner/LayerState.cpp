@@ -93,11 +93,7 @@ Flags<LayerStateField> LayerState::getDifferingFields(const LayerState& other) c
 
 void LayerState::dump(std::string& result) const {
     for (const StateInterface* field : getNonUniqueFields()) {
-        if (auto viewOpt = flag_name(field->getField()); viewOpt) {
-            base::StringAppendF(&result, "  %16s: ", std::string(*viewOpt).c_str());
-        } else {
-            result.append("<UNKNOWN FIELD>:\n");
-        }
+        base::StringAppendF(&result, "  %16s: ", ftl::flag_string(field->getField()).c_str());
 
         bool first = true;
         for (const std::string& line : field->toStrings()) {
@@ -126,11 +122,7 @@ std::optional<std::string> LayerState::compare(const LayerState& other) const {
             continue;
         }
 
-        if (auto viewOpt = flag_name(thisField->getField()); viewOpt) {
-            base::StringAppendF(&result, "  %16s: ", std::string(*viewOpt).c_str());
-        } else {
-            result.append("<UNKNOWN FIELD>:\n");
-        }
+        base::StringAppendF(&result, "  %16s: ", ftl::flag_string(thisField->getField()).c_str());
 
         const auto& thisStrings = thisField->toStrings();
         const auto& otherStrings = otherField->toStrings();
