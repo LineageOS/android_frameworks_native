@@ -31,10 +31,6 @@ cc_defaults {
         "libui",
         "libutils",
     ],
-    include_dirs: [
-        "external/skia/src/gpu",
-    ],
-    whole_static_libs: ["libskia"],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
 }
@@ -106,6 +102,10 @@ cc_library_static {
         ":librenderengine_threaded_sources",
         ":librenderengine_skia_sources",
     ],
+    include_dirs: [
+        "external/skia/src/gpu",
+    ],
+    whole_static_libs: ["libskia"],
     lto: {
         thin: true,
     },
