@@ -950,15 +950,18 @@ void RenderEngineTest::fillBufferAndBlurBackground() {
     blurLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     blurLayer.geometry.boundaries = fullscreenRect().toFloatRect();
     blurLayer.backgroundBlurRadius = blurRadius;
+    SourceVariant::fillColor(blurLayer, 0.0f, 0.0f, 1.0f, this);
     blurLayer.alpha = 0;
     layers.push_back(&blurLayer);
 
     invokeDraw(settings, layers);
 
-    expectBufferColor(Rect(center - 1, center - 5, center, center + 5), 150, 150, 0, 255,
-                      50 /* tolerance */);
-    expectBufferColor(Rect(center, center - 5, center + 1, center + 5), 150, 150, 0, 255,
-                      50 /* tolerance */);
+    // solid color
+    expectBufferColor(Rect(0, 0, 1, 1), 255, 0, 0, 255, 0 /* tolerance */);
+
+    // blurred color (downsampling should result in the center color being close to 128)
+    expectBufferColor(Rect(center - 1, center - 5, center + 1, center + 5), 128, 128, 0, 255,
+                      10 /* tolerance */);
 }
 
 template <typename SourceVariant>
