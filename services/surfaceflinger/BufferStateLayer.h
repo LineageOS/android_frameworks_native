@@ -124,6 +124,7 @@ protected:
 
 private:
     friend class SlotGenerationTest;
+    friend class TransactionFrameTracerTest;
     friend class TransactionSurfaceFrameTest;
 
     inline void tracePendingBufferCount();

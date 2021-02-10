@@ -35,6 +35,7 @@
 #include <renderengine/Image.h>
 
 #include "EffectLayer.h"
+#include "FrameTracer/FrameTracer.h"
 #include "TimeStats/TimeStats.h"
 
 namespace android {
@@ -337,7 +338,7 @@ bool BufferStateLayer::addFrameEvent(const sp<Fence>& acquireFence, nsecs_t post
 bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence,
                                  nsecs_t postTime, nsecs_t desiredPresentTime, bool isAutoTimestamp,
                                  const client_cache_t& clientCacheId, uint64_t frameNumber,
-                                 std::optional<nsecs_t> /* dequeueTime */,
+                                 std::optional<nsecs_t> dequeueTime,
                                  const FrameTimelineInfo& info) {
     ATRACE_CALL();
 
@@ -377,6 +378,14 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
         setFrameTimelineVsyncForBufferTransaction(info, postTime);
     }
 
+    if (dequeueTime && *dequeueTime != 0) {
+        const uint64_t bufferId = buffer->getId();
+        mFlinger->mFrameTracer->traceNewLayer(layerId, getName().c_str());
+        mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, frameNumber, *dequeueTime,
+                                               FrameTracer::FrameEvent::DEQUEUE);
+        mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, frameNumber, postTime,
+                                               FrameTracer::FrameEvent::QUEUE);
+    }
     return true;
 }
 
@@ -628,9 +637,16 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     }
 
     const int32_t layerId = getSequence();
-    mFlinger->mTimeStats->setAcquireFence(layerId, mDrawingState.frameNumber,
-                                          std::make_shared<FenceTime>(mDrawingState.acquireFence));
-    mFlinger->mTimeStats->setLatchTime(layerId, mDrawingState.frameNumber, latchTime);
+    const uint64_t bufferId = mDrawingState.buffer->getId();
+    const uint64_t frameNumber = mDrawingState.frameNumber;
+    const auto acquireFence = std::make_shared<FenceTime>(mDrawingState.acquireFence);
+    mFlinger->mTimeStats->setAcquireFence(layerId, frameNumber, acquireFence);
+    mFlinger->mTimeStats->setLatchTime(layerId, frameNumber, latchTime);
+
+    mFlinger->mFrameTracer->traceFence(layerId, bufferId, frameNumber, acquireFence,
+                                       FrameTracer::FrameEvent::ACQUIRE_FENCE);
+    mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, frameNumber, latchTime,
+                                           FrameTracer::FrameEvent::LATCH);
 
     auto& bufferSurfaceFrame = mDrawingState.bufferSurfaceFrameTX;
     if (bufferSurfaceFrame != nullptr &&
