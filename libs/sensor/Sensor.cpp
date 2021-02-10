@@ -468,6 +468,19 @@ void Sensor::setId(int32_t id) {
     mUuid.i64[1] = 0;
 }
 
+void Sensor::capMinDelayMicros(int32_t cappedMinDelay) {
+    if (mMinDelay < cappedMinDelay) {
+        mMinDelay = cappedMinDelay;
+    }
+}
+
+void Sensor::capHighestDirectReportRateLevel(int32_t cappedRateLevel) {
+    if (cappedRateLevel < getHighestDirectReportRateLevel()) {
+        mFlags &= ~SENSOR_FLAG_MASK_DIRECT_REPORT;
+        mFlags |= cappedRateLevel << SENSOR_FLAG_SHIFT_DIRECT_REPORT;
+    }
+}
+
 int32_t Sensor::getId() const {
     return int32_t(mUuid.i64[0]);
 }

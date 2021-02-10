@@ -1244,14 +1244,20 @@ void SensorService::makeUuidsIntoIdsForSensorList(Vector<Sensor> &sensorList) co
     }
 }
 
-Vector<Sensor> SensorService::getSensorList(const String16& /* opPackageName */) {
+Vector<Sensor> SensorService::getSensorList(const String16& opPackageName) {
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sensors", value, "0");
     const Vector<Sensor>& initialSensorList = (atoi(value)) ?
             mSensors.getUserDebugSensors() : mSensors.getUserSensors();
     Vector<Sensor> accessibleSensorList;
+
+    bool isCapped = isRateCappedBasedOnPermission(opPackageName);
     for (size_t i = 0; i < initialSensorList.size(); i++) {
         Sensor sensor = initialSensorList[i];
+        if (isCapped && isSensorInCappedSet(sensor.getType())) {
+            sensor.capMinDelayMicros(SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS / 1000);
+            sensor.capHighestDirectReportRateLevel(SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL);
+        }
         accessibleSensorList.add(sensor);
     }
     makeUuidsIntoIdsForSensorList(accessibleSensorList);
