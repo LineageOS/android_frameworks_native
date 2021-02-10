@@ -409,7 +409,7 @@ class FakeEventHub : public EventHubInterface {
 
     KeyedVector<int32_t, Device*> mDevices;
     std::vector<std::string> mExcludedDevices;
-    List<RawEvent> mEvents GUARDED_BY(mLock);
+    std::vector<RawEvent> mEvents GUARDED_BY(mLock);
     std::unordered_map<int32_t /*deviceId*/, std::vector<TouchVideoFrame>> mVideoFrames;
     std::vector<int32_t> mVibrators = {0, 1};
 
@@ -722,16 +722,15 @@ private:
         mExcludedDevices = devices;
     }
 
-    size_t getEvents(int, RawEvent* buffer, size_t) override {
-        std::scoped_lock<std::mutex> lock(mLock);
-        if (mEvents.empty()) {
-            return 0;
-        }
+    size_t getEvents(int, RawEvent* buffer, size_t bufferSize) override {
+        std::scoped_lock lock(mLock);
 
-        *buffer = *mEvents.begin();
-        mEvents.erase(mEvents.begin());
+        const size_t filledSize = std::min(mEvents.size(), bufferSize);
+        std::copy(mEvents.begin(), mEvents.begin() + filledSize, buffer);
+
+        mEvents.erase(mEvents.begin(), mEvents.begin() + filledSize);
         mEventsCondition.notify_all();
-        return 1;
+        return filledSize;
     }
 
     std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) override {
