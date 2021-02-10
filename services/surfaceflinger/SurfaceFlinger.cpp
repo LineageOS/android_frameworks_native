@@ -2308,20 +2308,47 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags) {
 
 DisplayModes SurfaceFlinger::loadSupportedDisplayModes(PhysicalDisplayId displayId) const {
     const auto hwcModes = getHwComposer().getModes(displayId);
-    DisplayModes modes;
-    int32_t nextModeId = 0;
-    for (const auto& hwcMode : hwcModes) {
-        modes.push_back(DisplayMode::Builder(hwcMode.hwcId)
-                                .setId(DisplayModeId{nextModeId++})
-                                .setWidth(hwcMode.width)
-                                .setHeight(hwcMode.height)
-                                .setVsyncPeriod(hwcMode.vsyncPeriod)
-                                .setDpiX(hwcMode.dpiX)
-                                .setDpiY(hwcMode.dpiY)
-                                .setGroup(hwcMode.configGroup)
-                                .build());
+
+    DisplayModes oldModes;
+
+    if (const auto token = getPhysicalDisplayTokenLocked(displayId)) {
+        oldModes = getDisplayDeviceLocked(token)->getSupportedModes();
     }
-    return modes;
+
+    int largestUsedModeId = -1; // Use int instead of DisplayModeId for signedness
+    for (const auto& mode : oldModes) {
+        const auto id = static_cast<int>(mode->getId().value());
+        if (id > largestUsedModeId) {
+            largestUsedModeId = id;
+        }
+    }
+
+    DisplayModes newModes;
+    int32_t nextModeId = largestUsedModeId + 1;
+    for (const auto& hwcMode : hwcModes) {
+        newModes.push_back(DisplayMode::Builder(hwcMode.hwcId)
+                                   .setId(DisplayModeId{nextModeId++})
+                                   .setWidth(hwcMode.width)
+                                   .setHeight(hwcMode.height)
+                                   .setVsyncPeriod(hwcMode.vsyncPeriod)
+                                   .setDpiX(hwcMode.dpiX)
+                                   .setDpiY(hwcMode.dpiY)
+                                   .setGroup(hwcMode.configGroup)
+                                   .build());
+    }
+
+    const bool modesAreSame =
+            std::equal(newModes.begin(), newModes.end(), oldModes.begin(), oldModes.end(),
+                       [](DisplayModePtr left, DisplayModePtr right) {
+                           return left->equalsExceptDisplayModeId(right);
+                       });
+
+    if (modesAreSame) {
+        // The supported modes have not changed, keep the old IDs.
+        return oldModes;
+    }
+
+    return newModes;
 }
 
 void SurfaceFlinger::processDisplayHotplugEventsLocked() {
@@ -2414,7 +2441,6 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const sp<IGraphicBufferProducer>& producer) {
     DisplayDeviceCreationArgs creationArgs(this, getHwComposer(), displayToken, compositionDisplay);
     creationArgs.sequenceId = state.sequenceId;
-    creationArgs.hwComposer = getHwComposer();
     creationArgs.isSecure = state.isSecure;
     creationArgs.displaySurface = displaySurface;
     creationArgs.hasWideColorGamut = false;
