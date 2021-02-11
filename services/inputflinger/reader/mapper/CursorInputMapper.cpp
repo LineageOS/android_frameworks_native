@@ -175,7 +175,8 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
         }
         bumpGeneration();
         if (changes) {
-            getContext()->notifyDeviceReset(when, getDeviceId());
+            NotifyDeviceResetArgs args(getContext()->getNextId(), when, getDeviceId());
+            getListener()->notifyDeviceReset(&args);
         }
     }
 
@@ -382,35 +383,40 @@ void CursorInputMapper::sync(nsecs_t when) {
             while (!released.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(released.clearFirstMarkedBit());
                 buttonState &= ~actionButton;
-                getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
-                                           AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
-                                           metaState, buttonState, MotionClassification::NONE,
-                                           AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                           &pointerCoords, mXPrecision, mYPrecision,
-                                           xCursorPosition, yCursorPosition, downTime,
-                                           /* videoFrames */ {});
+                NotifyMotionArgs releaseArgs(getContext()->getNextId(), when, getDeviceId(),
+                                             mSource, displayId, policyFlags,
+                                             AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
+                                             metaState, buttonState, MotionClassification::NONE,
+                                             AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                             &pointerCoords, mXPrecision, mYPrecision,
+                                             xCursorPosition, yCursorPosition, downTime,
+                                             /* videoFrames */ {});
+                getListener()->notifyMotion(&releaseArgs);
             }
         }
 
-        getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
-                                   motionEventAction, 0, 0, metaState, currentButtonState,
-                                   MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
-                                   &pointerProperties, &pointerCoords, mXPrecision, mYPrecision,
-                                   xCursorPosition, yCursorPosition, downTime,
-                                   /* videoFrames */ {});
+        NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, displayId,
+                              policyFlags, motionEventAction, 0, 0, metaState, currentButtonState,
+                              MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+                              &pointerProperties, &pointerCoords, mXPrecision, mYPrecision,
+                              xCursorPosition, yCursorPosition, downTime,
+                              /* videoFrames */ {});
+        getListener()->notifyMotion(&args);
 
         if (buttonsPressed) {
             BitSet32 pressed(buttonsPressed);
             while (!pressed.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(pressed.clearFirstMarkedBit());
                 buttonState |= actionButton;
-                getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
+                NotifyMotionArgs pressArgs(getContext()->getNextId(), when, getDeviceId(), mSource,
+                                           displayId, policyFlags,
                                            AMOTION_EVENT_ACTION_BUTTON_PRESS, actionButton, 0,
                                            metaState, buttonState, MotionClassification::NONE,
                                            AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                            &pointerCoords, mXPrecision, mYPrecision,
                                            xCursorPosition, yCursorPosition, downTime,
                                            /* videoFrames */ {});
+                getListener()->notifyMotion(&pressArgs);
             }
         }
 
@@ -418,12 +424,13 @@ void CursorInputMapper::sync(nsecs_t when) {
 
         // Send hover move after UP to tell the application that the mouse is hovering now.
         if (motionEventAction == AMOTION_EVENT_ACTION_UP && (mSource == AINPUT_SOURCE_MOUSE)) {
-            getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
-                                       AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
-                                       currentButtonState, MotionClassification::NONE,
+            NotifyMotionArgs hoverArgs(getContext()->getNextId(), when, getDeviceId(), mSource,
+                                       displayId, policyFlags, AMOTION_EVENT_ACTION_HOVER_MOVE, 0,
+                                       0, metaState, currentButtonState, MotionClassification::NONE,
                                        AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                        &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
                                        yCursorPosition, downTime, /* videoFrames */ {});
+            getListener()->notifyMotion(&hoverArgs);
         }
 
         // Send scroll events.
@@ -431,12 +438,13 @@ void CursorInputMapper::sync(nsecs_t when) {
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
-            getContext()->notifyMotion(when, getDeviceId(), mSource, displayId, policyFlags,
-                                       AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState,
-                                       currentButtonState, MotionClassification::NONE,
-                                       AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                       &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
-                                       yCursorPosition, downTime, /* videoFrames */ {});
+            NotifyMotionArgs scrollArgs(getContext()->getNextId(), when, getDeviceId(), mSource,
+                                        displayId, policyFlags, AMOTION_EVENT_ACTION_SCROLL, 0, 0,
+                                        metaState, currentButtonState, MotionClassification::NONE,
+                                        AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                        &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
+                                        yCursorPosition, downTime, /* videoFrames */ {});
+            getListener()->notifyMotion(&scrollArgs);
         }
     }
 

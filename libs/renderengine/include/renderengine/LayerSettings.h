@@ -28,6 +28,7 @@
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+#include <ui/StretchEffect.h>
 #include <ui/Transform.h>
 
 namespace android {
@@ -154,6 +155,8 @@ struct LayerSettings {
     int backgroundBlurRadius = 0;
 
     std::vector<BlurRegion> blurRegions;
+
+    StretchEffect stretchEffect;
 
     // Name associated with the layer for debugging purposes.
     std::string name;

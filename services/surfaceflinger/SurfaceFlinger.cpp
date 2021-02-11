@@ -3950,6 +3950,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eAutoRefreshChanged) {
         layer->setAutoRefresh(s.autoRefresh);
     }
+    if (what & layer_state_t::eStretchChanged) {
+        if (layer->setStretchEffect(s.stretchEffect)) {
+            flags |= eTraversalNeeded;
+        }
+    }
     // This has to happen after we reparent children because when we reparent to null we remove
     // child layers from current state and remove its relative z. If the children are reparented in
     // the same transaction, then we have to make sure we reparent the children first so we do not
