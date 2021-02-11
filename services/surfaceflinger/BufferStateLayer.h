@@ -55,11 +55,9 @@ public:
     void pushPendingState() override;*/
     bool applyPendingStates(Layer::State* stateToCommit) override;
 
-    uint32_t getActiveWidth(const Layer::State& s) const override { return s.active.w; }
-    uint32_t getActiveHeight(const Layer::State& s) const override { return s.active.h; }
-    ui::Transform getActiveTransform(const Layer::State& s) const override {
-        return s.active.transform;
-    }
+    uint32_t getActiveWidth(const Layer::State& s) const override { return s.width; }
+    uint32_t getActiveHeight(const Layer::State& s) const override { return s.height; }
+    ui::Transform getActiveTransform(const Layer::State& s) const override { return s.transform; }
     Region getActiveTransparentRegion(const Layer::State& s) const override {
         return s.transparentRegionHint;
     }

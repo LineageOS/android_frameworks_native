@@ -109,11 +109,11 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.layerStack = 0;
     mCurrentState.sequence = 0;
     mCurrentState.requested_legacy = mCurrentState.active_legacy;
-    mCurrentState.active.w = UINT32_MAX;
-    mCurrentState.active.h = UINT32_MAX;
-    mCurrentState.active.transform.set(0, 0);
+    mCurrentState.width = UINT32_MAX;
+    mCurrentState.height = UINT32_MAX;
+    mCurrentState.transform.set(0, 0);
     mCurrentState.frameNumber = 0;
-    mCurrentState.transform = 0;
+    mCurrentState.bufferTransform = 0;
     mCurrentState.transformToDisplayInverse = false;
     mCurrentState.crop.makeInvalid();
     mCurrentState.acquireFence = new Fence(-1);
@@ -2431,7 +2431,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
 
-    ui::Transform requestedTransform = state.active_legacy.transform;
+    ui::Transform requestedTransform = state.transform;
 
     if (traceFlags & SurfaceTracing::TRACE_CRITICAL) {
         layerInfo->set_id(sequence);
@@ -2460,11 +2460,10 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
                                                    return layerInfo->mutable_requested_position();
                                                });
 
-        LayerProtoHelper::writeSizeToProto(state.active_legacy.w, state.active_legacy.h,
+        LayerProtoHelper::writeSizeToProto(state.width, state.height,
                                            [&]() { return layerInfo->mutable_size(); });
 
-        LayerProtoHelper::writeToProto(state.crop_legacy,
-                                       [&]() { return layerInfo->mutable_crop(); });
+        LayerProtoHelper::writeToProto(state.crop, [&]() { return layerInfo->mutable_crop(); });
 
         layerInfo->set_is_opaque(isOpaque(state));
 

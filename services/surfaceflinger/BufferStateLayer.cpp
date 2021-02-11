@@ -255,8 +255,8 @@ Rect BufferStateLayer::getCrop(const Layer::State& /*s*/) const {
 }
 
 bool BufferStateLayer::setTransform(uint32_t transform) {
-    if (mCurrentState.transform == transform) return false;
-    mCurrentState.transform = transform;
+    if (mCurrentState.bufferTransform == transform) return false;
+    mCurrentState.bufferTransform = transform;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -308,17 +308,17 @@ bool BufferStateLayer::setFrame(const Rect& frame) {
         h = frame.bottom;
     }
 
-    if (mCurrentState.active.transform.tx() == x && mCurrentState.active.transform.ty() == y &&
-        mCurrentState.active.w == w && mCurrentState.active.h == h) {
+    if (mCurrentState.transform.tx() == x && mCurrentState.transform.ty() == y &&
+        mCurrentState.width == w && mCurrentState.height == h) {
         return false;
     }
 
     if (!frame.isValid()) {
         x = y = w = h = 0;
     }
-    mCurrentState.active.transform.set(x, y);
-    mCurrentState.active.w = w;
-    mCurrentState.active.h = h;
+    mCurrentState.transform.set(x, y);
+    mCurrentState.width = w;
+    mCurrentState.height = h;
 
     mCurrentState.sequence++;
     mCurrentState.modified = true;
@@ -779,7 +779,7 @@ void BufferStateLayer::gatherBufferInfo() {
     mBufferInfo.mDesiredPresentTime = s.desiredPresentTime;
     mBufferInfo.mFenceTime = std::make_shared<FenceTime>(s.acquireFence);
     mBufferInfo.mFence = s.acquireFence;
-    mBufferInfo.mTransform = s.transform;
+    mBufferInfo.mTransform = s.bufferTransform;
     mBufferInfo.mDataspace = translateDataspace(s.dataspace);
     mBufferInfo.mCrop = computeCrop(s);
     mBufferInfo.mScaleMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
@@ -846,10 +846,10 @@ Layer::RoundedCornerState BufferStateLayer::getRoundedCornerState() const {
     const State& s(getDrawingState());
     if (radius <= 0 || (getActiveWidth(s) == UINT32_MAX && getActiveHeight(s) == UINT32_MAX))
         return RoundedCornerState();
-    return RoundedCornerState(FloatRect(static_cast<float>(s.active.transform.tx()),
-                                        static_cast<float>(s.active.transform.ty()),
-                                        static_cast<float>(s.active.transform.tx() + s.active.w),
-                                        static_cast<float>(s.active.transform.ty() + s.active.h)),
+    return RoundedCornerState(FloatRect(static_cast<float>(s.transform.tx()),
+                                        static_cast<float>(s.transform.ty()),
+                                        static_cast<float>(s.transform.tx() + s.width),
+                                        static_cast<float>(s.transform.ty() + s.height)),
                               radius);
 }
 
@@ -863,7 +863,7 @@ bool BufferStateLayer::bufferNeedsFiltering() const {
     uint32_t bufferHeight = s.buffer->height;
 
     // Undo any transformations on the buffer and return the result.
-    if (s.transform & ui::Transform::ROT_90) {
+    if (s.bufferTransform & ui::Transform::ROT_90) {
         std::swap(bufferWidth, bufferHeight);
     }
 
