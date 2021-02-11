@@ -53,7 +53,8 @@ void VibratorInputMapper::vibrate(const VibrationSequence& sequence, ssize_t rep
     mIndex = -1;
 
     // Request InputReader to notify InputManagerService for vibration started.
-    getContext()->notifyVibratorState(systemTime(), getDeviceId(), true);
+    NotifyVibratorStateArgs args(getContext()->getNextId(), systemTime(), getDeviceId(), true);
+    getListener()->notifyVibratorState(&args);
     nextStep();
 }
 
@@ -131,7 +132,8 @@ void VibratorInputMapper::stopVibrating() {
     getDeviceContext().cancelVibrate();
 
     // Request InputReader to notify InputManagerService for vibration complete.
-    getContext()->notifyVibratorState(systemTime(), getDeviceId(), false);
+    NotifyVibratorStateArgs args(getContext()->getNextId(), systemTime(), getDeviceId(), false);
+    getListener()->notifyVibratorState(&args);
 }
 
 void VibratorInputMapper::dump(std::string& dump) {
