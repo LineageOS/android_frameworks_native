@@ -157,8 +157,10 @@ public:
         sp<Fence> fence2(new Fence());
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
         sp<GraphicBuffer> buffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        nsecs_t start = systemTime();
         layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 1, /*inputEventId*/ 0});
+        nsecs_t end = systemTime();
         acquireFence2->signalForTest(12);
 
         EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
@@ -171,6 +173,9 @@ public:
 
         EXPECT_EQ(1, droppedSurfaceFrame->getToken());
         EXPECT_EQ(PresentState::Dropped, droppedSurfaceFrame->getPresentState());
+        EXPECT_EQ(0u, droppedSurfaceFrame->getActuals().endTime);
+        auto dropTime = droppedSurfaceFrame->getDropTime();
+        EXPECT_TRUE(dropTime > start && dropTime < end);
 
         EXPECT_EQ(1, presentedSurfaceFrame->getToken());
         EXPECT_EQ(PresentState::Presented, presentedSurfaceFrame->getPresentState());
