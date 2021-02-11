@@ -461,6 +461,7 @@ bool BufferStateLayer::setTransactionCompletedListeners(
         if (willPresent) {
             // If this transaction set an acquire fence on this layer, set its acquire time
             handle->acquireTime = mCallbackHandleAcquireTime;
+            handle->frameNumber = mCurrentState.frameNumber;
 
             // Notify the transaction completed thread that there is a pending latched callback
             // handle
@@ -632,8 +633,9 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     }
 
     for (auto& handle : mDrawingState.callbackHandles) {
-        handle->latchTime = latchTime;
-        handle->frameNumber = mDrawingState.frameNumber;
+        if (handle->frameNumber == mDrawingState.frameNumber) {
+            handle->latchTime = latchTime;
+        }
     }
 
     const int32_t layerId = getSequence();
