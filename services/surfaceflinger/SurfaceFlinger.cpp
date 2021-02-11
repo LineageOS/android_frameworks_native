@@ -3843,9 +3843,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         if (layer->setFlags(s.flags, s.mask))
             flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eCropChanged_legacy) {
-        if (layer->setCrop_legacy(s.crop_legacy)) flags |= eTraversalNeeded;
-    }
     if (what & layer_state_t::eCornerRadiusChanged) {
         if (layer->setCornerRadius(s.cornerRadius))
             flags |= eTraversalNeeded;

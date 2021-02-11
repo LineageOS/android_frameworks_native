@@ -1048,15 +1048,15 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setMatri
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop_legacy(
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop(
         const sp<SurfaceControl>& sc, const Rect& crop) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->what |= layer_state_t::eCropChanged_legacy;
-    s->crop_legacy = crop;
+    s->what |= layer_state_t::eCropChanged;
+    s->crop = crop;
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -1199,20 +1199,6 @@ SurfaceComposerClient::Transaction::setTransformToDisplayInverse(const sp<Surfac
     }
     s->what |= layer_state_t::eTransformToDisplayInverseChanged;
     s->transformToDisplayInverse = transformToDisplayInverse;
-
-    registerSurfaceControlForCallback(sc);
-    return *this;
-}
-
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop(
-        const sp<SurfaceControl>& sc, const Rect& crop) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-    s->what |= layer_state_t::eCropChanged;
-    s->crop = crop;
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -1458,7 +1444,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColor
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setGeometry(
         const sp<SurfaceControl>& sc, const Rect& source, const Rect& dst, int transform) {
-    setCrop_legacy(sc, source);
+    setCrop(sc, source);
 
     int x = dst.left;
     int y = dst.top;
