@@ -56,6 +56,7 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Rotation.h>
+#include <ui/StretchEffect.h>
 #include <ui/Transform.h>
 #include <utils/Errors.h>
 
@@ -135,6 +136,7 @@ struct layer_state_t {
         eFrameTimelineInfoChanged = 0x800'00000000,
         eBlurRegionsChanged = 0x1000'00000000,
         eAutoRefreshChanged = 0x2000'00000000,
+        eStretchChanged = 0x4000'00000000,
     };
 
     layer_state_t();
@@ -244,6 +246,9 @@ struct layer_state_t {
     // can and not wait for a frame to become available. This is only relevant
     // in shared buffer mode.
     bool autoRefresh;
+
+    // Stretch effect to be applied to this layer
+    StretchEffect stretchEffect;
 };
 
 struct ComposerState {

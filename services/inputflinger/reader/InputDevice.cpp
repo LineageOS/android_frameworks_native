@@ -520,7 +520,8 @@ void InputDevice::bumpGeneration() {
 }
 
 void InputDevice::notifyReset(nsecs_t when) {
-    mContext->notifyDeviceReset(when, mId);
+    NotifyDeviceResetArgs args(mContext->getNextId(), when, mId);
+    mContext->getListener()->notifyDeviceReset(&args);
 }
 
 std::optional<int32_t> InputDevice::getAssociatedDisplayId() {
