@@ -51,7 +51,11 @@ namespace android {
  * A raw event as retrieved from the EventHub.
  */
 struct RawEvent {
+    // Time when the event happened
     nsecs_t when;
+    // Time when the event was read by EventHub. Only populated for input events.
+    // For other events (device added/removed/etc), this value is undefined and should not be read.
+    nsecs_t readTime;
     int32_t deviceId;
     int32_t type;
     int32_t code;

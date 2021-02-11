@@ -67,7 +67,7 @@ public:
     virtual void cancelVibrate(int32_t token);
     virtual bool isVibrating();
     virtual std::vector<int32_t> getVibratorIds();
-    virtual void cancelTouch(nsecs_t when);
+    virtual void cancelTouch(nsecs_t when, nsecs_t readTime);
     virtual bool enableSensor(InputDeviceSensorType sensorType,
                               std::chrono::microseconds samplingPeriod,
                               std::chrono::microseconds maxBatchReportLatency);

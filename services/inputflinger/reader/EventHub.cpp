@@ -1280,6 +1280,7 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
                     for (size_t i = 0; i < count; i++) {
                         struct input_event& iev = readBuffer[i];
                         event->when = processEventTimestamp(iev);
+                        event->readTime = systemTime(SYSTEM_TIME_MONOTONIC);
                         event->deviceId = deviceId;
                         event->type = iev.type;
                         event->code = iev.code;

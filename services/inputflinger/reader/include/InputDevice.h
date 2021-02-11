@@ -86,7 +86,7 @@ public:
     void cancelVibrate(int32_t token);
     bool isVibrating();
     std::vector<int32_t> getVibratorIds();
-    void cancelTouch(nsecs_t when);
+    void cancelTouch(nsecs_t when, nsecs_t readTime);
     bool enableSensor(InputDeviceSensorType sensorType, std::chrono::microseconds samplingPeriod,
                       std::chrono::microseconds maxBatchReportLatency);
     void disableSensor(InputDeviceSensorType sensorType);
@@ -322,7 +322,7 @@ public:
     inline std::optional<DisplayViewport> getAssociatedViewport() const {
         return mDevice.getAssociatedViewport();
     }
-    inline void cancelTouch(nsecs_t when) { mDevice.cancelTouch(when); }
+    inline void cancelTouch(nsecs_t when, nsecs_t readTime) { mDevice.cancelTouch(when, readTime); }
     inline void bumpGeneration() { mDevice.bumpGeneration(); }
     inline const PropertyMap& getConfiguration() { return mDevice.getConfiguration(); }
 
