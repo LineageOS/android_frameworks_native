@@ -167,6 +167,9 @@ status_t layer_state_t::write(Parcel& output) const
         SAFE_PARCEL(output.writeInt32, region.right);
         SAFE_PARCEL(output.writeInt32, region.bottom);
     }
+
+    SAFE_PARCEL(output.write, stretchEffect);
+
     return NO_ERROR;
 }
 
@@ -290,6 +293,9 @@ status_t layer_state_t::read(const Parcel& input)
         SAFE_PARCEL(input.readInt32, &region.bottom);
         blurRegions.push_back(region);
     }
+
+    SAFE_PARCEL(input.read, stretchEffect);
+
     return NO_ERROR;
 }
 

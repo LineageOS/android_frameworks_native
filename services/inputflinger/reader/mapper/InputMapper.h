@@ -19,6 +19,7 @@
 
 #include "EventHub.h"
 #include "InputDevice.h"
+#include "InputListener.h"
 #include "InputReaderContext.h"
 #include "StylusState.h"
 #include "VibrationElement.h"
@@ -47,6 +48,7 @@ public:
     inline const std::string getDeviceName() { return mDeviceContext.getName(); }
     inline InputReaderContext* getContext() { return mDeviceContext.getContext(); }
     inline InputReaderPolicyInterface* getPolicy() { return getContext()->getPolicy(); }
+    inline InputListenerInterface* getListener() { return getContext()->getListener(); }
 
     virtual uint32_t getSources() = 0;
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);

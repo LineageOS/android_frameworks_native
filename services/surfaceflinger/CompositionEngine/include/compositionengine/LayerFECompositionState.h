@@ -34,6 +34,7 @@
 #include <gui/BufferQueue.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
+#include <ui/StretchEffect.h>
 
 #include "DisplayHardware/Hal.h"
 
@@ -122,6 +123,8 @@ struct LayerFECompositionState {
 
     // List of regions that require blur
     std::vector<BlurRegion> blurRegions;
+
+    StretchEffect stretchEffect;
 
     /*
      * Geometry state

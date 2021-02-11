@@ -550,6 +550,10 @@ public:
         // transactions from blocking each other.
         Transaction& setApplyToken(const sp<IBinder>& token);
 
+        Transaction& setStretchEffect(const sp<SurfaceControl>& sc, float left, float top,
+                                      float right, float bottom, float vecX, float vecY,
+                                      float maxAmount);
+
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
 
