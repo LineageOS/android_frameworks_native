@@ -906,7 +906,8 @@ private:
     /*
      * Display management
      */
-    DisplayModes loadSupportedDisplayModes(PhysicalDisplayId) const REQUIRES(mStateLock);
+    void loadDisplayModes(PhysicalDisplayId displayId, DisplayModes& outModes,
+                          DisplayModePtr& outActiveMode) const REQUIRES(mStateLock);
     sp<DisplayDevice> setupNewDisplayDeviceInternal(
             const wp<IBinder>& displayToken,
             std::shared_ptr<compositionengine::Display> compositionDisplay,

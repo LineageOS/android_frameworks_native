@@ -91,6 +91,12 @@ public:
         int32_t dpiX = -1;
         int32_t dpiY = -1;
         int32_t configGroup = -1;
+
+        friend std::ostream& operator<<(std::ostream& os, const HWCDisplayMode& mode) {
+            return os << "id=" << mode.hwcId << " res=" << mode.width << "x" << mode.height
+                      << " vsyncPeriod=" << mode.vsyncPeriod << " dpi=" << mode.dpiX << "x"
+                      << mode.dpiY << " group=" << mode.configGroup;
+        }
     };
 
     virtual ~HWComposer();
