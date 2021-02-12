@@ -1581,6 +1581,10 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForTransac
     // For Transactions, the post time is considered to be both queue and acquire fence time.
     surfaceFrame->setActualQueueTime(postTime);
     surfaceFrame->setAcquireFenceTime(postTime);
+    const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
+    if (fps) {
+        mSurfaceFrame->setRenderRate(*fps);
+    }
     onSurfaceFrameCreated(surfaceFrame);
     return surfaceFrame;
 }
@@ -1592,6 +1596,10 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
                                                                  debugName);
     // For buffers, acquire fence time will set during latch.
     surfaceFrame->setActualQueueTime(queueTime);
+    const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
+    if (fps) {
+        mSurfaceFrame->setRenderRate(*fps);
+    }
     // TODO(b/178542907): Implement onSurfaceFrameCreated for BQLayer as well.
     onSurfaceFrameCreated(surfaceFrame);
     return surfaceFrame;
