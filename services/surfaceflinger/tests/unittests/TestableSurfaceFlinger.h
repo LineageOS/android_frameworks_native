@@ -410,6 +410,10 @@ public:
 
     const auto& getCompositorTiming() const { return mFlinger->getBE().mCompositorTiming; }
 
+    mock::FrameTracer* getFrameTracer() const {
+        return static_cast<mock::FrameTracer*>(mFlinger->mFrameTracer.get());
+    }
+
     /* ------------------------------------------------------------------------
      * Read-write access to private data to set up preconditions and assert
      * post-conditions.

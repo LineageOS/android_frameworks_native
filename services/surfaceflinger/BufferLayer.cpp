@@ -366,8 +366,11 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
         mFrameTracker.setFrameReadyTime(desiredPresentTime);
     }
 
+    const Fps refreshRate = mFlinger->mRefreshRateConfigs->getCurrentRefreshRate().getFps();
+    const std::optional<Fps> renderRate = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
     if (presentFence->isValid()) {
-        mFlinger->mTimeStats->setPresentFence(layerId, mCurrentFrameNumber, presentFence);
+        mFlinger->mTimeStats->setPresentFence(layerId, mCurrentFrameNumber, presentFence,
+                                              refreshRate, renderRate);
         mFlinger->mFrameTracer->traceFence(layerId, getCurrentBufferId(), mCurrentFrameNumber,
                                            presentFence, FrameTracer::FrameEvent::PRESENT_FENCE);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
@@ -378,7 +381,8 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
         const nsecs_t actualPresentTime = display->getRefreshTimestamp();
-        mFlinger->mTimeStats->setPresentTime(layerId, mCurrentFrameNumber, actualPresentTime);
+        mFlinger->mTimeStats->setPresentTime(layerId, mCurrentFrameNumber, actualPresentTime,
+                                             refreshRate, renderRate);
         mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(), mCurrentFrameNumber,
                                                actualPresentTime,
                                                FrameTracer::FrameEvent::PRESENT_FENCE);

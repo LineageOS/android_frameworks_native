@@ -57,6 +57,8 @@ public:
         uid_t uid;
         std::string layerName;
         std::string packageName;
+        int32_t displayRefreshRateBucket = 0;
+        int32_t renderRateBucket = 0;
         int32_t totalFrames = 0;
         int32_t droppedFrames = 0;
         int32_t lateAcquireFrames = 0;
@@ -68,32 +70,84 @@ public:
         SFTimeStatsLayerProto toProto() const;
     };
 
-    class TimeStatsGlobal {
-    public:
-        int64_t statsStart = 0;
-        int64_t statsEnd = 0;
-        int32_t totalFrames = 0;
-        int32_t missedFrames = 0;
-        int32_t clientCompositionFrames = 0;
-        int32_t clientCompositionReusedFrames = 0;
-        int32_t refreshRateSwitches = 0;
-        int32_t compositionStrategyChanges = 0;
-        int32_t displayEventConnectionsCount = 0;
-        int64_t displayOnTime = 0;
-        Histogram presentToPresent;
-        Histogram frameDuration;
-        Histogram renderEngineTiming;
+    // Lifted from SkiaGLRenderEngine's LinearEffect class.
+    // Which in turn was inspired by art/runtime/class_linker.cc
+    // Also this is what boost:hash_combine does so this is a pretty good hash.
+    static size_t HashCombine(size_t seed, size_t val) {
+        return seed ^ (val + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+    }
 
-        struct StatsHasher {
-            size_t operator()(const std::pair<uid_t, std::string>& p) const {
-                // Normally this isn't a very good hash function due to symmetry reasons,
-                // but these are distinct types so this should be good enough
-                return std::hash<uid_t>{}(p.first) ^ std::hash<std::string>{}(p.second);
+    struct TimelineStatsKey {
+        int32_t displayRefreshRateBucket = 0;
+        int32_t renderRateBucket = 0;
+
+        struct Hasher {
+            size_t operator()(const TimelineStatsKey& key) const {
+                size_t result = std::hash<int32_t>{}(key.displayRefreshRateBucket);
+                return HashCombine(result, std::hash<int32_t>{}(key.renderRateBucket));
             }
         };
-        std::unordered_map<std::pair<uid_t, std::string>, TimeStatsLayer, StatsHasher> stats;
-        std::unordered_map<uint32_t, nsecs_t> refreshRateStats;
+
+        bool operator==(const TimelineStatsKey& o) const {
+            return displayRefreshRateBucket == o.displayRefreshRateBucket &&
+                    renderRateBucket == o.renderRateBucket;
+        }
+    };
+
+    struct LayerStatsKey {
+        uid_t uid = 0;
+        std::string layerName;
+
+        struct Hasher {
+            size_t operator()(const LayerStatsKey& key) const {
+                size_t result = std::hash<uid_t>{}(key.uid);
+                return HashCombine(result, std::hash<std::string>{}(key.layerName));
+            }
+        };
+
+        bool operator==(const LayerStatsKey& o) const {
+            return uid == o.uid && layerName == o.layerName;
+        }
+    };
+
+    struct LayerStatsHasher {
+        size_t operator()(const std::pair<uid_t, std::string>& p) const {
+            // Normally this isn't a very good hash function due to symmetry reasons,
+            // but these are distinct types so this should be good enough
+            return std::hash<uid_t>{}(p.first) ^ std::hash<std::string>{}(p.second);
+        }
+    };
+
+    struct TimelineStats {
+        TimelineStatsKey key;
         JankPayload jankPayload;
+        Histogram displayDeadlineDeltas;
+        Histogram displayPresentDeltas;
+        std::unordered_map<LayerStatsKey, TimeStatsLayer, LayerStatsKey::Hasher> stats;
+    };
+
+    class TimeStatsGlobal {
+    public:
+        // Note: these are all legacy statistics, we're keeping these around because a variety of
+        // systems and form-factors find these useful when comparing with older releases. However,
+        // the current recommendation is that the new timeline-based metrics are used, and the old
+        // ones are deprecated.
+        int64_t statsStartLegacy = 0;
+        int64_t statsEndLegacy = 0;
+        int32_t totalFramesLegacy = 0;
+        int32_t missedFramesLegacy = 0;
+        int32_t clientCompositionFramesLegacy = 0;
+        int32_t clientCompositionReusedFramesLegacy = 0;
+        int32_t refreshRateSwitchesLegacy = 0;
+        int32_t compositionStrategyChangesLegacy = 0;
+        int32_t displayEventConnectionsCountLegacy = 0;
+        int64_t displayOnTimeLegacy = 0;
+        Histogram presentToPresentLegacy;
+        Histogram frameDurationLegacy;
+        Histogram renderEngineTimingLegacy;
+        std::unordered_map<uint32_t, nsecs_t> refreshRateStatsLegacy;
+
+        std::unordered_map<TimelineStatsKey, TimelineStats, TimelineStatsKey::Hasher> stats;
 
         std::string toString(std::optional<uint32_t> maxLayers) const;
         SFTimeStatsGlobalProto toProto(std::optional<uint32_t> maxLayers) const;

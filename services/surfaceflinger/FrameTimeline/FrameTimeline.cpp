@@ -320,6 +320,11 @@ void SurfaceFrame::setPresentState(PresentState presentState, nsecs_t lastLatchT
     mLastLatchTime = lastLatchTime;
 }
 
+void SurfaceFrame::setRenderRate(Fps renderRate) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mRenderRate = renderRate;
+}
+
 std::optional<int32_t> SurfaceFrame::getJankType() const {
     std::scoped_lock lock(mMutex);
     if (mActuals.presentTime == 0) {
@@ -367,6 +372,9 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
     StringAppendF(&result, "%s", indent.c_str());
     StringAppendF(&result, "Owner Pid : %d\n", mOwnerPid);
     StringAppendF(&result, "%s", indent.c_str());
+    StringAppendF(&result, "Scheduled rendering rate: %d fps\n",
+                  mRenderRate ? mRenderRate->getIntValue() : 0);
+    StringAppendF(&result, "%s", indent.c_str());
     StringAppendF(&result, "Present State : %s\n", toString(mPresentState).c_str());
     StringAppendF(&result, "%s", indent.c_str());
     StringAppendF(&result, "Prediction State : %s\n", toString(mPredictionState).c_str());
@@ -391,9 +399,10 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
     dumpTable(result, mPredictions, mActuals, indent, mPredictionState, baseTime);
 }
 
-void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType,
-                             nsecs_t vsyncPeriod) {
+void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate,
+                             nsecs_t displayDeadlineDelta, nsecs_t displayPresentDelta) {
     std::scoped_lock lock(mMutex);
+
     if (mPresentState != PresentState::Presented) {
         // No need to update dropped buffers
         return;
@@ -412,13 +421,16 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType,
         mJankType = JankType::Unknown;
         mFramePresentMetadata = FramePresentMetadata::UnknownPresent;
         mFrameReadyMetadata = FrameReadyMetadata::UnknownFinish;
-        mTimeStats->incrementJankyFrames(mOwnerUid, mLayerName, mJankType);
+        const constexpr nsecs_t kAppDeadlineDelta = -1;
+        mTimeStats->incrementJankyFrames({refreshRate, mRenderRate, mOwnerUid, mLayerName,
+                                          mJankType, displayDeadlineDelta, displayPresentDelta,
+                                          kAppDeadlineDelta});
         return;
     }
 
     const nsecs_t presentDelta = mActuals.presentTime - mPredictions.presentTime;
     const nsecs_t deadlineDelta = mActuals.endTime - mPredictions.endTime;
-    const nsecs_t deltaToVsync = std::abs(presentDelta) % vsyncPeriod;
+    const nsecs_t deltaToVsync = std::abs(presentDelta) % refreshRate.getPeriodNsecs();
 
     if (deadlineDelta > mJankClassificationThresholds.deadlineThreshold) {
         mFrameReadyMetadata = FrameReadyMetadata::LateFinish;
@@ -440,7 +452,8 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType,
         if (mFrameReadyMetadata == FrameReadyMetadata::OnTimeFinish) {
             // Finish on time, Present early
             if (deltaToVsync < mJankClassificationThresholds.presentThreshold ||
-                deltaToVsync >= vsyncPeriod - mJankClassificationThresholds.presentThreshold) {
+                deltaToVsync >= refreshRate.getPeriodNsecs() -
+                                mJankClassificationThresholds.presentThreshold) {
                 // Delta factor of vsync
                 mJankType = JankType::SurfaceFlingerScheduling;
             } else {
@@ -463,7 +476,8 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType,
                 mJankType |= displayFrameJankType;
             } else {
                 if (deltaToVsync < mJankClassificationThresholds.presentThreshold ||
-                    deltaToVsync >= vsyncPeriod - mJankClassificationThresholds.presentThreshold) {
+                    deltaToVsync >= refreshRate.getPeriodNsecs() -
+                                    mJankClassificationThresholds.presentThreshold) {
                     // Delta factor of vsync
                     mJankType |= JankType::SurfaceFlingerScheduling;
                 } else {
@@ -482,7 +496,8 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType,
             }
         }
     }
-    mTimeStats->incrementJankyFrames(mOwnerUid, mLayerName, mJankType);
+    mTimeStats->incrementJankyFrames({refreshRate, mRenderRate, mOwnerUid, mLayerName, mJankType,
+                                      displayDeadlineDelta, displayPresentDelta, deadlineDelta});
 }
 
 /**
@@ -684,10 +699,10 @@ void FrameTimeline::addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame) 
     mCurrentDisplayFrame->addSurfaceFrame(surfaceFrame);
 }
 
-void FrameTimeline::setSfWakeUp(int64_t token, nsecs_t wakeUpTime, nsecs_t vsyncPeriod) {
+void FrameTimeline::setSfWakeUp(int64_t token, nsecs_t wakeUpTime, Fps refreshRate) {
     ATRACE_CALL();
     std::scoped_lock lock(mMutex);
-    mCurrentDisplayFrame->onSfWakeUp(token, vsyncPeriod,
+    mCurrentDisplayFrame->onSfWakeUp(token, refreshRate,
                                      mTokenManager.getPredictionsForToken(token), wakeUpTime);
 }
 
@@ -705,11 +720,11 @@ void FrameTimeline::DisplayFrame::addSurfaceFrame(std::shared_ptr<SurfaceFrame> 
     mSurfaceFrames.push_back(surfaceFrame);
 }
 
-void FrameTimeline::DisplayFrame::onSfWakeUp(int64_t token, nsecs_t vsyncPeriod,
+void FrameTimeline::DisplayFrame::onSfWakeUp(int64_t token, Fps refreshRate,
                                              std::optional<TimelineItem> predictions,
                                              nsecs_t wakeUpTime) {
     mToken = token;
-    mVsyncPeriod = vsyncPeriod;
+    mRefreshRate = refreshRate;
     if (!predictions) {
         mPredictionState = PredictionState::Expired;
     } else {
@@ -717,11 +732,6 @@ void FrameTimeline::DisplayFrame::onSfWakeUp(int64_t token, nsecs_t vsyncPeriod,
         mSurfaceFlingerPredictions = *predictions;
     }
     mSurfaceFlingerActuals.startTime = wakeUpTime;
-}
-
-void FrameTimeline::DisplayFrame::setTokenAndVsyncPeriod(int64_t token, nsecs_t vsyncPeriod) {
-    mToken = token;
-    mVsyncPeriod = vsyncPeriod;
 }
 
 void FrameTimeline::DisplayFrame::setPredictions(PredictionState predictionState,
@@ -740,14 +750,16 @@ void FrameTimeline::DisplayFrame::setActualEndTime(nsecs_t actualEndTime) {
 
 void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
     mSurfaceFlingerActuals.presentTime = signalTime;
-    int32_t totalJankReasons = JankType::None;
 
     // Delta between the expected present and the actual present
     const nsecs_t presentDelta =
             mSurfaceFlingerActuals.presentTime - mSurfaceFlingerPredictions.presentTime;
+    const nsecs_t deadlineDelta =
+            mSurfaceFlingerActuals.endTime - mSurfaceFlingerPredictions.endTime;
+
     // How far off was the presentDelta when compared to the vsyncPeriod. Used in checking if there
     // was a prediction error or not.
-    nsecs_t deltaToVsync = std::abs(presentDelta) % mVsyncPeriod;
+    nsecs_t deltaToVsync = std::abs(presentDelta) % mRefreshRate.getPeriodNsecs();
     if (std::abs(presentDelta) > mJankClassificationThresholds.presentThreshold) {
         mFramePresentMetadata = presentDelta > 0 ? FramePresentMetadata::LatePresent
                                                  : FramePresentMetadata::EarlyPresent;
@@ -776,8 +788,8 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
             if (mFrameReadyMetadata == FrameReadyMetadata::OnTimeFinish) {
                 // Finish on time, Present early
                 if (deltaToVsync < mJankClassificationThresholds.presentThreshold ||
-                    deltaToVsync >=
-                            (mVsyncPeriod - mJankClassificationThresholds.presentThreshold)) {
+                    deltaToVsync >= (mRefreshRate.getPeriodNsecs() -
+                                     mJankClassificationThresholds.presentThreshold)) {
                     // Delta is a factor of vsync if its within the presentTheshold on either side
                     // of the vsyncPeriod. Example: 0-2ms and 9-11ms are both within the threshold
                     // of the vsyncPeriod if the threshold was 2ms and the vsyncPeriod was 11ms.
@@ -797,8 +809,8 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
             if (mFrameReadyMetadata == FrameReadyMetadata::OnTimeFinish) {
                 // Finish on time, Present late
                 if (deltaToVsync < mJankClassificationThresholds.presentThreshold ||
-                    deltaToVsync >=
-                            (mVsyncPeriod - mJankClassificationThresholds.presentThreshold)) {
+                    deltaToVsync >= (mRefreshRate.getPeriodNsecs() -
+                                     mJankClassificationThresholds.presentThreshold)) {
                     // Delta is a factor of vsync if its within the presentTheshold on either side
                     // of the vsyncPeriod. Example: 0-2ms and 9-11ms are both within the threshold
                     // of the vsyncPeriod if the threshold was 2ms and the vsyncPeriod was 11ms.
@@ -819,16 +831,9 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
             mJankType = JankType::Unknown;
         }
     }
-    totalJankReasons |= mJankType;
-
     for (auto& surfaceFrame : mSurfaceFrames) {
-        surfaceFrame->onPresent(signalTime, mJankType, mVsyncPeriod);
-        auto surfaceFrameJankType = surfaceFrame->getJankType();
-        if (surfaceFrameJankType != std::nullopt) {
-            totalJankReasons |= *surfaceFrameJankType;
-        }
+        surfaceFrame->onPresent(signalTime, mJankType, mRefreshRate, deadlineDelta, deltaToVsync);
     }
-    mTimeStats->incrementJankyFrames(totalJankReasons);
 }
 
 void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid) const {
@@ -988,7 +993,7 @@ void FrameTimeline::DisplayFrame::dump(std::string& result, nsecs_t baseTime) co
     StringAppendF(&result, "Present Metadata : %s\n", toString(mFramePresentMetadata).c_str());
     StringAppendF(&result, "Finish Metadata: %s\n", toString(mFrameReadyMetadata).c_str());
     StringAppendF(&result, "Start Metadata: %s\n", toString(mFrameStartMetadata).c_str());
-    std::chrono::nanoseconds vsyncPeriod(mVsyncPeriod);
+    std::chrono::nanoseconds vsyncPeriod(mRefreshRate.getPeriodNsecs());
     StringAppendF(&result, "Vsync Period: %10f\n",
                   std::chrono::duration<double, std::milli>(vsyncPeriod).count());
     nsecs_t presentDelta =
@@ -996,7 +1001,7 @@ void FrameTimeline::DisplayFrame::dump(std::string& result, nsecs_t baseTime) co
     std::chrono::nanoseconds presentDeltaNs(std::abs(presentDelta));
     StringAppendF(&result, "Present delta: %10f\n",
                   std::chrono::duration<double, std::milli>(presentDeltaNs).count());
-    std::chrono::nanoseconds deltaToVsync(std::abs(presentDelta) % mVsyncPeriod);
+    std::chrono::nanoseconds deltaToVsync(std::abs(presentDelta) % mRefreshRate.getPeriodNsecs());
     StringAppendF(&result, "Present delta %% refreshrate: %10f\n",
                   std::chrono::duration<double, std::milli>(deltaToVsync).count());
     dumpTable(result, mSurfaceFlingerPredictions, mSurfaceFlingerActuals, "", mPredictionState,

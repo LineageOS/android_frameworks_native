@@ -73,6 +73,7 @@ cc_test {
         "FrameTracerTest.cpp",
         "TimerTest.cpp",
         "TransactionApplicationTest.cpp",
+        "TransactionFrameTracerTest.cpp",
         "TransactionSurfaceFrameTest.cpp",
         "StrongTypingTest.cpp",
         "VSyncDispatchTimerQueueTest.cpp",
