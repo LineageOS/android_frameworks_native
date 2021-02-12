@@ -234,6 +234,7 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
         }
         case InputMessage::Type::FINISHED: {
             msg->body.finished.handled = body.finished.handled;
+            msg->body.finished.consumeTime = body.finished.consumeTime;
             break;
         }
         case InputMessage::Type::FOCUS: {
@@ -597,7 +598,8 @@ status_t InputPublisher::publishCaptureEvent(uint32_t seq, int32_t eventId,
     return mChannel->sendMessage(&msg);
 }
 
-status_t InputPublisher::receiveFinishedSignal(uint32_t* outSeq, bool* outHandled) {
+status_t InputPublisher::receiveFinishedSignal(
+        const std::function<void(uint32_t seq, bool handled, nsecs_t consumeTime)>& callback) {
     if (DEBUG_TRANSPORT_ACTIONS) {
         ALOGD("channel '%s' publisher ~ receiveFinishedSignal", mChannel->getName().c_str());
     }
@@ -605,8 +607,6 @@ status_t InputPublisher::receiveFinishedSignal(uint32_t* outSeq, bool* outHandle
     InputMessage msg;
     status_t result = mChannel->receiveMessage(&msg);
     if (result) {
-        *outSeq = 0;
-        *outHandled = false;
         return result;
     }
     if (msg.header.type != InputMessage::Type::FINISHED) {
@@ -614,8 +614,7 @@ status_t InputPublisher::receiveFinishedSignal(uint32_t* outSeq, bool* outHandle
                 mChannel->getName().c_str(), msg.header.type);
         return UNKNOWN_ERROR;
     }
-    *outSeq = msg.header.seq;
-    *outHandled = msg.body.finished.handled == 1;
+    callback(msg.header.seq, msg.body.finished.handled == 1, msg.body.finished.consumeTime);
     return OK;
 }
 
@@ -651,6 +650,9 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consum
         } else {
             // Receive a fresh message.
             status_t result = mChannel->receiveMessage(&mMsg);
+            if (result == OK) {
+                mConsumeTimes.emplace(mMsg.header.seq, systemTime(SYSTEM_TIME_MONOTONIC));
+            }
             if (result) {
                 // Consume the next batched event unless batches are being held for later.
                 if (consumeBatches || result != WOULD_BLOCK) {
@@ -1147,12 +1149,33 @@ status_t InputConsumer::sendFinishedSignal(uint32_t seq, bool handled) {
     return sendUnchainedFinishedSignal(seq, handled);
 }
 
+nsecs_t InputConsumer::getConsumeTime(uint32_t seq) const {
+    auto it = mConsumeTimes.find(seq);
+    // Consume time will be missing if either 'finishInputEvent' is called twice, or if it was
+    // called for the wrong (synthetic?) input event. Either way, it is a bug that should be fixed.
+    LOG_ALWAYS_FATAL_IF(it == mConsumeTimes.end(), "Could not find consume time for seq=%" PRIu32,
+                        seq);
+    return it->second;
+}
+
+void InputConsumer::popConsumeTime(uint32_t seq) {
+    mConsumeTimes.erase(seq);
+}
+
 status_t InputConsumer::sendUnchainedFinishedSignal(uint32_t seq, bool handled) {
     InputMessage msg;
     msg.header.type = InputMessage::Type::FINISHED;
     msg.header.seq = seq;
     msg.body.finished.handled = handled ? 1 : 0;
-    return mChannel->sendMessage(&msg);
+    msg.body.finished.consumeTime = getConsumeTime(seq);
+    status_t result = mChannel->sendMessage(&msg);
+    if (result == OK) {
+        // Remove the consume time if the socket write succeeded. We will not need to ack this
+        // message anymore. If the socket write did not succeed, we will try again and will still
+        // need consume time.
+        popConsumeTime(seq);
+    }
+    return result;
 }
 
 bool InputConsumer::hasDeferredEvent() const {
@@ -1304,8 +1327,9 @@ std::string InputConsumer::dump() const {
                     break;
                 }
                 case InputMessage::Type::FINISHED: {
-                    out += android::base::StringPrintf("handled=%s",
-                                                       toString(msg.body.finished.handled));
+                    out += android::base::StringPrintf("handled=%s, consumeTime=%" PRId64,
+                                                       toString(msg.body.finished.handled),
+                                                       msg.body.finished.consumeTime);
                     break;
                 }
                 case InputMessage::Type::FOCUS: {
@@ -1333,6 +1357,14 @@ std::string InputConsumer::dump() const {
                                            chain.chain);
     }
     if (mSeqChains.empty()) {
+        out += "    <empty>\n";
+    }
+    out += "mConsumeTimes:\n";
+    for (const auto& [seq, consumeTime] : mConsumeTimes) {
+        out += android::base::StringPrintf("    seq = %" PRIu32 " consumeTime = %" PRId64, seq,
+                                           consumeTime);
+    }
+    if (mConsumeTimes.empty()) {
         out += "    <empty>\n";
     }
     return out;

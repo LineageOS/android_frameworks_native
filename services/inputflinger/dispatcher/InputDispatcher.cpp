@@ -3113,7 +3113,7 @@ const std::array<uint8_t, 32> InputDispatcher::getSignature(
 
 void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
                                                 const sp<Connection>& connection, uint32_t seq,
-                                                bool handled) {
+                                                bool handled, nsecs_t consumeTime) {
 #if DEBUG_DISPATCH_CYCLE
     ALOGD("channel '%s' ~ finishDispatchCycle - seq=%u, handled=%s",
           connection->getInputChannelName().c_str(), seq, toString(handled));
@@ -3125,7 +3125,7 @@ void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
     }
 
     // Notify other system components and prepare to start the next dispatch cycle.
-    onDispatchCycleFinishedLocked(currentTime, connection, seq, handled);
+    onDispatchCycleFinishedLocked(currentTime, connection, seq, handled, consumeTime);
 }
 
 void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
@@ -3196,13 +3196,15 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
             bool gotOne = false;
             status_t status;
             for (;;) {
-                uint32_t seq;
-                bool handled;
-                status = connection->inputPublisher.receiveFinishedSignal(&seq, &handled);
+                std::function<void(uint32_t seq, bool handled, nsecs_t consumeTime)> callback =
+                        std::bind(&InputDispatcher::finishDispatchCycleLocked, d, currentTime,
+                                  connection, std::placeholders::_1, std::placeholders::_2,
+                                  std::placeholders::_3);
+
+                status = connection->inputPublisher.receiveFinishedSignal(callback);
                 if (status) {
                     break;
                 }
-                d->finishDispatchCycleLocked(currentTime, connection, seq, handled);
                 gotOne = true;
             }
             if (gotOne) {
@@ -5154,13 +5156,14 @@ void InputDispatcher::removeConnectionLocked(const sp<Connection>& connection) {
 
 void InputDispatcher::onDispatchCycleFinishedLocked(nsecs_t currentTime,
                                                     const sp<Connection>& connection, uint32_t seq,
-                                                    bool handled) {
+                                                    bool handled, nsecs_t consumeTime) {
     std::unique_ptr<CommandEntry> commandEntry = std::make_unique<CommandEntry>(
             &InputDispatcher::doDispatchCycleFinishedLockedInterruptible);
     commandEntry->connection = connection;
     commandEntry->eventTime = currentTime;
     commandEntry->seq = seq;
     commandEntry->handled = handled;
+    commandEntry->consumeTime = consumeTime;
     postCommandLocked(std::move(commandEntry));
 }
 

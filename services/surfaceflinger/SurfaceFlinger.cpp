@@ -1899,7 +1899,7 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
         const bool tracePreComposition = mTracingEnabled && !mTracePostComposition;
         ConditionalLockGuard<std::mutex> lock(mTracingLock, tracePreComposition);
 
-        mFrameTimeline->setSfWakeUp(vsyncId, frameStart, stats.vsyncPeriod);
+        mFrameTimeline->setSfWakeUp(vsyncId, frameStart, Fps::fromPeriodNsecs(stats.vsyncPeriod));
 
         refreshNeeded = handleMessageTransaction();
         refreshNeeded |= handleMessageInvalidate();

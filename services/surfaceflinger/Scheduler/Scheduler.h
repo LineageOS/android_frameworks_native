@@ -174,6 +174,8 @@ public:
     // Stores the preferred refresh rate that an app should run at.
     // FrameRateOverride.refreshRateHz == 0 means no preference.
     void setPreferredRefreshRateForUid(FrameRateOverride) EXCLUDES(mFrameRateOverridesMutex);
+    // Retrieves the overridden refresh rate for a given uid.
+    std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mFrameRateOverridesMutex);
 
 private:
     friend class TestableScheduler;
@@ -236,7 +238,6 @@ private:
                                   Fps displayRefreshRate) REQUIRES(mFeatureStateLock)
             EXCLUDES(mFrameRateOverridesMutex);
 
-    std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mFrameRateOverridesMutex);
     impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const;
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
