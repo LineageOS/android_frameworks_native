@@ -4266,6 +4266,7 @@ protected:
     constexpr static const float MAXIMUM_OBSCURING_OPACITY = 0.8;
     static const int32_t APP_A_UID = 10001;
     static const int32_t APP_B_UID = 10002;
+    static const int32_t APP_C_UID = 10003;
 
     sp<FakeWindowHandle> mTouchWindow;
 
@@ -4282,10 +4283,11 @@ protected:
     }
 
     sp<FakeWindowHandle> getOccludingWindow(int32_t uid, std::string name,
-                                            os::TouchOcclusionMode mode) {
+                                            os::TouchOcclusionMode mode, float alpha = 1.0f) {
         sp<FakeWindowHandle> window = getWindow(uid, name);
         window->setFlags(InputWindowInfo::Flag::NOT_TOUCHABLE);
         window->setTouchOcclusionMode(mode);
+        window->setAlpha(alpha);
         return window;
     }
 
@@ -4307,9 +4309,9 @@ protected:
 };
 
 TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithBlockUntrustedOcclusionMode_BlocksTouch) {
-    const sp<FakeWindowHandle>& window =
+    const sp<FakeWindowHandle>& w =
             getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED);
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window, mTouchWindow}}});
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
 
     touch();
 
@@ -4317,9 +4319,8 @@ TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithBlockUntrustedOcclusionMod
 }
 
 TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithAllowOcclusionMode_AllowsTouch) {
-    const sp<FakeWindowHandle>& window =
-            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::ALLOW);
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window, mTouchWindow}}});
+    const sp<FakeWindowHandle>& w = getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::ALLOW);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
 
     touch();
 
@@ -4327,10 +4328,10 @@ TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithAllowOcclusionMode_AllowsT
 }
 
 TEST_F(InputDispatcherUntrustedTouchesTest, TouchOutsideOccludingWindow_AllowsTouch) {
-    const sp<FakeWindowHandle>& window =
+    const sp<FakeWindowHandle>& w =
             getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED);
-    window->setFrame(Rect(0, 0, 50, 50));
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window, mTouchWindow}}});
+    w->setFrame(Rect(0, 0, 50, 50));
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
 
     touch({PointF{100, 100}});
 
@@ -4338,9 +4339,19 @@ TEST_F(InputDispatcherUntrustedTouchesTest, TouchOutsideOccludingWindow_AllowsTo
 }
 
 TEST_F(InputDispatcherUntrustedTouchesTest, WindowFromSameUid_AllowsTouch) {
-    const sp<FakeWindowHandle>& window =
+    const sp<FakeWindowHandle>& w =
             getOccludingWindow(APP_A_UID, "A", TouchOcclusionMode::BLOCK_UNTRUSTED);
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window, mTouchWindow}}});
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
+
+    touch();
+
+    mTouchWindow->consumeAnyMotionDown();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithZeroOpacity_AllowsTouch) {
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED, 0.0f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
 
     touch();
 
@@ -4348,10 +4359,20 @@ TEST_F(InputDispatcherUntrustedTouchesTest, WindowFromSameUid_AllowsTouch) {
 }
 
 TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithOpacityBelowThreshold_AllowsTouch) {
-    const sp<FakeWindowHandle>& window =
-            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY);
-    window->setAlpha(0.7);
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window, mTouchWindow}}});
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY, 0.7f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
+
+    touch();
+
+    mTouchWindow->consumeAnyMotionDown();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithOpacityAtThreshold_AllowsTouch) {
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY,
+                               MAXIMUM_OBSCURING_OPACITY);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
 
     touch();
 
@@ -4359,10 +4380,60 @@ TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithOpacityBelowThreshold_Allo
 }
 
 TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithOpacityAboveThreshold_BlocksTouch) {
-    const sp<FakeWindowHandle>& window =
-            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY);
-    window->setAlpha(0.9);
-    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window, mTouchWindow}}});
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY, 0.9f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
+
+    touch();
+
+    mTouchWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, WindowsWithCombinedOpacityAboveThreshold_BlocksTouch) {
+    // Resulting opacity = 1 - (1 - 0.7)*(1 - 0.7) = .91
+    const sp<FakeWindowHandle>& w1 =
+            getOccludingWindow(APP_B_UID, "B1", TouchOcclusionMode::USE_OPACITY, 0.7f);
+    const sp<FakeWindowHandle>& w2 =
+            getOccludingWindow(APP_B_UID, "B2", TouchOcclusionMode::USE_OPACITY, 0.7f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w1, w2, mTouchWindow}}});
+
+    touch();
+
+    mTouchWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, WindowsWithCombinedOpacityBelowThreshold_AllowsTouch) {
+    // Resulting opacity = 1 - (1 - 0.5)*(1 - 0.5) = .75
+    const sp<FakeWindowHandle>& w1 =
+            getOccludingWindow(APP_B_UID, "B1", TouchOcclusionMode::USE_OPACITY, 0.5f);
+    const sp<FakeWindowHandle>& w2 =
+            getOccludingWindow(APP_B_UID, "B2", TouchOcclusionMode::USE_OPACITY, 0.5f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w1, w2, mTouchWindow}}});
+
+    touch();
+
+    mTouchWindow->consumeAnyMotionDown();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest,
+       WindowsFromDifferentAppsEachBelowThreshold_AllowsTouch) {
+    const sp<FakeWindowHandle>& wB =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY, 0.7f);
+    const sp<FakeWindowHandle>& wC =
+            getOccludingWindow(APP_C_UID, "C", TouchOcclusionMode::USE_OPACITY, 0.7f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {wB, wC, mTouchWindow}}});
+
+    touch();
+
+    mTouchWindow->consumeAnyMotionDown();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, WindowsFromDifferentAppsOneAboveThreshold_BlocksTouch) {
+    const sp<FakeWindowHandle>& wB =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY, 0.7f);
+    const sp<FakeWindowHandle>& wC =
+            getOccludingWindow(APP_C_UID, "C", TouchOcclusionMode::USE_OPACITY, 0.9f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {wB, wC, mTouchWindow}}});
 
     touch();
 
