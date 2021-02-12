@@ -30,6 +30,7 @@
  */
 
 #include <string>
+#include <unordered_map>
 
 #include <android-base/chrono_utils.h>
 
@@ -155,6 +156,7 @@ struct InputMessage {
         struct Finished {
             uint32_t empty1;
             uint32_t handled; // actually a bool, but we must maintain 8-byte alignment
+            nsecs_t consumeTime; // The time when the event was consumed by the receiving end
 
             inline size_t size() const { return sizeof(Finished); }
         } finished;
@@ -362,7 +364,8 @@ public:
 
     /* Receives the finished signal from the consumer in reply to the original dispatch signal.
      * If a signal was received, returns the message sequence number,
-     * and whether the consumer handled the message.
+     * whether the consumer handled the message, and the time the event was first read by the
+     * consumer.
      *
      * The returned sequence number is never 0 unless the operation failed.
      *
@@ -371,7 +374,8 @@ public:
      * Returns DEAD_OBJECT if the channel's peer has been closed.
      * Other errors probably indicate that the channel is broken.
      */
-    status_t receiveFinishedSignal(uint32_t* outSeq, bool* outHandled);
+    status_t receiveFinishedSignal(
+            const std::function<void(uint32_t seq, bool handled, nsecs_t consumeTime)>& callback);
 
 private:
     std::shared_ptr<InputChannel> mChannel;
@@ -577,6 +581,13 @@ private:
     };
     std::vector<SeqChain> mSeqChains;
 
+    // The time at which each event with the sequence number 'seq' was consumed.
+    // This data is provided in 'finishInputEvent' so that the receiving end can measure the latency
+    // This collection is populated when the event is received, and the entries are erased when the
+    // events are finished. It should not grow infinitely because if an event is not ack'd, ANR
+    // will be raised for that connection, and no further events will be posted to that channel.
+    std::unordered_map<uint32_t /*seq*/, nsecs_t /*consumeTime*/> mConsumeTimes;
+
     status_t consumeBatch(InputEventFactoryInterface* factory,
             nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent);
     status_t consumeSamples(InputEventFactoryInterface* factory,
@@ -589,6 +600,8 @@ private:
     ssize_t findBatch(int32_t deviceId, int32_t source) const;
     ssize_t findTouchState(int32_t deviceId, int32_t source) const;
 
+    nsecs_t getConsumeTime(uint32_t seq) const;
+    void popConsumeTime(uint32_t seq);
     status_t sendUnchainedFinishedSignal(uint32_t seq, bool handled);
 
     static void rewriteMessage(TouchState& state, InputMessage& msg);

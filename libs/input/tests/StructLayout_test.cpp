@@ -83,6 +83,7 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Capture, pointerCaptureEnabled, 4);
 
   CHECK_OFFSET(InputMessage::Body::Finished, handled, 4);
+  CHECK_OFFSET(InputMessage::Body::Finished, consumeTime, 8);
 }
 
 void TestHeaderSize() {
@@ -100,7 +101,7 @@ void TestBodySize() {
     static_assert(sizeof(InputMessage::Body::Motion) ==
                   offsetof(InputMessage::Body::Motion, pointers) +
                           sizeof(InputMessage::Body::Motion::Pointer) * MAX_POINTERS);
-    static_assert(sizeof(InputMessage::Body::Finished) == 8);
+    static_assert(sizeof(InputMessage::Body::Finished) == 16);
     static_assert(sizeof(InputMessage::Body::Focus) == 8);
     static_assert(sizeof(InputMessage::Body::Capture) == 8);
 }

@@ -81,17 +81,16 @@ private:
     inline SkRect getSkRect(const Rect& layer);
     inline SkRRect getRoundedRect(const LayerSettings* layer);
     inline BlurRegion getBlurRegion(const LayerSettings* layer);
+    inline bool layerHasBlur(const LayerSettings* layer);
     inline SkColor getSkColor(const vec4& color);
     inline SkM44 getSkM44(const mat4& matrix);
     inline SkPoint3 getSkPoint3(const vec3& vector);
 
     base::unique_fd flush();
     bool waitFence(base::unique_fd fenceFd);
+    void initCanvas(SkCanvas* canvas, const DisplaySettings& display);
     void drawShadow(SkCanvas* canvas, const SkRect& casterRect, float casterCornerRadius,
                     const ShadowSettings& shadowSettings);
-    void drawBlurRegion(SkCanvas* canvas, const BlurRegion& blurRegion, const SkRect& layerRect,
-                        sk_sp<SkImage> blurredImage);
-    SkMatrix getBlurShaderTransform(const SkCanvas* canvas, const SkRect& layerRect);
     // If mUseColorManagement is correct and layer needsLinearEffect, it returns a linear runtime
     // shader. Otherwise it returns the input shader.
     sk_sp<SkShader> createRuntimeEffectShader(sk_sp<SkShader> shader, const LayerSettings* layer,

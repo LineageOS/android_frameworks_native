@@ -27,7 +27,7 @@ namespace android {
 
 // Value which represents "frames per second". This class is a wrapper around
 // float, providing some useful utilities, such as comparisons with tolerance
-// and converting between period duruation and frequency.
+// and converting between period duration and frequency.
 class Fps {
 public:
     static constexpr Fps fromPeriodNsecs(nsecs_t period) { return Fps(1e9f / period, period); }

@@ -528,7 +528,7 @@ private:
     void startDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
     void finishDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
-                                   uint32_t seq, bool handled) REQUIRES(mLock);
+                                   uint32_t seq, bool handled, nsecs_t consumeTime) REQUIRES(mLock);
     void abortBrokenDispatchCycleLocked(nsecs_t currentTime, const sp<Connection>& connection,
                                         bool notify) REQUIRES(mLock);
     void drainDispatchQueue(std::deque<DispatchEntry*>& queue);
@@ -578,7 +578,8 @@ private:
 
     // Interesting events that we might like to log or tell the framework about.
     void onDispatchCycleFinishedLocked(nsecs_t currentTime, const sp<Connection>& connection,
-                                       uint32_t seq, bool handled) REQUIRES(mLock);
+                                       uint32_t seq, bool handled, nsecs_t consumeTime)
+            REQUIRES(mLock);
     void onDispatchCycleBrokenLocked(nsecs_t currentTime, const sp<Connection>& connection)
             REQUIRES(mLock);
     void onFocusChangedLocked(const FocusResolver::FocusChanges& changes) REQUIRES(mLock);

@@ -27,12 +27,13 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
+#include <../Fps.h>
+#include <gui/JankInfo.h>
 #include <stats_event.h>
 #include <stats_pull_atom_callback.h>
 #include <statslog.h>
 #include <timestatsproto/TimeStatsHelper.h>
 #include <timestatsproto/TimeStatsProtoHeader.h>
-#include <gui/JankInfo.h>
 #include <ui/FenceTime.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
@@ -108,23 +109,60 @@ public:
                                  const std::shared_ptr<FenceTime>& acquireFence) = 0;
     // SetPresent{Time, Fence} are not expected to be called in the critical
     // rendering path, as they flush prior fences if those fences have fired.
-    virtual void setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime) = 0;
+    virtual void setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime,
+                                Fps displayRefreshRate, std::optional<Fps> renderRate) = 0;
     virtual void setPresentFence(int32_t layerId, uint64_t frameNumber,
-                                 const std::shared_ptr<FenceTime>& presentFence) = 0;
+                                 const std::shared_ptr<FenceTime>& presentFence,
+                                 Fps displayRefreshRate, std::optional<Fps> renderRate) = 0;
 
-    // Increments janky frames, tracked globally. Because FrameTimeline is the infrastructure
-    // responsible for computing jank in the system, this is expected to be called from
-    // FrameTimeline, rather than directly from SurfaceFlinger or individual layers. If there are no
-    // jank reasons, then total frames are incremented but jank is not, for accurate accounting of
-    // janky frames.
-    virtual void incrementJankyFrames(int32_t reasons) = 0;
-    // Increments janky frames, blamed to the provided {uid, layerName} key, with JankMetadata as
-    // supplementary reasons for the jank. Because FrameTimeline is the infrastructure responsible
-    // for computing jank in the system, this is expected to be called from FrameTimeline, rather
-    // than directly from SurfaceFlinger or individual layers.
-    // If there are no jank reasons, then total frames are incremented but jank is not, for accurate
+    // Increments janky frames, blamed to the provided {refreshRate, renderRate, uid, layerName}
+    // key, with JankMetadata as supplementary reasons for the jank. Because FrameTimeline is the
+    // infrastructure responsible for computing jank in the system, this is expected to be called
+    // from FrameTimeline, rather than directly from SurfaceFlinger or individual layers. If there
+    // are no jank reasons, then total frames are incremented but jank is not, for accurate
     // accounting of janky frames.
-    virtual void incrementJankyFrames(uid_t uid, const std::string& layerName, int32_t reasons) = 0;
+    // displayDeadlineDelta, displayPresentJitter, and appDeadlineDelta are also provided in order
+    // to provide contextual information about a janky frame. These values may only be uploaded if
+    // there was an associated valid jank reason, and they must be positive. When these frame counts
+    // are incremented, these are also aggregated into a global reporting packet to help with data
+    // validation and assessing of overall device health.
+    struct JankyFramesInfo {
+        Fps refreshRate;
+        std::optional<Fps> renderRate;
+        uid_t uid = 0;
+        std::string layerName;
+        int32_t reasons = 0;
+        nsecs_t displayDeadlineDelta = 0;
+        nsecs_t displayPresentJitter = 0;
+        nsecs_t appDeadlineDelta = 0;
+
+        bool operator==(const JankyFramesInfo& o) const {
+            return Fps::EqualsInBuckets{}(refreshRate, o.refreshRate) &&
+                    ((renderRate == std::nullopt && o.renderRate == std::nullopt) ||
+                     (renderRate != std::nullopt && o.renderRate != std::nullopt &&
+                      Fps::EqualsInBuckets{}(*renderRate, *o.renderRate))) &&
+                    uid == o.uid && layerName == o.layerName && reasons == o.reasons &&
+                    displayDeadlineDelta == o.displayDeadlineDelta &&
+                    displayPresentJitter == o.displayPresentJitter &&
+                    appDeadlineDelta == o.appDeadlineDelta;
+        }
+
+        friend std::ostream& operator<<(std::ostream& os, const JankyFramesInfo& info) {
+            os << "JankyFramesInfo {";
+            os << "\n    .refreshRate = " << info.refreshRate;
+            os << "\n    .renderRate = "
+               << (info.renderRate ? to_string(*info.renderRate) : "nullopt");
+            os << "\n    .uid = " << info.uid;
+            os << "\n    .layerName = " << info.layerName;
+            os << "\n    .reasons = " << info.reasons;
+            os << "\n    .displayDeadlineDelta = " << info.displayDeadlineDelta;
+            os << "\n    .displayPresentJitter = " << info.displayPresentJitter;
+            os << "\n    .appDeadlineDelta = " << info.appDeadlineDelta;
+            return os << "\n}";
+        }
+    };
+
+    virtual void incrementJankyFrames(const JankyFramesInfo& info) = 0;
     // Clean up the layer record
     virtual void onDestroy(int32_t layerId) = 0;
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
@@ -268,11 +306,13 @@ public:
     void setAcquireTime(int32_t layerId, uint64_t frameNumber, nsecs_t acquireTime) override;
     void setAcquireFence(int32_t layerId, uint64_t frameNumber,
                          const std::shared_ptr<FenceTime>& acquireFence) override;
-    void setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime) override;
+    void setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime,
+                        Fps displayRefreshRate, std::optional<Fps> renderRate) override;
     void setPresentFence(int32_t layerId, uint64_t frameNumber,
-                         const std::shared_ptr<FenceTime>& presentFence) override;
-    void incrementJankyFrames(int32_t reasons) override;
-    void incrementJankyFrames(uid_t uid, const std::string& layerName, int32_t reasons) override;
+                         const std::shared_ptr<FenceTime>& presentFence, Fps displayRefreshRate,
+                         std::optional<Fps> renderRate) override;
+
+    void incrementJankyFrames(const JankyFramesInfo& info) override;
     // Clean up the layer record
     void onDestroy(int32_t layerId) override;
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
@@ -293,7 +333,8 @@ private:
     AStatsManager_PullAtomCallbackReturn populateGlobalAtom(AStatsEventList* data);
     AStatsManager_PullAtomCallbackReturn populateLayerAtom(AStatsEventList* data);
     bool recordReadyLocked(int32_t layerId, TimeRecord* timeRecord);
-    void flushAvailableRecordsToStatsLocked(int32_t layerId);
+    void flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayRefreshRate,
+                                            std::optional<Fps> renderRate);
     void flushPowerTimeLocked();
     void flushAvailableGlobalRecordsToStatsLocked();
     bool canAddNewAggregatedStats(uid_t uid, const std::string& layerName);
@@ -314,6 +355,9 @@ private:
     GlobalRecord mGlobalRecord;
 
     static const size_t MAX_NUM_LAYER_RECORDS = 200;
+
+    static const size_t REFRESH_RATE_BUCKET_WIDTH = 30;
+    static const size_t RENDER_RATE_BUCKET_WIDTH = REFRESH_RATE_BUCKET_WIDTH;
     static const size_t MAX_NUM_LAYER_STATS = 200;
     static const size_t MAX_NUM_PULLED_LAYERS = MAX_NUM_LAYER_STATS;
     std::unique_ptr<StatsEventDelegate> mStatsDelegate = std::make_unique<StatsEventDelegate>();
