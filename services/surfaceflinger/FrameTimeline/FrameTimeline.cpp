@@ -327,7 +327,12 @@ void SurfaceFrame::setRenderRate(Fps renderRate) {
 
 std::optional<int32_t> SurfaceFrame::getJankType() const {
     std::scoped_lock lock(mMutex);
+    if (mPresentState == PresentState::Dropped) {
+        // Return no jank if it's a dropped frame since we cannot attribute a jank to a it.
+        return JankType::None;
+    }
     if (mActuals.presentTime == 0) {
+        // Frame hasn't been presented yet.
         return std::nullopt;
     }
     return mJankType;
