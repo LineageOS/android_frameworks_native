@@ -337,7 +337,7 @@ bool SkiaGLRenderEngine::useProtectedContext(bool useProtectedContext) {
     if (useProtectedContext == mInProtectedContext) {
         return true;
     }
-    if (useProtectedContext && supportsProtectedContent()) {
+    if (useProtectedContext && !supportsProtectedContent()) {
         return false;
     }
     const EGLSurface surface =
