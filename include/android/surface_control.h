@@ -67,9 +67,21 @@ ASurfaceControl* ASurfaceControl_create(ASurfaceControl* parent, const char* deb
                                         __INTRODUCED_IN(29);
 
 /**
- * Releases the \a surface_control object. After releasing the ASurfaceControl the caller no longer
- * has ownership of the AsurfaceControl. The surface and it's children may remain on display as long
- * as their parent remains on display.
+ * Acquires a reference on the given ASurfaceControl object.  This prevents the object
+ * from being deleted until the reference is removed.
+ *
+ * To release the reference, use the ASurfaceControl_release function.
+ *
+ * Available since API level 31.
+ */
+void ASurfaceControl_acquire(ASurfaceControl* surface_control) __INTRODUCED_IN(31);
+
+/**
+ * Removes a reference that was previously acquired with one of the following functions:
+ *   ASurfaceControl_createFromWindow
+ *   ASurfaceControl_create
+ *   ANativeWindow_acquire
+ * The surface and its children may remain on display as long as their parent remains on display.
  *
  * Available since API level 29.
  */
