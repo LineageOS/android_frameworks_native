@@ -328,6 +328,41 @@ public:
         EXPECT_EQ(PresentState::Presented, bufferlessSurfaceFrame2->getPresentState());
         EXPECT_EQ(12, bufferlessSurfaceFrame2->getActuals().endTime);
     }
+
+    void PendingSurfaceFramesRemovedAfterClassification() {
+        sp<BufferStateLayer> layer = createBufferStateLayer();
+
+        sp<Fence> fence1(new Fence());
+        auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
+        sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+        ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
+        const auto droppedSurfaceFrame = layer->mCurrentState.bufferSurfaceFrameTX;
+
+        sp<Fence> fence2(new Fence());
+        auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
+        sp<GraphicBuffer> buffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+        acquireFence2->signalForTest(12);
+
+        ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
+        auto& presentedSurfaceFrame = layer->mCurrentState.bufferSurfaceFrameTX;
+
+        commitTransaction(layer.get());
+        bool computeVisisbleRegions;
+        layer->updateTexImage(computeVisisbleRegions, 15, 0);
+
+        // Both the droppedSurfaceFrame and presentedSurfaceFrame should be in
+        // pendingJankClassifications.
+        EXPECT_EQ(2u, layer->mPendingJankClassifications.size());
+        presentedSurfaceFrame->onPresent(20, JankType::None, Fps::fromPeriodNsecs(11),
+                                         /*displayDeadlineDelta*/ 0, /*displayPresentDelta*/ 0);
+        layer->releasePendingBuffer(25);
+
+        EXPECT_EQ(0u, layer->mPendingJankClassifications.size());
+    }
 };
 
 TEST_F(TransactionSurfaceFrameTest, PresentedBufferlessSurfaceFrame) {
@@ -364,4 +399,7 @@ TEST_F(TransactionSurfaceFrameTest,
     MergePendingStates_BufferlessSurfaceFramesWithOverlappingToken();
 }
 
+TEST_F(TransactionSurfaceFrameTest, PendingSurfaceFramesRemovedAfterClassification) {
+    PendingSurfaceFramesRemovedAfterClassification();
+}
 } // namespace android
