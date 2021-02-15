@@ -4486,4 +4486,39 @@ TEST_F(InputDispatcherUntrustedTouchesTest, SelfWindowWithBlockUntrustedMode_All
     mTouchWindow->consumeAnyMotionDown();
 }
 
+TEST_F(InputDispatcherUntrustedTouchesTest,
+       OpacityThresholdIs0AndWindowAboveThreshold_BlocksTouch) {
+    mDispatcher->setMaximumObscuringOpacityForTouch(0.0f);
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY, 0.1f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
+
+    touch();
+
+    mTouchWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, OpacityThresholdIs0AndWindowAtThreshold_AllowsTouch) {
+    mDispatcher->setMaximumObscuringOpacityForTouch(0.0f);
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY, 0.0f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
+
+    touch();
+
+    mTouchWindow->consumeAnyMotionDown();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest,
+       OpacityThresholdIs1AndWindowBelowThreshold_AllowsTouch) {
+    mDispatcher->setMaximumObscuringOpacityForTouch(1.0f);
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::USE_OPACITY, 0.9f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
+
+    touch();
+
+    mTouchWindow->consumeAnyMotionDown();
+}
+
 } // namespace android::inputdispatcher
