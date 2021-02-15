@@ -58,7 +58,7 @@ public:
                 (milliseconds timeout, const std::function<void()>& completionCallback),
                 (override));
     MOCK_METHOD(vibrator::HalResult<void>, off, (), (override));
-    MOCK_METHOD(vibrator::HalResult<void>, setAmplitude, (int32_t amplitude), (override));
+    MOCK_METHOD(vibrator::HalResult<void>, setAmplitude, (float amplitude), (override));
     MOCK_METHOD(vibrator::HalResult<void>, setExternalControl, (bool enabled), (override));
     MOCK_METHOD(vibrator::HalResult<void>, alwaysOnEnable,
                 (int32_t id, Effect effect, EffectStrength strength), (override));
@@ -122,7 +122,7 @@ protected:
         EXPECT_CALL(*mMockHal.get(), off())
                 .Times(Exactly(cardinality))
                 .WillRepeatedly(Return(voidResult));
-        EXPECT_CALL(*mMockHal.get(), setAmplitude(Eq(255)))
+        EXPECT_CALL(*mMockHal.get(), setAmplitude(Eq(1.0f)))
                 .Times(Exactly(cardinality))
                 .WillRepeatedly(Return(voidResult));
         EXPECT_CALL(*mMockHal.get(), setExternalControl(Eq(true)))
@@ -196,7 +196,7 @@ TEST_F(VibratorHalControllerTest, TestApiCallsAreForwardedToHal) {
     ASSERT_TRUE(mController->ping().isOk());
     ASSERT_TRUE(mController->on(10ms, []() {}).isOk());
     ASSERT_TRUE(mController->off().isOk());
-    ASSERT_TRUE(mController->setAmplitude(255).isOk());
+    ASSERT_TRUE(mController->setAmplitude(1.0f).isOk());
     ASSERT_TRUE(mController->setExternalControl(true).isOk());
     ASSERT_TRUE(mController->alwaysOnEnable(1, Effect::CLICK, EffectStrength::LIGHT).isOk());
     ASSERT_TRUE(mController->alwaysOnDisable(1).isOk());
@@ -249,7 +249,7 @@ TEST_F(VibratorHalControllerTest, TestUnsupportedApiResultDoNotResetHalConnectio
     ASSERT_TRUE(mController->ping().isUnsupported());
     ASSERT_TRUE(mController->on(10ms, []() {}).isUnsupported());
     ASSERT_TRUE(mController->off().isUnsupported());
-    ASSERT_TRUE(mController->setAmplitude(255).isUnsupported());
+    ASSERT_TRUE(mController->setAmplitude(1.0f).isUnsupported());
     ASSERT_TRUE(mController->setExternalControl(true).isUnsupported());
     ASSERT_TRUE(
             mController->alwaysOnEnable(1, Effect::CLICK, EffectStrength::LIGHT).isUnsupported());
@@ -282,7 +282,7 @@ TEST_F(VibratorHalControllerTest, TestFailedApiResultResetsHalConnection) {
     ASSERT_TRUE(mController->ping().isFailed());
     ASSERT_TRUE(mController->on(10ms, []() {}).isFailed());
     ASSERT_TRUE(mController->off().isFailed());
-    ASSERT_TRUE(mController->setAmplitude(255).isFailed());
+    ASSERT_TRUE(mController->setAmplitude(1.0f).isFailed());
     ASSERT_TRUE(mController->setExternalControl(true).isFailed());
     ASSERT_TRUE(mController->alwaysOnEnable(1, Effect::CLICK, EffectStrength::LIGHT).isFailed());
     ASSERT_TRUE(mController->alwaysOnDisable(1).isFailed());
@@ -345,7 +345,7 @@ TEST_F(VibratorHalControllerTest, TestNoVibratorReturnsUnsupportedAndAttemptsToR
     ASSERT_TRUE(mController->ping().isUnsupported());
     ASSERT_TRUE(mController->on(10ms, []() {}).isUnsupported());
     ASSERT_TRUE(mController->off().isUnsupported());
-    ASSERT_TRUE(mController->setAmplitude(255).isUnsupported());
+    ASSERT_TRUE(mController->setAmplitude(1.0f).isUnsupported());
     ASSERT_TRUE(mController->setExternalControl(true).isUnsupported());
     ASSERT_TRUE(
             mController->alwaysOnEnable(1, Effect::CLICK, EffectStrength::LIGHT).isUnsupported());

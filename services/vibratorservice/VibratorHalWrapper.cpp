@@ -168,9 +168,8 @@ HalResult<void> AidlHalWrapper::off() {
     return HalResult<void>::fromStatus(getHal()->off());
 }
 
-HalResult<void> AidlHalWrapper::setAmplitude(int32_t amplitude) {
-    float convertedAmplitude = static_cast<float>(amplitude) / std::numeric_limits<uint8_t>::max();
-    return HalResult<void>::fromStatus(getHal()->setAmplitude(convertedAmplitude));
+HalResult<void> AidlHalWrapper::setAmplitude(float amplitude) {
+    return HalResult<void>::fromStatus(getHal()->setAmplitude(amplitude));
 }
 
 HalResult<void> AidlHalWrapper::setExternalControl(bool enabled) {
@@ -346,8 +345,9 @@ HalResult<void> HidlHalWrapper<I>::off() {
 }
 
 template <typename I>
-HalResult<void> HidlHalWrapper<I>::setAmplitude(int32_t amplitude) {
-    auto result = getHal()->setAmplitude(static_cast<uint8_t>(amplitude));
+HalResult<void> HidlHalWrapper<I>::setAmplitude(float amplitude) {
+    uint8_t amp = static_cast<uint8_t>(amplitude * std::numeric_limits<uint8_t>::max());
+    auto result = getHal()->setAmplitude(amp);
     return HalResult<void>::fromStatus(result.withDefault(V1_0::Status::UNKNOWN_ERROR));
 }
 
