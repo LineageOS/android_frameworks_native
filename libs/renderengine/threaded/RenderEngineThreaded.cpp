@@ -315,6 +315,21 @@ int RenderEngineThreaded::getContextPriority() {
     return resultFuture.get();
 }
 
+bool RenderEngineThreaded::supportsBackgroundBlur() {
+    std::promise<bool> resultPromise;
+    std::future<bool> resultFuture = resultPromise.get_future();
+    {
+        std::lock_guard lock(mThreadMutex);
+        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
+            ATRACE_NAME("REThreaded::supportsBackgroundBlur");
+            bool returnValue = instance.supportsBackgroundBlur();
+            resultPromise.set_value(returnValue);
+        });
+    }
+    mCondition.notify_one();
+    return resultFuture.get();
+}
+
 } // namespace threaded
 } // namespace renderengine
 } // namespace android
