@@ -518,7 +518,7 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> sh
 }
 
 void SkiaGLRenderEngine::initCanvas(SkCanvas* canvas, const DisplaySettings& display) {
-    if (mCapture->isCaptureRunning()) {
+    if (CC_UNLIKELY(mCapture->isCaptureRunning())) {
         // Record display settings when capture is running.
         std::stringstream displaySettings;
         PrintTo(display, &displaySettings);
@@ -626,6 +626,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     // offscreen buffer and when to render to the native buffer.
     sk_sp<SkSurface> activeSurface(dstSurface);
     SkCanvas* canvas = dstCanvas;
+    SkiaCapture::OffscreenState offscreenCaptureState;
     const LayerSettings* blurCompositionLayer = nullptr;
     if (mBlurFilter) {
         bool requiresCompositionLayer = false;
@@ -642,7 +643,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             }
             if (requiresCompositionLayer) {
                 activeSurface = dstSurface->makeSurface(dstSurface->imageInfo());
-                canvas = activeSurface->getCanvas();
+                canvas = mCapture->tryOffscreenCapture(activeSurface.get(), &offscreenCaptureState);
                 blurCompositionLayer = layer;
                 break;
             }
@@ -692,7 +693,15 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             //  blit the offscreen framebuffer into the destination AHB
             SkPaint paint;
             paint.setBlendMode(SkBlendMode::kSrc);
-            activeSurface->draw(dstCanvas, 0, 0, SkSamplingOptions(), &paint);
+            if (CC_UNLIKELY(mCapture->isCaptureRunning())) {
+                uint64_t id = mCapture->endOffscreenCapture(&offscreenCaptureState);
+                dstCanvas->drawAnnotation(SkRect::Make(dstCanvas->imageInfo().dimensions()),
+                                          String8::format("SurfaceID|%" PRId64, id).c_str(),
+                                          nullptr);
+                dstCanvas->drawImage(blurInput, 0, 0, SkSamplingOptions(), &paint);
+            } else {
+                activeSurface->draw(dstCanvas, 0, 0, SkSamplingOptions(), &paint);
+            }
 
             // assign dstCanvas to canvas and ensure that the canvas state is up to date
             canvas = dstCanvas;
@@ -709,7 +718,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         }
 
         canvas->save();
-        if (mCapture->isCaptureRunning()) {
+        if (CC_UNLIKELY(mCapture->isCaptureRunning())) {
             // Record the name of the layer if the capture is running.
             std::stringstream layerSettings;
             PrintTo(*layer, &layerSettings);
