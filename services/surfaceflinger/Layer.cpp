@@ -1583,7 +1583,7 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForTransac
     surfaceFrame->setAcquireFenceTime(postTime);
     const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
     if (fps) {
-        mSurfaceFrame->setRenderRate(*fps);
+        surfaceFrame->setRenderRate(*fps);
     }
     onSurfaceFrameCreated(surfaceFrame);
     return surfaceFrame;
@@ -1598,7 +1598,7 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
     surfaceFrame->setActualQueueTime(queueTime);
     const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
     if (fps) {
-        mSurfaceFrame->setRenderRate(*fps);
+        surfaceFrame->setRenderRate(*fps);
     }
     // TODO(b/178542907): Implement onSurfaceFrameCreated for BQLayer as well.
     onSurfaceFrameCreated(surfaceFrame);
