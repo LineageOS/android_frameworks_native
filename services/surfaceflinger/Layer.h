@@ -943,6 +943,7 @@ public:
     bool backpressureEnabled() { return mDrawingState.flags & layer_state_t::eEnableBackpressure; }
 
     bool setStretchEffect(const StretchEffect& effect);
+    StretchEffect getStretchEffect() const;
 
 protected:
     class SyncPoint {
