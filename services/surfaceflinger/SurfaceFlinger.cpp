@@ -966,9 +966,18 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
     }
 
     info->activeColorMode = display->getCompositionDisplay()->getState().colorMode;
-    info->supportedColorModes = getDisplayColorModes(display->getPhysicalId());
+    const auto displayId = display->getPhysicalId();
+    info->supportedColorModes = getDisplayColorModes(displayId);
 
     info->hdrCapabilities = display->getHdrCapabilities();
+    info->autoLowLatencyModeSupported =
+            getHwComposer().hasDisplayCapability(displayId,
+                                                 hal::DisplayCapability::AUTO_LOW_LATENCY_MODE);
+    std::vector<hal::ContentType> types;
+    getHwComposer().getSupportedContentTypes(displayId, &types);
+    info->gameContentTypeSupported = std::any_of(types.begin(), types.end(), [](auto type) {
+        return type == hal::ContentType::GAME;
+    });
     return NO_ERROR;
 }
 
@@ -1243,24 +1252,6 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, Col
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getAutoLowLatencyModeSupport(const sp<IBinder>& displayToken,
-                                                      bool* outSupport) const {
-    if (!displayToken) {
-        return BAD_VALUE;
-    }
-
-    Mutex::Autolock lock(mStateLock);
-
-    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
-    if (!displayId) {
-        return NAME_NOT_FOUND;
-    }
-    *outSupport =
-            getHwComposer().hasDisplayCapability(*displayId,
-                                                 hal::DisplayCapability::AUTO_LOW_LATENCY_MODE);
-    return NO_ERROR;
-}
-
 void SurfaceFlinger::setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on) {
     static_cast<void>(schedule([=]() MAIN_THREAD {
         if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
@@ -1269,27 +1260,6 @@ void SurfaceFlinger::setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool
             ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
         }
     }));
-}
-
-status_t SurfaceFlinger::getGameContentTypeSupport(const sp<IBinder>& displayToken,
-                                                   bool* outSupport) const {
-    if (!displayToken) {
-        return BAD_VALUE;
-    }
-
-    Mutex::Autolock lock(mStateLock);
-
-    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
-    if (!displayId) {
-        return NAME_NOT_FOUND;
-    }
-
-    std::vector<hal::ContentType> types;
-    getHwComposer().getSupportedContentTypes(*displayId, &types);
-
-    *outSupport = std::any_of(types.begin(), types.end(),
-                              [](auto type) { return type == hal::ContentType::GAME; });
-    return NO_ERROR;
 }
 
 void SurfaceFlinger::setGameContentType(const sp<IBinder>& displayToken, bool on) {

@@ -1876,20 +1876,8 @@ status_t SurfaceComposerClient::setActiveColorMode(const sp<IBinder>& display,
     return ComposerService::getComposerService()->setActiveColorMode(display, colorMode);
 }
 
-bool SurfaceComposerClient::getAutoLowLatencyModeSupport(const sp<IBinder>& display) {
-    bool supported = false;
-    ComposerService::getComposerService()->getAutoLowLatencyModeSupport(display, &supported);
-    return supported;
-}
-
 void SurfaceComposerClient::setAutoLowLatencyMode(const sp<IBinder>& display, bool on) {
     ComposerService::getComposerService()->setAutoLowLatencyMode(display, on);
-}
-
-bool SurfaceComposerClient::getGameContentTypeSupport(const sp<IBinder>& display) {
-    bool supported = false;
-    ComposerService::getComposerService()->getGameContentTypeSupport(display, &supported);
-    return supported;
 }
 
 void SurfaceComposerClient::setGameContentType(const sp<IBinder>& display, bool on) {
