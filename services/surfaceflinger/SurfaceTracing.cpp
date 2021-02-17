@@ -71,12 +71,14 @@ status_t SurfaceTracing::writeToFile() {
 }
 
 void SurfaceTracing::notify(const char* where) {
+    std::scoped_lock lock(mTraceLock);
     if (mEnabled) {
         runner->notify(where);
     }
 }
 
 void SurfaceTracing::notifyLocked(const char* where) {
+    std::scoped_lock lock(mTraceLock);
     if (mEnabled) {
         runner->notifyLocked(where);
     }

@@ -1145,9 +1145,6 @@ protected:
     // Window types from WindowManager.LayoutParams
     const InputWindowInfo::Type mWindowType;
 
-    // Can only be accessed with the SF state lock held.
-    std::shared_ptr<frametimeline::SurfaceFrame> mSurfaceFrame;
-
     // The owner of the layer. If created from a non system process, it will be the calling uid.
     // If created from a system process, the value can be passed in.
     uid_t mOwnerUid;

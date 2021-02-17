@@ -41,11 +41,11 @@ SkiaCapture::~SkiaCapture() {
     mTimer.stop();
 }
 
-SkCanvas* SkiaCapture::tryCapture(SkSurface* surface) {
+SkCanvas* SkiaCapture::tryCapture(SkSurface* surface) NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
 
     // If we are not running yet, set up.
-    if (!mCaptureRunning) {
+    if (CC_LIKELY(!mCaptureRunning)) {
         mTimerInterval = std::chrono::milliseconds(
                 base::GetIntProperty(PROPERTY_DEBUG_RENDERENGINE_CAPTURE_SKIA_MS, 0));
         // Set up the multi-frame capture. If we fail to set it up, then just return canvas.
@@ -56,7 +56,8 @@ SkCanvas* SkiaCapture::tryCapture(SkSurface* surface) {
         // Start the new timer. When timer expires, write to file.
         mTimer.setTimeout(
                 [this] {
-                    endCapture();
+                    const std::scoped_lock lock(mMutex);
+                    LOG_ALWAYS_FATAL_IF(mCurrentPageCanvas != nullptr);
                     writeToFile();
                     // To avoid going in circles, set the flag to 0. This way the capture can be
                     // restarted just by setting the flag and without restarting the process.
@@ -65,29 +66,82 @@ SkCanvas* SkiaCapture::tryCapture(SkSurface* surface) {
                 mTimerInterval);
     }
 
+    mMutex.lock();
+
     // Create a canvas pointer, fill it.
-    SkCanvas* pictureCanvas = mMultiPic->beginPage(surface->width(), surface->height());
+    mCurrentPageCanvas = mMultiPic->beginPage(surface->width(), surface->height());
 
     // Setting up an nway canvas is common to any kind of capture.
     mNwayCanvas = std::make_unique<SkNWayCanvas>(surface->width(), surface->height());
     mNwayCanvas->addCanvas(surface->getCanvas());
-    mNwayCanvas->addCanvas(pictureCanvas);
+    mNwayCanvas->addCanvas(mCurrentPageCanvas);
 
     return mNwayCanvas.get();
 }
 
-void SkiaCapture::endCapture() {
+void SkiaCapture::endCapture() NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
     // Don't end anything if we are not running.
-    if (!mCaptureRunning) {
+    if (CC_LIKELY(!mCaptureRunning)) {
         return;
     }
     // Reset the canvas pointer.
+    mCurrentPageCanvas = nullptr;
     mNwayCanvas.reset();
     // End page.
     if (mMultiPic) {
         mMultiPic->endPage();
     }
+    mMutex.unlock();
+}
+
+SkCanvas* SkiaCapture::tryOffscreenCapture(SkSurface* surface, OffscreenState* state) {
+    ATRACE_CALL();
+    // Don't start anything if we are not running.
+    if (CC_LIKELY(!mCaptureRunning)) {
+        return surface->getCanvas();
+    }
+
+    // Create a canvas pointer, fill it.
+    state->offscreenRecorder = std::make_unique<SkPictureRecorder>();
+    SkCanvas* pictureCanvas =
+            state->offscreenRecorder->beginRecording(surface->width(), surface->height());
+
+    // Setting up an nway canvas is common to any kind of capture.
+    state->offscreenCanvas = std::make_unique<SkNWayCanvas>(surface->width(), surface->height());
+    state->offscreenCanvas->addCanvas(surface->getCanvas());
+    state->offscreenCanvas->addCanvas(pictureCanvas);
+
+    return state->offscreenCanvas.get();
+}
+
+uint64_t SkiaCapture::endOffscreenCapture(OffscreenState* state) {
+    ATRACE_CALL();
+    // Don't end anything if we are not running.
+    if (CC_LIKELY(!mCaptureRunning)) {
+        return 0;
+    }
+
+    // compute the uniqueID for this capture
+    static std::atomic<uint64_t> nextID{1};
+    const uint64_t uniqueID = nextID.fetch_add(1, std::memory_order_relaxed);
+
+    // Reset the canvas pointer as we are no longer drawing into it
+    state->offscreenCanvas.reset();
+
+    // Record the offscreen as a picture in the currently active page.
+    SkRect bounds =
+            SkRect::Make(state->offscreenRecorder->getRecordingCanvas()->imageInfo().dimensions());
+    mCurrentPageCanvas
+            ->drawAnnotation(bounds,
+                             String8::format("OffscreenLayerDraw|%" PRId64, uniqueID).c_str(),
+                             nullptr);
+    mCurrentPageCanvas->drawPicture(state->offscreenRecorder->finishRecordingAsPicture());
+
+    // Reset the offscreen picture recorder
+    state->offscreenRecorder.reset();
+
+    return uniqueID;
 }
 
 void SkiaCapture::writeToFile() {

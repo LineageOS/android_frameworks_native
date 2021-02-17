@@ -1673,9 +1673,7 @@ bool InputDispatcher::shouldWaitToSendKeyLocked(nsecs_t currentTime,
 
     if (!mKeyIsWaitingForEventsTimeout.has_value()) {
         // Start the timer
-        ALOGD("Waiting to send key to %s because there are unprocessed events that may cause "
-              "focus to change",
-              focusedWindowName);
+        // Wait to send key because there are unprocessed events that may cause focus to change
         mKeyIsWaitingForEventsTimeout = currentTime +
                 std::chrono::duration_cast<std::chrono::nanoseconds>(KEY_WAITING_FOR_EVENTS_TIMEOUT)
                         .count();
@@ -2834,10 +2832,6 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
  * This includes situations like the soft BACK button key. When the user releases (lifts up the
  * finger) the back button, then navigation bar will inject KEYCODE_BACK with ACTION_UP.
  * Both of those ACTION_UP events would not be logged
- * Monitors (both gesture and global): any gesture monitors or global monitors receiving events
- * will not be logged. This is omitted to reduce the amount of data printed.
- * If you see <none>, it's likely that one of the gesture monitors pilfered the event, and therefore
- * gesture monitor is the only connection receiving the remainder of the gesture.
  */
 void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
                                                     const std::vector<InputTarget>& targets) {
@@ -2867,8 +2861,8 @@ void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
 
         sp<IBinder> token = target.inputChannel->getConnectionToken();
         sp<Connection> connection = getConnectionLocked(token);
-        if (connection == nullptr || connection->monitor) {
-            continue; // We only need to keep track of the non-monitor connections.
+        if (connection == nullptr) {
+            continue;
         }
         newConnectionTokens.insert(std::move(token));
         newConnections.emplace_back(connection);
@@ -2878,12 +2872,12 @@ void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
     }
     mInteractionConnectionTokens = newConnectionTokens;
 
-    std::string windowList;
+    std::string targetList;
     for (const sp<Connection>& connection : newConnections) {
-        windowList += connection->getWindowName() + ", ";
+        targetList += connection->getWindowName() + ", ";
     }
-    std::string message = "Interaction with windows: " + windowList;
-    if (windowList.empty()) {
+    std::string message = "Interaction with: " + targetList;
+    if (targetList.empty()) {
         message += "<none>";
     }
     android_log_event_list(LOGTAG_INPUT_INTERACTION) << message << LOG_ID_EVENTS;
@@ -3221,8 +3215,7 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
             }
         } else {
             // Monitor channels are never explicitly unregistered.
-            // We do it automatically when the remote endpoint is closed so don't warn
-            // about them.
+            // We do it automatically when the remote endpoint is closed so don't warn about them.
             const bool stillHaveWindowHandle =
                     d->getWindowHandleLocked(connection->inputChannel->getConnectionToken()) !=
                     nullptr;
@@ -4978,7 +4971,7 @@ status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connection
                                                    bool notify) {
     sp<Connection> connection = getConnectionLocked(connectionToken);
     if (connection == nullptr) {
-        ALOGW("Attempted to unregister already unregistered input channel");
+        // Connection can be removed via socket hang up or an explicit call to 'removeInputChannel'
         return BAD_VALUE;
     }
 
@@ -5042,9 +5035,11 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
         }
 
         TouchState& state = stateIt->second;
+        std::shared_ptr<InputChannel> requestingChannel;
         std::optional<int32_t> foundDeviceId;
         for (const TouchedMonitor& touchedMonitor : state.gestureMonitors) {
             if (touchedMonitor.monitor.inputChannel->getConnectionToken() == token) {
+                requestingChannel = touchedMonitor.monitor.inputChannel;
                 foundDeviceId = state.deviceId;
             }
         }
@@ -5060,13 +5055,19 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
                                    "gesture monitor stole pointer stream");
         options.deviceId = deviceId;
         options.displayId = displayId;
+        std::string canceledWindows = "[";
         for (const TouchedWindow& window : state.windows) {
             std::shared_ptr<InputChannel> channel =
                     getInputChannelLocked(window.windowHandle->getToken());
             if (channel != nullptr) {
                 synthesizeCancelationEventsForInputChannelLocked(channel, options);
+                canceledWindows += channel->getName() + ", ";
             }
         }
+        canceledWindows += "]";
+        ALOGI("Monitor %s is stealing touch from %s", requestingChannel->getName().c_str(),
+              canceledWindows.c_str());
+
         // Then clear the current touch state so we stop dispatching to them as well.
         state.filterNonMonitors();
     }
