@@ -914,6 +914,21 @@ bool SensorDevice::isSensorActive(int handle) const {
     return mActivationCount.valueAt(activationIndex).numActiveClients() > 0;
 }
 
+void SensorDevice::onMicSensorAccessChanged(void* ident, int handle, nsecs_t samplingPeriodNs) {
+    Mutex::Autolock _l(mLock);
+    ssize_t activationIndex = mActivationCount.indexOfKey(handle);
+    if (activationIndex < 0) {
+        ALOGW("Handle %d cannot be found in activation record", handle);
+        return;
+    }
+    Info& info(mActivationCount.editValueAt(activationIndex));
+    if (info.hasBatchParamsForIdent(ident)) {
+        ssize_t index = info.batchParams.indexOfKey(ident);
+        BatchParams& params = info.batchParams.editValueAt(index);
+        params.mTSample = samplingPeriodNs;
+    }
+}
+
 void SensorDevice::enableAllSensors() {
     if (mSensors == nullptr) return;
     Mutex::Autolock _l(mLock);

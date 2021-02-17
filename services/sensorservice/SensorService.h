@@ -61,6 +61,15 @@
 
 #define SENSOR_REGISTRATIONS_BUF_SIZE 200
 
+// Apps that targets S+ and do not have HIGH_SAMPLING_RATE_SENSORS permission will be capped
+// at 200 Hz. The cap also applies to all requests when the mic toggle is flipped to on, regardless
+// of their target SDKs and permission.
+// Capped sampling periods for apps that have non-direct sensor connections.
+#define SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS (5 * 1000 * 1000)
+// Capped sampling rate level for apps that have direct sensor connections.
+// The enum SENSOR_DIRECT_RATE_NORMAL corresponds to a rate value of at most 110 Hz.
+#define SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL SENSOR_DIRECT_RATE_NORMAL
+
 namespace android {
 // ---------------------------------------------------------------------------
 class SensorInterface;
@@ -95,6 +104,8 @@ public:
     status_t flushSensor(const sp<SensorEventConnection>& connection,
                          const String16& opPackageName);
 
+    // Returns true if a sensor should be throttled according to our rate-throttling rules.
+    static bool isSensorInCappedSet(int sensorType);
 
     virtual status_t shellCommand(int in, int out, int err, Vector<String16>& args);
 
@@ -216,13 +227,18 @@ private:
             void registerSelf();
             void unregisterSelf();
 
+            status_t registerSelfForIndividual(int userId);
+
             bool isSensorPrivacyEnabled();
 
             binder::Status onSensorPrivacyChanged(bool enabled);
 
         private:
             wp<SensorService> mService;
+            Mutex mSensorPrivacyLock;
             std::atomic_bool mSensorPrivacyEnabled;
+            bool mIsIndividualMic;
+            userid_t mUserId;
     };
 
     enum Mode {
@@ -346,6 +362,13 @@ private:
     // whitelisted). mLock must be held to invoke this method.
     bool isOperationRestrictedLocked(const String16& opPackageName);
 
+    status_t adjustSamplingPeriodBasedOnMicAndPermission(nsecs_t* requestedPeriodNs,
+                                                    const String16& opPackageName);
+    status_t adjustRateLevelBasedOnMicAndPermission(int* requestedRateLevel,
+                                              const String16& opPackageName);
+    bool isRateCappedBasedOnPermission(const String16& opPackageName);
+    bool isPackageDebuggable(const String16& opPackageName);
+
     // Reset the state of SensorService to NORMAL mode.
     status_t resetToNormalMode();
     status_t resetToNormalModeLocked();
@@ -384,6 +407,11 @@ private:
     // restarts the previously stopped direct connections and enables all sensors
     void enableAllSensors();
     void enableAllSensorsLocked(ConnectionSafeAutolock* connLock);
+
+    // Caps active direct connections (when the mic toggle is flipped to on)
+    void capRates(userid_t userId);
+    // Removes the capped rate on active direct connections (when the mic toggle is flipped to off)
+    void uncapRates(userid_t userId);
 
     static uint8_t sHmacGlobalKey[128];
     static bool sHmacGlobalKeyIsValid;
@@ -426,6 +454,11 @@ private:
     static std::map<String16, int> sPackageTargetVersion;
     static Mutex sPackageTargetVersionLock;
     static String16 sSensorInterfaceDescriptorPrefix;
+
+    // Map from user to SensorPrivacyPolicy
+    std::map<userid_t, sp<SensorPrivacyPolicy>> mMicSensorPrivacyPolicies;
+    // Checks if the mic sensor privacy is enabled for the uid
+    bool isMicSensorPrivacyEnabledForUid(uid_t uid);
 };
 
 } // namespace android
