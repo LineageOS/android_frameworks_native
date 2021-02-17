@@ -75,7 +75,7 @@ private:
     std::unique_ptr<SkSharingSerialContext> mSerialContext;
     std::unique_ptr<SkNWayCanvas> mNwayCanvas;
 
-    SkCanvas* mCurrentPageCanvas;
+    SkCanvas* mCurrentPageCanvas = nullptr;
 
     // Capturing and interval control.
     bool mCaptureRunning = false;
