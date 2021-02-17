@@ -194,6 +194,25 @@ void TransactionCompletedListener::removeJankListener(const sp<JankDataListener>
     }
 }
 
+void TransactionCompletedListener::addSurfaceStatsListener(void* context, void* cookie,
+        sp<SurfaceControl> surfaceControl, SurfaceStatsCallback listener) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mSurfaceStatsListeners.insert({surfaceControl->getHandle(),
+            SurfaceStatsCallbackEntry(context, cookie, listener)});
+}
+
+void TransactionCompletedListener::removeSurfaceStatsListener(void* context, void* cookie) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    for (auto it = mSurfaceStatsListeners.begin(); it != mSurfaceStatsListeners.end();) {
+        auto [itContext, itCookie, itListener] = it->second;
+        if (itContext == context && itCookie == cookie) {
+            it = mSurfaceStatsListeners.erase(it);
+        } else {
+            it++;
+        }
+    }
+}
+
 void TransactionCompletedListener::addSurfaceControlToCallbacks(
         const sp<SurfaceControl>& surfaceControl,
         const std::unordered_set<CallbackId>& callbackIds) {
@@ -210,6 +229,7 @@ void TransactionCompletedListener::addSurfaceControlToCallbacks(
 void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
     std::unordered_map<CallbackId, CallbackTranslation> callbacksMap;
     std::multimap<sp<IBinder>, sp<JankDataListener>> jankListenersMap;
+    std::multimap<sp<IBinder>, SurfaceStatsCallbackEntry> surfaceListeners;
     {
         std::lock_guard<std::mutex> lock(mMutex);
 
@@ -226,6 +246,7 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
          */
         callbacksMap = mCallbacks;
         jankListenersMap = mJankListeners;
+        surfaceListeners = mSurfaceStatsListeners;
         for (const auto& transactionStats : listenerStats.transactionStats) {
             for (auto& callbackId : transactionStats.callbackIds) {
                 mCallbacks.erase(callbackId);
@@ -259,9 +280,16 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                              surfaceControlStats);
         }
         for (const auto& surfaceStats : transactionStats.surfaceStats) {
+            auto listenerRange = surfaceListeners.equal_range(surfaceStats.surfaceControl);
+            for (auto it = listenerRange.first; it != listenerRange.second; it++) {
+                auto entry = it->second;
+                entry.callback(entry.context, transactionStats.latchTime,
+                    transactionStats.presentFence, surfaceStats);
+            }
+
             if (surfaceStats.jankData.empty()) continue;
-            for (auto it = jankListenersMap.find(surfaceStats.surfaceControl);
-                    it != jankListenersMap.end(); it++) {
+            auto jankRange = jankListenersMap.equal_range(surfaceStats.surfaceControl);
+            for (auto it = jankRange.first; it != jankRange.second; it++) {
                 it->second->onJankDataAvailable(surfaceStats.jankData);
             }
         }
