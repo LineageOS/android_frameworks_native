@@ -81,8 +81,8 @@ private:
 
     SurfaceFlinger& mFlinger;
     mutable std::mutex mTraceLock;
-    bool mEnabled = false;
-    std::unique_ptr<Runner> runner;
+    bool mEnabled GUARDED_BY(mTraceLock) = false;
+    std::unique_ptr<Runner> runner GUARDED_BY(mTraceLock);
 
     struct Config {
         uint32_t flags = TRACE_CRITICAL | TRACE_INPUT | TRACE_SYNC;
