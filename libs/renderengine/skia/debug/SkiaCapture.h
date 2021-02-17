@@ -18,8 +18,12 @@
 
 #include <SkDocument.h>
 #include <SkNWayCanvas.h>
+#include <SkPictureRecorder.h>
 #include <SkSurface.h>
+
 #include <chrono>
+#include <mutex>
+
 #include "CaptureTimer.h"
 #include "tools/SkSharingProc.h"
 
@@ -48,6 +52,16 @@ public:
     // Returns whether the capture is running.
     bool isCaptureRunning() { return mCaptureRunning; }
 
+    // Offscreen state member variables are private to SkiaCapture, but the allocation
+    // and lifetime is managed by the caller. This enables nested offscreen
+    // captures to occur.
+    struct OffscreenState {
+        std::unique_ptr<SkPictureRecorder> offscreenRecorder;
+        std::unique_ptr<SkNWayCanvas> offscreenCanvas;
+    };
+    SkCanvas* tryOffscreenCapture(SkSurface* surface, OffscreenState* state);
+    uint64_t endOffscreenCapture(OffscreenState* state);
+
 private:
     // Performs the first-frame work of a multi frame SKP capture. Returns true if successful.
     bool setupMultiFrameCapture();
@@ -61,10 +75,16 @@ private:
     std::unique_ptr<SkSharingSerialContext> mSerialContext;
     std::unique_ptr<SkNWayCanvas> mNwayCanvas;
 
+    SkCanvas* mCurrentPageCanvas = nullptr;
+
     // Capturing and interval control.
     bool mCaptureRunning = false;
     CaptureTimer mTimer;
     Interval mTimerInterval = 0ms;
+
+    // Mutex to ensure that a frame in progress when the timer fires is allowed to run to
+    // completion before we write the file to disk.
+    std::mutex mMutex;
 };
 
 } // namespace skia

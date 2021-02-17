@@ -236,10 +236,6 @@ void BufferStateLayer::pushPendingState() {
 bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
     mCurrentStateModified = mCurrentState.modified;
     bool stateUpdateAvailable = Layer::applyPendingStates(stateToCommit);
-    if (stateUpdateAvailable && mCallbackHandleAcquireTime != -1) {
-        // Update the acquire fence time if we have a buffer
-        mSurfaceFrame->setAcquireFenceTime(mCallbackHandleAcquireTime);
-    }
     mCurrentStateModified = stateUpdateAvailable && mCurrentStateModified;
     mCurrentState.modified = false;
     return stateUpdateAvailable;
@@ -612,11 +608,12 @@ bool BufferStateLayer::hasFrameUpdate() const {
 }
 
 std::optional<nsecs_t> BufferStateLayer::nextPredictedPresentTime() const {
-    if (!getDrawingState().isAutoTimestamp || !mSurfaceFrame) {
+    const State& drawingState(getDrawingState());
+    if (!drawingState.isAutoTimestamp || !drawingState.bufferSurfaceFrameTX) {
         return std::nullopt;
     }
 
-    return mSurfaceFrame->getPredictions().presentTime;
+    return drawingState.bufferSurfaceFrameTX->getPredictions().presentTime;
 }
 
 status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,
