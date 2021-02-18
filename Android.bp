@@ -43,3 +43,8 @@ filegroup {
         ":framework_native_aidl_gui",
     ],
 }
+
+cc_library_headers{
+    name: "libandroid_headers_private",
+    export_include_dirs: ["include/private"],
+}

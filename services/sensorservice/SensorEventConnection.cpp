@@ -44,6 +44,8 @@ SensorService::SensorEventConnection::SensorEventConnection(
       mCacheSize(0), mMaxCacheSize(0), mTimeOfLastEventDrop(0), mEventsDropped(0),
       mPackageName(packageName), mOpPackageName(opPackageName), mTargetSdk(kTargetSdkUnknown),
       mDestroyed(false) {
+    mIsRateCappedBasedOnPermission = mService->isRateCappedBasedOnPermission(mOpPackageName);
+    mUserId = multiuser_get_user_id(mUid);
     mChannel = new BitTube(mService->mSocketBufferSize);
 #if DEBUG_CONNECTIONS
     mEventsReceived = mEventsSentFromCache = mEventsSent = 0;
@@ -285,6 +287,29 @@ bool SensorService::SensorEventConnection::incrementPendingFlushCountIfHasAccess
     }
 }
 
+// TODO(b/179649922): A better algorithm to guarantee that capped connections will get a sampling
+// rate close to 200 Hz. With the current algorithm, apps might be punished unfairly: E.g.,two apps
+// make requests to the sensor service at the same time, one is not capped and uses 250 Hz, and one
+//is capped, the capped connection will only get 125 Hz.
+void SensorService::SensorEventConnection::addSensorEventsToBuffer(bool shouldResample,
+    const sensors_event_t& sensorEvent, sensors_event_t* buffer, int* index) {
+    if (!shouldResample || !mService->isSensorInCappedSet(sensorEvent.type)) {
+        buffer[(*index)++] = sensorEvent;
+    } else {
+        int64_t lastTimestamp = -1;
+        auto entry = mSensorLastTimestamp.find(sensorEvent.sensor);
+        if (entry != mSensorLastTimestamp.end()) {
+            lastTimestamp = entry->second;
+        }
+        // Allow 10% headroom here because the clocks are not perfect.
+        if (lastTimestamp == -1  || sensorEvent.timestamp - lastTimestamp
+                                        >= 0.9 * SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+            mSensorLastTimestamp[sensorEvent.sensor] = sensorEvent.timestamp;
+            buffer[(*index)++] = sensorEvent;
+        }
+    }
+}
+
 status_t SensorService::SensorEventConnection::sendEvents(
         sensors_event_t const* buffer, size_t numEvents,
         sensors_event_t* scratch,
@@ -293,6 +318,8 @@ status_t SensorService::SensorEventConnection::sendEvents(
 
     std::unique_ptr<sensors_event_t[]> sanitizedBuffer;
 
+    bool shouldResample = mService->isMicSensorPrivacyEnabledForUid(mUid) ||
+                            mIsRateCappedBasedOnPermission;
     int count = 0;
     Mutex::Autolock _l(mConnectionLock);
     if (scratch) {
@@ -346,7 +373,7 @@ status_t SensorService::SensorEventConnection::sendEvents(
                     // Regular sensor event, just copy it to the scratch buffer after checking
                     // the AppOp.
                     if (hasSensorAccess() && noteOpIfRequired(buffer[i])) {
-                        scratch[count++] = buffer[i];
+                        addSensorEventsToBuffer(shouldResample, buffer[i], scratch, &count);
                     }
                 }
                 i++;
@@ -356,12 +383,13 @@ status_t SensorService::SensorEventConnection::sendEvents(
                                         buffer[i].meta_data.sensor == sensor_handle)));
         }
     } else {
+        sanitizedBuffer.reset(new sensors_event_t[numEvents]);
+        scratch = sanitizedBuffer.get();
         if (hasSensorAccess()) {
-            scratch = const_cast<sensors_event_t *>(buffer);
-            count = numEvents;
+            for (size_t i = 0; i < numEvents; i++) {
+                addSensorEventsToBuffer(shouldResample, buffer[i], scratch, &count);
+            }
         } else {
-            sanitizedBuffer.reset(new sensors_event_t[numEvents]);
-            scratch = sanitizedBuffer.get();
             for (size_t i = 0; i < numEvents; i++) {
                 if (buffer[i].type == SENSOR_TYPE_META_DATA) {
                     scratch[count++] = buffer[i++];
@@ -684,24 +712,118 @@ status_t SensorService::SensorEventConnection::enableDisable(
 
     status_t err;
     if (enabled) {
+        nsecs_t requestedSamplingPeriodNs = samplingPeriodNs;
+        bool isSensorCapped = false;
+        sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+        if (si != nullptr) {
+            const Sensor& s = si->getSensor();
+            if (mService->isSensorInCappedSet(s.getType())) {
+                isSensorCapped = true;
+            }
+        }
+        if (isSensorCapped) {
+            err = mService->adjustSamplingPeriodBasedOnMicAndPermission(&samplingPeriodNs,
+                                String16(mOpPackageName));
+            if (err != OK) {
+                return err;
+            }
+        }
         err = mService->enable(this, handle, samplingPeriodNs, maxBatchReportLatencyNs,
                                reservedFlags, mOpPackageName);
+        if (err == OK && isSensorCapped) {
+            if (!mIsRateCappedBasedOnPermission ||
+                        requestedSamplingPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+                mMicSamplingPeriodBackup[handle] = requestedSamplingPeriodNs;
+            } else {
+                mMicSamplingPeriodBackup[handle] = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
+            }
+        }
 
     } else {
         err = mService->disable(this, handle);
+        mMicSamplingPeriodBackup.erase(handle);
     }
     return err;
 }
 
-status_t SensorService::SensorEventConnection::setEventRate(
-        int handle, nsecs_t samplingPeriodNs)
-{
+status_t SensorService::SensorEventConnection::setEventRate(int handle, nsecs_t samplingPeriodNs) {
     if (mDestroyed) {
         android_errorWriteLog(0x534e4554, "168211968");
         return DEAD_OBJECT;
     }
 
-    return mService->setEventRate(this, handle, samplingPeriodNs, mOpPackageName);
+    nsecs_t requestedSamplingPeriodNs = samplingPeriodNs;
+    bool isSensorCapped = false;
+    sp<SensorInterface> si = mService->getSensorInterfaceFromHandle(handle);
+    if (si != nullptr) {
+        const Sensor& s = si->getSensor();
+        if (mService->isSensorInCappedSet(s.getType())) {
+            isSensorCapped = true;
+        }
+    }
+    if (isSensorCapped) {
+        status_t err = mService->adjustSamplingPeriodBasedOnMicAndPermission(&samplingPeriodNs,
+                            String16(mOpPackageName));
+        if (err != OK) {
+            return err;
+        }
+    }
+    status_t ret = mService->setEventRate(this, handle, samplingPeriodNs, mOpPackageName);
+    if (ret == OK && isSensorCapped) {
+        if (!mIsRateCappedBasedOnPermission ||
+                    requestedSamplingPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+            mMicSamplingPeriodBackup[handle] = requestedSamplingPeriodNs;
+        } else {
+            mMicSamplingPeriodBackup[handle] = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
+        }
+    }
+    return ret;
+}
+
+void SensorService::SensorEventConnection::onMicSensorAccessChanged(bool isMicToggleOn) {
+    if (isMicToggleOn) {
+        capRates();
+    } else {
+        uncapRates();
+    }
+}
+
+void SensorService::SensorEventConnection::capRates() {
+    Mutex::Autolock _l(mConnectionLock);
+    SensorDevice& dev(SensorDevice::getInstance());
+    for (auto &i : mMicSamplingPeriodBackup) {
+        int handle = i.first;
+        nsecs_t samplingPeriodNs = i.second;
+        if (samplingPeriodNs < SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+            if (hasSensorAccess()) {
+                mService->setEventRate(this, handle, SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS,
+                                       mOpPackageName);
+            } else {
+                // Update SensorDevice with the capped rate so that when sensor access is restored,
+                // the correct event rate is used.
+                dev.onMicSensorAccessChanged(this, handle,
+                                             SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS);
+            }
+        }
+    }
+}
+
+void SensorService::SensorEventConnection::uncapRates() {
+    Mutex::Autolock _l(mConnectionLock);
+    SensorDevice& dev(SensorDevice::getInstance());
+    for (auto &i : mMicSamplingPeriodBackup) {
+        int handle = i.first;
+        nsecs_t samplingPeriodNs = i.second;
+        if (samplingPeriodNs < SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+            if (hasSensorAccess()) {
+                mService->setEventRate(this, handle, samplingPeriodNs, mOpPackageName);
+            } else {
+                // Update SensorDevice with the uncapped rate so that when sensor access is
+                // restored, the correct event rate is used.
+                dev.onMicSensorAccessChanged(this, handle, samplingPeriodNs);
+            }
+        }
+    }
 }
 
 status_t  SensorService::SensorEventConnection::flush() {

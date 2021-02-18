@@ -68,6 +68,9 @@ public:
     String8 getPackageName() const;
 
     uid_t getUid() const { return mUid; }
+    // cap/uncap existing connection depending on the state of the mic toggle.
+    void onMicSensorAccessChanged(bool isMicToggleOn);
+    userid_t getUserId() const { return mUserId; }
 
 private:
     virtual ~SensorEventConnection();
@@ -137,10 +140,20 @@ private:
 
     // Call noteOp for the sensor if the sensor requires a permission
     bool noteOpIfRequired(const sensors_event_t& event);
+    // Limits all active connections when the mic toggle is flipped to on.
+    void capRates();
+    // Recover sensor connection previously capped by capRates().
+    void uncapRates();
 
+    // Add sensorEvent to buffer at position index if the sensorEvent satisfies throttling rules.
+    void addSensorEventsToBuffer(bool shouldResample, const sensors_event_t& sensorEvent,
+                        sensors_event_t* buffer, int* index);
     sp<SensorService> const mService;
     sp<BitTube> mChannel;
     uid_t mUid;
+    std::atomic_bool mIsRateCappedBasedOnPermission;
+    // Store a mapping of sensor to the timestamp of their last sensor event.
+    std::unordered_map<int, int64_t> mSensorLastTimestamp;
     mutable Mutex mConnectionLock;
     // Number of events from wake up sensors which are still pending and haven't been delivered to
     // the corresponding application. It is incremented by one unit for each write to the socket.
@@ -189,6 +202,9 @@ private:
     // Store a mapping of sensor handles to required AppOp for a sensor. This map only contains a
     // valid mapping for sensors that require a permission in order to reduce the lookup time.
     std::unordered_map<int32_t, int32_t> mHandleToAppOp;
+    // Mapping of sensor handles to its rate before being capped by the mic toggle.
+    std::unordered_map<int, nsecs_t> mMicSamplingPeriodBackup;
+    userid_t mUserId;
 };
 
 } // namepsace android
