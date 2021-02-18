@@ -303,7 +303,7 @@ private:
     virtual Vector<Sensor> getDynamicSensorList(const String16& opPackageName);
     virtual sp<ISensorEventConnection> createSensorEventConnection(
             const String8& packageName,
-            int requestedMode, const String16& opPackageName);
+            int requestedMode, const String16& opPackageName, const String16& attributionTag);
     virtual int isDataInjectionEnabled();
     virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
             uint32_t size, int32_t type, int32_t format, const native_handle *resource);
