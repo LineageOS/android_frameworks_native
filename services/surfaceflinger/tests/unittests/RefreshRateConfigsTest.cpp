@@ -1792,6 +1792,26 @@ TEST_F(RefreshRateConfigsTest, getFrameRateOverrides_touch) {
     ASSERT_TRUE(frameRateOverrides.empty());
 }
 
+TEST_F(RefreshRateConfigsTest, updateDisplayModes) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_30);
+    refreshRateConfigs->setDisplayManagerPolicy({DisplayModeId(HWC_CONFIG_ID_30),
+                                                 /* allowGroupSwitching */ false,
+                                                 /* range */ {Fps(30.0f), Fps(30.0f)}});
+
+    refreshRateConfigs->updateDisplayModes(m60_90Device, HWC_CONFIG_ID_60);
+
+    const auto currentRefreshRate = refreshRateConfigs->getCurrentRefreshRate();
+    EXPECT_TRUE(currentRefreshRate.getFps().equalsWithMargin(Fps(60.0)));
+    EXPECT_EQ(currentRefreshRate.getModeId(), HWC_CONFIG_ID_60);
+
+    EXPECT_TRUE(
+            getMaxSupportedRefreshRate(*refreshRateConfigs).getFps().equalsWithMargin(Fps(90.0)));
+    EXPECT_TRUE(
+            getMinSupportedRefreshRate(*refreshRateConfigs).getFps().equalsWithMargin(Fps(60.0)));
+}
+
 } // namespace
 } // namespace scheduler
 } // namespace android
