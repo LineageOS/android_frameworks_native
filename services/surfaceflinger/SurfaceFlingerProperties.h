@@ -100,6 +100,8 @@ bool update_device_product_info_on_hotplug_reconnect(bool defaultValue);
 
 bool enable_frame_rate_override(bool defaultValue);
 
+bool enable_layer_caching(bool defaultValue);
+
 } // namespace sysprop
 } // namespace android
 #endif // SURFACEFLINGERPROPERTIES_H_
