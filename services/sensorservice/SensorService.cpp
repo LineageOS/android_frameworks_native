@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <android-base/strings.h>
 #include <android/content/pm/IPackageManagerNative.h>
 #include <android/util/ProtoOutputStream.h>
 #include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
@@ -88,6 +89,8 @@ AppOpsManager SensorService::sAppOpsManager;
 #define SENSOR_SERVICE_SCHED_FIFO_PRIORITY 10
 
 // Permissions.
+static const String16 sAccessHighSensorSamplingRatePermission(
+        "android.permission.HIGH_SAMPLING_RATE_SENSORS");
 static const String16 sDumpPermission("android.permission.DUMP");
 static const String16 sLocationHardwarePermission("android.permission.LOCATION_HARDWARE");
 static const String16 sManageSensorsPermission("android.permission.MANAGE_SENSORS");
@@ -366,6 +369,9 @@ SensorService::~SensorService() {
     }
     mUidPolicy->unregisterSelf();
     mSensorPrivacyPolicy->unregisterSelf();
+    for (auto const& [userId, policy] : mMicSensorPrivacyPolicies) {
+        policy->unregisterSelf();
+    }
 }
 
 status_t SensorService::dump(int fd, const Vector<String16>& args) {
@@ -695,6 +701,35 @@ void SensorService::enableAllSensorsLocked(ConnectionSafeAutolock* connLock) {
     }
 }
 
+void SensorService::capRates(userid_t userId) {
+    ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
+    for (const sp<SensorDirectConnection>& conn : connLock.getDirectConnections()) {
+        if (conn->getUserId() == userId) {
+            conn->onMicSensorAccessChanged(true);
+        }
+    }
+
+    for (const sp<SensorEventConnection>& conn : connLock.getActiveConnections()) {
+        if (conn->getUserId() == userId) {
+            conn->onMicSensorAccessChanged(true);
+        }
+    }
+}
+
+void SensorService::uncapRates(userid_t userId) {
+    ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
+    for (const sp<SensorDirectConnection>& conn : connLock.getDirectConnections()) {
+        if (conn->getUserId() == userId) {
+            conn->onMicSensorAccessChanged(false);
+        }
+    }
+
+    for (const sp<SensorEventConnection>& conn : connLock.getActiveConnections()) {
+        if (conn->getUserId() == userId) {
+            conn->onMicSensorAccessChanged(false);
+        }
+    }
+}
 
 // NOTE: This is a remote API - make sure all args are validated
 status_t SensorService::shellCommand(int in, int out, int err, Vector<String16>& args) {
@@ -1209,14 +1244,20 @@ void SensorService::makeUuidsIntoIdsForSensorList(Vector<Sensor> &sensorList) co
     }
 }
 
-Vector<Sensor> SensorService::getSensorList(const String16& /* opPackageName */) {
+Vector<Sensor> SensorService::getSensorList(const String16& opPackageName) {
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sensors", value, "0");
     const Vector<Sensor>& initialSensorList = (atoi(value)) ?
             mSensors.getUserDebugSensors() : mSensors.getUserSensors();
     Vector<Sensor> accessibleSensorList;
+
+    bool isCapped = isRateCappedBasedOnPermission(opPackageName);
     for (size_t i = 0; i < initialSensorList.size(); i++) {
         Sensor sensor = initialSensorList[i];
+        if (isCapped && isSensorInCappedSet(sensor.getType())) {
+            sensor.capMinDelayMicros(SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS / 1000);
+            sensor.capHighestDirectReportRateLevel(SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL);
+        }
         accessibleSensorList.add(sensor);
     }
     makeUuidsIntoIdsForSensorList(accessibleSensorList);
@@ -2024,6 +2065,69 @@ bool SensorService::isUidActive(uid_t uid) {
     return mUidPolicy->isUidActive(uid);
 }
 
+bool SensorService::isRateCappedBasedOnPermission(const String16& opPackageName) {
+    int targetSdk = getTargetSdkVersion(opPackageName);
+    bool hasSamplingRatePermission = PermissionCache::checkCallingPermission(
+                    sAccessHighSensorSamplingRatePermission);
+    if (targetSdk < __ANDROID_API_S__ ||
+            (targetSdk >= __ANDROID_API_S__ && hasSamplingRatePermission)) {
+        return false;
+    }
+    return true;
+}
+
+bool SensorService::isSensorInCappedSet(int sensorType) {
+    return (sensorType == SENSOR_TYPE_ACCELEROMETER
+            || sensorType == SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED
+            || sensorType == SENSOR_TYPE_GYROSCOPE
+            || sensorType == SENSOR_TYPE_GYROSCOPE_UNCALIBRATED
+            || sensorType == SENSOR_TYPE_MAGNETIC_FIELD
+            || sensorType == SENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED);
+}
+
+status_t SensorService::adjustSamplingPeriodBasedOnMicAndPermission(nsecs_t* requestedPeriodNs,
+        const String16& opPackageName) {
+    uid_t uid = IPCThreadState::self()->getCallingUid();
+    bool shouldCapBasedOnPermission = isRateCappedBasedOnPermission(opPackageName);
+    if (*requestedPeriodNs >= SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS) {
+        return OK;
+    }
+    if (shouldCapBasedOnPermission) {
+        *requestedPeriodNs = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
+        if (isPackageDebuggable(opPackageName)) {
+            return PERMISSION_DENIED;
+        }
+        return OK;
+    }
+    if (isMicSensorPrivacyEnabledForUid(uid)) {
+        *requestedPeriodNs = SENSOR_SERVICE_CAPPED_SAMPLING_PERIOD_NS;
+        return OK;
+    }
+    return OK;
+}
+
+status_t SensorService::adjustRateLevelBasedOnMicAndPermission(int* requestedRateLevel,
+        const String16& opPackageName) {
+    uid_t uid = IPCThreadState::self()->getCallingUid();
+    bool shouldCapBasedOnPermission = isRateCappedBasedOnPermission(opPackageName);
+
+    if (*requestedRateLevel <= SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL) {
+        return OK;
+    }
+    if (shouldCapBasedOnPermission) {
+        *requestedRateLevel = SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL;
+        if (isPackageDebuggable(opPackageName)) {
+            return PERMISSION_DENIED;
+        }
+        return OK;
+    }
+    if (isMicSensorPrivacyEnabledForUid(uid)) {
+        *requestedRateLevel = SENSOR_SERVICE_CAPPED_SAMPLING_RATE_LEVEL;
+        return OK;
+    }
+    return OK;
+}
+
 void SensorService::SensorPrivacyPolicy::registerSelf() {
     SensorPrivacyManager spm;
     mSensorPrivacyEnabled = spm.isSensorPrivacyEnabled();
@@ -2042,14 +2146,54 @@ bool SensorService::SensorPrivacyPolicy::isSensorPrivacyEnabled() {
 binder::Status SensorService::SensorPrivacyPolicy::onSensorPrivacyChanged(bool enabled) {
     mSensorPrivacyEnabled = enabled;
     sp<SensorService> service = mService.promote();
+
     if (service != nullptr) {
-        if (enabled) {
-            service->disableAllSensors();
+        if (mIsIndividualMic) {
+            if (enabled) {
+                service->capRates(mUserId);
+            } else {
+                service->uncapRates(mUserId);
+            }
         } else {
-            service->enableAllSensors();
+            if (enabled) {
+                service->disableAllSensors();
+            } else {
+                service->enableAllSensors();
+            }
         }
     }
     return binder::Status::ok();
+}
+
+status_t SensorService::SensorPrivacyPolicy::registerSelfForIndividual(int userId) {
+    Mutex::Autolock _l(mSensorPrivacyLock);
+
+    SensorPrivacyManager spm;
+    status_t err = spm.addIndividualSensorPrivacyListener(userId,
+            SensorPrivacyManager::INDIVIDUAL_SENSOR_MICROPHONE, this);
+
+    if (err != OK) {
+        ALOGE("Cannot register a mic listener.");
+        return err;
+    }
+    mSensorPrivacyEnabled = spm.isIndividualSensorPrivacyEnabled(userId,
+                SensorPrivacyManager::INDIVIDUAL_SENSOR_MICROPHONE);
+
+    mIsIndividualMic = true;
+    mUserId = userId;
+    return OK;
+}
+
+bool SensorService::isMicSensorPrivacyEnabledForUid(uid_t uid) {
+    userid_t userId = multiuser_get_user_id(uid);
+    if (mMicSensorPrivacyPolicies.find(userId) == mMicSensorPrivacyPolicies.end()) {
+        sp<SensorPrivacyPolicy> userPolicy = new SensorPrivacyPolicy(this);
+        if (userPolicy->registerSelfForIndividual(userId) != OK) {
+            return false;
+        }
+        mMicSensorPrivacyPolicies[userId] = userPolicy;
+    }
+    return mMicSensorPrivacyPolicies[userId]->isSensorPrivacyEnabled();
 }
 
 SensorService::ConnectionSafeAutolock::ConnectionSafeAutolock(
@@ -2109,4 +2253,17 @@ SensorService::ConnectionSafeAutolock SensorService::SensorConnectionHolder::loc
     return ConnectionSafeAutolock(*this, mutex);
 }
 
+bool SensorService::isPackageDebuggable(const String16& opPackageName) {
+    bool debugMode = false;
+    sp<IBinder> binder = defaultServiceManager()->getService(String16("package_native"));
+    if (binder != nullptr) {
+        sp<content::pm::IPackageManagerNative> packageManager =
+                interface_cast<content::pm::IPackageManagerNative>(binder);
+        if (packageManager != nullptr) {
+            binder::Status status = packageManager->isPackageDebuggable(
+                opPackageName, &debugMode);
+        }
+    }
+    return debugMode;
+}
 } // namespace android
