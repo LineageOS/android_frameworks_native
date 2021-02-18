@@ -72,15 +72,12 @@ cc_library_shared {
         "libcutils",
         "libEGL",
         "libGLESv2",
-        "libnativehelper",
-    ],
-
-    export_shared_lib_headers: [
-        "libnativehelper",
     ],
 
     header_libs: [
         "libnativedisplay_headers",
+        "libnativehelper_header_only",
     ],
 
+    export_header_lib_headers: ["libnativehelper_header_only"],
 }
