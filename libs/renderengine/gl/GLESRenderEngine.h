@@ -72,6 +72,7 @@ public:
                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
     bool cleanupPostRender(CleanupMode mode) override;
     int getContextPriority() override;
+    bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
 
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     // Creates an output image for rendering to
