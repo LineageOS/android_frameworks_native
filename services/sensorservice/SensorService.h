@@ -223,7 +223,8 @@ private:
     // connections will be allowed again.
     class SensorPrivacyPolicy : public hardware::BnSensorPrivacyListener {
         public:
-            explicit SensorPrivacyPolicy(wp<SensorService> service) : mService(service) {}
+            explicit SensorPrivacyPolicy(wp<SensorService> service)
+                    : mService(service), mIsIndividualMic(false), mUserId(0) {}
             void registerSelf();
             void unregisterSelf();
 
