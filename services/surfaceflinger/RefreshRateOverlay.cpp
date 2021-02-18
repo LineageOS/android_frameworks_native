@@ -125,6 +125,9 @@ std::vector<sp<GraphicBuffer>> RefreshRateOverlay::SevenSegmentDrawer::drawNumbe
                                   GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
                                           GRALLOC_USAGE_HW_TEXTURE,
                                   "RefreshRateOverlayBuffer");
+        const status_t bufferStatus = buffer->initCheck();
+        LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "RefreshRateOverlay: Buffer failed to allocate: %d",
+                            bufferStatus);
         uint8_t* pixels;
         buffer->lock(GRALLOC_USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&pixels));
         // Clear buffer content

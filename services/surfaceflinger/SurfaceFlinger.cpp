@@ -5851,6 +5851,10 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
             getFactory().createGraphicBuffer(bufferSize.getWidth(), bufferSize.getHeight(),
                                              static_cast<android_pixel_format>(reqPixelFormat),
                                              1 /* layerCount */, usage, "screenshot");
+
+    const status_t bufferStatus = buffer->initCheck();
+    LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "captureScreenCommon: Buffer failed to allocate: %d",
+                        bufferStatus);
     return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
                                false /* regionSampling */, grayscale, captureListener);
 }

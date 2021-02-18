@@ -447,6 +447,9 @@ void RegionSamplingThread::captureSample() {
                 GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
         buffer = new GraphicBuffer(sampledBounds.getWidth(), sampledBounds.getHeight(),
                                    PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
+        const status_t bufferStatus = buffer->initCheck();
+        LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "captureSample: Buffer failed to allocate: %d",
+                            bufferStatus);
     }
 
     const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
