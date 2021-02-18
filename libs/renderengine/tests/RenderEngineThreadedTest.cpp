@@ -144,6 +144,17 @@ TEST_F(RenderEngineThreadedTest, cleanupPostRender_returnsTrue) {
     ASSERT_EQ(true, result);
 }
 
+TEST_F(RenderEngineThreadedTest, supportsBackgroundBlur_returnsFalse) {
+    EXPECT_CALL(*mRenderEngine, supportsBackgroundBlur()).WillOnce(Return(false));
+    status_t result = mThreadedRE->supportsBackgroundBlur();
+    ASSERT_EQ(false, result);
+}
+
+TEST_F(RenderEngineThreadedTest, supportsBackgroundBlur_returnsTrue) {
+    EXPECT_CALL(*mRenderEngine, supportsBackgroundBlur()).WillOnce(Return(true));
+    status_t result = mThreadedRE->supportsBackgroundBlur();
+    ASSERT_EQ(true, result);
+}
 TEST_F(RenderEngineThreadedTest, drawLayers) {
     renderengine::DisplaySettings settings;
     std::vector<const renderengine::LayerSettings*> layers;
