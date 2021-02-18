@@ -139,7 +139,7 @@ protected:
         sp<GraphicBuffer> buffer =
                 new GraphicBuffer(bufferWidth, bufferHeight, PIXEL_FORMAT_RGBA_8888, 1,
                                   BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                          BufferUsage::COMPOSER_OVERLAY,
+                                          BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE,
                                   "test");
         TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, bufferWidth, bufferHeight),
                                                  color);
@@ -208,7 +208,7 @@ protected:
         sp<GraphicBuffer> buffer =
                 new GraphicBuffer(bufferWidth, bufferHeight, PIXEL_FORMAT_RGBA_8888, 1,
                                   BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                          BufferUsage::COMPOSER_OVERLAY,
+                                          BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE,
                                   "test");
 
         ASSERT_TRUE(bufferWidth % 2 == 0 && bufferHeight % 2 == 0);

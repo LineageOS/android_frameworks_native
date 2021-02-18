@@ -598,6 +598,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         return BAD_VALUE;
     }
 
+    validateOutputBufferUsage(buffer);
+
     auto grContext = mInProtectedContext ? mProtectedGrContext : mGrContext;
     auto& cache = mInProtectedContext ? mProtectedTextureCache : mTextureCache;
     AHardwareBuffer_Desc bufferDesc;
@@ -815,6 +817,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         SkPaint paint;
         if (layer->source.buffer.buffer) {
             ATRACE_NAME("DrawImage");
+            validateInputBufferUsage(layer->source.buffer.buffer);
             const auto& item = layer->source.buffer;
             std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef = nullptr;
             auto iter = mTextureCache.find(item.buffer->getId());
