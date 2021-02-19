@@ -753,7 +753,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                             blurInput);
             }
             for (auto region : layer->blurRegions) {
-                if (cachedBlurs[region.blurRadius] != nullptr) {
+                if (cachedBlurs[region.blurRadius] == nullptr) {
                     ATRACE_NAME("BlurRegion");
                     cachedBlurs[region.blurRadius] =
                             mBlurFilter->generate(grContext.get(), region.blurRadius, blurInput,
