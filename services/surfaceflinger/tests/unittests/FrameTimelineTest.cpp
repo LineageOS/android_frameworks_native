@@ -106,6 +106,7 @@ public:
 
     void addEmptyDisplayFrame() {
         auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+        // Trigger a flushPresentFence by calling setSfPresent for the next frame
         mFrameTimeline->setSfPresent(2500, presentFence1);
     }
 
@@ -234,29 +235,26 @@ TEST_F(FrameTimelineTest, createSurfaceFrameForToken_validInputEventId) {
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_droppedFramesNotUpdated) {
-    // Global increment
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-
     int64_t token1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
-    int64_t token2 = mTokenManager->generateTokenForPredictions({40, 50, 60});
     auto surfaceFrame1 =
             mFrameTimeline->createSurfaceFrameForToken({token1, sInputEventId}, sPidOne, sUidOne,
                                                        sLayerNameOne, sLayerNameOne);
 
     // Set up the display frame
     mFrameTimeline->setSfWakeUp(token1, 20, Fps::fromPeriodNsecs(11));
+    surfaceFrame1->setDropTime(12);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(25, presentFence1);
     presentFence1->signalForTest(30);
 
-    // Trigger a flush by calling setSfPresent for the next frame
-    mFrameTimeline->setSfWakeUp(token2, 50, Fps::fromPeriodNsecs(11));
-    mFrameTimeline->setSfPresent(55, presentFence2);
+    addEmptyDisplayFrame();
 
     auto& droppedSurfaceFrame = getSurfaceFrame(0, 0);
     EXPECT_EQ(droppedSurfaceFrame.getPresentState(), SurfaceFrame::PresentState::Dropped);
+    EXPECT_EQ(0u, droppedSurfaceFrame.getActuals().endTime);
+    EXPECT_EQ(12u, droppedSurfaceFrame.getDropTime());
     EXPECT_EQ(droppedSurfaceFrame.getActuals().presentTime, 0);
 }
 
@@ -265,9 +263,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_presentedFramesUpdated) {
     EXPECT_CALL(*mTimeStats, incrementJankyFrames(_)).Times(2);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
-    int64_t surfaceFrameToken2 = mTokenManager->generateTokenForPredictions({40, 50, 60});
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 30});
-    int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 56, 60});
     auto surfaceFrame1 =
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken1, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
@@ -290,16 +286,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_presentedFramesUpdated) {
     EXPECT_EQ(presentedSurfaceFrame1.getActuals().presentTime, 0);
     EXPECT_EQ(presentedSurfaceFrame2.getActuals().presentTime, 0);
 
-    // Trigger a flush by finalizing the next DisplayFrame
-    auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    auto surfaceFrame3 =
-            mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken2, sInputEventId}, sPidOne,
-                                                       sUidOne, sLayerNameOne, sLayerNameOne);
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
-    surfaceFrame3->setPresentState(SurfaceFrame::PresentState::Dropped);
-    mFrameTimeline->addSurfaceFrame(surfaceFrame3);
-    mFrameTimeline->setSfPresent(56, presentFence2);
-    displayFrame = getDisplayFrame(0);
+    addEmptyDisplayFrame();
 
     // Fences have flushed, so the present timestamps should be updated
     EXPECT_EQ(displayFrame->getActuals().presentTime, 42);
@@ -587,10 +574,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMissWithRenderRate) {
 TEST_F(FrameTimelineTest, tracing_noPacketsSentWithoutTraceStart) {
     auto tracingSession = getTracingSessionForTest();
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-
     int64_t token1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
-    int64_t token2 = mTokenManager->generateTokenForPredictions({40, 50, 60});
     auto surfaceFrame1 =
             mFrameTimeline->createSurfaceFrameForToken({token1, sInputEventId}, sPidOne, sUidOne,
                                                        sLayerNameOne, sLayerNameOne);
@@ -602,10 +586,7 @@ TEST_F(FrameTimelineTest, tracing_noPacketsSentWithoutTraceStart) {
     mFrameTimeline->setSfPresent(25, presentFence1);
     presentFence1->signalForTest(30);
 
-    // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
-    // next frame
-    mFrameTimeline->setSfWakeUp(token2, 50, Fps::fromPeriodNsecs(11));
-    mFrameTimeline->setSfPresent(55, presentFence2);
+    addEmptyDisplayFrame();
 
     auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
     EXPECT_EQ(packets.size(), 0u);
@@ -616,7 +597,6 @@ TEST_F(FrameTimelineTest, tracing_sanityTest) {
     // Layer specific increment
     EXPECT_CALL(*mTimeStats, incrementJankyFrames(_));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
     tracingSession->StartBlocking();
     int64_t token1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
@@ -632,12 +612,7 @@ TEST_F(FrameTimelineTest, tracing_sanityTest) {
     mFrameTimeline->setSfPresent(25, presentFence1);
     presentFence1->signalForTest(30);
 
-    // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
-    // next frame
-    mFrameTimeline->setSfWakeUp(token2, 50, Fps::fromPeriodNsecs(11));
-    mFrameTimeline->setSfPresent(55, presentFence2);
-    presentFence2->signalForTest(55);
-
+    addEmptyDisplayFrame();
     flushTrace();
     tracingSession->StopBlocking();
 
@@ -649,22 +624,15 @@ TEST_F(FrameTimelineTest, tracing_sanityTest) {
 TEST_F(FrameTimelineTest, traceDisplayFrame_invalidTokenDoesNotEmitTracePacket) {
     auto tracingSession = getTracingSessionForTest();
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
     tracingSession->StartBlocking();
-    int64_t token1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
 
     // Set up the display frame
     mFrameTimeline->setSfWakeUp(-1, 20, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(25, presentFence1);
     presentFence1->signalForTest(30);
 
-    // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
-    // next frame
-    mFrameTimeline->setSfWakeUp(token1, 50, Fps::fromPeriodNsecs(11));
-    mFrameTimeline->setSfPresent(55, presentFence2);
-    presentFence2->signalForTest(60);
-
+    addEmptyDisplayFrame();
     flushTrace();
     tracingSession->StopBlocking();
 
@@ -675,11 +643,9 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_invalidTokenDoesNotEmitTracePacket) 
 TEST_F(FrameTimelineTest, traceSurfaceFrame_invalidTokenDoesNotEmitTracePacket) {
     auto tracingSession = getTracingSessionForTest();
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
     tracingSession->StartBlocking();
     int64_t token1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
-    int64_t token2 = mTokenManager->generateTokenForPredictions({40, 50, 60});
     auto surfaceFrame1 = mFrameTimeline->createSurfaceFrameForToken({}, sPidOne, sUidOne,
                                                                     sLayerNameOne, sLayerNameOne);
 
@@ -690,12 +656,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_invalidTokenDoesNotEmitTracePacket) 
     mFrameTimeline->setSfPresent(25, presentFence1);
     presentFence1->signalForTest(30);
 
-    // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
-    // next frame
-    mFrameTimeline->setSfWakeUp(token2, 50, Fps::fromPeriodNsecs(11));
-    mFrameTimeline->setSfPresent(55, presentFence2);
-    presentFence2->signalForTest(60);
-
+    addEmptyDisplayFrame();
     flushTrace();
     tracingSession->StopBlocking();
 
@@ -703,6 +664,65 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_invalidTokenDoesNotEmitTracePacket) 
     // Display Frame 1 has 4 packets (SurfaceFrame shouldn't be traced since it has an invalid
     // token).
     EXPECT_EQ(packets.size(), 4u);
+}
+
+ProtoExpectedDisplayFrameStart createProtoExpectedDisplayFrameStart(int64_t cookie, int64_t token,
+                                                                    pid_t pid) {
+    ProtoExpectedDisplayFrameStart proto;
+    proto.set_cookie(cookie);
+    proto.set_token(token);
+    proto.set_pid(pid);
+    return proto;
+}
+
+ProtoActualDisplayFrameStart createProtoActualDisplayFrameStart(
+        int64_t cookie, int64_t token, pid_t pid, ProtoPresentType presentType, bool onTimeFinish,
+        bool gpuComposition, ProtoJankType jankType) {
+    ProtoActualDisplayFrameStart proto;
+    proto.set_cookie(cookie);
+    proto.set_token(token);
+    proto.set_pid(pid);
+    proto.set_present_type(presentType);
+    proto.set_on_time_finish(onTimeFinish);
+    proto.set_gpu_composition(gpuComposition);
+    proto.set_jank_type(jankType);
+    return proto;
+}
+
+ProtoExpectedSurfaceFrameStart createProtoExpectedSurfaceFrameStart(int64_t cookie, int64_t token,
+                                                                    int64_t displayFrameToken,
+                                                                    pid_t pid,
+                                                                    std::string layerName) {
+    ProtoExpectedSurfaceFrameStart proto;
+    proto.set_cookie(cookie);
+    proto.set_token(token);
+    proto.set_display_frame_token(displayFrameToken);
+    proto.set_pid(pid);
+    proto.set_layer_name(layerName);
+    return proto;
+}
+
+ProtoActualSurfaceFrameStart createProtoActualSurfaceFrameStart(
+        int64_t cookie, int64_t token, int64_t displayFrameToken, pid_t pid, std::string layerName,
+        ProtoPresentType presentType, bool onTimeFinish, bool gpuComposition,
+        ProtoJankType jankType) {
+    ProtoActualSurfaceFrameStart proto;
+    proto.set_cookie(cookie);
+    proto.set_token(token);
+    proto.set_display_frame_token(displayFrameToken);
+    proto.set_pid(pid);
+    proto.set_layer_name(layerName);
+    proto.set_present_type(presentType);
+    proto.set_on_time_finish(onTimeFinish);
+    proto.set_gpu_composition(gpuComposition);
+    proto.set_jank_type(jankType);
+    return proto;
+}
+
+ProtoFrameEnd createProtoFrameEnd(int64_t cookie) {
+    ProtoFrameEnd proto;
+    proto.set_cookie(cookie);
+    return proto;
 }
 
 void validateTraceEvent(const ProtoExpectedDisplayFrameStart& received,
@@ -791,11 +811,9 @@ void validateTraceEvent(const ProtoFrameEnd& received, const ProtoFrameEnd& sour
 TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     auto tracingSession = getTracingSessionForTest();
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
 
     tracingSession->StartBlocking();
     int64_t displayFrameToken1 = mTokenManager->generateTokenForPredictions({10, 25, 30});
-    int64_t displayFrameToken2 = mTokenManager->generateTokenForPredictions({40, 50, 60});
 
     // Set up the display frame
     mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, Fps::fromPeriodNsecs(11));
@@ -803,33 +821,18 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     presentFence1->signalForTest(31);
 
     int64_t traceCookie = snoopCurrentTraceCookie();
-    ProtoExpectedDisplayFrameStart protoExpectedDisplayFrameStart;
-    protoExpectedDisplayFrameStart.set_cookie(traceCookie + 1);
-    protoExpectedDisplayFrameStart.set_token(displayFrameToken1);
-    protoExpectedDisplayFrameStart.set_pid(kSurfaceFlingerPid);
+    auto protoExpectedDisplayFrameStart =
+            createProtoExpectedDisplayFrameStart(traceCookie + 1, displayFrameToken1,
+                                                 kSurfaceFlingerPid);
+    auto protoExpectedDisplayFrameEnd = createProtoFrameEnd(traceCookie + 1);
+    auto protoActualDisplayFrameStart =
+            createProtoActualDisplayFrameStart(traceCookie + 2, displayFrameToken1,
+                                               kSurfaceFlingerPid,
+                                               FrameTimelineEvent::PRESENT_ON_TIME, true, false,
+                                               FrameTimelineEvent::JANK_NONE);
+    auto protoActualDisplayFrameEnd = createProtoFrameEnd(traceCookie + 2);
 
-    ProtoFrameEnd protoExpectedDisplayFrameEnd;
-    protoExpectedDisplayFrameEnd.set_cookie(traceCookie + 1);
-
-    ProtoActualDisplayFrameStart protoActualDisplayFrameStart;
-    protoActualDisplayFrameStart.set_cookie(traceCookie + 2);
-    protoActualDisplayFrameStart.set_token(displayFrameToken1);
-    protoActualDisplayFrameStart.set_pid(kSurfaceFlingerPid);
-    protoActualDisplayFrameStart.set_present_type(
-            ProtoPresentType(FrameTimelineEvent::PRESENT_ON_TIME));
-    protoActualDisplayFrameStart.set_on_time_finish(true);
-    protoActualDisplayFrameStart.set_gpu_composition(false);
-    protoActualDisplayFrameStart.set_jank_type(ProtoJankType(FrameTimelineEvent::JANK_NONE));
-
-    ProtoFrameEnd protoActualDisplayFrameEnd;
-    protoActualDisplayFrameEnd.set_cookie(traceCookie + 2);
-
-    // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
-    // next frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken2, 50, Fps::fromPeriodNsecs(11));
-    mFrameTimeline->setSfPresent(55, presentFence2);
-    presentFence2->signalForTest(55);
-
+    addEmptyDisplayFrame();
     flushTrace();
     tracingSession->StopBlocking();
 
@@ -881,6 +884,60 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     validateTraceEvent(actualDisplayFrameEnd, protoActualDisplayFrameEnd);
 }
 
+TEST_F(FrameTimelineTest, traceDisplayFrame_predictionExpiredDoesNotTraceExpectedTimeline) {
+    auto tracingSession = getTracingSessionForTest();
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+
+    tracingSession->StartBlocking();
+    int64_t displayFrameToken1 = mTokenManager->generateTokenForPredictions({10, 25, 30});
+    // Flush the token so that it would expire
+    flushTokens(systemTime() + maxTokenRetentionTime);
+
+    // Set up the display frame
+    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfPresent(26, presentFence1);
+    presentFence1->signalForTest(31);
+
+    int64_t traceCookie = snoopCurrentTraceCookie();
+
+    auto protoActualDisplayFrameStart =
+            createProtoActualDisplayFrameStart(traceCookie + 1, displayFrameToken1,
+                                               kSurfaceFlingerPid,
+                                               FrameTimelineEvent::PRESENT_UNSPECIFIED, false,
+                                               false, FrameTimelineEvent::JANK_UNKNOWN);
+    auto protoActualDisplayFrameEnd = createProtoFrameEnd(traceCookie + 1);
+
+    addEmptyDisplayFrame();
+    flushTrace();
+    tracingSession->StopBlocking();
+
+    auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
+    // Only actual timeline packets should be in the trace
+    EXPECT_EQ(packets.size(), 2u);
+
+    // Packet - 0 : ActualDisplayFrameStart
+    const auto& packet0 = packets[0];
+    ASSERT_TRUE(packet0.has_timestamp());
+    EXPECT_EQ(packet0.timestamp(), 20u);
+    ASSERT_TRUE(packet0.has_frame_timeline_event());
+
+    const auto& event0 = packet0.frame_timeline_event();
+    ASSERT_TRUE(event0.has_actual_display_frame_start());
+    const auto& actualDisplayFrameStart = event0.actual_display_frame_start();
+    validateTraceEvent(actualDisplayFrameStart, protoActualDisplayFrameStart);
+
+    // Packet - 1 : FrameEnd (ActualDisplayFrame)
+    const auto& packet1 = packets[1];
+    ASSERT_TRUE(packet1.has_timestamp());
+    EXPECT_EQ(packet1.timestamp(), 26u);
+    ASSERT_TRUE(packet1.has_frame_timeline_event());
+
+    const auto& event1 = packet1.frame_timeline_event();
+    ASSERT_TRUE(event1.has_frame_end());
+    const auto& actualDisplayFrameEnd = event1.frame_end();
+    validateTraceEvent(actualDisplayFrameEnd, protoActualDisplayFrameEnd);
+}
+
 TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     auto tracingSession = getTracingSessionForTest();
     // Layer specific increment
@@ -891,63 +948,62 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     tracingSession->StartBlocking();
     int64_t surfaceFrameToken = mTokenManager->generateTokenForPredictions({10, 25, 40});
     int64_t displayFrameToken1 = mTokenManager->generateTokenForPredictions({30, 35, 40});
-    int64_t displayFrameToken2 = mTokenManager->generateTokenForPredictions({40, 50, 60});
 
     auto surfaceFrame1 =
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken, sInputEventId}, sPidOne,
                                                        sUidOne, sLayerNameOne, sLayerNameOne);
-    surfaceFrame1->setActualStartTime(0);
-    surfaceFrame1->setActualQueueTime(15);
-    surfaceFrame1->setAcquireFenceTime(20);
+    auto surfaceFrame2 =
+            mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken, sInputEventId}, sPidOne,
+                                                       sUidOne, sLayerNameOne, sLayerNameOne);
+    surfaceFrame1->setActualQueueTime(10);
+    surfaceFrame1->setDropTime(15);
+
+    surfaceFrame2->setActualQueueTime(15);
+    surfaceFrame2->setAcquireFenceTime(20);
 
     // First 2 cookies will be used by the DisplayFrame
     int64_t traceCookie = snoopCurrentTraceCookie() + 2;
 
-    ProtoExpectedSurfaceFrameStart protoExpectedSurfaceFrameStart;
-    protoExpectedSurfaceFrameStart.set_cookie(traceCookie + 1);
-    protoExpectedSurfaceFrameStart.set_token(surfaceFrameToken);
-    protoExpectedSurfaceFrameStart.set_display_frame_token(displayFrameToken1);
-    protoExpectedSurfaceFrameStart.set_pid(sPidOne);
-    protoExpectedSurfaceFrameStart.set_layer_name(sLayerNameOne);
+    auto protoDroppedSurfaceFrameExpectedStart =
+            createProtoExpectedSurfaceFrameStart(traceCookie + 1, surfaceFrameToken,
+                                                 displayFrameToken1, sPidOne, sLayerNameOne);
+    auto protoDroppedSurfaceFrameExpectedEnd = createProtoFrameEnd(traceCookie + 1);
+    auto protoDroppedSurfaceFrameActualStart =
+            createProtoActualSurfaceFrameStart(traceCookie + 2, surfaceFrameToken,
+                                               displayFrameToken1, sPidOne, sLayerNameOne,
+                                               FrameTimelineEvent::PRESENT_DROPPED, false, false,
+                                               FrameTimelineEvent::JANK_NONE);
+    auto protoDroppedSurfaceFrameActualEnd = createProtoFrameEnd(traceCookie + 2);
 
-    ProtoFrameEnd protoExpectedSurfaceFrameEnd;
-    protoExpectedSurfaceFrameEnd.set_cookie(traceCookie + 1);
-
-    ProtoActualSurfaceFrameStart protoActualSurfaceFrameStart;
-    protoActualSurfaceFrameStart.set_cookie(traceCookie + 2);
-    protoActualSurfaceFrameStart.set_token(surfaceFrameToken);
-    protoActualSurfaceFrameStart.set_display_frame_token(displayFrameToken1);
-    protoActualSurfaceFrameStart.set_pid(sPidOne);
-    protoActualSurfaceFrameStart.set_layer_name(sLayerNameOne);
-    protoActualSurfaceFrameStart.set_present_type(
-            ProtoPresentType(FrameTimelineEvent::PRESENT_ON_TIME));
-    protoActualSurfaceFrameStart.set_on_time_finish(true);
-    protoActualSurfaceFrameStart.set_gpu_composition(false);
-    protoActualSurfaceFrameStart.set_jank_type(ProtoJankType(FrameTimelineEvent::JANK_NONE));
-
-    ProtoFrameEnd protoActualSurfaceFrameEnd;
-    protoActualSurfaceFrameEnd.set_cookie(traceCookie + 2);
+    auto protoPresentedSurfaceFrameExpectedStart =
+            createProtoExpectedSurfaceFrameStart(traceCookie + 3, surfaceFrameToken,
+                                                 displayFrameToken1, sPidOne, sLayerNameOne);
+    auto protoPresentedSurfaceFrameExpectedEnd = createProtoFrameEnd(traceCookie + 3);
+    auto protoPresentedSurfaceFrameActualStart =
+            createProtoActualSurfaceFrameStart(traceCookie + 4, surfaceFrameToken,
+                                               displayFrameToken1, sPidOne, sLayerNameOne,
+                                               FrameTimelineEvent::PRESENT_ON_TIME, true, false,
+                                               FrameTimelineEvent::JANK_NONE);
+    auto protoPresentedSurfaceFrameActualEnd = createProtoFrameEnd(traceCookie + 4);
 
     // Set up the display frame
     mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, Fps::fromPeriodNsecs(11));
-    surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
+    surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
+    surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame2);
     mFrameTimeline->setSfPresent(26, presentFence1);
     presentFence1->signalForTest(40);
 
-    // Trigger a flushPresentFence (which will call trace function) by calling setSfPresent for the
-    // next frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken2, 50, Fps::fromPeriodNsecs(11));
-    mFrameTimeline->setSfPresent(55, presentFence2);
-    presentFence2->signalForTest(55);
-
+    addEmptyDisplayFrame();
     flushTrace();
     tracingSession->StopBlocking();
 
     auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
-    EXPECT_EQ(packets.size(), 8u);
+    // 4 DisplayFrame + 4 DroppedSurfaceFrame + 4 PresentedSurfaceFrame
+    EXPECT_EQ(packets.size(), 12u);
 
-    // Packet - 4 : ExpectedSurfaceFrameStart
+    // Packet - 4 : ExpectedSurfaceFrameStart1
     const auto& packet4 = packets[4];
     ASSERT_TRUE(packet4.has_timestamp());
     EXPECT_EQ(packet4.timestamp(), 10u);
@@ -955,10 +1011,10 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
 
     const auto& event4 = packet4.frame_timeline_event();
     ASSERT_TRUE(event4.has_expected_surface_frame_start());
-    const auto& expectedSurfaceFrameStart = event4.expected_surface_frame_start();
-    validateTraceEvent(expectedSurfaceFrameStart, protoExpectedSurfaceFrameStart);
+    const auto& expectedSurfaceFrameStart1 = event4.expected_surface_frame_start();
+    validateTraceEvent(expectedSurfaceFrameStart1, protoDroppedSurfaceFrameExpectedStart);
 
-    // Packet - 5 : FrameEnd (ExpectedSurfaceFrame)
+    // Packet - 5 : FrameEnd (ExpectedSurfaceFrame1)
     const auto& packet5 = packets[5];
     ASSERT_TRUE(packet5.has_timestamp());
     EXPECT_EQ(packet5.timestamp(), 25u);
@@ -966,10 +1022,10 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
 
     const auto& event5 = packet5.frame_timeline_event();
     ASSERT_TRUE(event5.has_frame_end());
-    const auto& expectedSurfaceFrameEnd = event5.frame_end();
-    validateTraceEvent(expectedSurfaceFrameEnd, protoExpectedSurfaceFrameEnd);
+    const auto& expectedSurfaceFrameEnd1 = event5.frame_end();
+    validateTraceEvent(expectedSurfaceFrameEnd1, protoDroppedSurfaceFrameExpectedEnd);
 
-    // Packet - 6 : ActualSurfaceFrameStart
+    // Packet - 6 : ActualSurfaceFrameStart1
     const auto& packet6 = packets[6];
     ASSERT_TRUE(packet6.has_timestamp());
     EXPECT_EQ(packet6.timestamp(), 10u);
@@ -977,18 +1033,143 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
 
     const auto& event6 = packet6.frame_timeline_event();
     ASSERT_TRUE(event6.has_actual_surface_frame_start());
-    const auto& actualSurfaceFrameStart = event6.actual_surface_frame_start();
-    validateTraceEvent(actualSurfaceFrameStart, protoActualSurfaceFrameStart);
+    const auto& actualSurfaceFrameStart1 = event6.actual_surface_frame_start();
+    validateTraceEvent(actualSurfaceFrameStart1, protoDroppedSurfaceFrameActualStart);
 
-    // Packet - 7 : FrameEnd (ActualSurfaceFrame)
+    // Packet - 7 : FrameEnd (ActualSurfaceFrame1)
     const auto& packet7 = packets[7];
     ASSERT_TRUE(packet7.has_timestamp());
-    EXPECT_EQ(packet7.timestamp(), 20u);
+    EXPECT_EQ(packet7.timestamp(), 15u);
     ASSERT_TRUE(packet7.has_frame_timeline_event());
 
     const auto& event7 = packet7.frame_timeline_event();
     ASSERT_TRUE(event7.has_frame_end());
-    const auto& actualSurfaceFrameEnd = event7.frame_end();
+    const auto& actualSurfaceFrameEnd1 = event7.frame_end();
+    validateTraceEvent(actualSurfaceFrameEnd1, protoDroppedSurfaceFrameActualEnd);
+
+    // Packet - 8 : ExpectedSurfaceFrameStart2
+    const auto& packet8 = packets[8];
+    ASSERT_TRUE(packet8.has_timestamp());
+    EXPECT_EQ(packet8.timestamp(), 10u);
+    ASSERT_TRUE(packet8.has_frame_timeline_event());
+
+    const auto& event8 = packet8.frame_timeline_event();
+    ASSERT_TRUE(event8.has_expected_surface_frame_start());
+    const auto& expectedSurfaceFrameStart2 = event8.expected_surface_frame_start();
+    validateTraceEvent(expectedSurfaceFrameStart2, protoPresentedSurfaceFrameExpectedStart);
+
+    // Packet - 9 : FrameEnd (ExpectedSurfaceFrame2)
+    const auto& packet9 = packets[9];
+    ASSERT_TRUE(packet9.has_timestamp());
+    EXPECT_EQ(packet9.timestamp(), 25u);
+    ASSERT_TRUE(packet9.has_frame_timeline_event());
+
+    const auto& event9 = packet9.frame_timeline_event();
+    ASSERT_TRUE(event9.has_frame_end());
+    const auto& expectedSurfaceFrameEnd2 = event9.frame_end();
+    validateTraceEvent(expectedSurfaceFrameEnd2, protoPresentedSurfaceFrameExpectedEnd);
+
+    // Packet - 10 : ActualSurfaceFrameStart2
+    const auto& packet10 = packets[10];
+    ASSERT_TRUE(packet10.has_timestamp());
+    EXPECT_EQ(packet10.timestamp(), 10u);
+    ASSERT_TRUE(packet10.has_frame_timeline_event());
+
+    const auto& event10 = packet10.frame_timeline_event();
+    ASSERT_TRUE(event10.has_actual_surface_frame_start());
+    const auto& actualSurfaceFrameStart2 = event10.actual_surface_frame_start();
+    validateTraceEvent(actualSurfaceFrameStart2, protoPresentedSurfaceFrameActualStart);
+
+    // Packet - 11 : FrameEnd (ActualSurfaceFrame2)
+    const auto& packet11 = packets[11];
+    ASSERT_TRUE(packet11.has_timestamp());
+    EXPECT_EQ(packet11.timestamp(), 20u);
+    ASSERT_TRUE(packet11.has_frame_timeline_event());
+
+    const auto& event11 = packet11.frame_timeline_event();
+    ASSERT_TRUE(event11.has_frame_end());
+    const auto& actualSurfaceFrameEnd2 = event11.frame_end();
+    validateTraceEvent(actualSurfaceFrameEnd2, protoPresentedSurfaceFrameActualEnd);
+}
+
+TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDoesNotTraceExpectedTimeline) {
+    auto tracingSession = getTracingSessionForTest();
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+
+    tracingSession->StartBlocking();
+    constexpr nsecs_t appStartTime =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(10ms).count();
+    constexpr nsecs_t appEndTime =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(20ms).count();
+    constexpr nsecs_t appPresentTime =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(30ms).count();
+    int64_t surfaceFrameToken =
+            mTokenManager->generateTokenForPredictions({appStartTime, appEndTime, appPresentTime});
+
+    // Flush the token so that it would expire
+    flushTokens(systemTime() + maxTokenRetentionTime);
+    auto surfaceFrame1 =
+            mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken, /*inputEventId*/ 0},
+                                                       sPidOne, sUidOne, sLayerNameOne,
+                                                       sLayerNameOne);
+    surfaceFrame1->setActualQueueTime(appEndTime);
+    surfaceFrame1->setAcquireFenceTime(appEndTime);
+
+    constexpr nsecs_t sfStartTime =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(20ms).count();
+    constexpr nsecs_t sfEndTime =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(30ms).count();
+    constexpr nsecs_t sfPresentTime =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(30ms).count();
+    int64_t displayFrameToken =
+            mTokenManager->generateTokenForPredictions({sfStartTime, sfEndTime, sfPresentTime});
+
+    // First 2 cookies will be used by the DisplayFrame
+    int64_t traceCookie = snoopCurrentTraceCookie() + 2;
+
+    auto protoActualSurfaceFrameStart =
+            createProtoActualSurfaceFrameStart(traceCookie + 1, surfaceFrameToken,
+                                               displayFrameToken, sPidOne, sLayerNameOne,
+                                               FrameTimelineEvent::PRESENT_UNSPECIFIED, false,
+                                               false, FrameTimelineEvent::JANK_UNKNOWN);
+    auto protoActualSurfaceFrameEnd = createProtoFrameEnd(traceCookie + 1);
+
+    // Set up the display frame
+    mFrameTimeline->setSfWakeUp(displayFrameToken, sfStartTime, Fps::fromPeriodNsecs(11));
+    surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame1);
+    mFrameTimeline->setSfPresent(sfEndTime, presentFence1);
+    presentFence1->signalForTest(sfPresentTime);
+
+    addEmptyDisplayFrame();
+    flushTrace();
+    tracingSession->StopBlocking();
+
+    auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
+    // Display Frame 4 packets + SurfaceFrame 2 packets
+    ASSERT_EQ(packets.size(), 6u);
+
+    // Packet - 4 : ActualSurfaceFrameStart
+    const auto& packet4 = packets[4];
+    ASSERT_TRUE(packet4.has_timestamp());
+    EXPECT_EQ(packet4.timestamp(),
+              static_cast<uint64_t>(appEndTime - SurfaceFrame::kPredictionExpiredStartTimeDelta));
+    ASSERT_TRUE(packet4.has_frame_timeline_event());
+
+    const auto& event4 = packet4.frame_timeline_event();
+    ASSERT_TRUE(event4.has_actual_surface_frame_start());
+    const auto& actualSurfaceFrameStart = event4.actual_surface_frame_start();
+    validateTraceEvent(actualSurfaceFrameStart, protoActualSurfaceFrameStart);
+
+    // Packet - 5 : FrameEnd (ActualSurfaceFrame)
+    const auto& packet5 = packets[5];
+    ASSERT_TRUE(packet5.has_timestamp());
+    EXPECT_EQ(packet5.timestamp(), static_cast<uint64_t>(appEndTime));
+    ASSERT_TRUE(packet5.has_frame_timeline_event());
+
+    const auto& event5 = packet5.frame_timeline_event();
+    ASSERT_TRUE(event5.has_frame_end());
+    const auto& actualSurfaceFrameEnd = event5.frame_end();
     validateTraceEvent(actualSurfaceFrameEnd, protoActualSurfaceFrameEnd);
 }
 
