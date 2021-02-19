@@ -54,6 +54,7 @@ public:
                           base::unique_fd*));
     MOCK_METHOD0(cleanFramebufferCache, void());
     MOCK_METHOD0(getContextPriority, int());
+    MOCK_METHOD0(supportsBackgroundBlur, bool());
 };
 
 } // namespace mock

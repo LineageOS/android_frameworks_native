@@ -14,6 +14,17 @@
  * limitations under the License.
  */
 
+/**
+ * Structures and functions related to permission checks in native code.
+ *
+ * @addtogroup Permission
+ * @{
+ */
+
+/**
+ * @file permission_manager.h
+ */
+
 #ifndef ANDROID_PERMISSION_MANAGER_H
 #define ANDROID_PERMISSION_MANAGER_H
 
@@ -48,8 +59,8 @@ enum {
 enum {
     /**
      * This is returned if the permission check completed without errors.
-     * The output result is valid and contains one of {PERMISSION_MANAGER_PERMISSION_GRANTED,
-     * PERMISSION_MANAGER_PERMISSION_DENIED}.
+     * The output result is valid and contains one of {::PERMISSION_MANAGER_PERMISSION_GRANTED,
+     * ::PERMISSION_MANAGER_PERMISSION_DENIED}.
      */
     PERMISSION_MANAGER_STATUS_OK = 0,
     /**
@@ -85,3 +96,5 @@ int32_t APermissionManager_checkPermission(const char* permission,
 __END_DECLS
 
 #endif  // ANDROID_PERMISSION_MANAGER_H
+
+/** @} */

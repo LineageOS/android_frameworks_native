@@ -914,13 +914,6 @@ void RenderEngineTest::fillBufferWithRoundedCorners() {
 
 template <typename SourceVariant>
 void RenderEngineTest::fillBufferAndBlurBackground() {
-        char value[PROPERTY_VALUE_MAX];
-    property_get("ro.surface_flinger.supports_background_blur", value, "0");
-    if (!atoi(value)) {
-        // This device doesn't support blurs, no-op.
-        return;
-    }
-
     auto blurRadius = 50;
     auto center = DEFAULT_DISPLAY_WIDTH / 2;
 
@@ -959,9 +952,11 @@ void RenderEngineTest::fillBufferAndBlurBackground() {
     // solid color
     expectBufferColor(Rect(0, 0, 1, 1), 255, 0, 0, 255, 0 /* tolerance */);
 
-    // blurred color (downsampling should result in the center color being close to 128)
-    expectBufferColor(Rect(center - 1, center - 5, center + 1, center + 5), 128, 128, 0, 255,
-                      10 /* tolerance */);
+    if (mRE->supportsBackgroundBlur()) {
+        // blurred color (downsampling should result in the center color being close to 128)
+        expectBufferColor(Rect(center - 1, center - 5, center + 1, center + 5), 128, 128, 0, 255,
+                          10 /* tolerance */);
+    }
 }
 
 template <typename SourceVariant>
