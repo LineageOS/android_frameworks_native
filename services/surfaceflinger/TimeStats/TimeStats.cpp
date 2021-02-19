@@ -140,11 +140,12 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventLi
                                              globalSlice.second.jankPayload.totalSFUnattributed);
         mStatsDelegate->statsEventWriteInt32(event,
                                              globalSlice.second.jankPayload.totalAppUnattributed);
-
-        // TODO: populate these with real values
-        mStatsDelegate->statsEventWriteInt32(event, 0); // total_janky_frames_sf_scheduling
-        mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_sf_prediction_error
-        mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_app_buffer_stuffing
+        mStatsDelegate->statsEventWriteInt32(event,
+                                             globalSlice.second.jankPayload.totalSFScheduling);
+        mStatsDelegate->statsEventWriteInt32(event,
+                                             globalSlice.second.jankPayload.totalSFPredictionError);
+        mStatsDelegate->statsEventWriteInt32(event,
+                                             globalSlice.second.jankPayload.totalAppBufferStuffing);
         mStatsDelegate->statsEventWriteInt32(event, globalSlice.first.displayRefreshRateBucket);
         std::string sfDeadlineMissedBytes =
                 histogramToProtoByteString(globalSlice.second.displayDeadlineDeltas.hist,
@@ -222,11 +223,9 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
         mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFLongGpu);
         mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFUnattributed);
         mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalAppUnattributed);
-
-        // TODO: populate these with real values
-        mStatsDelegate->statsEventWriteInt32(event, 0); // total_janky_frames_sf_scheduling
-        mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_sf_prediction_error
-        mStatsDelegate->statsEventWriteInt32(event, 0); // total_jank_frames_app_buffer_stuffing
+        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFScheduling);
+        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFPredictionError);
+        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalAppBufferStuffing);
         mStatsDelegate->statsEventWriteInt32(
                 event, layer->displayRefreshRateBucket); // display_refresh_rate_bucket
         mStatsDelegate->statsEventWriteInt32(event, layer->renderRateBucket); // render_rate_bucket
@@ -772,9 +771,10 @@ void TimeStats::setPresentFence(int32_t layerId, uint64_t frameNumber,
     flushAvailableRecordsToStatsLocked(layerId, displayRefreshRate, renderRate);
 }
 
-static const constexpr int32_t kValidJankyReason = JankType::SurfaceFlingerCpuDeadlineMissed |
-        JankType::SurfaceFlingerGpuDeadlineMissed | JankType::AppDeadlineMissed |
-        JankType::DisplayHAL;
+static const constexpr int32_t kValidJankyReason = JankType::DisplayHAL |
+        JankType::SurfaceFlingerCpuDeadlineMissed | JankType::SurfaceFlingerGpuDeadlineMissed |
+        JankType::AppDeadlineMissed | JankType::PredictionError |
+        JankType::SurfaceFlingerScheduling | JankType::BufferStuffing;
 
 template <class T>
 static void updateJankPayload(T& t, int32_t reasons) {
@@ -793,6 +793,15 @@ static void updateJankPayload(T& t, int32_t reasons) {
         }
         if ((reasons & JankType::AppDeadlineMissed) != 0) {
             t.jankPayload.totalAppUnattributed++;
+        }
+        if ((reasons & JankType::PredictionError) != 0) {
+            t.jankPayload.totalSFPredictionError++;
+        }
+        if ((reasons & JankType::SurfaceFlingerScheduling) != 0) {
+            t.jankPayload.totalSFScheduling++;
+        }
+        if ((reasons & JankType::BufferStuffing) != 0) {
+            t.jankPayload.totalAppBufferStuffing++;
         }
     }
 }
