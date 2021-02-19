@@ -627,6 +627,8 @@ void RefreshRateConfigs::updateDisplayModes(const DisplayModes& modes,
 
     std::vector<const RefreshRate*> sortedModes;
     getSortedRefreshRateListLocked([](const RefreshRate&) { return true; }, &sortedModes);
+    // Reset the policy because the old one may no longer be valid.
+    mDisplayManagerPolicy = {};
     mDisplayManagerPolicy.defaultMode = currentModeId;
     mMinSupportedRefreshRate = sortedModes.front();
     mMaxSupportedRefreshRate = sortedModes.back();

@@ -20,6 +20,7 @@
 #include <SkCanvas.h>
 #include <SkData.h>
 #include <SkPaint.h>
+#include <SkRRect.h>
 #include <SkRuntimeEffect.h>
 #include <SkSize.h>
 #include <SkString.h>
