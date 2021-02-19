@@ -61,6 +61,7 @@ public:
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
     bool useProtectedContext(bool useProtectedContext) override;
+    bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
 
 protected:
     void dump(std::string& result) override;

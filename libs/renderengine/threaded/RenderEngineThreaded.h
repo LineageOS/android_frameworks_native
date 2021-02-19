@@ -64,6 +64,7 @@ public:
 
     void cleanFramebufferCache() override;
     int getContextPriority() override;
+    bool supportsBackgroundBlur() override;
 
 private:
     void threadMain(CreateInstanceFactory factory);
