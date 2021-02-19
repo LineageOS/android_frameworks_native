@@ -1560,6 +1560,7 @@ void Layer::setFrameTimelineVsyncForBufferlessTransaction(const FrameTimelineInf
 
 void Layer::addSurfaceFrameDroppedForBuffer(
         std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
+    surfaceFrame->setDropTime(systemTime());
     surfaceFrame->setPresentState(PresentState::Dropped);
     mFlinger->mFrameTimeline->addSurfaceFrame(surfaceFrame);
 }
