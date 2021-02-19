@@ -32,6 +32,7 @@
 
 namespace android {
 
+class BLASTBufferQueue;
 class BufferItemConsumer;
 
 class BLASTBufferItemConsumer : public BufferItemConsumer {
@@ -40,27 +41,32 @@ public:
                             int bufferCount, bool controlledByApp)
           : BufferItemConsumer(consumer, consumerUsage, bufferCount, controlledByApp),
             mCurrentlyConnected(false),
-            mPreviouslyConnected(false) {}
+            mPreviouslyConnected(false),
+            mBLASTBufferQueue(nullptr) {}
 
     void onDisconnect() override;
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
-                                  FrameEventHistoryDelta* outDelta) override
-            REQUIRES(mFrameEventHistoryMutex);
+                                  FrameEventHistoryDelta* outDelta) override REQUIRES(mMutex);
     void updateFrameTimestamps(uint64_t frameNumber, nsecs_t refreshStartTime,
                                const sp<Fence>& gpuCompositionDoneFence,
                                const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
                                CompositorTiming compositorTiming, nsecs_t latchTime,
-                               nsecs_t dequeueReadyTime) REQUIRES(mFrameEventHistoryMutex);
+                               nsecs_t dequeueReadyTime) REQUIRES(mMutex);
     void getConnectionEvents(uint64_t frameNumber, bool* needsDisconnect);
+    void setBlastBufferQueue(BLASTBufferQueue* blastbufferqueue) REQUIRES(mMutex);
+
+protected:
+    void onSidebandStreamChanged() override REQUIRES(mMutex);
 
 private:
     uint64_t mCurrentFrameNumber = 0;
 
-    Mutex mFrameEventHistoryMutex;
-    ConsumerFrameEventHistory mFrameEventHistory GUARDED_BY(mFrameEventHistoryMutex);
-    std::queue<uint64_t> mDisconnectEvents GUARDED_BY(mFrameEventHistoryMutex);
-    bool mCurrentlyConnected GUARDED_BY(mFrameEventHistoryMutex);
-    bool mPreviouslyConnected GUARDED_BY(mFrameEventHistoryMutex);
+    Mutex mMutex;
+    ConsumerFrameEventHistory mFrameEventHistory GUARDED_BY(mMutex);
+    std::queue<uint64_t> mDisconnectEvents GUARDED_BY(mMutex);
+    bool mCurrentlyConnected GUARDED_BY(mMutex);
+    bool mPreviouslyConnected GUARDED_BY(mMutex);
+    BLASTBufferQueue* mBLASTBufferQueue GUARDED_BY(mMutex);
 };
 
 class BLASTBufferQueue
@@ -93,6 +99,8 @@ public:
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
     status_t setFrameTimelineInfo(const FrameTimelineInfo& info);
+
+    void setSidebandStream(const sp<NativeHandle>& stream);
 
     virtual ~BLASTBufferQueue();
 

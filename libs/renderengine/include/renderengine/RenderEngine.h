@@ -188,6 +188,10 @@ public:
     // number of contexts that can be created at a specific priority level in the system.
     virtual int getContextPriority() = 0;
 
+    // Returns true if blur was requested in the RenderEngineCreationArgs and the implementation
+    // also supports background blur.  If false, no blur will be applied when drawing layers.
+    virtual bool supportsBackgroundBlur() = 0;
+
 protected:
     friend class threaded::RenderEngineThreaded;
 };
