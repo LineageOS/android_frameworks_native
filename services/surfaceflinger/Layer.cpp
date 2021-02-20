@@ -25,6 +25,7 @@
 
 #include "Layer.h"
 
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android/native_window.h>
 #include <binder/IPCThreadState.h>
@@ -2481,7 +2482,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     if (traceFlags & SurfaceTracing::TRACE_INPUT) {
         InputWindowInfo info;
         if (useDrawing) {
-            info = fillInputInfo();
+            info = fillInputInfo({nullptr});
         } else {
             info = state.inputInfo;
         }
@@ -2502,7 +2503,7 @@ bool Layer::isRemovedFromCurrentState() const  {
     return mRemovedFromCurrentState;
 }
 
-void Layer::fillInputFrameInfo(InputWindowInfo& info) {
+void Layer::fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhysicalDisplay) {
     // Transform layer size to screen space and inset it by surface insets.
     // If this is a portal window, set the touchableRegion to the layerBounds.
     Rect layerBounds = info.portalToDisplayId == ADISPLAY_ID_NONE
@@ -2522,9 +2523,13 @@ void Layer::fillInputFrameInfo(InputWindowInfo& info) {
         return;
     }
 
-    ui::Transform t = getTransform();
+    ui::Transform layerToDisplay = getTransform();
+    // Transform that takes window coordinates to unrotated display coordinates
+    ui::Transform t = toPhysicalDisplay * layerToDisplay;
     int32_t xSurfaceInset = info.surfaceInset;
     int32_t ySurfaceInset = info.surfaceInset;
+    // Bring screenBounds into unrotated space
+    Rect screenBounds = toPhysicalDisplay.transform(Rect{mScreenBounds});
 
     const float xScale = t.getScaleX();
     const float yScale = t.getScaleY();
@@ -2582,7 +2587,6 @@ void Layer::fillInputFrameInfo(InputWindowInfo& info) {
     // We need to send the layer bounds cropped to the screenbounds since the layer can be cropped.
     // The frame should be the area the user sees on screen since it's used for occlusion
     // detection.
-    Rect screenBounds = Rect{mScreenBounds};
     transformedLayerBounds.intersect(screenBounds, &transformedLayerBounds);
     info.frameLeft = transformedLayerBounds.left;
     info.frameTop = transformedLayerBounds.top;
@@ -2594,7 +2598,7 @@ void Layer::fillInputFrameInfo(InputWindowInfo& info) {
     info.touchableRegion = inputTransform.transform(info.touchableRegion);
 }
 
-InputWindowInfo Layer::fillInputInfo() {
+InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
         mDrawingState.inputInfo.ownerUid = mOwnerUid;
@@ -2611,7 +2615,13 @@ InputWindowInfo Layer::fillInputInfo() {
         info.displayId = getLayerStack();
     }
 
-    fillInputFrameInfo(info);
+    // Transform that goes from "logical(rotated)" display to physical/unrotated display.
+    // This is for when inputflinger operates in physical display-space.
+    ui::Transform toPhysicalDisplay;
+    if (display) {
+        toPhysicalDisplay = display->getTransform();
+    }
+    fillInputFrameInfo(info, toPhysicalDisplay);
 
     // For compatibility reasons we let layers which can receive input
     // receive input before they have actually submitted a buffer. Because
@@ -2627,12 +2637,14 @@ InputWindowInfo Layer::fillInputInfo() {
     auto cropLayer = mDrawingState.touchableRegionCrop.promote();
     if (info.replaceTouchableRegionWithCrop) {
         if (cropLayer == nullptr) {
-            info.touchableRegion = Region(Rect{mScreenBounds});
+            info.touchableRegion = Region(toPhysicalDisplay.transform(Rect{mScreenBounds}));
         } else {
-            info.touchableRegion = Region(Rect{cropLayer->mScreenBounds});
+            info.touchableRegion =
+                    Region(toPhysicalDisplay.transform(Rect{cropLayer->mScreenBounds}));
         }
     } else if (cropLayer != nullptr) {
-        info.touchableRegion = info.touchableRegion.intersect(Rect{cropLayer->mScreenBounds});
+        info.touchableRegion = info.touchableRegion.intersect(
+                toPhysicalDisplay.transform(Rect{cropLayer->mScreenBounds}));
     }
 
     // If the layer is a clone, we need to crop the input region to cloned root to prevent
@@ -2640,7 +2652,7 @@ InputWindowInfo Layer::fillInputInfo() {
     if (isClone()) {
         sp<Layer> clonedRoot = getClonedRoot();
         if (clonedRoot != nullptr) {
-            Rect rect(clonedRoot->mScreenBounds);
+            Rect rect = toPhysicalDisplay.transform(Rect{clonedRoot->mScreenBounds});
             info.touchableRegion = info.touchableRegion.intersect(rect);
         }
     }
