@@ -112,6 +112,10 @@ cc_defaults {
         thin: true,
     },
     whole_program_vtables: true, // Requires ThinLTO
+    pgo: {
+        sampling: true,
+        profile_file: "surfaceflinger/surfaceflinger.profdata",
+    },
     // TODO(b/131771163): Fix broken fuzzer support with LTO.
     sanitize: {
         fuzzer: false,
