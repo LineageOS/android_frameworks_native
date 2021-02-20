@@ -913,7 +913,7 @@ public:
     bool getPremultipledAlpha() const;
     void setInputInfo(const InputWindowInfo& info);
 
-    InputWindowInfo fillInputInfo();
+    InputWindowInfo fillInputInfo(const sp<DisplayDevice>& display);
     /**
      * Returns whether this layer has an explicitly set input-info.
      */
@@ -1193,7 +1193,7 @@ private:
     sp<Layer> getRootLayer();
 
     // Fills in the frame and transform info for the InputWindowInfo
-    void fillInputFrameInfo(InputWindowInfo& info);
+    void fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhysicalDisplay);
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling, which is
