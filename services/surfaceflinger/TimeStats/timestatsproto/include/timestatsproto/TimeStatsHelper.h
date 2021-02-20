@@ -48,6 +48,9 @@ public:
         int32_t totalSFLongGpu = 0;
         int32_t totalSFUnattributed = 0;
         int32_t totalAppUnattributed = 0;
+        int32_t totalSFScheduling = 0;
+        int32_t totalSFPredictionError = 0;
+        int32_t totalAppBufferStuffing = 0;
 
         std::string toString() const;
     };

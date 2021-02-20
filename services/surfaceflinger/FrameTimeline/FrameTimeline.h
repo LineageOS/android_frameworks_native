@@ -171,10 +171,12 @@ public:
     TimelineItem getPredictions() const { return mPredictions; };
     // Actual timestamps of the app are set individually at different functions.
     // Start time (if the app provides) and Queue time are accessible after queueing the frame,
-    // whereas Acquire Fence time is available only during latch.
+    // whereas Acquire Fence time is available only during latch. Drop time is available at the time
+    // the buffer was dropped.
     void setActualStartTime(nsecs_t actualStartTime);
     void setActualQueueTime(nsecs_t actualQueueTime);
     void setAcquireFenceTime(nsecs_t acquireFenceTime);
+    void setDropTime(nsecs_t dropTime);
     void setPresentState(PresentState presentState, nsecs_t lastLatchTime = 0);
     void setRenderRate(Fps renderRate);
 
@@ -192,17 +194,27 @@ public:
     // Emits a packet for perfetto tracing. The function body will be executed only if tracing is
     // enabled. The displayFrameToken is needed to link the SurfaceFrame to the corresponding
     // DisplayFrame at the trace processor side.
-    void trace(int64_t displayFrameToken);
+    void trace(int64_t displayFrameToken) const;
 
-    // Getter functions used only by FrameTimelineTests
+    // Getter functions used only by FrameTimelineTests and SurfaceFrame internally
     TimelineItem getActuals() const;
     pid_t getOwnerPid() const { return mOwnerPid; };
-    PredictionState getPredictionState() const { return mPredictionState; };
+    PredictionState getPredictionState() const;
     PresentState getPresentState() const;
     FrameReadyMetadata getFrameReadyMetadata() const;
     FramePresentMetadata getFramePresentMetadata() const;
+    nsecs_t getDropTime() const;
+
+    // For prediction expired frames, this delta is subtracted from the actual end time to get a
+    // start time decent enough to see in traces.
+    // TODO(b/172587309): Remove this when we have actual start times.
+    static constexpr nsecs_t kPredictionExpiredStartTimeDelta =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(2ms).count();
 
 private:
+    void tracePredictions(int64_t displayFrameToken) const;
+    void traceActuals(int64_t displayFrameToken) const;
+
     const int64_t mToken;
     const int32_t mInputEventId;
     const pid_t mOwnerPid;
@@ -216,6 +228,7 @@ private:
     std::shared_ptr<TimeStats> mTimeStats;
     const JankClassificationThresholds mJankClassificationThresholds;
     nsecs_t mActualQueueTime GUARDED_BY(mMutex) = 0;
+    nsecs_t mDropTime GUARDED_BY(mMutex) = 0;
     mutable std::mutex mMutex;
     // Bitmask for the type of jank
     int32_t mJankType GUARDED_BY(mMutex) = JankType::None;
@@ -359,6 +372,8 @@ public:
 
     private:
         void dump(std::string& result, nsecs_t baseTime) const;
+        void tracePredictions(pid_t surfaceFlingerPid) const;
+        void traceActuals(pid_t surfaceFlingerPid) const;
 
         int64_t mToken = FrameTimelineInfo::INVALID_VSYNC_ID;
 
