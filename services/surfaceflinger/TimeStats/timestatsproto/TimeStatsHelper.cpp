@@ -83,8 +83,11 @@ std::string TimeStatsHelper::JankPayload::toString() const {
     StringAppendF(&result, "jankyFrames = %d\n", totalJankyFrames);
     StringAppendF(&result, "sfLongCpuJankyFrames = %d\n", totalSFLongCpu);
     StringAppendF(&result, "sfLongGpuJankyFrames = %d\n", totalSFLongGpu);
-    StringAppendF(&result, "sfUnattributedJankyFrame = %d\n", totalSFUnattributed);
-    StringAppendF(&result, "appUnattributedJankyFrame = %d\n", totalAppUnattributed);
+    StringAppendF(&result, "sfUnattributedJankyFrames = %d\n", totalSFUnattributed);
+    StringAppendF(&result, "appUnattributedJankyFrames = %d\n", totalAppUnattributed);
+    StringAppendF(&result, "sfSchedulingJankyFrames = %d\n", totalSFScheduling);
+    StringAppendF(&result, "sfPredictionErrorJankyFrames = %d\n", totalSFPredictionError);
+    StringAppendF(&result, "appBufferStuffingJankyFrames = %d\n", totalAppBufferStuffing);
     return result;
 }
 
