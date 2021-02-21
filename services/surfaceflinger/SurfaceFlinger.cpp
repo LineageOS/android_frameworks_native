@@ -2906,15 +2906,32 @@ void SurfaceFlinger::updateInputFlinger() {
     mInputWindowCommands.clear();
 }
 
+bool enablePerWindowInputRotation() {
+    static bool value =
+            android::base::GetBoolProperty("persist.debug.per_window_input_rotation", false);
+    return value;
+}
+
 void SurfaceFlinger::updateInputWindowInfo() {
     std::vector<InputWindowInfo> inputInfos;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
-        if (layer->needsInputInfo()) {
-            // When calculating the screen bounds we ignore the transparent region since it may
-            // result in an unwanted offset.
-            inputInfos.push_back(layer->fillInputInfo());
+        if (!layer->needsInputInfo()) return;
+        sp<DisplayDevice> display;
+        if (enablePerWindowInputRotation()) {
+            for (const auto& pair : ON_MAIN_THREAD(mDisplays)) {
+                const auto& displayDevice = pair.second;
+                if (!displayDevice->getCompositionDisplay()
+                             ->belongsInOutput(layer->getLayerStack(),
+                                               layer->getPrimaryDisplayOnly())) {
+                    continue;
+                }
+                display = displayDevice;
+            }
         }
+        // When calculating the screen bounds we ignore the transparent region since it may
+        // result in an unwanted offset.
+        inputInfos.push_back(layer->fillInputInfo(display));
     });
 
     mInputFlinger->setInputWindows(inputInfos,
