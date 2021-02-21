@@ -18,7 +18,7 @@
 
 #include <apex/choreographer.h>
 #include <inttypes.h>
-#include <nativehelper/JNIHelp.h>
+#include <jni.h>
 
 namespace android {
 
