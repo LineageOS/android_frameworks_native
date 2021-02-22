@@ -123,7 +123,8 @@ public:
                     traceTimestamp(layerId, bufferId, frameNumber, postTime,
                                    FrameTracer::FrameEvent::QUEUE, /*duration*/ 0));
         layer->setBuffer(buffer, fence, postTime, /*desiredPresentTime*/ 30, false, mClientCache,
-                         frameNumber, dequeueTime, FrameTimelineInfo{});
+                         frameNumber, dequeueTime, FrameTimelineInfo{},
+                         nullptr /* releaseBufferCallback */);
 
         commitTransaction(layer.get());
         bool computeVisisbleRegions;

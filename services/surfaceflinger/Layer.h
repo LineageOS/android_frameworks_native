@@ -312,6 +312,7 @@ public:
         // When the transaction was posted
         nsecs_t postTime;
 
+        sp<ITransactionCompletedListener> releaseBufferListener;
         // SurfaceFrame that tracks the timeline of Transactions that contain a Buffer. Only one
         // such SurfaceFrame exists because only one buffer can be presented on the layer per vsync.
         // If multiple buffers are queued, the prior ones will be dropped, along with the
@@ -466,7 +467,8 @@ public:
                            nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
                            bool /*isAutoTimestamp*/, const client_cache_t& /*clientCacheId*/,
                            uint64_t /* frameNumber */, std::optional<nsecs_t> /* dequeueTime */,
-                           const FrameTimelineInfo& /*info*/) {
+                           const FrameTimelineInfo& /*info*/,
+                           const sp<ITransactionCompletedListener>& /* releaseBufferListener */) {
         return false;
     };
     virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
@@ -772,6 +774,12 @@ public:
      * out which attributes of the surface have changed.
      */
     virtual uint32_t doTransaction(uint32_t transactionFlags);
+
+    /*
+     * Called before updating the drawing state buffer. Used by BufferStateLayer to release any
+     * unlatched buffers in the drawing state.
+     */
+    virtual void bufferMayChange(sp<GraphicBuffer>& /* newBuffer */){};
 
     /*
      * Remove relative z for the layer if its relative parent is not part of the
