@@ -48,6 +48,8 @@ public:
     float top = 0.0f;
     float right = 0.0f;
     float bottom = 0.0f;
+
+    constexpr bool isEmpty() const { return !(left < right && top < bottom); }
 };
 
 inline bool operator==(const FloatRect& a, const FloatRect& b) {
