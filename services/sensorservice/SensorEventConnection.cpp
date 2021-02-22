@@ -38,12 +38,12 @@ constexpr int kTargetSdkUnknown = 0;
 
 SensorService::SensorEventConnection::SensorEventConnection(
         const sp<SensorService>& service, uid_t uid, String8 packageName, bool isDataInjectionMode,
-        const String16& opPackageName)
+        const String16& opPackageName, const String16& attributionTag)
     : mService(service), mUid(uid), mWakeLockRefCount(0), mHasLooperCallbacks(false),
       mDead(false), mDataInjectionMode(isDataInjectionMode), mEventCache(nullptr),
       mCacheSize(0), mMaxCacheSize(0), mTimeOfLastEventDrop(0), mEventsDropped(0),
-      mPackageName(packageName), mOpPackageName(opPackageName), mTargetSdk(kTargetSdkUnknown),
-      mDestroyed(false) {
+      mPackageName(packageName), mOpPackageName(opPackageName), mAttributionTag(attributionTag),
+      mTargetSdk(kTargetSdkUnknown), mDestroyed(false) {
     mIsRateCappedBasedOnPermission = mService->isRateCappedBasedOnPermission(mOpPackageName);
     mUserId = multiuser_get_user_id(mUid);
     mChannel = new BitTube(mService->mSocketBufferSize);
@@ -493,7 +493,8 @@ bool SensorService::SensorEventConnection::noteOpIfRequired(const sensors_event_
             noteMsg.append(String16(mService->getSensorStringType(sensorHandle)));
             noteMsg.append(String16(")"));
             int32_t appOpMode = mService->sAppOpsManager.noteOp(iter->second, mUid,
-                                                                mOpPackageName, {}, noteMsg);
+                                                                mOpPackageName, mAttributionTag,
+                                                                noteMsg);
             success = (appOpMode == AppOpsManager::MODE_ALLOWED);
         }
     }
