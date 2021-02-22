@@ -132,7 +132,12 @@ cc_library_shared {
 
     aidl: {
         export_aidl_headers: true,
-    }
+    },
+
+    pgo: {
+        sampling: true,
+        profile_file: "libgui/libgui.profdata",
+    },
 }
 
 // Used by media codec services exclusively as a static lib for
