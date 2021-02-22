@@ -23,6 +23,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
 #include <ui/DisplayMode.h>
+#include <ui/DynamicDisplayInfo.h>
 #include <utils/Errors.h>
 #include <utils/Vector.h>
 
@@ -38,7 +39,7 @@ namespace android {
  */
 class RefreshRateRangeTest : public ::testing::Test {
 private:
-    size_t initialDefaultMode;
+    ui::DisplayModeId initialDefaultMode;
     bool initialAllowGroupSwitching;
     float initialPrimaryMin;
     float initialPrimaryMax;
@@ -76,20 +77,21 @@ protected:
 };
 
 TEST_F(RefreshRateRangeTest, setAllConfigs) {
-    Vector<ui::DisplayMode> modes;
-    status_t res = SurfaceComposerClient::getDisplayModes(mDisplayToken, &modes);
+    ui::DynamicDisplayInfo info;
+    status_t res = SurfaceComposerClient::getDynamicDisplayInfo(mDisplayToken, &info);
+    const auto& modes = info.supportedDisplayModes;
     ASSERT_EQ(res, NO_ERROR);
     ASSERT_GT(modes.size(), 0);
 
     for (size_t i = 0; i < modes.size(); i++) {
-        res = SurfaceComposerClient::setDesiredDisplayModeSpecs(mDisplayToken, i, false,
+        res = SurfaceComposerClient::setDesiredDisplayModeSpecs(mDisplayToken, modes[i].id, false,
                                                                 modes[i].refreshRate,
                                                                 modes[i].refreshRate,
                                                                 modes[i].refreshRate,
                                                                 modes[i].refreshRate);
         ASSERT_EQ(res, NO_ERROR);
 
-        size_t defaultConfig;
+        ui::DisplayModeId defaultConfig;
         bool allowGroupSwitching;
         float primaryRefreshRateMin;
         float primaryRefreshRateMax;
@@ -116,7 +118,7 @@ void RefreshRateRangeTest::testSetAllowGroupSwitching(bool allowGroupSwitching) 
             SurfaceComposerClient::setDesiredDisplayModeSpecs(mDisplayToken, 0, allowGroupSwitching,
                                                               0.f, 90.f, 0.f, 90.f);
     ASSERT_EQ(res, NO_ERROR);
-    size_t defaultConfig;
+    ui::DisplayModeId defaultConfig;
     bool newAllowGroupSwitching;
     float primaryRefreshRateMin;
     float primaryRefreshRateMax;

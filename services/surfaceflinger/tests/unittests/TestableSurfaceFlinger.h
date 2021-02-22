@@ -634,7 +634,7 @@ public:
     public:
         FakeDisplayDeviceInjector(TestableSurfaceFlinger& flinger,
                                   std::shared_ptr<compositionengine::Display> compositionDisplay,
-                                  std::optional<DisplayConnectionType> connectionType,
+                                  std::optional<ui::DisplayConnectionType> connectionType,
                                   std::optional<hal::HWDisplayId> hwcDisplayId, bool isPrimary)
               : mFlinger(flinger),
                 mCreationArgs(flinger.mFlinger.get(), flinger.mFlinger->getHwComposer(),

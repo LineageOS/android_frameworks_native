@@ -17,17 +17,16 @@
 #pragma once
 
 #include <optional>
-#include <type_traits>
 
 #include <ui/DeviceProductInfo.h>
 #include <utils/Flattenable.h>
 
-namespace android {
+namespace android::ui {
 
 enum class DisplayConnectionType { Internal, External };
 
 // Immutable information about physical display.
-struct DisplayInfo : LightFlattenable<DisplayInfo> {
+struct StaticDisplayInfo : LightFlattenable<StaticDisplayInfo> {
     DisplayConnectionType connectionType = DisplayConnectionType::Internal;
     float density = 0.f;
     bool secure = false;
@@ -39,4 +38,4 @@ struct DisplayInfo : LightFlattenable<DisplayInfo> {
     status_t unflatten(void const* buffer, size_t size);
 };
 
-} // namespace android
+} // namespace android::ui
