@@ -135,53 +135,6 @@ TEST_P(LayerRenderTypeTransactionTest, SetPositionPartiallyOutOfBounds_BufferQue
     }
 }
 
-TEST_P(LayerRenderTypeTransactionTest, SetPositionWithResize_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // setPosition is applied immediately by default, with or without resize
-    // pending
-    Transaction().setPosition(layer, 5, 10).setSize(layer, 64, 64).apply();
-    {
-        SCOPED_TRACE("resize pending");
-        auto shot = getScreenCapture();
-        const Rect rect(5, 10, 37, 42);
-        shot->expectColor(rect, Color::RED);
-        shot->expectBorder(rect, Color::BLACK);
-    }
-
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 64, 64));
-    {
-        SCOPED_TRACE("resize applied");
-        getScreenCapture()->expectColor(Rect(5, 10, 69, 74), Color::RED);
-    }
-}
-
-TEST_P(LayerRenderTypeTransactionTest, SetSizeBasic_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    Transaction().setSize(layer, 64, 64).apply();
-    {
-        SCOPED_TRACE("resize pending");
-        auto shot = getScreenCapture();
-        const Rect rect(0, 0, 32, 32);
-        shot->expectColor(rect, Color::RED);
-        shot->expectBorder(rect, Color::BLACK);
-    }
-
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 64, 64));
-    {
-        SCOPED_TRACE("resize applied");
-        auto shot = getScreenCapture();
-        const Rect rect(0, 0, 64, 64);
-        shot->expectColor(rect, Color::RED);
-        shot->expectBorder(rect, Color::BLACK);
-    }
-}
-
 TEST_P(LayerRenderTypeTransactionTest, CreateLayer_BufferState) {
     uint32_t transformHint = ui::Transform::ROT_INVALID;
     sp<SurfaceControl> layer;
@@ -607,44 +560,6 @@ TEST_P(LayerRenderTypeTransactionTest, SetBackgroundColor_Color_NoEffect) {
 }
 
 TEST_P(LayerRenderTypeTransactionTest,
-       SetBackgroundColor_BufferQueue_BufferFill_NoPriorColor_Basic) {
-    bool priorColor = false;
-    bool bufferFill = true;
-    float alpha = 1.0f;
-    Color finalColor = Color::RED;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
-                                                     priorColor, bufferFill, alpha, finalColor));
-}
-
-TEST_P(LayerRenderTypeTransactionTest,
-       SetBackgroundColor_BufferQueue_NoBufferFill_NoPriorColor_Basic) {
-    bool priorColor = false;
-    bool bufferFill = false;
-    float alpha = 1.0f;
-    Color finalColor = Color::GREEN;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
-                                                     priorColor, bufferFill, alpha, finalColor));
-}
-
-TEST_P(LayerRenderTypeTransactionTest, SetBackgroundColor_BufferQueue_BufferFill_PriorColor_Basic) {
-    bool priorColor = true;
-    bool bufferFill = true;
-    float alpha = 1.0f;
-    Color finalColor = Color::RED;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
-                                                     priorColor, bufferFill, alpha, finalColor));
-}
-
-TEST_P(LayerRenderTypeTransactionTest,
-       SetBackgroundColor_BufferQueue_NoBufferFill_PriorColor_Basic) {
-    bool priorColor = true;
-    bool bufferFill = false;
-    float alpha = 1.0f;
-    Color finalColor = Color::GREEN;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
-                                                     priorColor, bufferFill, alpha, finalColor));
-}
-TEST_P(LayerRenderTypeTransactionTest,
        SetBackgroundColor_BufferQueue_NoPriorColor_ZeroAlpha_NoEffect) {
     bool priorColor = false;
     bool bufferFill = false;
@@ -901,29 +816,6 @@ TEST_P(LayerRenderTypeTransactionTest, SetMatrixRot45_BufferQueue) {
     shot->expectColor(get8x8Rect(2 * unit, 3 * unit), Color::WHITE);
 }
 
-TEST_P(LayerRenderTypeTransactionTest, SetMatrixWithResize_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // setMatrix is applied after any pending resize, unlike setPosition
-    Transaction().setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f).setSize(layer, 64, 64).apply();
-    {
-        SCOPED_TRACE("resize pending");
-        auto shot = getScreenCapture();
-        const Rect rect(0, 0, 32, 32);
-        shot->expectColor(rect, Color::RED);
-        shot->expectBorder(rect, Color::BLACK);
-    }
-
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 64, 64));
-    {
-        SCOPED_TRACE("resize applied");
-        const Rect rect(0, 0, 128, 128);
-        getScreenCapture()->expectColor(rect, Color::RED);
-    }
-}
-
 TEST_P(LayerRenderTypeTransactionTest, SetCropBasic_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
@@ -1074,29 +966,6 @@ TEST_P(LayerRenderTypeTransactionTest, SetCropWithScale_BufferQueue) {
     auto shot = getScreenCapture();
     shot->expectColor(Rect(16, 16, 48, 48), Color::RED);
     shot->expectBorder(Rect(16, 16, 48, 48), Color::BLACK);
-}
-
-TEST_P(LayerRenderTypeTransactionTest, SetCropWithResize_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // setCrop is applied immediately by default, with or without resize pending
-    Transaction().setCrop(layer, Rect(8, 8, 24, 24)).setSize(layer, 16, 16).apply();
-    {
-        SCOPED_TRACE("resize pending");
-        auto shot = getScreenCapture();
-        shot->expectColor(Rect(8, 8, 24, 24), Color::RED);
-        shot->expectBorder(Rect(8, 8, 24, 24), Color::BLACK);
-    }
-
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
-    {
-        SCOPED_TRACE("resize applied");
-        auto shot = getScreenCapture();
-        shot->expectColor(Rect(8, 8, 16, 16), Color::RED);
-        shot->expectBorder(Rect(8, 8, 16, 16), Color::BLACK);
-    }
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetFrameBasic_BufferState) {

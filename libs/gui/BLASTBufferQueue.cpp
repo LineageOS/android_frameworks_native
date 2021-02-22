@@ -161,9 +161,9 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
     SurfaceComposerClient::Transaction()
-            .setFlags(surface, layer_state_t::eEnableBackpressure,
-                      layer_state_t::eEnableBackpressure)
-            .apply();
+          .setFlags(surface, layer_state_t::eEnableBackpressure,
+                    layer_state_t::eEnableBackpressure)
+          .apply();
 
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
