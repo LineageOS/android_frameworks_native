@@ -29,20 +29,29 @@
 namespace android {
 
 struct FlattenableHelpers {
-    // Helpers for reading and writing POD structures
-    template <class T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
+    // Helpers for reading and writing POD structures which are not LightFlattenable.
+    template <class T,
+              typename = std::enable_if_t<
+                      std::conjunction_v<std::is_trivially_copyable<T>,
+                                         std::negation<std::is_base_of<LightFlattenable<T>, T>>>>>
     static constexpr size_t getFlattenedSize(const T&) {
         return sizeof(T);
     }
 
-    template <class T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
+    template <class T,
+              typename = std::enable_if_t<
+                      std::conjunction_v<std::is_trivially_copyable<T>,
+                                         std::negation<std::is_base_of<LightFlattenable<T>, T>>>>>
     static status_t flatten(void** buffer, size_t* size, const T& value) {
         if (*size < sizeof(T)) return NO_MEMORY;
         FlattenableUtils::write(*buffer, *size, value);
         return OK;
     }
 
-    template <class T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
+    template <class T,
+              typename = std::enable_if_t<
+                      std::conjunction_v<std::is_trivially_copyable<T>,
+                                         std::negation<std::is_base_of<LightFlattenable<T>, T>>>>>
     static status_t unflatten(const void** buffer, size_t* size, T* value) {
         if (*size < sizeof(T)) return NO_MEMORY;
         FlattenableUtils::read(*buffer, *size, *value);
