@@ -6563,12 +6563,8 @@ void TouchInputMapper::cancelTouch(nsecs_t when) {
 }
 
 bool TouchInputMapper::isPointInsideSurface(int32_t x, int32_t y) {
-    const float scaledX = x * mXScale;
-    const float scaledY = y * mYScale;
     return x >= mRawPointerAxes.x.minValue && x <= mRawPointerAxes.x.maxValue
-            && scaledX >= mPhysicalLeft && scaledX <= mPhysicalLeft + mPhysicalWidth
-            && y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue
-            && scaledY >= mPhysicalTop && scaledY <= mPhysicalTop + mPhysicalHeight;
+            && y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue;
 }
 
 const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(
