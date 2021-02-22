@@ -21,9 +21,9 @@
 #include <string>
 
 #include <ui/DisplayId.h>
-#include <ui/DisplayInfo.h>
 #include <ui/PixelFormat.h>
 #include <ui/Size.h>
+#include <ui/StaticDisplayInfo.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/PowerAdvisor.h"
@@ -39,7 +39,7 @@ class CompositionEngine;
 struct DisplayCreationArgs {
     struct Physical {
         DisplayId id;
-        DisplayConnectionType type;
+        ui::DisplayConnectionType type;
     };
 
     // Required for physical displays. Gives the HWC display id for the existing

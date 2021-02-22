@@ -286,7 +286,7 @@ struct BaseDisplayVariant {
 
         auto ceDisplayArgs =
                 compositionengine::DisplayCreationArgsBuilder()
-                        .setPhysical({DEFAULT_DISPLAY_ID, DisplayConnectionType::Internal})
+                        .setPhysical({DEFAULT_DISPLAY_ID, ui::DisplayConnectionType::Internal})
                         .setPixels({DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT})
                         .setIsSecure(Derived::IS_SECURE)
                         .setLayerStackId(DEFAULT_LAYER_STACK)
@@ -300,7 +300,7 @@ struct BaseDisplayVariant {
                                                        ceDisplayArgs);
 
         test->mDisplay = FakeDisplayDeviceInjector(test->mFlinger, compositionDisplay,
-                                                   DisplayConnectionType::Internal, HWC_DISPLAY,
+                                                   ui::DisplayConnectionType::Internal, HWC_DISPLAY,
                                                    true /* isPrimary */)
                                  .setDisplaySurface(test->mDisplaySurface)
                                  .setNativeWindow(test->mNativeWindow)

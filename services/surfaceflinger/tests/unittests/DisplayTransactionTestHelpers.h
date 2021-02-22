@@ -202,12 +202,13 @@ struct DisplayIdGetter<GpuVirtualDisplayIdType> {
 
 template <typename>
 struct DisplayConnectionTypeGetter {
-    static constexpr std::optional<DisplayConnectionType> value;
+    static constexpr std::optional<ui::DisplayConnectionType> value;
 };
 
 template <typename PhysicalDisplay>
 struct DisplayConnectionTypeGetter<PhysicalDisplayIdType<PhysicalDisplay>> {
-    static constexpr std::optional<DisplayConnectionType> value = PhysicalDisplay::CONNECTION_TYPE;
+    static constexpr std::optional<ui::DisplayConnectionType> value =
+            PhysicalDisplay::CONNECTION_TYPE;
 };
 
 template <typename>
@@ -263,7 +264,7 @@ struct DisplayVariant {
     static auto makeFakeExistingDisplayInjector(DisplayTransactionTest* test) {
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder();
         if (auto displayId = PhysicalDisplayId::tryCast(DISPLAY_ID::get())) {
-            ceDisplayArgs.setPhysical({*displayId, DisplayConnectionType::Internal});
+            ceDisplayArgs.setPhysical({*displayId, ui::DisplayConnectionType::Internal});
         } else {
             // We turn off the use of HwcVirtualDisplays, to prevent Composition Engine
             // from calling into HWComposer. This way all virtual displays will get
@@ -457,7 +458,7 @@ struct HwcDisplayVariant {
 
     static void setupHwcHotplugCallExpectations(DisplayTransactionTest* test) {
         constexpr auto CONNECTION_TYPE =
-                PhysicalDisplay::CONNECTION_TYPE == DisplayConnectionType::Internal
+                PhysicalDisplay::CONNECTION_TYPE == ui::DisplayConnectionType::Internal
                 ? IComposerClient::DisplayConnectionType::INTERNAL
                 : IComposerClient::DisplayConnectionType::EXTERNAL;
 
@@ -504,7 +505,7 @@ struct PhysicalDisplayVariant
 
 template <bool hasIdentificationData>
 struct PrimaryDisplay {
-    static constexpr auto CONNECTION_TYPE = DisplayConnectionType::Internal;
+    static constexpr auto CONNECTION_TYPE = ui::DisplayConnectionType::Internal;
     static constexpr Primary PRIMARY = Primary::TRUE;
     static constexpr uint8_t PORT = 255;
     static constexpr HWDisplayId HWC_DISPLAY_ID = 1001;
@@ -514,7 +515,7 @@ struct PrimaryDisplay {
 
 template <bool hasIdentificationData>
 struct ExternalDisplay {
-    static constexpr auto CONNECTION_TYPE = DisplayConnectionType::External;
+    static constexpr auto CONNECTION_TYPE = ui::DisplayConnectionType::External;
     static constexpr Primary PRIMARY = Primary::FALSE;
     static constexpr uint8_t PORT = 254;
     static constexpr HWDisplayId HWC_DISPLAY_ID = 1002;

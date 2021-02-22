@@ -16,10 +16,11 @@
 
 #include <apex/display.h>
 #include <gui/SurfaceComposerClient.h>
-#include <ui/DisplayInfo.h>
 #include <ui/DisplayMode.h>
+#include <ui/DynamicDisplayInfo.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
+#include <ui/StaticDisplayInfo.h>
 
 #include <algorithm>
 #include <optional>
@@ -32,6 +33,11 @@ namespace android::display::impl {
  * Implementation of ADisplayConfig
  */
 struct DisplayConfigImpl {
+    /**
+     * The ID of the display configuration.
+     */
+    size_t id;
+
     /**
      * The width in pixels of the display configuration.
      */
@@ -139,17 +145,19 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
     for (int i = 0; i < size; ++i) {
         const sp<IBinder> token = SurfaceComposerClient::getPhysicalDisplayToken(ids[i]);
 
-        DisplayInfo info;
-        if (const status_t status = SurfaceComposerClient::getDisplayInfo(token, &info);
+        ui::StaticDisplayInfo staticInfo;
+        if (const status_t status = SurfaceComposerClient::getStaticDisplayInfo(token, &staticInfo);
             status != OK) {
             return status;
         }
 
-        Vector<ui::DisplayMode> modes;
-        if (const status_t status = SurfaceComposerClient::getDisplayModes(token, &modes);
+        ui::DynamicDisplayInfo dynamicInfo;
+        if (const status_t status =
+                    SurfaceComposerClient::getDynamicDisplayInfo(token, &dynamicInfo);
             status != OK) {
             return status;
         }
+        const auto& modes = dynamicInfo.supportedDisplayModes;
         if (modes.empty()) {
             return NO_INIT;
         }
@@ -159,9 +167,9 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
         for (int j = 0; j < modes.size(); ++j) {
             const ui::DisplayMode& mode = modes[j];
             modesPerDisplay[i].emplace_back(
-                    DisplayConfigImpl{mode.resolution.getWidth(), mode.resolution.getHeight(),
-                                      info.density, mode.refreshRate, mode.sfVsyncOffset,
-                                      mode.appVsyncOffset});
+                    DisplayConfigImpl{static_cast<size_t>(mode.id), mode.resolution.getWidth(),
+                                      mode.resolution.getHeight(), staticInfo.density,
+                                      mode.refreshRate, mode.sfVsyncOffset, mode.appVsyncOffset});
         }
     }
 
@@ -257,15 +265,22 @@ int ADisplay_getCurrentConfig(ADisplay* display, ADisplayConfig** outConfig) {
     CHECK_NOT_NULL(display);
 
     sp<IBinder> token = getToken(display);
-    const int index = SurfaceComposerClient::getActiveDisplayModeId(token);
-    if (index < 0) {
-        return index;
+    ui::DynamicDisplayInfo info;
+    if (const auto status = SurfaceComposerClient::getDynamicDisplayInfo(token, &info);
+        status != OK) {
+        return status;
     }
 
     DisplayImpl* impl = reinterpret_cast<DisplayImpl*>(display);
+    for (size_t i = 0; i < impl->numConfigs; i++) {
+        auto* config = impl->configs + i;
+        if (config->id == info.activeDisplayModeId) {
+            *outConfig = reinterpret_cast<ADisplayConfig*>(config);
+            return OK;
+        }
+    }
 
-    *outConfig = reinterpret_cast<ADisplayConfig*>(impl->configs + index);
-    return OK;
+    return NAME_NOT_FOUND;
 }
 
 float ADisplayConfig_getDensity(ADisplayConfig* config) {

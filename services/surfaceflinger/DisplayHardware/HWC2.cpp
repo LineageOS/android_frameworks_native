@@ -264,7 +264,7 @@ Error Display::getRequests(HWC2::DisplayRequest* outDisplayRequests,
     return Error::NONE;
 }
 
-Error Display::getConnectionType(android::DisplayConnectionType* outType) const {
+Error Display::getConnectionType(ui::DisplayConnectionType* outType) const {
     if (mType != DisplayType::PHYSICAL) return Error::BAD_DISPLAY;
 
     using ConnectionType = Hwc2::IComposerClient::DisplayConnectionType;
@@ -274,9 +274,8 @@ Error Display::getConnectionType(android::DisplayConnectionType* outType) const 
         return error;
     }
 
-    *outType = connectionType == ConnectionType::INTERNAL
-            ? android::DisplayConnectionType::Internal
-            : android::DisplayConnectionType::External;
+    *outType = connectionType == ConnectionType::INTERNAL ? ui::DisplayConnectionType::Internal
+                                                          : ui::DisplayConnectionType::External;
     return Error::NONE;
 }
 
