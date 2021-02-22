@@ -2417,7 +2417,9 @@ static void SendBroadcast(const std::string& action, const std::vector<std::stri
 
 static void Vibrate(int duration_ms) {
     // clang-format off
-    RunCommand("", {"cmd", "vibrator", "vibrate", "-f", std::to_string(duration_ms), "dumpstate"},
+    std::vector<std::string> args = {"cmd", "vibrator_manager", "synced", "-f", "-d", "dumpstate",
+                                     "oneshot", std::to_string(duration_ms)};
+    RunCommand("", args,
                CommandOptions::WithTimeout(10)
                    .Log("Vibrate: '%s'\n")
                    .Always()
