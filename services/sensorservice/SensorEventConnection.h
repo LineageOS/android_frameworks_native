@@ -50,7 +50,8 @@ class SensorService::SensorEventConnection:
 
 public:
     SensorEventConnection(const sp<SensorService>& service, uid_t uid, String8 packageName,
-                          bool isDataInjectionMode, const String16& opPackageName);
+                          bool isDataInjectionMode, const String16& opPackageName,
+                          const String16& attributionTag);
 
     status_t sendEvents(sensors_event_t const* buffer, size_t count, sensors_event_t* scratch,
                         wp<const SensorEventConnection> const * mapFlushEventsToConnections = nullptr);
@@ -190,6 +191,7 @@ private:
     int mEventsDropped;
     String8 mPackageName;
     const String16 mOpPackageName;
+    const String16 mAttributionTag;
     int mTargetSdk;
 #if DEBUG_CONNECTIONS
     int mEventsReceived, mEventsSent, mEventsSentFromCache;
