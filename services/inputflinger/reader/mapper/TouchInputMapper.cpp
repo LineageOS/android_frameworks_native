@@ -3653,13 +3653,8 @@ void TouchInputMapper::rotateAndScale(float& x, float& y) {
 }
 
 bool TouchInputMapper::isPointInsideSurface(int32_t x, int32_t y) {
-    const float xScaled = (x - mRawPointerAxes.x.minValue) * mXScale;
-    const float yScaled = (y - mRawPointerAxes.y.minValue) * mYScale;
-
     return x >= mRawPointerAxes.x.minValue && x <= mRawPointerAxes.x.maxValue &&
-            xScaled >= mSurfaceLeft && xScaled <= mSurfaceRight &&
-            y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue &&
-            yScaled >= mSurfaceTop && yScaled <= mSurfaceBottom;
+            y >= mRawPointerAxes.y.minValue && y <= mRawPointerAxes.y.maxValue;
 }
 
 const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(int32_t x, int32_t y) {
