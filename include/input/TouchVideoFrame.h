@@ -57,7 +57,7 @@ public:
 
     /**
      * Rotate the video frame.
-     * The rotation value is an enum from ui/DisplayInfo.h
+     * The rotation value is an enum from ui/Rotation.h
      */
     void rotate(int32_t orientation);
 

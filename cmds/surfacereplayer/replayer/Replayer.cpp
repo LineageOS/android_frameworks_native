@@ -28,7 +28,6 @@
 #include <gui/Surface.h>
 #include <private/gui/ComposerService.h>
 
-#include <ui/DisplayInfo.h>
 #include <utils/Log.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
