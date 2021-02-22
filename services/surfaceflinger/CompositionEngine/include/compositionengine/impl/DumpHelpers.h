@@ -24,6 +24,7 @@
 #include <ui/FloatRect.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+#include <ui/StretchEffect.h>
 #include <ui/Transform.h>
 
 namespace android::compositionengine::impl {
@@ -58,5 +59,6 @@ void dumpVal(std::string& out, const char* name, const ui::Transform&);
 void dumpVal(std::string& out, const char* name, const ui::Size&);
 
 void dumpVal(std::string& out, const char* name, const mat4& tr);
+void dumpVal(std::string& out, const char* name, const StretchEffect&);
 
 } // namespace android::compositionengine::impl
