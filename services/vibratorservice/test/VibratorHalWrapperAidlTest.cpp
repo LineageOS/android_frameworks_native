@@ -77,6 +77,8 @@ public:
     MOCK_METHOD(Status, getSupportedAlwaysOnEffects, (std::vector<Effect> * ret), (override));
     MOCK_METHOD(Status, alwaysOnEnable, (int32_t id, Effect e, EffectStrength s), (override));
     MOCK_METHOD(Status, alwaysOnDisable, (int32_t id), (override));
+    MOCK_METHOD(Status, getQFactor, (float * ret), (override));
+    MOCK_METHOD(Status, getResonantFrequency, (float * ret), (override));
     MOCK_METHOD(int32_t, getInterfaceVersion, (), (override));
     MOCK_METHOD(std::string, getInterfaceHash, (), (override));
     MOCK_METHOD(IBinder*, onAsBinder, (), (override));

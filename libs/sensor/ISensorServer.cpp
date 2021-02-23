@@ -91,13 +91,14 @@ public:
     }
 
     virtual sp<ISensorEventConnection> createSensorEventConnection(const String8& packageName,
-             int mode, const String16& opPackageName)
+             int mode, const String16& opPackageName, const String16& attributionTag)
     {
         Parcel data, reply;
         data.writeInterfaceToken(ISensorServer::getInterfaceDescriptor());
         data.writeString8(packageName);
         data.writeInt32(mode);
         data.writeString16(opPackageName);
+        data.writeString16(attributionTag);
         remote()->transact(CREATE_SENSOR_EVENT_CONNECTION, data, &reply);
         return interface_cast<ISensorEventConnection>(reply.readStrongBinder());
     }
@@ -170,8 +171,9 @@ status_t BnSensorServer::onTransact(
             String8 packageName = data.readString8();
             int32_t mode = data.readInt32();
             const String16& opPackageName = data.readString16();
+            const String16& attributionTag = data.readString16();
             sp<ISensorEventConnection> connection(createSensorEventConnection(packageName, mode,
-                    opPackageName));
+                    opPackageName, attributionTag));
             reply->writeStrongBinder(IInterface::asBinder(connection));
             return NO_ERROR;
         }

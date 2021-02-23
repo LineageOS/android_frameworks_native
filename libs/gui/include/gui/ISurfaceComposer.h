@@ -33,6 +33,7 @@
 
 #include <ui/ConfigStoreTypes.h>
 #include <ui/DisplayId.h>
+#include <ui/DisplayMode.h>
 #include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
@@ -54,7 +55,6 @@ namespace android {
 struct client_cache_t;
 struct ComposerState;
 struct DisplayCaptureArgs;
-struct DisplayInfo;
 struct DisplayStatInfo;
 struct DisplayState;
 struct InputWindowCommands;
@@ -74,6 +74,8 @@ namespace ui {
 
 struct DisplayMode;
 struct DisplayState;
+struct DynamicDisplayInfo;
+struct StaticDisplayInfo;
 
 } // namespace ui
 
@@ -202,26 +204,17 @@ public:
     virtual status_t getDisplayState(const sp<IBinder>& display, ui::DisplayState*) = 0;
 
     /**
-     * Get immutable information about given physical display.
+     * Gets immutable information about given physical display.
      */
-    virtual status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo*) = 0;
+    virtual status_t getStaticDisplayInfo(const sp<IBinder>& display, ui::StaticDisplayInfo*) = 0;
 
     /**
-     * Get modes supported by given physical display.
+     * Gets dynamic information about given physical display.
      */
-    virtual status_t getDisplayModes(const sp<IBinder>& display, Vector<ui::DisplayMode>*) = 0;
+    virtual status_t getDynamicDisplayInfo(const sp<IBinder>& display, ui::DynamicDisplayInfo*) = 0;
 
-    /**
-     * Get the index into modes returned by getDisplayModes,
-     * corresponding to the active mode.
-     */
-    virtual int getActiveDisplayModeId(const sp<IBinder>& display) = 0;
-
-    virtual status_t getDisplayColorModes(const sp<IBinder>& display,
-            Vector<ui::ColorMode>* outColorModes) = 0;
     virtual status_t getDisplayNativePrimaries(const sp<IBinder>& display,
             ui::DisplayPrimaries& primaries) = 0;
-    virtual ui::ColorMode getActiveColorMode(const sp<IBinder>& display) = 0;
     virtual status_t setActiveColorMode(const sp<IBinder>& display,
             ui::ColorMode colorMode) = 0;
 
@@ -295,13 +288,6 @@ public:
      * Requires the ACCESS_SURFACE_FLINGER permission.
      */
     virtual status_t getAnimationFrameStats(FrameStats* outStats) const = 0;
-
-    /* Gets the supported HDR capabilities of the given display.
-     *
-     * Requires the ACCESS_SURFACE_FLINGER permission.
-     */
-    virtual status_t getHdrCapabilities(const sp<IBinder>& display,
-            HdrCapabilities* outCapabilities) const = 0;
 
     virtual status_t enableVSyncInjections(bool enable) = 0;
 
@@ -397,20 +383,21 @@ public:
      *
      * defaultMode is used to narrow the list of display modes SurfaceFlinger will consider
      * switching between. Only modes with a mode group and resolution matching defaultMode
-     * will be considered for switching. The defaultMode index corresponds to the list of modes
-     * returned from getDisplayModes().
+     * will be considered for switching. The defaultMode corresponds to an ID of mode in the list
+     * of supported modes returned from getDynamicDisplayInfo().
      */
-    virtual status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken, size_t defaultMode,
-                                                bool allowGroupSwitching,
-                                                float primaryRefreshRateMin,
-                                                float primaryRefreshRateMax,
-                                                float appRequestRefreshRateMin,
-                                                float appRequestRefreshRateMax) = 0;
+    virtual status_t setDesiredDisplayModeSpecs(
+            const sp<IBinder>& displayToken, ui::DisplayModeId defaultMode,
+            bool allowGroupSwitching, float primaryRefreshRateMin, float primaryRefreshRateMax,
+            float appRequestRefreshRateMin, float appRequestRefreshRateMax) = 0;
 
-    virtual status_t getDesiredDisplayModeSpecs(
-            const sp<IBinder>& displayToken, size_t* outDefaultMode, bool* outAllowGroupSwitching,
-            float* outPrimaryRefreshRateMin, float* outPrimaryRefreshRateMax,
-            float* outAppRequestRefreshRateMin, float* outAppRequestRefreshRateMax) = 0;
+    virtual status_t getDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
+                                                ui::DisplayModeId* outDefaultMode,
+                                                bool* outAllowGroupSwitching,
+                                                float* outPrimaryRefreshRateMin,
+                                                float* outPrimaryRefreshRateMax,
+                                                float* outAppRequestRefreshRateMin,
+                                                float* outAppRequestRefreshRateMax) = 0;
     /*
      * Gets whether brightness operations are supported on a display.
      *
@@ -534,7 +521,7 @@ public:
         // Java by ActivityManagerService.
         BOOT_FINISHED = IBinder::FIRST_CALL_TRANSACTION,
         CREATE_CONNECTION,
-        GET_DISPLAY_INFO,
+        GET_STATIC_DISPLAY_INFO,
         CREATE_DISPLAY_EVENT_CONNECTION,
         CREATE_DISPLAY,
         DESTROY_DISPLAY,
@@ -542,8 +529,8 @@ public:
         SET_TRANSACTION_STATE,
         AUTHENTICATE_SURFACE,
         GET_SUPPORTED_FRAME_TIMESTAMPS,
-        GET_DISPLAY_MODES,
-        GET_ACTIVE_DISPLAY_MODE,
+        GET_DISPLAY_MODES,       // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
+        GET_ACTIVE_DISPLAY_MODE, // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
         GET_DISPLAY_STATE,
         CAPTURE_DISPLAY,
         CAPTURE_LAYERS,
@@ -551,9 +538,9 @@ public:
         GET_ANIMATION_FRAME_STATS,
         SET_POWER_MODE,
         GET_DISPLAY_STATS,
-        GET_HDR_CAPABILITIES,
-        GET_DISPLAY_COLOR_MODES,
-        GET_ACTIVE_COLOR_MODE,
+        GET_HDR_CAPABILITIES,    // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
+        GET_DISPLAY_COLOR_MODES, // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
+        GET_ACTIVE_COLOR_MODE,   // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
         SET_ACTIVE_COLOR_MODE,
         ENABLE_VSYNC_INJECTIONS,
         INJECT_VSYNC,
@@ -586,6 +573,7 @@ public:
         ADD_TRANSACTION_TRACE_LISTENER,
         GET_GPU_CONTEXT_PRIORITY,
         GET_EXTRA_BUFFER_COUNT,
+        GET_DYNAMIC_DISPLAY_INFO,
         // Always append new enum to the end.
     };
 

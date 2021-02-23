@@ -74,6 +74,9 @@ void LayerFECompositionState::dump(std::string& out) const {
     dumpVal(out, "blend", toString(blendMode), blendMode);
     dumpVal(out, "alpha", alpha);
     dumpVal(out, "backgroundBlurRadius", backgroundBlurRadius);
+    if (stretchEffect.hasEffect()) {
+        dumpVal(out, "stretchEffect", stretchEffect);
+    }
 
     if (!metadata.empty()) {
         out.append("\n      metadata {");

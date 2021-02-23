@@ -18,9 +18,9 @@
 
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
-#include <ui/DisplayInfo.h>
 #include <ui/HdrCapabilities.h>
 #include <ui/Region.h>
+#include <ui/StaticDisplayInfo.h>
 #include <utils/Log.h>
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
@@ -104,7 +104,7 @@ public:
             hal::DisplayRequest* outDisplayRequests,
             std::unordered_map<Layer*, hal::LayerRequest>* outLayerRequests) = 0;
     [[clang::warn_unused_result]] virtual hal::Error getConnectionType(
-            android::DisplayConnectionType*) const = 0;
+            ui::DisplayConnectionType*) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error supportsDoze(bool* outSupport) const = 0;
     [[clang::warn_unused_result]] virtual hal::Error getHdrCapabilities(
             android::HdrCapabilities* outCapabilities) const = 0;
@@ -175,7 +175,7 @@ public:
     hal::Error getRequests(
             hal::DisplayRequest* outDisplayRequests,
             std::unordered_map<Layer*, hal::LayerRequest>* outLayerRequests) override;
-    hal::Error getConnectionType(android::DisplayConnectionType*) const override;
+    hal::Error getConnectionType(ui::DisplayConnectionType*) const override;
     hal::Error supportsDoze(bool* outSupport) const override;
     hal::Error getHdrCapabilities(android::HdrCapabilities* outCapabilities) const override;
     hal::Error getDisplayedContentSamplingAttributes(hal::PixelFormat* outFormat,

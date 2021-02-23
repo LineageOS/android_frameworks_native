@@ -42,7 +42,7 @@ struct TestLightFlattenable : LightFlattenable<TestLightFlattenable> {
     }
 
     status_t unflatten(void const* buffer, size_t size) {
-        int value;
+        int32_t value;
         FlattenableUtils::read(buffer, size, value);
         ptr = std::make_unique<int32_t>(value);
         return OK;
@@ -130,6 +130,67 @@ TEST_F(FlattenableHelpersTest, NullOptionalOfLightFlattenable) {
     std::optional<TestLightFlattenable> valueRead;
     ASSERT_EQ(OK, FlattenableHelpers::unflatten(&rawReadBuffer, &size, &valueRead));
     ASSERT_FALSE(valueRead.has_value());
+}
+
+// If a struct is both trivially copyable and light flattenable we should treat it
+// as LigthFlattenable.
+TEST_F(FlattenableHelpersTest, TriviallyCopyableAndLightFlattenableIsFlattenedAsLightFlattenable) {
+    static constexpr int32_t kSizeTag = 1234567;
+    static constexpr int32_t kFlattenTag = 987654;
+    static constexpr int32_t kUnflattenTag = 5926582;
+
+    struct LightFlattenableAndTriviallyCopyable
+          : LightFlattenable<LightFlattenableAndTriviallyCopyable> {
+        int32_t value;
+
+        bool isFixedSize() const { return true; }
+        size_t getFlattenedSize() const { return kSizeTag; }
+
+        status_t flatten(void* buffer, size_t size) const {
+            FlattenableUtils::write(buffer, size, kFlattenTag);
+            return OK;
+        }
+
+        status_t unflatten(void const*, size_t) {
+            value = kUnflattenTag;
+            return OK;
+        }
+    };
+
+    {
+        // Verify that getFlattenedSize uses the LightFlattenable overload
+        LightFlattenableAndTriviallyCopyable foo;
+        EXPECT_EQ(kSizeTag, FlattenableHelpers::getFlattenedSize(foo));
+    }
+
+    {
+        // Verify that flatten uses the LightFlattenable overload
+        std::vector<int8_t> buffer(sizeof(int32_t));
+        auto rawBuffer = reinterpret_cast<void*>(buffer.data());
+        size_t size = buffer.size();
+        LightFlattenableAndTriviallyCopyable foo;
+        ASSERT_EQ(OK, FlattenableHelpers::flatten(&rawBuffer, &size, foo));
+
+        auto rawReadBuffer = reinterpret_cast<const void*>(buffer.data());
+        int32_t value;
+        FlattenableHelpers::unflatten(&rawReadBuffer, &size, &value);
+        EXPECT_EQ(kFlattenTag, value);
+    }
+
+    {
+        // Verify that unflatten uses the LightFlattenable overload
+        std::vector<int8_t> buffer(sizeof(int32_t));
+        auto rawBuffer = reinterpret_cast<void*>(buffer.data());
+        size_t size = buffer.size();
+        int32_t value = 4;
+        ASSERT_EQ(OK, FlattenableHelpers::flatten(&rawBuffer, &size, value));
+
+        auto rawReadBuffer = reinterpret_cast<const void*>(buffer.data());
+
+        LightFlattenableAndTriviallyCopyable foo;
+        FlattenableHelpers::unflatten(&rawReadBuffer, &size, &foo);
+        EXPECT_EQ(kUnflattenTag, foo.value);
+    }
 }
 
 } // namespace

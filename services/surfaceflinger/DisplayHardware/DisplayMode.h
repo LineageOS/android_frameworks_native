@@ -22,6 +22,7 @@
 
 #include <android-base/stringprintf.h>
 #include <android/configuration.h>
+#include <ui/DisplayMode.h>
 #include <ui/Size.h>
 #include <utils/Timers.h>
 
@@ -36,7 +37,7 @@ namespace hal = android::hardware::graphics::composer::hal;
 class DisplayMode;
 using DisplayModePtr = std::shared_ptr<const DisplayMode>;
 using DisplayModes = std::vector<DisplayModePtr>;
-using DisplayModeId = StrongTyping<size_t, struct DisplayModeIdTag, Compare, Hash>;
+using DisplayModeId = StrongTyping<ui::DisplayModeId, struct DisplayModeIdTag, Compare, Hash>;
 
 class DisplayMode {
 public:
@@ -139,7 +140,7 @@ private:
 };
 
 inline std::string to_string(const DisplayMode& mode) {
-    return base::StringPrintf("{id=%zu, hwcId=%d, width=%d, height=%d, refreshRate=%s, "
+    return base::StringPrintf("{id=%d, hwcId=%d, width=%d, height=%d, refreshRate=%s, "
                               "dpiX=%.2f, dpiY=%.2f, group=%d}",
                               mode.getId().value(), mode.getHwcId(), mode.getWidth(),
                               mode.getHeight(), to_string(mode.getFps()).c_str(), mode.getDpiX(),

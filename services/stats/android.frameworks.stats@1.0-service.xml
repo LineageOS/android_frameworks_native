@@ -8,4 +8,10 @@
             <instance>default</instance>
         </interface>
     </hal>
+
+    <hal format="aidl">
+        <name>android.frameworks.stats</name>
+        <version>1</version>
+        <fqname>IStats/default</fqname>
+    </hal>
 </manifest>
