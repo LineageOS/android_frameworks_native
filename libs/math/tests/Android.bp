@@ -41,3 +41,10 @@ cc_test {
     static_libs: ["libmath"],
     cflags: ["-Wall", "-Werror"],
 }
+
+cc_test {
+    name: "hashcombine_test",
+    srcs: ["hashcombine_test.cpp"],
+    static_libs: ["libmath"],
+    cflags: ["-Wall", "-Werror"],
+}
