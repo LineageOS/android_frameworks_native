@@ -99,6 +99,18 @@ public:
 
     std::optional<int32_t> getBatteryStatus(int32_t deviceId) override;
 
+    std::vector<int32_t> getLightIds(int32_t deviceId) override;
+
+    const InputDeviceLightInfo* getLightInfo(int32_t deviceId, int32_t lightId) override;
+
+    bool setLightColor(int32_t deviceId, int32_t lightId, int32_t color) override;
+
+    bool setLightPlayerId(int32_t deviceId, int32_t lightId, int32_t playerId) override;
+
+    std::optional<int32_t> getLightColor(int32_t deviceId, int32_t lightId) override;
+
+    std::optional<int32_t> getLightPlayerId(int32_t deviceId, int32_t lightId) override;
+
 protected:
     // These members are protected so they can be instrumented by test cases.
     virtual std::shared_ptr<InputDevice> createDeviceLocked(int32_t deviceId,
