@@ -561,11 +561,7 @@ private:
     status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken,
                                        ui::DisplayPrimaries&) override;
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode) override;
-    status_t getAutoLowLatencyModeSupport(const sp<IBinder>& displayToken,
-                                          bool* outSupported) const override;
     void setAutoLowLatencyMode(const sp<IBinder>& displayToken, bool on) override;
-    status_t getGameContentTypeSupport(const sp<IBinder>& displayToken,
-                                       bool* outSupported) const override;
     void setGameContentType(const sp<IBinder>& displayToken, bool on) override;
     void setPowerMode(const sp<IBinder>& displayToken, int mode) override;
     status_t clearAnimationFrameStats() override;
