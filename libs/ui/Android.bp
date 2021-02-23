@@ -121,7 +121,8 @@ cc_library_shared {
     srcs: [
         "DebugUtils.cpp",
         "DeviceProductInfo.cpp",
-        "DisplayInfo.cpp",
+        "DisplayMode.cpp",
+        "DynamicDisplayInfo.cpp",
         "Fence.cpp",
         "FenceTime.cpp",
         "FrameStats.cpp",
@@ -136,6 +137,7 @@ cc_library_shared {
         "PixelFormat.cpp",
         "PublicFormat.cpp",
         "Size.cpp",
+        "StaticDisplayInfo.cpp",
     ],
 
     include_dirs: [

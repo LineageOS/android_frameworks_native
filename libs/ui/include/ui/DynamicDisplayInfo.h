@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,30 +16,32 @@
 
 #pragma once
 
-#include <cstdint>
-#include <type_traits>
+#include "DisplayMode.h"
 
-#include <ui/Size.h>
+#include <cstdint>
+#include <optional>
+#include <vector>
+
+#include <ui/GraphicTypes.h>
+#include <ui/HdrCapabilities.h>
 #include <utils/Flattenable.h>
-#include <utils/Timers.h>
 
 namespace android::ui {
 
-// This value is going to be serialized over binder so we prefer a fixed width type.
-using DisplayModeId = int32_t;
+// Information about a physical display which may change on hotplug reconnect.
+struct DynamicDisplayInfo : LightFlattenable<DynamicDisplayInfo> {
+    std::vector<ui::DisplayMode> supportedDisplayModes;
 
-// Mode supported by physical display.
-struct DisplayMode : LightFlattenable<DisplayMode> {
-    DisplayModeId id;
-    ui::Size resolution;
-    float xDpi = 0;
-    float yDpi = 0;
+    // This struct is going to be serialized over binder, so
+    // we can't use size_t because it may have different width
+    // in the client process.
+    int32_t activeDisplayModeId;
 
-    float refreshRate = 0;
-    nsecs_t appVsyncOffset = 0;
-    nsecs_t sfVsyncOffset = 0;
-    nsecs_t presentationDeadline = 0;
-    int32_t group = -1;
+    std::vector<ui::ColorMode> supportedColorModes;
+    ui::ColorMode activeColorMode;
+    HdrCapabilities hdrCapabilities;
+
+    std::optional<ui::DisplayMode> getActiveDisplayMode() const;
 
     bool isFixedSize() const { return false; }
     size_t getFlattenedSize() const;

@@ -489,7 +489,7 @@ void Layer::prepareBasicGeometryCompositionState() {
     compositionState->alpha = alpha;
     compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
     compositionState->blurRegions = drawingState.blurRegions;
-    compositionState->stretchEffect = drawingState.stretchEffect;
+    compositionState->stretchEffect = getStretchEffect();
 }
 
 void Layer::prepareGeometryCompositionState() {
@@ -559,7 +559,7 @@ void Layer::preparePerFrameCompositionState() {
 
     // Force client composition for special cases known only to the front-end.
     if (isHdrY410() || usesRoundedCorners || drawShadows() || drawingState.blurRegions.size() > 0 ||
-        drawingState.stretchEffect.hasEffect()) {
+        compositionState->stretchEffect.hasEffect()) {
         compositionState->forceClientComposition = true;
     }
 }
@@ -1437,6 +1437,22 @@ bool Layer::setStretchEffect(const StretchEffect& effect) {
     return true;
 }
 
+StretchEffect Layer::getStretchEffect() const {
+    if (mDrawingState.stretchEffect.hasEffect()) {
+        return mDrawingState.stretchEffect;
+    }
+
+    sp<Layer> parent = getParent();
+    if (parent != nullptr) {
+        auto effect = parent->getStretchEffect();
+        if (effect.hasEffect()) {
+            // TODO(b/179047472): Map it? Or do we make the effect be in global space?
+            return effect;
+        }
+    }
+    return StretchEffect{};
+}
+
 void Layer::updateTreeHasFrameRateVote() {
     const auto traverseTree = [&](const LayerVector::Visitor& visitor) {
         auto parent = getParent();
@@ -1742,6 +1758,7 @@ LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
     info.mRefreshPending = isBufferLatched();
     info.mIsOpaque = isOpaque(ds);
     info.mContentDirty = contentDirty;
+    info.mStretchEffect = getStretchEffect();
     return info;
 }
 

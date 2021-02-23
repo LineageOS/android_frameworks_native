@@ -19,6 +19,7 @@
 #include <utils/Flattenable.h>
 #include "FloatRect.h"
 
+#include <math.h>
 #include <type_traits>
 
 namespace android {
@@ -45,7 +46,7 @@ struct StretchEffect : public LightFlattenablePod<StretchEffect> {
 
     void sanitize() {
         // If the area is empty, or the max amount is zero, then reset back to defaults
-        if (area.bottom >= area.top || area.left >= area.right || isZero(maxAmount)) {
+        if (area.isEmpty() || isZero(maxAmount)) {
             *this = StretchEffect{};
         }
     }

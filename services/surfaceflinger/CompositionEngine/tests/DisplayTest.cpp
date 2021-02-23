@@ -35,8 +35,8 @@
 #include <compositionengine/mock/RenderSurface.h>
 #include <gtest/gtest.h>
 #include <renderengine/mock/RenderEngine.h>
-#include <ui/DisplayInfo.h>
 #include <ui/Rect.h>
+#include <ui/StaticDisplayInfo.h>
 
 #include "MockHWC2.h"
 #include "MockHWComposer.h"
@@ -169,7 +169,7 @@ struct DisplayTestCommon : public testing::Test {
 
     DisplayCreationArgs getDisplayCreationArgsForPhysicalHWCDisplay() {
         return DisplayCreationArgsBuilder()
-                .setPhysical({DEFAULT_DISPLAY_ID, DisplayConnectionType::Internal})
+                .setPhysical({DEFAULT_DISPLAY_ID, ui::DisplayConnectionType::Internal})
                 .setPixels({DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT})
                 .setPixelFormat(static_cast<ui::PixelFormat>(PIXEL_FORMAT_RGBA_8888))
                 .setIsSecure(true)
@@ -265,7 +265,7 @@ TEST_F(DisplaySetConfigurationTest, configuresInternalSecurePhysicalDisplay) {
     mDisplay->setConfiguration(
             DisplayCreationArgsBuilder()
                     .setUseHwcVirtualDisplays(true)
-                    .setPhysical({DEFAULT_DISPLAY_ID, DisplayConnectionType::Internal})
+                    .setPhysical({DEFAULT_DISPLAY_ID, ui::DisplayConnectionType::Internal})
                     .setPixels(ui::Size(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_WIDTH))
                     .setPixelFormat(static_cast<ui::PixelFormat>(PIXEL_FORMAT_RGBA_8888))
                     .setIsSecure(true)
@@ -286,7 +286,7 @@ TEST_F(DisplaySetConfigurationTest, configuresExternalInsecurePhysicalDisplay) {
     mDisplay->setConfiguration(
             DisplayCreationArgsBuilder()
                     .setUseHwcVirtualDisplays(true)
-                    .setPhysical({DEFAULT_DISPLAY_ID, DisplayConnectionType::External})
+                    .setPhysical({DEFAULT_DISPLAY_ID, ui::DisplayConnectionType::External})
                     .setPixels(ui::Size(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_WIDTH))
                     .setPixelFormat(static_cast<ui::PixelFormat>(PIXEL_FORMAT_RGBA_8888))
                     .setIsSecure(false)
@@ -1018,7 +1018,7 @@ struct DisplayFunctionalTest : public testing::Test {
     std::shared_ptr<Display> mDisplay = impl::createDisplayTemplated<
             Display>(mCompositionEngine,
                      DisplayCreationArgsBuilder()
-                             .setPhysical({DEFAULT_DISPLAY_ID, DisplayConnectionType::Internal})
+                             .setPhysical({DEFAULT_DISPLAY_ID, ui::DisplayConnectionType::Internal})
                              .setPixels({DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT})
                              .setPixelFormat(static_cast<ui::PixelFormat>(PIXEL_FORMAT_RGBA_8888))
                              .setIsSecure(true)
