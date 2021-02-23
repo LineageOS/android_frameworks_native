@@ -785,6 +785,18 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             }
         }
 
+        // Shadows are assumed to live only on their own layer - it's not valid
+        // to draw the boundary rectangles when there is already a caster shadow
+        // TODO(b/175915334): consider relaxing this restriction to enable more flexible
+        // composition - using a well-defined invalid color is long-term less error-prone.
+        if (layer->shadow.length > 0) {
+            const auto rect = layer->geometry.roundedCornersRadius > 0
+                    ? getSkRect(layer->geometry.roundedCornersCrop)
+                    : bounds;
+            drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
+            continue;
+        }
+
         const ui::Dataspace targetDataspace = mUseColorManagement
                 ? (needsLinearEffect(layer->colorTransform, layer->sourceDataspace,
                                      display.outputDataspace)
@@ -892,20 +904,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
         paint.setColorFilter(filter);
 
-        if (layer->shadow.length > 0) {
-            const auto rect = layer->geometry.roundedCornersRadius > 0
-                    ? getSkRect(layer->geometry.roundedCornersCrop)
-                    : bounds;
-            drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
+        if (layer->geometry.roundedCornersRadius > 0) {
+            paint.setAntiAlias(true);
+            canvas->drawRRect(getRoundedRect(layer), paint);
         } else {
-            // Shadows are assumed to live only on their own layer - it's not valid
-            // to draw the boundary retangles when there is already a caster shadow
-            // TODO(b/175915334): consider relaxing this restriction to enable more flexible
-            // composition - using a well-defined invalid color is long-term less error-prone.
-            // Push the clipRRect onto the clip stack. Draw the image. Pop the clip.
-            if (layer->geometry.roundedCornersRadius > 0) {
-                canvas->clipRRect(getRoundedRect(layer), true);
-            }
             canvas->drawRect(bounds, paint);
         }
     }
