@@ -4812,6 +4812,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
 
     getRenderEngine().dump(result);
 
+    result.append("ClientCache state:\n");
+    ClientCache::getInstance().dump(result);
     DebugEGLImageTracker::getInstance()->dump(result);
 
     if (const auto display = getDefaultDisplayDeviceLocked()) {
