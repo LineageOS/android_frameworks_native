@@ -504,6 +504,17 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, 
         if (mLastLatchTime != 0 && mPredictions.endTime <= mLastLatchTime) {
             // Buffer Stuffing.
             mJankType |= JankType::BufferStuffing;
+            // In a stuffed state, the frame could be stuck on a dequeue wait for quite some time.
+            // Because of this dequeue wait, it can be hard to tell if a frame was genuinely late.
+            // We try to do this by moving the deadline. Since the queue could be stuffed by more
+            // than one buffer, we take the last latch time as reference and give one vsync
+            // worth of time for the frame to be ready.
+            nsecs_t adjustedDeadline = mLastLatchTime + refreshRate.getPeriodNsecs();
+            if (adjustedDeadline > mActuals.endTime) {
+                mFrameReadyMetadata = FrameReadyMetadata::OnTimeFinish;
+            } else {
+                mFrameReadyMetadata = FrameReadyMetadata::LateFinish;
+            }
         }
         if (mFrameReadyMetadata == FrameReadyMetadata::OnTimeFinish) {
             // Finish on time, Present late
@@ -511,14 +522,18 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, 
                 // Propagate displayFrame's jank if it exists
                 mJankType |= displayFrameJankType;
             } else {
-                if (deltaToVsync < mJankClassificationThresholds.presentThreshold ||
-                    deltaToVsync >= refreshRate.getPeriodNsecs() -
-                                    mJankClassificationThresholds.presentThreshold) {
-                    // Delta factor of vsync
-                    mJankType |= JankType::SurfaceFlingerScheduling;
-                } else {
-                    // Delta not a factor of vsync
-                    mJankType |= JankType::PredictionError;
+                if (!(mJankType & JankType::BufferStuffing)) {
+                    // In a stuffed state, if the app finishes on time and there is no display frame
+                    // jank, only buffer stuffing is the root cause of the jank.
+                    if (deltaToVsync < mJankClassificationThresholds.presentThreshold ||
+                        deltaToVsync >= refreshRate.getPeriodNsecs() -
+                                        mJankClassificationThresholds.presentThreshold) {
+                        // Delta factor of vsync
+                        mJankType |= JankType::SurfaceFlingerScheduling;
+                    } else {
+                        // Delta not a factor of vsync
+                        mJankType |= JankType::PredictionError;
+                    }
                 }
             }
         } else if (mFrameReadyMetadata == FrameReadyMetadata::LateFinish) {
@@ -683,13 +698,14 @@ void TokenManager::flushTokens(nsecs_t flushTime) {
 }
 
 FrameTimeline::FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid,
-                             JankClassificationThresholds thresholds)
+                             JankClassificationThresholds thresholds, nsecs_t hwcDuration)
       : mMaxDisplayFrames(kDefaultMaxDisplayFrames),
         mTimeStats(std::move(timeStats)),
         mSurfaceFlingerPid(surfaceFlingerPid),
-        mJankClassificationThresholds(thresholds) {
-    mCurrentDisplayFrame =
-            std::make_shared<DisplayFrame>(mTimeStats, thresholds, &mTraceCookieCounter);
+        mJankClassificationThresholds(thresholds),
+        mHwcDuration(hwcDuration) {
+    mCurrentDisplayFrame = std::make_shared<DisplayFrame>(mTimeStats, thresholds, hwcDuration,
+                                                          &mTraceCookieCounter);
 }
 
 void FrameTimeline::onBootFinished() {
@@ -732,11 +748,13 @@ std::shared_ptr<SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
 
 FrameTimeline::DisplayFrame::DisplayFrame(std::shared_ptr<TimeStats> timeStats,
                                           JankClassificationThresholds thresholds,
+                                          nsecs_t hwcDuration,
                                           TraceCookieCounter* traceCookieCounter)
       : mSurfaceFlingerPredictions(TimelineItem()),
         mSurfaceFlingerActuals(TimelineItem()),
         mTimeStats(timeStats),
         mJankClassificationThresholds(thresholds),
+        mHwcDuration(hwcDuration),
         mTraceCookieCounter(*traceCookieCounter) {
     mSurfaceFrames.reserve(kNumSurfaceFramesInitial);
 }
@@ -808,7 +826,7 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
     const nsecs_t presentDelta =
             mSurfaceFlingerActuals.presentTime - mSurfaceFlingerPredictions.presentTime;
     const nsecs_t deadlineDelta =
-            mSurfaceFlingerActuals.endTime - mSurfaceFlingerPredictions.endTime;
+            mSurfaceFlingerActuals.endTime - (mSurfaceFlingerPredictions.endTime - mHwcDuration);
 
     // How far off was the presentDelta when compared to the vsyncPeriod. Used in checking if there
     // was a prediction error or not.
@@ -822,8 +840,9 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
         mFramePresentMetadata = FramePresentMetadata::OnTimePresent;
     }
 
-    if (mSurfaceFlingerActuals.endTime - mSurfaceFlingerPredictions.endTime >
-        mJankClassificationThresholds.deadlineThreshold) {
+    if (mSurfaceFlingerActuals.endTime > mSurfaceFlingerPredictions.endTime - mHwcDuration) {
+        // SF needs to have finished at least mHwcDuration ahead of the deadline for it to be
+        // on time.
         mFrameReadyMetadata = FrameReadyMetadata::LateFinish;
     } else {
         mFrameReadyMetadata = FrameReadyMetadata::OnTimeFinish;
@@ -875,8 +894,13 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
                     mJankType = JankType::PredictionError;
                 }
             } else if (mFrameReadyMetadata == FrameReadyMetadata::LateFinish) {
-                // Finish late, Present late
-                mJankType = JankType::SurfaceFlingerCpuDeadlineMissed;
+                if (mFrameStartMetadata == FrameStartMetadata::LateStart) {
+                    // Late start, Late finish, Late Present
+                    mJankType = JankType::SurfaceFlingerScheduling;
+                } else {
+                    // OnTime start, Finish late, Present late
+                    mJankType = JankType::SurfaceFlingerCpuDeadlineMissed;
+                }
             } else {
                 // Finish time unknown
                 mJankType = JankType::Unknown;
@@ -1066,7 +1090,7 @@ void FrameTimeline::finalizeCurrentDisplayFrame() {
     mDisplayFrames.push_back(mCurrentDisplayFrame);
     mCurrentDisplayFrame.reset();
     mCurrentDisplayFrame = std::make_shared<DisplayFrame>(mTimeStats, mJankClassificationThresholds,
-                                                          &mTraceCookieCounter);
+                                                          mHwcDuration, &mTraceCookieCounter);
 }
 
 nsecs_t FrameTimeline::DisplayFrame::getBaseTime() const {
