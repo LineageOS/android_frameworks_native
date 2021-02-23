@@ -259,4 +259,33 @@ TEST(RectTest, toFloatRect) {
     EXPECT_EQ(FloatRect(10.f, 20.f, 50.f, 60.f), floatRect);
 }
 
+TEST(RectTest, RectHash) {
+    const std::vector<Rect> rects = {
+            Rect(10, 20, 50, 60), Rect(11, 20, 50, 60), Rect(11, 21, 50, 60),
+            Rect(11, 21, 51, 60), Rect(11, 21, 51, 61),
+    };
+
+    for (const auto& a : rects) {
+        for (const auto& b : rects) {
+            const bool hashEq = std::hash<Rect>{}(a) == std::hash<Rect>{}(b);
+            EXPECT_EQ(a == b, hashEq);
+        }
+    }
+}
+
+TEST(RectTest, FloatRectHash) {
+    const std::vector<FloatRect> floatRects = {
+            Rect(10, 20, 50, 60).toFloatRect(), Rect(11, 20, 50, 60).toFloatRect(),
+            Rect(11, 21, 50, 60).toFloatRect(), Rect(11, 21, 51, 60).toFloatRect(),
+            Rect(11, 21, 51, 61).toFloatRect(),
+    };
+
+    for (const auto& a : floatRects) {
+        for (const auto& b : floatRects) {
+            const bool hashEq = std::hash<FloatRect>{}(a) == std::hash<FloatRect>{}(b);
+            EXPECT_EQ(a == b, hashEq);
+        }
+    }
+}
+
 } // namespace android::ui

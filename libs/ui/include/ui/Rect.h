@@ -24,6 +24,7 @@
 #include <utils/Log.h>
 #include <utils/TypeHelpers.h>
 
+#include <math/HashCombine.h>
 #include <ui/FloatRect.h>
 #include <ui/Point.h>
 #include <ui/Size.h>
@@ -233,5 +234,14 @@ void PrintTo(const Rect& rect, ::std::ostream* os);
 ANDROID_BASIC_TYPES_TRAITS(Rect)
 
 }; // namespace android
+
+namespace std {
+template <>
+struct hash<android::Rect> {
+    size_t operator()(const android::Rect& rect) const {
+        return android::hashCombine(rect.left, rect.top, rect.right, rect.bottom);
+    }
+};
+} // namespace std
 
 #endif // ANDROID_UI_RECT
