@@ -64,7 +64,7 @@ using AllRefreshRatesMapType = RefreshRateConfigs::AllRefreshRatesMapType;
 using RefreshRate = RefreshRateConfigs::RefreshRate;
 
 std::string RefreshRate::toString() const {
-    return base::StringPrintf("{id=%zu, hwcId=%d, fps=%.2f, width=%d, height=%d group=%d}",
+    return base::StringPrintf("{id=%d, hwcId=%d, fps=%.2f, width=%d, height=%d group=%d}",
                               getModeId().value(), mode->getHwcId(), getFps().getValue(),
                               mode->getWidth(), mode->getHeight(), getModeGroup());
 }
@@ -89,7 +89,7 @@ std::string RefreshRateConfigs::layerVoteTypeString(LayerVoteType vote) {
 }
 
 std::string RefreshRateConfigs::Policy::toString() const {
-    return base::StringPrintf("default mode ID: %zu, allowGroupSwitching = %d"
+    return base::StringPrintf("default mode ID: %d, allowGroupSwitching = %d"
                               ", primary range: %s, app request range: %s",
                               defaultMode.value(), allowGroupSwitching,
                               primaryRange.toString().c_str(), appRequestRange.toString().c_str());
@@ -724,7 +724,7 @@ void RefreshRateConfigs::getSortedRefreshRateListLocked(
     outRefreshRates->reserve(mRefreshRates.size());
     for (const auto& [type, refreshRate] : mRefreshRates) {
         if (shouldAddRefreshRate(*refreshRate)) {
-            ALOGV("getSortedRefreshRateListLocked: mode %zu added to list policy",
+            ALOGV("getSortedRefreshRateListLocked: mode %d added to list policy",
                   refreshRate->modeId.value());
             outRefreshRates->push_back(refreshRate.get());
         }

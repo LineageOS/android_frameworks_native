@@ -173,7 +173,7 @@ const DisplayModes& DisplayDevice::getSupportedModes() const {
 
 DisplayModePtr DisplayDevice::getMode(DisplayModeId modeId) const {
     const auto id = modeId.value();
-    if (id < mSupportedModes.size()) {
+    if (static_cast<size_t>(id) < mSupportedModes.size()) {
         return mSupportedModes[id];
     }
     return nullptr;
@@ -254,7 +254,7 @@ ui::Transform::RotationFlags DisplayDevice::getPrimaryDisplayRotationFlags() {
 std::string DisplayDevice::getDebugName() const {
     const char* type = "virtual";
     if (mConnectionType) {
-        type = *mConnectionType == DisplayConnectionType::Internal ? "internal" : "external";
+        type = *mConnectionType == ui::DisplayConnectionType::Internal ? "internal" : "external";
     }
 
     return base::StringPrintf("DisplayDevice{%s, %s%s, \"%s\"}", to_string(getId()).c_str(), type,

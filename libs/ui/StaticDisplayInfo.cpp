@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <ui/DisplayInfo.h>
+#include <ui/StaticDisplayInfo.h>
 
 #include <cstdint>
 
@@ -23,16 +23,16 @@
 #define RETURN_IF_ERROR(op) \
     if (const status_t status = (op); status != OK) return status;
 
-namespace android {
+namespace android::ui {
 
-size_t DisplayInfo::getFlattenedSize() const {
+size_t StaticDisplayInfo::getFlattenedSize() const {
     return FlattenableHelpers::getFlattenedSize(connectionType) +
             FlattenableHelpers::getFlattenedSize(density) +
             FlattenableHelpers::getFlattenedSize(secure) +
             FlattenableHelpers::getFlattenedSize(deviceProductInfo);
 }
 
-status_t DisplayInfo::flatten(void* buffer, size_t size) const {
+status_t StaticDisplayInfo::flatten(void* buffer, size_t size) const {
     if (size < getFlattenedSize()) {
         return NO_MEMORY;
     }
@@ -43,7 +43,7 @@ status_t DisplayInfo::flatten(void* buffer, size_t size) const {
     return OK;
 }
 
-status_t DisplayInfo::unflatten(void const* buffer, size_t size) {
+status_t StaticDisplayInfo::unflatten(void const* buffer, size_t size) {
     RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &connectionType));
     RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &density));
     RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &secure));
@@ -51,4 +51,4 @@ status_t DisplayInfo::unflatten(void const* buffer, size_t size) {
     return OK;
 }
 
-} // namespace android
+} // namespace android::ui

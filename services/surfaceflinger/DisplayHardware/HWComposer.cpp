@@ -369,16 +369,16 @@ std::optional<hal::HWConfigId> HWComposer::getActiveMode(PhysicalDisplayId displ
 
 // Composer 2.4
 
-DisplayConnectionType HWComposer::getDisplayConnectionType(PhysicalDisplayId displayId) const {
-    RETURN_IF_INVALID_DISPLAY(displayId, DisplayConnectionType::Internal);
+ui::DisplayConnectionType HWComposer::getDisplayConnectionType(PhysicalDisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, ui::DisplayConnectionType::Internal);
     const auto& hwcDisplay = mDisplayData.at(displayId).hwcDisplay;
 
-    DisplayConnectionType type;
+    ui::DisplayConnectionType type;
     const auto error = hwcDisplay->getConnectionType(&type);
 
     const auto FALLBACK_TYPE = hwcDisplay->getId() == mInternalHwcDisplayId
-            ? DisplayConnectionType::Internal
-            : DisplayConnectionType::External;
+            ? ui::DisplayConnectionType::Internal
+            : ui::DisplayConnectionType::External;
 
     RETURN_IF_HWC_ERROR(error, displayId, FALLBACK_TYPE);
     return type;

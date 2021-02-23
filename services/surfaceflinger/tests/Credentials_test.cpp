@@ -26,6 +26,7 @@
 #include <private/android_filesystem_config.h>
 #include <private/gui/ComposerService.h>
 #include <ui/DisplayMode.h>
+#include <ui/DynamicDisplayInfo.h>
 #include <utils/String8.h>
 #include <functional>
 #include "utils/ScreenshotUtils.h"
@@ -188,19 +189,15 @@ TEST_F(CredentialsTest, AllowedGetterMethodsTest) {
     ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
 
     Vector<ui::DisplayMode> modes;
-    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
-
-    ASSERT_TRUE(SurfaceComposerClient::getActiveDisplayModeId(display) >= 0);
-
-    ASSERT_NE(static_cast<ui::ColorMode>(BAD_VALUE),
-              SurfaceComposerClient::getActiveColorMode(display));
+    ui::DynamicDisplayInfo info;
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDynamicDisplayInfo(display, &info));
 }
 
-TEST_F(CredentialsTest, GetDisplayColorModesTest) {
+TEST_F(CredentialsTest, GetDynamicDisplayInfoTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     std::function<status_t()> condition = [=]() {
-        Vector<ui::ColorMode> outColorModes;
-        return SurfaceComposerClient::getDisplayColorModes(display, &outColorModes);
+        ui::DynamicDisplayInfo info;
+        return SurfaceComposerClient::getDynamicDisplayInfo(display, &info);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, NO_ERROR));
 }
@@ -216,7 +213,7 @@ TEST_F(CredentialsTest, GetDisplayNativePrimariesTest) {
 
 TEST_F(CredentialsTest, SetDesiredDisplayConfigsTest) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
-    size_t defaultMode;
+    ui::DisplayModeId defaultMode;
     bool allowGroupSwitching;
     float primaryFpsMin;
     float primaryFpsMax;
@@ -355,8 +352,9 @@ TEST_F(CredentialsTest, IsWideColorDisplayBasicCorrectness) {
     status_t error = SurfaceComposerClient::isWideColorDisplay(display, &result);
     ASSERT_EQ(NO_ERROR, error);
     bool hasWideColorMode = false;
-    Vector<ColorMode> colorModes;
-    SurfaceComposerClient::getDisplayColorModes(display, &colorModes);
+    ui::DynamicDisplayInfo info;
+    SurfaceComposerClient::getDynamicDisplayInfo(display, &info);
+    const auto& colorModes = info.supportedColorModes;
     for (ColorMode colorMode : colorModes) {
         switch (colorMode) {
             case ColorMode::DISPLAY_P3:
@@ -384,7 +382,9 @@ TEST_F(CredentialsTest, IsWideColorDisplayWithPrivileges) {
 TEST_F(CredentialsTest, GetActiveColorModeBasicCorrectness) {
     const auto display = SurfaceComposerClient::getInternalDisplayToken();
     ASSERT_FALSE(display == nullptr);
-    ColorMode colorMode = SurfaceComposerClient::getActiveColorMode(display);
+    ui::DynamicDisplayInfo info;
+    SurfaceComposerClient::getDynamicDisplayInfo(display, &info);
+    ColorMode colorMode = info.activeColorMode;
     ASSERT_NE(static_cast<ColorMode>(BAD_VALUE), colorMode);
 }
 
