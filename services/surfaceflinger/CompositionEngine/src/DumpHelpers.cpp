@@ -100,4 +100,10 @@ void dumpVal(std::string& out, const char* name, const mat4& tr) {
                   ); /* clang-format on */
 }
 
+void dumpVal(std::string& out, const char* name, const StretchEffect& effect) {
+    StringAppendF(&out, "%s={ area=[%f, %f, %f, %f], vec=(%f, %f), max=%f } ", name,
+                  effect.area.left, effect.area.top, effect.area.right, effect.area.bottom,
+                  effect.vectorX, effect.vectorY, effect.maxAmount);
+}
+
 } // namespace android::compositionengine::impl

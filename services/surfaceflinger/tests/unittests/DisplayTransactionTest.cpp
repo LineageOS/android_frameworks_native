@@ -139,14 +139,14 @@ sp<DisplayDevice> DisplayTransactionTest::injectDefaultInternalDisplay(
             createDisplay(mFlinger.getCompositionEngine(),
                           compositionengine::DisplayCreationArgsBuilder()
                                   .setPhysical(
-                                          {DEFAULT_DISPLAY_ID, DisplayConnectionType::Internal})
+                                          {DEFAULT_DISPLAY_ID, ui::DisplayConnectionType::Internal})
                                   .setPixels({DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT})
                                   .setPowerAdvisor(&mPowerAdvisor)
                                   .build());
 
-    auto injector =
-            FakeDisplayDeviceInjector(mFlinger, compositionDisplay, DisplayConnectionType::Internal,
-                                      DEFAULT_DISPLAY_HWC_DISPLAY_ID, true /* isPrimary */);
+    auto injector = FakeDisplayDeviceInjector(mFlinger, compositionDisplay,
+                                              ui::DisplayConnectionType::Internal,
+                                              DEFAULT_DISPLAY_HWC_DISPLAY_ID, true /* isPrimary */);
 
     injector.setNativeWindow(mNativeWindow);
     if (injectExtra) {

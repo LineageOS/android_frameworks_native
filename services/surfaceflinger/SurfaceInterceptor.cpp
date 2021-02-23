@@ -499,6 +499,9 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     if (state.what & layer_state_t::eShadowRadiusChanged) {
         addShadowRadiusLocked(transaction, layerId, state.shadowRadius);
     }
+    if (state.what & layer_state_t::eStretchChanged) {
+        ALOGW("SurfaceInterceptor not implemented for eStretchChanged");
+    }
 }
 
 void SurfaceInterceptor::addDisplayChangesLocked(Transaction* transaction,

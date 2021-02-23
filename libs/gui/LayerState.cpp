@@ -548,6 +548,10 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eAutoRefreshChanged;
         autoRefresh = other.autoRefresh;
     }
+    if (other.what & eStretchChanged) {
+        what |= eStretchChanged;
+        stretchEffect = other.stretchEffect;
+    }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
               "other.what=0x%" PRIu64 " what=0x%" PRIu64,

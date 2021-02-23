@@ -44,6 +44,7 @@
 #include <log/log.h>
 #include <private/gui/ComposerService.h>
 #include <ui/DisplayMode.h>
+#include <ui/DynamicDisplayInfo.h>
 #include <utils/Looper.h>
 
 #include <gmock/gmock.h>
@@ -432,8 +433,9 @@ protected:
             }
         }
 
-        Vector<ui::DisplayMode> modes;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
+        ui::DynamicDisplayInfo info;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDynamicDisplayInfo(display, &info));
+        const auto& modes = info.supportedDisplayModes;
         EXPECT_EQ(modes.size(), 2);
 
         // change active mode
@@ -539,8 +541,9 @@ protected:
             }
         }
 
-        Vector<ui::DisplayMode> modes;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
+        ui::DynamicDisplayInfo info;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDynamicDisplayInfo(display, &info));
+        const auto& modes = info.supportedDisplayModes;
         EXPECT_EQ(modes.size(), 2);
 
         // change active mode
@@ -655,8 +658,9 @@ protected:
             }
         }
 
-        Vector<ui::DisplayMode> modes;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
+        ui::DynamicDisplayInfo info;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDynamicDisplayInfo(display, &info));
+        const auto& modes = info.supportedDisplayModes;
         EXPECT_EQ(modes.size(), 4);
 
         // change active mode to 800x1600@90Hz
@@ -884,8 +888,9 @@ protected:
             EXPECT_EQ(ui::Size(800, 1600), mode.resolution);
             EXPECT_EQ(1e9f / 11'111'111, mode.refreshRate);
 
-            Vector<ui::DisplayMode> modes;
-            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
+            ui::DynamicDisplayInfo info;
+            EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDynamicDisplayInfo(display, &info));
+            const auto& modes = info.supportedDisplayModes;
             EXPECT_EQ(modes.size(), 1);
         }
 
@@ -923,8 +928,9 @@ protected:
             EXPECT_EQ(1e9f / 16'666'666, mode.refreshRate);
         }
 
-        Vector<ui::DisplayMode> modes;
-        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayModes(display, &modes));
+        ui::DynamicDisplayInfo info;
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::getDynamicDisplayInfo(display, &info));
+        const auto& modes = info.supportedDisplayModes;
         EXPECT_EQ(modes.size(), 3);
 
         EXPECT_EQ(ui::Size(800, 1600), modes[0].resolution);

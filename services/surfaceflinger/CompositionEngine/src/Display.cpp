@@ -55,7 +55,8 @@ void Display::setConfiguration(const compositionengine::DisplayCreationArgs& arg
     editState().isSecure = args.isSecure;
     editState().displaySpace.bounds = Rect(args.pixels);
     setLayerStackFilter(args.layerStackId,
-                        args.physical && args.physical->type == DisplayConnectionType::Internal);
+                        args.physical &&
+                                args.physical->type == ui::DisplayConnectionType::Internal);
     setName(args.name);
     mGpuVirtualDisplayIdGenerator = args.gpuVirtualDisplayIdGenerator;
 
