@@ -377,7 +377,7 @@ private:
         mLastNotifySwitch = NotifySwitchArgs(1 /*id*/, when, policyFlags, switchValues, switchMask);
     }
 
-    void pokeUserActivity(nsecs_t, int32_t) override {}
+    void pokeUserActivity(nsecs_t, int32_t, int32_t) override {}
 
     bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) override { return false; }
 

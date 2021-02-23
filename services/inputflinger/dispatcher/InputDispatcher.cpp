@@ -2591,6 +2591,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
             std::make_unique<CommandEntry>(&InputDispatcher::doPokeUserActivityLockedInterruptible);
     commandEntry->eventTime = eventEntry.eventTime;
     commandEntry->userActivityEventType = eventType;
+    commandEntry->displayId = displayId;
     postCommandLocked(std::move(commandEntry));
 }
 
@@ -5715,7 +5716,8 @@ bool InputDispatcher::afterMotionEventLockedInterruptible(const sp<Connection>& 
 void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) {
     mLock.unlock();
 
-    mPolicy->pokeUserActivity(commandEntry->eventTime, commandEntry->userActivityEventType);
+    mPolicy->pokeUserActivity(commandEntry->eventTime, commandEntry->userActivityEventType,
+                              commandEntry->displayId);
 
     mLock.lock();
 }
