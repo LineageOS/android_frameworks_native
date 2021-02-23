@@ -77,7 +77,7 @@ public:
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
             const std::function<void()>& completionCallback) final override;
 
-    HalResult<void> performComposedEffect(
+    HalResult<std::chrono::milliseconds> performComposedEffect(
             const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
             const std::function<void()>& completionCallback) final override;
 
