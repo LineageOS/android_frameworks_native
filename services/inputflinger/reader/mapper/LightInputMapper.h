@@ -44,7 +44,7 @@ public:
 
 private:
     struct Light {
-        explicit Light(InputDeviceContext& context, std::string name, int32_t id,
+        explicit Light(InputDeviceContext& context, const std::string& name, int32_t id,
                        InputDeviceLightType type)
               : context(context), name(name), id(id), type(type) {}
         virtual ~Light() {}
@@ -65,7 +65,7 @@ private:
     };
 
     struct SingleLight : public Light {
-        explicit SingleLight(InputDeviceContext& context, std::string name, int32_t id,
+        explicit SingleLight(InputDeviceContext& context, const std::string& name, int32_t id,
                              int32_t rawId)
               : Light(context, name, id, InputDeviceLightType::SINGLE), rawId(rawId) {}
         int32_t rawId;
@@ -77,7 +77,7 @@ private:
 
     struct RgbLight : public Light {
         explicit RgbLight(InputDeviceContext& context, int32_t id,
-                          std::unordered_map<LightColor, int32_t> rawRgbIds,
+                          const std::unordered_map<LightColor, int32_t>& rawRgbIds,
                           std::optional<int32_t> rawGlobalId)
               : Light(context, "RGB", id, InputDeviceLightType::RGB),
                 rawRgbIds(rawRgbIds),
@@ -98,7 +98,7 @@ private:
     };
 
     struct MultiColorLight : public Light {
-        explicit MultiColorLight(InputDeviceContext& context, std::string name, int32_t id,
+        explicit MultiColorLight(InputDeviceContext& context, const std::string& name, int32_t id,
                                  int32_t rawId)
               : Light(context, name, id, InputDeviceLightType::MULTI_COLOR), rawId(rawId) {}
         int32_t rawId;
@@ -109,8 +109,8 @@ private:
     };
 
     struct PlayerIdLight : public Light {
-        explicit PlayerIdLight(InputDeviceContext& context, std::string name, int32_t id,
-                               std::unordered_map<int32_t, int32_t> rawLightIds)
+        explicit PlayerIdLight(InputDeviceContext& context, const std::string& name, int32_t id,
+                               const std::unordered_map<int32_t, int32_t>& rawLightIds)
               : Light(context, name, id, InputDeviceLightType::PLAYER_ID),
                 rawLightIds(rawLightIds) {}
         // Map from player Id to raw light Id
