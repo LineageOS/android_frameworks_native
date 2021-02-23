@@ -22,6 +22,7 @@
 #include <InputReaderBase.h>
 #include <InputReaderFactory.h>
 #include <KeyboardInputMapper.h>
+#include <LightInputMapper.h>
 #include <MultiTouchInputMapper.h>
 #include <SensorInputMapper.h>
 #include <SingleTouchInputMapper.h>
@@ -36,6 +37,7 @@
 #include <math.h>
 
 #include <memory>
+#include <regex>
 #include "input/DisplayViewport.h"
 #include "input/Input.h"
 
@@ -70,6 +72,9 @@ static constexpr int32_t SECOND_TRACKING_ID = 1;
 static constexpr int32_t THIRD_TRACKING_ID = 2;
 static constexpr int32_t BATTERY_STATUS = 4;
 static constexpr int32_t BATTERY_CAPACITY = 66;
+static constexpr int32_t LIGHT_BRIGHTNESS = 0x55000000;
+static constexpr int32_t LIGHT_COLOR = 0x7F448866;
+static constexpr int32_t LIGHT_PLAYER_ID = 2;
 
 // Error tolerance for floating point assertions.
 static const float EPSILON = 0.001f;
@@ -83,6 +88,10 @@ static inline float avg(float x, float y) {
     return (x + y) / 2;
 }
 
+// Mapping for light color name and the light color
+const std::unordered_map<std::string, LightColor> LIGHT_COLORS = {{"red", LightColor::RED},
+                                                                  {"green", LightColor::GREEN},
+                                                                  {"blue", LightColor::BLUE}};
 
 // --- FakePointerController ---
 
@@ -412,6 +421,12 @@ class FakeEventHub : public EventHubInterface {
     std::vector<RawEvent> mEvents GUARDED_BY(mLock);
     std::unordered_map<int32_t /*deviceId*/, std::vector<TouchVideoFrame>> mVideoFrames;
     std::vector<int32_t> mVibrators = {0, 1};
+    std::unordered_map<int32_t, RawLightInfo> mRawLightInfos;
+    // Simulates a device light brightness, from light id to light brightness.
+    std::unordered_map<int32_t /* lightId */, int32_t /* brightness*/> mLightBrightness;
+    // Simulates a device light intensities, from light id to light intensities map.
+    std::unordered_map<int32_t /* lightId */, std::unordered_map<LightColor, int32_t>>
+            mLightIntensities;
 
 public:
     virtual ~FakeEventHub() {
@@ -560,6 +575,19 @@ public:
         typename BitArray<MSC_MAX>::Buffer buffer;
         buffer[mscEvent / 32] = 1 << mscEvent % 32;
         device->mscBitmask.loadFromBuffer(buffer);
+    }
+
+    void addRawLightInfo(int32_t rawId, RawLightInfo&& info) {
+        mRawLightInfos.emplace(rawId, std::move(info));
+    }
+
+    void fakeLightBrightness(int32_t rawId, int32_t brightness) {
+        mLightBrightness.emplace(rawId, brightness);
+    }
+
+    void fakeLightIntensities(int32_t rawId,
+                              const std::unordered_map<LightColor, int32_t> intensities) {
+        mLightIntensities.emplace(rawId, std::move(intensities));
     }
 
     bool getLedState(int32_t deviceId, int32_t led) {
@@ -868,6 +896,48 @@ private:
     std::optional<int32_t> getBatteryCapacity(int32_t) const override { return BATTERY_CAPACITY; }
 
     std::optional<int32_t> getBatteryStatus(int32_t) const override { return BATTERY_STATUS; }
+
+    const std::vector<int32_t> getRawLightIds(int32_t deviceId) override {
+        std::vector<int32_t> ids;
+        for (const auto& [rawId, info] : mRawLightInfos) {
+            ids.push_back(rawId);
+        }
+        return ids;
+    }
+
+    std::optional<RawLightInfo> getRawLightInfo(int32_t deviceId, int32_t lightId) override {
+        auto it = mRawLightInfos.find(lightId);
+        if (it == mRawLightInfos.end()) {
+            return std::nullopt;
+        }
+        return it->second;
+    }
+
+    void setLightBrightness(int32_t deviceId, int32_t lightId, int32_t brightness) override {
+        mLightBrightness.emplace(lightId, brightness);
+    }
+
+    void setLightIntensities(int32_t deviceId, int32_t lightId,
+                             std::unordered_map<LightColor, int32_t> intensities) override {
+        mLightIntensities.emplace(lightId, intensities);
+    };
+
+    std::optional<int32_t> getLightBrightness(int32_t deviceId, int32_t lightId) override {
+        auto lightIt = mLightBrightness.find(lightId);
+        if (lightIt == mLightBrightness.end()) {
+            return std::nullopt;
+        }
+        return lightIt->second;
+    }
+
+    std::optional<std::unordered_map<LightColor, int32_t>> getLightIntensities(
+            int32_t deviceId, int32_t lightId) override {
+        auto lightIt = mLightIntensities.find(lightId);
+        if (lightIt == mLightIntensities.end()) {
+            return std::nullopt;
+        }
+        return lightIt->second;
+    };
 
     virtual bool isExternal(int32_t) const {
         return false;
@@ -1976,6 +2046,49 @@ TEST_F(InputReaderTest, BatteryGetStatus) {
     ASSERT_EQ(mReader->getBatteryStatus(deviceId), BATTERY_STATUS);
 }
 
+class FakeLightInputMapper : public FakeInputMapper {
+public:
+    FakeLightInputMapper(InputDeviceContext& deviceContext, uint32_t sources)
+          : FakeInputMapper(deviceContext, sources) {}
+
+    bool setLightColor(int32_t lightId, int32_t color) override {
+        getDeviceContext().setLightBrightness(lightId, color >> 24);
+        return true;
+    }
+
+    std::optional<int32_t> getLightColor(int32_t lightId) override {
+        std::optional<int32_t> result = getDeviceContext().getLightBrightness(lightId);
+        if (!result.has_value()) {
+            return std::nullopt;
+        }
+        return result.value() << 24;
+    }
+};
+
+TEST_F(InputReaderTest, LightGetColor) {
+    constexpr int32_t deviceId = END_RESERVED_ID + 1000;
+    Flags<InputDeviceClass> deviceClass = InputDeviceClass::KEYBOARD | InputDeviceClass::LIGHT;
+    constexpr int32_t eventHubId = 1;
+    const char* DEVICE_LOCATION = "BLUETOOTH";
+    std::shared_ptr<InputDevice> device = mReader->newDevice(deviceId, "fake", DEVICE_LOCATION);
+    FakeLightInputMapper& mapper =
+            device->addMapper<FakeLightInputMapper>(eventHubId, AINPUT_SOURCE_KEYBOARD);
+    mReader->pushNextDevice(device);
+    RawLightInfo info = {.id = 1,
+                         .name = "Mono",
+                         .maxBrightness = 255,
+                         .flags = InputLightClass::BRIGHTNESS,
+                         .path = ""};
+    mFakeEventHub->addRawLightInfo(1 /* rawId */, std::move(info));
+    mFakeEventHub->fakeLightBrightness(1 /* rawId */, 0x55);
+
+    ASSERT_NO_FATAL_FAILURE(addDevice(eventHubId, "fake", deviceClass, nullptr));
+    ASSERT_NO_FATAL_FAILURE(mapper.assertConfigureWasCalled());
+
+    ASSERT_TRUE(mReader->setLightColor(deviceId, 1 /* lightId */, LIGHT_BRIGHTNESS));
+    ASSERT_EQ(mReader->getLightColor(deviceId, 1 /* lightId */), LIGHT_BRIGHTNESS);
+}
+
 // --- InputReaderIntegrationTest ---
 
 // These tests create and interact with the InputReader only through its interface.
@@ -2883,14 +2996,136 @@ TEST_F(BatteryInputMapperTest, GetBatteryCapacity) {
     BatteryInputMapper& mapper = addMapperAndConfigure<BatteryInputMapper>();
 
     ASSERT_TRUE(mapper.getBatteryCapacity());
-    ASSERT_EQ(*mapper.getBatteryCapacity(), BATTERY_CAPACITY);
+    ASSERT_EQ(mapper.getBatteryCapacity().value_or(-1), BATTERY_CAPACITY);
 }
 
 TEST_F(BatteryInputMapperTest, GetBatteryStatus) {
     BatteryInputMapper& mapper = addMapperAndConfigure<BatteryInputMapper>();
 
     ASSERT_TRUE(mapper.getBatteryStatus());
-    ASSERT_EQ(*mapper.getBatteryStatus(), BATTERY_STATUS);
+    ASSERT_EQ(mapper.getBatteryStatus().value_or(-1), BATTERY_STATUS);
+}
+
+// --- LightInputMapperTest ---
+class LightInputMapperTest : public InputMapperTest {
+protected:
+    void SetUp() override { InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::LIGHT); }
+};
+
+TEST_F(LightInputMapperTest, GetSources) {
+    LightInputMapper& mapper = addMapperAndConfigure<LightInputMapper>();
+
+    ASSERT_EQ(AINPUT_SOURCE_UNKNOWN, mapper.getSources());
+}
+
+TEST_F(LightInputMapperTest, SingleLight) {
+    RawLightInfo infoSingle = {.id = 1,
+                               .name = "Mono",
+                               .maxBrightness = 255,
+                               .flags = InputLightClass::BRIGHTNESS,
+                               .path = ""};
+    mFakeEventHub->addRawLightInfo(infoSingle.id, std::move(infoSingle));
+
+    LightInputMapper& mapper = addMapperAndConfigure<LightInputMapper>();
+    InputDeviceInfo info;
+    mapper.populateDeviceInfo(&info);
+    const auto& ids = info.getLightIds();
+    ASSERT_EQ(1UL, ids.size());
+    ASSERT_EQ(InputDeviceLightType::SINGLE, info.getLightInfo(ids[0])->type);
+
+    ASSERT_TRUE(mapper.setLightColor(ids[0], LIGHT_BRIGHTNESS));
+    ASSERT_EQ(mapper.getLightColor(ids[0]).value_or(-1), LIGHT_BRIGHTNESS);
+}
+
+TEST_F(LightInputMapperTest, RGBLight) {
+    RawLightInfo infoRed = {.id = 1,
+                            .name = "red",
+                            .maxBrightness = 255,
+                            .flags = InputLightClass::BRIGHTNESS | InputLightClass::RED,
+                            .path = ""};
+    RawLightInfo infoGreen = {.id = 2,
+                              .name = "green",
+                              .maxBrightness = 255,
+                              .flags = InputLightClass::BRIGHTNESS | InputLightClass::GREEN,
+                              .path = ""};
+    RawLightInfo infoBlue = {.id = 3,
+                             .name = "blue",
+                             .maxBrightness = 255,
+                             .flags = InputLightClass::BRIGHTNESS | InputLightClass::BLUE,
+                             .path = ""};
+    mFakeEventHub->addRawLightInfo(infoRed.id, std::move(infoRed));
+    mFakeEventHub->addRawLightInfo(infoGreen.id, std::move(infoGreen));
+    mFakeEventHub->addRawLightInfo(infoBlue.id, std::move(infoBlue));
+
+    LightInputMapper& mapper = addMapperAndConfigure<LightInputMapper>();
+    InputDeviceInfo info;
+    mapper.populateDeviceInfo(&info);
+    const auto& ids = info.getLightIds();
+    ASSERT_EQ(1UL, ids.size());
+    ASSERT_EQ(InputDeviceLightType::RGB, info.getLightInfo(ids[0])->type);
+
+    ASSERT_TRUE(mapper.setLightColor(ids[0], LIGHT_COLOR));
+    ASSERT_EQ(mapper.getLightColor(ids[0]).value_or(-1), LIGHT_COLOR);
+}
+
+TEST_F(LightInputMapperTest, MultiColorRGBLight) {
+    RawLightInfo infoColor = {.id = 1,
+                              .name = "red",
+                              .maxBrightness = 255,
+                              .flags = InputLightClass::BRIGHTNESS |
+                                      InputLightClass::MULTI_INTENSITY |
+                                      InputLightClass::MULTI_INDEX,
+                              .path = ""};
+
+    mFakeEventHub->addRawLightInfo(infoColor.id, std::move(infoColor));
+
+    LightInputMapper& mapper = addMapperAndConfigure<LightInputMapper>();
+    InputDeviceInfo info;
+    mapper.populateDeviceInfo(&info);
+    const auto& ids = info.getLightIds();
+    ASSERT_EQ(1UL, ids.size());
+    ASSERT_EQ(InputDeviceLightType::MULTI_COLOR, info.getLightInfo(ids[0])->type);
+
+    ASSERT_TRUE(mapper.setLightColor(ids[0], LIGHT_COLOR));
+    ASSERT_EQ(mapper.getLightColor(ids[0]).value_or(-1), LIGHT_COLOR);
+}
+
+TEST_F(LightInputMapperTest, PlayerIdLight) {
+    RawLightInfo info1 = {.id = 1,
+                          .name = "player1",
+                          .maxBrightness = 255,
+                          .flags = InputLightClass::BRIGHTNESS,
+                          .path = ""};
+    RawLightInfo info2 = {.id = 2,
+                          .name = "player2",
+                          .maxBrightness = 255,
+                          .flags = InputLightClass::BRIGHTNESS,
+                          .path = ""};
+    RawLightInfo info3 = {.id = 3,
+                          .name = "player3",
+                          .maxBrightness = 255,
+                          .flags = InputLightClass::BRIGHTNESS,
+                          .path = ""};
+    RawLightInfo info4 = {.id = 4,
+                          .name = "player4",
+                          .maxBrightness = 255,
+                          .flags = InputLightClass::BRIGHTNESS,
+                          .path = ""};
+    mFakeEventHub->addRawLightInfo(info1.id, std::move(info1));
+    mFakeEventHub->addRawLightInfo(info2.id, std::move(info2));
+    mFakeEventHub->addRawLightInfo(info3.id, std::move(info3));
+    mFakeEventHub->addRawLightInfo(info4.id, std::move(info4));
+
+    LightInputMapper& mapper = addMapperAndConfigure<LightInputMapper>();
+    InputDeviceInfo info;
+    mapper.populateDeviceInfo(&info);
+    const auto& ids = info.getLightIds();
+    ASSERT_EQ(1UL, ids.size());
+    ASSERT_EQ(InputDeviceLightType::PLAYER_ID, info.getLightInfo(ids[0])->type);
+
+    ASSERT_FALSE(mapper.setLightColor(ids[0], LIGHT_COLOR));
+    ASSERT_TRUE(mapper.setLightPlayerId(ids[0], LIGHT_PLAYER_ID));
+    ASSERT_EQ(mapper.getLightPlayerId(ids[0]).value_or(-1), LIGHT_PLAYER_ID);
 }
 
 // --- KeyboardInputMapperTest ---
