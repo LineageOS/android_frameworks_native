@@ -127,6 +127,10 @@ void AChoreographer_postFrameCallbackDelayed64(AChoreographer* choreographer,
  * to listen directly to DisplayManager.DisplayListener#onDisplayChanged events
  * instead.
  *
+ * As of API level 31, this api is guaranteed to have a consistent view with DisplayManager;
+ * Display#getRefreshRate is guaranteed to not return a stale refresh rate when invoked from this
+ * callback.
+ *
  * Available since API level 30.
  */
 void AChoreographer_registerRefreshRateCallback(AChoreographer* choreographer,
