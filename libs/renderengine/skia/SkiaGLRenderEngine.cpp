@@ -556,6 +556,26 @@ void SkiaGLRenderEngine::initCanvas(SkCanvas* canvas, const DisplaySettings& dis
     canvas->translate(-display.clip.left, -display.clip.top);
 }
 
+class AutoSaveRestore {
+public:
+    AutoSaveRestore(SkCanvas* canvas) : mCanvas(canvas) { mSaveCount = canvas->save(); }
+    ~AutoSaveRestore() { restore(); }
+    void replace(SkCanvas* canvas) {
+        mCanvas = canvas;
+        mSaveCount = canvas->save();
+    }
+    void restore() {
+        if (mCanvas) {
+            mCanvas->restoreToCount(mSaveCount);
+            mCanvas = nullptr;
+        }
+    }
+
+private:
+    SkCanvas* mCanvas;
+    int mSaveCount;
+};
+
 status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                         const std::vector<const LayerSettings*>& layers,
                                         const sp<GraphicBuffer>& buffer,
@@ -650,7 +670,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         }
     }
 
-    canvas->save();
+    AutoSaveRestore surfaceAutoSaveRestore(canvas);
     // Clear the entire canvas with a transparent black to prevent ghost images.
     canvas->clear(SK_ColorTRANSPARENT);
     initCanvas(canvas, display);
@@ -705,7 +725,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
             // assign dstCanvas to canvas and ensure that the canvas state is up to date
             canvas = dstCanvas;
-            canvas->save();
+            surfaceAutoSaveRestore.replace(canvas);
             initCanvas(canvas, display);
 
             LOG_ALWAYS_FATAL_IF(activeSurface->getCanvas()->getSaveCount() !=
@@ -717,7 +737,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             activeSurface = dstSurface;
         }
 
-        canvas->save();
+        SkAutoCanvasRestore layerAutoSaveRestore(canvas, true);
         if (CC_UNLIKELY(mCapture->isCaptureRunning())) {
             // Record the name of the layer if the capture is running.
             std::stringstream layerSettings;
@@ -888,9 +908,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             }
             canvas->drawRect(bounds, paint);
         }
-        canvas->restore();
     }
-    canvas->restore();
+    surfaceAutoSaveRestore.restore();
     mCapture->endCapture();
     {
         ATRACE_NAME("flush surface");
