@@ -222,9 +222,11 @@ cc_library_headers {
     },
     header_libs: [
         "libnativewindow_headers",
+        "libmath_headers",
     ],
     export_header_lib_headers: [
         "libnativewindow_headers",
+        "libmath_headers",
     ],
     min_sdk_version: "29",
 }
