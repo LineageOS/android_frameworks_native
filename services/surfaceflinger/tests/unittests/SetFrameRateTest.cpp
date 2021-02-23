@@ -81,7 +81,7 @@ public:
     std::string name() override { return "BufferStateLayer"; }
     sp<Layer> createLayer(TestableSurfaceFlinger& flinger) override {
         sp<Client> client;
-        LayerCreationArgs args(flinger.flinger(), client, "buffer-queue-layer", WIDTH, HEIGHT,
+        LayerCreationArgs args(flinger.flinger(), client, "buffer-state-layer", WIDTH, HEIGHT,
                                LAYER_FLAGS, LayerMetadata());
         return new BufferStateLayer(args);
     }
@@ -188,7 +188,8 @@ void SetFrameRateTest::setupScheduler() {
             .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
     EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
     mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                            std::move(eventThread), std::move(sfEventThread));
+                            std::move(eventThread), std::move(sfEventThread), /*callback*/ nullptr,
+                            /*hasMultipleModes*/ true);
 }
 
 void SetFrameRateTest::setupComposer(uint32_t virtualDisplayCount) {
@@ -486,6 +487,29 @@ TEST_F(SetFrameRateTest, ValidateFrameRate) {
             ValidateFrameRate(0.0f / 0.0f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT, ""));
 
     EXPECT_FALSE(ValidateFrameRate(60.0f, ANATIVEWINDOW_FRAME_RATE_EXACT, ""));
+}
+
+TEST_P(SetFrameRateTest, SetOnParentActivatesTree) {
+    const auto& layerFactory = GetParam();
+
+    auto parent = mLayers.emplace_back(layerFactory->createLayer(mFlinger));
+    if (!parent->isVisible()) {
+        // This is a hack as all the test layers except EffectLayer are not visible,
+        // but since the logic is unified in Layer, it should be fine.
+        return;
+    }
+
+    auto child = mLayers.emplace_back(layerFactory->createLayer(mFlinger));
+    addChild(parent, child);
+
+    parent->setFrameRate(FRAME_RATE_VOTE1);
+    commitTransaction();
+
+    const auto layerHistorySummary =
+            mFlinger.mutableScheduler().mutableLayerHistory()->summarize(0);
+    ASSERT_EQ(2u, layerHistorySummary.size());
+    EXPECT_TRUE(FRAME_RATE_VOTE1.rate.equalsWithMargin(layerHistorySummary[0].desiredRefreshRate));
+    EXPECT_TRUE(FRAME_RATE_VOTE1.rate.equalsWithMargin(layerHistorySummary[1].desiredRefreshRate));
 }
 
 } // namespace

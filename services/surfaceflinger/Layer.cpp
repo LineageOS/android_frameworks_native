@@ -1468,7 +1468,7 @@ void Layer::updateTreeHasFrameRateVote() {
     // First traverse the tree and count how many layers has votes. In addition
     // activate the layers in Scheduler's LayerHistory for it to check for changes
     int layersWithVote = 0;
-    traverseTree([&layersWithVote, this](Layer* layer) {
+    traverseTree([&layersWithVote](Layer* layer) {
         const auto layerVotedWithDefaultCompatibility =
                 layer->mCurrentState.frameRate.rate.isValid() &&
                 layer->mCurrentState.frameRate.type == FrameRateCompatibility::Default;
@@ -1484,20 +1484,21 @@ void Layer::updateTreeHasFrameRateVote() {
             layerVotedWithExactCompatibility) {
             layersWithVote++;
         }
-
-        mFlinger->mScheduler->recordLayerHistory(layer, systemTime(),
-                                                 LayerHistory::LayerUpdateType::SetFrameRate);
     });
 
     // Now update the other layers
     bool transactionNeeded = false;
-    traverseTree([layersWithVote, &transactionNeeded](Layer* layer) {
-        if (layer->mCurrentState.treeHasFrameRateVote != layersWithVote > 0) {
+    traverseTree([layersWithVote, &transactionNeeded, this](Layer* layer) {
+        const bool treeHasFrameRateVote = layersWithVote > 0;
+        if (layer->mCurrentState.treeHasFrameRateVote != treeHasFrameRateVote) {
             layer->mCurrentState.sequence++;
-            layer->mCurrentState.treeHasFrameRateVote = layersWithVote > 0;
+            layer->mCurrentState.treeHasFrameRateVote = treeHasFrameRateVote;
             layer->mCurrentState.modified = true;
             layer->setTransactionFlags(eTransactionNeeded);
             transactionNeeded = true;
+
+            mFlinger->mScheduler->recordLayerHistory(layer, systemTime(),
+                                                     LayerHistory::LayerUpdateType::SetFrameRate);
         }
     });
 
