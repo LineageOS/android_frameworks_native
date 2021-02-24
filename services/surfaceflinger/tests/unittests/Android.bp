@@ -44,6 +44,7 @@ cc_test {
         "DisplayDevice_GetBestColorModeTest.cpp",
         "DisplayDevice_SetProjectionTest.cpp",
         "EventThreadTest.cpp",
+        "FpsReporterTest.cpp",
         "FpsTest.cpp",
         "FrameTimelineTest.cpp",
         "HWComposerTest.cpp",
