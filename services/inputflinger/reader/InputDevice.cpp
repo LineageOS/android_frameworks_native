@@ -506,8 +506,8 @@ void InputDevice::flushSensor(InputDeviceSensorType sensorType) {
     for_each_mapper([sensorType](InputMapper& mapper) { mapper.flushSensor(sensorType); });
 }
 
-void InputDevice::cancelTouch(nsecs_t when) {
-    for_each_mapper([when](InputMapper& mapper) { mapper.cancelTouch(when); });
+void InputDevice::cancelTouch(nsecs_t when, nsecs_t readTime) {
+    for_each_mapper([when, readTime](InputMapper& mapper) { mapper.cancelTouch(when, readTime); });
 }
 
 std::optional<int32_t> InputDevice::getBatteryCapacity() {

@@ -299,14 +299,14 @@ void JoystickInputMapper::process(const RawEvent* rawEvent) {
         case EV_SYN:
             switch (rawEvent->code) {
                 case SYN_REPORT:
-                    sync(rawEvent->when, false /*force*/);
+                    sync(rawEvent->when, rawEvent->readTime, false /*force*/);
                     break;
             }
             break;
     }
 }
 
-void JoystickInputMapper::sync(nsecs_t when, bool force) {
+void JoystickInputMapper::sync(nsecs_t when, nsecs_t readTime, bool force) {
     if (!filterAxes(force)) {
         return;
     }
@@ -337,9 +337,10 @@ void JoystickInputMapper::sync(nsecs_t when, bool force) {
     // TODO: Use the input device configuration to control this behavior more finely.
     uint32_t policyFlags = 0;
 
-    NotifyMotionArgs args(getContext()->getNextId(), when, getDeviceId(), AINPUT_SOURCE_JOYSTICK,
-                          ADISPLAY_ID_NONE, policyFlags, AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState,
-                          buttonState, MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
+    NotifyMotionArgs args(getContext()->getNextId(), when, readTime, getDeviceId(),
+                          AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_NONE, policyFlags,
+                          AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState,
+                          MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
                           &pointerProperties, &pointerCoords, 0, 0,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, /* videoFrames */ {});

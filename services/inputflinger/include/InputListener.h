@@ -73,12 +73,14 @@ struct NotifyKeyArgs : public NotifyArgs {
     int32_t scanCode;
     int32_t metaState;
     nsecs_t downTime;
+    nsecs_t readTime;
 
     inline NotifyKeyArgs() { }
 
-    NotifyKeyArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
-                  int32_t displayId, uint32_t policyFlags, int32_t action, int32_t flags,
-                  int32_t keyCode, int32_t scanCode, int32_t metaState, nsecs_t downTime);
+    NotifyKeyArgs(int32_t id, nsecs_t eventTime, nsecs_t readTime, int32_t deviceId,
+                  uint32_t source, int32_t displayId, uint32_t policyFlags, int32_t action,
+                  int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
+                  nsecs_t downTime);
 
     bool operator==(const NotifyKeyArgs& rhs) const;
 
@@ -120,13 +122,14 @@ struct NotifyMotionArgs : public NotifyArgs {
     float xCursorPosition;
     float yCursorPosition;
     nsecs_t downTime;
+    nsecs_t readTime;
     std::vector<TouchVideoFrame> videoFrames;
 
     inline NotifyMotionArgs() { }
 
-    NotifyMotionArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
-                     int32_t displayId, uint32_t policyFlags, int32_t action, int32_t actionButton,
-                     int32_t flags, int32_t metaState, int32_t buttonState,
+    NotifyMotionArgs(int32_t id, nsecs_t eventTime, nsecs_t readTime, int32_t deviceId,
+                     uint32_t source, int32_t displayId, uint32_t policyFlags, int32_t action,
+                     int32_t actionButton, int32_t flags, int32_t metaState, int32_t buttonState,
                      MotionClassification classification, int32_t edgeFlags, uint32_t pointerCount,
                      const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
                      float xPrecision, float yPrecision, float xCursorPosition,

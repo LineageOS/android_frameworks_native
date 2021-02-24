@@ -92,7 +92,7 @@ private:
     // Axes indexed by raw ABS_* axis index.
     std::unordered_map<int32_t, Axis> mAxes;
 
-    void sync(nsecs_t when, bool force);
+    void sync(nsecs_t when, nsecs_t readTime, bool force);
 
     bool haveAxis(int32_t axisId);
     void pruneAxes(bool ignoreExplicitlyMappedAxes);
