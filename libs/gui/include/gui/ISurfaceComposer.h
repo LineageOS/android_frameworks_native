@@ -219,32 +219,17 @@ public:
             ui::ColorMode colorMode) = 0;
 
     /**
-     * Returns true if the connected display reports support for HDMI 2.1 Auto
-     * Low Latency Mode.
-     * For more information, see the HDMI 2.1 specification.
-     */
-    virtual status_t getAutoLowLatencyModeSupport(const sp<IBinder>& display,
-                                                  bool* outSupport) const = 0;
-
-    /**
      * Switches Auto Low Latency Mode on/off on the connected display, if it is
-     * available. This should only be called if #getAutoLowLatencyMode returns
-     * true.
+     * available. This should only be called if the display supports Auto Low
+     * Latency Mode as reported in #getDynamicDisplayInfo.
      * For more information, see the HDMI 2.1 specification.
      */
     virtual void setAutoLowLatencyMode(const sp<IBinder>& display, bool on) = 0;
 
     /**
-     * Returns true if the connected display reports support for Game Content Type.
-     * For more information, see the HDMI 1.4 specification.
-     */
-    virtual status_t getGameContentTypeSupport(const sp<IBinder>& display,
-                                               bool* outSupport) const = 0;
-
-    /**
      * This will start sending infoframes to the connected display with
-     * ContentType=Game (if on=true). This will switch the disply to Game mode.
-     * This should only be called if #getGameContentTypeSupport returns true.
+     * ContentType=Game (if on=true). This should only be called if the display
+     * Game Content Type as reported in #getDynamicDisplayInfo.
      * For more information, see the HDMI 1.4 specification.
      */
     virtual void setGameContentType(const sp<IBinder>& display, bool on) = 0;
@@ -563,9 +548,9 @@ public:
         CAPTURE_DISPLAY_BY_ID,
         NOTIFY_POWER_BOOST,
         SET_GLOBAL_SHADOW_SETTINGS,
-        GET_AUTO_LOW_LATENCY_MODE_SUPPORT,
+        GET_AUTO_LOW_LATENCY_MODE_SUPPORT, // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
         SET_AUTO_LOW_LATENCY_MODE,
-        GET_GAME_CONTENT_TYPE_SUPPORT,
+        GET_GAME_CONTENT_TYPE_SUPPORT, // Deprecated. Use GET_DYNAMIC_DISPLAY_INFO instead.
         SET_GAME_CONTENT_TYPE,
         SET_FRAME_RATE,
         ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN,

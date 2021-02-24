@@ -170,7 +170,8 @@ InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
         mHasButtonUnderPad(other.mHasButtonUnderPad),
         mHasSensor(other.mHasSensor),
         mMotionRanges(other.mMotionRanges),
-        mSensors(other.mSensors) {}
+        mSensors(other.mSensors),
+        mLights(other.mLights) {}
 
 InputDeviceInfo::~InputDeviceInfo() {
 }
@@ -193,6 +194,7 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
     mHasSensor = false;
     mMotionRanges.clear();
     mSensors.clear();
+    mLights.clear();
 }
 
 const InputDeviceInfo::MotionRange* InputDeviceInfo::getMotionRange(
@@ -229,6 +231,13 @@ void InputDeviceInfo::addSensorInfo(const InputDeviceSensorInfo& info) {
     mSensors.insert_or_assign(info.type, info);
 }
 
+void InputDeviceInfo::addLightInfo(const InputDeviceLightInfo& info) {
+    if (mLights.find(info.id) != mLights.end()) {
+        ALOGW("Light id %d already exists, will be replaced by new light added.", info.id);
+    }
+    mLights.insert_or_assign(info.id, info);
+}
+
 const std::vector<InputDeviceSensorType> InputDeviceInfo::getSensorTypes() {
     std::vector<InputDeviceSensorType> types;
     for (const auto& [type, info] : mSensors) {
@@ -240,6 +249,22 @@ const std::vector<InputDeviceSensorType> InputDeviceInfo::getSensorTypes() {
 const InputDeviceSensorInfo* InputDeviceInfo::getSensorInfo(InputDeviceSensorType type) {
     auto it = mSensors.find(type);
     if (it == mSensors.end()) {
+        return nullptr;
+    }
+    return &it->second;
+}
+
+const std::vector<int32_t> InputDeviceInfo::getLightIds() {
+    std::vector<int32_t> ids;
+    for (const auto& [id, info] : mLights) {
+        ids.push_back(id);
+    }
+    return ids;
+}
+
+const InputDeviceLightInfo* InputDeviceInfo::getLightInfo(int32_t id) {
+    auto it = mLights.find(id);
+    if (it == mLights.end()) {
         return nullptr;
     }
     return &it->second;
