@@ -2059,7 +2059,7 @@ static void DumpstateWifiOnly() {
 }
 
 Dumpstate::RunStatus Dumpstate::DumpTraces(const char** path) {
-    const std::string temp_file_pattern = "/data/anr/dumptrace_XXXXXX";
+    const std::string temp_file_pattern = ds.bugreport_internal_dir_ + "/dumptrace_XXXXXX";
     const size_t buf_size = temp_file_pattern.length() + 1;
     std::unique_ptr<char[]> file_name_buf(new char[buf_size]);
     memcpy(file_name_buf.get(), temp_file_pattern.c_str(), buf_size);
@@ -3066,6 +3066,9 @@ void Dumpstate::CleanupTmpFiles() {
     android::os::UnlinkAndLogOnError(tmp_path_);
     android::os::UnlinkAndLogOnError(screenshot_path_);
     android::os::UnlinkAndLogOnError(path_);
+    if (dump_traces_path != nullptr) {
+        android::os::UnlinkAndLogOnError(dump_traces_path);
+    }
 }
 
 void Dumpstate::EnableParallelRunIfNeeded() {
