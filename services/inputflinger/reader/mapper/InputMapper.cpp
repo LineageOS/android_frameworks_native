@@ -68,7 +68,7 @@ std::vector<int32_t> InputMapper::getVibratorIds() {
     return {};
 }
 
-void InputMapper::cancelTouch(nsecs_t when) {}
+void InputMapper::cancelTouch(nsecs_t when, nsecs_t readTime) {}
 
 bool InputMapper::enableSensor(InputDeviceSensorType sensorType,
                                std::chrono::microseconds samplingPeriod,
