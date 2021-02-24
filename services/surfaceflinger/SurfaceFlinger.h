@@ -1036,6 +1036,10 @@ private:
     // either AID_GRAPHICS or AID_SYSTEM.
     status_t CheckTransactCodeCredentials(uint32_t code);
 
+    // Add transaction to the Transaction Queue
+    void queueTransaction(TransactionState state) EXCLUDES(mQueueLock);
+    void waitForSynchronousTransaction(bool synchronous, bool syncInput) EXCLUDES(mStateLock);
+
     /*
      * Generic Layer Metadata
      */
