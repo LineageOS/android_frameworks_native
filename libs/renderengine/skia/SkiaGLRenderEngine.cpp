@@ -454,11 +454,6 @@ static bool needsToneMapping(ui::Dataspace sourceDataspace, ui::Dataspace destin
             sourceTransfer != destTransfer;
 }
 
-static bool needsLinearEffect(const mat4& colorTransform, ui::Dataspace sourceDataspace,
-                              ui::Dataspace destinationDataspace) {
-    return colorTransform != mat4() || needsToneMapping(sourceDataspace, destinationDataspace);
-}
-
 void SkiaGLRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
     // Only run this if RE is running on its own thread. This way the access to GL
     // operations is guaranteed to be happening on the same thread.
@@ -491,14 +486,19 @@ void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
 sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> shader,
                                                               const LayerSettings* layer,
                                                               const DisplaySettings& display,
-                                                              bool undoPremultipliedAlpha) {
+                                                              bool undoPremultipliedAlpha,
+                                                              bool requiresLinearEffect) {
     if (layer->stretchEffect.hasEffect()) {
         // TODO: Implement
     }
-    if (mUseColorManagement &&
-        needsLinearEffect(layer->colorTransform, layer->sourceDataspace, display.outputDataspace)) {
-        LinearEffect effect = LinearEffect{.inputDataspace = layer->sourceDataspace,
-                                           .outputDataspace = display.outputDataspace,
+    if (requiresLinearEffect) {
+        const ui::Dataspace inputDataspace =
+                mUseColorManagement ? layer->sourceDataspace : ui::Dataspace::UNKNOWN;
+        const ui::Dataspace outputDataspace =
+                mUseColorManagement ? display.outputDataspace : ui::Dataspace::UNKNOWN;
+
+        LinearEffect effect = LinearEffect{.inputDataspace = inputDataspace,
+                                           .outputDataspace = outputDataspace,
                                            .undoPremultipliedAlpha = undoPremultipliedAlpha};
 
         auto effectIter = mRuntimeEffects.find(effect);
@@ -556,6 +556,26 @@ void SkiaGLRenderEngine::initCanvas(SkCanvas* canvas, const DisplaySettings& dis
     canvas->translate(-display.clip.left, -display.clip.top);
 }
 
+class AutoSaveRestore {
+public:
+    AutoSaveRestore(SkCanvas* canvas) : mCanvas(canvas) { mSaveCount = canvas->save(); }
+    ~AutoSaveRestore() { restore(); }
+    void replace(SkCanvas* canvas) {
+        mCanvas = canvas;
+        mSaveCount = canvas->save();
+    }
+    void restore() {
+        if (mCanvas) {
+            mCanvas->restoreToCount(mSaveCount);
+            mCanvas = nullptr;
+        }
+    }
+
+private:
+    SkCanvas* mCanvas;
+    int mSaveCount;
+};
+
 status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                         const std::vector<const LayerSettings*>& layers,
                                         const sp<GraphicBuffer>& buffer,
@@ -610,11 +630,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         }
     }
 
+    const ui::Dataspace dstDataspace =
+            mUseColorManagement ? display.outputDataspace : ui::Dataspace::UNKNOWN;
     sk_sp<SkSurface> dstSurface =
-            surfaceTextureRef->getTexture()->getOrCreateSurface(mUseColorManagement
-                                                                        ? display.outputDataspace
-                                                                        : ui::Dataspace::UNKNOWN,
-                                                                grContext.get());
+            surfaceTextureRef->getTexture()->getOrCreateSurface(dstDataspace, grContext.get());
 
     SkCanvas* dstCanvas = mCapture->tryCapture(dstSurface.get());
     if (dstCanvas == nullptr) {
@@ -650,7 +669,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         }
     }
 
-    canvas->save();
+    AutoSaveRestore surfaceAutoSaveRestore(canvas);
     // Clear the entire canvas with a transparent black to prevent ghost images.
     canvas->clear(SK_ColorTRANSPARENT);
     initCanvas(canvas, display);
@@ -671,11 +690,16 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         SkPaint paint;
         sk_sp<SkShader> shader =
                 SkShaders::Color(SkColor4f{.fR = 0., .fG = 0., .fB = 0., .fA = 1.0},
-                                 toSkColorSpace(mUseColorManagement ? display.outputDataspace
-                                                                    : ui::Dataspace::UNKNOWN));
+                                 toSkColorSpace(dstDataspace));
         paint.setShader(shader);
         clearRegion.setRects(skRects, numRects);
         canvas->drawRegion(clearRegion, paint);
+    }
+
+    // setup color filter if necessary
+    sk_sp<SkColorFilter> displayColorTransform;
+    if (display.colorTransform != mat4()) {
+        displayColorTransform = SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform));
     }
 
     for (const auto& layer : layers) {
@@ -705,7 +729,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
             // assign dstCanvas to canvas and ensure that the canvas state is up to date
             canvas = dstCanvas;
-            canvas->save();
+            surfaceAutoSaveRestore.replace(canvas);
             initCanvas(canvas, display);
 
             LOG_ALWAYS_FATAL_IF(activeSurface->getCanvas()->getSaveCount() !=
@@ -717,7 +741,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             activeSurface = dstSurface;
         }
 
-        canvas->save();
+        SkAutoCanvasRestore layerAutoSaveRestore(canvas, true);
         if (CC_UNLIKELY(mCapture->isCaptureRunning())) {
             // Record the name of the layer if the capture is running.
             std::stringstream layerSettings;
@@ -765,15 +789,34 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             }
         }
 
-        const ui::Dataspace targetDataspace = mUseColorManagement
-                ? (needsLinearEffect(layer->colorTransform, layer->sourceDataspace,
-                                     display.outputDataspace)
-                           // If we need to map to linear space, then mark the source image with the
-                           // same colorspace as the destination surface so that Skia's color
-                           // management is a no-op.
-                           ? display.outputDataspace
-                           : layer->sourceDataspace)
-                : ui::Dataspace::UNKNOWN;
+        // Shadows are assumed to live only on their own layer - it's not valid
+        // to draw the boundary rectangles when there is already a caster shadow
+        // TODO(b/175915334): consider relaxing this restriction to enable more flexible
+        // composition - using a well-defined invalid color is long-term less error-prone.
+        if (layer->shadow.length > 0) {
+            const auto rect = layer->geometry.roundedCornersRadius > 0
+                    ? getSkRect(layer->geometry.roundedCornersCrop)
+                    : bounds;
+            drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
+            continue;
+        }
+
+        const bool requiresLinearEffect = layer->colorTransform != mat4() ||
+                (mUseColorManagement &&
+                 needsToneMapping(layer->sourceDataspace, display.outputDataspace));
+
+        // quick abort from drawing the remaining portion of the layer
+        if (layer->alpha == 0 && !requiresLinearEffect &&
+            (!displayColorTransform || displayColorTransform->isAlphaUnchanged())) {
+            continue;
+        }
+
+        // If we need to map to linear space or color management is disabled, then mark the source
+        // image with the same colorspace as the destination surface so that Skia's color
+        // management is a no-op.
+        const ui::Dataspace layerDataspace = (!mUseColorManagement || requiresLinearEffect)
+                ? dstDataspace
+                : layer->sourceDataspace;
 
         SkPaint paint;
         if (layer->source.buffer.buffer) {
@@ -792,7 +835,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             }
 
             sk_sp<SkImage> image =
-                    imageTextureRef->getTexture()->makeImage(targetDataspace,
+                    imageTextureRef->getTexture()->makeImage(layerDataspace,
                                                              item.usePremultipliedAlpha
                                                                      ? kPremul_SkAlphaType
                                                                      : kUnpremul_SkAlphaType,
@@ -848,12 +891,12 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             if (item.isOpaque) {
                 shader = SkShaders::Blend(SkBlendMode::kPlus, shader,
                                           SkShaders::Color(SkColors::kBlack,
-                                                           toSkColorSpace(targetDataspace)));
+                                                           toSkColorSpace(layerDataspace)));
             }
 
-            paint.setShader(
-                    createRuntimeEffectShader(shader, layer, display,
-                                              !item.isOpaque && item.usePremultipliedAlpha));
+            paint.setShader(createRuntimeEffectShader(shader, layer, display,
+                                                      !item.isOpaque && item.usePremultipliedAlpha,
+                                                      requiresLinearEffect));
             paint.setAlphaf(layer->alpha);
         } else {
             ATRACE_NAME("DrawColor");
@@ -862,35 +905,22 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                                 .fG = color.g,
                                                                 .fB = color.b,
                                                                 .fA = layer->alpha},
-                                                      toSkColorSpace(targetDataspace));
+                                                      toSkColorSpace(layerDataspace));
             paint.setShader(createRuntimeEffectShader(shader, layer, display,
-                                                      /* undoPremultipliedAlpha */ false));
+                                                      /* undoPremultipliedAlpha */ false,
+                                                      requiresLinearEffect));
         }
 
-        sk_sp<SkColorFilter> filter =
-                SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform));
+        paint.setColorFilter(displayColorTransform);
 
-        paint.setColorFilter(filter);
-
-        if (layer->shadow.length > 0) {
-            const auto rect = layer->geometry.roundedCornersRadius > 0
-                    ? getSkRect(layer->geometry.roundedCornersCrop)
-                    : bounds;
-            drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
+        if (layer->geometry.roundedCornersRadius > 0) {
+            paint.setAntiAlias(true);
+            canvas->drawRRect(getRoundedRect(layer), paint);
         } else {
-            // Shadows are assumed to live only on their own layer - it's not valid
-            // to draw the boundary retangles when there is already a caster shadow
-            // TODO(b/175915334): consider relaxing this restriction to enable more flexible
-            // composition - using a well-defined invalid color is long-term less error-prone.
-            // Push the clipRRect onto the clip stack. Draw the image. Pop the clip.
-            if (layer->geometry.roundedCornersRadius > 0) {
-                canvas->clipRRect(getRoundedRect(layer), true);
-            }
             canvas->drawRect(bounds, paint);
         }
-        canvas->restore();
     }
-    canvas->restore();
+    surfaceAutoSaveRestore.restore();
     mCapture->endCapture();
     {
         ATRACE_NAME("flush surface");
