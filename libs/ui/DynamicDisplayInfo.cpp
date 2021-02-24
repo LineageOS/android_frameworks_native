@@ -39,7 +39,9 @@ size_t DynamicDisplayInfo::getFlattenedSize() const {
             FlattenableHelpers::getFlattenedSize(activeDisplayModeId) +
             FlattenableHelpers::getFlattenedSize(supportedColorModes) +
             FlattenableHelpers::getFlattenedSize(activeColorMode) +
-            FlattenableHelpers::getFlattenedSize(hdrCapabilities);
+            FlattenableHelpers::getFlattenedSize(hdrCapabilities) +
+            FlattenableHelpers::getFlattenedSize(autoLowLatencyModeSupported) +
+            FlattenableHelpers::getFlattenedSize(gameContentTypeSupported);
 }
 
 status_t DynamicDisplayInfo::flatten(void* buffer, size_t size) const {
@@ -51,6 +53,8 @@ status_t DynamicDisplayInfo::flatten(void* buffer, size_t size) const {
     RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, supportedColorModes));
     RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, activeColorMode));
     RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, hdrCapabilities));
+    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, autoLowLatencyModeSupported));
+    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, gameContentTypeSupported));
     return OK;
 }
 
@@ -60,6 +64,8 @@ status_t DynamicDisplayInfo::unflatten(const void* buffer, size_t size) {
     RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &supportedColorModes));
     RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &activeColorMode));
     RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &hdrCapabilities));
+    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &autoLowLatencyModeSupported));
+    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &gameContentTypeSupported));
     return OK;
 }
 

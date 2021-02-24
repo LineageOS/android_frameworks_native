@@ -94,4 +94,13 @@ TEST_F(HalfTest, Vec) {
     EXPECT_EQ(f4.xy, h2);
 }
 
+
+TEST_F(HalfTest, Hash) {
+    float4 f4a(1,2,3,4);
+    float4 f4b(2,2,3,4);
+    half4 h4a(f4a), h4b(f4b);
+
+    EXPECT_NE(std::hash<half4>{}(h4a), std::hash<half4>{}(h4b));
+}
+
 }; // namespace android

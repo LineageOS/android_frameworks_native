@@ -100,6 +100,13 @@ enum class InputDeviceSensorReportingMode : int32_t {
     SPECIAL_TRIGGER = 3,
 };
 
+enum class InputDeviceLightType : int32_t {
+    SINGLE = 0,
+    PLAYER_ID = 1,
+    RGB = 2,
+    MULTI_COLOR = 3,
+};
+
 struct InputDeviceSensorInfo {
     explicit InputDeviceSensorInfo(std::string name, std::string vendor, int32_t version,
                                    InputDeviceSensorType type, InputDeviceSensorAccuracy accuracy,
@@ -156,6 +163,20 @@ struct InputDeviceSensorInfo {
     int32_t id;
 };
 
+struct InputDeviceLightInfo {
+    explicit InputDeviceLightInfo(std::string name, int32_t id, InputDeviceLightType type,
+                                  int32_t ordinal)
+          : name(name), id(id), type(type), ordinal(ordinal) {}
+    // Name string of the light.
+    std::string name;
+    // Light id
+    int32_t id;
+    // Type of the light.
+    InputDeviceLightType type;
+    // Ordinal of the light
+    int32_t ordinal;
+};
+
 /*
  * Describes the characteristics and capabilities of an input device.
  */
@@ -198,6 +219,7 @@ public:
             float min, float max, float flat, float fuzz, float resolution);
     void addMotionRange(const MotionRange& range);
     void addSensorInfo(const InputDeviceSensorInfo& info);
+    void addLightInfo(const InputDeviceLightInfo& info);
 
     inline void setKeyboardType(int32_t keyboardType) { mKeyboardType = keyboardType; }
     inline int32_t getKeyboardType() const { return mKeyboardType; }
@@ -230,6 +252,10 @@ public:
 
     const std::vector<InputDeviceSensorType> getSensorTypes();
 
+    const std::vector<int32_t> getLightIds();
+
+    const InputDeviceLightInfo* getLightInfo(int32_t id);
+
 private:
     int32_t mId;
     int32_t mGeneration;
@@ -248,6 +274,8 @@ private:
 
     std::vector<MotionRange> mMotionRanges;
     std::unordered_map<InputDeviceSensorType, InputDeviceSensorInfo> mSensors;
+    /* Map from light ID to light info */
+    std::unordered_map<int32_t, InputDeviceLightInfo> mLights;
 };
 
 /* Types of input device configuration files. */
