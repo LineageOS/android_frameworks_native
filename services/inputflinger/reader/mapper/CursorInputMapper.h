@@ -114,7 +114,7 @@ private:
     void configureParameters();
     void dumpParameters(std::string& dump);
 
-    void sync(nsecs_t when);
+    void sync(nsecs_t when, nsecs_t readTime);
 };
 
 } // namespace android
