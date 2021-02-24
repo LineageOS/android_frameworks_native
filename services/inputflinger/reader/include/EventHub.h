@@ -47,6 +47,8 @@
 
 namespace android {
 
+/* Number of colors : {red, green, blue} */
+static constexpr size_t COLOR_NUM = 3;
 /*
  * A raw event as retrieved from the EventHub.
  */
@@ -127,11 +129,54 @@ enum class InputDeviceClass : uint32_t {
     /* The input device has a battery */
     BATTERY = 0x00004000,
 
+    /* The input device has sysfs controllable lights */
+    LIGHT = 0x00008000,
+
     /* The input device is virtual (not a real device, not part of UI configuration). */
     VIRTUAL = 0x40000000,
 
     /* The input device is external (not built-in). */
     EXTERNAL = 0x80000000,
+};
+
+enum class SysfsClass : uint32_t {
+    POWER_SUPPLY = 0,
+    LEDS = 1,
+};
+
+enum class LightColor : uint32_t {
+    RED = 0,
+    GREEN = 1,
+    BLUE = 2,
+};
+
+enum class InputLightClass : uint32_t {
+    /* The input light has brightness node. */
+    BRIGHTNESS = 0x00000001,
+    /* The input light has red name. */
+    RED = 0x00000002,
+    /* The input light has green name. */
+    GREEN = 0x00000004,
+    /* The input light has blue name. */
+    BLUE = 0x00000008,
+    /* The input light has global name. */
+    GLOBAL = 0x00000010,
+    /* The input light has multi index node. */
+    MULTI_INDEX = 0x00000020,
+    /* The input light has multi intensity node. */
+    MULTI_INTENSITY = 0x00000040,
+    /* The input light has max brightness node. */
+    MAX_BRIGHTNESS = 0x00000080,
+};
+
+/* Describes a raw light. */
+struct RawLightInfo {
+    int32_t id;
+    std::string name;
+    std::optional<int32_t> maxBrightness;
+    Flags<InputLightClass> flags;
+    std::array<int32_t, COLOR_NUM> rgbIndex;
+    std::filesystem::path path;
 };
 
 /*
@@ -214,7 +259,16 @@ public:
     virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) = 0;
     virtual base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(int32_t deviceId,
                                                                               int32_t absCode) = 0;
-
+    // Raw lights are sysfs led light nodes we found from the EventHub device sysfs node,
+    // containing the raw info of the sysfs node structure.
+    virtual const std::vector<int32_t> getRawLightIds(int32_t deviceId) = 0;
+    virtual std::optional<RawLightInfo> getRawLightInfo(int32_t deviceId, int32_t lightId) = 0;
+    virtual std::optional<int32_t> getLightBrightness(int32_t deviceId, int32_t lightId) = 0;
+    virtual void setLightBrightness(int32_t deviceId, int32_t lightId, int32_t brightness) = 0;
+    virtual std::optional<std::unordered_map<LightColor, int32_t>> getLightIntensities(
+            int32_t deviceId, int32_t lightId) = 0;
+    virtual void setLightIntensities(int32_t deviceId, int32_t lightId,
+                                     std::unordered_map<LightColor, int32_t> intensities) = 0;
     /*
      * Query current input state.
      */
@@ -377,6 +431,17 @@ public:
     base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(
             int32_t deviceId, int32_t absCode) override final;
 
+    const std::vector<int32_t> getRawLightIds(int32_t deviceId) override final;
+
+    std::optional<RawLightInfo> getRawLightInfo(int32_t deviceId, int32_t lightId) override final;
+
+    std::optional<int32_t> getLightBrightness(int32_t deviceId, int32_t lightId) override final;
+    void setLightBrightness(int32_t deviceId, int32_t lightId, int32_t brightness) override final;
+    std::optional<std::unordered_map<LightColor, int32_t>> getLightIntensities(
+            int32_t deviceId, int32_t lightId) override final;
+    void setLightIntensities(int32_t deviceId, int32_t lightId,
+                             std::unordered_map<LightColor, int32_t> intensities) override final;
+
     void setExcludedDevices(const std::vector<std::string>& devices) override final;
 
     int32_t getScanCodeState(int32_t deviceId, int32_t scanCode) const override final;
@@ -458,9 +523,12 @@ private:
         bool ffEffectPlaying;
         int16_t ffEffectId; // initially -1
 
-        // The paths are invalid when .empty() returns true
-        std::filesystem::path sysfsRootPath;
-        std::filesystem::path sysfsBatteryPath;
+        // The paths are invalid when they're std::nullopt
+        std::optional<std::filesystem::path> sysfsRootPath;
+        std::optional<std::filesystem::path> sysfsBatteryPath;
+        // maps from light id to light info
+        std::unordered_map<int32_t, RawLightInfo> lightInfos;
+        int32_t nextLightId;
 
         int32_t controllerNumber;
 
@@ -491,6 +559,8 @@ private:
         void setLedForControllerLocked();
         status_t mapLed(int32_t led, int32_t* outScanCode) const;
         void setLedStateLocked(int32_t led, bool on);
+        bool configureBatteryLocked();
+        bool configureLightsLocked();
     };
 
     status_t openDeviceLocked(const std::string& devicePath);

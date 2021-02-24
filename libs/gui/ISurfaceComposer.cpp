@@ -411,24 +411,6 @@ public:
         return static_cast<status_t>(reply.readInt32());
     }
 
-    status_t getAutoLowLatencyModeSupport(const sp<IBinder>& display,
-                                          bool* outSupport) const override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        status_t result = data.writeStrongBinder(display);
-        if (result != NO_ERROR) {
-            ALOGE("getAutoLowLatencyModeSupport failed to writeStrongBinder: %d", result);
-            return result;
-        }
-        result = remote()->transact(BnSurfaceComposer::GET_AUTO_LOW_LATENCY_MODE_SUPPORT, data,
-                                    &reply);
-        if (result != NO_ERROR) {
-            ALOGE("getAutoLowLatencyModeSupport failed to transact: %d", result);
-            return result;
-        }
-        return reply.readBool(outSupport);
-    }
-
     void setAutoLowLatencyMode(const sp<IBinder>& display, bool on) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -452,23 +434,6 @@ public:
             ALOGE("setAutoLowLatencyMode failed to transact: %d", result);
             return;
         }
-    }
-
-    status_t getGameContentTypeSupport(const sp<IBinder>& display,
-                                       bool* outSupport) const override {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        status_t result = data.writeStrongBinder(display);
-        if (result != NO_ERROR) {
-            ALOGE("getGameContentTypeSupport failed to writeStrongBinder: %d", result);
-            return result;
-        }
-        result = remote()->transact(BnSurfaceComposer::GET_GAME_CONTENT_TYPE_SUPPORT, data, &reply);
-        if (result != NO_ERROR) {
-            ALOGE("getGameContentTypeSupport failed to transact: %d", result);
-            return result;
-        }
-        return reply.readBool(outSupport);
     }
 
     void setGameContentType(const sp<IBinder>& display, bool on) override {
@@ -1423,23 +1388,6 @@ status_t BnSurfaceComposer::onTransact(
             result = reply->writeInt32(result);
             return result;
         }
-
-        case GET_AUTO_LOW_LATENCY_MODE_SUPPORT: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = nullptr;
-            status_t result = data.readStrongBinder(&display);
-            if (result != NO_ERROR) {
-                ALOGE("getAutoLowLatencyModeSupport failed to readStrongBinder: %d", result);
-                return result;
-            }
-            bool supported = false;
-            result = getAutoLowLatencyModeSupport(display, &supported);
-            if (result == NO_ERROR) {
-                result = reply->writeBool(supported);
-            }
-            return result;
-        }
-
         case SET_AUTO_LOW_LATENCY_MODE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> display = nullptr;
@@ -1457,23 +1405,6 @@ status_t BnSurfaceComposer::onTransact(
             setAutoLowLatencyMode(display, setAllm);
             return result;
         }
-
-        case GET_GAME_CONTENT_TYPE_SUPPORT: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> display = nullptr;
-            status_t result = data.readStrongBinder(&display);
-            if (result != NO_ERROR) {
-                ALOGE("getGameContentTypeSupport failed to readStrongBinder: %d", result);
-                return result;
-            }
-            bool supported = false;
-            result = getGameContentTypeSupport(display, &supported);
-            if (result == NO_ERROR) {
-                result = reply->writeBool(supported);
-            }
-            return result;
-        }
-
         case SET_GAME_CONTENT_TYPE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> display = nullptr;
@@ -1491,7 +1422,6 @@ status_t BnSurfaceComposer::onTransact(
             setGameContentType(display, setGameContentTypeOn);
             return result;
         }
-
         case CLEAR_ANIMATION_FRAME_STATS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             status_t result = clearAnimationFrameStats();

@@ -24,7 +24,7 @@ BatteryInputMapper::BatteryInputMapper(InputDeviceContext& deviceContext)
       : InputMapper(deviceContext) {}
 
 uint32_t BatteryInputMapper::getSources() {
-    return 0;
+    return AINPUT_SOURCE_UNKNOWN;
 }
 
 void BatteryInputMapper::populateDeviceInfo(InputDeviceInfo* info) {

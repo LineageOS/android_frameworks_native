@@ -246,6 +246,8 @@ public:
 
     void resetScheduler(Scheduler* scheduler) { mFlinger->mScheduler.reset(scheduler); }
 
+    TestableScheduler& mutableScheduler() const { return *mScheduler; }
+
     using CreateBufferQueueFunction = surfaceflinger::test::Factory::CreateBufferQueueFunction;
     void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {
         mFactory.mCreateBufferQueue = f;
