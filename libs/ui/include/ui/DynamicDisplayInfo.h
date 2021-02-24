@@ -41,6 +41,14 @@ struct DynamicDisplayInfo : LightFlattenable<DynamicDisplayInfo> {
     ui::ColorMode activeColorMode;
     HdrCapabilities hdrCapabilities;
 
+    // True if the display reports support for HDMI 2.1 Auto Low Latency Mode.
+    // For more information, see the HDMI 2.1 specification.
+    bool autoLowLatencyModeSupported;
+
+    // True if the display reports support for Game Content Type.
+    // For more information, see the HDMI 1.4 specification.
+    bool gameContentTypeSupported;
+
     std::optional<ui::DisplayMode> getActiveDisplayMode() const;
 
     bool isFixedSize() const { return false; }

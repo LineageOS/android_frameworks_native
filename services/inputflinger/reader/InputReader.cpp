@@ -696,6 +696,70 @@ std::optional<int32_t> InputReader::getBatteryStatus(int32_t deviceId) {
     return std::nullopt;
 }
 
+std::vector<int32_t> InputReader::getLightIds(int32_t deviceId) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        InputDeviceInfo info;
+        device->getDeviceInfo(&info);
+        return info.getLightIds();
+    }
+    return {};
+}
+
+const InputDeviceLightInfo* InputReader::getLightInfo(int32_t deviceId, int32_t lightId) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        InputDeviceInfo info;
+        device->getDeviceInfo(&info);
+        return info.getLightInfo(lightId);
+    }
+    return nullptr;
+}
+
+bool InputReader::setLightColor(int32_t deviceId, int32_t lightId, int32_t color) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        return device->setLightColor(lightId, color);
+    }
+    return false;
+}
+
+bool InputReader::setLightPlayerId(int32_t deviceId, int32_t lightId, int32_t playerId) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        return device->setLightPlayerId(lightId, playerId);
+    }
+    return false;
+}
+
+std::optional<int32_t> InputReader::getLightColor(int32_t deviceId, int32_t lightId) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        return device->getLightColor(lightId);
+    }
+    return std::nullopt;
+}
+
+std::optional<int32_t> InputReader::getLightPlayerId(int32_t deviceId, int32_t lightId) {
+    std::scoped_lock _l(mLock);
+
+    InputDevice* device = findInputDeviceLocked(deviceId);
+    if (device) {
+        return device->getLightPlayerId(lightId);
+    }
+    return std::nullopt;
+}
+
 bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
     std::scoped_lock _l(mLock);
 

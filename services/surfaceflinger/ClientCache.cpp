@@ -25,6 +25,8 @@
 
 namespace android {
 
+using base::StringAppendF;
+
 ANDROID_SINGLETON_STATIC_INSTANCE(ClientCache);
 
 ClientCache::ClientCache() : mDeathRecipient(new CacheDeathRecipient) {}
@@ -201,6 +203,20 @@ void ClientCache::removeProcess(const wp<IBinder>& processToken) {
 
 void ClientCache::CacheDeathRecipient::binderDied(const wp<IBinder>& who) {
     ClientCache::getInstance().removeProcess(who);
+}
+
+void ClientCache::dump(std::string& result) {
+    std::lock_guard lock(mMutex);
+    for (auto i : mBuffers) {
+        const sp<IBinder>& cacheOwner = i.second.first;
+        StringAppendF(&result," Cache owner: %p\n", cacheOwner.get());
+        auto &buffers = i.second.second;
+        for (auto& [id, clientCacheBuffer] : buffers) {
+            StringAppendF(&result, "\t ID: %d, Width/Height: %d,%d\n", (int)id,
+                          (int)clientCacheBuffer.buffer->getWidth(),
+                          (int)clientCacheBuffer.buffer->getHeight());
+        }
+    }
 }
 
 }; // namespace android

@@ -53,6 +53,8 @@ public:
     void unregisterErasedRecipient(const client_cache_t& cacheId,
                                    const wp<ErasedRecipient>& recipient);
 
+    void dump(std::string& result);
+
 private:
     std::mutex mMutex;
 

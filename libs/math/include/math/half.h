@@ -17,6 +17,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <functional>
 #include <iosfwd>
 #include <limits>
 #include <type_traits>
@@ -200,6 +201,12 @@ public:
     inline static constexpr type quiet_NaN() noexcept { return android::half(android::half::binary, 0x7fff); }
     inline static constexpr type denorm_min() noexcept { return android::half(android::half::binary, 0x0001); }
     inline static constexpr type signaling_NaN() noexcept { return android::half(android::half::binary, 0x7dff); }
+};
+
+template<> struct hash<android::half> {
+    size_t operator()(const android::half& half) {
+        return std::hash<float>{}(half);
+    }
 };
 
 } // namespace std
