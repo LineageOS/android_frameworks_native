@@ -404,10 +404,6 @@ bool SkiaGLRenderEngine::waitFence(base::unique_fd fenceFd) {
     return true;
 }
 
-static bool hasUsage(const AHardwareBuffer_Desc& desc, uint64_t usage) {
-    return !!(desc.usage & usage);
-}
-
 static float toDegrees(uint32_t transform) {
     switch (transform) {
         case ui::Transform::ROT_90:
@@ -586,8 +582,6 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     auto& cache = mInProtectedContext ? mProtectedTextureCache : mTextureCache;
     AHardwareBuffer_Desc bufferDesc;
     AHardwareBuffer_describe(buffer->toAHardwareBuffer(), &bufferDesc);
-    LOG_ALWAYS_FATAL_IF(!hasUsage(bufferDesc, AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE),
-                        "missing usage");
 
     std::shared_ptr<AutoBackendTexture::LocalRef> surfaceTextureRef = nullptr;
     if (useFramebufferCache) {
