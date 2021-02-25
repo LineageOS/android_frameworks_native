@@ -45,6 +45,10 @@ props {
     prop_name: "ro.surface_flinger.enable_frame_rate_override"
   }
   prop {
+    api_name: "enable_layer_caching"
+    prop_name: "ro.surface_flinger.enable_layer_caching"
+  }
+  prop {
     api_name: "enable_protected_contents"
     prop_name: "ro.surface_flinger.protected_contents"
   }
