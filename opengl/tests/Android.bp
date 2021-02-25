@@ -1,16 +1,4 @@
 
-package {
-    // See: http://go/android-license-faq
-    // A large-scale-change added 'default_applicable_licenses' to import
-    // all of the 'license_kinds' from "frameworks_native_license"
-    // to get the below license kinds:
-    //   SPDX-license-identifier-Apache-2.0
-    //   SPDX-license-identifier-BSD
-    //   SPDX-license-identifier-MIT
-    //   legacy_notice
-    default_applicable_licenses: ["frameworks_native_license"],
-}
-
 subdirs = [
     "angeles",
     "configdump",
@@ -28,3 +16,4 @@ subdirs = [
     "hwc",
     "lib",
 ]
+
