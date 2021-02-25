@@ -87,6 +87,10 @@ public:
 
     static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
 
+    RenderEngine() : RenderEngine(RenderEngineType::GLES) {}
+
+    RenderEngine(RenderEngineType type) : mRenderEngineType(type) {}
+
     virtual ~RenderEngine() = 0;
 
     // ----- BEGIN DEPRECATED INTERFACE -----
@@ -192,8 +196,14 @@ public:
     // also supports background blur.  If false, no blur will be applied when drawing layers.
     virtual bool supportsBackgroundBlur() = 0;
 
+    // Returns the current type of RenderEngine instance that was created.
+    // TODO(b/180767535): This is only implemented to allow for backend-specific behavior, which
+    // we should not allow in general, so remove this.
+    RenderEngineType getRenderEngineType() const { return mRenderEngineType; }
+
 protected:
     friend class threaded::RenderEngineThreaded;
+    const RenderEngineType mRenderEngineType;
 };
 
 struct RenderEngineCreationArgs {
