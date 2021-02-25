@@ -19,12 +19,15 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "FrameTimeline.h"
+
 #include <android-base/stringprintf.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
+
 #include <chrono>
 #include <cinttypes>
 #include <numeric>
+#include <unordered_set>
 
 namespace android::frametimeline {
 
@@ -277,8 +280,8 @@ int64_t TraceCookieCounter::getCookieForTracing() {
 }
 
 SurfaceFrame::SurfaceFrame(const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid,
-                           uid_t ownerUid, std::string layerName, std::string debugName,
-                           PredictionState predictionState,
+                           uid_t ownerUid, int32_t layerId, std::string layerName,
+                           std::string debugName, PredictionState predictionState,
                            frametimeline::TimelineItem&& predictions,
                            std::shared_ptr<TimeStats> timeStats,
                            JankClassificationThresholds thresholds,
@@ -289,6 +292,7 @@ SurfaceFrame::SurfaceFrame(const FrameTimelineInfo& frameTimelineInfo, pid_t own
         mOwnerUid(ownerUid),
         mLayerName(std::move(layerName)),
         mDebugName(std::move(debugName)),
+        mLayerId(layerId),
         mPresentState(PresentState::Unknown),
         mPredictionState(predictionState),
         mPredictions(predictions),
@@ -397,6 +401,8 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
     StringAppendF(&result, "Scheduled rendering rate: %d fps\n",
                   mRenderRate ? mRenderRate->getIntValue() : 0);
     StringAppendF(&result, "%s", indent.c_str());
+    StringAppendF(&result, "Layer ID : %d\n", mLayerId);
+    StringAppendF(&result, "%s", indent.c_str());
     StringAppendF(&result, "Present State : %s\n", toString(mPresentState).c_str());
     StringAppendF(&result, "%s", indent.c_str());
     if (mPresentState == PresentState::Dropped) {
@@ -458,7 +464,9 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, 
 
     const nsecs_t presentDelta = mActuals.presentTime - mPredictions.presentTime;
     const nsecs_t deadlineDelta = mActuals.endTime - mPredictions.endTime;
-    const nsecs_t deltaToVsync = std::abs(presentDelta) % refreshRate.getPeriodNsecs();
+    const nsecs_t deltaToVsync = refreshRate.getPeriodNsecs() > 0
+            ? std::abs(presentDelta) % refreshRate.getPeriodNsecs()
+            : 0;
 
     if (deadlineDelta > mJankClassificationThresholds.deadlineThreshold) {
         mFrameReadyMetadata = FrameReadyMetadata::LateFinish;
@@ -698,11 +706,11 @@ void FrameTimeline::registerDataSource() {
 }
 
 std::shared_ptr<SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
-        const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
+        const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid, int32_t layerId,
         std::string layerName, std::string debugName) {
     ATRACE_CALL();
     if (frameTimelineInfo.vsyncId == FrameTimelineInfo::INVALID_VSYNC_ID) {
-        return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid,
+        return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid, layerId,
                                               std::move(layerName), std::move(debugName),
                                               PredictionState::None, TimelineItem(), mTimeStats,
                                               mJankClassificationThresholds, &mTraceCookieCounter);
@@ -710,13 +718,13 @@ std::shared_ptr<SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
     std::optional<TimelineItem> predictions =
             mTokenManager.getPredictionsForToken(frameTimelineInfo.vsyncId);
     if (predictions) {
-        return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid,
+        return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid, layerId,
                                               std::move(layerName), std::move(debugName),
                                               PredictionState::Valid, std::move(*predictions),
                                               mTimeStats, mJankClassificationThresholds,
                                               &mTraceCookieCounter);
     }
-    return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid,
+    return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid, layerId,
                                           std::move(layerName), std::move(debugName),
                                           PredictionState::Expired, TimelineItem(), mTimeStats,
                                           mJankClassificationThresholds, &mTraceCookieCounter);
@@ -804,7 +812,9 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
 
     // How far off was the presentDelta when compared to the vsyncPeriod. Used in checking if there
     // was a prediction error or not.
-    nsecs_t deltaToVsync = std::abs(presentDelta) % mRefreshRate.getPeriodNsecs();
+    nsecs_t deltaToVsync = mRefreshRate.getPeriodNsecs() > 0
+            ? std::abs(presentDelta) % mRefreshRate.getPeriodNsecs()
+            : 0;
     if (std::abs(presentDelta) > mJankClassificationThresholds.presentThreshold) {
         mFramePresentMetadata = presentDelta > 0 ? FramePresentMetadata::LatePresent
                                                  : FramePresentMetadata::EarlyPresent;
@@ -966,6 +976,65 @@ void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid) const {
     for (auto& surfaceFrame : mSurfaceFrames) {
         surfaceFrame->trace(mToken);
     }
+}
+
+float FrameTimeline::computeFps(const std::unordered_set<int32_t>& layerIds) {
+    if (layerIds.empty()) {
+        return 0.0f;
+    }
+
+    std::vector<nsecs_t> presentTimes;
+    {
+        std::scoped_lock lock(mMutex);
+        presentTimes.reserve(mDisplayFrames.size());
+        for (size_t i = 0; i < mDisplayFrames.size(); i++) {
+            const auto& displayFrame = mDisplayFrames[i];
+            if (displayFrame->getActuals().presentTime <= 0) {
+                continue;
+            }
+            for (const auto& surfaceFrame : displayFrame->getSurfaceFrames()) {
+                if (surfaceFrame->getPresentState() == SurfaceFrame::PresentState::Presented &&
+                    layerIds.count(surfaceFrame->getLayerId()) > 0) {
+                    // We're looking for DisplayFrames that presents at least one layer from
+                    // layerIds, so push the present time and skip looking through the rest of the
+                    // SurfaceFrames.
+                    presentTimes.push_back(displayFrame->getActuals().presentTime);
+                    break;
+                }
+            }
+        }
+    }
+
+    // FPS can't be computed when there's fewer than 2 presented frames.
+    if (presentTimes.size() <= 1) {
+        return 0.0f;
+    }
+
+    nsecs_t priorPresentTime = -1;
+    nsecs_t totalPresentToPresentWalls = 0;
+
+    for (const nsecs_t presentTime : presentTimes) {
+        if (priorPresentTime == -1) {
+            priorPresentTime = presentTime;
+            continue;
+        }
+
+        totalPresentToPresentWalls += (presentTime - priorPresentTime);
+        priorPresentTime = presentTime;
+    }
+
+    if (CC_UNLIKELY(totalPresentToPresentWalls <= 0)) {
+        ALOGW("Invalid total present-to-present duration when computing fps: %" PRId64,
+              totalPresentToPresentWalls);
+        return 0.0f;
+    }
+
+    const constexpr nsecs_t kOneSecond =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
+    // (10^9 nanoseconds / second) * (N present deltas) / (total nanoseconds in N present deltas) =
+    // M frames / second
+    return kOneSecond * static_cast<nsecs_t>((presentTimes.size() - 1)) /
+            static_cast<float>(totalPresentToPresentWalls);
 }
 
 void FrameTimeline::flushPendingPresentFences() {
