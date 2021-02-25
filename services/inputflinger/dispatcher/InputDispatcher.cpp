@@ -1439,7 +1439,7 @@ void InputDispatcher::dispatchSensorLocked(nsecs_t currentTime, std::shared_ptr<
     ALOGD("notifySensorEvent eventTime=%" PRId64 ", hwTimestamp=%" PRId64 ", deviceId=%d, "
           "source=0x%x, sensorType=%s",
           entry->eventTime, entry->hwTimestamp, entry->deviceId, entry->source,
-          NamedEnum::string(sensorType).c_str());
+          NamedEnum::string(entry->sensorType).c_str());
 #endif
     std::unique_ptr<CommandEntry> commandEntry =
             std::make_unique<CommandEntry>(&InputDispatcher::doNotifySensorLockedInterruptible);
