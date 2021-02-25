@@ -380,5 +380,9 @@ bool enable_frame_rate_override(bool defaultValue) {
     return SurfaceFlingerProperties::enable_frame_rate_override().value_or(defaultValue);
 }
 
+bool enable_layer_caching(bool defaultValue) {
+    return SurfaceFlingerProperties::enable_layer_caching().value_or(defaultValue);
+}
+
 } // namespace sysprop
 } // namespace android
