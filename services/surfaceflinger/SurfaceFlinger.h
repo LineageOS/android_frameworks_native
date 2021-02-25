@@ -344,7 +344,8 @@ protected:
 
     virtual uint32_t setClientStateLocked(
             const FrameTimelineInfo& info, const ComposerState& composerState,
-            int64_t desiredPresentTime, bool isAutoTimestamp, int64_t postTime, bool privileged,
+            int64_t desiredPresentTime, bool isAutoTimestamp, int64_t postTime,
+            uint32_t permissions,
             std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks)
             REQUIRES(mStateLock);
     virtual void commitTransactionLocked();
@@ -441,7 +442,7 @@ private:
                          const sp<IBinder>& applyToken,
                          const InputWindowCommands& inputWindowCommands, int64_t desiredPresentTime,
                          bool isAutoTimestamp, const client_cache_t& uncacheBuffer,
-                         int64_t postTime, bool privileged, bool hasListenerCallbacks,
+                         int64_t postTime, uint32_t permissions, bool hasListenerCallbacks,
                          std::vector<ListenerCallbacks> listenerCallbacks, int originPid,
                          int originUid, uint64_t transactionId)
               : frameTimelineInfo(frameTimelineInfo),
@@ -454,7 +455,7 @@ private:
                 isAutoTimestamp(isAutoTimestamp),
                 buffer(uncacheBuffer),
                 postTime(postTime),
-                privileged(privileged),
+                permissions(permissions),
                 hasListenerCallbacks(hasListenerCallbacks),
                 listenerCallbacks(listenerCallbacks),
                 originPid(originPid),
@@ -471,7 +472,7 @@ private:
         const bool isAutoTimestamp;
         client_cache_t buffer;
         const int64_t postTime;
-        bool privileged;
+        uint32_t permissions;
         bool hasListenerCallbacks;
         std::vector<ListenerCallbacks> listenerCallbacks;
         int originPid;
@@ -736,7 +737,7 @@ private:
                                const InputWindowCommands& inputWindowCommands,
                                const int64_t desiredPresentTime, bool isAutoTimestamp,
                                const client_cache_t& uncacheBuffer, const int64_t postTime,
-                               bool privileged, bool hasListenerCallbacks,
+                               uint32_t permissions, bool hasListenerCallbacks,
                                const std::vector<ListenerCallbacks>& listenerCallbacks,
                                int originPid, int originUid, uint64_t transactionId)
             REQUIRES(mStateLock);

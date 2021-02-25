@@ -249,8 +249,9 @@ static NotifyMotionArgs generateMotionArgs() {
 
     const nsecs_t currentTime = now();
     // Define a valid motion event.
-    NotifyMotionArgs args(/* id */ 0, currentTime, DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN,
-                          ADISPLAY_ID_DEFAULT, POLICY_FLAG_PASS_TO_USER, AMOTION_EVENT_ACTION_DOWN,
+    NotifyMotionArgs args(/* id */ 0, currentTime, currentTime, DEVICE_ID,
+                          AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, POLICY_FLAG_PASS_TO_USER,
+                          AMOTION_EVENT_ACTION_DOWN,
                           /* actionButton */ 0, /* flags */ 0, AMETA_NONE, /* buttonState */ 0,
                           MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,
                           pointerProperties, pointerCoords,
