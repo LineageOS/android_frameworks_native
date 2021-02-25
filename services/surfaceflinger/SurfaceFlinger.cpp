@@ -4387,6 +4387,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
                 {"--list"s, dumper(&SurfaceFlinger::listLayersLocked)},
+                {"--planner"s, argsDumper(&SurfaceFlinger::dumpPlannerInfo)},
                 {"--static-screen"s, dumper(&SurfaceFlinger::dumpStaticScreenStats)},
                 {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
                 {"--vsync"s, dumper(&SurfaceFlinger::dumpVSync)},
@@ -4521,6 +4522,13 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
 
     mScheduler->dump(mAppConnectionHandle, result);
     mScheduler->dumpVsync(result);
+}
+
+void SurfaceFlinger::dumpPlannerInfo(const DumpArgs& args, std::string& result) const {
+    for (const auto& [token, display] : mDisplays) {
+        const auto compositionDisplay = display->getCompositionDisplay();
+        compositionDisplay->dumpPlannerInfo(args, result);
+    }
 }
 
 void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {

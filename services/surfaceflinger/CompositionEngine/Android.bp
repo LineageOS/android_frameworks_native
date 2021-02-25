@@ -20,6 +20,7 @@ cc_defaults {
         "liblog",
         "libnativewindow",
         "libprotobuf-cpp-lite",
+        "libSurfaceFlingerProp",
         "libtimestats",
         "libui",
         "libutils",
@@ -42,6 +43,8 @@ cc_library {
     name: "libcompositionengine",
     defaults: ["libcompositionengine_defaults"],
     srcs: [
+        "src/planner/LayerState.cpp",
+        "src/planner/Planner.cpp",
         "src/ClientCompositionRequestCache.cpp",
         "src/CompositionEngine.cpp",
         "src/Display.cpp",

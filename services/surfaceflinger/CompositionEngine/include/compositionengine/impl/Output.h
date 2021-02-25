@@ -28,10 +28,15 @@
 
 namespace android::compositionengine::impl {
 
+namespace planner {
+class Planner;
+} // namespace planner
+
 // The implementation class contains the common implementation, but does not
 // actually contain the final output state.
 class Output : public virtual compositionengine::Output {
 public:
+    Output();
     ~Output() override;
 
     // compositionengine::Output overrides
@@ -48,6 +53,7 @@ public:
     void setColorProfile(const ColorProfile&) override;
 
     void dump(std::string&) const override;
+    void dumpPlannerInfo(const Vector<String16>& args, std::string&) const override;
 
     const std::string& getName() const override;
     void setName(const std::string&) override;
@@ -77,7 +83,9 @@ public:
     void setReleasedLayers(const compositionengine::CompositionRefreshArgs&) override;
 
     void updateLayerStateFromFE(const CompositionRefreshArgs&) const override;
-    void updateAndWriteCompositionState(const compositionengine::CompositionRefreshArgs&) override;
+    void updateCompositionState(const compositionengine::CompositionRefreshArgs&) override;
+    void planComposition() override;
+    void writeCompositionState(const compositionengine::CompositionRefreshArgs&) override;
     void updateColorProfile(const compositionengine::CompositionRefreshArgs&) override;
     void beginFrame() override;
     void prepareFrame() override;
@@ -130,6 +138,7 @@ private:
     ReleasedLayers mReleasedLayers;
     OutputLayer* mLayerRequestingBackgroundBlur = nullptr;
     std::unique_ptr<ClientCompositionRequestCache> mClientCompositionRequestCache;
+    std::unique_ptr<planner::Planner> mPlanner;
 };
 
 // This template factory function standardizes the implementation details of the
