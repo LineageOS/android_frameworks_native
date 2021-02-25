@@ -216,7 +216,8 @@ void KeyboardInputMapper::process(const RawEvent* rawEvent) {
             mCurrentHidUsage = 0;
 
             if (isKeyboardOrGamepadKey(scanCode)) {
-                processKey(rawEvent->when, rawEvent->value != 0, scanCode, usageCode);
+                processKey(rawEvent->when, rawEvent->readTime, rawEvent->value != 0, scanCode,
+                           usageCode);
             }
             break;
         }
@@ -269,7 +270,8 @@ bool KeyboardInputMapper::isMediaKey(int32_t keyCode) {
     return false;
 }
 
-void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, int32_t usageCode) {
+void KeyboardInputMapper::processKey(nsecs_t when, nsecs_t readTime, bool down, int32_t scanCode,
+                                     int32_t usageCode) {
     int32_t keyCode;
     int32_t keyMetaState;
     uint32_t policyFlags;
@@ -299,7 +301,7 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, 
                 return;
             }
             if (policyFlags & POLICY_FLAG_GESTURE) {
-                getDeviceContext().cancelTouch(when);
+                getDeviceContext().cancelTouch(when, readTime);
             }
 
             KeyDown keyDown;
@@ -350,8 +352,9 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode, 
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
 
-    NotifyKeyArgs args(getContext()->getNextId(), when, getDeviceId(), mSource, getDisplayId(),
-                       policyFlags, down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
+    NotifyKeyArgs args(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
+                       getDisplayId(), policyFlags,
+                       down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
                        AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
     getListener()->notifyKey(&args);
 }

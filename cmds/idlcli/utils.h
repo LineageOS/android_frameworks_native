@@ -249,7 +249,7 @@ private:
 
 template <typename T>
 class CommandWithSubcommands : public Command {
-private:
+protected:
     Status doArgs(Args &args) override {
         mCommand = CommandRegistry<T>::Create(*args.get());
         if (!mCommand) {
