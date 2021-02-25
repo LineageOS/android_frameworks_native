@@ -159,10 +159,11 @@ std::string KeyEntry::getDescription() const {
     }
     return StringPrintf("KeyEvent(deviceId=%d, eventTime=%" PRIu64
                         ", source=0x%08x, displayId=%" PRId32 ", action=%s, "
-                        "flags=0x%08x, keyCode=%d, scanCode=%d, metaState=0x%08x, "
+                        "flags=0x%08x, keyCode=%s(%d), scanCode=%d, metaState=0x%08x, "
                         "repeatCount=%d), policyFlags=0x%08x",
                         deviceId, eventTime, source, displayId, KeyEvent::actionToString(action),
-                        flags, keyCode, scanCode, metaState, repeatCount, policyFlags);
+                        flags, KeyEvent::getLabel(keyCode), keyCode, scanCode, metaState,
+                        repeatCount, policyFlags);
 }
 
 void KeyEntry::recycle() {
