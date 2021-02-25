@@ -150,7 +150,7 @@ public:
     bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes, const int32_t* keyCodes,
                                uint8_t* outFlags) override;
 
-    void cancelTouch(nsecs_t when) override;
+    void cancelTouch(nsecs_t when, nsecs_t readTime) override;
     void timeoutExpired(nsecs_t when) override;
     void updateExternalStylusState(const StylusState& state) override;
     std::optional<int32_t> getAssociatedDisplayId() override;
@@ -298,6 +298,7 @@ protected:
 
     struct RawState {
         nsecs_t when;
+        nsecs_t readTime;
 
         // Raw pointer sample data.
         RawPointerData rawPointerData;
@@ -310,6 +311,7 @@ protected:
 
         void copyFrom(const RawState& other) {
             when = other.when;
+            readTime = other.readTime;
             rawPointerData.copyFrom(other.rawPointerData);
             buttonState = other.buttonState;
             rawVScroll = other.rawVScroll;
@@ -318,6 +320,7 @@ protected:
 
         void clear() {
             when = 0;
+            readTime = 0;
             rawPointerData.clear();
             buttonState = 0;
             rawVScroll = 0;
@@ -702,39 +705,42 @@ private:
     void resetExternalStylus();
     void clearStylusDataPendingFlags();
 
-    void sync(nsecs_t when);
+    void sync(nsecs_t when, nsecs_t readTime);
 
-    bool consumeRawTouches(nsecs_t when, uint32_t policyFlags);
+    bool consumeRawTouches(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
     void processRawTouches(bool timeout);
-    void cookAndDispatch(nsecs_t when);
-    void dispatchVirtualKey(nsecs_t when, uint32_t policyFlags, int32_t keyEventAction,
-                            int32_t keyEventFlags);
+    void cookAndDispatch(nsecs_t when, nsecs_t readTime);
+    void dispatchVirtualKey(nsecs_t when, nsecs_t readTime, uint32_t policyFlags,
+                            int32_t keyEventAction, int32_t keyEventFlags);
 
-    void dispatchTouches(nsecs_t when, uint32_t policyFlags);
-    void dispatchHoverExit(nsecs_t when, uint32_t policyFlags);
-    void dispatchHoverEnterAndMove(nsecs_t when, uint32_t policyFlags);
-    void dispatchButtonRelease(nsecs_t when, uint32_t policyFlags);
-    void dispatchButtonPress(nsecs_t when, uint32_t policyFlags);
+    void dispatchTouches(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    void dispatchHoverExit(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    void dispatchHoverEnterAndMove(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    void dispatchButtonRelease(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    void dispatchButtonPress(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
     const BitSet32& findActiveIdBits(const CookedPointerData& cookedPointerData);
     void cookPointerData();
-    void abortTouches(nsecs_t when, uint32_t policyFlags);
+    void abortTouches(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
 
-    void dispatchPointerUsage(nsecs_t when, uint32_t policyFlags, PointerUsage pointerUsage);
-    void abortPointerUsage(nsecs_t when, uint32_t policyFlags);
+    void dispatchPointerUsage(nsecs_t when, nsecs_t readTime, uint32_t policyFlags,
+                              PointerUsage pointerUsage);
+    void abortPointerUsage(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
 
-    void dispatchPointerGestures(nsecs_t when, uint32_t policyFlags, bool isTimeout);
-    void abortPointerGestures(nsecs_t when, uint32_t policyFlags);
+    void dispatchPointerGestures(nsecs_t when, nsecs_t readTime, uint32_t policyFlags,
+                                 bool isTimeout);
+    void abortPointerGestures(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
     bool preparePointerGestures(nsecs_t when, bool* outCancelPreviousGesture,
                                 bool* outFinishPreviousGesture, bool isTimeout);
 
-    void dispatchPointerStylus(nsecs_t when, uint32_t policyFlags);
-    void abortPointerStylus(nsecs_t when, uint32_t policyFlags);
+    void dispatchPointerStylus(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    void abortPointerStylus(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
 
-    void dispatchPointerMouse(nsecs_t when, uint32_t policyFlags);
-    void abortPointerMouse(nsecs_t when, uint32_t policyFlags);
+    void dispatchPointerMouse(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
+    void abortPointerMouse(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
 
-    void dispatchPointerSimple(nsecs_t when, uint32_t policyFlags, bool down, bool hovering);
-    void abortPointerSimple(nsecs_t when, uint32_t policyFlags);
+    void dispatchPointerSimple(nsecs_t when, nsecs_t readTime, uint32_t policyFlags, bool down,
+                               bool hovering);
+    void abortPointerSimple(nsecs_t when, nsecs_t readTime, uint32_t policyFlags);
 
     bool assignExternalStylusId(const RawState& state, bool timeout);
     void applyExternalStylusButtonState(nsecs_t when);
@@ -744,9 +750,9 @@ private:
     // If the changedId is >= 0 and the action is POINTER_DOWN or POINTER_UP, the
     // method will take care of setting the index and transmuting the action to DOWN or UP
     // it is the first / last pointer to go down / up.
-    void dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32_t source, int32_t action,
-                        int32_t actionButton, int32_t flags, int32_t metaState, int32_t buttonState,
-                        int32_t edgeFlags, const PointerProperties* properties,
+    void dispatchMotion(nsecs_t when, nsecs_t readTime, uint32_t policyFlags, uint32_t source,
+                        int32_t action, int32_t actionButton, int32_t flags, int32_t metaState,
+                        int32_t buttonState, int32_t edgeFlags, const PointerProperties* properties,
                         const PointerCoords* coords, const uint32_t* idToIndex, BitSet32 idBits,
                         int32_t changedId, float xPrecision, float yPrecision, nsecs_t downTime);
 
