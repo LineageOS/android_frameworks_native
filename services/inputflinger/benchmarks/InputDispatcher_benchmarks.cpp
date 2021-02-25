@@ -105,7 +105,7 @@ private:
 
     void notifySwitch(nsecs_t, uint32_t, uint32_t, uint32_t) override {}
 
-    void pokeUserActivity(nsecs_t, int32_t) override {}
+    void pokeUserActivity(nsecs_t, int32_t, int32_t) override {}
 
     bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) override { return false; }
 
