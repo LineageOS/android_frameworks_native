@@ -50,9 +50,10 @@ void NotifyConfigurationChangedArgs::notify(const sp<InputListenerInterface>& li
 
 // --- NotifyKeyArgs ---
 
-NotifyKeyArgs::NotifyKeyArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
-                             int32_t displayId, uint32_t policyFlags, int32_t action, int32_t flags,
-                             int32_t keyCode, int32_t scanCode, int32_t metaState, nsecs_t downTime)
+NotifyKeyArgs::NotifyKeyArgs(int32_t id, nsecs_t eventTime, nsecs_t readTime, int32_t deviceId,
+                             uint32_t source, int32_t displayId, uint32_t policyFlags,
+                             int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode,
+                             int32_t metaState, nsecs_t downTime)
       : NotifyArgs(id, eventTime),
         deviceId(deviceId),
         source(source),
@@ -63,7 +64,8 @@ NotifyKeyArgs::NotifyKeyArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, ui
         keyCode(keyCode),
         scanCode(scanCode),
         metaState(metaState),
-        downTime(downTime) {}
+        downTime(downTime),
+        readTime(readTime) {}
 
 NotifyKeyArgs::NotifyKeyArgs(const NotifyKeyArgs& other)
       : NotifyArgs(other.id, other.eventTime),
@@ -76,13 +78,15 @@ NotifyKeyArgs::NotifyKeyArgs(const NotifyKeyArgs& other)
         keyCode(other.keyCode),
         scanCode(other.scanCode),
         metaState(other.metaState),
-        downTime(other.downTime) {}
+        downTime(other.downTime),
+        readTime(other.readTime) {}
 
 bool NotifyKeyArgs::operator==(const NotifyKeyArgs& rhs) const {
-    return id == rhs.id && eventTime == rhs.eventTime && deviceId == rhs.deviceId &&
-            source == rhs.source && displayId == rhs.displayId && policyFlags == rhs.policyFlags &&
-            action == rhs.action && flags == rhs.flags && keyCode == rhs.keyCode &&
-            scanCode == rhs.scanCode && metaState == rhs.metaState && downTime == rhs.downTime;
+    return id == rhs.id && eventTime == rhs.eventTime && readTime == rhs.readTime &&
+            deviceId == rhs.deviceId && source == rhs.source && displayId == rhs.displayId &&
+            policyFlags == rhs.policyFlags && action == rhs.action && flags == rhs.flags &&
+            keyCode == rhs.keyCode && scanCode == rhs.scanCode && metaState == rhs.metaState &&
+            downTime == rhs.downTime;
 }
 
 void NotifyKeyArgs::notify(const sp<InputListenerInterface>& listener) const {
@@ -91,16 +95,14 @@ void NotifyKeyArgs::notify(const sp<InputListenerInterface>& listener) const {
 
 // --- NotifyMotionArgs ---
 
-NotifyMotionArgs::NotifyMotionArgs(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
-                                   int32_t displayId, uint32_t policyFlags, int32_t action,
-                                   int32_t actionButton, int32_t flags, int32_t metaState,
-                                   int32_t buttonState, MotionClassification classification,
-                                   int32_t edgeFlags, uint32_t pointerCount,
-                                   const PointerProperties* pointerProperties,
-                                   const PointerCoords* pointerCoords, float xPrecision,
-                                   float yPrecision, float xCursorPosition, float yCursorPosition,
-                                   nsecs_t downTime,
-                                   const std::vector<TouchVideoFrame>& videoFrames)
+NotifyMotionArgs::NotifyMotionArgs(
+        int32_t id, nsecs_t eventTime, nsecs_t readTime, int32_t deviceId, uint32_t source,
+        int32_t displayId, uint32_t policyFlags, int32_t action, int32_t actionButton,
+        int32_t flags, int32_t metaState, int32_t buttonState, MotionClassification classification,
+        int32_t edgeFlags, uint32_t pointerCount, const PointerProperties* pointerProperties,
+        const PointerCoords* pointerCoords, float xPrecision, float yPrecision,
+        float xCursorPosition, float yCursorPosition, nsecs_t downTime,
+        const std::vector<TouchVideoFrame>& videoFrames)
       : NotifyArgs(id, eventTime),
         deviceId(deviceId),
         source(source),
@@ -119,6 +121,7 @@ NotifyMotionArgs::NotifyMotionArgs(int32_t id, nsecs_t eventTime, int32_t device
         xCursorPosition(xCursorPosition),
         yCursorPosition(yCursorPosition),
         downTime(downTime),
+        readTime(readTime),
         videoFrames(videoFrames) {
     for (uint32_t i = 0; i < pointerCount; i++) {
         this->pointerProperties[i].copyFrom(pointerProperties[i]);
@@ -145,6 +148,7 @@ NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other)
         xCursorPosition(other.xCursorPosition),
         yCursorPosition(other.yCursorPosition),
         downTime(other.downTime),
+        readTime(other.readTime),
         videoFrames(other.videoFrames) {
     for (uint32_t i = 0; i < pointerCount; i++) {
         pointerProperties[i].copyFrom(other.pointerProperties[i]);
@@ -157,11 +161,12 @@ static inline bool isCursorPositionEqual(float lhs, float rhs) {
 }
 
 bool NotifyMotionArgs::operator==(const NotifyMotionArgs& rhs) const {
-    bool equal = id == rhs.id && eventTime == rhs.eventTime && deviceId == rhs.deviceId &&
-            source == rhs.source && displayId == rhs.displayId && policyFlags == rhs.policyFlags &&
-            action == rhs.action && actionButton == rhs.actionButton && flags == rhs.flags &&
-            metaState == rhs.metaState && buttonState == rhs.buttonState &&
-            classification == rhs.classification && edgeFlags == rhs.edgeFlags &&
+    bool equal = id == rhs.id && eventTime == rhs.eventTime && readTime == rhs.readTime &&
+            deviceId == rhs.deviceId && source == rhs.source && displayId == rhs.displayId &&
+            policyFlags == rhs.policyFlags && action == rhs.action &&
+            actionButton == rhs.actionButton && flags == rhs.flags && metaState == rhs.metaState &&
+            buttonState == rhs.buttonState && classification == rhs.classification &&
+            edgeFlags == rhs.edgeFlags &&
             pointerCount == rhs.pointerCount
             // PointerProperties and PointerCoords are compared separately below
             && xPrecision == rhs.xPrecision && yPrecision == rhs.yPrecision &&

@@ -86,7 +86,7 @@ private:
     bool isKeyboardOrGamepadKey(int32_t scanCode);
     bool isMediaKey(int32_t keyCode);
 
-    void processKey(nsecs_t when, bool down, int32_t scanCode, int32_t usageCode);
+    void processKey(nsecs_t when, nsecs_t readTime, bool down, int32_t scanCode, int32_t usageCode);
 
     bool updateMetaStateIfNeeded(int32_t keyCode, bool down);
 

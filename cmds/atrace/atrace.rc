@@ -37,12 +37,18 @@ on late-init
     chmod 0666 /sys/kernel/tracing/events/sched/sched_process_exit/enable
     chmod 0666 /sys/kernel/debug/tracing/events/sched/sched_waking/enable
     chmod 0666 /sys/kernel/tracing/events/sched/sched_waking/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/sched/sched_wakeup_new/enable
+    chmod 0666 /sys/kernel/tracing/events/sched/sched_wakeup_new/enable
     chmod 0666 /sys/kernel/debug/tracing/events/cgroup/enable
     chmod 0666 /sys/kernel/tracing/events/cgroup/enable
     chmod 0666 /sys/kernel/debug/tracing/events/power/cpu_frequency/enable
     chmod 0666 /sys/kernel/tracing/events/power/cpu_frequency/enable
     chmod 0666 /sys/kernel/debug/tracing/events/power/cpu_idle/enable
     chmod 0666 /sys/kernel/tracing/events/power/cpu_idle/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/power/clock_enable/enable
+    chmod 0666 /sys/kernel/tracing/events/power/clock_enable/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/power/clock_disable/enable
+    chmod 0666 /sys/kernel/tracing/events/power/clock_disable/enable
     chmod 0666 /sys/kernel/debug/tracing/events/power/clock_set_rate/enable
     chmod 0666 /sys/kernel/tracing/events/power/clock_set_rate/enable
     chmod 0666 /sys/kernel/debug/tracing/events/power/cpu_frequency_limits/enable
@@ -79,6 +85,8 @@ on late-init
     chmod 0666 /sys/kernel/tracing/events/binder/binder_locked/enable
     chmod 0666 /sys/kernel/debug/tracing/events/binder/binder_unlock/enable
     chmod 0666 /sys/kernel/tracing/events/binder/binder_unlock/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/binder/binder_set_priority/enable
+    chmod 0666 /sys/kernel/tracing/events/binder/binder_set_priority/enable
     chmod 0666 /sys/kernel/debug/tracing/events/i2c/enable
     chmod 0666 /sys/kernel/tracing/events/i2c/enable
     chmod 0666 /sys/kernel/debug/tracing/events/i2c/i2c_read/enable
@@ -125,6 +133,8 @@ on late-init
     chmod 0666 /sys/kernel/tracing/events/lowmemorykiller/lowmemory_kill/enable
     chmod 0666 /sys/kernel/debug/tracing/events/oom/oom_score_adj_update/enable
     chmod 0666 /sys/kernel/tracing/events/oom/oom_score_adj_update/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/oom/mark_victim/enable
+    chmod 0666 /sys/kernel/tracing/events/oom/mark_victim/enable
     chmod 0666 /sys/kernel/debug/tracing/events/task/task_rename/enable
     chmod 0666 /sys/kernel/tracing/events/task/task_rename/enable
     chmod 0666 /sys/kernel/debug/tracing/events/task/task_newtask/enable
@@ -159,6 +169,12 @@ on late-init
     chmod 0666 /sys/kernel/tracing/events/ipi/ipi_exit/enable
     chmod 0666 /sys/kernel/debug/tracing/events/ipi/ipi_raise/enable
     chmod 0666 /sys/kernel/tracing/events/ipi/ipi_raise/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/clk/clk_enable/enable
+    chmod 0666 /sys/kernel/tracing/events/clk/clk_disable/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/clk/clk_disable/enable
+    chmod 0666 /sys/kernel/tracing/events/clk/clk_enable/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/clk/clk_set_rate/enable
+    chmod 0666 /sys/kernel/tracing/events/clk/clk_set_rate/enable
 
     # disk
     chmod 0666 /sys/kernel/tracing/events/f2fs/f2fs_get_data_block/enable
