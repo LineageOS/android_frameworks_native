@@ -17,14 +17,21 @@
 #pragma once
 
 #include <compositionengine/Output.h>
+#include <compositionengine/impl/planner/Flattener.h>
 #include <compositionengine/impl/planner/LayerState.h>
+#include <compositionengine/impl/planner/Predictor.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 
 namespace android {
+
+namespace renderengine {
+class RenderEngine;
+} // namespace renderengine
 
 namespace compositionengine::impl::planner {
 
@@ -34,15 +41,40 @@ namespace compositionengine::impl::planner {
 // as a more efficient representation of parts of the layer stack.
 class Planner {
 public:
+    Planner() : mFlattener(mPredictor) {}
+
+    void setDisplaySize(ui::Size);
+
     // Updates the Planner with the current set of layers before a composition strategy is
     // determined.
+    // The Planner will call to the Flattener to determine to:
+    // 1. Replace any cached sets with a newly available flattened cached set
+    // 2. Create a new cached set if possible
     void plan(
             compositionengine::Output::OutputLayersEnumerator<compositionengine::Output>&& layers);
+
+    // Updates the Planner with the current set of layers after a composition strategy is
+    // determined.
+    void reportFinalPlan(
+            compositionengine::Output::OutputLayersEnumerator<compositionengine::Output>&& layers);
+
+    // The planner will call to the Flattener to render any pending cached set
+    void renderCachedSets(renderengine::RenderEngine&);
 
     void dump(const Vector<String16>& args, std::string&);
 
 private:
+    void dumpUsage(std::string&) const;
+
     std::unordered_map<LayerId, LayerState> mPreviousLayers;
+
+    std::vector<const LayerState*> mCurrentLayers;
+
+    Predictor mPredictor;
+    Flattener mFlattener;
+
+    std::optional<Predictor::PredictedPlan> mPredictedPlan;
+    NonBufferHash mFlattenedHash = 0;
 };
 
 } // namespace compositionengine::impl::planner

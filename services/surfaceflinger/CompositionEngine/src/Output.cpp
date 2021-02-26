@@ -198,6 +198,10 @@ void Output::setDisplaySize(const ui::Size& size) {
     const Rect newOrientedBounds(orientedSize);
     state.orientedDisplaySpace.bounds = newOrientedBounds;
 
+    if (mPlanner) {
+        mPlanner->setDisplaySize(size);
+    }
+
     dirtyEntireOutput();
 }
 
@@ -317,7 +321,11 @@ compositionengine::RenderSurface* Output::getRenderSurface() const {
 
 void Output::setRenderSurface(std::unique_ptr<compositionengine::RenderSurface> surface) {
     mRenderSurface = std::move(surface);
-    editState().framebufferSpace.bounds = Rect(mRenderSurface->getSize());
+    const auto size = mRenderSurface->getSize();
+    editState().framebufferSpace.bounds = Rect(size);
+    if (mPlanner) {
+        mPlanner->setDisplaySize(size);
+    }
     dirtyEntireOutput();
 }
 
@@ -402,6 +410,7 @@ void Output::present(const compositionengine::CompositionRefreshArgs& refreshArg
     devOptRepaintFlash(refreshArgs);
     finishFrame(refreshArgs);
     postFramebuffer();
+    renderCachedSets();
 }
 
 void Output::rebuildLayerStacks(const compositionengine::CompositionRefreshArgs& refreshArgs,
@@ -701,8 +710,23 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
         return;
     }
 
+    sp<GraphicBuffer> previousOverride = nullptr;
     for (auto* layer : getOutputLayersOrderedByZ()) {
-        layer->writeStateToHWC(refreshArgs.updatingGeometryThisFrame);
+        bool skipLayer = false;
+        if (layer->getState().overrideInfo.buffer != nullptr) {
+            if (previousOverride != nullptr &&
+                layer->getState().overrideInfo.buffer == previousOverride) {
+                ALOGV("Skipping redundant buffer");
+                skipLayer = true;
+            }
+            previousOverride = layer->getState().overrideInfo.buffer;
+        }
+
+        // TODO(b/181172795): We now update geometry for all flattened layers. We should update it
+        // only when the geometry actually changes
+        const bool includeGeometry = refreshArgs.updatingGeometryThisFrame ||
+                layer->getState().overrideInfo.buffer != nullptr || skipLayer;
+        layer->writeStateToHWC(includeGeometry, skipLayer);
     }
 }
 
@@ -872,6 +896,10 @@ void Output::prepareFrame() {
     }
 
     chooseCompositionStrategy();
+
+    if (mPlanner) {
+        mPlanner->reportFinalPlan(getOutputLayersOrderedByZ());
+    }
 
     mRenderSurface->prepareFrame(outputState.usesClientComposition,
                                  outputState.usesDeviceComposition);
@@ -1122,10 +1150,16 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                                    .realContentIsVisible = realContentIsVisible,
                                    .clearContent = !clientComposition,
                                    .disableBlurs = disableBlurs};
-            std::vector<LayerFE::LayerSettings> results =
-                    layerFE.prepareClientCompositionList(targetSettings);
-            if (realContentIsVisible && !results.empty()) {
-                layer->editState().clientCompositionTimestamp = systemTime();
+
+            std::vector<LayerFE::LayerSettings> results;
+            if (layer->getState().overrideInfo.buffer != nullptr) {
+                results = layer->getOverrideCompositionList();
+                ALOGV("Replacing [%s] with override in RE", layer->getLayerFE().getDebugName());
+            } else {
+                results = layerFE.prepareClientCompositionList(targetSettings);
+                if (realContentIsVisible && !results.empty()) {
+                    layer->editState().clientCompositionTimestamp = systemTime();
+                }
             }
 
             clientCompositionLayers.insert(clientCompositionLayers.end(),
@@ -1214,6 +1248,12 @@ void Output::postFramebuffer() {
 
     // Clear out the released layers now that we're done with them.
     mReleasedLayers.clear();
+}
+
+void Output::renderCachedSets() {
+    if (mPlanner) {
+        mPlanner->renderCachedSets(getCompositionEngine().getRenderEngine());
+    }
 }
 
 void Output::dirtyEntireOutput() {

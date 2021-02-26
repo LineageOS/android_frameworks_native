@@ -783,11 +783,14 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerContentForAllLayers
     InjectedLayer layer3;
 
     EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_180));
-    EXPECT_CALL(*layer1.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer1.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
     EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_180));
-    EXPECT_CALL(*layer2.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer2.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
     EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_180));
-    EXPECT_CALL(*layer3.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer3.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
 
     injectOutputLayer(layer1);
     injectOutputLayer(layer2);
@@ -810,11 +813,14 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerGeometryAndContentF
     InjectedLayer layer3;
 
     EXPECT_CALL(*layer1.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer1.outputLayer, writeStateToHWC(true));
+    EXPECT_CALL(*layer1.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false));
     EXPECT_CALL(*layer2.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer2.outputLayer, writeStateToHWC(true));
+    EXPECT_CALL(*layer2.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false));
     EXPECT_CALL(*layer3.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer3.outputLayer, writeStateToHWC(true));
+    EXPECT_CALL(*layer3.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false));
 
     injectOutputLayer(layer1);
     injectOutputLayer(layer2);
@@ -836,11 +842,14 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, forcesClientCompositionForAllLa
     InjectedLayer layer3;
 
     EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer1.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer1.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
     EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer2.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer2.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
     EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer3.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer3.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
 
     injectOutputLayer(layer1);
     injectOutputLayer(layer2);
@@ -891,6 +900,9 @@ TEST_F(OutputPrepareFrameTest, delegatesToChooseCompositionStrategyAndRenderSurf
     mOutput.editState().usesDeviceComposition = true;
 
     EXPECT_CALL(mOutput, chooseCompositionStrategy()).Times(1);
+    if (mOutput.plannerEnabled()) {
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
+    }
     EXPECT_CALL(*mRenderSurface, prepareFrame(false, true));
 
     mOutput.prepareFrame();
@@ -1645,6 +1657,7 @@ struct OutputPresentTest : public testing::Test {
         MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD1(finishFrame, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD0(postFramebuffer, void());
+        MOCK_METHOD0(renderCachedSets, void());
     };
 
     StrictMock<OutputPartialMock> mOutput;
@@ -1664,6 +1677,7 @@ TEST_F(OutputPresentTest, justInvokesChildFunctionsInSequence) {
     EXPECT_CALL(mOutput, devOptRepaintFlash(Ref(args)));
     EXPECT_CALL(mOutput, finishFrame(Ref(args)));
     EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, renderCachedSets());
 
     mOutput.present(args);
 }
@@ -3479,7 +3493,8 @@ struct OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur
         mOutput.editState().isEnabled = true;
 
         EXPECT_CALL(mLayer.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
-        EXPECT_CALL(mLayer.outputLayer, writeStateToHWC(false));
+        EXPECT_CALL(mLayer.outputLayer,
+                    writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
         EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
                 .WillOnce(Return(std::vector<LayerFE::LayerSettings>{}));
         EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _, _)).WillOnce(Return(NO_ERROR));
@@ -4060,11 +4075,14 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBackgroundBlurRequests) 
 
     // Layer requesting blur, or below, should request client composition.
     EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer1.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer1.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
     EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer2.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer2.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
     EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer3.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer3.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
 
     layer2.layerFEState.backgroundBlurRadius = 10;
 
@@ -4089,11 +4107,14 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBlurRegionRequests) {
 
     // Layer requesting blur, or below, should request client composition.
     EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer1.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer1.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
     EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer2.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer2.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
     EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_0));
-    EXPECT_CALL(*layer3.outputLayer, writeStateToHWC(false));
+    EXPECT_CALL(*layer3.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false));
 
     BlurRegion region;
     layer2.layerFEState.blurRegions.push_back(region);
