@@ -84,7 +84,7 @@ constexpr auto flag_name() {
 template <typename F>
 constexpr std::optional<std::string_view> flag_name(F flag) {
     using U = std::underlying_type_t<F>;
-    auto idx = __builtin_ctzl(static_cast<U>(flag));
+    auto idx = static_cast<size_t>(__builtin_ctzl(static_cast<U>(flag)));
     return details::flag_names<F>[idx];
 }
 

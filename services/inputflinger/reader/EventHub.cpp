@@ -37,6 +37,7 @@
 
 // #define LOG_NDEBUG 0
 #include <android-base/file.h>
+#include <android-base/strings.h>
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
 #include <input/KeyCharacterMap.h>
@@ -1361,13 +1362,14 @@ std::optional<int32_t> EventHub::getBatteryCapacity(int32_t deviceId) const {
 
     // Some devices report battery capacity as an integer through the "capacity" file
     if (base::ReadFileToString(device->sysfsBatteryPath.value() / "capacity", &buffer)) {
-        return std::stoi(buffer);
+        return std::stoi(base::Trim(buffer));
     }
 
     // Other devices report capacity as an enum value POWER_SUPPLY_CAPACITY_LEVEL_XXX
     // These values are taken from kernel source code include/linux/power_supply.h
     if (base::ReadFileToString(device->sysfsBatteryPath.value() / "capacity_level", &buffer)) {
-        const auto it = BATTERY_LEVEL.find(buffer);
+        // Remove any white space such as trailing new line
+        const auto it = BATTERY_LEVEL.find(base::Trim(buffer));
         if (it != BATTERY_LEVEL.end()) {
             return it->second;
         }
@@ -1389,9 +1391,8 @@ std::optional<int32_t> EventHub::getBatteryStatus(int32_t deviceId) const {
         return std::nullopt;
     }
 
-    // Remove trailing new line
-    buffer.erase(std::remove(buffer.begin(), buffer.end(), '\n'), buffer.end());
-    const auto it = BATTERY_STATUS.find(buffer);
+    // Remove white space like trailing new line
+    const auto it = BATTERY_STATUS.find(base::Trim(buffer));
 
     if (it != BATTERY_STATUS.end()) {
         return it->second;
