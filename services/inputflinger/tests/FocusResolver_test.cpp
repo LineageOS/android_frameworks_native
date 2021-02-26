@@ -18,6 +18,12 @@
 
 #include "../FocusResolver.h"
 
+#define ASSERT_FOCUS_CHANGE(_changes, _oldFocus, _newFocus) \
+    {                                                       \
+        ASSERT_EQ(_oldFocus, _changes->oldFocus);           \
+        ASSERT_EQ(_newFocus, _changes->newFocus);           \
+    }
+
 // atest inputflinger_tests:FocusResolverTest
 
 namespace android::inputdispatcher {
@@ -56,8 +62,7 @@ TEST(FocusResolverTest, SetFocusedWindow) {
     FocusResolver focusResolver;
     std::optional<FocusResolver::FocusChanges> changes =
             focusResolver.setFocusedWindow(request, windows);
-    ASSERT_EQ(nullptr, changes->oldFocus);
-    ASSERT_EQ(focusableWindowToken, changes->newFocus);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ focusableWindowToken);
     ASSERT_EQ(request.displayId, changes->displayId);
 
     // invisible window cannot get focused
@@ -65,6 +70,7 @@ TEST(FocusResolverTest, SetFocusedWindow) {
     changes = focusResolver.setFocusedWindow(request, windows);
     ASSERT_EQ(focusableWindowToken, changes->oldFocus);
     ASSERT_EQ(nullptr, changes->newFocus);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ focusableWindowToken, /*to*/ nullptr);
 
     // unfocusableWindowToken window cannot get focused
     request.token = unfocusableWindowToken;
@@ -99,19 +105,17 @@ TEST(FocusResolverTest, SetFocusedMirroredWindow) {
     FocusResolver focusResolver;
     std::optional<FocusResolver::FocusChanges> changes =
             focusResolver.setFocusedWindow(request, windows);
-    ASSERT_EQ(nullptr, changes->oldFocus);
-    ASSERT_EQ(focusableWindowToken, changes->newFocus);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ focusableWindowToken);
 
     // mirrored window with one visible window can get focused
     request.token = invisibleWindowToken;
     changes = focusResolver.setFocusedWindow(request, windows);
-    ASSERT_EQ(focusableWindowToken, changes->oldFocus);
-    ASSERT_EQ(invisibleWindowToken, changes->newFocus);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ focusableWindowToken, /*to*/ invisibleWindowToken);
 
     // mirrored window with one or more unfocusable window cannot get focused
     request.token = unfocusableWindowToken;
     changes = focusResolver.setFocusedWindow(request, windows);
-    ASSERT_FALSE(changes);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ invisibleWindowToken, /*to*/ nullptr);
 }
 
 TEST(FocusResolverTest, SetInputWindows) {
@@ -130,11 +134,10 @@ TEST(FocusResolverTest, SetInputWindows) {
             focusResolver.setFocusedWindow(request, windows);
     ASSERT_EQ(focusableWindowToken, changes->newFocus);
 
-    // Window visibility changes and the window loses focused
+    // Window visibility changes and the window loses focus
     window->setVisible(false);
     changes = focusResolver.setInputWindows(request.displayId, windows);
-    ASSERT_EQ(nullptr, changes->newFocus);
-    ASSERT_EQ(focusableWindowToken, changes->oldFocus);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ focusableWindowToken, /*to*/ nullptr);
 }
 
 TEST(FocusResolverTest, FocusRequestsCanBePending) {
@@ -158,8 +161,100 @@ TEST(FocusResolverTest, FocusRequestsCanBePending) {
     // Window visibility changes and the window gets focused
     invisibleWindow->setVisible(true);
     changes = focusResolver.setInputWindows(request.displayId, windows);
-    ASSERT_EQ(nullptr, changes->oldFocus);
-    ASSERT_EQ(invisibleWindowToken, changes->newFocus);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ invisibleWindowToken);
+}
+
+TEST(FocusResolverTest, FocusRequestsArePersistent) {
+    sp<IBinder> windowToken = new BBinder();
+    std::vector<sp<InputWindowHandle>> windows;
+
+    sp<FakeWindowHandle> window = new FakeWindowHandle("Test Window", windowToken,
+                                                       false /* focusable */, true /* visible */);
+    windows.push_back(window);
+
+    // non-focusable window cannot get focused
+    FocusRequest request;
+    request.displayId = 42;
+    request.token = windowToken;
+    FocusResolver focusResolver;
+    std::optional<FocusResolver::FocusChanges> changes =
+            focusResolver.setFocusedWindow(request, windows);
+    ASSERT_FALSE(changes);
+
+    // Focusability changes and the window gets focused
+    window->setFocusable(true);
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ windowToken);
+
+    // Visibility changes and the window loses focus
+    window->setVisible(false);
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ windowToken, /*to*/ nullptr);
+
+    // Visibility changes and the window gets focused
+    window->setVisible(true);
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ windowToken);
+
+    // Window is gone and the window loses focus
+    changes = focusResolver.setInputWindows(request.displayId, {});
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ windowToken, /*to*/ nullptr);
+
+    // Window returns and the window gains focus
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ windowToken);
+}
+
+TEST(FocusResolverTest, ConditionalFocusRequestsAreNotPersistent) {
+    sp<IBinder> hostWindowToken = new BBinder();
+    std::vector<sp<InputWindowHandle>> windows;
+
+    sp<FakeWindowHandle> hostWindow =
+            new FakeWindowHandle("Host Window", hostWindowToken, true /* focusable */,
+                                 true /* visible */);
+    windows.push_back(hostWindow);
+    sp<IBinder> embeddedWindowToken = new BBinder();
+    sp<FakeWindowHandle> embeddedWindow =
+            new FakeWindowHandle("Embedded Window", embeddedWindowToken, true /* focusable */,
+                                 true /* visible */);
+    windows.push_back(embeddedWindow);
+
+    FocusRequest request;
+    request.displayId = 42;
+    request.token = hostWindowToken;
+    FocusResolver focusResolver;
+    std::optional<FocusResolver::FocusChanges> changes =
+            focusResolver.setFocusedWindow(request, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ hostWindowToken);
+
+    request.focusedToken = hostWindow->getToken();
+    request.token = embeddedWindowToken;
+    changes = focusResolver.setFocusedWindow(request, windows);
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ hostWindowToken, /*to*/ embeddedWindowToken);
+
+    embeddedWindow->setFocusable(false);
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    // The embedded window is no longer focusable, provide focus back to the original focused
+    // window.
+    ASSERT_FOCUS_CHANGE(changes, /*from*/ embeddedWindowToken, /*to*/ hostWindowToken);
+
+    embeddedWindow->setFocusable(true);
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    // The embedded window is focusable again, but we it cannot gain focus unless there is another
+    // focus request.
+    ASSERT_FALSE(changes);
+
+    embeddedWindow->setVisible(false);
+    changes = focusResolver.setFocusedWindow(request, windows);
+    // If the embedded window is not visible/focusable, then we do not grant it focus and the
+    // request is dropped.
+    ASSERT_FALSE(changes);
+
+    embeddedWindow->setVisible(true);
+    changes = focusResolver.setInputWindows(request.displayId, windows);
+    // If the embedded window becomes visble/focusable, nothing changes since the request has been
+    // dropped.
+    ASSERT_FALSE(changes);
 }
 
 } // namespace android::inputdispatcher
