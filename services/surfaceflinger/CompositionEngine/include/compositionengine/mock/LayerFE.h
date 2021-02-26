@@ -42,6 +42,7 @@ public:
     MOCK_METHOD1(onLayerDisplayed, void(const sp<Fence>&));
 
     MOCK_CONST_METHOD0(getDebugName, const char*());
+    MOCK_CONST_METHOD0(getSequence, int32_t());
 };
 
 } // namespace android::compositionengine::mock

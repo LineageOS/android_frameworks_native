@@ -1982,6 +1982,15 @@ status_t SurfaceComposerClient::removeRegionSamplingListener(
     return ComposerService::getComposerService()->removeRegionSamplingListener(listener);
 }
 
+status_t SurfaceComposerClient::addFpsListener(const sp<IBinder>& layerHandle,
+                                               const sp<gui::IFpsListener>& listener) {
+    return ComposerService::getComposerService()->addFpsListener(layerHandle, listener);
+}
+
+status_t SurfaceComposerClient::removeFpsListener(const sp<gui::IFpsListener>& listener) {
+    return ComposerService::getComposerService()->removeFpsListener(listener);
+}
+
 bool SurfaceComposerClient::getDisplayBrightnessSupport(const sp<IBinder>& displayToken) {
     bool support = false;
     ComposerService::getComposerService()->getDisplayBrightnessSupport(displayToken, &support);

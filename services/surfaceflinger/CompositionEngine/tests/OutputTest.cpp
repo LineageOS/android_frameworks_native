@@ -96,6 +96,8 @@ struct InjectedLayer {
         EXPECT_CALL(*outputLayer, editState()).WillRepeatedly(ReturnRef(outputLayerState));
 
         EXPECT_CALL(*layerFE, getCompositionState()).WillRepeatedly(Return(&layerFEState));
+        EXPECT_CALL(*layerFE, getSequence()).WillRepeatedly(Return(0));
+        EXPECT_CALL(*layerFE, getDebugName()).WillRepeatedly(Return("InjectedLayer"));
     }
 
     mock::OutputLayer* outputLayer = {new StrictMock<mock::OutputLayer>};
@@ -111,6 +113,8 @@ struct NonInjectedLayer {
         EXPECT_CALL(outputLayer, editState()).WillRepeatedly(ReturnRef(outputLayerState));
 
         EXPECT_CALL(*layerFE, getCompositionState()).WillRepeatedly(Return(&layerFEState));
+        EXPECT_CALL(*layerFE, getSequence()).WillRepeatedly(Return(0));
+        EXPECT_CALL(*layerFE, getDebugName()).WillRepeatedly(Return("NonInjectedLayer"));
     }
 
     mock::OutputLayer outputLayer;
@@ -751,7 +755,9 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, doesNothingIfLayers) {
     mOutput->editState().isEnabled = true;
 
     CompositionRefreshArgs args;
-    mOutput->updateAndWriteCompositionState(args);
+    mOutput->updateCompositionState(args);
+    mOutput->planComposition();
+    mOutput->writeCompositionState(args);
 }
 
 TEST_F(OutputUpdateAndWriteCompositionStateTest, doesNothingIfOutputNotEnabled) {
@@ -766,7 +772,9 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, doesNothingIfOutputNotEnabled) 
     injectOutputLayer(layer3);
 
     CompositionRefreshArgs args;
-    mOutput->updateAndWriteCompositionState(args);
+    mOutput->updateCompositionState(args);
+    mOutput->planComposition();
+    mOutput->writeCompositionState(args);
 }
 
 TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerContentForAllLayers) {
@@ -791,7 +799,9 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerContentForAllLayers
     args.updatingGeometryThisFrame = false;
     args.devOptForceClientComposition = false;
     args.internalDisplayRotationFlags = ui::Transform::ROT_180;
-    mOutput->updateAndWriteCompositionState(args);
+    mOutput->updateCompositionState(args);
+    mOutput->planComposition();
+    mOutput->writeCompositionState(args);
 }
 
 TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerGeometryAndContentForAllLayers) {
@@ -815,7 +825,9 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerGeometryAndContentF
     CompositionRefreshArgs args;
     args.updatingGeometryThisFrame = true;
     args.devOptForceClientComposition = false;
-    mOutput->updateAndWriteCompositionState(args);
+    mOutput->updateCompositionState(args);
+    mOutput->planComposition();
+    mOutput->writeCompositionState(args);
 }
 
 TEST_F(OutputUpdateAndWriteCompositionStateTest, forcesClientCompositionForAllLayers) {
@@ -839,7 +851,9 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, forcesClientCompositionForAllLa
     CompositionRefreshArgs args;
     args.updatingGeometryThisFrame = false;
     args.devOptForceClientComposition = true;
-    mOutput->updateAndWriteCompositionState(args);
+    mOutput->updateCompositionState(args);
+    mOutput->planComposition();
+    mOutput->writeCompositionState(args);
 }
 
 /*
@@ -1621,8 +1635,10 @@ struct OutputPresentTest : public testing::Test {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
         MOCK_METHOD1(updateColorProfile, void(const compositionengine::CompositionRefreshArgs&));
-        MOCK_METHOD1(updateAndWriteCompositionState,
+        MOCK_METHOD1(updateCompositionState,
                      void(const compositionengine::CompositionRefreshArgs&));
+        MOCK_METHOD0(planComposition, void());
+        MOCK_METHOD1(writeCompositionState, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD1(setColorTransform, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD0(beginFrame, void());
         MOCK_METHOD0(prepareFrame, void());
@@ -1639,7 +1655,9 @@ TEST_F(OutputPresentTest, justInvokesChildFunctionsInSequence) {
 
     InSequence seq;
     EXPECT_CALL(mOutput, updateColorProfile(Ref(args)));
-    EXPECT_CALL(mOutput, updateAndWriteCompositionState(Ref(args)));
+    EXPECT_CALL(mOutput, updateCompositionState(Ref(args)));
+    EXPECT_CALL(mOutput, planComposition());
+    EXPECT_CALL(mOutput, writeCompositionState(Ref(args)));
     EXPECT_CALL(mOutput, setColorTransform(Ref(args)));
     EXPECT_CALL(mOutput, beginFrame());
     EXPECT_CALL(mOutput, prepareFrame());
@@ -3476,7 +3494,9 @@ struct OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur
 
 TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur, IfBlursAreExpensive) {
     mRefreshArgs.blursAreExpensive = true;
-    mOutput.updateAndWriteCompositionState(mRefreshArgs);
+    mOutput.updateCompositionState(mRefreshArgs);
+    mOutput.planComposition();
+    mOutput.writeCompositionState(mRefreshArgs);
 
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true));
     mOutput.composeSurfaces(kDebugRegion, mRefreshArgs);
@@ -3484,7 +3504,9 @@ TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur, IfBlursAreExpen
 
 TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur, IfBlursAreNotExpensive) {
     mRefreshArgs.blursAreExpensive = false;
-    mOutput.updateAndWriteCompositionState(mRefreshArgs);
+    mOutput.updateCompositionState(mRefreshArgs);
+    mOutput.planComposition();
+    mOutput.writeCompositionState(mRefreshArgs);
 
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true)).Times(0);
     mOutput.composeSurfaces(kDebugRegion, mRefreshArgs);
@@ -4055,7 +4077,9 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBackgroundBlurRequests) 
     CompositionRefreshArgs args;
     args.updatingGeometryThisFrame = false;
     args.devOptForceClientComposition = false;
-    mOutput->updateAndWriteCompositionState(args);
+    mOutput->updateCompositionState(args);
+    mOutput->planComposition();
+    mOutput->writeCompositionState(args);
 }
 
 TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBlurRegionRequests) {
@@ -4083,7 +4107,9 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBlurRegionRequests) {
     CompositionRefreshArgs args;
     args.updatingGeometryThisFrame = false;
     args.devOptForceClientComposition = false;
-    mOutput->updateAndWriteCompositionState(args);
+    mOutput->updateCompositionState(args);
+    mOutput->planComposition();
+    mOutput->writeCompositionState(args);
 }
 
 TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenRequests) {
