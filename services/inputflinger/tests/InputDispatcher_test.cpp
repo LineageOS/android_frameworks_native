@@ -377,7 +377,7 @@ private:
         mLastNotifySwitch = NotifySwitchArgs(1 /*id*/, when, policyFlags, switchValues, switchMask);
     }
 
-    void pokeUserActivity(nsecs_t, int32_t) override {}
+    void pokeUserActivity(nsecs_t, int32_t, int32_t) override {}
 
     bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) override { return false; }
 
@@ -907,6 +907,8 @@ public:
         mInfo.touchableRegion.clear();
         mInfo.addTouchableRegion(frame);
     }
+
+    void addFlags(Flags<InputWindowInfo::Flag> flags) { mInfo.flags |= flags; }
 
     void setFlags(Flags<InputWindowInfo::Flag> flags) { mInfo.flags = flags; }
 
@@ -4318,6 +4320,17 @@ TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithBlockUntrustedOcclusionMod
     mTouchWindow->assertNoEvents();
 }
 
+TEST_F(InputDispatcherUntrustedTouchesTest,
+       WindowWithBlockUntrustedOcclusionMode_DoesNotReceiveTouch) {
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
+
+    touch();
+
+    w->assertNoEvents();
+}
+
 TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithAllowOcclusionMode_AllowsTouch) {
     const sp<FakeWindowHandle>& w = getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::ALLOW);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
@@ -4356,6 +4369,48 @@ TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithZeroOpacity_AllowsTouch) {
     touch();
 
     mTouchWindow->consumeAnyMotionDown();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithZeroOpacity_DoesNotReceiveTouch) {
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED, 0.0f);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
+
+    touch();
+
+    w->assertNoEvents();
+}
+
+/**
+ * This is important to make sure apps can't indirectly learn the position of touches (outside vs
+ * inside) while letting them pass-through. Note that even though touch passes through the occluding
+ * window, the occluding window will still receive ACTION_OUTSIDE event.
+ */
+TEST_F(InputDispatcherUntrustedTouchesTest,
+       WindowWithZeroOpacityAndWatchOutside_ReceivesOutsideEvent) {
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED, 0.0f);
+    w->addFlags(InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
+
+    touch();
+
+    w->consumeMotionOutside();
+}
+
+TEST_F(InputDispatcherUntrustedTouchesTest, OutsideEvent_HasZeroCoordinates) {
+    const sp<FakeWindowHandle>& w =
+            getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED, 0.0f);
+    w->addFlags(InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
+
+    touch();
+
+    InputEvent* event = w->consume();
+    ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
+    MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
+    EXPECT_EQ(0.0f, motionEvent.getRawPointerCoords(0)->getX());
+    EXPECT_EQ(0.0f, motionEvent.getRawPointerCoords(0)->getY());
 }
 
 TEST_F(InputDispatcherUntrustedTouchesTest, WindowWithOpacityBelowThreshold_AllowsTouch) {

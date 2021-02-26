@@ -454,3 +454,12 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.enable_frame_rate_override"
 }
+
+# Enables Layer Caching
+prop {
+    api_name: "enable_layer_caching"
+    type: Boolean
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.enable_layer_caching"
+}
