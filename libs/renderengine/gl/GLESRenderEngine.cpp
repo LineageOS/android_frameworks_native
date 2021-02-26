@@ -379,7 +379,8 @@ EGLConfig GLESRenderEngine::chooseEglConfig(EGLDisplay display, int format, bool
 GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
                                    EGLConfig config, EGLContext ctxt, EGLSurface stub,
                                    EGLContext protectedContext, EGLSurface protectedStub)
-      : mEGLDisplay(display),
+      : RenderEngine(args.renderEngineType),
+        mEGLDisplay(display),
         mEGLConfig(config),
         mEGLContext(ctxt),
         mStubSurface(stub),
