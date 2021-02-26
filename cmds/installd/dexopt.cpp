@@ -2112,8 +2112,9 @@ static bool move_ab_path(const std::string& b_path, const std::string& a_path) {
     {
         struct stat s;
         if (stat(b_path.c_str(), &s) != 0) {
-            // Silently ignore for now. The service calling this isn't smart enough to understand
-            // lack of artifacts at the moment.
+            // Ignore for now. The service calling this isn't smart enough to
+            // understand lack of artifacts at the moment.
+            LOG(VERBOSE) << "A/B artifact " << b_path << " does not exist!";
             return false;
         }
         if (!S_ISREG(s.st_mode)) {
