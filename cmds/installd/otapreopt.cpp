@@ -473,24 +473,29 @@ private:
     // Run dexopt with the parameters of parameters_.
     // TODO(calin): embed the profile name in the parameters.
     int Dexopt() {
-        std::string dummy;
-        return dexopt(parameters_.apk_path,
-                      parameters_.uid,
-                      parameters_.pkgName,
-                      parameters_.instruction_set,
-                      parameters_.dexopt_needed,
-                      parameters_.oat_dir,
-                      parameters_.dexopt_flags,
-                      parameters_.compiler_filter,
-                      parameters_.volume_uuid,
-                      parameters_.shared_libraries,
-                      parameters_.se_info,
-                      parameters_.downgrade,
-                      parameters_.target_sdk_version,
-                      parameters_.profile_name,
-                      parameters_.dex_metadata_path,
-                      parameters_.compilation_reason,
-                      &dummy);
+        std::string error;
+        int res = dexopt(parameters_.apk_path,
+                         parameters_.uid,
+                         parameters_.pkgName,
+                         parameters_.instruction_set,
+                         parameters_.dexopt_needed,
+                         parameters_.oat_dir,
+                         parameters_.dexopt_flags,
+                         parameters_.compiler_filter,
+                         parameters_.volume_uuid,
+                         parameters_.shared_libraries,
+                         parameters_.se_info,
+                         parameters_.downgrade,
+                         parameters_.target_sdk_version,
+                         parameters_.profile_name,
+                         parameters_.dex_metadata_path,
+                         parameters_.compilation_reason,
+                         &error);
+        if (res != 0) {
+            LOG(ERROR) << "During preopt of " << parameters_.apk_path << " got result " << res
+                       << " error: " << error;
+        }
+        return res;
     }
 
     int RunPreopt() {
