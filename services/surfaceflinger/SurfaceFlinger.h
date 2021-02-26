@@ -89,6 +89,7 @@ namespace android {
 
 class Client;
 class EventThread;
+class FpsReporter;
 class HWComposer;
 struct SetInputWindowsListener;
 class IGraphicBufferProducer;
@@ -589,6 +590,9 @@ private:
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
+    status_t addFpsListener(const sp<IBinder>& layerHandle,
+                            const sp<gui::IFpsListener>& listener) override;
+    status_t removeFpsListener(const sp<gui::IFpsListener>& listener) override;
     status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
                                         ui::DisplayModeId displayModeId, bool allowGroupSwitching,
                                         float primaryRefreshRateMin, float primaryRefreshRateMax,
@@ -1013,6 +1017,7 @@ private:
     LayersProto dumpProtoFromMainThread(uint32_t traceFlags = SurfaceTracing::TRACE_ALL)
             EXCLUDES(mStateLock);
     void dumpOffscreenLayers(std::string& result) EXCLUDES(mStateLock);
+    void dumpPlannerInfo(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
@@ -1265,6 +1270,7 @@ private:
 
     bool mLumaSampling = true;
     sp<RegionSamplingThread> mRegionSamplingThread;
+    sp<FpsReporter> mFpsReporter;
     ui::DisplayPrimaries mInternalDisplayPrimaries;
 
     const float mInternalDisplayDensity;

@@ -501,6 +501,7 @@ public:
     // one empty rect.
     virtual void useSurfaceDamage() {}
     virtual void useEmptyDamage() {}
+    Region getVisibleRegion(const DisplayDevice*) const;
 
     virtual void incrementPendingBufferCount() {}
 
@@ -723,7 +724,7 @@ public:
     // Returns the bounds of the layer without any buffer scaling.
     FloatRect getBoundsPreScaling(const ui::Transform& bufferScaleTransform) const;
 
-    int32_t getSequence() const { return sequence; }
+    int32_t getSequence() const override { return sequence; }
 
     // For tracing.
     // TODO: Replace with raw buffer id from buffer metadata when that becomes available.
@@ -1009,6 +1010,7 @@ protected:
 
     // For unit tests
     friend class TestableSurfaceFlinger;
+    friend class FpsReporterTest;
     friend class RefreshRateSelectionTest;
     friend class SetFrameRateTest;
     friend class TransactionFrameTracerTest;
@@ -1165,7 +1167,6 @@ private:
     virtual bool canDrawShadows() const { return true; }
 
     Hwc2::IComposerClient::Composition getCompositionType(const DisplayDevice&) const;
-    Region getVisibleRegion(const DisplayDevice*) const;
 
     /**
      * Returns an unsorted vector of all layers that are part of this tree.

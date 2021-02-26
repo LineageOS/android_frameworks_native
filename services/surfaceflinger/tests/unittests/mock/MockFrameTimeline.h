@@ -33,6 +33,7 @@ public:
     MOCK_METHOD1(addSurfaceFrame, void(std::shared_ptr<frametimeline::SurfaceFrame>));
     MOCK_METHOD3(setSfWakeUp, void(int64_t, nsecs_t, Fps));
     MOCK_METHOD2(setSfPresent, void(nsecs_t, const std::shared_ptr<FenceTime>&));
+    MOCK_METHOD1(computeFps, float(const std::unordered_set<int32_t>&));
 };
 
 } // namespace android::mock

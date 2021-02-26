@@ -367,6 +367,10 @@ int AImageDecoder_setDataSpace(AImageDecoder* _Nonnull decoder, int32_t dataspac
  * the first frame (e.g. before calling {@link AImageDecoder_advanceFrame} or
  * after calling {@link AImageDecoder_rewind}).
  *
+ * It is strongly recommended to use setTargetSize only for downscaling, as it
+ * is often more efficient to scale-up when rendering than up-front due to
+ * reduced overall memory.
+ *
  * Available since API level 30.
  *
  * @param width Width of the output (prior to cropping).

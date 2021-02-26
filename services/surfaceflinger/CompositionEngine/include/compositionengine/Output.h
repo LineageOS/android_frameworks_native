@@ -31,6 +31,7 @@
 #include <ui/Region.h>
 #include <ui/Transform.h>
 #include <utils/StrongPointer.h>
+#include <utils/Vector.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
 
@@ -183,6 +184,9 @@ public:
     // Outputs a string with a state dump
     virtual void dump(std::string&) const = 0;
 
+    // Outputs planner information
+    virtual void dumpPlannerInfo(const Vector<String16>& args, std::string&) const = 0;
+
     // Gets the debug name for the output
     virtual const std::string& getName() const = 0;
 
@@ -264,7 +268,9 @@ protected:
     virtual void ensureOutputLayerIfVisible(sp<LayerFE>&, CoverageState&) = 0;
     virtual void setReleasedLayers(const CompositionRefreshArgs&) = 0;
 
-    virtual void updateAndWriteCompositionState(const CompositionRefreshArgs&) = 0;
+    virtual void updateCompositionState(const CompositionRefreshArgs&) = 0;
+    virtual void planComposition() = 0;
+    virtual void writeCompositionState(const CompositionRefreshArgs&) = 0;
     virtual void setColorTransform(const CompositionRefreshArgs&) = 0;
     virtual void updateColorProfile(const CompositionRefreshArgs&) = 0;
     virtual void beginFrame() = 0;

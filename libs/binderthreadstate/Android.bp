@@ -14,15 +14,6 @@
 
 // DO NOT ADD NEW USAGES OF THIS
 // See comments in header file.
-package {
-    // See: http://go/android-license-faq
-    // A large-scale-change added 'default_applicable_licenses' to import
-    // all of the 'license_kinds' from "frameworks_native_license"
-    // to get the below license kinds:
-    //   SPDX-license-identifier-Apache-2.0
-    default_applicable_licenses: ["frameworks_native_license"],
-}
-
 cc_library_static {
     name: "libbinderthreadstateutils",
     double_loadable: true,

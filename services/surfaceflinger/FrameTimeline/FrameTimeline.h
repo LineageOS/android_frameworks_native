@@ -156,9 +156,10 @@ public:
     // Only FrameTimeline can construct a SurfaceFrame as it provides Predictions(through
     // TokenManager), Thresholds and TimeStats pointer.
     SurfaceFrame(const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
-                 std::string layerName, std::string debugName, PredictionState predictionState,
-                 TimelineItem&& predictions, std::shared_ptr<TimeStats> timeStats,
-                 JankClassificationThresholds thresholds, TraceCookieCounter* traceCookieCounter);
+                 int32_t layerId, std::string layerName, std::string debugName,
+                 PredictionState predictionState, TimelineItem&& predictions,
+                 std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds,
+                 TraceCookieCounter* traceCookieCounter);
     ~SurfaceFrame() = default;
 
     // Returns std::nullopt if the frame hasn't been classified yet.
@@ -199,6 +200,7 @@ public:
     // Getter functions used only by FrameTimelineTests and SurfaceFrame internally
     TimelineItem getActuals() const;
     pid_t getOwnerPid() const { return mOwnerPid; };
+    int32_t getLayerId() const { return mLayerId; };
     PredictionState getPredictionState() const;
     PresentState getPresentState() const;
     FrameReadyMetadata getFrameReadyMetadata() const;
@@ -221,6 +223,7 @@ private:
     const uid_t mOwnerUid;
     const std::string mLayerName;
     const std::string mDebugName;
+    const int32_t mLayerId;
     PresentState mPresentState GUARDED_BY(mMutex);
     const PredictionState mPredictionState;
     const TimelineItem mPredictions;
@@ -267,7 +270,7 @@ public:
     // Debug name is the human-readable debugging string for dumpsys.
     virtual std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(
             const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
-            std::string layerName, std::string debugName) = 0;
+            int32_t layerId, std::string layerName, std::string debugName) = 0;
 
     // Adds a new SurfaceFrame to the current DisplayFrame. Frames from multiple layers can be
     // composited into one display frame.
@@ -291,6 +294,11 @@ public:
 
     // Sets the max number of display frames that can be stored. Called by SF backdoor.
     virtual void setMaxDisplayFrames(uint32_t size);
+
+    // Computes the historical fps for the provided set of layer IDs
+    // The fps is compted from the linear timeline of present timestamps for DisplayFrames
+    // containing at least one layer ID.
+    virtual float computeFps(const std::unordered_set<int32_t>& layerIds);
 
     // Restores the max number of display frames to default. Called by SF backdoor.
     virtual void reset() = 0;
@@ -417,13 +425,14 @@ public:
     frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
     std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(
             const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
-            std::string layerName, std::string debugName) override;
+            int32_t layerId, std::string layerName, std::string debugName) override;
     void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame) override;
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) override;
     void setSfPresent(nsecs_t sfPresentTime,
                       const std::shared_ptr<FenceTime>& presentFence) override;
     void parseArgs(const Vector<String16>& args, std::string& result) override;
     void setMaxDisplayFrames(uint32_t size) override;
+    float computeFps(const std::unordered_set<int32_t>& layerIds) override;
     void reset() override;
 
     // Sets up the perfetto tracing backend and data source.

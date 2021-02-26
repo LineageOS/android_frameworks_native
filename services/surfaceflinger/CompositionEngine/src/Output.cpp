@@ -27,6 +27,9 @@
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <compositionengine/impl/planner/Planner.h>
+
+#include <SurfaceFlingerProperties.sysprop.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -38,6 +41,7 @@
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
 
+#include <android-base/properties.h>
 #include <ui/DebugUtils.h>
 #include <ui/HdrCapabilities.h>
 #include <utils/Trace.h>
@@ -49,6 +53,18 @@ namespace android::compositionengine {
 Output::~Output() = default;
 
 namespace impl {
+
+Output::Output() {
+    const bool enableLayerCaching = [] {
+        const bool enable =
+                android::sysprop::SurfaceFlingerProperties::enable_layer_caching().value_or(false);
+        return base::GetBoolProperty(std::string("debug.sf.enable_layer_caching"), enable);
+    }();
+
+    if (enableLayerCaching) {
+        mPlanner = std::make_unique<planner::Planner>();
+    }
+}
 
 namespace {
 
@@ -269,6 +285,15 @@ void Output::dumpBase(std::string& out) const {
     }
 }
 
+void Output::dumpPlannerInfo(const Vector<String16>& args, std::string& out) const {
+    if (!mPlanner) {
+        base::StringAppendF(&out, "Planner is disabled\n");
+        return;
+    }
+    base::StringAppendF(&out, "Planner info for display [%s]\n", mName.c_str());
+    mPlanner->dump(args, out);
+}
+
 compositionengine::DisplayColorProfile* Output::getDisplayColorProfile() const {
     return mDisplayColorProfile.get();
 }
@@ -368,7 +393,9 @@ void Output::present(const compositionengine::CompositionRefreshArgs& refreshArg
     ALOGV(__FUNCTION__);
 
     updateColorProfile(refreshArgs);
-    updateAndWriteCompositionState(refreshArgs);
+    updateCompositionState(refreshArgs);
+    planComposition();
+    writeCompositionState(refreshArgs);
     setColorTransform(refreshArgs);
     beginFrame();
     prepareFrame();
@@ -632,8 +659,7 @@ void Output::updateLayerStateFromFE(const CompositionRefreshArgs& args) const {
     }
 }
 
-void Output::updateAndWriteCompositionState(
-        const compositionengine::CompositionRefreshArgs& refreshArgs) {
+void Output::updateCompositionState(const compositionengine::CompositionRefreshArgs& refreshArgs) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
 
@@ -653,8 +679,29 @@ void Output::updateAndWriteCompositionState(
         if (mLayerRequestingBackgroundBlur == layer) {
             forceClientComposition = false;
         }
+    }
+}
 
-        // Send the updated state to the HWC, if appropriate.
+void Output::planComposition() {
+    if (!mPlanner || !getState().isEnabled) {
+        return;
+    }
+
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    mPlanner->plan(getOutputLayersOrderedByZ());
+}
+
+void Output::writeCompositionState(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    if (!getState().isEnabled) {
+        return;
+    }
+
+    for (auto* layer : getOutputLayersOrderedByZ()) {
         layer->writeStateToHWC(refreshArgs.updatingGeometryThisFrame);
     }
 }
