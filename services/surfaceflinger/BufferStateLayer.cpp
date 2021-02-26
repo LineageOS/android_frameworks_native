@@ -871,18 +871,13 @@ bool BufferStateLayer::bufferNeedsFiltering() const {
     return layerSize.width() != bufferWidth || layerSize.height() != bufferHeight;
 }
 
-void BufferStateLayer::incrementPendingBufferCount() {
-    mPendingBufferTransactions++;
-    tracePendingBufferCount();
-}
-
 void BufferStateLayer::decrementPendingBufferCount() {
-    mPendingBufferTransactions--;
-    tracePendingBufferCount();
+    int32_t pendingBuffers = --mPendingBufferTransactions;
+    tracePendingBufferCount(pendingBuffers);
 }
 
-void BufferStateLayer::tracePendingBufferCount() {
-    ATRACE_INT(mBlastTransactionName.c_str(), mPendingBufferTransactions);
+void BufferStateLayer::tracePendingBufferCount(int32_t pendingBuffers) {
+    ATRACE_INT(mBlastTransactionName.c_str(), pendingBuffers);
 }
 
 uint32_t BufferStateLayer::doTransaction(uint32_t flags) {
