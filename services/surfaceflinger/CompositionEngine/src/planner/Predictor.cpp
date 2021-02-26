@@ -176,7 +176,9 @@ std::optional<Predictor::PredictedPlan> Predictor::getPredictedPlan(
 }
 
 void Predictor::recordResult(std::optional<PredictedPlan> predictedPlan,
-                             const std::vector<const LayerState*>& layers, Plan result) {
+                             NonBufferHash flattenedHash,
+                             const std::vector<const LayerState*>& layers, bool hasSkippedLayers,
+                             Plan result) {
     if (predictedPlan) {
         recordPredictedResult(*predictedPlan, layers, std::move(result));
         return;
@@ -184,14 +186,12 @@ void Predictor::recordResult(std::optional<PredictedPlan> predictedPlan,
 
     ++mMissCount;
 
-    if (findSimilarPrediction(layers, result)) {
+    if (!hasSkippedLayers && findSimilarPrediction(layers, result)) {
         return;
     }
 
-    const NonBufferHash hash = getNonBufferHash(layers);
-
-    ALOGV("[%s] Adding novel candidate %zx", __func__, hash);
-    mCandidates.emplace_front(hash, Prediction(layers, result));
+    ALOGV("[%s] Adding novel candidate %zx", __func__, flattenedHash);
+    mCandidates.emplace_front(flattenedHash, Prediction(layers, result));
     if (mCandidates.size() > MAX_CANDIDATES) {
         mCandidates.pop_back();
     }

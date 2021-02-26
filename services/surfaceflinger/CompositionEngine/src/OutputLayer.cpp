@@ -16,7 +16,6 @@
 
 #include <android-base/stringprintf.h>
 #include <compositionengine/DisplayColorProfile.h>
-#include <compositionengine/LayerFE.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/Output.h>
 #include <compositionengine/impl/OutputCompositionState.h>
@@ -313,7 +312,7 @@ void OutputLayer::updateCompositionState(
     }
 }
 
-void OutputLayer::writeStateToHWC(bool includeGeometry) {
+void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer) {
     const auto& state = getState();
     // Skip doing this if there is no HWC interface
     if (!state.hwc) {
@@ -336,7 +335,8 @@ void OutputLayer::writeStateToHWC(bool includeGeometry) {
 
     if (includeGeometry) {
         writeOutputDependentGeometryStateToHWC(hwcLayer.get(), requestedCompositionType);
-        writeOutputIndependentGeometryStateToHWC(hwcLayer.get(), *outputIndependentState);
+        writeOutputIndependentGeometryStateToHWC(hwcLayer.get(), *outputIndependentState,
+                                                 skipLayer);
     }
 
     writeOutputDependentPerFrameStateToHWC(hwcLayer.get());
@@ -352,23 +352,27 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
         HWC2::Layer* hwcLayer, hal::Composition requestedCompositionType) {
     const auto& outputDependentState = getState();
 
-    if (auto error = hwcLayer->setDisplayFrame(outputDependentState.displayFrame);
-        error != hal::Error::NONE) {
-        ALOGE("[%s] Failed to set display frame [%d, %d, %d, %d]: %s (%d)",
-              getLayerFE().getDebugName(), outputDependentState.displayFrame.left,
-              outputDependentState.displayFrame.top, outputDependentState.displayFrame.right,
-              outputDependentState.displayFrame.bottom, to_string(error).c_str(),
-              static_cast<int32_t>(error));
+    Rect displayFrame = outputDependentState.displayFrame;
+    FloatRect sourceCrop = outputDependentState.sourceCrop;
+    if (outputDependentState.overrideInfo.buffer != nullptr) { // adyabr
+        displayFrame = outputDependentState.overrideInfo.displayFrame;
+        sourceCrop = displayFrame.toFloatRect();
     }
 
-    if (auto error = hwcLayer->setSourceCrop(outputDependentState.sourceCrop);
-        error != hal::Error::NONE) {
+    ALOGV("Writing display frame [%d, %d, %d, %d]", displayFrame.left, displayFrame.top,
+          displayFrame.right, displayFrame.bottom);
+
+    if (auto error = hwcLayer->setDisplayFrame(displayFrame); error != hal::Error::NONE) {
+        ALOGE("[%s] Failed to set display frame [%d, %d, %d, %d]: %s (%d)",
+              getLayerFE().getDebugName(), displayFrame.left, displayFrame.top, displayFrame.right,
+              displayFrame.bottom, to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+
+    if (auto error = hwcLayer->setSourceCrop(sourceCrop); error != hal::Error::NONE) {
         ALOGE("[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: "
               "%s (%d)",
-              getLayerFE().getDebugName(), outputDependentState.sourceCrop.left,
-              outputDependentState.sourceCrop.top, outputDependentState.sourceCrop.right,
-              outputDependentState.sourceCrop.bottom, to_string(error).c_str(),
-              static_cast<int32_t>(error));
+              getLayerFE().getDebugName(), sourceCrop.left, sourceCrop.top, sourceCrop.right,
+              sourceCrop.bottom, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
     if (auto error = hwcLayer->setZOrder(outputDependentState.z); error != hal::Error::NONE) {
@@ -389,7 +393,8 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
 }
 
 void OutputLayer::writeOutputIndependentGeometryStateToHWC(
-        HWC2::Layer* hwcLayer, const LayerFECompositionState& outputIndependentState) {
+        HWC2::Layer* hwcLayer, const LayerFECompositionState& outputIndependentState,
+        bool skipLayer) {
     if (auto error = hwcLayer->setBlendMode(outputIndependentState.blendMode);
         error != hal::Error::NONE) {
         ALOGE("[%s] Failed to set blend mode %s: %s (%d)", getLayerFE().getDebugName(),
@@ -397,10 +402,12 @@ void OutputLayer::writeOutputIndependentGeometryStateToHWC(
               static_cast<int32_t>(error));
     }
 
-    if (auto error = hwcLayer->setPlaneAlpha(outputIndependentState.alpha);
-        error != hal::Error::NONE) {
-        ALOGE("[%s] Failed to set plane alpha %.3f: %s (%d)", getLayerFE().getDebugName(),
-              outputIndependentState.alpha, to_string(error).c_str(), static_cast<int32_t>(error));
+    const float alpha = skipLayer ? 0.0f : outputIndependentState.alpha;
+    ALOGV("Writing alpha %f", alpha);
+
+    if (auto error = hwcLayer->setPlaneAlpha(alpha); error != hal::Error::NONE) {
+        ALOGE("[%s] Failed to set plane alpha %.3f: %s (%d)", getLayerFE().getDebugName(), alpha,
+              to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
     for (const auto& [name, entry] : outputIndependentState.metadata) {
@@ -509,19 +516,26 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
+    sp<GraphicBuffer> buffer = outputIndependentState.buffer;
+    sp<Fence> acquireFence = outputIndependentState.acquireFence;
+    if (getState().overrideInfo.buffer != nullptr) {
+        buffer = getState().overrideInfo.buffer;
+        acquireFence = getState().overrideInfo.acquireFence;
+    }
+
+    ALOGV("Writing buffer %p", buffer.get());
+
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
     // We need access to the output-dependent state for the buffer cache there,
     // though otherwise the buffer is not output-dependent.
-    editState().hwc->hwcBufferCache.getHwcBuffer(outputIndependentState.bufferSlot,
-                                                 outputIndependentState.buffer, &hwcSlot,
-                                                 &hwcBuffer);
+    editState().hwc->hwcBufferCache.getHwcBuffer(outputIndependentState.bufferSlot, buffer,
+                                                 &hwcSlot, &hwcBuffer);
 
-    if (auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, outputIndependentState.acquireFence);
+    if (auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
         error != hal::Error::NONE) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", getLayerFE().getDebugName(),
-              outputIndependentState.buffer->handle, to_string(error).c_str(),
-              static_cast<int32_t>(error));
+        ALOGE("[%s] Failed to set buffer %p: %s (%d)", getLayerFE().getDebugName(), buffer->handle,
+              to_string(error).c_str(), static_cast<int32_t>(error));
     }
 }
 
@@ -650,6 +664,26 @@ bool OutputLayer::needsFiltering() const {
     const auto& sourceCrop = state.sourceCrop;
     return sourceCrop.getHeight() != displayFrame.getHeight() ||
             sourceCrop.getWidth() != displayFrame.getWidth();
+}
+
+std::vector<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionList() const {
+    if (getState().overrideInfo.buffer == nullptr) {
+        return {};
+    }
+
+    LayerFE::LayerSettings settings;
+    settings.geometry = renderengine::Geometry{
+            .boundaries = getState().overrideInfo.displayFrame.toFloatRect(),
+    };
+    settings.bufferId = getState().overrideInfo.buffer->getId();
+    settings.source =
+            renderengine::PixelSource{.buffer = renderengine::Buffer{
+                                              .buffer = getState().overrideInfo.buffer,
+                                              .fence = getState().overrideInfo.acquireFence,
+                                      }};
+    settings.alpha = 1.0f;
+
+    return {static_cast<LayerFE::LayerSettings>(settings)};
 }
 
 void OutputLayer::dump(std::string& out) const {

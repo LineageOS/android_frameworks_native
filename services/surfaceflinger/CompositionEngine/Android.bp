@@ -43,6 +43,8 @@ cc_library {
     name: "libcompositionengine",
     defaults: ["libcompositionengine_defaults"],
     srcs: [
+        "src/planner/CachedSet.cpp",
+        "src/planner/Flattener.cpp",
         "src/planner/LayerState.cpp",
         "src/planner/Planner.cpp",
         "src/planner/Predictor.cpp",
