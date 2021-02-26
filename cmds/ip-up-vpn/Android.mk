@@ -21,6 +21,9 @@ LOCAL_SRC_FILES := ip-up-vpn.c
 LOCAL_CFLAGS := -Wall -Werror
 LOCAL_SHARED_LIBRARIES := libcutils liblog
 LOCAL_MODULE := ip-up-vpn
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0
+LOCAL_LICENSE_CONDITIONS := notice
+LOCAL_NOTICE_FILE := $(LOCAL_PATH)/../../NOTICE
 LOCAL_MODULE_PATH := $(TARGET_OUT_ETC)/ppp
 LOCAL_MODULE_TAGS := optional
 
