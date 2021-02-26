@@ -32,6 +32,7 @@ void Planner::plan(
                    std::inserter(removedLayers, removedLayers.begin()),
                    [](const auto& layer) { return layer.first; });
 
+    std::vector<LayerId> currentLayerIds;
     for (auto layer : layers) {
         LayerId id = layer->getLayerFE().getSequence();
         if (const auto layerEntry = mPreviousLayers.find(id); layerEntry != mPreviousLayers.end()) {
@@ -54,6 +55,8 @@ void Planner::plan(
             mPreviousLayers.emplace(std::make_pair(id, std::move(state)));
         }
 
+        currentLayerIds.emplace_back(id);
+
         if (const auto found = removedLayers.find(id); found != removedLayers.end()) {
             removedLayers.erase(found);
         }
@@ -67,10 +70,153 @@ void Planner::plan(
             mPreviousLayers.erase(removedLayer);
         }
     }
+
+    mCurrentLayers.clear();
+    mCurrentLayers.reserve(currentLayerIds.size());
+    std::transform(currentLayerIds.cbegin(), currentLayerIds.cend(),
+                   std::back_inserter(mCurrentLayers),
+                   [this](LayerId id) { return &mPreviousLayers.at(id); });
+
+    mPredictedPlan = mPredictor.getPredictedPlan(mCurrentLayers, getNonBufferHash(mCurrentLayers));
+    if (mPredictedPlan) {
+        ALOGV("[%s] Predicting plan %s", __func__, to_string(mPredictedPlan->plan).c_str());
+    } else {
+        ALOGV("[%s] No prediction found\n", __func__);
+    }
 }
 
-void Planner::dump(const Vector<String16>& /* args */, std::string& result) {
-    result.append("Dumping Planner state");
+void Planner::reportFinalPlan(
+        compositionengine::Output::OutputLayersEnumerator<compositionengine::Output>&& layers) {
+    Plan finalPlan;
+    for (auto layer : layers) {
+        const bool forcedOrRequestedClient =
+                layer->getState().forceClientComposition || layer->requiresClientComposition();
+
+        finalPlan.addLayerType(
+                forcedOrRequestedClient
+                        ? hardware::graphics::composer::hal::Composition::CLIENT
+                        : layer->getLayerFE().getCompositionState()->compositionType);
+    }
+
+    mPredictor.recordResult(mPredictedPlan, mCurrentLayers, finalPlan);
+}
+
+void Planner::dump(const Vector<String16>& args, std::string& result) {
+    if (args.size() > 1) {
+        const String8 command(args[1]);
+        if (command == "--compare" || command == "-c") {
+            if (args.size() < 4) {
+                base::StringAppendF(&result,
+                                    "Expected two layer stack hashes, e.g. '--planner %s "
+                                    "<left_hash> <right_hash>'\n",
+                                    command.string());
+                return;
+            }
+            if (args.size() > 4) {
+                base::StringAppendF(&result,
+                                    "Too many arguments found, expected '--planner %s <left_hash> "
+                                    "<right_hash>'\n",
+                                    command.string());
+                return;
+            }
+
+            const String8 leftHashString(args[2]);
+            size_t leftHash = 0;
+            int fieldsRead = sscanf(leftHashString.string(), "%zx", &leftHash);
+            if (fieldsRead != 1) {
+                base::StringAppendF(&result, "Failed to parse %s as a size_t\n",
+                                    leftHashString.string());
+                return;
+            }
+
+            const String8 rightHashString(args[3]);
+            size_t rightHash = 0;
+            fieldsRead = sscanf(rightHashString.string(), "%zx", &rightHash);
+            if (fieldsRead != 1) {
+                base::StringAppendF(&result, "Failed to parse %s as a size_t\n",
+                                    rightHashString.string());
+                return;
+            }
+
+            mPredictor.compareLayerStacks(leftHash, rightHash, result);
+        } else if (command == "--describe" || command == "-d") {
+            if (args.size() < 3) {
+                base::StringAppendF(&result,
+                                    "Expected a layer stack hash, e.g. '--planner %s <hash>'\n",
+                                    command.string());
+                return;
+            }
+            if (args.size() > 3) {
+                base::StringAppendF(&result,
+                                    "Too many arguments found, expected '--planner %s <hash>'\n",
+                                    command.string());
+                return;
+            }
+
+            const String8 hashString(args[2]);
+            size_t hash = 0;
+            const int fieldsRead = sscanf(hashString.string(), "%zx", &hash);
+            if (fieldsRead != 1) {
+                base::StringAppendF(&result, "Failed to parse %s as a size_t\n",
+                                    hashString.string());
+                return;
+            }
+
+            mPredictor.describeLayerStack(hash, result);
+        } else if (command == "--help" || command == "-h") {
+            dumpUsage(result);
+        } else if (command == "--similar" || command == "-s") {
+            if (args.size() < 3) {
+                base::StringAppendF(&result, "Expected a plan string, e.g. '--planner %s <plan>'\n",
+                                    command.string());
+                return;
+            }
+            if (args.size() > 3) {
+                base::StringAppendF(&result,
+                                    "Too many arguments found, expected '--planner %s <plan>'\n",
+                                    command.string());
+                return;
+            }
+
+            const String8 planString(args[2]);
+            std::optional<Plan> plan = Plan::fromString(std::string(planString.string()));
+            if (!plan) {
+                base::StringAppendF(&result, "Failed to parse %s as a Plan\n", planString.string());
+                return;
+            }
+
+            mPredictor.listSimilarStacks(*plan, result);
+        } else {
+            base::StringAppendF(&result, "Unknown command '%s'\n\n", command.string());
+            dumpUsage(result);
+        }
+        return;
+    }
+
+    // If there are no specific commands, dump the usual state
+    mPredictor.dump(result);
+}
+
+void Planner::dumpUsage(std::string& result) const {
+    result.append("Planner command line interface usage\n");
+    result.append("  dumpsys SurfaceFlinger --planner <command> [arguments]\n\n");
+
+    result.append("If run without a command, dumps current Planner state\n\n");
+
+    result.append("Commands:\n");
+
+    result.append("[--compare|-c] <left_hash> <right_hash>\n");
+    result.append("  Compares the predictions <left_hash> and <right_hash> by showing differences"
+                  " in their example layer stacks\n");
+
+    result.append("[--describe|-d] <hash>\n");
+    result.append("  Prints the example layer stack and prediction statistics for <hash>\n");
+
+    result.append("[--help|-h]\n");
+    result.append("  Shows this message\n");
+
+    result.append("[--similar|-s] <plan>\n");
+    result.append("  Prints the example layer names for similar stacks matching <plan>\n");
 }
 
 } // namespace android::compositionengine::impl::planner

@@ -873,6 +873,10 @@ void Output::prepareFrame() {
 
     chooseCompositionStrategy();
 
+    if (mPlanner) {
+        mPlanner->reportFinalPlan(getOutputLayersOrderedByZ());
+    }
+
     mRenderSurface->prepareFrame(outputState.usesClientComposition,
                                  outputState.usesDeviceComposition);
 }

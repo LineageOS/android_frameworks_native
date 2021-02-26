@@ -18,9 +18,11 @@
 
 #include <compositionengine/Output.h>
 #include <compositionengine/impl/planner/LayerState.h>
+#include <compositionengine/impl/planner/Predictor.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -39,10 +41,23 @@ public:
     void plan(
             compositionengine::Output::OutputLayersEnumerator<compositionengine::Output>&& layers);
 
+    // Updates the Planner with the current set of layers after a composition strategy is
+    // determined.
+    void reportFinalPlan(
+            compositionengine::Output::OutputLayersEnumerator<compositionengine::Output>&& layers);
+
     void dump(const Vector<String16>& args, std::string&);
 
 private:
+    void dumpUsage(std::string&) const;
+
     std::unordered_map<LayerId, LayerState> mPreviousLayers;
+
+    std::vector<const LayerState*> mCurrentLayers;
+
+    Predictor mPredictor;
+
+    std::optional<Predictor::PredictedPlan> mPredictedPlan;
 };
 
 } // namespace compositionengine::impl::planner
