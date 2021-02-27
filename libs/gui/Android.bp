@@ -138,6 +138,10 @@ cc_library_shared {
         sampling: true,
         profile_file: "libgui/libgui.profdata",
     },
+
+    lto: {
+        thin: true,
+    },
 }
 
 // Used by media codec services exclusively as a static lib for
