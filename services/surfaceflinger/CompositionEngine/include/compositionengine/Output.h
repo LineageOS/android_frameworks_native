@@ -280,6 +280,7 @@ protected:
     virtual std::optional<base::unique_fd> composeSurfaces(
             const Region&, const compositionengine::CompositionRefreshArgs& refreshArgs) = 0;
     virtual void postFramebuffer() = 0;
+    virtual void renderCachedSets() = 0;
     virtual void chooseCompositionStrategy() = 0;
     virtual bool getSkipColorTransform() const = 0;
     virtual FrameFences presentAndGetFrameFences() = 0;

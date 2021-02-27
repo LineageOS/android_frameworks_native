@@ -94,12 +94,14 @@ public:
     std::optional<base::unique_fd> composeSurfaces(
             const Region&, const compositionengine::CompositionRefreshArgs& refreshArgs) override;
     void postFramebuffer() override;
+    void renderCachedSets() override;
     void cacheClientCompositionRequests(uint32_t) override;
 
     // Testing
     const ReleasedLayers& getReleasedLayersForTest() const;
     void setDisplayColorProfileForTest(std::unique_ptr<compositionengine::DisplayColorProfile>);
     void setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSurface>);
+    bool plannerEnabled() const { return mPlanner != nullptr; }
 
 protected:
     std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(const sp<LayerFE>&) const;
