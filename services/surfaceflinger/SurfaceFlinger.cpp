@@ -3307,6 +3307,7 @@ void SurfaceFlinger::flushTransactionQueues() {
                     transactions.push_back(transaction);
                 }
                 mTransactionQueue.pop();
+                ATRACE_INT("TransactionQueue", mTransactionQueue.size());
             }
         }
 
@@ -3381,6 +3382,76 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
     return ready;
 }
 
+void SurfaceFlinger::queueTransaction(TransactionState state) {
+    Mutex::Autolock _l(mQueueLock);
+
+    // If its TransactionQueue already has a pending TransactionState or if it is pending
+    auto itr = mPendingTransactionQueues.find(state.applyToken);
+    // if this is an animation frame, wait until prior animation frame has
+    // been applied by SF
+    if (state.flags & eAnimation) {
+        while (itr != mPendingTransactionQueues.end()) {
+            status_t err = mTransactionQueueCV.waitRelative(mQueueLock, s2ns(5));
+            if (CC_UNLIKELY(err != NO_ERROR)) {
+                ALOGW_IF(err == TIMED_OUT,
+                         "setTransactionState timed out "
+                         "waiting for animation frame to apply");
+                break;
+            }
+            itr = mPendingTransactionQueues.find(state.applyToken);
+        }
+    }
+
+    mTransactionQueue.emplace(state);
+    ATRACE_INT("TransactionQueue", mTransactionQueue.size());
+
+    // TODO(b/159125966): Remove eEarlyWakeup completely as no client should use this flag
+    if (state.flags & eEarlyWakeup) {
+        ALOGW("eEarlyWakeup is deprecated. Use eExplicitEarlyWakeup[Start|End]");
+    }
+
+    if (!(state.permissions & Permission::ACCESS_SURFACE_FLINGER) &&
+        (state.flags & (eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd))) {
+        ALOGE("Only WindowManager is allowed to use eExplicitEarlyWakeup[Start|End] flags");
+        state.flags &= ~(eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd);
+    }
+
+    const auto schedule = [](uint32_t flags) {
+        if (flags & eEarlyWakeup) return TransactionSchedule::Early;
+        if (flags & eExplicitEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;
+        if (flags & eExplicitEarlyWakeupStart) return TransactionSchedule::EarlyStart;
+        return TransactionSchedule::Late;
+    }(state.flags);
+
+    setTransactionFlags(eTransactionFlushNeeded, schedule);
+}
+
+void SurfaceFlinger::waitForSynchronousTransaction(bool synchronous, bool syncInput) {
+    Mutex::Autolock _l(mStateLock);
+    if (synchronous) {
+        mTransactionPending = true;
+    }
+    if (syncInput) {
+        mPendingSyncInputWindows = true;
+    }
+
+    // applyTransactionState can be called by either the main SF thread or by
+    // another process through setTransactionState.  While a given process may wish
+    // to wait on synchronous transactions, the main SF thread should never
+    // be blocked.  Therefore, we only wait if isMainThread is false.
+    while (mTransactionPending || mPendingSyncInputWindows) {
+        status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
+        if (CC_UNLIKELY(err != NO_ERROR)) {
+            // just in case something goes wrong in SF, return to the
+            // called after a few seconds.
+            ALOGW_IF(err == TIMED_OUT, "setTransactionState timed out!");
+            mTransactionPending = false;
+            mPendingSyncInputWindows = false;
+            break;
+        }
+    }
+}
+
 status_t SurfaceFlinger::setTransactionState(
         const FrameTimelineInfo& frameTimelineInfo, const Vector<ComposerState>& states,
         const Vector<DisplayState>& displays, uint32_t flags, const sp<IBinder>& applyToken,
@@ -3404,101 +3475,15 @@ status_t SurfaceFlinger::setTransactionState(
     const int originPid = ipc->getCallingPid();
     const int originUid = ipc->getCallingUid();
 
-    {
-        Mutex::Autolock _l(mQueueLock);
-        // If its TransactionQueue already has a pending TransactionState or if it is pending
-        auto itr = mPendingTransactionQueues.find(applyToken);
-        // if this is an animation frame, wait until prior animation frame has
-        // been applied by SF
-        if (flags & eAnimation) {
-            while (itr != mPendingTransactionQueues.end()) {
-                status_t err = mTransactionQueueCV.waitRelative(mQueueLock, s2ns(5));
-                if (CC_UNLIKELY(err != NO_ERROR)) {
-                    ALOGW_IF(err == TIMED_OUT,
-                             "setTransactionState timed out "
-                             "waiting for animation frame to apply");
-                    break;
-                }
-                itr = mPendingTransactionQueues.find(applyToken);
-            }
-        }
+    queueTransaction({frameTimelineInfo, states, displays, flags, applyToken, inputWindowCommands,
+                      desiredPresentTime, isAutoTimestamp, uncacheBuffer, postTime, permissions,
+                      hasListenerCallbacks, listenerCallbacks, originPid, originUid,
+                      transactionId});
 
-        const bool pendingTransactions = itr != mPendingTransactionQueues.end();
-        // Expected present time is computed and cached on invalidate, so it may be stale.
-        if (!pendingTransactions) {
-            const auto now = systemTime();
-            const bool nextVsyncPending = now < mExpectedPresentTime.load();
-            const DisplayStatInfo stats = mScheduler->getDisplayStatInfo(now);
-            mExpectedPresentTime = calculateExpectedPresentTime(stats);
-            // The transaction might arrive just before the next vsync but after
-            // invalidate was called. In that case we need to get the next vsync
-            // afterwards.
-            if (nextVsyncPending) {
-                mExpectedPresentTime += stats.vsyncPeriod;
-            }
-        }
-
-        mTransactionQueue.emplace(frameTimelineInfo, states, displays, flags, applyToken,
-                                  inputWindowCommands, desiredPresentTime, isAutoTimestamp,
-                                  uncacheBuffer, postTime, permissions, hasListenerCallbacks,
-                                  listenerCallbacks, originPid, originUid, transactionId);
-
-        if (pendingTransactions ||
-            (!isAutoTimestamp && desiredPresentTime > mExpectedPresentTime.load())) {
-            setTransactionFlags(eTransactionFlushNeeded);
-            return NO_ERROR;
-        }
-
-        // TODO(b/159125966): Remove eEarlyWakeup completely as no client should use this flag
-        if (flags & eEarlyWakeup) {
-            ALOGW("eEarlyWakeup is deprecated. Use eExplicitEarlyWakeup[Start|End]");
-        }
-
-        if (!(permissions & Permission::ACCESS_SURFACE_FLINGER) &&
-            (flags & (eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd))) {
-            ALOGE("Only WindowManager is allowed to use eExplicitEarlyWakeup[Start|End] flags");
-            flags &= ~(eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd);
-        }
-
-        const auto schedule = [](uint32_t flags) {
-            if (flags & eEarlyWakeup) return TransactionSchedule::Early;
-            if (flags & eExplicitEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;
-            if (flags & eExplicitEarlyWakeupStart) return TransactionSchedule::EarlyStart;
-            return TransactionSchedule::Late;
-        }(flags);
-        setTransactionFlags(eTransactionFlushNeeded, schedule);
-    }
-
-    // if this is a synchronous transaction, wait for it to take effect
-    // before returning.
     const bool synchronous = flags & eSynchronous;
     const bool syncInput = inputWindowCommands.syncInputWindows;
-    if (!synchronous && !syncInput) {
-        return NO_ERROR;
-    }
-
-    Mutex::Autolock _l(mStateLock);
-    if (synchronous) {
-        mTransactionPending = true;
-    }
-    if (syncInput) {
-        mPendingSyncInputWindows = true;
-    }
-
-    // applyTransactionState can be called by either the main SF thread or by
-    // another process through setTransactionState.  While a given process may wish
-    // to wait on synchronous transactions, the main SF thread should never
-    // be blocked.  Therefore, we only wait if isMainThread is false.
-    while (mTransactionPending || mPendingSyncInputWindows) {
-        status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
-        if (CC_UNLIKELY(err != NO_ERROR)) {
-            // just in case something goes wrong in SF, return to the
-            // called after a few seconds.
-            ALOGW_IF(err == TIMED_OUT, "setTransactionState timed out!");
-            mTransactionPending = false;
-            mPendingSyncInputWindows = false;
-            break;
-        }
+    if (synchronous || syncInput) {
+        waitForSynchronousTransaction(synchronous, syncInput);
     }
 
     return NO_ERROR;
