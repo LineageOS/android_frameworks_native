@@ -127,7 +127,6 @@ public:
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         // called in SurfaceFlinger::signalTransaction
         EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
-        EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillOnce(Return(systemTime()));
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
                     /*desiredPresentTime*/ systemTime(), /*isAutoTimestamp*/ true,
@@ -163,8 +162,6 @@ public:
         // first check will see desired present time has not passed,
         // but afterwards it will look like the desired present time has passed
         nsecs_t time = systemTime();
-        EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_))
-                .WillOnce(Return(time + nsecs_t(5 * 1e8)));
         TransactionInfo transaction;
         setupSingle(transaction, flags, syncInputWindows,
                     /*desiredPresentTime*/ time + s2ns(1), false, FrameTimelineInfo{});
@@ -177,7 +174,11 @@ public:
                                      transaction.id);
 
         nsecs_t returnedTime = systemTime();
-        EXPECT_LE(returnedTime, applicationSentTime + s2ns(5));
+        if ((flags & ISurfaceComposer::eSynchronous) || syncInputWindows) {
+            EXPECT_GE(systemTime(), applicationSentTime + s2ns(5));
+        } else {
+            EXPECT_LE(returnedTime, applicationSentTime + s2ns(5));
+        }
         // This transaction should have been placed on the transaction queue
         auto transactionQueue = mFlinger.getTransactionQueue();
         EXPECT_EQ(1u, transactionQueue.size());
@@ -187,9 +188,11 @@ public:
         ASSERT_EQ(0u, mFlinger.getTransactionQueue().size());
         // called in SurfaceFlinger::signalTransaction
         nsecs_t time = systemTime();
-        EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
-        EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_))
-                .WillOnce(Return(time + nsecs_t(5 * 1e8)));
+        if (!syncInputWindows) {
+            EXPECT_CALL(*mMessageQueue, invalidate()).Times(2);
+        } else {
+            EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+        }
         // transaction that should go on the pending thread
         TransactionInfo transactionA;
         setupSingle(transactionA, /*flags*/ 0, /*syncInputWindows*/ false,
@@ -229,7 +232,8 @@ public:
         // if this is an animation, this thread should be blocked for 5s
         // in setTransactionState waiting for transactionA to flush.  Otherwise,
         // the transaction should be placed on the pending queue
-        if (flags & ISurfaceComposer::eAnimation) {
+        if (flags & (ISurfaceComposer::eAnimation | ISurfaceComposer::eSynchronous) ||
+            syncInputWindows) {
             EXPECT_GE(systemTime(), applicationSentTime + s2ns(5));
         } else {
             EXPECT_LE(systemTime(), applicationSentTime + s2ns(5));
@@ -238,18 +242,9 @@ public:
         // transaction that would goes to pending transaciton queue.
         mFlinger.flushTransactionQueues();
 
-        // check that there is one binder on the pending queue.
+        // check that the transaction was applied.
         auto transactionQueue = mFlinger.getPendingTransactionQueue();
-        EXPECT_EQ(1u, transactionQueue.size());
-
-        auto& [applyToken, transactionStates] = *(transactionQueue.begin());
-        EXPECT_EQ(2u, transactionStates.size());
-
-        auto& transactionStateA = transactionStates.front();
-        transactionStates.pop();
-        checkEqual(transactionA, transactionStateA);
-        auto& transactionStateB = transactionStates.front();
-        checkEqual(transactionB, transactionStateB);
+        EXPECT_EQ(0u, transactionQueue.size());
     }
 
     bool mHasListenerCallbacks = false;
@@ -262,10 +257,6 @@ TEST_F(TransactionApplicationTest, Flush_RemovesFromQueue) {
     // called in SurfaceFlinger::signalTransaction
     EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
 
-    // nsecs_t time = systemTime();
-    EXPECT_CALL(*mVSyncTracker, nextAnticipatedVSyncTimeFrom(_))
-            .WillOnce(Return(nsecs_t(5 * 1e8)))
-            .WillOnce(Return(s2ns(2)));
     TransactionInfo transactionA; // transaction to go on pending queue
     setupSingle(transactionA, /*flags*/ 0, /*syncInputWindows*/ false,
                 /*desiredPresentTime*/ s2ns(1), false, FrameTimelineInfo{});

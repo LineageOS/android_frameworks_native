@@ -40,110 +40,102 @@ sp<IBinder> FocusResolver::getFocusedWindowToken(int32_t displayId) const {
     return it != mFocusedWindowTokenByDisplay.end() ? it->second.second : nullptr;
 }
 
-std::optional<FocusRequest> FocusResolver::getPendingRequest(int32_t displayId) {
-    auto it = mPendingFocusRequests.find(displayId);
-    return it != mPendingFocusRequests.end() ? std::make_optional<>(it->second) : std::nullopt;
+std::optional<FocusRequest> FocusResolver::getFocusRequest(int32_t displayId) {
+    auto it = mFocusRequestByDisplay.find(displayId);
+    return it != mFocusRequestByDisplay.end() ? std::make_optional<>(it->second) : std::nullopt;
 }
 
+/**
+ * 'setInputWindows' is called when the window properties change. Here we will check whether the
+ * currently focused window can remain focused. If the currently focused window remains eligible
+ * for focus ('isTokenFocusable' returns OK), then we will continue to grant it focus otherwise
+ * we will check if the previous focus request is eligible to receive focus.
+ */
 std::optional<FocusResolver::FocusChanges> FocusResolver::setInputWindows(
         int32_t displayId, const std::vector<sp<InputWindowHandle>>& windows) {
-    // If the current focused window becomes unfocusable, remove focus.
-    sp<IBinder> currentFocus = getFocusedWindowToken(displayId);
+    std::string removeFocusReason;
+
+    // Check if the currently focused window is still focusable.
+    const sp<IBinder> currentFocus = getFocusedWindowToken(displayId);
     if (currentFocus) {
-        FocusResult result = isTokenFocusable(currentFocus, windows);
-        if (result != FocusResult::OK) {
-            return updateFocusedWindow(displayId, NamedEnum::string(result), nullptr);
+        Focusability result = isTokenFocusable(currentFocus, windows);
+        if (result == Focusability::OK) {
+            return std::nullopt;
+        }
+        removeFocusReason = NamedEnum::string(result);
+    }
+
+    // We don't have a focused window or the currently focused window is no longer focusable. Check
+    // to see if we can grant focus to the window that previously requested focus.
+    const std::optional<FocusRequest> request = getFocusRequest(displayId);
+    if (request) {
+        sp<IBinder> requestedFocus = request->token;
+        const Focusability result = isTokenFocusable(requestedFocus, windows);
+        const Focusability previousResult = mLastFocusResultByDisplay[displayId];
+        mLastFocusResultByDisplay[displayId] = result;
+        if (result == Focusability::OK) {
+            return updateFocusedWindow(displayId,
+                                       "Window became focusable. Previous reason: " +
+                                               NamedEnum::string(previousResult),
+                                       requestedFocus, request->windowName);
         }
     }
 
-    // Check if any pending focus requests can be resolved.
-    std::optional<FocusRequest> pendingRequest = getPendingRequest(displayId);
-    if (!pendingRequest) {
-        return std::nullopt;
-    }
-
-    sp<IBinder> requestedFocus = pendingRequest->token;
-    std::string windowName = pendingRequest->windowName;
-    if (currentFocus == requestedFocus) {
-        ALOGD_IF(DEBUG_FOCUS,
-                 "setFocusedWindow %s on display %" PRId32 " ignored, reason: already focused",
-                 windowName.c_str(), displayId);
-        mPendingFocusRequests.erase(displayId);
-        return std::nullopt;
-    }
-
-    FocusResult result = isTokenFocusable(requestedFocus, windows);
-    // If the window from the pending request is now visible, provide it focus.
-    if (result == FocusResult::OK) {
-        mPendingFocusRequests.erase(displayId);
-        return updateFocusedWindow(displayId, "Window became visible", requestedFocus, windowName);
-    }
-
-    if (result != FocusResult::NOT_VISIBLE) {
-        // Drop the request if we are unable to change the focus for a reason other than visibility.
-        ALOGW("Focus request %s on display %" PRId32 " ignored, reason:%s", windowName.c_str(),
-              displayId, NamedEnum::string(result).c_str());
-        mPendingFocusRequests.erase(displayId);
-    }
-    return std::nullopt;
+    // Focused window is no longer focusable and we don't have a suitable focus request to grant.
+    // Remove focus if needed.
+    return updateFocusedWindow(displayId, removeFocusReason, nullptr);
 }
 
 std::optional<FocusResolver::FocusChanges> FocusResolver::setFocusedWindow(
         const FocusRequest& request, const std::vector<sp<InputWindowHandle>>& windows) {
     const int32_t displayId = request.displayId;
     const sp<IBinder> currentFocus = getFocusedWindowToken(displayId);
-    if (request.focusedToken && currentFocus != request.focusedToken) {
-        ALOGW("setFocusedWindow %s on display %" PRId32
-              " ignored, reason: focusedToken  %s is not focused",
-              request.windowName.c_str(), displayId, request.focusedWindowName.c_str());
-        return std::nullopt;
-    }
-
-    std::optional<FocusRequest> pendingRequest = getPendingRequest(displayId);
-    if (pendingRequest) {
-        ALOGW("Pending focus request %s on display %" PRId32
-              " ignored, reason:replaced by new request",
-              pendingRequest->windowName.c_str(), displayId);
-
-        // clear any pending focus requests
-        mPendingFocusRequests.erase(displayId);
-    }
-
     if (currentFocus == request.token) {
         ALOGD_IF(DEBUG_FOCUS,
-                 "setFocusedWindow %s on display %" PRId32 " ignored, reason:already focused",
+                 "setFocusedWindow %s on display %" PRId32 " ignored, reason: already focused",
                  request.windowName.c_str(), displayId);
         return std::nullopt;
     }
 
-    FocusResult result = isTokenFocusable(request.token, windows);
-    if (result == FocusResult::OK) {
-        std::string reason =
-                (request.focusedToken) ? "setFocusedWindow with focus check" : "setFocusedWindow";
-        return updateFocusedWindow(displayId, reason, request.token, request.windowName);
-    }
-
-    if (result == FocusResult::NOT_VISIBLE) {
-        // The requested window is not currently visible. Wait for the window to become visible
-        // and then provide it focus. This is to handle situations where a user action triggers
-        // a new window to appear. We want to be able to queue any key events after the user
-        // action and deliver it to the newly focused window. In order for this to happen, we
-        // take focus from the currently focused window so key events can be queued.
-        ALOGD_IF(DEBUG_FOCUS,
-                 "setFocusedWindow %s on display %" PRId32
-                 " pending, reason: window is not visible",
-                 request.windowName.c_str(), displayId);
-        mPendingFocusRequests[displayId] = request;
-        return updateFocusedWindow(displayId, "Waiting for window to be visible", nullptr);
-    } else {
-        ALOGW("setFocusedWindow %s on display %" PRId32 " ignored, reason:%s",
+    // Handle conditional focus requests, i.e. requests that have a focused token. These requests
+    // are not persistent. If the window is no longer focusable, we expect focus to go back to the
+    // previously focused window.
+    if (request.focusedToken) {
+        if (currentFocus != request.focusedToken) {
+            ALOGW("setFocusedWindow %s on display %" PRId32
+                  " ignored, reason: focusedToken %s is not focused",
+                  request.windowName.c_str(), displayId, request.focusedWindowName.c_str());
+            return std::nullopt;
+        }
+        Focusability result = isTokenFocusable(request.token, windows);
+        if (result == Focusability::OK) {
+            return updateFocusedWindow(displayId, "setFocusedWindow with focus check",
+                                       request.token, request.windowName);
+        }
+        ALOGW("setFocusedWindow %s on display %" PRId32 " ignored, reason: %s",
               request.windowName.c_str(), displayId, NamedEnum::string(result).c_str());
+        return std::nullopt;
     }
 
-    return std::nullopt;
+    Focusability result = isTokenFocusable(request.token, windows);
+    // Update focus request. The focus resolver will always try to handle this request if there is
+    // no focused window on the display.
+    mFocusRequestByDisplay[displayId] = request;
+    mLastFocusResultByDisplay[displayId] = result;
+
+    if (result == Focusability::OK) {
+        return updateFocusedWindow(displayId, "setFocusedWindow", request.token,
+                                   request.windowName);
+    }
+
+    // The requested window is not currently focusable. Wait for the window to become focusable
+    // but remove focus from the current window so that input events can go into a pending queue
+    // and be sent to the window when it becomes focused.
+    return updateFocusedWindow(displayId, "Waiting for window because " + NamedEnum::string(result),
+                               nullptr);
 }
 
-FocusResolver::FocusResult FocusResolver::isTokenFocusable(
+FocusResolver::Focusability FocusResolver::isTokenFocusable(
         const sp<IBinder>& token, const std::vector<sp<InputWindowHandle>>& windows) {
     bool allWindowsAreFocusable = true;
     bool visibleWindowFound = false;
@@ -165,16 +157,16 @@ FocusResolver::FocusResult FocusResolver::isTokenFocusable(
     }
 
     if (!windowFound) {
-        return FocusResult::NO_WINDOW;
+        return Focusability::NO_WINDOW;
     }
     if (!allWindowsAreFocusable) {
-        return FocusResult::NOT_FOCUSABLE;
+        return Focusability::NOT_FOCUSABLE;
     }
     if (!visibleWindowFound) {
-        return FocusResult::NOT_VISIBLE;
+        return Focusability::NOT_VISIBLE;
     }
 
-    return FocusResult::OK;
+    return Focusability::OK;
 }
 
 std::optional<FocusResolver::FocusChanges> FocusResolver::updateFocusedWindow(
@@ -209,15 +201,17 @@ std::string FocusResolver::dumpFocusedWindows() const {
 
 std::string FocusResolver::dump() const {
     std::string dump = dumpFocusedWindows();
-
-    if (mPendingFocusRequests.empty()) {
-        return dump + INDENT "PendingFocusRequests: <none>\n";
+    if (mFocusRequestByDisplay.empty()) {
+        return dump + INDENT "FocusRequests: <none>\n";
     }
 
-    dump += INDENT "PendingFocusRequests:\n";
-    for (const auto& [displayId, request] : mPendingFocusRequests) {
-        dump += base::StringPrintf(INDENT2 "displayId=%" PRId32 ", name='%s'\n", displayId,
-                                   request.windowName.c_str());
+    dump += INDENT "FocusRequests:\n";
+    for (const auto& [displayId, request] : mFocusRequestByDisplay) {
+        auto it = mLastFocusResultByDisplay.find(displayId);
+        std::string result =
+                it != mLastFocusResultByDisplay.end() ? NamedEnum::string(it->second) : "";
+        dump += base::StringPrintf(INDENT2 "displayId=%" PRId32 ", name='%s' result='%s'\n",
+                                   displayId, request.windowName.c_str(), result.c_str());
     }
     return dump;
 }
