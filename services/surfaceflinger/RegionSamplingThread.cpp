@@ -481,6 +481,12 @@ void RegionSamplingThread::captureSample() {
     // 1) The region sampling thread is the last owner of the buffer, and the freeing of the buffer
     // happens in this thread, as opposed to the main thread.
     // 2) The listener(s) receive their notifications prior to freeing the buffer.
+    if (mCachedBuffer != nullptr && mCachedBuffer != buffer) {
+        if (mFlinger.getRenderEngine().getRenderEngineType() ==
+            renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED) {
+            mFlinger.getRenderEngine().unbindExternalTextureBuffer(mCachedBuffer->getId());
+        }
+    }
     mCachedBuffer = buffer;
     ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::noWorkNeeded));
 }
