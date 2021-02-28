@@ -5865,6 +5865,15 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                             regionSampling, grayscale, captureResults);
         });
 
+        // TODO(b/180767535): Remove this once we optimize buffer lifecycle for RenderEngine
+        // Only do this when we're not doing region sampling, to allow the region sampling thread to
+        // manage buffer lifecycle itself.
+        if (!regionSampling &&
+            getRenderEngine().getRenderEngineType() ==
+                    renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED) {
+            getRenderEngine().unbindExternalTextureBuffer(buffer->getId());
+        }
+
         captureResults.result = result;
         captureListener->onScreenCaptureCompleted(captureResults);
     }));
@@ -5984,8 +5993,12 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     base::unique_fd bufferFence;
     base::unique_fd drawFence;
     getRenderEngine().useProtectedContext(useProtected);
+
+    // TODO(b/180767535): Remove this once we optimize buffer lifecycle for RenderEngine
+    const bool useFramebufferCache = getRenderEngine().getRenderEngineType() ==
+            renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED;
     getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, buffer,
-                                 /*useFramebufferCache=*/false, std::move(bufferFence), &drawFence);
+                                 useFramebufferCache, std::move(bufferFence), &drawFence);
 
     if (drawFence >= 0) {
         sp<Fence> releaseFence = new Fence(dup(drawFence));
