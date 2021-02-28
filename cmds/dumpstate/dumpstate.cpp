@@ -1208,10 +1208,6 @@ static void DumpBlockStatFiles() {
 
 static void DumpPacketStats() {
     DumpFile("NETWORK DEV INFO", "/proc/net/dev");
-    DumpFile("QTAGUID NETWORK INTERFACES INFO", "/proc/net/xt_qtaguid/iface_stat_all");
-    DumpFile("QTAGUID NETWORK INTERFACES INFO (xt)", "/proc/net/xt_qtaguid/iface_stat_fmt");
-    DumpFile("QTAGUID CTRL INFO", "/proc/net/xt_qtaguid/ctrl");
-    DumpFile("QTAGUID STATS INFO", "/proc/net/xt_qtaguid/stats");
 }
 
 static void DumpIpAddrAndRules() {

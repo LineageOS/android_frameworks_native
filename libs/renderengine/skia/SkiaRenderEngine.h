@@ -36,6 +36,7 @@ class BlurFilter;
 class SkiaRenderEngine : public RenderEngine {
 public:
     static std::unique_ptr<SkiaRenderEngine> create(const RenderEngineCreationArgs& args);
+    SkiaRenderEngine(RenderEngineType type) : RenderEngine(type) {}
     ~SkiaRenderEngine() override {}
 
     virtual void primeCache() const override{};
