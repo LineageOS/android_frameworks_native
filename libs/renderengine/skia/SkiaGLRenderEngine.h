@@ -130,10 +130,6 @@ private:
     bool mInProtectedContext = false;
     // Object to capture commands send to Skia.
     std::unique_ptr<SkiaCapture> mCapture;
-
-    // Keep this information as a local variable to determine whether the access of the GL
-    // operations is working on the same threads.
-    const RenderEngineType mRenderEngineType = RenderEngineType::SKIA_GL;
 };
 
 } // namespace skia
