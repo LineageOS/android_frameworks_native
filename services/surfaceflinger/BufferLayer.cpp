@@ -414,12 +414,6 @@ bool BufferLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
         return true;
     }
 
-    // If the next planned present time is not current, return and try again later
-    if (frameIsEarly(expectedPresentTime)) {
-        ATRACE_NAME("frameIsEarly()");
-        return false;
-    }
-
     // If this layer doesn't have a frame is shouldn't be presented
     if (!hasFrameUpdate()) {
         return false;
