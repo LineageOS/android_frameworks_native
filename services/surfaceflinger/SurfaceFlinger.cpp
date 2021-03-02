@@ -3361,6 +3361,10 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         if (!layer) {
             continue;
         }
+        if (layer->frameIsEarly(expectedPresentTime)) {
+            ATRACE_NAME("frameIsEarly()");
+            return false;
+        }
 
         if (!mScheduler->isVsyncValid(expectedPresentTime, layer->getOwnerUid())) {
             ATRACE_NAME("!isVsyncValidForUid");

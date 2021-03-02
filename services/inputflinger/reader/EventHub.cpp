@@ -1771,7 +1771,17 @@ void EventHub::unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& vide
     }
 }
 
-status_t EventHub::openDeviceLocked(const std::string& devicePath) {
+void EventHub::openDeviceLocked(const std::string& devicePath) {
+    // If an input device happens to register around the time when EventHub's constructor runs, it
+    // is possible that the same input event node (for example, /dev/input/event3) will be noticed
+    // in both 'inotify' callback and also in the 'scanDirLocked' pass. To prevent duplicate devices
+    // from getting registered, ensure that this path is not already covered by an existing device.
+    for (const auto& [deviceId, device] : mDevices) {
+        if (device->path == devicePath) {
+            return; // device was already registered
+        }
+    }
+
     char buffer[80];
 
     ALOGV("Opening device: %s", devicePath.c_str());
@@ -1779,7 +1789,7 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     int fd = open(devicePath.c_str(), O_RDWR | O_CLOEXEC | O_NONBLOCK);
     if (fd < 0) {
         ALOGE("could not open %s, %s\n", devicePath.c_str(), strerror(errno));
-        return -1;
+        return;
     }
 
     InputDeviceIdentifier identifier;
@@ -1798,7 +1808,7 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
         if (identifier.name == item) {
             ALOGI("ignoring event id %s driver %s\n", devicePath.c_str(), item.c_str());
             close(fd);
-            return -1;
+            return;
         }
     }
 
@@ -1807,7 +1817,7 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     if (ioctl(fd, EVIOCGVERSION, &driverVersion)) {
         ALOGE("could not get driver version for %s, %s\n", devicePath.c_str(), strerror(errno));
         close(fd);
-        return -1;
+        return;
     }
 
     // Get device identifier.
@@ -1815,7 +1825,7 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     if (ioctl(fd, EVIOCGID, &inputId)) {
         ALOGE("could not get device input id for %s, %s\n", devicePath.c_str(), strerror(errno));
         close(fd);
-        return -1;
+        return;
     }
     identifier.bus = inputId.bustype;
     identifier.product = inputId.product;
@@ -2013,7 +2023,7 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     if (device->classes == Flags<InputDeviceClass>(0)) {
         ALOGV("Dropping device: id=%d, path='%s', name='%s'", deviceId, devicePath.c_str(),
               device->identifier.name.c_str());
-        return -1;
+        return;
     }
 
     // Classify InputDeviceClass::BATTERY.
@@ -2043,7 +2053,7 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
     }
 
     if (registerDeviceForEpollLocked(*device) != OK) {
-        return -1;
+        return;
     }
 
     device->configureFd();
@@ -2056,7 +2066,6 @@ status_t EventHub::openDeviceLocked(const std::string& devicePath) {
           toString(mBuiltInKeyboardId == deviceId));
 
     addDeviceLocked(std::move(device));
-    return OK;
 }
 
 void EventHub::openVideoDeviceLocked(const std::string& devicePath) {
