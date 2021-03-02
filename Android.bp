@@ -86,3 +86,9 @@ cc_library_headers{
     name: "libandroid_headers_private",
     export_include_dirs: ["include/private"],
 }
+
+filegroup {
+    name: "deviceproductinfoconstants_aidl",
+    srcs: ["aidl/android/hardware/display/IDeviceProductInfoConstants.aidl"],
+    path: "aidl",
+}
