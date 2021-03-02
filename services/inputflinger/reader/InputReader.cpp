@@ -206,6 +206,14 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t eventHubId) {
     }
 
     mDevices.emplace(eventHubId, device);
+    // Add device to device to EventHub ids map.
+    const auto mapIt = mDeviceToEventHubIdsMap.find(device);
+    if (mapIt == mDeviceToEventHubIdsMap.end()) {
+        std::vector<int32_t> ids = {eventHubId};
+        mDeviceToEventHubIdsMap.emplace(device, ids);
+    } else {
+        mapIt->second.push_back(eventHubId);
+    }
     bumpGenerationLocked();
 
     if (device->getClasses() & INPUT_DEVICE_CLASS_EXTERNAL_STYLUS) {
@@ -222,6 +230,17 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
 
     std::shared_ptr<InputDevice> device = std::move(deviceIt->second);
     mDevices.erase(deviceIt);
+    // Erase device from device to EventHub ids map.
+    auto mapIt = mDeviceToEventHubIdsMap.find(device);
+    if (mapIt != mDeviceToEventHubIdsMap.end()) {
+        std::vector<int32_t>& eventHubIds = mapIt->second;
+        eventHubIds.erase(std::remove_if(eventHubIds.begin(), eventHubIds.end(),
+                                         [eventHubId](int32_t eId) { return eId == eventHubId; }),
+                          eventHubIds.end());
+        if (eventHubIds.size() == 0) {
+            mDeviceToEventHubIdsMap.erase(mapIt);
+        }
+    }
     bumpGenerationLocked();
 
     if (device->isIgnored()) {
@@ -449,8 +468,7 @@ void InputReader::getInputDevices(std::vector<InputDeviceInfo>& outInputDevices)
 void InputReader::getInputDevicesLocked(std::vector<InputDeviceInfo>& outInputDevices) {
     outInputDevices.clear();
 
-    for (auto& devicePair : mDevices) {
-        std::shared_ptr<InputDevice>& device = devicePair.second;
+    for (const auto& [device, eventHubIds] : mDeviceToEventHubIdsMap) {
         if (!device->isIgnored()) {
             InputDeviceInfo info;
             device->getDeviceInfo(&info);
@@ -621,11 +639,17 @@ void InputReader::dump(std::string& dump) {
     mEventHub->dump(dump);
     dump += "\n";
 
-    dump += "Input Reader State:\n";
+    dump += StringPrintf("Input Reader State (Nums of device: %zu):\n",
+                         mDeviceToEventHubIdsMap.size());
 
-    for (const auto& devicePair : mDevices) {
-        const std::shared_ptr<InputDevice>& device = devicePair.second;
-        device->dump(dump);
+    for (const auto& devicePair : mDeviceToEventHubIdsMap) {
+        const std::shared_ptr<InputDevice>& device = devicePair.first;
+        std::string eventHubDevStr = INDENT "EventHub Devices: [ ";
+        for (const auto& eId : devicePair.second) {
+            eventHubDevStr += StringPrintf("%d ", eId);
+        }
+        eventHubDevStr += "] \n";
+        device->dump(dump, eventHubDevStr);
     }
 
     dump += INDENT "Configuration:\n";
