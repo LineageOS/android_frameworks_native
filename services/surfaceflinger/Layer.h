@@ -503,8 +503,6 @@ public:
     virtual void useEmptyDamage() {}
     Region getVisibleRegion(const DisplayDevice*) const;
 
-    virtual void incrementPendingBufferCount() {}
-
     /*
      * isOpaque - true if this surface is opaque
      *
@@ -947,6 +945,9 @@ public:
 
     bool setStretchEffect(const StretchEffect& effect);
     StretchEffect getStretchEffect() const;
+
+    virtual std::atomic<int32_t>* getPendingBufferCounter() { return nullptr; }
+    virtual std::string getPendingBufferCounterName() { return ""; }
 
 protected:
     class SyncPoint {
