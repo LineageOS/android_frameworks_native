@@ -129,8 +129,8 @@ bool initializeAnglePlatform(EGLDisplay dpy) {
         return false;
     }
 
-    angleResetDisplayPlatform = reinterpret_cast<ResetDisplayPlatformFunc>(
-            eglGetProcAddress("ANGLEResetDisplayPlatform"));
+    angleResetDisplayPlatform =
+            reinterpret_cast<ResetDisplayPlatformFunc>(dlsym(so, "ANGLEResetDisplayPlatform"));
 
     PlatformMethods* platformMethods = nullptr;
     if (!((angleGetDisplayPlatform)(dpy, g_PlatformMethodNames, g_NumPlatformMethods, nullptr,
