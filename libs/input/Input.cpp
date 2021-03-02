@@ -250,10 +250,6 @@ void PointerCoords::scale(float globalScaleFactor, float windowXScale, float win
     scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOOL_MINOR, globalScaleFactor);
 }
 
-void PointerCoords::scale(float globalScaleFactor) {
-    scale(globalScaleFactor, globalScaleFactor, globalScaleFactor);
-}
-
 void PointerCoords::applyOffset(float xOffset, float yOffset) {
     setAxisValue(AMOTION_EVENT_AXIS_X, getX() + xOffset);
     setAxisValue(AMOTION_EVENT_AXIS_Y, getY() + yOffset);
