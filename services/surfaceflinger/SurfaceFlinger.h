@@ -416,6 +416,43 @@ private:
         void traverseInReverseZOrder(const LayerVector::Visitor& visitor) const;
     };
 
+    // Keeps track of pending buffers per layer handle in the transaction queue or current/drawing
+    // state before the buffers are latched. The layer owns the atomic counters and decrements the
+    // count in the main thread when dropping or latching a buffer.
+    //
+    // The binder threads increment the same counter when a new transaction containing a buffer is
+    // added to the transaction queue. The map is updated with the layer handle lifecycle updates.
+    // This is done to avoid lock contention with the main thread.
+    class BufferCountTracker {
+    public:
+        void increment(BBinder* layerHandle) {
+            std::lock_guard<std::mutex> lock(mLock);
+            auto it = mCounterByLayerHandle.find(layerHandle);
+            if (it != mCounterByLayerHandle.end()) {
+                auto [name, pendingBuffers] = it->second;
+                int32_t count = ++(*pendingBuffers);
+                ATRACE_INT(name.c_str(), count);
+            } else {
+                ALOGW("Handle not found! %p", layerHandle);
+            }
+        }
+
+        void add(BBinder* layerHandle, const std::string& name, std::atomic<int32_t>* counter) {
+            std::lock_guard<std::mutex> lock(mLock);
+            mCounterByLayerHandle[layerHandle] = std::make_pair(name, counter);
+        }
+
+        void remove(BBinder* layerHandle) {
+            std::lock_guard<std::mutex> lock(mLock);
+            mCounterByLayerHandle.erase(layerHandle);
+        }
+
+    private:
+        std::mutex mLock;
+        std::unordered_map<BBinder*, std::pair<std::string, std::atomic<int32_t>*>>
+                mCounterByLayerHandle GUARDED_BY(mLock);
+    };
+
     struct ActiveModeInfo {
         DisplayModeId modeId;
         Scheduler::ModeEvent event = Scheduler::ModeEvent::None;
@@ -764,7 +801,6 @@ private:
     void commitOffscreenLayers();
     bool transactionIsReadyToBeApplied(
             bool isAutoTimestamp, int64_t desiredPresentTime, const Vector<ComposerState>& states,
-            bool updateTransactionCounters,
             std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers)
             REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
@@ -1314,6 +1350,8 @@ private:
     int mFrameRateFlexibilityTokenCount = 0;
 
     sp<IBinder> mDebugFrameRateFlexibilityToken;
+
+    BufferCountTracker mBufferCountTracker;
 };
 
 } // namespace android
