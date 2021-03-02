@@ -370,9 +370,7 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
 
     addFrameEvent(acquireFence, postTime, isAutoTimestamp ? 0 : desiredPresentTime);
 
-    if (info.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
-        setFrameTimelineVsyncForBufferTransaction(info, postTime);
-    }
+    setFrameTimelineVsyncForBufferTransaction(info, postTime);
 
     if (dequeueTime && *dequeueTime != 0) {
         const uint64_t bufferId = buffer->getId();
