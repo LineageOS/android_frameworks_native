@@ -20,6 +20,7 @@
 #include <android-base/thread_annotations.h>
 #include <android/hardware/power/Boost.h>
 #include <android/hardware/power/IPower.h>
+#include <android/hardware/power/IPowerHintSession.h>
 #include <android/hardware/power/Mode.h>
 #include <powermanager/PowerHalWrapper.h>
 
@@ -54,8 +55,12 @@ public:
 
     void init();
 
-    virtual HalResult setBoost(hardware::power::Boost boost, int32_t durationMs) override;
-    virtual HalResult setMode(hardware::power::Mode mode, bool enabled) override;
+    virtual HalResult<void> setBoost(hardware::power::Boost boost, int32_t durationMs) override;
+    virtual HalResult<void> setMode(hardware::power::Mode mode, bool enabled) override;
+    virtual HalResult<sp<hardware::power::IPowerHintSession>> createHintSession(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+            int64_t durationNanos) override;
+    virtual HalResult<int64_t> getHintSessionPreferredRate() override;
 
 private:
     std::mutex mConnectedHalMutex;
@@ -67,7 +72,8 @@ private:
     const std::shared_ptr<HalWrapper> mDefaultHal = std::make_shared<EmptyHalWrapper>();
 
     std::shared_ptr<HalWrapper> initHal();
-    HalResult processHalResult(HalResult result, const char* functionName);
+    template <typename T>
+    HalResult<T> processHalResult(HalResult<T> result, const char* functionName);
 };
 
 // -------------------------------------------------------------------------------------------------
