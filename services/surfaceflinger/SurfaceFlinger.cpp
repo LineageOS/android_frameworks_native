@@ -496,6 +496,9 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
     // the window manager died on us. prepare its eulogy.
     mBootFinished = false;
 
+    // Sever the link to inputflinger since its gone as well.
+    static_cast<void>(schedule([=] { mInputFlinger = nullptr; }));
+
     // restore initial conditions (default device unblank, etc)
     initializeDisplays();
 
