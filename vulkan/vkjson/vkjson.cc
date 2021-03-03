@@ -1196,10 +1196,10 @@ template <typename T> bool VkTypeFromJson(const std::string& json,
                                           std::string* errors) {
   *t = T();
   Json::Value object(Json::objectValue);
-  Json::Reader reader;
-  reader.parse(json, object, false);
-  if (!object) {
-    if (errors) errors->assign(reader.getFormatedErrorMessages());
+  Json::CharReaderBuilder builder;
+  builder["collectComments"] = false;
+  std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+  if (!reader->parse(json.data(), json.data() + json.size(), &object, errors)) {
     return false;
   }
   return AsValue(&object, t);
