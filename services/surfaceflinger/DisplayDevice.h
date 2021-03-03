@@ -208,7 +208,7 @@ private:
 
     hardware::graphics::composer::hal::PowerMode mPowerMode =
             hardware::graphics::composer::hal::PowerMode::OFF;
-    DisplayModeId mActiveModeId;
+    DisplayModePtr mActiveMode;
     const DisplayModes mSupportedModes;
 
     std::atomic<nsecs_t> mLastHwVsync = 0;
