@@ -145,9 +145,9 @@ bool DisplayDevice::isPoweredOn() const {
 }
 
 void DisplayDevice::setActiveMode(DisplayModeId id) {
-    LOG_FATAL_IF(id.value() >= mSupportedModes.size(),
-                 "Cannot set active mode which is not supported.");
-    mActiveModeId = id;
+    const auto mode = getMode(id);
+    LOG_FATAL_IF(!mode, "Cannot set active mode which is not supported.");
+    mActiveMode = mode;
 }
 
 status_t DisplayDevice::initiateModeChange(DisplayModeId modeId,
@@ -164,7 +164,7 @@ status_t DisplayDevice::initiateModeChange(DisplayModeId modeId,
 }
 
 const DisplayModePtr& DisplayDevice::getActiveMode() const {
-    return mSupportedModes[mActiveModeId.value()];
+    return mActiveMode;
 }
 
 const DisplayModes& DisplayDevice::getSupportedModes() const {
@@ -172,9 +172,10 @@ const DisplayModes& DisplayDevice::getSupportedModes() const {
 }
 
 DisplayModePtr DisplayDevice::getMode(DisplayModeId modeId) const {
-    const auto id = modeId.value();
-    if (static_cast<size_t>(id) < mSupportedModes.size()) {
-        return mSupportedModes[id];
+    const auto it = std::find_if(mSupportedModes.begin(), mSupportedModes.end(),
+                                 [&](DisplayModePtr mode) { return mode->getId() == modeId; });
+    if (it != mSupportedModes.end()) {
+        return *it;
     }
     return nullptr;
 }
