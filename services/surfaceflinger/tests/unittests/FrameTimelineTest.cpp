@@ -915,7 +915,7 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     // Packet - 3 : FrameEnd (ActualDisplayFrame)
     const auto& packet3 = packets[3];
     ASSERT_TRUE(packet3.has_timestamp());
-    EXPECT_EQ(packet3.timestamp(), 26u);
+    EXPECT_EQ(packet3.timestamp(), 31u);
     ASSERT_TRUE(packet3.has_frame_timeline_event());
 
     const auto& event3 = packet3.frame_timeline_event();
@@ -969,7 +969,7 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_predictionExpiredDoesNotTraceExpecte
     // Packet - 1 : FrameEnd (ActualDisplayFrame)
     const auto& packet1 = packets[1];
     ASSERT_TRUE(packet1.has_timestamp());
-    EXPECT_EQ(packet1.timestamp(), 26u);
+    EXPECT_EQ(packet1.timestamp(), 31u);
     ASSERT_TRUE(packet1.has_frame_timeline_event());
 
     const auto& event1 = packet1.frame_timeline_event();
