@@ -370,9 +370,7 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
 
     addFrameEvent(acquireFence, postTime, isAutoTimestamp ? 0 : desiredPresentTime);
 
-    if (info.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
-        setFrameTimelineVsyncForBufferTransaction(info, postTime);
-    }
+    setFrameTimelineVsyncForBufferTransaction(info, postTime);
 
     if (dequeueTime && *dequeueTime != 0) {
         const uint64_t bufferId = buffer->getId();
@@ -871,18 +869,13 @@ bool BufferStateLayer::bufferNeedsFiltering() const {
     return layerSize.width() != bufferWidth || layerSize.height() != bufferHeight;
 }
 
-void BufferStateLayer::incrementPendingBufferCount() {
-    mPendingBufferTransactions++;
-    tracePendingBufferCount();
-}
-
 void BufferStateLayer::decrementPendingBufferCount() {
-    mPendingBufferTransactions--;
-    tracePendingBufferCount();
+    int32_t pendingBuffers = --mPendingBufferTransactions;
+    tracePendingBufferCount(pendingBuffers);
 }
 
-void BufferStateLayer::tracePendingBufferCount() {
-    ATRACE_INT(mBlastTransactionName.c_str(), mPendingBufferTransactions);
+void BufferStateLayer::tracePendingBufferCount(int32_t pendingBuffers) {
+    ATRACE_INT(mBlastTransactionName.c_str(), pendingBuffers);
 }
 
 uint32_t BufferStateLayer::doTransaction(uint32_t flags) {
