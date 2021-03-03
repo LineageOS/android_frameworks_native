@@ -496,6 +496,9 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
     // the window manager died on us. prepare its eulogy.
     mBootFinished = false;
 
+    // Sever the link to inputflinger since its gone as well.
+    static_cast<void>(schedule([=] { mInputFlinger = nullptr; }));
+
     // restore initial conditions (default device unblank, etc)
     initializeDisplays();
 
@@ -3268,7 +3271,6 @@ void SurfaceFlinger::flushTransactionQueues() {
                     if (!transactionIsReadyToBeApplied(transaction.isAutoTimestamp,
                                                        transaction.desiredPresentTime,
                                                        transaction.states,
-                                                       false /* updateTransactionCounters*/,
                                                        pendingBuffers)) {
                         setTransactionFlags(eTransactionFlushNeeded);
                         break;
@@ -3293,13 +3295,9 @@ void SurfaceFlinger::flushTransactionQueues() {
                 const auto& transaction = mTransactionQueue.front();
                 bool pendingTransactions = mPendingTransactionQueues.find(transaction.applyToken) !=
                         mPendingTransactionQueues.end();
-                // Call transactionIsReadyToBeApplied first in case we need to
-                // incrementPendingBufferCount and keep track of pending buffers
-                // if the transaction contains a buffer.
                 if (!transactionIsReadyToBeApplied(transaction.isAutoTimestamp,
                                                    transaction.desiredPresentTime,
                                                    transaction.states,
-                                                   true /* updateTransactionCounters */,
                                                    pendingBuffers) ||
                     pendingTransactions) {
                     mPendingTransactionQueues[transaction.applyToken].push(transaction);
@@ -3331,7 +3329,6 @@ bool SurfaceFlinger::transactionFlushNeeded() {
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(
         bool isAutoTimestamp, int64_t desiredPresentTime, const Vector<ComposerState>& states,
-        bool updateTransactionCounters,
         std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers) {
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     bool ready = true;
@@ -3369,10 +3366,6 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         if (!mScheduler->isVsyncValid(expectedPresentTime, layer->getOwnerUid())) {
             ATRACE_NAME("!isVsyncValidForUid");
             ready = false;
-        }
-        if (updateTransactionCounters) {
-            // See BufferStateLayer::mPendingBufferTransactions
-            layer->incrementPendingBufferCount();
         }
 
         // If backpressure is enabled and we already have a buffer to commit, keep the transaction
@@ -3463,6 +3456,13 @@ status_t SurfaceFlinger::setTransactionState(
         bool isAutoTimestamp, const client_cache_t& uncacheBuffer, bool hasListenerCallbacks,
         const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) {
     ATRACE_CALL();
+
+    // Check for incoming buffer updates and increment the pending buffer count.
+    for (const auto& state : states) {
+        if ((state.state.what & layer_state_t::eAcquireFenceChanged) && (state.state.surface)) {
+            mBufferCountTracker.increment(state.state.surface->localBinder());
+        }
+    }
 
     uint32_t permissions =
             callingThreadHasUnscopedSurfaceFlingerAccess() ? Permission::ACCESS_SURFACE_FLINGER : 0;
@@ -4041,10 +4041,16 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                                             std::move(metadata), format, handle, gbp, &layer);
 
             break;
-        case ISurfaceComposerClient::eFXSurfaceBufferState:
+        case ISurfaceComposerClient::eFXSurfaceBufferState: {
             result = createBufferStateLayer(client, std::move(uniqueName), w, h, flags,
                                             std::move(metadata), handle, &layer);
-            break;
+            std::atomic<int32_t>* pendingBufferCounter = layer->getPendingBufferCounter();
+            if (pendingBufferCounter) {
+                std::string counterName = layer->getPendingBufferCounterName();
+                mBufferCountTracker.add((*handle)->localBinder(), counterName,
+                                        pendingBufferCounter);
+            }
+        } break;
         case ISurfaceComposerClient::eFXSurfaceEffect:
             // check if buffer size is set for color layer.
             if (w > 0 || h > 0) {
@@ -4211,6 +4217,7 @@ void SurfaceFlinger::onHandleDestroyed(sp<Layer>& layer) {
     auto it = mLayersByLocalBinderToken.begin();
     while (it != mLayersByLocalBinderToken.end()) {
         if (it->second == layer) {
+            mBufferCountTracker.remove(it->first->localBinder());
             it = mLayersByLocalBinderToken.erase(it);
         } else {
             it++;
@@ -4949,8 +4956,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAYED_CONTENT_SAMPLE:
         case NOTIFY_POWER_BOOST:
         case SET_GLOBAL_SHADOW_SETTINGS:
-        case ADD_FPS_LISTENER:
-        case REMOVE_FPS_LISTENER:
         case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
             // ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN is used by CTS tests, which acquire the
             // necessary permission dynamically. Don't use the permission cache for this check.
@@ -5013,6 +5018,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             // This is not sensitive information, so should not require permission control.
             return OK;
         }
+        case ADD_FPS_LISTENER:
+        case REMOVE_FPS_LISTENER:
         case ADD_REGION_SAMPLING_LISTENER:
         case REMOVE_REGION_SAMPLING_LISTENER: {
             // codes that require permission check

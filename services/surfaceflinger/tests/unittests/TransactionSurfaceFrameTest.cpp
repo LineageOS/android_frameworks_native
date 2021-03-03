@@ -368,6 +368,62 @@ public:
 
         EXPECT_EQ(0u, layer->mPendingJankClassifications.size());
     }
+
+    void BufferSurfaceFrame_ReplaceValidTokenBufferWithInvalidTokenBuffer() {
+        sp<BufferStateLayer> layer = createBufferStateLayer();
+
+        sp<Fence> fence1(new Fence());
+        auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
+        sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+        EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
+        ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
+        const auto droppedSurfaceFrame1 = layer->mCurrentState.bufferSurfaceFrameTX;
+
+        sp<Fence> fence2(new Fence());
+        auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
+        sp<GraphicBuffer> buffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        auto dropStartTime1 = systemTime();
+        layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
+                         {/*vsyncId*/ FrameTimelineInfo::INVALID_VSYNC_ID, /*inputEventId*/ 0});
+        auto dropEndTime1 = systemTime();
+        EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
+        ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
+        const auto droppedSurfaceFrame2 = layer->mCurrentState.bufferSurfaceFrameTX;
+
+        sp<Fence> fence3(new Fence());
+        auto acquireFence3 = fenceFactory.createFenceTimeForTest(fence3);
+        sp<GraphicBuffer> buffer3{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        auto dropStartTime2 = systemTime();
+        layer->setBuffer(buffer3, fence3, 10, 20, false, mClientCache, 1, std::nullopt,
+                         {/*vsyncId*/ 2, /*inputEventId*/ 0});
+        auto dropEndTime2 = systemTime();
+        acquireFence3->signalForTest(12);
+
+        EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
+        ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
+        const auto& presentedSurfaceFrame = layer->mCurrentState.bufferSurfaceFrameTX;
+
+        commitTransaction(layer.get());
+        bool computeVisisbleRegions;
+        layer->updateTexImage(computeVisisbleRegions, 15, 0);
+
+        EXPECT_EQ(1, droppedSurfaceFrame1->getToken());
+        EXPECT_EQ(PresentState::Dropped, droppedSurfaceFrame1->getPresentState());
+        EXPECT_EQ(0u, droppedSurfaceFrame1->getActuals().endTime);
+        auto dropTime1 = droppedSurfaceFrame1->getDropTime();
+        EXPECT_TRUE(dropTime1 > dropStartTime1 && dropTime1 < dropEndTime1);
+
+        EXPECT_EQ(FrameTimelineInfo::INVALID_VSYNC_ID, droppedSurfaceFrame2->getToken());
+        EXPECT_EQ(PresentState::Dropped, droppedSurfaceFrame2->getPresentState());
+        EXPECT_EQ(0u, droppedSurfaceFrame2->getActuals().endTime);
+        auto dropTime2 = droppedSurfaceFrame2->getDropTime();
+        EXPECT_TRUE(dropTime2 > dropStartTime2 && dropTime2 < dropEndTime2);
+
+        EXPECT_EQ(2, presentedSurfaceFrame->getToken());
+        EXPECT_EQ(PresentState::Presented, presentedSurfaceFrame->getPresentState());
+    }
 };
 
 TEST_F(TransactionSurfaceFrameTest, PresentedBufferlessSurfaceFrame) {
@@ -407,4 +463,10 @@ TEST_F(TransactionSurfaceFrameTest,
 TEST_F(TransactionSurfaceFrameTest, PendingSurfaceFramesRemovedAfterClassification) {
     PendingSurfaceFramesRemovedAfterClassification();
 }
+
+TEST_F(TransactionSurfaceFrameTest,
+       BufferSurfaceFrame_ReplaceValidTokenBufferWithInvalidTokenBuffer) {
+    BufferSurfaceFrame_ReplaceValidTokenBufferWithInvalidTokenBuffer();
+}
+
 } // namespace android
