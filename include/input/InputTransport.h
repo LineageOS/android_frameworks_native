@@ -181,21 +181,6 @@ struct InputMessage {
     bool isValid(size_t actualSize) const;
     size_t size() const;
     void getSanitizedCopy(InputMessage* msg) const;
-
-    static const char* typeToString(Type type) {
-        switch (type) {
-            case Type::KEY:
-                return "KEY";
-            case Type::MOTION:
-                return "MOTION";
-            case Type::FINISHED:
-                return "FINISHED";
-            case Type::FOCUS:
-                return "FOCUS";
-            case Type::CAPTURE:
-                return "CAPTURE";
-        }
-    }
 };
 
 /*

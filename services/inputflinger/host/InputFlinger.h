@@ -43,19 +43,19 @@ public:
 
     InputFlinger() ANDROID_API;
 
-    virtual status_t dump(int fd, const Vector<String16>& args);
+    status_t dump(int fd, const Vector<String16>& args) override;
     binder::Status setInputWindows(const std::vector<InputWindowInfo>&,
-                                   const sp<ISetInputWindowsListener>&) {
+                                   const sp<ISetInputWindowsListener>&) override {
         return binder::Status::ok();
     }
-    binder::Status createInputChannel(const std::string&, InputChannel*) {
+    binder::Status createInputChannel(const std::string&, InputChannel*) override {
         return binder::Status::ok();
     }
-    binder::Status removeInputChannel(const sp<IBinder>&) { return binder::Status::ok(); }
-    binder::Status setFocusedWindow(const FocusRequest&) { return binder::Status::ok(); }
+    binder::Status removeInputChannel(const sp<IBinder>&) override { return binder::Status::ok(); }
+    binder::Status setFocusedWindow(const FocusRequest&) override { return binder::Status::ok(); }
 
 private:
-    virtual ~InputFlinger();
+    ~InputFlinger() override;
 
     void dumpInternal(String8& result);
 
