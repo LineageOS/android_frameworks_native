@@ -28,6 +28,7 @@
 #include <libdm/dm.h>
 #include <selinux/android.h>
 
+#include <apex_file_repository.h>
 #include <apexd.h>
 
 #include "installd_constants.h"
@@ -64,11 +65,14 @@ static std::vector<apex::ApexFile> ActivateApexPackages() {
     // system/apex/apexd/apexd.cpp.
     //
     // Only scan the APEX directory under /system, /system_ext and /vendor (within the chroot dir).
-    std::vector<const char*> apex_dirs{apex::kApexPackageSystemDir, apex::kApexPackageSystemExtDir,
+    std::vector<std::string> apex_dirs{apex::kApexPackageSystemDir, apex::kApexPackageSystemExtDir,
                                        apex::kApexPackageVendorDir};
+    // Initialize ApexFileRepository used internally in ScanPackagesDirAndActivate.
+    // This is a quick fix to fix apex activation in otapreopt_chroot.
+    apex::ApexFileRepository::GetInstance().AddPreInstalledApex(apex_dirs);
     for (const auto& dir : apex_dirs) {
         // Cast call to void to suppress warn_unused_result.
-        static_cast<void>(apex::ScanPackagesDirAndActivate(dir));
+        static_cast<void>(apex::ScanPackagesDirAndActivate(dir.c_str()));
     }
     return apex::GetActivePackages();
 }
