@@ -195,28 +195,38 @@ private:
         //   export NAME VALUE
         // For simplicity, don't respect string quotation. The values we are interested in can be
         // encoded without them.
+        // init.environ.rc and etc/classpath have the same format for
+        // environment variable exports and can be matched by the same regex.
+        // TODO Just like with the system-properties above we really should have
+        // common code between init and otapreopt to deal with reading these
+        // things. See b/181182967
+        static constexpr const char* kEnvironmentVariableSources[] = {
+                "/init.environ.rc", "/etc/classpath"
+        };
+
         std::regex export_regex("\\s*export\\s+(\\S+)\\s+(\\S+)");
-        bool parse_result = ParseFile("/init.environ.rc", [&](const std::string& line) {
-            std::smatch export_match;
-            if (!std::regex_match(line, export_match, export_regex)) {
+        for (const char* env_vars_file : kEnvironmentVariableSources) {
+            bool parse_result = ParseFile(env_vars_file, [&](const std::string& line) {
+                std::smatch export_match;
+                if (!std::regex_match(line, export_match, export_regex)) {
+                    return true;
+                }
+
+                if (export_match.size() != 3) {
+                    return true;
+                }
+
+                std::string name = export_match[1].str();
+                std::string value = export_match[2].str();
+
+                system_properties_.SetProperty(name, value);
+
                 return true;
+            });
+            if (!parse_result) {
+                return false;
             }
-
-            if (export_match.size() != 3) {
-                return true;
-            }
-
-            std::string name = export_match[1].str();
-            std::string value = export_match[2].str();
-
-            system_properties_.SetProperty(name, value);
-
-            return true;
-        });
-        if (!parse_result) {
-            return false;
         }
-
         if (system_properties_.GetProperty(kAndroidDataPathPropertyName) == nullptr) {
             return false;
         }
