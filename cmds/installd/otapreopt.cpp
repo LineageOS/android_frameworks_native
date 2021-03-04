@@ -175,8 +175,10 @@ class OTAPreoptService {
 private:
 
     bool ReadSystemProperties() {
+        // TODO This file does not have a stable format. It should be read by
+        // code shared by init and otapreopt. See b/181182967#comment80
         static constexpr const char* kPropertyFiles[] = {
-                "/default.prop", "/system/build.prop"
+                "/system/build.prop"
         };
 
         for (size_t i = 0; i < arraysize(kPropertyFiles); ++i) {
