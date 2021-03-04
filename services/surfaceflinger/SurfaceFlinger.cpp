@@ -104,6 +104,7 @@
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
+#include "DisplayHardware/Hal.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
 #include "DisplayRenderArea.h"
 #include "EffectLayer.h"
@@ -131,6 +132,7 @@
 #include "TimeStats/TimeStats.h"
 #include "android-base/parseint.h"
 #include "android-base/stringprintf.h"
+#include "android-base/strings.h"
 
 #define MAIN_THREAD ACQUIRE(mStateLock) RELEASE(mStateLock)
 
@@ -2306,22 +2308,74 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags) {
     // here the transaction has been committed
 }
 
-DisplayModes SurfaceFlinger::loadSupportedDisplayModes(PhysicalDisplayId displayId) const {
-    const auto hwcModes = getHwComposer().getModes(displayId);
-    DisplayModes modes;
-    int32_t nextModeId = 0;
-    for (const auto& hwcMode : hwcModes) {
-        modes.push_back(DisplayMode::Builder(hwcMode.hwcId)
-                                .setId(DisplayModeId{nextModeId++})
-                                .setWidth(hwcMode.width)
-                                .setHeight(hwcMode.height)
-                                .setVsyncPeriod(hwcMode.vsyncPeriod)
-                                .setDpiX(hwcMode.dpiX)
-                                .setDpiY(hwcMode.dpiY)
-                                .setGroup(hwcMode.configGroup)
-                                .build());
+void SurfaceFlinger::loadDisplayModes(PhysicalDisplayId displayId, DisplayModes& outModes,
+                                      DisplayModePtr& outActiveMode) const {
+    std::vector<HWComposer::HWCDisplayMode> hwcModes;
+    std::optional<hal::HWDisplayId> activeModeHwcId;
+    bool activeModeIsSupported;
+    int attempt = 0;
+    constexpr int kMaxAttempts = 3;
+    do {
+        hwcModes = getHwComposer().getModes(displayId);
+        activeModeHwcId = getHwComposer().getActiveMode(displayId);
+        LOG_ALWAYS_FATAL_IF(!activeModeHwcId, "HWC returned no active mode");
+
+        activeModeIsSupported =
+                std::any_of(hwcModes.begin(), hwcModes.end(),
+                            [activeModeHwcId](const HWComposer::HWCDisplayMode& mode) {
+                                return mode.hwcId == *activeModeHwcId;
+                            });
+    } while (!activeModeIsSupported && ++attempt < kMaxAttempts);
+    LOG_ALWAYS_FATAL_IF(!activeModeIsSupported,
+                        "After %d attempts HWC still returns an active mode which is not"
+                        " supported. Active mode ID = %" PRIu64 " . Supported modes = %s",
+                        kMaxAttempts, *activeModeHwcId, base::Join(hwcModes, ", ").c_str());
+
+    DisplayModes oldModes;
+
+    if (const auto token = getPhysicalDisplayTokenLocked(displayId)) {
+        oldModes = getDisplayDeviceLocked(token)->getSupportedModes();
     }
-    return modes;
+
+    int largestUsedModeId = -1; // Use int instead of DisplayModeId for signedness
+    for (const auto& mode : oldModes) {
+        const auto id = static_cast<int>(mode->getId().value());
+        if (id > largestUsedModeId) {
+            largestUsedModeId = id;
+        }
+    }
+
+    DisplayModes newModes;
+    int32_t nextModeId = largestUsedModeId + 1;
+    for (const auto& hwcMode : hwcModes) {
+        newModes.push_back(DisplayMode::Builder(hwcMode.hwcId)
+                                   .setId(DisplayModeId{nextModeId++})
+                                   .setWidth(hwcMode.width)
+                                   .setHeight(hwcMode.height)
+                                   .setVsyncPeriod(hwcMode.vsyncPeriod)
+                                   .setDpiX(hwcMode.dpiX)
+                                   .setDpiY(hwcMode.dpiY)
+                                   .setGroup(hwcMode.configGroup)
+                                   .build());
+    }
+
+    const bool modesAreSame =
+            std::equal(newModes.begin(), newModes.end(), oldModes.begin(), oldModes.end(),
+                       [](DisplayModePtr left, DisplayModePtr right) {
+                           return left->equalsExceptDisplayModeId(right);
+                       });
+
+    if (modesAreSame) {
+        // The supported modes have not changed, keep the old IDs.
+        outModes = oldModes;
+    } else {
+        outModes = newModes;
+    }
+
+    outActiveMode = *std::find_if(outModes.begin(), outModes.end(),
+                                  [activeModeHwcId](const DisplayModePtr& mode) {
+                                      return mode->getHwcId() == *activeModeHwcId;
+                                  });
 }
 
 void SurfaceFlinger::processDisplayHotplugEventsLocked() {
@@ -2337,15 +2391,9 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
         const auto it = mPhysicalDisplayTokens.find(displayId);
 
         if (event.connection == hal::Connection::CONNECTED) {
-            auto supportedModes = loadSupportedDisplayModes(displayId);
-            const auto activeModeHwcId = getHwComposer().getActiveMode(displayId);
-            LOG_ALWAYS_FATAL_IF(!activeModeHwcId, "HWC returned no active mode");
-
-            const auto activeMode = *std::find_if(supportedModes.begin(), supportedModes.end(),
-                                                  [activeModeHwcId](const DisplayModePtr& mode) {
-                                                      return mode->getHwcId() == *activeModeHwcId;
-                                                  });
-            // TODO(b/175678215) Handle the case when activeMode is not in supportedModes
+            DisplayModes supportedModes;
+            DisplayModePtr activeMode;
+            loadDisplayModes(displayId, supportedModes, activeMode);
 
             if (it == mPhysicalDisplayTokens.end()) {
                 ALOGV("Creating display %s", to_string(displayId).c_str());
@@ -2414,7 +2462,6 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const sp<IGraphicBufferProducer>& producer) {
     DisplayDeviceCreationArgs creationArgs(this, getHwComposer(), displayToken, compositionDisplay);
     creationArgs.sequenceId = state.sequenceId;
-    creationArgs.hwComposer = getHwComposer();
     creationArgs.isSecure = state.isSecure;
     creationArgs.displaySurface = displaySurface;
     creationArgs.hasWideColorGamut = false;

@@ -125,6 +125,12 @@ public:
     // without visual interruptions such as a black screen.
     int32_t getGroup() const { return mGroup; }
 
+    bool equalsExceptDisplayModeId(const DisplayModePtr& other) const {
+        return mHwcId == other->mHwcId && mWidth == other->mWidth && mHeight == other->mHeight &&
+                getVsyncPeriod() == other->getVsyncPeriod() && mDpiX == other->mDpiX &&
+                mDpiY == other->mDpiY && mGroup == other->mGroup;
+    }
+
 private:
     explicit DisplayMode(hal::HWConfigId id) : mHwcId(id) {}
 

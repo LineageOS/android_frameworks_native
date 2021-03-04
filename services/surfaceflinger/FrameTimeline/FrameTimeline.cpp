@@ -974,7 +974,7 @@ void FrameTimeline::DisplayFrame::traceActuals(pid_t surfaceFlingerPid) const {
     FrameTimelineDataSource::Trace([&](FrameTimelineDataSource::TraceContext ctx) {
         auto packet = ctx.NewTracePacket();
         packet->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
-        packet->set_timestamp(static_cast<uint64_t>(mSurfaceFlingerActuals.endTime));
+        packet->set_timestamp(static_cast<uint64_t>(mSurfaceFlingerActuals.presentTime));
 
         auto* event = packet->set_frame_timeline_event();
         auto* actualDisplayFrameEndEvent = event->set_frame_end();
