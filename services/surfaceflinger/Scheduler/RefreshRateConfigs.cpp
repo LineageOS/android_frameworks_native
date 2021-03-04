@@ -610,15 +610,16 @@ RefreshRateConfigs::RefreshRateConfigs(const DisplayModes& modes, DisplayModeId 
 void RefreshRateConfigs::updateDisplayModes(const DisplayModes& modes,
                                             DisplayModeId currentModeId) {
     std::lock_guard lock(mLock);
-    LOG_ALWAYS_FATAL_IF(modes.empty());
-    LOG_ALWAYS_FATAL_IF(currentModeId.value() >= modes.size());
+    // The current mode should be supported
+    LOG_ALWAYS_FATAL_IF(std::none_of(modes.begin(), modes.end(), [&](DisplayModePtr mode) {
+        return mode->getId() == currentModeId;
+    }));
 
     mRefreshRates.clear();
     for (const auto& mode : modes) {
         const auto modeId = mode->getId();
-        const auto fps = Fps::fromPeriodNsecs(mode->getVsyncPeriod());
         mRefreshRates.emplace(modeId,
-                              std::make_unique<RefreshRate>(modeId, mode, fps,
+                              std::make_unique<RefreshRate>(modeId, mode, mode->getFps(),
                                                             RefreshRate::ConstructorTag(0)));
         if (modeId == currentModeId) {
             mCurrentRefreshRate = mRefreshRates.at(modeId).get();
