@@ -605,13 +605,14 @@ bool BufferStateLayer::hasFrameUpdate() const {
     return mCurrentStateModified && (c.buffer != nullptr || c.bgColorLayer != nullptr);
 }
 
-std::optional<nsecs_t> BufferStateLayer::nextPredictedPresentTime() const {
-    const State& drawingState(getDrawingState());
-    if (!drawingState.isAutoTimestamp || !drawingState.bufferSurfaceFrameTX) {
+std::optional<nsecs_t> BufferStateLayer::nextPredictedPresentTime(int64_t vsyncId) const {
+    const auto prediction =
+            mFlinger->mFrameTimeline->getTokenManager()->getPredictionsForToken(vsyncId);
+    if (!prediction.has_value()) {
         return std::nullopt;
     }
 
-    return drawingState.bufferSurfaceFrameTX->getPredictions().presentTime;
+    return prediction->presentTime;
 }
 
 status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,

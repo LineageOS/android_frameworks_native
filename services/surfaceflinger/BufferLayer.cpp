@@ -424,12 +424,12 @@ bool BufferLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
     return isBufferDue(expectedPresentTime);
 }
 
-bool BufferLayer::frameIsEarly(nsecs_t expectedPresentTime) const {
+bool BufferLayer::frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) const {
     // TODO(b/169901895): kEarlyLatchVsyncThreshold should be based on the
     // vsync period. We can do this change as soon as ag/13100772 is merged.
     constexpr static std::chrono::nanoseconds kEarlyLatchVsyncThreshold = 5ms;
 
-    const auto presentTime = nextPredictedPresentTime();
+    const auto presentTime = nextPredictedPresentTime(vsyncId);
     if (!presentTime.has_value()) {
         return false;
     }
