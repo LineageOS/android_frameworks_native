@@ -189,7 +189,7 @@ public:
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
             const std::function<void()>& completionCallback) = 0;
 
-    virtual HalResult<void> performComposedEffect(
+    virtual HalResult<std::chrono::milliseconds> performComposedEffect(
             const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
             const std::function<void()>& completionCallback) = 0;
 
@@ -236,7 +236,7 @@ public:
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
             const std::function<void()>& completionCallback) override final;
 
-    HalResult<void> performComposedEffect(
+    HalResult<std::chrono::milliseconds> performComposedEffect(
             const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
             const std::function<void()>& completionCallback) override final;
 
@@ -252,6 +252,12 @@ private:
             GUARDED_BY(mSupportedEffectsMutex);
     std::optional<std::vector<hardware::vibrator::CompositePrimitive>> mSupportedPrimitives
             GUARDED_BY(mSupportedPrimitivesMutex);
+    std::vector<std::optional<std::chrono::milliseconds>> mPrimitiveDurations
+            GUARDED_BY(mSupportedPrimitivesMutex);
+
+    // Loads and caches from IVibrator.
+    HalResult<std::chrono::milliseconds> getPrimitiveDuration(
+            hardware::vibrator::CompositePrimitive primitive);
 
     // Loads directly from IVibrator handle, skipping caches.
     HalResult<Capabilities> getCapabilitiesInternal();
@@ -287,7 +293,7 @@ public:
     HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitives()
             override final;
 
-    HalResult<void> performComposedEffect(
+    HalResult<std::chrono::milliseconds> performComposedEffect(
             const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
             const std::function<void()>& completionCallback) override final;
 
