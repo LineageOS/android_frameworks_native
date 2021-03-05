@@ -1339,7 +1339,6 @@ bool Layer::setCrop_legacy(const Rect& crop) {
 
 bool Layer::setMetadata(const LayerMetadata& data) {
     if (!mCurrentState.metadata.merge(data, true /* eraseEmpty */)) return false;
-    mCurrentState.sequence++;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
