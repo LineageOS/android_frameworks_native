@@ -1982,9 +1982,9 @@ status_t SurfaceComposerClient::removeRegionSamplingListener(
     return ComposerService::getComposerService()->removeRegionSamplingListener(listener);
 }
 
-status_t SurfaceComposerClient::addFpsListener(const sp<IBinder>& layerHandle,
+status_t SurfaceComposerClient::addFpsListener(int32_t taskId,
                                                const sp<gui::IFpsListener>& listener) {
-    return ComposerService::getComposerService()->addFpsListener(layerHandle, listener);
+    return ComposerService::getComposerService()->addFpsListener(taskId, listener);
 }
 
 status_t SurfaceComposerClient::removeFpsListener(const sp<gui::IFpsListener>& listener) {
