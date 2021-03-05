@@ -446,6 +446,56 @@ static std::optional<int32_t> findMonitorPidByToken(
     return std::nullopt;
 }
 
+static bool shouldReportMetricsForConnection(const Connection& connection) {
+    // Do not keep track of gesture monitors. They receive every event and would disproportionately
+    // affect the statistics.
+    if (connection.monitor) {
+        return false;
+    }
+    // If the connection is experiencing ANR, let's skip it. We have separate ANR metrics
+    if (!connection.responsive) {
+        return false;
+    }
+    return true;
+}
+
+static bool shouldReportFinishedEvent(const DispatchEntry& dispatchEntry,
+                                      const Connection& connection) {
+    const EventEntry& eventEntry = *dispatchEntry.eventEntry;
+    const int32_t& inputEventId = eventEntry.id;
+    if (inputEventId != dispatchEntry.resolvedEventId) {
+        // Event was transmuted
+        return false;
+    }
+    if (inputEventId == android::os::IInputConstants::INVALID_INPUT_EVENT_ID) {
+        return false;
+    }
+    // Only track latency for events that originated from hardware
+    if (eventEntry.isSynthesized()) {
+        return false;
+    }
+    const EventEntry::Type& inputEventEntryType = eventEntry.type;
+    if (inputEventEntryType == EventEntry::Type::KEY) {
+        const KeyEntry& keyEntry = static_cast<const KeyEntry&>(eventEntry);
+        if (keyEntry.flags & AKEY_EVENT_FLAG_CANCELED) {
+            return false;
+        }
+    } else if (inputEventEntryType == EventEntry::Type::MOTION) {
+        const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
+        if (motionEntry.action == AMOTION_EVENT_ACTION_CANCEL ||
+            motionEntry.action == AMOTION_EVENT_ACTION_HOVER_EXIT) {
+            return false;
+        }
+    } else {
+        // Not a key or a motion
+        return false;
+    }
+    if (!shouldReportMetricsForConnection(connection)) {
+        return false;
+    }
+    return true;
+}
+
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
@@ -467,6 +517,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
         mFocusedWindowRequestedPointerCapture(false),
         mWindowTokenWithPointerCapture(nullptr),
+        mLatencyTracker(&mEmptyProcessor),
         mCompatService(getCompatService()) {
     mLooper = new Looper(false);
     mReporter = createInputReporter();
@@ -2853,6 +2904,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
                       "event",
                       connection->getInputChannelName().c_str());
 #endif
+                // We keep the 'resolvedEventId' here equal to the original 'motionEntry.id' because
+                // this is a one-to-one event conversion.
                 dispatchEntry->resolvedAction = AMOTION_EVENT_ACTION_HOVER_ENTER;
             }
 
@@ -3315,7 +3368,14 @@ int InputDispatcher::handleReceiveCallback(int events, sp<IBinder> connectionTok
                 finishDispatchCycleLocked(currentTime, connection, finish.seq, finish.handled,
                                           finish.consumeTime);
             } else if (std::holds_alternative<InputPublisher::Timeline>(*result)) {
-                // TODO(b/167947340): Report this data to LatencyTracker
+                if (shouldReportMetricsForConnection(*connection)) {
+                    const InputPublisher::Timeline& timeline =
+                            std::get<InputPublisher::Timeline>(*result);
+                    mLatencyTracker
+                            .trackGraphicsLatency(timeline.inputEventId,
+                                                  connection->inputChannel->getConnectionToken(),
+                                                  std::move(timeline.graphicsTimeline));
+                }
             }
             gotOne = true;
         }
@@ -3824,6 +3884,12 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                                               args->xCursorPosition, args->yCursorPosition,
                                               args->downTime, args->pointerCount,
                                               args->pointerProperties, args->pointerCoords, 0, 0);
+        if (args->id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
+            IdGenerator::getSource(args->id) == IdGenerator::Source::INPUT_READER &&
+            !mInputFilterEnabled) {
+            const bool isDown = args->action == AMOTION_EVENT_ACTION_DOWN;
+            mLatencyTracker.trackListener(args->id, isDown, args->eventTime, args->readTime);
+        }
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));
         mLock.unlock();
@@ -5047,6 +5113,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     dump += StringPrintf(INDENT2 "KeyRepeatDelay: %" PRId64 "ms\n", ns2ms(mConfig.keyRepeatDelay));
     dump += StringPrintf(INDENT2 "KeyRepeatTimeout: %" PRId64 "ms\n",
                          ns2ms(mConfig.keyRepeatTimeout));
+    dump += mLatencyTracker.dump(INDENT2);
 }
 
 void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors) {
@@ -5620,10 +5687,12 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
         ALOGI("%s spent %" PRId64 "ms processing %s", connection->getWindowName().c_str(),
               ns2ms(eventDuration), dispatchEntry->eventEntry->getDescription().c_str());
     }
-    // TODO(b/167947340): report event latency information to the policy
-    // Example: mPolicy->reportFinishedEvent(commandEntry->eventId, eventEntry.eventTime,
-    //                                       dispatchEntry->deliveryTime, commandEntry->consumeTime,
-    //                                       finishTime);
+    if (shouldReportFinishedEvent(*dispatchEntry, *connection)) {
+        mLatencyTracker.trackFinishedEvent(dispatchEntry->eventEntry->id,
+                                           connection->inputChannel->getConnectionToken(),
+                                           dispatchEntry->deliveryTime, commandEntry->consumeTime,
+                                           finishTime);
+    }
 
     bool restartEvent;
     if (dispatchEntry->eventEntry->type == EventEntry::Type::KEY) {

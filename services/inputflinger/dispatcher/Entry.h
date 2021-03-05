@@ -79,7 +79,7 @@ struct ConfigurationChangedEntry : EventEntry {
     explicit ConfigurationChangedEntry(int32_t id, nsecs_t eventTime);
     std::string getDescription() const override;
 
-    virtual ~ConfigurationChangedEntry();
+    ~ConfigurationChangedEntry() override;
 };
 
 struct DeviceResetEntry : EventEntry {
@@ -88,7 +88,7 @@ struct DeviceResetEntry : EventEntry {
     DeviceResetEntry(int32_t id, nsecs_t eventTime, int32_t deviceId);
     std::string getDescription() const override;
 
-    virtual ~DeviceResetEntry();
+    ~DeviceResetEntry() override;
 };
 
 struct FocusEntry : EventEntry {
@@ -100,7 +100,7 @@ struct FocusEntry : EventEntry {
                const std::string& reason);
     std::string getDescription() const override;
 
-    virtual ~FocusEntry();
+    ~FocusEntry() override;
 };
 
 struct PointerCaptureChangedEntry : EventEntry {
@@ -109,7 +109,7 @@ struct PointerCaptureChangedEntry : EventEntry {
     PointerCaptureChangedEntry(int32_t id, nsecs_t eventTime, bool hasPointerCapture);
     std::string getDescription() const override;
 
-    virtual ~PointerCaptureChangedEntry();
+    ~PointerCaptureChangedEntry() override;
 };
 
 struct DragEntry : EventEntry {
@@ -153,7 +153,7 @@ struct KeyEntry : EventEntry {
     std::string getDescription() const override;
     void recycle();
 
-    virtual ~KeyEntry();
+    ~KeyEntry() override;
 };
 
 struct MotionEntry : EventEntry {
@@ -204,7 +204,7 @@ struct SensorEntry : EventEntry {
                 std::vector<float> values);
     std::string getDescription() const override;
 
-    virtual ~SensorEntry();
+    ~SensorEntry() override;
 };
 
 // Tracks the progress of dispatching a particular event to a particular connection.
