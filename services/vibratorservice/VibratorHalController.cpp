@@ -217,10 +217,10 @@ HalResult<milliseconds> HalController::performEffect(
     return apply(performEffectFn, "performEffect");
 }
 
-HalResult<void> HalController::performComposedEffect(
+HalResult<milliseconds> HalController::performComposedEffect(
         const std::vector<CompositeEffect>& primitiveEffects,
         const std::function<void()>& completionCallback) {
-    hal_fn<void> performComposedEffectFn = [&](std::shared_ptr<HalWrapper> hal) {
+    hal_fn<milliseconds> performComposedEffectFn = [&](std::shared_ptr<HalWrapper> hal) {
         return hal->performComposedEffect(primitiveEffects, completionCallback);
     };
     return apply(performComposedEffectFn, "performComposedEffect");

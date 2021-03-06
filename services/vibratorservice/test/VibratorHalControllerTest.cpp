@@ -71,7 +71,7 @@ public:
                 (Effect effect, EffectStrength strength,
                  const std::function<void()>& completionCallback),
                 (override));
-    MOCK_METHOD(vibrator::HalResult<void>, performComposedEffect,
+    MOCK_METHOD(vibrator::HalResult<milliseconds>, performComposedEffect,
                 (const std::vector<CompositeEffect>& primitiveEffects,
                  const std::function<void()>& completionCallback),
                 (override));
@@ -143,7 +143,7 @@ protected:
                 .WillRepeatedly(Return(durationResult));
         EXPECT_CALL(*mMockHal.get(), performComposedEffect(Eq(compositeEffects), _))
                 .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(voidResult));
+                .WillRepeatedly(Return(durationResult));
 
         if (cardinality > 1) {
             // One reconnection call after each failure.
@@ -208,7 +208,10 @@ TEST_F(VibratorHalControllerTest, TestApiCallsAreForwardedToHal) {
     ASSERT_TRUE(performEffectResult.isOk());
     ASSERT_EQ(100ms, performEffectResult.value());
 
-    ASSERT_TRUE(mController->performComposedEffect(compositeEffects, []() {}).isOk());
+    auto performComposedEffectResult =
+            mController->performComposedEffect(compositeEffects, []() {});
+    ASSERT_TRUE(performComposedEffectResult.isOk());
+    ASSERT_EQ(100ms, performComposedEffectResult.value());
 
     ASSERT_EQ(1, mConnectCounter);
 }
