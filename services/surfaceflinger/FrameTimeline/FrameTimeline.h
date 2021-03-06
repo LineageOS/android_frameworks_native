@@ -355,7 +355,7 @@ public:
         // Sets the token, vsyncPeriod, predictions and SF start time.
         void onSfWakeUp(int64_t token, Fps refreshRate, std::optional<TimelineItem> predictions,
                         nsecs_t wakeUpTime);
-        // Sets the appropriate metadata, classifies the jank and returns the classified jankType.
+        // Sets the appropriate metadata and classifies the jank.
         void onPresent(nsecs_t signalTime);
         // Adds the provided SurfaceFrame to the current display frame.
         void addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame);
@@ -383,6 +383,7 @@ public:
         void dump(std::string& result, nsecs_t baseTime) const;
         void tracePredictions(pid_t surfaceFlingerPid) const;
         void traceActuals(pid_t surfaceFlingerPid) const;
+        void classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync);
 
         int64_t mToken = FrameTimelineInfo::INVALID_VSYNC_ID;
 

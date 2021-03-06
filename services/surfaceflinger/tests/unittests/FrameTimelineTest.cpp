@@ -603,6 +603,43 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMissWithRenderRate) {
     EXPECT_EQ(surfaceFrame1->getJankType(), JankType::AppDeadlineMissed);
 }
 
+TEST_F(FrameTimelineTest, presentFenceSignaled_displayFramePredictionExpiredPresentsSurfaceFrame) {
+    Fps refreshRate = Fps::fromPeriodNsecs(11);
+    Fps renderRate = Fps::fromPeriodNsecs(30);
+
+    EXPECT_CALL(*mTimeStats,
+                incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, renderRate, sUidOne,
+                                                                sLayerNameOne, JankType::Unknown,
+                                                                -1, -1, 25}));
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 60});
+    int64_t sfToken1 = mTokenManager->generateTokenForPredictions({82, 90, 90});
+
+    auto surfaceFrame1 =
+            mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken1, sInputEventId}, sPidOne,
+                                                       sUidOne, sLayerIdOne, sLayerNameOne,
+                                                       sLayerNameOne);
+    surfaceFrame1->setAcquireFenceTime(45);
+    // Trigger a prediction expiry
+    flushTokens(systemTime() + maxTokenRetentionTime);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+
+    surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
+    surfaceFrame1->setRenderRate(renderRate);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame1);
+    presentFence1->signalForTest(90);
+    mFrameTimeline->setSfPresent(86, presentFence1);
+
+    auto displayFrame = getDisplayFrame(0);
+    EXPECT_EQ(displayFrame->getJankType(), JankType::Unknown);
+    EXPECT_EQ(displayFrame->getFrameStartMetadata(), FrameStartMetadata::UnknownStart);
+    EXPECT_EQ(displayFrame->getFrameReadyMetadata(), FrameReadyMetadata::UnknownFinish);
+    EXPECT_EQ(displayFrame->getFramePresentMetadata(), FramePresentMetadata::UnknownPresent);
+
+    EXPECT_EQ(surfaceFrame1->getActuals().presentTime, 90);
+    EXPECT_EQ(surfaceFrame1->getJankType(), JankType::Unknown);
+}
+
 /*
  * Tracing Tests
  *

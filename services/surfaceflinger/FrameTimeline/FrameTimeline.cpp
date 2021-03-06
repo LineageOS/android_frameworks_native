@@ -826,25 +826,27 @@ void FrameTimeline::DisplayFrame::setActualEndTime(nsecs_t actualEndTime) {
     mSurfaceFlingerActuals.endTime = actualEndTime;
 }
 
-void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
-    mSurfaceFlingerActuals.presentTime = signalTime;
+void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync) {
     if (mPredictionState == PredictionState::Expired) {
         // Cannot do jank classification with expired predictions
         mJankType = JankType::Unknown;
+        deadlineDelta = -1;
+        deltaToVsync = -1;
         return;
     }
 
     // Delta between the expected present and the actual present
     const nsecs_t presentDelta =
             mSurfaceFlingerActuals.presentTime - mSurfaceFlingerPredictions.presentTime;
-    const nsecs_t deadlineDelta =
+    deadlineDelta =
             mSurfaceFlingerActuals.endTime - (mSurfaceFlingerPredictions.endTime - mHwcDuration);
 
     // How far off was the presentDelta when compared to the vsyncPeriod. Used in checking if there
     // was a prediction error or not.
-    nsecs_t deltaToVsync = mRefreshRate.getPeriodNsecs() > 0
+    deltaToVsync = mRefreshRate.getPeriodNsecs() > 0
             ? std::abs(presentDelta) % mRefreshRate.getPeriodNsecs()
             : 0;
+
     if (std::abs(presentDelta) > mJankClassificationThresholds.presentThreshold) {
         mFramePresentMetadata = presentDelta > 0 ? FramePresentMetadata::LatePresent
                                                  : FramePresentMetadata::EarlyPresent;
@@ -922,6 +924,14 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
             mJankType = JankType::Unknown;
         }
     }
+}
+
+void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime) {
+    mSurfaceFlingerActuals.presentTime = signalTime;
+    nsecs_t deadlineDelta = 0;
+    nsecs_t deltaToVsync = 0;
+    classifyJank(deadlineDelta, deltaToVsync);
+
     for (auto& surfaceFrame : mSurfaceFrames) {
         surfaceFrame->onPresent(signalTime, mJankType, mRefreshRate, deadlineDelta, deltaToVsync);
     }
