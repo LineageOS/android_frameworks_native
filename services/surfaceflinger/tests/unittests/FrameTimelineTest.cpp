@@ -40,6 +40,7 @@ using ProtoActualSurfaceFrameStart = perfetto::protos::FrameTimelineEvent_Actual
 using ProtoFrameEnd = perfetto::protos::FrameTimelineEvent_FrameEnd;
 using ProtoPresentType = perfetto::protos::FrameTimelineEvent_PresentType;
 using ProtoJankType = perfetto::protos::FrameTimelineEvent_JankType;
+using ProtoPredictionType = perfetto::protos::FrameTimelineEvent_PredictionType;
 
 namespace android::frametimeline {
 
@@ -717,7 +718,7 @@ ProtoExpectedDisplayFrameStart createProtoExpectedDisplayFrameStart(int64_t cook
 
 ProtoActualDisplayFrameStart createProtoActualDisplayFrameStart(
         int64_t cookie, int64_t token, pid_t pid, ProtoPresentType presentType, bool onTimeFinish,
-        bool gpuComposition, ProtoJankType jankType) {
+        bool gpuComposition, ProtoJankType jankType, ProtoPredictionType predictionType) {
     ProtoActualDisplayFrameStart proto;
     proto.set_cookie(cookie);
     proto.set_token(token);
@@ -726,6 +727,7 @@ ProtoActualDisplayFrameStart createProtoActualDisplayFrameStart(
     proto.set_on_time_finish(onTimeFinish);
     proto.set_gpu_composition(gpuComposition);
     proto.set_jank_type(jankType);
+    proto.set_prediction_type(predictionType);
     return proto;
 }
 
@@ -745,7 +747,7 @@ ProtoExpectedSurfaceFrameStart createProtoExpectedSurfaceFrameStart(int64_t cook
 ProtoActualSurfaceFrameStart createProtoActualSurfaceFrameStart(
         int64_t cookie, int64_t token, int64_t displayFrameToken, pid_t pid, std::string layerName,
         ProtoPresentType presentType, bool onTimeFinish, bool gpuComposition,
-        ProtoJankType jankType) {
+        ProtoJankType jankType, ProtoPredictionType predictionType) {
     ProtoActualSurfaceFrameStart proto;
     proto.set_cookie(cookie);
     proto.set_token(token);
@@ -756,6 +758,7 @@ ProtoActualSurfaceFrameStart createProtoActualSurfaceFrameStart(
     proto.set_on_time_finish(onTimeFinish);
     proto.set_gpu_composition(gpuComposition);
     proto.set_jank_type(jankType);
+    proto.set_prediction_type(predictionType);
     return proto;
 }
 
@@ -796,6 +799,8 @@ void validateTraceEvent(const ProtoActualDisplayFrameStart& received,
     EXPECT_EQ(received.gpu_composition(), source.gpu_composition());
     ASSERT_TRUE(received.has_jank_type());
     EXPECT_EQ(received.jank_type(), source.jank_type());
+    ASSERT_TRUE(received.has_prediction_type());
+    EXPECT_EQ(received.prediction_type(), source.prediction_type());
 }
 
 void validateTraceEvent(const ProtoExpectedSurfaceFrameStart& received,
@@ -841,6 +846,8 @@ void validateTraceEvent(const ProtoActualSurfaceFrameStart& received,
     EXPECT_EQ(received.gpu_composition(), source.gpu_composition());
     ASSERT_TRUE(received.has_jank_type());
     EXPECT_EQ(received.jank_type(), source.jank_type());
+    ASSERT_TRUE(received.has_prediction_type());
+    EXPECT_EQ(received.prediction_type(), source.prediction_type());
 }
 
 void validateTraceEvent(const ProtoFrameEnd& received, const ProtoFrameEnd& source) {
@@ -869,7 +876,8 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
             createProtoActualDisplayFrameStart(traceCookie + 2, displayFrameToken1,
                                                kSurfaceFlingerPid,
                                                FrameTimelineEvent::PRESENT_ON_TIME, true, false,
-                                               FrameTimelineEvent::JANK_NONE);
+                                               FrameTimelineEvent::JANK_NONE,
+                                               FrameTimelineEvent::PREDICTION_VALID);
     auto protoActualDisplayFrameEnd = createProtoFrameEnd(traceCookie + 2);
 
     addEmptyDisplayFrame();
@@ -944,7 +952,8 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_predictionExpiredDoesNotTraceExpecte
             createProtoActualDisplayFrameStart(traceCookie + 1, displayFrameToken1,
                                                kSurfaceFlingerPid,
                                                FrameTimelineEvent::PRESENT_UNSPECIFIED, false,
-                                               false, FrameTimelineEvent::JANK_UNKNOWN);
+                                               false, FrameTimelineEvent::JANK_UNKNOWN,
+                                               FrameTimelineEvent::PREDICTION_EXPIRED);
     auto protoActualDisplayFrameEnd = createProtoFrameEnd(traceCookie + 1);
 
     addEmptyDisplayFrame();
@@ -1014,7 +1023,8 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
             createProtoActualSurfaceFrameStart(traceCookie + 2, surfaceFrameToken,
                                                displayFrameToken1, sPidOne, sLayerNameOne,
                                                FrameTimelineEvent::PRESENT_DROPPED, false, false,
-                                               FrameTimelineEvent::JANK_NONE);
+                                               FrameTimelineEvent::JANK_NONE,
+                                               FrameTimelineEvent::PREDICTION_VALID);
     auto protoDroppedSurfaceFrameActualEnd = createProtoFrameEnd(traceCookie + 2);
 
     auto protoPresentedSurfaceFrameExpectedStart =
@@ -1025,7 +1035,8 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
             createProtoActualSurfaceFrameStart(traceCookie + 4, surfaceFrameToken,
                                                displayFrameToken1, sPidOne, sLayerNameOne,
                                                FrameTimelineEvent::PRESENT_ON_TIME, true, false,
-                                               FrameTimelineEvent::JANK_NONE);
+                                               FrameTimelineEvent::JANK_NONE,
+                                               FrameTimelineEvent::PREDICTION_VALID);
     auto protoPresentedSurfaceFrameActualEnd = createProtoFrameEnd(traceCookie + 4);
 
     // Set up the display frame
@@ -1167,7 +1178,8 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDoesNotTraceExpecte
             createProtoActualSurfaceFrameStart(traceCookie + 1, surfaceFrameToken,
                                                displayFrameToken, sPidOne, sLayerNameOne,
                                                FrameTimelineEvent::PRESENT_UNSPECIFIED, false,
-                                               false, FrameTimelineEvent::JANK_UNKNOWN);
+                                               false, FrameTimelineEvent::JANK_UNKNOWN,
+                                               FrameTimelineEvent::PREDICTION_EXPIRED);
     auto protoActualSurfaceFrameEnd = createProtoFrameEnd(traceCookie + 1);
 
     // Set up the display frame
