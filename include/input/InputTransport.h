@@ -33,6 +33,7 @@
 #include <unordered_map>
 
 #include <android-base/chrono_utils.h>
+#include <android-base/unique_fd.h>
 
 #include <binder/IBinder.h>
 #include <binder/Parcelable.h>
@@ -44,7 +45,6 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
-#include <android-base/unique_fd.h>
 
 namespace android {
 class Parcel;
@@ -76,10 +76,15 @@ struct InputMessage {
         uint32_t seq;
     } header;
 
-    // Body *must* be 8 byte aligned.
     // For keys and motions, rely on the fact that std::array takes up exactly as much space
     // as the underlying data. This is not guaranteed by C++, but it simplifies the conversions.
     static_assert(sizeof(std::array<uint8_t, 32>) == 32);
+
+    // For bool values, rely on the fact that they take up exactly one byte. This is not guaranteed
+    // by C++ and is implementation-dependent, but it simplifies the conversions.
+    static_assert(sizeof(bool) == 1);
+
+    // Body *must* be 8 byte aligned.
     union Body {
         struct Key {
             int32_t eventId;
@@ -154,8 +159,8 @@ struct InputMessage {
         } motion;
 
         struct Finished {
-            uint32_t empty1;
-            uint32_t handled; // actually a bool, but we must maintain 8-byte alignment
+            bool handled;
+            uint8_t empty[7];
             nsecs_t consumeTime; // The time when the event was consumed by the receiving end
 
             inline size_t size() const { return sizeof(Finished); }
@@ -163,16 +168,18 @@ struct InputMessage {
 
         struct Focus {
             int32_t eventId;
-            // The following two fields take up 4 bytes total
-            uint16_t hasFocus;    // actually a bool
-            uint16_t inTouchMode; // actually a bool, but we must maintain 8-byte alignment
+            // The following 3 fields take up 4 bytes total
+            bool hasFocus;
+            bool inTouchMode;
+            uint8_t empty[2];
 
             inline size_t size() const { return sizeof(Focus); }
         } focus;
 
         struct Capture {
             int32_t eventId;
-            uint32_t pointerCaptureEnabled; // actually a bool, but we maintain 8-byte alignment
+            bool pointerCaptureEnabled;
+            uint8_t empty[3];
 
             inline size_t size() const { return sizeof(Capture); }
         } capture;
