@@ -351,16 +351,15 @@ public:
 
     /* Registers a listener that streams fps updates from SurfaceFlinger.
      *
-     * The listener will stream fps updates for the layer tree rooted at layerHandle. Usually, this
-     * should be tied to a task. Layers that are not descendants of that task are out of scope for
-     * FPS computations.
+     * The listener will stream fps updates for the layer tree rooted at the layer denoted by the
+     * task ID, i.e., the layer must have the task ID as part of its layer metadata with key
+     * METADATA_TASK_ID. If there is no such layer, then no fps is expected to be reported.
      *
      * Multiple listeners may be supported.
      *
-     * Requires the ACCESS_SURFACE_FLINGER permission.
+     * Requires the READ_FRAME_BUFFER permission.
      */
-    virtual status_t addFpsListener(const sp<IBinder>& layerHandle,
-                                    const sp<gui::IFpsListener>& listener) = 0;
+    virtual status_t addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener) = 0;
     /*
      * Removes a listener that was streaming fps updates from SurfaceFlinger.
      */

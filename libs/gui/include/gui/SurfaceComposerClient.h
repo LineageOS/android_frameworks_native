@@ -589,8 +589,7 @@ public:
                                               const sp<IBinder>& stopLayerHandle,
                                               const sp<IRegionSamplingListener>& listener);
     static status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener);
-    static status_t addFpsListener(const sp<IBinder>& layerHandle,
-                                   const sp<gui::IFpsListener>& listener);
+    static status_t addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener);
     static status_t removeFpsListener(const sp<gui::IFpsListener>& listener);
 
 private:
