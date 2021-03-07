@@ -207,6 +207,17 @@ FrameTimelineEvent::PresentType toProto(FramePresentMetadata presentMetadata) {
     }
 }
 
+FrameTimelineEvent::PredictionType toProto(PredictionState predictionState) {
+    switch (predictionState) {
+        case PredictionState::Valid:
+            return FrameTimelineEvent::PREDICTION_VALID;
+        case PredictionState::Expired:
+            return FrameTimelineEvent::PREDICTION_EXPIRED;
+        case PredictionState::None:
+            return FrameTimelineEvent::PREDICTION_UNKNOWN;
+    }
+}
+
 int32_t jankTypeBitmaskToProto(int32_t jankType) {
     if (jankType == JankType::None) {
         return FrameTimelineEvent::JANK_NONE;
@@ -628,6 +639,7 @@ void SurfaceFrame::traceActuals(int64_t displayFrameToken) const {
                                                          FrameReadyMetadata::OnTimeFinish);
         actualSurfaceFrameStartEvent->set_gpu_composition(mGpuComposition);
         actualSurfaceFrameStartEvent->set_jank_type(jankTypeBitmaskToProto(mJankType));
+        actualSurfaceFrameStartEvent->set_prediction_type(toProto(mPredictionState));
     });
 
     // Actual timeline end
@@ -968,6 +980,7 @@ void FrameTimeline::DisplayFrame::traceActuals(pid_t surfaceFlingerPid) const {
                                                          FrameReadyMetadata::OnTimeFinish);
         actualDisplayFrameStartEvent->set_gpu_composition(mGpuComposition);
         actualDisplayFrameStartEvent->set_jank_type(jankTypeBitmaskToProto(mJankType));
+        actualDisplayFrameStartEvent->set_prediction_type(toProto(mPredictionState));
     });
 
     // Actual timeline end
