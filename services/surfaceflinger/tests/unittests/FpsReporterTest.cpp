@@ -76,7 +76,7 @@ protected:
 
     void setupScheduler();
     void setupComposer(uint32_t virtualDisplayCount);
-    sp<BufferStateLayer> createBufferStateLayer();
+    sp<BufferStateLayer> createBufferStateLayer(LayerMetadata metadata);
 
     TestableSurfaceFlinger mFlinger;
     Hwc2::mock::Composer* mComposer = nullptr;
@@ -91,7 +91,7 @@ protected:
     sp<Layer> mUnrelated;
 
     sp<TestableFpsListener> mFpsListener;
-    sp<FpsReporter> mFpsReporter = new FpsReporter(mFrameTimeline);
+    sp<FpsReporter> mFpsReporter = new FpsReporter(mFrameTimeline, *(mFlinger.flinger()));
 };
 
 FpsReporterTest::FpsReporterTest() {
@@ -110,10 +110,10 @@ FpsReporterTest::~FpsReporterTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 }
 
-sp<BufferStateLayer> FpsReporterTest::createBufferStateLayer() {
+sp<BufferStateLayer> FpsReporterTest::createBufferStateLayer(LayerMetadata metadata = {}) {
     sp<Client> client;
     LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", WIDTH, HEIGHT,
-                           LAYER_FLAGS, LayerMetadata());
+                           LAYER_FLAGS, metadata);
     return new BufferStateLayer(args);
 }
 
@@ -154,7 +154,10 @@ namespace {
 
 TEST_F(FpsReporterTest, callsListeners) {
     mParent = createBufferStateLayer();
-    mTarget = createBufferStateLayer();
+    const constexpr int32_t kTaskId = 12;
+    LayerMetadata targetMetadata;
+    targetMetadata.setInt32(METADATA_TASK_ID, kTaskId);
+    mTarget = createBufferStateLayer(targetMetadata);
     mChild = createBufferStateLayer();
     mGrandChild = createBufferStateLayer();
     mUnrelated = createBufferStateLayer();
@@ -162,6 +165,10 @@ TEST_F(FpsReporterTest, callsListeners) {
     mTarget->addChild(mChild);
     mChild->addChild(mGrandChild);
     mParent->commitChildList();
+    mFlinger.mutableCurrentState().layersSortedByZ.add(mParent);
+    mFlinger.mutableCurrentState().layersSortedByZ.add(mTarget);
+    mFlinger.mutableCurrentState().layersSortedByZ.add(mChild);
+    mFlinger.mutableCurrentState().layersSortedByZ.add(mGrandChild);
 
     float expectedFps = 44.0;
 
@@ -170,7 +177,7 @@ TEST_F(FpsReporterTest, callsListeners) {
                                                 mGrandChild->getSequence())))
             .WillOnce(Return(expectedFps));
 
-    mFpsReporter->addListener(mFpsListener, mTarget);
+    mFpsReporter->addListener(mFpsListener, kTaskId);
     mFpsReporter->dispatchLayerFps();
     EXPECT_EQ(expectedFps, mFpsListener->lastReportedFps);
     mFpsReporter->removeListener(mFpsListener);

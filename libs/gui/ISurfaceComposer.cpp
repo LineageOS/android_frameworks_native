@@ -755,11 +755,10 @@ public:
         return error;
     }
 
-    virtual status_t addFpsListener(const sp<IBinder>& layerHandle,
-                                    const sp<gui::IFpsListener>& listener) {
+    virtual status_t addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener) {
         Parcel data, reply;
         SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(data.writeStrongBinder, layerHandle);
+        SAFE_PARCEL(data.writeInt32, taskId);
         SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
         const status_t error =
                 remote()->transact(BnSurfaceComposer::ADD_FPS_LISTENER, data, &reply);
@@ -1669,8 +1668,8 @@ status_t BnSurfaceComposer::onTransact(
         }
         case ADD_FPS_LISTENER: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IBinder> layerHandle;
-            status_t result = data.readNullableStrongBinder(&layerHandle);
+            int32_t taskId;
+            status_t result = data.readInt32(&taskId);
             if (result != NO_ERROR) {
                 ALOGE("addFpsListener: Failed to read layer handle");
                 return result;
@@ -1681,7 +1680,7 @@ status_t BnSurfaceComposer::onTransact(
                 ALOGE("addFpsListener: Failed to read listener");
                 return result;
             }
-            return addFpsListener(layerHandle, listener);
+            return addFpsListener(taskId, listener);
         }
         case REMOVE_FPS_LISTENER: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

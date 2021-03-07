@@ -27,10 +27,11 @@
 namespace android {
 
 class Layer;
+class SurfaceFlinger;
 
 class FpsReporter : public IBinder::DeathRecipient {
 public:
-    FpsReporter(frametimeline::FrameTimeline& frameTimeline);
+    FpsReporter(frametimeline::FrameTimeline& frameTimeline, SurfaceFlinger& flinger);
 
     // Dispatches updated layer fps values for the registered listeners
     // This method promotes Layer weak pointers and performs layer stack traversals, so mStateLock
@@ -41,7 +42,7 @@ public:
     void binderDied(const wp<IBinder>&) override;
 
     // Registers an Fps listener that listens to fps updates for the provided layer
-    void addListener(const sp<gui::IFpsListener>& listener, const wp<Layer>& layer);
+    void addListener(const sp<gui::IFpsListener>& listener, int32_t taskId);
     // Deregisters an Fps listener
     void removeListener(const sp<gui::IFpsListener>& listener);
 
@@ -55,10 +56,11 @@ private:
 
     struct TrackedListener {
         sp<gui::IFpsListener> listener;
-        wp<Layer> layer;
+        int32_t taskId;
     };
 
     frametimeline::FrameTimeline& mFrameTimeline;
+    SurfaceFlinger& mFlinger;
     std::unordered_map<wp<IBinder>, TrackedListener, WpHash> mListeners GUARDED_BY(mMutex);
 };
 

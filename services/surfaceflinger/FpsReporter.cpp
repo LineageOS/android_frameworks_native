@@ -18,14 +18,16 @@
 #define LOG_TAG "FpsReporter"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "FpsReporter.h"
+#include <algorithm>
 
+#include "FpsReporter.h"
 #include "Layer.h"
+#include "SurfaceFlinger.h"
 
 namespace android {
 
-FpsReporter::FpsReporter(frametimeline::FrameTimeline& frameTimeline)
-      : mFrameTimeline(frameTimeline) {}
+FpsReporter::FpsReporter(frametimeline::FrameTimeline& frameTimeline, SurfaceFlinger& flinger)
+      : mFrameTimeline(frameTimeline), mFlinger(flinger) {}
 
 void FpsReporter::dispatchLayerFps() const {
     std::vector<TrackedListener> localListeners;
@@ -41,16 +43,33 @@ void FpsReporter::dispatchLayerFps() const {
                        });
     }
 
-    for (const auto& listener : localListeners) {
-        sp<Layer> promotedLayer = listener.layer.promote();
-        if (promotedLayer != nullptr) {
-            std::unordered_set<int32_t> layerIds;
+    std::unordered_set<int32_t> seenTasks;
+    std::vector<std::pair<TrackedListener, sp<Layer>>> listenersAndLayersToReport;
 
-            promotedLayer->traverse(LayerVector::StateSet::Drawing,
-                                    [&](Layer* layer) { layerIds.insert(layer->getSequence()); });
-
-            listener.listener->onFpsReported(mFrameTimeline.computeFps(layerIds));
+    mFlinger.mCurrentState.traverse([&](Layer* layer) {
+        auto& currentState = layer->getCurrentState();
+        if (currentState.metadata.has(METADATA_TASK_ID)) {
+            int32_t taskId = currentState.metadata.getInt32(METADATA_TASK_ID, 0);
+            if (seenTasks.count(taskId) == 0) {
+                // localListeners is expected to be tiny
+                for (TrackedListener& listener : localListeners) {
+                    if (listener.taskId == taskId) {
+                        seenTasks.insert(taskId);
+                        listenersAndLayersToReport.push_back({listener, sp<Layer>(layer)});
+                        break;
+                    }
+                }
+            }
         }
+    });
+
+    for (const auto& [listener, layer] : listenersAndLayersToReport) {
+        std::unordered_set<int32_t> layerIds;
+
+        layer->traverse(LayerVector::StateSet::Current,
+                        [&](Layer* layer) { layerIds.insert(layer->getSequence()); });
+
+        listener.listener->onFpsReported(mFrameTimeline.computeFps(layerIds));
     }
 }
 
@@ -59,11 +78,11 @@ void FpsReporter::binderDied(const wp<IBinder>& who) {
     mListeners.erase(who);
 }
 
-void FpsReporter::addListener(const sp<gui::IFpsListener>& listener, const wp<Layer>& layer) {
+void FpsReporter::addListener(const sp<gui::IFpsListener>& listener, int32_t taskId) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
     asBinder->linkToDeath(this);
     std::lock_guard lock(mMutex);
-    mListeners.emplace(wp<IBinder>(asBinder), TrackedListener{listener, layer});
+    mListeners.emplace(wp<IBinder>(asBinder), TrackedListener{listener, taskId});
 }
 
 void FpsReporter::removeListener(const sp<gui::IFpsListener>& listener) {
