@@ -1433,14 +1433,12 @@ status_t SurfaceFlinger::removeRegionSamplingListener(const sp<IRegionSamplingLi
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::addFpsListener(const sp<IBinder>& layerHandle,
-                                        const sp<gui::IFpsListener>& listener) {
+status_t SurfaceFlinger::addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener) {
     if (!listener) {
         return BAD_VALUE;
     }
 
-    const wp<Layer> layer = fromHandle(layerHandle);
-    mFpsReporter->addListener(listener, layer);
+    mFpsReporter->addListener(listener, taskId);
     return NO_ERROR;
 }
 
@@ -3006,7 +3004,7 @@ void SurfaceFlinger::initScheduler(const DisplayDeviceState& displayState) {
     mRegionSamplingThread =
             new RegionSamplingThread(*this, *mScheduler,
                                      RegionSamplingThread::EnvironmentTimingTunables());
-    mFpsReporter = new FpsReporter(*mFrameTimeline);
+    mFpsReporter = new FpsReporter(*mFrameTimeline, *this);
     // Dispatch a mode change request for the primary display on scheduler
     // initialization, so that the EventThreads always contain a reference to a
     // prior configuration.
