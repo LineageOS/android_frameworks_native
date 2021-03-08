@@ -50,6 +50,7 @@ public:
                        EGLSurface protectedPlaceholder);
     ~SkiaGLRenderEngine() override EXCLUDES(mRenderingMutex);
 
+    void primeCache() override;
     void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
     void unbindExternalTextureBuffer(uint64_t bufferId) override;
     status_t drawLayers(const DisplaySettings& display,

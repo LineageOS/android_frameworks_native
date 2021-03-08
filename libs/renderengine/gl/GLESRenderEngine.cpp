@@ -515,7 +515,7 @@ Framebuffer* GLESRenderEngine::getFramebufferForDrawing() {
     return mDrawingBuffer.get();
 }
 
-void GLESRenderEngine::primeCache() const {
+void GLESRenderEngine::primeCache() {
     ProgramCache::getInstance().primeCache(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
                                            mUseColorManagement, mPrecacheToneMapperShaderOnly);
 }

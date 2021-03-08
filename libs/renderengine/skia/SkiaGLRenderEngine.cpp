@@ -40,6 +40,7 @@
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/Trace.h>
+#include "Cache.h"
 
 #include <cmath>
 #include <cstdint>
@@ -222,6 +223,10 @@ std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
     ALOGI("GL_MAX_VIEWPORT_DIMS = %zu", engine->getMaxViewportDims());
 
     return engine;
+}
+
+void SkiaGLRenderEngine::primeCache() {
+    Cache::primeShaderCache(this);
 }
 
 EGLConfig SkiaGLRenderEngine::chooseEglConfig(EGLDisplay display, int format, bool logConfig) {
