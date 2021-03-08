@@ -1697,12 +1697,12 @@ struct OutputUpdateColorProfileTest : public testing::Test {
 
     struct Layer {
         Layer() {
-            EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(mLayerFE));
-            EXPECT_CALL(mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
+            EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*mLayerFE));
+            EXPECT_CALL(*mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
         }
 
         StrictMock<mock::OutputLayer> mOutputLayer;
-        StrictMock<mock::LayerFE> mLayerFE;
+        sp<StrictMock<mock::LayerFE>> mLayerFE = sp<StrictMock<mock::LayerFE>>::make();
         LayerFECompositionState mLayerFEState;
     };
 
@@ -2712,12 +2712,12 @@ struct OutputPostFramebufferTest : public testing::Test {
 
     struct Layer {
         Layer() {
-            EXPECT_CALL(outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE));
+            EXPECT_CALL(outputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*layerFE));
             EXPECT_CALL(outputLayer, getHwcLayer()).WillRepeatedly(Return(&hwc2Layer));
         }
 
         StrictMock<mock::OutputLayer> outputLayer;
-        StrictMock<mock::LayerFE> layerFE;
+        sp<StrictMock<mock::LayerFE>> layerFE = sp<StrictMock<mock::LayerFE>>::make();
         StrictMock<HWC2::mock::Layer> hwc2Layer;
     };
 
@@ -2793,11 +2793,11 @@ TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
     // are passed. This happens to work with the current implementation, but
     // would not survive certain calls like Fence::merge() which would return a
     // new instance.
-    EXPECT_CALL(mLayer1.layerFE,
+    EXPECT_CALL(*mLayer1.layerFE,
                 onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer1Fence.get()))));
-    EXPECT_CALL(mLayer2.layerFE,
+    EXPECT_CALL(*mLayer2.layerFE,
                 onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer2Fence.get()))));
-    EXPECT_CALL(mLayer3.layerFE,
+    EXPECT_CALL(*mLayer3.layerFE,
                 onLayerDisplayed(Property(&sp<Fence>::get, Eq(layer3Fence.get()))));
 
     mOutput.postFramebuffer();
@@ -2824,9 +2824,9 @@ TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) 
     // Fence::merge is called, and since none of the fences are actually valid,
     // Fence::NO_FENCE is returned and passed to each onLayerDisplayed() call.
     // This is the best we can do without creating a real kernel fence object.
-    EXPECT_CALL(mLayer1.layerFE, onLayerDisplayed(Fence::NO_FENCE));
-    EXPECT_CALL(mLayer2.layerFE, onLayerDisplayed(Fence::NO_FENCE));
-    EXPECT_CALL(mLayer3.layerFE, onLayerDisplayed(Fence::NO_FENCE));
+    EXPECT_CALL(*mLayer1.layerFE, onLayerDisplayed(Fence::NO_FENCE));
+    EXPECT_CALL(*mLayer2.layerFE, onLayerDisplayed(Fence::NO_FENCE));
+    EXPECT_CALL(*mLayer3.layerFE, onLayerDisplayed(Fence::NO_FENCE));
 
     mOutput.postFramebuffer();
 }
@@ -3330,12 +3330,12 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
 struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeSurfacesTest {
     struct Layer {
         Layer() {
-            EXPECT_CALL(mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
-            EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(mLayerFE));
+            EXPECT_CALL(*mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
+            EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*mLayerFE));
         }
 
         StrictMock<mock::OutputLayer> mOutputLayer;
-        StrictMock<mock::LayerFE> mLayerFE;
+        sp<StrictMock<mock::LayerFE>> mLayerFE = sp<StrictMock<mock::LayerFE>>::make();
         LayerFECompositionState mLayerFEState;
     };
 
@@ -3546,12 +3546,12 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
         Layer() {
             EXPECT_CALL(mOutputLayer, getState()).WillRepeatedly(ReturnRef(mOutputLayerState));
             EXPECT_CALL(mOutputLayer, editState()).WillRepeatedly(ReturnRef(mOutputLayerState));
-            EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(mLayerFE));
-            EXPECT_CALL(mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
+            EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*mLayerFE));
+            EXPECT_CALL(*mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
         }
 
         StrictMock<mock::OutputLayer> mOutputLayer;
-        StrictMock<mock::LayerFE> mLayerFE;
+        sp<StrictMock<mock::LayerFE>> mLayerFE = sp<StrictMock<mock::LayerFE>>::make();
         LayerFECompositionState mLayerFEState;
         impl::OutputLayerCompositionState mOutputLayerState;
         LayerFE::LayerSettings mLayerSettings;
@@ -3645,11 +3645,11 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, gathersClientCompositi
     LayerFE::LayerSettings mShadowSettings;
     mShadowSettings.source.solidColor = {0.1f, 0.1f, 0.1f};
 
-    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(_))
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(_))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientCompositionList(_))
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(_))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mLayers[1].mLayerSettings})));
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(_))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(_))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>(
                     {mShadowSettings, mLayers[2].mLayerSettings})));
 
@@ -3683,7 +3683,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     mLayers[1].mLayerFEState.isOpaque = true;
     mLayers[2].mLayerFEState.isOpaque = true;
 
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(_))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(_))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mLayers[2].mLayerSettings})));
 
     Region accumClearRegion(Rect(10, 11, 12, 13));
@@ -3709,7 +3709,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     mLayers[1].mLayerFEState.isOpaque = false;
     mLayers[2].mLayerFEState.isOpaque = false;
 
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(_))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(_))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mLayers[2].mLayerSettings})));
 
     Region accumClearRegion(Rect(10, 11, 12, 13));
@@ -3773,9 +3773,9 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers, clearsHWCLayersIfOpaqu
     mBlackoutSettings.alpha = 0.f;
     mBlackoutSettings.disableBlending = true;
 
-    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mBlackoutSettings})));
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mLayers[2].mLayerSettings})));
 
     auto requests = mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
@@ -3835,11 +3835,11 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             false /* disabledBlurs */,
     };
 
-    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
 
     static_cast<void>(
@@ -3891,11 +3891,11 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             false /* disabledBlurs */,
     };
 
-    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
 
     static_cast<void>(
@@ -3948,11 +3948,11 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             false /* disabledBlurs */,
     };
 
-    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
 
     static_cast<void>(
@@ -4003,11 +4003,11 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             false /* disabledBlurs */,
     };
 
-    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
 
     static_cast<void>(
@@ -4056,11 +4056,11 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             false /* disabledBlurs */,
     };
 
-    EXPECT_CALL(mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
+    EXPECT_CALL(*mLayers[0].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer0TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
+    EXPECT_CALL(*mLayers[1].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer1TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2TargetSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>()));
 
     static_cast<void>(mOutput.generateClientCompositionRequests(true /* supportsProtectedContent */,
@@ -4188,7 +4188,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
 
     EXPECT_CALL(leftLayer.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
     EXPECT_CALL(leftLayer.mOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(leftLayer.mLayerFE, prepareClientCompositionList(Eq(ByRef(leftLayerSettings))))
+    EXPECT_CALL(*leftLayer.mLayerFE, prepareClientCompositionList(Eq(ByRef(leftLayerSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>({leftLayer.mLayerSettings})));
 
     compositionengine::LayerFE::ClientCompositionTargetSettings rightLayerSettings{
@@ -4206,7 +4206,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
 
     EXPECT_CALL(rightLayer.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
     EXPECT_CALL(rightLayer.mOutputLayer, needsFiltering()).WillRepeatedly(Return(false));
-    EXPECT_CALL(rightLayer.mLayerFE, prepareClientCompositionList(Eq(ByRef(rightLayerSettings))))
+    EXPECT_CALL(*rightLayer.mLayerFE, prepareClientCompositionList(Eq(ByRef(rightLayerSettings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>({rightLayer.mLayerSettings})));
 
     constexpr bool supportsProtectedContent = true;
@@ -4246,7 +4246,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
     EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
     EXPECT_CALL(mLayers[1].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2Settings))))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2Settings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>({mShadowSettings})));
 
     auto requests = mOutput.generateClientCompositionRequests(false /* supportsProtectedContent */,
@@ -4286,7 +4286,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
 
     EXPECT_CALL(mLayers[0].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
     EXPECT_CALL(mLayers[1].mOutputLayer, requiresClientComposition()).WillOnce(Return(false));
-    EXPECT_CALL(mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2Settings))))
+    EXPECT_CALL(*mLayers[2].mLayerFE, prepareClientCompositionList(Eq(ByRef(layer2Settings))))
             .WillOnce(Return(std::vector<LayerFE::LayerSettings>(
                     {mShadowSettings, mLayers[2].mLayerSettings})));
 

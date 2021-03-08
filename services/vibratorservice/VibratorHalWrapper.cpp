@@ -224,12 +224,45 @@ HalResult<milliseconds> AidlHalWrapper::performEffect(
     return ret;
 }
 
-HalResult<void> AidlHalWrapper::performComposedEffect(
+HalResult<milliseconds> AidlHalWrapper::performComposedEffect(
         const std::vector<CompositeEffect>& primitiveEffects,
         const std::function<void()>& completionCallback) {
     // This method should always support callbacks, so no need to double check.
     auto cb = new HalCallbackWrapper(completionCallback);
-    return HalResult<void>::fromStatus(getHal()->compose(primitiveEffects, cb));
+    milliseconds duration(0);
+    for (const auto& effect : primitiveEffects) {
+        auto durationResult = getPrimitiveDuration(effect.primitive);
+        if (durationResult.isOk()) {
+            duration += durationResult.value();
+        }
+        duration += milliseconds(effect.delayMs);
+    }
+    return HalResult<milliseconds>::fromStatus(getHal()->compose(primitiveEffects, cb), duration);
+}
+
+HalResult<milliseconds> AidlHalWrapper::getPrimitiveDuration(CompositePrimitive primitive) {
+    std::lock_guard<std::mutex> lock(mSupportedPrimitivesMutex);
+    if (mPrimitiveDurations.empty()) {
+        constexpr auto primitiveRange = enum_range<CompositePrimitive>();
+        constexpr auto primitiveCount = std::distance(primitiveRange.begin(), primitiveRange.end());
+        mPrimitiveDurations.resize(primitiveCount);
+    }
+    auto primitiveIdx = static_cast<size_t>(primitive);
+    if (primitiveIdx >= mPrimitiveDurations.size()) {
+        // Safety check, should not happen if enum_range is correct.
+        return HalResult<milliseconds>::unsupported();
+    }
+    auto& cache = mPrimitiveDurations[primitiveIdx];
+    if (cache.has_value()) {
+        return HalResult<milliseconds>::ok(*cache);
+    }
+    int32_t duration;
+    auto result = getHal()->getPrimitiveDuration(primitive, &duration);
+    if (result.isOk()) {
+        // Cache copy of returned value.
+        cache.emplace(duration);
+    }
+    return HalResult<milliseconds>::fromStatus(result, milliseconds(duration));
 }
 
 HalResult<Capabilities> AidlHalWrapper::getCapabilitiesInternal() {
@@ -333,10 +366,10 @@ HalResult<std::vector<CompositePrimitive>> HidlHalWrapper<I>::getSupportedPrimit
 }
 
 template <typename I>
-HalResult<void> HidlHalWrapper<I>::performComposedEffect(const std::vector<CompositeEffect>&,
-                                                         const std::function<void()>&) {
+HalResult<std::chrono::milliseconds> HidlHalWrapper<I>::performComposedEffect(
+        const std::vector<CompositeEffect>&, const std::function<void()>&) {
     ALOGV("Skipped composed effect because Vibrator HAL AIDL is not available");
-    return HalResult<void>::unsupported();
+    return HalResult<std::chrono::milliseconds>::unsupported();
 }
 
 template <typename I>
