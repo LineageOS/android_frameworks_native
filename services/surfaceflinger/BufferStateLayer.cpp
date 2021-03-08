@@ -171,6 +171,14 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
 
 void BufferStateLayer::onSurfaceFrameCreated(
         const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
+    while (mPendingJankClassifications.size() >= kPendingClassificationMaxSurfaceFrames) {
+        // Too many SurfaceFrames pending classification. The front of the deque is probably not
+        // tracked by FrameTimeline and will never be presented. This will only result in a memory
+        // leak.
+        ALOGW("Removing the front of pending jank deque from layer - %s to prevent memory leak",
+              mName.c_str());
+        mPendingJankClassifications.pop_front();
+    }
     mPendingJankClassifications.emplace_back(surfaceFrame);
 }
 
