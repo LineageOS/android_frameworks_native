@@ -36,13 +36,18 @@ BlurFilter::BlurFilter() {
     SkString blurString(R"(
         in shader input;
         uniform float2 in_blurOffset;
+        uniform float2 in_maxSizeXY;
 
         half4 main(float2 xy) {
             half4 c = sample(input, xy);
-            c += sample(input, xy + float2( in_blurOffset.x,  in_blurOffset.y));
-            c += sample(input, xy + float2( in_blurOffset.x, -in_blurOffset.y));
-            c += sample(input, xy + float2(-in_blurOffset.x,  in_blurOffset.y));
-            c += sample(input, xy + float2(-in_blurOffset.x, -in_blurOffset.y));
+            c += sample(input, float2( clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+                                       clamp(in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
+            c += sample(input, float2( clamp( in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+                                       clamp(-in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
+            c += sample(input, float2( clamp( -in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+                                       clamp(in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
+            c += sample(input, float2( clamp( -in_blurOffset.x + xy.x, 0, in_maxSizeXY.x),
+                                       clamp(-in_blurOffset.y + xy.y, 0, in_maxSizeXY.y)));
 
             return half4(c.rgb * 0.2, 1.0);
         }
@@ -99,6 +104,8 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
     blurBuilder.child("input") =
             input->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear, blurMatrix);
     blurBuilder.uniform("in_blurOffset") = SkV2{stepX * kInputScale, stepY * kInputScale};
+    blurBuilder.uniform("in_maxSizeXY") =
+            SkV2{blurRect.width() * kInputScale - 1, blurRect.height() * kInputScale - 1};
 
     sk_sp<SkImage> tmpBlur(blurBuilder.makeImage(context, nullptr, scaledInfo, false));
 
@@ -108,6 +115,8 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
         blurBuilder.child("input") =
                 tmpBlur->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
         blurBuilder.uniform("in_blurOffset") = SkV2{stepX * stepScale, stepY * stepScale};
+        blurBuilder.uniform("in_maxSizeXY") =
+                SkV2{blurRect.width() * kInputScale - 1, blurRect.height() * kInputScale - 1};
         tmpBlur = blurBuilder.makeImage(context, nullptr, scaledInfo, false);
     }
 
