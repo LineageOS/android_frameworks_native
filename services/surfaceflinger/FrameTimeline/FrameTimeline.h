@@ -216,6 +216,8 @@ public:
 private:
     void tracePredictions(int64_t displayFrameToken) const;
     void traceActuals(int64_t displayFrameToken) const;
+    void classifyJankLocked(int32_t displayFrameJankType, const Fps& refreshRate,
+                            nsecs_t& deadlineDelta) REQUIRES(mMutex);
 
     const int64_t mToken;
     const int32_t mInputEventId;

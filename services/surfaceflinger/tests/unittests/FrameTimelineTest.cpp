@@ -420,7 +420,54 @@ TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
     EXPECT_EQ(getNumberOfDisplayFrames(), *maxDisplayFrames);
 }
 
+TEST_F(FrameTimelineTest, presentFenceSignaled_invalidSignalTime) {
+    Fps refreshRate = Fps::fromPeriodNsecs(11);
+
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 60});
+    int64_t sfToken1 = mTokenManager->generateTokenForPredictions({52, 60, 60});
+
+    auto surfaceFrame1 =
+            mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken1, sInputEventId}, sPidOne,
+                                                       sUidOne, sLayerIdOne, sLayerNameOne,
+                                                       sLayerNameOne);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    surfaceFrame1->setAcquireFenceTime(20);
+    surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame1);
+
+    mFrameTimeline->setSfPresent(59, presentFence1);
+    presentFence1->signalForTest(-1);
+    addEmptyDisplayFrame();
+
+    auto displayFrame0 = getDisplayFrame(0);
+    EXPECT_EQ(displayFrame0->getActuals().presentTime, -1);
+    EXPECT_EQ(displayFrame0->getJankType(), JankType::Unknown);
+    EXPECT_EQ(surfaceFrame1->getActuals().presentTime, -1);
+    EXPECT_EQ(surfaceFrame1->getJankType(), JankType::Unknown);
+}
+
 // Tests related to TimeStats
+TEST_F(FrameTimelineTest, presentFenceSignaled_doesNotReportForInvalidTokens) {
+    Fps refreshRate = Fps::fromPeriodNsecs(11);
+    EXPECT_CALL(*mTimeStats, incrementJankyFrames(_)).Times(0);
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    int64_t surfaceFrameToken1 = -1;
+    int64_t sfToken1 = -1;
+
+    auto surfaceFrame1 =
+            mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken1, sInputEventId}, sPidOne,
+                                                       sUidOne, sLayerIdOne, sLayerNameOne,
+                                                       sLayerNameOne);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    surfaceFrame1->setAcquireFenceTime(20);
+    surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame1);
+    presentFence1->signalForTest(70);
+
+    mFrameTimeline->setSfPresent(59, presentFence1);
+}
+
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
     Fps refreshRate = Fps::fromPeriodNsecs(11);
     // Deadline delta is 2ms because, sf's adjusted deadline is 60 - composerTime(3) = 57ms.

@@ -444,37 +444,26 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
     dumpTable(result, mPredictions, mActuals, indent, mPredictionState, baseTime);
 }
 
-void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate,
-                             nsecs_t displayDeadlineDelta, nsecs_t displayPresentDelta) {
-    std::scoped_lock lock(mMutex);
-
-    if (mPresentState != PresentState::Presented) {
-        // No need to update dropped buffers
+void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& refreshRate,
+                                      nsecs_t& deadlineDelta) {
+    if (mPredictionState == PredictionState::Expired ||
+        mActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
+        // Cannot do any classification for invalid present time.
+        // For prediction expired case, we do not know what happened here to classify this
+        // correctly. This could potentially be AppDeadlineMissed but that's assuming no app will
+        // request frames 120ms apart.
+        mJankType = JankType::Unknown;
+        deadlineDelta = -1;
         return;
     }
 
-    mActuals.presentTime = presentTime;
-    // Jank Analysis for SurfaceFrame
     if (mPredictionState == PredictionState::None) {
         // Cannot do jank classification on frames that don't have a token.
         return;
     }
-    if (mPredictionState == PredictionState::Expired) {
-        // We do not know what happened here to classify this correctly. This could
-        // potentially be AppDeadlineMissed but that's assuming no app will request frames
-        // 120ms apart.
-        mJankType = JankType::Unknown;
-        mFramePresentMetadata = FramePresentMetadata::UnknownPresent;
-        mFrameReadyMetadata = FrameReadyMetadata::UnknownFinish;
-        const constexpr nsecs_t kAppDeadlineDelta = -1;
-        mTimeStats->incrementJankyFrames({refreshRate, mRenderRate, mOwnerUid, mLayerName,
-                                          mJankType, displayDeadlineDelta, displayPresentDelta,
-                                          kAppDeadlineDelta});
-        return;
-    }
 
+    deadlineDelta = mActuals.endTime - mPredictions.endTime;
     const nsecs_t presentDelta = mActuals.presentTime - mPredictions.presentTime;
-    const nsecs_t deadlineDelta = mActuals.endTime - mPredictions.endTime;
     const nsecs_t deltaToVsync = refreshRate.getPeriodNsecs() > 0
             ? std::abs(presentDelta) % refreshRate.getPeriodNsecs()
             : 0;
@@ -558,8 +547,28 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, 
             }
         }
     }
-    mTimeStats->incrementJankyFrames({refreshRate, mRenderRate, mOwnerUid, mLayerName, mJankType,
-                                      displayDeadlineDelta, displayPresentDelta, deadlineDelta});
+}
+
+void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate,
+                             nsecs_t displayDeadlineDelta, nsecs_t displayPresentDelta) {
+    std::scoped_lock lock(mMutex);
+
+    if (mPresentState != PresentState::Presented) {
+        // No need to update dropped buffers
+        return;
+    }
+
+    mActuals.presentTime = presentTime;
+    nsecs_t deadlineDelta = 0;
+
+    classifyJankLocked(displayFrameJankType, refreshRate, deadlineDelta);
+
+    if (mPredictionState != PredictionState::None) {
+        // Only update janky frames if the app used vsync predictions
+        mTimeStats->incrementJankyFrames({refreshRate, mRenderRate, mOwnerUid, mLayerName,
+                                          mJankType, displayDeadlineDelta, displayPresentDelta,
+                                          deadlineDelta});
+    }
 }
 
 void SurfaceFrame::tracePredictions(int64_t displayFrameToken) const {
@@ -827,8 +836,9 @@ void FrameTimeline::DisplayFrame::setActualEndTime(nsecs_t actualEndTime) {
 }
 
 void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync) {
-    if (mPredictionState == PredictionState::Expired) {
-        // Cannot do jank classification with expired predictions
+    if (mPredictionState == PredictionState::Expired ||
+        mSurfaceFlingerActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
+        // Cannot do jank classification with expired predictions or invalid signal times.
         mJankType = JankType::Unknown;
         deadlineDelta = -1;
         deltaToVsync = -1;
@@ -1094,11 +1104,9 @@ void FrameTimeline::flushPendingPresentFences() {
                 continue;
             }
         }
-        if (signalTime != Fence::SIGNAL_TIME_INVALID) {
-            auto& displayFrame = pendingPresentFence.second;
-            displayFrame->onPresent(signalTime);
-            displayFrame->trace(mSurfaceFlingerPid);
-        }
+        auto& displayFrame = pendingPresentFence.second;
+        displayFrame->onPresent(signalTime);
+        displayFrame->trace(mSurfaceFlingerPid);
 
         mPendingPresentFences.erase(mPendingPresentFences.begin() + static_cast<int>(i));
         --i;
