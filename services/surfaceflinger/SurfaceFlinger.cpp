@@ -3389,18 +3389,16 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
 
     for (const ComposerState& state : states) {
         const layer_state_t& s = state.state;
-        if (!(s.what & layer_state_t::eAcquireFenceChanged)) {
-            continue;
-        }
-
-        if (s.acquireFence && s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
+        const bool acquireFenceChanged = (s.what & layer_state_t::eAcquireFenceChanged);
+        if (acquireFenceChanged && s.acquireFence &&
+            s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
             ready = false;
         }
 
         sp<Layer> layer = nullptr;
         if (s.surface) {
             layer = fromHandleLocked(s.surface).promote();
-        } else {
+        } else if (acquireFenceChanged) {
             ALOGW("Transaction with buffer, but no Layer?");
             continue;
         }
@@ -3420,11 +3418,14 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
             ready = false;
         }
 
-        // If backpressure is enabled and we already have a buffer to commit, keep the
-        // transaction in the queue.
-        const bool hasPendingBuffer = pendingBuffers.find(s.surface) != pendingBuffers.end();
-        if (layer->backpressureEnabled() && hasPendingBuffer && isAutoTimestamp) {
-            ready = false;
+        if (acquireFenceChanged) {
+            // If backpressure is enabled and we already have a buffer to commit, keep the
+            // transaction in the queue.
+            const bool hasPendingBuffer = pendingBuffers.find(s.surface) != pendingBuffers.end();
+            if (layer->backpressureEnabled() && hasPendingBuffer && isAutoTimestamp) {
+                ready = false;
+            }
+            pendingBuffers.insert(s.surface);
         }
         pendingBuffers.insert(s.surface);
     }
