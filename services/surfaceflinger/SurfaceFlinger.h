@@ -363,6 +363,7 @@ private:
     friend class BufferQueueLayer;
     friend class BufferStateLayer;
     friend class Client;
+    friend class FpsReporter;
     friend class Layer;
     friend class MonitoredProducer;
     friend class RefreshRateOverlay;
@@ -627,8 +628,7 @@ private:
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
-    status_t addFpsListener(const sp<IBinder>& layerHandle,
-                            const sp<gui::IFpsListener>& listener) override;
+    status_t addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener) override;
     status_t removeFpsListener(const sp<gui::IFpsListener>& listener) override;
     status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
                                         ui::DisplayModeId displayModeId, bool allowGroupSwitching,
