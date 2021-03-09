@@ -18,6 +18,7 @@
 #define ANDROID_SF_COMPOSER_HAL_H
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -94,8 +95,8 @@ public:
     virtual Error executeCommands() = 0;
 
     virtual uint32_t getMaxVirtualDisplayCount() = 0;
-    virtual Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat* format,
-                                       Display* outDisplay) = 0;
+    virtual Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat*,
+                                       std::optional<Display> mirror, Display* outDisplay) = 0;
     virtual Error destroyVirtualDisplay(Display display) = 0;
 
     virtual Error acceptDisplayChanges(Display display) = 0;
@@ -341,7 +342,7 @@ public:
 
     uint32_t getMaxVirtualDisplayCount() override;
     Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat* format,
-                               Display* outDisplay) override;
+                               std::optional<Display> mirror, Display* outDisplay) override;
     Error destroyVirtualDisplay(Display display) override;
 
     Error acceptDisplayChanges(Display display) override;

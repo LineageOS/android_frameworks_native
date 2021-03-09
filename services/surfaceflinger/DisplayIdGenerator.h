@@ -27,23 +27,16 @@
 
 namespace android {
 
-template <typename T>
+// Generates pseudo-random IDs of type GpuVirtualDisplayId or HalVirtualDisplayId.
+template <typename Id>
 class DisplayIdGenerator {
 public:
-    virtual std::optional<T> nextId() = 0;
-    virtual void markUnused(T id) = 0;
-
-protected:
-    ~DisplayIdGenerator() {}
-};
-
-template <typename T>
-class RandomDisplayIdGenerator final : public DisplayIdGenerator<T> {
-public:
-    explicit RandomDisplayIdGenerator(size_t maxIdsCount = std::numeric_limits<size_t>::max())
+    explicit DisplayIdGenerator(size_t maxIdsCount = std::numeric_limits<size_t>::max())
           : mMaxIdsCount(maxIdsCount) {}
 
-    std::optional<T> nextId() override {
+    bool inUse() const { return !mUsedIds.empty(); }
+
+    std::optional<Id> generateId() {
         if (mUsedIds.size() >= mMaxIdsCount) {
             return std::nullopt;
         }
@@ -51,8 +44,7 @@ public:
         constexpr int kMaxAttempts = 1000;
 
         for (int attempts = 0; attempts < kMaxAttempts; attempts++) {
-            const auto baseId = mDistribution(mGenerator);
-            const T id(baseId);
+            const Id id{mDistribution(mGenerator)};
             if (mUsedIds.count(id) == 0) {
                 mUsedIds.insert(id);
                 return id;
@@ -62,14 +54,18 @@ public:
         LOG_ALWAYS_FATAL("Couldn't generate ID after %d attempts", kMaxAttempts);
     }
 
-    void markUnused(T id) override { mUsedIds.erase(id); }
+    void releaseId(Id id) { mUsedIds.erase(id); }
 
 private:
     const size_t mMaxIdsCount;
 
-    std::unordered_set<T> mUsedIds;
+    std::unordered_set<Id> mUsedIds;
+
+    // Pseudo-random with random seed, in contrast to physical display IDs, which are stable
+    // across reboots. The only ISurfaceComposer exposure for these IDs is a restricted API
+    // for screencap, so there is little benefit in making them unpredictable.
     std::default_random_engine mGenerator{std::random_device()()};
-    std::uniform_int_distribution<typename T::BaseId> mDistribution;
+    std::uniform_int_distribution<typename Id::BaseId> mDistribution;
 };
 
 } // namespace android
