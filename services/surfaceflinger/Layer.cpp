@@ -1058,6 +1058,15 @@ uint32_t Layer::doTransaction(uint32_t flags) {
 }
 
 void Layer::commitTransaction(State& stateToCommit) {
+    if (auto& bufferSurfaceFrame = mDrawingState.bufferSurfaceFrameTX;
+        mDrawingState.buffer != stateToCommit.buffer && bufferSurfaceFrame != nullptr &&
+        bufferSurfaceFrame->getPresentState() != PresentState::Presented) {
+        // If the previous buffer was committed but not latched (refreshPending - happens during
+        // back to back invalidates), it gets silently dropped here. Mark the corresponding
+        // SurfaceFrame as dropped to prevent it from getting stuck in the pending classification
+        // list.
+        addSurfaceFrameDroppedForBuffer(bufferSurfaceFrame);
+    }
     mDrawingState = stateToCommit;
 
     // Set the present state for all bufferlessSurfaceFramesTX to Presented. The

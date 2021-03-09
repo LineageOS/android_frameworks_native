@@ -439,6 +439,68 @@ public:
         EXPECT_EQ(true, presentedSurfaceFrame->getIsBuffer());
         EXPECT_EQ(PresentState::Presented, presentedSurfaceFrame->getPresentState());
     }
+
+    void MultipleCommitsBeforeLatch() {
+        sp<BufferStateLayer> layer = createBufferStateLayer();
+        uint32_t surfaceFramesPendingClassification = 0;
+        std::vector<std::shared_ptr<frametimeline::SurfaceFrame>> bufferlessSurfaceFrames;
+        for (int i = 0; i < 10; i += 2) {
+            sp<Fence> fence1(new Fence());
+            sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+            layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
+                             {/*vsyncId*/ 1, /*inputEventId*/ 0});
+            layer->setFrameTimelineVsyncForBufferlessTransaction({/*vsyncId*/ 2,
+                                                                  /*inputEventId*/ 0},
+                                                                 10);
+            ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
+            EXPECT_EQ(1u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
+            auto& bufferlessSurfaceFrame =
+                    layer->mCurrentState.bufferlessSurfaceFramesTX.at(/*vsyncId*/ 2);
+            bufferlessSurfaceFrames.push_back(bufferlessSurfaceFrame);
+
+            commitTransaction(layer.get());
+            surfaceFramesPendingClassification += 2;
+            EXPECT_EQ(surfaceFramesPendingClassification,
+                      layer->mPendingJankClassifications.size());
+        }
+
+        auto presentedBufferSurfaceFrame = layer->mDrawingState.bufferSurfaceFrameTX;
+        bool computeVisisbleRegions;
+        layer->updateTexImage(computeVisisbleRegions, 15, 0);
+        // BufferlessSurfaceFrames are immediately set to presented and added to the DisplayFrame.
+        // Since we don't have access to DisplayFrame here, trigger an onPresent directly.
+        for (auto& surfaceFrame : bufferlessSurfaceFrames) {
+            surfaceFrame->onPresent(20, JankType::None, Fps::fromPeriodNsecs(11),
+                                    /*displayDeadlineDelta*/ 0, /*displayPresentDelta*/ 0);
+        }
+        presentedBufferSurfaceFrame->onPresent(20, JankType::None, Fps::fromPeriodNsecs(11),
+                                               /*displayDeadlineDelta*/ 0,
+                                               /*displayPresentDelta*/ 0);
+
+        // There should be 10 bufferlessSurfaceFrames and 1 bufferSurfaceFrame
+        ASSERT_EQ(10u, surfaceFramesPendingClassification);
+        ASSERT_EQ(surfaceFramesPendingClassification, layer->mPendingJankClassifications.size());
+
+        // For the frames upto 8, the bufferSurfaceFrame should have been dropped while the
+        // bufferlessSurfaceFrame presented
+        for (uint32_t i = 0; i < 8; i += 2) {
+            auto& bufferSurfaceFrame = layer->mPendingJankClassifications[i];
+            auto& bufferlessSurfaceFrame = layer->mPendingJankClassifications[i + 1];
+            EXPECT_EQ(bufferSurfaceFrame->getPresentState(), PresentState::Dropped);
+            EXPECT_EQ(bufferlessSurfaceFrame->getPresentState(), PresentState::Presented);
+        }
+        {
+            auto& bufferSurfaceFrame = layer->mPendingJankClassifications[8u];
+            auto& bufferlessSurfaceFrame = layer->mPendingJankClassifications[9u];
+            EXPECT_EQ(bufferSurfaceFrame->getPresentState(), PresentState::Presented);
+            EXPECT_EQ(bufferlessSurfaceFrame->getPresentState(), PresentState::Presented);
+        }
+
+        layer->releasePendingBuffer(25);
+
+        // There shouldn't be any pending classifications. Everything should have been cleared.
+        EXPECT_EQ(0u, layer->mPendingJankClassifications.size());
+    }
 };
 
 TEST_F(TransactionSurfaceFrameTest, PresentedBufferlessSurfaceFrame) {
@@ -482,6 +544,10 @@ TEST_F(TransactionSurfaceFrameTest, PendingSurfaceFramesRemovedAfterClassificati
 TEST_F(TransactionSurfaceFrameTest,
        BufferSurfaceFrame_ReplaceValidTokenBufferWithInvalidTokenBuffer) {
     BufferSurfaceFrame_ReplaceValidTokenBufferWithInvalidTokenBuffer();
+}
+
+TEST_F(TransactionSurfaceFrameTest, MultipleCommitsBeforeLatch) {
+    MultipleCommitsBeforeLatch();
 }
 
 } // namespace android
