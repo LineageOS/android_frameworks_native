@@ -106,6 +106,7 @@ cc_test {
         "tests/planner/CachedSetTest.cpp",
         "tests/planner/FlattenerTest.cpp",
         "tests/planner/LayerStateTest.cpp",
+        "tests/planner/PredictorTest.cpp",
         "tests/CompositionEngineTest.cpp",
         "tests/DisplayColorProfileTest.cpp",
         "tests/DisplayTest.cpp",
