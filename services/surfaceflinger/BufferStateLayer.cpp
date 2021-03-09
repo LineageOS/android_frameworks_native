@@ -177,6 +177,8 @@ void BufferStateLayer::onSurfaceFrameCreated(
         // leak.
         ALOGW("Removing the front of pending jank deque from layer - %s to prevent memory leak",
               mName.c_str());
+        std::string miniDump = mPendingJankClassifications.front()->miniDump();
+        ALOGD("Head SurfaceFrame mini dump\n%s", miniDump.c_str());
         mPendingJankClassifications.pop_front();
     }
     mPendingJankClassifications.emplace_back(surfaceFrame);

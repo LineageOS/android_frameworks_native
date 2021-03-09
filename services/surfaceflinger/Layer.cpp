@@ -1537,6 +1537,7 @@ void Layer::setFrameTimelineVsyncForBufferTransaction(const FrameTimelineInfo& i
         // Promote the bufferlessSurfaceFrame to a bufferSurfaceFrameTX
         mCurrentState.bufferSurfaceFrameTX = it->second;
         mCurrentState.bufferlessSurfaceFramesTX.erase(it);
+        mCurrentState.bufferSurfaceFrameTX->promoteToBuffer();
         mCurrentState.bufferSurfaceFrameTX->setActualQueueTime(postTime);
     } else {
         mCurrentState.bufferSurfaceFrameTX =
@@ -1596,7 +1597,8 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForTransac
     auto surfaceFrame =
             mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid,
                                                                  getSequence(), mName,
-                                                                 mTransactionName);
+                                                                 mTransactionName,
+                                                                 /*isBuffer*/ false);
     // For Transactions, the post time is considered to be both queue and acquire fence time.
     surfaceFrame->setActualQueueTime(postTime);
     surfaceFrame->setAcquireFenceTime(postTime);
@@ -1612,7 +1614,8 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
         const FrameTimelineInfo& info, nsecs_t queueTime, std::string debugName) {
     auto surfaceFrame =
             mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid,
-                                                                 getSequence(), mName, debugName);
+                                                                 getSequence(), mName, debugName,
+                                                                 /*isBuffer*/ true);
     // For buffers, acquire fence time will set during latch.
     surfaceFrame->setActualQueueTime(queueTime);
     const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());

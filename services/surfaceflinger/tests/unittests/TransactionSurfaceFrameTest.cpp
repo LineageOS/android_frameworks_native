@@ -116,6 +116,7 @@ public:
         const auto surfaceFrame = layer->mCurrentState.bufferlessSurfaceFramesTX.at(/*token*/ 1);
         commitTransaction(layer.get());
         EXPECT_EQ(1, surfaceFrame->getToken());
+        EXPECT_EQ(false, surfaceFrame->getIsBuffer());
         EXPECT_EQ(PresentState::Presented, surfaceFrame->getPresentState());
     }
 
@@ -139,6 +140,7 @@ public:
         layer->updateTexImage(computeVisisbleRegions, 15, 0);
 
         EXPECT_EQ(1, surfaceFrame->getToken());
+        EXPECT_EQ(true, surfaceFrame->getIsBuffer());
         EXPECT_EQ(PresentState::Presented, surfaceFrame->getPresentState());
     }
 
@@ -172,12 +174,14 @@ public:
         layer->updateTexImage(computeVisisbleRegions, 15, 0);
 
         EXPECT_EQ(1, droppedSurfaceFrame->getToken());
+        EXPECT_EQ(true, droppedSurfaceFrame->getIsBuffer());
         EXPECT_EQ(PresentState::Dropped, droppedSurfaceFrame->getPresentState());
         EXPECT_EQ(0u, droppedSurfaceFrame->getActuals().endTime);
         auto dropTime = droppedSurfaceFrame->getDropTime();
         EXPECT_TRUE(dropTime > start && dropTime < end);
 
         EXPECT_EQ(1, presentedSurfaceFrame->getToken());
+        EXPECT_EQ(true, presentedSurfaceFrame->getIsBuffer());
         EXPECT_EQ(PresentState::Presented, presentedSurfaceFrame->getPresentState());
     }
 
@@ -204,6 +208,7 @@ public:
 
         commitTransaction(layer.get());
         EXPECT_EQ(1, surfaceFrame->getToken());
+        EXPECT_EQ(true, surfaceFrame->getIsBuffer());
         // Buffers are presented only at latch time.
         EXPECT_EQ(PresentState::Unknown, surfaceFrame->getPresentState());
 
@@ -260,12 +265,15 @@ public:
         commitTransaction(layer.get());
 
         EXPECT_EQ(1, bufferlessSurfaceFrame1->getToken());
+        EXPECT_EQ(false, bufferlessSurfaceFrame1->getIsBuffer());
         EXPECT_EQ(PresentState::Presented, bufferlessSurfaceFrame1->getPresentState());
 
         EXPECT_EQ(4, bufferlessSurfaceFrame2->getToken());
+        EXPECT_EQ(false, bufferlessSurfaceFrame2->getIsBuffer());
         EXPECT_EQ(PresentState::Presented, bufferlessSurfaceFrame2->getPresentState());
 
         EXPECT_EQ(3, bufferSurfaceFrameTX->getToken());
+        EXPECT_EQ(true, bufferSurfaceFrameTX->getIsBuffer());
         // Buffers are presented only at latch time.
         EXPECT_EQ(PresentState::Unknown, bufferSurfaceFrameTX->getPresentState());
 
@@ -297,10 +305,12 @@ public:
         commitTransaction(layer.get());
 
         EXPECT_EQ(1, bufferlessSurfaceFrame1->getToken());
+        EXPECT_EQ(false, bufferlessSurfaceFrame1->getIsBuffer());
         EXPECT_EQ(PresentState::Presented, bufferlessSurfaceFrame1->getPresentState());
         EXPECT_EQ(10, bufferlessSurfaceFrame1->getActuals().endTime);
 
         EXPECT_EQ(2, bufferlessSurfaceFrame2->getToken());
+        EXPECT_EQ(false, bufferlessSurfaceFrame2->getIsBuffer());
         EXPECT_EQ(PresentState::Presented, bufferlessSurfaceFrame2->getPresentState());
         EXPECT_EQ(12, bufferlessSurfaceFrame2->getActuals().endTime);
     }
@@ -327,9 +337,11 @@ public:
         commitTransaction(layer.get());
 
         EXPECT_EQ(1, bufferlessSurfaceFrame1->getToken());
+        EXPECT_EQ(false, bufferlessSurfaceFrame1->getIsBuffer());
         EXPECT_EQ(PresentState::Unknown, bufferlessSurfaceFrame1->getPresentState());
 
         EXPECT_EQ(1, bufferlessSurfaceFrame2->getToken());
+        EXPECT_EQ(false, bufferlessSurfaceFrame2->getIsBuffer());
         EXPECT_EQ(PresentState::Presented, bufferlessSurfaceFrame2->getPresentState());
         EXPECT_EQ(12, bufferlessSurfaceFrame2->getActuals().endTime);
     }
@@ -410,18 +422,21 @@ public:
         layer->updateTexImage(computeVisisbleRegions, 15, 0);
 
         EXPECT_EQ(1, droppedSurfaceFrame1->getToken());
+        EXPECT_EQ(true, droppedSurfaceFrame1->getIsBuffer());
         EXPECT_EQ(PresentState::Dropped, droppedSurfaceFrame1->getPresentState());
         EXPECT_EQ(0u, droppedSurfaceFrame1->getActuals().endTime);
         auto dropTime1 = droppedSurfaceFrame1->getDropTime();
         EXPECT_TRUE(dropTime1 > dropStartTime1 && dropTime1 < dropEndTime1);
 
         EXPECT_EQ(FrameTimelineInfo::INVALID_VSYNC_ID, droppedSurfaceFrame2->getToken());
+        EXPECT_EQ(true, droppedSurfaceFrame2->getIsBuffer());
         EXPECT_EQ(PresentState::Dropped, droppedSurfaceFrame2->getPresentState());
         EXPECT_EQ(0u, droppedSurfaceFrame2->getActuals().endTime);
         auto dropTime2 = droppedSurfaceFrame2->getDropTime();
         EXPECT_TRUE(dropTime2 > dropStartTime2 && dropTime2 < dropEndTime2);
 
         EXPECT_EQ(2, presentedSurfaceFrame->getToken());
+        EXPECT_EQ(true, presentedSurfaceFrame->getIsBuffer());
         EXPECT_EQ(PresentState::Presented, presentedSurfaceFrame->getPresentState());
     }
 };
