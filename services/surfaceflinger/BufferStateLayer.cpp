@@ -171,6 +171,14 @@ void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
 
 void BufferStateLayer::onSurfaceFrameCreated(
         const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
+    while (mPendingJankClassifications.size() >= kPendingClassificationMaxSurfaceFrames) {
+        // Too many SurfaceFrames pending classification. The front of the deque is probably not
+        // tracked by FrameTimeline and will never be presented. This will only result in a memory
+        // leak.
+        ALOGW("Removing the front of pending jank deque from layer - %s to prevent memory leak",
+              mName.c_str());
+        mPendingJankClassifications.pop_front();
+    }
     mPendingJankClassifications.emplace_back(surfaceFrame);
 }
 
@@ -605,13 +613,14 @@ bool BufferStateLayer::hasFrameUpdate() const {
     return mCurrentStateModified && (c.buffer != nullptr || c.bgColorLayer != nullptr);
 }
 
-std::optional<nsecs_t> BufferStateLayer::nextPredictedPresentTime() const {
-    const State& drawingState(getDrawingState());
-    if (!drawingState.isAutoTimestamp || !drawingState.bufferSurfaceFrameTX) {
+std::optional<nsecs_t> BufferStateLayer::nextPredictedPresentTime(int64_t vsyncId) const {
+    const auto prediction =
+            mFlinger->mFrameTimeline->getTokenManager()->getPredictionsForToken(vsyncId);
+    if (!prediction.has_value()) {
         return std::nullopt;
     }
 
-    return drawingState.bufferSurfaceFrameTX->getPredictions().presentTime;
+    return prediction->presentTime;
 }
 
 status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,
