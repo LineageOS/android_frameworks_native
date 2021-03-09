@@ -185,6 +185,13 @@ static int otapreopt_chroot(const int argc, char **arg) {
     // want it for product APKs. Same notes as vendor above.
     TryExtraMount("product", arg[2], "/postinstall/product");
 
+    constexpr const char* kPostInstallLinkerconfig = "/postinstall/linkerconfig";
+    // Try to mount /postinstall/linkerconfig. we will set it up after performing the chroot
+    if (mount("tmpfs", kPostInstallLinkerconfig, "tmpfs", 0, nullptr) != 0) {
+        PLOG(ERROR) << "Failed to mount a tmpfs for " << kPostInstallLinkerconfig;
+        exit(215);
+    }
+
     // Setup APEX mount point and its security context.
     static constexpr const char* kPostinstallApexDir = "/postinstall/apex";
     // The following logic is similar to the one in system/core/rootdir/init.rc:
@@ -246,14 +253,33 @@ static int otapreopt_chroot(const int argc, char **arg) {
 
     // Check that an ART APEX has been activated; clean up and exit
     // early otherwise.
-    if (std::none_of(active_packages.begin(),
-                     active_packages.end(),
-                     [](const apex::ApexFile& package){
-                         return package.GetManifest().name() == "com.android.art";
-                     })) {
-        LOG(FATAL_WITHOUT_ABORT) << "No activated com.android.art APEX package.";
-        DeactivateApexPackages(active_packages);
-        exit(217);
+    static constexpr const std::string_view kRequiredApexs[] = {
+      "com.android.art",
+      "com.android.runtime",
+    };
+    for (std::string_view apex : kRequiredApexs) {
+        if (std::none_of(active_packages.begin(), active_packages.end(),
+                         [&](const apex::ApexFile& package) {
+                             return package.GetManifest().name() == apex;
+                         })) {
+            LOG(FATAL_WITHOUT_ABORT) << "No activated " << apex << " APEX package.";
+            DeactivateApexPackages(active_packages);
+            exit(217);
+        }
+    }
+
+    // Setup /linkerconfig. Doing it after the chroot means it doesn't need its own category
+    if (selinux_android_restorecon("/linkerconfig", 0) < 0) {
+        PLOG(ERROR) << "Failed to restorecon /linkerconfig";
+        exit(219);
+    }
+    std::vector<std::string> linkerconfig_cmd{"/apex/com.android.runtime/bin/linkerconfig",
+                                              "--target", "/linkerconfig"};
+    std::string linkerconfig_error_msg;
+    bool linkerconfig_exec_result = Exec(linkerconfig_cmd, &linkerconfig_error_msg);
+    if (!linkerconfig_exec_result) {
+        LOG(ERROR) << "Running linkerconfig failed: " << linkerconfig_error_msg;
+        exit(218);
     }
 
     // Now go on and run otapreopt.
