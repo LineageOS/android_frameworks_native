@@ -81,6 +81,10 @@ public:
         mExpectedPresentTime = expectedPresentTime;
     }
 
+    void addExpectedPresentTimeForVsyncId(nsecs_t expectedPresentTime) {
+        mExpectedPresentTimeForVsyncId = expectedPresentTime;
+    }
+
     void verifyCallbackData(const CallbackData& callbackData) const {
         const auto& [latchTime, presentFence, surfaceControlStats] = callbackData;
         if (mTransactionResult == ExpectedResult::Transaction::PRESENTED) {
@@ -93,6 +97,11 @@ public:
                 // misses vsync and we have to wait another 33.3ms
                 ASSERT_LE(presentFence->getSignalTime(),
                           mExpectedPresentTime + nsecs_t(66.666666 * 1e6));
+            } else if (mExpectedPresentTimeForVsyncId >= 0) {
+                ASSERT_EQ(presentFence->wait(3000), NO_ERROR);
+                // We give 4ms for prediction error
+                ASSERT_GE(presentFence->getSignalTime(),
+                          mExpectedPresentTimeForVsyncId - 4'000'000);
             }
         } else {
             ASSERT_EQ(presentFence, nullptr) << "transaction shouldn't have been presented";
@@ -151,6 +160,7 @@ private:
     };
     ExpectedResult::Transaction mTransactionResult = ExpectedResult::Transaction::NOT_PRESENTED;
     nsecs_t mExpectedPresentTime = -1;
+    nsecs_t mExpectedPresentTimeForVsyncId = -1;
     std::unordered_map<sp<SurfaceControl>, ExpectedSurfaceResult, SCHash> mExpectedSurfaceResults;
 };
 

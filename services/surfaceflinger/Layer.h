@@ -922,7 +922,9 @@ public:
 
     pid_t getOwnerPid() { return mOwnerPid; }
 
-    virtual bool frameIsEarly(nsecs_t /*expectedPresentTime*/) const { return false; }
+    virtual bool frameIsEarly(nsecs_t /*expectedPresentTime*/, int64_t /*vsyncId*/) const {
+        return false;
+    }
 
     // This layer is not a clone, but it's the parent to the cloned hierarchy. The
     // variable mClonedChild represents the top layer that will be cloned so this

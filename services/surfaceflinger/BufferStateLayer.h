@@ -156,7 +156,7 @@ private:
 
     bool bufferNeedsFiltering() const override;
 
-    std::optional<nsecs_t> nextPredictedPresentTime() const override;
+    std::optional<nsecs_t> nextPredictedPresentTime(int64_t vsyncId) const override;
 
     static const std::array<float, 16> IDENTITY_MATRIX;
 
@@ -174,6 +174,8 @@ private:
     nsecs_t mCallbackHandleAcquireTime = -1;
 
     std::deque<std::shared_ptr<android::frametimeline::SurfaceFrame>> mPendingJankClassifications;
+    // An upper bound on the number of SurfaceFrames in the pending classifications deque.
+    static constexpr int kPendingClassificationMaxSurfaceFrames = 25;
 
     const std::string mBlastTransactionName{"BufferTX - " + mName};
     // This integer is incremented everytime a buffer arrives at the server for this layer,
