@@ -20,15 +20,19 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+#include <fstream>
 #include <sstream>
 
+#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/macros.h>
 #include <android-base/stringprintf.h>
+#include <android-base/unique_fd.h>
 #include <libdm/dm.h>
 #include <selinux/android.h>
 
 #include <apex_file_repository.h>
+#include <apex_constants.h>
 #include <apexd.h>
 
 #include "installd_constants.h"
@@ -75,6 +79,22 @@ static std::vector<apex::ApexFile> ActivateApexPackages() {
         static_cast<void>(apex::ScanPackagesDirAndActivate(dir.c_str()));
     }
     return apex::GetActivePackages();
+}
+
+static void CreateApexInfoList(const std::vector<apex::ApexFile>& apex_files) {
+    // Setup the apex-info-list.xml file
+    const std::string apex_info_file = std::string(apex::kApexRoot) + "/" + apex::kApexInfoList;
+    std::fstream xml(apex_info_file.c_str(), std::ios::out | std::ios::trunc);
+    if (!xml.is_open()) {
+        PLOG(ERROR) << "Failed to open " << apex_info_file;
+        exit(216);
+    }
+
+    // we do not care about inactive apexs
+    std::vector<apex::ApexFile> inactive;
+    apex::CollectApexInfoList(xml, apex_files, inactive);
+    xml.flush();
+    xml.close();
 }
 
 static void DeactivateApexPackages(const std::vector<apex::ApexFile>& active_packages) {
@@ -250,6 +270,7 @@ static int otapreopt_chroot(const int argc, char **arg) {
     // Try to mount APEX packages in "/apex" in the chroot dir. We need at least
     // the ART APEX, as it is required by otapreopt to run dex2oat.
     std::vector<apex::ApexFile> active_packages = ActivateApexPackages();
+    CreateApexInfoList(active_packages);
 
     // Check that an ART APEX has been activated; clean up and exit
     // early otherwise.
