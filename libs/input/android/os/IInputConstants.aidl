@@ -20,7 +20,10 @@ package android.os;
 /** @hide */
 interface IInputConstants
 {
-    const int DEFAULT_DISPATCHING_TIMEOUT_MILLIS = 5000; // 5 seconds
+    // This should be multiplied by the value of the system property ro.hw_timeout_multiplier before
+    // use. A pre-multiplied constant is available in Java in
+    // android.os.InputConstants.DEFAULT_DISPATCHING_TIMEOUT_MILLIS.
+    const int UNMULTIPLIED_DEFAULT_DISPATCHING_TIMEOUT_MILLIS = 5000; // 5 seconds
 
     // Compatibility changes.
     /**
