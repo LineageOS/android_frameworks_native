@@ -159,6 +159,15 @@ public:
         }
     }
 
+    Color getPixelColor(uint32_t x, uint32_t y) {
+        if (!mOutBuffer || mOutBuffer->getPixelFormat() != HAL_PIXEL_FORMAT_RGBA_8888) {
+            return {0, 0, 0, 0};
+        }
+
+        const uint8_t* pixel = mPixels + (4 * (y * mOutBuffer->getStride() + x));
+        return {pixel[0], pixel[1], pixel[2], pixel[3]};
+    }
+
     void expectFGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 195, 63, 63); }
 
     void expectBGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 63, 63, 195); }
