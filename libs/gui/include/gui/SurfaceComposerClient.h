@@ -209,7 +209,8 @@ public:
      *      BAD_VALUE         if the brightness value is invalid, or
      *      INVALID_OPERATION if brightness operaetions are not supported.
      */
-    static status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness);
+    static status_t setDisplayBrightness(const sp<IBinder>& displayToken,
+                                         const gui::DisplayBrightness& brightness);
 
     /*
      * Sends a power boost to the composer. This function is asynchronous.
