@@ -191,7 +191,7 @@ protected:
 
     // Returns true if the next frame is considered too early to present
     // at the given expectedPresentTime
-    bool frameIsEarly(nsecs_t expectedPresentTime) const;
+    bool frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) const;
 
     std::atomic<bool> mAutoRefresh{false};
     std::atomic<bool> mSidebandStreamChanged{false};
@@ -238,7 +238,7 @@ private:
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
 
     // Returns the predicted present time of the next frame if available
-    virtual std::optional<nsecs_t> nextPredictedPresentTime() const = 0;
+    virtual std::optional<nsecs_t> nextPredictedPresentTime(int64_t vsyncId) const = 0;
 
     // The amount of time SF can delay a frame if it is considered early based
     // on the VsyncModulator::VsyncConfig::appWorkDuration

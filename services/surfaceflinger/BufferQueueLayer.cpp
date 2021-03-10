@@ -215,7 +215,7 @@ bool BufferQueueLayer::hasFrameUpdate() const {
     return mQueuedFrames > 0;
 }
 
-std::optional<nsecs_t> BufferQueueLayer::nextPredictedPresentTime() const {
+std::optional<nsecs_t> BufferQueueLayer::nextPredictedPresentTime(int64_t /*vsyncId*/) const {
     Mutex::Autolock lock(mQueueItemLock);
     if (mQueueItems.empty()) {
         return std::nullopt;
