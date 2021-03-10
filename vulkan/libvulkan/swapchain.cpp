@@ -1709,7 +1709,7 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                 if (err != android::OK) {
                     ALOGE("queueBuffer failed: %s (%d)", strerror(-err), err);
                     swapchain_result = WorstPresentResult(
-                        swapchain_result, VK_ERROR_OUT_OF_DATE_KHR);
+                        swapchain_result, VK_ERROR_SURFACE_LOST_KHR);
                 } else {
                     if (img.dequeue_fence >= 0) {
                         close(img.dequeue_fence);
