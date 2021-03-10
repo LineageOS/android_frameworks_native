@@ -3313,10 +3313,10 @@ void SurfaceFlinger::flushTransactionQueues() {
 
                 while (!transactionQueue.empty()) {
                     const auto& transaction = transactionQueue.front();
-                    if (!transactionIsReadyToBeApplied(transaction.isAutoTimestamp,
+                    if (!transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
+                                                       transaction.isAutoTimestamp,
                                                        transaction.desiredPresentTime,
-                                                       transaction.states,
-                                                       pendingBuffers)) {
+                                                       transaction.states, pendingBuffers)) {
                         setTransactionFlags(eTransactionFlushNeeded);
                         break;
                     }
@@ -3340,10 +3340,10 @@ void SurfaceFlinger::flushTransactionQueues() {
                 const auto& transaction = mTransactionQueue.front();
                 bool pendingTransactions = mPendingTransactionQueues.find(transaction.applyToken) !=
                         mPendingTransactionQueues.end();
-                if (!transactionIsReadyToBeApplied(transaction.isAutoTimestamp,
+                if (!transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
+                                                   transaction.isAutoTimestamp,
                                                    transaction.desiredPresentTime,
-                                                   transaction.states,
-                                                   pendingBuffers) ||
+                                                   transaction.states, pendingBuffers) ||
                     pendingTransactions) {
                     mPendingTransactionQueues[transaction.applyToken].push(transaction);
                 } else {
@@ -3373,7 +3373,8 @@ bool SurfaceFlinger::transactionFlushNeeded() {
 }
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(
-        bool isAutoTimestamp, int64_t desiredPresentTime, const Vector<ComposerState>& states,
+        const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
+        const Vector<ComposerState>& states,
         std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers) {
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     bool ready = true;
@@ -3386,24 +3387,26 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
 
     for (const ComposerState& state : states) {
         const layer_state_t& s = state.state;
-        if (!(s.what & layer_state_t::eAcquireFenceChanged)) {
-            continue;
-        }
-        if (s.acquireFence && s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
+        const bool acquireFenceChanged = (s.what & layer_state_t::eAcquireFenceChanged);
+        if (acquireFenceChanged && s.acquireFence &&
+            s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
             ready = false;
         }
 
         sp<Layer> layer = nullptr;
         if (s.surface) {
             layer = fromHandleLocked(s.surface).promote();
-        } else {
+        } else if (acquireFenceChanged) {
             ALOGW("Transaction with buffer, but no Layer?");
             continue;
         }
         if (!layer) {
             continue;
         }
-        if (layer->frameIsEarly(expectedPresentTime)) {
+
+        const bool frameTimelineInfoChanged = (s.what & layer_state_t::eFrameTimelineInfoChanged);
+        const auto vsyncId = frameTimelineInfoChanged ? s.frameTimelineInfo.vsyncId : info.vsyncId;
+        if (isAutoTimestamp && layer->frameIsEarly(expectedPresentTime, vsyncId)) {
             ATRACE_NAME("frameIsEarly()");
             return false;
         }
@@ -3413,11 +3416,14 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
             ready = false;
         }
 
-        // If backpressure is enabled and we already have a buffer to commit, keep the transaction
-        // in the queue.
-        const bool hasPendingBuffer = pendingBuffers.find(s.surface) != pendingBuffers.end();
-        if (layer->backpressureEnabled() && hasPendingBuffer && isAutoTimestamp) {
-            ready = false;
+        if (acquireFenceChanged) {
+            // If backpressure is enabled and we already have a buffer to commit, keep the
+            // transaction in the queue.
+            const bool hasPendingBuffer = pendingBuffers.find(s.surface) != pendingBuffers.end();
+            if (layer->backpressureEnabled() && hasPendingBuffer && isAutoTimestamp) {
+                ready = false;
+            }
+            pendingBuffers.insert(s.surface);
         }
         pendingBuffers.insert(s.surface);
     }
