@@ -349,9 +349,6 @@ private:
             }
         }
 
-        // Clear cached artifacts.
-        ClearDirectory(isa_path);
-
         // Check whether we have a boot image.
         // TODO: check that the files are correct wrt/ jars.
         std::string preopted_boot_art_path =
@@ -393,37 +390,6 @@ private:
         }
         PLOG(ERROR) << "Could not create " << path;
         return false;
-    }
-
-    static void ClearDirectory(const std::string& dir) {
-        DIR* c_dir = opendir(dir.c_str());
-        if (c_dir == nullptr) {
-            PLOG(WARNING) << "Unable to open " << dir << " to delete it's contents";
-            return;
-        }
-
-        for (struct dirent* de = readdir(c_dir); de != nullptr; de = readdir(c_dir)) {
-            const char* name = de->d_name;
-            if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
-                continue;
-            }
-            // We only want to delete regular files and symbolic links.
-            std::string file = StringPrintf("%s/%s", dir.c_str(), name);
-            if (de->d_type != DT_REG && de->d_type != DT_LNK) {
-                LOG(WARNING) << "Unexpected file "
-                             << file
-                             << " of type "
-                             << std::hex
-                             << de->d_type
-                             << " encountered.";
-            } else {
-                // Try to unlink the file.
-                if (unlink(file.c_str()) != 0) {
-                    PLOG(ERROR) << "Unable to unlink " << file;
-                }
-            }
-        }
-        CHECK_EQ(0, closedir(c_dir)) << "Unable to close directory.";
     }
 
     static const char* ParseNull(const char* arg) {
