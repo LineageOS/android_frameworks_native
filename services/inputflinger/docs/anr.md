@@ -22,7 +22,7 @@ Every dispatch cycle, InputDispatcher will check all connections to see if any a
 
 When a dispatch entry is sent to the app, its `deliveryTime` and `timeoutTime` fields are populated. The `deliveryTime` is the time that the event is delivered to the app. This is simply the current time inside `publishMotionEvent`. The `timeoutTime` is the time when this entry would be considered overdue. At that time, the ANR process would start for this connection.
 
-Most connections are associated with a window, and each window may have a custom timeout time. To calculate the timeout time of a specific event, simply add the `window.dispatchingTimeout` to the current time. In case where there is no associated window, such as gesture monitors, use the default dispatching timeout which is defined in `IInputConstants::DEFAULT_DISPATCHING_TIMEOUT_MILLIS`.
+Most connections are associated with a window, and each window may have a custom timeout time. To calculate the timeout time of a specific event, simply add the `window.dispatchingTimeout` to the current time. In case where there is no associated window, such as gesture monitors, use the default dispatching timeout which is defined in `android.os.InputConstants.DEFAULT_DISPATCHING_TIMEOUT_MILLIS`.
 
 The `timeoutTime` field of the `DispatchEntry` is needed because the window associated with a specific connection may change its timeout time. Therefore, entries sent prior to the timeout change would need to follow the previous timeout value. If a window timeout changes, it only affects new events being dispatched, and does not alter the timeout times of events already sent to the app.
 
