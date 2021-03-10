@@ -49,6 +49,7 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Key, downTime, 88);
 
   CHECK_OFFSET(InputMessage::Body::Motion, eventId, 0);
+  CHECK_OFFSET(InputMessage::Body::Motion, empty1, 4);
   CHECK_OFFSET(InputMessage::Body::Motion, eventTime, 8);
   CHECK_OFFSET(InputMessage::Body::Motion, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Motion, source, 20);
@@ -60,6 +61,7 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Motion, metaState, 72);
   CHECK_OFFSET(InputMessage::Body::Motion, buttonState, 76);
   CHECK_OFFSET(InputMessage::Body::Motion, classification, 80);
+  CHECK_OFFSET(InputMessage::Body::Motion, empty2, 81);
   CHECK_OFFSET(InputMessage::Body::Motion, edgeFlags, 84);
   CHECK_OFFSET(InputMessage::Body::Motion, downTime, 88);
   CHECK_OFFSET(InputMessage::Body::Motion, dsdx, 96);
@@ -73,16 +75,20 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Motion, xCursorPosition, 128);
   CHECK_OFFSET(InputMessage::Body::Motion, yCursorPosition, 132);
   CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 136);
+  CHECK_OFFSET(InputMessage::Body::Motion, empty3, 140);
   CHECK_OFFSET(InputMessage::Body::Motion, pointers, 144);
 
   CHECK_OFFSET(InputMessage::Body::Focus, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Focus, hasFocus, 4);
-  CHECK_OFFSET(InputMessage::Body::Focus, inTouchMode, 6);
+  CHECK_OFFSET(InputMessage::Body::Focus, inTouchMode, 5);
+  CHECK_OFFSET(InputMessage::Body::Focus, empty, 6);
 
   CHECK_OFFSET(InputMessage::Body::Capture, eventId, 0);
   CHECK_OFFSET(InputMessage::Body::Capture, pointerCaptureEnabled, 4);
+  CHECK_OFFSET(InputMessage::Body::Capture, empty, 5);
 
-  CHECK_OFFSET(InputMessage::Body::Finished, handled, 4);
+  CHECK_OFFSET(InputMessage::Body::Finished, handled, 0);
+  CHECK_OFFSET(InputMessage::Body::Finished, empty, 1);
   CHECK_OFFSET(InputMessage::Body::Finished, consumeTime, 8);
 }
 

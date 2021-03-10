@@ -577,8 +577,8 @@ status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool h
     msg.header.type = InputMessage::Type::FOCUS;
     msg.header.seq = seq;
     msg.body.focus.eventId = eventId;
-    msg.body.focus.hasFocus = hasFocus ? 1 : 0;
-    msg.body.focus.inTouchMode = inTouchMode ? 1 : 0;
+    msg.body.focus.hasFocus = hasFocus;
+    msg.body.focus.inTouchMode = inTouchMode;
     return mChannel->sendMessage(&msg);
 }
 
@@ -595,7 +595,7 @@ status_t InputPublisher::publishCaptureEvent(uint32_t seq, int32_t eventId,
     msg.header.type = InputMessage::Type::CAPTURE;
     msg.header.seq = seq;
     msg.body.capture.eventId = eventId;
-    msg.body.capture.pointerCaptureEnabled = pointerCaptureEnabled ? 1 : 0;
+    msg.body.capture.pointerCaptureEnabled = pointerCaptureEnabled;
     return mChannel->sendMessage(&msg);
 }
 
@@ -615,7 +615,7 @@ status_t InputPublisher::receiveFinishedSignal(
               mChannel->getName().c_str(), NamedEnum::string(msg.header.type).c_str());
         return UNKNOWN_ERROR;
     }
-    callback(msg.header.seq, msg.body.finished.handled == 1, msg.body.finished.consumeTime);
+    callback(msg.header.seq, msg.body.finished.handled, msg.body.finished.consumeTime);
     return OK;
 }
 
@@ -1168,7 +1168,7 @@ status_t InputConsumer::sendUnchainedFinishedSignal(uint32_t seq, bool handled) 
     InputMessage msg;
     msg.header.type = InputMessage::Type::FINISHED;
     msg.header.seq = seq;
-    msg.body.finished.handled = handled ? 1 : 0;
+    msg.body.finished.handled = handled;
     msg.body.finished.consumeTime = getConsumeTime(seq);
     status_t result = mChannel->sendMessage(&msg);
     if (result == OK) {
@@ -1228,12 +1228,12 @@ void InputConsumer::initializeKeyEvent(KeyEvent* event, const InputMessage* msg)
 }
 
 void InputConsumer::initializeFocusEvent(FocusEvent* event, const InputMessage* msg) {
-    event->initialize(msg->body.focus.eventId, msg->body.focus.hasFocus == 1,
-                      msg->body.focus.inTouchMode == 1);
+    event->initialize(msg->body.focus.eventId, msg->body.focus.hasFocus,
+                      msg->body.focus.inTouchMode);
 }
 
 void InputConsumer::initializeCaptureEvent(CaptureEvent* event, const InputMessage* msg) {
-    event->initialize(msg->body.capture.eventId, msg->body.capture.pointerCaptureEnabled == 1);
+    event->initialize(msg->body.capture.eventId, msg->body.capture.pointerCaptureEnabled);
 }
 
 void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage* msg) {
