@@ -914,11 +914,6 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
     }
 
     info->activeDisplayModeId = static_cast<int32_t>(display->getActiveMode()->getId().value());
-    if (display->isPrimary()) {
-        if (const auto mode = getDesiredActiveMode()) {
-            info->activeDisplayModeId = static_cast<int32_t>(mode->modeId.value());
-        }
-    }
 
     const auto& supportedModes = display->getSupportedModes();
     info->supportedDisplayModes.clear();
