@@ -47,7 +47,7 @@ struct DisplayCreationArgs {
     std::optional<Physical> physical;
 
     // Size of the display in pixels
-    ui::Size pixels = ui::Size::INVALID;
+    ui::Size pixels = ui::kInvalidSize;
 
     // Pixel format of the display
     ui::PixelFormat pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_UNKNOWN);
