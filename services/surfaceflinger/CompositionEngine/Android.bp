@@ -104,6 +104,7 @@ cc_test {
     defaults: ["libcompositionengine_defaults"],
     srcs: [
         "tests/planner/CachedSetTest.cpp",
+        "tests/planner/FlattenerTest.cpp",
         "tests/CompositionEngineTest.cpp",
         "tests/DisplayColorProfileTest.cpp",
         "tests/DisplayTest.cpp",
