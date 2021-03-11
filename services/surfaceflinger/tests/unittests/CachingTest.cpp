@@ -31,7 +31,8 @@ namespace android {
 
 class SlotGenerationTest : public testing::Test {
 protected:
-    BufferStateLayer::HwcSlotGenerator mHwcSlotGenerator;
+    sp<BufferStateLayer::HwcSlotGenerator> mHwcSlotGenerator =
+            sp<BufferStateLayer::HwcSlotGenerator>::make();
     sp<GraphicBuffer> mBuffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
     sp<GraphicBuffer> mBuffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
     sp<GraphicBuffer> mBuffer3{new GraphicBuffer(10, 10, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
@@ -41,7 +42,7 @@ TEST_F(SlotGenerationTest, getHwcCacheSlot_Invalid) {
     sp<IBinder> binder = new BBinder();
     // test getting invalid client_cache_id
     client_cache_t id;
-    uint32_t slot = mHwcSlotGenerator.getHwcCacheSlot(id);
+    uint32_t slot = mHwcSlotGenerator->getHwcCacheSlot(id);
     EXPECT_EQ(BufferQueue::INVALID_BUFFER_SLOT, slot);
 }
 
@@ -50,19 +51,19 @@ TEST_F(SlotGenerationTest, getHwcCacheSlot_Basic) {
     client_cache_t id;
     id.token = binder;
     id.id = 0;
-    uint32_t slot = mHwcSlotGenerator.getHwcCacheSlot(id);
+    uint32_t slot = mHwcSlotGenerator->getHwcCacheSlot(id);
     EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - 1, slot);
 
     client_cache_t idB;
     idB.token = binder;
     idB.id = 1;
-    slot = mHwcSlotGenerator.getHwcCacheSlot(idB);
+    slot = mHwcSlotGenerator->getHwcCacheSlot(idB);
     EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - 2, slot);
 
-    slot = mHwcSlotGenerator.getHwcCacheSlot(idB);
+    slot = mHwcSlotGenerator->getHwcCacheSlot(idB);
     EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - 2, slot);
 
-    slot = mHwcSlotGenerator.getHwcCacheSlot(id);
+    slot = mHwcSlotGenerator->getHwcCacheSlot(id);
     EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - 1, slot);
 }
 
@@ -77,12 +78,12 @@ TEST_F(SlotGenerationTest, getHwcCacheSlot_Reuse) {
         id.id = cacheId;
         ids.push_back(id);
 
-        uint32_t slot = mHwcSlotGenerator.getHwcCacheSlot(id);
+        uint32_t slot = mHwcSlotGenerator->getHwcCacheSlot(id);
         EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - (i + 1), slot);
         cacheId++;
     }
     for (uint32_t i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
-        uint32_t slot = mHwcSlotGenerator.getHwcCacheSlot(ids[i]);
+        uint32_t slot = mHwcSlotGenerator->getHwcCacheSlot(ids[i]);
         EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - (i + 1), slot);
     }
 
@@ -90,7 +91,7 @@ TEST_F(SlotGenerationTest, getHwcCacheSlot_Reuse) {
         client_cache_t id;
         id.token = binder;
         id.id = cacheId;
-        uint32_t slot = mHwcSlotGenerator.getHwcCacheSlot(id);
+        uint32_t slot = mHwcSlotGenerator->getHwcCacheSlot(id);
         EXPECT_EQ(BufferQueue::NUM_BUFFER_SLOTS - (i + 1), slot);
         cacheId++;
     }
