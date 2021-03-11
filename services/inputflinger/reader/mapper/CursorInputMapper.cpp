@@ -188,11 +188,29 @@ void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* 
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         mOrientation = DISPLAY_ORIENTATION_0;
-        if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
-            std::optional<DisplayViewport> internalViewport =
-                    config->getDisplayViewportByType(ViewportType::INTERNAL);
-            if (internalViewport) {
-                mOrientation = internalViewport->orientation;
+        const bool isOrientedDevice =
+                (mParameters.orientationAware && mParameters.hasAssociatedDisplay);
+
+        if (isPerWindowInputRotationEnabled()) {
+            // When per-window input rotation is enabled, InputReader works in the un-rotated
+            // coordinate space, so we don't need to do anything if the device is already
+            // orientation-aware. If the device is not orientation-aware, then we need to apply the
+            // inverse rotation of the display so that when the display rotation is applied later
+            // as a part of the per-window transform, we get the expected screen coordinates.
+            if (!isOrientedDevice) {
+                std::optional<DisplayViewport> internalViewport =
+                        config->getDisplayViewportByType(ViewportType::INTERNAL);
+                if (internalViewport) {
+                    mOrientation = getInverseRotation(internalViewport->orientation);
+                }
+            }
+        } else {
+            if (isOrientedDevice) {
+                std::optional<DisplayViewport> internalViewport =
+                        config->getDisplayViewportByType(ViewportType::INTERNAL);
+                if (internalViewport) {
+                    mOrientation = internalViewport->orientation;
+                }
             }
         }
 
@@ -294,11 +312,8 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     float deltaY = mCursorMotionAccumulator.getRelativeY() * mYScale;
     bool moved = deltaX != 0 || deltaY != 0;
 
-    // Rotate delta according to orientation if needed.
-    if (mParameters.orientationAware && mParameters.hasAssociatedDisplay &&
-        (deltaX != 0.0f || deltaY != 0.0f)) {
-        rotateDelta(mOrientation, &deltaX, &deltaY);
-    }
+    // Rotate delta according to orientation.
+    rotateDelta(mOrientation, &deltaX, &deltaY);
 
     // Move the pointer.
     PointerProperties pointerProperties;
@@ -326,7 +341,15 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
 
             if (moved) {
-                mPointerController->move(deltaX, deltaY);
+                float dx = deltaX;
+                float dy = deltaY;
+                if (isPerWindowInputRotationEnabled()) {
+                    // Rotate the delta from InputReader's un-rotated coordinate space to
+                    // PointerController's rotated coordinate space that is oriented with the
+                    // viewport.
+                    rotateDelta(getInverseRotation(mOrientation), &dx, &dy);
+                }
+                mPointerController->move(dx, dy);
             }
 
             if (buttonsChanged) {
