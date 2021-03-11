@@ -166,6 +166,9 @@ enum {
 
     /** Capture event */
     AINPUT_EVENT_TYPE_CAPTURE = 4,
+
+    /** Drag event */
+    AINPUT_EVENT_TYPE_DRAG = 5,
 };
 
 /**
