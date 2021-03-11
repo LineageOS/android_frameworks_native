@@ -17,6 +17,7 @@
 #ifndef _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
 #define _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
 
+#include <android-base/properties.h>
 #include <input/DisplayViewport.h>
 #include <stdint.h>
 
@@ -27,6 +28,26 @@
 namespace android {
 
 // --- Static Definitions ---
+
+// When per-window input rotation is enabled, display transformations such as rotation and
+// projection are part of the input window's transform. This means InputReader should work in the
+// un-rotated coordinate space.
+static bool isPerWindowInputRotationEnabled() {
+    static const bool PER_WINDOW_INPUT_ROTATION =
+            base::GetBoolProperty("persist.debug.per_window_input_rotation", false);
+    return PER_WINDOW_INPUT_ROTATION;
+}
+
+static int32_t getInverseRotation(int32_t orientation) {
+    switch (orientation) {
+        case DISPLAY_ORIENTATION_90:
+            return DISPLAY_ORIENTATION_270;
+        case DISPLAY_ORIENTATION_270:
+            return DISPLAY_ORIENTATION_90;
+        default:
+            return orientation;
+    }
+}
 
 static void rotateDelta(int32_t orientation, float* deltaX, float* deltaY) {
     float temp;
