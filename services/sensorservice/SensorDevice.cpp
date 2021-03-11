@@ -686,9 +686,9 @@ status_t SensorDevice::activateLocked(void* ident, int handle, int enabled) {
         ALOGD_IF(DEBUG_CONNECTIONS, "enable index=%zd", info.batchParams.indexOfKey(ident));
 
         if (isClientDisabledLocked(ident)) {
-            ALOGE("SensorDevice::activate, isClientDisabledLocked(%p):true, handle:%d",
+            ALOGW("SensorDevice::activate, isClientDisabledLocked(%p):true, handle:%d",
                     ident, handle);
-            return INVALID_OPERATION;
+            return NO_ERROR;
         }
 
         if (info.batchParams.indexOfKey(ident) >= 0) {
