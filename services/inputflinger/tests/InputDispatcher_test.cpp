@@ -2183,7 +2183,7 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
     EXPECT_EQ(motionArgs.buttonState, verifiedMotion.buttonState);
 }
 
-TEST_F(InputDispatcherTest, NonPointerMotionEvent_JoystickNotTransformed) {
+TEST_F(InputDispatcherTest, NonPointerMotionEvent_NotTransformed) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Test window", ADISPLAY_ID_DEFAULT);
@@ -2203,28 +2203,41 @@ TEST_F(InputDispatcherTest, NonPointerMotionEvent_JoystickNotTransformed) {
     // Second, we consume focus event if it is right or wrong according to onFocusChangedLocked.
     window->consumeFocusEvent(true);
 
-    NotifyMotionArgs motionArgs = generateMotionArgs(AMOTION_EVENT_ACTION_MOVE,
-                                                     AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_DEFAULT);
-    mDispatcher->notifyMotion(&motionArgs);
+    constexpr const std::array nonPointerSources = {AINPUT_SOURCE_TRACKBALL,
+                                                    AINPUT_SOURCE_MOUSE_RELATIVE,
+                                                    AINPUT_SOURCE_JOYSTICK};
+    for (const int source : nonPointerSources) {
+        // Notify motion with a non-pointer source.
+        NotifyMotionArgs motionArgs =
+                generateMotionArgs(AMOTION_EVENT_ACTION_MOVE, source, ADISPLAY_ID_DEFAULT);
+        mDispatcher->notifyMotion(&motionArgs);
 
-    // Third, we consume motion event.
-    InputEvent* event = window->consume();
-    ASSERT_NE(event, nullptr);
-    ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType())
-            << name.c_str() << "expected " << inputEventTypeToString(AINPUT_EVENT_TYPE_MOTION)
-            << " event, got " << inputEventTypeToString(event->getType()) << " event";
+        InputEvent* event = window->consume();
+        ASSERT_NE(event, nullptr);
+        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType())
+                << name.c_str() << "expected " << inputEventTypeToString(AINPUT_EVENT_TYPE_MOTION)
+                << " event, got " << inputEventTypeToString(event->getType()) << " event";
 
-    const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
-    EXPECT_EQ(AINPUT_EVENT_TYPE_MOTION, motionEvent.getAction());
+        const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
+        EXPECT_EQ(AMOTION_EVENT_ACTION_MOVE, motionEvent.getAction());
+        EXPECT_EQ(motionArgs.pointerCount, motionEvent.getPointerCount());
 
-    float expectedX = motionArgs.pointerCoords[0].getX();
-    float expectedY = motionArgs.pointerCoords[0].getY();
+        float expectedX = motionArgs.pointerCoords[0].getX();
+        float expectedY = motionArgs.pointerCoords[0].getY();
 
-    // Finally we test if the axis values from the final motion event are not transformed
-    EXPECT_EQ(expectedX, motionEvent.getX(0)) << "expected " << expectedX << " for x coord of "
-                                              << name.c_str() << ", got " << motionEvent.getX(0);
-    EXPECT_EQ(expectedY, motionEvent.getY(0)) << "expected " << expectedY << " for y coord of "
-                                              << name.c_str() << ", got " << motionEvent.getY(0);
+        // Ensure the axis values from the final motion event are not transformed.
+        EXPECT_EQ(expectedX, motionEvent.getX(0))
+                << "expected " << expectedX << " for x coord of " << name.c_str() << ", got "
+                << motionEvent.getX(0);
+        EXPECT_EQ(expectedY, motionEvent.getY(0))
+                << "expected " << expectedY << " for y coord of " << name.c_str() << ", got "
+                << motionEvent.getY(0);
+        // Ensure the raw and transformed axis values for the motion event are the same.
+        EXPECT_EQ(motionEvent.getRawX(0), motionEvent.getX(0))
+                << "expected raw and transformed X-axis values to be equal";
+        EXPECT_EQ(motionEvent.getRawY(0), motionEvent.getY(0))
+                << "expected raw and transformed Y-axis values to be equal";
+    }
 }
 
 /**
