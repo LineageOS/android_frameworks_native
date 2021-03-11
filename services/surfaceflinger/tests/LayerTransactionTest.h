@@ -21,6 +21,7 @@
 #pragma clang diagnostic ignored "-Wconversion"
 #pragma clang diagnostic ignored "-Wextra"
 
+#include <cutils/properties.h>
 #include <gtest/gtest.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
@@ -244,6 +245,18 @@ protected:
     }
 
     sp<SurfaceComposerClient> mClient;
+
+    bool deviceSupportsBlurs() {
+        char value[PROPERTY_VALUE_MAX];
+        property_get("ro.surface_flinger.supports_background_blur", value, "0");
+        return atoi(value);
+    }
+
+    bool deviceUsesSkiaRenderEngine() {
+        char value[PROPERTY_VALUE_MAX];
+        property_get("debug.renderengine.backend", value, "default");
+        return strstr(value, "skia") != nullptr;
+    }
 
     sp<IBinder> mDisplay;
     uint32_t mDisplayWidth;
