@@ -118,6 +118,8 @@ public:
     std::atomic<int32_t>* getPendingBufferCounter() override { return &mPendingBufferTransactions; }
     std::string getPendingBufferCounterName() override { return mBlastTransactionName; }
 
+    bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const override { return true; }
+
 protected:
     void gatherBufferInfo() override;
     uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
