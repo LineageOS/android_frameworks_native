@@ -111,6 +111,72 @@ TEST_F(EffectLayerTest, EffectLayerCanSetColor) {
     }
 }
 
+TEST_F(EffectLayerTest, BlurEffectLayerIsVisible) {
+    if (!deviceSupportsBlurs()) GTEST_SKIP();
+    if (!deviceUsesSkiaRenderEngine()) GTEST_SKIP();
+
+    const auto canvasSize = 256;
+
+    sp<SurfaceControl> leftLayer = createColorLayer("Left", Color::BLUE);
+    sp<SurfaceControl> rightLayer = createColorLayer("Right", Color::GREEN);
+    sp<SurfaceControl> blurLayer;
+    const auto leftRect = Rect(0, 0, canvasSize / 2, canvasSize);
+    const auto rightRect = Rect(canvasSize / 2, 0, canvasSize, canvasSize);
+    const auto blurRect = Rect(0, 0, canvasSize, canvasSize);
+
+    asTransaction([&](Transaction& t) {
+        t.setLayer(leftLayer, mLayerZBase + 1);
+        t.reparent(leftLayer, mParentLayer);
+        t.setCrop_legacy(leftLayer, leftRect);
+        t.setLayer(rightLayer, mLayerZBase + 2);
+        t.reparent(rightLayer, mParentLayer);
+        t.setCrop_legacy(rightLayer, rightRect);
+        t.show(leftLayer);
+        t.show(rightLayer);
+    });
+
+    {
+        auto shot = screenshot();
+        shot->expectColor(leftRect, Color::BLUE);
+        shot->expectColor(rightRect, Color::GREEN);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(blurLayer = createColorLayer("BackgroundBlur", Color::TRANSPARENT));
+
+    const auto blurRadius = canvasSize / 2;
+    asTransaction([&](Transaction& t) {
+        t.setLayer(blurLayer, mLayerZBase + 3);
+        t.reparent(blurLayer, mParentLayer);
+        t.setBackgroundBlurRadius(blurLayer, blurRadius);
+        t.setCrop_legacy(blurLayer, blurRect);
+        t.setFrame(blurLayer, blurRect);
+        t.setAlpha(blurLayer, 0.0f);
+        t.show(blurLayer);
+    });
+
+    {
+        auto shot = screenshot();
+
+        const auto stepSize = 1;
+        const auto blurAreaOffset = blurRadius * 0.7f;
+        const auto blurAreaStartX = canvasSize / 2 - blurRadius + blurAreaOffset;
+        const auto blurAreaEndX = canvasSize / 2 + blurRadius - blurAreaOffset;
+        Color previousColor;
+        Color currentColor;
+        for (int y = 0; y < canvasSize; y++) {
+            shot->checkPixel(0, y, /* r = */ 0, /* g = */ 0, /* b = */ 255);
+            previousColor = shot->getPixelColor(0, y);
+            for (int x = blurAreaStartX; x < blurAreaEndX; x += stepSize) {
+                currentColor = shot->getPixelColor(x, y);
+                ASSERT_GT(currentColor.g, previousColor.g);
+                ASSERT_LT(currentColor.b, previousColor.b);
+                ASSERT_EQ(0, currentColor.r);
+            }
+            shot->checkPixel(canvasSize - 1, y, 0, 255, 0);
+        }
+    }
+}
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
