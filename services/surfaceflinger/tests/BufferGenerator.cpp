@@ -70,7 +70,7 @@ public:
         consumer->setDefaultBufferSize(width, height);
         consumer->setDefaultBufferFormat(format);
 
-        mBufferItemConsumer = new BufferItemConsumer(consumer, 0);
+        mBufferItemConsumer = new BufferItemConsumer(consumer, GraphicBuffer::USAGE_HW_TEXTURE);
 
         mListener = new BufferListener(consumer, callback);
         mBufferItemConsumer->setFrameAvailableListener(mListener);
