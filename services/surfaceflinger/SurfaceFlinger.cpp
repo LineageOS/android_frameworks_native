@@ -1879,7 +1879,12 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
             // underestimated.
             mFrameStartTime = frameStart;
         }
-        signalRefresh();
+
+        // Run the refresh immediately after invalidate as there is no point going thru the message
+        // queue again, and to ensure that we actually refresh the screen instead of handling
+        // other messages that were queued us already in the MessageQueue.
+        mRefreshPending = true;
+        onMessageRefresh();
     }
 }
 
