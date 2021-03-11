@@ -69,6 +69,7 @@ struct InputMessage {
         FINISHED,
         FOCUS,
         CAPTURE,
+        DRAG,
     };
 
     struct Header {
@@ -183,6 +184,16 @@ struct InputMessage {
 
             inline size_t size() const { return sizeof(Capture); }
         } capture;
+
+        struct Drag {
+            int32_t eventId;
+            float x;
+            float y;
+            bool isExiting;
+            uint8_t empty[3];
+
+            inline size_t size() const { return sizeof(Drag); }
+        } drag;
     } __attribute__((aligned(8))) body;
 
     bool isValid(size_t actualSize) const;
@@ -353,6 +364,15 @@ public:
      * Other errors probably indicate that the channel is broken.
      */
     status_t publishCaptureEvent(uint32_t seq, int32_t eventId, bool pointerCaptureEnabled);
+
+    /* Publishes a drag event to the input channel.
+     *
+     * Returns OK on success.
+     * Returns WOULD_BLOCK if the channel is full.
+     * Returns DEAD_OBJECT if the channel's peer has been closed.
+     * Other errors probably indicate that the channel is broken.
+     */
+    status_t publishDragEvent(uint32_t seq, int32_t eventId, float x, float y, bool isExiting);
 
     /* Receives the finished signal from the consumer in reply to the original dispatch signal.
      * If a signal was received, returns the message sequence number,
@@ -601,6 +621,7 @@ private:
     static void initializeMotionEvent(MotionEvent* event, const InputMessage* msg);
     static void initializeFocusEvent(FocusEvent* event, const InputMessage* msg);
     static void initializeCaptureEvent(CaptureEvent* event, const InputMessage* msg);
+    static void initializeDragEvent(DragEvent* event, const InputMessage* msg);
     static void addSample(MotionEvent* event, const InputMessage* msg);
     static bool canAddSample(const Batch& batch, const InputMessage* msg);
     static ssize_t findSampleNoLaterThan(const Batch& batch, nsecs_t time);

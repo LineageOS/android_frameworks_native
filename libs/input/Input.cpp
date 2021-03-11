@@ -92,6 +92,9 @@ const char* inputEventTypeToString(int32_t type) {
         case AINPUT_EVENT_TYPE_CAPTURE: {
             return "CAPTURE";
         }
+        case AINPUT_EVENT_TYPE_DRAG: {
+            return "DRAG";
+        }
     }
     return "UNKNOWN";
 }
@@ -766,6 +769,23 @@ void CaptureEvent::initialize(const CaptureEvent& from) {
     mPointerCaptureEnabled = from.mPointerCaptureEnabled;
 }
 
+// --- DragEvent ---
+
+void DragEvent::initialize(int32_t id, float x, float y, bool isExiting) {
+    InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
+                           ADISPLAY_ID_NONE, INVALID_HMAC);
+    mIsExiting = isExiting;
+    mX = x;
+    mY = y;
+}
+
+void DragEvent::initialize(const DragEvent& from) {
+    InputEvent::initialize(from);
+    mIsExiting = from.mIsExiting;
+    mX = from.mX;
+    mY = from.mY;
+}
+
 // --- PooledInputEventFactory ---
 
 PooledInputEventFactory::PooledInputEventFactory(size_t maxPoolSize) :
@@ -811,6 +831,15 @@ CaptureEvent* PooledInputEventFactory::createCaptureEvent() {
     return event;
 }
 
+DragEvent* PooledInputEventFactory::createDragEvent() {
+    if (mDragEventPool.empty()) {
+        return new DragEvent();
+    }
+    DragEvent* event = mDragEventPool.front().release();
+    mDragEventPool.pop();
+    return event;
+}
+
 void PooledInputEventFactory::recycle(InputEvent* event) {
     switch (event->getType()) {
     case AINPUT_EVENT_TYPE_KEY:
@@ -835,6 +864,12 @@ void PooledInputEventFactory::recycle(InputEvent* event) {
         if (mCaptureEventPool.size() < mMaxPoolSize) {
             mCaptureEventPool.push(
                     std::unique_ptr<CaptureEvent>(static_cast<CaptureEvent*>(event)));
+            return;
+        }
+        break;
+    case AINPUT_EVENT_TYPE_DRAG:
+        if (mDragEventPool.size() < mMaxPoolSize) {
+            mDragEventPool.push(std::unique_ptr<DragEvent>(static_cast<DragEvent*>(event)));
             return;
         }
         break;
