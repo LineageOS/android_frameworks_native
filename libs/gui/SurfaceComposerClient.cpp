@@ -1246,20 +1246,6 @@ SurfaceComposerClient::Transaction::setTransformToDisplayInverse(const sp<Surfac
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame(
-        const sp<SurfaceControl>& sc, const Rect& frame) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-    s->what |= layer_state_t::eFrameChanged;
-    s->orientedDisplaySpaceRect = frame;
-
-    registerSurfaceControlForCallback(sc);
-    return *this;
-}
-
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
         const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
         ReleaseBufferCallback callback) {

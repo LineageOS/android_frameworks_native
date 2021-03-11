@@ -462,7 +462,6 @@ public:
     // Used only to set BufferStateLayer state
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
-    virtual bool setFrame(const Rect& /*frame*/) { return false; };
     virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, const sp<Fence>& /*acquireFence*/,
                            nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
                            bool /*isAutoTimestamp*/, const client_cache_t& /*clientCacheId*/,

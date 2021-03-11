@@ -278,9 +278,8 @@ bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
     return stateUpdateAvailable;
 }
 
-// Crop that applies to the window
-Rect BufferStateLayer::getCrop(const Layer::State& /*s*/) const {
-    return Rect::INVALID_RECT;
+Rect BufferStateLayer::getCrop(const Layer::State& s) const {
+    return s.crop;
 }
 
 bool BufferStateLayer::setTransform(uint32_t transform) {
@@ -301,57 +300,53 @@ bool BufferStateLayer::setTransformToDisplayInverse(bool transformToDisplayInver
 }
 
 bool BufferStateLayer::setCrop(const Rect& crop) {
-    Rect c = crop;
-    if (c.left < 0) {
-        c.left = 0;
-    }
-    if (c.top < 0) {
-        c.top = 0;
-    }
-    // If the width and/or height are < 0, make it [0, 0, -1, -1] so the equality comparision below
-    // treats all invalid rectangles the same.
-    if (!c.isValid()) {
-        c.makeInvalid();
-    }
+    if (mCurrentState.crop == crop) return false;
+    mCurrentState.sequence++;
+    mCurrentState.crop = crop;
 
-    if (mCurrentState.crop == c) return false;
-    mCurrentState.crop = c;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
 
-bool BufferStateLayer::setFrame(const Rect& frame) {
-    int x = frame.left;
-    int y = frame.top;
-    int w = frame.getWidth();
-    int h = frame.getHeight();
-
-    if (x < 0) {
-        x = 0;
-        w = frame.right;
-    }
-
-    if (y < 0) {
-        y = 0;
-        h = frame.bottom;
-    }
-
-    if (mCurrentState.transform.tx() == x && mCurrentState.transform.ty() == y &&
-        mCurrentState.width == w && mCurrentState.height == h) {
+bool BufferStateLayer::setMatrix(const layer_state_t::matrix22_t& matrix,
+                                 bool allowNonRectPreservingTransforms) {
+    if (mCurrentState.transform.dsdx() == matrix.dsdx &&
+        mCurrentState.transform.dtdy() == matrix.dtdy &&
+        mCurrentState.transform.dtdx() == matrix.dtdx &&
+        mCurrentState.transform.dsdy() == matrix.dsdy) {
         return false;
     }
 
-    if (!frame.isValid()) {
-        x = y = w = h = 0;
+    ui::Transform t;
+    t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
+
+    if (!allowNonRectPreservingTransforms && !t.preserveRects()) {
+        ALOGW("Attempt to set rotation matrix without permission ACCESS_SURFACE_FLINGER nor "
+              "ROTATE_SURFACE_FLINGER ignored");
+        return false;
     }
-    mCurrentState.transform.set(x, y);
-    mCurrentState.width = w;
-    mCurrentState.height = h;
+
+    mCurrentState.transform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
 
     mCurrentState.sequence++;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
+
+    return true;
+}
+
+bool BufferStateLayer::setPosition(float x, float y) {
+    if (mCurrentState.transform.tx() == x && mCurrentState.transform.ty() == y) {
+        return false;
+    }
+
+    mCurrentState.transform.set(x, y);
+
+    mCurrentState.sequence++;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+
     return true;
 }
 
@@ -428,6 +423,10 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
         mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, frameNumber, postTime,
                                                FrameTracer::FrameEvent::QUEUE);
     }
+
+    mCurrentState.width = mCurrentState.buffer->width;
+    mCurrentState.height = mCurrentState.buffer->height;
+
     return true;
 }
 
@@ -853,33 +852,6 @@ sp<Layer> BufferStateLayer::createClone() {
     layer->mHwcSlotGenerator = mHwcSlotGenerator;
     layer->setInitialValuesForClone(this);
     return layer;
-}
-
-Layer::RoundedCornerState BufferStateLayer::getRoundedCornerState() const {
-    const auto& p = mDrawingParent.promote();
-    if (p != nullptr) {
-        RoundedCornerState parentState = p->getRoundedCornerState();
-        if (parentState.radius > 0) {
-            ui::Transform t = getActiveTransform(getDrawingState());
-            t = t.inverse();
-            parentState.cropRect = t.transform(parentState.cropRect);
-            // The rounded corners shader only accepts 1 corner radius for performance reasons,
-            // but a transform matrix can define horizontal and vertical scales.
-            // Let's take the average between both of them and pass into the shader, practically we
-            // never do this type of transformation on windows anyway.
-            parentState.radius *= (t[0][0] + t[1][1]) / 2.0f;
-            return parentState;
-        }
-    }
-    const float radius = getDrawingState().cornerRadius;
-    const State& s(getDrawingState());
-    if (radius <= 0 || (getActiveWidth(s) == UINT32_MAX && getActiveHeight(s) == UINT32_MAX))
-        return RoundedCornerState();
-    return RoundedCornerState(FloatRect(static_cast<float>(s.transform.tx()),
-                                        static_cast<float>(s.transform.ty()),
-                                        static_cast<float>(s.transform.tx() + s.width),
-                                        static_cast<float>(s.transform.ty() + s.height)),
-                              radius);
 }
 
 bool BufferStateLayer::bufferNeedsFiltering() const {
