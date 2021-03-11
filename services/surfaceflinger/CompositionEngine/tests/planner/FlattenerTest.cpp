@@ -55,8 +55,10 @@ protected:
     // TODO(b/181192467): Once Flattener starts to do something useful with Predictor,
     // mPredictor should be mocked and checked for expectations.
     Predictor mPredictor;
-    std::unique_ptr<Flattener> mFlattener;
+
+    // mRenderEngine may be held as a pointer to mFlattener, so mFlattener must be destroyed first.
     renderengine::mock::RenderEngine mRenderEngine;
+    std::unique_ptr<Flattener> mFlattener;
 
     const std::chrono::steady_clock::time_point kStartTime = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point mTime = kStartTime;
