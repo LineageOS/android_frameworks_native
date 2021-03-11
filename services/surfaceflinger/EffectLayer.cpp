@@ -77,7 +77,7 @@ std::vector<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClien
 }
 
 bool EffectLayer::isVisible() const {
-    return !isHiddenByPolicy() && getAlpha() > 0.0_hf && hasSomethingToDraw();
+    return !isHiddenByPolicy() && (getAlpha() > 0.0_hf || hasBlur()) && hasSomethingToDraw();
 }
 
 bool EffectLayer::setColor(const half3& color) {

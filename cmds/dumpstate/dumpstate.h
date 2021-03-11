@@ -549,6 +549,7 @@ class Dumpstate {
 
     void MaybeTakeEarlyScreenshot();
     void MaybeSnapshotSystemTrace();
+    void MaybeSnapshotWinTrace();
 
     void onUiIntensiveBugreportDumpsFinished(int32_t calling_uid);
 

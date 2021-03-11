@@ -1093,13 +1093,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
-    err = native_window_set_buffer_count(window, 0);
-    if (err != android::OK) {
-        ALOGE("native_window_set_buffer_count(0) failed: %s (%d)",
-              strerror(-err), err);
-        return VK_ERROR_SURFACE_LOST_KHR;
-    }
-
     int swap_interval =
         create_info->presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? 0 : 1;
     err = window->setSwapInterval(window, swap_interval);
@@ -1707,7 +1700,7 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                 if (err != android::OK) {
                     ALOGE("queueBuffer failed: %s (%d)", strerror(-err), err);
                     swapchain_result = WorstPresentResult(
-                        swapchain_result, VK_ERROR_OUT_OF_DATE_KHR);
+                        swapchain_result, VK_ERROR_SURFACE_LOST_KHR);
                 } else {
                     if (img.dequeue_fence >= 0) {
                         close(img.dequeue_fence);
