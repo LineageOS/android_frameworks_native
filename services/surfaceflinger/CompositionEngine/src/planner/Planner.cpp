@@ -89,7 +89,8 @@ void Planner::plan(
                    });
 
     const NonBufferHash hash = getNonBufferHash(mCurrentLayers);
-    mFlattenedHash = mFlattener.flattenLayers(mCurrentLayers, hash);
+    mFlattenedHash =
+            mFlattener.flattenLayers(mCurrentLayers, hash, std::chrono::steady_clock::now());
     const bool layersWereFlattened = hash != mFlattenedHash;
     ALOGV("[%s] Initial hash %zx flattened hash %zx", __func__, hash, mFlattenedHash);
 
