@@ -3412,7 +3412,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const auto vsyncId = frameTimelineInfoChanged ? s.frameTimelineInfo.vsyncId : info.vsyncId;
         if (isAutoTimestamp && layer->frameIsEarly(expectedPresentTime, vsyncId)) {
             ATRACE_NAME("frameIsEarly()");
-            return false;
+            ready = false;
         }
 
         if (!mScheduler->isVsyncValid(expectedPresentTime, layer->getOwnerUid())) {
@@ -3430,7 +3430,6 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
             }
             pendingBuffers.insert(s.surface);
         }
-        pendingBuffers.insert(s.surface);
     }
     return ready;
 }
