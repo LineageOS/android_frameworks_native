@@ -3376,12 +3376,14 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
         const Vector<ComposerState>& states,
         std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers) {
+    ATRACE_CALL();
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     bool ready = true;
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
     if (!isAutoTimestamp && desiredPresentTime >= expectedPresentTime &&
         desiredPresentTime < expectedPresentTime + s2ns(1)) {
+        ATRACE_NAME("not current");
         ready = false;
     }
 
@@ -3404,6 +3406,8 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
             continue;
         }
 
+        ATRACE_NAME(layer->getName().c_str());
+
         const bool frameTimelineInfoChanged = (s.what & layer_state_t::eFrameTimelineInfoChanged);
         const auto vsyncId = frameTimelineInfoChanged ? s.frameTimelineInfo.vsyncId : info.vsyncId;
         if (isAutoTimestamp && layer->frameIsEarly(expectedPresentTime, vsyncId)) {
@@ -3421,6 +3425,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
             // transaction in the queue.
             const bool hasPendingBuffer = pendingBuffers.find(s.surface) != pendingBuffers.end();
             if (layer->backpressureEnabled() && hasPendingBuffer && isAutoTimestamp) {
+                ATRACE_NAME("hasPendingBuffer");
                 ready = false;
             }
             pendingBuffers.insert(s.surface);
