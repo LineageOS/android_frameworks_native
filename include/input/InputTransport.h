@@ -33,7 +33,6 @@
 #include <unordered_map>
 
 #include <android-base/chrono_utils.h>
-#include <android-base/result.h>
 #include <android-base/unique_fd.h>
 
 #include <binder/IBinder.h>
@@ -375,24 +374,20 @@ public:
      */
     status_t publishDragEvent(uint32_t seq, int32_t eventId, float x, float y, bool isExiting);
 
-    struct Finished {
-        uint32_t seq;
-        bool handled;
-        nsecs_t consumeTime;
-    };
-
     /* Receives the finished signal from the consumer in reply to the original dispatch signal.
-     * If a signal was received, returns a Finished object.
+     * If a signal was received, returns the message sequence number,
+     * whether the consumer handled the message, and the time the event was first read by the
+     * consumer.
      *
      * The returned sequence number is never 0 unless the operation failed.
      *
-     * Returned error codes:
-     *         OK on success.
-     *         WOULD_BLOCK if there is no signal present.
-     *         DEAD_OBJECT if the channel's peer has been closed.
-     *         Other errors probably indicate that the channel is broken.
+     * Returns OK on success.
+     * Returns WOULD_BLOCK if there is no signal present.
+     * Returns DEAD_OBJECT if the channel's peer has been closed.
+     * Other errors probably indicate that the channel is broken.
      */
-    android::base::Result<Finished> receiveFinishedSignal();
+    status_t receiveFinishedSignal(
+            const std::function<void(uint32_t seq, bool handled, nsecs_t consumeTime)>& callback);
 
 private:
     std::shared_ptr<InputChannel> mChannel;
