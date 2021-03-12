@@ -2907,6 +2907,12 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
                 ATRACE_NAME(message.c_str());
             }
 
+            if ((motionEntry.flags & AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE) &&
+                (motionEntry.policyFlags & POLICY_FLAG_TRUSTED)) {
+                // Skip reporting pointer down outside focus to the policy.
+                break;
+            }
+
             dispatchPointerDownOutsideFocus(motionEntry.source, dispatchEntry->resolvedAction,
                                             inputTarget.inputChannel->getConnectionToken());
 
