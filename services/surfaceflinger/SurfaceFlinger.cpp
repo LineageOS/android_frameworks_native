@@ -3371,7 +3371,7 @@ void SurfaceFlinger::flushTransactionQueues() {
 
 bool SurfaceFlinger::transactionFlushNeeded() {
     Mutex::Autolock _l(mQueueLock);
-    return !mPendingTransactionQueues.empty();
+    return !mPendingTransactionQueues.empty() || !mTransactionQueue.empty();
 }
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(
