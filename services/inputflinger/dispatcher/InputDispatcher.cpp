@@ -332,10 +332,11 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
                                                           int32_t inputTargetFlags) {
     if (eventEntry->type == EventEntry::Type::MOTION) {
         const MotionEntry& motionEntry = static_cast<const MotionEntry&>(*eventEntry);
-        if (motionEntry.source & AINPUT_SOURCE_CLASS_JOYSTICK) {
+        if ((motionEntry.source & AINPUT_SOURCE_CLASS_POINTER) == 0) {
             const ui::Transform identityTransform;
-            // Use identity transform for joystick events events because they don't depend on
-            // the window info
+            // Use identity transform for events that are not pointer events because their axes
+            // values do not represent on-screen coordinates, so they should not have any window
+            // transformations applied to them.
             return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, identityTransform,
                                                    1.0f /*globalScaleFactor*/);
         }

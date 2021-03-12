@@ -792,6 +792,30 @@ protected:
     bool mPointerCaptureEnabled;
 };
 
+/*
+ * Drag events.
+ */
+class DragEvent : public InputEvent {
+public:
+    virtual ~DragEvent() {}
+
+    virtual int32_t getType() const override { return AINPUT_EVENT_TYPE_DRAG; }
+
+    inline bool isExiting() const { return mIsExiting; }
+
+    inline float getX() const { return mX; }
+
+    inline float getY() const { return mY; }
+
+    void initialize(int32_t id, float x, float y, bool isExiting);
+
+    void initialize(const DragEvent& from);
+
+protected:
+    bool mIsExiting;
+    float mX, mY;
+};
+
 /**
  * Base class for verified events.
  * Do not create a VerifiedInputEvent explicitly.
@@ -855,6 +879,7 @@ public:
     virtual MotionEvent* createMotionEvent() = 0;
     virtual FocusEvent* createFocusEvent() = 0;
     virtual CaptureEvent* createCaptureEvent() = 0;
+    virtual DragEvent* createDragEvent() = 0;
 };
 
 /*
@@ -870,12 +895,14 @@ public:
     virtual MotionEvent* createMotionEvent() override { return &mMotionEvent; }
     virtual FocusEvent* createFocusEvent() override { return &mFocusEvent; }
     virtual CaptureEvent* createCaptureEvent() override { return &mCaptureEvent; }
+    virtual DragEvent* createDragEvent() override { return &mDragEvent; }
 
 private:
     KeyEvent mKeyEvent;
     MotionEvent mMotionEvent;
     FocusEvent mFocusEvent;
     CaptureEvent mCaptureEvent;
+    DragEvent mDragEvent;
 };
 
 /*
@@ -890,6 +917,7 @@ public:
     virtual MotionEvent* createMotionEvent() override;
     virtual FocusEvent* createFocusEvent() override;
     virtual CaptureEvent* createCaptureEvent() override;
+    virtual DragEvent* createDragEvent() override;
 
     void recycle(InputEvent* event);
 
@@ -900,6 +928,7 @@ private:
     std::queue<std::unique_ptr<MotionEvent>> mMotionEventPool;
     std::queue<std::unique_ptr<FocusEvent>> mFocusEventPool;
     std::queue<std::unique_ptr<CaptureEvent>> mCaptureEventPool;
+    std::queue<std::unique_ptr<DragEvent>> mDragEventPool;
 };
 
 } // namespace android

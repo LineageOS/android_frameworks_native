@@ -108,6 +108,8 @@ bool InputMessage::isValid(size_t actualSize) const {
                 return true;
             case Type::CAPTURE:
                 return true;
+            case Type::DRAG:
+                return true;
         }
     }
     return false;
@@ -125,6 +127,8 @@ size_t InputMessage::size() const {
             return sizeof(Header) + body.focus.size();
         case Type::CAPTURE:
             return sizeof(Header) + body.capture.size();
+        case Type::DRAG:
+            return sizeof(Header) + body.drag.size();
     }
     return sizeof(Header);
 }
@@ -247,6 +251,13 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
         case InputMessage::Type::CAPTURE: {
             msg->body.capture.eventId = body.capture.eventId;
             msg->body.capture.pointerCaptureEnabled = body.capture.pointerCaptureEnabled;
+            break;
+        }
+        case InputMessage::Type::DRAG: {
+            msg->body.drag.eventId = body.drag.eventId;
+            msg->body.drag.x = body.drag.x;
+            msg->body.drag.y = body.drag.y;
+            msg->body.drag.isExiting = body.drag.isExiting;
             break;
         }
     }
@@ -599,6 +610,25 @@ status_t InputPublisher::publishCaptureEvent(uint32_t seq, int32_t eventId,
     return mChannel->sendMessage(&msg);
 }
 
+status_t InputPublisher::publishDragEvent(uint32_t seq, int32_t eventId, float x, float y,
+                                          bool isExiting) {
+    if (ATRACE_ENABLED()) {
+        std::string message =
+                StringPrintf("publishDragEvent(inputChannel=%s, x=%f, y=%f, isExiting=%s)",
+                             mChannel->getName().c_str(), x, y, toString(isExiting));
+        ATRACE_NAME(message.c_str());
+    }
+
+    InputMessage msg;
+    msg.header.type = InputMessage::Type::DRAG;
+    msg.header.seq = seq;
+    msg.body.drag.eventId = eventId;
+    msg.body.drag.isExiting = isExiting;
+    msg.body.drag.x = x;
+    msg.body.drag.y = y;
+    return mChannel->sendMessage(&msg);
+}
+
 status_t InputPublisher::receiveFinishedSignal(
         const std::function<void(uint32_t seq, bool handled, nsecs_t consumeTime)>& callback) {
     if (DEBUG_TRANSPORT_ACTIONS) {
@@ -777,6 +807,16 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consum
                 initializeCaptureEvent(captureEvent, &mMsg);
                 *outSeq = mMsg.header.seq;
                 *outEvent = captureEvent;
+                break;
+            }
+
+            case InputMessage::Type::DRAG: {
+                DragEvent* dragEvent = factory->createDragEvent();
+                if (!dragEvent) return NO_MEMORY;
+
+                initializeDragEvent(dragEvent, &mMsg);
+                *outSeq = mMsg.header.seq;
+                *outEvent = dragEvent;
                 break;
             }
         }
@@ -1236,6 +1276,11 @@ void InputConsumer::initializeCaptureEvent(CaptureEvent* event, const InputMessa
     event->initialize(msg->body.capture.eventId, msg->body.capture.pointerCaptureEnabled);
 }
 
+void InputConsumer::initializeDragEvent(DragEvent* event, const InputMessage* msg) {
+    event->initialize(msg->body.drag.eventId, msg->body.drag.x, msg->body.drag.y,
+                      msg->body.drag.isExiting);
+}
+
 void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage* msg) {
     uint32_t pointerCount = msg->body.motion.pointerCount;
     PointerProperties pointerProperties[pointerCount];
@@ -1344,6 +1389,12 @@ std::string InputConsumer::dump() const {
                     out += android::base::StringPrintf("hasCapture=%s",
                                                        toString(msg.body.capture
                                                                         .pointerCaptureEnabled));
+                    break;
+                }
+                case InputMessage::Type::DRAG: {
+                    out += android::base::StringPrintf("x=%.1f y=%.1f, isExiting=%s",
+                                                       msg.body.drag.x, msg.body.drag.y,
+                                                       toString(msg.body.drag.isExiting));
                     break;
                 }
             }
