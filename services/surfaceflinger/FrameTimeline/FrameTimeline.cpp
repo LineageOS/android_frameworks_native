@@ -296,7 +296,7 @@ SurfaceFrame::SurfaceFrame(const FrameTimelineInfo& frameTimelineInfo, pid_t own
                            frametimeline::TimelineItem&& predictions,
                            std::shared_ptr<TimeStats> timeStats,
                            JankClassificationThresholds thresholds,
-                           TraceCookieCounter* traceCookieCounter)
+                           TraceCookieCounter* traceCookieCounter, bool isBuffer)
       : mToken(frameTimelineInfo.vsyncId),
         mInputEventId(frameTimelineInfo.inputEventId),
         mOwnerPid(ownerPid),
@@ -310,7 +310,8 @@ SurfaceFrame::SurfaceFrame(const FrameTimelineInfo& frameTimelineInfo, pid_t own
         mActuals({0, 0, 0}),
         mTimeStats(timeStats),
         mJankClassificationThresholds(thresholds),
-        mTraceCookieCounter(*traceCookieCounter) {}
+        mTraceCookieCounter(*traceCookieCounter),
+        mIsBuffer(isBuffer) {}
 
 void SurfaceFrame::setActualStartTime(nsecs_t actualStartTime) {
     std::scoped_lock lock(mMutex);
@@ -395,6 +396,20 @@ nsecs_t SurfaceFrame::getDropTime() const {
     return mDropTime;
 }
 
+void SurfaceFrame::promoteToBuffer() {
+    std::scoped_lock lock(mMutex);
+    LOG_ALWAYS_FATAL_IF(mIsBuffer == true,
+                        "Trying to promote an already promoted BufferSurfaceFrame from layer %s "
+                        "with token %" PRId64 "",
+                        mDebugName.c_str(), mToken);
+    mIsBuffer = true;
+}
+
+bool SurfaceFrame::getIsBuffer() const {
+    std::scoped_lock lock(mMutex);
+    return mIsBuffer;
+}
+
 void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t baseTime) const {
     std::scoped_lock lock(mMutex);
     StringAppendF(&result, "%s", indent.c_str());
@@ -406,6 +421,8 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
     StringAppendF(&result, "\n");
     StringAppendF(&result, "%s", indent.c_str());
     StringAppendF(&result, "Token: %" PRId64 "\n", mToken);
+    StringAppendF(&result, "%s", indent.c_str());
+    StringAppendF(&result, "Is Buffer?: %d\n", mIsBuffer);
     StringAppendF(&result, "%s", indent.c_str());
     StringAppendF(&result, "Owner Pid : %d\n", mOwnerPid);
     StringAppendF(&result, "%s", indent.c_str());
@@ -442,6 +459,21 @@ void SurfaceFrame::dump(std::string& result, const std::string& indent, nsecs_t 
                       std::chrono::duration<double, std::milli>(presentDeltaNs).count());
     }
     dumpTable(result, mPredictions, mActuals, indent, mPredictionState, baseTime);
+}
+
+std::string SurfaceFrame::miniDump() const {
+    std::scoped_lock lock(mMutex);
+    std::string result;
+    StringAppendF(&result, "Layer - %s\n", mDebugName.c_str());
+    StringAppendF(&result, "Token: %" PRId64 "\n", mToken);
+    StringAppendF(&result, "Is Buffer?: %d\n", mIsBuffer);
+    StringAppendF(&result, "Present State : %s\n", toString(mPresentState).c_str());
+    StringAppendF(&result, "Prediction State : %s\n", toString(mPredictionState).c_str());
+    StringAppendF(&result, "Jank Type : %s\n", jankTypeBitmaskToString(mJankType).c_str());
+    StringAppendF(&result, "Present Metadata : %s\n", toString(mFramePresentMetadata).c_str());
+    StringAppendF(&result, "Finish Metadata: %s\n", toString(mFrameReadyMetadata).c_str());
+    StringAppendF(&result, "Present time: %" PRId64 "", mActuals.presentTime);
+    return result;
 }
 
 void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& refreshRate,
@@ -744,13 +776,14 @@ void FrameTimeline::registerDataSource() {
 
 std::shared_ptr<SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
         const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid, int32_t layerId,
-        std::string layerName, std::string debugName) {
+        std::string layerName, std::string debugName, bool isBuffer) {
     ATRACE_CALL();
     if (frameTimelineInfo.vsyncId == FrameTimelineInfo::INVALID_VSYNC_ID) {
         return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid, layerId,
                                               std::move(layerName), std::move(debugName),
                                               PredictionState::None, TimelineItem(), mTimeStats,
-                                              mJankClassificationThresholds, &mTraceCookieCounter);
+                                              mJankClassificationThresholds, &mTraceCookieCounter,
+                                              isBuffer);
     }
     std::optional<TimelineItem> predictions =
             mTokenManager.getPredictionsForToken(frameTimelineInfo.vsyncId);
@@ -759,12 +792,13 @@ std::shared_ptr<SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
                                               std::move(layerName), std::move(debugName),
                                               PredictionState::Valid, std::move(*predictions),
                                               mTimeStats, mJankClassificationThresholds,
-                                              &mTraceCookieCounter);
+                                              &mTraceCookieCounter, isBuffer);
     }
     return std::make_shared<SurfaceFrame>(frameTimelineInfo, ownerPid, ownerUid, layerId,
                                           std::move(layerName), std::move(debugName),
                                           PredictionState::Expired, TimelineItem(), mTimeStats,
-                                          mJankClassificationThresholds, &mTraceCookieCounter);
+                                          mJankClassificationThresholds, &mTraceCookieCounter,
+                                          isBuffer);
 }
 
 FrameTimeline::DisplayFrame::DisplayFrame(std::shared_ptr<TimeStats> timeStats,
