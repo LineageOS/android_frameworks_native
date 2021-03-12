@@ -1125,6 +1125,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         return BAD_VALUE;
     }
 
+    validateOutputBufferUsage(buffer);
+
     std::unique_ptr<BindNativeBufferAsFramebuffer> fbo;
     // Gathering layers that requested blur, we'll need them to decide when to render to an
     // offscreen buffer, and when to render to the native buffer.
@@ -1249,6 +1251,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             isOpaque = layer->source.buffer.isOpaque;
 
             sp<GraphicBuffer> gBuf = layer->source.buffer.buffer;
+            validateInputBufferUsage(gBuf);
             bindExternalTextureBuffer(layer->source.buffer.textureName, gBuf,
                                       layer->source.buffer.fence);
 

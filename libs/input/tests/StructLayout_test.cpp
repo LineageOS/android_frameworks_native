@@ -87,6 +87,12 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Capture, pointerCaptureEnabled, 4);
   CHECK_OFFSET(InputMessage::Body::Capture, empty, 5);
 
+  CHECK_OFFSET(InputMessage::Body::Drag, eventId, 0);
+  CHECK_OFFSET(InputMessage::Body::Drag, x, 4);
+  CHECK_OFFSET(InputMessage::Body::Drag, y, 8);
+  CHECK_OFFSET(InputMessage::Body::Drag, isExiting, 12);
+  CHECK_OFFSET(InputMessage::Body::Drag, empty, 13);
+
   CHECK_OFFSET(InputMessage::Body::Finished, handled, 0);
   CHECK_OFFSET(InputMessage::Body::Finished, empty, 1);
   CHECK_OFFSET(InputMessage::Body::Finished, consumeTime, 8);
@@ -110,6 +116,7 @@ void TestBodySize() {
     static_assert(sizeof(InputMessage::Body::Finished) == 16);
     static_assert(sizeof(InputMessage::Body::Focus) == 8);
     static_assert(sizeof(InputMessage::Body::Capture) == 8);
+    static_assert(sizeof(InputMessage::Body::Drag) == 16);
 }
 
 // --- VerifiedInputEvent ---

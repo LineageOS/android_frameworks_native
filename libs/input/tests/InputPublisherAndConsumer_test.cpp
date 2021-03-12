@@ -52,6 +52,7 @@ protected:
     void PublishAndConsumeMotionEvent();
     void PublishAndConsumeFocusEvent();
     void PublishAndConsumeCaptureEvent();
+    void PublishAndConsumeDragEvent();
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
@@ -301,7 +302,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
     const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     status = mPublisher->publishFocusEvent(seq, eventId, hasFocus, inTouchMode);
-    ASSERT_EQ(OK, status) << "publisher publishKeyEvent should return OK";
+    ASSERT_EQ(OK, status) << "publisher publishFocusEvent should return OK";
 
     uint32_t consumeSeq;
     InputEvent* event;
@@ -349,7 +350,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeCaptureEvent() {
     const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     status = mPublisher->publishCaptureEvent(seq, eventId, captureEnabled);
-    ASSERT_EQ(OK, status) << "publisher publishKeyEvent should return OK";
+    ASSERT_EQ(OK, status) << "publisher publishCaptureEvent should return OK";
 
     uint32_t consumeSeq;
     InputEvent* event;
@@ -387,6 +388,57 @@ void InputPublisherAndConsumerTest::PublishAndConsumeCaptureEvent() {
             << "finished signal's consume time should be greater than publish time";
 }
 
+void InputPublisherAndConsumerTest::PublishAndConsumeDragEvent() {
+    status_t status;
+
+    constexpr uint32_t seq = 15;
+    int32_t eventId = InputEvent::nextId();
+    constexpr bool isExiting = false;
+    constexpr float x = 10;
+    constexpr float y = 15;
+    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
+
+    status = mPublisher->publishDragEvent(seq, eventId, x, y, isExiting);
+    ASSERT_EQ(OK, status) << "publisher publishDragEvent should return OK";
+
+    uint32_t consumeSeq;
+    InputEvent* event;
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    ASSERT_EQ(OK, status) << "consumer consume should return OK";
+
+    ASSERT_TRUE(event != nullptr) << "consumer should have returned non-NULL event";
+    ASSERT_EQ(AINPUT_EVENT_TYPE_DRAG, event->getType())
+            << "consumer should have returned a drag event";
+
+    DragEvent* dragEvent = static_cast<DragEvent*>(event);
+    EXPECT_EQ(seq, consumeSeq);
+    EXPECT_EQ(eventId, dragEvent->getId());
+    EXPECT_EQ(isExiting, dragEvent->isExiting());
+    EXPECT_EQ(x, dragEvent->getX());
+    EXPECT_EQ(y, dragEvent->getY());
+
+    status = mConsumer->sendFinishedSignal(seq, true);
+    ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
+
+    uint32_t finishedSeq = 0;
+    bool handled = false;
+    nsecs_t consumeTime;
+    status = mPublisher->receiveFinishedSignal(
+            [&finishedSeq, &handled, &consumeTime](uint32_t inSeq, bool inHandled,
+                                                   nsecs_t inConsumeTime) -> void {
+                finishedSeq = inSeq;
+                handled = inHandled;
+                consumeTime = inConsumeTime;
+            });
+    ASSERT_EQ(OK, status) << "publisher receiveFinishedSignal should return OK";
+    ASSERT_EQ(seq, finishedSeq)
+            << "publisher receiveFinishedSignal should have returned the original sequence number";
+    ASSERT_TRUE(handled)
+            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
+    ASSERT_GE(consumeTime, publishTime)
+            << "finished signal's consume time should be greater than publish time";
+}
+
 TEST_F(InputPublisherAndConsumerTest, PublishKeyEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
 }
@@ -401,6 +453,10 @@ TEST_F(InputPublisherAndConsumerTest, PublishFocusEvent_EndToEnd) {
 
 TEST_F(InputPublisherAndConsumerTest, PublishCaptureEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeCaptureEvent());
+}
+
+TEST_F(InputPublisherAndConsumerTest, PublishDragEvent_EndToEnd) {
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeDragEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZero_ReturnsError) {
@@ -468,6 +524,7 @@ TEST_F(InputPublisherAndConsumerTest, PublishMultipleEvents_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeCaptureEvent());
+    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeDragEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
 }
