@@ -67,7 +67,6 @@ cc_binary {
     cflags: ["-Wall", "-Werror"],
 
     shared_libs: [
-        "libbase",
         "libbinder",
         "libinputflingerhost",
         "libutils",
