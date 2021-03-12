@@ -159,7 +159,7 @@ public:
                  int32_t layerId, std::string layerName, std::string debugName,
                  PredictionState predictionState, TimelineItem&& predictions,
                  std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds,
-                 TraceCookieCounter* traceCookieCounter);
+                 TraceCookieCounter* traceCookieCounter, bool isBuffer);
     ~SurfaceFrame() = default;
 
     // Returns std::nullopt if the frame hasn't been classified yet.
@@ -181,6 +181,10 @@ public:
     void setPresentState(PresentState presentState, nsecs_t lastLatchTime = 0);
     void setRenderRate(Fps renderRate);
 
+    // When a bufferless SurfaceFrame is promoted to a buffer SurfaceFrame, we also have to update
+    // isBuffer.
+    void promoteToBuffer();
+
     // Functions called by FrameTimeline
     // BaseTime is the smallest timestamp in this SurfaceFrame.
     // Used for dumping all timestamps relative to the oldest, making it easy to read.
@@ -192,6 +196,8 @@ public:
                    nsecs_t displayDeadlineDelta, nsecs_t displayPresentDelta);
     // All the timestamps are dumped relative to the baseTime
     void dump(std::string& result, const std::string& indent, nsecs_t baseTime) const;
+    // Dumps only the layer, token, is buffer, jank metadata, prediction and present states.
+    std::string miniDump() const;
     // Emits a packet for perfetto tracing. The function body will be executed only if tracing is
     // enabled. The displayFrameToken is needed to link the SurfaceFrame to the corresponding
     // DisplayFrame at the trace processor side.
@@ -206,6 +212,7 @@ public:
     FrameReadyMetadata getFrameReadyMetadata() const;
     FramePresentMetadata getFramePresentMetadata() const;
     nsecs_t getDropTime() const;
+    bool getIsBuffer() const;
 
     // For prediction expired frames, this delta is subtracted from the actual end time to get a
     // start time decent enough to see in traces.
@@ -253,6 +260,9 @@ private:
     // TraceCookieCounter is used to obtain the cookie for sendig trace packets to perfetto. Using a
     // reference here because the counter is owned by FrameTimeline, which outlives SurfaceFrame.
     TraceCookieCounter& mTraceCookieCounter;
+    // Tells if the SurfaceFrame is representing a buffer or a transaction without a
+    // buffer(animations)
+    bool mIsBuffer;
 };
 
 /*
@@ -272,7 +282,7 @@ public:
     // Debug name is the human-readable debugging string for dumpsys.
     virtual std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(
             const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
-            int32_t layerId, std::string layerName, std::string debugName) = 0;
+            int32_t layerId, std::string layerName, std::string debugName, bool isBuffer) = 0;
 
     // Adds a new SurfaceFrame to the current DisplayFrame. Frames from multiple layers can be
     // composited into one display frame.
@@ -431,7 +441,7 @@ public:
     frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
     std::shared_ptr<SurfaceFrame> createSurfaceFrameForToken(
             const FrameTimelineInfo& frameTimelineInfo, pid_t ownerPid, uid_t ownerUid,
-            int32_t layerId, std::string layerName, std::string debugName) override;
+            int32_t layerId, std::string layerName, std::string debugName, bool isBuffer) override;
     void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame) override;
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) override;
     void setSfPresent(nsecs_t sfPresentTime,
