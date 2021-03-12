@@ -402,11 +402,6 @@ status_t Replayer::doSurfaceTransaction(
             case SurfaceChange::SurfaceChangeCase::kSecureFlag:
                 setSecureFlag(transaction, change.id(), change.secure_flag());
                 break;
-            case SurfaceChange::SurfaceChangeCase::kDeferredTransaction:
-                waitUntilDeferredTransactionLayerExists(change.deferred_transaction(), lock);
-                setDeferredTransaction(transaction, change.id(),
-                        change.deferred_transaction());
-                break;
             case SurfaceChange::SurfaceChangeCase::kReparent:
                 setReparentChange(transaction, change.id(), change.reparent());
                 break;
@@ -560,19 +555,6 @@ void Replayer::setSecureFlag(SurfaceComposerClient::Transaction& t,
     t.setFlags(mLayers[id], flag, layer_state_t::eLayerSecure);
 }
 
-void Replayer::setDeferredTransaction(SurfaceComposerClient::Transaction& t,
-        layer_id id, const DeferredTransactionChange& dtc) {
-    ALOGV("Layer %d: Setting Deferred Transaction -- layer_id=%d, "
-          "frame_number=%llu",
-            id, dtc.layer_id(), dtc.frame_number());
-    if (mLayers.count(dtc.layer_id()) == 0 || mLayers[dtc.layer_id()] == nullptr) {
-        ALOGE("Layer %d not found in Deferred Transaction", dtc.layer_id());
-        return;
-    }
-
-    t.deferTransactionUntil_legacy(mLayers[id], mLayers[dtc.layer_id()], dtc.frame_number());
-}
-
 void Replayer::setDisplaySurface(SurfaceComposerClient::Transaction& t,
         display_id id, const DispSurfaceChange& /*dsc*/) {
     sp<IGraphicBufferProducer> outProducer;
@@ -674,13 +656,6 @@ void Replayer::updatePowerMode(const PowerModeUpdate& pmu, const std::shared_ptr
 void Replayer::waitUntilTimestamp(int64_t timestamp) {
     ALOGV("Waiting for %lld nanoseconds...", static_cast<int64_t>(timestamp - mCurrentTime));
     std::this_thread::sleep_for(std::chrono::nanoseconds(timestamp - mCurrentTime));
-}
-
-void Replayer::waitUntilDeferredTransactionLayerExists(
-        const DeferredTransactionChange& dtc, std::unique_lock<std::mutex>& lock) {
-    if (mLayers.count(dtc.layer_id()) == 0 || mLayers[dtc.layer_id()] == nullptr) {
-        mLayerCond.wait(lock, [&] { return (mLayers[dtc.layer_id()] != nullptr); });
-    }
 }
 
 status_t Replayer::loadSurfaceComposerClient() {

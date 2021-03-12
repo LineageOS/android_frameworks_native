@@ -60,13 +60,8 @@ public:
     }
 
     void commitTransaction(Layer* layer) {
-        layer->pushPendingState();
-        // After pushing the state, the currentState should not store any BufferlessSurfaceFrames
-        EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
         auto c = layer->getCurrentState();
-        if (layer->applyPendingStates(&c)) {
-            layer->commitTransaction(c);
-        }
+        layer->commitTransaction(c);
     }
 
     void setupScheduler() {
@@ -283,69 +278,6 @@ public:
         EXPECT_EQ(PresentState::Presented, bufferSurfaceFrameTX->getPresentState());
     }
 
-    void MergePendingStates_BufferlessSurfaceFramesWithoutOverlappingToken() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
-        layer->setFrameTimelineVsyncForBufferlessTransaction({/*vsyncId*/ 1, /*inputEventId*/ 0},
-                                                             10);
-        EXPECT_EQ(1u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
-        ASSERT_EQ(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
-        const auto bufferlessSurfaceFrame1 =
-                layer->mCurrentState.bufferlessSurfaceFramesTX.at(/*token*/ 1);
-
-        layer->pushPendingState();
-        EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
-
-        layer->setFrameTimelineVsyncForBufferlessTransaction({/*vsyncId*/ 2, /*inputEventId*/ 0},
-                                                             12);
-        EXPECT_EQ(1u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
-        ASSERT_EQ(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
-        const auto bufferlessSurfaceFrame2 =
-                layer->mCurrentState.bufferlessSurfaceFramesTX.at(/*token*/ 2);
-
-        commitTransaction(layer.get());
-
-        EXPECT_EQ(1, bufferlessSurfaceFrame1->getToken());
-        EXPECT_EQ(false, bufferlessSurfaceFrame1->getIsBuffer());
-        EXPECT_EQ(PresentState::Presented, bufferlessSurfaceFrame1->getPresentState());
-        EXPECT_EQ(10, bufferlessSurfaceFrame1->getActuals().endTime);
-
-        EXPECT_EQ(2, bufferlessSurfaceFrame2->getToken());
-        EXPECT_EQ(false, bufferlessSurfaceFrame2->getIsBuffer());
-        EXPECT_EQ(PresentState::Presented, bufferlessSurfaceFrame2->getPresentState());
-        EXPECT_EQ(12, bufferlessSurfaceFrame2->getActuals().endTime);
-    }
-
-    void MergePendingStates_BufferlessSurfaceFramesWithOverlappingToken() {
-        sp<BufferStateLayer> layer = createBufferStateLayer();
-        layer->setFrameTimelineVsyncForBufferlessTransaction({/*vsyncId*/ 1, /*inputEventId*/ 0},
-                                                             10);
-        EXPECT_EQ(1u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
-        ASSERT_EQ(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
-        const auto bufferlessSurfaceFrame1 =
-                layer->mCurrentState.bufferlessSurfaceFramesTX.at(/*token*/ 1);
-
-        layer->pushPendingState();
-        EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
-
-        layer->setFrameTimelineVsyncForBufferlessTransaction({/*vsyncId*/ 1, /*inputEventId*/ 0},
-                                                             12);
-        EXPECT_EQ(1u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
-        ASSERT_EQ(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
-        const auto bufferlessSurfaceFrame2 =
-                layer->mCurrentState.bufferlessSurfaceFramesTX.at(/*token*/ 1);
-
-        commitTransaction(layer.get());
-
-        EXPECT_EQ(1, bufferlessSurfaceFrame1->getToken());
-        EXPECT_EQ(false, bufferlessSurfaceFrame1->getIsBuffer());
-        EXPECT_EQ(PresentState::Unknown, bufferlessSurfaceFrame1->getPresentState());
-
-        EXPECT_EQ(1, bufferlessSurfaceFrame2->getToken());
-        EXPECT_EQ(false, bufferlessSurfaceFrame2->getIsBuffer());
-        EXPECT_EQ(PresentState::Presented, bufferlessSurfaceFrame2->getPresentState());
-        EXPECT_EQ(12, bufferlessSurfaceFrame2->getActuals().endTime);
-    }
-
     void PendingSurfaceFramesRemovedAfterClassification() {
         sp<BufferStateLayer> layer = createBufferStateLayer();
 
@@ -527,16 +459,6 @@ TEST_F(TransactionSurfaceFrameTest, BufferlessSurfaceFrameNotCreatedIfBufferSufa
 
 TEST_F(TransactionSurfaceFrameTest, MultipleSurfaceFramesPresentedTogether) {
     MultipleSurfaceFramesPresentedTogether();
-}
-
-TEST_F(TransactionSurfaceFrameTest,
-       MergePendingStates_BufferlessSurfaceFramesWithoutOverlappingToken) {
-    MergePendingStates_BufferlessSurfaceFramesWithoutOverlappingToken();
-}
-
-TEST_F(TransactionSurfaceFrameTest,
-       MergePendingStates_BufferlessSurfaceFramesWithOverlappingToken) {
-    MergePendingStates_BufferlessSurfaceFramesWithOverlappingToken();
 }
 
 TEST_F(TransactionSurfaceFrameTest, PendingSurfaceFramesRemovedAfterClassification) {

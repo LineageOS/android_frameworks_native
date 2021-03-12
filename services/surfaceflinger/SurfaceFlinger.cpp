@@ -2815,13 +2815,6 @@ void SurfaceFlinger::processDisplayChangesLocked() {
 }
 
 void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
-    const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
-
-    // Notify all layers of available frames
-    mCurrentState.traverse([expectedPresentTime](Layer* layer) {
-        layer->notifyAvailableFrames(expectedPresentTime);
-    });
-
     /*
      * Traversal of the children
      * (perform the transaction for each of them if needed)
@@ -3833,12 +3826,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
 
     const uint64_t what = s.what;
 
-    // If we are deferring transaction, make sure to push the pending state, as otherwise the
-    // pending state will also be deferred.
-    if (what & layer_state_t::eDeferTransaction_legacy) {
-        layer->pushPendingState();
-    }
-
     // Only set by BLAST adapter layers
     if (what & layer_state_t::eProducerDisconnect) {
         layer->onDisconnect();
@@ -3972,12 +3959,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             // AND transaction (list changed)
             flags |= eTransactionNeeded | eTraversalNeeded | eTransformHintUpdateNeeded;
         }
-    }
-    if (what & layer_state_t::eDeferTransaction_legacy) {
-        layer->deferTransactionUntil_legacy(s.barrierSurfaceControl_legacy->getHandle(),
-                                            s.barrierFrameNumber);
-        // We don't trigger a traversal here because if no other state is
-        // changed, we don't want this to cause any more work
     }
     if (what & layer_state_t::eTransformChanged) {
         if (layer->setTransform(s.transform)) flags |= eTraversalNeeded;
