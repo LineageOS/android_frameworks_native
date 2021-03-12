@@ -149,8 +149,8 @@ public:
      *
      * Returns true on success.  False if the window did not actually have touch focus.
      */
-    virtual bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) = 0;
-
+    virtual bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
+                                    bool isDragDrop) = 0;
     /**
      * Sets focus on the specified window.
      */

@@ -130,6 +130,23 @@ std::string PointerCaptureChangedEntry::getDescription() const {
                         pointerCaptureEnabled ? "true" : "false");
 }
 
+// --- DragEntry ---
+
+// Drag notifications always go to apps, so set the flag POLICY_FLAG_PASS_TO_USER for all entries
+DragEntry::DragEntry(int32_t id, nsecs_t eventTime, sp<IBinder> connectionToken, bool isExiting,
+                     float x, float y)
+      : EventEntry(id, Type::DRAG, eventTime, POLICY_FLAG_PASS_TO_USER),
+        connectionToken(connectionToken),
+        isExiting(isExiting),
+        x(x),
+        y(y) {}
+
+DragEntry::~DragEntry() {}
+
+std::string DragEntry::getDescription() const {
+    return StringPrintf("DragEntry(isExiting=%s, x=%f, y=%f)", isExiting ? "true" : "false", x, y);
+}
+
 // --- KeyEntry ---
 
 KeyEntry::KeyEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
