@@ -133,8 +133,9 @@ void Planner::reportFinalPlan(
                             finalPlan);
 }
 
-void Planner::renderCachedSets(renderengine::RenderEngine& renderEngine) {
-    mFlattener.renderCachedSets(renderEngine);
+void Planner::renderCachedSets(renderengine::RenderEngine& renderEngine,
+                               ui::Dataspace outputDataspace) {
+    mFlattener.renderCachedSets(renderEngine, outputDataspace);
 }
 
 void Planner::dump(const Vector<String16>& args, std::string& result) {
