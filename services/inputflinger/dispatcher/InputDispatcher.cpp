@@ -80,6 +80,7 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 #define INDENT4 "        "
 
 using android::base::HwTimeoutMultiplier;
+using android::base::Result;
 using android::base::StringPrintf;
 using android::os::BlockUntrustedTouchesMode;
 using android::os::IInputConstants;
@@ -3283,17 +3284,17 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
 
             nsecs_t currentTime = now();
             bool gotOne = false;
-            status_t status;
+            status_t status = OK;
             for (;;) {
-                std::function<void(uint32_t seq, bool handled, nsecs_t consumeTime)> callback =
-                        std::bind(&InputDispatcher::finishDispatchCycleLocked, d, currentTime,
-                                  connection, std::placeholders::_1, std::placeholders::_2,
-                                  std::placeholders::_3);
-
-                status = connection->inputPublisher.receiveFinishedSignal(callback);
-                if (status) {
+                Result<InputPublisher::Finished> result =
+                        connection->inputPublisher.receiveFinishedSignal();
+                if (!result.ok()) {
+                    status = result.error().code();
                     break;
                 }
+                const InputPublisher::Finished& finished = *result;
+                d->finishDispatchCycleLocked(currentTime, connection, finished.seq,
+                                             finished.handled, finished.consumeTime);
                 gotOne = true;
             }
             if (gotOne) {
@@ -4998,8 +4999,7 @@ void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>
     }
 }
 
-base::Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(
-        const std::string& name) {
+Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const std::string& name) {
 #if DEBUG_CHANNEL_CREATION
     ALOGD("channel '%s' ~ createInputChannel", name.c_str());
 #endif
@@ -5028,8 +5028,10 @@ base::Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(
     return clientChannel;
 }
 
-base::Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(
-        int32_t displayId, bool isGestureMonitor, const std::string& name, int32_t pid) {
+Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_t displayId,
+                                                                          bool isGestureMonitor,
+                                                                          const std::string& name,
+                                                                          int32_t pid) {
     std::shared_ptr<InputChannel> serverChannel;
     std::unique_ptr<InputChannel> clientChannel;
     status_t result = openInputChannelPair(name, serverChannel, clientChannel);
