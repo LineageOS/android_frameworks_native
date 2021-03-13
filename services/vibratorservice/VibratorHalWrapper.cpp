@@ -205,6 +205,17 @@ HalResult<std::vector<CompositePrimitive>> AidlHalWrapper::getSupportedPrimitive
                                  mSupportedPrimitives);
 }
 
+HalResult<float> AidlHalWrapper::getResonantFrequency() {
+    std::lock_guard<std::mutex> lock(mResonantFrequencyMutex);
+    return loadCached<float>(std::bind(&AidlHalWrapper::getResonantFrequencyInternal, this),
+                             mResonantFrequency);
+}
+
+HalResult<float> AidlHalWrapper::getQFactor() {
+    std::lock_guard<std::mutex> lock(mQFactorMutex);
+    return loadCached<float>(std::bind(&AidlHalWrapper::getQFactorInternal, this), mQFactor);
+}
+
 HalResult<milliseconds> AidlHalWrapper::performEffect(
         Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
     HalResult<Capabilities> capabilities = getCapabilities();
@@ -281,6 +292,18 @@ HalResult<std::vector<CompositePrimitive>> AidlHalWrapper::getSupportedPrimitive
     std::vector<CompositePrimitive> supportedPrimitives;
     auto result = getHal()->getSupportedPrimitives(&supportedPrimitives);
     return HalResult<std::vector<CompositePrimitive>>::fromStatus(result, supportedPrimitives);
+}
+
+HalResult<float> AidlHalWrapper::getResonantFrequencyInternal() {
+    float f0 = 0;
+    auto result = getHal()->getResonantFrequency(&f0);
+    return HalResult<float>::fromStatus(result, f0);
+}
+
+HalResult<float> AidlHalWrapper::getQFactorInternal() {
+    float qFactor = 0;
+    auto result = getHal()->getQFactor(&qFactor);
+    return HalResult<float>::fromStatus(result, qFactor);
 }
 
 sp<Aidl::IVibrator> AidlHalWrapper::getHal() {
@@ -363,6 +386,18 @@ template <typename I>
 HalResult<std::vector<CompositePrimitive>> HidlHalWrapper<I>::getSupportedPrimitives() {
     ALOGV("Skipped getSupportedPrimitives because Vibrator HAL AIDL is not available");
     return HalResult<std::vector<CompositePrimitive>>::unsupported();
+}
+
+template <typename I>
+HalResult<float> HidlHalWrapper<I>::getResonantFrequency() {
+    ALOGV("Skipped getResonantFrequency because Vibrator HAL AIDL is not available");
+    return HalResult<float>::unsupported();
+}
+
+template <typename I>
+HalResult<float> HidlHalWrapper<I>::getQFactor() {
+    ALOGV("Skipped getQFactor because Vibrator HAL AIDL is not available");
+    return HalResult<float>::unsupported();
 }
 
 template <typename I>
