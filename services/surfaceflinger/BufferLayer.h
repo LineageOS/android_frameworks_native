@@ -182,7 +182,7 @@ protected:
     bool getSidebandStreamChanged() const { return mSidebandStreamChanged; }
 
     // Returns true if the next buffer should be presented at the expected present time
-    bool shouldPresentNow(nsecs_t expectedPresentTime) const final;
+    bool shouldPresentNow(nsecs_t expectedPresentTime) const;
 
     // Returns true if the next buffer should be presented at the expected present time,
     // overridden by BufferStateLayer and BufferQueueLayer for implementation

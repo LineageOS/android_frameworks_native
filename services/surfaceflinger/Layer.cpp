@@ -109,11 +109,11 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.layerStack = 0;
     mCurrentState.sequence = 0;
     mCurrentState.requested_legacy = mCurrentState.active_legacy;
-    mCurrentState.active.w = UINT32_MAX;
-    mCurrentState.active.h = UINT32_MAX;
-    mCurrentState.active.transform.set(0, 0);
+    mCurrentState.width = UINT32_MAX;
+    mCurrentState.height = UINT32_MAX;
+    mCurrentState.transform.set(0, 0);
     mCurrentState.frameNumber = 0;
-    mCurrentState.transform = 0;
+    mCurrentState.bufferTransform = 0;
     mCurrentState.transformToDisplayInverse = false;
     mCurrentState.crop.makeInvalid();
     mCurrentState.acquireFence = new Fence(-1);
@@ -1058,6 +1058,15 @@ uint32_t Layer::doTransaction(uint32_t flags) {
 }
 
 void Layer::commitTransaction(State& stateToCommit) {
+    if (auto& bufferSurfaceFrame = mDrawingState.bufferSurfaceFrameTX;
+        mDrawingState.buffer != stateToCommit.buffer && bufferSurfaceFrame != nullptr &&
+        bufferSurfaceFrame->getPresentState() != PresentState::Presented) {
+        // If the previous buffer was committed but not latched (refreshPending - happens during
+        // back to back invalidates), it gets silently dropped here. Mark the corresponding
+        // SurfaceFrame as dropped to prevent it from getting stuck in the pending classification
+        // list.
+        addSurfaceFrameDroppedForBuffer(bufferSurfaceFrame);
+    }
     mDrawingState = stateToCommit;
 
     // Set the present state for all bufferlessSurfaceFramesTX to Presented. The
@@ -1537,6 +1546,7 @@ void Layer::setFrameTimelineVsyncForBufferTransaction(const FrameTimelineInfo& i
         // Promote the bufferlessSurfaceFrame to a bufferSurfaceFrameTX
         mCurrentState.bufferSurfaceFrameTX = it->second;
         mCurrentState.bufferlessSurfaceFramesTX.erase(it);
+        mCurrentState.bufferSurfaceFrameTX->promoteToBuffer();
         mCurrentState.bufferSurfaceFrameTX->setActualQueueTime(postTime);
     } else {
         mCurrentState.bufferSurfaceFrameTX =
@@ -1596,7 +1606,8 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForTransac
     auto surfaceFrame =
             mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid,
                                                                  getSequence(), mName,
-                                                                 mTransactionName);
+                                                                 mTransactionName,
+                                                                 /*isBuffer*/ false);
     // For Transactions, the post time is considered to be both queue and acquire fence time.
     surfaceFrame->setActualQueueTime(postTime);
     surfaceFrame->setAcquireFenceTime(postTime);
@@ -1612,7 +1623,8 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
         const FrameTimelineInfo& info, nsecs_t queueTime, std::string debugName) {
     auto surfaceFrame =
             mFlinger->mFrameTimeline->createSurfaceFrameForToken(info, mOwnerPid, mOwnerUid,
-                                                                 getSequence(), mName, debugName);
+                                                                 getSequence(), mName, debugName,
+                                                                 /*isBuffer*/ true);
     // For buffers, acquire fence time will set during latch.
     surfaceFrame->setActualQueueTime(queueTime);
     const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
@@ -2431,7 +2443,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
 
-    ui::Transform requestedTransform = state.active_legacy.transform;
+    ui::Transform requestedTransform = state.transform;
 
     if (traceFlags & SurfaceTracing::TRACE_CRITICAL) {
         layerInfo->set_id(sequence);
@@ -2460,11 +2472,10 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
                                                    return layerInfo->mutable_requested_position();
                                                });
 
-        LayerProtoHelper::writeSizeToProto(state.active_legacy.w, state.active_legacy.h,
+        LayerProtoHelper::writeSizeToProto(state.width, state.height,
                                            [&]() { return layerInfo->mutable_size(); });
 
-        LayerProtoHelper::writeToProto(state.crop_legacy,
-                                       [&]() { return layerInfo->mutable_crop(); });
+        LayerProtoHelper::writeToProto(state.crop, [&]() { return layerInfo->mutable_crop(); });
 
         layerInfo->set_is_opaque(isOpaque(state));
 

@@ -85,5 +85,15 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
 
 RenderEngine::~RenderEngine() = default;
 
+void RenderEngine::validateInputBufferUsage(const sp<GraphicBuffer>& buffer) {
+    LOG_ALWAYS_FATAL_IF(!(buffer->getUsage() & GraphicBuffer::USAGE_HW_TEXTURE),
+                        "input buffer not gpu readable");
+}
+
+void RenderEngine::validateOutputBufferUsage(const sp<GraphicBuffer>& buffer) {
+    LOG_ALWAYS_FATAL_IF(!(buffer->getUsage() & GraphicBuffer::USAGE_HW_RENDER),
+                        "output buffer not gpu writeable");
+}
+
 } // namespace renderengine
 } // namespace android

@@ -752,6 +752,14 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             break;
         }
 
+        case EventEntry::Type::DRAG: {
+            std::shared_ptr<DragEntry> typedEntry =
+                    std::static_pointer_cast<DragEntry>(mPendingEvent);
+            dispatchDragLocked(currentTime, typedEntry);
+            done = true;
+            break;
+        }
+
         case EventEntry::Type::KEY: {
             std::shared_ptr<KeyEntry> keyEntry = std::static_pointer_cast<KeyEntry>(mPendingEvent);
             if (isAppSwitchDue) {
@@ -920,7 +928,8 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET:
         case EventEntry::Type::SENSOR:
-        case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED:
+        case EventEntry::Type::DRAG: {
             // nothing to do
             break;
         }
@@ -942,7 +951,8 @@ void InputDispatcher::addRecentEventLocked(std::shared_ptr<EventEntry> entry) {
 sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayId, int32_t x,
                                                                  int32_t y, TouchState* touchState,
                                                                  bool addOutsideTargets,
-                                                                 bool addPortalWindows) {
+                                                                 bool addPortalWindows,
+                                                                 bool ignoreDragWindow) {
     if ((addPortalWindows || addOutsideTargets) && touchState == nullptr) {
         LOG_ALWAYS_FATAL(
                 "Must provide a valid touch state if adding portal windows or outside targets");
@@ -950,6 +960,9 @@ sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t display
     // Traverse windows from front to back to find touched window.
     const std::vector<sp<InputWindowHandle>>& windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<InputWindowHandle>& windowHandle : windowHandles) {
+        if (ignoreDragWindow && haveSameToken(windowHandle, touchState->dragWindow)) {
+            continue;
+        }
         const InputWindowInfo* windowInfo = windowHandle->getInfo();
         if (windowInfo->displayId == displayId) {
             auto flags = windowInfo->flags;
@@ -1059,7 +1072,8 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
         case EventEntry::Type::SENSOR: {
             break;
         }
-        case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED:
+        case EventEntry::Type::DRAG: {
             break;
         }
         case EventEntry::Type::FOCUS:
@@ -1553,6 +1567,35 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<
     return true;
 }
 
+void InputDispatcher::enqueueDragEventLocked(const sp<InputWindowHandle>& windowHandle,
+                                             bool isExiting, const MotionEntry& motionEntry) {
+    // If the window needs enqueue a drag event, the pointerCount should be 1 and the action should
+    // be AMOTION_EVENT_ACTION_MOVE, that could guarantee the first pointer is always valid.
+    LOG_ALWAYS_FATAL_IF(motionEntry.pointerCount != 1);
+    PointerCoords pointerCoords;
+    pointerCoords.copyFrom(motionEntry.pointerCoords[0]);
+    pointerCoords.transform(windowHandle->getInfo()->transform);
+
+    std::unique_ptr<DragEntry> dragEntry =
+            std::make_unique<DragEntry>(mIdGenerator.nextId(), motionEntry.eventTime,
+                                        windowHandle->getToken(), isExiting, pointerCoords.getX(),
+                                        pointerCoords.getY());
+
+    enqueueInboundEventLocked(std::move(dragEntry));
+}
+
+void InputDispatcher::dispatchDragLocked(nsecs_t currentTime, std::shared_ptr<DragEntry> entry) {
+    std::shared_ptr<InputChannel> channel = getInputChannelLocked(entry->connectionToken);
+    if (channel == nullptr) {
+        return; // Window has gone away
+    }
+    InputTarget target;
+    target.inputChannel = channel;
+    target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
+    entry->dispatchInProgress = true;
+    dispatchEventLocked(currentTime, entry, {target});
+}
+
 void InputDispatcher::logOutboundMotionDetails(const char* prefix, const MotionEntry& entry) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
     ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
@@ -1659,7 +1702,8 @@ int32_t InputDispatcher::getTargetDisplayId(const EventEntry& entry) {
         case EventEntry::Type::FOCUS:
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET:
-        case EventEntry::Type::SENSOR: {
+        case EventEntry::Type::SENSOR:
+        case EventEntry::Type::DRAG: {
             ALOGE("%s events do not have a target display", NamedEnum::string(entry.type).c_str());
             return ADISPLAY_ID_NONE;
         }
@@ -2016,6 +2060,8 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             goto Failed;
         }
 
+        addDragEventLocked(entry, tempTouchState);
+
         // Check whether touches should slip outside of the current foreground window.
         if (maskedAction == AMOTION_EVENT_ACTION_MOVE && entry.pointerCount == 1 &&
             tempTouchState.isSlippery()) {
@@ -2269,6 +2315,38 @@ Failed:
     }
 
     return injectionResult;
+}
+
+void InputDispatcher::addDragEventLocked(const MotionEntry& entry, TouchState& state) {
+    if (entry.pointerCount != 1 || !state.dragWindow) {
+        return;
+    }
+
+    int32_t maskedAction = entry.action & AMOTION_EVENT_ACTION_MASK;
+    int32_t x = static_cast<int32_t>(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
+    int32_t y = static_cast<int32_t>(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
+    if (maskedAction == AMOTION_EVENT_ACTION_MOVE) {
+        const sp<InputWindowHandle> hoverWindowHandle =
+                findTouchedWindowAtLocked(entry.displayId, x, y, &state,
+                                          false /*addOutsideTargets*/, false /*addPortalWindows*/,
+                                          true /*ignoreDragWindow*/);
+        // enqueue drag exit if needed.
+        if (hoverWindowHandle != state.dragHoverWindowHandle &&
+            !haveSameToken(hoverWindowHandle, state.dragHoverWindowHandle)) {
+            if (state.dragHoverWindowHandle != nullptr) {
+                enqueueDragEventLocked(state.dragHoverWindowHandle, true /*isExiting*/, entry);
+            }
+            state.dragHoverWindowHandle = hoverWindowHandle;
+        }
+        // enqueue drag location if needed.
+        if (hoverWindowHandle != nullptr) {
+            enqueueDragEventLocked(hoverWindowHandle, false /*isExiting*/, entry);
+        }
+    } else if (maskedAction == AMOTION_EVENT_ACTION_UP ||
+               maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
+        state.dragWindow = nullptr;
+        state.dragHoverWindowHandle = nullptr;
+    }
 }
 
 void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle,
@@ -2542,7 +2620,8 @@ std::string InputDispatcher::getApplicationWindowLabel(
 
 void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
     if (eventEntry.type == EventEntry::Type::FOCUS ||
-        eventEntry.type == EventEntry::Type::POINTER_CAPTURE_CHANGED) {
+        eventEntry.type == EventEntry::Type::POINTER_CAPTURE_CHANGED ||
+        eventEntry.type == EventEntry::Type::DRAG) {
         // Focus or pointer capture changed events are passed to apps, but do not represent user
         // activity.
         return;
@@ -2584,7 +2663,8 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
         case EventEntry::Type::CONFIGURATION_CHANGED:
         case EventEntry::Type::DEVICE_RESET:
         case EventEntry::Type::SENSOR:
-        case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED:
+        case EventEntry::Type::DRAG: {
             LOG_ALWAYS_FATAL("%s events are not user activity",
                              NamedEnum::string(eventEntry.type).c_str());
             break;
@@ -2798,7 +2878,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
             break;
         }
         case EventEntry::Type::FOCUS:
-        case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
+        case EventEntry::Type::POINTER_CAPTURE_CHANGED:
+        case EventEntry::Type::DRAG: {
             break;
         }
         case EventEntry::Type::SENSOR: {
@@ -3018,6 +3099,15 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 status = connection->inputPublisher
                                  .publishCaptureEvent(dispatchEntry->seq, captureEntry.id,
                                                       captureEntry.pointerCaptureEnabled);
+                break;
+            }
+
+            case EventEntry::Type::DRAG: {
+                const DragEntry& dragEntry = static_cast<const DragEntry&>(eventEntry);
+                status = connection->inputPublisher.publishDragEvent(dispatchEntry->seq,
+                                                                     dragEntry.id, dragEntry.x,
+                                                                     dragEntry.y,
+                                                                     dragEntry.isExiting);
                 break;
             }
 
@@ -3318,7 +3408,8 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
                 break;
             }
             case EventEntry::Type::FOCUS:
-            case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
+            case EventEntry::Type::POINTER_CAPTURE_CHANGED:
+            case EventEntry::Type::DRAG: {
                 LOG_ALWAYS_FATAL("Canceling %s events is not supported",
                                  NamedEnum::string(cancelationEventEntry->type).c_str());
                 break;
@@ -3383,7 +3474,8 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
             case EventEntry::Type::CONFIGURATION_CHANGED:
             case EventEntry::Type::DEVICE_RESET:
             case EventEntry::Type::POINTER_CAPTURE_CHANGED:
-            case EventEntry::Type::SENSOR: {
+            case EventEntry::Type::SENSOR:
+            case EventEntry::Type::DRAG: {
                 LOG_ALWAYS_FATAL("%s event should not be found inside Connections's queue",
                                  NamedEnum::string(downEventEntry->type).c_str());
                 break;
@@ -4347,6 +4439,15 @@ void InputDispatcher::setInputWindowsLocked(
                 ++i;
             }
         }
+
+        // If drag window is gone, it would receive a cancel event and broadcast the DRAG_END. we
+        // could just clear the state here.
+        if (state.dragWindow &&
+            std::find(windowHandles.begin(), windowHandles.end(), state.dragWindow) ==
+                    windowHandles.end()) {
+            state.dragWindow = nullptr;
+            state.dragHoverWindowHandle = nullptr;
+        }
     }
 
     // Release information for windows that are no longer present.
@@ -4537,7 +4638,8 @@ void InputDispatcher::setBlockUntrustedTouchesMode(BlockUntrustedTouchesMode mod
     mBlockUntrustedTouchesMode = mode;
 }
 
-bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
+bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
+                                         bool isDragDrop) {
     if (fromToken == toToken) {
         if (DEBUG_FOCUS) {
             ALOGD("Trivial transfer to same window.");
@@ -4580,6 +4682,11 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
                             (InputTarget::FLAG_FOREGROUND | InputTarget::FLAG_SPLIT |
                              InputTarget::FLAG_DISPATCH_AS_IS);
                     state.addOrUpdateWindow(toWindowHandle, newTargetFlags, pointerIds);
+
+                    // Store the dragging window.
+                    if (isDragDrop) {
+                        state.dragWindow = toWindowHandle;
+                    }
 
                     found = true;
                     goto Found;

@@ -250,9 +250,11 @@ public:
 
         // The fields below this point are only used by BufferStateLayer
         uint64_t frameNumber;
-        Geometry active;
+        uint32_t width;
+        uint32_t height;
+        ui::Transform transform;
 
-        uint32_t transform;
+        uint32_t bufferTransform;
         bool transformToDisplayInverse;
 
         Rect crop;
