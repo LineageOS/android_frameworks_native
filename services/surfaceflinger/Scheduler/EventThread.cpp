@@ -354,7 +354,7 @@ void EventThread::onVSyncEvent(nsecs_t timestamp, nsecs_t expectedVSyncTimestamp
             return mTokenManager->generateTokenForPredictions(
                     {timestamp, deadlineTimestamp, expectedVSyncTimestamp});
         }
-        return static_cast<int64_t>(0);
+        return FrameTimelineInfo::INVALID_VSYNC_ID;
     }();
 
     mPendingEvents.push_back(makeVSync(mVSyncState->displayId, timestamp, ++mVSyncState->count,
@@ -494,10 +494,16 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
                 const auto now = systemTime(SYSTEM_TIME_MONOTONIC);
                 const auto deadlineTimestamp = now + timeout.count();
                 const auto expectedVSyncTime = deadlineTimestamp + timeout.count();
-                // TODO(b/162890590): use TokenManager to populate vsyncId
+                const int64_t vsyncId = [&] {
+                    if (mTokenManager != nullptr) {
+                        return mTokenManager->generateTokenForPredictions(
+                                {now, deadlineTimestamp, expectedVSyncTime});
+                    }
+                    return FrameTimelineInfo::INVALID_VSYNC_ID;
+                }();
                 mPendingEvents.push_back(makeVSync(mVSyncState->displayId, now,
                                                    ++mVSyncState->count, expectedVSyncTime,
-                                                   deadlineTimestamp, /*vsyncId=*/0));
+                                                   deadlineTimestamp, vsyncId));
             }
         }
     }

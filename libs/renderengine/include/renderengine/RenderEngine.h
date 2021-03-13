@@ -201,6 +201,9 @@ public:
     // we should not allow in general, so remove this.
     RenderEngineType getRenderEngineType() const { return mRenderEngineType; }
 
+    static void validateInputBufferUsage(const sp<GraphicBuffer>&);
+    static void validateOutputBufferUsage(const sp<GraphicBuffer>&);
+
 protected:
     friend class threaded::RenderEngineThreaded;
     const RenderEngineType mRenderEngineType;
