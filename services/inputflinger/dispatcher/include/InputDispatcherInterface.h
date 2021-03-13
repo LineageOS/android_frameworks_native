@@ -151,6 +151,14 @@ public:
      */
     virtual bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
                                     bool isDragDrop) = 0;
+
+    /**
+     * Transfer touch focus to the provided channel, no matter where the current touch is.
+     *
+     * Return true on success, false if there was no on-going touch.
+     */
+    virtual bool transferTouch(const sp<IBinder>& destChannelToken) = 0;
+
     /**
      * Sets focus on the specified window.
      */
