@@ -64,7 +64,7 @@ protected:
         }
     } mExpectDisableVsync{mSchedulerCallback};
 
-    TestableScheduler mScheduler{mConfigs, mSchedulerCallback};
+    TestableScheduler* mScheduler = new TestableScheduler{mConfigs, mSchedulerCallback};
 
     Scheduler::ConnectionHandle mConnectionHandle;
     mock::EventThread* mEventThread;
@@ -85,8 +85,10 @@ SchedulerTest::SchedulerTest() {
     EXPECT_CALL(*mEventThread, createEventConnection(_, _))
             .WillRepeatedly(Return(mEventThreadConnection));
 
-    mConnectionHandle = mScheduler.createConnection(std::move(eventThread));
+    mConnectionHandle = mScheduler->createConnection(std::move(eventThread));
     EXPECT_TRUE(mConnectionHandle);
+
+    mFlinger.resetScheduler(mScheduler);
 }
 
 } // namespace
@@ -94,85 +96,84 @@ SchedulerTest::SchedulerTest() {
 TEST_F(SchedulerTest, invalidConnectionHandle) {
     Scheduler::ConnectionHandle handle;
 
-    const sp<IDisplayEventConnection> connection = mScheduler.createDisplayEventConnection(handle);
+    const sp<IDisplayEventConnection> connection = mScheduler->createDisplayEventConnection(handle);
 
     EXPECT_FALSE(connection);
-    EXPECT_FALSE(mScheduler.getEventConnection(handle));
+    EXPECT_FALSE(mScheduler->getEventConnection(handle));
 
     // The EXPECT_CALLS make sure we don't call the functions on the subsequent event threads.
     EXPECT_CALL(*mEventThread, onHotplugReceived(_, _)).Times(0);
-    mScheduler.onHotplugReceived(handle, PHYSICAL_DISPLAY_ID, false);
+    mScheduler->onHotplugReceived(handle, PHYSICAL_DISPLAY_ID, false);
 
     EXPECT_CALL(*mEventThread, onScreenAcquired()).Times(0);
-    mScheduler.onScreenAcquired(handle);
+    mScheduler->onScreenAcquired(handle);
 
     EXPECT_CALL(*mEventThread, onScreenReleased()).Times(0);
-    mScheduler.onScreenReleased(handle);
+    mScheduler->onScreenReleased(handle);
 
     std::string output;
     EXPECT_CALL(*mEventThread, dump(_)).Times(0);
-    mScheduler.dump(handle, output);
+    mScheduler->dump(handle, output);
     EXPECT_TRUE(output.empty());
 
     EXPECT_CALL(*mEventThread, setDuration(10ns, 20ns)).Times(0);
-    mScheduler.setDuration(handle, 10ns, 20ns);
+    mScheduler->setDuration(handle, 10ns, 20ns);
 }
 
 TEST_F(SchedulerTest, validConnectionHandle) {
     const sp<IDisplayEventConnection> connection =
-            mScheduler.createDisplayEventConnection(mConnectionHandle);
+            mScheduler->createDisplayEventConnection(mConnectionHandle);
 
     ASSERT_EQ(mEventThreadConnection, connection);
-    EXPECT_TRUE(mScheduler.getEventConnection(mConnectionHandle));
+    EXPECT_TRUE(mScheduler->getEventConnection(mConnectionHandle));
 
     EXPECT_CALL(*mEventThread, onHotplugReceived(PHYSICAL_DISPLAY_ID, false)).Times(1);
-    mScheduler.onHotplugReceived(mConnectionHandle, PHYSICAL_DISPLAY_ID, false);
+    mScheduler->onHotplugReceived(mConnectionHandle, PHYSICAL_DISPLAY_ID, false);
 
     EXPECT_CALL(*mEventThread, onScreenAcquired()).Times(1);
-    mScheduler.onScreenAcquired(mConnectionHandle);
+    mScheduler->onScreenAcquired(mConnectionHandle);
 
     EXPECT_CALL(*mEventThread, onScreenReleased()).Times(1);
-    mScheduler.onScreenReleased(mConnectionHandle);
+    mScheduler->onScreenReleased(mConnectionHandle);
 
     std::string output("dump");
     EXPECT_CALL(*mEventThread, dump(output)).Times(1);
-    mScheduler.dump(mConnectionHandle, output);
+    mScheduler->dump(mConnectionHandle, output);
     EXPECT_FALSE(output.empty());
 
     EXPECT_CALL(*mEventThread, setDuration(10ns, 20ns)).Times(1);
-    mScheduler.setDuration(mConnectionHandle, 10ns, 20ns);
+    mScheduler->setDuration(mConnectionHandle, 10ns, 20ns);
 
     static constexpr size_t kEventConnections = 5;
     EXPECT_CALL(*mEventThread, getEventThreadConnectionCount()).WillOnce(Return(kEventConnections));
-    EXPECT_EQ(kEventConnections, mScheduler.getEventThreadConnectionCount(mConnectionHandle));
+    EXPECT_EQ(kEventConnections, mScheduler->getEventThreadConnectionCount(mConnectionHandle));
 }
 
 TEST_F(SchedulerTest, noLayerHistory) {
     // Layer history should not be created if there is a single config.
-    ASSERT_FALSE(mScheduler.hasLayerHistory());
+    ASSERT_FALSE(mScheduler->hasLayerHistory());
 
-    TestableSurfaceFlinger flinger;
-    mock::MockLayer layer(flinger.flinger());
+    sp<mock::MockLayer> layer = sp<mock::MockLayer>::make(mFlinger.flinger());
 
     // Content detection should be no-op.
-    mScheduler.registerLayer(&layer);
-    mScheduler.recordLayerHistory(&layer, 0, LayerHistory::LayerUpdateType::Buffer);
+    mScheduler->registerLayer(layer.get());
+    mScheduler->recordLayerHistory(layer.get(), 0, LayerHistory::LayerUpdateType::Buffer);
 
     constexpr bool kPowerStateNormal = true;
-    mScheduler.setDisplayPowerState(kPowerStateNormal);
+    mScheduler->setDisplayPowerState(kPowerStateNormal);
 
     constexpr uint32_t kDisplayArea = 999'999;
-    mScheduler.onPrimaryDisplayAreaChanged(kDisplayArea);
+    mScheduler->onPrimaryDisplayAreaChanged(kDisplayArea);
 
     EXPECT_CALL(mSchedulerCallback, changeRefreshRate(_, _)).Times(0);
-    mScheduler.chooseRefreshRateForContent();
+    mScheduler->chooseRefreshRateForContent();
 }
 
 TEST_F(SchedulerTest, testDispatchCachedReportedMode) {
     // If the optional fields are cleared, the function should return before
     // onModeChange is called.
-    mScheduler.clearOptionalFieldsInFeatures();
-    EXPECT_NO_FATAL_FAILURE(mScheduler.dispatchCachedReportedMode());
+    mScheduler->clearOptionalFieldsInFeatures();
+    EXPECT_NO_FATAL_FAILURE(mScheduler->dispatchCachedReportedMode());
     EXPECT_CALL(*mEventThread, onModeChanged(_, _, _)).Times(0);
 }
 
@@ -183,9 +184,9 @@ TEST_F(SchedulerTest, onNonPrimaryDisplayModeChanged_invalidParameters) {
     // If the handle is incorrect, the function should return before
     // onModeChange is called.
     Scheduler::ConnectionHandle invalidHandle = {.id = 123};
-    EXPECT_NO_FATAL_FAILURE(mScheduler.onNonPrimaryDisplayModeChanged(invalidHandle,
-                                                                      PHYSICAL_DISPLAY_ID, modeId,
-                                                                      vsyncPeriod));
+    EXPECT_NO_FATAL_FAILURE(mScheduler->onNonPrimaryDisplayModeChanged(invalidHandle,
+                                                                       PHYSICAL_DISPLAY_ID, modeId,
+                                                                       vsyncPeriod));
     EXPECT_CALL(*mEventThread, onModeChanged(_, _, _)).Times(0);
 }
 

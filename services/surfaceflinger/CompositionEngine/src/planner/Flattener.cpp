@@ -28,9 +28,7 @@ using namespace std::chrono_literals;
 namespace android::compositionengine::impl::planner {
 
 NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& layers,
-                                       NonBufferHash hash) {
-    const auto now = std::chrono::steady_clock::now();
-
+                                       NonBufferHash hash, time_point now) {
     const size_t unflattenedDisplayCost = calculateDisplayCost(layers);
     mUnflattenedDisplayCost += unflattenedDisplayCost;
 

@@ -39,6 +39,9 @@ public:
 
 protected:
     LayerRenderPathTestHarness mRenderPathHarness;
+
+    static constexpr int64_t kUsageFlags = BufferUsage::CPU_READ_OFTEN |
+            BufferUsage::CPU_WRITE_OFTEN | BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE;
 };
 
 ::testing::Environment* const binderEnv =
@@ -521,10 +524,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBufferFormat) {
     sp<Surface> surface = layer->getSurface();
 
     sp<GraphicBuffer> buffer =
-            new GraphicBuffer(width, height, PIXEL_FORMAT_RGBX_8888, 1,
-                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                      BufferUsage::COMPOSER_OVERLAY,
-                              "test");
+            new GraphicBuffer(width, height, PIXEL_FORMAT_RGBX_8888, 1, kUsageFlags, "test");
     ASSERT_NO_FATAL_FAILURE(
             TransactionUtils::fillGraphicBufferColor(buffer, crop, Color::TRANSPARENT));
 
@@ -540,10 +540,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBufferFormat) {
         shot->expectColor(crop, Color::BLACK);
     }
 
-    buffer = new GraphicBuffer(width, height, PIXEL_FORMAT_RGBA_8888, 1,
-                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                       BufferUsage::COMPOSER_OVERLAY,
-                               "test");
+    buffer = new GraphicBuffer(width, height, PIXEL_FORMAT_RGBA_8888, 1, kUsageFlags, "test");
     ASSERT_NO_FATAL_FAILURE(
             TransactionUtils::fillGraphicBufferColor(buffer, crop, Color::TRANSPARENT));
 
