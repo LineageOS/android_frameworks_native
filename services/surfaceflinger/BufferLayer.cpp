@@ -355,6 +355,13 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
         mFlinger->mFrameTracer->traceTimestamp(layerId, getCurrentBufferId(), mCurrentFrameNumber,
                                                clientCompositionTimestamp,
                                                FrameTracer::FrameEvent::FALLBACK_COMPOSITION);
+        // Update the SurfaceFrames in the drawing state
+        if (mDrawingState.bufferSurfaceFrameTX) {
+            mDrawingState.bufferSurfaceFrameTX->setGpuComposition();
+        }
+        for (auto& [token, surfaceFrame] : mDrawingState.bufferlessSurfaceFramesTX) {
+            surfaceFrame->setGpuComposition();
+        }
     }
 
     std::shared_ptr<FenceTime> frameReadyFence = mBufferInfo.mFenceTime;

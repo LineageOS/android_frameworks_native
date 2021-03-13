@@ -664,7 +664,6 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         // are processing the next state.
         addSurfaceFramePresentedForBuffer(bufferSurfaceFrame,
                                           mDrawingState.acquireFence->getSignalTime(), latchTime);
-        bufferSurfaceFrame.reset();
     }
 
     mCurrentStateModified = false;
