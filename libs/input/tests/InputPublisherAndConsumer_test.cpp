@@ -27,6 +27,8 @@
 #include <utils/StopWatch.h>
 #include <utils/Timers.h>
 
+using android::base::Result;
+
 namespace android {
 
 class InputPublisherAndConsumerTest : public testing::Test {
@@ -122,23 +124,13 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
     ASSERT_EQ(OK, status)
             << "consumer sendFinishedSignal should return OK";
 
-    uint32_t finishedSeq = 0;
-    bool handled = false;
-    nsecs_t consumeTime;
-    status = mPublisher->receiveFinishedSignal(
-            [&finishedSeq, &handled, &consumeTime](uint32_t inSeq, bool inHandled,
-                                                   nsecs_t inConsumeTime) -> void {
-                finishedSeq = inSeq;
-                handled = inHandled;
-                consumeTime = inConsumeTime;
-            });
-    ASSERT_EQ(OK, status)
-            << "publisher receiveFinishedSignal should return OK";
-    ASSERT_EQ(seq, finishedSeq)
-            << "publisher receiveFinishedSignal should have returned the original sequence number";
-    ASSERT_TRUE(handled)
-            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
-    ASSERT_GE(consumeTime, publishTime)
+    Result<InputPublisher::Finished> result = mPublisher->receiveFinishedSignal();
+    ASSERT_TRUE(result.ok()) << "publisher receiveFinishedSignal should return OK";
+    ASSERT_EQ(seq, result->seq)
+            << "receiveFinishedSignal should have returned the original sequence number";
+    ASSERT_TRUE(result->handled)
+            << "receiveFinishedSignal should have set handled to consumer's reply";
+    ASSERT_GE(result->consumeTime, publishTime)
             << "finished signal's consume time should be greater than publish time";
 }
 
@@ -272,23 +264,13 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     ASSERT_EQ(OK, status)
             << "consumer sendFinishedSignal should return OK";
 
-    uint32_t finishedSeq = 0;
-    bool handled = true;
-    nsecs_t consumeTime;
-    status = mPublisher->receiveFinishedSignal(
-            [&finishedSeq, &handled, &consumeTime](uint32_t inSeq, bool inHandled,
-                                                   nsecs_t inConsumeTime) -> void {
-                finishedSeq = inSeq;
-                handled = inHandled;
-                consumeTime = inConsumeTime;
-            });
-    ASSERT_EQ(OK, status)
-            << "publisher receiveFinishedSignal should return OK";
-    ASSERT_EQ(seq, finishedSeq)
-            << "publisher receiveFinishedSignal should have returned the original sequence number";
-    ASSERT_FALSE(handled)
-            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
-    ASSERT_GE(consumeTime, publishTime)
+    Result<InputPublisher::Finished> result = mPublisher->receiveFinishedSignal();
+    ASSERT_TRUE(result.ok()) << "receiveFinishedSignal should return OK";
+    ASSERT_EQ(seq, result->seq)
+            << "receiveFinishedSignal should have returned the original sequence number";
+    ASSERT_FALSE(result->handled)
+            << "receiveFinishedSignal should have set handled to consumer's reply";
+    ASSERT_GE(result->consumeTime, publishTime)
             << "finished signal's consume time should be greater than publish time";
 }
 
@@ -322,22 +304,14 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
     status = mConsumer->sendFinishedSignal(seq, true);
     ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
 
-    uint32_t finishedSeq = 0;
-    bool handled = false;
-    nsecs_t consumeTime;
-    status = mPublisher->receiveFinishedSignal(
-            [&finishedSeq, &handled, &consumeTime](uint32_t inSeq, bool inHandled,
-                                                   nsecs_t inConsumeTime) -> void {
-                finishedSeq = inSeq;
-                handled = inHandled;
-                consumeTime = inConsumeTime;
-            });
-    ASSERT_EQ(OK, status) << "publisher receiveFinishedSignal should return OK";
-    ASSERT_EQ(seq, finishedSeq)
-            << "publisher receiveFinishedSignal should have returned the original sequence number";
-    ASSERT_TRUE(handled)
-            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
-    ASSERT_GE(consumeTime, publishTime)
+    Result<InputPublisher::Finished> result = mPublisher->receiveFinishedSignal();
+
+    ASSERT_TRUE(result.ok()) << "receiveFinishedSignal should return OK";
+    ASSERT_EQ(seq, result->seq)
+            << "receiveFinishedSignal should have returned the original sequence number";
+    ASSERT_TRUE(result->handled)
+            << "receiveFinishedSignal should have set handled to consumer's reply";
+    ASSERT_GE(result->consumeTime, publishTime)
             << "finished signal's consume time should be greater than publish time";
 }
 
@@ -369,22 +343,13 @@ void InputPublisherAndConsumerTest::PublishAndConsumeCaptureEvent() {
     status = mConsumer->sendFinishedSignal(seq, true);
     ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
 
-    uint32_t finishedSeq = 0;
-    bool handled = false;
-    nsecs_t consumeTime;
-    status = mPublisher->receiveFinishedSignal(
-            [&finishedSeq, &handled, &consumeTime](uint32_t inSeq, bool inHandled,
-                                                   nsecs_t inConsumeTime) -> void {
-                finishedSeq = inSeq;
-                handled = inHandled;
-                consumeTime = inConsumeTime;
-            });
-    ASSERT_EQ(OK, status) << "publisher receiveFinishedSignal should return OK";
-    ASSERT_EQ(seq, finishedSeq)
-            << "publisher receiveFinishedSignal should have returned the original sequence number";
-    ASSERT_TRUE(handled)
-            << "publisher receiveFinishedSignal should have set handled to consumer's reply";
-    ASSERT_GE(consumeTime, publishTime)
+    android::base::Result<InputPublisher::Finished> result = mPublisher->receiveFinishedSignal();
+    ASSERT_TRUE(result.ok()) << "publisher receiveFinishedSignal should return OK";
+    ASSERT_EQ(seq, result->seq)
+            << "receiveFinishedSignal should have returned the original sequence number";
+    ASSERT_TRUE(result->handled)
+            << "receiveFinishedSignal should have set handled to consumer's reply";
+    ASSERT_GE(result->consumeTime, publishTime)
             << "finished signal's consume time should be greater than publish time";
 }
 
@@ -410,32 +375,23 @@ void InputPublisherAndConsumerTest::PublishAndConsumeDragEvent() {
     ASSERT_EQ(AINPUT_EVENT_TYPE_DRAG, event->getType())
             << "consumer should have returned a drag event";
 
-    DragEvent* dragEvent = static_cast<DragEvent*>(event);
+    const DragEvent& dragEvent = static_cast<const DragEvent&>(*event);
     EXPECT_EQ(seq, consumeSeq);
-    EXPECT_EQ(eventId, dragEvent->getId());
-    EXPECT_EQ(isExiting, dragEvent->isExiting());
-    EXPECT_EQ(x, dragEvent->getX());
-    EXPECT_EQ(y, dragEvent->getY());
+    EXPECT_EQ(eventId, dragEvent.getId());
+    EXPECT_EQ(isExiting, dragEvent.isExiting());
+    EXPECT_EQ(x, dragEvent.getX());
+    EXPECT_EQ(y, dragEvent.getY());
 
     status = mConsumer->sendFinishedSignal(seq, true);
     ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
 
-    uint32_t finishedSeq = 0;
-    bool handled = false;
-    nsecs_t consumeTime;
-    status = mPublisher->receiveFinishedSignal(
-            [&finishedSeq, &handled, &consumeTime](uint32_t inSeq, bool inHandled,
-                                                   nsecs_t inConsumeTime) -> void {
-                finishedSeq = inSeq;
-                handled = inHandled;
-                consumeTime = inConsumeTime;
-            });
-    ASSERT_EQ(OK, status) << "publisher receiveFinishedSignal should return OK";
-    ASSERT_EQ(seq, finishedSeq)
+    android::base::Result<InputPublisher::Finished> result = mPublisher->receiveFinishedSignal();
+    ASSERT_TRUE(result.ok()) << "publisher receiveFinishedSignal should return OK";
+    ASSERT_EQ(seq, result->seq)
             << "publisher receiveFinishedSignal should have returned the original sequence number";
-    ASSERT_TRUE(handled)
+    ASSERT_TRUE(result->handled)
             << "publisher receiveFinishedSignal should have set handled to consumer's reply";
-    ASSERT_GE(consumeTime, publishTime)
+    ASSERT_GE(result->consumeTime, publishTime)
             << "finished signal's consume time should be greater than publish time";
 }
 
