@@ -73,6 +73,9 @@ public:
     HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitives()
             final override;
 
+    HalResult<float> getResonantFrequency() final override;
+    HalResult<float> getQFactor() final override;
+
     HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
             const std::function<void()>& completionCallback) final override;
