@@ -629,24 +629,26 @@ status_t InputPublisher::publishDragEvent(uint32_t seq, int32_t eventId, float x
     return mChannel->sendMessage(&msg);
 }
 
-status_t InputPublisher::receiveFinishedSignal(
-        const std::function<void(uint32_t seq, bool handled, nsecs_t consumeTime)>& callback) {
+android::base::Result<InputPublisher::Finished> InputPublisher::receiveFinishedSignal() {
     if (DEBUG_TRANSPORT_ACTIONS) {
-        ALOGD("channel '%s' publisher ~ receiveFinishedSignal", mChannel->getName().c_str());
+        ALOGD("channel '%s' publisher ~ %s", mChannel->getName().c_str(), __func__);
     }
 
     InputMessage msg;
     status_t result = mChannel->receiveMessage(&msg);
     if (result) {
-        return result;
+        return android::base::Error(result);
     }
     if (msg.header.type != InputMessage::Type::FINISHED) {
         ALOGE("channel '%s' publisher ~ Received unexpected %s message from consumer",
               mChannel->getName().c_str(), NamedEnum::string(msg.header.type).c_str());
-        return UNKNOWN_ERROR;
+        return android::base::Error(UNKNOWN_ERROR);
     }
-    callback(msg.header.seq, msg.body.finished.handled, msg.body.finished.consumeTime);
-    return OK;
+    return Finished{
+            .seq = msg.header.seq,
+            .handled = msg.body.finished.handled,
+            .consumeTime = msg.body.finished.consumeTime,
+    };
 }
 
 // --- InputConsumer ---
