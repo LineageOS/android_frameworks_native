@@ -42,7 +42,7 @@ public:
 
     RenderEngineThreaded(CreateInstanceFactory factory, RenderEngineType type);
     ~RenderEngineThreaded() override;
-    void primeCache() const override;
+    void primeCache() override;
 
     void dump(std::string& result) override;
 

@@ -16,9 +16,28 @@
 
 #include <compositionengine/impl/planner/LayerState.h>
 
+namespace {
+extern "C" const char* __attribute__((unused)) __asan_default_options() {
+    return "detect_container_overflow=0";
+}
+} // namespace
+
 namespace android::compositionengine::impl::planner {
 
-LayerState::LayerState(compositionengine::OutputLayer* layer) : mOutputLayer(layer) {
+LayerState::LayerState(compositionengine::OutputLayer* layer)
+      : mOutputLayer(layer),
+        mColorTransform({[](auto layer) {
+                             const auto state = layer->getLayerFE().getCompositionState();
+                             return state->colorTransformIsIdentity ? mat4{}
+                                                                    : state->colorTransform;
+                         },
+                         [](const mat4& mat) {
+                             using namespace std::string_literals;
+                             std::vector<std::string> split =
+                                     base::Split(std::string(mat.asString().string()), "\n"s);
+                             split.pop_back(); // Strip the last (empty) line
+                             return split;
+                         }}) {
     update(layer);
 }
 
