@@ -209,6 +209,18 @@ HalResult<std::vector<CompositePrimitive>> HalController::getSupportedPrimitives
     return apply(getSupportedPrimitivesFn, "getSupportedPrimitives");
 }
 
+HalResult<float> HalController::getResonantFrequency() {
+    hal_fn<float> getResonantFrequencyFn = [](std::shared_ptr<HalWrapper> hal) {
+        return hal->getResonantFrequency();
+    };
+    return apply(getResonantFrequencyFn, "getResonantFrequency");
+}
+
+HalResult<float> HalController::getQFactor() {
+    hal_fn<float> getQFactorFn = [](std::shared_ptr<HalWrapper> hal) { return hal->getQFactor(); };
+    return apply(getQFactorFn, "getQFactor");
+}
+
 HalResult<milliseconds> HalController::performEffect(
         Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
     hal_fn<milliseconds> performEffectFn = [&](std::shared_ptr<HalWrapper> hal) {

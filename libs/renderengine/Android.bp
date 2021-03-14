@@ -84,6 +84,7 @@ filegroup {
     name: "librenderengine_skia_sources",
     srcs: [
         "skia/AutoBackendTexture.cpp",
+        "skia/Cache.cpp",
         "skia/ColorSpaces.cpp",
         "skia/SkiaRenderEngine.cpp",
         "skia/SkiaGLRenderEngine.cpp",
