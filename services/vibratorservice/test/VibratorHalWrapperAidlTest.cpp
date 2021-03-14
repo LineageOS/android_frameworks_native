@@ -413,6 +413,82 @@ TEST_F(VibratorHalWrapperAidlTest, TestGetSupportedPrimitivesCachesResult) {
     ASSERT_EQ(supportedPrimitives, result.value());
 }
 
+TEST_F(VibratorHalWrapperAidlTest, TestGetResonantFrequencyDoesNotCacheFailedResult) {
+    constexpr float F0 = 123.f;
+    EXPECT_CALL(*mMockHal.get(), getResonantFrequency(_))
+            .Times(Exactly(3))
+            .WillOnce(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)))
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(F0), Return(Status())));
+
+    ASSERT_TRUE(mWrapper->getResonantFrequency().isUnsupported());
+    ASSERT_TRUE(mWrapper->getResonantFrequency().isFailed());
+
+    auto result = mWrapper->getResonantFrequency();
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(F0, result.value());
+}
+
+TEST_F(VibratorHalWrapperAidlTest, TestGetResonantFrequencyCachesResult) {
+    constexpr float F0 = 123.f;
+    EXPECT_CALL(*mMockHal.get(), getResonantFrequency(_))
+            .Times(Exactly(1))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(F0), Return(Status())));
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 10; i++) {
+        threads.push_back(std::thread([&]() {
+            auto result = mWrapper->getResonantFrequency();
+            ASSERT_TRUE(result.isOk());
+            ASSERT_EQ(F0, result.value());
+        }));
+    }
+    std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
+
+    auto result = mWrapper->getResonantFrequency();
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(F0, result.value());
+}
+
+TEST_F(VibratorHalWrapperAidlTest, TestGetQFactorDoesNotCacheFailedResult) {
+    constexpr float Q_FACTOR = 123.f;
+    EXPECT_CALL(*mMockHal.get(), getQFactor(_))
+            .Times(Exactly(3))
+            .WillOnce(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)))
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(Q_FACTOR), Return(Status())));
+
+    ASSERT_TRUE(mWrapper->getQFactor().isUnsupported());
+    ASSERT_TRUE(mWrapper->getQFactor().isFailed());
+
+    auto result = mWrapper->getQFactor();
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(Q_FACTOR, result.value());
+}
+
+TEST_F(VibratorHalWrapperAidlTest, TestGetQFactorCachesResult) {
+    constexpr float Q_FACTOR = 123.f;
+    EXPECT_CALL(*mMockHal.get(), getQFactor(_))
+            .Times(Exactly(1))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(Q_FACTOR), Return(Status())));
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 10; i++) {
+        threads.push_back(std::thread([&]() {
+            auto result = mWrapper->getQFactor();
+            ASSERT_TRUE(result.isOk());
+            ASSERT_EQ(Q_FACTOR, result.value());
+        }));
+    }
+    std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
+
+    auto result = mWrapper->getQFactor();
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(Q_FACTOR, result.value());
+}
+
 TEST_F(VibratorHalWrapperAidlTest, TestPerformEffectWithCallbackSupport) {
     {
         InSequence seq;

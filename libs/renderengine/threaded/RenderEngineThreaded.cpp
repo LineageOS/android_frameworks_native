@@ -86,7 +86,7 @@ void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_S
     }
 }
 
-void RenderEngineThreaded::primeCache() const {
+void RenderEngineThreaded::primeCache() {
     std::promise<void> resultPromise;
     std::future<void> resultFuture = resultPromise.get_future();
     {

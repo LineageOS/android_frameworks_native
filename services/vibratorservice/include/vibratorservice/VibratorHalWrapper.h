@@ -185,6 +185,9 @@ public:
     virtual HalResult<std::vector<hardware::vibrator::CompositePrimitive>>
     getSupportedPrimitives() = 0;
 
+    virtual HalResult<float> getResonantFrequency() = 0;
+    virtual HalResult<float> getQFactor() = 0;
+
     virtual HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
             const std::function<void()>& completionCallback) = 0;
@@ -232,6 +235,9 @@ public:
     HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitives()
             override final;
 
+    HalResult<float> getResonantFrequency() override final;
+    HalResult<float> getQFactor() override final;
+
     HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
             const std::function<void()>& completionCallback) override final;
@@ -246,6 +252,8 @@ private:
     std::mutex mCapabilitiesMutex;
     std::mutex mSupportedEffectsMutex;
     std::mutex mSupportedPrimitivesMutex;
+    std::mutex mResonantFrequencyMutex;
+    std::mutex mQFactorMutex;
     sp<hardware::vibrator::IVibrator> mHandle GUARDED_BY(mHandleMutex);
     std::optional<Capabilities> mCapabilities GUARDED_BY(mCapabilitiesMutex);
     std::optional<std::vector<hardware::vibrator::Effect>> mSupportedEffects
@@ -254,6 +262,8 @@ private:
             GUARDED_BY(mSupportedPrimitivesMutex);
     std::vector<std::optional<std::chrono::milliseconds>> mPrimitiveDurations
             GUARDED_BY(mSupportedPrimitivesMutex);
+    std::optional<float> mResonantFrequency GUARDED_BY(mResonantFrequencyMutex);
+    std::optional<float> mQFactor GUARDED_BY(mQFactorMutex);
 
     // Loads and caches from IVibrator.
     HalResult<std::chrono::milliseconds> getPrimitiveDuration(
@@ -263,6 +273,10 @@ private:
     HalResult<Capabilities> getCapabilitiesInternal();
     HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffectsInternal();
     HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitivesInternal();
+
+    HalResult<float> getResonantFrequencyInternal();
+    HalResult<float> getQFactorInternal();
+
     sp<hardware::vibrator::IVibrator> getHal();
 };
 
@@ -292,6 +306,9 @@ public:
     HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffects() override final;
     HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitives()
             override final;
+
+    HalResult<float> getResonantFrequency() override final;
+    HalResult<float> getQFactor() override final;
 
     HalResult<std::chrono::milliseconds> performComposedEffect(
             const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
