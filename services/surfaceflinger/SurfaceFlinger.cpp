@@ -3474,8 +3474,8 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
     ATRACE_INT("TransactionQueue", mTransactionQueue.size());
 
     const auto schedule = [](uint32_t flags) {
-        if (flags & eExplicitEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;
-        if (flags & eExplicitEarlyWakeupStart) return TransactionSchedule::EarlyStart;
+        if (flags & eEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;
+        if (flags & eEarlyWakeupStart) return TransactionSchedule::EarlyStart;
         return TransactionSchedule::Late;
     }(state.flags);
 
@@ -3528,9 +3528,9 @@ status_t SurfaceFlinger::setTransactionState(
     }
 
     if (!(permissions & Permission::ACCESS_SURFACE_FLINGER) &&
-        (flags & (eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd))) {
-        ALOGE("Only WindowManager is allowed to use eExplicitEarlyWakeup[Start|End] flags");
-        flags &= ~(eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd);
+        (flags & (eEarlyWakeupStart | eEarlyWakeupEnd))) {
+        ALOGE("Only WindowManager is allowed to use eEarlyWakeup[Start|End] flags");
+        flags &= ~(eEarlyWakeupStart | eEarlyWakeupEnd);
     }
 
     const int64_t postTime = systemTime();

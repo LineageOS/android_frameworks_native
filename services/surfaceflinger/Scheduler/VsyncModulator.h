@@ -113,7 +113,7 @@ private:
 
     using Schedule = TransactionSchedule;
     std::atomic<Schedule> mTransactionSchedule = Schedule::Late;
-    std::atomic<bool> mExplicitEarlyWakeup = false;
+    std::atomic<bool> mEarlyWakeup = false;
 
     std::atomic<bool> mRefreshRateChangePending = false;
 
