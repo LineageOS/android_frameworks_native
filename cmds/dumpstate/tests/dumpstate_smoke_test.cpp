@@ -411,7 +411,6 @@ TEST_F(BugreportSectionTest, WindowSectionGenerated) {
 }
 
 TEST_F(BugreportSectionTest, ConnectivitySectionsGenerated) {
-    SectionExists("HIGH connectivity", /* bytes= */ 3000);
     SectionExists("connectivity", /* bytes= */ 5000);
 }
 
