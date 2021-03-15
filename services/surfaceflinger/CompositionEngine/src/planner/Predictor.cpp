@@ -50,8 +50,8 @@ std::optional<LayerStack::ApproximateMatch> LayerStack::getApproximateMatch(
             return std::nullopt;
         }
 
-        // If layers are not identical, but we already have a prior approximate match,
-        // the LayerStacks differ by too much, so return nothing
+        // If layers are not identical, but we already detected a prior approximate match for a
+        // previous layer, the LayerStacks differ by too much, so return nothing
         if (approximateMatch) {
             return std::nullopt;
         }
@@ -70,6 +70,10 @@ std::optional<LayerStack::ApproximateMatch> LayerStack::getApproximateMatch(
         } else {
             return std::nullopt;
         }
+    }
+
+    if (approximateMatch) {
+        return approximateMatch;
     }
 
     // If we make it through the layer-by-layer comparison without an approximate match,

@@ -24,16 +24,28 @@ class LayerStack {
 public:
     LayerStack(const std::vector<const LayerState*>& layers) : mLayers(copyLayers(layers)) {}
 
+    // Describes an approximate match between two layer stacks
     struct ApproximateMatch {
         bool operator==(const ApproximateMatch& other) const {
             return differingIndex == other.differingIndex &&
                     differingFields == other.differingFields;
         }
 
+        // The index of the single differing layer between the two stacks.
+        // This implies that only one layer is allowed to differ in an approximate match.
         size_t differingIndex;
+        // Set of fields that differ for the differing layer in the approximate match.
         Flags<LayerStateField> differingFields;
     };
 
+    // Returns an approximate match when comparing this layer stack with the provided list of
+    // layers, for the purposes of scoring how closely the two layer stacks will match composition
+    // strategies.
+    //
+    // If the two layer stacks are identical, then an approximate match is still returned, but the
+    // differing fields will be empty to represent an exact match.
+    //
+    // If the two layer stacks differ by too much, then an empty optional is returned.
     std::optional<ApproximateMatch> getApproximateMatch(
             const std::vector<const LayerState*>& other) const;
 
