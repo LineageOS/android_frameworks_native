@@ -837,7 +837,7 @@ private:
     void commitOffscreenLayers();
     bool transactionIsReadyToBeApplied(
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
-            const Vector<ComposerState>& states,
+            uid_t originUid, const Vector<ComposerState>& states,
             std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers)
             REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);

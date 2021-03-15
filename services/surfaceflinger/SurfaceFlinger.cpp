@@ -3320,7 +3320,8 @@ void SurfaceFlinger::flushTransactionQueues() {
                     if (!transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
                                                        transaction.isAutoTimestamp,
                                                        transaction.desiredPresentTime,
-                                                       transaction.states, pendingBuffers)) {
+                                                       transaction.originUid, transaction.states,
+                                                       pendingBuffers)) {
                         setTransactionFlags(eTransactionFlushNeeded);
                         break;
                     }
@@ -3347,7 +3348,8 @@ void SurfaceFlinger::flushTransactionQueues() {
                 if (!transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
                                                    transaction.isAutoTimestamp,
                                                    transaction.desiredPresentTime,
-                                                   transaction.states, pendingBuffers) ||
+                                                   transaction.originUid, transaction.states,
+                                                   pendingBuffers) ||
                     pendingTransactions) {
                     mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
                 } else {
@@ -3382,7 +3384,7 @@ bool SurfaceFlinger::transactionFlushNeeded() {
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
-        const Vector<ComposerState>& states,
+        uid_t originUid, const Vector<ComposerState>& states,
         std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers) {
     ATRACE_CALL();
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
@@ -3392,6 +3394,11 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
     if (!isAutoTimestamp && desiredPresentTime >= expectedPresentTime &&
         desiredPresentTime < expectedPresentTime + s2ns(1)) {
         ATRACE_NAME("not current");
+        ready = false;
+    }
+
+    if (!mScheduler->isVsyncValid(expectedPresentTime, originUid)) {
+        ATRACE_NAME("!isVsyncValid");
         ready = false;
     }
 
@@ -3420,11 +3427,6 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const auto vsyncId = frameTimelineInfoChanged ? s.frameTimelineInfo.vsyncId : info.vsyncId;
         if (isAutoTimestamp && layer->frameIsEarly(expectedPresentTime, vsyncId)) {
             ATRACE_NAME("frameIsEarly()");
-            ready = false;
-        }
-
-        if (!mScheduler->isVsyncValid(expectedPresentTime, layer->getOwnerUid())) {
-            ATRACE_NAME("!isVsyncValidForUid");
             ready = false;
         }
 
