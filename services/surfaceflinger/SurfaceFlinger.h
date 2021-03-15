@@ -474,6 +474,41 @@ private:
         hal::Connection connection = hal::Connection::INVALID;
     };
 
+    class CountDownLatch {
+    public:
+        explicit CountDownLatch(int32_t count) : mCount(count) {}
+
+        int32_t countDown() {
+            std::unique_lock<std::mutex> lock(mMutex);
+            if (mCount == 0) {
+                return 0;
+            }
+            if (--mCount == 0) {
+                mCountDownComplete.notify_all();
+            }
+            return mCount;
+        }
+
+        // Return true if triggered.
+        bool wait_until(const std::chrono::seconds& timeout) const {
+            std::unique_lock<std::mutex> lock(mMutex);
+            const auto untilTime = std::chrono::system_clock::now() + timeout;
+            while (mCount != 0) {
+                // Conditional variables can be woken up sporadically, so we check count
+                // to verify the wakeup was triggered by |countDown|.
+                if (std::cv_status::timeout == mCountDownComplete.wait_until(lock, untilTime)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    private:
+        int32_t mCount;
+        mutable std::condition_variable mCountDownComplete;
+        mutable std::mutex mMutex;
+    };
+
     struct TransactionState {
         TransactionState(const FrameTimelineInfo& frameTimelineInfo,
                          const Vector<ComposerState>& composerStates,
@@ -517,6 +552,7 @@ private:
         int originPid;
         int originUid;
         uint64_t id;
+        std::shared_ptr<CountDownLatch> transactionCommittedSignal;
     };
 
     template <typename F, std::enable_if_t<!std::is_member_function_pointer_v<F>>* = nullptr>
@@ -1080,8 +1116,9 @@ private:
     status_t CheckTransactCodeCredentials(uint32_t code);
 
     // Add transaction to the Transaction Queue
-    void queueTransaction(TransactionState state) EXCLUDES(mQueueLock);
-    void waitForSynchronousTransaction(bool synchronous, bool syncInput) EXCLUDES(mStateLock);
+    void queueTransaction(TransactionState& state) EXCLUDES(mQueueLock);
+    void waitForSynchronousTransaction(const CountDownLatch& transactionCommittedSignal);
+    void signalSynchronousTransactions();
 
     /*
      * Generic Layer Metadata
@@ -1111,8 +1148,7 @@ private:
     mutable Mutex mStateLock;
     State mCurrentState{LayerVector::StateSet::Current};
     std::atomic<int32_t> mTransactionFlags = 0;
-    Condition mTransactionCV;
-    bool mTransactionPending = false;
+    std::vector<std::shared_ptr<CountDownLatch>> mTransactionCommittedSignals;
     bool mAnimTransactionPending = false;
     SortedVector<sp<Layer>> mLayersPendingRemoval;
     bool mForceTraversal = false;
@@ -1324,7 +1360,6 @@ private:
 
     sp<SetInputWindowsListener> mSetInputWindowsListener;
 
-    bool mPendingSyncInputWindows GUARDED_BY(mStateLock) = false;
     Hwc2::impl::PowerAdvisor mPowerAdvisor;
 
     // This should only be accessed on the main thread.
