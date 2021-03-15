@@ -3474,7 +3474,6 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
     ATRACE_INT("TransactionQueue", mTransactionQueue.size());
 
     const auto schedule = [](uint32_t flags) {
-        if (flags & eEarlyWakeup) return TransactionSchedule::Early;
         if (flags & eExplicitEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;
         if (flags & eExplicitEarlyWakeupStart) return TransactionSchedule::EarlyStart;
         return TransactionSchedule::Late;
@@ -3526,11 +3525,6 @@ status_t SurfaceFlinger::setTransactionState(
     if ((permissions & Permission::ACCESS_SURFACE_FLINGER) ||
         callingThreadHasRotateSurfaceFlingerAccess()) {
         permissions |= Permission::ROTATE_SURFACE_FLINGER;
-    }
-
-    // TODO(b/159125966): Remove eEarlyWakeup completely as no client should use this flag
-    if (flags & eEarlyWakeup) {
-        ALOGW("eEarlyWakeup is deprecated. Use eExplicitEarlyWakeup[Start|End]");
     }
 
     if (!(permissions & Permission::ACCESS_SURFACE_FLINGER) &&

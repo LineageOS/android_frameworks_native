@@ -57,7 +57,6 @@ VsyncModulator::VsyncConfigOpt VsyncModulator::setTransactionSchedule(
             ALOGW_IF(!mExplicitEarlyWakeup, "%s: Unexpected EarlyEnd", __FUNCTION__);
             mExplicitEarlyWakeup = false;
             break;
-        case Schedule::Early:
         case Schedule::Late:
             // No change to mExplicitEarlyWakeup for non-explicit states.
             break;
@@ -67,7 +66,7 @@ VsyncModulator::VsyncConfigOpt VsyncModulator::setTransactionSchedule(
         ATRACE_INT("mExplicitEarlyWakeup", mExplicitEarlyWakeup);
     }
 
-    if (!mExplicitEarlyWakeup && (schedule == Schedule::Early || schedule == Schedule::EarlyEnd)) {
+    if (!mExplicitEarlyWakeup && schedule == Schedule::EarlyEnd) {
         mEarlyTransactionFrames = MIN_EARLY_TRANSACTION_FRAMES;
         mEarlyTransactionStartTime = mNow();
     }

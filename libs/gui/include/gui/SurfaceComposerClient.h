@@ -349,7 +349,6 @@ public:
         uint32_t mForceSynchronous = 0;
         uint32_t mTransactionNestCount = 0;
         bool mAnimation = false;
-        bool mEarlyWakeup = false;
         bool mExplicitEarlyWakeupStart = false;
         bool mExplicitEarlyWakeupEnd = false;
 
@@ -561,7 +560,6 @@ public:
                                   const Rect& layerStackRect, const Rect& displayRect);
         void setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height);
         void setAnimationTransaction();
-        void setEarlyWakeup();
         void setExplicitEarlyWakeupStart();
         void setExplicitEarlyWakeupEnd();
     };

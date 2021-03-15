@@ -89,9 +89,6 @@ public:
         eSynchronous = 0x01,
         eAnimation = 0x02,
 
-        // DEPRECATED - use eExplicitEarlyWakeup[Start|End]
-        eEarlyWakeup = 0x04,
-
         // Explicit indication that this transaction and others to follow will likely result in a
         // lot of layers being composed, and thus, SurfaceFlinger should wake-up earlier to avoid
         // missing frame deadlines. In this case SurfaceFlinger will wake up at
