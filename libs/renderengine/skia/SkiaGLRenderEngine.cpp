@@ -766,27 +766,30 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             // rect to be blurred in the coordinate space of blurInput
             const auto blurRect = canvas->getTotalMatrix().mapRect(bounds);
 
-            if (layer->backgroundBlurRadius > 0) {
-                ATRACE_NAME("BackgroundBlur");
-                auto blurredImage =
-                        mBlurFilter->generate(grContext.get(), layer->backgroundBlurRadius,
-                                              blurInput, blurRect);
+            // TODO(b/182216890): Filter out empty layers earlier
+            if (blurRect.width() > 0 && blurRect.height() > 0) {
+                if (layer->backgroundBlurRadius > 0) {
+                    ATRACE_NAME("BackgroundBlur");
+                    auto blurredImage =
+                            mBlurFilter->generate(grContext.get(), layer->backgroundBlurRadius,
+                                                  blurInput, blurRect);
 
-                cachedBlurs[layer->backgroundBlurRadius] = blurredImage;
+                    cachedBlurs[layer->backgroundBlurRadius] = blurredImage;
 
-                mBlurFilter->drawBlurRegion(canvas, getBlurRegion(layer), blurRect, blurredImage,
-                                            blurInput);
-            }
-            for (auto region : layer->blurRegions) {
-                if (cachedBlurs[region.blurRadius] == nullptr) {
-                    ATRACE_NAME("BlurRegion");
-                    cachedBlurs[region.blurRadius] =
-                            mBlurFilter->generate(grContext.get(), region.blurRadius, blurInput,
-                                                  blurRect);
+                    mBlurFilter->drawBlurRegion(canvas, getBlurRegion(layer), blurRect,
+                                                blurredImage, blurInput);
                 }
+                for (auto region : layer->blurRegions) {
+                    if (cachedBlurs[region.blurRadius] == nullptr) {
+                        ATRACE_NAME("BlurRegion");
+                        cachedBlurs[region.blurRadius] =
+                                mBlurFilter->generate(grContext.get(), region.blurRadius, blurInput,
+                                                      blurRect);
+                    }
 
-                mBlurFilter->drawBlurRegion(canvas, region, blurRect,
-                                            cachedBlurs[region.blurRadius], blurInput);
+                    mBlurFilter->drawBlurRegion(canvas, region, blurRect,
+                                                cachedBlurs[region.blurRadius], blurInput);
+                }
             }
         }
 
