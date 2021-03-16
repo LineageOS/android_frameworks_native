@@ -51,12 +51,13 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
     return hash;
 }
 
-void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine) {
+void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine,
+                                 ui::Dataspace outputDataspace) {
     if (!mNewCachedSet) {
         return;
     }
 
-    mNewCachedSet->render(renderEngine);
+    mNewCachedSet->render(renderEngine, outputDataspace);
 }
 
 void Flattener::reset() {
@@ -223,6 +224,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                                 .buffer = mNewCachedSet->getBuffer(),
                                 .acquireFence = mNewCachedSet->getDrawFence(),
                                 .displayFrame = mNewCachedSet->getBounds(),
+                                .dataspace = mNewCachedSet->getOutputDataspace(),
                         };
                         ++incomingLayerIter;
                     }
@@ -253,6 +255,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                         .buffer = currentLayerIter->getBuffer(),
                         .acquireFence = currentLayerIter->getDrawFence(),
                         .displayFrame = currentLayerIter->getBounds(),
+                        .dataspace = currentLayerIter->getOutputDataspace(),
                 };
                 ++incomingLayerIter;
             }
