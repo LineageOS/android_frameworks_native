@@ -62,7 +62,6 @@ layer_state_t::layer_state_t()
         shouldBeSeamless(true),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         frameNumber(0),
-        frameTimelineInfo(),
         autoRefresh(false),
         releaseBufferListener(nullptr) {
     matrix.dsdx = matrix.dtdy = 1.0f;
@@ -151,7 +150,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeBool, shouldBeSeamless);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
     SAFE_PARCEL(output.writeUint64, frameNumber);
-    SAFE_PARCEL(frameTimelineInfo.write, output);
     SAFE_PARCEL(output.writeBool, autoRefresh);
     SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(releaseBufferListener));
 
@@ -274,7 +272,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
     SAFE_PARCEL(input.readUint64, &frameNumber);
-    SAFE_PARCEL(frameTimelineInfo.read, input);
     SAFE_PARCEL(input.readBool, &autoRefresh);
 
     tmpBinder = nullptr;
@@ -542,10 +539,6 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eFrameNumberChanged) {
         what |= eFrameNumberChanged;
         frameNumber = other.frameNumber;
-    }
-    if (other.what & eFrameTimelineInfoChanged) {
-        what |= eFrameTimelineInfoChanged;
-        frameTimelineInfo.merge(other.frameTimelineInfo);
     }
     if (other.what & eAutoRefreshChanged) {
         what |= eAutoRefreshChanged;

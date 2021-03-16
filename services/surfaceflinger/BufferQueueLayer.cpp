@@ -215,21 +215,6 @@ bool BufferQueueLayer::hasFrameUpdate() const {
     return mQueuedFrames > 0;
 }
 
-std::optional<nsecs_t> BufferQueueLayer::nextPredictedPresentTime(int64_t /*vsyncId*/) const {
-    Mutex::Autolock lock(mQueueItemLock);
-    if (mQueueItems.empty()) {
-        return std::nullopt;
-    }
-
-    const auto& bufferData = mQueueItems[0];
-
-    if (!bufferData.item.mIsAutoTimestamp || !bufferData.surfaceFrame) {
-        return std::nullopt;
-    }
-
-    return bufferData.surfaceFrame->getPredictions().presentTime;
-}
-
 status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
                                           nsecs_t expectedPresentTime) {
     // This boolean is used to make sure that SurfaceFlinger's shadow copy

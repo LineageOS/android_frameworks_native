@@ -1630,20 +1630,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFixed
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameTimelineInfo(
         const FrameTimelineInfo& frameTimelineInfo) {
-    mFrameTimelineInfo = frameTimelineInfo;
-    return *this;
-}
-
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameTimelineInfo(
-        const sp<SurfaceControl>& sc, const FrameTimelineInfo& frameTimelineInfo) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-
-    s->what |= layer_state_t::eFrameTimelineInfoChanged;
-    s->frameTimelineInfo = frameTimelineInfo;
+    mFrameTimelineInfo.merge(frameTimelineInfo);
     return *this;
 }
 

@@ -530,9 +530,6 @@ public:
         // to the transaction, and the input event id that identifies the input event that caused
         // the current frame.
         Transaction& setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo);
-        // Variant that only applies to a specific SurfaceControl.
-        Transaction& setFrameTimelineInfo(const sp<SurfaceControl>& sc,
-                                          const FrameTimelineInfo& frameTimelineInfo);
 
         // Indicates that the consumer should acquire the next frame as soon as it
         // can and not wait for a frame to become available. This is only relevant

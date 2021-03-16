@@ -844,6 +844,7 @@ private:
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
+    bool frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) const;
     /*
      * Layer management
      */

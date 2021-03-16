@@ -401,7 +401,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     t->setFrameNumber(mSurfaceControl, bufferItem.mFrameNumber);
 
     if (!mNextFrameTimelineInfoQueue.empty()) {
-        t->setFrameTimelineInfo(mSurfaceControl, mNextFrameTimelineInfoQueue.front());
+        t->setFrameTimelineInfo(mNextFrameTimelineInfoQueue.front());
         mNextFrameTimelineInfoQueue.pop();
     }
 

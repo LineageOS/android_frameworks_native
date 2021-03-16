@@ -3379,6 +3379,28 @@ bool SurfaceFlinger::transactionFlushNeeded() {
     return !mPendingTransactionQueues.empty() || !mTransactionQueue.empty();
 }
 
+bool SurfaceFlinger::frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) const {
+    // The amount of time SF can delay a frame if it is considered early based
+    // on the VsyncModulator::VsyncConfig::appWorkDuration
+    constexpr static std::chrono::nanoseconds kEarlyLatchMaxThreshold = 100ms;
+
+    const auto currentVsyncPeriod = mScheduler->getDisplayStatInfo(systemTime()).vsyncPeriod;
+    const auto earlyLatchVsyncThreshold = currentVsyncPeriod / 2;
+
+    const auto prediction = mFrameTimeline->getTokenManager()->getPredictionsForToken(vsyncId);
+    if (!prediction.has_value()) {
+        return false;
+    }
+
+    if (std::abs(prediction->presentTime - expectedPresentTime) >=
+        kEarlyLatchMaxThreshold.count()) {
+        return false;
+    }
+
+    return prediction->presentTime >= expectedPresentTime &&
+            prediction->presentTime - expectedPresentTime >= earlyLatchVsyncThreshold;
+}
+
 bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
         uid_t originUid, const Vector<ComposerState>& states,
@@ -3396,6 +3418,13 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
 
     if (!mScheduler->isVsyncValid(expectedPresentTime, originUid)) {
         ATRACE_NAME("!isVsyncValid");
+        ready = false;
+    }
+
+    // If the client didn't specify desiredPresentTime, use the vsyncId to determine the expected
+    // present time of this transaction.
+    if (isAutoTimestamp && frameIsEarly(expectedPresentTime, info.vsyncId)) {
+        ATRACE_NAME("frameIsEarly");
         ready = false;
     }
 
@@ -3419,13 +3448,6 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         }
 
         ATRACE_NAME(layer->getName().c_str());
-
-        const bool frameTimelineInfoChanged = (s.what & layer_state_t::eFrameTimelineInfoChanged);
-        const auto vsyncId = frameTimelineInfoChanged ? s.frameTimelineInfo.vsyncId : info.vsyncId;
-        if (isAutoTimestamp && layer->frameIsEarly(expectedPresentTime, vsyncId)) {
-            ATRACE_NAME("frameIsEarly()");
-            ready = false;
-        }
 
         if (acquireFenceChanged) {
             // If backpressure is enabled and we already have a buffer to commit, keep the
@@ -3959,12 +3981,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             flags |= eTraversalNeeded;
         }
     }
-    FrameTimelineInfo info;
-    if (what & layer_state_t::eFrameTimelineInfoChanged) {
-        info = s.frameTimelineInfo;
-    } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
-        info = frameTimelineInfo;
-    }
     if (what & layer_state_t::eFixedTransformHintChanged) {
         if (layer->setFixedTransformHint(s.fixedTransformHint)) {
             flags |= eTraversalNeeded | eTransformHintUpdateNeeded;
@@ -4027,12 +4043,12 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 : layer->getHeadFrameNumber(-1 /* expectedPresentTime */) + 1;
 
         if (layer->setBuffer(buffer, s.acquireFence, postTime, desiredPresentTime, isAutoTimestamp,
-                             s.cachedBuffer, frameNumber, dequeueBufferTimestamp, info,
+                             s.cachedBuffer, frameNumber, dequeueBufferTimestamp, frameTimelineInfo,
                              s.releaseBufferListener)) {
             flags |= eTraversalNeeded;
         }
-    } else if (info.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
-        layer->setFrameTimelineVsyncForBufferlessTransaction(info, postTime);
+    } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
+        layer->setFrameTimelineVsyncForBufferlessTransaction(frameTimelineInfo, postTime);
     }
 
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
