@@ -1879,7 +1879,12 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
             // underestimated.
             mFrameStartTime = frameStart;
         }
-        signalRefresh();
+
+        // Run the refresh immediately after invalidate as there is no point going thru the message
+        // queue again, and to ensure that we actually refresh the screen instead of handling
+        // other messages that were queued us already in the MessageQueue.
+        mRefreshPending = true;
+        onMessageRefresh();
     }
 }
 
@@ -3041,9 +3046,8 @@ void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config,
 
 void SurfaceFlinger::commitTransaction() {
     commitTransactionLocked();
-    mTransactionPending = false;
+    signalSynchronousTransactions();
     mAnimTransactionPending = false;
-    mTransactionCV.broadcast();
 }
 
 void SurfaceFlinger::commitTransactionLocked() {
@@ -3312,15 +3316,16 @@ void SurfaceFlinger::flushTransactionQueues() {
                 auto& [applyToken, transactionQueue] = *it;
 
                 while (!transactionQueue.empty()) {
-                    const auto& transaction = transactionQueue.front();
+                    auto& transaction = transactionQueue.front();
                     if (!transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
                                                        transaction.isAutoTimestamp,
                                                        transaction.desiredPresentTime,
-                                                       transaction.states, pendingBuffers)) {
+                                                       transaction.originUid, transaction.states,
+                                                       pendingBuffers)) {
                         setTransactionFlags(eTransactionFlushNeeded);
                         break;
                     }
-                    transactions.push_back(transaction);
+                    transactions.emplace_back(std::move(transaction));
                     transactionQueue.pop();
                 }
 
@@ -3337,17 +3342,18 @@ void SurfaceFlinger::flushTransactionQueues() {
             // Case 2: push to pending when there exist a pending queue.
             // Case 3: others are ready to apply.
             while (!mTransactionQueue.empty()) {
-                const auto& transaction = mTransactionQueue.front();
+                auto& transaction = mTransactionQueue.front();
                 bool pendingTransactions = mPendingTransactionQueues.find(transaction.applyToken) !=
                         mPendingTransactionQueues.end();
                 if (!transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
                                                    transaction.isAutoTimestamp,
                                                    transaction.desiredPresentTime,
-                                                   transaction.states, pendingBuffers) ||
+                                                   transaction.originUid, transaction.states,
+                                                   pendingBuffers) ||
                     pendingTransactions) {
-                    mPendingTransactionQueues[transaction.applyToken].push(transaction);
+                    mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
                 } else {
-                    transactions.push_back(transaction);
+                    transactions.emplace_back(std::move(transaction));
                 }
                 mTransactionQueue.pop();
                 ATRACE_INT("TransactionQueue", mTransactionQueue.size());
@@ -3363,6 +3369,10 @@ void SurfaceFlinger::flushTransactionQueues() {
                                   transaction.postTime, transaction.permissions,
                                   transaction.hasListenerCallbacks, transaction.listenerCallbacks,
                                   transaction.originPid, transaction.originUid, transaction.id);
+            if (transaction.transactionCommittedSignal) {
+                mTransactionCommittedSignals.emplace_back(
+                        std::move(transaction.transactionCommittedSignal));
+            }
         }
     }
 }
@@ -3374,14 +3384,21 @@ bool SurfaceFlinger::transactionFlushNeeded() {
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
-        const Vector<ComposerState>& states,
+        uid_t originUid, const Vector<ComposerState>& states,
         std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers) {
+    ATRACE_CALL();
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
     bool ready = true;
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
     if (!isAutoTimestamp && desiredPresentTime >= expectedPresentTime &&
         desiredPresentTime < expectedPresentTime + s2ns(1)) {
+        ATRACE_NAME("not current");
+        ready = false;
+    }
+
+    if (!mScheduler->isVsyncValid(expectedPresentTime, originUid)) {
+        ATRACE_NAME("!isVsyncValid");
         ready = false;
     }
 
@@ -3404,15 +3421,12 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
             continue;
         }
 
+        ATRACE_NAME(layer->getName().c_str());
+
         const bool frameTimelineInfoChanged = (s.what & layer_state_t::eFrameTimelineInfoChanged);
         const auto vsyncId = frameTimelineInfoChanged ? s.frameTimelineInfo.vsyncId : info.vsyncId;
         if (isAutoTimestamp && layer->frameIsEarly(expectedPresentTime, vsyncId)) {
             ATRACE_NAME("frameIsEarly()");
-            return false;
-        }
-
-        if (!mScheduler->isVsyncValid(expectedPresentTime, layer->getOwnerUid())) {
-            ATRACE_NAME("!isVsyncValidForUid");
             ready = false;
         }
 
@@ -3421,16 +3435,16 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
             // transaction in the queue.
             const bool hasPendingBuffer = pendingBuffers.find(s.surface) != pendingBuffers.end();
             if (layer->backpressureEnabled() && hasPendingBuffer && isAutoTimestamp) {
+                ATRACE_NAME("hasPendingBuffer");
                 ready = false;
             }
             pendingBuffers.insert(s.surface);
         }
-        pendingBuffers.insert(s.surface);
     }
     return ready;
 }
 
-void SurfaceFlinger::queueTransaction(TransactionState state) {
+void SurfaceFlinger::queueTransaction(TransactionState& state) {
     Mutex::Autolock _l(mQueueLock);
 
     // If its TransactionQueue already has a pending TransactionState or if it is pending
@@ -3450,19 +3464,14 @@ void SurfaceFlinger::queueTransaction(TransactionState state) {
         }
     }
 
+    // Generate a CountDownLatch pending state if this is a synchronous transaction.
+    if ((state.flags & eSynchronous) || state.inputWindowCommands.syncInputWindows) {
+        state.transactionCommittedSignal = std::make_shared<CountDownLatch>(
+                (state.inputWindowCommands.syncInputWindows ? 2 : 1));
+    }
+
     mTransactionQueue.emplace(state);
     ATRACE_INT("TransactionQueue", mTransactionQueue.size());
-
-    // TODO(b/159125966): Remove eEarlyWakeup completely as no client should use this flag
-    if (state.flags & eEarlyWakeup) {
-        ALOGW("eEarlyWakeup is deprecated. Use eExplicitEarlyWakeup[Start|End]");
-    }
-
-    if (!(state.permissions & Permission::ACCESS_SURFACE_FLINGER) &&
-        (state.flags & (eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd))) {
-        ALOGE("Only WindowManager is allowed to use eExplicitEarlyWakeup[Start|End] flags");
-        state.flags &= ~(eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd);
-    }
 
     const auto schedule = [](uint32_t flags) {
         if (flags & eEarlyWakeup) return TransactionSchedule::Early;
@@ -3474,28 +3483,23 @@ void SurfaceFlinger::queueTransaction(TransactionState state) {
     setTransactionFlags(eTransactionFlushNeeded, schedule);
 }
 
-void SurfaceFlinger::waitForSynchronousTransaction(bool synchronous, bool syncInput) {
-    Mutex::Autolock _l(mStateLock);
-    if (synchronous) {
-        mTransactionPending = true;
+void SurfaceFlinger::waitForSynchronousTransaction(
+        const CountDownLatch& transactionCommittedSignal) {
+    // applyTransactionState is called on the main SF thread.  While a given process may wish
+    // to wait on synchronous transactions, the main SF thread should apply the transaction and
+    // set the value to notify this after committed.
+    if (!transactionCommittedSignal.wait_until(std::chrono::seconds(5))) {
+        ALOGE("setTransactionState timed out!");
     }
-    if (syncInput) {
-        mPendingSyncInputWindows = true;
-    }
+}
 
-    // applyTransactionState can be called by either the main SF thread or by
-    // another process through setTransactionState.  While a given process may wish
-    // to wait on synchronous transactions, the main SF thread should never
-    // be blocked.  Therefore, we only wait if isMainThread is false.
-    while (mTransactionPending || mPendingSyncInputWindows) {
-        status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
-        if (CC_UNLIKELY(err != NO_ERROR)) {
-            // just in case something goes wrong in SF, return to the
-            // called after a few seconds.
-            ALOGW_IF(err == TIMED_OUT, "setTransactionState timed out!");
-            mTransactionPending = false;
-            mPendingSyncInputWindows = false;
-            break;
+void SurfaceFlinger::signalSynchronousTransactions() {
+    for (auto it = mTransactionCommittedSignals.begin();
+         it != mTransactionCommittedSignals.end();) {
+        if ((*it)->countDown() == 0) {
+            it = mTransactionCommittedSignals.erase(it);
+        } else {
+            it++;
         }
     }
 }
@@ -3524,21 +3528,35 @@ status_t SurfaceFlinger::setTransactionState(
         permissions |= Permission::ROTATE_SURFACE_FLINGER;
     }
 
+    // TODO(b/159125966): Remove eEarlyWakeup completely as no client should use this flag
+    if (flags & eEarlyWakeup) {
+        ALOGW("eEarlyWakeup is deprecated. Use eExplicitEarlyWakeup[Start|End]");
+    }
+
+    if (!(permissions & Permission::ACCESS_SURFACE_FLINGER) &&
+        (flags & (eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd))) {
+        ALOGE("Only WindowManager is allowed to use eExplicitEarlyWakeup[Start|End] flags");
+        flags &= ~(eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd);
+    }
+
     const int64_t postTime = systemTime();
 
     IPCThreadState* ipc = IPCThreadState::self();
     const int originPid = ipc->getCallingPid();
     const int originUid = ipc->getCallingUid();
+    TransactionState state{frameTimelineInfo,  states,
+                           displays,           flags,
+                           applyToken,         inputWindowCommands,
+                           desiredPresentTime, isAutoTimestamp,
+                           uncacheBuffer,      postTime,
+                           permissions,        hasListenerCallbacks,
+                           listenerCallbacks,  originPid,
+                           originUid,          transactionId};
+    queueTransaction(state);
 
-    queueTransaction({frameTimelineInfo, states, displays, flags, applyToken, inputWindowCommands,
-                      desiredPresentTime, isAutoTimestamp, uncacheBuffer, postTime, permissions,
-                      hasListenerCallbacks, listenerCallbacks, originPid, originUid,
-                      transactionId});
-
-    const bool synchronous = flags & eSynchronous;
-    const bool syncInput = inputWindowCommands.syncInputWindows;
-    if (synchronous || syncInput) {
-        waitForSynchronousTransaction(synchronous, syncInput);
+    // Check the pending state to make sure the transaction is synchronous.
+    if (state.transactionCommittedSignal) {
+        waitForSynchronousTransaction(*state.transactionCommittedSignal);
     }
 
     return NO_ERROR;
@@ -6078,10 +6096,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
 void SurfaceFlinger::setInputWindowsFinished() {
     Mutex::Autolock _l(mStateLock);
-
-    mPendingSyncInputWindows = false;
-
-    mTransactionCV.broadcast();
+    signalSynchronousTransactions();
 }
 
 // ---------------------------------------------------------------------------
