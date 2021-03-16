@@ -79,10 +79,11 @@ NonBufferHash CachedSet::getNonBufferHash() const {
         return mFingerprint;
     }
 
-    // TODO(b/181192080): Add all fields which contribute to geometry of override layer (e.g.,
-    // dataspace)
+    // TODO(b/182614524): We sometimes match this with LayerState hashes. Determine if that is
+    // necessary (and therefore we need to match implementations).
     size_t hash = 0;
     android::hashCombineSingle(hash, mBounds);
+    android::hashCombineSingle(hash, mOutputDataspace);
     return hash;
 }
 
@@ -148,10 +149,11 @@ void CachedSet::updateAge(std::chrono::steady_clock::time_point now) {
     }
 }
 
-void CachedSet::render(renderengine::RenderEngine& renderEngine) {
+void CachedSet::render(renderengine::RenderEngine& renderEngine, ui::Dataspace outputDataspace) {
     renderengine::DisplaySettings displaySettings{
             .physicalDisplay = Rect(0, 0, mBounds.getWidth(), mBounds.getHeight()),
             .clip = mBounds,
+            .outputDataspace = outputDataspace,
     };
 
     Region clearRegion = Region::INVALID_REGION;
@@ -163,8 +165,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine) {
             .supportsProtectedContent = false,
             .clearRegion = clearRegion,
             .viewport = viewport,
-            // TODO(181192086): Propagate the Output's dataspace instead of using UNKNOWN
-            .dataspace = ui::Dataspace::UNKNOWN,
+            .dataspace = outputDataspace,
             .realContentIsVisible = true,
             .clearContent = false,
             .disableBlurs = false,
@@ -216,6 +217,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine) {
     if (result == NO_ERROR) {
         mTexture.setBuffer(buffer, &renderEngine);
         mDrawFence = new Fence(drawFence.release());
+        mOutputDataspace = outputDataspace;
     }
 }
 

@@ -158,7 +158,8 @@ bool operator==(const LayerState& lhs, const LayerState& rhs) {
             lhs.mSourceCrop == rhs.mSourceCrop && lhs.mZOrder == rhs.mZOrder &&
             lhs.mBufferTransform == rhs.mBufferTransform && lhs.mBlendMode == rhs.mBlendMode &&
             lhs.mAlpha == rhs.mAlpha && lhs.mVisibleRegion == rhs.mVisibleRegion &&
-            lhs.mDataspace == rhs.mDataspace && lhs.mColorTransform == rhs.mColorTransform &&
+            lhs.mOutputDataspace == rhs.mOutputDataspace &&
+            lhs.mColorTransform == rhs.mColorTransform &&
             lhs.mCompositionType == rhs.mCompositionType &&
             lhs.mSidebandStream == rhs.mSidebandStream && lhs.mBuffer == rhs.mBuffer &&
             (lhs.mCompositionType.get() != hal::Composition::SOLID_COLOR ||
