@@ -420,10 +420,10 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
                                                  __INTRODUCED_IN(29);
 
 /**
- * Same as ASurfaceTransaction_setFrameRateWithSeamlessness(transaction, surface_control,
- * frameRate, compatibility, true).
+ * Same as ASurfaceTransaction_setFrameRateWithChangeStrategy(transaction, surface_control,
+ * frameRate, compatibility, ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS).
  *
- * See ASurfaceTransaction_setFrameRateWithSeamlessness().
+ * See ASurfaceTransaction_setFrameRateWithChangeStrategy().
  *
  * Available since API level 30.
  */
@@ -451,17 +451,15 @@ void ASurfaceTransaction_setFrameRate(ASurfaceTransaction* transaction,
  * influence the system's choice of display frame rate. To specify a compatibility use the
  * ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* enum.
  *
- * \param shouldBeSeamless Whether display refresh rate transitions should be seamless. A
- * seamless transition is one that doesn't have any visual interruptions, such as a black
- * screen for a second or two. True indicates that any frame rate changes caused by this
- * request should be seamless. False indicates that non-seamless refresh rates are also
- * acceptable.
+ * \param changeFrameRateStrategy Whether display refresh rate transitions should be seamless.
+ * A seamless transition is one that doesn't have any visual interruptions, such as a black
+ * screen for a second or two. See the ANATIVEWINDOW_CHANGE_FRAME_RATE_* values.
  *
  * Available since API level 31.
  */
-void ASurfaceTransaction_setFrameRateWithSeamlessness(ASurfaceTransaction* transaction,
+void ASurfaceTransaction_setFrameRateWithChangeStrategy(ASurfaceTransaction* transaction,
                                       ASurfaceControl* surface_control, float frameRate,
-                                      int8_t compatibility, bool shouldBeSeamless)
+                                      int8_t compatibility, int8_t changeFrameRateStrategy)
                                       __INTRODUCED_IN(31);
 
 __END_DECLS

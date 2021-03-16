@@ -208,7 +208,7 @@ struct layer_state_t {
     // Layer frame rate and compatibility. See ANativeWindow_setFrameRate().
     float frameRate;
     int8_t frameRateCompatibility;
-    bool shouldBeSeamless;
+    int8_t changeFrameRateStrategy;
 
     // Set by window manager indicating the layer and all its children are
     // in a different orientation than the display. The hint suggests that
@@ -305,10 +305,11 @@ static inline int compare_type(const DisplayState& lhs, const DisplayState& rhs)
 //
 // @param frameRate the frame rate in Hz
 // @param compatibility a ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_*
+// @param changeFrameRateStrategy a ANATIVEWINDOW_CHANGE_FRAME_RATE_*
 // @param functionName calling function or nullptr. Used for logging
 // @param privileged whether caller has unscoped surfaceflinger access
-bool ValidateFrameRate(float frameRate, int8_t compatibility, const char* functionName,
-                       bool privileged = false);
+bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrameRateStrategy,
+                       const char* functionName, bool privileged = false);
 
 struct CaptureArgs {
     const static int32_t UNSET_UID = -1;

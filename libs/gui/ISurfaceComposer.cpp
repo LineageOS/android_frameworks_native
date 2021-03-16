@@ -1012,39 +1012,15 @@ public:
     }
 
     status_t setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
-                          int8_t compatibility, bool shouldBeSeamless) override {
+                          int8_t compatibility, int8_t changeFrameRateStrategy) override {
         Parcel data, reply;
-        status_t err = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        if (err != NO_ERROR) {
-            ALOGE("setFrameRate: failed writing interface token: %s (%d)", strerror(-err), -err);
-            return err;
-        }
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(surface));
+        SAFE_PARCEL(data.writeFloat, frameRate);
+        SAFE_PARCEL(data.writeByte, compatibility);
+        SAFE_PARCEL(data.writeByte, changeFrameRateStrategy);
 
-        err = data.writeStrongBinder(IInterface::asBinder(surface));
-        if (err != NO_ERROR) {
-            ALOGE("setFrameRate: failed writing strong binder: %s (%d)", strerror(-err), -err);
-            return err;
-        }
-
-        err = data.writeFloat(frameRate);
-        if (err != NO_ERROR) {
-            ALOGE("setFrameRate: failed writing float: %s (%d)", strerror(-err), -err);
-            return err;
-        }
-
-        err = data.writeByte(compatibility);
-        if (err != NO_ERROR) {
-            ALOGE("setFrameRate: failed writing byte: %s (%d)", strerror(-err), -err);
-            return err;
-        }
-
-        err = data.writeBool(shouldBeSeamless);
-        if (err != NO_ERROR) {
-            ALOGE("setFrameRate: failed writing bool: %s (%d)", strerror(-err), -err);
-            return err;
-        }
-
-        err = remote()->transact(BnSurfaceComposer::SET_FRAME_RATE, data, &reply);
+        status_t err = remote()->transact(BnSurfaceComposer::SET_FRAME_RATE, data, &reply);
         if (err != NO_ERROR) {
             ALOGE("setFrameRate: failed to transact: %s (%d)", strerror(-err), err);
             return err;
@@ -1873,36 +1849,24 @@ status_t BnSurfaceComposer::onTransact(
         case SET_FRAME_RATE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> binder;
-            status_t err = data.readStrongBinder(&binder);
-            if (err != NO_ERROR) {
-                ALOGE("setFrameRate: failed to read strong binder: %s (%d)", strerror(-err), -err);
-                return err;
-            }
+            SAFE_PARCEL(data.readStrongBinder, &binder);
+
             sp<IGraphicBufferProducer> surface = interface_cast<IGraphicBufferProducer>(binder);
             if (!surface) {
-                ALOGE("setFrameRate: failed to cast to IGraphicBufferProducer: %s (%d)",
-                      strerror(-err), -err);
-                return err;
+                ALOGE("setFrameRate: failed to cast to IGraphicBufferProducer");
+                return BAD_VALUE;
             }
             float frameRate;
-            err = data.readFloat(&frameRate);
-            if (err != NO_ERROR) {
-                ALOGE("setFrameRate: failed to read float: %s (%d)", strerror(-err), -err);
-                return err;
-            }
+            SAFE_PARCEL(data.readFloat, &frameRate);
+
             int8_t compatibility;
-            err = data.readByte(&compatibility);
-            if (err != NO_ERROR) {
-                ALOGE("setFrameRate: failed to read byte: %s (%d)", strerror(-err), -err);
-                return err;
-            }
-            bool shouldBeSeamless;
-            err = data.readBool(&shouldBeSeamless);
-            if (err != NO_ERROR) {
-                ALOGE("setFrameRate: failed to read bool: %s (%d)", strerror(-err), -err);
-                return err;
-            }
-            status_t result = setFrameRate(surface, frameRate, compatibility, shouldBeSeamless);
+            SAFE_PARCEL(data.readByte, &compatibility);
+
+            int8_t changeFrameRateStrategy;
+            SAFE_PARCEL(data.readByte, &changeFrameRateStrategy);
+
+            status_t result =
+                    setFrameRate(surface, frameRate, compatibility, changeFrameRateStrategy);
             reply->writeInt32(result);
             return NO_ERROR;
         }
