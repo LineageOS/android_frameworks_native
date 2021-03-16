@@ -17,14 +17,11 @@
 #pragma once
 
 #include <compositionengine/impl/planner/LayerState.h>
+#include <renderengine/RenderEngine.h>
 
 #include <chrono>
 
 namespace android {
-
-namespace renderengine {
-class RenderEngine;
-} // namespace renderengine
 
 namespace compositionengine::impl::planner {
 
@@ -63,7 +60,7 @@ public:
     const Layer& getFirstLayer() const { return mLayers[0]; }
     const Rect& getBounds() const { return mBounds; }
     size_t getAge() const { return mAge; }
-    const sp<GraphicBuffer>& getBuffer() const { return mBuffer; }
+    const sp<GraphicBuffer>& getBuffer() const { return mTexture.getBuffer(); }
     const sp<Fence>& getDrawFence() const { return mDrawFence; }
 
     NonBufferHash getNonBufferHash() const;
@@ -82,7 +79,7 @@ public:
 
     void setLastUpdate(std::chrono::steady_clock::time_point now) { mLastUpdate = now; }
     void append(const CachedSet& other) {
-        mBuffer = nullptr;
+        mTexture.setBuffer(nullptr, nullptr);
         mDrawFence = nullptr;
 
         mLayers.insert(mLayers.end(), other.mLayers.cbegin(), other.mLayers.cend());
@@ -105,7 +102,32 @@ private:
     std::vector<Layer> mLayers;
     Rect mBounds = Rect::EMPTY_RECT;
     size_t mAge = 0;
-    sp<GraphicBuffer> mBuffer;
+
+    class Texture {
+    public:
+        ~Texture() { setBuffer(nullptr, nullptr); }
+
+        void setBuffer(const sp<GraphicBuffer>& buffer, renderengine::RenderEngine* re) {
+            if (mRE && mBuffer) {
+                mRE->unbindExternalTextureBuffer(mBuffer->getId());
+            }
+
+            mBuffer = buffer;
+            mRE = re;
+
+            if (mRE && mBuffer) {
+                mRE->cacheExternalTextureBuffer(mBuffer);
+            }
+        }
+
+        const sp<GraphicBuffer>& getBuffer() const { return mBuffer; }
+
+    private:
+        sp<GraphicBuffer> mBuffer = nullptr;
+        renderengine::RenderEngine* mRE = nullptr;
+    };
+
+    Texture mTexture;
     sp<Fence> mDrawFence;
 
     static const bool sDebugHighlighLayers;

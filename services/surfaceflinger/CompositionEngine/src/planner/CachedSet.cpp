@@ -126,7 +126,7 @@ bool CachedSet::hasBufferUpdate(std::vector<const LayerState*>::const_iterator l
 }
 
 bool CachedSet::hasReadyBuffer() const {
-    return mBuffer != nullptr && mDrawFence->getStatus() == Fence::Status::Signaled;
+    return mTexture.getBuffer() != nullptr && mDrawFence->getStatus() == Fence::Status::Signaled;
 }
 
 std::vector<CachedSet> CachedSet::decompose() const {
@@ -209,11 +209,12 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine) {
                                                  HAL_PIXEL_FORMAT_RGBA_8888, 1, usageFlags);
     LOG_ALWAYS_FATAL_IF(buffer->initCheck() != OK);
     base::unique_fd drawFence;
+
     status_t result = renderEngine.drawLayers(displaySettings, layerSettingsPointers, buffer, false,
                                               base::unique_fd(), &drawFence);
 
     if (result == NO_ERROR) {
-        mBuffer = buffer;
+        mTexture.setBuffer(buffer, &renderEngine);
         mDrawFence = new Fence(drawFence.release());
     }
 }
