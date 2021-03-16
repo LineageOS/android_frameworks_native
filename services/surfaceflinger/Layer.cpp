@@ -102,8 +102,8 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.active_legacy.h = args.h;
     mCurrentState.flags = layerFlags;
     mCurrentState.active_legacy.transform.set(0, 0);
-    mCurrentState.crop_legacy.makeInvalid();
-    mCurrentState.requestedCrop_legacy = mCurrentState.crop_legacy;
+    mCurrentState.crop.makeInvalid();
+    mCurrentState.requestedCrop = mCurrentState.crop;
     mCurrentState.z = 0;
     mCurrentState.color.a = 1.0f;
     mCurrentState.layerStack = 0;
@@ -949,13 +949,12 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
                  "            requested={ wh={%4u,%4u} }}\n",
                  this, getName().c_str(), getBufferTransform(), getEffectiveScalingMode(),
                  stateToCommit->active_legacy.w, stateToCommit->active_legacy.h,
-                 stateToCommit->crop_legacy.left, stateToCommit->crop_legacy.top,
-                 stateToCommit->crop_legacy.right, stateToCommit->crop_legacy.bottom,
-                 stateToCommit->crop_legacy.getWidth(), stateToCommit->crop_legacy.getHeight(),
-                 stateToCommit->requested_legacy.w, stateToCommit->requested_legacy.h,
-                 s.active_legacy.w, s.active_legacy.h, s.crop_legacy.left, s.crop_legacy.top,
-                 s.crop_legacy.right, s.crop_legacy.bottom, s.crop_legacy.getWidth(),
-                 s.crop_legacy.getHeight(), s.requested_legacy.w, s.requested_legacy.h);
+                 stateToCommit->crop.left, stateToCommit->crop.top, stateToCommit->crop.right,
+                 stateToCommit->crop.bottom, stateToCommit->crop.getWidth(),
+                 stateToCommit->crop.getHeight(), stateToCommit->requested_legacy.w,
+                 stateToCommit->requested_legacy.h, s.active_legacy.w, s.active_legacy.h,
+                 s.crop.left, s.crop.top, s.crop.right, s.crop.bottom, s.crop.getWidth(),
+                 s.crop.getHeight(), s.requested_legacy.w, s.requested_legacy.h);
     }
 
     // Don't let Layer::doTransaction update the drawing state
@@ -1335,11 +1334,11 @@ bool Layer::setFlags(uint32_t flags, uint32_t mask) {
     return true;
 }
 
-bool Layer::setCrop_legacy(const Rect& crop) {
-    if (mCurrentState.requestedCrop_legacy == crop) return false;
+bool Layer::setCrop(const Rect& crop) {
+    if (mCurrentState.requestedCrop == crop) return false;
     mCurrentState.sequence++;
-    mCurrentState.requestedCrop_legacy = crop;
-    mCurrentState.crop_legacy = crop;
+    mCurrentState.requestedCrop = crop;
+    mCurrentState.crop = crop;
 
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -1744,7 +1743,7 @@ LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
     info.mZ = ds.z;
     info.mWidth = ds.active_legacy.w;
     info.mHeight = ds.active_legacy.h;
-    info.mCrop = ds.crop_legacy;
+    info.mCrop = ds.crop;
     info.mColor = ds.color;
     info.mFlags = ds.flags;
     info.mPixelFormat = getPixelFormat();

@@ -328,7 +328,7 @@ TEST_F(ScreenCaptureTest, CaptureBoundlessLayerWithSourceCrop) {
 TEST_F(ScreenCaptureTest, CaptureBoundedLayerWithoutSourceCrop) {
     sp<SurfaceControl> child = createColorLayer("Child layer", Color::RED, mFGSurfaceControl.get());
     Rect layerCrop(0, 0, 10, 10);
-    SurfaceComposerClient::Transaction().setCrop_legacy(child, layerCrop).show(child).apply(true);
+    SurfaceComposerClient::Transaction().setCrop(child, layerCrop).show(child).apply(true);
 
     LayerCaptureArgs captureArgs;
     captureArgs.layerHandle = child->getHandle();
@@ -623,7 +623,7 @@ TEST_F(ScreenCaptureTest, CaptureDisplayPrimaryDisplayOnly) {
             .setLayerStack(layer, 0)
             .setLayer(layer, INT32_MAX)
             .setColor(layer, {layerColor.r / 255, layerColor.g / 255, layerColor.b / 255})
-            .setCrop_legacy(layer, bounds)
+            .setCrop(layer, bounds)
             .apply();
 
     DisplayCaptureArgs captureArgs;
@@ -671,8 +671,8 @@ TEST_F(ScreenCaptureTest, CaptureDisplayChildPrimaryDisplayOnly) {
             .setLayer(layer, INT32_MAX)
             .setColor(layer, {layerColor.r / 255, layerColor.g / 255, layerColor.b / 255})
             .setColor(childLayer, {childColor.r / 255, childColor.g / 255, childColor.b / 255})
-            .setCrop_legacy(layer, bounds)
-            .setCrop_legacy(childLayer, childBounds)
+            .setCrop(layer, bounds)
+            .setCrop(childLayer, childBounds)
             .apply();
 
     DisplayCaptureArgs captureArgs;
@@ -853,9 +853,7 @@ TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresParentVisibility) {
 }
 
 TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresParentCrop) {
-    SurfaceComposerClient::Transaction()
-            .setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 1, 1))
-            .apply(true);
+    SurfaceComposerClient::Transaction().setCrop(mFGSurfaceControl, Rect(0, 0, 1, 1)).apply(true);
 
     // Even though the parent is cropped out we should still capture the child.
 

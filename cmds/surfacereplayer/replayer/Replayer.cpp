@@ -495,7 +495,7 @@ void Replayer::setCrop(SurfaceComposerClient::Transaction& t,
 
     Rect r = Rect(cc.rectangle().left(), cc.rectangle().top(), cc.rectangle().right(),
             cc.rectangle().bottom());
-    t.setCrop_legacy(mLayers[id], r);
+    t.setCrop(mLayers[id], r);
 }
 
 void Replayer::setCornerRadius(SurfaceComposerClient::Transaction& t,

@@ -71,7 +71,7 @@ protected:
         ASSERT_TRUE(mColorLayer->isValid());
         asTransaction([&](Transaction& t) {
             t.setLayerStack(mColorLayer, layerStack);
-            t.setCrop_legacy(mColorLayer, Rect(0, 0, 30, 40));
+            t.setCrop(mColorLayer, Rect(0, 0, 30, 40));
             t.setLayer(mColorLayer, INT32_MAX - 2);
             t.setColor(mColorLayer,
                        half3{mExpectedColor.r / 255.0f, mExpectedColor.g / 255.0f,
