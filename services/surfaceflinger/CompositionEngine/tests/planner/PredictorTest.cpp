@@ -16,7 +16,7 @@
 
 #include "DisplayHardware/Hal.h"
 #undef LOG_TAG
-#define LOG_TAG "LayerStateTest"
+#define LOG_TAG "PredictorTest"
 
 #include <compositionengine/impl/planner/Predictor.h>
 #include <compositionengine/mock/LayerFE.h>
@@ -45,6 +45,16 @@ using testing::ReturnRef;
 const std::string sDebugName = std::string("Test LayerFE");
 const constexpr int32_t sSequenceId = 12345;
 
+void setupMocksForLayer(mock::OutputLayer& layer, mock::LayerFE& layerFE,
+                        const OutputLayerCompositionState& outputLayerState,
+                        const LayerFECompositionState& layerFEState) {
+    EXPECT_CALL(layer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE));
+    EXPECT_CALL(layer, getState()).WillRepeatedly(ReturnRef(outputLayerState));
+    EXPECT_CALL(layerFE, getSequence()).WillRepeatedly(Return(sSequenceId));
+    EXPECT_CALL(layerFE, getDebugName()).WillRepeatedly(Return(sDebugName.c_str()));
+    EXPECT_CALL(layerFE, getCompositionState()).WillRepeatedly(Return(&layerFEState));
+}
+
 struct LayerStackTest : public testing::Test {
     LayerStackTest() {
         const ::testing::TestInfo* const test_info =
@@ -56,16 +66,6 @@ struct LayerStackTest : public testing::Test {
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
-    }
-
-    void setupMocksForLayer(mock::OutputLayer& layer, mock::LayerFE& layerFE,
-                            const OutputLayerCompositionState& outputLayerState,
-                            const LayerFECompositionState& layerFEState) {
-        EXPECT_CALL(layer, getLayerFE()).WillRepeatedly(ReturnRef(layerFE));
-        EXPECT_CALL(layer, getState()).WillRepeatedly(ReturnRef(outputLayerState));
-        EXPECT_CALL(layerFE, getSequence()).WillRepeatedly(Return(sSequenceId));
-        EXPECT_CALL(layerFE, getDebugName()).WillRepeatedly(Return(sDebugName.c_str()));
-        EXPECT_CALL(layerFE, getCompositionState()).WillRepeatedly(Return(&layerFEState));
     }
 };
 
@@ -330,6 +330,198 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchMultipleApproximations) {
 
     LayerStack stack({&layerStateOne, &layerStateOne});
     EXPECT_FALSE(stack.getApproximateMatch({&layerStateTwo, &layerStateTwo}));
+}
+
+struct PredictionTest : public testing::Test {
+    PredictionTest() {
+        const ::testing::TestInfo* const test_info =
+                ::testing::UnitTest::GetInstance()->current_test_info();
+        ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
+    }
+
+    ~PredictionTest() {
+        const ::testing::TestInfo* const test_info =
+                ::testing::UnitTest::GetInstance()->current_test_info();
+        ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
+    }
+};
+
+TEST_F(PredictionTest, constructPrediction) {
+    Plan plan;
+    plan.addLayerType(hal::Composition::DEVICE);
+
+    Prediction prediction({}, plan);
+
+    EXPECT_EQ(plan, prediction.getPlan());
+
+    // check that dump doesn't crash
+    std::string result;
+    prediction.dump(result);
+}
+
+TEST_F(PredictionTest, recordHits) {
+    Prediction prediction({}, {});
+
+    const constexpr uint32_t kExactMatches = 2;
+    for (uint32_t i = 0; i < kExactMatches; i++) {
+        prediction.recordHit(Prediction::Type::Exact);
+    }
+
+    const constexpr uint32_t kApproximateMatches = 3;
+    for (uint32_t i = 0; i < kApproximateMatches; i++) {
+        prediction.recordHit(Prediction::Type::Approximate);
+    }
+
+    EXPECT_EQ(kExactMatches, prediction.getHitCount(Prediction::Type::Exact));
+    EXPECT_EQ(kApproximateMatches, prediction.getHitCount(Prediction::Type::Approximate));
+    EXPECT_EQ(kExactMatches + kApproximateMatches, prediction.getHitCount(Prediction::Type::Total));
+}
+
+TEST_F(PredictionTest, recordMisses) {
+    Prediction prediction({}, {});
+
+    const constexpr uint32_t kExactMatches = 2;
+    for (uint32_t i = 0; i < kExactMatches; i++) {
+        prediction.recordMiss(Prediction::Type::Exact);
+    }
+
+    const constexpr uint32_t kApproximateMatches = 3;
+    for (uint32_t i = 0; i < kApproximateMatches; i++) {
+        prediction.recordMiss(Prediction::Type::Approximate);
+    }
+
+    EXPECT_EQ(kExactMatches, prediction.getMissCount(Prediction::Type::Exact));
+    EXPECT_EQ(kApproximateMatches, prediction.getMissCount(Prediction::Type::Approximate));
+    EXPECT_EQ(kExactMatches + kApproximateMatches,
+              prediction.getMissCount(Prediction::Type::Total));
+}
+
+struct PredictorTest : public testing::Test {
+    PredictorTest() {
+        const ::testing::TestInfo* const test_info =
+                ::testing::UnitTest::GetInstance()->current_test_info();
+        ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
+    }
+
+    ~PredictorTest() {
+        const ::testing::TestInfo* const test_info =
+                ::testing::UnitTest::GetInstance()->current_test_info();
+        ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
+    }
+};
+
+TEST_F(PredictorTest, getPredictedPlan_emptyLayersWithoutExactMatch_returnsNullopt) {
+    Predictor predictor;
+    EXPECT_FALSE(predictor.getPredictedPlan({}, 0));
+}
+
+TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveExactMatch) {
+    mock::OutputLayer outputLayerOne;
+    mock::LayerFE layerFEOne;
+    OutputLayerCompositionState outputLayerCompositionStateOne;
+    LayerFECompositionState layerFECompositionStateOne;
+    layerFECompositionStateOne.compositionType = hal::Composition::DEVICE;
+    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+                       layerFECompositionStateOne);
+    LayerState layerStateOne(&outputLayerOne);
+
+    Plan plan;
+    plan.addLayerType(hal::Composition::DEVICE);
+
+    Predictor predictor;
+
+    NonBufferHash hash = getNonBufferHash({&layerStateOne});
+
+    predictor.recordResult(std::nullopt, hash, {&layerStateOne}, false, plan);
+
+    auto predictedPlan = predictor.getPredictedPlan({}, hash);
+    EXPECT_TRUE(predictedPlan);
+    Predictor::PredictedPlan expectedPlan{hash, plan, Prediction::Type::Exact};
+    EXPECT_EQ(expectedPlan, predictedPlan);
+}
+
+TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveApproximateMatch) {
+    mock::OutputLayer outputLayerOne;
+    mock::LayerFE layerFEOne;
+    OutputLayerCompositionState outputLayerCompositionStateOne{
+            .sourceCrop = sFloatRectOne,
+    };
+    LayerFECompositionState layerFECompositionStateOne;
+    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+                       layerFECompositionStateOne);
+    LayerState layerStateOne(&outputLayerOne);
+
+    mock::OutputLayer outputLayerTwo;
+    mock::LayerFE layerFETwo;
+    OutputLayerCompositionState outputLayerCompositionStateTwo{
+            .sourceCrop = sFloatRectTwo,
+    };
+    LayerFECompositionState layerFECompositionStateTwo;
+    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+                       layerFECompositionStateTwo);
+    LayerState layerStateTwo(&outputLayerTwo);
+
+    Plan plan;
+    plan.addLayerType(hal::Composition::DEVICE);
+
+    Predictor predictor;
+
+    NonBufferHash hashOne = getNonBufferHash({&layerStateOne});
+    NonBufferHash hashTwo = getNonBufferHash({&layerStateTwo});
+
+    predictor.recordResult(std::nullopt, hashOne, {&layerStateOne}, false, plan);
+
+    auto predictedPlan = predictor.getPredictedPlan({&layerStateTwo}, hashTwo);
+    EXPECT_TRUE(predictedPlan);
+    Predictor::PredictedPlan expectedPlan{hashOne, plan, Prediction::Type::Approximate};
+    EXPECT_EQ(expectedPlan, predictedPlan);
+}
+
+TEST_F(PredictorTest, recordMissedPlan_skipsApproximateMatch) {
+    mock::OutputLayer outputLayerOne;
+    mock::LayerFE layerFEOne;
+    OutputLayerCompositionState outputLayerCompositionStateOne{
+            .sourceCrop = sFloatRectOne,
+    };
+    LayerFECompositionState layerFECompositionStateOne;
+    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+                       layerFECompositionStateOne);
+    LayerState layerStateOne(&outputLayerOne);
+
+    mock::OutputLayer outputLayerTwo;
+    mock::LayerFE layerFETwo;
+    OutputLayerCompositionState outputLayerCompositionStateTwo{
+            .sourceCrop = sFloatRectTwo,
+    };
+    LayerFECompositionState layerFECompositionStateTwo;
+    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+                       layerFECompositionStateTwo);
+    LayerState layerStateTwo(&outputLayerTwo);
+
+    Plan plan;
+    plan.addLayerType(hal::Composition::DEVICE);
+
+    Predictor predictor;
+
+    NonBufferHash hashOne = getNonBufferHash({&layerStateOne});
+    NonBufferHash hashTwo = getNonBufferHash({&layerStateTwo});
+
+    predictor.recordResult(std::nullopt, hashOne, {&layerStateOne}, false, plan);
+
+    auto predictedPlan = predictor.getPredictedPlan({&layerStateTwo}, hashTwo);
+    ASSERT_TRUE(predictedPlan);
+    EXPECT_EQ(Prediction::Type::Approximate, predictedPlan->type);
+
+    Plan planTwo;
+    planTwo.addLayerType(hal::Composition::CLIENT);
+    predictor.recordResult(predictedPlan, hashTwo, {&layerStateTwo}, false, planTwo);
+    // Now trying to retrieve the predicted plan again returns a nullopt instead.
+    // TODO(b/158790260): Even though this is enforced in this test, we might want to reassess this.
+    // One of the implications around this implementation is that if we miss a prediction then we
+    // can never actually correct our mistake if we see the same layer stack again, which doesn't
+    // seem robust.
+    auto predictedPlanTwo = predictor.getPredictedPlan({&layerStateTwo}, hashTwo);
+    EXPECT_FALSE(predictedPlanTwo);
 }
 
 } // namespace
