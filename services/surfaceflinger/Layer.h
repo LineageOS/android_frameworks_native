@@ -214,8 +214,8 @@ public:
         bool modified;
 
         // Crop is expressed in layer space coordinate.
-        Rect crop_legacy;
-        Rect requestedCrop_legacy;
+        Rect crop;
+        Rect requestedCrop;
 
         // If set, defers this state update until the identified Layer
         // receives a frame with the given frameNumber
@@ -257,7 +257,6 @@ public:
         uint32_t bufferTransform;
         bool transformToDisplayInverse;
 
-        Rect crop;
         Region transparentRegionHint;
 
         sp<GraphicBuffer> buffer;
@@ -423,7 +422,7 @@ public:
     // space for top-level layers.
     virtual bool setPosition(float x, float y);
     // Buffer space
-    virtual bool setCrop_legacy(const Rect& crop);
+    virtual bool setCrop(const Rect& crop);
 
     // TODO(b/38182121): Could we eliminate the various latching modes by
     // using the layer hierarchy?
@@ -462,7 +461,6 @@ public:
     // Used only to set BufferStateLayer state
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
-    virtual bool setCrop(const Rect& /*crop*/) { return false; };
     virtual bool setFrame(const Rect& /*frame*/) { return false; };
     virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, const sp<Fence>& /*acquireFence*/,
                            nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
@@ -549,7 +547,7 @@ public:
     virtual Region getActiveTransparentRegion(const Layer::State& s) const {
         return s.activeTransparentRegion_legacy;
     }
-    virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
+    virtual Rect getCrop(const Layer::State& s) const { return s.crop; }
     virtual bool needsFiltering(const DisplayDevice*) const { return false; }
 
     // True if this layer requires filtering

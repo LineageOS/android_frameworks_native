@@ -36,7 +36,7 @@ protected:
         asTransaction([&](Transaction& t) {
             t.setDisplayLayerStack(display, 0);
             t.setLayer(mParentLayer, INT32_MAX - 2).show(mParentLayer);
-            t.setCrop_legacy(mChildLayer, Rect(0, 0, 400, 400)).show(mChildLayer);
+            t.setCrop(mChildLayer, Rect(0, 0, 400, 400)).show(mChildLayer);
             t.setPosition(mChildLayer, 50, 50);
             t.setFlags(mParentLayer, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
             t.setFlags(mChildLayer, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
@@ -58,7 +58,7 @@ TEST_F(MirrorLayerTest, MirrorColorLayer) {
             createColorLayer("Grandchild layer", Color::BLUE, mChildLayer.get());
     Transaction()
             .setFlags(grandchild, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque)
-            .setCrop_legacy(grandchild, Rect(0, 0, 200, 200))
+            .setCrop(grandchild, Rect(0, 0, 200, 200))
             .show(grandchild)
             .apply();
 

@@ -80,24 +80,23 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
             // recompute visible region
             mRecomputeVisibleRegions = true;
 
-            if (mFront.crop_legacy != mFront.requestedCrop_legacy) {
-                mFront.crop_legacy = mFront.requestedCrop_legacy;
-                mCurrent.crop_legacy = mFront.requestedCrop_legacy;
+            if (mFront.crop != mFront.requestedCrop) {
+                mFront.crop = mFront.requestedCrop;
+                mCurrent.crop = mFront.requestedCrop;
                 mRecomputeVisibleRegions = true;
             }
         }
 
         ALOGD_IF(DEBUG_RESIZE,
                  "[%s] latchBuffer/reject: buffer (%ux%u, tr=%02x), scalingMode=%d\n"
-                 "  drawing={ active_legacy   ={ wh={%4u,%4u} crop_legacy={%4d,%4d,%4d,%4d} "
+                 "  drawing={ active_legacy   ={ wh={%4u,%4u} crop={%4d,%4d,%4d,%4d} "
                  "(%4d,%4d) "
                  "}\n"
                  "            requested_legacy={ wh={%4u,%4u} }}\n",
                  mName.c_str(), bufWidth, bufHeight, item.mTransform, item.mScalingMode,
-                 mFront.active_legacy.w, mFront.active_legacy.h, mFront.crop_legacy.left,
-                 mFront.crop_legacy.top, mFront.crop_legacy.right, mFront.crop_legacy.bottom,
-                 mFront.crop_legacy.getWidth(), mFront.crop_legacy.getHeight(),
-                 mFront.requested_legacy.w, mFront.requested_legacy.h);
+                 mFront.active_legacy.w, mFront.active_legacy.h, mFront.crop.left, mFront.crop.top,
+                 mFront.crop.right, mFront.crop.bottom, mFront.crop.getWidth(),
+                 mFront.crop.getHeight(), mFront.requested_legacy.w, mFront.requested_legacy.h);
     }
 
     if (!isFixedSize && !mStickyTransformSet) {
