@@ -43,7 +43,7 @@ TEST_P(LayerTypeTransactionTest, SetRelativeZNegative) {
     sp<SurfaceControl> parent =
             LayerTransactionTest::createLayer("Parent", 0 /* buffer width */, 0 /* buffer height */,
                                               ISurfaceComposerClient::eFXSurfaceContainer);
-    Transaction().setCrop_legacy(parent, Rect(0, 0, mDisplayWidth, mDisplayHeight)).apply();
+    Transaction().setCrop(parent, Rect(0, 0, mDisplayWidth, mDisplayHeight)).apply();
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     sp<SurfaceControl> layerB;
@@ -84,8 +84,8 @@ TEST_P(LayerTypeTransactionTest, SetLayerAndRelative) {
             .setColor(parent, half3{0.0f, 0.0f, 0.0f})
             .show(childLayer)
             .show(parent)
-            .setCrop_legacy(parent, Rect(0, 0, mDisplayWidth, mDisplayHeight))
-            .setCrop_legacy(childLayer, Rect(0, 0, 20, 30))
+            .setCrop(parent, Rect(0, 0, mDisplayWidth, mDisplayHeight))
+            .setCrop(childLayer, Rect(0, 0, 20, 30))
             .apply();
 
     Transaction().setRelativeLayer(childLayer, parent, -1).setLayer(childLayer, 1).apply();

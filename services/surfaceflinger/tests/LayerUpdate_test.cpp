@@ -131,7 +131,7 @@ protected:
         asTransaction([&](Transaction& t) {
             t.setSize(mFGSurfaceControl, 64, 64);
             t.setPosition(mFGSurfaceControl, 64, 64);
-            t.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 64, 64));
+            t.setCrop(mFGSurfaceControl, Rect(0, 0, 64, 64));
         });
 
         EXPECT_INITIAL_STATE("After restoring initial state");
@@ -225,7 +225,7 @@ TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
                                                    PIXEL_FORMAT_RGBA_8888, 0, childNoBuffer.get());
     TransactionUtils::fillSurfaceRGBA8(childBuffer, 200, 200, 200);
     SurfaceComposerClient::Transaction{}
-            .setCrop_legacy(childNoBuffer, Rect(0, 0, 10, 10))
+            .setCrop(childNoBuffer, Rect(0, 0, 10, 10))
             .show(childNoBuffer)
             .show(childBuffer)
             .apply(true);
@@ -234,9 +234,7 @@ TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
         sc->expectChildColor(73, 73);
         sc->expectFGColor(74, 74);
     }
-    SurfaceComposerClient::Transaction{}
-            .setCrop_legacy(childNoBuffer, Rect(0, 0, 20, 20))
-            .apply(true);
+    SurfaceComposerClient::Transaction{}.setCrop(childNoBuffer, Rect(0, 0, 20, 20)).apply(true);
     {
         ScreenCapture::captureScreen(&sc);
         sc->expectChildColor(73, 73);
@@ -351,7 +349,7 @@ TEST_F(ChildLayerTest, ChildLayerCropping) {
         t.show(mChild);
         t.setPosition(mChild, 0, 0);
         t.setPosition(mFGSurfaceControl, 0, 0);
-        t.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 5, 5));
+        t.setCrop(mFGSurfaceControl, Rect(0, 0, 5, 5));
     });
 
     {
@@ -947,7 +945,7 @@ TEST_F(BoundlessLayerTest, BoundlessColorLayerFillsParentCropBounds) {
                           ISurfaceComposerClient::eFXSurfaceEffect, cropLayer.get());
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
-        t.setCrop_legacy(cropLayer, Rect(5, 5, 10, 10));
+        t.setCrop(cropLayer, Rect(5, 5, 10, 10));
         t.setColor(colorLayer, half3{0, 0, 0});
         t.show(cropLayer);
         t.show(colorLayer);
@@ -1007,7 +1005,7 @@ TEST_F(BoundlessLayerTest, IntermediateBoundlessLayerCanSetTransform) {
         t.show(boundlessLayerRightShift);
         t.setPosition(boundlessLayerDownShift, 0, 32);
         t.show(boundlessLayerDownShift);
-        t.setCrop_legacy(colorLayer, Rect(0, 0, 64, 64));
+        t.setCrop(colorLayer, Rect(0, 0, 64, 64));
         t.setColor(colorLayer, half3{0, 0, 0});
         t.show(colorLayer);
     });
@@ -1043,7 +1041,7 @@ TEST_F(BoundlessLayerTest, IntermediateBoundlessLayerDoNotCrop) {
         // expect the child layer to be cropped.
         t.setPosition(boundlessLayer, 32, 32);
         t.show(boundlessLayer);
-        t.setCrop_legacy(colorLayer, Rect(0, 0, 64, 64));
+        t.setCrop(colorLayer, Rect(0, 0, 64, 64));
         // undo shift by parent
         t.setPosition(colorLayer, -32, -32);
         t.setColor(colorLayer, half3{0, 0, 0});
@@ -1074,7 +1072,7 @@ TEST_F(BoundlessLayerTest, RootBoundlessLayerCanSetTransform) {
         t.setLayer(rootBoundlessLayer, INT32_MAX - 1);
         t.setPosition(rootBoundlessLayer, 32, 32);
         t.show(rootBoundlessLayer);
-        t.setCrop_legacy(colorLayer, Rect(0, 0, 64, 64));
+        t.setCrop(colorLayer, Rect(0, 0, 64, 64));
         t.setColor(colorLayer, half3{0, 0, 0});
         t.show(colorLayer);
         t.hide(mFGSurfaceControl);

@@ -89,7 +89,6 @@ public:
                    bool /*allowNonRectPreservingTransforms*/) override {
         return false;
     }
-    bool setCrop_legacy(const Rect& /*crop*/) override { return false; }
     void deferTransactionUntil_legacy(const sp<IBinder>& /*barrierHandle*/,
                                       uint64_t /*frameNumber*/) override {}
     void deferTransactionUntil_legacy(const sp<Layer>& /*barrierLayer*/,
