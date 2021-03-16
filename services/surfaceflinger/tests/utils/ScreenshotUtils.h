@@ -85,6 +85,7 @@ public:
 
     void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
         ASSERT_NE(nullptr, mOutBuffer);
+        ASSERT_NE(nullptr, mPixels);
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
         TransactionUtils::expectBufferColor(mOutBuffer, mPixels, rect, color, tolerance);
     }
