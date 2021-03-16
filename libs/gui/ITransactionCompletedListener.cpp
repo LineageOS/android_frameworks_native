@@ -17,9 +17,10 @@
 #define LOG_TAG "ITransactionCompletedListener"
 //#define LOG_NDEBUG 0
 
-#include <gui/LayerState.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ITransactionCompletedListener.h>
+#include <gui/LayerState.h>
+#include <private/gui/ParcelUtils.h>
 
 namespace android {
 

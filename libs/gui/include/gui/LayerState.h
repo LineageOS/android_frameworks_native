@@ -16,23 +16,7 @@
 
 #ifndef ANDROID_SF_LAYER_STATE_H
 #define ANDROID_SF_LAYER_STATE_H
-#define SAFE_PARCEL(FUNC, ...)                                                            \
-    {                                                                                     \
-        status_t error = FUNC(__VA_ARGS__);                                               \
-        if (error) {                                                                      \
-            ALOGE("ERROR(%d). Failed to call parcel %s(%s)", error, #FUNC, #__VA_ARGS__); \
-            return error;                                                                 \
-        }                                                                                 \
-    }
 
-#define SAFE_PARCEL_READ_SIZE(FUNC, COUNT, SIZE)                             \
-    {                                                                        \
-        SAFE_PARCEL(FUNC, COUNT);                                            \
-        if (static_cast<unsigned int>(*COUNT) > SIZE) {                      \
-            ALOGE("ERROR(BAD_VALUE). %s was greater than dataSize", #COUNT); \
-            return BAD_VALUE;                                                \
-        }                                                                    \
-    }
 
 #include <stdint.h>
 #include <sys/types.h>

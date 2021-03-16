@@ -23,6 +23,7 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
+#include <private/gui/ParcelUtils.h>
 #include <utils/Errors.h>
 
 #include <cmath>

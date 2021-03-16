@@ -39,6 +39,7 @@
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
+#include <private/gui/ParcelUtils.h>
 #include <ui/DisplayMode.h>
 #include <ui/DynamicDisplayInfo.h>
 
