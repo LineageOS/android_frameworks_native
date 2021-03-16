@@ -1093,10 +1093,6 @@ private:
     void dumpOffscreenLayers(std::string& result) EXCLUDES(mStateLock);
     void dumpPlannerInfo(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
 
-    bool isLayerTripleBufferingDisabled() const {
-        return this->mLayerTripleBufferingDisabled;
-    }
-
     status_t doDump(int fd, const DumpArgs& args, bool asProto);
 
     status_t dumpCritical(int fd, const DumpArgs&, bool asProto);
@@ -1249,9 +1245,6 @@ private:
     std::atomic<uint32_t> mGpuFrameMissedCount = 0;
 
     TransactionCallbackInvoker mTransactionCallbackInvoker;
-
-    // Restrict layers to use two buffers in their bufferqueues.
-    bool mLayerTripleBufferingDisabled = false;
 
     // these are thread safe
     std::unique_ptr<MessageQueue> mEventQueue;
