@@ -842,6 +842,8 @@ inline bool Iterate(Visitor* visitor, VkJsonDevice* device) {
   bool ret = true;
   switch (device->properties.apiVersion ^
           VK_VERSION_PATCH(device->properties.apiVersion)) {
+    case VK_API_VERSION_1_2:
+      FALLTHROUGH_INTENDED;
     case VK_API_VERSION_1_1:
       ret &=
           visitor->Visit("subgroupProperties", &device->subgroup_properties) &&
@@ -896,6 +898,8 @@ template <typename Visitor>
 inline bool Iterate(Visitor* visitor, VkJsonInstance* instance) {
   bool ret = true;
   switch (instance->api_version ^ VK_VERSION_PATCH(instance->api_version)) {
+    case VK_API_VERSION_1_2:
+      FALLTHROUGH_INTENDED;
     case VK_API_VERSION_1_1:
       ret &= visitor->Visit("deviceGroups", &instance->device_groups);
       FALLTHROUGH_INTENDED;
