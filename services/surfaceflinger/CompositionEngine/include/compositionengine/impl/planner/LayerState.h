@@ -278,8 +278,8 @@ private:
                            }};
 
     using DataspaceState = OutputLayerState<ui::Dataspace, LayerStateField::Dataspace>;
-    DataspaceState mDataspace{[](auto layer) { return layer->getState().dataspace; },
-                              DataspaceState::getHalToStrings()};
+    DataspaceState mOutputDataspace{[](auto layer) { return layer->getState().dataspace; },
+                                    DataspaceState::getHalToStrings()};
 
     // TODO(b/180638831): Buffer format
 
@@ -341,7 +341,7 @@ private:
     std::array<const StateInterface*, 13> getNonUniqueFields() const {
         return {
                 &mDisplayFrame,   &mSourceCrop,      &mZOrder,         &mBufferTransform,
-                &mBlendMode,      &mAlpha,           &mVisibleRegion,  &mDataspace,
+                &mBlendMode,      &mAlpha,           &mVisibleRegion,  &mOutputDataspace,
                 &mColorTransform, &mCompositionType, &mSidebandStream, &mBuffer,
                 &mSolidColor,
         };

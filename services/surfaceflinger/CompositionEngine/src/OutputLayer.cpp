@@ -681,6 +681,7 @@ std::vector<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionList() co
                                               .buffer = getState().overrideInfo.buffer,
                                               .fence = getState().overrideInfo.acquireFence,
                                       }};
+    settings.sourceDataspace = getState().overrideInfo.dataspace;
     settings.alpha = 1.0f;
 
     return {static_cast<LayerFE::LayerSettings>(settings)};

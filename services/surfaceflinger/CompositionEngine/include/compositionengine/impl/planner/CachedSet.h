@@ -62,6 +62,7 @@ public:
     size_t getAge() const { return mAge; }
     const sp<GraphicBuffer>& getBuffer() const { return mTexture.getBuffer(); }
     const sp<Fence>& getDrawFence() const { return mDrawFence; }
+    ui::Dataspace getOutputDataspace() const { return mOutputDataspace; }
 
     NonBufferHash getNonBufferHash() const;
 
@@ -80,6 +81,7 @@ public:
     void setLastUpdate(std::chrono::steady_clock::time_point now) { mLastUpdate = now; }
     void append(const CachedSet& other) {
         mTexture.setBuffer(nullptr, nullptr);
+        mOutputDataspace = ui::Dataspace::UNKNOWN;
         mDrawFence = nullptr;
 
         mLayers.insert(mLayers.end(), other.mLayers.cbegin(), other.mLayers.cend());
@@ -90,7 +92,8 @@ public:
     }
     void incrementAge() { ++mAge; }
 
-    void render(renderengine::RenderEngine&);
+    // Renders the cached set with the supplied output dataspace.
+    void render(renderengine::RenderEngine&, ui::Dataspace outputDataspace);
 
     void dump(std::string& result) const;
 
@@ -129,6 +132,7 @@ private:
 
     Texture mTexture;
     sp<Fence> mDrawFence;
+    ui::Dataspace mOutputDataspace;
 
     static const bool sDebugHighlighLayers;
 };
