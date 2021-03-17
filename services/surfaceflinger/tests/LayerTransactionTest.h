@@ -298,7 +298,7 @@ private:
         // set layer stack (b/68888219)
         Transaction t;
         t.setDisplayLayerStack(mDisplay, mDisplayLayerStack);
-        t.setCrop_legacy(mBlackBgSurface, Rect(0, 0, mDisplayWidth, mDisplayHeight));
+        t.setCrop(mBlackBgSurface, Rect(0, 0, mDisplayWidth, mDisplayHeight));
         t.setLayerStack(mBlackBgSurface, mDisplayLayerStack);
         t.setColor(mBlackBgSurface, half3{0, 0, 0});
         t.setLayer(mBlackBgSurface, mLayerZBase);
