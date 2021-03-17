@@ -37,13 +37,14 @@
 
 // #define LOG_NDEBUG 0
 #include <android-base/file.h>
-#include <android-base/strings.h>
 #include <android-base/stringprintf.h>
+#include <android-base/strings.h>
 #include <cutils/properties.h>
 #include <input/KeyCharacterMap.h>
 #include <input/KeyLayoutMap.h>
 #include <input/VirtualKeyMap.h>
 #include <openssl/sha.h>
+#include <statslog.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
@@ -1461,7 +1462,7 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
             for (auto it = mUnattachedVideoDevices.begin(); it != mUnattachedVideoDevices.end();
                  it++) {
                 std::unique_ptr<TouchVideoDevice>& videoDevice = *it;
-                if (tryAddVideoDevice(*device, videoDevice)) {
+                if (tryAddVideoDeviceLocked(*device, videoDevice)) {
                     // videoDevice was transferred to 'device'
                     it = mUnattachedVideoDevices.erase(it);
                     break;
@@ -1771,6 +1772,13 @@ void EventHub::unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& vide
     }
 }
 
+void EventHub::reportDeviceAddedForStatisticsLocked(const InputDeviceIdentifier& identifier,
+                                                    Flags<InputDeviceClass> classes) {
+    android::util::stats_write(android::util::INPUTDEVICE_REGISTERED, identifier.name.c_str(),
+                               identifier.vendor, identifier.product, identifier.version,
+                               identifier.bus, identifier.uniqueId.c_str(), classes.get());
+}
+
 void EventHub::openDeviceLocked(const std::string& devicePath) {
     // If an input device happens to register around the time when EventHub's constructor runs, it
     // is possible that the same input event node (for example, /dev/input/event3) will be noticed
@@ -2076,7 +2084,7 @@ void EventHub::openVideoDeviceLocked(const std::string& devicePath) {
     }
     // Transfer ownership of this video device to a matching input device
     for (const auto& [id, device] : mDevices) {
-        if (tryAddVideoDevice(*device, videoDevice)) {
+        if (tryAddVideoDeviceLocked(*device, videoDevice)) {
             return; // 'device' now owns 'videoDevice'
         }
     }
@@ -2088,8 +2096,8 @@ void EventHub::openVideoDeviceLocked(const std::string& devicePath) {
     mUnattachedVideoDevices.push_back(std::move(videoDevice));
 }
 
-bool EventHub::tryAddVideoDevice(EventHub::Device& device,
-                                 std::unique_ptr<TouchVideoDevice>& videoDevice) {
+bool EventHub::tryAddVideoDeviceLocked(EventHub::Device& device,
+                                       std::unique_ptr<TouchVideoDevice>& videoDevice) {
     if (videoDevice->getName() != device.identifier.name) {
         return false;
     }
@@ -2163,6 +2171,7 @@ void EventHub::createVirtualKeyboardLocked() {
 }
 
 void EventHub::addDeviceLocked(std::unique_ptr<Device> device) {
+    reportDeviceAddedForStatisticsLocked(device->identifier, device->classes);
     mOpeningDevices.push_back(std::move(device));
 }
 

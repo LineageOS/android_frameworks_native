@@ -570,8 +570,8 @@ private:
     /**
      * Create a new device for the provided path.
      */
-    void openDeviceLocked(const std::string& devicePath);
-    void openVideoDeviceLocked(const std::string& devicePath);
+    void openDeviceLocked(const std::string& devicePath) REQUIRES(mLock);
+    void openVideoDeviceLocked(const std::string& devicePath) REQUIRES(mLock);
     /**
      * Try to associate a video device with an input device. If the association succeeds,
      * the videoDevice is moved into the input device. 'videoDevice' will become null if this
@@ -579,39 +579,42 @@ private:
      * Return true if the association succeeds.
      * Return false otherwise.
      */
-    bool tryAddVideoDevice(Device& device, std::unique_ptr<TouchVideoDevice>& videoDevice);
-    void createVirtualKeyboardLocked();
-    void addDeviceLocked(std::unique_ptr<Device> device);
-    void assignDescriptorLocked(InputDeviceIdentifier& identifier);
+    bool tryAddVideoDeviceLocked(Device& device, std::unique_ptr<TouchVideoDevice>& videoDevice)
+            REQUIRES(mLock);
+    void createVirtualKeyboardLocked() REQUIRES(mLock);
+    void addDeviceLocked(std::unique_ptr<Device> device) REQUIRES(mLock);
+    void assignDescriptorLocked(InputDeviceIdentifier& identifier) REQUIRES(mLock);
 
-    void closeDeviceByPathLocked(const std::string& devicePath);
-    void closeVideoDeviceByPathLocked(const std::string& devicePath);
-    void closeDeviceLocked(Device& device);
-    void closeAllDevicesLocked();
+    void closeDeviceByPathLocked(const std::string& devicePath) REQUIRES(mLock);
+    void closeVideoDeviceByPathLocked(const std::string& devicePath) REQUIRES(mLock);
+    void closeDeviceLocked(Device& device) REQUIRES(mLock);
+    void closeAllDevicesLocked() REQUIRES(mLock);
 
     status_t registerFdForEpoll(int fd);
     status_t unregisterFdFromEpoll(int fd);
-    status_t registerDeviceForEpollLocked(Device& device);
-    void registerVideoDeviceForEpollLocked(const TouchVideoDevice& videoDevice);
-    status_t unregisterDeviceFromEpollLocked(Device& device);
-    void unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& videoDevice);
+    status_t registerDeviceForEpollLocked(Device& device) REQUIRES(mLock);
+    void registerVideoDeviceForEpollLocked(const TouchVideoDevice& videoDevice) REQUIRES(mLock);
+    status_t unregisterDeviceFromEpollLocked(Device& device) REQUIRES(mLock);
+    void unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& videoDevice) REQUIRES(mLock);
 
-    status_t scanDirLocked(const std::string& dirname);
-    status_t scanVideoDirLocked(const std::string& dirname);
-    void scanDevicesLocked();
-    status_t readNotifyLocked();
+    status_t scanDirLocked(const std::string& dirname) REQUIRES(mLock);
+    status_t scanVideoDirLocked(const std::string& dirname) REQUIRES(mLock);
+    void scanDevicesLocked() REQUIRES(mLock);
+    status_t readNotifyLocked() REQUIRES(mLock);
 
-    Device* getDeviceByDescriptorLocked(const std::string& descriptor) const;
-    Device* getDeviceLocked(int32_t deviceId) const;
-    Device* getDeviceByPathLocked(const std::string& devicePath) const;
+    Device* getDeviceByDescriptorLocked(const std::string& descriptor) const REQUIRES(mLock);
+    Device* getDeviceLocked(int32_t deviceId) const REQUIRES(mLock);
+    Device* getDeviceByPathLocked(const std::string& devicePath) const REQUIRES(mLock);
     /**
      * Look through all available fd's (both for input devices and for video devices),
      * and return the device pointer.
      */
-    Device* getDeviceByFdLocked(int fd) const;
+    Device* getDeviceByFdLocked(int fd) const REQUIRES(mLock);
 
-    int32_t getNextControllerNumberLocked(const std::string& name);
-    void releaseControllerNumberLocked(int32_t num);
+    int32_t getNextControllerNumberLocked(const std::string& name) REQUIRES(mLock);
+    void releaseControllerNumberLocked(int32_t num) REQUIRES(mLock);
+    void reportDeviceAddedForStatisticsLocked(const InputDeviceIdentifier& identifier,
+                                              Flags<InputDeviceClass> classes) REQUIRES(mLock);
 
     // Protect all internal state.
     mutable std::mutex mLock;
