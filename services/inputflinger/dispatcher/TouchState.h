@@ -41,11 +41,6 @@ struct TouchState {
 
     std::vector<TouchedMonitor> gestureMonitors;
 
-    // The last drag hover window which could receive the drag event.
-    sp<InputWindowHandle> dragHoverWindowHandle;
-    // The window being dragged.
-    sp<InputWindowHandle> dragWindow;
-
     TouchState();
     ~TouchState();
     void reset();
