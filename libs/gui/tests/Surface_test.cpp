@@ -811,7 +811,7 @@ public:
         return NO_ERROR;
     }
     status_t setDisplayBrightness(const sp<IBinder>& /*displayToken*/,
-                                  float /*brightness*/) override {
+                                  const gui::DisplayBrightness& /*brightness*/) override {
         return NO_ERROR;
     }
 

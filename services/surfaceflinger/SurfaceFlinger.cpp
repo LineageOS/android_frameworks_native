@@ -1462,14 +1462,16 @@ status_t SurfaceFlinger::getDisplayBrightnessSupport(const sp<IBinder>& displayT
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) {
+status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
+                                              const gui::DisplayBrightness& brightness) {
     if (!displayToken) {
         return BAD_VALUE;
     }
 
     return ftl::chain(schedule([=]() MAIN_THREAD {
                if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
-                   return getHwComposer().setDisplayBrightness(*displayId, brightness);
+                   return getHwComposer().setDisplayBrightness(*displayId,
+                                                               brightness.displayBrightness);
                } else {
                    ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
                    return ftl::yield<status_t>(NAME_NOT_FOUND);
