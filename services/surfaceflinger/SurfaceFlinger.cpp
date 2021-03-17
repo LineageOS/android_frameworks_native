@@ -914,11 +914,6 @@ status_t SurfaceFlinger::getDynamicDisplayInfo(const sp<IBinder>& displayToken,
     }
 
     info->activeDisplayModeId = static_cast<int32_t>(display->getActiveMode()->getId().value());
-    if (display->isPrimary()) {
-        if (const auto mode = getDesiredActiveMode()) {
-            info->activeDisplayModeId = static_cast<int32_t>(mode->modeId.value());
-        }
-    }
 
     const auto& supportedModes = display->getSupportedModes();
     info->supportedDisplayModes.clear();
@@ -3853,9 +3848,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eFlagsChanged) {
         if (layer->setFlags(s.flags, s.mask))
             flags |= eTraversalNeeded;
-    }
-    if (what & layer_state_t::eCropChanged_legacy) {
-        if (layer->setCrop_legacy(s.crop_legacy)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eCornerRadiusChanged) {
         if (layer->setCornerRadius(s.cornerRadius))

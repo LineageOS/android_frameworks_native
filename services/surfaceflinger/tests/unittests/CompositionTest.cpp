@@ -884,7 +884,7 @@ struct EffectLayerVariant : public BaseLayerVariant<LayerProperties> {
         });
 
         auto& layerDrawingState = test->mFlinger.mutableLayerDrawingState(layer);
-        layerDrawingState.crop_legacy = Rect(0, 0, LayerProperties::HEIGHT, LayerProperties::WIDTH);
+        layerDrawingState.crop = Rect(0, 0, LayerProperties::HEIGHT, LayerProperties::WIDTH);
         return layer;
     }
 
