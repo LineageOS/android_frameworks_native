@@ -1324,7 +1324,7 @@ protected:
         {
             TransactionScope ts(*sFakeComposer);
             Rect cropRect(16, 16, 32, 32);
-            ts.setCrop_legacy(mFGSurfaceControl, cropRect);
+            ts.setCrop(mFGSurfaceControl, cropRect);
         }
         ASSERT_EQ(2, sFakeComposer->getFrameCount());
 
@@ -1692,7 +1692,7 @@ protected:
             ts.show(mChild);
             ts.setPosition(mChild, 0, 0);
             ts.setPosition(Base::mFGSurfaceControl, 0, 0);
-            ts.setCrop_legacy(Base::mFGSurfaceControl, Rect(0, 0, 5, 5));
+            ts.setCrop(Base::mFGSurfaceControl, Rect(0, 0, 5, 5));
         }
         // NOTE: The foreground surface would be occluded by the child
         // now, but is included in the stack because the child is
@@ -1915,7 +1915,7 @@ protected:
             TransactionScope ts(*Base::sFakeComposer);
             ts.setColor(Base::mChild,
                         {LIGHT_GRAY.r / 255.0f, LIGHT_GRAY.g / 255.0f, LIGHT_GRAY.b / 255.0f});
-            ts.setCrop_legacy(Base::mChild, Rect(0, 0, 10, 10));
+            ts.setCrop(Base::mChild, Rect(0, 0, 10, 10));
         }
 
         Base::sFakeComposer->runVSyncAndWait();
@@ -2010,7 +2010,7 @@ protected:
         TransactionScope ts(*Base::sFakeComposer);
         ts.setSize(Base::mFGSurfaceControl, 64, 64);
         ts.setPosition(Base::mFGSurfaceControl, 64, 64);
-        ts.setCrop_legacy(Base::mFGSurfaceControl, Rect(0, 0, 64, 64));
+        ts.setCrop(Base::mFGSurfaceControl, Rect(0, 0, 64, 64));
     }
 
     void Test_SurfacePositionLatching() {
@@ -2043,7 +2043,7 @@ protected:
         {
             TransactionScope ts(*Base::sFakeComposer);
             ts.setSize(Base::mFGSurfaceControl, 128, 128);
-            ts.setCrop_legacy(Base::mFGSurfaceControl, Rect(0, 0, 63, 63));
+            ts.setCrop(Base::mFGSurfaceControl, Rect(0, 0, 63, 63));
         }
 
         auto referenceFrame1 = Base::mBaseFrame;

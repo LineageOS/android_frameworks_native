@@ -370,7 +370,7 @@ void SurfaceInterceptorTest::layerUpdate(Transaction& t) {
 }
 
 void SurfaceInterceptorTest::cropUpdate(Transaction& t) {
-    t.setCrop_legacy(mBGSurfaceControl, CROP_UPDATE);
+    t.setCrop(mBGSurfaceControl, CROP_UPDATE);
 }
 
 void SurfaceInterceptorTest::matrixUpdate(Transaction& t) {

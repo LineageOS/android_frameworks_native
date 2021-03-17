@@ -55,7 +55,7 @@ TEST_F(EffectLayerTest, DefaultEffectLayerHasSolidBlackFill) {
 
     EXPECT_NE(nullptr, effectLayer.get()) << "failed to create SurfaceControl";
     asTransaction([&](Transaction& t) {
-        t.setCrop_legacy(effectLayer, Rect(0, 0, 400, 400));
+        t.setCrop(effectLayer, Rect(0, 0, 400, 400));
         t.show(effectLayer);
     });
 
@@ -76,7 +76,7 @@ TEST_F(EffectLayerTest, EffectLayerWithNoFill) {
 
     EXPECT_NE(nullptr, effectLayer.get()) << "failed to create SurfaceControl";
     asTransaction([&](Transaction& t) {
-        t.setCrop_legacy(effectLayer, Rect(0, 0, 400, 400));
+        t.setCrop(effectLayer, Rect(0, 0, 400, 400));
         t.show(effectLayer);
     });
 
@@ -97,7 +97,7 @@ TEST_F(EffectLayerTest, EffectLayerCanSetColor) {
 
     EXPECT_NE(nullptr, effectLayer.get()) << "failed to create SurfaceControl";
     asTransaction([&](Transaction& t) {
-        t.setCrop_legacy(effectLayer, Rect(0, 0, 400, 400));
+        t.setCrop(effectLayer, Rect(0, 0, 400, 400));
         t.setColor(effectLayer,
                    half3{Color::GREEN.r / 255.0f, Color::GREEN.g / 255.0f,
                          Color::GREEN.b / 255.0f});
@@ -127,10 +127,10 @@ TEST_F(EffectLayerTest, BlurEffectLayerIsVisible) {
     asTransaction([&](Transaction& t) {
         t.setLayer(leftLayer, mLayerZBase + 1);
         t.reparent(leftLayer, mParentLayer);
-        t.setCrop_legacy(leftLayer, leftRect);
+        t.setCrop(leftLayer, leftRect);
         t.setLayer(rightLayer, mLayerZBase + 2);
         t.reparent(rightLayer, mParentLayer);
-        t.setCrop_legacy(rightLayer, rightRect);
+        t.setCrop(rightLayer, rightRect);
         t.show(leftLayer);
         t.show(rightLayer);
     });
@@ -148,7 +148,7 @@ TEST_F(EffectLayerTest, BlurEffectLayerIsVisible) {
         t.setLayer(blurLayer, mLayerZBase + 3);
         t.reparent(blurLayer, mParentLayer);
         t.setBackgroundBlurRadius(blurLayer, blurRadius);
-        t.setCrop_legacy(blurLayer, blurRect);
+        t.setCrop(blurLayer, blurRect);
         t.setFrame(blurLayer, blurRect);
         t.setAlpha(blurLayer, 0.0f);
         t.show(blurLayer);

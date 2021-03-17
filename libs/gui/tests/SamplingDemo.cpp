@@ -46,8 +46,7 @@ public:
 
         SurfaceComposerClient::Transaction{}
                 .setLayer(mButton, 0x7fffffff)
-                .setCrop_legacy(mButton,
-                                {0, 0, width - 2 * BUTTON_PADDING, height - 2 * BUTTON_PADDING})
+                .setCrop(mButton, {0, 0, width - 2 * BUTTON_PADDING, height - 2 * BUTTON_PADDING})
                 .setPosition(mButton, samplingArea.left + BUTTON_PADDING,
                              samplingArea.top + BUTTON_PADDING)
                 .setColor(mButton, half3{1, 1, 1})
@@ -59,9 +58,8 @@ public:
 
         SurfaceComposerClient::Transaction{}
                 .setLayer(mButtonBlend, 0x7ffffffe)
-                .setCrop_legacy(mButtonBlend,
-                                {0, 0, width - 2 * SAMPLE_AREA_PADDING,
-                                 height - 2 * SAMPLE_AREA_PADDING})
+                .setCrop(mButtonBlend,
+                         {0, 0, width - 2 * SAMPLE_AREA_PADDING, height - 2 * SAMPLE_AREA_PADDING})
                 .setPosition(mButtonBlend, samplingArea.left + SAMPLE_AREA_PADDING,
                              samplingArea.top + SAMPLE_AREA_PADDING)
                 .setColor(mButtonBlend, half3{1, 1, 1})
@@ -77,7 +75,7 @@ public:
 
             SurfaceComposerClient::Transaction{}
                     .setLayer(mSamplingArea, 0x7ffffffd)
-                    .setCrop_legacy(mSamplingArea, {0, 0, 100, 32})
+                    .setCrop(mSamplingArea, {0, 0, 100, 32})
                     .setPosition(mSamplingArea, 490, 1606)
                     .setColor(mSamplingArea, half3{0, 1, 0})
                     .setAlpha(mSamplingArea, 0.1)
