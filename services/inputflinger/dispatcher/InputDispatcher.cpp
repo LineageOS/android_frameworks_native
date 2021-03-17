@@ -58,6 +58,7 @@ static constexpr bool DEBUG_FOCUS = false;
 #include <sstream>
 
 #include <android-base/chrono_utils.h>
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <binder/Binder.h>
 #include <input/InputDevice.h>
@@ -72,13 +73,14 @@ static constexpr bool DEBUG_FOCUS = false;
 #define INDENT3 "      "
 #define INDENT4 "        "
 
+using android::base::HwTimeoutMultiplier;
 using android::base::StringPrintf;
 
 namespace android::inputdispatcher {
 
 // Default input dispatching timeout if there is no focused application or paused window
 // from which to determine an appropriate dispatching timeout.
-constexpr std::chrono::nanoseconds DEFAULT_INPUT_DISPATCHING_TIMEOUT = 5s;
+const std::chrono::nanoseconds DEFAULT_INPUT_DISPATCHING_TIMEOUT = 5s * HwTimeoutMultiplier();
 
 // Amount of time to allow for all pending events to be processed when an app switch
 // key is on the way.  This is used to preempt input dispatch and drop input events
