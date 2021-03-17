@@ -62,7 +62,7 @@ using hardware::atrace::V1_0::toString;
 
 using std::string;
 
-#define MAX_SYS_FILES 11
+#define MAX_SYS_FILES 12
 
 const char* k_traceTagsProperty = "debug.atrace.tags.enableflags";
 const char* k_userInitiatedTraceProperty = "debug.atrace.user_initiated";
@@ -175,6 +175,7 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/power/suspend_resume/enable" },
         { OPT,      "events/cpuhp/cpuhp_enter/enable" },
         { OPT,      "events/cpuhp/cpuhp_exit/enable" },
+        { OPT,      "events/cpuhp/cpuhp_pause/enable" },
     } },
     { "membus",     "Memory Bus Utilization", 0, {
         { REQ,      "events/memory_bus/enable" },
