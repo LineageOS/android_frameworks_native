@@ -1984,7 +1984,7 @@ bool SurfaceComposerClient::getDisplayBrightnessSupport(const sp<IBinder>& displ
 }
 
 status_t SurfaceComposerClient::setDisplayBrightness(const sp<IBinder>& displayToken,
-                                                     float brightness) {
+                                                     const gui::DisplayBrightness& brightness) {
     return ComposerService::getComposerService()->setDisplayBrightness(displayToken, brightness);
 }
 
