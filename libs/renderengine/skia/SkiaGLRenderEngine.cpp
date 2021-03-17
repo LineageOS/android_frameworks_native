@@ -651,9 +651,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     if (mBlurFilter) {
         bool requiresCompositionLayer = false;
         for (const auto& layer : layers) {
-            if (layer->backgroundBlurRadius > 0) {
-                // when skbug.com/11208 and b/176903027 are resolved we can add the additional
-                // restriction for layer->backgroundBlurRadius < BlurFilter::kMaxCrossFadeRadius
+            if (layer->backgroundBlurRadius > 0 &&
+                layer->backgroundBlurRadius < BlurFilter::kMaxCrossFadeRadius) {
                 requiresCompositionLayer = true;
             }
             for (auto region : layer->blurRegions) {

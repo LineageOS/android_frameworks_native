@@ -24,16 +24,28 @@ class LayerStack {
 public:
     LayerStack(const std::vector<const LayerState*>& layers) : mLayers(copyLayers(layers)) {}
 
+    // Describes an approximate match between two layer stacks
     struct ApproximateMatch {
         bool operator==(const ApproximateMatch& other) const {
             return differingIndex == other.differingIndex &&
                     differingFields == other.differingFields;
         }
 
+        // The index of the single differing layer between the two stacks.
+        // This implies that only one layer is allowed to differ in an approximate match.
         size_t differingIndex;
+        // Set of fields that differ for the differing layer in the approximate match.
         Flags<LayerStateField> differingFields;
     };
 
+    // Returns an approximate match when comparing this layer stack with the provided list of
+    // layers, for the purposes of scoring how closely the two layer stacks will match composition
+    // strategies.
+    //
+    // If the two layer stacks are identical, then an approximate match is still returned, but the
+    // differing fields will be empty to represent an exact match.
+    //
+    // If the two layer stacks differ by too much, then an empty optional is returned.
     std::optional<ApproximateMatch> getApproximateMatch(
             const std::vector<const LayerState*>& other) const;
 
@@ -108,6 +120,10 @@ public:
     }
     friend bool operator!=(const Plan& lhs, const Plan& rhs) { return !(lhs == rhs); }
 
+    friend std::ostream& operator<<(std::ostream& os, const Plan& plan) {
+        return os << to_string(plan);
+    }
+
 private:
     std::vector<hardware::graphics::composer::hal::Composition> mLayerTypes;
 };
@@ -144,6 +160,10 @@ public:
             case Type::Total:
                 return "Total";
         }
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const Type& type) {
+        return os << to_string(type);
     }
 
     Prediction(const std::vector<const LayerState*>& layers, Plan plan)
@@ -205,11 +225,25 @@ public:
         NonBufferHash hash;
         Plan plan;
         Prediction::Type type;
+
+        friend bool operator==(const PredictedPlan& lhs, const PredictedPlan& rhs) {
+            return lhs.hash == rhs.hash && lhs.plan == rhs.plan && lhs.type == rhs.type;
+        }
     };
 
-    std::optional<PredictedPlan> getPredictedPlan(const std::vector<const LayerState*>&,
-                                                  NonBufferHash) const;
+    // Retrieves the predicted plan based on a layer stack alongside its hash.
+    //
+    // If the exact layer stack has previously been seen by the predictor, then report the plan used
+    // for that layer stack.
+    //
+    // Otherwise, try to match to the best approximate stack to retireve the most likely plan.
+    std::optional<PredictedPlan> getPredictedPlan(const std::vector<const LayerState*>& layers,
+                                                  NonBufferHash hash) const;
 
+    // Records a comparison between the predicted plan and the resulting plan, alongside the layer
+    // stack we used.
+    //
+    // This method is intended to help with scoring how effective the prediction engine is.
     void recordResult(std::optional<PredictedPlan> predictedPlan, NonBufferHash flattenedHash,
                       const std::vector<const LayerState*>&, bool hasSkippedLayers, Plan result);
 
@@ -274,5 +308,14 @@ private:
     mutable size_t mApproximateHitCount = 0;
     mutable size_t mMissCount = 0;
 };
+
+// Defining PrintTo helps with Google Tests.
+inline void PrintTo(Predictor::PredictedPlan plan, ::std::ostream* os) {
+    *os << "PredictedPlan {";
+    *os << "\n    .hash = " << plan.hash;
+    *os << "\n    .plan = " << plan.plan;
+    *os << "\n    .type = " << plan.type;
+    *os << "\n}";
+}
 
 } // namespace android::compositionengine::impl::planner

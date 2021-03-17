@@ -41,7 +41,6 @@ layer_state_t::layer_state_t()
         flags(0),
         mask(0),
         reserved(0),
-        crop_legacy(Rect::INVALID_RECT),
         cornerRadius(0.0f),
         backgroundBlurRadius(0),
         barrierFrameNumber(0),
@@ -85,7 +84,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeUint32, flags);
     SAFE_PARCEL(output.writeUint32, mask);
     SAFE_PARCEL(matrix.write, output);
-    SAFE_PARCEL(output.write, crop_legacy);
+    SAFE_PARCEL(output.write, crop);
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, barrierSurfaceControl_legacy);
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, reparentSurfaceControl);
     SAFE_PARCEL(output.writeUint64, barrierFrameNumber);
@@ -191,7 +190,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &mask);
 
     SAFE_PARCEL(matrix.read, input);
-    SAFE_PARCEL(input.read, crop_legacy);
+    SAFE_PARCEL(input.read, crop);
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &barrierSurfaceControl_legacy);
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &reparentSurfaceControl);
     SAFE_PARCEL(input.readUint64, &barrierFrameNumber);
@@ -406,10 +405,6 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eLayerStackChanged) {
         what |= eLayerStackChanged;
         layerStack = other.layerStack;
-    }
-    if (other.what & eCropChanged_legacy) {
-        what |= eCropChanged_legacy;
-        crop_legacy = other.crop_legacy;
     }
     if (other.what & eCornerRadiusChanged) {
         what |= eCornerRadiusChanged;

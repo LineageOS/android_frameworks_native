@@ -458,7 +458,7 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
     ASSERT_NE(nullptr, bg.get());
     Transaction t;
     t.setLayerStack(bg, 0)
-            .setCrop_legacy(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
+            .setCrop(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
             .setColor(bg, half3{0, 0, 0})
             .setLayer(bg, 0)
             .apply();

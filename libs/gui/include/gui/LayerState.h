@@ -98,7 +98,7 @@ struct layer_state_t {
         eTransparentRegionChanged = 0x00000020,
         eFlagsChanged = 0x00000040,
         eLayerStackChanged = 0x00000080,
-        eCropChanged_legacy = 0x00000100,
+        /* was eCropChanged_legacy, now available 0x00000100, */
         eDeferTransaction_legacy = 0x00000200,
         /* was ScalingModeChanged, now available 0x00000400, */
         eShadowRadiusChanged = 0x00000800,
@@ -167,7 +167,6 @@ struct layer_state_t {
     uint32_t mask;
     uint8_t reserved;
     matrix22_t matrix;
-    Rect crop_legacy;
     float cornerRadius;
     uint32_t backgroundBlurRadius;
     sp<SurfaceControl> barrierSurfaceControl_legacy;

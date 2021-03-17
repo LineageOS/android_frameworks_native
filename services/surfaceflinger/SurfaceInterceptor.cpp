@@ -137,7 +137,7 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
     addTransparentRegionLocked(transaction, layerId,
                                layer->mCurrentState.activeTransparentRegion_legacy);
     addLayerStackLocked(transaction, layerId, layer->mCurrentState.layerStack);
-    addCropLocked(transaction, layerId, layer->mCurrentState.crop_legacy);
+    addCropLocked(transaction, layerId, layer->mCurrentState.crop);
     addCornerRadiusLocked(transaction, layerId, layer->mCurrentState.cornerRadius);
     addBackgroundBlurRadiusLocked(transaction, layerId, layer->mCurrentState.backgroundBlurRadius);
     addBlurRegionsLocked(transaction, layerId, layer->mCurrentState.blurRegions);
@@ -459,8 +459,8 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     if (state.what & layer_state_t::eLayerStackChanged) {
         addLayerStackLocked(transaction, layerId, state.layerStack);
     }
-    if (state.what & layer_state_t::eCropChanged_legacy) {
-        addCropLocked(transaction, layerId, state.crop_legacy);
+    if (state.what & layer_state_t::eCropChanged) {
+        addCropLocked(transaction, layerId, state.crop);
     }
     if (state.what & layer_state_t::eCornerRadiusChanged) {
         addCornerRadiusLocked(transaction, layerId, state.cornerRadius);
