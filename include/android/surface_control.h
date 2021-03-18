@@ -467,3 +467,5 @@ void ASurfaceTransaction_setFrameRateWithSeamlessness(ASurfaceTransaction* trans
 __END_DECLS
 
 #endif // ANDROID_SURFACE_CONTROL_H
+
+/** @} */
