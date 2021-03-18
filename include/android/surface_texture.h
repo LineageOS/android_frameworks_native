@@ -176,3 +176,5 @@ int64_t ASurfaceTexture_getTimestamp(ASurfaceTexture* st) __INTRODUCED_IN(28);
 __END_DECLS
 
 #endif /* ANDROID_NATIVE_SURFACE_TEXTURE_H */
+
+/** @} */
