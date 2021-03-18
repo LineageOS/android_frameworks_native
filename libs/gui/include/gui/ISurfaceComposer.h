@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android/gui/DisplayBrightness.h>
 #include <android/gui/IFpsListener.h>
 #include <android/gui/IScreenCaptureListener.h>
 #include <android/gui/ITransactionTraceListener.h>
@@ -415,15 +416,15 @@ public:
      * displayToken
      *      The token of the display whose brightness is set.
      * brightness
-     *      A number between 0.0f (minimum brightness) and 1.0 (maximum brightness), or -1.0f to
-     *      turn the backlight off.
+     *      The DisplayBrightness info to set on the desired display.
      *
      * Returns NO_ERROR upon success. Otherwise,
      *      NAME_NOT_FOUND    if the display is invalid, or
      *      BAD_VALUE         if the brightness is invalid, or
      *      INVALID_OPERATION if brightness operations are not supported.
      */
-    virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) = 0;
+    virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken,
+                                          const gui::DisplayBrightness& brightness) = 0;
 
     /*
      * Sends a power boost to the composer. This function is asynchronous.
