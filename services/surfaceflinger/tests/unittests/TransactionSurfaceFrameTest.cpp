@@ -126,7 +126,7 @@ public:
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
         sp<GraphicBuffer> buffer{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         acquireFence->signalForTest(12);
 
         commitTransaction(layer.get());
@@ -151,7 +151,7 @@ public:
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
         sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
         layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame = layer->mCurrentState.bufferSurfaceFrameTX;
@@ -161,7 +161,7 @@ public:
         sp<GraphicBuffer> buffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
         nsecs_t start = systemTime();
         layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         nsecs_t end = systemTime();
         acquireFence2->signalForTest(12);
 
@@ -199,7 +199,7 @@ public:
         sp<GraphicBuffer> buffer{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
 
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         acquireFence->signalForTest(12);
 
         EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
@@ -225,7 +225,7 @@ public:
         sp<GraphicBuffer> buffer{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
 
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
 
@@ -255,7 +255,7 @@ public:
         sp<GraphicBuffer> buffer{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
 
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 3, /*inputEventId*/ 0});
+                         {/*vsyncId*/ 3, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         EXPECT_EQ(2u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
         const auto& bufferSurfaceFrameTX = layer->mCurrentState.bufferSurfaceFrameTX;
@@ -353,7 +353,7 @@ public:
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
         sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
         layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame = layer->mCurrentState.bufferSurfaceFrameTX;
 
@@ -361,7 +361,7 @@ public:
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
         sp<GraphicBuffer> buffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
         layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         acquireFence2->signalForTest(12);
 
         ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
@@ -388,7 +388,7 @@ public:
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
         sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
         layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 1, /*inputEventId*/ 0});
+                         {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
         const auto droppedSurfaceFrame1 = layer->mCurrentState.bufferSurfaceFrameTX;
@@ -398,7 +398,8 @@ public:
         sp<GraphicBuffer> buffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
         auto dropStartTime1 = systemTime();
         layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ FrameTimelineInfo::INVALID_VSYNC_ID, /*inputEventId*/ 0});
+                         {/*vsyncId*/ FrameTimelineInfo::INVALID_VSYNC_ID, /*inputEventId*/ 0},
+                         nullptr /* releaseBufferCallback */);
         auto dropEndTime1 = systemTime();
         EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
         ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
@@ -409,7 +410,7 @@ public:
         sp<GraphicBuffer> buffer3{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
         auto dropStartTime2 = systemTime();
         layer->setBuffer(buffer3, fence3, 10, 20, false, mClientCache, 1, std::nullopt,
-                         {/*vsyncId*/ 2, /*inputEventId*/ 0});
+                         {/*vsyncId*/ 2, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         auto dropEndTime2 = systemTime();
         acquireFence3->signalForTest(12);
 
@@ -448,7 +449,8 @@ public:
             sp<Fence> fence1(new Fence());
             sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
             layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
-                             {/*vsyncId*/ 1, /*inputEventId*/ 0});
+                             {/*vsyncId*/ 1, /*inputEventId*/ 0},
+                             nullptr /* releaseBufferCallback */);
             layer->setFrameTimelineVsyncForBufferlessTransaction({/*vsyncId*/ 2,
                                                                   /*inputEventId*/ 0},
                                                                  10);
