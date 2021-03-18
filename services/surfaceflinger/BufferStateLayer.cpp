@@ -41,6 +41,16 @@
 namespace android {
 
 using PresentState = frametimeline::SurfaceFrame::PresentState;
+namespace {
+void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
+                               const sp<GraphicBuffer>& buffer, const sp<Fence>& releaseFence) {
+    if (!listener) {
+        return;
+    }
+    listener->onReleaseBuffer(buffer->getId(), releaseFence ? releaseFence : Fence::NO_FENCE);
+}
+} // namespace
+
 // clang-format off
 const std::array<float, 16> BufferStateLayer::IDENTITY_MATRIX{
         1, 0, 0, 0,
@@ -65,7 +75,10 @@ BufferStateLayer::~BufferStateLayer() {
         // RenderEngine may have been using the buffer as an external texture
         // after the client uncached the buffer.
         auto& engine(mFlinger->getRenderEngine());
-        engine.unbindExternalTextureBuffer(mBufferInfo.mBuffer->getId());
+        const uint64_t bufferId = mBufferInfo.mBuffer->getId();
+        engine.unbindExternalTextureBuffer(bufferId);
+        callReleaseBufferCallback(mDrawingState.releaseBufferListener, mBufferInfo.mBuffer,
+                                  mBufferInfo.mFence);
     }
 }
 
@@ -74,6 +87,7 @@ status_t BufferStateLayer::addReleaseFence(const sp<CallbackHandle>& ch,
     if (ch == nullptr) {
         return OK;
     }
+    ch->previousBufferId = mPreviousBufferId;
     if (!ch->previousReleaseFence.get()) {
         ch->previousReleaseFence = fence;
         return OK;
@@ -188,6 +202,19 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
         handle->transformHint = mTransformHint;
         handle->dequeueReadyTime = dequeueReadyTime;
+    }
+
+    // If there are multiple transactions in this frame, set the previous id on the earliest
+    // transacton. We don't need to pass in the released buffer id to multiple transactions.
+    // The buffer id does not have to correspond to any particular transaction as long as the
+    // listening end point is the same but the client expects the first transaction callback that
+    // replaces the presented buffer to contain the release fence. This follows the same logic.
+    // see BufferStateLayer::onLayerDisplayed.
+    for (auto& handle : mDrawingState.callbackHandles) {
+        if (handle->releasePreviousBuffer) {
+            handle->previousBufferId = mPreviousBufferId;
+            break;
+        }
     }
 
     std::vector<JankData> jankData;
@@ -344,8 +371,8 @@ bool BufferStateLayer::addFrameEvent(const sp<Fence>& acquireFence, nsecs_t post
 bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence,
                                  nsecs_t postTime, nsecs_t desiredPresentTime, bool isAutoTimestamp,
                                  const client_cache_t& clientCacheId, uint64_t frameNumber,
-                                 std::optional<nsecs_t> dequeueTime,
-                                 const FrameTimelineInfo& info) {
+                                 std::optional<nsecs_t> dequeueTime, const FrameTimelineInfo& info,
+                                 const sp<ITransactionCompletedListener>& releaseBufferListener) {
     ATRACE_CALL();
 
     if (mCurrentState.buffer) {
@@ -353,7 +380,10 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
         if (mCurrentState.buffer != mDrawingState.buffer) {
             // If mCurrentState has a buffer, and we are about to update again
             // before swapping to drawing state, then the first buffer will be
-            // dropped and we should decrement the pending buffer count.
+            // dropped and we should decrement the pending buffer count and
+            // call any release buffer callbacks if set.
+            callReleaseBufferCallback(mCurrentState.releaseBufferListener, mCurrentState.buffer,
+                                      mCurrentState.acquireFence);
             decrementPendingBufferCount();
             if (mCurrentState.bufferSurfaceFrameTX != nullptr) {
                 addSurfaceFrameDroppedForBuffer(mCurrentState.bufferSurfaceFrameTX);
@@ -361,9 +391,8 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
             }
         }
     }
-
     mCurrentState.frameNumber = frameNumber;
-
+    mCurrentState.releaseBufferListener = releaseBufferListener;
     mCurrentState.buffer = buffer;
     mCurrentState.clientCacheId = clientCacheId;
     mCurrentState.modified = true;
@@ -889,15 +918,16 @@ void BufferStateLayer::tracePendingBufferCount(int32_t pendingBuffers) {
     ATRACE_INT(mBlastTransactionName.c_str(), pendingBuffers);
 }
 
-uint32_t BufferStateLayer::doTransaction(uint32_t flags) {
-    if (mDrawingState.buffer != nullptr && mDrawingState.buffer != mBufferInfo.mBuffer) {
+void BufferStateLayer::bufferMayChange(sp<GraphicBuffer>& newBuffer) {
+    if (mDrawingState.buffer != nullptr && mDrawingState.buffer != mBufferInfo.mBuffer &&
+        newBuffer != mDrawingState.buffer) {
         // If we are about to update mDrawingState.buffer but it has not yet latched
-        // then we will drop a buffer and should decrement the pending buffer count.
-        // This logic may not work perfectly in the face of a BufferStateLayer being the
-        // deferred side of a deferred transaction, but we don't expect this use case.
+        // then we will drop a buffer and should decrement the pending buffer count and
+        // call any release buffer callbacks if set.
+        callReleaseBufferCallback(mDrawingState.releaseBufferListener, mDrawingState.buffer,
+                                  mDrawingState.acquireFence);
         decrementPendingBufferCount();
     }
-    return Layer::doTransaction(flags);
 }
 
 } // namespace android
