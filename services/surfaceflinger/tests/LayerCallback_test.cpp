@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #include <sys/epoll.h>
 
 #include <gui/DisplayEventReceiver.h>
 
 #include "LayerTransactionTest.h"
 #include "utils/CallbackUtils.h"
+
+using namespace std::chrono_literals;
 
 namespace android {
 
@@ -801,7 +799,7 @@ TEST_F(LayerCallbackTest, DesiredPresentTime) {
     }
 
     // Try to present 100ms in the future
-    nsecs_t time = systemTime() + (100 * 1e6);
+    nsecs_t time = systemTime() + std::chrono::nanoseconds(100ms).count();
 
     transaction.setDesiredPresentTime(time);
     transaction.apply();
@@ -825,7 +823,7 @@ TEST_F(LayerCallbackTest, DesiredPresentTime_Multiple) {
     }
 
     // Try to present 100ms in the future
-    nsecs_t time = systemTime() + (100 * 1e6);
+    nsecs_t time = systemTime() + std::chrono::nanoseconds(100ms).count();
 
     transaction.setDesiredPresentTime(time);
     transaction.apply();
@@ -842,7 +840,7 @@ TEST_F(LayerCallbackTest, DesiredPresentTime_Multiple) {
     }
 
     // Try to present 33ms after the first frame
-    time += (33.3 * 1e6);
+    time += std::chrono::nanoseconds(33ms).count();
 
     transaction.setDesiredPresentTime(time);
     transaction.apply();
@@ -870,7 +868,7 @@ TEST_F(LayerCallbackTest, DesiredPresentTime_OutOfOrder) {
     }
 
     // Try to present 100ms in the future
-    nsecs_t time = systemTime() + (100 * 1e6);
+    nsecs_t time = systemTime() + std::chrono::nanoseconds(100ms).count();
 
     transaction.setDesiredPresentTime(time);
     transaction.apply();
@@ -887,7 +885,7 @@ TEST_F(LayerCallbackTest, DesiredPresentTime_OutOfOrder) {
     }
 
     // Try to present 33ms before the previous frame
-    time -= (33.3 * 1e6);
+    time -= std::chrono::nanoseconds(33ms).count();
 
     transaction.setDesiredPresentTime(time);
     transaction.apply();
@@ -914,7 +912,7 @@ TEST_F(LayerCallbackTest, DesiredPresentTime_Past) {
     }
 
     // Try to present 100ms in the past
-    nsecs_t time = systemTime() - (100 * 1e6);
+    nsecs_t time = systemTime() - std::chrono::nanoseconds(100ms).count();
 
     transaction.setDesiredPresentTime(time);
     transaction.apply();
@@ -948,6 +946,3 @@ TEST_F(LayerCallbackTest, ExpectedPresentTime) {
 }
 
 } // namespace android
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
