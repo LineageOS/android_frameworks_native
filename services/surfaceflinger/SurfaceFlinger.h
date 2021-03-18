@@ -680,7 +680,8 @@ private:
                                         float* outAppRequestRefreshRateMax) override;
     status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
                                          bool* outSupport) const override;
-    status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) override;
+    status_t setDisplayBrightness(const sp<IBinder>& displayToken,
+                                  const gui::DisplayBrightness& brightness) override;
     status_t notifyPowerBoost(int32_t boostId) override;
     status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                      float lightPosY, float lightPosZ, float lightRadius) override;

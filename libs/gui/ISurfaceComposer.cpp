@@ -935,7 +935,8 @@ public:
         return NO_ERROR;
     }
 
-    status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness) override {
+    status_t setDisplayBrightness(const sp<IBinder>& displayToken,
+                                  const gui::DisplayBrightness& brightness) override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -947,7 +948,7 @@ public:
             ALOGE("setDisplayBrightness: failed to write display token: %d", error);
             return error;
         }
-        error = data.writeFloat(brightness);
+        error = data.writeParcelable(brightness);
         if (error != NO_ERROR) {
             ALOGE("setDisplayBrightness: failed to write brightness: %d", error);
             return error;
@@ -1832,8 +1833,8 @@ status_t BnSurfaceComposer::onTransact(
                 ALOGE("setDisplayBrightness: failed to read display token: %d", error);
                 return error;
             }
-            float brightness = -1.0f;
-            error = data.readFloat(&brightness);
+            gui::DisplayBrightness brightness;
+            error = data.readParcelable(&brightness);
             if (error != NO_ERROR) {
                 ALOGE("setDisplayBrightness: failed to read brightness: %d", error);
                 return error;

@@ -89,6 +89,7 @@ struct OutputLayerCompositionState {
         sp<GraphicBuffer> buffer = nullptr;
         sp<Fence> acquireFence = nullptr;
         Rect displayFrame = {};
+        ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
     } overrideInfo;
 
     /*

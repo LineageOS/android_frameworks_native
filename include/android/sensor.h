@@ -448,12 +448,14 @@ typedef struct ASensorEvent {
             float           data[16];
             ASensorVector   vector;
             ASensorVector   acceleration;
+            ASensorVector   gyro;
             ASensorVector   magnetic;
             float           temperature;
             float           distance;
             float           light;
             float           pressure;
             float           relative_humidity;
+            AUncalibratedEvent uncalibrated_acceleration;
             AUncalibratedEvent uncalibrated_gyro;
             AUncalibratedEvent uncalibrated_magnetic;
             AMetaDataEvent meta_data;
