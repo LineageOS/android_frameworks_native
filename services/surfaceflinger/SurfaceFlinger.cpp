@@ -23,6 +23,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "SurfaceFlinger.h"
+#include "TraceUtils.h"
 
 #include <android-base/properties.h>
 #include <android/configuration.h>
@@ -79,7 +80,6 @@
 #include <utils/String16.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
-#include <utils/Trace.h>
 #include <utils/misc.h>
 
 #include <algorithm>
@@ -1689,7 +1689,12 @@ nsecs_t SurfaceFlinger::calculateExpectedPresentTime(DisplayStatInfo stats) cons
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what, int64_t vsyncId, nsecs_t expectedVSyncTime) {
-    ATRACE_CALL();
+    const auto vsyncIn = [&] {
+        if (!ATRACE_ENABLED()) return 0.f;
+        return (expectedVSyncTime - systemTime()) / 1e6f;
+    }();
+
+    ATRACE_FORMAT("onMessageReceived %" PRId64 " vsyncIn %.2fms", vsyncId, vsyncIn);
     switch (what) {
         case MessageQueue::INVALIDATE: {
             onMessageInvalidate(vsyncId, expectedVSyncTime);
