@@ -678,7 +678,7 @@ enum {
     /**
      * Axis constant: The movement of y position of a motion event.
      *
-     * Same as {@link RELATIVE_X}, but for y position.
+     * Same as {@link AMOTION_EVENT_AXIS_RELATIVE_X}, but for y position.
      */
     AMOTION_EVENT_AXIS_RELATIVE_Y = 28,
     /**
