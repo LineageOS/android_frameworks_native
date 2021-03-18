@@ -819,6 +819,16 @@ public:
         return NO_ERROR;
     }
 
+    status_t addHdrLayerInfoListener(const sp<IBinder>&,
+                                     const sp<gui::IHdrLayerInfoListener>&) override {
+        return NO_ERROR;
+    }
+
+    status_t removeHdrLayerInfoListener(const sp<IBinder>&,
+                                        const sp<gui::IHdrLayerInfoListener>&) override {
+        return NO_ERROR;
+    }
+
     status_t addRegionSamplingListener(const Rect& /*samplingArea*/,
                                        const sp<IBinder>& /*stopLayerHandle*/,
                                        const sp<IRegionSamplingListener>& /*listener*/) override {

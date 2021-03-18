@@ -18,6 +18,7 @@
 
 #include <android/gui/DisplayBrightness.h>
 #include <android/gui/IFpsListener.h>
+#include <android/gui/IHdrLayerInfoListener.h>
 #include <android/gui/IScreenCaptureListener.h>
 #include <android/gui/ITransactionTraceListener.h>
 #include <binder/IBinder.h>
@@ -431,6 +432,25 @@ public:
                                           const gui::DisplayBrightness& brightness) = 0;
 
     /*
+     * Adds a listener that receives HDR layer information. This is used in combination
+     * with setDisplayBrightness to adjust the display brightness depending on factors such
+     * as whether or not HDR is in use.
+     *
+     * Returns NO_ERROR upon success or NAME_NOT_FOUND if the display is invalid.
+     */
+    virtual status_t addHdrLayerInfoListener(const sp<IBinder>& displayToken,
+                                             const sp<gui::IHdrLayerInfoListener>& listener) = 0;
+    /*
+     * Removes a listener that was added with addHdrLayerInfoListener.
+     *
+     * Returns NO_ERROR upon success, NAME_NOT_FOUND if the display is invalid, and BAD_VALUE if
+     *     the listener wasn't registered.
+     *
+     */
+    virtual status_t removeHdrLayerInfoListener(const sp<IBinder>& displayToken,
+                                                const sp<gui::IHdrLayerInfoListener>& listener) = 0;
+
+    /*
      * Sends a power boost to the composer. This function is asynchronous.
      *
      * boostId
@@ -578,6 +598,8 @@ public:
         ADD_FPS_LISTENER,
         REMOVE_FPS_LISTENER,
         OVERRIDE_HDR_TYPES,
+        ADD_HDR_LAYER_INFO_LISTENER,
+        REMOVE_HDR_LAYER_INFO_LISTENER,
         // Always append new enum to the end.
     };
 
