@@ -148,6 +148,11 @@ TEST(Flags, EqualsOperator_DontShareState) {
     ASSERT_NE(flags1, flags2);
 }
 
+TEST(Flags, GetValue) {
+    Flags<TestFlags> flags = TestFlags::ONE | TestFlags::TWO;
+    ASSERT_EQ(flags.get(), 0x3);
+}
+
 TEST(Flags, String_NoFlags) {
     Flags<TestFlags> flags;
     ASSERT_EQ(flags.string(), "0x0");

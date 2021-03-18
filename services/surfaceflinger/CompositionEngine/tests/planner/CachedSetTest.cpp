@@ -303,6 +303,7 @@ TEST_F(CachedSetTest, render) {
         EXPECT_EQ(Rect(0, 0, 2, 2), displaySettings.clip);
         EXPECT_EQ(0.5f, layers[0]->alpha);
         EXPECT_EQ(0.75f, layers[1]->alpha);
+        EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
 
         return NO_ERROR;
     };
@@ -311,7 +312,7 @@ TEST_F(CachedSetTest, render) {
     EXPECT_CALL(*layerFE2, prepareClientCompositionList(_)).WillOnce(Return(clientCompList2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
     EXPECT_CALL(mRenderEngine, cacheExternalTextureBuffer(_));
-    cachedSet.render(mRenderEngine);
+    cachedSet.render(mRenderEngine, ui::Dataspace::SRGB);
     expectReadyBuffer(cachedSet);
 
     // Now check that appending a new cached set properly cleans up RenderEngine resources.
