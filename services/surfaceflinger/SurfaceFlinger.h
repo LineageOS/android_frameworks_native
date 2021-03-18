@@ -907,10 +907,6 @@ private:
                                     bool forSystem, bool regionSampling, bool grayscale,
                                     ScreenCaptureResults&);
 
-    sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
-    sp<DisplayDevice> getDisplayById(DisplayId displayId) const REQUIRES(mStateLock);
-    sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack) REQUIRES(mStateLock);
-
     // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a
     // matching ownerUid
     void traverseLayersInLayerStack(ui::LayerStack, const int32_t uid, const LayerVector::Visitor&);
@@ -936,6 +932,14 @@ private:
         return it == mDisplays.end() ? nullptr : it->second;
     }
 
+    sp<const DisplayDevice> getDisplayDeviceLocked(PhysicalDisplayId id) const
+            REQUIRES(mStateLock) {
+        if (const auto token = getPhysicalDisplayTokenLocked(id)) {
+            return getDisplayDeviceLocked(token);
+        }
+        return nullptr;
+    }
+
     sp<const DisplayDevice> getDefaultDisplayDeviceLocked() const REQUIRES(mStateLock) {
         return const_cast<SurfaceFlinger*>(this)->getDefaultDisplayDeviceLocked();
     }
@@ -950,6 +954,20 @@ private:
     sp<const DisplayDevice> getDefaultDisplayDevice() EXCLUDES(mStateLock) {
         Mutex::Autolock lock(mStateLock);
         return getDefaultDisplayDeviceLocked();
+    }
+
+    // Returns the first display that matches a `bool(const DisplayDevice&)` predicate.
+    template <typename Predicate>
+    sp<DisplayDevice> findDisplay(Predicate p) const REQUIRES(mStateLock) {
+        const auto it = std::find_if(mDisplays.begin(), mDisplays.end(),
+                                     [&](const auto& pair) { return p(*pair.second); });
+
+        return it == mDisplays.end() ? nullptr : it->second;
+    }
+
+    sp<const DisplayDevice> getDisplayDeviceLocked(DisplayId id) const REQUIRES(mStateLock) {
+        // TODO(b/182939859): Replace tokens with IDs for display lookup.
+        return findDisplay([id](const auto& display) { return display.getId() == id; });
     }
 
     // mark a region of a layer stack dirty. this updates the dirty

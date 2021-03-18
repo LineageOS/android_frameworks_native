@@ -2175,11 +2175,10 @@ void SurfaceFlinger::postComposition() {
             mFpsReporter->dispatchLayerFps();
         }
         hdrInfoListeners.reserve(mHdrLayerInfoListeners.size());
-        for (auto& [key, value] : mHdrLayerInfoListeners) {
-            if (value && value->hasListeners()) {
-                auto listenersDisplay = getDisplayById(key);
-                if (listenersDisplay) {
-                    hdrInfoListeners.emplace_back(listenersDisplay->getCompositionDisplay(), value);
+        for (const auto& [displayId, reporter] : mHdrLayerInfoListeners) {
+            if (reporter && reporter->hasListeners()) {
+                if (const auto display = getDisplayDeviceLocked(displayId)) {
+                    hdrInfoListeners.emplace_back(display->getCompositionDisplay(), reporter);
                 }
             }
         }
@@ -5708,34 +5707,6 @@ status_t SurfaceFlinger::setSchedFifo(bool enabled) {
     return NO_ERROR;
 }
 
-sp<DisplayDevice> SurfaceFlinger::getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) {
-    if (const sp<IBinder> displayToken =
-                getPhysicalDisplayTokenLocked(PhysicalDisplayId{displayOrLayerStack})) {
-        return getDisplayDeviceLocked(displayToken);
-    }
-    // Couldn't find display by displayId. Try to get display by layerStack since virtual displays
-    // may not have a displayId.
-    return getDisplayByLayerStack(displayOrLayerStack);
-}
-
-sp<DisplayDevice> SurfaceFlinger::getDisplayById(DisplayId displayId) const {
-    for (const auto& [token, display] : mDisplays) {
-        if (display->getId() == displayId) {
-            return display;
-        }
-    }
-    return nullptr;
-}
-
-sp<DisplayDevice> SurfaceFlinger::getDisplayByLayerStack(uint64_t layerStack) {
-    for (const auto& [token, display] : mDisplays) {
-        if (display->getLayerStack() == layerStack) {
-            return display;
-        }
-    }
-    return nullptr;
-}
-
 status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                                         const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
@@ -5747,7 +5718,7 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
 
     if (!args.displayToken) return BAD_VALUE;
 
-    wp<DisplayDevice> displayWeak;
+    wp<const DisplayDevice> displayWeak;
     ui::LayerStack layerStack;
     ui::Size reqSize(args.width, args.height);
     ui::Dataspace dataspace;
@@ -5788,18 +5759,26 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                                captureListener);
 }
 
-status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
+status_t SurfaceFlinger::captureDisplay(uint64_t displayIdOrLayerStack,
                                         const sp<IScreenCaptureListener>& captureListener) {
     ui::LayerStack layerStack;
-    wp<DisplayDevice> displayWeak;
+    wp<const DisplayDevice> displayWeak;
     ui::Size size;
     ui::Dataspace dataspace;
     {
         Mutex::Autolock lock(mStateLock);
-        sp<DisplayDevice> display = getDisplayByIdOrLayerStack(displayOrLayerStack);
+        auto display = getDisplayDeviceLocked(PhysicalDisplayId{displayIdOrLayerStack});
+
+        // Fall back to first display whose layer stack matches.
+        if (!display) {
+            const auto layerStack = static_cast<ui::LayerStack>(displayIdOrLayerStack);
+            display = findDisplay(WithLayerStack(layerStack));
+        }
+
         if (!display) {
             return NAME_NOT_FOUND;
         }
+
         layerStack = display->getLayerStack();
         displayWeak = display;
 
@@ -5884,7 +5863,7 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
             }
         }
 
-        const auto display = getDisplayByLayerStack(parent->getLayerStack());
+        const auto display = findDisplay(WithLayerStack(parent->getLayerStack()));
         if (!display) {
             return NAME_NOT_FOUND;
         }
