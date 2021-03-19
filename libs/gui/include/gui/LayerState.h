@@ -100,7 +100,7 @@ struct layer_state_t {
         eLayerStackChanged = 0x00000080,
         /* was eCropChanged_legacy, now available 0x00000100, */
         eDeferTransaction_legacy = 0x00000200,
-        /* was ScalingModeChanged, now available 0x00000400, */
+        eReleaseBufferListenerChanged = 0x00000400,
         eShadowRadiusChanged = 0x00000800,
         eReparentChildren = 0x00001000,
         /* was eDetachChildren, now available 0x00002000, */
@@ -248,6 +248,11 @@ struct layer_state_t {
 
     // Stretch effect to be applied to this layer
     StretchEffect stretchEffect;
+
+    // Listens to when the buffer is safe to be released. This is used for blast
+    // layers only. The callback includes a release fence as well as the graphic
+    // buffer id to identify the buffer.
+    sp<ITransactionCompletedListener> releaseBufferListener;
 };
 
 struct ComposerState {

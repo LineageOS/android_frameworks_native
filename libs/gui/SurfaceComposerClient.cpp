@@ -195,6 +195,17 @@ void TransactionCompletedListener::removeJankListener(const sp<JankDataListener>
     }
 }
 
+void TransactionCompletedListener::setReleaseBufferCallback(uint64_t graphicBufferId,
+                                                            ReleaseBufferCallback listener) {
+    std::scoped_lock<std::mutex> lock(mMutex);
+    mReleaseBufferCallbacks[graphicBufferId] = listener;
+}
+
+void TransactionCompletedListener::removeReleaseBufferCallback(uint64_t graphicBufferId) {
+    std::scoped_lock<std::mutex> lock(mMutex);
+    mReleaseBufferCallbacks.erase(graphicBufferId);
+}
+
 void TransactionCompletedListener::addSurfaceStatsListener(void* context, void* cookie,
         sp<SurfaceControl> surfaceControl, SurfaceStatsCallback listener) {
     std::lock_guard<std::mutex> lock(mMutex);
@@ -275,6 +286,20 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                             .surfaceControls[surfaceStats.surfaceControl]
                             ->setTransformHint(surfaceStats.transformHint);
                 }
+                // If there is buffer id set, we look up any pending client release buffer callbacks
+                // and call them. This is a performance optimization when we have a transaction
+                // callback and a release buffer callback happening at the same time to avoid an
+                // additional ipc call from the server.
+                if (surfaceStats.previousBufferId) {
+                    ReleaseBufferCallback callback =
+                            popReleaseBufferCallbackLocked(surfaceStats.previousBufferId);
+                    if (callback) {
+                        callback(surfaceStats.previousBufferId,
+                                 surfaceStats.previousReleaseFence
+                                         ? surfaceStats.previousReleaseFence
+                                         : Fence::NO_FENCE);
+                    }
+                }
             }
 
             callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
@@ -295,6 +320,32 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
             }
         }
     }
+}
+
+void TransactionCompletedListener::onReleaseBuffer(uint64_t graphicBufferId,
+                                                   sp<Fence> releaseFence) {
+    ReleaseBufferCallback callback;
+    {
+        std::scoped_lock<std::mutex> lock(mMutex);
+        callback = popReleaseBufferCallbackLocked(graphicBufferId);
+    }
+    if (!callback) {
+        ALOGE("Could not call release buffer callback, buffer not found %" PRIu64, graphicBufferId);
+        return;
+    }
+    callback(graphicBufferId, releaseFence);
+}
+
+ReleaseBufferCallback TransactionCompletedListener::popReleaseBufferCallbackLocked(
+        uint64_t graphicBufferId) {
+    ReleaseBufferCallback callback;
+    auto itr = mReleaseBufferCallbacks.find(graphicBufferId);
+    if (itr == mReleaseBufferCallbacks.end()) {
+        return nullptr;
+    }
+    callback = itr->second;
+    mReleaseBufferCallbacks.erase(itr);
+    return callback;
 }
 
 // ---------------------------------------------------------------------------
@@ -1219,22 +1270,53 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
-        const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer) {
+        const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
+        ReleaseBufferCallback callback) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
+    removeReleaseBufferCallback(s);
     s->what |= layer_state_t::eBufferChanged;
     s->buffer = buffer;
     if (mIsAutoTimestamp) {
         mDesiredPresentTime = systemTime();
     }
+    setReleaseBufferCallback(s, callback);
 
     registerSurfaceControlForCallback(sc);
 
     mContainsBuffer = true;
     return *this;
+}
+
+void SurfaceComposerClient::Transaction::removeReleaseBufferCallback(layer_state_t* s) {
+    if (!s->releaseBufferListener) {
+        return;
+    }
+
+    s->what &= ~static_cast<uint64_t>(layer_state_t::eReleaseBufferListenerChanged);
+    s->releaseBufferListener = nullptr;
+    TransactionCompletedListener::getInstance()->removeReleaseBufferCallback(s->buffer->getId());
+}
+
+void SurfaceComposerClient::Transaction::setReleaseBufferCallback(layer_state_t* s,
+                                                                  ReleaseBufferCallback callback) {
+    if (!callback) {
+        return;
+    }
+
+    if (!s->buffer) {
+        ALOGW("Transaction::setReleaseBufferCallback"
+              "ignored trying to set a callback on a null buffer.");
+        return;
+    }
+
+    s->what |= layer_state_t::eReleaseBufferListenerChanged;
+    s->releaseBufferListener = TransactionCompletedListener::getIInstance();
+    auto listener = TransactionCompletedListener::getInstance();
+    listener->setReleaseBufferCallback(s->buffer->getId(), callback);
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAcquireFence(
