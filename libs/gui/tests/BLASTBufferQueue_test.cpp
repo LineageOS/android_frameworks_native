@@ -73,13 +73,34 @@ public:
 
     void waitForCallbacks() {
         std::unique_lock lock{mBlastBufferQueueAdapter->mMutex};
-        while (mBlastBufferQueueAdapter->mSubmitted.size() > 0) {
+        // Wait until all but one of the submitted buffers have been released.
+        while (mBlastBufferQueueAdapter->mSubmitted.size() > 1) {
             mBlastBufferQueueAdapter->mCallbackCV.wait(lock);
+        }
+    }
+
+    void setTransactionCompleteCallback(int64_t frameNumber) {
+        mBlastBufferQueueAdapter->setTransactionCompleteCallback(frameNumber, [&](int64_t frame) {
+            std::unique_lock lock{mMutex};
+            mLastTransactionCompleteFrameNumber = frame;
+            mCallbackCV.notify_all();
+        });
+    }
+
+    void waitForCallback(int64_t frameNumber) {
+        std::unique_lock lock{mMutex};
+        // Wait until all but one of the submitted buffers have been released.
+        while (mLastTransactionCompleteFrameNumber < frameNumber) {
+            mCallbackCV.wait(lock);
         }
     }
 
 private:
     sp<BLASTBufferQueue> mBlastBufferQueueAdapter;
+
+    std::mutex mMutex;
+    std::condition_variable mCallbackCV;
+    int64_t mLastTransactionCompleteFrameNumber = -1;
 };
 
 class BLASTBufferQueueTest : public ::testing::Test {
@@ -128,7 +149,7 @@ protected:
         mCaptureArgs.dataspace = ui::Dataspace::V0_SRGB;
     }
 
-    void setUpProducer(BLASTBufferQueueHelper adapter, sp<IGraphicBufferProducer>& producer) {
+    void setUpProducer(BLASTBufferQueueHelper& adapter, sp<IGraphicBufferProducer>& producer) {
         producer = adapter.getIGraphicBufferProducer();
         setUpProducer(producer);
     }
@@ -205,10 +226,10 @@ protected:
                     EXPECT_GE(epsilon, abs(g - *(pixel + 1)));
                     EXPECT_GE(epsilon, abs(b - *(pixel + 2)));
                 }
+                ASSERT_EQ(false, ::testing::Test::HasFailure());
             }
         }
         captureBuf->unlock();
-        ASSERT_EQ(false, ::testing::Test::HasFailure());
     }
 
     static status_t captureDisplay(DisplayCaptureArgs& captureArgs,
@@ -315,7 +336,8 @@ TEST_F(BLASTBufferQueueTest, DISABLED_onFrameAvailable_ApplyDesiredPresentTime) 
 
     nsecs_t desiredPresentTime = systemTime() + nsecs_t(5 * 1e8);
     IGraphicBufferProducer::QueueBufferOutput qbOutput;
-    IGraphicBufferProducer::QueueBufferInput input(desiredPresentTime, false, HAL_DATASPACE_UNKNOWN,
+    IGraphicBufferProducer::QueueBufferInput input(desiredPresentTime, true /* autotimestamp */,
+                                                   HAL_DATASPACE_UNKNOWN,
                                                    Rect(mDisplayWidth, mDisplayHeight),
                                                    NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
                                                    Fence::NO_FENCE);
@@ -351,7 +373,8 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
     buf->unlock();
 
     IGraphicBufferProducer::QueueBufferOutput qbOutput;
-    IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
+    IGraphicBufferProducer::QueueBufferInput input(systemTime(), true /* autotimestamp */,
+                                                   HAL_DATASPACE_UNKNOWN,
                                                    Rect(mDisplayWidth, mDisplayHeight),
                                                    NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
                                                    Fence::NO_FENCE);
@@ -396,7 +419,8 @@ TEST_F(BLASTBufferQueueTest, TripleBuffering) {
                                               nullptr, nullptr);
         ASSERT_EQ(NO_ERROR, ret);
         IGraphicBufferProducer::QueueBufferOutput qbOutput;
-        IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
+        IGraphicBufferProducer::QueueBufferInput input(systemTime(), true /* autotimestamp */,
+                                                       HAL_DATASPACE_UNKNOWN,
                                                        Rect(mDisplayWidth, mDisplayHeight),
                                                        NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
                                                        Fence::NO_FENCE);
@@ -429,7 +453,8 @@ TEST_F(BLASTBufferQueueTest, SetCrop_Item) {
     buf->unlock();
 
     IGraphicBufferProducer::QueueBufferOutput qbOutput;
-    IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
+    IGraphicBufferProducer::QueueBufferInput input(systemTime(), true /* autotimestamp */,
+                                                   HAL_DATASPACE_UNKNOWN,
                                                    Rect(mDisplayWidth, mDisplayHeight / 2),
                                                    NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
                                                    Fence::NO_FENCE);
@@ -486,7 +511,8 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
     buf->unlock();
 
     IGraphicBufferProducer::QueueBufferOutput qbOutput;
-    IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
+    IGraphicBufferProducer::QueueBufferInput input(systemTime(), true /* autotimestamp */,
+                                                   HAL_DATASPACE_UNKNOWN,
                                                    Rect(bufferSideLength, finalCropSideLength),
                                                    NATIVE_WINDOW_SCALING_MODE_SCALE_CROP, 0,
                                                    Fence::NO_FENCE);
@@ -537,7 +563,8 @@ TEST_F(BLASTBufferQueueTest, CustomProducerListener) {
         ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
         ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
         IGraphicBufferProducer::QueueBufferOutput qbOutput;
-        IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
+        IGraphicBufferProducer::QueueBufferInput input(systemTime(), true /* autotimestamp */,
+                                                       HAL_DATASPACE_UNKNOWN,
                                                        Rect(mDisplayWidth, mDisplayHeight),
                                                        NATIVE_WINDOW_SCALING_MODE_FREEZE, 0,
                                                        Fence::NO_FENCE);
@@ -577,7 +604,7 @@ TEST_F(BLASTBufferQueueTest, OutOfOrderTransactionTest) {
     sp<IGraphicBufferProducer> slowIgbProducer;
     setUpProducer(slowAdapter, slowIgbProducer);
     nsecs_t presentTimeDelay = std::chrono::nanoseconds(500ms).count();
-    queueBuffer(slowIgbProducer, 0 /* r */, 0 /* g */, 0 /* b */, presentTimeDelay);
+    queueBuffer(slowIgbProducer, 0 /* r */, 255 /* g */, 0 /* b */, presentTimeDelay);
 
     BLASTBufferQueueHelper fastAdapter(bgSurface, mDisplayWidth, mDisplayHeight);
     sp<IGraphicBufferProducer> fastIgbProducer;
@@ -617,7 +644,8 @@ public:
         fillQuadrants(buf);
 
         IGraphicBufferProducer::QueueBufferOutput qbOutput;
-        IGraphicBufferProducer::QueueBufferInput input(systemTime(), false, HAL_DATASPACE_UNKNOWN,
+        IGraphicBufferProducer::QueueBufferInput input(systemTime(), true /* autotimestamp */,
+                                                       HAL_DATASPACE_UNKNOWN,
                                                        Rect(bufWidth, bufHeight),
                                                        NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW,
                                                        tr, Fence::NO_FENCE);
@@ -838,6 +866,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
     IGraphicBufferProducer::QueueBufferOutput qbOutput;
     nsecs_t requestedPresentTimeA = 0;
     nsecs_t postedTimeA = 0;
+    adapter.setTransactionCompleteCallback(1);
     setUpAndQueueBuffer(igbProducer, &requestedPresentTimeA, &postedTimeA, &qbOutput, true);
     history.applyDelta(qbOutput.frameTimestamps);
 
@@ -848,7 +877,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
     ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeA);
 
-    adapter.waitForCallbacks();
+    adapter.waitForCallback(1);
 
     // queue another buffer so we query for frame event deltas
     nsecs_t requestedPresentTimeB = 0;

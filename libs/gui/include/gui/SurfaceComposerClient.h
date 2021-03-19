@@ -80,6 +80,9 @@ using TransactionCompletedCallbackTakesContext =
 using TransactionCompletedCallback =
         std::function<void(nsecs_t /*latchTime*/, const sp<Fence>& /*presentFence*/,
                            const std::vector<SurfaceControlStats>& /*stats*/)>;
+using ReleaseBufferCallback =
+        std::function<void(uint64_t /* graphicsBufferId */, const sp<Fence>& /*releaseFence*/)>;
+
 using SurfaceStatsCallback =
         std::function<void(void* /*context*/, nsecs_t /*latchTime*/,
                            const sp<Fence>& /*presentFence*/,
@@ -388,6 +391,8 @@ public:
 
         void cacheBuffers();
         void registerSurfaceControlForCallback(const sp<SurfaceControl>& sc);
+        void setReleaseBufferCallback(layer_state_t* state, ReleaseBufferCallback callback);
+        void removeReleaseBufferCallback(layer_state_t* state);
 
     public:
         Transaction();
@@ -471,7 +476,8 @@ public:
         Transaction& setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
                                                   bool transformToDisplayInverse);
         Transaction& setFrame(const sp<SurfaceControl>& sc, const Rect& frame);
-        Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer);
+        Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
+                               ReleaseBufferCallback callback = nullptr);
         Transaction& setCachedBuffer(const sp<SurfaceControl>& sc, int32_t bufferId);
         Transaction& setAcquireFence(const sp<SurfaceControl>& sc, const sp<Fence>& fence);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
@@ -650,6 +656,8 @@ class TransactionCompletedListener : public BnTransactionCompletedListener {
 
     std::unordered_map<CallbackId, CallbackTranslation> mCallbacks GUARDED_BY(mMutex);
     std::multimap<sp<IBinder>, sp<JankDataListener>> mJankListeners GUARDED_BY(mMutex);
+    std::unordered_map<uint64_t /* graphicsBufferId */, ReleaseBufferCallback>
+            mReleaseBufferCallbacks GUARDED_BY(mMutex);
     std::multimap<sp<IBinder>, SurfaceStatsCallbackEntry>
                 mSurfaceStatsListeners GUARDED_BY(mMutex);
 
@@ -683,8 +691,15 @@ public:
                 SurfaceStatsCallback listener);
     void removeSurfaceStatsListener(void* context, void* cookie);
 
-    // Overrides BnTransactionCompletedListener's onTransactionCompleted
+    void setReleaseBufferCallback(uint64_t /* graphicsBufferId */, ReleaseBufferCallback);
+    void removeReleaseBufferCallback(uint64_t /* graphicsBufferId */);
+
+    // BnTransactionCompletedListener overrides
     void onTransactionCompleted(ListenerStats stats) override;
+    void onReleaseBuffer(uint64_t /* graphicsBufferId */, sp<Fence> releaseFence) override;
+
+private:
+    ReleaseBufferCallback popReleaseBufferCallbackLocked(uint64_t /* graphicsBufferId */);
 };
 
 } // namespace android

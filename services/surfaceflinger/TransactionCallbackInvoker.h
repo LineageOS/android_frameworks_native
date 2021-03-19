@@ -50,6 +50,7 @@ public:
     nsecs_t refreshStartTime = 0;
     nsecs_t dequeueReadyTime = 0;
     uint64_t frameNumber = 0;
+    uint64_t previousBufferId = 0;
 };
 
 class TransactionCallbackInvoker {
