@@ -152,20 +152,20 @@ void CachedSet::updateAge(std::chrono::steady_clock::time_point now) {
 
 void CachedSet::render(renderengine::RenderEngine& renderEngine,
                        const OutputCompositionState& outputState) {
+    const Rect& viewport = outputState.layerStackSpace.content;
     const ui::Dataspace& outputDataspace = outputState.dataspace;
     const ui::Transform::RotationFlags orientation =
-            ui::Transform::toRotationFlags(outputState.displaySpace.orientation);
+            ui::Transform::toRotationFlags(outputState.framebufferSpace.orientation);
     renderengine::DisplaySettings displaySettings{
             .physicalDisplay = Rect(0, 0, mBounds.getWidth(), mBounds.getHeight()),
-            .clip = mBounds,
-            .orientation = orientation,
+            .clip = viewport,
             .outputDataspace = outputDataspace,
+            .orientation = orientation,
     };
 
     Region clearRegion = Region::INVALID_REGION;
-    Rect viewport = mBounds;
     LayerFE::ClientCompositionTargetSettings targetSettings{
-            .clip = Region(mBounds),
+            .clip = Region(viewport),
             .needsFiltering = false,
             .isSecure = true,
             .supportsProtectedContent = false,
@@ -223,6 +223,10 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
     if (result == NO_ERROR) {
         mTexture.setBuffer(buffer, &renderEngine);
         mDrawFence = new Fence(drawFence.release());
+        mOutputSpace = ProjectionSpace(ui::Size(outputState.framebufferSpace.bounds.getWidth(),
+                                                outputState.framebufferSpace.bounds.getHeight()),
+                                       mBounds);
+        mOutputSpace.orientation = outputState.framebufferSpace.orientation;
         mOutputDataspace = outputDataspace;
         mOrientation = orientation;
     }

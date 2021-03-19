@@ -16,16 +16,17 @@
 
 #pragma once
 
-#include <cstdint>
-#include <optional>
-#include <string>
-
+#include <compositionengine/ProjectionSpace.h>
 #include <compositionengine/impl/HwcBufferCache.h>
 #include <renderengine/Mesh.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+
+#include <cstdint>
+#include <optional>
+#include <string>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -90,6 +91,7 @@ struct OutputLayerCompositionState {
         sp<Fence> acquireFence = nullptr;
         Rect displayFrame = {};
         ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
+        ProjectionSpace displaySpace;
     } overrideInfo;
 
     /*

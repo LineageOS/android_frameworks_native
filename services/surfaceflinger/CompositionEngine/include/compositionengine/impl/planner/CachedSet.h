@@ -64,6 +64,7 @@ public:
     size_t getAge() const { return mAge; }
     const sp<GraphicBuffer>& getBuffer() const { return mTexture.getBuffer(); }
     const sp<Fence>& getDrawFence() const { return mDrawFence; }
+    const ProjectionSpace& getOutputSpace() const { return mOutputSpace; }
     ui::Dataspace getOutputDataspace() const { return mOutputDataspace; }
 
     NonBufferHash getNonBufferHash() const;
@@ -134,6 +135,7 @@ private:
 
     Texture mTexture;
     sp<Fence> mDrawFence;
+    ProjectionSpace mOutputSpace;
     ui::Dataspace mOutputDataspace;
     ui::Transform::RotationFlags mOrientation = ui::Transform::ROT_0;
 
