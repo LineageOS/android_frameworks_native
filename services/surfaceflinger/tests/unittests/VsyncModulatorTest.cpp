@@ -101,24 +101,6 @@ TEST_F(VsyncModulatorTest, EarlyStart) {
     CHECK_REFRESH(1, kLate, kLate);
 }
 
-TEST_F(VsyncModulatorTest, EarlyStartWithEarly) {
-    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyStart));
-
-    CHECK_COMMIT(kEarly, kEarly);
-    CHECK_REFRESH(5 * MIN_EARLY_TRANSACTION_FRAMES, std::nullopt, kEarly);
-
-    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::Early));
-
-    CHECK_COMMIT(kEarly, kEarly);
-    CHECK_REFRESH(5 * MIN_EARLY_TRANSACTION_FRAMES, std::nullopt, kEarly);
-
-    EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyEnd));
-
-    CHECK_COMMIT(kEarly, kEarly);
-    CHECK_REFRESH(MIN_EARLY_TRANSACTION_FRAMES - 1, kEarly, kEarly);
-    CHECK_REFRESH(1, kLate, kLate);
-}
-
 TEST_F(VsyncModulatorTest, EarlyStartWithMoreTransactions) {
     EXPECT_EQ(kEarly, mVsyncModulator.setTransactionSchedule(Schedule::EarlyStart));
 
