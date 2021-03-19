@@ -57,6 +57,8 @@ on late-init
     chmod 0666 /sys/kernel/tracing/events/cpuhp/cpuhp_enter/enable
     chmod 0666 /sys/kernel/debug/tracing/events/cpuhp/cpuhp_exit/enable
     chmod 0666 /sys/kernel/tracing/events/cpuhp/cpuhp_exit/enable
+    chmod 0666 /sys/kernel/debug/tracing/events/cpuhp/cpuhp_pause/enable
+    chmod 0666 /sys/kernel/tracing/events/cpuhp/cpuhp_pause/enable
     chmod 0666 /sys/kernel/debug/tracing/events/power/gpu_frequency/enable
     chmod 0666 /sys/kernel/tracing/events/power/gpu_frequency/enable
     chmod 0666 /sys/kernel/debug/tracing/events/power/suspend_resume/enable

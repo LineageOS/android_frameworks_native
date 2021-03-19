@@ -44,6 +44,7 @@ cc_test {
         "MultiDisplayLayerBounds_test.cpp",
         "RefreshRateOverlay_test.cpp",
         "RelativeZ_test.cpp",
+        "ReleaseBufferCallback_test.cpp",
         "ScreenCapture_test.cpp",
         "SetFrameRate_test.cpp",
         "SetGeometry_test.cpp",

@@ -87,13 +87,14 @@ public:
     SurfaceStats() = default;
     SurfaceStats(const sp<IBinder>& sc, nsecs_t time, const sp<Fence>& prevReleaseFence,
                  uint32_t hint, FrameEventHistoryStats frameEventStats,
-                 std::vector<JankData> jankData)
+                 std::vector<JankData> jankData, uint64_t previousBufferId)
           : surfaceControl(sc),
             acquireTime(time),
             previousReleaseFence(prevReleaseFence),
             transformHint(hint),
             eventStats(frameEventStats),
-            jankData(std::move(jankData)) {}
+            jankData(std::move(jankData)),
+            previousBufferId(previousBufferId) {}
 
     sp<IBinder> surfaceControl;
     nsecs_t acquireTime = -1;
@@ -101,6 +102,7 @@ public:
     uint32_t transformHint = 0;
     FrameEventHistoryStats eventStats;
     std::vector<JankData> jankData;
+    uint64_t previousBufferId;
 };
 
 class TransactionStats : public Parcelable {
@@ -139,6 +141,8 @@ public:
     DECLARE_META_INTERFACE(TransactionCompletedListener)
 
     virtual void onTransactionCompleted(ListenerStats stats) = 0;
+
+    virtual void onReleaseBuffer(uint64_t graphicBufferId, sp<Fence> releaseFence) = 0;
 };
 
 class BnTransactionCompletedListener : public SafeBnInterface<ITransactionCompletedListener> {

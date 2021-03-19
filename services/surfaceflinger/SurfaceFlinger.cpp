@@ -4027,7 +4027,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 : layer->getHeadFrameNumber(-1 /* expectedPresentTime */) + 1;
 
         if (layer->setBuffer(buffer, s.acquireFence, postTime, desiredPresentTime, isAutoTimestamp,
-                             s.cachedBuffer, frameNumber, dequeueBufferTimestamp, info)) {
+                             s.cachedBuffer, frameNumber, dequeueBufferTimestamp, info,
+                             s.releaseBufferListener)) {
             flags |= eTraversalNeeded;
         }
     } else if (info.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {

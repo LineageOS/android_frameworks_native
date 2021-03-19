@@ -89,13 +89,14 @@ public:
 
     void transactionCallback(nsecs_t latchTime, const sp<Fence>& presentFence,
             const std::vector<SurfaceControlStats>& stats);
+    void releaseBufferCallback(uint64_t graphicBufferId, const sp<Fence>& releaseFence);
     void setNextTransaction(SurfaceComposerClient::Transaction *t);
     void mergeWithNextTransaction(SurfaceComposerClient::Transaction* t, uint64_t frameNumber);
     void setTransactionCompleteCallback(uint64_t frameNumber,
                                         std::function<void(int64_t)>&& transactionCompleteCallback);
 
     void update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height, int32_t format);
-    void flushShadowQueue() { mFlushShadowQueue = true; }
+    void flushShadowQueue() {}
 
     status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless);
     status_t setFrameTimelineInfo(const FrameTimelineInfo& info);
@@ -132,16 +133,10 @@ private:
 
     int32_t mNumFrameAvailable GUARDED_BY(mMutex);
     int32_t mNumAcquired GUARDED_BY(mMutex);
-    bool mInitialCallbackReceived GUARDED_BY(mMutex) = false;
-    struct PendingReleaseItem {
-        BufferItem item;
-        sp<Fence> releaseFence;
-    };
 
-    std::queue<const BufferItem> mSubmitted GUARDED_BY(mMutex);
-    // Keep a reference to the currently presented buffer so we can release it when the next buffer
-    // is ready to be presented.
-    PendingReleaseItem mPendingReleaseItem GUARDED_BY(mMutex);
+    // Keep a reference to the submitted buffers so we can release when surfaceflinger drops the
+    // buffer or the buffer has been presented and a new buffer is ready to be presented.
+    std::unordered_map<uint64_t /* bufferId */, BufferItem> mSubmitted GUARDED_BY(mMutex);
 
     ui::Size mSize GUARDED_BY(mMutex);
     ui::Size mRequestedSize GUARDED_BY(mMutex);
@@ -157,9 +152,6 @@ private:
     std::vector<std::tuple<uint64_t /* framenumber */, SurfaceComposerClient::Transaction>>
             mPendingTransactions GUARDED_BY(mMutex);
 
-    // If set to true, the next queue buffer will wait until the shadow queue has been processed by
-    // the adapter.
-    bool mFlushShadowQueue = false;
     // Last requested auto refresh state set by the producer. The state indicates that the consumer
     // should acquire the next frame as soon as it can and not wait for a frame to become available.
     // This is only relevant for shared buffer mode.
