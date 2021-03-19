@@ -668,9 +668,10 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_displayFramePredictionExpiredPres
     Fps renderRate = Fps::fromPeriodNsecs(30);
 
     EXPECT_CALL(*mTimeStats,
-                incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, renderRate, sUidOne,
-                                                                sLayerNameOne, JankType::Unknown,
-                                                                -1, -1, 25}));
+                incrementJankyFrames(
+                        TimeStats::JankyFramesInfo{refreshRate, renderRate, sUidOne, sLayerNameOne,
+                                                   JankType::Unknown | JankType::AppDeadlineMissed,
+                                                   -1, -1, 25}));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 60});
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({82, 90, 90});
@@ -697,7 +698,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_displayFramePredictionExpiredPres
     EXPECT_EQ(displayFrame->getFramePresentMetadata(), FramePresentMetadata::UnknownPresent);
 
     EXPECT_EQ(surfaceFrame1->getActuals().presentTime, 90);
-    EXPECT_EQ(surfaceFrame1->getJankType(), JankType::Unknown);
+    EXPECT_EQ(surfaceFrame1->getJankType(), JankType::Unknown | JankType::AppDeadlineMissed);
 }
 
 /*
@@ -1699,9 +1700,9 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishEarlyPresent)
 }
 
 TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishLatePresent) {
-    // First frame - DisplayFrame is not janky. This should classify the SurfaceFrame as
+    // First frame - DisplayFrame is not janky. This should classify the SurfaceFrame as only
     // AppDeadlineMissed. Second frame - DisplayFrame is janky. This should propagate DisplayFrame's
-    // jank to the SurfaceFrame.
+    // jank to the SurfaceFrame along with AppDeadlineMissed.
 
     EXPECT_CALL(*mTimeStats, incrementJankyFrames(_)).Times(2);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
@@ -1771,7 +1772,8 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishLatePresent) 
     EXPECT_EQ(actuals2.presentTime, 60);
     EXPECT_EQ(presentedSurfaceFrame2.getFramePresentMetadata(), FramePresentMetadata::LatePresent);
     EXPECT_EQ(presentedSurfaceFrame2.getFrameReadyMetadata(), FrameReadyMetadata::LateFinish);
-    EXPECT_EQ(presentedSurfaceFrame2.getJankType(), JankType::SurfaceFlingerCpuDeadlineMissed);
+    EXPECT_EQ(presentedSurfaceFrame2.getJankType(),
+              JankType::SurfaceFlingerCpuDeadlineMissed | JankType::AppDeadlineMissed);
 }
 
 TEST_F(FrameTimelineTest, jankClassification_multiJankBufferStuffingAndAppDeadlineMissed) {
