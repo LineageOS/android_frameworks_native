@@ -63,7 +63,8 @@ layer_state_t::layer_state_t()
         fixedTransformHint(ui::Transform::ROT_INVALID),
         frameNumber(0),
         frameTimelineInfo(),
-        autoRefresh(false) {
+        autoRefresh(false),
+        releaseBufferListener(nullptr) {
     matrix.dsdx = matrix.dtdy = 1.0f;
     matrix.dsdy = matrix.dtdx = 0.0f;
     hdrMetadata.validTypes = 0;
@@ -152,6 +153,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeUint64, frameNumber);
     SAFE_PARCEL(frameTimelineInfo.write, output);
     SAFE_PARCEL(output.writeBool, autoRefresh);
+    SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(releaseBufferListener));
 
     SAFE_PARCEL(output.writeUint32, blurRegions.size());
     for (auto region : blurRegions) {
@@ -274,6 +276,12 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint64, &frameNumber);
     SAFE_PARCEL(frameTimelineInfo.read, input);
     SAFE_PARCEL(input.readBool, &autoRefresh);
+
+    tmpBinder = nullptr;
+    SAFE_PARCEL(input.readNullableStrongBinder, &tmpBinder);
+    if (tmpBinder) {
+        releaseBufferListener = checked_interface_cast<ITransactionCompletedListener>(tmpBinder);
+    }
 
     uint32_t numRegions = 0;
     SAFE_PARCEL(input.readUint32, &numRegions);
@@ -542,6 +550,13 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eAutoRefreshChanged) {
         what |= eAutoRefreshChanged;
         autoRefresh = other.autoRefresh;
+    }
+    if (other.what & eReleaseBufferListenerChanged) {
+        if (releaseBufferListener) {
+            ALOGW("Overriding releaseBufferListener");
+        }
+        what |= eReleaseBufferListenerChanged;
+        releaseBufferListener = other.releaseBufferListener;
     }
     if (other.what & eStretchChanged) {
         what |= eStretchChanged;

@@ -1048,6 +1048,9 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         c.callbackHandles.push_back(handle);
     }
 
+    // Allow BufferStateLayer to release any unlatched buffers in drawing state.
+    bufferMayChange(c.buffer);
+
     // Commit the transaction
     commitTransaction(c);
     mPendingStatesSnapshot = mPendingStates;

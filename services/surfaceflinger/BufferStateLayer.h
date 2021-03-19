@@ -70,7 +70,8 @@ public:
     bool setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence, nsecs_t postTime,
                    nsecs_t desiredPresentTime, bool isAutoTimestamp,
                    const client_cache_t& clientCacheId, uint64_t frameNumber,
-                   std::optional<nsecs_t> dequeueTime, const FrameTimelineInfo& info) override;
+                   std::optional<nsecs_t> dequeueTime, const FrameTimelineInfo& info,
+                   const sp<ITransactionCompletedListener>& transactionListener) override;
     bool setAcquireFence(const sp<Fence>& fence) override;
     bool setDataspace(ui::Dataspace dataspace) override;
     bool setHdrMetadata(const HdrMetadata& hdrMetadata) override;
@@ -111,7 +112,7 @@ public:
 
     // See mPendingBufferTransactions
     void decrementPendingBufferCount();
-    uint32_t doTransaction(uint32_t flags) override;
+    void bufferMayChange(sp<GraphicBuffer>& newBuffer) override;
     std::atomic<int32_t>* getPendingBufferCounter() override { return &mPendingBufferTransactions; }
     std::string getPendingBufferCounterName() override { return mBlastTransactionName; }
 
@@ -170,6 +171,9 @@ private:
 
     mutable bool mCurrentStateModified = false;
     bool mReleasePreviousBuffer = false;
+
+    // Stores the last set acquire fence signal time used to populate the callback handle's acquire
+    // time.
     nsecs_t mCallbackHandleAcquireTime = -1;
 
     std::deque<std::shared_ptr<android::frametimeline::SurfaceFrame>> mPendingJankClassifications;
