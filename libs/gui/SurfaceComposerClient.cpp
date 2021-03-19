@@ -470,8 +470,8 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
         mForceSynchronous(other.mForceSynchronous),
         mTransactionNestCount(other.mTransactionNestCount),
         mAnimation(other.mAnimation),
-        mExplicitEarlyWakeupStart(other.mExplicitEarlyWakeupStart),
-        mExplicitEarlyWakeupEnd(other.mExplicitEarlyWakeupEnd),
+        mEarlyWakeupStart(other.mEarlyWakeupStart),
+        mEarlyWakeupEnd(other.mEarlyWakeupEnd),
         mContainsBuffer(other.mContainsBuffer),
         mDesiredPresentTime(other.mDesiredPresentTime),
         mIsAutoTimestamp(other.mIsAutoTimestamp),
@@ -500,8 +500,8 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     const uint32_t forceSynchronous = parcel->readUint32();
     const uint32_t transactionNestCount = parcel->readUint32();
     const bool animation = parcel->readBool();
-    const bool explicitEarlyWakeupStart = parcel->readBool();
-    const bool explicitEarlyWakeupEnd = parcel->readBool();
+    const bool earlyWakeupStart = parcel->readBool();
+    const bool earlyWakeupEnd = parcel->readBool();
     const bool containsBuffer = parcel->readBool();
     const int64_t desiredPresentTime = parcel->readInt64();
     const bool isAutoTimestamp = parcel->readBool();
@@ -576,8 +576,8 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
     mForceSynchronous = forceSynchronous;
     mTransactionNestCount = transactionNestCount;
     mAnimation = animation;
-    mExplicitEarlyWakeupStart = explicitEarlyWakeupStart;
-    mExplicitEarlyWakeupEnd = explicitEarlyWakeupEnd;
+    mEarlyWakeupStart = earlyWakeupStart;
+    mEarlyWakeupEnd = earlyWakeupEnd;
     mContainsBuffer = containsBuffer;
     mDesiredPresentTime = desiredPresentTime;
     mIsAutoTimestamp = isAutoTimestamp;
@@ -607,8 +607,8 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
     parcel->writeUint32(mForceSynchronous);
     parcel->writeUint32(mTransactionNestCount);
     parcel->writeBool(mAnimation);
-    parcel->writeBool(mExplicitEarlyWakeupStart);
-    parcel->writeBool(mExplicitEarlyWakeupEnd);
+    parcel->writeBool(mEarlyWakeupStart);
+    parcel->writeBool(mEarlyWakeupEnd);
     parcel->writeBool(mContainsBuffer);
     parcel->writeInt64(mDesiredPresentTime);
     parcel->writeBool(mIsAutoTimestamp);
@@ -686,8 +686,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
     mInputWindowCommands.merge(other.mInputWindowCommands);
 
     mContainsBuffer |= other.mContainsBuffer;
-    mExplicitEarlyWakeupStart = mExplicitEarlyWakeupStart || other.mExplicitEarlyWakeupStart;
-    mExplicitEarlyWakeupEnd = mExplicitEarlyWakeupEnd || other.mExplicitEarlyWakeupEnd;
+    mEarlyWakeupStart = mEarlyWakeupStart || other.mEarlyWakeupStart;
+    mEarlyWakeupEnd = mEarlyWakeupEnd || other.mEarlyWakeupEnd;
     mApplyToken = other.mApplyToken;
 
     mFrameTimelineInfo.merge(other.mFrameTimelineInfo);
@@ -705,8 +705,8 @@ void SurfaceComposerClient::Transaction::clear() {
     mForceSynchronous = 0;
     mTransactionNestCount = 0;
     mAnimation = false;
-    mExplicitEarlyWakeupStart = false;
-    mExplicitEarlyWakeupEnd = false;
+    mEarlyWakeupStart = false;
+    mEarlyWakeupEnd = false;
     mDesiredPresentTime = 0;
     mIsAutoTimestamp = true;
     mFrameTimelineInfo.clear();
@@ -826,13 +826,13 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
         flags |= ISurfaceComposer::eAnimation;
     }
 
-    // If both mExplicitEarlyWakeupStart and mExplicitEarlyWakeupEnd are set
+    // If both mEarlyWakeupStart and mEarlyWakeupEnd are set
     // it is equivalent for none
-    if (mExplicitEarlyWakeupStart && !mExplicitEarlyWakeupEnd) {
-        flags |= ISurfaceComposer::eExplicitEarlyWakeupStart;
+    if (mEarlyWakeupStart && !mEarlyWakeupEnd) {
+        flags |= ISurfaceComposer::eEarlyWakeupStart;
     }
-    if (mExplicitEarlyWakeupEnd && !mExplicitEarlyWakeupStart) {
-        flags |= ISurfaceComposer::eExplicitEarlyWakeupEnd;
+    if (mEarlyWakeupEnd && !mEarlyWakeupStart) {
+        flags |= ISurfaceComposer::eEarlyWakeupEnd;
     }
 
     sp<IBinder> applyToken = mApplyToken
@@ -883,12 +883,12 @@ void SurfaceComposerClient::Transaction::setAnimationTransaction() {
     mAnimation = true;
 }
 
-void SurfaceComposerClient::Transaction::setExplicitEarlyWakeupStart() {
-    mExplicitEarlyWakeupStart = true;
+void SurfaceComposerClient::Transaction::setEarlyWakeupStart() {
+    mEarlyWakeupStart = true;
 }
 
-void SurfaceComposerClient::Transaction::setExplicitEarlyWakeupEnd() {
-    mExplicitEarlyWakeupEnd = true;
+void SurfaceComposerClient::Transaction::setEarlyWakeupEnd() {
+    mEarlyWakeupEnd = true;
 }
 
 layer_state_t* SurfaceComposerClient::Transaction::getLayerState(const sp<SurfaceControl>& sc) {
