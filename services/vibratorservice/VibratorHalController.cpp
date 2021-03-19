@@ -87,56 +87,12 @@ std::shared_ptr<HalWrapper> connectHal(std::shared_ptr<CallbackScheduler> schedu
 
 // -------------------------------------------------------------------------------------------------
 
-static constexpr int MAX_RETRIES = 1;
-
-template <typename T>
-HalResult<T> HalController::processHalResult(HalResult<T> result, const char* functionName) {
-    if (result.isFailed()) {
-        ALOGE("%s failed: %s", functionName, result.errorMessage());
-        std::lock_guard<std::mutex> lock(mConnectedHalMutex);
-        mConnectedHal->tryReconnect();
-    }
-    return result;
-}
-
-template <typename T>
-HalResult<T> HalController::apply(HalController::hal_fn<T>& halFn, const char* functionName) {
-    std::shared_ptr<HalWrapper> hal = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(mConnectedHalMutex);
-        if (mConnectedHal == nullptr) {
-            // Init was never called, so connect to HAL for the first time during this call.
-            mConnectedHal = mConnector(mCallbackScheduler);
-
-            if (mConnectedHal == nullptr) {
-                ALOGV("Skipped %s because Vibrator HAL is not available", functionName);
-                return HalResult<T>::unsupported();
-            }
-        }
-        hal = mConnectedHal;
-    }
-
-    HalResult<T> ret = processHalResult(halFn(hal), functionName);
-    for (int i = 0; i < MAX_RETRIES && ret.isFailed(); i++) {
-        ret = processHalResult(halFn(hal), functionName);
-    }
-
-    return ret;
-}
-
-// -------------------------------------------------------------------------------------------------
-
 bool HalController::init() {
     std::lock_guard<std::mutex> lock(mConnectedHalMutex);
     if (mConnectedHal == nullptr) {
         mConnectedHal = mConnector(mCallbackScheduler);
     }
     return mConnectedHal != nullptr;
-}
-
-HalResult<void> HalController::ping() {
-    hal_fn<void> pingFn = [](std::shared_ptr<HalWrapper> hal) { return hal->ping(); };
-    return apply(pingFn, "ping");
 }
 
 void HalController::tryReconnect() {
@@ -146,96 +102,6 @@ void HalController::tryReconnect() {
     } else {
         mConnectedHal->tryReconnect();
     }
-}
-
-HalResult<void> HalController::on(milliseconds timeout,
-                                  const std::function<void()>& completionCallback) {
-    hal_fn<void> onFn = [&](std::shared_ptr<HalWrapper> hal) {
-        return hal->on(timeout, completionCallback);
-    };
-    return apply(onFn, "on");
-}
-
-HalResult<void> HalController::off() {
-    hal_fn<void> offFn = [](std::shared_ptr<HalWrapper> hal) { return hal->off(); };
-    return apply(offFn, "off");
-}
-
-HalResult<void> HalController::setAmplitude(float amplitude) {
-    hal_fn<void> setAmplitudeFn = [&](std::shared_ptr<HalWrapper> hal) {
-        return hal->setAmplitude(amplitude);
-    };
-    return apply(setAmplitudeFn, "setAmplitude");
-}
-
-HalResult<void> HalController::setExternalControl(bool enabled) {
-    hal_fn<void> setExternalControlFn = [&](std::shared_ptr<HalWrapper> hal) {
-        return hal->setExternalControl(enabled);
-    };
-    return apply(setExternalControlFn, "setExternalControl");
-}
-
-HalResult<void> HalController::alwaysOnEnable(int32_t id, Effect effect, EffectStrength strength) {
-    hal_fn<void> alwaysOnEnableFn = [&](std::shared_ptr<HalWrapper> hal) {
-        return hal->alwaysOnEnable(id, effect, strength);
-    };
-    return apply(alwaysOnEnableFn, "alwaysOnEnable");
-}
-
-HalResult<void> HalController::alwaysOnDisable(int32_t id) {
-    hal_fn<void> alwaysOnDisableFn = [&](std::shared_ptr<HalWrapper> hal) {
-        return hal->alwaysOnDisable(id);
-    };
-    return apply(alwaysOnDisableFn, "alwaysOnDisable");
-}
-
-HalResult<Capabilities> HalController::getCapabilities() {
-    hal_fn<Capabilities> getCapabilitiesFn = [](std::shared_ptr<HalWrapper> hal) {
-        return hal->getCapabilities();
-    };
-    return apply(getCapabilitiesFn, "getCapabilities");
-}
-
-HalResult<std::vector<Effect>> HalController::getSupportedEffects() {
-    hal_fn<std::vector<Effect>> getSupportedEffectsFn = [](std::shared_ptr<HalWrapper> hal) {
-        return hal->getSupportedEffects();
-    };
-    return apply(getSupportedEffectsFn, "getSupportedEffects");
-}
-
-HalResult<std::vector<CompositePrimitive>> HalController::getSupportedPrimitives() {
-    hal_fn<std::vector<CompositePrimitive>> getSupportedPrimitivesFn =
-            [](std::shared_ptr<HalWrapper> hal) { return hal->getSupportedPrimitives(); };
-    return apply(getSupportedPrimitivesFn, "getSupportedPrimitives");
-}
-
-HalResult<float> HalController::getResonantFrequency() {
-    hal_fn<float> getResonantFrequencyFn = [](std::shared_ptr<HalWrapper> hal) {
-        return hal->getResonantFrequency();
-    };
-    return apply(getResonantFrequencyFn, "getResonantFrequency");
-}
-
-HalResult<float> HalController::getQFactor() {
-    hal_fn<float> getQFactorFn = [](std::shared_ptr<HalWrapper> hal) { return hal->getQFactor(); };
-    return apply(getQFactorFn, "getQFactor");
-}
-
-HalResult<milliseconds> HalController::performEffect(
-        Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
-    hal_fn<milliseconds> performEffectFn = [&](std::shared_ptr<HalWrapper> hal) {
-        return hal->performEffect(effect, strength, completionCallback);
-    };
-    return apply(performEffectFn, "performEffect");
-}
-
-HalResult<milliseconds> HalController::performComposedEffect(
-        const std::vector<CompositeEffect>& primitiveEffects,
-        const std::function<void()>& completionCallback) {
-    hal_fn<milliseconds> performComposedEffectFn = [&](std::shared_ptr<HalWrapper> hal) {
-        return hal->performComposedEffect(primitiveEffects, completionCallback);
-    };
-    return apply(performComposedEffectFn, "performComposedEffect");
 }
 
 }; // namespace vibrator

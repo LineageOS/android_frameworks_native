@@ -42,7 +42,11 @@ using namespace android;
 using namespace std::chrono_literals;
 using namespace testing;
 
-static constexpr int MAX_ATTEMPTS = 2;
+static const auto ON_FN = [](std::shared_ptr<vibrator::HalWrapper> hal) {
+    return hal->on(10ms, []() {});
+};
+static const auto OFF_FN = [](std::shared_ptr<vibrator::HalWrapper> hal) { return hal->off(); };
+static const auto PING_FN = [](std::shared_ptr<vibrator::HalWrapper> hal) { return hal->ping(); };
 
 // -------------------------------------------------------------------------------------------------
 
@@ -63,14 +67,6 @@ public:
     MOCK_METHOD(vibrator::HalResult<void>, alwaysOnEnable,
                 (int32_t id, Effect effect, EffectStrength strength), (override));
     MOCK_METHOD(vibrator::HalResult<void>, alwaysOnDisable, (int32_t id), (override));
-    MOCK_METHOD(vibrator::HalResult<vibrator::Capabilities>, getCapabilities, (), (override));
-    MOCK_METHOD(vibrator::HalResult<std::vector<Effect>>, getSupportedEffects, (), (override));
-    MOCK_METHOD(vibrator::HalResult<std::vector<CompositePrimitive>>, getSupportedPrimitives, (),
-                (override));
-
-    MOCK_METHOD(vibrator::HalResult<float>, getResonantFrequency, (), (override));
-    MOCK_METHOD(vibrator::HalResult<float>, getQFactor, (), (override));
-
     MOCK_METHOD(vibrator::HalResult<milliseconds>, performEffect,
                 (Effect effect, EffectStrength strength,
                  const std::function<void()>& completionCallback),
@@ -78,6 +74,8 @@ public:
     MOCK_METHOD(vibrator::HalResult<milliseconds>, performComposedEffect,
                 (const std::vector<CompositeEffect>& primitiveEffects,
                  const std::function<void()>& completionCallback),
+                (override));
+    MOCK_METHOD(vibrator::HalResult<vibrator::Capabilities>, getCapabilitiesInternal, (),
                 (override));
 
     vibrator::CallbackScheduler* getCallbackScheduler() { return mCallbackScheduler.get(); }
@@ -104,64 +102,6 @@ protected:
     int32_t mConnectCounter;
     std::shared_ptr<MockHalWrapper> mMockHal;
     std::unique_ptr<vibrator::HalController> mController;
-
-    void setHalExpectations(int32_t cardinality, std::vector<CompositeEffect> compositeEffects,
-                            vibrator::HalResult<void> voidResult,
-                            vibrator::HalResult<vibrator::Capabilities> capabilitiesResult,
-                            vibrator::HalResult<std::vector<Effect>> effectsResult,
-                            vibrator::HalResult<std::vector<CompositePrimitive>> primitivesResult,
-                            vibrator::HalResult<float> resonantFrequencyResult,
-                            vibrator::HalResult<float> qFactorResult,
-                            vibrator::HalResult<milliseconds> durationResult) {
-        EXPECT_CALL(*mMockHal.get(), ping())
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(voidResult));
-        EXPECT_CALL(*mMockHal.get(), on(Eq(10ms), _))
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(voidResult));
-        EXPECT_CALL(*mMockHal.get(), off())
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(voidResult));
-        EXPECT_CALL(*mMockHal.get(), setAmplitude(Eq(1.0f)))
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(voidResult));
-        EXPECT_CALL(*mMockHal.get(), setExternalControl(Eq(true)))
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(voidResult));
-        EXPECT_CALL(*mMockHal.get(),
-                    alwaysOnEnable(Eq(1), Eq(Effect::CLICK), Eq(EffectStrength::LIGHT)))
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(voidResult));
-        EXPECT_CALL(*mMockHal.get(), alwaysOnDisable(Eq(1)))
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(voidResult));
-        EXPECT_CALL(*mMockHal.get(), getCapabilities())
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(capabilitiesResult));
-        EXPECT_CALL(*mMockHal.get(), getSupportedEffects())
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(effectsResult));
-        EXPECT_CALL(*mMockHal.get(), getSupportedPrimitives())
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(primitivesResult));
-        EXPECT_CALL(*mMockHal.get(), getResonantFrequency())
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(resonantFrequencyResult));
-        EXPECT_CALL(*mMockHal.get(), getQFactor())
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(qFactorResult));
-        EXPECT_CALL(*mMockHal.get(), performEffect(Eq(Effect::CLICK), Eq(EffectStrength::LIGHT), _))
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(durationResult));
-        EXPECT_CALL(*mMockHal.get(), performComposedEffect(Eq(compositeEffects), _))
-                .Times(Exactly(cardinality))
-                .WillRepeatedly(Return(durationResult));
-
-        if (cardinality > 1) {
-            // One reconnection call after each failure.
-            EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(14 * cardinality));
-        }
-    }
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -175,127 +115,52 @@ TEST_F(VibratorHalControllerTest, TestInit) {
     ASSERT_EQ(1, mConnectCounter);
 }
 
+TEST_F(VibratorHalControllerTest, TestGetInfoRetriesOnAnyFailure) {
+    EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
+    EXPECT_CALL(*mMockHal.get(), getCapabilitiesInternal())
+            .Times(Exactly(2))
+            .WillOnce(Return(vibrator::HalResult<vibrator::Capabilities>::failed("message")))
+            .WillRepeatedly(Return(vibrator::HalResult<vibrator::Capabilities>::ok(
+                    vibrator::Capabilities::ON_CALLBACK)));
+
+    auto result = mController->getInfo();
+    ASSERT_FALSE(result.capabilities.isFailed());
+
+    ASSERT_EQ(1, mConnectCounter);
+}
+
 TEST_F(VibratorHalControllerTest, TestApiCallsAreForwardedToHal) {
-    std::vector<Effect> effects = {Effect::CLICK, Effect::TICK};
-    std::vector<CompositePrimitive> primitives = {CompositePrimitive::CLICK,
-                                                  CompositePrimitive::THUD};
-    constexpr float F0 = 123.f;
-    constexpr float Q_FACTOR = 12.f;
-    const std::vector<CompositeEffect> compositeEffects =
-            {vibrator::TestFactory::createCompositeEffect(CompositePrimitive::SPIN, 100ms, 0.5f),
-             vibrator::TestFactory::createCompositeEffect(CompositePrimitive::THUD, 1000ms, 1.0f)};
+    EXPECT_CALL(*mMockHal.get(), on(_, _))
+            .Times(Exactly(1))
+            .WillRepeatedly(Return(vibrator::HalResult<void>::ok()));
 
-    setHalExpectations(/* cardinality= */ 1, compositeEffects, vibrator::HalResult<void>::ok(),
-                       vibrator::HalResult<vibrator::Capabilities>::ok(
-                               vibrator::Capabilities::ON_CALLBACK),
-                       vibrator::HalResult<std::vector<Effect>>::ok(effects),
-                       vibrator::HalResult<std::vector<CompositePrimitive>>::ok(primitives),
-                       vibrator::HalResult<float>::ok(F0), vibrator::HalResult<float>::ok(Q_FACTOR),
-                       vibrator::HalResult<milliseconds>::ok(100ms));
-
-    ASSERT_TRUE(mController->ping().isOk());
-    ASSERT_TRUE(mController->on(10ms, []() {}).isOk());
-    ASSERT_TRUE(mController->off().isOk());
-    ASSERT_TRUE(mController->setAmplitude(1.0f).isOk());
-    ASSERT_TRUE(mController->setExternalControl(true).isOk());
-    ASSERT_TRUE(mController->alwaysOnEnable(1, Effect::CLICK, EffectStrength::LIGHT).isOk());
-    ASSERT_TRUE(mController->alwaysOnDisable(1).isOk());
-
-    auto getCapabilitiesResult = mController->getCapabilities();
-    ASSERT_TRUE(getCapabilitiesResult.isOk());
-    ASSERT_EQ(vibrator::Capabilities::ON_CALLBACK, getCapabilitiesResult.value());
-
-    auto getSupportedEffectsResult = mController->getSupportedEffects();
-    ASSERT_TRUE(getSupportedEffectsResult.isOk());
-    ASSERT_EQ(effects, getSupportedEffectsResult.value());
-
-    auto getSupportedPrimitivesResult = mController->getSupportedPrimitives();
-    ASSERT_TRUE(getSupportedPrimitivesResult.isOk());
-    ASSERT_EQ(primitives, getSupportedPrimitivesResult.value());
-
-    auto getResonantFrequencyResult = mController->getResonantFrequency();
-    ASSERT_TRUE(getResonantFrequencyResult.isOk());
-    ASSERT_EQ(F0, getResonantFrequencyResult.value());
-
-    auto getQFactorResult = mController->getQFactor();
-    ASSERT_TRUE(getQFactorResult.isOk());
-    ASSERT_EQ(Q_FACTOR, getQFactorResult.value());
-
-    auto performEffectResult =
-            mController->performEffect(Effect::CLICK, EffectStrength::LIGHT, []() {});
-    ASSERT_TRUE(performEffectResult.isOk());
-    ASSERT_EQ(100ms, performEffectResult.value());
-
-    auto performComposedEffectResult =
-            mController->performComposedEffect(compositeEffects, []() {});
-    ASSERT_TRUE(performComposedEffectResult.isOk());
-    ASSERT_EQ(100ms, performComposedEffectResult.value());
+    auto result = mController->doWithRetry<void>(ON_FN, "on");
+    ASSERT_TRUE(result.isOk());
 
     ASSERT_EQ(1, mConnectCounter);
 }
 
 TEST_F(VibratorHalControllerTest, TestUnsupportedApiResultDoNotResetHalConnection) {
-    setHalExpectations(/* cardinality= */ 1, std::vector<CompositeEffect>(),
-                       vibrator::HalResult<void>::unsupported(),
-                       vibrator::HalResult<vibrator::Capabilities>::unsupported(),
-                       vibrator::HalResult<std::vector<Effect>>::unsupported(),
-                       vibrator::HalResult<std::vector<CompositePrimitive>>::unsupported(),
-                       vibrator::HalResult<float>::unsupported(),
-                       vibrator::HalResult<float>::unsupported(),
-                       vibrator::HalResult<milliseconds>::unsupported());
+    EXPECT_CALL(*mMockHal.get(), off())
+            .Times(Exactly(1))
+            .WillRepeatedly(Return(vibrator::HalResult<void>::unsupported()));
 
     ASSERT_EQ(0, mConnectCounter);
-
-    ASSERT_TRUE(mController->ping().isUnsupported());
-    ASSERT_TRUE(mController->on(10ms, []() {}).isUnsupported());
-    ASSERT_TRUE(mController->off().isUnsupported());
-    ASSERT_TRUE(mController->setAmplitude(1.0f).isUnsupported());
-    ASSERT_TRUE(mController->setExternalControl(true).isUnsupported());
-    ASSERT_TRUE(
-            mController->alwaysOnEnable(1, Effect::CLICK, EffectStrength::LIGHT).isUnsupported());
-    ASSERT_TRUE(mController->alwaysOnDisable(1).isUnsupported());
-    ASSERT_TRUE(mController->getCapabilities().isUnsupported());
-    ASSERT_TRUE(mController->getSupportedEffects().isUnsupported());
-    ASSERT_TRUE(mController->getSupportedPrimitives().isUnsupported());
-    ASSERT_TRUE(mController->getResonantFrequency().isUnsupported());
-    ASSERT_TRUE(mController->getQFactor().isUnsupported());
-    ASSERT_TRUE(mController->performEffect(Effect::CLICK, EffectStrength::LIGHT, []() {})
-                        .isUnsupported());
-    ASSERT_TRUE(mController->performComposedEffect(std::vector<CompositeEffect>(), []() {})
-                        .isUnsupported());
-
+    auto result = mController->doWithRetry<void>(OFF_FN, "off");
+    ASSERT_TRUE(result.isUnsupported());
     ASSERT_EQ(1, mConnectCounter);
 }
 
 TEST_F(VibratorHalControllerTest, TestFailedApiResultResetsHalConnection) {
-    setHalExpectations(MAX_ATTEMPTS, std::vector<CompositeEffect>(),
-                       vibrator::HalResult<void>::failed("message"),
-                       vibrator::HalResult<vibrator::Capabilities>::failed("message"),
-                       vibrator::HalResult<std::vector<Effect>>::failed("message"),
-                       vibrator::HalResult<std::vector<CompositePrimitive>>::failed("message"),
-                       vibrator::HalResult<float>::failed("message"),
-                       vibrator::HalResult<float>::failed("message"),
-                       vibrator::HalResult<milliseconds>::failed("message"));
+    EXPECT_CALL(*mMockHal.get(), on(_, _))
+            .Times(Exactly(2))
+            .WillRepeatedly(Return(vibrator::HalResult<void>::failed("message")));
+    EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
 
     ASSERT_EQ(0, mConnectCounter);
 
-    ASSERT_TRUE(mController->ping().isFailed());
-    ASSERT_TRUE(mController->on(10ms, []() {}).isFailed());
-    ASSERT_TRUE(mController->off().isFailed());
-    ASSERT_TRUE(mController->setAmplitude(1.0f).isFailed());
-    ASSERT_TRUE(mController->setExternalControl(true).isFailed());
-    ASSERT_TRUE(mController->alwaysOnEnable(1, Effect::CLICK, EffectStrength::LIGHT).isFailed());
-    ASSERT_TRUE(mController->alwaysOnDisable(1).isFailed());
-    ASSERT_TRUE(mController->getCapabilities().isFailed());
-    ASSERT_TRUE(mController->getSupportedEffects().isFailed());
-    ASSERT_TRUE(mController->getSupportedPrimitives().isFailed());
-    ASSERT_TRUE(mController->getResonantFrequency().isFailed());
-    ASSERT_TRUE(mController->getQFactor().isFailed());
-    ASSERT_TRUE(
-            mController->performEffect(Effect::CLICK, EffectStrength::LIGHT, []() {}).isFailed());
-    ASSERT_TRUE(
-            mController->performComposedEffect(std::vector<CompositeEffect>(), []() {}).isFailed());
-
+    auto result = mController->doWithRetry<void>(ON_FN, "on");
+    ASSERT_TRUE(result.isFailed());
     ASSERT_EQ(1, mConnectCounter);
 }
 
@@ -312,7 +177,9 @@ TEST_F(VibratorHalControllerTest, TestFailedApiResultReturnsSuccessAfterRetries)
     }
 
     ASSERT_EQ(0, mConnectCounter);
-    ASSERT_TRUE(mController->ping().isOk());
+
+    auto result = mController->doWithRetry<void>(PING_FN, "ping");
+    ASSERT_TRUE(result.isOk());
     ASSERT_EQ(1, mConnectCounter);
 }
 
@@ -325,7 +192,10 @@ TEST_F(VibratorHalControllerTest, TestMultiThreadConnectsOnlyOnce) {
 
     std::vector<std::thread> threads;
     for (int i = 0; i < 10; i++) {
-        threads.push_back(std::thread([&]() { ASSERT_TRUE(mController->ping().isOk()); }));
+        threads.push_back(std::thread([&]() {
+            auto result = mController->doWithRetry<void>(PING_FN, "ping");
+            ASSERT_TRUE(result.isOk());
+        }));
     }
     std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
 
@@ -341,33 +211,17 @@ TEST_F(VibratorHalControllerTest, TestNoVibratorReturnsUnsupportedAndAttemptsToR
     });
     ASSERT_EQ(0, mConnectCounter);
 
-    ASSERT_FALSE(mController->init());
-    ASSERT_TRUE(mController->ping().isUnsupported());
-    ASSERT_TRUE(mController->on(10ms, []() {}).isUnsupported());
-    ASSERT_TRUE(mController->off().isUnsupported());
-    ASSERT_TRUE(mController->setAmplitude(1.0f).isUnsupported());
-    ASSERT_TRUE(mController->setExternalControl(true).isUnsupported());
-    ASSERT_TRUE(
-            mController->alwaysOnEnable(1, Effect::CLICK, EffectStrength::LIGHT).isUnsupported());
-    ASSERT_TRUE(mController->alwaysOnDisable(1).isUnsupported());
-    ASSERT_TRUE(mController->getCapabilities().isUnsupported());
-    ASSERT_TRUE(mController->getSupportedEffects().isUnsupported());
-    ASSERT_TRUE(mController->getSupportedPrimitives().isUnsupported());
-    ASSERT_TRUE(mController->getResonantFrequency().isUnsupported());
-    ASSERT_TRUE(mController->getQFactor().isUnsupported());
-    ASSERT_TRUE(mController->performEffect(Effect::CLICK, EffectStrength::LIGHT, []() {})
-                        .isUnsupported());
-    ASSERT_TRUE(mController->performComposedEffect(std::vector<CompositeEffect>(), []() {})
-                        .isUnsupported());
+    ASSERT_TRUE(mController->doWithRetry<void>(OFF_FN, "off").isUnsupported());
+    ASSERT_TRUE(mController->doWithRetry<void>(PING_FN, "ping").isUnsupported());
 
     // One connection attempt per api call.
-    ASSERT_EQ(15, mConnectCounter);
+    ASSERT_EQ(2, mConnectCounter);
 }
 
 TEST_F(VibratorHalControllerTest, TestScheduledCallbackSurvivesReconnection) {
     {
         InSequence seq;
-        EXPECT_CALL(*mMockHal.get(), on(Eq(10ms), _))
+        EXPECT_CALL(*mMockHal.get(), on(_, _))
                 .Times(Exactly(1))
                 .WillRepeatedly([&](milliseconds timeout, std::function<void()> callback) {
                     mMockHal.get()->getCallbackScheduler()->schedule(callback, timeout);
@@ -380,14 +234,14 @@ TEST_F(VibratorHalControllerTest, TestScheduledCallbackSurvivesReconnection) {
         EXPECT_CALL(*mMockHal.get(), ping())
                 .Times(Exactly(1))
                 .WillRepeatedly(Return(vibrator::HalResult<void>::failed("message")));
-        EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
     }
 
     std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
     auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
 
-    ASSERT_TRUE(mController->on(10ms, callback).isOk());
-    ASSERT_TRUE(mController->ping().isFailed());
+    auto onFn = [&](std::shared_ptr<vibrator::HalWrapper> hal) { return hal->on(10ms, callback); };
+    ASSERT_TRUE(mController->doWithRetry<void>(onFn, "on").isOk());
+    ASSERT_TRUE(mController->doWithRetry<void>(PING_FN, "ping").isFailed());
     mMockHal.reset();
     ASSERT_EQ(0, *callbackCounter.get());
 
