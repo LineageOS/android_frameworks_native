@@ -797,6 +797,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             const auto rect = layer->geometry.roundedCornersRadius > 0
                     ? getSkRect(layer->geometry.roundedCornersCrop)
                     : bounds;
+            // This would require a new parameter/flag to SkShadowUtils::DrawShadow
+            LOG_ALWAYS_FATAL_IF(layer->disableBlending, "Cannot disableBlending with a shadow");
             drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
             continue;
         }
@@ -806,7 +808,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                  needsToneMapping(layer->sourceDataspace, display.outputDataspace));
 
         // quick abort from drawing the remaining portion of the layer
-        if (layer->alpha == 0 && !requiresLinearEffect &&
+        if (layer->alpha == 0 && !requiresLinearEffect && !layer->disableBlending &&
             (!displayColorTransform || displayColorTransform->isAlphaUnchanged())) {
             continue;
         }
@@ -910,6 +912,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             paint.setShader(createRuntimeEffectShader(shader, layer, display,
                                                       /* undoPremultipliedAlpha */ false,
                                                       requiresLinearEffect));
+        }
+
+        if (layer->disableBlending) {
+            paint.setBlendMode(SkBlendMode::kSrc);
         }
 
         paint.setColorFilter(displayColorTransform);

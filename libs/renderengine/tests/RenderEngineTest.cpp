@@ -1920,6 +1920,83 @@ TEST_P(RenderEngineTest, testRoundedCornersCrop) {
                       0, 255, 0, 255);
 }
 
+TEST_P(RenderEngineTest, testClear) {
+    initializeRenderEngine();
+
+    const auto rect = fullscreenRect();
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = rect,
+            .clip = rect,
+    };
+
+    const renderengine::LayerSettings redLayer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source.solidColor = half3(1.0f, 0.0f, 0.0f),
+            .alpha = 1.0f,
+    };
+
+    // This mimics prepareClearClientComposition. This layer should overwrite
+    // the redLayer, so that the buffer is transparent, rather than red.
+    const renderengine::LayerSettings clearLayer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source.solidColor = half3(0.0f, 0.0f, 0.0f),
+            .alpha = 0.0f,
+            .disableBlending = true,
+    };
+
+    std::vector<const renderengine::LayerSettings*> layers{&redLayer, &clearLayer};
+    invokeDraw(display, layers);
+    expectBufferColor(rect, 0, 0, 0, 0);
+}
+
+TEST_P(RenderEngineTest, testDisableBlendingBuffer) {
+    initializeRenderEngine();
+
+    const auto rect = Rect(0, 0, 1, 1);
+    const renderengine::DisplaySettings display{
+            .physicalDisplay = rect,
+            .clip = rect,
+    };
+
+    const renderengine::LayerSettings redLayer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source.solidColor = half3(1.0f, 0.0f, 0.0f),
+            .alpha = 1.0f,
+    };
+
+    // The next layer will overwrite redLayer with a GraphicBuffer that is green
+    // applied with a translucent alpha.
+    auto buf = allocateSourceBuffer(1, 1);
+    {
+        uint8_t* pixels;
+        buf->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                  reinterpret_cast<void**>(&pixels));
+        pixels[0] = 0;
+        pixels[1] = 255;
+        pixels[2] = 0;
+        pixels[3] = 255;
+        buf->unlock();
+    }
+
+    const renderengine::LayerSettings greenLayer{
+            .geometry.boundaries = rect.toFloatRect(),
+            .source =
+                    renderengine::PixelSource{
+                            .buffer =
+                                    renderengine::Buffer{
+                                            .buffer = buf,
+                                            .usePremultipliedAlpha = true,
+                                    },
+                    },
+            .alpha = 0.5f,
+            .disableBlending = true,
+    };
+
+    std::vector<const renderengine::LayerSettings*> layers{&redLayer, &greenLayer};
+    invokeDraw(display, layers);
+    expectBufferColor(rect, 0, 128, 0, 128);
+}
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
