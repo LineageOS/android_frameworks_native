@@ -30,7 +30,6 @@ namespace android::scheduler {
 // fixed number of frames, respectively.
 enum class TransactionSchedule {
     Late,  // Default.
-    Early, // Deprecated.
     EarlyStart,
     EarlyEnd
 };
