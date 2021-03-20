@@ -404,7 +404,16 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
     mCurrentState.desiredPresentTime = desiredPresentTime;
     mCurrentState.isAutoTimestamp = isAutoTimestamp;
 
-    mFlinger->mScheduler->recordLayerHistory(this, isAutoTimestamp ? 0 : desiredPresentTime,
+    const nsecs_t presentTime = [&] {
+        if (!isAutoTimestamp) return desiredPresentTime;
+
+        const auto prediction =
+                mFlinger->mFrameTimeline->getTokenManager()->getPredictionsForToken(info.vsyncId);
+        if (prediction.has_value()) return prediction->presentTime;
+
+        return static_cast<nsecs_t>(0);
+    }();
+    mFlinger->mScheduler->recordLayerHistory(this, presentTime,
                                              LayerHistory::LayerUpdateType::Buffer);
 
     addFrameEvent(acquireFence, postTime, isAutoTimestamp ? 0 : desiredPresentTime);
