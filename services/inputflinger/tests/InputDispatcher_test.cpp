@@ -266,6 +266,11 @@ public:
         mPointerCaptureEnabled.reset();
     }
 
+    void assertDropTargetEquals(const sp<IBinder>& targetToken) {
+        std::scoped_lock lock(mLock);
+        ASSERT_EQ(targetToken, mDropTargetWindowToken);
+    }
+
 private:
     std::mutex mLock;
     std::unique_ptr<InputEvent> mFilteredEvent GUARDED_BY(mLock);
@@ -283,6 +288,8 @@ private:
     std::queue<int32_t> mAnrMonitorPids GUARDED_BY(mLock);
     std::queue<int32_t> mResponsiveMonitorPids GUARDED_BY(mLock);
     std::condition_variable mNotifyAnr;
+
+    sp<IBinder> mDropTargetWindowToken GUARDED_BY(mLock);
 
     void notifyConfigurationChanged(nsecs_t when) override {
         std::scoped_lock lock(mLock);
@@ -390,6 +397,11 @@ private:
         std::scoped_lock lock(mLock);
         mPointerCaptureEnabled = {enabled};
         mPointerCaptureChangedCondition.notify_all();
+    }
+
+    void notifyDropWindow(const sp<IBinder>& token, float x, float y) override {
+        std::scoped_lock lock(mLock);
+        mDropTargetWindowToken = token;
     }
 
     void assertFilterInputEventWasCalled(int type, nsecs_t eventTime, int32_t action,
@@ -4785,6 +4797,38 @@ TEST_F(InputDispatcherDragTests, DragEnterAndDragExit) {
               injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, {50, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+    mWindow->assertNoEvents();
+    mSecondWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherDragTests, DragAndDrop) {
+    performDrag();
+
+    // Move on window.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                ADISPLAY_ID_DEFAULT, {50, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mWindow->consumeDragEvent(false, 50, 50);
+    mSecondWindow->assertNoEvents();
+
+    // Move to another window.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                ADISPLAY_ID_DEFAULT, {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mWindow->consumeDragEvent(true, 150, 50);
+    mSecondWindow->consumeDragEvent(false, 50, 50);
+
+    // drop to another window.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionUp(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                             {150, 50}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+    mFakePolicy->assertDropTargetEquals(mSecondWindow->getToken());
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }

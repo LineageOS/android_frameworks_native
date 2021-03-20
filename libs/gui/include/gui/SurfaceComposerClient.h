@@ -353,9 +353,8 @@ public:
         uint32_t mForceSynchronous = 0;
         uint32_t mTransactionNestCount = 0;
         bool mAnimation = false;
-        bool mEarlyWakeup = false;
-        bool mExplicitEarlyWakeupStart = false;
-        bool mExplicitEarlyWakeupEnd = false;
+        bool mEarlyWakeupStart = false;
+        bool mEarlyWakeupEnd = false;
 
         // Indicates that the Transaction contains a buffer that should be cached
         bool mContainsBuffer = false;
@@ -567,9 +566,8 @@ public:
                                   const Rect& layerStackRect, const Rect& displayRect);
         void setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height);
         void setAnimationTransaction();
-        void setEarlyWakeup();
-        void setExplicitEarlyWakeupStart();
-        void setExplicitEarlyWakeupEnd();
+        void setEarlyWakeupStart();
+        void setEarlyWakeupEnd();
     };
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;

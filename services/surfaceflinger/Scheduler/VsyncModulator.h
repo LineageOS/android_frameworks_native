@@ -30,7 +30,6 @@ namespace android::scheduler {
 // fixed number of frames, respectively.
 enum class TransactionSchedule {
     Late,  // Default.
-    Early, // Deprecated.
     EarlyStart,
     EarlyEnd
 };
@@ -114,7 +113,7 @@ private:
 
     using Schedule = TransactionSchedule;
     std::atomic<Schedule> mTransactionSchedule = Schedule::Late;
-    std::atomic<bool> mExplicitEarlyWakeup = false;
+    std::atomic<bool> mEarlyWakeup = false;
 
     std::atomic<bool> mRefreshRateChangePending = false;
 
