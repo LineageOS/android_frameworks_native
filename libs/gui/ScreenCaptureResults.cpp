@@ -16,6 +16,8 @@
 
 #include <gui/ScreenCaptureResults.h>
 
+#include <private/gui/ParcelUtils.h>
+
 namespace android::gui {
 
 status_t ScreenCaptureResults::writeToParcel(android::Parcel* parcel) const {
