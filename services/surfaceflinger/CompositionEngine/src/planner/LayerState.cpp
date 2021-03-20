@@ -157,9 +157,11 @@ bool operator==(const LayerState& lhs, const LayerState& rhs) {
     return lhs.mId == rhs.mId && lhs.mName == rhs.mName && lhs.mDisplayFrame == rhs.mDisplayFrame &&
             lhs.mSourceCrop == rhs.mSourceCrop && lhs.mZOrder == rhs.mZOrder &&
             lhs.mBufferTransform == rhs.mBufferTransform && lhs.mBlendMode == rhs.mBlendMode &&
-            lhs.mAlpha == rhs.mAlpha && lhs.mVisibleRegion == rhs.mVisibleRegion &&
-            lhs.mOutputDataspace == rhs.mOutputDataspace &&
+            lhs.mAlpha == rhs.mAlpha && lhs.mLayerMetadata == rhs.mLayerMetadata &&
+            lhs.mVisibleRegion == rhs.mVisibleRegion &&
+            lhs.mOutputDataspace == rhs.mOutputDataspace && lhs.mPixelFormat == rhs.mPixelFormat &&
             lhs.mColorTransform == rhs.mColorTransform &&
+            lhs.mSurfaceDamage == rhs.mSurfaceDamage &&
             lhs.mCompositionType == rhs.mCompositionType &&
             lhs.mSidebandStream == rhs.mSidebandStream && lhs.mBuffer == rhs.mBuffer &&
             (lhs.mCompositionType.get() != hal::Composition::SOLID_COLOR ||

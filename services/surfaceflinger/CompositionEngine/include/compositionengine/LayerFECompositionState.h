@@ -55,6 +55,16 @@ struct GenericLayerMetadataEntry {
     std::vector<uint8_t> value;
 
     std::string dumpAsString() const;
+
+    struct Hasher {
+        size_t operator()(const GenericLayerMetadataEntry& entry) const {
+            size_t hash = 0;
+            for (const auto value : entry.value) {
+                hashCombineSingleHashed(hash, value);
+            }
+            return hash;
+        }
+    };
 };
 
 inline bool operator==(const GenericLayerMetadataEntry& lhs, const GenericLayerMetadataEntry& rhs) {
@@ -70,6 +80,8 @@ using GenericLayerMetadataMap = std::unordered_map<std::string, GenericLayerMeta
 
 /*
  * Used by LayerFE::getCompositionState
+ * Note that fields that affect HW composer state may need to be mirrored into
+ * android::compositionengine::impl::planner::LayerState
  */
 struct LayerFECompositionState {
     // If set to true, forces client composition on all output layers until
