@@ -50,24 +50,23 @@ VsyncModulator::VsyncConfigOpt VsyncModulator::setTransactionSchedule(
         TransactionSchedule schedule) {
     switch (schedule) {
         case Schedule::EarlyStart:
-            ALOGW_IF(mExplicitEarlyWakeup, "%s: Duplicate EarlyStart", __FUNCTION__);
-            mExplicitEarlyWakeup = true;
+            ALOGW_IF(mEarlyWakeup, "%s: Duplicate EarlyStart", __FUNCTION__);
+            mEarlyWakeup = true;
             break;
         case Schedule::EarlyEnd:
-            ALOGW_IF(!mExplicitEarlyWakeup, "%s: Unexpected EarlyEnd", __FUNCTION__);
-            mExplicitEarlyWakeup = false;
+            ALOGW_IF(!mEarlyWakeup, "%s: Unexpected EarlyEnd", __FUNCTION__);
+            mEarlyWakeup = false;
             break;
-        case Schedule::Early:
         case Schedule::Late:
-            // No change to mExplicitEarlyWakeup for non-explicit states.
+            // No change to mEarlyWakeup for non-explicit states.
             break;
     }
 
     if (mTraceDetailedInfo) {
-        ATRACE_INT("mExplicitEarlyWakeup", mExplicitEarlyWakeup);
+        ATRACE_INT("mEarlyWakeup", mEarlyWakeup);
     }
 
-    if (!mExplicitEarlyWakeup && (schedule == Schedule::Early || schedule == Schedule::EarlyEnd)) {
+    if (!mEarlyWakeup && schedule == Schedule::EarlyEnd) {
         mEarlyTransactionFrames = MIN_EARLY_TRANSACTION_FRAMES;
         mEarlyTransactionStartTime = mNow();
     }
@@ -129,8 +128,8 @@ VsyncModulator::VsyncConfig VsyncModulator::getVsyncConfig() const {
 const VsyncModulator::VsyncConfig& VsyncModulator::getNextVsyncConfig() const {
     // Early offsets are used if we're in the middle of a refresh rate
     // change, or if we recently begin a transaction.
-    if (mExplicitEarlyWakeup || mTransactionSchedule == Schedule::EarlyEnd ||
-        mEarlyTransactionFrames > 0 || mRefreshRateChangePending) {
+    if (mEarlyWakeup || mTransactionSchedule == Schedule::EarlyEnd || mEarlyTransactionFrames > 0 ||
+        mRefreshRateChangePending) {
         return mVsyncConfigSet.early;
     } else if (mEarlyGpuFrames > 0) {
         return mVsyncConfigSet.earlyGpu;
