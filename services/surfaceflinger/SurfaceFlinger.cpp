@@ -23,6 +23,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "SurfaceFlinger.h"
+#include "TraceUtils.h"
 
 #include <android-base/properties.h>
 #include <android/configuration.h>
@@ -79,7 +80,6 @@
 #include <utils/String16.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
-#include <utils/Trace.h>
 #include <utils/misc.h>
 
 #include <algorithm>
@@ -1689,7 +1689,12 @@ nsecs_t SurfaceFlinger::calculateExpectedPresentTime(DisplayStatInfo stats) cons
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what, int64_t vsyncId, nsecs_t expectedVSyncTime) {
-    ATRACE_CALL();
+    const auto vsyncIn = [&] {
+        if (!ATRACE_ENABLED()) return 0.f;
+        return (expectedVSyncTime - systemTime()) / 1e6f;
+    }();
+
+    ATRACE_FORMAT("onMessageReceived %" PRId64 " vsyncIn %.2fms", vsyncId, vsyncIn);
     switch (what) {
         case MessageQueue::INVALIDATE: {
             onMessageInvalidate(vsyncId, expectedVSyncTime);
@@ -3471,9 +3476,8 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
     ATRACE_INT("TransactionQueue", mTransactionQueue.size());
 
     const auto schedule = [](uint32_t flags) {
-        if (flags & eEarlyWakeup) return TransactionSchedule::Early;
-        if (flags & eExplicitEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;
-        if (flags & eExplicitEarlyWakeupStart) return TransactionSchedule::EarlyStart;
+        if (flags & eEarlyWakeupEnd) return TransactionSchedule::EarlyEnd;
+        if (flags & eEarlyWakeupStart) return TransactionSchedule::EarlyStart;
         return TransactionSchedule::Late;
     }(state.flags);
 
@@ -3525,15 +3529,10 @@ status_t SurfaceFlinger::setTransactionState(
         permissions |= Permission::ROTATE_SURFACE_FLINGER;
     }
 
-    // TODO(b/159125966): Remove eEarlyWakeup completely as no client should use this flag
-    if (flags & eEarlyWakeup) {
-        ALOGW("eEarlyWakeup is deprecated. Use eExplicitEarlyWakeup[Start|End]");
-    }
-
     if (!(permissions & Permission::ACCESS_SURFACE_FLINGER) &&
-        (flags & (eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd))) {
-        ALOGE("Only WindowManager is allowed to use eExplicitEarlyWakeup[Start|End] flags");
-        flags &= ~(eExplicitEarlyWakeupStart | eExplicitEarlyWakeupEnd);
+        (flags & (eEarlyWakeupStart | eEarlyWakeupEnd))) {
+        ALOGE("Only WindowManager is allowed to use eEarlyWakeup[Start|End] flags");
+        flags &= ~(eEarlyWakeupStart | eEarlyWakeupEnd);
     }
 
     const int64_t postTime = systemTime();

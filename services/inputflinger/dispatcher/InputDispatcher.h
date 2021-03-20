@@ -592,6 +592,7 @@ private:
     void onFocusChangedLocked(const FocusResolver::FocusChanges& changes) REQUIRES(mLock);
     void notifyFocusChangedLocked(const sp<IBinder>& oldFocus, const sp<IBinder>& newFocus)
             REQUIRES(mLock);
+    void notifyDropWindowLocked(const sp<IBinder>& token, float x, float y) REQUIRES(mLock);
     void onAnrLocked(const sp<Connection>& connection) REQUIRES(mLock);
     void onAnrLocked(std::shared_ptr<InputApplicationHandle> application) REQUIRES(mLock);
     void onUntrustedTouchLocked(const std::string& obscuringPackage) REQUIRES(mLock);
@@ -607,6 +608,8 @@ private:
             REQUIRES(mLock);
     void doNotifyInputChannelBrokenLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doNotifyFocusChangedLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+    void doNotifyDropWindowLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
+
     // ANR-related callbacks - start
     void doNotifyNoFocusedWindowAnrLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
     void doNotifyWindowUnresponsiveLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
