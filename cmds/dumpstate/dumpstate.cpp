@@ -3027,11 +3027,14 @@ void Dumpstate::MaybeSnapshotSystemTrace() {
 }
 
 void Dumpstate::MaybeSnapshotWinTrace() {
-    RunCommand(
-        // Empty name because it's not intended to be classified as a bugreport section.
-        // Actual tracing files can be found in "/data/misc/wmtrace/" in the bugreport.
-        "", {"cmd", "window", "tracing", "save-for-bugreport"},
-        CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
+    // Currently WindowManagerService and InputMethodManagerSerivice support WinScope protocol.
+    for (const auto& service : {"window", "input_method"}) {
+        RunCommand(
+            // Empty name because it's not intended to be classified as a bugreport section.
+            // Actual tracing files can be found in "/data/misc/wmtrace/" in the bugreport.
+            "", {"cmd", service, "tracing", "save-for-bugreport"},
+            CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
+    }
 }
 
 void Dumpstate::onUiIntensiveBugreportDumpsFinished(int32_t calling_uid) {
