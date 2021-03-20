@@ -39,6 +39,7 @@
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <gui/SurfaceControl.h>
+#include <private/gui/ParcelUtils.h>
 
 namespace android {
 

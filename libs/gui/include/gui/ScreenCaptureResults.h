@@ -16,15 +16,6 @@
 
 #pragma once
 
-#define SAFE_PARCEL(FUNC, ...)                                                            \
-    {                                                                                     \
-        status_t error = FUNC(__VA_ARGS__);                                               \
-        if (error) {                                                                      \
-            ALOGE("ERROR(%d). Failed to call parcel %s(%s)", error, #FUNC, #__VA_ARGS__); \
-            return error;                                                                 \
-        }                                                                                 \
-    }
-
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
 #include <ui/Fence.h>
