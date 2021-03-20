@@ -287,6 +287,8 @@ struct CommandEntry {
     int32_t pid;
     nsecs_t consumeTime; // time when the event was consumed by InputConsumer
     int32_t displayId;
+    float x;
+    float y;
 };
 
 } // namespace android::inputdispatcher
