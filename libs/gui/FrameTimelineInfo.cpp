@@ -21,6 +21,7 @@
 #include <android/os/IInputConstants.h>
 #include <gui/FrameTimelineInfo.h>
 #include <gui/LayerState.h>
+#include <private/gui/ParcelUtils.h>
 #include <utils/Errors.h>
 
 #include <cmath>
