@@ -441,10 +441,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     mUseHwcVirtualDisplays = atoi(value);
     ALOGI_IF(mUseHwcVirtualDisplays, "Enabling HWC virtual displays");
 
-    property_get("ro.sf.disable_triple_buffer", value, "0");
-    mLayerTripleBufferingDisabled = atoi(value);
-    ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
-
     property_get("ro.surface_flinger.supports_background_blur", value, "0");
     bool supportsBlurs = atoi(value);
     mSupportsBlur = supportsBlurs;
@@ -4550,9 +4546,6 @@ void SurfaceFlinger::logFrameStats() {
 
 void SurfaceFlinger::appendSfConfigString(std::string& result) const {
     result.append(" [sf");
-
-    if (isLayerTripleBufferingDisabled())
-        result.append(" DISABLE_TRIPLE_BUFFERING");
 
     StringAppendF(&result, " PRESENT_TIME_OFFSET=%" PRId64, dispSyncPresentTimeOffset);
     StringAppendF(&result, " FORCE_HWC_FOR_RBG_TO_YUV=%d", useHwcForRgbToYuv);
