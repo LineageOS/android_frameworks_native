@@ -268,6 +268,23 @@ EGLConfig SkiaGLRenderEngine::chooseEglConfig(EGLDisplay display, int format, bo
     return config;
 }
 
+sk_sp<SkData> SkiaGLRenderEngine::SkSLCacheMonitor::load(const SkData& key) {
+    // This "cache" does not actually cache anything. It just allows us to
+    // monitor Skia's internal cache. So this method always returns null.
+    return nullptr;
+}
+
+void SkiaGLRenderEngine::SkSLCacheMonitor::store(const SkData& key, const SkData& data,
+                                                 const SkString& description) {
+    mShadersCachedSinceLastCall++;
+}
+
+void SkiaGLRenderEngine::assertShadersCompiled(int numShaders) {
+    const int cached = mSkSLCacheMonitor.shadersCachedSinceLastCall();
+    LOG_ALWAYS_FATAL_IF(cached != numShaders, "Attempted to cache %i shaders; cached %i",
+                        numShaders, cached);
+}
+
 SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
                                        EGLContext ctxt, EGLSurface placeholder,
                                        EGLContext protectedContext, EGLSurface protectedPlaceholder)
@@ -284,6 +301,7 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
     GrContextOptions options;
     options.fPreferExternalImagesOverES3 = true;
     options.fDisableDistanceFieldPaths = true;
+    options.fPersistentCache = &mSkSLCacheMonitor;
     mGrContext = GrDirectContext::MakeGL(glInterface, options);
     if (useProtectedContext(true)) {
         mProtectedGrContext = GrDirectContext::MakeGL(glInterface, options);
@@ -1168,6 +1186,8 @@ void SkiaGLRenderEngine::dump(std::string& result) {
     StringAppendF(&result, "RenderEngine supports protected context: %d\n",
                   supportsProtectedContent());
     StringAppendF(&result, "RenderEngine is in protected context: %d\n", mInProtectedContext);
+    StringAppendF(&result, "RenderEngine shaders cached since last dump/primeCache: %d\n",
+                  mSkSLCacheMonitor.shadersCachedSinceLastCall());
 
     {
         std::lock_guard<std::mutex> lock(mRenderingMutex);
