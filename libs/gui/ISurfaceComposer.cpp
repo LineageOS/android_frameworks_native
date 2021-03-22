@@ -28,6 +28,7 @@
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/LayerState.h>
+#include <private/gui/ParcelUtils.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <system/graphics.h>
