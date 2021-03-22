@@ -3450,6 +3450,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const bool acquireFenceChanged = (s.what & layer_state_t::eAcquireFenceChanged);
         if (acquireFenceChanged && s.acquireFence &&
             s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
+            ATRACE_NAME("fence unsignaled");
             ready = false;
         }
 
