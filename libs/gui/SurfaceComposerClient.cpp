@@ -292,8 +292,11 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
                 // callback and a release buffer callback happening at the same time to avoid an
                 // additional ipc call from the server.
                 if (surfaceStats.previousBufferId) {
-                    ReleaseBufferCallback callback =
-                            popReleaseBufferCallbackLocked(surfaceStats.previousBufferId);
+                    ReleaseBufferCallback callback;
+                    {
+                        std::scoped_lock<std::mutex> lock(mMutex);
+                        callback = popReleaseBufferCallbackLocked(surfaceStats.previousBufferId);
+                    }
                     if (callback) {
                         callback(surfaceStats.previousBufferId,
                                  surfaceStats.previousReleaseFence
