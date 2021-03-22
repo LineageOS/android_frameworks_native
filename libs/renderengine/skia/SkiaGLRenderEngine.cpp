@@ -298,11 +298,9 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
 }
 
 SkiaGLRenderEngine::~SkiaGLRenderEngine() {
-    std::lock_guard<std::mutex> lock(mRenderingMutex);
-    mRuntimeEffects.clear();
-    mProtectedTextureCache.clear();
-    mTextureCache.clear();
+    cleanFramebufferCache();
 
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
     if (mBlurFilter) {
         delete mBlurFilter;
     }
@@ -1137,7 +1135,14 @@ EGLSurface SkiaGLRenderEngine::createPlaceholderEglPbufferSurface(EGLDisplay dis
     return eglCreatePbufferSurface(display, placeholderConfig, attributes.data());
 }
 
-void SkiaGLRenderEngine::cleanFramebufferCache() {}
+void SkiaGLRenderEngine::cleanFramebufferCache() {
+    // TODO(b/180767535) Remove this method and use b/180767535 instead, which would allow
+    // SF to control texture lifecycle more tightly rather than through custom hooks into RE.
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    mRuntimeEffects.clear();
+    mProtectedTextureCache.clear();
+    mTextureCache.clear();
+}
 
 int SkiaGLRenderEngine::getContextPriority() {
     int value;
