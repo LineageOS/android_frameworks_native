@@ -463,18 +463,31 @@ void SkiaGLRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buf
     }
     ATRACE_CALL();
 
-    std::lock_guard<std::mutex> lock(mRenderingMutex);
-    auto iter = mTextureCache.find(buffer->getId());
-    if (iter != mTextureCache.end()) {
-        ALOGV("Texture already exists in cache.");
+    // We need to switch the currently bound context if the buffer is protected but the current
+    // context is not. The current state must then be restored after the buffer is cached.
+    const bool protectedContextState = mInProtectedContext;
+    if (!useProtectedContext(protectedContextState ||
+                             (buffer->getUsage() & GRALLOC_USAGE_PROTECTED))) {
+        ALOGE("Attempting to cache a buffer into a different context than what is currently bound");
         return;
+    }
+
+    auto grContext = mInProtectedContext ? mProtectedGrContext : mGrContext;
+    auto& cache = mInProtectedContext ? mProtectedTextureCache : mTextureCache;
+
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    auto iter = cache.find(buffer->getId());
+    if (iter != cache.end()) {
+        ALOGV("Texture already exists in cache.");
     } else {
         std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
                 std::make_shared<AutoBackendTexture::LocalRef>();
         imageTextureRef->setTexture(
-                new AutoBackendTexture(mGrContext.get(), buffer->toAHardwareBuffer(), false));
-        mTextureCache.insert({buffer->getId(), imageTextureRef});
+                new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer(), false));
+        cache.insert({buffer->getId(), imageTextureRef});
     }
+    // restore the original state of the protected context if necessary
+    useProtectedContext(protectedContextState);
 }
 
 void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
@@ -824,15 +837,15 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             validateInputBufferUsage(layer->source.buffer.buffer);
             const auto& item = layer->source.buffer;
             std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef = nullptr;
-            auto iter = mTextureCache.find(item.buffer->getId());
-            if (iter != mTextureCache.end()) {
+            auto iter = cache.find(item.buffer->getId());
+            if (iter != cache.end()) {
                 imageTextureRef = iter->second;
             } else {
                 imageTextureRef = std::make_shared<AutoBackendTexture::LocalRef>();
                 imageTextureRef->setTexture(new AutoBackendTexture(grContext.get(),
                                                                    item.buffer->toAHardwareBuffer(),
                                                                    false));
-                mTextureCache.insert({item.buffer->getId(), imageTextureRef});
+                cache.insert({item.buffer->getId(), imageTextureRef});
             }
 
             sk_sp<SkImage> image =
