@@ -298,11 +298,9 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
 }
 
 SkiaGLRenderEngine::~SkiaGLRenderEngine() {
-    std::lock_guard<std::mutex> lock(mRenderingMutex);
-    mRuntimeEffects.clear();
-    mProtectedTextureCache.clear();
-    mTextureCache.clear();
+    cleanFramebufferCache();
 
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
     if (mBlurFilter) {
         delete mBlurFilter;
     }
@@ -797,6 +795,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             const auto rect = layer->geometry.roundedCornersRadius > 0
                     ? getSkRect(layer->geometry.roundedCornersCrop)
                     : bounds;
+            // This would require a new parameter/flag to SkShadowUtils::DrawShadow
+            LOG_ALWAYS_FATAL_IF(layer->disableBlending, "Cannot disableBlending with a shadow");
             drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
             continue;
         }
@@ -806,7 +806,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                  needsToneMapping(layer->sourceDataspace, display.outputDataspace));
 
         // quick abort from drawing the remaining portion of the layer
-        if (layer->alpha == 0 && !requiresLinearEffect &&
+        if (layer->alpha == 0 && !requiresLinearEffect && !layer->disableBlending &&
             (!displayColorTransform || displayColorTransform->isAlphaUnchanged())) {
             continue;
         }
@@ -910,6 +910,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             paint.setShader(createRuntimeEffectShader(shader, layer, display,
                                                       /* undoPremultipliedAlpha */ false,
                                                       requiresLinearEffect));
+        }
+
+        if (layer->disableBlending) {
+            paint.setBlendMode(SkBlendMode::kSrc);
         }
 
         paint.setColorFilter(displayColorTransform);
@@ -1137,7 +1141,14 @@ EGLSurface SkiaGLRenderEngine::createPlaceholderEglPbufferSurface(EGLDisplay dis
     return eglCreatePbufferSurface(display, placeholderConfig, attributes.data());
 }
 
-void SkiaGLRenderEngine::cleanFramebufferCache() {}
+void SkiaGLRenderEngine::cleanFramebufferCache() {
+    // TODO(b/180767535) Remove this method and use b/180767535 instead, which would allow
+    // SF to control texture lifecycle more tightly rather than through custom hooks into RE.
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    mRuntimeEffects.clear();
+    mProtectedTextureCache.clear();
+    mTextureCache.clear();
+}
 
 int SkiaGLRenderEngine::getContextPriority() {
     int value;
