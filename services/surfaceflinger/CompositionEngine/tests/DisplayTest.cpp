@@ -60,9 +60,10 @@ using testing::Sequence;
 using testing::SetArgPointee;
 using testing::StrictMock;
 
-constexpr PhysicalDisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId{42};
+constexpr PhysicalDisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId::fromPort(42u);
 // TODO(b/160679868) Use VirtualDisplayId
-constexpr PhysicalDisplayId VIRTUAL_DISPLAY_ID = PhysicalDisplayId{43};
+constexpr PhysicalDisplayId VIRTUAL_DISPLAY_ID = PhysicalDisplayId::fromPort(43u);
+
 constexpr int32_t DEFAULT_DISPLAY_WIDTH = 1920;
 constexpr int32_t DEFAULT_DISPLAY_HEIGHT = 1080;
 constexpr int32_t DEFAULT_LAYER_STACK = 123;

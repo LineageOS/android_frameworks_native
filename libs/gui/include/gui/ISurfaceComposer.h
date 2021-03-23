@@ -114,6 +114,11 @@ public:
 
     using EventRegistrationFlags = Flags<EventRegistration>;
 
+    template <typename T>
+    struct SpHash {
+        size_t operator()(const sp<T>& k) const { return std::hash<T*>()(k.get()); }
+    };
+
     /*
      * Create a connection with SurfaceFlinger.
      */
@@ -237,24 +242,17 @@ public:
      * The subregion can be optionally rotated.  It will also be scaled to
      * match the size of the output buffer.
      */
-    virtual status_t captureDisplay(const DisplayCaptureArgs& args,
-                                    const sp<IScreenCaptureListener>& captureListener) = 0;
+    virtual status_t captureDisplay(const DisplayCaptureArgs&,
+                                    const sp<IScreenCaptureListener>&) = 0;
 
-    virtual status_t captureDisplay(uint64_t displayOrLayerStack,
-                                    const sp<IScreenCaptureListener>& captureListener) = 0;
-
-    template <class AA>
-    struct SpHash {
-        size_t operator()(const sp<AA>& k) const { return std::hash<AA*>()(k.get()); }
-    };
+    virtual status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&) = 0;
 
     /**
      * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
      * This requires READ_FRAME_BUFFER permission. This function will fail if there
      * is a secure window on screen
      */
-    virtual status_t captureLayers(const LayerCaptureArgs& args,
-                                   const sp<IScreenCaptureListener>& captureListener) = 0;
+    virtual status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&) = 0;
 
     /* Clears the frame statistics for animations.
      *

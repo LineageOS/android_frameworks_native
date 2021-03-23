@@ -608,12 +608,9 @@ private:
 
 class ScreenshotClient {
 public:
-    static status_t captureDisplay(const DisplayCaptureArgs& captureArgs,
-                                   const sp<IScreenCaptureListener>& captureListener);
-    static status_t captureDisplay(uint64_t displayOrLayerStack,
-                                   const sp<IScreenCaptureListener>& captureListener);
-    static status_t captureLayers(const LayerCaptureArgs& captureArgs,
-                                  const sp<IScreenCaptureListener>& captureListener);
+    static status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
+    static status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&);
+    static status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
 };
 
 // ---------------------------------------------------------------------------

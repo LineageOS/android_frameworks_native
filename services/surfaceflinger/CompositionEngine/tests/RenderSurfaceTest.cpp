@@ -39,7 +39,7 @@ namespace {
 
 constexpr int32_t DEFAULT_DISPLAY_WIDTH = 1920;
 constexpr int32_t DEFAULT_DISPLAY_HEIGHT = 1080;
-constexpr DisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId(123u);
+constexpr DisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId::fromPort(123u);
 const std::string DEFAULT_DISPLAY_NAME = "Mock Display";
 
 using testing::_;

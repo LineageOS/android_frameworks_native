@@ -41,10 +41,13 @@ namespace android {
 
 namespace {
 
-constexpr PhysicalDisplayId INTERNAL_DISPLAY_ID(111);
-constexpr PhysicalDisplayId EXTERNAL_DISPLAY_ID(222);
-constexpr PhysicalDisplayId DISPLAY_ID_64BIT(0xabcd12349876fedcULL);
+constexpr PhysicalDisplayId INTERNAL_DISPLAY_ID = PhysicalDisplayId::fromPort(111u);
+constexpr PhysicalDisplayId EXTERNAL_DISPLAY_ID = PhysicalDisplayId::fromPort(222u);
+constexpr PhysicalDisplayId DISPLAY_ID_64BIT =
+        PhysicalDisplayId::fromEdid(0xffu, 0xffffu, 0xffff'ffffu);
+
 constexpr std::chrono::duration VSYNC_PERIOD(16ms);
+
 class MockVSyncSource : public VSyncSource {
 public:
     const char* getName() const override { return "test"; }

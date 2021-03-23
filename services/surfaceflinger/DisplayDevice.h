@@ -282,16 +282,4 @@ struct DisplayDeviceCreationArgs {
     DisplayModes supportedModes;
 };
 
-// Predicates for display lookup.
-
-struct WithLayerStack {
-    explicit WithLayerStack(ui::LayerStack layerStack) : layerStack(layerStack) {}
-
-    bool operator()(const DisplayDevice& display) const {
-        return display.getLayerStack() == layerStack;
-    }
-
-    ui::LayerStack layerStack;
-};
-
 } // namespace android

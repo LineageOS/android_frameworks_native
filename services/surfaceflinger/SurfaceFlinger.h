@@ -613,12 +613,10 @@ private:
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp,
             ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) override;
-    status_t captureDisplay(const DisplayCaptureArgs& args,
-                            const sp<IScreenCaptureListener>& captureListener) override;
-    status_t captureDisplay(uint64_t displayOrLayerStack,
-                            const sp<IScreenCaptureListener>& captureListener) override;
-    status_t captureLayers(const LayerCaptureArgs& args,
-                           const sp<IScreenCaptureListener>& captureListener) override;
+
+    status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&) override;
+    status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&) override;
+    status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&) override;
 
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
     status_t getDisplayState(const sp<IBinder>& displayToken, ui::DisplayState*)
@@ -930,14 +928,6 @@ private:
     sp<DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) REQUIRES(mStateLock) {
         const auto it = mDisplays.find(displayToken);
         return it == mDisplays.end() ? nullptr : it->second;
-    }
-
-    sp<const DisplayDevice> getDisplayDeviceLocked(PhysicalDisplayId id) const
-            REQUIRES(mStateLock) {
-        if (const auto token = getPhysicalDisplayTokenLocked(id)) {
-            return getDisplayDeviceLocked(token);
-        }
-        return nullptr;
     }
 
     sp<const DisplayDevice> getDefaultDisplayDeviceLocked() const REQUIRES(mStateLock) {

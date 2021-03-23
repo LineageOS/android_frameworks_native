@@ -118,7 +118,7 @@ void DisplayTransactionTest::injectFakeNativeWindowSurfaceFactory() {
 
 sp<DisplayDevice> DisplayTransactionTest::injectDefaultInternalDisplay(
         std::function<void(FakeDisplayDeviceInjector&)> injectExtra) {
-    constexpr PhysicalDisplayId DEFAULT_DISPLAY_ID(777);
+    constexpr PhysicalDisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId::fromPort(255u);
     constexpr int DEFAULT_DISPLAY_WIDTH = 1080;
     constexpr int DEFAULT_DISPLAY_HEIGHT = 1920;
     constexpr HWDisplayId DEFAULT_DISPLAY_HWC_DISPLAY_ID = 0;
