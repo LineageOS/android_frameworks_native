@@ -137,7 +137,6 @@ cc_library_shared {
         "HdrCapabilities.cpp",
         "PixelFormat.cpp",
         "PublicFormat.cpp",
-        "Size.cpp",
         "StaticDisplayInfo.cpp",
     ],
 

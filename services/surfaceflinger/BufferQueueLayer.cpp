@@ -521,10 +521,7 @@ void BufferQueueLayer::onFirstRef() {
     mConsumer->setContentsChangedListener(mContentsChangedListener);
     mConsumer->setName(String8(mName.data(), mName.size()));
 
-    // BufferQueueCore::mMaxDequeuedBufferCount is default to 1
-    if (!mFlinger->isLayerTripleBufferingDisabled()) {
-        mProducer->setMaxDequeuedBufferCount(2);
-    }
+    mProducer->setMaxDequeuedBufferCount(2);
 }
 
 status_t BufferQueueLayer::setDefaultBufferProperties(uint32_t w, uint32_t h, PixelFormat format) {
