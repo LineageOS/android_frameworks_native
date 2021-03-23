@@ -58,6 +58,7 @@ public:
     };
     virtual bool cleanupPostRender(CleanupMode) override { return true; };
     virtual int getContextPriority() override { return 0; }
+    virtual void assertShadersCompiled(int numShaders) {}
 };
 
 } // namespace skia
