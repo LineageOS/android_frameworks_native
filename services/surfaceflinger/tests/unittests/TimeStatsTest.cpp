@@ -48,6 +48,7 @@ using testing::AnyNumber;
 using testing::Contains;
 using testing::HasSubstr;
 using testing::InSequence;
+using testing::Not;
 using testing::SizeIs;
 using testing::StrEq;
 using testing::UnorderedElementsAre;
@@ -855,6 +856,24 @@ TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
     EXPECT_THAT(result, HasSubstr("compositionStrategyChanges = 0"));
     EXPECT_THAT(result, HasSubstr("averageFrameDuration = 0.000 ms"));
     EXPECT_THAT(result, HasSubstr("averageRenderEngineTiming = 0.000 ms"));
+    std::string expectedResult = "totalTimelineFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "jankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongCpuJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongGpuJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfUnattributedJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appUnattributedJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfSchedulingJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfPredictionErrorJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
 }
 
 TEST_F(TimeStatsTest, canDumpWithMaxLayers) {
@@ -1074,6 +1093,46 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     EXPECT_EQ(0, globalProto.missed_frames());
     EXPECT_EQ(0, globalProto.client_composition_frames());
     EXPECT_EQ(0, globalProto.present_to_present_size());
+
+    // also check dump-only stats: expect that global stats are indeed dropped but there should
+    // still be stats for the layer
+    const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    std::string expectedResult = "totalTimelineFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "totalTimelineFrames = " + std::to_string(8);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "jankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "jankyFrames = " + std::to_string(7);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongCpuJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongCpuJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongGpuJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongGpuJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfUnattributedJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfUnattributedJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appUnattributedJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appUnattributedJankyFrames = " + std::to_string(2);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfSchedulingJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfSchedulingJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfPredictionErrorJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfPredictionErrorJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(0);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
 }
 
 TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
@@ -1205,6 +1264,31 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
     ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
 
     EXPECT_EQ(0, globalProto.stats_size());
+
+    // also check dump-only stats: expect that layer stats are indeed dropped but there should still
+    // be global stats
+    const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+    std::string expectedResult = "totalTimelineFrames = " + std::to_string(8);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "jankyFrames = " + std::to_string(7);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongCpuJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfLongGpuJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfUnattributedJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appUnattributedJankyFrames = " + std::to_string(2);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfSchedulingJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "sfPredictionErrorJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(1);
+    EXPECT_THAT(result, HasSubstr(expectedResult));
+
+    std::string expectedMissing = "uid = " + std::to_string(UID_0);
+    EXPECT_THAT(result, Not(HasSubstr(expectedMissing)));
 }
 
 TEST_F(TimeStatsTest, layerStatsCallback_pullsMultipleLayers) {
