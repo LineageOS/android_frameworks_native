@@ -142,7 +142,7 @@ BENCHMARK_WRAPPER(VibratorBench, setAmplitude, {
 
     auto duration = 60s;
     auto callback = []() {};
-    auto amplitude = UINT8_MAX;
+    auto amplitude = 1.0f;
 
     for (auto _ : state) {
         state.PauseTiming();
@@ -169,7 +169,7 @@ BENCHMARK_WRAPPER(VibratorBench, setAmplitudeCached, {
 
     auto duration = 6000s;
     auto callback = []() {};
-    auto amplitude = UINT8_MAX;
+    auto amplitude = 1.0f;
 
     checkHalResult(mController.on(duration, callback), state);
 
@@ -224,7 +224,7 @@ BENCHMARK_WRAPPER(VibratorBench, setExternalAmplitudeCached, {
         return;
     }
 
-    auto amplitude = UINT8_MAX;
+    auto amplitude = 1.0f;
 
     checkHalResult(mController.setExternalControl(true), state);
 

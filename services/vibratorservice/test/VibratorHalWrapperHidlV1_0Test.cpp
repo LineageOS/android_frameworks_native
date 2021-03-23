@@ -147,7 +147,7 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestOff) {
 TEST_F(VibratorHalWrapperHidlV1_0Test, TestSetAmplitude) {
     {
         InSequence seq;
-        EXPECT_CALL(*mMockHal.get(), setAmplitude(static_cast<uint8_t>(1)))
+        EXPECT_CALL(*mMockHal.get(), setAmplitude(Eq(static_cast<uint8_t>(1))))
                 .Times(Exactly(1))
                 .WillRepeatedly(
                         [](uint8_t) { return hardware::Return<V1_0::Status>(V1_0::Status::OK); });
@@ -168,10 +168,11 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestSetAmplitude) {
                 });
     }
 
-    ASSERT_TRUE(mWrapper->setAmplitude(1).isOk());
-    ASSERT_TRUE(mWrapper->setAmplitude(2).isUnsupported());
-    ASSERT_TRUE(mWrapper->setAmplitude(3).isFailed());
-    ASSERT_TRUE(mWrapper->setAmplitude(4).isFailed());
+    auto maxAmplitude = std::numeric_limits<uint8_t>::max();
+    ASSERT_TRUE(mWrapper->setAmplitude(1.0f / maxAmplitude).isOk());
+    ASSERT_TRUE(mWrapper->setAmplitude(2.0f / maxAmplitude).isUnsupported());
+    ASSERT_TRUE(mWrapper->setAmplitude(3.0f / maxAmplitude).isFailed());
+    ASSERT_TRUE(mWrapper->setAmplitude(4.0f / maxAmplitude).isFailed());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_0Test, TestSetExternalControlUnsupported) {
