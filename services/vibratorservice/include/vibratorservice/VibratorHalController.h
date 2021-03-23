@@ -61,7 +61,7 @@ public:
                        const std::function<void()>& completionCallback) final override;
     HalResult<void> off() final override;
 
-    HalResult<void> setAmplitude(int32_t amplitude) final override;
+    HalResult<void> setAmplitude(float amplitude) final override;
     HalResult<void> setExternalControl(bool enabled) final override;
 
     HalResult<void> alwaysOnEnable(int32_t id, hardware::vibrator::Effect effect,
