@@ -1762,6 +1762,27 @@ TEST_F(DumpPoolTest, EnqueueTask_withDurationLog) {
     EXPECT_THAT(getTempFileCounts(kTestDataPath), Eq(0));
 }
 
+TEST_F(DumpPoolTest, Shutdown_withoutCrash) {
+    bool run_1 = false;
+    auto dump_func_1 = [&]() {
+        run_1 = true;
+    };
+    auto dump_func = []() {
+        sleep(1);
+    };
+
+    dump_pool_->start(/* thread_counts = */1);
+    dump_pool_->enqueueTask(/* task_name = */"1", dump_func_1);
+    dump_pool_->enqueueTask(/* task_name = */"2", dump_func);
+    dump_pool_->enqueueTask(/* task_name = */"3", dump_func);
+    dump_pool_->enqueueTask(/* task_name = */"4", dump_func);
+    dump_pool_->waitForTask("1", "", out_fd_.get());
+    dump_pool_->shutdown();
+
+    EXPECT_TRUE(run_1);
+    EXPECT_THAT(getTempFileCounts(kTestDataPath), Eq(0));
+}
+
 class TaskQueueTest : public DumpstateBaseTest {
 public:
     void SetUp() {
