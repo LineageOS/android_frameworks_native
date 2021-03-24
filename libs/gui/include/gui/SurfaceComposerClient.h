@@ -572,6 +572,9 @@ public:
     static status_t clearAnimationFrameStats();
     static status_t getAnimationFrameStats(FrameStats* outStats);
 
+    static status_t overrideHdrTypes(const sp<IBinder>& display,
+                                     const std::vector<ui::Hdr>& hdrTypes);
+
     static void setDisplayProjection(const sp<IBinder>& token, ui::Rotation orientation,
                                      const Rect& layerStackRect, const Rect& displayRect);
 

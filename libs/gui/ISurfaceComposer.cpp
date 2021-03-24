@@ -477,6 +477,26 @@ public:
         return reply.readInt32();
     }
 
+    virtual status_t overrideHdrTypes(const sp<IBinder>& display,
+                                      const std::vector<ui::Hdr>& hdrTypes) {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, display);
+
+        std::vector<int32_t> hdrTypesVector;
+        for (ui::Hdr i : hdrTypes) {
+            hdrTypesVector.push_back(static_cast<int32_t>(i));
+        }
+        SAFE_PARCEL(data.writeInt32Vector, hdrTypesVector);
+
+        status_t result = remote()->transact(BnSurfaceComposer::OVERRIDE_HDR_TYPES, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("overrideHdrTypes failed to transact: %d", result);
+            return result;
+        }
+        return result;
+    }
+
     status_t enableVSyncInjections(bool enable) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -1962,6 +1982,20 @@ status_t BnSurfaceComposer::onTransact(
             }
             SAFE_PARCEL(reply->writeInt32, extraBuffers);
             return NO_ERROR;
+        }
+        case OVERRIDE_HDR_TYPES: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> display = nullptr;
+            SAFE_PARCEL(data.readStrongBinder, &display);
+
+            std::vector<int32_t> hdrTypes;
+            SAFE_PARCEL(data.readInt32Vector, &hdrTypes);
+
+            std::vector<ui::Hdr> hdrTypesVector;
+            for (int i : hdrTypes) {
+                hdrTypesVector.push_back(static_cast<ui::Hdr>(i));
+            }
+            return overrideHdrTypes(display, hdrTypesVector);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);
