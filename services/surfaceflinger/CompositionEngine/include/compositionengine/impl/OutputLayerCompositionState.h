@@ -92,6 +92,8 @@ struct OutputLayerCompositionState {
         Rect displayFrame = {};
         ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
         ProjectionSpace displaySpace;
+        Region damageRegion = Region::INVALID_REGION;
+        Region visibleRegion;
     } overrideInfo;
 
     /*

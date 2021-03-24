@@ -196,6 +196,7 @@ public:
     int32_t getId() const { return mId.get(); }
     const std::string& getName() const { return mName.get(); }
     Rect getDisplayFrame() const { return mDisplayFrame.get(); }
+    const Region& getVisibleRegion() const { return mVisibleRegion.get(); }
     hardware::graphics::composer::hal::Composition getCompositionType() const {
         return mCompositionType.get();
     }

@@ -89,6 +89,8 @@ void FlattenerTest::SetUp() {
         testLayer->name = ss.str();
 
         testLayer->outputLayerCompositionState.displayFrame = Rect(pos, pos, pos + 1, pos + 1);
+        testLayer->outputLayerCompositionState.visibleRegion =
+                Region(Rect(pos + 1, pos + 1, pos + 2, pos + 2));
 
         testLayer->layerFECompositionState.buffer =
                 new GraphicBuffer(100, 100, HAL_PIXEL_FORMAT_RGBA_8888, 1,
@@ -272,11 +274,61 @@ TEST_F(FlattenerTest, flattenLayers_FlattenedLayersSetsProjectionSpace) {
     // make all layers inactive
     mTime += 200ms;
     expectAllLayersFlattened(layers);
+
     EXPECT_EQ(overrideDisplaySpace.bounds,
               Rect(mOutputState.framebufferSpace.bounds.getWidth(),
                    mOutputState.framebufferSpace.bounds.getHeight()));
     EXPECT_EQ(overrideDisplaySpace.content, Rect(0, 0, 2, 2));
     EXPECT_EQ(overrideDisplaySpace.orientation, mOutputState.framebufferSpace.orientation);
+}
+
+TEST_F(FlattenerTest, flattenLayers_FlattenedLayersSetsDamageRegions) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+    const auto& overrideDamageRegion =
+            layerState1->getOutputLayer()->getState().overrideInfo.damageRegion;
+
+    auto& layerState2 = mTestLayers[1]->layerState;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // make all layers inactive
+    mTime += 200ms;
+    expectAllLayersFlattened(layers);
+    EXPECT_TRUE(overrideDamageRegion.isRect() &&
+                overrideDamageRegion.bounds() == Rect::INVALID_RECT);
+
+    initializeOverrideBuffer(layers);
+    EXPECT_NE(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    EXPECT_TRUE(overrideDamageRegion.isRect() && overrideDamageRegion.bounds() == Rect::EMPTY_RECT);
+}
+
+TEST_F(FlattenerTest, flattenLayers_FlattenedLayersSetsVisibleRegion) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+    const auto& overrideVisibleRegion =
+            layerState1->getOutputLayer()->getState().overrideInfo.visibleRegion;
+
+    auto& layerState2 = mTestLayers[1]->layerState;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // make all layers inactive
+    mTime += 200ms;
+    expectAllLayersFlattened(layers);
+    Region expectedRegion;
+    expectedRegion.orSelf(Rect(1, 1, 2, 2));
+    expectedRegion.orSelf(Rect(2, 2, 3, 3));
+    EXPECT_TRUE(overrideVisibleRegion.hasSameRects(expectedRegion));
 }
 
 TEST_F(FlattenerTest, flattenLayers_addLayerToFlattenedCauseReset) {
