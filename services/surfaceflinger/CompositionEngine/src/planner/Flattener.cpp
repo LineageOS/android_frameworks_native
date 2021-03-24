@@ -60,18 +60,6 @@ void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine,
     mNewCachedSet->render(renderEngine, outputDataspace);
 }
 
-void Flattener::reset() {
-    resetActivities(0, std::chrono::steady_clock::now());
-
-    mUnflattenedDisplayCost = 0;
-    mFlattenedDisplayCost = 0;
-    mInitialLayerCounts.clear();
-    mFinalLayerCounts.clear();
-    mCachedSetCreationCount = 0;
-    mCachedSetCreationCost = 0;
-    mInvalidatedCachedSetAges.clear();
-}
-
 void Flattener::dump(std::string& result) const {
     const auto now = std::chrono::steady_clock::now();
 

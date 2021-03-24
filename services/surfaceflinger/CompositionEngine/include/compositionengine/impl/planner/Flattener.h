@@ -45,8 +45,6 @@ public:
     // Renders the newest cached sets with the supplied output dataspace
     void renderCachedSets(renderengine::RenderEngine&, ui::Dataspace outputDataspace);
 
-    void reset();
-
     void dump(std::string& result) const;
 
 private:
