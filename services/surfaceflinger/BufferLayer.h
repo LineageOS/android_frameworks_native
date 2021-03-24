@@ -120,7 +120,7 @@ public:
 
     // Returns true if the transformed buffer size does not match the layer size and we need
     // to apply filtering.
-    virtual bool bufferNeedsFiltering() const;
+    bool bufferNeedsFiltering() const;
 
     // -----------------------------------------------------------------------
     // Functions that must be implemented by derived classes

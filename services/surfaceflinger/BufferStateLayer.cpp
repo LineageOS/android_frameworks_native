@@ -761,30 +761,6 @@ Layer::RoundedCornerState BufferStateLayer::getRoundedCornerState() const {
                               radius);
 }
 
-bool BufferStateLayer::bufferNeedsFiltering() const {
-    const State& s(getDrawingState());
-    if (!s.buffer) {
-        return false;
-    }
-
-    uint32_t bufferWidth = s.buffer->width;
-    uint32_t bufferHeight = s.buffer->height;
-
-    // Undo any transformations on the buffer and return the result.
-    if (s.transform & ui::Transform::ROT_90) {
-        std::swap(bufferWidth, bufferHeight);
-    }
-
-    if (s.transformToDisplayInverse) {
-        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
-        if (invTransform & ui::Transform::ROT_90) {
-            std::swap(bufferWidth, bufferHeight);
-        }
-    }
-
-    const Rect layerSize{getBounds()};
-    return layerSize.width() != bufferWidth || layerSize.height() != bufferHeight;
-}
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
