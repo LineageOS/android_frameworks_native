@@ -31,12 +31,14 @@
 
 using android::binder::Status;
 
+using android::hardware::vibrator::Braking;
 using android::hardware::vibrator::CompositeEffect;
 using android::hardware::vibrator::CompositePrimitive;
 using android::hardware::vibrator::Effect;
 using android::hardware::vibrator::EffectStrength;
 using android::hardware::vibrator::IVibrator;
 using android::hardware::vibrator::IVibratorCallback;
+using android::hardware::vibrator::PrimitivePwle;
 
 using namespace android;
 using namespace std::chrono_literals;
@@ -79,6 +81,15 @@ public:
     MOCK_METHOD(Status, alwaysOnDisable, (int32_t id), (override));
     MOCK_METHOD(Status, getQFactor, (float * ret), (override));
     MOCK_METHOD(Status, getResonantFrequency, (float * ret), (override));
+    MOCK_METHOD(Status, getFrequencyResolution, (float *freqResolutionHz), (override));
+    MOCK_METHOD(Status, getFrequencyMinimum, (float *freqMinimumHz), (override));
+    MOCK_METHOD(Status, getBandwidthAmplitudeMap, (std::vector<float> * ret), (override));
+    MOCK_METHOD(Status, getPwlePrimitiveDurationMax, (int32_t *durationMs), (override));
+    MOCK_METHOD(Status, getPwleCompositionSizeMax, (int32_t *maxSize), (override));
+    MOCK_METHOD(Status, getSupportedBraking, (std::vector<Braking> * ret), (override));
+    MOCK_METHOD(Status, composePwle,
+                (const std::vector<PrimitivePwle>& e, const sp<IVibratorCallback>& cb),
+                (override));
     MOCK_METHOD(int32_t, getInterfaceVersion, (), (override));
     MOCK_METHOD(std::string, getInterfaceHash, (), (override));
     MOCK_METHOD(IBinder*, onAsBinder, (), (override));
