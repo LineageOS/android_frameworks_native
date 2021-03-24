@@ -215,19 +215,19 @@ TEST_F(VibratorHalWrapperAidlTest, TestOff) {
 TEST_F(VibratorHalWrapperAidlTest, TestSetAmplitude) {
     {
         InSequence seq;
-        EXPECT_CALL(*mMockHal.get(), setAmplitude(FloatNear(0.1, 1e-2))).Times(Exactly(1));
-        EXPECT_CALL(*mMockHal.get(), setAmplitude(FloatNear(0.2, 1e-2)))
+        EXPECT_CALL(*mMockHal.get(), setAmplitude(Eq(0.1f))).Times(Exactly(1));
+        EXPECT_CALL(*mMockHal.get(), setAmplitude(Eq(0.2f)))
                 .Times(Exactly(1))
                 .WillRepeatedly(Return(
                         Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
-        EXPECT_CALL(*mMockHal.get(), setAmplitude(FloatNear(0.5, 1e-2)))
+        EXPECT_CALL(*mMockHal.get(), setAmplitude(Eq(0.5f)))
                 .Times(Exactly(1))
                 .WillRepeatedly(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)));
     }
 
-    ASSERT_TRUE(mWrapper->setAmplitude(std::numeric_limits<uint8_t>::max() / 10).isOk());
-    ASSERT_TRUE(mWrapper->setAmplitude(std::numeric_limits<uint8_t>::max() / 5).isUnsupported());
-    ASSERT_TRUE(mWrapper->setAmplitude(std::numeric_limits<uint8_t>::max() / 2).isFailed());
+    ASSERT_TRUE(mWrapper->setAmplitude(0.1f).isOk());
+    ASSERT_TRUE(mWrapper->setAmplitude(0.2f).isUnsupported());
+    ASSERT_TRUE(mWrapper->setAmplitude(0.5f).isFailed());
 }
 
 TEST_F(VibratorHalWrapperAidlTest, TestSetExternalControl) {

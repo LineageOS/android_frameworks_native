@@ -64,8 +64,8 @@ void DumpPool::shutdown() {
     if (shutdown_ || threads_.empty()) {
         return;
     }
-    while (!tasks_.empty()) tasks_.pop();
     futures_map_.clear();
+    while (!tasks_.empty()) tasks_.pop();
 
     shutdown_ = true;
     condition_variable_.notify_all();

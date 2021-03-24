@@ -2129,12 +2129,14 @@ status_t SensorService::adjustRateLevelBasedOnMicAndPermission(int* requestedRat
 }
 
 void SensorService::SensorPrivacyPolicy::registerSelf() {
+    AutoCallerClear acc;
     SensorPrivacyManager spm;
     mSensorPrivacyEnabled = spm.isSensorPrivacyEnabled();
     spm.addSensorPrivacyListener(this);
 }
 
 void SensorService::SensorPrivacyPolicy::unregisterSelf() {
+    AutoCallerClear acc;
     SensorPrivacyManager spm;
     spm.removeSensorPrivacyListener(this);
 }
@@ -2167,7 +2169,7 @@ binder::Status SensorService::SensorPrivacyPolicy::onSensorPrivacyChanged(bool e
 
 status_t SensorService::SensorPrivacyPolicy::registerSelfForIndividual(int userId) {
     Mutex::Autolock _l(mSensorPrivacyLock);
-
+    AutoCallerClear acc;
     SensorPrivacyManager spm;
     status_t err = spm.addIndividualSensorPrivacyListener(userId,
             SensorPrivacyManager::INDIVIDUAL_SENSOR_MICROPHONE, this);
