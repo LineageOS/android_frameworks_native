@@ -354,6 +354,7 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
 
     Rect displayFrame = outputDependentState.displayFrame;
     FloatRect sourceCrop = outputDependentState.sourceCrop;
+
     if (outputDependentState.overrideInfo.buffer != nullptr) { // adyabr
         displayFrame = outputDependentState.overrideInfo.displayFrame;
         sourceCrop = displayFrame.toFloatRect();

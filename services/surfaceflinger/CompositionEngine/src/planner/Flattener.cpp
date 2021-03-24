@@ -52,12 +52,12 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
 }
 
 void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine,
-                                 ui::Dataspace outputDataspace) {
+                                 const OutputCompositionState& outputState) {
     if (!mNewCachedSet) {
         return;
     }
 
-    mNewCachedSet->render(renderEngine, outputDataspace);
+    mNewCachedSet->render(renderEngine, outputState);
 }
 
 void Flattener::dump(std::string& result) const {

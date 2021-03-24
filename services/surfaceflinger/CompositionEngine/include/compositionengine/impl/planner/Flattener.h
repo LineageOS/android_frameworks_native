@@ -42,8 +42,9 @@ public:
     NonBufferHash flattenLayers(const std::vector<const LayerState*>& layers, NonBufferHash,
                                 std::chrono::steady_clock::time_point now);
 
-    // Renders the newest cached sets with the supplied output dataspace
-    void renderCachedSets(renderengine::RenderEngine&, ui::Dataspace outputDataspace);
+    // Renders the newest cached sets with the supplied output composition state
+    void renderCachedSets(renderengine::RenderEngine& re,
+                          const OutputCompositionState& outputState);
 
     void dump(std::string& result) const;
 

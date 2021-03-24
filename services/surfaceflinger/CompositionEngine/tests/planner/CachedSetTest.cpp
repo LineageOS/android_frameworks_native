@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/planner/CachedSet.h>
 #include <compositionengine/impl/planner/LayerState.h>
 #include <compositionengine/mock/LayerFE.h>
@@ -59,6 +60,7 @@ protected:
 
     static constexpr size_t kNumLayers = 5;
     std::vector<std::unique_ptr<TestLayer>> mTestLayers;
+    impl::OutputCompositionState mOutputState;
 
     android::renderengine::mock::RenderEngine mRenderEngine;
 };
@@ -87,6 +89,10 @@ void CachedSetTest::SetUp() {
                 std::make_unique<CachedSet::Layer>(testLayer->layerState.get(), kStartTime);
 
         mTestLayers.emplace_back(std::move(testLayer));
+
+        // set up minimium params needed for rendering
+        mOutputState.dataspace = ui::Dataspace::SRGB;
+        mOutputState.displaySpace.orientation = ui::ROTATION_0;
     }
 }
 
@@ -300,7 +306,7 @@ TEST_F(CachedSetTest, render) {
     EXPECT_CALL(*layerFE2, prepareClientCompositionList(_)).WillOnce(Return(clientCompList2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
     EXPECT_CALL(mRenderEngine, cacheExternalTextureBuffer(_));
-    cachedSet.render(mRenderEngine, ui::Dataspace::SRGB);
+    cachedSet.render(mRenderEngine, mOutputState);
     expectReadyBuffer(cachedSet);
 
     // Now check that appending a new cached set properly cleans up RenderEngine resources.
