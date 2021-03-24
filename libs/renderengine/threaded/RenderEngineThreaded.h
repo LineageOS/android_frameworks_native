@@ -73,7 +73,7 @@ private:
     /* ------------------------------------------------------------------------
      * Threading
      */
-    const char* const mThreadName = "RenderEngineThread";
+    const char* const mThreadName = "RenderEngine";
     // Protects the creation and destruction of mThread.
     mutable std::mutex mThreadMutex;
     std::thread mThread GUARDED_BY(mThreadMutex);

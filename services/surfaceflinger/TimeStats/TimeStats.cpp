@@ -1070,6 +1070,9 @@ void TimeStats::clearGlobalLocked() {
     mTimeStats.renderEngineTimingLegacy.hist.clear();
     mTimeStats.refreshRateStatsLegacy.clear();
     mPowerTime.prevTime = systemTime();
+    for (auto& globalRecord : mTimeStats.stats) {
+        globalRecord.second.clearGlobals();
+    }
     mGlobalRecord.prevPresentTime = 0;
     mGlobalRecord.presentFences.clear();
     ALOGD("Cleared global stats");
@@ -1079,7 +1082,10 @@ void TimeStats::clearLayersLocked() {
     ATRACE_CALL();
 
     mTimeStatsTracker.clear();
-    mTimeStats.stats.clear();
+
+    for (auto& globalRecord : mTimeStats.stats) {
+        globalRecord.second.stats.clear();
+    }
     ALOGD("Cleared layer stats");
 }
 

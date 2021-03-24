@@ -55,6 +55,7 @@ static void drawShadowLayer(SkiaRenderEngine* renderengine, const DisplaySetting
     // generate the slower (more general case) version. If we also need a
     // slow version without color correction, we should use this matrix with
     // display.outputDataspace set to SRGB.
+    bool identity = true;
     for (const mat4 transform : { mat4(), mat4(0.728872f,   0.f,          0.f, 0.f,
                                                0.f,         0.727627f,    0.f, 0.f,
                                                0.f,         0.f,          1.f, 0.f,
@@ -62,6 +63,8 @@ static void drawShadowLayer(SkiaRenderEngine* renderengine, const DisplaySetting
         layer.geometry.positionTransform = transform;
         renderengine->drawLayers(display, layers, dstBuffer, false /* useFrameBufferCache*/,
                                  base::unique_fd(), nullptr);
+        renderengine->assertShadersCompiled(identity ? 1 : 2);
+        identity = false;
     }
 }
 
@@ -105,6 +108,7 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                     renderengine->drawLayers(display, layers, dstBuffer,
                                              false /* useFrameBufferCache*/, base::unique_fd(),
                                              nullptr);
+                    renderengine->assertShadersCompiled(1);
                 }
             }
         }

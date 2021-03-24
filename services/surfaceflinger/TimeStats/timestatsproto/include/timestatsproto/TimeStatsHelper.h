@@ -127,6 +127,12 @@ public:
         Histogram displayDeadlineDeltas;
         Histogram displayPresentDeltas;
         std::unordered_map<LayerStatsKey, TimeStatsLayer, LayerStatsKey::Hasher> stats;
+
+        void clearGlobals() {
+            jankPayload = {};
+            displayDeadlineDeltas = {};
+            displayPresentDeltas = {};
+        }
     };
 
     class TimeStatsGlobal {
