@@ -215,7 +215,7 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
     int explicitExactOrMultipleVoteLayers = 0;
     int explicitExact = 0;
     float maxExplicitWeight = 0;
-    int seamedLayers = 0;
+    int seamedFocusedLayers = 0;
     for (const auto& layer : layers) {
         switch (layer.vote) {
             case LayerVoteType::NoVote:
@@ -243,8 +243,8 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
                 break;
         }
 
-        if (layer.seamlessness == Seamlessness::SeamedAndSeamless) {
-            seamedLayers++;
+        if (layer.seamlessness == Seamlessness::SeamedAndSeamless && layer.focused) {
+            seamedFocusedLayers++;
         }
     }
 
@@ -329,12 +329,11 @@ RefreshRate RefreshRateConfigs::getBestRefreshRate(const std::vector<LayerRequir
             // mode group otherwise. In second case, if the current mode group is different
             // from the default, this means a layer with seamlessness=SeamedAndSeamless has just
             // disappeared.
-            const bool isInPolicyForDefault = seamedLayers > 0
+            const bool isInPolicyForDefault = seamedFocusedLayers > 0
                     ? scores[i].refreshRate->getModeGroup() == mCurrentRefreshRate->getModeGroup()
                     : scores[i].refreshRate->getModeGroup() == defaultMode->getModeGroup();
 
-            if (layer.seamlessness == Seamlessness::Default && !isInPolicyForDefault &&
-                !layer.focused) {
+            if (layer.seamlessness == Seamlessness::Default && !isInPolicyForDefault) {
                 ALOGV("%s ignores %s. Current mode = %s", formatLayerInfo(layer, weight).c_str(),
                       scores[i].refreshRate->toString().c_str(),
                       mCurrentRefreshRate->toString().c_str());
