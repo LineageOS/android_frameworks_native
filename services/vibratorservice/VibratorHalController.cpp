@@ -161,7 +161,7 @@ HalResult<void> HalController::off() {
     return apply(offFn, "off");
 }
 
-HalResult<void> HalController::setAmplitude(int32_t amplitude) {
+HalResult<void> HalController::setAmplitude(float amplitude) {
     hal_fn<void> setAmplitudeFn = [&](std::shared_ptr<HalWrapper> hal) {
         return hal->setAmplitude(amplitude);
     };
