@@ -19,6 +19,7 @@
 #include <android/hardware/vibrator/1.3/IVibrator.h>
 #include <android/hardware/vibrator/IVibrator.h>
 #include <hardware/vibrator.h>
+#include <cmath>
 
 #include <utils/Log.h>
 
@@ -133,6 +134,73 @@ HalResult<void> HalResult<void>::fromReturn(hardware::Return<R>& ret) {
 
 // -------------------------------------------------------------------------------------------------
 
+Info HalWrapper::getInfo() {
+    getCapabilities();
+    getPrimitiveDurations();
+    std::lock_guard<std::mutex> lock(mInfoMutex);
+    if (mInfoCache.mSupportedEffects.isFailed()) {
+        mInfoCache.mSupportedEffects = getSupportedEffectsInternal();
+    }
+    if (mInfoCache.mResonantFrequency.isFailed()) {
+        mInfoCache.mResonantFrequency = getResonantFrequencyInternal();
+    }
+    if (mInfoCache.mQFactor.isFailed()) {
+        mInfoCache.mQFactor = getQFactorInternal();
+    }
+    return mInfoCache.get();
+}
+
+HalResult<Capabilities> HalWrapper::getCapabilities() {
+    std::lock_guard<std::mutex> lock(mInfoMutex);
+    if (mInfoCache.mCapabilities.isFailed()) {
+        mInfoCache.mCapabilities = getCapabilitiesInternal();
+    }
+    return mInfoCache.mCapabilities;
+}
+
+HalResult<std::vector<milliseconds>> HalWrapper::getPrimitiveDurations() {
+    std::lock_guard<std::mutex> lock(mInfoMutex);
+    if (mInfoCache.mSupportedPrimitives.isFailed()) {
+        mInfoCache.mSupportedPrimitives = getSupportedPrimitivesInternal();
+        if (mInfoCache.mSupportedPrimitives.isUnsupported()) {
+            mInfoCache.mPrimitiveDurations = HalResult<std::vector<milliseconds>>::unsupported();
+        }
+    }
+    if (mInfoCache.mPrimitiveDurations.isFailed() && mInfoCache.mSupportedPrimitives.isOk()) {
+        mInfoCache.mPrimitiveDurations =
+                getPrimitiveDurationsInternal(mInfoCache.mSupportedPrimitives.value());
+    }
+    return mInfoCache.mPrimitiveDurations;
+}
+
+HalResult<std::vector<Effect>> HalWrapper::getSupportedEffectsInternal() {
+    ALOGV("Skipped getSupportedEffects because it's not available in Vibrator HAL");
+    return HalResult<std::vector<Effect>>::unsupported();
+}
+
+HalResult<std::vector<CompositePrimitive>> HalWrapper::getSupportedPrimitivesInternal() {
+    ALOGV("Skipped getSupportedPrimitives because it's not available in Vibrator HAL");
+    return HalResult<std::vector<CompositePrimitive>>::unsupported();
+}
+
+HalResult<std::vector<milliseconds>> HalWrapper::getPrimitiveDurationsInternal(
+        const std::vector<CompositePrimitive>&) {
+    ALOGV("Skipped getPrimitiveDurations because it's not available in Vibrator HAL");
+    return HalResult<std::vector<milliseconds>>::unsupported();
+}
+
+HalResult<float> HalWrapper::getResonantFrequencyInternal() {
+    ALOGV("Skipped getResonantFrequency because it's not available in Vibrator HAL");
+    return HalResult<float>::unsupported();
+}
+
+HalResult<float> HalWrapper::getQFactorInternal() {
+    ALOGV("Skipped getQFactor because it's not available in Vibrator HAL");
+    return HalResult<float>::unsupported();
+}
+
+// -------------------------------------------------------------------------------------------------
+
 HalResult<void> AidlHalWrapper::ping() {
     return HalResult<void>::fromStatus(IInterface::asBinder(getHal())->pingBinder());
 }
@@ -184,37 +252,6 @@ HalResult<void> AidlHalWrapper::alwaysOnDisable(int32_t id) {
     return HalResult<void>::fromStatus(getHal()->alwaysOnDisable(id));
 }
 
-HalResult<Capabilities> AidlHalWrapper::getCapabilities() {
-    std::lock_guard<std::mutex> lock(mCapabilitiesMutex);
-    return loadCached<Capabilities>(std::bind(&AidlHalWrapper::getCapabilitiesInternal, this),
-                                    mCapabilities);
-}
-
-HalResult<std::vector<Effect>> AidlHalWrapper::getSupportedEffects() {
-    std::lock_guard<std::mutex> lock(mSupportedEffectsMutex);
-    return loadCached<std::vector<Effect>>(std::bind(&AidlHalWrapper::getSupportedEffectsInternal,
-                                                     this),
-                                           mSupportedEffects);
-}
-
-HalResult<std::vector<CompositePrimitive>> AidlHalWrapper::getSupportedPrimitives() {
-    std::lock_guard<std::mutex> lock(mSupportedPrimitivesMutex);
-    return loadCached<std::vector<
-            CompositePrimitive>>(std::bind(&AidlHalWrapper::getSupportedPrimitivesInternal, this),
-                                 mSupportedPrimitives);
-}
-
-HalResult<float> AidlHalWrapper::getResonantFrequency() {
-    std::lock_guard<std::mutex> lock(mResonantFrequencyMutex);
-    return loadCached<float>(std::bind(&AidlHalWrapper::getResonantFrequencyInternal, this),
-                             mResonantFrequency);
-}
-
-HalResult<float> AidlHalWrapper::getQFactor() {
-    std::lock_guard<std::mutex> lock(mQFactorMutex);
-    return loadCached<float>(std::bind(&AidlHalWrapper::getQFactorInternal, this), mQFactor);
-}
-
 HalResult<milliseconds> AidlHalWrapper::performEffect(
         Effect effect, EffectStrength strength, const std::function<void()>& completionCallback) {
     HalResult<Capabilities> capabilities = getCapabilities();
@@ -239,40 +276,21 @@ HalResult<milliseconds> AidlHalWrapper::performComposedEffect(
         const std::function<void()>& completionCallback) {
     // This method should always support callbacks, so no need to double check.
     auto cb = new HalCallbackWrapper(completionCallback);
+
+    auto durations = getPrimitiveDurations().valueOr({});
     milliseconds duration(0);
     for (const auto& effect : primitiveEffects) {
-        auto durationResult = getPrimitiveDuration(effect.primitive);
-        if (durationResult.isOk()) {
-            duration += durationResult.value();
+        auto primitiveIdx = static_cast<size_t>(effect.primitive);
+        if (primitiveIdx < durations.size()) {
+            duration += durations[primitiveIdx];
+        } else {
+            // Make sure the returned duration is positive to indicate successful vibration.
+            duration += milliseconds(1);
         }
         duration += milliseconds(effect.delayMs);
     }
-    return HalResult<milliseconds>::fromStatus(getHal()->compose(primitiveEffects, cb), duration);
-}
 
-HalResult<milliseconds> AidlHalWrapper::getPrimitiveDuration(CompositePrimitive primitive) {
-    std::lock_guard<std::mutex> lock(mSupportedPrimitivesMutex);
-    if (mPrimitiveDurations.empty()) {
-        constexpr auto primitiveRange = enum_range<CompositePrimitive>();
-        constexpr auto primitiveCount = std::distance(primitiveRange.begin(), primitiveRange.end());
-        mPrimitiveDurations.resize(primitiveCount);
-    }
-    auto primitiveIdx = static_cast<size_t>(primitive);
-    if (primitiveIdx >= mPrimitiveDurations.size()) {
-        // Safety check, should not happen if enum_range is correct.
-        return HalResult<milliseconds>::unsupported();
-    }
-    auto& cache = mPrimitiveDurations[primitiveIdx];
-    if (cache.has_value()) {
-        return HalResult<milliseconds>::ok(*cache);
-    }
-    int32_t duration;
-    auto result = getHal()->getPrimitiveDuration(primitive, &duration);
-    if (result.isOk()) {
-        // Cache copy of returned value.
-        cache.emplace(duration);
-    }
-    return HalResult<milliseconds>::fromStatus(result, milliseconds(duration));
+    return HalResult<milliseconds>::fromStatus(getHal()->compose(primitiveEffects, cb), duration);
 }
 
 HalResult<Capabilities> AidlHalWrapper::getCapabilitiesInternal() {
@@ -291,6 +309,30 @@ HalResult<std::vector<CompositePrimitive>> AidlHalWrapper::getSupportedPrimitive
     std::vector<CompositePrimitive> supportedPrimitives;
     auto result = getHal()->getSupportedPrimitives(&supportedPrimitives);
     return HalResult<std::vector<CompositePrimitive>>::fromStatus(result, supportedPrimitives);
+}
+
+HalResult<std::vector<milliseconds>> AidlHalWrapper::getPrimitiveDurationsInternal(
+        const std::vector<CompositePrimitive>& supportedPrimitives) {
+    std::vector<milliseconds> durations;
+    constexpr auto primitiveRange = enum_range<CompositePrimitive>();
+    constexpr auto primitiveCount = std::distance(primitiveRange.begin(), primitiveRange.end());
+    durations.resize(primitiveCount);
+
+    for (auto primitive : supportedPrimitives) {
+        auto primitiveIdx = static_cast<size_t>(primitive);
+        if (primitiveIdx >= durations.size()) {
+            // Safety check, should not happen if enum_range is correct.
+            continue;
+        }
+        int32_t duration = 0;
+        auto status = getHal()->getPrimitiveDuration(primitive, &duration);
+        if (!status.isOk()) {
+            return HalResult<std::vector<milliseconds>>::failed(status.toString8().c_str());
+        }
+        durations[primitiveIdx] = milliseconds(duration);
+    }
+
+    return HalResult<std::vector<milliseconds>>::ok(durations);
 }
 
 HalResult<float> AidlHalWrapper::getResonantFrequencyInternal() {
@@ -367,37 +409,6 @@ template <typename I>
 HalResult<void> HidlHalWrapper<I>::alwaysOnDisable(int32_t) {
     ALOGV("Skipped alwaysOnDisable because Vibrator HAL AIDL is not available");
     return HalResult<void>::unsupported();
-}
-
-template <typename I>
-HalResult<Capabilities> HidlHalWrapper<I>::getCapabilities() {
-    std::lock_guard<std::mutex> lock(mCapabilitiesMutex);
-    return loadCached<Capabilities>(std::bind(&HidlHalWrapper<I>::getCapabilitiesInternal, this),
-                                    mCapabilities);
-}
-
-template <typename I>
-HalResult<std::vector<Effect>> HidlHalWrapper<I>::getSupportedEffects() {
-    ALOGV("Skipped getSupportedEffects because Vibrator HAL AIDL is not available");
-    return HalResult<std::vector<Effect>>::unsupported();
-}
-
-template <typename I>
-HalResult<std::vector<CompositePrimitive>> HidlHalWrapper<I>::getSupportedPrimitives() {
-    ALOGV("Skipped getSupportedPrimitives because Vibrator HAL AIDL is not available");
-    return HalResult<std::vector<CompositePrimitive>>::unsupported();
-}
-
-template <typename I>
-HalResult<float> HidlHalWrapper<I>::getResonantFrequency() {
-    ALOGV("Skipped getResonantFrequency because Vibrator HAL AIDL is not available");
-    return HalResult<float>::unsupported();
-}
-
-template <typename I>
-HalResult<float> HidlHalWrapper<I>::getQFactor() {
-    ALOGV("Skipped getQFactor because Vibrator HAL AIDL is not available");
-    return HalResult<float>::unsupported();
 }
 
 template <typename I>
