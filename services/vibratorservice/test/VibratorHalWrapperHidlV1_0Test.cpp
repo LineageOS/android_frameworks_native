@@ -188,7 +188,7 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestAlwaysOnDisableUnsupported) {
     ASSERT_TRUE(mWrapper->alwaysOnDisable(1).isUnsupported());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetCapabilitiesDoesNotCacheFailedResult) {
+TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetInfoDoesNotCacheFailedResult) {
     EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl())
             .Times(Exactly(2))
             .WillOnce([]() {
@@ -196,49 +196,44 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetCapabilitiesDoesNotCacheFailedResu
             })
             .WillRepeatedly([]() { return hardware::Return<bool>(true); });
 
-    ASSERT_TRUE(mWrapper->getCapabilities().isFailed());
+    ASSERT_TRUE(mWrapper->getInfo().capabilities.isFailed());
 
-    auto result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
+    vibrator::Info info = mWrapper->getInfo();
+    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, info.capabilities.value());
+    ASSERT_TRUE(info.supportedEffects.isUnsupported());
+    ASSERT_TRUE(info.supportedPrimitives.isUnsupported());
+    ASSERT_TRUE(info.primitiveDurations.isUnsupported());
+    ASSERT_TRUE(info.resonantFrequency.isUnsupported());
+    ASSERT_TRUE(info.qFactor.isUnsupported());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetCapabilitiesWithoutAmplitudeControl) {
+TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetInfoWithoutAmplitudeControl) {
     EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl()).Times(Exactly(1)).WillRepeatedly([]() {
         return hardware::Return<bool>(false);
     });
 
-    auto result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::NONE, result.value());
+    ASSERT_EQ(vibrator::Capabilities::NONE, mWrapper->getInfo().capabilities.value());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetCapabilitiesCachesResult) {
+TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetInfoCachesResult) {
     EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl()).Times(Exactly(1)).WillRepeatedly([]() {
         return hardware::Return<bool>(true);
     });
 
     std::vector<std::thread> threads;
     for (int i = 0; i < 10; i++) {
-        threads.push_back(std::thread([&]() {
-            auto result = mWrapper->getCapabilities();
-            ASSERT_TRUE(result.isOk());
-            ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
-        }));
+        threads.push_back(
+                std::thread([&]() { ASSERT_TRUE(mWrapper->getInfo().capabilities.isOk()); }));
     }
     std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
 
-    auto result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
-}
-
-TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetSupportedEffectsUnsupported) {
-    ASSERT_TRUE(mWrapper->getSupportedEffects().isUnsupported());
-}
-
-TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetSupportedPrimitivesUnsupported) {
-    ASSERT_TRUE(mWrapper->getSupportedPrimitives().isUnsupported());
+    vibrator::Info info = mWrapper->getInfo();
+    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, info.capabilities.value());
+    ASSERT_TRUE(info.supportedEffects.isUnsupported());
+    ASSERT_TRUE(info.supportedPrimitives.isUnsupported());
+    ASSERT_TRUE(info.primitiveDurations.isUnsupported());
+    ASSERT_TRUE(info.resonantFrequency.isUnsupported());
+    ASSERT_TRUE(info.qFactor.isUnsupported());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_0Test, TestPerformEffect) {
