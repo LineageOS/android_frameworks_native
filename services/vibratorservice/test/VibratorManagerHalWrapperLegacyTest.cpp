@@ -41,7 +41,6 @@ public:
     virtual ~MockHalController() = default;
 
     MOCK_METHOD(bool, init, (), (override));
-    MOCK_METHOD(vibrator::HalResult<void>, ping, (), (override));
     MOCK_METHOD(void, tryReconnect, (), (override));
 };
 
@@ -63,13 +62,9 @@ protected:
 // -------------------------------------------------------------------------------------------------
 
 TEST_F(VibratorManagerHalWrapperLegacyTest, TestPing) {
-    EXPECT_CALL(*mMockController.get(), ping())
-            .Times(Exactly(2))
-            .WillOnce(Return(vibrator::HalResult<void>::failed("message")))
-            .WillRepeatedly(Return(vibrator::HalResult<void>::ok()));
+    EXPECT_CALL(*mMockController.get(), init()).Times(Exactly(1)).WillOnce(Return(false));
 
-    ASSERT_TRUE(mWrapper->ping().isFailed());
-    ASSERT_TRUE(mWrapper->ping().isOk());
+    ASSERT_TRUE(mWrapper->ping().isUnsupported());
 }
 
 TEST_F(VibratorManagerHalWrapperLegacyTest, TestTryReconnect) {
@@ -85,8 +80,7 @@ TEST_F(VibratorManagerHalWrapperLegacyTest, TestGetCapabilities) {
 }
 
 TEST_F(VibratorManagerHalWrapperLegacyTest, TestGetVibratorIds) {
-    std::vector<int32_t> expectedIds;
-    expectedIds.push_back(0);
+    std::vector<int> expectedIds = {0};
 
     EXPECT_CALL(*mMockController.get(), init())
             .Times(Exactly(2))

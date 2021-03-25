@@ -258,10 +258,29 @@ TEST_F(VibratorManagerHalWrapperAidlTest, TestGetVibratorRecoversVibratorPointer
 
     EXPECT_CALL(*mMockVibrator.get(), getCapabilities(_))
             .Times(Exactly(3))
-            .WillOnce(
-                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)))
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
             .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
             .WillRepeatedly(DoAll(SetArgPointee<0>(IVibrator::CAP_ON_CALLBACK), Return(Status())));
+
+    EXPECT_CALL(*mMockVibrator.get(), getSupportedEffects(_))
+            .Times(Exactly(1))
+            .WillOnce(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+
+    EXPECT_CALL(*mMockVibrator.get(), getSupportedPrimitives(_))
+            .Times(Exactly(1))
+            .WillOnce(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+
+    EXPECT_CALL(*mMockVibrator.get(), getResonantFrequency(_))
+            .Times(Exactly(1))
+            .WillOnce(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+
+    EXPECT_CALL(*mMockVibrator.get(), getQFactor(_))
+            .Times(Exactly(1))
+            .WillOnce(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
 
     // Get vibrator controller is successful even if first getVibrator.
     auto result = mWrapper->getVibrator(kVibratorId);
@@ -272,9 +291,9 @@ TEST_F(VibratorManagerHalWrapperAidlTest, TestGetVibratorRecoversVibratorPointer
     // First getVibrator call fails.
     ASSERT_FALSE(vibrator->init());
     // First and second getCapabilities calls fail, reload IVibrator with getVibrator.
-    ASSERT_FALSE(vibrator->getCapabilities().isOk());
+    ASSERT_TRUE(vibrator->getInfo().capabilities.isFailed());
     // Third call to getCapabilities worked after IVibrator reloaded.
-    ASSERT_TRUE(vibrator->getCapabilities().isOk());
+    ASSERT_FALSE(vibrator->getInfo().capabilities.isFailed());
 }
 
 TEST_F(VibratorManagerHalWrapperAidlTest, TestPrepareSynced) {
