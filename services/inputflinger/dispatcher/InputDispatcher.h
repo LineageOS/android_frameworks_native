@@ -19,6 +19,7 @@
 
 #include "AnrTracker.h"
 #include "CancelationOptions.h"
+#include "DragState.h"
 #include "Entry.h"
 #include "FocusResolver.h"
 #include "InjectionState.h"
@@ -340,6 +341,7 @@ private:
             REQUIRES(mLock);
 
     std::unordered_map<int32_t, TouchState> mTouchStatesByDisplay GUARDED_BY(mLock);
+    std::unique_ptr<DragState> mDragState GUARDED_BY(mLock);
 
     // Focused applications.
     std::unordered_map<int32_t, std::shared_ptr<InputApplicationHandle>>
@@ -499,7 +501,8 @@ private:
                                   const InjectionState* injectionState);
     // Enqueue a drag event if needed, and update the touch state.
     // Uses findTouchedWindowTargetsLocked to make the decision
-    void addDragEventLocked(const MotionEntry& entry, TouchState& state) REQUIRES(mLock);
+    void addDragEventLocked(const MotionEntry& entry) REQUIRES(mLock);
+    void finishDragAndDrop(int32_t displayId, float x, float y) REQUIRES(mLock);
 
     struct TouchOcclusionInfo {
         bool hasBlockingOcclusion;
