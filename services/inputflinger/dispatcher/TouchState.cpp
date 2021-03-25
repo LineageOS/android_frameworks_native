@@ -49,8 +49,6 @@ void TouchState::copyFrom(const TouchState& other) {
     windows = other.windows;
     portalWindows = other.portalWindows;
     gestureMonitors = other.gestureMonitors;
-    dragHoverWindowHandle = other.dragHoverWindowHandle;
-    dragWindow = other.dragWindow;
 }
 
 void TouchState::addOrUpdateWindow(const sp<InputWindowHandle>& windowHandle, int32_t targetFlags,
