@@ -102,6 +102,28 @@ int android_setprocnetwork(net_handle_t network) __INTRODUCED_IN(23);
  */
 int android_getprocnetwork(net_handle_t *network) __INTRODUCED_IN(31);
 
+/**
+ * Binds domain name resolutions performed by this process to |network|.
+ * android_setprocnetwork takes precedence over this setting.
+ *
+ * To clear a previous process binding, invoke with NETWORK_UNSPECIFIED.
+ * On success 0 is returned. On error -1 is returned, and errno is set.
+ *
+ * Available since API level 31.
+ */
+int android_setprocdns(net_handle_t network) __INTRODUCED_IN(31);
+
+/**
+ * Gets the |network| to which domain name resolutions are bound on the
+ * current process.
+ *
+ * Returns 0 on success, or -1 setting errno to EINVAL if a null pointer is
+ * passed in.
+ *
+ * Available since API level 31.
+ */
+int android_getprocdns(net_handle_t *network) __INTRODUCED_IN(31);
+
 
 /**
  * Perform hostname resolution via the DNS servers associated with |network|.
