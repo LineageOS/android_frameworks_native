@@ -42,6 +42,7 @@ filegroup {
         "InputTarget.cpp",
         "Monitor.cpp",
         "TouchState.cpp",
+        "DragState.cpp",
     ],
 }
 
