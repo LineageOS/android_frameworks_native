@@ -325,6 +325,38 @@ void ASurfaceTransaction_setGeometry(ASurfaceTransaction* transaction,
                                      const ARect& destination, int32_t transform)
                                      __INTRODUCED_IN(29);
 
+/**
+ * \param source The sub-rect within the buffer's content to be rendered inside the surface's area
+ * The surface's source rect is clipped by the bounds of its current buffer. The source rect's width
+ * and height must be > 0.
+ *
+ * Available since API level 31.
+ */
+void ASurfaceTransaction_setSourceRect(ASurfaceTransaction* transaction,
+                                       ASurfaceControl* surface_control, const ARect& source)
+                                       __INTRODUCED_IN(31);
+
+/**
+ * \param destination Specifies the rect in the parent's space where this surface will be drawn. The
+ * post source rect bounds are scaled to fit the destination rect. The surface's destination rect is
+ * clipped by the bounds of its parent. The destination rect's width and height must be > 0.
+ *
+ * Available since API level 31.
+ */
+void ASurfaceTransaction_setPosition(ASurfaceTransaction* transaction,
+                                     ASurfaceControl* surface_control, const ARect& destination)
+                                     __INTRODUCED_IN(31);
+
+/**
+ * \param transform The transform applied after the source rect is applied to the buffer. This
+ * parameter should be set to 0 for no transform. To specify a transfrom use the
+ * NATIVE_WINDOW_TRANSFORM_* enum.
+ *
+ * Available since API level 31.
+ */
+void ASurfaceTransaction_setTransform(ASurfaceTransaction* transaction,
+                                      ASurfaceControl* surface_control, int32_t transform)
+                                      __INTRODUCED_IN(31);
 
 /**
  * Parameter for ASurfaceTransaction_setBufferTransparency().
