@@ -65,9 +65,12 @@ cc_defaults {
         "libinput",
         "liblog",
         "libstatslog",
+        "libstatspull",
+        "libstatssocket",
         "libutils",
         "libui",
         "lib-platform-compat-native-api",
+        "server_configurable_flags",
     ],
     static_libs: [
         "libattestation",

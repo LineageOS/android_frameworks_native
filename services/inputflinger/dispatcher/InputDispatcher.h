@@ -29,6 +29,7 @@
 #include "InputState.h"
 #include "InputTarget.h"
 #include "InputThread.h"
+#include "LatencyAggregator.h"
 #include "LatencyTracker.h"
 #include "Monitor.h"
 #include "TouchState.h"
@@ -636,12 +637,7 @@ private:
     void doOnPointerDownOutsideFocusLockedInterruptible(CommandEntry* commandEntry) REQUIRES(mLock);
 
     // Statistics gathering.
-    class EmptyTimelineProcessor : public InputEventTimelineProcessor {
-        void processTimeline(const InputEventTimeline& timeline) override {
-            // TODO(b/167947340): report latency information to the real aggregator
-        }
-    } mEmptyProcessor GUARDED_BY(mLock);
-
+    LatencyAggregator mLatencyAggregator GUARDED_BY(mLock);
     LatencyTracker mLatencyTracker GUARDED_BY(mLock);
     void traceInboundQueueLengthLocked() REQUIRES(mLock);
     void traceOutboundQueueLength(const Connection& connection);

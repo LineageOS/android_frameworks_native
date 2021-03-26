@@ -517,7 +517,8 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
         mFocusedWindowRequestedPointerCapture(false),
         mWindowTokenWithPointerCapture(nullptr),
-        mLatencyTracker(&mEmptyProcessor),
+        mLatencyAggregator(),
+        mLatencyTracker(&mLatencyAggregator),
         mCompatService(getCompatService()) {
     mLooper = new Looper(false);
     mReporter = createInputReporter();
@@ -5114,6 +5115,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     dump += StringPrintf(INDENT2 "KeyRepeatTimeout: %" PRId64 "ms\n",
                          ns2ms(mConfig.keyRepeatTimeout));
     dump += mLatencyTracker.dump(INDENT2);
+    dump += mLatencyAggregator.dump(INDENT2);
 }
 
 void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors) {
