@@ -180,6 +180,7 @@ public:
     void setDropTime(nsecs_t dropTime);
     void setPresentState(PresentState presentState, nsecs_t lastLatchTime = 0);
     void setRenderRate(Fps renderRate);
+    void setGpuComposition();
 
     // When a bufferless SurfaceFrame is promoted to a buffer SurfaceFrame, we also have to update
     // isBuffer.
@@ -292,11 +293,11 @@ public:
     // the token and sets the actualSfWakeTime for the current DisplayFrame.
     virtual void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) = 0;
 
-    // Sets the sfPresentTime and finalizes the current DisplayFrame. Tracks the given present fence
-    // until it's signaled, and updates the present timestamps of all presented SurfaceFrames in
-    // that vsync.
-    virtual void setSfPresent(nsecs_t sfPresentTime,
-                              const std::shared_ptr<FenceTime>& presentFence) = 0;
+    // Sets the sfPresentTime, gpuComposition and finalizes the current DisplayFrame. Tracks the
+    // given present fence until it's signaled, and updates the present timestamps of all presented
+    // SurfaceFrames in that vsync.
+    virtual void setSfPresent(nsecs_t sfPresentTime, const std::shared_ptr<FenceTime>& presentFence,
+                              bool gpuComposition) = 0;
 
     // Args:
     // -jank : Dumps only the Display Frames that are either janky themselves
@@ -375,6 +376,7 @@ public:
         void setPredictions(PredictionState predictionState, TimelineItem predictions);
         void setActualStartTime(nsecs_t actualStartTime);
         void setActualEndTime(nsecs_t actualEndTime);
+        void setGpuComposition();
 
         // BaseTime is the smallest timestamp in a DisplayFrame.
         // Used for dumping all timestamps relative to the oldest, making it easy to read.
@@ -444,8 +446,8 @@ public:
             int32_t layerId, std::string layerName, std::string debugName, bool isBuffer) override;
     void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame) override;
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) override;
-    void setSfPresent(nsecs_t sfPresentTime,
-                      const std::shared_ptr<FenceTime>& presentFence) override;
+    void setSfPresent(nsecs_t sfPresentTime, const std::shared_ptr<FenceTime>& presentFence,
+                      bool gpuComposition = false) override;
     void parseArgs(const Vector<String16>& args, std::string& result) override;
     void setMaxDisplayFrames(uint32_t size) override;
     float computeFps(const std::unordered_set<int32_t>& layerIds) override;
