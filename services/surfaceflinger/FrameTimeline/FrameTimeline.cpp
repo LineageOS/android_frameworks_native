@@ -348,6 +348,11 @@ void SurfaceFrame::setRenderRate(Fps renderRate) {
     mRenderRate = renderRate;
 }
 
+void SurfaceFrame::setGpuComposition() {
+    std::scoped_lock lock(mMutex);
+    mGpuComposition = true;
+}
+
 std::optional<int32_t> SurfaceFrame::getJankType() const {
     std::scoped_lock lock(mMutex);
     if (mPresentState == PresentState::Dropped) {
@@ -828,10 +833,14 @@ void FrameTimeline::setSfWakeUp(int64_t token, nsecs_t wakeUpTime, Fps refreshRa
 }
 
 void FrameTimeline::setSfPresent(nsecs_t sfPresentTime,
-                                 const std::shared_ptr<FenceTime>& presentFence) {
+                                 const std::shared_ptr<FenceTime>& presentFence,
+                                 bool gpuComposition) {
     ATRACE_CALL();
     std::scoped_lock lock(mMutex);
     mCurrentDisplayFrame->setActualEndTime(sfPresentTime);
+    if (gpuComposition) {
+        mCurrentDisplayFrame->setGpuComposition();
+    }
     mPendingPresentFences.emplace_back(std::make_pair(presentFence, mCurrentDisplayFrame));
     flushPendingPresentFences();
     finalizeCurrentDisplayFrame();
@@ -867,6 +876,10 @@ void FrameTimeline::DisplayFrame::setActualStartTime(nsecs_t actualStartTime) {
 
 void FrameTimeline::DisplayFrame::setActualEndTime(nsecs_t actualEndTime) {
     mSurfaceFlingerActuals.endTime = actualEndTime;
+}
+
+void FrameTimeline::DisplayFrame::setGpuComposition() {
+    mGpuComposition = true;
 }
 
 void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync) {
