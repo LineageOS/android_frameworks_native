@@ -27,6 +27,7 @@
 
 using android::binder::Status;
 
+using android::hardware::vibrator::Braking;
 using android::hardware::vibrator::CompositeEffect;
 using android::hardware::vibrator::CompositePrimitive;
 using android::hardware::vibrator::Effect;
@@ -34,6 +35,7 @@ using android::hardware::vibrator::EffectStrength;
 using android::hardware::vibrator::IVibrator;
 using android::hardware::vibrator::IVibratorCallback;
 using android::hardware::vibrator::IVibratorManager;
+using android::hardware::vibrator::PrimitivePwle;
 
 using namespace android;
 using namespace testing;
@@ -73,6 +75,15 @@ public:
     MOCK_METHOD(Status, alwaysOnDisable, (int32_t id), (override));
     MOCK_METHOD(Status, getQFactor, (float * ret), (override));
     MOCK_METHOD(Status, getResonantFrequency, (float * ret), (override));
+    MOCK_METHOD(Status, getFrequencyResolution, (float *freqResolutionHz), (override));
+    MOCK_METHOD(Status, getFrequencyMinimum, (float *freqMinimumHz), (override));
+    MOCK_METHOD(Status, getBandwidthAmplitudeMap, (std::vector<float> * ret), (override));
+    MOCK_METHOD(Status, getPwlePrimitiveDurationMax, (int32_t *durationMs), (override));
+    MOCK_METHOD(Status, getPwleCompositionSizeMax, (int32_t *maxSize), (override));
+    MOCK_METHOD(Status, getSupportedBraking, (std::vector<Braking> * ret), (override));
+    MOCK_METHOD(Status, composePwle,
+                (const std::vector<PrimitivePwle>& e, const sp<IVibratorCallback>& cb),
+                (override));
     MOCK_METHOD(int32_t, getInterfaceVersion, (), (override));
     MOCK_METHOD(std::string, getInterfaceHash, (), (override));
     MOCK_METHOD(IBinder*, onAsBinder, (), (override));
@@ -247,10 +258,29 @@ TEST_F(VibratorManagerHalWrapperAidlTest, TestGetVibratorRecoversVibratorPointer
 
     EXPECT_CALL(*mMockVibrator.get(), getCapabilities(_))
             .Times(Exactly(3))
-            .WillOnce(
-                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)))
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
             .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
             .WillRepeatedly(DoAll(SetArgPointee<0>(IVibrator::CAP_ON_CALLBACK), Return(Status())));
+
+    EXPECT_CALL(*mMockVibrator.get(), getSupportedEffects(_))
+            .Times(Exactly(1))
+            .WillOnce(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+
+    EXPECT_CALL(*mMockVibrator.get(), getSupportedPrimitives(_))
+            .Times(Exactly(1))
+            .WillOnce(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+
+    EXPECT_CALL(*mMockVibrator.get(), getResonantFrequency(_))
+            .Times(Exactly(1))
+            .WillOnce(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+
+    EXPECT_CALL(*mMockVibrator.get(), getQFactor(_))
+            .Times(Exactly(1))
+            .WillOnce(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
 
     // Get vibrator controller is successful even if first getVibrator.
     auto result = mWrapper->getVibrator(kVibratorId);
@@ -261,9 +291,9 @@ TEST_F(VibratorManagerHalWrapperAidlTest, TestGetVibratorRecoversVibratorPointer
     // First getVibrator call fails.
     ASSERT_FALSE(vibrator->init());
     // First and second getCapabilities calls fail, reload IVibrator with getVibrator.
-    ASSERT_FALSE(vibrator->getCapabilities().isOk());
+    ASSERT_TRUE(vibrator->getInfo().capabilities.isFailed());
     // Third call to getCapabilities worked after IVibrator reloaded.
-    ASSERT_TRUE(vibrator->getCapabilities().isOk());
+    ASSERT_FALSE(vibrator->getInfo().capabilities.isFailed());
 }
 
 TEST_F(VibratorManagerHalWrapperAidlTest, TestPrepareSynced) {

@@ -1165,8 +1165,8 @@ public:
         return *this;
     }
 
-    MotionEventBuilder& buttonState(int32_t actionButton) {
-        mActionButton = actionButton;
+    MotionEventBuilder& buttonState(int32_t buttonState) {
+        mButtonState = buttonState;
         return *this;
     }
 
@@ -4761,6 +4761,32 @@ protected:
         mWindow->consumeMotionCancel();
         mDragWindow->consumeMotionDown();
     }
+
+    // Start performing drag, we will create a drag window and transfer touch to it.
+    void performStylusDrag() {
+        ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+                  injectMotionEvent(mDispatcher,
+                                    MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN,
+                                                       AINPUT_SOURCE_STYLUS)
+                                            .buttonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY)
+                                            .pointer(PointerBuilder(0,
+                                                                    AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                                             .x(50)
+                                                             .y(50))
+                                            .build()));
+        mWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+
+        // The drag window covers the entire display
+        mDragWindow = new FakeWindowHandle(mApp, mDispatcher, "DragWindow", ADISPLAY_ID_DEFAULT);
+        mDispatcher->setInputWindows(
+                {{ADISPLAY_ID_DEFAULT, {mDragWindow, mWindow, mSecondWindow}}});
+
+        // Transfer touch focus to the drag window
+        mDispatcher->transferTouchFocus(mWindow->getToken(), mDragWindow->getToken(),
+                                        true /* isDragDrop */);
+        mWindow->consumeMotionCancel();
+        mDragWindow->consumeMotionDown();
+    }
 };
 
 TEST_F(InputDispatcherDragTests, DragEnterAndDragExit) {
@@ -4829,6 +4855,53 @@ TEST_F(InputDispatcherDragTests, DragAndDrop) {
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
     mFakePolicy->assertDropTargetEquals(mSecondWindow->getToken());
+    mWindow->assertNoEvents();
+    mSecondWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherDragTests, StylusDragAndDrop) {
+    performStylusDrag();
+
+    // Move on window and keep button pressed.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_STYLUS)
+                                        .buttonState(AMOTION_EVENT_BUTTON_STYLUS_PRIMARY)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                                         .x(50)
+                                                         .y(50))
+                                        .build()))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mWindow->consumeDragEvent(false, 50, 50);
+    mSecondWindow->assertNoEvents();
+
+    // Move to another window and release button, expect to drop item.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_STYLUS)
+                                        .buttonState(0)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                                         .x(150)
+                                                         .y(50))
+                                        .build()))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mWindow->assertNoEvents();
+    mSecondWindow->assertNoEvents();
+    mFakePolicy->assertDropTargetEquals(mSecondWindow->getToken());
+
+    // nothing to the window.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(mDispatcher,
+                                MotionEventBuilder(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_STYLUS)
+                                        .buttonState(0)
+                                        .pointer(PointerBuilder(0, AMOTION_EVENT_TOOL_TYPE_STYLUS)
+                                                         .x(150)
+                                                         .y(50))
+                                        .build()))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
