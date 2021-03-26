@@ -76,20 +76,19 @@ public:
     MOCK_METHOD(Status, compose,
                 (const std::vector<CompositeEffect>& e, const sp<IVibratorCallback>& cb),
                 (override));
+    MOCK_METHOD(Status, composePwle,
+                (const std::vector<PrimitivePwle>& e, const sp<IVibratorCallback>& cb), (override));
     MOCK_METHOD(Status, getSupportedAlwaysOnEffects, (std::vector<Effect> * ret), (override));
     MOCK_METHOD(Status, alwaysOnEnable, (int32_t id, Effect e, EffectStrength s), (override));
     MOCK_METHOD(Status, alwaysOnDisable, (int32_t id), (override));
     MOCK_METHOD(Status, getQFactor, (float * ret), (override));
     MOCK_METHOD(Status, getResonantFrequency, (float * ret), (override));
-    MOCK_METHOD(Status, getFrequencyResolution, (float *freqResolutionHz), (override));
-    MOCK_METHOD(Status, getFrequencyMinimum, (float *freqMinimumHz), (override));
+    MOCK_METHOD(Status, getFrequencyResolution, (float* ret), (override));
+    MOCK_METHOD(Status, getFrequencyMinimum, (float* ret), (override));
     MOCK_METHOD(Status, getBandwidthAmplitudeMap, (std::vector<float> * ret), (override));
-    MOCK_METHOD(Status, getPwlePrimitiveDurationMax, (int32_t *durationMs), (override));
-    MOCK_METHOD(Status, getPwleCompositionSizeMax, (int32_t *maxSize), (override));
+    MOCK_METHOD(Status, getPwlePrimitiveDurationMax, (int32_t * ret), (override));
+    MOCK_METHOD(Status, getPwleCompositionSizeMax, (int32_t * ret), (override));
     MOCK_METHOD(Status, getSupportedBraking, (std::vector<Braking> * ret), (override));
-    MOCK_METHOD(Status, composePwle,
-                (const std::vector<PrimitivePwle>& e, const sp<IVibratorCallback>& cb),
-                (override));
     MOCK_METHOD(int32_t, getInterfaceVersion, (), (override));
     MOCK_METHOD(std::string, getInterfaceHash, (), (override));
     MOCK_METHOD(IBinder*, onAsBinder, (), (override));
@@ -301,10 +300,14 @@ TEST_F(VibratorHalWrapperAidlTest, TestAlwaysOnDisable) {
 }
 
 TEST_F(VibratorHalWrapperAidlTest, TestGetInfoDoesNotCacheFailedResult) {
+    constexpr float F_MIN = 100.f;
     constexpr float F0 = 123.f;
+    constexpr float F_RESOLUTION = 0.5f;
     constexpr float Q_FACTOR = 123.f;
     std::vector<Effect> supportedEffects = {Effect::CLICK, Effect::TICK};
     std::vector<CompositePrimitive> supportedPrimitives = {CompositePrimitive::CLICK};
+    std::vector<Braking> supportedBraking = {Braking::CLAB};
+    std::vector<float> amplitudes = {0.f, 1.f, 0.f};
 
     std::vector<std::chrono::milliseconds> primitiveDurations;
     constexpr auto primitiveRange = enum_range<CompositePrimitive>();
@@ -320,6 +323,10 @@ TEST_F(VibratorHalWrapperAidlTest, TestGetInfoDoesNotCacheFailedResult) {
             .Times(Exactly(2))
             .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
             .WillRepeatedly(DoAll(SetArgPointee<0>(supportedEffects), Return(Status())));
+    EXPECT_CALL(*mMockHal.get(), getSupportedBraking(_))
+            .Times(Exactly(2))
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(supportedBraking), Return(Status())));
     EXPECT_CALL(*mMockHal.get(), getSupportedPrimitives(_))
             .Times(Exactly(2))
             .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
@@ -327,33 +334,54 @@ TEST_F(VibratorHalWrapperAidlTest, TestGetInfoDoesNotCacheFailedResult) {
     EXPECT_CALL(*mMockHal.get(), getPrimitiveDuration(Eq(CompositePrimitive::CLICK), _))
             .Times(Exactly(1))
             .WillRepeatedly(DoAll(SetArgPointee<1>(10), Return(Status())));
+    EXPECT_CALL(*mMockHal.get(), getFrequencyMinimum(_))
+            .Times(Exactly(2))
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(F_MIN), Return(Status())));
     EXPECT_CALL(*mMockHal.get(), getResonantFrequency(_))
             .Times(Exactly(2))
             .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
             .WillRepeatedly(DoAll(SetArgPointee<0>(F0), Return(Status())));
+    EXPECT_CALL(*mMockHal.get(), getFrequencyResolution(_))
+            .Times(Exactly(2))
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(F_RESOLUTION), Return(Status())));
     EXPECT_CALL(*mMockHal.get(), getQFactor(_))
             .Times(Exactly(2))
             .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
             .WillRepeatedly(DoAll(SetArgPointee<0>(Q_FACTOR), Return(Status())));
+    EXPECT_CALL(*mMockHal.get(), getBandwidthAmplitudeMap(_))
+            .Times(Exactly(2))
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(amplitudes), Return(Status())));
 
     vibrator::Info failed = mWrapper->getInfo();
     ASSERT_TRUE(failed.capabilities.isFailed());
     ASSERT_TRUE(failed.supportedEffects.isFailed());
+    ASSERT_TRUE(failed.supportedBraking.isFailed());
     ASSERT_TRUE(failed.supportedPrimitives.isFailed());
     ASSERT_TRUE(failed.primitiveDurations.isFailed());
+    ASSERT_TRUE(failed.minFrequency.isFailed());
     ASSERT_TRUE(failed.resonantFrequency.isFailed());
+    ASSERT_TRUE(failed.frequencyResolution.isFailed());
     ASSERT_TRUE(failed.qFactor.isFailed());
+    ASSERT_TRUE(failed.maxAmplitudes.isFailed());
 
     vibrator::Info successful = mWrapper->getInfo();
     ASSERT_EQ(vibrator::Capabilities::ON_CALLBACK, successful.capabilities.value());
     ASSERT_EQ(supportedEffects, successful.supportedEffects.value());
+    ASSERT_EQ(supportedBraking, successful.supportedBraking.value());
     ASSERT_EQ(supportedPrimitives, successful.supportedPrimitives.value());
     ASSERT_EQ(primitiveDurations, successful.primitiveDurations.value());
+    ASSERT_EQ(F_MIN, successful.minFrequency.value());
     ASSERT_EQ(F0, successful.resonantFrequency.value());
+    ASSERT_EQ(F_RESOLUTION, successful.frequencyResolution.value());
     ASSERT_EQ(Q_FACTOR, successful.qFactor.value());
+    ASSERT_EQ(amplitudes, successful.maxAmplitudes.value());
 }
 
-TEST_F(VibratorHalWrapperAidlTest, TestGetCapabilitiesCachesResult) {
+TEST_F(VibratorHalWrapperAidlTest, TestGetInfoCachesResult) {
+    constexpr float F_MIN = 100.f;
     constexpr float F0 = 123.f;
     std::vector<Effect> supportedEffects = {Effect::CLICK, Effect::TICK};
 
@@ -363,14 +391,29 @@ TEST_F(VibratorHalWrapperAidlTest, TestGetCapabilitiesCachesResult) {
     EXPECT_CALL(*mMockHal.get(), getSupportedEffects(_))
             .Times(Exactly(1))
             .WillRepeatedly(DoAll(SetArgPointee<0>(supportedEffects), Return(Status())));
+    EXPECT_CALL(*mMockHal.get(), getQFactor(_))
+            .Times(Exactly(1))
+            .WillRepeatedly(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
     EXPECT_CALL(*mMockHal.get(), getSupportedPrimitives(_))
             .Times(Exactly(1))
             .WillRepeatedly(
                     Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+    EXPECT_CALL(*mMockHal.get(), getFrequencyMinimum(_))
+            .Times(Exactly(1))
+            .WillRepeatedly(DoAll(SetArgPointee<0>(F_MIN), Return(Status())));
     EXPECT_CALL(*mMockHal.get(), getResonantFrequency(_))
             .Times(Exactly(1))
             .WillRepeatedly(DoAll(SetArgPointee<0>(F0), Return(Status())));
-    EXPECT_CALL(*mMockHal.get(), getQFactor(_))
+    EXPECT_CALL(*mMockHal.get(), getFrequencyResolution(_))
+            .Times(Exactly(1))
+            .WillRepeatedly(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+    EXPECT_CALL(*mMockHal.get(), getBandwidthAmplitudeMap(_))
+            .Times(Exactly(1))
+            .WillRepeatedly(
+                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+    EXPECT_CALL(*mMockHal.get(), getSupportedBraking(_))
             .Times(Exactly(1))
             .WillRepeatedly(
                     Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
@@ -385,10 +428,14 @@ TEST_F(VibratorHalWrapperAidlTest, TestGetCapabilitiesCachesResult) {
     vibrator::Info info = mWrapper->getInfo();
     ASSERT_EQ(vibrator::Capabilities::ON_CALLBACK, info.capabilities.value());
     ASSERT_EQ(supportedEffects, info.supportedEffects.value());
+    ASSERT_TRUE(info.supportedBraking.isUnsupported());
     ASSERT_TRUE(info.supportedPrimitives.isUnsupported());
     ASSERT_TRUE(info.primitiveDurations.isUnsupported());
+    ASSERT_EQ(F_MIN, info.minFrequency.value());
     ASSERT_EQ(F0, info.resonantFrequency.value());
+    ASSERT_TRUE(info.frequencyResolution.isUnsupported());
     ASSERT_TRUE(info.qFactor.isUnsupported());
+    ASSERT_TRUE(info.maxAmplitudes.isUnsupported());
 }
 
 TEST_F(VibratorHalWrapperAidlTest, TestPerformEffectWithCallbackSupport) {
@@ -580,4 +627,40 @@ TEST_F(VibratorHalWrapperAidlTest, TestPerformComposedCachesPrimitiveDurationsAn
     ASSERT_TRUE(result.isOk());
     ASSERT_EQ(114ms, result.value()); // Cached durations not fetched again, same duration returned.
     ASSERT_EQ(3, *callbackCounter.get());
+}
+
+TEST_F(VibratorHalWrapperAidlTest, TestPerformPwleEffect) {
+    std::vector<PrimitivePwle> emptyPrimitives, multiplePrimitives;
+    multiplePrimitives.push_back(vibrator::TestFactory::createActivePwle(0, 1, 0, 1, 10ms));
+    multiplePrimitives.push_back(vibrator::TestFactory::createBrakingPwle(Braking::NONE, 100ms));
+
+    {
+        InSequence seq;
+        EXPECT_CALL(*mMockHal.get(), composePwle(Eq(emptyPrimitives), _))
+                .Times(Exactly(1))
+                .WillRepeatedly(Return(
+                        Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)));
+        EXPECT_CALL(*mMockHal.get(), composePwle(Eq(multiplePrimitives), _))
+                .Times(Exactly(2))
+                .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+                .WillRepeatedly(DoAll(TriggerCallbackInArg1(), Return(Status())));
+        ;
+    }
+
+    std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
+    auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
+
+    auto result = mWrapper->performPwleEffect(emptyPrimitives, callback);
+    ASSERT_TRUE(result.isUnsupported());
+    // Callback not triggered on failure
+    ASSERT_EQ(0, *callbackCounter.get());
+
+    result = mWrapper->performPwleEffect(multiplePrimitives, callback);
+    ASSERT_TRUE(result.isFailed());
+    // Callback not triggered for unsupported
+    ASSERT_EQ(0, *callbackCounter.get());
+
+    result = mWrapper->performPwleEffect(multiplePrimitives, callback);
+    ASSERT_TRUE(result.isOk());
+    ASSERT_EQ(1, *callbackCounter.get());
 }
