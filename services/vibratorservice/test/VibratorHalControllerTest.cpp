@@ -31,8 +31,6 @@
 
 #include "test_utils.h"
 
-using android::hardware::vibrator::CompositeEffect;
-using android::hardware::vibrator::CompositePrimitive;
 using android::hardware::vibrator::Effect;
 using android::hardware::vibrator::EffectStrength;
 
@@ -69,10 +67,6 @@ public:
     MOCK_METHOD(vibrator::HalResult<void>, alwaysOnDisable, (int32_t id), (override));
     MOCK_METHOD(vibrator::HalResult<milliseconds>, performEffect,
                 (Effect effect, EffectStrength strength,
-                 const std::function<void()>& completionCallback),
-                (override));
-    MOCK_METHOD(vibrator::HalResult<milliseconds>, performComposedEffect,
-                (const std::vector<CompositeEffect>& primitiveEffects,
                  const std::function<void()>& completionCallback),
                 (override));
     MOCK_METHOD(vibrator::HalResult<vibrator::Capabilities>, getCapabilitiesInternal, (),

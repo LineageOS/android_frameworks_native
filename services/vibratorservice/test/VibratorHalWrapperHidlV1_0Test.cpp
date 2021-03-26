@@ -31,11 +31,13 @@
 
 namespace V1_0 = android::hardware::vibrator::V1_0;
 
+using android::hardware::vibrator::Braking;
 using android::hardware::vibrator::CompositeEffect;
 using android::hardware::vibrator::CompositePrimitive;
 using android::hardware::vibrator::Effect;
 using android::hardware::vibrator::EffectStrength;
 using android::hardware::vibrator::IVibrator;
+using android::hardware::vibrator::PrimitivePwle;
 
 using namespace android;
 using namespace std::chrono_literals;
@@ -201,10 +203,14 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetInfoDoesNotCacheFailedResult) {
     vibrator::Info info = mWrapper->getInfo();
     ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, info.capabilities.value());
     ASSERT_TRUE(info.supportedEffects.isUnsupported());
+    ASSERT_TRUE(info.supportedBraking.isUnsupported());
     ASSERT_TRUE(info.supportedPrimitives.isUnsupported());
     ASSERT_TRUE(info.primitiveDurations.isUnsupported());
+    ASSERT_TRUE(info.minFrequency.isUnsupported());
     ASSERT_TRUE(info.resonantFrequency.isUnsupported());
+    ASSERT_TRUE(info.frequencyResolution.isUnsupported());
     ASSERT_TRUE(info.qFactor.isUnsupported());
+    ASSERT_TRUE(info.maxAmplitudes.isUnsupported());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetInfoWithoutAmplitudeControl) {
@@ -230,10 +236,14 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestGetInfoCachesResult) {
     vibrator::Info info = mWrapper->getInfo();
     ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, info.capabilities.value());
     ASSERT_TRUE(info.supportedEffects.isUnsupported());
+    ASSERT_TRUE(info.supportedBraking.isUnsupported());
     ASSERT_TRUE(info.supportedPrimitives.isUnsupported());
     ASSERT_TRUE(info.primitiveDurations.isUnsupported());
+    ASSERT_TRUE(info.minFrequency.isUnsupported());
     ASSERT_TRUE(info.resonantFrequency.isUnsupported());
+    ASSERT_TRUE(info.frequencyResolution.isUnsupported());
     ASSERT_TRUE(info.qFactor.isUnsupported());
+    ASSERT_TRUE(info.maxAmplitudes.isUnsupported());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_0Test, TestPerformEffect) {
@@ -316,6 +326,21 @@ TEST_F(VibratorHalWrapperHidlV1_0Test, TestPerformComposedEffectUnsupported) {
 
     ASSERT_TRUE(mWrapper->performComposedEffect(singleEffect, callback).isUnsupported());
     ASSERT_TRUE(mWrapper->performComposedEffect(multipleEffects, callback).isUnsupported());
+
+    // No callback is triggered.
+    ASSERT_EQ(0, *callbackCounter.get());
+}
+
+TEST_F(VibratorHalWrapperHidlV1_0Test, TestPerformPwleEffectUnsupported) {
+    std::vector<PrimitivePwle> emptyPrimitives, multiplePrimitives;
+    multiplePrimitives.push_back(vibrator::TestFactory::createActivePwle(0, 1, 0, 1, 10ms));
+    multiplePrimitives.push_back(vibrator::TestFactory::createBrakingPwle(Braking::NONE, 100ms));
+
+    std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
+    auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
+
+    ASSERT_TRUE(mWrapper->performPwleEffect(emptyPrimitives, callback).isUnsupported());
+    ASSERT_TRUE(mWrapper->performPwleEffect(multiplePrimitives, callback).isUnsupported());
 
     // No callback is triggered.
     ASSERT_EQ(0, *callbackCounter.get());
