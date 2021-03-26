@@ -961,7 +961,7 @@ sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t display
     // Traverse windows from front to back to find touched window.
     const std::vector<sp<InputWindowHandle>>& windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<InputWindowHandle>& windowHandle : windowHandles) {
-        if (ignoreDragWindow && haveSameToken(windowHandle, touchState->dragWindow)) {
+        if (ignoreDragWindow && haveSameToken(windowHandle, mDragState->dragWindow)) {
             continue;
         }
         const InputWindowInfo* windowInfo = windowHandle->getInfo();
@@ -2061,7 +2061,7 @@ InputEventInjectionResult InputDispatcher::findTouchedWindowTargetsLocked(
             goto Failed;
         }
 
-        addDragEventLocked(entry, tempTouchState);
+        addDragEventLocked(entry);
 
         // Check whether touches should slip outside of the current foreground window.
         if (maskedAction == AMOTION_EVENT_ACTION_MOVE && entry.pointerCount == 1 &&
@@ -2318,39 +2318,61 @@ Failed:
     return injectionResult;
 }
 
-void InputDispatcher::addDragEventLocked(const MotionEntry& entry, TouchState& state) {
-    if (entry.pointerCount != 1 || !state.dragWindow) {
+void InputDispatcher::finishDragAndDrop(int32_t displayId, float x, float y) {
+    const sp<InputWindowHandle> dropWindow =
+            findTouchedWindowAtLocked(displayId, x, y, nullptr /*touchState*/,
+                                      false /*addOutsideTargets*/, false /*addPortalWindows*/,
+                                      true /*ignoreDragWindow*/);
+    if (dropWindow) {
+        vec2 local = dropWindow->getInfo()->transform.transform(x, y);
+        notifyDropWindowLocked(dropWindow->getToken(), local.x, local.y);
+    }
+    mDragState.reset();
+}
+
+void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
+    if (entry.pointerCount != 1 || !mDragState) {
         return;
+    }
+
+    if (!mDragState->isStartDrag) {
+        mDragState->isStartDrag = true;
+        mDragState->isStylusButtonDownAtStart =
+                (entry.buttonState & AMOTION_EVENT_BUTTON_STYLUS_PRIMARY) != 0;
     }
 
     int32_t maskedAction = entry.action & AMOTION_EVENT_ACTION_MASK;
     int32_t x = static_cast<int32_t>(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X));
     int32_t y = static_cast<int32_t>(entry.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y));
     if (maskedAction == AMOTION_EVENT_ACTION_MOVE) {
+        // Handle the special case : stylus button no longer pressed.
+        bool isStylusButtonDown = (entry.buttonState & AMOTION_EVENT_BUTTON_STYLUS_PRIMARY) != 0;
+        if (mDragState->isStylusButtonDownAtStart && !isStylusButtonDown) {
+            finishDragAndDrop(entry.displayId, x, y);
+            return;
+        }
+
         const sp<InputWindowHandle> hoverWindowHandle =
-                findTouchedWindowAtLocked(entry.displayId, x, y, &state,
+                findTouchedWindowAtLocked(entry.displayId, x, y, nullptr /*touchState*/,
                                           false /*addOutsideTargets*/, false /*addPortalWindows*/,
                                           true /*ignoreDragWindow*/);
         // enqueue drag exit if needed.
-        if (hoverWindowHandle != state.dragHoverWindowHandle &&
-            !haveSameToken(hoverWindowHandle, state.dragHoverWindowHandle)) {
-            if (state.dragHoverWindowHandle != nullptr) {
-                enqueueDragEventLocked(state.dragHoverWindowHandle, true /*isExiting*/, entry);
+        if (hoverWindowHandle != mDragState->dragHoverWindowHandle &&
+            !haveSameToken(hoverWindowHandle, mDragState->dragHoverWindowHandle)) {
+            if (mDragState->dragHoverWindowHandle != nullptr) {
+                enqueueDragEventLocked(mDragState->dragHoverWindowHandle, true /*isExiting*/,
+                                       entry);
             }
-            state.dragHoverWindowHandle = hoverWindowHandle;
+            mDragState->dragHoverWindowHandle = hoverWindowHandle;
         }
         // enqueue drag location if needed.
         if (hoverWindowHandle != nullptr) {
             enqueueDragEventLocked(hoverWindowHandle, false /*isExiting*/, entry);
         }
-    } else if (maskedAction == AMOTION_EVENT_ACTION_UP ||
-               maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
-        if (state.dragHoverWindowHandle && maskedAction == AMOTION_EVENT_ACTION_UP) {
-            vec2 local = state.dragHoverWindowHandle->getInfo()->transform.transform(x, y);
-            notifyDropWindowLocked(state.dragHoverWindowHandle->getToken(), local.x, local.y);
-        }
-        state.dragWindow = nullptr;
-        state.dragHoverWindowHandle = nullptr;
+    } else if (maskedAction == AMOTION_EVENT_ACTION_UP) {
+        finishDragAndDrop(entry.displayId, x, y);
+    } else if (maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
+        mDragState.reset();
     }
 }
 
@@ -4445,13 +4467,12 @@ void InputDispatcher::setInputWindowsLocked(
             }
         }
 
-        // If drag window is gone, it would receive a cancel event and broadcast the DRAG_END. we
+        // If drag window is gone, it would receive a cancel event and broadcast the DRAG_END. We
         // could just clear the state here.
-        if (state.dragWindow &&
-            std::find(windowHandles.begin(), windowHandles.end(), state.dragWindow) ==
+        if (mDragState &&
+            std::find(windowHandles.begin(), windowHandles.end(), mDragState->dragWindow) ==
                     windowHandles.end()) {
-            state.dragWindow = nullptr;
-            state.dragHoverWindowHandle = nullptr;
+            mDragState.reset();
         }
     }
 
@@ -4690,7 +4711,7 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
 
                     // Store the dragging window.
                     if (isDragDrop) {
-                        state.dragWindow = toWindowHandle;
+                        mDragState = std::make_unique<DragState>(toWindowHandle);
                     }
 
                     found = true;
@@ -4831,6 +4852,11 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         }
     } else {
         dump += INDENT "TouchStates: <no displays touched>\n";
+    }
+
+    if (mDragState) {
+        dump += StringPrintf(INDENT "DragState:\n");
+        mDragState->dump(dump, INDENT2);
     }
 
     if (!mWindowHandlesByDisplay.empty()) {
