@@ -105,7 +105,7 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestSetExternalControl) {
     ASSERT_TRUE(mWrapper->setExternalControl(false).isFailed());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesSuccessful) {
+TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetInfoSuccessful) {
     {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl())
@@ -116,14 +116,12 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesSuccessful) {
         });
     }
 
-    auto result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
     ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL | vibrator::Capabilities::EXTERNAL_CONTROL |
                       vibrator::Capabilities::EXTERNAL_AMPLITUDE_CONTROL,
-              result.value());
+              mWrapper->getInfo().capabilities.value());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesOnlyAmplitudeControl) {
+TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetInfoOnlyAmplitudeControl) {
     {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl()).Times(Exactly(1)).WillOnce([]() {
@@ -134,12 +132,10 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesOnlyAmplitudeControl) 
         });
     }
 
-    auto result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
+    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, mWrapper->getInfo().capabilities.value());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesOnlyExternalControl) {
+TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetInfoOnlyExternalControl) {
     {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl()).Times(Exactly(1)).WillOnce([]() {
@@ -150,12 +146,10 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesOnlyExternalControl) {
         });
     }
 
-    auto result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::EXTERNAL_CONTROL, result.value());
+    ASSERT_EQ(vibrator::Capabilities::EXTERNAL_CONTROL, mWrapper->getInfo().capabilities.value());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesNone) {
+TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetInfoNoCapabilities) {
     {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl())
@@ -166,12 +160,10 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesNone) {
         });
     }
 
-    auto result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::NONE, result.value());
+    ASSERT_EQ(vibrator::Capabilities::NONE, mWrapper->getInfo().capabilities.value());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesFailed) {
+TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetInfoFailed) {
     {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl())
@@ -190,11 +182,11 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesFailed) {
                 });
     }
 
-    ASSERT_TRUE(mWrapper->getCapabilities().isFailed());
-    ASSERT_TRUE(mWrapper->getCapabilities().isFailed());
+    ASSERT_TRUE(mWrapper->getInfo().capabilities.isFailed());
+    ASSERT_TRUE(mWrapper->getInfo().capabilities.isFailed());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesCachesResult) {
+TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetInfoCachesResult) {
     {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl())
@@ -207,20 +199,15 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesCachesResult) {
 
     std::vector<std::thread> threads;
     for (int i = 0; i < 10; i++) {
-        threads.push_back(std::thread([&]() {
-            auto result = mWrapper->getCapabilities();
-            ASSERT_TRUE(result.isOk());
-            ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
-        }));
+        threads.push_back(
+                std::thread([&]() { ASSERT_TRUE(mWrapper->getInfo().capabilities.isOk()); }));
     }
     std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
 
-    auto result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
+    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, mWrapper->getInfo().capabilities.value());
 }
 
-TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesDoesNotCacheFailedResult) {
+TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetInfoDoesNotCacheFailedResult) {
     {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), supportsAmplitudeControl())
@@ -247,22 +234,16 @@ TEST_F(VibratorHalWrapperHidlV1_3Test, TestGetCapabilitiesDoesNotCacheFailedResu
     }
 
     // Call to supportsAmplitudeControl failed.
-    auto result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isFailed());
+    ASSERT_TRUE(mWrapper->getInfo().capabilities.isFailed());
 
     // Call to supportsExternalControl failed.
-    result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isFailed());
+    ASSERT_TRUE(mWrapper->getInfo().capabilities.isFailed());
 
     // Returns successful result from third call.
-    result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
+    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, mWrapper->getInfo().capabilities.value());
 
     // Returns cached successful result.
-    result = mWrapper->getCapabilities();
-    ASSERT_TRUE(result.isOk());
-    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, result.value());
+    ASSERT_EQ(vibrator::Capabilities::AMPLITUDE_CONTROL, mWrapper->getInfo().capabilities.value());
 }
 
 TEST_F(VibratorHalWrapperHidlV1_3Test, TestPerformEffectV1_0) {
