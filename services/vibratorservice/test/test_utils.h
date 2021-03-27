@@ -25,8 +25,12 @@ namespace android {
 
 namespace vibrator {
 
+using ::android::hardware::vibrator::ActivePwle;
+using ::android::hardware::vibrator::Braking;
+using ::android::hardware::vibrator::BrakingPwle;
 using ::android::hardware::vibrator::CompositeEffect;
 using ::android::hardware::vibrator::CompositePrimitive;
+using ::android::hardware::vibrator::PrimitivePwle;
 
 // -------------------------------------------------------------------------------------------------
 
@@ -51,6 +55,25 @@ public:
         effect.delayMs = delay.count();
         effect.scale = scale;
         return effect;
+    }
+
+    static PrimitivePwle createActivePwle(float startAmplitude, float startFrequency,
+                                          float endAmplitude, float endFrequency,
+                                          std::chrono::milliseconds duration) {
+        ActivePwle pwle;
+        pwle.startAmplitude = startAmplitude;
+        pwle.endAmplitude = endAmplitude;
+        pwle.startFrequency = startFrequency;
+        pwle.endFrequency = endFrequency;
+        pwle.duration = duration.count();
+        return pwle;
+    }
+
+    static PrimitivePwle createBrakingPwle(Braking braking, std::chrono::milliseconds duration) {
+        BrakingPwle pwle;
+        pwle.braking = braking;
+        pwle.duration = duration.count();
+        return pwle;
     }
 
     static std::function<void()> createCountingCallback(int32_t* counter) {

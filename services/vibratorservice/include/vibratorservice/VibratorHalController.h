@@ -29,19 +29,22 @@ namespace vibrator {
 
 std::shared_ptr<HalWrapper> connectHal(std::shared_ptr<CallbackScheduler> scheduler);
 
+template <typename T>
+using HalFunction = std::function<T(std::shared_ptr<HalWrapper>)>;
+
 // Controller for Vibrator HAL handle.
 // This relies on a given Connector to connect to the underlying Vibrator HAL service and reconnects
 // after each failed api call. This also ensures connecting to the service is thread-safe.
-class HalController : public HalWrapper {
+class HalController {
 public:
     using Connector =
             std::function<std::shared_ptr<HalWrapper>(std::shared_ptr<CallbackScheduler>)>;
 
     HalController() : HalController(std::make_shared<CallbackScheduler>(), &connectHal) {}
     HalController(std::shared_ptr<CallbackScheduler> callbackScheduler, Connector connector)
-          : HalWrapper(std::move(callbackScheduler)),
-            mConnector(connector),
-            mConnectedHal(nullptr) {}
+          : mConnector(connector),
+            mConnectedHal(nullptr),
+            mCallbackScheduler(std::move(callbackScheduler)) {}
     virtual ~HalController() = default;
 
     /* Connects to the newest HAL version available, possibly waiting for the registered service to
@@ -51,53 +54,65 @@ public:
      */
     virtual bool init();
 
-    /* reloads HAL service instance without waiting. This relies on the HAL version found by init()
+    /* Reloads HAL service instance without waiting. This relies on the HAL version found by init()
      * to rapidly reconnect to the specific HAL service, or defers to init() if it was never called.
      */
-    virtual void tryReconnect() override;
+    virtual void tryReconnect();
 
-    virtual HalResult<void> ping() override;
-    HalResult<void> on(std::chrono::milliseconds timeout,
-                       const std::function<void()>& completionCallback) final override;
-    HalResult<void> off() final override;
+    /* Returns info loaded from the connected HAL. This allows partial results to be returned if any
+     * of the Info fields has failed, but also retried on any failure.
+     */
+    Info getInfo() {
+        static Info sDefaultInfo = InfoCache().get();
+        return apply<Info>([](std::shared_ptr<HalWrapper> hal) { return hal->getInfo(); },
+                           sDefaultInfo, "getInfo");
+    }
 
-    HalResult<void> setAmplitude(float amplitude) final override;
-    HalResult<void> setExternalControl(bool enabled) final override;
-
-    HalResult<void> alwaysOnEnable(int32_t id, hardware::vibrator::Effect effect,
-                                   hardware::vibrator::EffectStrength strength) final override;
-    HalResult<void> alwaysOnDisable(int32_t id) final override;
-
-    HalResult<Capabilities> getCapabilities() final override;
-    HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffects() final override;
-    HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitives()
-            final override;
-
-    HalResult<float> getResonantFrequency() final override;
-    HalResult<float> getQFactor() final override;
-
-    HalResult<std::chrono::milliseconds> performEffect(
-            hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
-            const std::function<void()>& completionCallback) final override;
-
-    HalResult<std::chrono::milliseconds> performComposedEffect(
-            const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
-            const std::function<void()>& completionCallback) final override;
+    /* Calls given HAL function, applying automatic retries to reconnect with the HAL when the
+     * result has failed. Parameter functionName is for logging purposes.
+     */
+    template <typename T>
+    HalResult<T> doWithRetry(const HalFunction<HalResult<T>>& halFn, const char* functionName) {
+        return apply(halFn, HalResult<T>::unsupported(), functionName);
+    }
 
 private:
+    static constexpr int MAX_RETRIES = 1;
+
     Connector mConnector;
     std::mutex mConnectedHalMutex;
     // Shared pointer to allow local copies to be used by different threads.
     std::shared_ptr<HalWrapper> mConnectedHal GUARDED_BY(mConnectedHalMutex);
+    // Shared pointer to allow copies to be passed to possible recreated mConnectedHal instances.
+    std::shared_ptr<CallbackScheduler> mCallbackScheduler;
 
+    /* Calls given HAL function, applying automatic retries to reconnect with the HAL when the
+     * result has failed. Given default value is returned when no HAL is available, and given
+     * function name is for logging purposes.
+     */
     template <typename T>
-    HalResult<T> processHalResult(HalResult<T> result, const char* functionName);
+    T apply(const HalFunction<T>& halFn, T defaultValue, const char* functionName) {
+        if (!init()) {
+            ALOGV("Skipped %s because Vibrator HAL is not available", functionName);
+            return defaultValue;
+        }
+        std::shared_ptr<HalWrapper> hal;
+        {
+            std::lock_guard<std::mutex> lock(mConnectedHalMutex);
+            hal = mConnectedHal;
+        }
 
-    template <typename T>
-    using hal_fn = std::function<HalResult<T>(std::shared_ptr<HalWrapper>)>;
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            T result = halFn(hal);
+            if (result.checkAndLogFailure(functionName)) {
+                tryReconnect();
+            } else {
+                return result;
+            }
+        }
 
-    template <typename T>
-    HalResult<T> apply(hal_fn<T>& halFn, const char* functionName);
+        return halFn(hal);
+    }
 };
 
 }; // namespace vibrator
