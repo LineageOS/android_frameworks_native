@@ -48,7 +48,7 @@ public:
         if (status.isOk()) {
             return HalResult<T>::ok(data);
         }
-        return HalResult<T>::failed(std::string(status.toString8().c_str()));
+        return HalResult<T>::failed(status.toString8().c_str());
     }
     static HalResult<T> fromStatus(hardware::vibrator::V1_0::Status status, T data);
 
@@ -61,10 +61,18 @@ public:
 
     // This will throw std::bad_optional_access if this result is not ok.
     const T& value() const { return mValue.value(); }
+    const T valueOr(T&& defaultValue) const { return mValue.value_or(defaultValue); }
     bool isOk() const { return !mUnsupported && mValue.has_value(); }
     bool isFailed() const { return !mUnsupported && !mValue.has_value(); }
     bool isUnsupported() const { return mUnsupported; }
     const char* errorMessage() const { return mErrorMessage.c_str(); }
+    bool checkAndLogFailure(const char* functionName) const {
+        if (isFailed()) {
+            ALOGE("%s failed: %s", functionName, errorMessage());
+            return true;
+        }
+        return false;
+    }
 
 private:
     std::optional<T> mValue;
@@ -96,6 +104,13 @@ public:
     bool isFailed() const { return !mUnsupported && mFailed; }
     bool isUnsupported() const { return mUnsupported; }
     const char* errorMessage() const { return mErrorMessage.c_str(); }
+    bool checkAndLogFailure(const char* functionName) const {
+        if (isFailed()) {
+            ALOGE("%s failed: %s", functionName, errorMessage());
+            return true;
+        }
+        return false;
+    }
 
 private:
     std::string mErrorMessage;
@@ -133,7 +148,8 @@ enum class Capabilities : int32_t {
     EXTERNAL_CONTROL = hardware::vibrator::IVibrator::CAP_EXTERNAL_CONTROL,
     EXTERNAL_AMPLITUDE_CONTROL = hardware::vibrator::IVibrator::CAP_EXTERNAL_AMPLITUDE_CONTROL,
     COMPOSE_EFFECTS = hardware::vibrator::IVibrator::CAP_COMPOSE_EFFECTS,
-    ALWAYS_ON_CONTROL = hardware::vibrator::IVibrator::CAP_ALWAYS_ON_CONTROL
+    COMPOSE_PWLE_EFFECTS = hardware::vibrator::IVibrator::CAP_COMPOSE_PWLE_EFFECTS,
+    ALWAYS_ON_CONTROL = hardware::vibrator::IVibrator::CAP_ALWAYS_ON_CONTROL,
 };
 
 inline Capabilities operator|(Capabilities lhs, Capabilities rhs) {
@@ -156,6 +172,62 @@ inline Capabilities& operator&=(Capabilities& lhs, Capabilities rhs) {
 
 // -------------------------------------------------------------------------------------------------
 
+class Info {
+public:
+    const HalResult<Capabilities> capabilities;
+    const HalResult<std::vector<hardware::vibrator::Effect>> supportedEffects;
+    const HalResult<std::vector<hardware::vibrator::Braking>> supportedBraking;
+    const HalResult<std::vector<hardware::vibrator::CompositePrimitive>> supportedPrimitives;
+    const HalResult<std::vector<std::chrono::milliseconds>> primitiveDurations;
+    const HalResult<float> minFrequency;
+    const HalResult<float> resonantFrequency;
+    const HalResult<float> frequencyResolution;
+    const HalResult<float> qFactor;
+    const HalResult<std::vector<float>> maxAmplitudes;
+
+    bool checkAndLogFailure(const char*) const {
+        return capabilities.checkAndLogFailure("getCapabilities") ||
+                supportedEffects.checkAndLogFailure("getSupportedEffects") ||
+                supportedBraking.checkAndLogFailure("getSupportedBraking") ||
+                supportedPrimitives.checkAndLogFailure("getSupportedPrimitives") ||
+                primitiveDurations.checkAndLogFailure("getPrimitiveDuration") ||
+                minFrequency.checkAndLogFailure("getMinFrequency") ||
+                resonantFrequency.checkAndLogFailure("getResonantFrequency") ||
+                frequencyResolution.checkAndLogFailure("getFrequencyResolution") ||
+                qFactor.checkAndLogFailure("getQFactor") ||
+                maxAmplitudes.checkAndLogFailure("getMaxAmplitudes");
+    }
+};
+
+class InfoCache {
+public:
+    Info get() {
+        return {mCapabilities,        mSupportedEffects,    mSupportedBraking,
+                mSupportedPrimitives, mPrimitiveDurations,  mMinFrequency,
+                mResonantFrequency,   mFrequencyResolution, mQFactor,
+                mMaxAmplitudes};
+    }
+
+private:
+    static const constexpr char* MSG = "never loaded";
+    HalResult<Capabilities> mCapabilities = HalResult<Capabilities>::failed(MSG);
+    HalResult<std::vector<hardware::vibrator::Effect>> mSupportedEffects =
+            HalResult<std::vector<hardware::vibrator::Effect>>::failed(MSG);
+    HalResult<std::vector<hardware::vibrator::Braking>> mSupportedBraking =
+            HalResult<std::vector<hardware::vibrator::Braking>>::failed(MSG);
+    HalResult<std::vector<hardware::vibrator::CompositePrimitive>> mSupportedPrimitives =
+            HalResult<std::vector<hardware::vibrator::CompositePrimitive>>::failed(MSG);
+    HalResult<std::vector<std::chrono::milliseconds>> mPrimitiveDurations =
+            HalResult<std::vector<std::chrono::milliseconds>>::failed(MSG);
+    HalResult<float> mMinFrequency = HalResult<float>::failed(MSG);
+    HalResult<float> mResonantFrequency = HalResult<float>::failed(MSG);
+    HalResult<float> mFrequencyResolution = HalResult<float>::failed(MSG);
+    HalResult<float> mQFactor = HalResult<float>::failed(MSG);
+    HalResult<std::vector<float>> mMaxAmplitudes = HalResult<std::vector<float>>::failed(MSG);
+
+    friend class HalWrapper;
+};
+
 // Wrapper for Vibrator HAL handlers.
 class HalWrapper {
 public:
@@ -167,6 +239,8 @@ public:
      * service restarts, to rapidly retry after a failure.
      */
     virtual void tryReconnect() = 0;
+
+    Info getInfo();
 
     virtual HalResult<void> ping() = 0;
     virtual HalResult<void> on(std::chrono::milliseconds timeout,
@@ -180,25 +254,43 @@ public:
                                            hardware::vibrator::EffectStrength strength) = 0;
     virtual HalResult<void> alwaysOnDisable(int32_t id) = 0;
 
-    virtual HalResult<Capabilities> getCapabilities() = 0;
-    virtual HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffects() = 0;
-    virtual HalResult<std::vector<hardware::vibrator::CompositePrimitive>>
-    getSupportedPrimitives() = 0;
-
-    virtual HalResult<float> getResonantFrequency() = 0;
-    virtual HalResult<float> getQFactor() = 0;
-
     virtual HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
             const std::function<void()>& completionCallback) = 0;
 
     virtual HalResult<std::chrono::milliseconds> performComposedEffect(
-            const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
-            const std::function<void()>& completionCallback) = 0;
+            const std::vector<hardware::vibrator::CompositeEffect>& primitives,
+            const std::function<void()>& completionCallback);
+
+    virtual HalResult<void> performPwleEffect(
+            const std::vector<hardware::vibrator::PrimitivePwle>& primitives,
+            const std::function<void()>& completionCallback);
 
 protected:
     // Shared pointer to allow CallbackScheduler to outlive this wrapper.
     const std::shared_ptr<CallbackScheduler> mCallbackScheduler;
+
+    // Load and cache vibrator info, returning cached result is present.
+    HalResult<Capabilities> getCapabilities();
+    HalResult<std::vector<std::chrono::milliseconds>> getPrimitiveDurations();
+
+    // Request vibrator info to HAL skipping cache.
+    virtual HalResult<Capabilities> getCapabilitiesInternal() = 0;
+    virtual HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffectsInternal();
+    virtual HalResult<std::vector<hardware::vibrator::Braking>> getSupportedBrakingInternal();
+    virtual HalResult<std::vector<hardware::vibrator::CompositePrimitive>>
+    getSupportedPrimitivesInternal();
+    virtual HalResult<std::vector<std::chrono::milliseconds>> getPrimitiveDurationsInternal(
+            const std::vector<hardware::vibrator::CompositePrimitive>& supportedPrimitives);
+    virtual HalResult<float> getMinFrequencyInternal();
+    virtual HalResult<float> getResonantFrequencyInternal();
+    virtual HalResult<float> getFrequencyResolutionInternal();
+    virtual HalResult<float> getQFactorInternal();
+    virtual HalResult<std::vector<float>> getMaxAmplitudesInternal();
+
+private:
+    std::mutex mInfoMutex;
+    InfoCache mInfoCache GUARDED_BY(mInfoMutex);
 };
 
 // Wrapper for the AIDL Vibrator HAL.
@@ -230,52 +322,38 @@ public:
                                    hardware::vibrator::EffectStrength strength) override final;
     HalResult<void> alwaysOnDisable(int32_t id) override final;
 
-    HalResult<Capabilities> getCapabilities() override final;
-    HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffects() override final;
-    HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitives()
-            override final;
-
-    HalResult<float> getResonantFrequency() override final;
-    HalResult<float> getQFactor() override final;
-
     HalResult<std::chrono::milliseconds> performEffect(
             hardware::vibrator::Effect effect, hardware::vibrator::EffectStrength strength,
             const std::function<void()>& completionCallback) override final;
 
     HalResult<std::chrono::milliseconds> performComposedEffect(
-            const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
+            const std::vector<hardware::vibrator::CompositeEffect>& primitives,
             const std::function<void()>& completionCallback) override final;
+
+    HalResult<void> performPwleEffect(
+            const std::vector<hardware::vibrator::PrimitivePwle>& primitives,
+            const std::function<void()>& completionCallback) override final;
+
+protected:
+    HalResult<Capabilities> getCapabilitiesInternal() override final;
+    HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffectsInternal() override final;
+    HalResult<std::vector<hardware::vibrator::Braking>> getSupportedBrakingInternal()
+            override final;
+    HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitivesInternal()
+            override final;
+    HalResult<std::vector<std::chrono::milliseconds>> getPrimitiveDurationsInternal(
+            const std::vector<hardware::vibrator::CompositePrimitive>& supportedPrimitives)
+            override final;
+    HalResult<float> getMinFrequencyInternal() override final;
+    HalResult<float> getResonantFrequencyInternal() override final;
+    HalResult<float> getFrequencyResolutionInternal() override final;
+    HalResult<float> getQFactorInternal() override final;
+    HalResult<std::vector<float>> getMaxAmplitudesInternal() override final;
 
 private:
     const std::function<HalResult<sp<hardware::vibrator::IVibrator>>()> mReconnectFn;
     std::mutex mHandleMutex;
-    std::mutex mCapabilitiesMutex;
-    std::mutex mSupportedEffectsMutex;
-    std::mutex mSupportedPrimitivesMutex;
-    std::mutex mResonantFrequencyMutex;
-    std::mutex mQFactorMutex;
     sp<hardware::vibrator::IVibrator> mHandle GUARDED_BY(mHandleMutex);
-    std::optional<Capabilities> mCapabilities GUARDED_BY(mCapabilitiesMutex);
-    std::optional<std::vector<hardware::vibrator::Effect>> mSupportedEffects
-            GUARDED_BY(mSupportedEffectsMutex);
-    std::optional<std::vector<hardware::vibrator::CompositePrimitive>> mSupportedPrimitives
-            GUARDED_BY(mSupportedPrimitivesMutex);
-    std::vector<std::optional<std::chrono::milliseconds>> mPrimitiveDurations
-            GUARDED_BY(mSupportedPrimitivesMutex);
-    std::optional<float> mResonantFrequency GUARDED_BY(mResonantFrequencyMutex);
-    std::optional<float> mQFactor GUARDED_BY(mQFactorMutex);
-
-    // Loads and caches from IVibrator.
-    HalResult<std::chrono::milliseconds> getPrimitiveDuration(
-            hardware::vibrator::CompositePrimitive primitive);
-
-    // Loads directly from IVibrator handle, skipping caches.
-    HalResult<Capabilities> getCapabilitiesInternal();
-    HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffectsInternal();
-    HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitivesInternal();
-
-    HalResult<float> getResonantFrequencyInternal();
-    HalResult<float> getQFactorInternal();
 
     sp<hardware::vibrator::IVibrator> getHal();
 };
@@ -302,26 +380,11 @@ public:
                                    hardware::vibrator::EffectStrength strength) override final;
     HalResult<void> alwaysOnDisable(int32_t id) override final;
 
-    HalResult<Capabilities> getCapabilities() override final;
-    HalResult<std::vector<hardware::vibrator::Effect>> getSupportedEffects() override final;
-    HalResult<std::vector<hardware::vibrator::CompositePrimitive>> getSupportedPrimitives()
-            override final;
-
-    HalResult<float> getResonantFrequency() override final;
-    HalResult<float> getQFactor() override final;
-
-    HalResult<std::chrono::milliseconds> performComposedEffect(
-            const std::vector<hardware::vibrator::CompositeEffect>& primitiveEffects,
-            const std::function<void()>& completionCallback) override final;
-
 protected:
     std::mutex mHandleMutex;
-    std::mutex mCapabilitiesMutex;
     sp<I> mHandle GUARDED_BY(mHandleMutex);
-    std::optional<Capabilities> mCapabilities GUARDED_BY(mCapabilitiesMutex);
 
-    // Loads directly from IVibrator handle, skipping the mCapabilities cache.
-    virtual HalResult<Capabilities> getCapabilitiesInternal();
+    virtual HalResult<Capabilities> getCapabilitiesInternal() override;
 
     template <class T>
     using perform_fn =

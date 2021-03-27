@@ -40,6 +40,8 @@ using android::hardware::vibrator::PrimitivePwle;
 using namespace android;
 using namespace testing;
 
+static const auto OFF_FN = [](std::shared_ptr<vibrator::HalWrapper> hal) { return hal->off(); };
+
 class MockBinder : public BBinder {
 public:
     MOCK_METHOD(status_t, linkToDeath,
@@ -70,20 +72,19 @@ public:
     MOCK_METHOD(Status, compose,
                 (const std::vector<CompositeEffect>& e, const sp<IVibratorCallback>& cb),
                 (override));
+    MOCK_METHOD(Status, composePwle,
+                (const std::vector<PrimitivePwle>& e, const sp<IVibratorCallback>& cb), (override));
     MOCK_METHOD(Status, getSupportedAlwaysOnEffects, (std::vector<Effect> * ret), (override));
     MOCK_METHOD(Status, alwaysOnEnable, (int32_t id, Effect e, EffectStrength s), (override));
     MOCK_METHOD(Status, alwaysOnDisable, (int32_t id), (override));
     MOCK_METHOD(Status, getQFactor, (float * ret), (override));
     MOCK_METHOD(Status, getResonantFrequency, (float * ret), (override));
-    MOCK_METHOD(Status, getFrequencyResolution, (float *freqResolutionHz), (override));
-    MOCK_METHOD(Status, getFrequencyMinimum, (float *freqMinimumHz), (override));
+    MOCK_METHOD(Status, getFrequencyResolution, (float* ret), (override));
+    MOCK_METHOD(Status, getFrequencyMinimum, (float* ret), (override));
     MOCK_METHOD(Status, getBandwidthAmplitudeMap, (std::vector<float> * ret), (override));
-    MOCK_METHOD(Status, getPwlePrimitiveDurationMax, (int32_t *durationMs), (override));
-    MOCK_METHOD(Status, getPwleCompositionSizeMax, (int32_t *maxSize), (override));
+    MOCK_METHOD(Status, getPwlePrimitiveDurationMax, (int32_t * ret), (override));
+    MOCK_METHOD(Status, getPwleCompositionSizeMax, (int32_t * ret), (override));
     MOCK_METHOD(Status, getSupportedBraking, (std::vector<Braking> * ret), (override));
-    MOCK_METHOD(Status, composePwle,
-                (const std::vector<PrimitivePwle>& e, const sp<IVibratorCallback>& cb),
-                (override));
     MOCK_METHOD(int32_t, getInterfaceVersion, (), (override));
     MOCK_METHOD(std::string, getInterfaceHash, (), (override));
     MOCK_METHOD(IBinder*, onAsBinder, (), (override));
@@ -256,12 +257,11 @@ TEST_F(VibratorManagerHalWrapperAidlTest, TestGetVibratorRecoversVibratorPointer
                             Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY))))
             .WillRepeatedly(DoAll(SetArgPointee<1>(mMockVibrator), Return(Status())));
 
-    EXPECT_CALL(*mMockVibrator.get(), getCapabilities(_))
+    EXPECT_CALL(*mMockVibrator.get(), off())
             .Times(Exactly(3))
-            .WillOnce(
-                    Return(Status::fromExceptionCode(Status::Exception::EX_UNSUPPORTED_OPERATION)))
             .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
-            .WillRepeatedly(DoAll(SetArgPointee<0>(IVibrator::CAP_ON_CALLBACK), Return(Status())));
+            .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
+            .WillRepeatedly(Return(Status()));
 
     // Get vibrator controller is successful even if first getVibrator.
     auto result = mWrapper->getVibrator(kVibratorId);
@@ -271,10 +271,10 @@ TEST_F(VibratorManagerHalWrapperAidlTest, TestGetVibratorRecoversVibratorPointer
     auto vibrator = result.value();
     // First getVibrator call fails.
     ASSERT_FALSE(vibrator->init());
-    // First and second getCapabilities calls fail, reload IVibrator with getVibrator.
-    ASSERT_FALSE(vibrator->getCapabilities().isOk());
-    // Third call to getCapabilities worked after IVibrator reloaded.
-    ASSERT_TRUE(vibrator->getCapabilities().isOk());
+    // First and second off() calls fail, reload IVibrator with getVibrator.
+    ASSERT_TRUE(vibrator->doWithRetry<void>(OFF_FN, "off").isFailed());
+    // Third call to off() worked after IVibrator reloaded.
+    ASSERT_TRUE(vibrator->doWithRetry<void>(OFF_FN, "off").isOk());
 }
 
 TEST_F(VibratorManagerHalWrapperAidlTest, TestPrepareSynced) {
