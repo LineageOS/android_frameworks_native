@@ -642,6 +642,8 @@ private:
     void setPowerMode(const sp<IBinder>& displayToken, int mode) override;
     status_t clearAnimationFrameStats() override;
     status_t getAnimationFrameStats(FrameStats* outStats) const override;
+    status_t overrideHdrTypes(const sp<IBinder>& displayToken,
+                              const std::vector<ui::Hdr>& hdrTypes) override;
     status_t enableVSyncInjections(bool enable) override;
     status_t injectVSync(nsecs_t when) override;
     status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) override;

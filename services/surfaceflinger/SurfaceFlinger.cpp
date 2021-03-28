@@ -1287,6 +1287,21 @@ status_t SurfaceFlinger::getAnimationFrameStats(FrameStats* outStats) const {
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::overrideHdrTypes(const sp<IBinder>& displayToken,
+                                          const std::vector<ui::Hdr>& hdrTypes) {
+    Mutex::Autolock lock(mStateLock);
+
+    auto display = getDisplayDeviceLocked(displayToken);
+    if (!display) {
+        ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());
+        return NAME_NOT_FOUND;
+    }
+
+    display->overrideHdrTypes(hdrTypes);
+    dispatchDisplayHotplugEvent(display->getPhysicalId(), true /* connected */);
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::getDisplayedContentSamplingAttributes(const sp<IBinder>& displayToken,
                                                                ui::PixelFormat* outFormat,
                                                                ui::Dataspace* outDataspace,
@@ -5014,6 +5029,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case DESTROY_DISPLAY:
         case ENABLE_VSYNC_INJECTIONS:
         case GET_ANIMATION_FRAME_STATS:
+        case OVERRIDE_HDR_TYPES:
         case GET_HDR_CAPABILITIES:
         case SET_DESIRED_DISPLAY_MODE_SPECS:
         case GET_DESIRED_DISPLAY_MODE_SPECS:
@@ -5030,9 +5046,11 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case NOTIFY_POWER_BOOST:
         case SET_GLOBAL_SHADOW_SETTINGS:
         case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {
-            // ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN is used by CTS tests, which acquire the
-            // necessary permission dynamically. Don't use the permission cache for this check.
-            bool usePermissionCache = code != ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN;
+            // ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN and OVERRIDE_HDR_TYPES are used by CTS tests,
+            // which acquire the necessary permission dynamically. Don't use the permission cache
+            // for this check.
+            bool usePermissionCache =
+                    code != ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN && code != OVERRIDE_HDR_TYPES;
             if (!callingThreadHasUnscopedSurfaceFlingerAccess(usePermissionCache)) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
