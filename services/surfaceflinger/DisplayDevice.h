@@ -126,13 +126,15 @@ public:
     bool hasHLGSupport() const;
     bool hasDolbyVisionSupport() const;
 
+    void overrideHdrTypes(const std::vector<ui::Hdr>& hdrTypes);
+
     // The returned HdrCapabilities is the combination of HDR capabilities from
     // hardware composer and RenderEngine. When the DisplayDevice supports wide
     // color gamut, RenderEngine is able to simulate HDR support in Display P3
     // color space for both PQ and HLG HDR contents. The minimum and maximum
     // luminance will be set to sDefaultMinLumiance and sDefaultMaxLumiance
     // respectively if hardware composer doesn't return meaningful values.
-    const HdrCapabilities& getHdrCapabilities() const;
+    HdrCapabilities getHdrCapabilities() const;
 
     // Return true if intent is supported by the display.
     bool hasRenderIntent(ui::RenderIntent intent) const;
@@ -217,6 +219,8 @@ private:
     const bool mIsPrimary;
 
     std::optional<DeviceProductInfo> mDeviceProductInfo;
+
+    std::vector<ui::Hdr> mOverrideHdrTypes;
 };
 
 struct DisplayDeviceState {

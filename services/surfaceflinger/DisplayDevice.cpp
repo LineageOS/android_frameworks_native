@@ -354,8 +354,20 @@ int DisplayDevice::getSupportedPerFrameMetadata() const {
     return mCompositionDisplay->getDisplayColorProfile()->getSupportedPerFrameMetadata();
 }
 
-const HdrCapabilities& DisplayDevice::getHdrCapabilities() const {
-    return mCompositionDisplay->getDisplayColorProfile()->getHdrCapabilities();
+void DisplayDevice::overrideHdrTypes(const std::vector<ui::Hdr>& hdrTypes) {
+    mOverrideHdrTypes = hdrTypes;
+}
+
+HdrCapabilities DisplayDevice::getHdrCapabilities() const {
+    const HdrCapabilities& capabilities =
+            mCompositionDisplay->getDisplayColorProfile()->getHdrCapabilities();
+    std::vector<ui::Hdr> hdrTypes = capabilities.getSupportedHdrTypes();
+    if (!mOverrideHdrTypes.empty()) {
+        hdrTypes = mOverrideHdrTypes;
+    }
+    return HdrCapabilities(hdrTypes, capabilities.getDesiredMaxLuminance(),
+                           capabilities.getDesiredMaxAverageLuminance(),
+                           capabilities.getDesiredMinLuminance());
 }
 
 std::atomic<int32_t> DisplayDeviceState::sNextSequenceId(1);
