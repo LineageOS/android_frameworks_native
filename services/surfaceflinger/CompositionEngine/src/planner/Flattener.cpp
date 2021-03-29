@@ -40,13 +40,17 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
 
     ++mInitialLayerCounts[layers.size()];
 
-    if (mergeWithCachedSets(layers, now)) {
-        hash = computeLayersHash();
-    }
+    // Only buildCachedSets if these layers are already stored in mLayers.
+    // Otherwise (i.e. mergeWithCachedSets returns false), the time has not
+    // changed, so buildCachedSets will never find any runs.
+    const bool alreadyHadCachedSets = mergeWithCachedSets(layers, now);
 
     ++mFinalLayerCounts[mLayers.size()];
 
-    buildCachedSets(now);
+    if (alreadyHadCachedSets) {
+        buildCachedSets(now);
+        hash = computeLayersHash();
+    }
 
     return hash;
 }
@@ -177,6 +181,9 @@ NonBufferHash Flattener::computeLayersHash() const{
     return hash;
 }
 
+// Only called if the geometry matches the last frame. Return true if mLayers
+// was already populated with these layers, i.e. on the second and following
+// calls with the same geometry.
 bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers, time_point now) {
     std::vector<CachedSet> merged;
 
