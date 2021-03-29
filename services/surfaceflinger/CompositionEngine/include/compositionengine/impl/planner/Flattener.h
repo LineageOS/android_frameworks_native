@@ -54,7 +54,7 @@ private:
 
     void resetActivities(NonBufferHash, std::chrono::steady_clock::time_point now);
 
-    void updateLayersHash();
+    NonBufferHash computeLayersHash() const;
 
     bool mergeWithCachedSets(const std::vector<const LayerState*>& layers,
                              std::chrono::steady_clock::time_point now);
@@ -69,7 +69,6 @@ private:
     std::chrono::steady_clock::time_point mLastGeometryUpdate;
 
     std::vector<CachedSet> mLayers;
-    NonBufferHash mLayersHash = 0;
     std::optional<CachedSet> mNewCachedSet;
 
     // Statistics

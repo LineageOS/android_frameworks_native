@@ -41,7 +41,7 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
     ++mInitialLayerCounts[layers.size()];
 
     if (mergeWithCachedSets(layers, now)) {
-        hash = mLayersHash;
+        hash = computeLayersHash();
     }
 
     ++mFinalLayerCounts[mLayers.size()];
@@ -169,12 +169,12 @@ void Flattener::resetActivities(NonBufferHash hash, time_point now) {
     }
 }
 
-void Flattener::updateLayersHash() {
+NonBufferHash Flattener::computeLayersHash() const{
     size_t hash = 0;
     for (const auto& layer : mLayers) {
         android::hashCombineSingleHashed(hash, layer.getNonBufferHash());
     }
-    mLayersHash = hash;
+    return hash;
 }
 
 bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers, time_point now) {
@@ -280,7 +280,6 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
     }
 
     mLayers = std::move(merged);
-    updateLayersHash();
     return true;
 }
 
