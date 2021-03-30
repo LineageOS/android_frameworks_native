@@ -848,7 +848,33 @@ void BufferLayer::setTransformHint(ui::Transform::RotationFlags displayTransform
 }
 
 bool BufferLayer::bufferNeedsFiltering() const {
-    return isFixedSize();
+    // Layers that don't resize along with their buffer, don't need filtering.
+    if (!isFixedSize()) {
+        return false;
+    }
+
+    if (!mBufferInfo.mBuffer) {
+        return false;
+    }
+
+    uint32_t bufferWidth = mBufferInfo.mBuffer->width;
+    uint32_t bufferHeight = mBufferInfo.mBuffer->height;
+
+    // Undo any transformations on the buffer and return the result.
+    const State& s(getDrawingState());
+    if (s.transform & ui::Transform::ROT_90) {
+        std::swap(bufferWidth, bufferHeight);
+    }
+
+    if (s.transformToDisplayInverse) {
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
+        if (invTransform & ui::Transform::ROT_90) {
+            std::swap(bufferWidth, bufferHeight);
+        }
+    }
+
+    const Rect layerSize{getBounds()};
+    return layerSize.width() != bufferWidth || layerSize.height() != bufferHeight;
 }
 
 } // namespace android
