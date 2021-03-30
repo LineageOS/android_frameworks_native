@@ -69,7 +69,7 @@ public:
     };
 
     // Creates a GrBackendTexture whose contents come from the provided buffer.
-    AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer, bool isRender);
+    AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer);
 
     void ref() { mUsageCount++; }
 
