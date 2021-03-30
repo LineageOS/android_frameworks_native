@@ -235,12 +235,7 @@ bool Scheduler::isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const {
         return true;
     }
 
-    const auto divider = mRefreshRateConfigs.getRefreshRateDivider(*frameRate);
-    if (divider <= 1) {
-        return true;
-    }
-
-    return mVsyncSchedule.tracker->isVSyncInPhase(expectedVsyncTimestamp, divider);
+    return mVsyncSchedule.tracker->isVSyncInPhase(expectedVsyncTimestamp, *frameRate);
 }
 
 impl::EventThread::ThrottleVsyncCallback Scheduler::makeThrottleVsyncCallback() const {
@@ -354,6 +349,10 @@ void Scheduler::onPrimaryDisplayModeChanged(ConnectionHandle handle, PhysicalDis
         std::lock_guard<std::mutex> lock(mFeatureStateLock);
         // Cache the last reported modes for primary display.
         mFeatures.cachedModeChangedParams = {handle, displayId, modeId, vsyncPeriod};
+
+        // Invalidate content based refresh rate selection so it could be calculated
+        // again for the new refresh rate.
+        mFeatures.contentRequirements.clear();
     }
     onNonPrimaryDisplayModeChanged(handle, displayId, modeId, vsyncPeriod);
 }

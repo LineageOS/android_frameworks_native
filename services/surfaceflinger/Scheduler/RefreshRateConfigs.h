@@ -324,8 +324,10 @@ public:
 
     bool supportsFrameRateOverride() const { return mSupportsFrameRateOverride; }
 
-    // Returns a divider for the current refresh rate
-    int getRefreshRateDivider(Fps frameRate) const EXCLUDES(mLock);
+    // Return the display refresh rate divider to match the layer
+    // frame rate, or 0 if the display refresh rate is not a multiple of the
+    // layer refresh rate.
+    static int getFrameRateDivider(Fps displayFrameRate, Fps layerFrameRate);
 
     using UidToFrameRateOverride = std::map<uid_t, Fps>;
     // Returns the frame rate override for each uid.
@@ -372,11 +374,6 @@ private:
 
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
-
-    // Return the display refresh rate divider to match the layer
-    // frame rate, or 0 if the display refresh rate is not a multiple of the
-    // layer refresh rate.
-    static int getFrameRateDivider(Fps displayFrameRate, Fps layerFrameRate);
 
     // calculates a score for a layer. Used to determine the display refresh rate
     // and the frame rate override for certains applications.
