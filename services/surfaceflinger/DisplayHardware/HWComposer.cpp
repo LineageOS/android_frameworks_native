@@ -964,8 +964,10 @@ void HWComposer::loadLayerMetadataSupport() {
     std::vector<Hwc2::IComposerClient::LayerGenericMetadataKey> supportedMetadataKeyInfo;
     const auto error = mComposer->getLayerGenericMetadataKeys(&supportedMetadataKeyInfo);
     if (error != hardware::graphics::composer::V2_4::Error::NONE) {
-        ALOGE("%s: %s failed: %s (%d)", __FUNCTION__, "getLayerGenericMetadataKeys",
-              toString(error).c_str(), static_cast<int32_t>(error));
+        if (error != hardware::graphics::composer::V2_4::Error::UNSUPPORTED) {
+            ALOGE("%s: %s failed: %s (%d)", __FUNCTION__, "getLayerGenericMetadataKeys",
+                  toString(error).c_str(), static_cast<int32_t>(error));
+        }
         return;
     }
 
