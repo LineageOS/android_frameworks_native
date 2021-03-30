@@ -322,8 +322,11 @@ void HWComposer::destroyLayer(HalDisplayId displayId, HWC2::Layer* layer) {
 }
 
 bool HWComposer::isConnected(PhysicalDisplayId displayId) const {
-    RETURN_IF_INVALID_DISPLAY(displayId, false);
-    return mDisplayData.at(displayId).hwcDisplay->isConnected();
+    if (mDisplayData.count(displayId)) {
+        return mDisplayData.at(displayId).hwcDisplay->isConnected();
+    }
+
+    return false;
 }
 
 std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId displayId) const {
