@@ -286,6 +286,9 @@ void ASurfaceTransaction_setZOrder(ASurfaceTransaction* transaction,
  * The frameworks takes ownership of the \a acquire_fence_fd passed and is responsible
  * for closing it.
  *
+ * Note that the buffer must be allocated with AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE
+ * as the surface control might be composited using the GPU.
+ *
  * Available since API level 29.
  */
 void ASurfaceTransaction_setBuffer(ASurfaceTransaction* transaction,

@@ -606,7 +606,9 @@ void BLASTBufferQueue::mergeWithNextTransaction(SurfaceComposerClient::Transacti
         // Apply the transaction since we have already acquired the desired frame.
         t->apply();
     } else {
-        mPendingTransactions.emplace_back(frameNumber, std::move(*t));
+        mPendingTransactions.emplace_back(frameNumber, *t);
+        // Clear the transaction so it can't be applied elsewhere.
+        t->clear();
     }
 }
 
