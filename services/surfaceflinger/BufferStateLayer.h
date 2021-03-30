@@ -145,8 +145,6 @@ private:
     friend class SlotGenerationTest;
     bool willPresentCurrentTransaction() const;
 
-    bool bufferNeedsFiltering() const override;
-
     static const std::array<float, 16> IDENTITY_MATRIX;
 
     std::unique_ptr<renderengine::Image> mTextureImage;
