@@ -5192,17 +5192,15 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // captureLayers and captureDisplay will handle the permission check in the function
         case CAPTURE_LAYERS:
         case CAPTURE_DISPLAY:
-        case SET_DISPLAY_BRIGHTNESS:
         case SET_FRAME_TIMELINE_INFO:
         case GET_GPU_CONTEXT_PRIORITY:
         case GET_EXTRA_BUFFER_COUNT: {
             // This is not sensitive information, so should not require permission control.
             return OK;
         }
+        case SET_DISPLAY_BRIGHTNESS:
         case ADD_HDR_LAYER_INFO_LISTENER:
         case REMOVE_HDR_LAYER_INFO_LISTENER: {
-            // TODO (b/183985553): Should getting & setting brightness be part of this...?
-            // codes that require permission check
             IPCThreadState* ipc = IPCThreadState::self();
             const int pid = ipc->getCallingPid();
             const int uid = ipc->getCallingUid();
