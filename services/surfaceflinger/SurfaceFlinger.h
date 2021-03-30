@@ -329,7 +329,7 @@ public:
     // Otherwise, returns a weak reference so that callers off the main-thread
     // won't accidentally hold onto the last strong reference.
     wp<Layer> fromHandle(const sp<IBinder>& handle);
-    wp<Layer> fromHandleLocked(const sp<IBinder>& handle) REQUIRES(mStateLock);
+    wp<Layer> fromHandleLocked(const sp<IBinder>& handle) const REQUIRES(mStateLock);
 
     // Inherit from ClientCache::ErasedRecipient
     void bufferErased(const client_cache_t& clientCacheId) override;
@@ -535,6 +535,8 @@ private:
                 originPid(originPid),
                 originUid(originUid),
                 id(transactionId) {}
+
+        void traverseStatesWithBuffers(std::function<void(const layer_state_t&)> visitor);
 
         FrameTimelineInfo frameTimelineInfo;
         Vector<ComposerState> states;
@@ -841,8 +843,8 @@ private:
     bool transactionIsReadyToBeApplied(
             const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
             uid_t originUid, const Vector<ComposerState>& states,
-            std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers)
-            REQUIRES(mStateLock);
+            const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
+                    bufferLayersReadyToPresent) const REQUIRES(mStateLock);
     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
             REQUIRES(mStateLock);
