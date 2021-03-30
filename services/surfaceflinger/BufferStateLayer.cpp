@@ -760,6 +760,7 @@ Layer::RoundedCornerState BufferStateLayer::getRoundedCornerState() const {
                                         static_cast<float>(s.active.transform.ty() + s.active.h)),
                               radius);
 }
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

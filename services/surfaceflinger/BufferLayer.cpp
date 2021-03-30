@@ -211,8 +211,8 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
     layer.frameNumber = mCurrentFrameNumber;
     layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getId() : 0;
 
-    // TODO: we could be more subtle with isFixedSize()
-    const bool useFiltering = targetSettings.needsFiltering || mNeedsFiltering || isFixedSize();
+    const bool useFiltering =
+            targetSettings.needsFiltering || mNeedsFiltering || bufferNeedsFiltering();
 
     // Query the texture matrix given our current filtering mode.
     float textureMatrix[16];
@@ -845,6 +845,36 @@ void BufferLayer::setTransformHint(ui::Transform::RotationFlags displayTransform
     if (mTransformHint == ui::Transform::ROT_INVALID) {
         mTransformHint = displayTransformHint;
     }
+}
+
+bool BufferLayer::bufferNeedsFiltering() const {
+    // Layers that don't resize along with their buffer, don't need filtering.
+    if (!isFixedSize()) {
+        return false;
+    }
+
+    if (!mBufferInfo.mBuffer) {
+        return false;
+    }
+
+    uint32_t bufferWidth = mBufferInfo.mBuffer->width;
+    uint32_t bufferHeight = mBufferInfo.mBuffer->height;
+
+    // Undo any transformations on the buffer and return the result.
+    const State& s(getDrawingState());
+    if (s.transform & ui::Transform::ROT_90) {
+        std::swap(bufferWidth, bufferHeight);
+    }
+
+    if (s.transformToDisplayInverse) {
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
+        if (invTransform & ui::Transform::ROT_90) {
+            std::swap(bufferWidth, bufferHeight);
+        }
+    }
+
+    const Rect layerSize{getBounds()};
+    return layerSize.width() != bufferWidth || layerSize.height() != bufferHeight;
 }
 
 } // namespace android
