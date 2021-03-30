@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <chrono>
 #include <sstream>
+#include "RefreshRateConfigs.h"
 
 #undef LOG_TAG
 #define LOG_TAG "VSyncPredictor"
@@ -225,13 +226,14 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
 }
 
 /*
- * Returns whether a given vsync timestamp is in phase with a vsync divider.
- * For example, if the vsync timestamps are (16,32,48,64):
- * isVSyncInPhase(16, 2) = true
- * isVSyncInPhase(32, 2) = false
- * isVSyncInPhase(48, 2) = true
+ * Returns whether a given vsync timestamp is in phase with a frame rate.
+ * If the frame rate is not a divider of the refresh rate, it is always considered in phase.
+ * For example, if the vsync timestamps are (16.6,33.3,50.0,66.6):
+ * isVSyncInPhase(16.6, 30) = true
+ * isVSyncInPhase(33.3, 30) = false
+ * isVSyncInPhase(50.0, 30) = true
  */
-bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, int divider) const {
+bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const {
     struct VsyncError {
         nsecs_t vsyncTimestamp;
         float error;
@@ -239,11 +241,13 @@ bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, int divider) const {
         bool operator<(const VsyncError& other) const { return error < other.error; }
     };
 
+    std::lock_guard lock(mMutex);
+    const auto divider =
+            RefreshRateConfigs::getFrameRateDivider(Fps::fromPeriodNsecs(mIdealPeriod), frameRate);
     if (divider <= 1 || timePoint == 0) {
         return true;
     }
 
-    std::lock_guard lock(mMutex);
     const nsecs_t period = mRateMap[mIdealPeriod].slope;
     const nsecs_t justBeforeTimePoint = timePoint - period / 2;
     const nsecs_t dividedPeriod = mIdealPeriod / divider;

@@ -1621,29 +1621,35 @@ TEST_F(RefreshRateConfigsTest, testKernelIdleTimerAction) {
     EXPECT_EQ(KernelIdleTimerAction::TurnOff, refreshRateConfigs->getIdleTimerAction());
 }
 
-TEST_F(RefreshRateConfigsTest, getRefreshRateDivider) {
+TEST_F(RefreshRateConfigsTest, getFrameRateDivider) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m30_60_72_90_120Device,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_30);
 
     const auto frameRate = Fps(30.f);
-    EXPECT_EQ(1, refreshRateConfigs->getRefreshRateDivider(frameRate));
+    Fps displayRefreshRate = refreshRateConfigs->getCurrentRefreshRate().getFps();
+    EXPECT_EQ(1, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, frameRate));
 
     refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_60);
-    EXPECT_EQ(2, refreshRateConfigs->getRefreshRateDivider(frameRate));
+    displayRefreshRate = refreshRateConfigs->getCurrentRefreshRate().getFps();
+    EXPECT_EQ(2, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, frameRate));
 
     refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_72);
-    EXPECT_EQ(0, refreshRateConfigs->getRefreshRateDivider(frameRate));
+    displayRefreshRate = refreshRateConfigs->getCurrentRefreshRate().getFps();
+    EXPECT_EQ(0, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, frameRate));
 
     refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
-    EXPECT_EQ(3, refreshRateConfigs->getRefreshRateDivider(frameRate));
+    displayRefreshRate = refreshRateConfigs->getCurrentRefreshRate().getFps();
+    EXPECT_EQ(3, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, frameRate));
 
     refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_120);
-    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDivider(frameRate));
+    displayRefreshRate = refreshRateConfigs->getCurrentRefreshRate().getFps();
+    EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, frameRate));
 
     refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
-    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDivider(Fps(22.5f)));
-    EXPECT_EQ(4, refreshRateConfigs->getRefreshRateDivider(Fps(22.6f)));
+    displayRefreshRate = refreshRateConfigs->getCurrentRefreshRate().getFps();
+    EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, Fps(22.5f)));
+    EXPECT_EQ(4, RefreshRateConfigs::getFrameRateDivider(displayRefreshRate, Fps(22.6f)));
 }
 
 TEST_F(RefreshRateConfigsTest, getFrameRateOverrides_noLayers) {
