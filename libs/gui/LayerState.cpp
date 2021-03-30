@@ -563,6 +563,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
 }
 
+bool layer_state_t::hasBufferChanges() const {
+    return (what & layer_state_t::eBufferChanged) || (what & layer_state_t::eCachedBufferChanged);
+}
+
 status_t layer_state_t::matrix22_t::write(Parcel& output) const {
     SAFE_PARCEL(output.writeFloat, dsdx);
     SAFE_PARCEL(output.writeFloat, dtdx);

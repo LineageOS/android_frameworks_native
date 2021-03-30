@@ -127,6 +127,7 @@ struct layer_state_t {
     void merge(const layer_state_t& other);
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
+    bool hasBufferChanges() const;
 
     struct matrix22_t {
         float dsdx{0};
