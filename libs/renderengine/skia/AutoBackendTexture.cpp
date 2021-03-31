@@ -28,19 +28,19 @@ namespace android {
 namespace renderengine {
 namespace skia {
 
-AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer,
-                                       bool isRender) {
+AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer) {
     ATRACE_CALL();
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
-    bool createProtectedImage = 0 != (desc.usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT);
+    const bool createProtectedImage = 0 != (desc.usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT);
+    const bool isRenderable = 0 != (desc.usage & AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER);
     GrBackendFormat backendFormat =
             GrAHardwareBufferUtils::GetBackendFormat(context, buffer, desc.format, false);
     mBackendTexture =
             GrAHardwareBufferUtils::MakeBackendTexture(context, buffer, desc.width, desc.height,
                                                        &mDeleteProc, &mUpdateProc, &mImageCtx,
                                                        createProtectedImage, backendFormat,
-                                                       isRender);
+                                                       isRenderable);
     mColorType = GrAHardwareBufferUtils::GetSkColorTypeFromBufferFormat(desc.format);
 }
 

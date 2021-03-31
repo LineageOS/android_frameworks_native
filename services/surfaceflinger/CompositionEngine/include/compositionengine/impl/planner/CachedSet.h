@@ -70,7 +70,7 @@ public:
     size_t getCreationCost() const;
     size_t getDisplayCost() const;
 
-    bool hasBufferUpdate(std::vector<const LayerState*>::const_iterator layers) const;
+    bool hasBufferUpdate() const;
     bool hasReadyBuffer() const;
 
     // Decomposes this CachedSet into a vector of its layers as individual CachedSets

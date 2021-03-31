@@ -499,11 +499,7 @@ RefreshRateConfigs::UidToFrameRateOverride RefreshRateConfigs::getFrameRateOverr
         // Now that we scored all the refresh rates we need to pick the one that got the highest
         // score.
         const RefreshRate* bestRefreshRate = getBestRefreshRate(scores.begin(), scores.end());
-
-        // If the nest refresh rate is the current one, we don't have an override
-        if (!bestRefreshRate->getFps().equalsWithMargin(displayFrameRate)) {
-            frameRateOverrides.emplace(uid, bestRefreshRate->getFps());
-        }
+        frameRateOverrides.emplace(uid, bestRefreshRate->getFps());
     }
 
     return frameRateOverrides;
@@ -837,11 +833,6 @@ int RefreshRateConfigs::getFrameRateDivider(Fps displayFrameRate, Fps layerFrame
     }
 
     return static_cast<int>(numPeriodsRounded);
-}
-
-int RefreshRateConfigs::getRefreshRateDivider(Fps frameRate) const {
-    std::lock_guard lock(mLock);
-    return getFrameRateDivider(mCurrentRefreshRate->getFps(), frameRate);
 }
 
 void RefreshRateConfigs::dump(std::string& result) const {
