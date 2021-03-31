@@ -1182,11 +1182,13 @@ TEST_F(RefreshRateConfigsTest,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false}));
 }
 
-TEST_F(RefreshRateConfigsTest, groupSwitching) {
+TEST_F(RefreshRateConfigsTest, groupSwitchingNotAllowed) {
     auto refreshRateConfigs =
             std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
                                                  /*currentConfigId=*/HWC_CONFIG_ID_60);
 
+    // The default policy doesn't allow group switching. Verify that no
+    // group switches are performed.
     auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
     auto& layer = layers[0];
     layer.vote = LayerVoteType::ExplicitDefault;
@@ -1198,60 +1200,199 @@ TEST_F(RefreshRateConfigsTest, groupSwitching) {
     ASSERT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
                       .getModeId());
+}
 
+TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayer) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
     RefreshRateConfigs::Policy policy;
     policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
     policy.allowGroupSwitching = true;
     ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& layer = layers[0];
+    layer.vote = LayerVoteType::ExplicitDefault;
+    layer.desiredRefreshRate = Fps(90.0f);
+    layer.seamlessness = Seamlessness::SeamedAndSeamless;
+    layer.name = "90Hz ExplicitDefault";
+    layer.focused = true;
     ASSERT_EQ(HWC_CONFIG_ID_90,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
                       .getModeId());
+}
+
+TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayerOnlySeamless) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    RefreshRateConfigs::Policy policy;
+    policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
+    policy.allowGroupSwitching = true;
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
 
     // Verify that we won't change the group if seamless switch is required.
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& layer = layers[0];
+    layer.vote = LayerVoteType::ExplicitDefault;
+    layer.desiredRefreshRate = Fps(90.0f);
     layer.seamlessness = Seamlessness::OnlySeamless;
+    layer.name = "90Hz ExplicitDefault";
+    layer.focused = true;
     ASSERT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
                       .getModeId());
+}
+
+TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayerOnlySeamlessDefaultFps) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    RefreshRateConfigs::Policy policy;
+    policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
+    policy.allowGroupSwitching = true;
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
+
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
 
     // Verify that we won't do a seamless switch if we request the same mode as the default
-    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& layer = layers[0];
+    layer.vote = LayerVoteType::ExplicitDefault;
     layer.desiredRefreshRate = Fps(60.0f);
-    layer.name = "60Hz ExplicitDefault";
     layer.seamlessness = Seamlessness::OnlySeamless;
+    layer.name = "60Hz ExplicitDefault";
+    layer.focused = true;
     ASSERT_EQ(HWC_CONFIG_ID_90,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
                       .getModeId());
+}
+
+TEST_F(RefreshRateConfigsTest, groupSwitchingWithOneLayerDefaultSeamlessness) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    RefreshRateConfigs::Policy policy;
+    policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
+    policy.allowGroupSwitching = true;
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
+
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
 
     // Verify that if the current config is in another group and there are no layers with
     // seamlessness=SeamedAndSeamless we'll go back to the default group.
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    auto& layer = layers[0];
+    layer.vote = LayerVoteType::ExplicitDefault;
     layer.desiredRefreshRate = Fps(60.0f);
-    layer.name = "60Hz ExplicitDefault";
     layer.seamlessness = Seamlessness::Default;
+    layer.name = "60Hz ExplicitDefault";
+    layer.focused = true;
+
     ASSERT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
                       .getModeId());
+}
+
+TEST_F(RefreshRateConfigsTest, groupSwitchingWithTwoLayersOnlySeamlessAndSeamed) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    RefreshRateConfigs::Policy policy;
+    policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
+    policy.allowGroupSwitching = true;
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
+
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
 
     // If there's a layer with seamlessness=SeamedAndSeamless, another layer with
     // seamlessness=OnlySeamless can't change the mode group.
-    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
-    layer.seamlessness = Seamlessness::OnlySeamless;
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    layers[0].vote = LayerVoteType::ExplicitDefault;
+    layers[0].desiredRefreshRate = Fps(60.0f);
+    layers[0].seamlessness = Seamlessness::OnlySeamless;
+    layers[0].name = "60Hz ExplicitDefault";
+    layers[0].focused = true;
 
     layers.push_back(LayerRequirement{.weight = 0.5f});
-    auto& layer2 = layers[layers.size() - 1];
-    layer2.vote = LayerVoteType::ExplicitDefault;
-    layer2.desiredRefreshRate = Fps(90.0f);
-    layer2.name = "90Hz ExplicitDefault";
-    layer2.seamlessness = Seamlessness::SeamedAndSeamless;
-    layer2.focused = false;
+    layers[1].vote = LayerVoteType::ExplicitDefault;
+    layers[1].seamlessness = Seamlessness::SeamedAndSeamless;
+    layers[1].desiredRefreshRate = Fps(90.0f);
+    layers[1].name = "90Hz ExplicitDefault";
+    layers[1].focused = false;
 
     ASSERT_EQ(HWC_CONFIG_ID_90,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
                       .getModeId());
+}
 
-    // If there's a layer with seamlessness=SeamedAndSeamless, another layer with
-    // seamlessness=Default can't change the mode group.
+TEST_F(RefreshRateConfigsTest, groupSwitchingWithTwoLayersDefaultFocusedAndSeamed) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    RefreshRateConfigs::Policy policy;
+    policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
+    policy.allowGroupSwitching = true;
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
+
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
+
+    // If there's a focused layer with seamlessness=SeamedAndSeamless, another layer with
+    // seamlessness=Default can't change the mode group back to the group of the default
+    // mode.
+    // For example, this may happen when a video playback requests and gets a seamed switch,
+    // but another layer (with default seamlessness) starts animating. The animating layer
+    // should not cause a seamed switch.
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
     layers[0].seamlessness = Seamlessness::Default;
+    layers[0].desiredRefreshRate = Fps(60.0f);
+    layers[0].focused = true;
+    layers[0].vote = LayerVoteType::ExplicitDefault;
+    layers[0].name = "60Hz ExplicitDefault";
+
+    layers.push_back(LayerRequirement{.weight = 0.1f});
+    layers[1].seamlessness = Seamlessness::SeamedAndSeamless;
+    layers[1].desiredRefreshRate = Fps(90.0f);
+    layers[1].focused = true;
+    layers[1].vote = LayerVoteType::ExplicitDefault;
+    layers[1].name = "90Hz ExplicitDefault";
+
     ASSERT_EQ(HWC_CONFIG_ID_90,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                      .getModeId());
+}
+
+TEST_F(RefreshRateConfigsTest, groupSwitchingWithTwoLayersDefaultNotFocusedAndSeamed) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_60);
+    RefreshRateConfigs::Policy policy;
+    policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
+    policy.allowGroupSwitching = true;
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
+
+    refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_90);
+
+    // Layer with seamlessness=Default can change the mode group if there's a not
+    // focused layer with seamlessness=SeamedAndSeamless. This happens for example,
+    // when in split screen mode the user switches between the two visible applications.
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.weight = 1.0f}};
+    layers[0].seamlessness = Seamlessness::Default;
+    layers[0].desiredRefreshRate = Fps(60.0f);
+    layers[0].focused = true;
+    layers[0].vote = LayerVoteType::ExplicitDefault;
+    layers[0].name = "60Hz ExplicitDefault";
+
+    layers.push_back(LayerRequirement{.weight = 0.7f});
+    layers[1].seamlessness = Seamlessness::SeamedAndSeamless;
+    layers[1].desiredRefreshRate = Fps(90.0f);
+    layers[1].focused = false;
+    layers[1].vote = LayerVoteType::ExplicitDefault;
+    layers[1].name = "90Hz ExplicitDefault";
+
+    ASSERT_EQ(HWC_CONFIG_ID_60,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
                       .getModeId());
 }
