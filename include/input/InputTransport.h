@@ -71,6 +71,7 @@ struct InputMessage {
         FOCUS,
         CAPTURE,
         DRAG,
+        TIMELINE,
     };
 
     struct Header {
@@ -195,6 +196,14 @@ struct InputMessage {
 
             inline size_t size() const { return sizeof(Drag); }
         } drag;
+
+        struct Timeline {
+            int32_t eventId;
+            uint32_t empty;
+            std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
+
+            inline size_t size() const { return sizeof(Timeline); }
+        } timeline;
     } __attribute__((aligned(8))) body;
 
     bool isValid(size_t actualSize) const;
@@ -381,10 +390,25 @@ public:
         nsecs_t consumeTime;
     };
 
-    /* Receives the finished signal from the consumer in reply to the original dispatch signal.
-     * If a signal was received, returns a Finished object.
+    struct Timeline {
+        int32_t inputEventId;
+        std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
+    };
+
+    typedef std::variant<Finished, Timeline> ConsumerResponse;
+    /* Receive a signal from the consumer in reply to the original dispatch signal.
+     * If a signal was received, returns a Finished or a Timeline object.
+     * The InputConsumer should return a Finished object for every InputMessage that it is sent
+     * to confirm that it has been processed and that the InputConsumer is responsive.
+     * If several InputMessages are sent to InputConsumer, it's possible to receive Finished
+     * events out of order for those messages.
      *
-     * The returned sequence number is never 0 unless the operation failed.
+     * The Timeline object is returned whenever the receiving end has processed a graphical frame
+     * and is returning the timeline of the frame. Not all input events will cause a Timeline
+     * object to be returned, and there is not guarantee about when it will arrive.
+     *
+     * If an object of Finished is returned, the returned sequence number is never 0 unless the
+     * operation failed.
      *
      * Returned error codes:
      *         OK on success.
@@ -392,7 +416,7 @@ public:
      *         DEAD_OBJECT if the channel's peer has been closed.
      *         Other errors probably indicate that the channel is broken.
      */
-    android::base::Result<Finished> receiveFinishedSignal();
+    android::base::Result<ConsumerResponse> receiveConsumerResponse();
 
 private:
     std::shared_ptr<InputChannel> mChannel;
@@ -447,6 +471,9 @@ public:
      * Other errors probably indicate that the channel is broken.
      */
     status_t sendFinishedSignal(uint32_t seq, bool handled);
+
+    status_t sendTimeline(int32_t inputEventId,
+                          std::array<nsecs_t, GraphicsTimeline::SIZE> timeline);
 
     /* Returns true if there is a deferred event waiting.
      *
