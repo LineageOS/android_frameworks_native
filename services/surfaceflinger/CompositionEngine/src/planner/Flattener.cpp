@@ -60,18 +60,6 @@ void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine,
     mNewCachedSet->render(renderEngine, outputDataspace);
 }
 
-void Flattener::reset() {
-    resetActivities(0, std::chrono::steady_clock::now());
-
-    mUnflattenedDisplayCost = 0;
-    mFlattenedDisplayCost = 0;
-    mInitialLayerCounts.clear();
-    mFinalLayerCounts.clear();
-    mCachedSetCreationCount = 0;
-    mCachedSetCreationCost = 0;
-    mInvalidatedCachedSetAges.clear();
-}
-
 void Flattener::dump(std::string& result) const {
     const auto now = std::chrono::steady_clock::now();
 
@@ -208,7 +196,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
         if (mNewCachedSet &&
             mNewCachedSet->getFingerprint() ==
                     (*incomingLayerIter)->getHash(LayerStateField::Buffer)) {
-            if (mNewCachedSet->hasBufferUpdate(incomingLayerIter)) {
+            if (mNewCachedSet->hasBufferUpdate()) {
                 ALOGV("[%s] Dropping new cached set", __func__);
                 ++mInvalidatedCachedSetAges[0];
                 mNewCachedSet = std::nullopt;
@@ -242,7 +230,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
             }
         }
 
-        if (!currentLayerIter->hasBufferUpdate(incomingLayerIter)) {
+        if (!currentLayerIter->hasBufferUpdate()) {
             currentLayerIter->incrementAge();
             merged.emplace_back(*currentLayerIter);
 

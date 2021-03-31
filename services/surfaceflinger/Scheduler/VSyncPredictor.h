@@ -64,7 +64,7 @@ public:
 
     VSyncPredictor::Model getVSyncPredictionModel() const EXCLUDES(mMutex);
 
-    bool isVSyncInPhase(nsecs_t timePoint, int divider) const final EXCLUDES(mMutex);
+    bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const final EXCLUDES(mMutex);
 
     void dump(std::string& result) const final EXCLUDES(mMutex);
 

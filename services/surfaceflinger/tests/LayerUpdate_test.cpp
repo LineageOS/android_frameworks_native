@@ -449,16 +449,16 @@ TEST_F(ChildLayerTest, ChildLayerAlpha) {
 
     {
         mCapture = screenshot();
-        // Child and BG blended.
-        mCapture->checkPixel(0, 0, 127, 127, 0);
+        // Child and BG blended. See b/175352694 for tolerance.
+        mCapture->expectColor(Rect(0, 0, 1, 1), Color{127, 127, 0, 255}, 1);
     }
 
     asTransaction([&](Transaction& t) { t.setAlpha(mFGSurfaceControl, 0.5); });
 
     {
         mCapture = screenshot();
-        // Child and BG blended.
-        mCapture->checkPixel(0, 0, 95, 64, 95);
+        // Child and BG blended. See b/175352694 for tolerance.
+        mCapture->expectColor(Rect(0, 0, 1, 1), Color{95, 64, 95, 255}, 1);
     }
 }
 

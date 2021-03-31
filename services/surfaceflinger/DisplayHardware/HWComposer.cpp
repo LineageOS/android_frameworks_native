@@ -322,8 +322,11 @@ void HWComposer::destroyLayer(HalDisplayId displayId, HWC2::Layer* layer) {
 }
 
 bool HWComposer::isConnected(PhysicalDisplayId displayId) const {
-    RETURN_IF_INVALID_DISPLAY(displayId, false);
-    return mDisplayData.at(displayId).hwcDisplay->isConnected();
+    if (mDisplayData.count(displayId)) {
+        return mDisplayData.at(displayId).hwcDisplay->isConnected();
+    }
+
+    return false;
 }
 
 std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId displayId) const {
@@ -964,8 +967,10 @@ void HWComposer::loadLayerMetadataSupport() {
     std::vector<Hwc2::IComposerClient::LayerGenericMetadataKey> supportedMetadataKeyInfo;
     const auto error = mComposer->getLayerGenericMetadataKeys(&supportedMetadataKeyInfo);
     if (error != hardware::graphics::composer::V2_4::Error::NONE) {
-        ALOGE("%s: %s failed: %s (%d)", __FUNCTION__, "getLayerGenericMetadataKeys",
-              toString(error).c_str(), static_cast<int32_t>(error));
+        if (error != hardware::graphics::composer::V2_4::Error::UNSUPPORTED) {
+            ALOGE("%s: %s failed: %s (%d)", __FUNCTION__, "getLayerGenericMetadataKeys",
+                  toString(error).c_str(), static_cast<int32_t>(error));
+        }
         return;
     }
 
