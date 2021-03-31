@@ -56,7 +56,7 @@ class RunDex2Oat {
     void Exec(int exit_code);
 
   protected:
-    void PrepareBootImageAndBootClasspathFlags(bool use_jitzygote_image);
+    void PrepareBootImageFlags(bool use_jitzygote_image);
     void PrepareInputFileFlags(const UniqueFile& output_oat,
                                const UniqueFile& output_vdex,
                                const UniqueFile& output_image,
