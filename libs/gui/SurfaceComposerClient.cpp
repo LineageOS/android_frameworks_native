@@ -1583,7 +1583,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setShado
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameRate(
         const sp<SurfaceControl>& sc, float frameRate, int8_t compatibility,
-        bool shouldBeSeamless) {
+        int8_t changeFrameRateStrategy) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
@@ -1591,7 +1591,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
     }
     // Allow privileged values as well here, those will be ignored by SF if
     // the caller is not privileged
-    if (!ValidateFrameRate(frameRate, compatibility, "Transaction::setFrameRate",
+    if (!ValidateFrameRate(frameRate, compatibility, changeFrameRateStrategy,
+                           "Transaction::setFrameRate",
                            /*privileged=*/true)) {
         mStatus = BAD_VALUE;
         return *this;
@@ -1599,7 +1600,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
     s->what |= layer_state_t::eFrameRateChanged;
     s->frameRate = frameRate;
     s->frameRateCompatibility = compatibility;
-    s->shouldBeSeamless = shouldBeSeamless;
+    s->changeFrameRateStrategy = changeFrameRateStrategy;
     return *this;
 }
 

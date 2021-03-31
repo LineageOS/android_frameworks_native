@@ -168,8 +168,9 @@ public:
               : rate(0),
                 type(FrameRateCompatibility::Default),
                 seamlessness(Seamlessness::Default) {}
-        FrameRate(Fps rate, FrameRateCompatibility type, bool shouldBeSeamless = true)
-              : rate(rate), type(type), seamlessness(getSeamlessness(rate, shouldBeSeamless)) {}
+        FrameRate(Fps rate, FrameRateCompatibility type,
+                  Seamlessness seamlessness = Seamlessness::OnlySeamless)
+              : rate(rate), type(type), seamlessness(getSeamlessness(rate, seamlessness)) {}
 
         bool operator==(const FrameRate& other) const {
             return rate.equalsWithMargin(other.rate) && type == other.type &&
@@ -181,18 +182,16 @@ public:
         // Convert an ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* value to a
         // Layer::FrameRateCompatibility. Logs fatal if the compatibility value is invalid.
         static FrameRateCompatibility convertCompatibility(int8_t compatibility);
+        static scheduler::Seamlessness convertChangeFrameRateStrategy(int8_t strategy);
 
     private:
-        static Seamlessness getSeamlessness(Fps rate, bool shouldBeSeamless) {
+        static Seamlessness getSeamlessness(Fps rate, Seamlessness seamlessness) {
             if (!rate.isValid()) {
                 // Refresh rate of 0 is a special value which should reset the vote to
                 // its default value.
                 return Seamlessness::Default;
-            } else if (shouldBeSeamless) {
-                return Seamlessness::OnlySeamless;
-            } else {
-                return Seamlessness::SeamedAndSeamless;
             }
+            return seamlessness;
         }
     };
 
