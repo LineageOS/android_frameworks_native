@@ -575,13 +575,9 @@ void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& r
             }
         } else if (mFrameReadyMetadata == FrameReadyMetadata::LateFinish) {
             // Finish late, Present late
-            if (displayFrameJankType == JankType::None) {
-                // Display frame is not janky, so purely app's fault
-                mJankType |= JankType::AppDeadlineMissed;
-            } else {
-                // Propagate DisplayFrame's jankType if it is janky
-                mJankType |= displayFrameJankType;
-            }
+            mJankType |= JankType::AppDeadlineMissed;
+            // Propagate DisplayFrame's jankType if it is janky
+            mJankType |= displayFrameJankType;
         }
     }
 }
