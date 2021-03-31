@@ -469,7 +469,9 @@ TEST_F(VSyncPredictorTest, isVSyncInPhase) {
     for (int divider = 1; divider < maxDivider; divider++) {
         for (int i = 0; i < maxPeriods; i++) {
             const bool expectedInPhase = (i % divider) == 0;
-            EXPECT_THAT(expectedInPhase, tracker.isVSyncInPhase(mNow + i * mPeriod - bias, divider))
+            EXPECT_THAT(expectedInPhase,
+                        tracker.isVSyncInPhase(mNow + i * mPeriod - bias,
+                                               Fps::fromPeriodNsecs(divider * mPeriod)))
                     << "vsync at " << mNow + (i + 1) * mPeriod - bias << " is "
                     << (expectedInPhase ? "not " : "") << "in phase for divider " << divider;
         }

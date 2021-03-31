@@ -185,10 +185,14 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
             return std::nullopt;
         }
     }
-    bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
+    const bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
             (isSecure() && !targetSettings.isSecure);
+    const bool bufferCanBeUsedAsHwTexture =
+            mBufferInfo.mBuffer->getUsage() & GraphicBuffer::USAGE_HW_TEXTURE;
     compositionengine::LayerFE::LayerSettings& layer = *result;
-    if (blackOutLayer) {
+    if (blackOutLayer || !bufferCanBeUsedAsHwTexture) {
+        ALOGE_IF(!bufferCanBeUsedAsHwTexture, "%s is blacked out as buffer is not gpu readable",
+                 mName.c_str());
         prepareClearClientComposition(layer, true /* blackout */);
         return layer;
     }
