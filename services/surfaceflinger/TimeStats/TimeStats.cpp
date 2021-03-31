@@ -89,12 +89,15 @@ std::string histogramToProtoByteString(const std::unordered_map<int32_t, int32_t
     return byteString;
 }
 
-std::string frameRateVoteToProtoByteString(float refreshRate, int frameRateCompatibility,
-                                           int seamlessness) {
+std::string frameRateVoteToProtoByteString(
+        float refreshRate,
+        TimeStats::SetFrameRateVote::FrameRateCompatibility frameRateCompatibility,
+        TimeStats::SetFrameRateVote::Seamlessness seamlessness) {
     util::ProtoOutputStream proto;
     proto.write(android::util::FIELD_TYPE_FLOAT | 1 /* field id */, refreshRate);
-    proto.write(android::util::FIELD_TYPE_ENUM | 2 /* field id */, frameRateCompatibility);
-    proto.write(android::util::FIELD_TYPE_ENUM | 3 /* field id */, seamlessness);
+    proto.write(android::util::FIELD_TYPE_ENUM | 2 /* field id */,
+                static_cast<int>(frameRateCompatibility));
+    proto.write(android::util::FIELD_TYPE_ENUM | 3 /* field id */, static_cast<int>(seamlessness));
 
     std::string byteString;
     proto.serializeToString(&byteString);
@@ -229,7 +232,10 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
         mStatsDelegate->statsEventWriteInt32(
                 event, layer->displayRefreshRateBucket); // display_refresh_rate_bucket
         mStatsDelegate->statsEventWriteInt32(event, layer->renderRateBucket); // render_rate_bucket
-        std::string frameRateVoteBytes = frameRateVoteToProtoByteString(0.0, 0, 0);
+        std::string frameRateVoteBytes =
+                frameRateVoteToProtoByteString(layer->setFrameRateVote.frameRate,
+                                               layer->setFrameRateVote.frameRateCompatibility,
+                                               layer->setFrameRateVote.seamlessness);
         mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)frameRateVoteBytes.c_str(),
                                                  frameRateVoteBytes.size()); // set_frame_rate_vote
         std::string appDeadlineMissedBytes =
@@ -468,8 +474,10 @@ static int32_t clampToSmallestBucket(Fps fps, size_t bucketWidth) {
 }
 
 void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayRefreshRate,
-                                                   std::optional<Fps> renderRate) {
+                                                   std::optional<Fps> renderRate,
+                                                   SetFrameRateVote frameRateVote) {
     ATRACE_CALL();
+    ALOGV("[%d]-flushAvailableRecordsToStatsLocked", layerId);
 
     LayerRecord& layerRecord = mTimeStatsTracker[layerId];
     TimeRecord& prevTimeRecord = layerRecord.prevTimeRecord;
@@ -500,6 +508,9 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayR
                 displayStats.stats[layerKey].renderRateBucket = renderRateBucket;
                 displayStats.stats[layerKey].uid = uid;
                 displayStats.stats[layerKey].layerName = layerName;
+            }
+            if (frameRateVote.frameRate > 0.0f) {
+                displayStats.stats[layerKey].setFrameRateVote = frameRateVote;
             }
             TimeStatsHelper::TimeStatsLayer& timeStatsLayer = displayStats.stats[layerKey];
             timeStatsLayer.totalFrames++;
@@ -724,7 +735,8 @@ void TimeStats::setAcquireFence(int32_t layerId, uint64_t frameNumber,
 }
 
 void TimeStats::setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime,
-                               Fps displayRefreshRate, std::optional<Fps> renderRate) {
+                               Fps displayRefreshRate, std::optional<Fps> renderRate,
+                               SetFrameRateVote frameRateVote) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
@@ -743,12 +755,13 @@ void TimeStats::setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t pr
         layerRecord.waitData++;
     }
 
-    flushAvailableRecordsToStatsLocked(layerId, displayRefreshRate, renderRate);
+    flushAvailableRecordsToStatsLocked(layerId, displayRefreshRate, renderRate, frameRateVote);
 }
 
 void TimeStats::setPresentFence(int32_t layerId, uint64_t frameNumber,
                                 const std::shared_ptr<FenceTime>& presentFence,
-                                Fps displayRefreshRate, std::optional<Fps> renderRate) {
+                                Fps displayRefreshRate, std::optional<Fps> renderRate,
+                                SetFrameRateVote frameRateVote) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
@@ -768,7 +781,7 @@ void TimeStats::setPresentFence(int32_t layerId, uint64_t frameNumber,
         layerRecord.waitData++;
     }
 
-    flushAvailableRecordsToStatsLocked(layerId, displayRefreshRate, renderRate);
+    flushAvailableRecordsToStatsLocked(layerId, displayRefreshRate, renderRate, frameRateVote);
 }
 
 static const constexpr int32_t kValidJankyReason = JankType::DisplayHAL |

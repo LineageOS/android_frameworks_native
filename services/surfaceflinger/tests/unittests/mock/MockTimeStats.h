@@ -48,10 +48,11 @@ public:
     MOCK_METHOD3(setDesiredTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setAcquireTime, void(int32_t, uint64_t, nsecs_t));
     MOCK_METHOD3(setAcquireFence, void(int32_t, uint64_t, const std::shared_ptr<FenceTime>&));
-    MOCK_METHOD5(setPresentTime, void(int32_t, uint64_t, nsecs_t, Fps, std::optional<Fps>));
-    MOCK_METHOD5(setPresentFence,
-                 void(int32_t, uint64_t, const std::shared_ptr<FenceTime>&, Fps,
-                      std::optional<Fps>));
+    MOCK_METHOD6(setPresentTime,
+                 void(int32_t, uint64_t, nsecs_t, Fps, std::optional<Fps>, SetFrameRateVote));
+    MOCK_METHOD6(setPresentFence,
+                 void(int32_t, uint64_t, const std::shared_ptr<FenceTime>&, Fps, std::optional<Fps>,
+                      SetFrameRateVote));
     MOCK_METHOD1(incrementJankyFrames, void(const JankyFramesInfo&));
     MOCK_METHOD1(onDestroy, void(int32_t));
     MOCK_METHOD2(removeTimeRecord, void(int32_t, uint64_t));
