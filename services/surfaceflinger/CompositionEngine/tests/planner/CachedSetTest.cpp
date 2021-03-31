@@ -201,13 +201,7 @@ TEST_F(CachedSetTest, hasBufferUpdate_NoUpdate) {
     cachedSet.addLayer(layer2.getState(), kStartTime + 10ms);
     cachedSet.addLayer(layer3.getState(), kStartTime + 20ms);
 
-    std::vector<const LayerState*> incomingLayers = {
-            layer1.getState(),
-            layer2.getState(),
-            layer3.getState(),
-    };
-
-    EXPECT_FALSE(cachedSet.hasBufferUpdate(incomingLayers.begin()));
+    EXPECT_FALSE(cachedSet.hasBufferUpdate());
 }
 
 TEST_F(CachedSetTest, hasBufferUpdate_BufferUpdate) {
@@ -221,13 +215,7 @@ TEST_F(CachedSetTest, hasBufferUpdate_BufferUpdate) {
 
     mTestLayers[1]->layerState->resetFramesSinceBufferUpdate();
 
-    std::vector<const LayerState*> incomingLayers = {
-            layer1.getState(),
-            layer2.getState(),
-            layer3.getState(),
-    };
-
-    EXPECT_TRUE(cachedSet.hasBufferUpdate(incomingLayers.begin()));
+    EXPECT_TRUE(cachedSet.hasBufferUpdate());
 }
 
 TEST_F(CachedSetTest, append) {

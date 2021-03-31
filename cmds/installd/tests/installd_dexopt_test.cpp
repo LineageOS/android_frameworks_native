@@ -351,7 +351,7 @@ protected:
             uid = kTestAppUid;
         }
         if (class_loader_context == nullptr) {
-            class_loader_context = "&";
+            class_loader_context = "PCL[]";
         }
         int32_t dexopt_needed = 0;  // does not matter;
         std::optional<std::string> out_path; // does not matter
@@ -478,7 +478,7 @@ protected:
                            bool should_binder_call_succeed,
                            /*out */ binder::Status* binder_result) {
         std::optional<std::string> out_path = oat_dir ? std::make_optional<std::string>(oat_dir) : std::nullopt;
-        std::string class_loader_context = "&";
+        std::string class_loader_context = "PCL[]";
         int32_t target_sdk_version = 0;  // default
         std::string profile_name = "primary.prof";
         std::optional<std::string> dm_path_opt = dm_path ? std::make_optional<std::string>(dm_path) : std::nullopt;

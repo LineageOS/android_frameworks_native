@@ -116,12 +116,11 @@ size_t CachedSet::getDisplayCost() const {
     return static_cast<size_t>(mBounds.width() * mBounds.height());
 }
 
-bool CachedSet::hasBufferUpdate(std::vector<const LayerState*>::const_iterator layers) const {
+bool CachedSet::hasBufferUpdate() const {
     for (const Layer& layer : mLayers) {
         if (layer.getFramesSinceBufferUpdate() == 0) {
             return true;
         }
-        ++layers;
     }
     return false;
 }
