@@ -19,6 +19,7 @@
 // #define LOG_NDEBUG 0
 
 #include <android-base/properties.h>
+#include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/planner/CachedSet.h>
 #include <math/HashCombine.h>
 #include <renderengine/DisplaySettings.h>
@@ -84,6 +85,7 @@ NonBufferHash CachedSet::getNonBufferHash() const {
     size_t hash = 0;
     android::hashCombineSingle(hash, mBounds);
     android::hashCombineSingle(hash, mOutputDataspace);
+    android::hashCombineSingle(hash, mOrientation);
     return hash;
 }
 
@@ -148,10 +150,15 @@ void CachedSet::updateAge(std::chrono::steady_clock::time_point now) {
     }
 }
 
-void CachedSet::render(renderengine::RenderEngine& renderEngine, ui::Dataspace outputDataspace) {
+void CachedSet::render(renderengine::RenderEngine& renderEngine,
+                       const OutputCompositionState& outputState) {
+    const ui::Dataspace& outputDataspace = outputState.dataspace;
+    const ui::Transform::RotationFlags orientation =
+            ui::Transform::toRotationFlags(outputState.displaySpace.orientation);
     renderengine::DisplaySettings displaySettings{
             .physicalDisplay = Rect(0, 0, mBounds.getWidth(), mBounds.getHeight()),
             .clip = mBounds,
+            .orientation = orientation,
             .outputDataspace = outputDataspace,
     };
 
@@ -217,6 +224,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, ui::Dataspace o
         mTexture.setBuffer(buffer, &renderEngine);
         mDrawFence = new Fence(drawFence.release());
         mOutputDataspace = outputDataspace;
+        mOrientation = orientation;
     }
 }
 

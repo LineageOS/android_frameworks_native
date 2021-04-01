@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <compositionengine/Output.h>
+#include <compositionengine/ProjectionSpace.h>
 #include <compositionengine/impl/planner/LayerState.h>
 #include <renderengine/RenderEngine.h>
 
@@ -92,8 +94,8 @@ public:
     }
     void incrementAge() { ++mAge; }
 
-    // Renders the cached set with the supplied output dataspace.
-    void render(renderengine::RenderEngine&, ui::Dataspace outputDataspace);
+    // Renders the cached set with the supplied output composition state.
+    void render(renderengine::RenderEngine& re, const OutputCompositionState& outputState);
 
     void dump(std::string& result) const;
 
@@ -133,6 +135,7 @@ private:
     Texture mTexture;
     sp<Fence> mDrawFence;
     ui::Dataspace mOutputDataspace;
+    ui::Transform::RotationFlags mOrientation = ui::Transform::ROT_0;
 
     static const bool sDebugHighlighLayers;
 };
