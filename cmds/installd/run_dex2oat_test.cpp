@@ -175,8 +175,6 @@ class RunDex2OatTest : public testing::Test {
         default_expected_flags_["--swap-fd"] = FLAG_UNUSED;
         default_expected_flags_["--class-loader-context"] = FLAG_UNUSED;
         default_expected_flags_["--class-loader-context-fds"] = FLAG_UNUSED;
-        default_expected_flags_["--updatable-bcp-packages-file"] =
-                "=/nonx/updatable-bcp-packages.txt";
 
         // Arch
         default_expected_flags_["--instruction-set"] = "=arm64";
@@ -317,28 +315,6 @@ TEST_F(RunDex2OatTest, WithOnlyClassLoaderContextFds) {
 
     SetExpectedFlagUsed("--class-loader-context", FLAG_UNUSED);
     SetExpectedFlagUsed("--class-loader-context-fds", FLAG_UNUSED);
-    VerifyExpectedFlags();
-}
-
-TEST_F(RunDex2OatTest, DEX2OATBOOTCLASSPATH) {
-    ASSERT_EQ(nullptr, getenv("DEX2OATBOOTCLASSPATH"));
-    ASSERT_EQ(0, setenv("DEX2OATBOOTCLASSPATH", "foobar", /*override=*/ false))
-        << "Failed to setenv: " << strerror(errno);
-
-    CallRunDex2Oat(RunDex2OatArgs::MakeDefaultTestArgs());
-
-    SetExpectedFlagUsed("-Xbootclasspath", ":foobar");
-    VerifyExpectedFlags();
-
-    ASSERT_EQ(0, unsetenv("DEX2OATBOOTCLASSPATH"))
-        << "Failed to setenv: " << strerror(errno);
-}
-
-TEST_F(RunDex2OatTest, UpdatableBootClassPath) {
-    setSystemProperty("dalvik.vm.dex2oat-updatable-bcp-packages-file", "/path/to/file");
-    CallRunDex2Oat(RunDex2OatArgs::MakeDefaultTestArgs());
-
-    SetExpectedFlagUsed("--updatable-bcp-packages-file", "=/path/to/file");
     VerifyExpectedFlags();
 }
 

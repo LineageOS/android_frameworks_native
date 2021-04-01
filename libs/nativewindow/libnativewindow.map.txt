@@ -47,7 +47,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_setBuffersTransform;
     ANativeWindow_setDequeueTimeout; # apex # introduced=30
     ANativeWindow_setFrameRate; # introduced=30
-    ANativeWindow_setFrameRateWithSeamlessness; # introduced=31
+    ANativeWindow_setFrameRateWithChangeStrategy; # introduced=31
     ANativeWindow_setSharedBufferMode; # llndk
     ANativeWindow_setSwapInterval; # llndk
     ANativeWindow_setUsage; # llndk

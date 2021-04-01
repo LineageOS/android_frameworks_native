@@ -266,6 +266,20 @@ enum class MotionClassification : uint8_t {
 const char* motionClassificationToString(MotionClassification classification);
 
 /**
+ * Portion of FrameMetrics timeline of interest to input code.
+ */
+enum GraphicsTimeline : size_t {
+    /** Time when the app sent the buffer to SurfaceFlinger. */
+    GPU_COMPLETED_TIME = 0,
+
+    /** Time when the frame was presented on the display */
+    PRESENT_TIME = 1,
+
+    /** Total size of the 'GraphicsTimeline' array. Must always be last. */
+    SIZE = 2
+};
+
+/**
  * Generator of unique numbers used to identify input events.
  *
  * Layout of ID:
