@@ -381,8 +381,9 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
               outputDependentState.z, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
-    // Solid-color layers should always use an identity transform.
-    const auto bufferTransform = requestedCompositionType != hal::Composition::SOLID_COLOR
+    // Solid-color layers and overridden buffers should always use an identity transform.
+    const auto bufferTransform = (requestedCompositionType != hal::Composition::SOLID_COLOR &&
+                                  getState().overrideInfo.buffer == nullptr)
             ? outputDependentState.bufferTransform
             : static_cast<hal::Transform>(0);
     if (auto error = hwcLayer->setTransform(static_cast<hal::Transform>(bufferTransform));
@@ -674,16 +675,26 @@ std::vector<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionList() co
         return {};
     }
 
+    // Compute the geometry boundaries in layer stack space: we need to transform from the
+    // framebuffer space of the override buffer to layer space.
+    const ProjectionSpace& layerSpace = getOutput().getState().layerStackSpace;
+    const ui::Transform transform = getState().overrideInfo.displaySpace.getTransform(layerSpace);
+    const Rect boundaries = transform.transform(getState().overrideInfo.displayFrame);
+
     LayerFE::LayerSettings settings;
     settings.geometry = renderengine::Geometry{
-            .boundaries = getState().overrideInfo.displayFrame.toFloatRect(),
+            .boundaries = boundaries.toFloatRect(),
     };
     settings.bufferId = getState().overrideInfo.buffer->getId();
-    settings.source =
-            renderengine::PixelSource{.buffer = renderengine::Buffer{
-                                              .buffer = getState().overrideInfo.buffer,
-                                              .fence = getState().overrideInfo.acquireFence,
-                                      }};
+    settings.source = renderengine::PixelSource{
+            .buffer = renderengine::Buffer{
+                    .buffer = getState().overrideInfo.buffer,
+                    .fence = getState().overrideInfo.acquireFence,
+                    // If the transform from layer space to display space contains a rotation, we
+                    // need to undo the rotation in the texture transform
+                    .textureTransform =
+                            ui::Transform(transform.inverse().getOrientation(), 1, 1).asMatrix4(),
+            }};
     settings.sourceDataspace = getState().overrideInfo.dataspace;
     settings.alpha = 1.0f;
 

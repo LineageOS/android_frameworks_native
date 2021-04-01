@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <compositionengine/Output.h>
 #include <compositionengine/impl/planner/CachedSet.h>
 #include <compositionengine/impl/planner/LayerState.h>
 
