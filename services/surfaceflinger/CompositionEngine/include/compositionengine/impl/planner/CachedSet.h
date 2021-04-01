@@ -40,7 +40,9 @@ public:
         const LayerState* getState() const { return mState; }
         const std::string& getName() const { return mState->getName(); }
         Rect getDisplayFrame() const { return mState->getDisplayFrame(); }
-        const sp<GraphicBuffer>& getBuffer() const { return mState->getBuffer(); }
+        const sp<GraphicBuffer>& getBuffer() const {
+            return mState->getOutputLayer()->getLayerFE().getCompositionState()->buffer;
+        }
         int64_t getFramesSinceBufferUpdate() const { return mState->getFramesSinceBufferUpdate(); }
         NonBufferHash getHash() const { return mHash; }
         std::chrono::steady_clock::time_point getLastUpdate() const { return mLastUpdate; }
