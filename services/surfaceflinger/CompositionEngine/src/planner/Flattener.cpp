@@ -193,9 +193,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
     auto currentLayerIter = mLayers.begin();
     auto incomingLayerIter = layers.begin();
     while (incomingLayerIter != layers.end()) {
-        if (mNewCachedSet &&
-            mNewCachedSet->getFingerprint() ==
-                    (*incomingLayerIter)->getHash(LayerStateField::Buffer)) {
+        if (mNewCachedSet && mNewCachedSet->getFingerprint() == (*incomingLayerIter)->getHash()) {
             if (mNewCachedSet->hasBufferUpdate()) {
                 ALOGV("[%s] Dropping new cached set", __func__);
                 ++mInvalidatedCachedSetAges[0];
