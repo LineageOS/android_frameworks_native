@@ -431,11 +431,13 @@ void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) 
         outputDependentState.outputSpaceVisibleRegion.dump(LOG_TAG);
     }
 
-    if (auto error = hwcLayer->setDataspace(outputDependentState.dataspace);
-        error != hal::Error::NONE) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", getLayerFE().getDebugName(),
-              outputDependentState.dataspace, to_string(error).c_str(),
-              static_cast<int32_t>(error));
+    const auto dataspace = outputDependentState.overrideInfo.buffer
+            ? outputDependentState.overrideInfo.dataspace
+            : outputDependentState.dataspace;
+
+    if (auto error = hwcLayer->setDataspace(dataspace); error != hal::Error::NONE) {
+        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", getLayerFE().getDebugName(), dataspace,
+              to_string(error).c_str(), static_cast<int32_t>(error));
     }
 }
 

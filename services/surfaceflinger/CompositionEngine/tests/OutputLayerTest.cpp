@@ -694,6 +694,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
             static_cast<Hwc2::IComposerClient::BlendMode>(41);
     static constexpr float kAlpha = 51.f;
     static constexpr ui::Dataspace kDataspace = static_cast<ui::Dataspace>(71);
+    static constexpr ui::Dataspace kOverrideDataspace = static_cast<ui::Dataspace>(72);
     static constexpr int kSupportedPerFrameMetadata = 101;
     static constexpr int kExpectedHwcSlot = 0;
     static constexpr bool kLayerGenericMetadata1Mandatory = true;
@@ -701,13 +702,16 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
 
     static const half4 kColor;
     static const Rect kDisplayFrame;
+    static const Rect kOverrideDisplayFrame;
     static const Region kOutputSpaceVisibleRegion;
     static const mat4 kColorTransform;
     static const Region kSurfaceDamage;
     static const HdrMetadata kHdrMetadata;
     static native_handle_t* kSidebandStreamHandle;
     static const sp<GraphicBuffer> kBuffer;
+    static const sp<GraphicBuffer> kOverrideBuffer;
     static const sp<Fence> kFence;
+    static const sp<Fence> kOverrideFence;
     static const std::string kLayerGenericMetadata1Key;
     static const std::vector<uint8_t> kLayerGenericMetadata1Value;
     static const std::string kLayerGenericMetadata2Key;
@@ -751,9 +755,19 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
                                                              kLayerGenericMetadata2Value};
     }
 
-    void expectGeometryCommonCalls() {
-        EXPECT_CALL(*mHwcLayer, setDisplayFrame(kDisplayFrame)).WillOnce(Return(kError));
-        EXPECT_CALL(*mHwcLayer, setSourceCrop(kSourceCrop)).WillOnce(Return(kError));
+    void includeOverrideInfo() {
+        auto& overrideInfo = mOutputLayer.editState().overrideInfo;
+
+        overrideInfo.buffer = kOverrideBuffer;
+        overrideInfo.acquireFence = kOverrideFence;
+        overrideInfo.displayFrame = kOverrideDisplayFrame;
+        overrideInfo.dataspace = kOverrideDataspace;
+    }
+
+    void expectGeometryCommonCalls(Rect displayFrame = kDisplayFrame,
+                                   FloatRect sourceCrop = kSourceCrop) {
+        EXPECT_CALL(*mHwcLayer, setDisplayFrame(displayFrame)).WillOnce(Return(kError));
+        EXPECT_CALL(*mHwcLayer, setSourceCrop(sourceCrop)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setZOrder(kZOrder)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setTransform(kBufferTransform)).WillOnce(Return(kError));
 
@@ -761,10 +775,11 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         EXPECT_CALL(*mHwcLayer, setPlaneAlpha(kAlpha)).WillOnce(Return(kError));
     }
 
-    void expectPerFrameCommonCalls(SimulateUnsupported unsupported = SimulateUnsupported::None) {
+    void expectPerFrameCommonCalls(SimulateUnsupported unsupported = SimulateUnsupported::None,
+                                   ui::Dataspace dataspace = kDataspace) {
         EXPECT_CALL(*mHwcLayer, setVisibleRegion(RegionEq(kOutputSpaceVisibleRegion)))
                 .WillOnce(Return(kError));
-        EXPECT_CALL(*mHwcLayer, setDataspace(kDataspace)).WillOnce(Return(kError));
+        EXPECT_CALL(*mHwcLayer, setDataspace(dataspace)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setColorTransform(kColorTransform))
                 .WillOnce(Return(unsupported == SimulateUnsupported::ColorTransform
                                          ? hal::Error::UNSUPPORTED
@@ -793,9 +808,10 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         EXPECT_CALL(*mHwcLayer, setSidebandStream(kSidebandStreamHandle));
     }
 
-    void expectSetHdrMetadataAndBufferCalls() {
+    void expectSetHdrMetadataAndBufferCalls(sp<GraphicBuffer> buffer = kBuffer,
+                                            sp<Fence> fence = kFence) {
         EXPECT_CALL(*mHwcLayer, setPerFrameMetadata(kSupportedPerFrameMetadata, kHdrMetadata));
-        EXPECT_CALL(*mHwcLayer, setBuffer(kExpectedHwcSlot, kBuffer, kFence));
+        EXPECT_CALL(*mHwcLayer, setBuffer(kExpectedHwcSlot, buffer, fence));
     }
 
     void expectGenericLayerMetadataCalls() {
@@ -817,6 +833,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
 const half4 OutputLayerWriteStateToHWCTest::kColor{81.f / 255.f, 82.f / 255.f, 83.f / 255.f,
                                                    84.f / 255.f};
 const Rect OutputLayerWriteStateToHWCTest::kDisplayFrame{1001, 1002, 1003, 10044};
+const Rect OutputLayerWriteStateToHWCTest::kOverrideDisplayFrame{1002, 1003, 1004, 20044};
 const Region OutputLayerWriteStateToHWCTest::kOutputSpaceVisibleRegion{
         Rect{1005, 1006, 1007, 1008}};
 const mat4 OutputLayerWriteStateToHWCTest::kColorTransform{
@@ -828,7 +845,9 @@ const HdrMetadata OutputLayerWriteStateToHWCTest::kHdrMetadata{{/* LightFlattena
 native_handle_t* OutputLayerWriteStateToHWCTest::kSidebandStreamHandle =
         reinterpret_cast<native_handle_t*>(1031);
 const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kBuffer;
+const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kOverrideBuffer = new GraphicBuffer();
 const sp<Fence> OutputLayerWriteStateToHWCTest::kFence;
+const sp<Fence> OutputLayerWriteStateToHWCTest::kOverrideFence = new Fence();
 const std::string OutputLayerWriteStateToHWCTest::kLayerGenericMetadata1Key =
         "com.example.metadata.1";
 const std::vector<uint8_t> OutputLayerWriteStateToHWCTest::kLayerGenericMetadata1Value{{1, 2, 3}};
@@ -981,6 +1000,18 @@ TEST_F(OutputLayerWriteStateToHWCTest, perFrameStateDoesNotIncludeMetadataIfPres
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
+    mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::DEVICE;
+    includeOverrideInfo();
+
+    expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideDisplayFrame.toFloatRect());
+    expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace);
+    expectSetHdrMetadataAndBufferCalls(kOverrideBuffer, kOverrideFence);
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
+
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false);
 }
 
 /*
