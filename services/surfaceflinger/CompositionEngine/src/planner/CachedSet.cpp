@@ -51,10 +51,10 @@ std::string durationString(std::chrono::milliseconds duration) {
 }
 
 CachedSet::Layer::Layer(const LayerState* state, std::chrono::steady_clock::time_point lastUpdate)
-      : mState(state), mHash(state->getHash(LayerStateField::Buffer)), mLastUpdate(lastUpdate) {}
+      : mState(state), mHash(state->getHash()), mLastUpdate(lastUpdate) {}
 
 CachedSet::CachedSet(const LayerState* layer, std::chrono::steady_clock::time_point lastUpdate)
-      : mFingerprint(layer->getHash(LayerStateField::Buffer)), mLastUpdate(lastUpdate) {
+      : mFingerprint(layer->getHash()), mLastUpdate(lastUpdate) {
     addLayer(layer, lastUpdate);
 }
 
