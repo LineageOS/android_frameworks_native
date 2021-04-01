@@ -213,6 +213,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                                 .acquireFence = mNewCachedSet->getDrawFence(),
                                 .displayFrame = mNewCachedSet->getBounds(),
                                 .dataspace = mNewCachedSet->getOutputDataspace(),
+                                .displaySpace = mNewCachedSet->getOutputSpace(),
                         };
                         ++incomingLayerIter;
                     }
@@ -244,6 +245,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                         .acquireFence = currentLayerIter->getDrawFence(),
                         .displayFrame = currentLayerIter->getBounds(),
                         .dataspace = currentLayerIter->getOutputDataspace(),
+                        .displaySpace = currentLayerIter->getOutputSpace(),
                 };
                 ++incomingLayerIter;
             }

@@ -125,7 +125,8 @@ void FlattenerTest::SetUp() {
 
         // set up minimium params needed for rendering
         mOutputState.dataspace = ui::Dataspace::SRGB;
-        mOutputState.displaySpace.orientation = ui::ROTATION_0;
+        mOutputState.framebufferSpace = ProjectionSpace(ui::Size(10, 20), Rect(10, 5));
+        mOutputState.framebufferSpace.orientation = ui::ROTATION_90;
     }
 }
 
@@ -252,6 +253,30 @@ TEST_F(FlattenerTest, flattenLayers_FlattenedLayersStayFlattenWhenNoUpdate) {
     EXPECT_NE(nullptr, overrideBuffer1);
     EXPECT_EQ(overrideBuffer1, overrideBuffer2);
     EXPECT_EQ(overrideBuffer2, overrideBuffer3);
+}
+
+TEST_F(FlattenerTest, flattenLayers_FlattenedLayersSetsProjectionSpace) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+    const auto& overrideDisplaySpace =
+            layerState1->getOutputLayer()->getState().overrideInfo.displaySpace;
+
+    auto& layerState2 = mTestLayers[1]->layerState;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // make all layers inactive
+    mTime += 200ms;
+    expectAllLayersFlattened(layers);
+    EXPECT_EQ(overrideDisplaySpace.bounds,
+              Rect(mOutputState.framebufferSpace.bounds.getWidth(),
+                   mOutputState.framebufferSpace.bounds.getHeight()));
+    EXPECT_EQ(overrideDisplaySpace.content, Rect(0, 0, 2, 2));
+    EXPECT_EQ(overrideDisplaySpace.orientation, mOutputState.framebufferSpace.orientation);
 }
 
 TEST_F(FlattenerTest, flattenLayers_addLayerToFlattenedCauseReset) {
@@ -405,7 +430,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mOutputState.displaySpace.orientation = ui::ROTATION_90;
+    mOutputState.framebufferSpace.orientation = ui::ROTATION_90;
     mFlattener->renderCachedSets(mRenderEngine, mOutputState);
 
     EXPECT_NE(nullptr, overrideBuffer1);
@@ -418,7 +443,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mOutputState.displaySpace.orientation = ui::ROTATION_180;
+    mOutputState.framebufferSpace.orientation = ui::ROTATION_180;
     mFlattener->renderCachedSets(mRenderEngine, mOutputState);
 
     EXPECT_NE(nullptr, overrideBuffer1);
@@ -445,7 +470,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
-    mOutputState.displaySpace.orientation = ui::ROTATION_270;
+    mOutputState.framebufferSpace.orientation = ui::ROTATION_270;
     mFlattener->renderCachedSets(mRenderEngine, mOutputState);
 
     EXPECT_NE(nullptr, overrideBuffer1);

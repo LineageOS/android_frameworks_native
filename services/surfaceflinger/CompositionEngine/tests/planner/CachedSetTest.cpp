@@ -92,7 +92,9 @@ void CachedSetTest::SetUp() {
 
         // set up minimium params needed for rendering
         mOutputState.dataspace = ui::Dataspace::SRGB;
-        mOutputState.displaySpace.orientation = ui::ROTATION_0;
+        mOutputState.framebufferSpace = ProjectionSpace(ui::Size(10, 20), Rect(10, 5));
+        mOutputState.framebufferSpace.orientation = ui::ROTATION_90;
+        mOutputState.layerStackSpace = ProjectionSpace(ui::Size(20, 10), Rect(5, 10));
     }
 }
 
@@ -294,7 +296,9 @@ TEST_F(CachedSetTest, render) {
                                 const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
                                 base::unique_fd*) -> size_t {
         EXPECT_EQ(Rect(0, 0, 2, 2), displaySettings.physicalDisplay);
-        EXPECT_EQ(Rect(0, 0, 2, 2), displaySettings.clip);
+        EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
+        EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
+                  displaySettings.orientation);
         EXPECT_EQ(0.5f, layers[0]->alpha);
         EXPECT_EQ(0.75f, layers[1]->alpha);
         EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
@@ -308,6 +312,11 @@ TEST_F(CachedSetTest, render) {
     EXPECT_CALL(mRenderEngine, cacheExternalTextureBuffer(_));
     cachedSet.render(mRenderEngine, mOutputState);
     expectReadyBuffer(cachedSet);
+
+    EXPECT_EQ(Rect(0, 0, 2, 2), cachedSet.getOutputSpace().content);
+    EXPECT_EQ(Rect(mOutputState.framebufferSpace.bounds.getWidth(),
+                   mOutputState.framebufferSpace.bounds.getHeight()),
+              cachedSet.getOutputSpace().bounds);
 
     // Now check that appending a new cached set properly cleans up RenderEngine resources.
     EXPECT_CALL(mRenderEngine, unbindExternalTextureBuffer(_));
