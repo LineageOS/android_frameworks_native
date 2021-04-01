@@ -690,6 +690,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static constexpr FloatRect kSourceCrop{11.f, 12.f, 13.f, 14.f};
     static constexpr uint32_t kZOrder = 21u;
     static constexpr Hwc2::Transform kBufferTransform = static_cast<Hwc2::Transform>(31);
+    static constexpr Hwc2::Transform kOverrideBufferTransform = static_cast<Hwc2::Transform>(0);
     static constexpr Hwc2::IComposerClient::BlendMode kBlendMode =
             static_cast<Hwc2::IComposerClient::BlendMode>(41);
     static constexpr float kAlpha = 51.f;
@@ -765,11 +766,12 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     }
 
     void expectGeometryCommonCalls(Rect displayFrame = kDisplayFrame,
-                                   FloatRect sourceCrop = kSourceCrop) {
+                                   FloatRect sourceCrop = kSourceCrop,
+                                   Hwc2::Transform bufferTransform = kBufferTransform) {
         EXPECT_CALL(*mHwcLayer, setDisplayFrame(displayFrame)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setSourceCrop(sourceCrop)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setZOrder(kZOrder)).WillOnce(Return(kError));
-        EXPECT_CALL(*mHwcLayer, setTransform(kBufferTransform)).WillOnce(Return(kError));
+        EXPECT_CALL(*mHwcLayer, setTransform(bufferTransform)).WillOnce(Return(kError));
 
         EXPECT_CALL(*mHwcLayer, setBlendMode(kBlendMode)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setPlaneAlpha(kAlpha)).WillOnce(Return(kError));
@@ -1006,7 +1008,8 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
     mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::DEVICE;
     includeOverrideInfo();
 
-    expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideDisplayFrame.toFloatRect());
+    expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideDisplayFrame.toFloatRect(),
+                              kOverrideBufferTransform);
     expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace);
     expectSetHdrMetadataAndBufferCalls(kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
