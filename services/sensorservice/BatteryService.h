@@ -17,7 +17,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <binder/IBatteryStats.h>
+#include <batterystats/IBatteryStats.h>
 #include <utils/Singleton.h>
 
 namespace android {
