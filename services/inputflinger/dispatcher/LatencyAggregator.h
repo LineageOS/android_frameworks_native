@@ -17,6 +17,7 @@
 #ifndef _UI_INPUT_INPUTDISPATCHER_LATENCYAGGREGATOR_H
 #define _UI_INPUT_INPUTDISPATCHER_LATENCYAGGREGATOR_H
 
+#include <kll.h>
 #include <statslog.h>
 #include <utils/Timers.h>
 
@@ -44,16 +45,6 @@ enum SketchIndex : size_t {
 // finishTime   // time at which the finish event was received
 // GraphicsTimeline::GPU_COMPLETED_TIME
 // GraphicsTimeline::PRESENT_TIME
-
-/**
- * TODO(b/167947340): Replace this class with a KLL sketch
- */
-class Sketch {
-public:
-    void addValue(nsecs_t value);
-    android::util::BytesField serialize();
-    void reset();
-};
 
 /**
  * Keep sketches of the provided events and report slow events
@@ -86,8 +77,12 @@ private:
     // ---------- Statistics handling ----------
     void processStatistics(const InputEventTimeline& timeline);
     // Sketches
-    std::array<Sketch, SketchIndex::SIZE> mDownSketches;
-    std::array<Sketch, SketchIndex::SIZE> mMoveSketches;
+    std::array<std::unique_ptr<dist_proc::aggregation::KllQuantile>, SketchIndex::SIZE>
+            mDownSketches;
+    std::array<std::unique_ptr<dist_proc::aggregation::KllQuantile>, SketchIndex::SIZE>
+            mMoveSketches;
+    // How many events have been processed so far
+    size_t mNumSketchEventsProcessed = 0;
 };
 
 } // namespace android::inputdispatcher
