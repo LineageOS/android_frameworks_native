@@ -56,6 +56,12 @@
 #include "skia/debug/SkiaCapture.h"
 #include "system/graphics-base-v1.0.h"
 
+namespace {
+// Debugging settings
+static const bool kPrintLayerSettings = false;
+static const bool kFlushAfterEveryLayer = false;
+} // namespace
+
 bool checkGlError(const char* op, int lineNumber);
 
 namespace android {
@@ -283,6 +289,10 @@ void SkiaGLRenderEngine::assertShadersCompiled(int numShaders) {
     const int cached = mSkSLCacheMonitor.shadersCachedSinceLastCall();
     LOG_ALWAYS_FATAL_IF(cached != numShaders, "Attempted to cache %i shaders; cached %i",
                         numShaders, cached);
+}
+
+int SkiaGLRenderEngine::reportShadersCompiled() {
+    return mSkSLCacheMonitor.shadersCachedSinceLastCall();
 }
 
 SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
@@ -735,6 +745,17 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     for (const auto& layer : layers) {
         ATRACE_NAME("DrawLayer");
 
+        if (kPrintLayerSettings) {
+            std::stringstream ls;
+            PrintTo(*layer, &ls);
+            auto debugs = ls.str();
+            int pos = 0;
+            while (pos < debugs.size()) {
+                ALOGD("cache_debug %s", debugs.substr(pos, 1000).c_str());
+                pos += 1000;
+            }
+        }
+
         sk_sp<SkImage> blurInput;
         if (blurCompositionLayer == layer) {
             LOG_ALWAYS_FATAL_IF(activeSurface == dstSurface);
@@ -955,6 +976,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             canvas->drawRRect(getRoundedRect(layer), paint);
         } else {
             canvas->drawRect(bounds, paint);
+        }
+        if (kFlushAfterEveryLayer) {
+            ATRACE_NAME("flush surface");
+            activeSurface->flush();
         }
     }
     surfaceAutoSaveRestore.restore();
