@@ -110,6 +110,12 @@ bool InputMessage::isValid(size_t actualSize) const {
                 return true;
             case Type::DRAG:
                 return true;
+            case Type::TIMELINE:
+                const nsecs_t gpuCompletedTime =
+                        body.timeline.graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME];
+                const nsecs_t presentTime =
+                        body.timeline.graphicsTimeline[GraphicsTimeline::PRESENT_TIME];
+                return presentTime > gpuCompletedTime;
         }
     }
     return false;
@@ -129,6 +135,8 @@ size_t InputMessage::size() const {
             return sizeof(Header) + body.capture.size();
         case Type::DRAG:
             return sizeof(Header) + body.drag.size();
+        case Type::TIMELINE:
+            return sizeof(Header) + body.timeline.size();
     }
     return sizeof(Header);
 }
@@ -258,6 +266,11 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
             msg->body.drag.x = body.drag.x;
             msg->body.drag.y = body.drag.y;
             msg->body.drag.isExiting = body.drag.isExiting;
+            break;
+        }
+        case InputMessage::Type::TIMELINE: {
+            msg->body.timeline.eventId = body.timeline.eventId;
+            msg->body.timeline.graphicsTimeline = body.timeline.graphicsTimeline;
             break;
         }
     }
@@ -629,7 +642,7 @@ status_t InputPublisher::publishDragEvent(uint32_t seq, int32_t eventId, float x
     return mChannel->sendMessage(&msg);
 }
 
-android::base::Result<InputPublisher::Finished> InputPublisher::receiveFinishedSignal() {
+android::base::Result<InputPublisher::ConsumerResponse> InputPublisher::receiveConsumerResponse() {
     if (DEBUG_TRANSPORT_ACTIONS) {
         ALOGD("channel '%s' publisher ~ %s", mChannel->getName().c_str(), __func__);
     }
@@ -639,16 +652,24 @@ android::base::Result<InputPublisher::Finished> InputPublisher::receiveFinishedS
     if (result) {
         return android::base::Error(result);
     }
-    if (msg.header.type != InputMessage::Type::FINISHED) {
-        ALOGE("channel '%s' publisher ~ Received unexpected %s message from consumer",
-              mChannel->getName().c_str(), NamedEnum::string(msg.header.type).c_str());
-        return android::base::Error(UNKNOWN_ERROR);
+    if (msg.header.type == InputMessage::Type::FINISHED) {
+        return Finished{
+                .seq = msg.header.seq,
+                .handled = msg.body.finished.handled,
+                .consumeTime = msg.body.finished.consumeTime,
+        };
     }
-    return Finished{
-            .seq = msg.header.seq,
-            .handled = msg.body.finished.handled,
-            .consumeTime = msg.body.finished.consumeTime,
-    };
+
+    if (msg.header.type == InputMessage::Type::TIMELINE) {
+        return Timeline{
+                .inputEventId = msg.body.timeline.eventId,
+                .graphicsTimeline = msg.body.timeline.graphicsTimeline,
+        };
+    }
+
+    ALOGE("channel '%s' publisher ~ Received unexpected %s message from consumer",
+          mChannel->getName().c_str(), NamedEnum::string(msg.header.type).c_str());
+    return android::base::Error(UNKNOWN_ERROR);
 }
 
 // --- InputConsumer ---
@@ -785,7 +806,8 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consum
                 break;
             }
 
-            case InputMessage::Type::FINISHED: {
+            case InputMessage::Type::FINISHED:
+            case InputMessage::Type::TIMELINE: {
                 LOG_ALWAYS_FATAL("Consumed a %s message, which should never be seen by "
                                  "InputConsumer!",
                                  NamedEnum::string(mMsg.header.type).c_str());
@@ -1193,6 +1215,24 @@ status_t InputConsumer::sendFinishedSignal(uint32_t seq, bool handled) {
     return sendUnchainedFinishedSignal(seq, handled);
 }
 
+status_t InputConsumer::sendTimeline(int32_t inputEventId,
+                                     std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline) {
+    if (DEBUG_TRANSPORT_ACTIONS) {
+        ALOGD("channel '%s' consumer ~ sendTimeline: inputEventId=%" PRId32
+              ", gpuCompletedTime=%" PRId64 ", presentTime=%" PRId64,
+              mChannel->getName().c_str(), inputEventId,
+              graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME],
+              graphicsTimeline[GraphicsTimeline::PRESENT_TIME]);
+    }
+
+    InputMessage msg;
+    msg.header.type = InputMessage::Type::TIMELINE;
+    msg.header.seq = 0;
+    msg.body.timeline.eventId = inputEventId;
+    msg.body.timeline.graphicsTimeline = std::move(graphicsTimeline);
+    return mChannel->sendMessage(&msg);
+}
+
 nsecs_t InputConsumer::getConsumeTime(uint32_t seq) const {
     auto it = mConsumeTimes.find(seq);
     // Consume time will be missing if either 'finishInputEvent' is called twice, or if it was
@@ -1397,6 +1437,19 @@ std::string InputConsumer::dump() const {
                     out += android::base::StringPrintf("x=%.1f y=%.1f, isExiting=%s",
                                                        msg.body.drag.x, msg.body.drag.y,
                                                        toString(msg.body.drag.isExiting));
+                    break;
+                }
+                case InputMessage::Type::TIMELINE: {
+                    const nsecs_t gpuCompletedTime =
+                            msg.body.timeline
+                                    .graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME];
+                    const nsecs_t presentTime =
+                            msg.body.timeline.graphicsTimeline[GraphicsTimeline::PRESENT_TIME];
+                    out += android::base::StringPrintf("inputEventId=%" PRId32
+                                                       ", gpuCompletedTime=%" PRId64
+                                                       ", presentTime=%" PRId64,
+                                                       msg.body.timeline.eventId, gpuCompletedTime,
+                                                       presentTime);
                     break;
                 }
             }

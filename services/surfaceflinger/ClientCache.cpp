@@ -48,7 +48,7 @@ bool ClientCache::getBuffer(const client_cache_t& cacheId,
 
     auto bufItr = processBuffers.find(id);
     if (bufItr == processBuffers.end()) {
-        ALOGE("failed to get buffer, invalid buffer id");
+        ALOGV("failed to get buffer, invalid buffer id");
         return false;
     }
 
@@ -150,7 +150,7 @@ bool ClientCache::registerErasedRecipient(const client_cache_t& cacheId,
 
     ClientCacheBuffer* buf = nullptr;
     if (!getBuffer(cacheId, &buf)) {
-        ALOGE("failed to register erased recipient, could not retrieve buffer");
+        ALOGV("failed to register erased recipient, could not retrieve buffer");
         return false;
     }
     buf->recipients.insert(recipient);

@@ -50,6 +50,8 @@ namespace android {
 
 class TimeStats {
 public:
+    using SetFrameRateVote = TimeStatsHelper::SetFrameRateVote;
+
     virtual ~TimeStats() = default;
 
     // Called once boot has been finished to perform additional capabilities,
@@ -110,10 +112,12 @@ public:
     // SetPresent{Time, Fence} are not expected to be called in the critical
     // rendering path, as they flush prior fences if those fences have fired.
     virtual void setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime,
-                                Fps displayRefreshRate, std::optional<Fps> renderRate) = 0;
+                                Fps displayRefreshRate, std::optional<Fps> renderRate,
+                                SetFrameRateVote frameRateVote) = 0;
     virtual void setPresentFence(int32_t layerId, uint64_t frameNumber,
                                  const std::shared_ptr<FenceTime>& presentFence,
-                                 Fps displayRefreshRate, std::optional<Fps> renderRate) = 0;
+                                 Fps displayRefreshRate, std::optional<Fps> renderRate,
+                                 SetFrameRateVote frameRateVote) = 0;
 
     // Increments janky frames, blamed to the provided {refreshRate, renderRate, uid, layerName}
     // key, with JankMetadata as supplementary reasons for the jank. Because FrameTimeline is the
@@ -307,10 +311,11 @@ public:
     void setAcquireFence(int32_t layerId, uint64_t frameNumber,
                          const std::shared_ptr<FenceTime>& acquireFence) override;
     void setPresentTime(int32_t layerId, uint64_t frameNumber, nsecs_t presentTime,
-                        Fps displayRefreshRate, std::optional<Fps> renderRate) override;
+                        Fps displayRefreshRate, std::optional<Fps> renderRate,
+                        SetFrameRateVote frameRateVote) override;
     void setPresentFence(int32_t layerId, uint64_t frameNumber,
                          const std::shared_ptr<FenceTime>& presentFence, Fps displayRefreshRate,
-                         std::optional<Fps> renderRate) override;
+                         std::optional<Fps> renderRate, SetFrameRateVote frameRateVote) override;
 
     void incrementJankyFrames(const JankyFramesInfo& info) override;
     // Clean up the layer record
@@ -334,7 +339,8 @@ private:
     AStatsManager_PullAtomCallbackReturn populateLayerAtom(AStatsEventList* data);
     bool recordReadyLocked(int32_t layerId, TimeRecord* timeRecord);
     void flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayRefreshRate,
-                                            std::optional<Fps> renderRate);
+                                            std::optional<Fps> renderRate,
+                                            SetFrameRateVote frameRateVote);
     void flushPowerTimeLocked();
     void flushAvailableGlobalRecordsToStatsLocked();
     bool canAddNewAggregatedStats(uid_t uid, const std::string& layerName);

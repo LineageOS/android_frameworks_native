@@ -555,11 +555,13 @@ public:
         }).detach();
     }
 
-    status_t setFrameRate(float frameRate, int8_t compatibility, bool shouldBeSeamless) override {
-        if (!ValidateFrameRate(frameRate, compatibility, "BBQSurface::setFrameRate")) {
+    status_t setFrameRate(float frameRate, int8_t compatibility,
+                          int8_t changeFrameRateStrategy) override {
+        if (!ValidateFrameRate(frameRate, compatibility, changeFrameRateStrategy,
+                               "BBQSurface::setFrameRate")) {
             return BAD_VALUE;
         }
-        return mBbq->setFrameRate(frameRate, compatibility, shouldBeSeamless);
+        return mBbq->setFrameRate(frameRate, compatibility, changeFrameRateStrategy);
     }
 
     status_t setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo) override {
