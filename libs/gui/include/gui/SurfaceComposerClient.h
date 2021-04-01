@@ -515,7 +515,7 @@ public:
         Transaction& setShadowRadius(const sp<SurfaceControl>& sc, float cornerRadius);
 
         Transaction& setFrameRate(const sp<SurfaceControl>& sc, float frameRate,
-                                  int8_t compatibility, bool shouldBeSeamless);
+                                  int8_t compatibility, int8_t changeFrameRateStrategy);
 
         // Set by window manager indicating the layer and all its children are
         // in a different orientation than the display. The hint suggests that

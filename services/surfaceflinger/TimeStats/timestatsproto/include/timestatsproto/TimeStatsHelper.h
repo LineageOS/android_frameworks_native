@@ -55,6 +55,28 @@ public:
         std::string toString() const;
     };
 
+    struct SetFrameRateVote {
+        float frameRate = 0;
+
+        // Needs to be in sync with atoms.proto
+        enum class FrameRateCompatibility {
+            Undefined = 0,
+            Default = 1,
+            ExactOrMultiple = 2,
+        } frameRateCompatibility = FrameRateCompatibility::Undefined;
+
+        // Needs to be in sync with atoms.proto
+        enum class Seamlessness {
+            Undefined = 0,
+            ShouldBeSeamless = 1,
+            NotRequired = 2,
+        } seamlessness = Seamlessness::Undefined;
+
+        static std::string toString(FrameRateCompatibility);
+        static std::string toString(Seamlessness);
+        std::string toString() const;
+    };
+
     class TimeStatsLayer {
     public:
         uid_t uid;
@@ -67,6 +89,7 @@ public:
         int32_t lateAcquireFrames = 0;
         int32_t badDesiredPresentFrames = 0;
         JankPayload jankPayload;
+        SetFrameRateVote setFrameRateVote;
         std::unordered_map<std::string, Histogram> deltas;
 
         std::string toString() const;
