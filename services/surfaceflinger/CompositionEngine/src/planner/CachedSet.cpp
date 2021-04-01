@@ -193,6 +193,23 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
     std::transform(layerSettings.cbegin(), layerSettings.cend(),
                    std::back_inserter(layerSettingsPointers),
                    [](const renderengine::LayerSettings& settings) { return &settings; });
+    renderengine::LayerSettings holePunchSettings;
+    if (mHolePunchLayer) {
+        auto clientCompositionList =
+                mHolePunchLayer->getOutputLayer()->getLayerFE().prepareClientCompositionList(
+                        targetSettings);
+        // Assume that the final layer contains the buffer that we want to
+        // replace with a hole punch.
+        holePunchSettings = clientCompositionList.back();
+        LOG_ALWAYS_FATAL_IF(!holePunchSettings.source.buffer.buffer, "Expected to have a buffer!");
+        // This mimics Layer::prepareClearClientComposition
+        holePunchSettings.source.buffer.buffer = nullptr;
+        holePunchSettings.source.solidColor = half3(0.0f, 0.0f, 0.0f);
+        holePunchSettings.disableBlending = true;
+        holePunchSettings.alpha = 0.0f;
+        holePunchSettings.name = std::string("hole punch layer");
+        layerSettingsPointers.push_back(&holePunchSettings);
+    }
 
     if (sDebugHighlighLayers) {
         highlight = {
@@ -239,6 +256,26 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
     } else {
         mTexture = nullptr;
     }
+}
+
+bool CachedSet::requiresHolePunch() const {
+    // In order for the hole punch to be beneficial, the layer must be updating
+    // regularly, meaning  it should not have been merged with other layers.
+    if (getLayerCount() != 1) {
+        return false;
+    }
+
+    // There is no benefit to a hole punch unless the layer has a buffer.
+    if (!mLayers[0].getBuffer()) {
+        return false;
+    }
+
+    const auto& layerFE = mLayers[0].getState()->getOutputLayer()->getLayerFE();
+    return layerFE.hasRoundedCorners();
+}
+
+void CachedSet::addHolePunchLayer(const LayerState* layerState) {
+    mHolePunchLayer = layerState;
 }
 
 void CachedSet::dump(std::string& result) const {

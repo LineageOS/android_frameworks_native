@@ -298,6 +298,11 @@ void Flattener::buildCachedSets(time_point now) {
 
     std::vector<Run> runs;
     bool isPartOfRun = false;
+
+    // Keep track of the layer that follows a run. It's possible that we will
+    // render it with a hole-punch.
+    const CachedSet* holePunchLayer = nullptr;
+
     for (auto currentSet = mLayers.cbegin(); currentSet != mLayers.cend(); ++currentSet) {
         if (now - currentSet->getLastUpdate() > kActiveLayerTimeout) {
             // Layer is inactive
@@ -312,10 +317,20 @@ void Flattener::buildCachedSets(time_point now) {
                     isPartOfRun = true;
                 }
             }
-        } else {
+        } else if (isPartOfRun) {
             // Runs must be at least 2 sets long or there's nothing to combine
-            if (isPartOfRun && runs.back().start->getLayerCount() == runs.back().length) {
+            if (runs.back().start->getLayerCount() == runs.back().length) {
                 runs.pop_back();
+            } else {
+                // The prior run contained at least two sets. Currently, we'll
+                // only possibly merge a single run, so only keep track of a
+                // holePunchLayer if this is the first run.
+                if (runs.size() == 1) {
+                    holePunchLayer = &(*currentSet);
+                }
+
+                // TODO(b/185114532: Break out of the loop? We may find more runs, but we
+                // won't do anything with them.
             }
 
             isPartOfRun = false;
@@ -339,6 +354,12 @@ void Flattener::buildCachedSets(time_point now) {
     while (mNewCachedSet->getLayerCount() < runs[0].length) {
         ++currentSet;
         mNewCachedSet->append(*currentSet);
+    }
+
+    if (mEnableHolePunch && holePunchLayer && holePunchLayer->requiresHolePunch()) {
+        // Add the pip layer to mNewCachedSet, but in a special way - it should
+        // replace the buffer with a clear round rect.
+        mNewCachedSet->addHolePunchLayer(holePunchLayer->getFirstLayer().getState());
     }
 
     // TODO(b/181192467): Actually compute new LayerState vector and corresponding hash for each run

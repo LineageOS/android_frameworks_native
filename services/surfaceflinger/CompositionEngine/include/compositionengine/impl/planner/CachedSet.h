@@ -105,12 +105,23 @@ public:
 
     void dump(std::string& result) const;
 
+    // Whether this represents a single layer with a buffer and rounded corners.
+    // If it is, we can draw it by placing it behind another CachedSet and
+    // punching a hole.
+    bool requiresHolePunch() const;
+
+    // Add a layer that will be drawn behind this one. ::render() will render a
+    // hole in this CachedSet's buffer, allowing the supplied layer to peek
+    // through. Must be called before ::render().
+    void addHolePunchLayer(const LayerState*);
+
 private:
     CachedSet() = default;
 
     const NonBufferHash mFingerprint;
     std::chrono::steady_clock::time_point mLastUpdate = std::chrono::steady_clock::now();
     std::vector<Layer> mLayers;
+    const LayerState* mHolePunchLayer = nullptr;
     Rect mBounds = Rect::EMPTY_RECT;
     Region mVisibleRegion;
     size_t mAge = 0;
