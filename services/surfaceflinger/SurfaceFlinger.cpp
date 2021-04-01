@@ -3984,13 +3984,16 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
     }
     if (what & layer_state_t::eFrameRateChanged) {
-        if (ValidateFrameRate(s.frameRate, s.frameRateCompatibility,
-                              "SurfaceFlinger::setClientStateLocked", privileged) &&
-            layer->setFrameRate(Layer::FrameRate(Fps(s.frameRate),
-                                                 Layer::FrameRate::convertCompatibility(
-                                                         s.frameRateCompatibility),
-                                                 s.shouldBeSeamless))) {
-            flags |= eTraversalNeeded;
+        if (ValidateFrameRate(s.frameRate, s.frameRateCompatibility, s.changeFrameRateStrategy,
+                              "SurfaceFlinger::setClientStateLocked", privileged)) {
+            const auto compatibility =
+                    Layer::FrameRate::convertCompatibility(s.frameRateCompatibility);
+            const auto strategy =
+                    Layer::FrameRate::convertChangeFrameRateStrategy(s.changeFrameRateStrategy);
+
+            if (layer->setFrameRate(Layer::FrameRate(Fps(s.frameRate), compatibility, strategy))) {
+                flags |= eTraversalNeeded;
+            }
         }
     }
     if (what & layer_state_t::eFixedTransformHintChanged) {
@@ -6392,8 +6395,9 @@ const std::unordered_map<std::string, uint32_t>& SurfaceFlinger::getGenericLayer
 }
 
 status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface, float frameRate,
-                                      int8_t compatibility, bool shouldBeSeamless) {
-    if (!ValidateFrameRate(frameRate, compatibility, "SurfaceFlinger::setFrameRate")) {
+                                      int8_t compatibility, int8_t changeFrameRateStrategy) {
+    if (!ValidateFrameRate(frameRate, compatibility, changeFrameRateStrategy,
+                           "SurfaceFlinger::setFrameRate")) {
         return BAD_VALUE;
     }
 
@@ -6405,10 +6409,12 @@ status_t SurfaceFlinger::setFrameRate(const sp<IGraphicBufferProducer>& surface,
                 ALOGE("Attempt to set frame rate on a layer that no longer exists");
                 return BAD_VALUE;
             }
+            const auto strategy =
+                    Layer::FrameRate::convertChangeFrameRateStrategy(changeFrameRateStrategy);
             if (layer->setFrameRate(
                         Layer::FrameRate(Fps{frameRate},
                                          Layer::FrameRate::convertCompatibility(compatibility),
-                                         shouldBeSeamless))) {
+                                         strategy))) {
                 setTransactionFlags(eTraversalNeeded);
             }
         } else {
