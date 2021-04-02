@@ -19,6 +19,7 @@
 // #define LOG_NDEBUG 0
 
 #include <android-base/properties.h>
+#include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/planner/CachedSet.h>
 #include <math/HashCombine.h>
 #include <renderengine/DisplaySettings.h>
@@ -50,10 +51,10 @@ std::string durationString(std::chrono::milliseconds duration) {
 }
 
 CachedSet::Layer::Layer(const LayerState* state, std::chrono::steady_clock::time_point lastUpdate)
-      : mState(state), mHash(state->getHash(LayerStateField::Buffer)), mLastUpdate(lastUpdate) {}
+      : mState(state), mHash(state->getHash()), mLastUpdate(lastUpdate) {}
 
 CachedSet::CachedSet(const LayerState* layer, std::chrono::steady_clock::time_point lastUpdate)
-      : mFingerprint(layer->getHash(LayerStateField::Buffer)), mLastUpdate(lastUpdate) {
+      : mFingerprint(layer->getHash()), mLastUpdate(lastUpdate) {
     addLayer(layer, lastUpdate);
 }
 
@@ -84,6 +85,7 @@ NonBufferHash CachedSet::getNonBufferHash() const {
     size_t hash = 0;
     android::hashCombineSingle(hash, mBounds);
     android::hashCombineSingle(hash, mOutputDataspace);
+    android::hashCombineSingle(hash, mOrientation);
     return hash;
 }
 
@@ -148,17 +150,22 @@ void CachedSet::updateAge(std::chrono::steady_clock::time_point now) {
     }
 }
 
-void CachedSet::render(renderengine::RenderEngine& renderEngine, ui::Dataspace outputDataspace) {
+void CachedSet::render(renderengine::RenderEngine& renderEngine,
+                       const OutputCompositionState& outputState) {
+    const Rect& viewport = outputState.layerStackSpace.content;
+    const ui::Dataspace& outputDataspace = outputState.dataspace;
+    const ui::Transform::RotationFlags orientation =
+            ui::Transform::toRotationFlags(outputState.framebufferSpace.orientation);
     renderengine::DisplaySettings displaySettings{
             .physicalDisplay = Rect(0, 0, mBounds.getWidth(), mBounds.getHeight()),
-            .clip = mBounds,
+            .clip = viewport,
             .outputDataspace = outputDataspace,
+            .orientation = orientation,
     };
 
     Region clearRegion = Region::INVALID_REGION;
-    Rect viewport = mBounds;
     LayerFE::ClientCompositionTargetSettings targetSettings{
-            .clip = Region(mBounds),
+            .clip = Region(viewport),
             .needsFiltering = false,
             .isSecure = true,
             .supportsProtectedContent = false,
@@ -216,7 +223,12 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, ui::Dataspace o
     if (result == NO_ERROR) {
         mTexture.setBuffer(buffer, &renderEngine);
         mDrawFence = new Fence(drawFence.release());
+        mOutputSpace = ProjectionSpace(ui::Size(outputState.framebufferSpace.bounds.getWidth(),
+                                                outputState.framebufferSpace.bounds.getHeight()),
+                                       mBounds);
+        mOutputSpace.orientation = outputState.framebufferSpace.orientation;
         mOutputDataspace = outputDataspace;
+        mOrientation = orientation;
     }
 }
 

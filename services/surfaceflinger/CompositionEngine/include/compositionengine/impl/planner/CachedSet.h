@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <compositionengine/Output.h>
+#include <compositionengine/ProjectionSpace.h>
 #include <compositionengine/impl/planner/LayerState.h>
 #include <renderengine/RenderEngine.h>
 
@@ -38,7 +40,9 @@ public:
         const LayerState* getState() const { return mState; }
         const std::string& getName() const { return mState->getName(); }
         Rect getDisplayFrame() const { return mState->getDisplayFrame(); }
-        const sp<GraphicBuffer>& getBuffer() const { return mState->getBuffer(); }
+        const sp<GraphicBuffer>& getBuffer() const {
+            return mState->getOutputLayer()->getLayerFE().getCompositionState()->buffer;
+        }
         int64_t getFramesSinceBufferUpdate() const { return mState->getFramesSinceBufferUpdate(); }
         NonBufferHash getHash() const { return mHash; }
         std::chrono::steady_clock::time_point getLastUpdate() const { return mLastUpdate; }
@@ -62,6 +66,7 @@ public:
     size_t getAge() const { return mAge; }
     const sp<GraphicBuffer>& getBuffer() const { return mTexture.getBuffer(); }
     const sp<Fence>& getDrawFence() const { return mDrawFence; }
+    const ProjectionSpace& getOutputSpace() const { return mOutputSpace; }
     ui::Dataspace getOutputDataspace() const { return mOutputDataspace; }
 
     NonBufferHash getNonBufferHash() const;
@@ -92,8 +97,8 @@ public:
     }
     void incrementAge() { ++mAge; }
 
-    // Renders the cached set with the supplied output dataspace.
-    void render(renderengine::RenderEngine&, ui::Dataspace outputDataspace);
+    // Renders the cached set with the supplied output composition state.
+    void render(renderengine::RenderEngine& re, const OutputCompositionState& outputState);
 
     void dump(std::string& result) const;
 
@@ -132,7 +137,9 @@ private:
 
     Texture mTexture;
     sp<Fence> mDrawFence;
+    ProjectionSpace mOutputSpace;
     ui::Dataspace mOutputDataspace;
+    ui::Transform::RotationFlags mOrientation = ui::Transform::ROT_0;
 
     static const bool sDebugHighlighLayers;
 };

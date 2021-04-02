@@ -3457,7 +3457,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         sp<Layer> layer = nullptr;
         if (s.surface) {
             layer = fromHandleLocked(s.surface).promote();
-        } else if (acquireFenceChanged) {
+        } else if (s.hasBufferChanges()) {
             ALOGW("Transaction with buffer, but no Layer?");
             continue;
         }
@@ -3467,7 +3467,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
 
         ATRACE_NAME(layer->getName().c_str());
 
-        if (acquireFenceChanged) {
+        if (s.hasBufferChanges()) {
             // If backpressure is enabled and we already have a buffer to commit, keep the
             // transaction in the queue.
             const bool hasPendingBuffer = pendingBuffers.find(s.surface) != pendingBuffers.end();
@@ -3550,7 +3550,7 @@ status_t SurfaceFlinger::setTransactionState(
 
     // Check for incoming buffer updates and increment the pending buffer count.
     for (const auto& state : states) {
-        if ((state.state.what & layer_state_t::eAcquireFenceChanged) && (state.state.surface)) {
+        if (state.state.hasBufferChanges() && (state.state.surface)) {
             mBufferCountTracker.increment(state.state.surface->localBinder());
         }
     }

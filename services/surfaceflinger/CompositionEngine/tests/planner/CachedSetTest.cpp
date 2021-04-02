@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/planner/CachedSet.h>
 #include <compositionengine/impl/planner/LayerState.h>
 #include <compositionengine/mock/LayerFE.h>
@@ -59,6 +60,7 @@ protected:
 
     static constexpr size_t kNumLayers = 5;
     std::vector<std::unique_ptr<TestLayer>> mTestLayers;
+    impl::OutputCompositionState mOutputState;
 
     android::renderengine::mock::RenderEngine mRenderEngine;
 };
@@ -87,6 +89,12 @@ void CachedSetTest::SetUp() {
                 std::make_unique<CachedSet::Layer>(testLayer->layerState.get(), kStartTime);
 
         mTestLayers.emplace_back(std::move(testLayer));
+
+        // set up minimium params needed for rendering
+        mOutputState.dataspace = ui::Dataspace::SRGB;
+        mOutputState.framebufferSpace = ProjectionSpace(ui::Size(10, 20), Rect(10, 5));
+        mOutputState.framebufferSpace.orientation = ui::ROTATION_90;
+        mOutputState.layerStackSpace = ProjectionSpace(ui::Size(20, 10), Rect(5, 10));
     }
 }
 
@@ -288,7 +296,9 @@ TEST_F(CachedSetTest, render) {
                                 const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
                                 base::unique_fd*) -> size_t {
         EXPECT_EQ(Rect(0, 0, 2, 2), displaySettings.physicalDisplay);
-        EXPECT_EQ(Rect(0, 0, 2, 2), displaySettings.clip);
+        EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
+        EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
+                  displaySettings.orientation);
         EXPECT_EQ(0.5f, layers[0]->alpha);
         EXPECT_EQ(0.75f, layers[1]->alpha);
         EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
@@ -300,8 +310,13 @@ TEST_F(CachedSetTest, render) {
     EXPECT_CALL(*layerFE2, prepareClientCompositionList(_)).WillOnce(Return(clientCompList2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
     EXPECT_CALL(mRenderEngine, cacheExternalTextureBuffer(_));
-    cachedSet.render(mRenderEngine, ui::Dataspace::SRGB);
+    cachedSet.render(mRenderEngine, mOutputState);
     expectReadyBuffer(cachedSet);
+
+    EXPECT_EQ(Rect(0, 0, 2, 2), cachedSet.getOutputSpace().content);
+    EXPECT_EQ(Rect(mOutputState.framebufferSpace.bounds.getWidth(),
+                   mOutputState.framebufferSpace.bounds.getHeight()),
+              cachedSet.getOutputSpace().bounds);
 
     // Now check that appending a new cached set properly cleans up RenderEngine resources.
     EXPECT_CALL(mRenderEngine, unbindExternalTextureBuffer(_));
