@@ -106,6 +106,12 @@ cc_test {
 
 cc_test {
     name: "binderRpcTest",
+    host_supported: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
     defaults: ["binder_test_defaults"],
 
     srcs: [
@@ -122,7 +128,6 @@ cc_test {
     ],
     test_suites: ["general-tests"],
     require_root: true,
-    host_supported: true,
 }
 
 cc_test {

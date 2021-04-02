@@ -1252,7 +1252,7 @@ void Output::postFramebuffer() {
 
 void Output::renderCachedSets() {
     if (mPlanner) {
-        mPlanner->renderCachedSets(getCompositionEngine().getRenderEngine(), getState().dataspace);
+        mPlanner->renderCachedSets(getCompositionEngine().getRenderEngine(), getState());
     }
 }
 

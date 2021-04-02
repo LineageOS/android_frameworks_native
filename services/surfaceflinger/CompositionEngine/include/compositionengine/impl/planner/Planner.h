@@ -59,7 +59,8 @@ public:
             compositionengine::Output::OutputLayersEnumerator<compositionengine::Output>&& layers);
 
     // The planner will call to the Flattener to render any pending cached set
-    void renderCachedSets(renderengine::RenderEngine&, ui::Dataspace outputDataspace);
+    void renderCachedSets(renderengine::RenderEngine& re,
+                          const OutputCompositionState& outputState);
 
     void dump(const Vector<String16>& args, std::string&);
 

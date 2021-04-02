@@ -52,12 +52,12 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
 }
 
 void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine,
-                                 ui::Dataspace outputDataspace) {
+                                 const OutputCompositionState& outputState) {
     if (!mNewCachedSet) {
         return;
     }
 
-    mNewCachedSet->render(renderEngine, outputDataspace);
+    mNewCachedSet->render(renderEngine, outputState);
 }
 
 void Flattener::dump(std::string& result) const {
@@ -193,9 +193,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
     auto currentLayerIter = mLayers.begin();
     auto incomingLayerIter = layers.begin();
     while (incomingLayerIter != layers.end()) {
-        if (mNewCachedSet &&
-            mNewCachedSet->getFingerprint() ==
-                    (*incomingLayerIter)->getHash(LayerStateField::Buffer)) {
+        if (mNewCachedSet && mNewCachedSet->getFingerprint() == (*incomingLayerIter)->getHash()) {
             if (mNewCachedSet->hasBufferUpdate()) {
                 ALOGV("[%s] Dropping new cached set", __func__);
                 ++mInvalidatedCachedSetAges[0];
@@ -213,6 +211,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                                 .acquireFence = mNewCachedSet->getDrawFence(),
                                 .displayFrame = mNewCachedSet->getBounds(),
                                 .dataspace = mNewCachedSet->getOutputDataspace(),
+                                .displaySpace = mNewCachedSet->getOutputSpace(),
                         };
                         ++incomingLayerIter;
                     }
@@ -244,6 +243,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                         .acquireFence = currentLayerIter->getDrawFence(),
                         .displayFrame = currentLayerIter->getBounds(),
                         .dataspace = currentLayerIter->getOutputDataspace(),
+                        .displaySpace = currentLayerIter->getOutputSpace(),
                 };
                 ++incomingLayerIter;
             }
