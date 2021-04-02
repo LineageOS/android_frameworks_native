@@ -48,8 +48,6 @@ public:
 
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
-    void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
-    void unbindExternalTextureBuffer(uint64_t bufferId) override;
     size_t getMaxTextureSize() const override;
     size_t getMaxViewportDims() const override;
 
@@ -60,13 +58,18 @@ public:
 
     status_t drawLayers(const DisplaySettings& display,
                         const std::vector<const LayerSettings*>& layers,
-                        const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
-                        base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
+                        const std::shared_ptr<ExternalTexture>& buffer,
+                        const bool useFramebufferCache, base::unique_fd&& bufferFence,
+                        base::unique_fd* drawFence) override;
 
     void cleanFramebufferCache() override;
     int getContextPriority() override;
     bool supportsBackgroundBlur() override;
     void onPrimaryDisplaySizeChanged(ui::Size size) override;
+
+protected:
+    void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;
+    void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
 
 private:
     void threadMain(CreateInstanceFactory factory);

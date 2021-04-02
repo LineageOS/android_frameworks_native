@@ -208,7 +208,7 @@ public:
 
         Region transparentRegionHint;
 
-        sp<GraphicBuffer> buffer;
+        std::shared_ptr<renderengine::ExternalTexture> buffer;
         client_cache_t clientCacheId;
         sp<Fence> acquireFence;
         std::shared_ptr<FenceTime> acquireFenceTime;
@@ -412,10 +412,11 @@ public:
     // Used only to set BufferStateLayer state
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
-    virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, const sp<Fence>& /*acquireFence*/,
-                           nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
-                           bool /*isAutoTimestamp*/, const client_cache_t& /*clientCacheId*/,
-                           uint64_t /* frameNumber */, std::optional<nsecs_t> /* dequeueTime */,
+    virtual bool setBuffer(const std::shared_ptr<renderengine::ExternalTexture>& /*buffer*/,
+                           const sp<Fence>& /*acquireFence*/, nsecs_t /*postTime*/,
+                           nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
+                           const client_cache_t& /*clientCacheId*/, uint64_t /* frameNumber */,
+                           std::optional<nsecs_t> /* dequeueTime */,
                            const FrameTimelineInfo& /*info*/,
                            const sp<ITransactionCompletedListener>& /* releaseBufferListener */) {
         return false;
@@ -726,7 +727,7 @@ public:
      * Called before updating the drawing state buffer. Used by BufferStateLayer to release any
      * unlatched buffers in the drawing state.
      */
-    virtual void bufferMayChange(sp<GraphicBuffer>& /* newBuffer */){};
+    virtual void bufferMayChange(const sp<GraphicBuffer>& /* newBuffer */){};
 
     /*
      * Remove relative z for the layer if its relative parent is not part of the

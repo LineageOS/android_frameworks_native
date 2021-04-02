@@ -21,6 +21,8 @@
 #include <gtest/gtest.h>
 #include <gui/SurfaceComposerClient.h>
 #include <log/log.h>
+#include <renderengine/ExternalTexture.h>
+#include <renderengine/mock/RenderEngine.h>
 #include <utils/String8.h>
 
 #include "TestableSurfaceFlinger.h"
@@ -104,6 +106,7 @@ public:
 
     TestableSurfaceFlinger mFlinger;
     Hwc2::mock::Composer* mComposer = nullptr;
+    renderengine::mock::RenderEngine mRenderEngine;
     FenceToFenceTimeMap fenceFactory;
     client_cache_t mClientCache;
 
@@ -124,7 +127,10 @@ public:
         sp<BufferStateLayer> layer = createBufferStateLayer();
         sp<Fence> fence(new Fence());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
-        sp<GraphicBuffer> buffer{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        const auto buffer = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         acquireFence->signalForTest(12);
@@ -149,7 +155,10 @@ public:
 
         sp<Fence> fence1(new Fence());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
-        sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        const auto buffer1 = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
@@ -158,7 +167,10 @@ public:
 
         sp<Fence> fence2(new Fence());
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
-        sp<GraphicBuffer> buffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        const auto buffer2 = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         nsecs_t start = systemTime();
         layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
@@ -196,8 +208,10 @@ public:
 
         sp<Fence> fence(new Fence());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
-        sp<GraphicBuffer> buffer{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
-
+        const auto buffer = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         acquireFence->signalForTest(12);
@@ -222,8 +236,10 @@ public:
         sp<BufferStateLayer> layer = createBufferStateLayer();
         sp<Fence> fence(new Fence());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
-        sp<GraphicBuffer> buffer{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
-
+        const auto buffer = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
@@ -252,8 +268,10 @@ public:
 
         sp<Fence> fence(new Fence());
         auto acquireFence = fenceFactory.createFenceTimeForTest(fence);
-        sp<GraphicBuffer> buffer{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
-
+        const auto buffer = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         layer->setBuffer(buffer, fence, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 3, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         EXPECT_EQ(2u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
@@ -351,7 +369,10 @@ public:
 
         sp<Fence> fence1(new Fence());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
-        sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        const auto buffer1 = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         ASSERT_NE(nullptr, layer->mCurrentState.bufferSurfaceFrameTX);
@@ -359,7 +380,10 @@ public:
 
         sp<Fence> fence2(new Fence());
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
-        sp<GraphicBuffer> buffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        const auto buffer2 = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         acquireFence2->signalForTest(12);
@@ -386,7 +410,10 @@ public:
 
         sp<Fence> fence1(new Fence());
         auto acquireFence1 = fenceFactory.createFenceTimeForTest(fence1);
-        sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        const auto buffer1 = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 1, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
         EXPECT_EQ(0u, layer->mCurrentState.bufferlessSurfaceFramesTX.size());
@@ -395,7 +422,10 @@ public:
 
         sp<Fence> fence2(new Fence());
         auto acquireFence2 = fenceFactory.createFenceTimeForTest(fence2);
-        sp<GraphicBuffer> buffer2{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        const auto buffer2 = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         auto dropStartTime1 = systemTime();
         layer->setBuffer(buffer2, fence2, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ FrameTimelineInfo::INVALID_VSYNC_ID, /*inputEventId*/ 0},
@@ -407,7 +437,10 @@ public:
 
         sp<Fence> fence3(new Fence());
         auto acquireFence3 = fenceFactory.createFenceTimeForTest(fence3);
-        sp<GraphicBuffer> buffer3{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+        const auto buffer3 = std::make_shared<
+                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                 1, 0),
+                                               mRenderEngine, false);
         auto dropStartTime2 = systemTime();
         layer->setBuffer(buffer3, fence3, 10, 20, false, mClientCache, 1, std::nullopt,
                          {/*vsyncId*/ 2, /*inputEventId*/ 0}, nullptr /* releaseBufferCallback */);
@@ -447,7 +480,11 @@ public:
         std::vector<std::shared_ptr<frametimeline::SurfaceFrame>> bufferlessSurfaceFrames;
         for (int i = 0; i < 10; i += 2) {
             sp<Fence> fence1(new Fence());
-            sp<GraphicBuffer> buffer1{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
+            const auto buffer1 = std::make_shared<
+                    renderengine::ExternalTexture>(new GraphicBuffer(1, 1,
+                                                                     HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                                     0),
+                                                   mRenderEngine, false);
             layer->setBuffer(buffer1, fence1, 10, 20, false, mClientCache, 1, std::nullopt,
                              {/*vsyncId*/ 1, /*inputEventId*/ 0},
                              nullptr /* releaseBufferCallback */);

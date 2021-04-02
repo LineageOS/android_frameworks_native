@@ -735,6 +735,7 @@ void SurfaceFlinger::init() {
     mCompositionEngine->setTimeStats(mTimeStats);
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(getBE().mHwcServiceName));
     mCompositionEngine->getHwComposer().setConfiguration(this, getBE().mComposerSequenceId);
+    ClientCache::getInstance().setRenderEngine(&getRenderEngine());
     // Process any initial hotplug and resulting display changes.
     processDisplayHotplugEventsLocked();
     const auto display = getDefaultDisplayDeviceLocked();
@@ -3707,7 +3708,6 @@ void SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
 
     if (uncacheBuffer.isValid()) {
         ClientCache::getInstance().erase(uncacheBuffer);
-        getRenderEngine().unbindExternalTextureBuffer(uncacheBuffer.id);
     }
 
     // If a synchronous transaction is explicitly requested without any changes, force a transaction
@@ -4083,23 +4083,16 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     bool bufferChanged = what & layer_state_t::eBufferChanged;
     bool cacheIdChanged = what & layer_state_t::eCachedBufferChanged;
-    sp<GraphicBuffer> buffer;
+    std::shared_ptr<renderengine::ExternalTexture> buffer;
     if (bufferChanged && cacheIdChanged && s.buffer != nullptr) {
-        buffer = s.buffer;
-        bool success = ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
-        if (success) {
-            getRenderEngine().cacheExternalTextureBuffer(s.buffer);
-            success = ClientCache::getInstance()
-                              .registerErasedRecipient(s.cachedBuffer,
-                                                       wp<ClientCache::ErasedRecipient>(this));
-            if (!success) {
-                getRenderEngine().unbindExternalTextureBuffer(s.buffer->getId());
-            }
-        }
+        ClientCache::getInstance().add(s.cachedBuffer, s.buffer);
+        buffer = ClientCache::getInstance().get(s.cachedBuffer);
     } else if (cacheIdChanged) {
         buffer = ClientCache::getInstance().get(s.cachedBuffer);
     } else if (bufferChanged) {
-        buffer = s.buffer;
+        buffer = std::make_shared<
+                renderengine::ExternalTexture>(s.buffer, getRenderEngine(),
+                                               renderengine::ExternalTexture::Usage::READABLE);
     }
     if (buffer) {
         const bool frameNumberChanged = what & layer_state_t::eFrameNumberChanged;
@@ -6003,15 +5996,17 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
     const status_t bufferStatus = buffer->initCheck();
     LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "captureScreenCommon: Buffer failed to allocate: %d",
                         bufferStatus);
-    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
+    const auto texture = std::make_shared<
+            renderengine::ExternalTexture>(buffer, getRenderEngine(),
+                                           renderengine::ExternalTexture::Usage::WRITEABLE);
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, texture,
                                false /* regionSampling */, grayscale, captureListener);
 }
 
-status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
-                                             TraverseLayersFunction traverseLayers,
-                                             sp<GraphicBuffer>& buffer, bool regionSampling,
-                                             bool grayscale,
-                                             const sp<IScreenCaptureListener>& captureListener) {
+status_t SurfaceFlinger::captureScreenCommon(
+        RenderAreaFuture renderAreaFuture, TraverseLayersFunction traverseLayers,
+        const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
+        bool grayscale, const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
     if (captureListener == nullptr) {
@@ -6044,15 +6039,6 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                             regionSampling, grayscale, captureResults);
         });
 
-        // TODO(b/180767535): Remove this once we optimize buffer lifecycle for RenderEngine
-        // Only do this when we're not doing region sampling, to allow the region sampling thread to
-        // manage buffer lifecycle itself.
-        if (!regionSampling &&
-            getRenderEngine().getRenderEngineType() ==
-                    renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED) {
-            getRenderEngine().unbindExternalTextureBuffer(buffer->getId());
-        }
-
         captureResults.result = result;
         captureListener->onScreenCaptureCompleted(captureResults);
     }));
@@ -6060,11 +6046,10 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
-                                                TraverseLayersFunction traverseLayers,
-                                                const sp<GraphicBuffer>& buffer, bool forSystem,
-                                                bool regionSampling, bool grayscale,
-                                                ScreenCaptureResults& captureResults) {
+status_t SurfaceFlinger::renderScreenImplLocked(
+        const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
+        const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool forSystem,
+        bool regionSampling, bool grayscale, ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
     traverseLayers([&](Layer* layer) {
@@ -6072,7 +6057,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                 captureResults.capturedSecureLayers || (layer->isVisible() && layer->isSecure());
     });
 
-    const bool useProtected = buffer->getUsage() & GRALLOC_USAGE_PROTECTED;
+    const bool useProtected = buffer->getBuffer()->getUsage() & GRALLOC_USAGE_PROTECTED;
 
     // We allow the system server to take screenshots of secure layers for
     // use in situations like the Screen-rotation animation and place
@@ -6082,7 +6067,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         return PERMISSION_DENIED;
     }
 
-    captureResults.buffer = buffer;
+    captureResults.buffer = buffer->getBuffer();
     captureResults.capturedDataspace = renderArea.getReqDataSpace();
 
     const auto reqWidth = renderArea.getReqWidth();
@@ -6173,11 +6158,9 @@ status_t SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     base::unique_fd drawFence;
     getRenderEngine().useProtectedContext(useProtected);
 
-    // TODO(b/180767535): Remove this once we optimize buffer lifecycle for RenderEngine
-    const bool useFramebufferCache = getRenderEngine().getRenderEngineType() ==
-            renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED;
+    const constexpr bool kUseFramebufferCache = false;
     getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayerPointers, buffer,
-                                 useFramebufferCache, std::move(bufferFence), &drawFence);
+                                 kUseFramebufferCache, std::move(bufferFence), &drawFence);
 
     if (drawFence >= 0) {
         sp<Fence> releaseFence = new Fence(dup(drawFence));
@@ -6440,10 +6423,6 @@ void SurfaceFlinger::removeFromOffscreenLayers(Layer* layer) {
         mOffscreenLayers.emplace(child.get());
     }
     mOffscreenLayers.erase(layer);
-}
-
-void SurfaceFlinger::bufferErased(const client_cache_t& clientCacheId) {
-    getRenderEngine().unbindExternalTextureBuffer(clientCacheId.id);
 }
 
 status_t SurfaceFlinger::setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
