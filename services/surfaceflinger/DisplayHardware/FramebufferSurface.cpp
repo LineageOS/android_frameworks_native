@@ -76,14 +76,14 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, PhysicalDisplayId displa
     mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_FB |
                                        GRALLOC_USAGE_HW_RENDER |
                                        GRALLOC_USAGE_HW_COMPOSER);
-    const auto limitedSize = limitFramebufferSize(size);
+    const auto limitedSize = limitSize(size);
     mConsumer->setDefaultBufferSize(limitedSize.width, limitedSize.height);
     mConsumer->setMaxAcquiredBufferCount(
             SurfaceFlinger::maxFrameBufferAcquiredBuffers - 1);
 }
 
 void FramebufferSurface::resizeBuffers(const ui::Size& newSize) {
-    const auto limitedSize = limitFramebufferSize(newSize);
+    const auto limitedSize = limitSize(newSize);
     mConsumer->setDefaultBufferSize(limitedSize.width, limitedSize.height);
 }
 
@@ -179,19 +179,23 @@ void FramebufferSurface::onFrameCommitted() {
     }
 }
 
-ui::Size FramebufferSurface::limitFramebufferSize(const ui::Size& size) {
+ui::Size FramebufferSurface::limitSize(const ui::Size& size) {
+    return limitSizeInternal(size, mMaxSize);
+}
+
+ui::Size FramebufferSurface::limitSizeInternal(const ui::Size& size, const ui::Size& maxSize) {
     ui::Size limitedSize = size;
     bool wasLimited = false;
-    if (size.width > mMaxSize.width && mMaxSize.width != 0) {
+    if (size.width > maxSize.width && maxSize.width != 0) {
         const float aspectRatio = static_cast<float>(size.width) / size.height;
-        limitedSize.height = mMaxSize.width / aspectRatio;
-        limitedSize.width = mMaxSize.width;
+        limitedSize.height = maxSize.width / aspectRatio;
+        limitedSize.width = maxSize.width;
         wasLimited = true;
     }
-    if (size.height > mMaxSize.height && mMaxSize.height != 0) {
+    if (limitedSize.height > maxSize.height && maxSize.height != 0) {
         const float aspectRatio = static_cast<float>(size.width) / size.height;
-        limitedSize.height = mMaxSize.height;
-        limitedSize.width = mMaxSize.height * aspectRatio;
+        limitedSize.height = maxSize.height;
+        limitedSize.width = maxSize.height * aspectRatio;
         wasLimited = true;
     }
     ALOGI_IF(wasLimited, "framebuffer size has been limited to [%dx%d] from [%dx%d]",
