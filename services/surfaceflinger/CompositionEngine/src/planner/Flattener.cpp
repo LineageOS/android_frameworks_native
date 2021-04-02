@@ -209,6 +209,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                 ALOGV("[%s] Found ready buffer", __func__);
                 size_t skipCount = mNewCachedSet->getLayerCount();
                 while (skipCount != 0) {
+                    auto* peekThroughLayer = mNewCachedSet->getHolePunchLayer();
                     const size_t layerCount = currentLayerIter->getLayerCount();
                     for (size_t i = 0; i < layerCount; ++i) {
                         OutputLayer::CompositionState& state =
@@ -221,6 +222,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                                 .displaySpace = mNewCachedSet->getOutputSpace(),
                                 .damageRegion = Region::INVALID_REGION,
                                 .visibleRegion = mNewCachedSet->getVisibleRegion(),
+                                .peekThroughLayer = peekThroughLayer,
                         };
                         ++incomingLayerIter;
                     }
@@ -244,6 +246,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
 
             // Skip the incoming layers corresponding to this valid current layer
             const size_t layerCount = currentLayerIter->getLayerCount();
+            auto* peekThroughLayer = currentLayerIter->getHolePunchLayer();
             for (size_t i = 0; i < layerCount; ++i) {
                 OutputLayer::CompositionState& state =
                         (*incomingLayerIter)->getOutputLayer()->editState();
@@ -255,6 +258,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
                         .displaySpace = currentLayerIter->getOutputSpace(),
                         .damageRegion = Region(),
                         .visibleRegion = currentLayerIter->getVisibleRegion(),
+                        .peekThroughLayer = peekThroughLayer,
                 };
                 ++incomingLayerIter;
             }

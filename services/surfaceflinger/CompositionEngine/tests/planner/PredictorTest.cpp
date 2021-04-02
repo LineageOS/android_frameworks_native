@@ -31,8 +31,6 @@ const FloatRect sFloatRectOne = FloatRect(100.f, 200.f, 300.f, 400.f);
 const FloatRect sFloatRectTwo = FloatRect(400.f, 300.f, 200.f, 100.f);
 const Rect sRectOne = Rect(1, 2, 3, 4);
 const Rect sRectTwo = Rect(4, 3, 2, 1);
-const constexpr int32_t sZOne = 100;
-const constexpr int32_t sZTwo = 101;
 const constexpr float sAlphaOne = 0.25f;
 const constexpr float sAlphaTwo = 0.5f;
 const Region sRegionOne = Region(sRectOne);
@@ -194,11 +192,11 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchManyDifferences) {
             .displayFrame = sRectOne,
             .sourceCrop = sFloatRectOne,
             .dataspace = ui::Dataspace::SRGB,
-            .z = sZOne,
     };
     LayerFECompositionState layerFECompositionStateOne;
     layerFECompositionStateOne.alpha = sAlphaOne;
     layerFECompositionStateOne.colorTransformIsIdentity = true;
+    layerFECompositionStateOne.blendMode = hal::BlendMode::NONE;
     setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
                        layerFECompositionStateOne);
     LayerState layerStateOne(&outputLayerOne);
@@ -210,12 +208,12 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchManyDifferences) {
             .displayFrame = sRectTwo,
             .sourceCrop = sFloatRectTwo,
             .dataspace = ui::Dataspace::DISPLAY_P3,
-            .z = sZTwo,
     };
     LayerFECompositionState layerFECompositionStateTwo;
     layerFECompositionStateTwo.alpha = sAlphaTwo;
     layerFECompositionStateTwo.colorTransformIsIdentity = false;
     layerFECompositionStateTwo.colorTransform = sMat4One;
+    layerFECompositionStateTwo.blendMode = hal::BlendMode::PREMULTIPLIED;
     setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
                        layerFECompositionStateTwo);
     LayerState layerStateTwo(&outputLayerTwo);
@@ -264,7 +262,6 @@ TEST_F(LayerStackTest, getApproximateMatch_alwaysMatchesClientComposition) {
             .displayFrame = sRectOne,
             .sourceCrop = sFloatRectOne,
             .dataspace = ui::Dataspace::SRGB,
-            .z = sZOne,
     };
     LayerFECompositionState layerFECompositionStateOne;
     layerFECompositionStateOne.buffer = new GraphicBuffer();
@@ -282,7 +279,6 @@ TEST_F(LayerStackTest, getApproximateMatch_alwaysMatchesClientComposition) {
             .displayFrame = sRectTwo,
             .sourceCrop = sFloatRectTwo,
             .dataspace = ui::Dataspace::DISPLAY_P3,
-            .z = sZTwo,
     };
     LayerFECompositionState layerFECompositionStateTwo;
     layerFECompositionStateTwo.buffer = new GraphicBuffer();
@@ -345,6 +341,32 @@ struct PredictionTest : public testing::Test {
         ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
     }
 };
+
+TEST_F(LayerStackTest, reorderingChangesNonBufferHash) {
+    mock::OutputLayer outputLayerOne;
+    mock::LayerFE layerFEOne;
+    OutputLayerCompositionState outputLayerCompositionStateOne{
+            .sourceCrop = sFloatRectOne,
+    };
+    LayerFECompositionState layerFECompositionStateOne;
+    setupMocksForLayer(outputLayerOne, layerFEOne, outputLayerCompositionStateOne,
+                       layerFECompositionStateOne);
+    LayerState layerStateOne(&outputLayerOne);
+
+    mock::OutputLayer outputLayerTwo;
+    mock::LayerFE layerFETwo;
+    OutputLayerCompositionState outputLayerCompositionStateTwo{
+            .sourceCrop = sFloatRectTwo,
+    };
+    LayerFECompositionState layerFECompositionStateTwo;
+    setupMocksForLayer(outputLayerTwo, layerFETwo, outputLayerCompositionStateTwo,
+                       layerFECompositionStateTwo);
+    LayerState layerStateTwo(&outputLayerTwo);
+
+    NonBufferHash hash = getNonBufferHash({&layerStateOne, &layerStateTwo});
+    NonBufferHash hashReverse = getNonBufferHash({&layerStateTwo, &layerStateOne});
+    EXPECT_NE(hash, hashReverse);
+}
 
 TEST_F(PredictionTest, constructPrediction) {
     Plan plan;

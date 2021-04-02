@@ -278,6 +278,10 @@ void CachedSet::addHolePunchLayer(const LayerState* layerState) {
     mHolePunchLayer = layerState;
 }
 
+OutputLayer* CachedSet::getHolePunchLayer() const {
+    return mHolePunchLayer ? mHolePunchLayer->getOutputLayer() : nullptr;
+}
+
 void CachedSet::dump(std::string& result) const {
     const auto now = std::chrono::steady_clock::now();
 
@@ -285,6 +289,11 @@ void CachedSet::dump(std::string& result) const {
             std::chrono::duration_cast<std::chrono::milliseconds>(now - mLastUpdate);
     base::StringAppendF(&result, "  + Fingerprint %016zx, last update %sago, age %zd\n",
                         mFingerprint, durationString(lastUpdate).c_str(), mAge);
+    {
+        const auto b = mTexture ? mTexture->getBuffer().get() : nullptr;
+        base::StringAppendF(&result, "    Override buffer: %p\n", b);
+    }
+    base::StringAppendF(&result, "    HolePunchLayer: %p\n", mHolePunchLayer);
 
     if (mLayers.size() == 1) {
         base::StringAppendF(&result, "    Layer [%s]\n", mLayers[0].getName().c_str());

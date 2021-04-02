@@ -115,12 +115,17 @@ public:
     // through. Must be called before ::render().
     void addHolePunchLayer(const LayerState*);
 
+    // Retrieve the layer that will be drawn behind this one.
+    OutputLayer* getHolePunchLayer() const;
+
 private:
     CachedSet() = default;
 
     const NonBufferHash mFingerprint;
     std::chrono::steady_clock::time_point mLastUpdate = std::chrono::steady_clock::now();
     std::vector<Layer> mLayers;
+
+    // Unowned.
     const LayerState* mHolePunchLayer = nullptr;
     Rect mBounds = Rect::EMPTY_RECT;
     Region mVisibleRegion;

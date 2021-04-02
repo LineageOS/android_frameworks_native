@@ -21,6 +21,7 @@
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <cstdint>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -312,7 +313,7 @@ void OutputLayer::updateCompositionState(
     }
 }
 
-void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer) {
+void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t z) {
     const auto& state = getState();
     // Skip doing this if there is no HWC interface
     if (!state.hwc) {
@@ -338,7 +339,7 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer) {
     const bool isOverridden = state.overrideInfo.buffer != nullptr;
     const bool prevOverridden = state.hwc->stateOverridden;
     if (isOverridden || prevOverridden || skipLayer || includeGeometry) {
-        writeOutputDependentGeometryStateToHWC(hwcLayer.get(), requestedCompositionType);
+        writeOutputDependentGeometryStateToHWC(hwcLayer.get(), requestedCompositionType, z);
         writeOutputIndependentGeometryStateToHWC(hwcLayer.get(), *outputIndependentState,
                                                  skipLayer);
     }
@@ -354,8 +355,9 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer) {
     editState().hwc->stateOverridden = isOverridden;
 }
 
-void OutputLayer::writeOutputDependentGeometryStateToHWC(
-        HWC2::Layer* hwcLayer, hal::Composition requestedCompositionType) {
+void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
+                                                         hal::Composition requestedCompositionType,
+                                                         uint32_t z) {
     const auto& outputDependentState = getState();
 
     Rect displayFrame = outputDependentState.displayFrame;
@@ -382,9 +384,9 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
               sourceCrop.bottom, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
-    if (auto error = hwcLayer->setZOrder(outputDependentState.z); error != hal::Error::NONE) {
-        ALOGE("[%s] Failed to set Z %u: %s (%d)", getLayerFE().getDebugName(),
-              outputDependentState.z, to_string(error).c_str(), static_cast<int32_t>(error));
+    if (auto error = hwcLayer->setZOrder(z); error != hal::Error::NONE) {
+        ALOGE("[%s] Failed to set Z %u: %s (%d)", getLayerFE().getDebugName(), z,
+              to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
     // Solid-color layers and overridden buffers should always use an identity transform.
@@ -403,7 +405,10 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
 void OutputLayer::writeOutputIndependentGeometryStateToHWC(
         HWC2::Layer* hwcLayer, const LayerFECompositionState& outputIndependentState,
         bool skipLayer) {
-    const auto blendMode = getState().overrideInfo.buffer
+    // If there is a peekThroughLayer, then this layer has a hole in it. We need to use
+    // PREMULTIPLIED so it will peek through.
+    const auto& overrideInfo = getState().overrideInfo;
+    const auto blendMode = overrideInfo.buffer || overrideInfo.peekThroughLayer
             ? hardware::graphics::composer::hal::BlendMode::PREMULTIPLIED
             : outputIndependentState.blendMode;
     if (auto error = hwcLayer->setBlendMode(blendMode); error != hal::Error::NONE) {

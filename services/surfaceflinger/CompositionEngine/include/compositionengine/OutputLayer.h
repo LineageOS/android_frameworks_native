@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -90,8 +91,10 @@ public:
     // Writes the geometry state to the HWC, or does nothing if this layer does
     // not use the HWC. If includeGeometry is false, the geometry state can be
     // skipped. If skipLayer is true, then the alpha of the layer is forced to
-    // 0 so that HWC will ignore it.
-    virtual void writeStateToHWC(bool includeGeometry, bool skipLayer) = 0;
+    // 0 so that HWC will ignore it. z specifies the order to draw the layer in
+    // (starting with 0 for the back layer, and increasing for each following
+    // layer).
+    virtual void writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t z) = 0;
 
     // Updates the cursor position with the HWC
     virtual void writeCursorPositionToHWC() const = 0;
