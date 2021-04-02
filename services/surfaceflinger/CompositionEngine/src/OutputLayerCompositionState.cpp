@@ -72,6 +72,7 @@ void OutputLayerCompositionState::dump(std::string& out) const {
     dumpVal(out, "override acquire fence", overrideInfo.acquireFence.get());
     dumpVal(out, "override display frame", overrideInfo.displayFrame);
     dumpVal(out, "override dataspace", toString(overrideInfo.dataspace), overrideInfo.dataspace);
+    dumpVal(out, "override display space", to_string(overrideInfo.displaySpace));
 
     if (hwc) {
         dumpHwc(*hwc, out);

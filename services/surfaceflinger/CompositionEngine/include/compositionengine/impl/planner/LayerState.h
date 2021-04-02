@@ -32,6 +32,14 @@ template <typename T>
 struct hash<android::sp<T>> {
     size_t operator()(const android::sp<T>& p) { return std::hash<void*>()(p.get()); }
 };
+
+template <typename T>
+struct hash<android::wp<T>> {
+    size_t operator()(const android::wp<T>& p) {
+        android::sp<T> promoted = p.promote();
+        return std::hash<void*>()(promoted ? promoted.get() : nullptr);
+    }
+};
 } // namespace std
 
 namespace android::compositionengine::impl::planner {
@@ -70,7 +78,7 @@ public:
 
     virtual Flags<LayerStateField> update(const compositionengine::OutputLayer* layer) = 0;
 
-    virtual size_t getHash(Flags<LayerStateField> skipFields) const = 0;
+    virtual size_t getHash() const = 0;
 
     virtual LayerStateField getField() const = 0;
 
@@ -113,6 +121,10 @@ public:
     // Returns this member's field flag if it was changed
     Flags<LayerStateField> update(const compositionengine::OutputLayer* layer) override {
         T newValue = mReader(layer);
+        return update(newValue);
+    }
+
+    Flags<LayerStateField> update(const T& newValue) {
         if (!mEquals(mValue, newValue)) {
             mValue = newValue;
             mHash = {};
@@ -124,10 +136,7 @@ public:
     LayerStateField getField() const override { return FIELD; }
     const T& get() const { return mValue; }
 
-    size_t getHash(Flags<LayerStateField> skipFields) const override {
-        if (skipFields.test(FIELD)) {
-            return 0;
-        }
+    size_t getHash() const override {
         if (!mHash) {
             mHash = std::hash<T>{}(mValue);
         }
@@ -175,13 +184,13 @@ public:
     Flags<LayerStateField> update(compositionengine::OutputLayer*);
 
     // Computes a hash for this LayerState.
-    // The hash is only computed from NonUniqueFields.
-    size_t getHash(Flags<LayerStateField> skipFields) const;
+    // The hash is only computed from NonUniqueFields, and excludes GraphicBuffers since they are
+    // not guaranteed to live longer than the LayerState object.
+    size_t getHash() const;
 
     // Returns the bit-set of differing fields between this LayerState and another LayerState.
-    // This bit-set is based on NonUniqueFields only
-    Flags<LayerStateField> getDifferingFields(const LayerState& other,
-                                              Flags<LayerStateField> skipFields) const;
+    // This bit-set is based on NonUniqueFields only, and excludes GraphicBuffers.
+    Flags<LayerStateField> getDifferingFields(const LayerState& other) const;
 
     compositionengine::OutputLayer* getOutputLayer() const { return mOutputLayer; }
     int32_t getId() const { return mId.get(); }
@@ -190,7 +199,6 @@ public:
     hardware::graphics::composer::hal::Composition getCompositionType() const {
         return mCompositionType.get();
     }
-    const sp<GraphicBuffer>& getBuffer() const { return mBuffer.get(); }
 
     void incrementFramesSinceBufferUpdate() { ++mFramesSinceBufferUpdate; }
     void resetFramesSinceBufferUpdate() { mFramesSinceBufferUpdate = 0; }
@@ -311,10 +319,14 @@ private:
                                 return std::vector<std::string>{base::StringPrintf("%p", p)};
                             }};
 
-    OutputLayerState<sp<GraphicBuffer>, LayerStateField::Buffer>
+    OutputLayerState<wp<GraphicBuffer>, LayerStateField::Buffer>
             mBuffer{[](auto layer) { return layer->getLayerFE().getCompositionState()->buffer; },
-                    [](const sp<GraphicBuffer>& buffer) {
-                        return std::vector<std::string>{base::StringPrintf("%p", buffer.get())};
+                    [](const wp<GraphicBuffer>& buffer) {
+                        sp<GraphicBuffer> promotedBuffer = buffer.promote();
+                        return std::vector<std::string>{
+                                base::StringPrintf("%p",
+                                                   promotedBuffer ? promotedBuffer.get()
+                                                                  : nullptr)};
                     }};
 
     int64_t mFramesSinceBufferUpdate = 0;

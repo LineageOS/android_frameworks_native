@@ -7,9 +7,6 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-subdirs = [
-    "hidl"
-]
 cc_library_shared {
     name: "libsensorservice",
 
@@ -52,6 +49,7 @@ cc_library_shared {
         "libhardware_legacy",
         "libutils",
         "liblog",
+        "libbatterystats_aidl",
         "libbinder",
         "libsensor",
         "libsensorprivacy",

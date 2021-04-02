@@ -33,8 +33,7 @@ std::optional<LayerStack::ApproximateMatch> LayerStack::getApproximateMatch(
     std::optional<ApproximateMatch> approximateMatch = {};
     for (size_t i = 0; i < mLayers.size(); ++i) {
         // Skip identical layers
-        if (mLayers[i].getHash(LayerStateField::Buffer) ==
-            other[i]->getHash(LayerStateField::Buffer)) {
+        if (mLayers[i].getHash() == other[i]->getHash()) {
             continue;
         }
 
@@ -56,8 +55,7 @@ std::optional<LayerStack::ApproximateMatch> LayerStack::getApproximateMatch(
             return std::nullopt;
         }
 
-        Flags<LayerStateField> differingFields =
-                mLayers[i].getDifferingFields(*other[i], LayerStateField::Buffer);
+        Flags<LayerStateField> differingFields = mLayers[i].getDifferingFields(*other[i]);
 
         // If we don't find an approximate match on this layer, then the LayerStacks differ
         // by too much, so return nothing
