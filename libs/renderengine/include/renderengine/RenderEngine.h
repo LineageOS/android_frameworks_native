@@ -153,6 +153,10 @@ public:
     virtual bool supportsProtectedContent() const = 0;
     virtual bool useProtectedContext(bool useProtectedContext) = 0;
 
+    // Notify RenderEngine of changes to the dimensions of the primary display
+    // so that it can configure its internal caches accordingly.
+    virtual void onPrimaryDisplaySizeChanged(ui::Size size) = 0;
+
     // Renders layers for a particular display via GPU composition. This method
     // should be called for every display that needs to be rendered via the GPU.
     // @param display The display-wide settings that should be applied prior to

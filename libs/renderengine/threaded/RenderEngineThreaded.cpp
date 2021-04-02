@@ -332,6 +332,21 @@ bool RenderEngineThreaded::supportsBackgroundBlur() {
     return resultFuture.get();
 }
 
+void RenderEngineThreaded::onPrimaryDisplaySizeChanged(ui::Size size) {
+    std::promise<void> resultPromise;
+    std::future<void> resultFuture = resultPromise.get_future();
+    {
+        std::lock_guard lock(mThreadMutex);
+        mFunctionCalls.push([&resultPromise, size](renderengine::RenderEngine& instance) {
+            ATRACE_NAME("REThreaded::onPrimaryDisplaySizeChanged");
+            instance.onPrimaryDisplaySizeChanged(size);
+            resultPromise.set_value();
+        });
+    }
+    mCondition.notify_one();
+    resultFuture.wait();
+}
+
 } // namespace threaded
 } // namespace renderengine
 } // namespace android
