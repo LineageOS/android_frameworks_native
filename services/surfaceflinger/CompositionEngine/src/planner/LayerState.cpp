@@ -58,24 +58,24 @@ Flags<LayerStateField> LayerState::update(compositionengine::OutputLayer* layer)
     return differences;
 }
 
-size_t LayerState::getHash(
-        Flags<LayerStateField> skipFields = static_cast<LayerStateField>(0)) const {
+size_t LayerState::getHash() const {
     size_t hash = 0;
     for (const StateInterface* field : getNonUniqueFields()) {
-        android::hashCombineSingleHashed(hash, field->getHash(skipFields));
+        if (field->getField() == LayerStateField::Buffer) {
+            continue;
+        }
+        android::hashCombineSingleHashed(hash, field->getHash());
     }
 
     return hash;
 }
 
-Flags<LayerStateField> LayerState::getDifferingFields(
-        const LayerState& other,
-        Flags<LayerStateField> skipFields = static_cast<LayerStateField>(0)) const {
+Flags<LayerStateField> LayerState::getDifferingFields(const LayerState& other) const {
     Flags<LayerStateField> differences;
     auto myFields = getNonUniqueFields();
     auto otherFields = other.getNonUniqueFields();
     for (size_t i = 0; i < myFields.size(); ++i) {
-        if (skipFields.test(myFields[i]->getField())) {
+        if (myFields[i]->getField() == LayerStateField::Buffer) {
             continue;
         }
 
@@ -169,7 +169,7 @@ bool operator==(const LayerState& lhs, const LayerState& rhs) {
 NonBufferHash getNonBufferHash(const std::vector<const LayerState*>& layers) {
     size_t hash = 0;
     for (const auto layer : layers) {
-        android::hashCombineSingleHashed(hash, layer->getHash(LayerStateField::Buffer));
+        android::hashCombineSingleHashed(hash, layer->getHash());
     }
 
     return hash;
