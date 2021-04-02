@@ -753,6 +753,8 @@ void SurfaceFlinger::init() {
         getRenderEngine().primeCache();
     }
 
+    getRenderEngine().onPrimaryDisplaySizeChanged(display->getSize());
+
     // Inform native graphics APIs whether the present timestamp is supported:
 
     const bool presentFenceReliable =
@@ -2634,6 +2636,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
 
     if (display->isPrimary()) {
         mScheduler->onPrimaryDisplayAreaChanged(display->getWidth() * display->getHeight());
+        getRenderEngine().onPrimaryDisplaySizeChanged(display->getSize());
     }
 }
 
