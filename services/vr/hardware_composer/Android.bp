@@ -108,6 +108,7 @@ cc_library_static {
 
 cc_binary {
     name: "vr_hwc",
+    enabled: false,
     system_ext_specific: true,
     vintf_fragments: ["manifest_vr_hwc.xml"],
     srcs: [

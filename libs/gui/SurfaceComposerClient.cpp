@@ -2054,6 +2054,17 @@ status_t SurfaceComposerClient::setDisplayBrightness(const sp<IBinder>& displayT
     return ComposerService::getComposerService()->setDisplayBrightness(displayToken, brightness);
 }
 
+status_t SurfaceComposerClient::addHdrLayerInfoListener(
+        const sp<IBinder>& displayToken, const sp<gui::IHdrLayerInfoListener>& listener) {
+    return ComposerService::getComposerService()->addHdrLayerInfoListener(displayToken, listener);
+}
+
+status_t SurfaceComposerClient::removeHdrLayerInfoListener(
+        const sp<IBinder>& displayToken, const sp<gui::IHdrLayerInfoListener>& listener) {
+    return ComposerService::getComposerService()->removeHdrLayerInfoListener(displayToken,
+                                                                             listener);
+}
+
 status_t SurfaceComposerClient::notifyPowerBoost(int32_t boostId) {
     return ComposerService::getComposerService()->notifyPowerBoost(boostId);
 }

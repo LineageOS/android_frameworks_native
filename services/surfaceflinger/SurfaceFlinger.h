@@ -90,6 +90,7 @@ namespace android {
 class Client;
 class EventThread;
 class FpsReporter;
+class HdrLayerInfoReporter;
 class HWComposer;
 struct SetInputWindowsListener;
 class IGraphicBufferProducer;
@@ -684,6 +685,10 @@ private:
                                          bool* outSupport) const override;
     status_t setDisplayBrightness(const sp<IBinder>& displayToken,
                                   const gui::DisplayBrightness& brightness) override;
+    status_t addHdrLayerInfoListener(const sp<IBinder>& displayToken,
+                                     const sp<gui::IHdrLayerInfoListener>& listener) override;
+    status_t removeHdrLayerInfoListener(const sp<IBinder>& displayToken,
+                                        const sp<gui::IHdrLayerInfoListener>& listener) override;
     status_t notifyPowerBoost(int32_t boostId) override;
     status_t setGlobalShadowSettings(const half4& ambientColor, const half4& spotColor,
                                      float lightPosY, float lightPosZ, float lightRadius) override;
@@ -908,6 +913,7 @@ private:
                                     bool grayscale, ScreenCaptureResults&);
 
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
+    sp<DisplayDevice> getDisplayById(DisplayId displayId) const REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayByLayerStack(uint64_t layerStack) REQUIRES(mStateLock);
 
     // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a
@@ -1386,6 +1392,9 @@ private:
     sp<IBinder> mDebugFrameRateFlexibilityToken;
 
     BufferCountTracker mBufferCountTracker;
+
+    std::unordered_map<DisplayId, sp<HdrLayerInfoReporter>> mHdrLayerInfoListeners
+            GUARDED_BY(mStateLock);
 };
 
 } // namespace android

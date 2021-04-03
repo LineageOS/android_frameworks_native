@@ -982,6 +982,34 @@ public:
         return NO_ERROR;
     }
 
+    status_t addHdrLayerInfoListener(const sp<IBinder>& displayToken,
+                                     const sp<gui::IHdrLayerInfoListener>& listener) override {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, displayToken);
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
+        const status_t error =
+                remote()->transact(BnSurfaceComposer::ADD_HDR_LAYER_INFO_LISTENER, data, &reply);
+        if (error != OK) {
+            ALOGE("addHdrLayerInfoListener: Failed to transact; error = %d", error);
+        }
+        return error;
+    }
+
+    status_t removeHdrLayerInfoListener(const sp<IBinder>& displayToken,
+                                        const sp<gui::IHdrLayerInfoListener>& listener) override {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, displayToken);
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
+        const status_t error =
+                remote()->transact(BnSurfaceComposer::REMOVE_HDR_LAYER_INFO_LISTENER, data, &reply);
+        if (error != OK) {
+            ALOGE("removeHdrLayerInfoListener: Failed to transact; error = %d", error);
+        }
+        return error;
+    }
+
     status_t notifyPowerBoost(int32_t boostId) override {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -1837,6 +1865,38 @@ status_t BnSurfaceComposer::onTransact(
                 return error;
             }
             return setDisplayBrightness(displayToken, brightness);
+        }
+        case ADD_HDR_LAYER_INFO_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> displayToken;
+            status_t error = data.readNullableStrongBinder(&displayToken);
+            if (error != NO_ERROR) {
+                ALOGE("addHdrLayerInfoListener: Failed to read display token");
+                return error;
+            }
+            sp<gui::IHdrLayerInfoListener> listener;
+            error = data.readNullableStrongBinder(&listener);
+            if (error != NO_ERROR) {
+                ALOGE("addHdrLayerInfoListener: Failed to read listener");
+                return error;
+            }
+            return addHdrLayerInfoListener(displayToken, listener);
+        }
+        case REMOVE_HDR_LAYER_INFO_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> displayToken;
+            status_t error = data.readNullableStrongBinder(&displayToken);
+            if (error != NO_ERROR) {
+                ALOGE("removeHdrLayerInfoListener: Failed to read display token");
+                return error;
+            }
+            sp<gui::IHdrLayerInfoListener> listener;
+            error = data.readNullableStrongBinder(&listener);
+            if (error != NO_ERROR) {
+                ALOGE("removeHdrLayerInfoListener: Failed to read listener");
+                return error;
+            }
+            return removeHdrLayerInfoListener(displayToken, listener);
         }
         case NOTIFY_POWER_BOOST: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

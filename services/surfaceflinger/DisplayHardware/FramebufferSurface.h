@@ -55,14 +55,19 @@ public:
     virtual const sp<Fence>& getClientTargetAcquireFence() const override;
 
 private:
+    friend class FramebufferSurfaceTest;
+
+    // Limits the width and height by the maximum width specified.
+    ui::Size limitSize(const ui::Size&);
+
+    // Used for testing purposes.
+    static ui::Size limitSizeInternal(const ui::Size&, const ui::Size& maxSize);
+
     virtual ~FramebufferSurface() { }; // this class cannot be overloaded
 
     virtual void freeBufferLocked(int slotIndex);
 
     virtual void dumpLocked(String8& result, const char* prefix) const;
-
-    // Limits the width and height by the maximum width specified in the constructor.
-    ui::Size limitFramebufferSize(const ui::Size&);
 
     // nextBuffer waits for and then latches the next buffer from the
     // BufferQueue and releases the previously latched buffer to the
