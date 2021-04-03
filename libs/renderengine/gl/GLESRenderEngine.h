@@ -73,6 +73,7 @@ public:
     bool cleanupPostRender(CleanupMode mode) override;
     int getContextPriority() override;
     bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
+    void onPrimaryDisplaySizeChanged(ui::Size size) override {}
 
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     // Creates an output image for rendering to

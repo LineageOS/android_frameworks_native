@@ -55,6 +55,7 @@ cc_test {
         "EventThreadTest.cpp",
         "FpsReporterTest.cpp",
         "FpsTest.cpp",
+        "FramebufferSurfaceTest.cpp",
         "FrameTimelineTest.cpp",
         "HWComposerTest.cpp",
         "OneShotTimerTest.cpp",
