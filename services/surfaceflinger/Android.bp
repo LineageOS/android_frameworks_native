@@ -157,6 +157,7 @@ filegroup {
         "FpsReporter.cpp",
         "FrameTracer/FrameTracer.cpp",
         "FrameTracker.cpp",
+        "HdrLayerInfoReporter.cpp",
         "Layer.cpp",
         "LayerProtoHelper.cpp",
         "LayerRejecter.cpp",

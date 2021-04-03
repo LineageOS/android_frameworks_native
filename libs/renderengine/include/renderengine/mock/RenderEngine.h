@@ -55,6 +55,7 @@ public:
     MOCK_METHOD0(cleanFramebufferCache, void());
     MOCK_METHOD0(getContextPriority, int());
     MOCK_METHOD0(supportsBackgroundBlur, bool());
+    MOCK_METHOD1(onPrimaryDisplaySizeChanged, void(ui::Size));
 };
 
 } // namespace mock

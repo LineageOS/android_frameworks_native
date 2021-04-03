@@ -65,6 +65,7 @@ public:
     bool useProtectedContext(bool useProtectedContext) override;
     bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
     void assertShadersCompiled(int numShaders) override;
+    void onPrimaryDisplaySizeChanged(ui::Size size) override;
 
 protected:
     void dump(std::string& result) override;
@@ -109,6 +110,7 @@ private:
     EGLSurface mProtectedPlaceholderSurface;
     BlurFilter* mBlurFilter = nullptr;
 
+    const PixelFormat mDefaultPixelFormat;
     const bool mUseColorManagement;
 
     // Cache of GL textures that we'll store per GraphicBuffer ID

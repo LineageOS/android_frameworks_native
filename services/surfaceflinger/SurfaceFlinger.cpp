@@ -112,6 +112,7 @@
 #include "FpsReporter.h"
 #include "FrameTimeline/FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"
+#include "HdrLayerInfoReporter.h"
 #include "Layer.h"
 #include "LayerRenderArea.h"
 #include "LayerVector.h"
@@ -285,6 +286,7 @@ const String16 sHardwareTest("android.permission.HARDWARE_TEST");
 const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER");
 const String16 sRotateSurfaceFlinger("android.permission.ROTATE_SURFACE_FLINGER");
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
+const String16 sControlDisplayBrightness("android.permission.CONTROL_DISPLAY_BRIGHTNESS");
 const String16 sDump("android.permission.DUMP");
 const char* KERNEL_IDLE_TIMER_PROP = "graphics.display.kernel_idle_timer.enabled";
 
@@ -752,6 +754,8 @@ void SurfaceFlinger::init() {
     if (atoi(primeShaderCache)) {
         getRenderEngine().primeCache();
     }
+
+    getRenderEngine().onPrimaryDisplaySizeChanged(display->getSize());
 
     // Inform native graphics APIs whether the present timestamp is supported:
 
@@ -1492,6 +1496,47 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
             .get();
 }
 
+status_t SurfaceFlinger::addHdrLayerInfoListener(const sp<IBinder>& displayToken,
+                                                 const sp<gui::IHdrLayerInfoListener>& listener) {
+    if (!displayToken) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mStateLock);
+
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (!display) {
+        return NAME_NOT_FOUND;
+    }
+    const auto displayId = display->getId();
+    sp<HdrLayerInfoReporter>& hdrInfoReporter = mHdrLayerInfoListeners[displayId];
+    if (!hdrInfoReporter) {
+        hdrInfoReporter = sp<HdrLayerInfoReporter>::make();
+    }
+    hdrInfoReporter->addListener(listener);
+    return OK;
+}
+
+status_t SurfaceFlinger::removeHdrLayerInfoListener(
+        const sp<IBinder>& displayToken, const sp<gui::IHdrLayerInfoListener>& listener) {
+    if (!displayToken) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mStateLock);
+
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (!display) {
+        return NAME_NOT_FOUND;
+    }
+    const auto displayId = display->getId();
+    sp<HdrLayerInfoReporter>& hdrInfoReporter = mHdrLayerInfoListeners[displayId];
+    if (hdrInfoReporter) {
+        hdrInfoReporter->removeListener(listener);
+    }
+    return OK;
+}
+
 status_t SurfaceFlinger::notifyPowerBoost(int32_t boostId) {
     Boost powerBoost = static_cast<Boost>(boostId);
 
@@ -2155,11 +2200,58 @@ void SurfaceFlinger::postComposition() {
         }
     });
 
+    std::vector<std::pair<std::shared_ptr<compositionengine::Display>, sp<HdrLayerInfoReporter>>>
+            hdrInfoListeners;
     {
         Mutex::Autolock lock(mStateLock);
         if (mFpsReporter) {
             mFpsReporter->dispatchLayerFps();
         }
+        hdrInfoListeners.reserve(mHdrLayerInfoListeners.size());
+        for (auto& [key, value] : mHdrLayerInfoListeners) {
+            if (value && value->hasListeners()) {
+                auto listenersDisplay = getDisplayById(key);
+                if (listenersDisplay) {
+                    hdrInfoListeners.emplace_back(listenersDisplay->getCompositionDisplay(), value);
+                }
+            }
+        }
+    }
+
+    for (auto& [compositionDisplay, listener] : hdrInfoListeners) {
+        HdrLayerInfoReporter::HdrLayerInfo info;
+        int32_t maxArea = 0;
+        mDrawingState.traverse([&, compositionDisplay = compositionDisplay](Layer* layer) {
+            if (layer->isVisible() &&
+                compositionDisplay->belongsInOutput(layer->getCompositionEngineLayerFE())) {
+                bool isHdr = false;
+                switch (layer->getDataSpace()) {
+                    case ui::Dataspace::BT2020:
+                    case ui::Dataspace::BT2020_HLG:
+                    case ui::Dataspace::BT2020_PQ:
+                    case ui::Dataspace::BT2020_ITU:
+                    case ui::Dataspace::BT2020_ITU_HLG:
+                    case ui::Dataspace::BT2020_ITU_PQ:
+                        isHdr = true;
+                        break;
+                    default:
+                        isHdr = false;
+                        break;
+                }
+
+                if (isHdr) {
+                    info.numberOfHdrLayers++;
+                    auto bufferRect = layer->getCompositionState()->geomBufferSize;
+                    int32_t area = bufferRect.width() * bufferRect.height();
+                    if (area > maxArea) {
+                        maxArea = area;
+                        info.maxW = bufferRect.width();
+                        info.maxH = bufferRect.height();
+                    }
+                }
+            }
+        });
+        listener->dispatchHdrLayerInfo(info);
     }
 
     mTransactionCallbackInvoker.addPresentFence(mPreviousPresentFences[0]);
@@ -2634,6 +2726,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
 
     if (display->isPrimary()) {
         mScheduler->onPrimaryDisplayAreaChanged(display->getWidth() * display->getHeight());
+        getRenderEngine().onPrimaryDisplaySizeChanged(display->getSize());
     }
 }
 
@@ -5113,6 +5206,20 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             // This is not sensitive information, so should not require permission control.
             return OK;
         }
+        case ADD_HDR_LAYER_INFO_LISTENER:
+        case REMOVE_HDR_LAYER_INFO_LISTENER: {
+            // TODO (b/183985553): Should getting & setting brightness be part of this...?
+            // codes that require permission check
+            IPCThreadState* ipc = IPCThreadState::self();
+            const int pid = ipc->getCallingPid();
+            const int uid = ipc->getCallingUid();
+            if ((uid != AID_GRAPHICS) &&
+                !PermissionCache::checkPermission(sControlDisplayBrightness, pid, uid)) {
+                ALOGE("Permission Denial: can't control brightness pid=%d, uid=%d", pid, uid);
+                return PERMISSION_DENIED;
+            }
+            return OK;
+        }
         case ADD_FPS_LISTENER:
         case REMOVE_FPS_LISTENER:
         case ADD_REGION_SAMPLING_LISTENER:
@@ -5672,6 +5779,15 @@ sp<DisplayDevice> SurfaceFlinger::getDisplayByIdOrLayerStack(uint64_t displayOrL
     // Couldn't find display by displayId. Try to get display by layerStack since virtual displays
     // may not have a displayId.
     return getDisplayByLayerStack(displayOrLayerStack);
+}
+
+sp<DisplayDevice> SurfaceFlinger::getDisplayById(DisplayId displayId) const {
+    for (const auto& [token, display] : mDisplays) {
+        if (display->getId() == displayId) {
+            return display;
+        }
+    }
+    return nullptr;
 }
 
 sp<DisplayDevice> SurfaceFlinger::getDisplayByLayerStack(uint64_t layerStack) {
