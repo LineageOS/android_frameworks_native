@@ -48,6 +48,8 @@ class HWComposer;
 
 namespace compositionengine::impl {
 
+// Note that fields that affect HW composer state may need to be mirrored into
+// android::compositionengine::impl::planner::LayerState
 struct OutputLayerCompositionState {
     // The portion of the layer that is not obscured by opaque layers on top
     Region visibleRegion;
