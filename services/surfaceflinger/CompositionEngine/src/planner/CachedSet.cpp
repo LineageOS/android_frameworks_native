@@ -178,6 +178,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
     };
 
     std::vector<renderengine::LayerSettings> layerSettings;
+    renderengine::LayerSettings highlight;
     for (const auto& layer : mLayers) {
         const auto clientCompositionList =
                 layer.getState()->getOutputLayer()->getLayerFE().prepareClientCompositionList(
@@ -192,7 +193,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
                    [](const renderengine::LayerSettings& settings) { return &settings; });
 
     if (sDebugHighlighLayers) {
-        renderengine::LayerSettings highlight{
+        highlight = {
                 .geometry =
                         renderengine::Geometry{
                                 .boundaries = FloatRect(0.0f, 0.0f,
