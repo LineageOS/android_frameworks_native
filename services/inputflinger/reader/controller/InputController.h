@@ -14,35 +14,49 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_LIGHT_INPUT_MAPPER_H
-#define _UI_INPUTREADER_LIGHT_INPUT_MAPPER_H
+#ifndef _UI_INPUTREADER_LIGHT_CONTROLLER_H
+#define _UI_INPUTREADER_LIGHT_CONTROLLER_H
 
-#include "InputMapper.h"
+#include "InputControllerInterface.h"
 
 namespace android {
 
-class LightInputMapper : public InputMapper {
+class InputController : public InputControllerInterface {
     // Refer to https://developer.android.com/reference/kotlin/android/graphics/Color
     /* Number of colors : {red, green, blue} */
     static constexpr size_t COLOR_NUM = 3;
     static constexpr int32_t MAX_BRIGHTNESS = 0xff;
 
 public:
-    explicit LightInputMapper(InputDeviceContext& deviceContext);
-    ~LightInputMapper() override;
+    explicit InputController(InputDeviceContext& deviceContext);
+    ~InputController() override;
 
-    uint32_t getSources() override;
     void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
     void dump(std::string& dump) override;
-    void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes) override;
-    void reset(nsecs_t when) override;
-    void process(const RawEvent* rawEvent) override;
     bool setLightColor(int32_t lightId, int32_t color) override;
     bool setLightPlayerId(int32_t lightId, int32_t playerId) override;
     std::optional<int32_t> getLightColor(int32_t lightId) override;
     std::optional<int32_t> getLightPlayerId(int32_t lightId) override;
+    std::optional<int32_t> getBatteryCapacity(int32_t batteryId) override;
+    std::optional<int32_t> getBatteryStatus(int32_t batteryId) override;
 
 private:
+    inline int32_t getDeviceId() { return mDeviceContext.getId(); }
+    inline InputDeviceContext& getDeviceContext() { return mDeviceContext; }
+
+    InputDeviceContext& mDeviceContext;
+    void configureLights();
+    void configureBattries();
+
+    struct Battery {
+        explicit Battery(InputDeviceContext& context, const std::string& name, int32_t id)
+              : context(context), name(name), id(id) {}
+        virtual ~Battery() {}
+        InputDeviceContext& context;
+        std::string name;
+        int32_t id;
+    };
+
     struct Light {
         explicit Light(InputDeviceContext& context, const std::string& name, int32_t id,
                        InputDeviceLightType type)
@@ -128,8 +142,11 @@ private:
 
     // Light map from light ID to Light
     std::unordered_map<int32_t, std::unique_ptr<Light>> mLights;
+
+    // Battery map from battery ID to battery
+    std::unordered_map<int32_t, std::unique_ptr<Battery>> mBatteries;
 };
 
 } // namespace android
 
-#endif // _UI_INPUTREADER_LIGHT_INPUT_MAPPER_H
+#endif // _UI_INPUTREADER_LIGHT_CONTROLLER_H

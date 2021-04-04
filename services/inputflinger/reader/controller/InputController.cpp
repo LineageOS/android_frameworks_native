@@ -19,7 +19,7 @@
 
 #include "../Macros.h"
 
-#include "LightInputMapper.h"
+#include "InputController.h"
 #include "input/NamedEnum.h"
 
 // Log detailed debug messages about input device lights.
@@ -48,27 +48,31 @@ static inline int32_t toArgb(int32_t brightness, int32_t red, int32_t green, int
 }
 
 /**
- * Light input mapper owned by InputReader device, implements the native API for querying input
+ * Input controller owned by InputReader device, implements the native API for querying input
  * lights, getting and setting the lights brightness and color, by interacting with EventHub
  * devices.
- * TODO b/180342233: Reconsider the inputflinger design to accommodate the device class
- * like lights and battery.
  */
-LightInputMapper::LightInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext) {}
+InputController::InputController(InputDeviceContext& deviceContext)
+      : mDeviceContext(deviceContext) {
+    configureBattries();
+    configureLights();
+}
 
-LightInputMapper::~LightInputMapper() {}
+InputController::~InputController() {}
 
-std::optional<std::int32_t> LightInputMapper::Light::getRawLightBrightness(int32_t rawLightId) {
-    std::optional<RawLightInfo> rawInfo = context.getRawLightInfo(rawLightId);
-    std::optional<int32_t> ret = context.getLightBrightness(rawLightId);
-    if (!rawInfo.has_value() || !ret.has_value()) {
+std::optional<std::int32_t> InputController::Light::getRawLightBrightness(int32_t rawLightId) {
+    std::optional<RawLightInfo> rawInfoOpt = context.getRawLightInfo(rawLightId);
+    if (!rawInfoOpt.has_value()) {
         return std::nullopt;
     }
-    int brightness = ret.value();
+    std::optional<int32_t> brightnessOpt = context.getLightBrightness(rawLightId);
+    if (!brightnessOpt.has_value()) {
+        return std::nullopt;
+    }
+    int brightness = brightnessOpt.value();
 
     // If the light node doesn't have max brightness, use the default max brightness.
-    int rawMaxBrightness = rawInfo->maxBrightness.value_or(MAX_BRIGHTNESS);
+    int rawMaxBrightness = rawInfoOpt->maxBrightness.value_or(MAX_BRIGHTNESS);
     float ratio = MAX_BRIGHTNESS / rawMaxBrightness;
     // Scale the returned brightness in [0, rawMaxBrightness] to [0, 255]
     if (rawMaxBrightness != MAX_BRIGHTNESS) {
@@ -81,7 +85,7 @@ std::optional<std::int32_t> LightInputMapper::Light::getRawLightBrightness(int32
     return brightness;
 }
 
-void LightInputMapper::Light::setRawLightBrightness(int32_t rawLightId, int32_t brightness) {
+void InputController::Light::setRawLightBrightness(int32_t rawLightId, int32_t brightness) {
     std::optional<RawLightInfo> rawInfo = context.getRawLightInfo(rawLightId);
     if (!rawInfo.has_value()) {
         return;
@@ -100,14 +104,14 @@ void LightInputMapper::Light::setRawLightBrightness(int32_t rawLightId, int32_t 
     context.setLightBrightness(rawLightId, brightness);
 }
 
-bool LightInputMapper::SingleLight::setLightColor(int32_t color) {
+bool InputController::SingleLight::setLightColor(int32_t color) {
     int32_t brightness = getAlpha(color);
     setRawLightBrightness(rawId, brightness);
 
     return true;
 }
 
-bool LightInputMapper::RgbLight::setLightColor(int32_t color) {
+bool InputController::RgbLight::setLightColor(int32_t color) {
     // Compose color value as per:
     // https://developer.android.com/reference/android/graphics/Color?hl=en
     // int color = (A & 0xff) << 24 | (R & 0xff) << 16 | (G & 0xff) << 8 | (B & 0xff);
@@ -133,7 +137,7 @@ bool LightInputMapper::RgbLight::setLightColor(int32_t color) {
     return true;
 }
 
-bool LightInputMapper::MultiColorLight::setLightColor(int32_t color) {
+bool InputController::MultiColorLight::setLightColor(int32_t color) {
     std::unordered_map<LightColor, int32_t> intensities;
     intensities.emplace(LightColor::RED, getRed(color));
     intensities.emplace(LightColor::GREEN, getGreen(color));
@@ -144,7 +148,7 @@ bool LightInputMapper::MultiColorLight::setLightColor(int32_t color) {
     return true;
 }
 
-std::optional<int32_t> LightInputMapper::SingleLight::getLightColor() {
+std::optional<int32_t> InputController::SingleLight::getLightColor() {
     std::optional<int32_t> brightness = getRawLightBrightness(rawId);
     if (!brightness.has_value()) {
         return std::nullopt;
@@ -153,7 +157,7 @@ std::optional<int32_t> LightInputMapper::SingleLight::getLightColor() {
     return toArgb(brightness.value(), 0 /* red */, 0 /* green */, 0 /* blue */);
 }
 
-std::optional<int32_t> LightInputMapper::RgbLight::getLightColor() {
+std::optional<int32_t> InputController::RgbLight::getLightColor() {
     // If the Alpha component is zero, then return color 0.
     if (brightness == 0) {
         return 0;
@@ -188,7 +192,7 @@ std::optional<int32_t> LightInputMapper::RgbLight::getLightColor() {
     return toArgb(brightness, red, green, blue);
 }
 
-std::optional<int32_t> LightInputMapper::MultiColorLight::getLightColor() {
+std::optional<int32_t> InputController::MultiColorLight::getLightColor() {
     auto ret = context.getLightIntensities(rawId);
     if (!ret.has_value()) {
         return std::nullopt;
@@ -206,7 +210,7 @@ std::optional<int32_t> LightInputMapper::MultiColorLight::getLightColor() {
     return std::nullopt;
 }
 
-bool LightInputMapper::PlayerIdLight::setLightPlayerId(int32_t playerId) {
+bool InputController::PlayerIdLight::setLightPlayerId(int32_t playerId) {
     if (rawLightIds.find(playerId) == rawLightIds.end()) {
         return false;
     }
@@ -220,7 +224,7 @@ bool LightInputMapper::PlayerIdLight::setLightPlayerId(int32_t playerId) {
     return true;
 }
 
-std::optional<int32_t> LightInputMapper::PlayerIdLight::getLightPlayerId() {
+std::optional<int32_t> InputController::PlayerIdLight::getLightPlayerId() {
     for (const auto& [id, rawId] : rawLightIds) {
         std::optional<int32_t> brightness = getRawLightBrightness(rawId);
         if (brightness.has_value() && brightness.value() > 0) {
@@ -230,11 +234,11 @@ std::optional<int32_t> LightInputMapper::PlayerIdLight::getLightPlayerId() {
     return std::nullopt;
 }
 
-void LightInputMapper::SingleLight::dump(std::string& dump) {
+void InputController::SingleLight::dump(std::string& dump) {
     dump += StringPrintf(INDENT4 "Color: 0x%x\n", getLightColor().value_or(0));
 }
 
-void LightInputMapper::PlayerIdLight::dump(std::string& dump) {
+void InputController::PlayerIdLight::dump(std::string& dump) {
     dump += StringPrintf(INDENT4 "PlayerId: %d\n", getLightPlayerId().value_or(-1));
     dump += StringPrintf(INDENT4 "Raw Player ID LEDs:");
     for (const auto& [id, rawId] : rawLightIds) {
@@ -243,7 +247,7 @@ void LightInputMapper::PlayerIdLight::dump(std::string& dump) {
     dump += "\n";
 }
 
-void LightInputMapper::RgbLight::dump(std::string& dump) {
+void InputController::RgbLight::dump(std::string& dump) {
     dump += StringPrintf(INDENT4 "Color: 0x%x\n", getLightColor().value_or(0));
     dump += StringPrintf(INDENT4 "Raw RGB LEDs: [%d, %d, %d] ", rawRgbIds.at(LightColor::RED),
                          rawRgbIds.at(LightColor::GREEN), rawRgbIds.at(LightColor::BLUE));
@@ -253,32 +257,38 @@ void LightInputMapper::RgbLight::dump(std::string& dump) {
     dump += "\n";
 }
 
-void LightInputMapper::MultiColorLight::dump(std::string& dump) {
+void InputController::MultiColorLight::dump(std::string& dump) {
     dump += StringPrintf(INDENT4 "Color: 0x%x\n", getLightColor().value_or(0));
 }
 
-uint32_t LightInputMapper::getSources() {
-    return AINPUT_SOURCE_UNKNOWN;
-}
+void InputController::populateDeviceInfo(InputDeviceInfo* deviceInfo) {
+    // TODO: b/180733860 Remove this after enabling multi-battery
+    if (!mBatteries.empty()) {
+        deviceInfo->setHasBattery(true);
+    }
 
-void LightInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
-    InputMapper::populateDeviceInfo(info);
+    for (const auto& [batteryId, battery] : mBatteries) {
+        InputDeviceBatteryInfo batteryInfo(battery->name, battery->id);
+        deviceInfo->addBatteryInfo(batteryInfo);
+    }
 
     for (const auto& [lightId, light] : mLights) {
         // Input device light doesn't support ordinal, always pass 1.
         InputDeviceLightInfo lightInfo(light->name, light->id, light->type, 1 /* ordinal */);
-        info->addLightInfo(lightInfo);
+        deviceInfo->addLightInfo(lightInfo);
     }
 }
 
-void LightInputMapper::dump(std::string& dump) {
-    dump += INDENT2 "Light Input Mapper:\n";
-    dump += INDENT3 "Lights:\n";
-    for (const auto& [lightId, light] : mLights) {
-        dump += StringPrintf(INDENT4 "Id: %d", lightId);
-        dump += StringPrintf(INDENT4 "Name: %s", light->name.c_str());
-        dump += StringPrintf(INDENT4 "Type: %s", NamedEnum::string(light->type).c_str());
-        light->dump(dump);
+void InputController::dump(std::string& dump) {
+    dump += INDENT2 "Input Controller:\n";
+    if (!mLights.empty()) {
+        dump += INDENT3 "Lights:\n";
+        for (const auto& [lightId, light] : mLights) {
+            dump += StringPrintf(INDENT4 "Id: %d", lightId);
+            dump += StringPrintf(INDENT4 "Name: %s", light->name.c_str());
+            dump += StringPrintf(INDENT4 "Type: %s", NamedEnum::string(light->type).c_str());
+            light->dump(dump);
+        }
     }
     // Dump raw lights
     dump += INDENT3 "RawLights:\n";
@@ -298,139 +308,179 @@ void LightInputMapper::dump(std::string& dump) {
         dump += StringPrintf(INDENT4 "%d\n",
                              getDeviceContext().getLightBrightness(rawId).value_or(-1));
     }
-}
 
-void LightInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
-                                 uint32_t changes) {
-    InputMapper::configure(when, config, changes);
+    if (!mBatteries.empty()) {
+        dump += INDENT3 "Batteries:\n";
+        for (const auto& [batteryId, battery] : mBatteries) {
+            dump += StringPrintf(INDENT4 "Id: %d", batteryId);
+            dump += StringPrintf(INDENT4 "Name: %s", battery->name.c_str());
+            dump += getBatteryCapacity(batteryId).has_value()
+                    ? StringPrintf(INDENT3 "Capacity: %d\n", getBatteryCapacity(batteryId).value())
+                    : StringPrintf(INDENT3 "Capacity: Unknown");
 
-    if (!changes) { // first time only
-        bool hasRedLed = false;
-        bool hasGreenLed = false;
-        bool hasBlueLed = false;
-        std::optional<int32_t> rawGlobalId = std::nullopt;
-        // Player ID light common name string
-        std::string playerIdName;
-        // Raw RGB color to raw light ID
-        std::unordered_map<LightColor, int32_t /* rawLightId */> rawRgbIds;
-        // Map from player Id to raw light Id
-        std::unordered_map<int32_t, int32_t> playerIdLightIds;
-        mLights.clear();
-
-        // Check raw lights
-        const std::vector<int32_t> rawLightIds = getDeviceContext().getRawLightIds();
-        // Map from raw light id to raw light info
-        std::unordered_map<int32_t, RawLightInfo> rawInfos;
-        for (const auto& rawId : rawLightIds) {
-            std::optional<RawLightInfo> rawInfo = getDeviceContext().getRawLightInfo(rawId);
-            if (!rawInfo.has_value()) {
-                continue;
+            std::string status;
+            switch (getBatteryStatus(batteryId).value_or(BATTERY_STATUS_UNKNOWN)) {
+                case BATTERY_STATUS_CHARGING:
+                    status = "Charging";
+                    break;
+                case BATTERY_STATUS_DISCHARGING:
+                    status = "Discharging";
+                    break;
+                case BATTERY_STATUS_NOT_CHARGING:
+                    status = "Not charging";
+                    break;
+                case BATTERY_STATUS_FULL:
+                    status = "Full";
+                    break;
+                default:
+                    status = "Unknown";
             }
-            rawInfos.insert_or_assign(rawId, rawInfo.value());
-            // Check if this is a group LEDs for player ID
-            std::regex lightPattern("([a-z]+)([0-9]+)");
-            std::smatch results;
-            if (std::regex_match(rawInfo->name, results, lightPattern)) {
-                std::string commonName = results[1].str();
-                int32_t playerId = std::stoi(results[2]);
-                if (playerIdLightIds.empty()) {
-                    playerIdName = commonName;
-                    playerIdLightIds.insert_or_assign(playerId, rawId);
-                } else {
-                    // Make sure the player ID leds have common string name
-                    if (playerIdName.compare(commonName) == 0 &&
-                        playerIdLightIds.find(playerId) == playerIdLightIds.end()) {
-                        playerIdLightIds.insert_or_assign(playerId, rawId);
-                    }
-                }
-            }
-            // Check if this is an LED of RGB light
-            if (rawInfo->flags.test(InputLightClass::RED)) {
-                hasRedLed = true;
-                rawRgbIds.emplace(LightColor::RED, rawId);
-            }
-            if (rawInfo->flags.test(InputLightClass::GREEN)) {
-                hasGreenLed = true;
-                rawRgbIds.emplace(LightColor::GREEN, rawId);
-            }
-            if (rawInfo->flags.test(InputLightClass::BLUE)) {
-                hasBlueLed = true;
-                rawRgbIds.emplace(LightColor::BLUE, rawId);
-            }
-            if (rawInfo->flags.test(InputLightClass::GLOBAL)) {
-                rawGlobalId = rawId;
-            }
-            if (DEBUG_LIGHT_DETAILS) {
-                ALOGD("Light rawId %d name %s max %d flags %s \n", rawInfo->id,
-                      rawInfo->name.c_str(), rawInfo->maxBrightness.value_or(MAX_BRIGHTNESS),
-                      rawInfo->flags.string().c_str());
-            }
-        }
-
-        // Construct a player ID light
-        if (playerIdLightIds.size() > 1) {
-            std::unique_ptr<Light> light =
-                    std::make_unique<PlayerIdLight>(getDeviceContext(), playerIdName, ++mNextId,
-                                                    playerIdLightIds);
-            mLights.insert_or_assign(light->id, std::move(light));
-            // Remove these raw lights from raw light info as they've been used to compose a
-            // Player ID light, so we do not expose these raw lights as single lights.
-            for (const auto& [playerId, rawId] : playerIdLightIds) {
-                rawInfos.erase(rawId);
-            }
-        }
-        // Construct a RGB light for composed RGB light
-        if (hasRedLed && hasGreenLed && hasBlueLed) {
-            if (DEBUG_LIGHT_DETAILS) {
-                ALOGD("Rgb light ids [%d, %d, %d] \n", rawRgbIds.at(LightColor::RED),
-                      rawRgbIds.at(LightColor::GREEN), rawRgbIds.at(LightColor::BLUE));
-            }
-            std::unique_ptr<Light> light = std::make_unique<RgbLight>(getDeviceContext(), ++mNextId,
-                                                                      rawRgbIds, rawGlobalId);
-            mLights.insert_or_assign(light->id, std::move(light));
-            // Remove from raw light info as they've been composed a RBG light.
-            rawInfos.erase(rawRgbIds.at(LightColor::RED));
-            rawInfos.erase(rawRgbIds.at(LightColor::GREEN));
-            rawInfos.erase(rawRgbIds.at(LightColor::BLUE));
-            if (rawGlobalId.has_value()) {
-                rawInfos.erase(rawGlobalId.value());
-            }
-        }
-
-        // Check the rest of raw light infos
-        for (const auto& [rawId, rawInfo] : rawInfos) {
-            // If the node is multi-color led, construct a MULTI_COLOR light
-            if (rawInfo.flags.test(InputLightClass::MULTI_INDEX) &&
-                rawInfo.flags.test(InputLightClass::MULTI_INTENSITY)) {
-                if (DEBUG_LIGHT_DETAILS) {
-                    ALOGD("Multicolor light Id %d name %s \n", rawInfo.id, rawInfo.name.c_str());
-                }
-                std::unique_ptr<Light> light =
-                        std::make_unique<MultiColorLight>(getDeviceContext(), rawInfo.name,
-                                                          ++mNextId, rawInfo.id);
-                mLights.insert_or_assign(light->id, std::move(light));
-                continue;
-            }
-            // Construct a single LED light
-            if (DEBUG_LIGHT_DETAILS) {
-                ALOGD("Single light Id %d name %s \n", rawInfo.id, rawInfo.name.c_str());
-            }
-            std::unique_ptr<Light> light =
-                    std::make_unique<SingleLight>(getDeviceContext(), rawInfo.name, ++mNextId,
-                                                  rawInfo.id);
-
-            mLights.insert_or_assign(light->id, std::move(light));
+            dump += StringPrintf(INDENT3 "Status: %s\n", status.c_str());
         }
     }
 }
 
-void LightInputMapper::reset(nsecs_t when) {
-    InputMapper::reset(when);
+void InputController::configureBattries() {
+    // Check raw batteries
+    const std::vector<int32_t> rawBatteryIds = getDeviceContext().getRawBatteryIds();
+
+    for (const auto& rawId : rawBatteryIds) {
+        std::optional<RawBatteryInfo> rawInfo = getDeviceContext().getRawBatteryInfo(rawId);
+        if (!rawInfo.has_value()) {
+            continue;
+        }
+        std::unique_ptr<Battery> battery =
+                std::make_unique<Battery>(getDeviceContext(), rawInfo->name, rawInfo->id);
+        mBatteries.insert_or_assign(rawId, std::move(battery));
+    }
 }
 
-void LightInputMapper::process(const RawEvent* rawEvent) {}
+void InputController::configureLights() {
+    bool hasRedLed = false;
+    bool hasGreenLed = false;
+    bool hasBlueLed = false;
+    std::optional<int32_t> rawGlobalId = std::nullopt;
+    // Player ID light common name string
+    std::string playerIdName;
+    // Raw RGB color to raw light ID
+    std::unordered_map<LightColor, int32_t /* rawLightId */> rawRgbIds;
+    // Map from player Id to raw light Id
+    std::unordered_map<int32_t, int32_t> playerIdLightIds;
 
-bool LightInputMapper::setLightColor(int32_t lightId, int32_t color) {
+    // Check raw lights
+    const std::vector<int32_t> rawLightIds = getDeviceContext().getRawLightIds();
+    // Map from raw light id to raw light info
+    std::unordered_map<int32_t, RawLightInfo> rawInfos;
+    for (const auto& rawId : rawLightIds) {
+        std::optional<RawLightInfo> rawInfo = getDeviceContext().getRawLightInfo(rawId);
+        if (!rawInfo.has_value()) {
+            continue;
+        }
+        rawInfos.insert_or_assign(rawId, rawInfo.value());
+        // Check if this is a group LEDs for player ID
+        std::regex lightPattern("([a-z]+)([0-9]+)");
+        std::smatch results;
+        if (std::regex_match(rawInfo->name, results, lightPattern)) {
+            std::string commonName = results[1].str();
+            int32_t playerId = std::stoi(results[2]);
+            if (playerIdLightIds.empty()) {
+                playerIdName = commonName;
+                playerIdLightIds.insert_or_assign(playerId, rawId);
+            } else {
+                // Make sure the player ID leds have common string name
+                if (playerIdName.compare(commonName) == 0 &&
+                    playerIdLightIds.find(playerId) == playerIdLightIds.end()) {
+                    playerIdLightIds.insert_or_assign(playerId, rawId);
+                }
+            }
+        }
+        // Check if this is an LED of RGB light
+        if (rawInfo->flags.test(InputLightClass::RED)) {
+            hasRedLed = true;
+            rawRgbIds.emplace(LightColor::RED, rawId);
+        }
+        if (rawInfo->flags.test(InputLightClass::GREEN)) {
+            hasGreenLed = true;
+            rawRgbIds.emplace(LightColor::GREEN, rawId);
+        }
+        if (rawInfo->flags.test(InputLightClass::BLUE)) {
+            hasBlueLed = true;
+            rawRgbIds.emplace(LightColor::BLUE, rawId);
+        }
+        if (rawInfo->flags.test(InputLightClass::GLOBAL)) {
+            rawGlobalId = rawId;
+        }
+        if (DEBUG_LIGHT_DETAILS) {
+            ALOGD("Light rawId %d name %s max %d flags %s \n", rawInfo->id, rawInfo->name.c_str(),
+                  rawInfo->maxBrightness.value_or(MAX_BRIGHTNESS), rawInfo->flags.string().c_str());
+        }
+    }
+
+    // Construct a player ID light
+    if (playerIdLightIds.size() > 1) {
+        std::unique_ptr<Light> light =
+                std::make_unique<PlayerIdLight>(getDeviceContext(), playerIdName, ++mNextId,
+                                                playerIdLightIds);
+        mLights.insert_or_assign(light->id, std::move(light));
+        // Remove these raw lights from raw light info as they've been used to compose a
+        // Player ID light, so we do not expose these raw lights as single lights.
+        for (const auto& [playerId, rawId] : playerIdLightIds) {
+            rawInfos.erase(rawId);
+        }
+    }
+    // Construct a RGB light for composed RGB light
+    if (hasRedLed && hasGreenLed && hasBlueLed) {
+        if (DEBUG_LIGHT_DETAILS) {
+            ALOGD("Rgb light ids [%d, %d, %d] \n", rawRgbIds.at(LightColor::RED),
+                  rawRgbIds.at(LightColor::GREEN), rawRgbIds.at(LightColor::BLUE));
+        }
+        std::unique_ptr<Light> light =
+                std::make_unique<RgbLight>(getDeviceContext(), ++mNextId, rawRgbIds, rawGlobalId);
+        mLights.insert_or_assign(light->id, std::move(light));
+        // Remove from raw light info as they've been composed a RBG light.
+        rawInfos.erase(rawRgbIds.at(LightColor::RED));
+        rawInfos.erase(rawRgbIds.at(LightColor::GREEN));
+        rawInfos.erase(rawRgbIds.at(LightColor::BLUE));
+        if (rawGlobalId.has_value()) {
+            rawInfos.erase(rawGlobalId.value());
+        }
+    }
+
+    // Check the rest of raw light infos
+    for (const auto& [rawId, rawInfo] : rawInfos) {
+        // If the node is multi-color led, construct a MULTI_COLOR light
+        if (rawInfo.flags.test(InputLightClass::MULTI_INDEX) &&
+            rawInfo.flags.test(InputLightClass::MULTI_INTENSITY)) {
+            if (DEBUG_LIGHT_DETAILS) {
+                ALOGD("Multicolor light Id %d name %s \n", rawInfo.id, rawInfo.name.c_str());
+            }
+            std::unique_ptr<Light> light =
+                    std::make_unique<MultiColorLight>(getDeviceContext(), rawInfo.name, ++mNextId,
+                                                      rawInfo.id);
+            mLights.insert_or_assign(light->id, std::move(light));
+            continue;
+        }
+        // Construct a single LED light
+        if (DEBUG_LIGHT_DETAILS) {
+            ALOGD("Single light Id %d name %s \n", rawInfo.id, rawInfo.name.c_str());
+        }
+        std::unique_ptr<Light> light =
+                std::make_unique<SingleLight>(getDeviceContext(), rawInfo.name, ++mNextId,
+                                              rawInfo.id);
+
+        mLights.insert_or_assign(light->id, std::move(light));
+    }
+}
+
+std::optional<int32_t> InputController::getBatteryCapacity(int batteryId) {
+    return getDeviceContext().getBatteryCapacity(batteryId);
+}
+
+std::optional<int32_t> InputController::getBatteryStatus(int batteryId) {
+    return getDeviceContext().getBatteryStatus(batteryId);
+}
+
+bool InputController::setLightColor(int32_t lightId, int32_t color) {
     auto it = mLights.find(lightId);
     if (it == mLights.end()) {
         return false;
@@ -443,7 +493,7 @@ bool LightInputMapper::setLightColor(int32_t lightId, int32_t color) {
     return light->setLightColor(color);
 }
 
-std::optional<int32_t> LightInputMapper::getLightColor(int32_t lightId) {
+std::optional<int32_t> InputController::getLightColor(int32_t lightId) {
     auto it = mLights.find(lightId);
     if (it == mLights.end()) {
         return std::nullopt;
@@ -457,7 +507,7 @@ std::optional<int32_t> LightInputMapper::getLightColor(int32_t lightId) {
     return color;
 }
 
-bool LightInputMapper::setLightPlayerId(int32_t lightId, int32_t playerId) {
+bool InputController::setLightPlayerId(int32_t lightId, int32_t playerId) {
     auto it = mLights.find(lightId);
     if (it == mLights.end()) {
         return false;
@@ -466,7 +516,7 @@ bool LightInputMapper::setLightPlayerId(int32_t lightId, int32_t playerId) {
     return light->setLightPlayerId(playerId);
 }
 
-std::optional<int32_t> LightInputMapper::getLightPlayerId(int32_t lightId) {
+std::optional<int32_t> InputController::getLightPlayerId(int32_t lightId) {
     auto it = mLights.find(lightId);
     if (it == mLights.end()) {
         return std::nullopt;
