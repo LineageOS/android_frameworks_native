@@ -433,6 +433,10 @@ VkJsonInstance VkJsonGetInstance() {
     VkJsonDeviceGroup device_group;
     std::vector<VkPhysicalDeviceGroupProperties> group_properties;
     group_properties.resize(count);
+    for (auto& properties : group_properties) {
+      properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES;
+      properties.pNext = nullptr;
+    }
     result = (*vkpEnumeratePhysicalDeviceGroups)(vkinstance, &count,
                                                  group_properties.data());
     if (result != VK_SUCCESS) {
