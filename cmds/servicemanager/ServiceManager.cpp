@@ -239,7 +239,8 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
 #endif  // !VENDORSERVICEMANAGER
 
     // implicitly unlinked when the binder is removed
-    if (binder->remoteBinder() != nullptr && binder->linkToDeath(this) != OK) {
+    if (binder->remoteBinder() != nullptr &&
+        binder->linkToDeath(sp<ServiceManager>::fromExisting(this)) != OK) {
         LOG(ERROR) << "Could not linkToDeath when adding " << name;
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
@@ -307,7 +308,9 @@ Status ServiceManager::registerForNotifications(
         return Status::fromExceptionCode(Status::EX_NULL_POINTER);
     }
 
-    if (OK != IInterface::asBinder(callback)->linkToDeath(this)) {
+    if (OK !=
+        IInterface::asBinder(callback)->linkToDeath(
+                sp<ServiceManager>::fromExisting(this))) {
         LOG(ERROR) << "Could not linkToDeath when adding " << name;
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
@@ -461,7 +464,8 @@ Status ServiceManager::registerClientCallback(const std::string& name, const sp<
         return Status::fromExceptionCode(Status::EX_ILLEGAL_ARGUMENT);
     }
 
-    if (OK != IInterface::asBinder(cb)->linkToDeath(this)) {
+    if (OK !=
+        IInterface::asBinder(cb)->linkToDeath(sp<ServiceManager>::fromExisting(this))) {
         LOG(ERROR) << "Could not linkToDeath when adding client callback for " << name;
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE);
     }
@@ -491,7 +495,7 @@ void ServiceManager::removeClientCallback(const wp<IBinder>& who,
 }
 
 ssize_t ServiceManager::Service::getNodeStrongRefCount() {
-    sp<BpBinder> bpBinder = binder->remoteBinder();
+    sp<BpBinder> bpBinder = sp<BpBinder>::fromExisting(binder->remoteBinder());
     if (bpBinder == nullptr) return -1;
 
     return ProcessState::self()->getStrongRefCountForNode(bpBinder);
