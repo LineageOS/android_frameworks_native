@@ -33,6 +33,8 @@
 
 namespace android {
 
+class InputController;
+class InputControllerInterface;
 class InputDeviceContext;
 class InputMapper;
 
@@ -131,6 +133,20 @@ public:
         return *mapper;
     }
 
+    // construct and add a controller to the input device
+    template <class T>
+    T& addController(int32_t eventHubId) {
+        // ensure a device entry exists for this eventHubId
+        addEventHubDevice(eventHubId, false);
+
+        // create controller
+        auto& devicePair = mDevices[eventHubId];
+        auto& deviceContext = devicePair.first;
+
+        mController = std::make_unique<T>(*deviceContext);
+        return *(reinterpret_cast<T*>(mController.get()));
+    }
+
 private:
     InputReaderContext* mContext;
     int32_t mId;
@@ -143,7 +159,10 @@ private:
     // map from eventHubId to device context and mappers
     using MapperVector = std::vector<std::unique_ptr<InputMapper>>;
     using DevicePair = std::pair<std::unique_ptr<InputDeviceContext>, MapperVector>;
+    // Map from EventHub ID to pair of device context and vector of mapper.
     std::unordered_map<int32_t, DevicePair> mDevices;
+    // Misc devices controller for lights, battery, etc.
+    std::unique_ptr<InputControllerInterface> mController;
 
     uint32_t mSources;
     bool mIsExternal;
@@ -319,11 +338,21 @@ public:
 
     inline std::vector<int32_t> getVibratorIds() { return mEventHub->getVibratorIds(mId); }
 
-    inline std::optional<int32_t> getBatteryCapacity() {
-        return mEventHub->getBatteryCapacity(mId);
+    inline const std::vector<int32_t> getRawBatteryIds() {
+        return mEventHub->getRawBatteryIds(mId);
     }
 
-    inline std::optional<int32_t> getBatteryStatus() { return mEventHub->getBatteryStatus(mId); }
+    inline std::optional<RawBatteryInfo> getRawBatteryInfo(int32_t batteryId) {
+        return mEventHub->getRawBatteryInfo(mId, batteryId);
+    }
+
+    inline std::optional<int32_t> getBatteryCapacity(int32_t batteryId) {
+        return mEventHub->getBatteryCapacity(mId, batteryId);
+    }
+
+    inline std::optional<int32_t> getBatteryStatus(int32_t batteryId) {
+        return mEventHub->getBatteryStatus(mId, batteryId);
+    }
 
     inline bool hasAbsoluteAxis(int32_t code) const {
         RawAbsoluteAxisInfo info;

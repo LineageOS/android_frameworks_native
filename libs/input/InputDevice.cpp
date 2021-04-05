@@ -231,6 +231,13 @@ void InputDeviceInfo::addSensorInfo(const InputDeviceSensorInfo& info) {
     mSensors.insert_or_assign(info.type, info);
 }
 
+void InputDeviceInfo::addBatteryInfo(const InputDeviceBatteryInfo& info) {
+    if (mBatteries.find(info.id) != mBatteries.end()) {
+        ALOGW("Battery id %d already exists, will be replaced by new battery added.", info.id);
+    }
+    mBatteries.insert_or_assign(info.id, info);
+}
+
 void InputDeviceInfo::addLightInfo(const InputDeviceLightInfo& info) {
     if (mLights.find(info.id) != mLights.end()) {
         ALOGW("Light id %d already exists, will be replaced by new light added.", info.id);
