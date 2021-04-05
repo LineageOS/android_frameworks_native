@@ -32,9 +32,11 @@
 #include "InputReaderContext.h"
 
 namespace android {
+// TODO b/180733860 support multiple battery in API and remove this.
+constexpr int32_t DEFAULT_BATTERY_ID = 1;
 
-class InputController;
-class InputControllerInterface;
+class PeripheralController;
+class PeripheralControllerInterface;
 class InputDeviceContext;
 class InputMapper;
 
@@ -162,7 +164,7 @@ private:
     // Map from EventHub ID to pair of device context and vector of mapper.
     std::unordered_map<int32_t, DevicePair> mDevices;
     // Misc devices controller for lights, battery, etc.
-    std::unique_ptr<InputControllerInterface> mController;
+    std::unique_ptr<PeripheralControllerInterface> mController;
 
     uint32_t mSources;
     bool mIsExternal;

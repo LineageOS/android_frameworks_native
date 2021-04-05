@@ -363,7 +363,7 @@ EventHub::Device::Device(int fd, int32_t id, const std::string& path,
         virtualKeyMap(nullptr),
         ffEffectPlaying(false),
         ffEffectId(-1),
-        miscDevice(nullptr),
+        associatedDevice(nullptr),
         controllerNumber(0),
         enabled(true),
         isVirtual(fd < 0) {}
@@ -554,7 +554,7 @@ status_t EventHub::Device::mapLed(int32_t led, int32_t* outScanCode) const {
 }
 
 // Check the sysfs path for any input device batteries, returns true if battery found.
-bool EventHub::MiscDevice::configureBatteryLocked() {
+bool EventHub::AssociatedDevice::configureBatteryLocked() {
     nextBatteryId = 0;
     // Check if device has any battery.
     const auto& paths = findSysfsNodes(sysfsRootPath, SysfsClass::POWER_SUPPLY);
@@ -580,7 +580,7 @@ bool EventHub::MiscDevice::configureBatteryLocked() {
 }
 
 // Check the sysfs path for any input device lights, returns true if lights found.
-bool EventHub::MiscDevice::configureLightsLocked() {
+bool EventHub::AssociatedDevice::configureLightsLocked() {
     nextLightId = 0;
     // Check if device has any lights.
     const auto& paths = findSysfsNodes(sysfsRootPath, SysfsClass::LEDS);
@@ -988,14 +988,10 @@ const std::unordered_map<int32_t, RawBatteryInfo>& EventHub::getBatteryInfoLocke
         int32_t deviceId) const {
     static const std::unordered_map<int32_t, RawBatteryInfo> EMPTY_BATTERY_INFO = {};
     Device* device = getDeviceLocked(deviceId);
-    if (device == nullptr) {
+    if (device == nullptr || !device->associatedDevice) {
         return EMPTY_BATTERY_INFO;
     }
-    auto it = mMiscDevices.find(device->identifier.descriptor);
-    if (it == mMiscDevices.end()) {
-        return EMPTY_BATTERY_INFO;
-    }
-    return it->second->batteryInfos;
+    return device->associatedDevice->batteryInfos;
 }
 
 const std::vector<int32_t> EventHub::getRawBatteryIds(int32_t deviceId) {
@@ -1028,14 +1024,10 @@ const std::unordered_map<int32_t, RawLightInfo>& EventHub::getLightInfoLocked(
         int32_t deviceId) const {
     static const std::unordered_map<int32_t, RawLightInfo> EMPTY_LIGHT_INFO = {};
     Device* device = getDeviceLocked(deviceId);
-    if (device == nullptr) {
+    if (device == nullptr || !device->associatedDevice) {
         return EMPTY_LIGHT_INFO;
     }
-    auto it = mMiscDevices.find(device->identifier.descriptor);
-    if (it == mMiscDevices.end()) {
-        return EMPTY_LIGHT_INFO;
-    }
-    return it->second->lightInfos;
+    return device->associatedDevice->lightInfos;
 }
 
 const std::vector<int32_t> EventHub::getRawLightIds(int32_t deviceId) {
@@ -1946,18 +1938,20 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     // Check the sysfs root path
     std::optional<std::filesystem::path> sysfsRootPath = getSysfsRootPath(devicePath.c_str());
     if (sysfsRootPath.has_value()) {
-        std::shared_ptr<MiscDevice> miscDevice;
-        auto it = mMiscDevices.find(device->identifier.descriptor);
-        if (it == mMiscDevices.end()) {
-            miscDevice = std::make_shared<MiscDevice>(sysfsRootPath.value());
-        } else {
-            miscDevice = it->second;
+        std::shared_ptr<AssociatedDevice> associatedDevice;
+        for (const auto& [id, dev] : mDevices) {
+            if (device->identifier.descriptor == dev->identifier.descriptor &&
+                !dev->associatedDevice) {
+                associatedDevice = dev->associatedDevice;
+            }
         }
-        hasBattery = miscDevice->configureBatteryLocked();
-        hasLights = miscDevice->configureLightsLocked();
+        if (!associatedDevice) {
+            associatedDevice = std::make_shared<AssociatedDevice>(sysfsRootPath.value());
+        }
+        hasBattery = associatedDevice->configureBatteryLocked();
+        hasLights = associatedDevice->configureLightsLocked();
 
-        device->miscDevice = miscDevice;
-        mMiscDevices.insert_or_assign(device->identifier.descriptor, std::move(miscDevice));
+        device->associatedDevice = associatedDevice;
     }
 
     // Figure out the kinds of events the device reports.
@@ -2329,12 +2323,6 @@ void EventHub::closeDeviceLocked(Device& device) {
     mClosingDevices.push_back(std::move(mDevices[device.id]));
 
     mDevices.erase(device.id);
-    // If all devices with the descriptor have been removed then the miscellaneous device should
-    // be removed too.
-    std::string descriptor = device.identifier.descriptor;
-    if (getDeviceByDescriptorLocked(descriptor) == nullptr) {
-        mMiscDevices.erase(descriptor);
-    }
 }
 
 status_t EventHub::readNotifyLocked() {
