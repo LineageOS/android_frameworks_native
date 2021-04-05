@@ -49,6 +49,7 @@ cc_library_shared {
         "libhardware_legacy",
         "libutils",
         "liblog",
+        "libactivitymanager_aidl",
         "libbatterystats_aidl",
         "libbinder",
         "libsensor",
@@ -69,8 +70,11 @@ cc_library_shared {
 
     generated_headers: ["framework-cppstream-protos"],
 
-    // our public headers depend on libsensor and libsensorprivacy
-    export_shared_lib_headers: ["libsensor", "libsensorprivacy"],
+    export_shared_lib_headers: [
+        "libactivitymanager_aidl",
+        "libsensor",
+        "libsensorprivacy",
+    ],
 }
 
 cc_binary {
