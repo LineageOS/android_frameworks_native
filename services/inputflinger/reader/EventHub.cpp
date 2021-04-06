@@ -70,6 +70,20 @@ static const char* VIDEO_DEVICE_PATH = "/dev";
 static constexpr int32_t FF_STRONG_MAGNITUDE_CHANNEL_IDX = 0;
 static constexpr int32_t FF_WEAK_MAGNITUDE_CHANNEL_IDX = 1;
 
+// Mapping for input battery class node IDs lookup.
+// https://www.kernel.org/doc/Documentation/power/power_supply_class.txt
+static const std::unordered_map<std::string, InputBatteryClass> BATTERY_CLASSES =
+        {{"capacity", InputBatteryClass::CAPACITY},
+         {"capacity_level", InputBatteryClass::CAPACITY_LEVEL},
+         {"status", InputBatteryClass::STATUS}};
+
+// Mapping for input battery class node names lookup.
+// https://www.kernel.org/doc/Documentation/power/power_supply_class.txt
+static const std::unordered_map<InputBatteryClass, std::string> BATTERY_NODES =
+        {{InputBatteryClass::CAPACITY, "capacity"},
+         {InputBatteryClass::CAPACITY_LEVEL, "capacity_level"},
+         {InputBatteryClass::STATUS, "status"}};
+
 // must be kept in sync with definitions in kernel /drivers/power/supply/power_supply_sysfs.c
 static const std::unordered_map<std::string, int32_t> BATTERY_STATUS =
         {{"Unknown", BATTERY_STATUS_UNKNOWN},
@@ -349,7 +363,7 @@ EventHub::Device::Device(int fd, int32_t id, const std::string& path,
         virtualKeyMap(nullptr),
         ffEffectPlaying(false),
         ffEffectId(-1),
-        nextLightId(0),
+        miscDevice(nullptr),
         controllerNumber(0),
         enabled(true),
         isVirtual(fd < 0) {}
@@ -540,32 +554,36 @@ status_t EventHub::Device::mapLed(int32_t led, int32_t* outScanCode) const {
 }
 
 // Check the sysfs path for any input device batteries, returns true if battery found.
-bool EventHub::Device::configureBatteryLocked() {
-    if (!sysfsRootPath.has_value()) {
-        return false;
+bool EventHub::MiscDevice::configureBatteryLocked() {
+    nextBatteryId = 0;
+    // Check if device has any battery.
+    const auto& paths = findSysfsNodes(sysfsRootPath, SysfsClass::POWER_SUPPLY);
+    for (const auto& nodePath : paths) {
+        RawBatteryInfo info;
+        info.id = ++nextBatteryId;
+        info.path = nodePath;
+        info.name = nodePath.filename();
+
+        // Scan the path for all the files
+        // Refer to https://www.kernel.org/doc/Documentation/leds/leds-class.txt
+        const auto& files = allFilesInPath(nodePath);
+        for (const auto& file : files) {
+            const auto it = BATTERY_CLASSES.find(file.filename().string());
+            if (it != BATTERY_CLASSES.end()) {
+                info.flags |= it->second;
+            }
+        }
+        batteryInfos.insert_or_assign(info.id, info);
+        ALOGD("configureBatteryLocked rawBatteryId %d name %s", info.id, info.name.c_str());
     }
-    // Check if device has any batteries.
-    std::vector<std::filesystem::path> batteryPaths =
-            findSysfsNodes(sysfsRootPath.value(), SysfsClass::POWER_SUPPLY);
-    // We only support single battery for an input device, if multiple batteries exist only the
-    // first one is supported.
-    if (batteryPaths.empty()) {
-        // Set path to be empty
-        sysfsBatteryPath = std::nullopt;
-        return false;
-    }
-    // If a battery exists
-    sysfsBatteryPath = batteryPaths[0];
-    return true;
+    return !batteryInfos.empty();
 }
 
 // Check the sysfs path for any input device lights, returns true if lights found.
-bool EventHub::Device::configureLightsLocked() {
-    if (!sysfsRootPath.has_value()) {
-        return false;
-    }
+bool EventHub::MiscDevice::configureLightsLocked() {
+    nextLightId = 0;
     // Check if device has any lights.
-    const auto& paths = findSysfsNodes(sysfsRootPath.value(), SysfsClass::LEDS);
+    const auto& paths = findSysfsNodes(sysfsRootPath, SysfsClass::LEDS);
     for (const auto& nodePath : paths) {
         RawLightInfo info;
         info.id = ++nextLightId;
@@ -599,6 +617,7 @@ bool EventHub::Device::configureLightsLocked() {
             }
         }
         lightInfos.insert_or_assign(info.id, info);
+        ALOGD("configureLightsLocked rawLightId %d name %s", info.id, info.name.c_str());
     }
     return !lightInfos.empty();
 }
@@ -963,42 +982,92 @@ base::Result<std::pair<InputDeviceSensorType, int32_t>> EventHub::mapSensor(int3
     return Errorf("Device not found or device has no key layout.");
 }
 
+// Gets the battery info map from battery ID to RawBatteryInfo of the miscellaneous device
+// associated with the device ID. Returns an empty map if no miscellaneous device found.
+const std::unordered_map<int32_t, RawBatteryInfo>& EventHub::getBatteryInfoLocked(
+        int32_t deviceId) const {
+    static const std::unordered_map<int32_t, RawBatteryInfo> EMPTY_BATTERY_INFO = {};
+    Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr) {
+        return EMPTY_BATTERY_INFO;
+    }
+    auto it = mMiscDevices.find(device->identifier.descriptor);
+    if (it == mMiscDevices.end()) {
+        return EMPTY_BATTERY_INFO;
+    }
+    return it->second->batteryInfos;
+}
+
+const std::vector<int32_t> EventHub::getRawBatteryIds(int32_t deviceId) {
+    std::scoped_lock _l(mLock);
+    std::vector<int32_t> batteryIds;
+
+    for (const auto [id, info] : getBatteryInfoLocked(deviceId)) {
+        batteryIds.push_back(id);
+    }
+
+    return batteryIds;
+}
+
+std::optional<RawBatteryInfo> EventHub::getRawBatteryInfo(int32_t deviceId, int32_t batteryId) {
+    std::scoped_lock _l(mLock);
+
+    const auto infos = getBatteryInfoLocked(deviceId);
+
+    auto it = infos.find(batteryId);
+    if (it != infos.end()) {
+        return it->second;
+    }
+
+    return std::nullopt;
+}
+
+// Gets the light info map from light ID to RawLightInfo of the miscellaneous device associated
+// with the deivice ID. Returns an empty map if no miscellaneous device found.
+const std::unordered_map<int32_t, RawLightInfo>& EventHub::getLightInfoLocked(
+        int32_t deviceId) const {
+    static const std::unordered_map<int32_t, RawLightInfo> EMPTY_LIGHT_INFO = {};
+    Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr) {
+        return EMPTY_LIGHT_INFO;
+    }
+    auto it = mMiscDevices.find(device->identifier.descriptor);
+    if (it == mMiscDevices.end()) {
+        return EMPTY_LIGHT_INFO;
+    }
+    return it->second->lightInfos;
+}
+
 const std::vector<int32_t> EventHub::getRawLightIds(int32_t deviceId) {
     std::scoped_lock _l(mLock);
-    Device* device = getDeviceLocked(deviceId);
     std::vector<int32_t> lightIds;
 
-    if (device != nullptr) {
-        for (const auto [id, info] : device->lightInfos) {
-            lightIds.push_back(id);
-        }
+    for (const auto [id, info] : getLightInfoLocked(deviceId)) {
+        lightIds.push_back(id);
     }
+
     return lightIds;
 }
 
 std::optional<RawLightInfo> EventHub::getRawLightInfo(int32_t deviceId, int32_t lightId) {
     std::scoped_lock _l(mLock);
-    Device* device = getDeviceLocked(deviceId);
 
-    if (device != nullptr) {
-        auto it = device->lightInfos.find(lightId);
-        if (it != device->lightInfos.end()) {
-            return it->second;
-        }
+    const auto infos = getLightInfoLocked(deviceId);
+
+    auto it = infos.find(lightId);
+    if (it != infos.end()) {
+        return it->second;
     }
+
     return std::nullopt;
 }
 
 std::optional<int32_t> EventHub::getLightBrightness(int32_t deviceId, int32_t lightId) {
     std::scoped_lock _l(mLock);
 
-    Device* device = getDeviceLocked(deviceId);
-    if (device == nullptr) {
-        return std::nullopt;
-    }
-
-    auto it = device->lightInfos.find(lightId);
-    if (it == device->lightInfos.end()) {
+    const auto infos = getLightInfoLocked(deviceId);
+    auto it = infos.find(lightId);
+    if (it == infos.end()) {
         return std::nullopt;
     }
     std::string buffer;
@@ -1013,13 +1082,9 @@ std::optional<std::unordered_map<LightColor, int32_t>> EventHub::getLightIntensi
         int32_t deviceId, int32_t lightId) {
     std::scoped_lock _l(mLock);
 
-    Device* device = getDeviceLocked(deviceId);
-    if (device == nullptr) {
-        return std::nullopt;
-    }
-
-    auto lightIt = device->lightInfos.find(lightId);
-    if (lightIt == device->lightInfos.end()) {
+    const auto infos = getLightInfoLocked(deviceId);
+    auto lightIt = infos.find(lightId);
+    if (lightIt == infos.end()) {
         return std::nullopt;
     }
 
@@ -1056,14 +1121,10 @@ std::optional<std::unordered_map<LightColor, int32_t>> EventHub::getLightIntensi
 void EventHub::setLightBrightness(int32_t deviceId, int32_t lightId, int32_t brightness) {
     std::scoped_lock _l(mLock);
 
-    Device* device = getDeviceLocked(deviceId);
-    if (device == nullptr) {
-        ALOGE("Device Id %d does not exist", deviceId);
-        return;
-    }
-    auto lightIt = device->lightInfos.find(lightId);
-    if (lightIt == device->lightInfos.end()) {
-        ALOGE("Light Id %d does not exist.", lightId);
+    const auto infos = getLightInfoLocked(deviceId);
+    auto lightIt = infos.find(lightId);
+    if (lightIt == infos.end()) {
+        ALOGE("%s lightId %d not found ", __func__, lightId);
         return;
     }
 
@@ -1078,13 +1139,9 @@ void EventHub::setLightIntensities(int32_t deviceId, int32_t lightId,
                                    std::unordered_map<LightColor, int32_t> intensities) {
     std::scoped_lock _l(mLock);
 
-    Device* device = getDeviceLocked(deviceId);
-    if (device == nullptr) {
-        ALOGE("Device Id %d does not exist", deviceId);
-        return;
-    }
-    auto lightIt = device->lightInfos.find(lightId);
-    if (lightIt == device->lightInfos.end()) {
+    const auto infos = getLightInfoLocked(deviceId);
+    auto lightIt = infos.find(lightId);
+    if (lightIt == infos.end()) {
         ALOGE("Light Id %d does not exist.", lightId);
         return;
     }
@@ -1352,51 +1409,56 @@ EventHub::Device* EventHub::getDeviceByFdLocked(int fd) const {
     return nullptr;
 }
 
-std::optional<int32_t> EventHub::getBatteryCapacity(int32_t deviceId) const {
+std::optional<int32_t> EventHub::getBatteryCapacity(int32_t deviceId, int32_t batteryId) const {
     std::scoped_lock _l(mLock);
-    Device* device = getDeviceLocked(deviceId);
-    std::string buffer;
 
-    if (device == nullptr || !device->sysfsBatteryPath.has_value()) {
+    const auto infos = getBatteryInfoLocked(deviceId);
+    auto it = infos.find(batteryId);
+    if (it == infos.end()) {
         return std::nullopt;
     }
+    std::string buffer;
 
     // Some devices report battery capacity as an integer through the "capacity" file
-    if (base::ReadFileToString(device->sysfsBatteryPath.value() / "capacity", &buffer)) {
+    if (base::ReadFileToString(it->second.path / BATTERY_NODES.at(InputBatteryClass::CAPACITY),
+                               &buffer)) {
         return std::stoi(base::Trim(buffer));
     }
 
     // Other devices report capacity as an enum value POWER_SUPPLY_CAPACITY_LEVEL_XXX
     // These values are taken from kernel source code include/linux/power_supply.h
-    if (base::ReadFileToString(device->sysfsBatteryPath.value() / "capacity_level", &buffer)) {
+    if (base::ReadFileToString(it->second.path /
+                                       BATTERY_NODES.at(InputBatteryClass::CAPACITY_LEVEL),
+                               &buffer)) {
         // Remove any white space such as trailing new line
-        const auto it = BATTERY_LEVEL.find(base::Trim(buffer));
-        if (it != BATTERY_LEVEL.end()) {
-            return it->second;
+        const auto levelIt = BATTERY_LEVEL.find(base::Trim(buffer));
+        if (levelIt != BATTERY_LEVEL.end()) {
+            return levelIt->second;
         }
     }
+
     return std::nullopt;
 }
 
-std::optional<int32_t> EventHub::getBatteryStatus(int32_t deviceId) const {
+std::optional<int32_t> EventHub::getBatteryStatus(int32_t deviceId, int32_t batteryId) const {
     std::scoped_lock _l(mLock);
-    Device* device = getDeviceLocked(deviceId);
-    std::string buffer;
-
-    if (device == nullptr || !device->sysfsBatteryPath.has_value()) {
+    const auto infos = getBatteryInfoLocked(deviceId);
+    auto it = infos.find(batteryId);
+    if (it == infos.end()) {
         return std::nullopt;
     }
+    std::string buffer;
 
-    if (!base::ReadFileToString(device->sysfsBatteryPath.value() / "status", &buffer)) {
+    if (!base::ReadFileToString(it->second.path / BATTERY_NODES.at(InputBatteryClass::STATUS),
+                                &buffer)) {
         ALOGE("Failed to read sysfs battery info: %s", strerror(errno));
         return std::nullopt;
     }
 
     // Remove white space like trailing new line
-    const auto it = BATTERY_STATUS.find(base::Trim(buffer));
-
-    if (it != BATTERY_STATUS.end()) {
-        return it->second;
+    const auto statusIt = BATTERY_STATUS.find(base::Trim(buffer));
+    if (statusIt != BATTERY_STATUS.end()) {
+        return statusIt->second;
     }
 
     return std::nullopt;
@@ -1879,11 +1941,24 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     // Load the configuration file for the device.
     device->loadConfigurationLocked();
 
-    // Grab the device's sysfs path
-    device->sysfsRootPath = getSysfsRootPath(devicePath.c_str());
-    // find related components
-    bool hasBattery = device->configureBatteryLocked();
-    bool hasLights = device->configureLightsLocked();
+    bool hasBattery = false;
+    bool hasLights = false;
+    // Check the sysfs root path
+    std::optional<std::filesystem::path> sysfsRootPath = getSysfsRootPath(devicePath.c_str());
+    if (sysfsRootPath.has_value()) {
+        std::shared_ptr<MiscDevice> miscDevice;
+        auto it = mMiscDevices.find(device->identifier.descriptor);
+        if (it == mMiscDevices.end()) {
+            miscDevice = std::make_shared<MiscDevice>(sysfsRootPath.value());
+        } else {
+            miscDevice = it->second;
+        }
+        hasBattery = miscDevice->configureBatteryLocked();
+        hasLights = miscDevice->configureLightsLocked();
+
+        device->miscDevice = miscDevice;
+        mMiscDevices.insert_or_assign(device->identifier.descriptor, std::move(miscDevice));
+    }
 
     // Figure out the kinds of events the device reports.
     device->readDeviceBitMask(EVIOCGBIT(EV_KEY, 0), device->keyBitmask);
@@ -2254,6 +2329,12 @@ void EventHub::closeDeviceLocked(Device& device) {
     mClosingDevices.push_back(std::move(mDevices[device.id]));
 
     mDevices.erase(device.id);
+    // If all devices with the descriptor have been removed then the miscellaneous device should
+    // be removed too.
+    std::string descriptor = device.identifier.descriptor;
+    if (getDeviceByDescriptorLocked(descriptor) == nullptr) {
+        mMiscDevices.erase(descriptor);
+    }
 }
 
 status_t EventHub::readNotifyLocked() {
