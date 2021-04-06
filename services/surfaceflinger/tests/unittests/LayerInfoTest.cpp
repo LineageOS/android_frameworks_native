@@ -40,7 +40,7 @@ protected:
 
     auto calculateAverageFrameTime() { return layerInfo.calculateAverageFrameTime(); }
 
-    LayerInfo layerInfo{"TestLayerInfo", LayerHistory::LayerVoteType::Heuristic};
+    LayerInfo layerInfo{"TestLayerInfo", 0, LayerHistory::LayerVoteType::Heuristic};
 };
 
 namespace {

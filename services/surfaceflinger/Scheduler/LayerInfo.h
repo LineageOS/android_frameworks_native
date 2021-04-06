@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <ui/Transform.h>
 #include <utils/Timers.h>
 
 #include <chrono>
@@ -65,22 +66,84 @@ public:
         Seamlessness seamlessness = Seamlessness::Default;
     };
 
+    // FrameRateCompatibility specifies how we should interpret the frame rate associated with
+    // the layer.
+    enum class FrameRateCompatibility {
+        Default, // Layer didn't specify any specific handling strategy
+
+        Exact, // Layer needs the exact frame rate.
+
+        ExactOrMultiple, // Layer needs the exact frame rate (or a multiple of it) to present the
+                         // content properly. Any other value will result in a pull down.
+
+        NoVote, // Layer doesn't have any requirements for the refresh rate and
+                // should not be considered when the display refresh rate is determined.
+    };
+
+    // Encapsulates the frame rate and compatibility of the layer. This information will be used
+    // when the display refresh rate is determined.
+    struct FrameRate {
+        using Seamlessness = scheduler::Seamlessness;
+
+        Fps rate;
+        FrameRateCompatibility type;
+        Seamlessness seamlessness;
+
+        FrameRate()
+              : rate(0),
+                type(FrameRateCompatibility::Default),
+                seamlessness(Seamlessness::Default) {}
+        FrameRate(Fps rate, FrameRateCompatibility type,
+                  Seamlessness seamlessness = Seamlessness::OnlySeamless)
+              : rate(rate), type(type), seamlessness(getSeamlessness(rate, seamlessness)) {}
+
+        bool operator==(const FrameRate& other) const {
+            return rate.equalsWithMargin(other.rate) && type == other.type &&
+                    seamlessness == other.seamlessness;
+        }
+
+        bool operator!=(const FrameRate& other) const { return !(*this == other); }
+
+        // Convert an ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* value to a
+        // Layer::FrameRateCompatibility. Logs fatal if the compatibility value is invalid.
+        static FrameRateCompatibility convertCompatibility(int8_t compatibility);
+        static scheduler::Seamlessness convertChangeFrameRateStrategy(int8_t strategy);
+
+    private:
+        static Seamlessness getSeamlessness(Fps rate, Seamlessness seamlessness) {
+            if (!rate.isValid()) {
+                // Refresh rate of 0 is a special value which should reset the vote to
+                // its default value.
+                return Seamlessness::Default;
+            }
+            return seamlessness;
+        }
+    };
+
     static void setTraceEnabled(bool enabled) { sTraceEnabled = enabled; }
 
     static void setRefreshRateConfigs(const RefreshRateConfigs& refreshRateConfigs) {
         sRefreshRateConfigs = &refreshRateConfigs;
     }
 
-    LayerInfo(const std::string& name, LayerHistory::LayerVoteType defaultVote);
+    LayerInfo(const std::string& name, uid_t ownerUid, LayerHistory::LayerVoteType defaultVote);
 
     LayerInfo(const LayerInfo&) = delete;
     LayerInfo& operator=(const LayerInfo&) = delete;
+
+    struct LayerProps {
+        bool visible = false;
+        FloatRect bounds;
+        ui::Transform transform;
+        FrameRate setFrameRateVote;
+        int32_t frameRateSelectionPriority = -1;
+    };
 
     // Records the last requested present time. It also stores information about when
     // the layer was last updated. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
     void setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUpdateType updateType,
-                            bool pendingModeChange);
+                            bool pendingModeChange, LayerProps props);
 
     // Sets an explicit layer vote. This usually comes directly from the application via
     // ANativeWindow_setFrameRate API
@@ -94,11 +157,23 @@ public:
     // Resets the layer vote to its default.
     void resetLayerVote() { mLayerVote = {mDefaultVote, Fps(0.0f), Seamlessness::Default}; }
 
+    std::string getName() const { return mName; }
+
+    uid_t getOwnerUid() const { return mOwnerUid; }
+
     LayerVote getRefreshRateVote(nsecs_t now);
 
     // Return the last updated time. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
     nsecs_t getLastUpdatedTime() const { return mLastUpdatedTime; }
+
+    FrameRate getSetFrameRateVote() const { return mLayerProps.setFrameRateVote; }
+    bool isVisible() const { return mLayerProps.visible; }
+    int32_t getFrameRateSelectionPriority() const { return mLayerProps.frameRateSelectionPriority; }
+
+    FloatRect getBounds() const { return mLayerProps.bounds; }
+
+    ui::Transform getTransform() const { return mLayerProps.transform; }
 
     // Returns a C string for tracing a vote
     const char* getTraceTag(LayerHistory::LayerVoteType type) const;
@@ -193,6 +268,7 @@ private:
     bool isFrameTimeValid(const FrameTimeData&) const;
 
     const std::string mName;
+    const uid_t mOwnerUid;
 
     // Used for sanitizing the heuristic data. If two frames are less than
     // this period apart from each other they'll be considered as duplicates.
@@ -216,6 +292,8 @@ private:
             std::chrono::steady_clock::now();
     static constexpr size_t HISTORY_SIZE = RefreshRateHistory::HISTORY_SIZE;
     static constexpr std::chrono::nanoseconds HISTORY_DURATION = 1s;
+
+    LayerProps mLayerProps;
 
     RefreshRateHistory mRefreshRateHistory;
 

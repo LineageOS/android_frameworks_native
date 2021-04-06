@@ -81,8 +81,8 @@ protected:
 
     void setDefaultLayerVote(Layer* layer,
                              LayerHistory::LayerVoteType vote) NO_THREAD_SAFETY_ANALYSIS {
-        for (auto& [weak, info] : history().mLayerInfos) {
-            if (auto strong = weak.promote(); strong && strong.get() == layer) {
+        for (auto& [layerUnsafe, info] : history().mLayerInfos) {
+            if (layerUnsafe == layer) {
                 info->setDefaultLayerVote(vote);
                 return;
             }
@@ -180,6 +180,7 @@ TEST_F(LayerHistoryTest, oneInvisibleLayer) {
     EXPECT_EQ(1, activeLayerCount());
 
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(false));
+    history().record(layer.get(), 0, time, LayerHistory::LayerUpdateType::Buffer);
 
     summary = history().summarize(time);
     EXPECT_TRUE(history().summarize(time).empty());
