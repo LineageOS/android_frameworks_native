@@ -21,13 +21,12 @@
 #include <input/Flags.h>
 #include <algorithm>
 
-#include "BatteryInputMapper.h"
 #include "CursorInputMapper.h"
 #include "ExternalStylusInputMapper.h"
+#include "InputController.h"
 #include "InputReaderContext.h"
 #include "JoystickInputMapper.h"
 #include "KeyboardInputMapper.h"
-#include "LightInputMapper.h"
 #include "MultiTouchInputMapper.h"
 #include "RotaryEncoderInputMapper.h"
 #include "SensorInputMapper.h"
@@ -131,6 +130,9 @@ void InputDevice::dump(std::string& dump, const std::string& eventHubDevStr) {
     }
 
     for_each_mapper([&dump](InputMapper& mapper) { mapper.dump(dump); });
+    if (mController) {
+        mController->dump(dump);
+    }
 }
 
 void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
@@ -162,22 +164,10 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
         mappers.push_back(std::make_unique<VibratorInputMapper>(*contextPtr));
     }
 
-    // Battery-like devices. Only one battery mapper for each EventHub device.
-    if (classes.test(InputDeviceClass::BATTERY)) {
-        InputDeviceInfo deviceInfo;
-        getDeviceInfo(&deviceInfo);
-        if (!deviceInfo.hasBattery()) {
-            mappers.push_back(std::make_unique<BatteryInputMapper>(*contextPtr));
-        }
-    }
-
-    // Light-containing devices. Only one light mapper for each EventHub device.
-    if (classes.test(InputDeviceClass::LIGHT)) {
-        InputDeviceInfo deviceInfo;
-        getDeviceInfo(&deviceInfo);
-        if (deviceInfo.getLightIds().empty()) {
-            mappers.push_back(std::make_unique<LightInputMapper>(*contextPtr));
-        }
+    // Battery-like devices or light-containing devices.
+    // InputController will be created with associated EventHub device.
+    if (classes.test(InputDeviceClass::BATTERY) || classes.test(InputDeviceClass::LIGHT)) {
+        mController = std::make_unique<InputController>(*contextPtr);
     }
 
     // Keyboard-like devices.
@@ -409,6 +399,10 @@ void InputDevice::getDeviceInfo(InputDeviceInfo* outDeviceInfo) {
                               mHasMic);
     for_each_mapper(
             [outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(outDeviceInfo); });
+
+    if (mController) {
+        mController->populateDeviceInfo(outDeviceInfo);
+    }
 }
 
 int32_t InputDevice::getKeyCodeState(uint32_t sourceMask, int32_t keyCode) {
@@ -510,39 +504,30 @@ void InputDevice::cancelTouch(nsecs_t when, nsecs_t readTime) {
     for_each_mapper([when, readTime](InputMapper& mapper) { mapper.cancelTouch(when, readTime); });
 }
 
+// TODO b/180733860 support multiple battery in API and remove this.
+constexpr int32_t DEFAULT_BATTERY_ID = 1;
 std::optional<int32_t> InputDevice::getBatteryCapacity() {
-    return first_in_mappers<int32_t>(
-            [](InputMapper& mapper) { return mapper.getBatteryCapacity(); });
+    return mController ? mController->getBatteryCapacity(DEFAULT_BATTERY_ID) : std::nullopt;
 }
 
 std::optional<int32_t> InputDevice::getBatteryStatus() {
-    return first_in_mappers<int32_t>([](InputMapper& mapper) { return mapper.getBatteryStatus(); });
+    return mController ? mController->getBatteryStatus(DEFAULT_BATTERY_ID) : std::nullopt;
 }
 
 bool InputDevice::setLightColor(int32_t lightId, int32_t color) {
-    bool success = true;
-    for_each_mapper([&success, lightId, color](InputMapper& mapper) {
-        success &= mapper.setLightColor(lightId, color);
-    });
-    return success;
+    return mController ? mController->setLightColor(lightId, color) : false;
 }
 
 bool InputDevice::setLightPlayerId(int32_t lightId, int32_t playerId) {
-    bool success = true;
-    for_each_mapper([&success, lightId, playerId](InputMapper& mapper) {
-        success &= mapper.setLightPlayerId(lightId, playerId);
-    });
-    return success;
+    return mController ? mController->setLightPlayerId(lightId, playerId) : false;
 }
 
 std::optional<int32_t> InputDevice::getLightColor(int32_t lightId) {
-    return first_in_mappers<int32_t>(
-            [lightId](InputMapper& mapper) { return mapper.getLightColor(lightId); });
+    return mController ? mController->getLightColor(lightId) : std::nullopt;
 }
 
 std::optional<int32_t> InputDevice::getLightPlayerId(int32_t lightId) {
-    return first_in_mappers<int32_t>(
-            [lightId](InputMapper& mapper) { return mapper.getLightPlayerId(lightId); });
+    return mController ? mController->getLightPlayerId(lightId) : std::nullopt;
 }
 
 int32_t InputDevice::getMetaState() {

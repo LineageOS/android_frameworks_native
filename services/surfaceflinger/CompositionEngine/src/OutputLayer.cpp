@@ -397,14 +397,17 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
 void OutputLayer::writeOutputIndependentGeometryStateToHWC(
         HWC2::Layer* hwcLayer, const LayerFECompositionState& outputIndependentState,
         bool skipLayer) {
-    if (auto error = hwcLayer->setBlendMode(outputIndependentState.blendMode);
-        error != hal::Error::NONE) {
+    const auto blendMode = getState().overrideInfo.buffer
+            ? hardware::graphics::composer::hal::BlendMode::PREMULTIPLIED
+            : outputIndependentState.blendMode;
+    if (auto error = hwcLayer->setBlendMode(blendMode); error != hal::Error::NONE) {
         ALOGE("[%s] Failed to set blend mode %s: %s (%d)", getLayerFE().getDebugName(),
-              toString(outputIndependentState.blendMode).c_str(), to_string(error).c_str(),
-              static_cast<int32_t>(error));
+              toString(blendMode).c_str(), to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
-    const float alpha = skipLayer ? 0.0f : outputIndependentState.alpha;
+    const float alpha = skipLayer
+            ? 0.0f
+            : (getState().overrideInfo.buffer ? 1.0f : outputIndependentState.alpha);
     ALOGV("Writing alpha %f", alpha);
 
     if (auto error = hwcLayer->setPlaneAlpha(alpha); error != hal::Error::NONE) {

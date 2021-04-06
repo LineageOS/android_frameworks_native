@@ -44,6 +44,13 @@
 
 namespace android {
 
+TEST(BinderRpcParcel, EntireParcelFormatted) {
+    Parcel p;
+    p.writeInt32(3);
+
+    EXPECT_DEATH(p.markForBinder(sp<BBinder>::make()), "");
+}
+
 using android::binder::Status;
 
 #define EXPECT_OK(status)                 \
@@ -774,9 +781,6 @@ TEST_P(BinderRpc, OnewayCallQueueing) {
 }
 
 TEST_P(BinderRpc, Die) {
-    // TODO(b/183141167): handle this in library
-    signal(SIGPIPE, SIG_IGN);
-
     for (bool doDeathCleanup : {true, false}) {
         auto proc = createRpcTestSocketServerProcess(1);
 
