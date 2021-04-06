@@ -61,7 +61,8 @@ CachedSet::CachedSet(const LayerState* layer, std::chrono::steady_clock::time_po
 CachedSet::CachedSet(Layer layer)
       : mFingerprint(layer.getHash()),
         mLastUpdate(layer.getLastUpdate()),
-        mBounds(layer.getDisplayFrame()) {
+        mBounds(layer.getDisplayFrame()),
+        mVisibleRegion(layer.getVisibleRegion()) {
     mLayers.emplace_back(std::move(layer));
 }
 
@@ -73,6 +74,7 @@ void CachedSet::addLayer(const LayerState* layer,
     boundingRegion.orSelf(mBounds);
     boundingRegion.orSelf(layer->getDisplayFrame());
     mBounds = boundingRegion.getBounds();
+    mVisibleRegion.orSelf(layer->getVisibleRegion());
 }
 
 NonBufferHash CachedSet::getNonBufferHash() const {

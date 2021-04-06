@@ -604,6 +604,16 @@ TEST_F(LayerStateTest, compareLayerMetadata) {
     EXPECT_TRUE(otherLayerState->compare(*mLayerState));
 }
 
+TEST_F(LayerStateTest, getVisibleRegion) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    outputLayerCompositionState.visibleRegion = sRegionOne;
+    LayerFECompositionState layerFECompositionState;
+    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    EXPECT_TRUE(mLayerState->getVisibleRegion().hasSameRects(sRegionOne));
+}
+
 TEST_F(LayerStateTest, updateVisibleRegion) {
     OutputLayerCompositionState outputLayerCompositionState;
     outputLayerCompositionState.visibleRegion = sRegionOne;
