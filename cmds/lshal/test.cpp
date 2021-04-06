@@ -508,10 +508,10 @@ TEST_F(ListTest, DumpVintf) {
     EXPECT_THAT(output, HasSubstr("a.h.foo6@6.0::IFoo/6"));
     EXPECT_EQ("", err.str());
 
+    std::string error;
     vintf::HalManifest m;
-    EXPECT_EQ(true, vintf::gHalManifestConverter(&m, out.str()))
-        << "--init-vintf does not emit valid HAL manifest: "
-        << vintf::gHalManifestConverter.lastError();
+    EXPECT_EQ(true, vintf::gHalManifestConverter(&m, out.str(), &error))
+        << "--init-vintf does not emit valid HAL manifest: " << error;
 }
 
 // test default columns
