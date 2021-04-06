@@ -39,13 +39,13 @@ namespace android::scheduler {
 
 namespace {
 
-bool isLayerActive(const Layer& layer, const LayerInfo& info, nsecs_t threshold) {
+bool isLayerActive(const LayerInfo& info, nsecs_t threshold) {
     // Layers with an explicit vote are always kept active
-    if (layer.getFrameRateForLayerTree().rate.isValid()) {
+    if (info.getSetFrameRateVote().rate.isValid()) {
         return true;
     }
 
-    return layer.isVisible() && info.getLastUpdatedTime() >= threshold;
+    return info.isVisible() && info.getLastUpdatedTime() >= threshold;
 }
 
 bool traceEnabled() {
@@ -58,11 +58,7 @@ bool useFrameRatePriority() {
     return atoi(value);
 }
 
-void trace(const wp<Layer>& weak, const LayerInfo& info, LayerHistory::LayerVoteType type,
-           int fps) {
-    const auto layer = weak.promote();
-    if (!layer) return;
-
+void trace(const LayerInfo& info, LayerHistory::LayerVoteType type, int fps) {
     const auto traceType = [&](LayerHistory::LayerVoteType checkedType, int value) {
         ATRACE_INT(info.getTraceTag(checkedType), type == checkedType ? value : 0);
     };
@@ -75,7 +71,7 @@ void trace(const wp<Layer>& weak, const LayerInfo& info, LayerHistory::LayerVote
     traceType(LayerHistory::LayerVoteType::Min, 1);
     traceType(LayerHistory::LayerVoteType::Max, 1);
 
-    ALOGD("%s: %s @ %d Hz", __FUNCTION__, layer->getName().c_str(), fps);
+    ALOGD("%s: %s @ %d Hz", __FUNCTION__, info.getName().c_str(), fps);
 }
 } // namespace
 
@@ -88,9 +84,25 @@ LayerHistory::LayerHistory(const RefreshRateConfigs& refreshRateConfigs)
 LayerHistory::~LayerHistory() = default;
 
 void LayerHistory::registerLayer(Layer* layer, LayerVoteType type) {
-    auto info = std::make_unique<LayerInfo>(layer->getName(), type);
+    auto info = std::make_unique<LayerInfo>(layer->getName(), layer->getOwnerUid(), type);
     std::lock_guard lock(mLock);
     mLayerInfos.emplace_back(layer, std::move(info));
+}
+
+void LayerHistory::deregisterLayer(Layer* layer) {
+    std::lock_guard lock(mLock);
+
+    const auto it = std::find_if(mLayerInfos.begin(), mLayerInfos.end(),
+                                 [layer](const auto& pair) { return pair.first == layer; });
+    LOG_FATAL_IF(it == mLayerInfos.end(), "%s: unknown layer %p", __FUNCTION__, layer);
+
+    const size_t i = static_cast<size_t>(it - mLayerInfos.begin());
+    if (i < mActiveLayersEnd) {
+        mActiveLayersEnd--;
+    }
+    const size_t last = mLayerInfos.size() - 1;
+    std::swap(mLayerInfos[i], mLayerInfos[last]);
+    mLayerInfos.erase(mLayerInfos.begin() + static_cast<long>(last));
 }
 
 void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
@@ -102,7 +114,15 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
     LOG_FATAL_IF(it == mLayerInfos.end(), "%s: unknown layer %p", __FUNCTION__, layer);
 
     const auto& info = it->second;
-    info->setLastPresentTime(presentTime, now, updateType, mModeChangePending);
+    const auto layerProps = LayerInfo::LayerProps{
+            .visible = layer->isVisible(),
+            .bounds = layer->getBounds(),
+            .transform = layer->getTransform(),
+            .setFrameRateVote = layer->getFrameRateForLayerTree(),
+            .frameRateSelectionPriority = layer->getFrameRateSelectionPriority(),
+    };
+
+    info->setLastPresentTime(presentTime, now, updateType, mModeChangePending, layerProps);
 
     // Activate layer if inactive.
     if (const auto end = activeLayers().end(); it >= end) {
@@ -119,15 +139,10 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
     partitionLayers(now);
 
     for (const auto& [layer, info] : activeLayers()) {
-        const auto strong = layer.promote();
-        if (!strong) {
-            continue;
-        }
-
-        const auto frameRateSelectionPriority = strong->getFrameRateSelectionPriority();
+        const auto frameRateSelectionPriority = info->getFrameRateSelectionPriority();
         const auto layerFocused = Layer::isLayerFocusedBasedOnPriority(frameRateSelectionPriority);
-        ALOGV("%s has priority: %d %s focused", strong->getName().c_str(),
-              frameRateSelectionPriority, layerFocused ? "" : "not");
+        ALOGV("%s has priority: %d %s focused", info->getName().c_str(), frameRateSelectionPriority,
+              layerFocused ? "" : "not");
 
         const auto vote = info->getRefreshRateVote(now);
         // Skip NoVote layer as those don't have any requirements
@@ -136,18 +151,18 @@ LayerHistory::Summary LayerHistory::summarize(nsecs_t now) {
         }
 
         // Compute the layer's position on the screen
-        const Rect bounds = Rect(strong->getBounds());
-        const ui::Transform transform = strong->getTransform();
+        const Rect bounds = Rect(info->getBounds());
+        const ui::Transform transform = info->getTransform();
         constexpr bool roundOutwards = true;
         Rect transformed = transform.transform(bounds, roundOutwards);
 
         const float layerArea = transformed.getWidth() * transformed.getHeight();
         float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
-        summary.push_back({strong->getName(), strong->getOwnerUid(), vote.type, vote.fps,
+        summary.push_back({info->getName(), info->getOwnerUid(), vote.type, vote.fps,
                            vote.seamlessness, weight, layerFocused});
 
         if (CC_UNLIKELY(mTraceEnabled)) {
-            trace(layer, *info, vote.type, vote.fps.getIntValue());
+            trace(*info, vote.type, vote.fps.getIntValue());
         }
     }
 
@@ -160,11 +175,11 @@ void LayerHistory::partitionLayers(nsecs_t now) {
     // Collect expired and inactive layers after active layers.
     size_t i = 0;
     while (i < mActiveLayersEnd) {
-        auto& [weak, info] = mLayerInfos[i];
-        if (const auto layer = weak.promote(); layer && isLayerActive(*layer, *info, threshold)) {
+        auto& [layerUnsafe, info] = mLayerInfos[i];
+        if (isLayerActive(*info, threshold)) {
             i++;
             // Set layer vote if set
-            const auto frameRate = layer->getFrameRateForLayerTree();
+            const auto frameRate = info->getSetFrameRateVote();
             const auto voteType = [&]() {
                 switch (frameRate.type) {
                     case Layer::FrameRateCompatibility::Default:
@@ -179,7 +194,7 @@ void LayerHistory::partitionLayers(nsecs_t now) {
             }();
 
             if (frameRate.rate.isValid() || voteType == LayerVoteType::NoVote) {
-                const auto type = layer->isVisible() ? voteType : LayerVoteType::NoVote;
+                const auto type = info->isVisible() ? voteType : LayerVoteType::NoVote;
                 info->setLayerVote({type, frameRate.rate, frameRate.seamlessness});
             } else {
                 info->resetLayerVote();
@@ -188,24 +203,12 @@ void LayerHistory::partitionLayers(nsecs_t now) {
         }
 
         if (CC_UNLIKELY(mTraceEnabled)) {
-            trace(weak, *info, LayerHistory::LayerVoteType::NoVote, 0);
+            trace(*info, LayerHistory::LayerVoteType::NoVote, 0);
         }
 
         info->onLayerInactive(now);
         std::swap(mLayerInfos[i], mLayerInfos[--mActiveLayersEnd]);
     }
-
-    // Collect expired layers after inactive layers.
-    size_t end = mLayerInfos.size();
-    while (i < end) {
-        if (mLayerInfos[i].first.promote()) {
-            i++;
-        } else {
-            std::swap(mLayerInfos[i], mLayerInfos[--end]);
-        }
-    }
-
-    mLayerInfos.erase(mLayerInfos.begin() + static_cast<long>(end), mLayerInfos.end());
 }
 
 void LayerHistory::clear() {

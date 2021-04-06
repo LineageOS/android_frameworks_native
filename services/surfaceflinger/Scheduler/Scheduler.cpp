@@ -580,6 +580,12 @@ void Scheduler::registerLayer(Layer* layer) {
     mLayerHistory->registerLayer(layer, voteType);
 }
 
+void Scheduler::deregisterLayer(Layer* layer) {
+    if (mLayerHistory) {
+        mLayerHistory->deregisterLayer(layer);
+    }
+}
+
 void Scheduler::recordLayerHistory(Layer* layer, nsecs_t presentTime,
                                    LayerHistory::LayerUpdateType updateType) {
     if (mLayerHistory) {
