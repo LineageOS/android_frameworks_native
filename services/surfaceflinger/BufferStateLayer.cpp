@@ -432,10 +432,12 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence
 }
 
 bool BufferStateLayer::setAcquireFence(const sp<Fence>& fence) {
-    // The acquire fences of BufferStateLayers have already signaled before they are set
-    mCallbackHandleAcquireTime = fence->getSignalTime();
-
     mCurrentState.acquireFence = fence;
+    mCurrentState.acquireFenceTime = std::make_unique<FenceTime>(fence);
+
+    // The acquire fences of BufferStateLayers have already signaled before they are set
+    mCallbackHandleAcquireTime = mCurrentState.acquireFenceTime->getSignalTime();
+
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -691,7 +693,8 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         // bufferSurfaceFrame could be seen here if a pending state was applied successfully and we
         // are processing the next state.
         addSurfaceFramePresentedForBuffer(bufferSurfaceFrame,
-                                          mDrawingState.acquireFence->getSignalTime(), latchTime);
+                                          mDrawingState.acquireFenceTime->getSignalTime(),
+                                          latchTime);
     }
 
     mCurrentStateModified = false;
