@@ -40,6 +40,7 @@ public:
         const LayerState* getState() const { return mState; }
         const std::string& getName() const { return mState->getName(); }
         Rect getDisplayFrame() const { return mState->getDisplayFrame(); }
+        const Region& getVisibleRegion() const { return mState->getVisibleRegion(); }
         const sp<GraphicBuffer>& getBuffer() const {
             return mState->getOutputLayer()->getLayerFE().getCompositionState()->buffer;
         }
@@ -63,6 +64,7 @@ public:
     size_t getLayerCount() const { return mLayers.size(); }
     const Layer& getFirstLayer() const { return mLayers[0]; }
     const Rect& getBounds() const { return mBounds; }
+    const Region& getVisibleRegion() const { return mVisibleRegion; }
     size_t getAge() const { return mAge; }
     const sp<GraphicBuffer>& getBuffer() const { return mTexture.getBuffer(); }
     const sp<Fence>& getDrawFence() const { return mDrawFence; }
@@ -94,6 +96,7 @@ public:
         boundingRegion.orSelf(mBounds);
         boundingRegion.orSelf(other.mBounds);
         mBounds = boundingRegion.getBounds();
+        mVisibleRegion.orSelf(other.mVisibleRegion);
     }
     void incrementAge() { ++mAge; }
 
@@ -109,6 +112,7 @@ private:
     std::chrono::steady_clock::time_point mLastUpdate = std::chrono::steady_clock::now();
     std::vector<Layer> mLayers;
     Rect mBounds = Rect::EMPTY_RECT;
+    Region mVisibleRegion;
     size_t mAge = 0;
 
     class Texture {

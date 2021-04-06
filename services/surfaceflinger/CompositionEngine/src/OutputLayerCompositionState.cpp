@@ -73,6 +73,12 @@ void OutputLayerCompositionState::dump(std::string& out) const {
     dumpVal(out, "override display frame", overrideInfo.displayFrame);
     dumpVal(out, "override dataspace", toString(overrideInfo.dataspace), overrideInfo.dataspace);
     dumpVal(out, "override display space", to_string(overrideInfo.displaySpace));
+    std::string damageRegionString;
+    overrideInfo.damageRegion.dump(damageRegionString, "");
+    dumpVal(out, "override damage region", damageRegionString);
+    std::string visibleRegionString;
+    overrideInfo.visibleRegion.dump(visibleRegionString, "");
+    dumpVal(out, "override visible region", visibleRegionString);
 
     if (hwc) {
         dumpHwc(*hwc, out);

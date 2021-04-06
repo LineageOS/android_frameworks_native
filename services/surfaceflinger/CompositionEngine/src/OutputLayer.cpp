@@ -355,7 +355,7 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(
     Rect displayFrame = outputDependentState.displayFrame;
     FloatRect sourceCrop = outputDependentState.sourceCrop;
 
-    if (outputDependentState.overrideInfo.buffer != nullptr) { // adyabr
+    if (outputDependentState.overrideInfo.buffer != nullptr) {
         displayFrame = outputDependentState.overrideInfo.displayFrame;
         sourceCrop = displayFrame.toFloatRect();
     }
@@ -429,8 +429,10 @@ void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) 
 
     // TODO(lpique): b/121291683 outputSpaceVisibleRegion is output-dependent geometry
     // state and should not change every frame.
-    if (auto error = hwcLayer->setVisibleRegion(outputDependentState.outputSpaceVisibleRegion);
-        error != hal::Error::NONE) {
+    Region visibleRegion = outputDependentState.overrideInfo.buffer
+            ? Region(outputDependentState.overrideInfo.visibleRegion)
+            : outputDependentState.outputSpaceVisibleRegion;
+    if (auto error = hwcLayer->setVisibleRegion(visibleRegion); error != hal::Error::NONE) {
         ALOGE("[%s] Failed to set visible region: %s (%d)", getLayerFE().getDebugName(),
               to_string(error).c_str(), static_cast<int32_t>(error));
         outputDependentState.outputSpaceVisibleRegion.dump(LOG_TAG);
@@ -459,8 +461,11 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
                   to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
-    if (auto error = hwcLayer->setSurfaceDamage(outputIndependentState.surfaceDamage);
-        error != hal::Error::NONE) {
+    const Region& surfaceDamage = getState().overrideInfo.buffer
+            ? getState().overrideInfo.damageRegion
+            : outputIndependentState.surfaceDamage;
+
+    if (auto error = hwcLayer->setSurfaceDamage(surfaceDamage); error != hal::Error::NONE) {
         ALOGE("[%s] Failed to set surface damage: %s (%d)", getLayerFE().getDebugName(),
               to_string(error).c_str(), static_cast<int32_t>(error));
         outputIndependentState.surfaceDamage.dump(LOG_TAG);
