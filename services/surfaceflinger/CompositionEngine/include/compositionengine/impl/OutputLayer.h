@@ -55,7 +55,6 @@ public:
     std::vector<LayerFE::LayerSettings> getOverrideCompositionList() const override;
 
     void dump(std::string&) const override;
-
     virtual FloatRect calculateOutputSourceCrop() const;
     virtual Rect calculateOutputDisplayFrame() const;
     virtual uint32_t calculateOutputRelativeBufferTransform(
