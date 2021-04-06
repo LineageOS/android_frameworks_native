@@ -693,7 +693,10 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static constexpr Hwc2::Transform kOverrideBufferTransform = static_cast<Hwc2::Transform>(0);
     static constexpr Hwc2::IComposerClient::BlendMode kBlendMode =
             static_cast<Hwc2::IComposerClient::BlendMode>(41);
+    static constexpr Hwc2::IComposerClient::BlendMode kOverrideBlendMode =
+            Hwc2::IComposerClient::BlendMode::PREMULTIPLIED;
     static constexpr float kAlpha = 51.f;
+    static constexpr float kOverrideAlpha = 1.f;
     static constexpr ui::Dataspace kDataspace = static_cast<ui::Dataspace>(71);
     static constexpr ui::Dataspace kOverrideDataspace = static_cast<ui::Dataspace>(72);
     static constexpr int kSupportedPerFrameMetadata = 101;
@@ -767,14 +770,16 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
 
     void expectGeometryCommonCalls(Rect displayFrame = kDisplayFrame,
                                    FloatRect sourceCrop = kSourceCrop,
-                                   Hwc2::Transform bufferTransform = kBufferTransform) {
+                                   Hwc2::Transform bufferTransform = kBufferTransform,
+                                   Hwc2::IComposerClient::BlendMode blendMode = kBlendMode,
+                                   float alpha = kAlpha) {
         EXPECT_CALL(*mHwcLayer, setDisplayFrame(displayFrame)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setSourceCrop(sourceCrop)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setZOrder(kZOrder)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setTransform(bufferTransform)).WillOnce(Return(kError));
 
-        EXPECT_CALL(*mHwcLayer, setBlendMode(kBlendMode)).WillOnce(Return(kError));
-        EXPECT_CALL(*mHwcLayer, setPlaneAlpha(kAlpha)).WillOnce(Return(kError));
+        EXPECT_CALL(*mHwcLayer, setBlendMode(blendMode)).WillOnce(Return(kError));
+        EXPECT_CALL(*mHwcLayer, setPlaneAlpha(alpha)).WillOnce(Return(kError));
     }
 
     void expectPerFrameCommonCalls(SimulateUnsupported unsupported = SimulateUnsupported::None,
@@ -1009,7 +1014,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
     includeOverrideInfo();
 
     expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideDisplayFrame.toFloatRect(),
-                              kOverrideBufferTransform);
+                              kOverrideBufferTransform, kOverrideBlendMode, kOverrideAlpha);
     expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace);
     expectSetHdrMetadataAndBufferCalls(kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);

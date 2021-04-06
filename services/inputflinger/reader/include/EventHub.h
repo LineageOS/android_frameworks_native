@@ -173,6 +173,15 @@ enum class InputLightClass : uint32_t {
     MAX_BRIGHTNESS = 0x00000080,
 };
 
+enum class InputBatteryClass : uint32_t {
+    /* The input device battery has capacity node. */
+    CAPACITY = 0x00000001,
+    /* The input device battery has capacity_level node. */
+    CAPACITY_LEVEL = 0x00000002,
+    /* The input device battery has status node. */
+    STATUS = 0x00000004,
+};
+
 /* Describes a raw light. */
 struct RawLightInfo {
     int32_t id;
@@ -180,6 +189,14 @@ struct RawLightInfo {
     std::optional<int32_t> maxBrightness;
     Flags<InputLightClass> flags;
     std::array<int32_t, COLOR_NUM> rgbIndex;
+    std::filesystem::path path;
+};
+
+/* Describes a raw battery. */
+struct RawBatteryInfo {
+    int32_t id;
+    std::string name;
+    Flags<InputBatteryClass> flags;
     std::filesystem::path path;
 };
 
@@ -263,6 +280,12 @@ public:
     virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) = 0;
     virtual base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(int32_t deviceId,
                                                                               int32_t absCode) = 0;
+    // Raw batteries are sysfs power_supply nodes we found from the EventHub device sysfs node,
+    // containing the raw info of the sysfs node structure.
+    virtual const std::vector<int32_t> getRawBatteryIds(int32_t deviceId) = 0;
+    virtual std::optional<RawBatteryInfo> getRawBatteryInfo(int32_t deviceId,
+                                                            int32_t BatteryId) = 0;
+
     // Raw lights are sysfs led light nodes we found from the EventHub device sysfs node,
     // containing the raw info of the sysfs node structure.
     virtual const std::vector<int32_t> getRawLightIds(int32_t deviceId) = 0;
@@ -307,10 +330,11 @@ public:
     virtual std::vector<int32_t> getVibratorIds(int32_t deviceId) = 0;
 
     /* Query battery level. */
-    virtual std::optional<int32_t> getBatteryCapacity(int32_t deviceId) const = 0;
+    virtual std::optional<int32_t> getBatteryCapacity(int32_t deviceId,
+                                                      int32_t batteryId) const = 0;
 
     /* Query battery status. */
-    virtual std::optional<int32_t> getBatteryStatus(int32_t deviceId) const = 0;
+    virtual std::optional<int32_t> getBatteryStatus(int32_t deviceId, int32_t batteryId) const = 0;
 
     /* Requests the EventHub to reopen all input devices on the next call to getEvents(). */
     virtual void requestReopenDevices() = 0;
@@ -435,6 +459,10 @@ public:
     base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(
             int32_t deviceId, int32_t absCode) override final;
 
+    const std::vector<int32_t> getRawBatteryIds(int32_t deviceId) override final;
+    std::optional<RawBatteryInfo> getRawBatteryInfo(int32_t deviceId,
+                                                    int32_t BatteryId) override final;
+
     const std::vector<int32_t> getRawLightIds(int32_t deviceId) override final;
 
     std::optional<RawLightInfo> getRawLightInfo(int32_t deviceId, int32_t lightId) override final;
@@ -485,9 +513,11 @@ public:
 
     void monitor() override final;
 
-    std::optional<int32_t> getBatteryCapacity(int32_t deviceId) const override final;
+    std::optional<int32_t> getBatteryCapacity(int32_t deviceId,
+                                              int32_t batteryId) const override final;
 
-    std::optional<int32_t> getBatteryStatus(int32_t deviceId) const override final;
+    std::optional<int32_t> getBatteryStatus(int32_t deviceId,
+                                            int32_t batteryId) const override final;
 
     bool isDeviceEnabled(int32_t deviceId) override final;
 
@@ -498,6 +528,22 @@ public:
     ~EventHub() override;
 
 private:
+    struct MiscDevice {
+        // The device descriptor from evdev device the misc device associated with.
+        std::string descriptor;
+        // The sysfs root path of the misc device.
+        std::filesystem::path sysfsRootPath;
+
+        int32_t nextBatteryId;
+        int32_t nextLightId;
+        std::unordered_map<int32_t, RawBatteryInfo> batteryInfos;
+        std::unordered_map<int32_t, RawLightInfo> lightInfos;
+        explicit MiscDevice(std::filesystem::path sysfsRootPath)
+              : sysfsRootPath(sysfsRootPath), nextBatteryId(0), nextLightId(0) {}
+        bool configureBatteryLocked();
+        bool configureLightsLocked();
+    };
+
     struct Device {
         int fd; // may be -1 if device is closed
         const int32_t id;
@@ -527,12 +573,7 @@ private:
         bool ffEffectPlaying;
         int16_t ffEffectId; // initially -1
 
-        // The paths are invalid when they're std::nullopt
-        std::optional<std::filesystem::path> sysfsRootPath;
-        std::optional<std::filesystem::path> sysfsBatteryPath;
-        // maps from light id to light info
-        std::unordered_map<int32_t, RawLightInfo> lightInfos;
-        int32_t nextLightId;
+        std::shared_ptr<MiscDevice> miscDevice;
 
         int32_t controllerNumber;
 
@@ -563,8 +604,6 @@ private:
         void setLedForControllerLocked();
         status_t mapLed(int32_t led, int32_t* outScanCode) const;
         void setLedStateLocked(int32_t led, bool on);
-        bool configureBatteryLocked();
-        bool configureLightsLocked();
     };
 
     /**
@@ -616,6 +655,12 @@ private:
     void reportDeviceAddedForStatisticsLocked(const InputDeviceIdentifier& identifier,
                                               Flags<InputDeviceClass> classes) REQUIRES(mLock);
 
+    const std::unordered_map<int32_t, RawBatteryInfo>& getBatteryInfoLocked(int32_t deviceId) const
+            REQUIRES(mLock);
+
+    const std::unordered_map<int32_t, RawLightInfo>& getLightInfoLocked(int32_t deviceId) const
+            REQUIRES(mLock);
+
     // Protect all internal state.
     mutable std::mutex mLock;
 
@@ -644,6 +689,11 @@ private:
 
     std::vector<std::unique_ptr<Device>> mOpeningDevices;
     std::vector<std::unique_ptr<Device>> mClosingDevices;
+
+    // Map from std::string descriptor, to a shared_ptr of a miscellaneous device associated with
+    // the input device. The descriptor is the same from the EventHub device which it associates
+    // with.
+    std::unordered_map<std::string, std::shared_ptr<MiscDevice>> mMiscDevices;
 
     bool mNeedToSendFinishedDeviceScan;
     bool mNeedToReopenDevices;

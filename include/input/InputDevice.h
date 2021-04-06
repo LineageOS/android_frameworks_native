@@ -177,6 +177,14 @@ struct InputDeviceLightInfo {
     int32_t ordinal;
 };
 
+struct InputDeviceBatteryInfo {
+    explicit InputDeviceBatteryInfo(std::string name, int32_t id) : name(name), id(id) {}
+    // Name string of the battery.
+    std::string name;
+    // Battery id
+    int32_t id;
+};
+
 /*
  * Describes the characteristics and capabilities of an input device.
  */
@@ -219,6 +227,7 @@ public:
             float min, float max, float flat, float fuzz, float resolution);
     void addMotionRange(const MotionRange& range);
     void addSensorInfo(const InputDeviceSensorInfo& info);
+    void addBatteryInfo(const InputDeviceBatteryInfo& info);
     void addLightInfo(const InputDeviceLightInfo& info);
 
     inline void setKeyboardType(int32_t keyboardType) { mKeyboardType = keyboardType; }
@@ -276,6 +285,8 @@ private:
     std::unordered_map<InputDeviceSensorType, InputDeviceSensorInfo> mSensors;
     /* Map from light ID to light info */
     std::unordered_map<int32_t, InputDeviceLightInfo> mLights;
+    /* Map from battery ID to battery info */
+    std::unordered_map<int32_t, InputDeviceBatteryInfo> mBatteries;
 };
 
 /* Types of input device configuration files. */
