@@ -271,6 +271,10 @@ bool CachedSet::requiresHolePunch() const {
     }
 
     const auto& layerFE = mLayers[0].getState()->getOutputLayer()->getLayerFE();
+    if (layerFE.getCompositionState()->forceClientComposition) {
+        return false;
+    }
+
     return layerFE.hasRoundedCorners();
 }
 

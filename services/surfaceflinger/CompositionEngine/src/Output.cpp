@@ -720,7 +720,7 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
             continue;
         }
         bool skipLayer = false;
-        auto& overrideInfo = layer->getState().overrideInfo;
+        const auto& overrideInfo = layer->getState().overrideInfo;
         if (overrideInfo.buffer != nullptr) {
             if (previousOverride && overrideInfo.buffer->getBuffer() == previousOverride) {
                 ALOGV("Skipping redundant buffer");
@@ -729,6 +729,8 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
                 // First layer with the override buffer.
                 if (overrideInfo.peekThroughLayer) {
                     peekThroughLayer = overrideInfo.peekThroughLayer;
+                    peekThroughLayer->editState().overrideInfo.isPeekingThrough = true;
+
                     // Draw peekThroughLayer first.
                     const bool includeGeometry = refreshArgs.updatingGeometryThisFrame;
                     peekThroughLayer->writeStateToHWC(includeGeometry, false, z++);

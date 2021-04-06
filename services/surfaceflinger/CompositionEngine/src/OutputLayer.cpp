@@ -567,7 +567,8 @@ void OutputLayer::writeCompositionTypeToHWC(HWC2::Layer* hwcLayer,
     auto& outputDependentState = editState();
 
     // If we are forcing client composition, we need to tell the HWC
-    if (outputDependentState.forceClientComposition) {
+    if (outputDependentState.forceClientComposition ||
+        (!getState().overrideInfo.isPeekingThrough && getLayerFE().hasRoundedCorners())) {
         requestedCompositionType = hal::Composition::CLIENT;
     }
 
