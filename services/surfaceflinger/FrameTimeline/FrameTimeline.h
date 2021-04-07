@@ -293,11 +293,12 @@ public:
     // the token and sets the actualSfWakeTime for the current DisplayFrame.
     virtual void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) = 0;
 
-    // Sets the sfPresentTime, gpuComposition and finalizes the current DisplayFrame. Tracks the
+    // Sets the sfPresentTime and finalizes the current DisplayFrame. Tracks the
     // given present fence until it's signaled, and updates the present timestamps of all presented
-    // SurfaceFrames in that vsync.
+    // SurfaceFrames in that vsync. If a gpuFence was also provided, its tracked in the
+    // corresponding DisplayFrame.
     virtual void setSfPresent(nsecs_t sfPresentTime, const std::shared_ptr<FenceTime>& presentFence,
-                              bool gpuComposition) = 0;
+                              const std::shared_ptr<FenceTime>& gpuFence) = 0;
 
     // Args:
     // -jank : Dumps only the Display Frames that are either janky themselves
@@ -376,7 +377,7 @@ public:
         void setPredictions(PredictionState predictionState, TimelineItem predictions);
         void setActualStartTime(nsecs_t actualStartTime);
         void setActualEndTime(nsecs_t actualEndTime);
-        void setGpuComposition();
+        void setGpuFence(const std::shared_ptr<FenceTime>& gpuFence);
 
         // BaseTime is the smallest timestamp in a DisplayFrame.
         // Used for dumping all timestamps relative to the oldest, making it easy to read.
@@ -417,8 +418,8 @@ public:
         PredictionState mPredictionState = PredictionState::None;
         // Bitmask for the type of jank
         int32_t mJankType = JankType::None;
-        // Indicates if this frame was composited by the GPU or not
-        bool mGpuComposition = false;
+        // A valid gpu fence indicates that the DisplayFrame was composited by the GPU
+        std::shared_ptr<FenceTime> mGpuFence = FenceTime::NO_FENCE;
         // Enum for the type of present
         FramePresentMetadata mFramePresentMetadata = FramePresentMetadata::UnknownPresent;
         // Enum for the type of finish
@@ -445,7 +446,7 @@ public:
     void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame) override;
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) override;
     void setSfPresent(nsecs_t sfPresentTime, const std::shared_ptr<FenceTime>& presentFence,
-                      bool gpuComposition = false) override;
+                      const std::shared_ptr<FenceTime>& gpuFence = FenceTime::NO_FENCE) override;
     void parseArgs(const Vector<String16>& args, std::string& result) override;
     void setMaxDisplayFrames(uint32_t size) override;
     float computeFps(const std::unordered_set<int32_t>& layerIds) override;

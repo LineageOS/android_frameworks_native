@@ -827,13 +827,11 @@ void FrameTimeline::setSfWakeUp(int64_t token, nsecs_t wakeUpTime, Fps refreshRa
 
 void FrameTimeline::setSfPresent(nsecs_t sfPresentTime,
                                  const std::shared_ptr<FenceTime>& presentFence,
-                                 bool gpuComposition) {
+                                 const std::shared_ptr<FenceTime>& gpuFence) {
     ATRACE_CALL();
     std::scoped_lock lock(mMutex);
     mCurrentDisplayFrame->setActualEndTime(sfPresentTime);
-    if (gpuComposition) {
-        mCurrentDisplayFrame->setGpuComposition();
-    }
+    mCurrentDisplayFrame->setGpuFence(gpuFence);
     mPendingPresentFences.emplace_back(std::make_pair(presentFence, mCurrentDisplayFrame));
     flushPendingPresentFences();
     finalizeCurrentDisplayFrame();
@@ -871,8 +869,8 @@ void FrameTimeline::DisplayFrame::setActualEndTime(nsecs_t actualEndTime) {
     mSurfaceFlingerActuals.endTime = actualEndTime;
 }
 
-void FrameTimeline::DisplayFrame::setGpuComposition() {
-    mGpuComposition = true;
+void FrameTimeline::DisplayFrame::setGpuFence(const std::shared_ptr<FenceTime>& gpuFence) {
+    mGpuFence = gpuFence;
 }
 
 void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync) {
@@ -889,7 +887,14 @@ void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& 
     // Delta between the expected present and the actual present
     const nsecs_t presentDelta =
             mSurfaceFlingerActuals.presentTime - mSurfaceFlingerPredictions.presentTime;
-    deadlineDelta = mSurfaceFlingerActuals.endTime - mSurfaceFlingerPredictions.endTime;
+    // Sf actual end time represents the CPU end time. In case of HWC, SF's end time would have
+    // included the time for composition. However, for GPU composition, the final end time is max(sf
+    // end time, gpu fence time).
+    nsecs_t combinedEndTime = mSurfaceFlingerActuals.endTime;
+    if (mGpuFence != FenceTime::NO_FENCE) {
+        combinedEndTime = std::max(combinedEndTime, mGpuFence->getSignalTime());
+    }
+    deadlineDelta = combinedEndTime - mSurfaceFlingerPredictions.endTime;
 
     // How far off was the presentDelta when compared to the vsyncPeriod. Used in checking if there
     // was a prediction error or not.
@@ -904,7 +909,7 @@ void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& 
         mFramePresentMetadata = FramePresentMetadata::OnTimePresent;
     }
 
-    if (mSurfaceFlingerActuals.endTime > mSurfaceFlingerPredictions.endTime) {
+    if (combinedEndTime > mSurfaceFlingerPredictions.endTime) {
         mFrameReadyMetadata = FrameReadyMetadata::LateFinish;
     } else {
         mFrameReadyMetadata = FrameReadyMetadata::OnTimeFinish;
@@ -961,7 +966,15 @@ void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& 
                     mJankType = JankType::SurfaceFlingerScheduling;
                 } else {
                     // OnTime start, Finish late, Present late
-                    mJankType = JankType::SurfaceFlingerCpuDeadlineMissed;
+                    if (mGpuFence != FenceTime::NO_FENCE &&
+                        mSurfaceFlingerActuals.endTime - mSurfaceFlingerActuals.startTime <
+                                mRefreshRate.getPeriodNsecs()) {
+                        // If SF was in GPU composition and the CPU work finished before the vsync
+                        // period, classify it as GPU deadline missed.
+                        mJankType = JankType::SurfaceFlingerGpuDeadlineMissed;
+                    } else {
+                        mJankType = JankType::SurfaceFlingerCpuDeadlineMissed;
+                    }
                 }
             } else {
                 // Finish time unknown
@@ -1036,7 +1049,7 @@ void FrameTimeline::DisplayFrame::traceActuals(pid_t surfaceFlingerPid) const {
         actualDisplayFrameStartEvent->set_present_type(toProto(mFramePresentMetadata));
         actualDisplayFrameStartEvent->set_on_time_finish(mFrameReadyMetadata ==
                                                          FrameReadyMetadata::OnTimeFinish);
-        actualDisplayFrameStartEvent->set_gpu_composition(mGpuComposition);
+        actualDisplayFrameStartEvent->set_gpu_composition(mGpuFence != FenceTime::NO_FENCE);
         actualDisplayFrameStartEvent->set_jank_type(jankTypeBitmaskToProto(mJankType));
         actualDisplayFrameStartEvent->set_prediction_type(toProto(mPredictionState));
     });

@@ -2173,7 +2173,7 @@ void SurfaceFlinger::postComposition() {
     // information from previous' frame classification is already available when sending jank info
     // to clients, so they get jank classification as early as possible.
     mFrameTimeline->setSfPresent(systemTime(), mPreviousPresentFences[0].fenceTime,
-                                 glCompositionDoneFenceTime != FenceTime::NO_FENCE);
+                                 glCompositionDoneFenceTime);
 
     nsecs_t dequeueReadyTime = systemTime();
     for (const auto& layer : mLayersWithQueuedFrames) {
