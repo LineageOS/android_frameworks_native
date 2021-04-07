@@ -261,6 +261,7 @@ public:
         sp<GraphicBuffer> buffer;
         client_cache_t clientCacheId;
         sp<Fence> acquireFence;
+        std::shared_ptr<FenceTime> acquireFenceTime;
         HdrMetadata hdrMetadata;
         Region surfaceDamageRegion;
         int32_t api;

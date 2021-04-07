@@ -69,7 +69,6 @@ libbinder_device_interface_sources = [
     "IUidObserver.cpp",
     "PermissionCache.cpp",
     "PermissionController.cpp",
-    "IpPrefix.cpp",
     ":activity_manager_procstate_aidl",
 ]
 
@@ -288,6 +287,17 @@ cc_library {
         "ProcessInfoService.cpp",
     ],
     export_include_dirs: ["include_processinfo"],
+    shared_libs: [
+        "libbinder",
+        "libutils",
+        "liblog",
+    ],
+}
+
+// TODO(b/183654927): initially empty lib to work around some merge conflicts
+cc_library {
+    name: "libactivitymanager_aidl",
+    srcs: [],
     shared_libs: [
         "libbinder",
         "libutils",
