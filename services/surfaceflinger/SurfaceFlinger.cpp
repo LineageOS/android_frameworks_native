@@ -64,7 +64,6 @@
 #include <private/android_filesystem_config.h>
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/RenderEngine.h>
-#include <statslog.h>
 #include <sys/types.h>
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
@@ -639,7 +638,6 @@ void SurfaceFlinger::bootFinished() {
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
 
     mFrameTracer->initialize();
-    mTimeStats->onBootFinished();
     mFrameTimeline->onBootFinished();
 
     // wait patiently for the window manager death
@@ -1303,6 +1301,11 @@ status_t SurfaceFlinger::overrideHdrTypes(const sp<IBinder>& displayToken,
 
     display->overrideHdrTypes(hdrTypes);
     dispatchDisplayHotplugEvent(display->getPhysicalId(), true /* connected */);
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::onPullAtom(const int32_t atomId, std::string* pulledData, bool* success) {
+    *success = mTimeStats->onPullAtom(atomId, pulledData);
     return NO_ERROR;
 }
 
@@ -5197,6 +5200,13 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             IPCThreadState* ipc = IPCThreadState::self();
             const int uid = ipc->getCallingUid();
             if (uid == AID_ROOT || uid == AID_GRAPHICS || uid == AID_SYSTEM || uid == AID_SHELL) {
+                return OK;
+            }
+            return PERMISSION_DENIED;
+        }
+        case ON_PULL_ATOM: {
+            const int uid = IPCThreadState::self()->getCallingUid();
+            if (uid == AID_SYSTEM) {
                 return OK;
             }
             return PERMISSION_DENIED;
