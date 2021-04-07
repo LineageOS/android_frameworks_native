@@ -722,10 +722,7 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
             previousOverride = layer->getState().overrideInfo.buffer;
         }
 
-        // TODO(b/181172795): We now update geometry for all flattened layers. We should update it
-        // only when the geometry actually changes
-        const bool includeGeometry = refreshArgs.updatingGeometryThisFrame ||
-                layer->getState().overrideInfo.buffer != nullptr || skipLayer;
+        const bool includeGeometry = refreshArgs.updatingGeometryThisFrame;
         layer->writeStateToHWC(includeGeometry, skipLayer);
     }
 }
