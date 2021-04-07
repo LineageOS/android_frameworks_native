@@ -479,7 +479,6 @@ public:
         Transaction& setTransform(const sp<SurfaceControl>& sc, uint32_t transform);
         Transaction& setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
                                                   bool transformToDisplayInverse);
-        Transaction& setFrame(const sp<SurfaceControl>& sc, const Rect& frame);
         Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer,
                                ReleaseBufferCallback callback = nullptr);
         Transaction& setCachedBuffer(const sp<SurfaceControl>& sc, int32_t bufferId);
