@@ -232,6 +232,8 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(nsecs_t now) {
     if (!isFrequent(now)) {
         ALOGV("%s is infrequent", mName.c_str());
         mLastRefreshRate.animatingOrInfrequent = true;
+        // Infrequent layers vote for mininal refresh rate for
+        // battery saving purposes and also to prevent b/135718869.
         return {LayerHistory::LayerVoteType::Min, Fps(0.0f)};
     }
 
