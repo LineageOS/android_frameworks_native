@@ -70,6 +70,8 @@ void CachedSetTest::SetUp() {
         auto testLayer = std::make_unique<TestLayer>();
         auto pos = static_cast<int32_t>(i);
         testLayer->outputLayerCompositionState.displayFrame = Rect(pos, pos, pos + 1, pos + 1);
+        testLayer->outputLayerCompositionState.visibleRegion =
+                Region(Rect(pos + 1, pos + 1, pos + 2, pos + 2));
 
         testLayer->layerFE = sp<mock::LayerFE>::make();
 
@@ -106,6 +108,7 @@ void expectEqual(const CachedSet& cachedSet, const CachedSet::Layer& layer) {
     EXPECT_EQ(layer.getHash(), cachedSet.getFingerprint());
     EXPECT_EQ(layer.getLastUpdate(), cachedSet.getLastUpdate());
     EXPECT_EQ(layer.getDisplayFrame(), cachedSet.getBounds());
+    EXPECT_TRUE(layer.getVisibleRegion().hasSameRects(cachedSet.getVisibleRegion()));
     EXPECT_EQ(1u, cachedSet.getLayerCount());
     EXPECT_EQ(layer.getState(), cachedSet.getFirstLayer().getState());
     EXPECT_EQ(0u, cachedSet.getAge());
@@ -154,6 +157,10 @@ TEST_F(CachedSetTest, addLayer) {
     EXPECT_EQ(layer1.getHash(), cachedSet.getFingerprint());
     EXPECT_EQ(kStartTime, cachedSet.getLastUpdate());
     EXPECT_EQ(Rect(0, 0, 2, 2), cachedSet.getBounds());
+    Region expectedRegion;
+    expectedRegion.orSelf(Rect(1, 1, 2, 2));
+    expectedRegion.orSelf(Rect(2, 2, 3, 3));
+    EXPECT_TRUE(cachedSet.getVisibleRegion().hasSameRects(expectedRegion));
     EXPECT_EQ(2u, cachedSet.getLayerCount());
     EXPECT_EQ(0u, cachedSet.getAge());
     expectNoBuffer(cachedSet);
@@ -239,6 +246,11 @@ TEST_F(CachedSetTest, append) {
     EXPECT_EQ(layer1.getHash(), cachedSet1.getFingerprint());
     EXPECT_EQ(kStartTime, cachedSet1.getLastUpdate());
     EXPECT_EQ(Rect(0, 0, 3, 3), cachedSet1.getBounds());
+    Region expectedRegion;
+    expectedRegion.orSelf(Rect(1, 1, 2, 2));
+    expectedRegion.orSelf(Rect(2, 2, 3, 3));
+    expectedRegion.orSelf(Rect(3, 3, 4, 4));
+    EXPECT_TRUE(cachedSet1.getVisibleRegion().hasSameRects(expectedRegion));
     EXPECT_EQ(3u, cachedSet1.getLayerCount());
     EXPECT_EQ(0u, cachedSet1.getAge());
     expectNoBuffer(cachedSet1);

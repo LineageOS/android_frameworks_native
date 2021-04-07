@@ -708,8 +708,10 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static const Rect kDisplayFrame;
     static const Rect kOverrideDisplayFrame;
     static const Region kOutputSpaceVisibleRegion;
+    static const Region kOverrideVisibleRegion;
     static const mat4 kColorTransform;
     static const Region kSurfaceDamage;
+    static const Region kOverrideSurfaceDamage;
     static const HdrMetadata kHdrMetadata;
     static native_handle_t* kSidebandStreamHandle;
     static const sp<GraphicBuffer> kBuffer;
@@ -766,6 +768,8 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         overrideInfo.acquireFence = kOverrideFence;
         overrideInfo.displayFrame = kOverrideDisplayFrame;
         overrideInfo.dataspace = kOverrideDataspace;
+        overrideInfo.damageRegion = kOverrideSurfaceDamage;
+        overrideInfo.visibleRegion = kOverrideVisibleRegion;
     }
 
     void expectGeometryCommonCalls(Rect displayFrame = kDisplayFrame,
@@ -783,16 +787,16 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     }
 
     void expectPerFrameCommonCalls(SimulateUnsupported unsupported = SimulateUnsupported::None,
-                                   ui::Dataspace dataspace = kDataspace) {
-        EXPECT_CALL(*mHwcLayer, setVisibleRegion(RegionEq(kOutputSpaceVisibleRegion)))
-                .WillOnce(Return(kError));
+                                   ui::Dataspace dataspace = kDataspace,
+                                   const Region& visibleRegion = kOutputSpaceVisibleRegion,
+                                   const Region& surfaceDamage = kSurfaceDamage) {
+        EXPECT_CALL(*mHwcLayer, setVisibleRegion(RegionEq(visibleRegion))).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setDataspace(dataspace)).WillOnce(Return(kError));
         EXPECT_CALL(*mHwcLayer, setColorTransform(kColorTransform))
                 .WillOnce(Return(unsupported == SimulateUnsupported::ColorTransform
                                          ? hal::Error::UNSUPPORTED
                                          : hal::Error::NONE));
-        EXPECT_CALL(*mHwcLayer, setSurfaceDamage(RegionEq(kSurfaceDamage)))
-                .WillOnce(Return(kError));
+        EXPECT_CALL(*mHwcLayer, setSurfaceDamage(RegionEq(surfaceDamage))).WillOnce(Return(kError));
     }
 
     void expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition compositionType) {
@@ -843,11 +847,13 @@ const Rect OutputLayerWriteStateToHWCTest::kDisplayFrame{1001, 1002, 1003, 10044
 const Rect OutputLayerWriteStateToHWCTest::kOverrideDisplayFrame{1002, 1003, 1004, 20044};
 const Region OutputLayerWriteStateToHWCTest::kOutputSpaceVisibleRegion{
         Rect{1005, 1006, 1007, 1008}};
+const Region OutputLayerWriteStateToHWCTest::kOverrideVisibleRegion{Rect{1006, 1007, 1008, 1009}};
 const mat4 OutputLayerWriteStateToHWCTest::kColorTransform{
         1009, 1010, 1011, 1012, 1013, 1014, 1015, 1016,
         1017, 1018, 1019, 1020, 1021, 1022, 1023, 1024,
 };
 const Region OutputLayerWriteStateToHWCTest::kSurfaceDamage{Rect{1025, 1026, 1027, 1028}};
+const Region OutputLayerWriteStateToHWCTest::kOverrideSurfaceDamage{Rect{1026, 1027, 1028, 1029}};
 const HdrMetadata OutputLayerWriteStateToHWCTest::kHdrMetadata{{/* LightFlattenable */}, 1029};
 native_handle_t* OutputLayerWriteStateToHWCTest::kSidebandStreamHandle =
         reinterpret_cast<native_handle_t*>(1031);
@@ -1015,7 +1021,8 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
 
     expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideDisplayFrame.toFloatRect(),
                               kOverrideBufferTransform, kOverrideBlendMode, kOverrideAlpha);
-    expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace);
+    expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace, kOverrideVisibleRegion,
+                              kOverrideSurfaceDamage);
     expectSetHdrMetadataAndBufferCalls(kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
 
