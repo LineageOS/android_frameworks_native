@@ -306,6 +306,7 @@ ui::PixelFormat SurfaceFlinger::defaultCompositionPixelFormat = ui::PixelFormat:
 Dataspace SurfaceFlinger::wideColorGamutCompositionDataspace = Dataspace::V0_SRGB;
 ui::PixelFormat SurfaceFlinger::wideColorGamutCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
 bool SurfaceFlinger::useFrameRateApi;
+bool SurfaceFlinger::enableSdrDimming;
 
 std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
     switch(displayColorSetting) {
@@ -471,6 +472,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     base::SetProperty(KERNEL_IDLE_TIMER_PROP, mKernelIdleTimerEnabled ? "true" : "false");
 
     mRefreshRateOverlaySpinner = property_get_bool("sf.debug.show_refresh_rate_overlay_spinner", 0);
+
+    // Debug property overrides ro. property
+    enableSdrDimming = property_get_bool("debug.sf.enable_sdr_dimming", enable_sdr_dimming(false));
 }
 
 SurfaceFlinger::~SurfaceFlinger() = default;
@@ -1480,8 +1484,13 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
     }
 
     return ftl::chain(schedule([=]() MAIN_THREAD {
-               if (const auto displayId = getPhysicalDisplayIdLocked(displayToken)) {
-                   return getHwComposer().setDisplayBrightness(*displayId,
+               if (const auto display = getDisplayDeviceLocked(displayToken)) {
+                   if (enableSdrDimming) {
+                       display->getCompositionDisplay()
+                               ->setDisplayBrightness(brightness.sdrWhitePointNits,
+                                                      brightness.displayBrightnessNits);
+                   }
+                   return getHwComposer().setDisplayBrightness(display->getPhysicalId(),
                                                                brightness.displayBrightness);
                } else {
                    ALOGE("%s: Invalid display token %p", __FUNCTION__, displayToken.get());

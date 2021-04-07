@@ -108,8 +108,7 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
             .source = PixelSource{.buffer =
                                           Buffer{
                                                   .buffer = srcTexture,
-                                                  .maxMasteringLuminance = 1000.f,
-                                                  .maxContentLuminance = 1000.f,
+                                                  .maxLuminanceNits = 1000.f,
                                           }},
     };
 
@@ -205,8 +204,7 @@ static void drawTextureScaleLayers(SkiaRenderEngine* renderengine, const Display
             .source = PixelSource{.buffer =
                                           Buffer{
                                                   .buffer = srcTexture,
-                                                  .maxMasteringLuminance = 1000.f,
-                                                  .maxContentLuminance = 1000.f,
+                                                  .maxLuminanceNits = 1000.f,
                                                   .textureTransform = kScaleYOnly,
                                           }},
             .sourceDataspace = kOtherDataSpace,

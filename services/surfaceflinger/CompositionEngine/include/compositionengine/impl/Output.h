@@ -51,6 +51,7 @@ public:
 
     void setColorTransform(const compositionengine::CompositionRefreshArgs&) override;
     void setColorProfile(const ColorProfile&) override;
+    void setDisplayBrightness(float sdrWhitePointNits, float displayBrightnessNits) override;
 
     void dump(std::string&) const override;
     void dumpPlannerInfo(const Vector<String16>& args, std::string&) const override;

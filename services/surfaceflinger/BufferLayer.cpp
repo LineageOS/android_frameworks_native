@@ -58,8 +58,7 @@
 
 namespace android {
 
-static constexpr float defaultMaxMasteringLuminance = 1000.0;
-static constexpr float defaultMaxContentLuminance = 1000.0;
+static constexpr float defaultMaxLuminance = 1000.0;
 
 BufferLayer::BufferLayer(const LayerCreationArgs& args)
       : Layer(args),
@@ -206,12 +205,24 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
     layer.source.buffer.isY410BT2020 = isHdrY410();
     bool hasSmpte2086 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::SMPTE2086;
     bool hasCta861_3 = mBufferInfo.mHdrMetadata.validTypes & HdrMetadata::CTA861_3;
-    layer.source.buffer.maxMasteringLuminance = hasSmpte2086
-            ? mBufferInfo.mHdrMetadata.smpte2086.maxLuminance
-            : defaultMaxMasteringLuminance;
-    layer.source.buffer.maxContentLuminance = hasCta861_3
-            ? mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel
-            : defaultMaxContentLuminance;
+    float maxLuminance = 0.f;
+    if (hasSmpte2086 && hasCta861_3) {
+        maxLuminance = std::min(mBufferInfo.mHdrMetadata.smpte2086.maxLuminance,
+                                mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel);
+    } else if (hasSmpte2086) {
+        maxLuminance = mBufferInfo.mHdrMetadata.smpte2086.maxLuminance;
+    } else if (hasCta861_3) {
+        maxLuminance = mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel;
+    } else {
+        switch (layer.sourceDataspace & HAL_DATASPACE_TRANSFER_MASK) {
+            case HAL_DATASPACE_TRANSFER_ST2084:
+            case HAL_DATASPACE_TRANSFER_HLG:
+                // Behavior-match previous releases for HDR content
+                maxLuminance = defaultMaxLuminance;
+                break;
+        }
+    }
+    layer.source.buffer.maxLuminanceNits = maxLuminance;
     layer.frameNumber = mCurrentFrameNumber;
     layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getBuffer()->getId() : 0;
 

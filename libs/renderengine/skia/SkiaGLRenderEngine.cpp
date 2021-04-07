@@ -567,10 +567,14 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> sh
         } else {
             runtimeEffect = effectIter->second;
         }
+        float maxLuminance = layer->source.buffer.maxLuminanceNits;
+        // If the buffer doesn't have a max luminance, treat it as SDR & use the display's SDR
+        // white point
+        if (maxLuminance <= 0.f) {
+            maxLuminance = display.sdrWhitePointNits;
+        }
         return createLinearEffectShader(shader, effect, runtimeEffect, layer->colorTransform,
-                                        display.maxLuminance,
-                                        layer->source.buffer.maxMasteringLuminance,
-                                        layer->source.buffer.maxContentLuminance);
+                                        display.maxLuminance, maxLuminance);
     }
     return shader;
 }
@@ -866,7 +870,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
         const bool requiresLinearEffect = layer->colorTransform != mat4() ||
                 (mUseColorManagement &&
-                 needsToneMapping(layer->sourceDataspace, display.outputDataspace));
+                 needsToneMapping(layer->sourceDataspace, display.outputDataspace)) ||
+                (display.sdrWhitePointNits > 0.f &&
+                 display.sdrWhitePointNits != display.maxLuminance);
 
         // quick abort from drawing the remaining portion of the layer
         if (layer->alpha == 0 && !requiresLinearEffect && !layer->disableBlending &&

@@ -64,8 +64,8 @@ struct Buffer {
 
     // HDR color-space setting for Y410.
     bool isY410BT2020 = false;
-    float maxMasteringLuminance = 0.0;
-    float maxContentLuminance = 0.0;
+
+    float maxLuminanceNits = 0.0;
 };
 
 // Metadata describing the layer geometry.
@@ -175,8 +175,7 @@ static inline bool operator==(const Buffer& lhs, const Buffer& rhs) {
             lhs.textureTransform == rhs.textureTransform &&
             lhs.usePremultipliedAlpha == rhs.usePremultipliedAlpha &&
             lhs.isOpaque == rhs.isOpaque && lhs.isY410BT2020 == rhs.isY410BT2020 &&
-            lhs.maxMasteringLuminance == rhs.maxMasteringLuminance &&
-            lhs.maxContentLuminance == rhs.maxContentLuminance;
+            lhs.maxLuminanceNits == rhs.maxLuminanceNits;
 }
 
 static inline bool operator==(const Geometry& lhs, const Geometry& rhs) {
@@ -237,8 +236,7 @@ static inline void PrintTo(const Buffer& settings, ::std::ostream* os) {
     *os << "\n    .usePremultipliedAlpha = " << settings.usePremultipliedAlpha;
     *os << "\n    .isOpaque = " << settings.isOpaque;
     *os << "\n    .isY410BT2020 = " << settings.isY410BT2020;
-    *os << "\n    .maxMasteringLuminance = " << settings.maxMasteringLuminance;
-    *os << "\n    .maxContentLuminance = " << settings.maxContentLuminance;
+    *os << "\n    .maxLuminanceNits = " << settings.maxLuminanceNits;
     *os << "\n}";
 }
 

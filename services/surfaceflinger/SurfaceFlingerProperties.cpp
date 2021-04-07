@@ -321,6 +321,10 @@ bool use_frame_rate_api(bool defaultValue) {
     return defaultValue;
 }
 
+bool enable_sdr_dimming(bool defaultValue) {
+    return SurfaceFlingerProperties::enable_sdr_dimming().value_or(defaultValue);
+}
+
 int32_t display_update_imminent_timeout_ms(int32_t defaultValue) {
     auto temp = SurfaceFlingerProperties::display_update_imminent_timeout_ms();
     if (temp.has_value()) {

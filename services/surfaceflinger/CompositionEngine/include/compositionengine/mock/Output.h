@@ -43,6 +43,7 @@ public:
 
     MOCK_METHOD1(setColorTransform, void(const compositionengine::CompositionRefreshArgs&));
     MOCK_METHOD1(setColorProfile, void(const ColorProfile&));
+    MOCK_METHOD2(setDisplayBrightness, void(float, float));
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD2(dumpPlannerInfo, void(const Vector<String16>&, std::string&));

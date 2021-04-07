@@ -98,7 +98,7 @@ sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> inputShader,
                                          const LinearEffect& linearEffect,
                                          sk_sp<SkRuntimeEffect> runtimeEffect,
                                          const mat4& colorTransform, float maxDisplayLuminance,
-                                         float maxMasteringLuminance, float maxContentLuminance);
+                                         float maxLuminance);
 } // namespace skia
 } // namespace renderengine
 } // namespace android

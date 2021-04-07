@@ -271,6 +271,10 @@ public:
 
     static constexpr SkipInitializationTag SkipInitialization;
 
+    // Whether or not SDR layers should be dimmed to the desired SDR white point instead of
+    // being treated as native display brightness
+    static bool enableSdrDimming;
+
     // must be called before clients can connect
     void init() ANDROID_API;
 

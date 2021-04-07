@@ -181,6 +181,9 @@ public:
     // Sets the output color mode
     virtual void setColorProfile(const ColorProfile&) = 0;
 
+    // Sets current calibrated display brightness information
+    virtual void setDisplayBrightness(float sdrWhitePointNits, float displayBrightnessNits) = 0;
+
     // Outputs a string with a state dump
     virtual void dump(std::string&) const = 0;
 

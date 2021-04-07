@@ -463,3 +463,12 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.enable_layer_caching"
 }
+
+# Enables SDR layer dimming
+prop {
+    api_name: "enable_sdr_dimming"
+    type: Boolean
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.enable_sdr_dimming"
+}

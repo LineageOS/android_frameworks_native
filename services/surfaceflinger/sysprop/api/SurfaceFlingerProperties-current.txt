@@ -53,6 +53,10 @@ props {
     prop_name: "ro.surface_flinger.protected_contents"
   }
   prop {
+    api_name: "enable_sdr_dimming"
+    prop_name: "ro.surface_flinger.enable_sdr_dimming"
+  }
+  prop {
     api_name: "force_hwc_copy_for_virtual_displays"
     prop_name: "ro.surface_flinger.force_hwc_copy_for_virtual_displays"
   }

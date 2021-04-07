@@ -127,7 +127,7 @@ static void generateLuminanceScalesForOOTF(ui::Dataspace inputDataspace, SkStrin
         default:
             shader.append(R"(
                     float3 ScaleLuminance(float3 xyz) {
-                        return xyz * in_displayMaxLuminance;
+                        return xyz * in_inputMaxLuminance;
                     }
                 )");
             break;
@@ -448,7 +448,7 @@ sk_sp<SkRuntimeEffect> buildRuntimeEffect(const LinearEffect& linearEffect) {
 sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader, const LinearEffect& linearEffect,
                                          sk_sp<SkRuntimeEffect> runtimeEffect,
                                          const mat4& colorTransform, float maxDisplayLuminance,
-                                         float maxMasteringLuminance, float maxContentLuminance) {
+                                         float maxLuminance) {
     ATRACE_CALL();
     SkRuntimeShaderBuilder effectBuilder(runtimeEffect);
 
@@ -467,8 +467,10 @@ sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> shader, const LinearEff
     }
 
     effectBuilder.uniform("in_displayMaxLuminance") = maxDisplayLuminance;
+    // If the input luminance is unknown, use display luminance (aka, no-op any luminance changes)
+    // This will be the case for eg screenshots in addition to uncalibrated displays
     effectBuilder.uniform("in_inputMaxLuminance") =
-            std::min(maxMasteringLuminance, maxContentLuminance);
+            maxLuminance > 0 ? maxLuminance : maxDisplayLuminance;
     return effectBuilder.makeShader(nullptr, false);
 }
 
