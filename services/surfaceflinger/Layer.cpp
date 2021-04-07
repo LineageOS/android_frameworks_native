@@ -116,7 +116,8 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.bufferTransform = 0;
     mCurrentState.transformToDisplayInverse = false;
     mCurrentState.crop.makeInvalid();
-    mCurrentState.acquireFence = new Fence(-1);
+    mCurrentState.acquireFence = sp<Fence>::make(-1);
+    mCurrentState.acquireFenceTime = std::make_shared<FenceTime>(mCurrentState.acquireFence);
     mCurrentState.dataspace = ui::Dataspace::UNKNOWN;
     mCurrentState.hdrMetadata.validTypes = 0;
     mCurrentState.surfaceDamageRegion = Region::INVALID_REGION;
