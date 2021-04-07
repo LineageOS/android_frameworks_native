@@ -3267,8 +3267,12 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
             }
         }
 
-        if (const auto display = getDefaultDisplayDeviceLocked()) {
-            lbc->updateTransformHint(display->getTransformHint());
+        if (const auto token = getInternalDisplayTokenLocked()) {
+            const ssize_t index = mCurrentState.displays.indexOfKey(token);
+            if (index >= 0) {
+                const DisplayDeviceState& state = mCurrentState.displays.valueAt(index);
+                lbc->updateTransformHint(ui::Transform::toRotationFlags(state.orientation));
+            }
         }
         if (outTransformHint) {
             *outTransformHint = lbc->getTransformHint();
