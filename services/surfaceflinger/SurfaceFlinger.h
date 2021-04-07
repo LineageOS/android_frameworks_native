@@ -1019,9 +1019,14 @@ private:
 
     bool isDisplayModeAllowed(DisplayModeId) const REQUIRES(mStateLock);
 
+    struct FenceWithFenceTime {
+        sp<Fence> fence = Fence::NO_FENCE;
+        std::shared_ptr<FenceTime> fenceTime = FenceTime::NO_FENCE;
+    };
+
     // Gets the fence for the previous frame.
     // Must be called on the main thread.
-    sp<Fence> previousFrameFence();
+    FenceWithFenceTime previousFrameFence();
 
     // Whether the previous frame has not yet been presented to the display.
     // If graceTimeMs is positive, this method waits for at most the provided
@@ -1199,7 +1204,7 @@ private:
     std::unordered_set<sp<Layer>, ISurfaceComposer::SpHash<Layer>> mLayersWithQueuedFrames;
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
-    std::array<sp<Fence>, 2> mPreviousPresentFences = {Fence::NO_FENCE, Fence::NO_FENCE};
+    std::array<FenceWithFenceTime, 2> mPreviousPresentFences;
     // True if in the previous frame at least one layer was composed via the GPU.
     bool mHadClientComposition = false;
     // True if in the previous frame at least one layer was composed via HW Composer.

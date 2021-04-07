@@ -1706,7 +1706,7 @@ void SurfaceFlinger::setVsyncEnabled(bool enabled) {
     }));
 }
 
-sp<Fence> SurfaceFlinger::previousFrameFence() {
+SurfaceFlinger::FenceWithFenceTime SurfaceFlinger::previousFrameFence() {
     // We are storing the last 2 present fences. If sf's phase offset is to be
     // woken up before the actual vsync but targeting the next vsync, we need to check
     // fence N-2
@@ -1716,9 +1716,9 @@ sp<Fence> SurfaceFlinger::previousFrameFence() {
 
 bool SurfaceFlinger::previousFramePending(int graceTimeMs) {
     ATRACE_CALL();
-    const sp<Fence>& fence = previousFrameFence();
+    const std::shared_ptr<FenceTime>& fence = previousFrameFence().fenceTime;
 
-    if (fence == Fence::NO_FENCE) {
+    if (fence == FenceTime::NO_FENCE) {
         return false;
     }
 
@@ -1729,9 +1729,9 @@ bool SurfaceFlinger::previousFramePending(int graceTimeMs) {
 }
 
 nsecs_t SurfaceFlinger::previousFramePresentTime() {
-    const sp<Fence>& fence = previousFrameFence();
+    const std::shared_ptr<FenceTime>& fence = previousFrameFence().fenceTime;
 
-    if (fence == Fence::NO_FENCE) {
+    if (fence == FenceTime::NO_FENCE) {
         return Fence::SIGNAL_TIME_INVALID;
     }
 
@@ -2162,16 +2162,17 @@ void SurfaceFlinger::postComposition() {
 
     getBE().mDisplayTimeline.updateSignalTimes();
     mPreviousPresentFences[1] = mPreviousPresentFences[0];
-    mPreviousPresentFences[0] =
+    mPreviousPresentFences[0].fence =
             display ? getHwComposer().getPresentFence(display->getPhysicalId()) : Fence::NO_FENCE;
-    auto presentFenceTime = std::make_shared<FenceTime>(mPreviousPresentFences[0]);
-    getBE().mDisplayTimeline.push(presentFenceTime);
+    mPreviousPresentFences[0].fenceTime =
+            std::make_shared<FenceTime>(mPreviousPresentFences[0].fence);
+
+    getBE().mDisplayTimeline.push(mPreviousPresentFences[0].fenceTime);
 
     // Set presentation information before calling Layer::releasePendingBuffer, such that jank
     // information from previous' frame classification is already available when sending jank info
     // to clients, so they get jank classification as early as possible.
-    mFrameTimeline->setSfPresent(systemTime(),
-                                 std::make_shared<FenceTime>(mPreviousPresentFences[0]),
+    mFrameTimeline->setSfPresent(systemTime(), mPreviousPresentFences[0].fenceTime,
                                  glCompositionDoneFenceTime != FenceTime::NO_FENCE);
 
     nsecs_t dequeueReadyTime = systemTime();
@@ -2185,7 +2186,7 @@ void SurfaceFlinger::postComposition() {
     // be sampled a little later than when we started doing work for this frame,
     // but that should be okay since updateCompositorTiming has snapping logic.
     updateCompositorTiming(stats, mCompositionEngine->getLastFrameRefreshTimestamp(),
-                           presentFenceTime);
+                           mPreviousPresentFences[0].fenceTime);
     CompositorTiming compositorTiming;
     {
         std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
@@ -2193,8 +2194,9 @@ void SurfaceFlinger::postComposition() {
     }
 
     mDrawingState.traverse([&](Layer* layer) {
-        const bool frameLatched = layer->onPostComposition(display, glCompositionDoneFenceTime,
-                                                           presentFenceTime, compositorTiming);
+        const bool frameLatched =
+                layer->onPostComposition(display, glCompositionDoneFenceTime,
+                                         mPreviousPresentFences[0].fenceTime, compositorTiming);
         if (frameLatched) {
             recordBufferingStats(layer->getName(), layer->getOccupancyHistory(false));
         }
@@ -2254,12 +2256,12 @@ void SurfaceFlinger::postComposition() {
         listener->dispatchHdrLayerInfo(info);
     }
 
-    mTransactionCallbackInvoker.addPresentFence(mPreviousPresentFences[0]);
+    mTransactionCallbackInvoker.addPresentFence(mPreviousPresentFences[0].fence);
     mTransactionCallbackInvoker.sendCallbacks();
 
     if (display && display->isPrimary() && display->getPowerMode() == hal::PowerMode::ON &&
-        presentFenceTime->isValid()) {
-        mScheduler->addPresentFence(presentFenceTime);
+        mPreviousPresentFences[0].fenceTime->isValid()) {
+        mScheduler->addPresentFence(mPreviousPresentFences[0].fenceTime);
     }
 
     const bool isDisplayConnected =
@@ -2274,9 +2276,8 @@ void SurfaceFlinger::postComposition() {
     if (mAnimCompositionPending) {
         mAnimCompositionPending = false;
 
-        if (presentFenceTime->isValid()) {
-            mAnimFrameTracker.setActualPresentFence(
-                    std::move(presentFenceTime));
+        if (mPreviousPresentFences[0].fenceTime->isValid()) {
+            mAnimFrameTracker.setActualPresentFence(mPreviousPresentFences[0].fenceTime);
         } else if (isDisplayConnected) {
             // The HWC doesn't support present fences, so use the refresh
             // timestamp instead.
@@ -2295,7 +2296,7 @@ void SurfaceFlinger::postComposition() {
         mTimeStats->incrementClientCompositionReusedFrames();
     }
 
-    mTimeStats->setPresentFenceGlobal(presentFenceTime);
+    mTimeStats->setPresentFenceGlobal(mPreviousPresentFences[0].fenceTime);
 
     const size_t sfConnections = mScheduler->getEventThreadConnectionCount(mSfConnectionHandle);
     const size_t appConnections = mScheduler->getEventThreadConnectionCount(mAppConnectionHandle);
@@ -6460,6 +6461,7 @@ void SurfaceFlinger::onLayerFirstRef(Layer* layer) {
 }
 
 void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
+    mScheduler->deregisterLayer(layer);
     mNumLayers--;
     removeFromOffscreenLayers(layer);
 }
