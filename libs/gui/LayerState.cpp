@@ -459,6 +459,10 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eCropChanged;
         crop = other.crop;
     }
+    if (other.what & eFrameChanged) {
+        what |= eFrameChanged;
+        orientedDisplaySpaceRect = other.orientedDisplaySpaceRect;
+    }
     if (other.what & eBufferChanged) {
         what |= eBufferChanged;
         buffer = other.buffer;

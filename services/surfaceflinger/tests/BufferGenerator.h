@@ -37,7 +37,6 @@ public:
 
     /* Static callback that sets the fence on a particular instance */
     static void setBuffer(const sp<GraphicBuffer>& buffer, int32_t fence, void* fenceGenerator);
-    ui::Size getSize();
 
 private:
     bool mInitialized = false;
@@ -54,7 +53,6 @@ private:
 
     using Epoch = std::chrono::time_point<std::chrono::steady_clock>;
     Epoch mEpoch = std::chrono::steady_clock::now();
-    ui::Size mBufferSize;
 };
 
 } // namespace android
