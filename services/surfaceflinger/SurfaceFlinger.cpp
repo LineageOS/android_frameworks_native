@@ -3413,7 +3413,7 @@ void SurfaceFlinger::flushTransactionQueues() {
     // states) around outside the scope of the lock
     std::vector<const TransactionState> transactions;
     // Layer handles that have transactions with buffers that are ready to be applied.
-    std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> pendingBuffers;
+    std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>> bufferLayersReadyToPresent;
     {
         Mutex::Autolock _l(mStateLock);
         {
@@ -3429,10 +3429,13 @@ void SurfaceFlinger::flushTransactionQueues() {
                                                        transaction.isAutoTimestamp,
                                                        transaction.desiredPresentTime,
                                                        transaction.originUid, transaction.states,
-                                                       pendingBuffers)) {
+                                                       bufferLayersReadyToPresent)) {
                         setTransactionFlags(eTransactionFlushNeeded);
                         break;
                     }
+                    transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
+                        bufferLayersReadyToPresent.insert(state.surface);
+                    });
                     transactions.emplace_back(std::move(transaction));
                     transactionQueue.pop();
                 }
@@ -3453,14 +3456,17 @@ void SurfaceFlinger::flushTransactionQueues() {
                 auto& transaction = mTransactionQueue.front();
                 bool pendingTransactions = mPendingTransactionQueues.find(transaction.applyToken) !=
                         mPendingTransactionQueues.end();
-                if (!transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
+                if (pendingTransactions ||
+                    !transactionIsReadyToBeApplied(transaction.frameTimelineInfo,
                                                    transaction.isAutoTimestamp,
                                                    transaction.desiredPresentTime,
                                                    transaction.originUid, transaction.states,
-                                                   pendingBuffers) ||
-                    pendingTransactions) {
+                                                   bufferLayersReadyToPresent)) {
                     mPendingTransactionQueues[transaction.applyToken].push(std::move(transaction));
                 } else {
+                    transaction.traverseStatesWithBuffers([&](const layer_state_t& state) {
+                        bufferLayersReadyToPresent.insert(state.surface);
+                    });
                     transactions.emplace_back(std::move(transaction));
                 }
                 mTransactionQueue.pop();
@@ -3515,28 +3521,28 @@ bool SurfaceFlinger::frameIsEarly(nsecs_t expectedPresentTime, int64_t vsyncId) 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(
         const FrameTimelineInfo& info, bool isAutoTimestamp, int64_t desiredPresentTime,
         uid_t originUid, const Vector<ComposerState>& states,
-        std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>& pendingBuffers) {
+        const std::unordered_set<sp<IBinder>, ISurfaceComposer::SpHash<IBinder>>&
+                bufferLayersReadyToPresent) const {
     ATRACE_CALL();
     const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
-    bool ready = true;
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
     if (!isAutoTimestamp && desiredPresentTime >= expectedPresentTime &&
         desiredPresentTime < expectedPresentTime + s2ns(1)) {
         ATRACE_NAME("not current");
-        ready = false;
+        return false;
     }
 
     if (!mScheduler->isVsyncValid(expectedPresentTime, originUid)) {
         ATRACE_NAME("!isVsyncValid");
-        ready = false;
+        return false;
     }
 
     // If the client didn't specify desiredPresentTime, use the vsyncId to determine the expected
     // present time of this transaction.
     if (isAutoTimestamp && frameIsEarly(expectedPresentTime, info.vsyncId)) {
         ATRACE_NAME("frameIsEarly");
-        ready = false;
+        return false;
     }
 
     for (const ComposerState& state : states) {
@@ -3545,7 +3551,7 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         if (acquireFenceChanged && s.acquireFence &&
             s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
             ATRACE_NAME("fence unsignaled");
-            ready = false;
+            return false;
         }
 
         sp<Layer> layer = nullptr;
@@ -3564,15 +3570,15 @@ bool SurfaceFlinger::transactionIsReadyToBeApplied(
         if (s.hasBufferChanges()) {
             // If backpressure is enabled and we already have a buffer to commit, keep the
             // transaction in the queue.
-            const bool hasPendingBuffer = pendingBuffers.find(s.surface) != pendingBuffers.end();
+            const bool hasPendingBuffer =
+                    bufferLayersReadyToPresent.find(s.surface) != bufferLayersReadyToPresent.end();
             if (layer->backpressureEnabled() && hasPendingBuffer && isAutoTimestamp) {
                 ATRACE_NAME("hasPendingBuffer");
-                ready = false;
+                return false;
             }
-            pendingBuffers.insert(s.surface);
         }
     }
-    return ready;
+    return true;
 }
 
 void SurfaceFlinger::queueTransaction(TransactionState& state) {
@@ -3642,13 +3648,6 @@ status_t SurfaceFlinger::setTransactionState(
         const std::vector<ListenerCallbacks>& listenerCallbacks, uint64_t transactionId) {
     ATRACE_CALL();
 
-    // Check for incoming buffer updates and increment the pending buffer count.
-    for (const auto& state : states) {
-        if (state.state.hasBufferChanges() && (state.state.surface)) {
-            mBufferCountTracker.increment(state.state.surface->localBinder());
-        }
-    }
-
     uint32_t permissions =
             callingThreadHasUnscopedSurfaceFlingerAccess() ? Permission::ACCESS_SURFACE_FLINGER : 0;
     // Avoid checking for rotation permissions if the caller already has ACCESS_SURFACE_FLINGER
@@ -3677,6 +3676,11 @@ status_t SurfaceFlinger::setTransactionState(
                            permissions,        hasListenerCallbacks,
                            listenerCallbacks,  originPid,
                            originUid,          transactionId};
+
+    // Check for incoming buffer updates and increment the pending buffer count.
+    state.traverseStatesWithBuffers([&](const layer_state_t& state) {
+        mBufferCountTracker.increment(state.surface->localBinder());
+    });
     queueTransaction(state);
 
     // Check the pending state to make sure the transaction is synchronous.
@@ -4029,9 +4033,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eCropChanged) {
         if (layer->setCrop(s.crop)) flags |= eTraversalNeeded;
-    }
-    if (what & layer_state_t::eFrameChanged) {
-        if (layer->setFrame(s.orientedDisplaySpaceRect)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eAcquireFenceChanged) {
         if (layer->setAcquireFence(s.acquireFence)) flags |= eTraversalNeeded;
@@ -6446,7 +6447,7 @@ wp<Layer> SurfaceFlinger::fromHandle(const sp<IBinder>& handle) {
     return fromHandleLocked(handle);
 }
 
-wp<Layer> SurfaceFlinger::fromHandleLocked(const sp<IBinder>& handle) {
+wp<Layer> SurfaceFlinger::fromHandleLocked(const sp<IBinder>& handle) const {
     BBinder* b = nullptr;
     if (handle) {
         b = handle->localBinder();
@@ -6467,6 +6468,7 @@ void SurfaceFlinger::onLayerFirstRef(Layer* layer) {
 }
 
 void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
+    mScheduler->deregisterLayer(layer);
     mNumLayers--;
     removeFromOffscreenLayers(layer);
 }
@@ -6689,6 +6691,15 @@ status_t SurfaceFlinger::getExtraBufferCount(int* extraBuffers) const {
 
     *extraBuffers = calculateExtraBufferCount(maxSupportedRefreshRate, presentLatency);
     return NO_ERROR;
+}
+
+void SurfaceFlinger::TransactionState::traverseStatesWithBuffers(
+        std::function<void(const layer_state_t&)> visitor) {
+    for (const auto& state : states) {
+        if (state.state.hasBufferChanges() && (state.state.surface)) {
+            visitor(state.state);
+        }
+    }
 }
 
 } // namespace android
