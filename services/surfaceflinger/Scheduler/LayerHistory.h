@@ -70,13 +70,15 @@ public:
     Summary summarize(nsecs_t now);
 
     void clear();
+
+    void deregisterLayer(Layer*);
     std::string dump() const;
 
 private:
     friend LayerHistoryTest;
     friend TestableScheduler;
 
-    using LayerPair = std::pair<wp<Layer>, std::unique_ptr<LayerInfo>>;
+    using LayerPair = std::pair<Layer*, std::unique_ptr<LayerInfo>>;
     using LayerInfos = std::vector<LayerPair>;
 
     struct ActiveLayers {

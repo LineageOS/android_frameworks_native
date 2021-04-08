@@ -500,7 +500,7 @@ void SkiaGLRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buf
         std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
                 std::make_shared<AutoBackendTexture::LocalRef>();
         imageTextureRef->setTexture(
-                new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer()));
+                new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer(), false));
         cache.insert({buffer->getId(), imageTextureRef});
     }
     // restore the original state of the protected context if necessary
@@ -654,7 +654,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         ATRACE_NAME("Cache miss");
         surfaceTextureRef = std::make_shared<AutoBackendTexture::LocalRef>();
         surfaceTextureRef->setTexture(
-                new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer()));
+                new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer(), true));
         if (useFramebufferCache) {
             ALOGD("Adding to cache");
             cache.insert({buffer->getId(), surfaceTextureRef});
@@ -861,8 +861,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 imageTextureRef = iter->second;
             } else {
                 imageTextureRef = std::make_shared<AutoBackendTexture::LocalRef>();
-                imageTextureRef->setTexture(
-                        new AutoBackendTexture(grContext.get(), item.buffer->toAHardwareBuffer()));
+                imageTextureRef->setTexture(new AutoBackendTexture(grContext.get(),
+                                                                   item.buffer->toAHardwareBuffer(),
+                                                                   false));
                 cache.insert({item.buffer->getId(), imageTextureRef});
             }
 
