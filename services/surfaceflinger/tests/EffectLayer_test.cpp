@@ -149,6 +149,7 @@ TEST_F(EffectLayerTest, BlurEffectLayerIsVisible) {
         t.reparent(blurLayer, mParentLayer);
         t.setBackgroundBlurRadius(blurLayer, blurRadius);
         t.setCrop(blurLayer, blurRect);
+        t.setFrame(blurLayer, blurRect);
         t.setAlpha(blurLayer, 0.0f);
         t.show(blurLayer);
     });
