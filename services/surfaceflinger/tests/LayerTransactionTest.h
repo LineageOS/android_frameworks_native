@@ -244,11 +244,6 @@ protected:
         return bufferGenerator.get(outBuffer, outFence);
     }
 
-    static ui::Size getBufferSize() {
-        static BufferGenerator bufferGenerator;
-        return bufferGenerator.getSize();
-    }
-
     sp<SurfaceComposerClient> mClient;
 
     bool deviceSupportsBlurs() {

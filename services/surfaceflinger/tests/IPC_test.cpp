@@ -161,6 +161,7 @@ public:
                                                  Color::RED);
         transaction->setLayerStack(mSurfaceControl, 0)
                 .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
+                .setFrame(mSurfaceControl, Rect(0, 0, width, height))
                 .setBuffer(mSurfaceControl, gb)
                 .setAcquireFence(mSurfaceControl, fence)
                 .show(mSurfaceControl)
