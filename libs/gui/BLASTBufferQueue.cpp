@@ -204,16 +204,13 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
     if (mRequestedSize != newSize) {
         mRequestedSize.set(newSize);
         mBufferItemConsumer->setDefaultBufferSize(mRequestedSize.width, mRequestedSize.height);
-        if (mLastBufferInfo.scalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE) {
+        if (mLastBufferScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE) {
             // If the buffer supports scaling, update the frame immediately since the client may
             // want to scale the existing buffer to the new size.
             mSize = mRequestedSize;
-            // We only need to update the scale if we've received at least one buffer. The reason
-            // for this is the scale is calculated based on the requested size and buffer size.
-            // If there's no buffer, the scale will always be 1.
-            if (mLastBufferInfo.hasBuffer) {
-                setMatrix(&t, mLastBufferInfo);
-            }
+            t.setFrame(mSurfaceControl,
+                       {0, 0, static_cast<int32_t>(mSize.width),
+                        static_cast<int32_t>(mSize.height)});
             applyTransaction = true;
         }
     }
@@ -377,10 +374,8 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);
 
+    mLastBufferScalingMode = bufferItem.mScalingMode;
     mLastAcquiredFrameNumber = bufferItem.mFrameNumber;
-    mLastBufferInfo.update(true /* hasBuffer */, bufferItem.mGraphicBuffer->getWidth(),
-                           bufferItem.mGraphicBuffer->getHeight(), bufferItem.mTransform,
-                           bufferItem.mScalingMode);
 
     auto releaseBufferCallback =
             std::bind(releaseBufferCallbackThunk, wp<BLASTBufferQueue>(this) /* callbackContext */,
@@ -393,7 +388,8 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
                        bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE);
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
 
-    setMatrix(t, mLastBufferInfo);
+    t->setFrame(mSurfaceControl,
+                {0, 0, static_cast<int32_t>(mSize.width), static_cast<int32_t>(mSize.height)});
     t->setCrop(mSurfaceControl, computeCrop(bufferItem));
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
@@ -517,17 +513,6 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
 
     // reject buffers if the buffer size doesn't match.
     return mSize != bufferSize;
-}
-
-void BLASTBufferQueue::setMatrix(SurfaceComposerClient::Transaction* t,
-                                 const BufferInfo& bufferInfo) {
-    uint32_t bufWidth = bufferInfo.width;
-    uint32_t bufHeight = bufferInfo.height;
-
-    float dsdx = mSize.width / static_cast<float>(bufWidth);
-    float dsdy = mSize.height / static_cast<float>(bufHeight);
-
-    t->setMatrix(mSurfaceControl, dsdx, 0, 0, dsdy);
 }
 
 void BLASTBufferQueue::setTransactionCompleteCallback(
