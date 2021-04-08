@@ -27,6 +27,7 @@
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/macros.h>
+#include <android-base/scopeguard.h>
 #include <android-base/stringprintf.h>
 #include <android-base/unique_fd.h>
 #include <libdm/dm.h>
@@ -69,6 +70,15 @@ static void ActivateApexPackages() {
     if (!exec_result) {
         PLOG(ERROR) << "Running otapreopt failed: " << apexd_error_msg;
         exit(220);
+    }
+}
+
+static void DeactivateApexPackages() {
+    std::vector<std::string> apexd_cmd{"/system/bin/apexd", "--unmount-all"};
+    std::string apexd_error_msg;
+    bool exec_result = Exec(apexd_cmd, &apexd_error_msg);
+    if (!exec_result) {
+        PLOG(ERROR) << "Running /system/bin/apexd --unmount-all failed: " << apexd_error_msg;
     }
 }
 
@@ -231,10 +241,30 @@ static int otapreopt_chroot(const int argc, char **arg) {
         exit(205);
     }
 
+    // Call apexd --unmount-all to free up loop and dm block devices, so that we can re-use
+    // them during the next invocation. Since otapreopt_chroot calls exit in case something goes
+    // wrong we need to register our own atexit handler.
+    // We want to register this handler before actually activating apex packages. This is mostly
+    // due to the fact that if fail to unmount apexes, then on the next run of otapreopt_chroot
+    // we will ask for new loop devices instead of re-using existing ones, and we really don't want
+    // to do that. :)
+    if (atexit(DeactivateApexPackages) != 0) {
+        LOG(ERROR) << "Failed to register atexit hander";
+        exit(206);
+    }
+
     // Try to mount APEX packages in "/apex" in the chroot dir. We need at least
     // the ART APEX, as it is required by otapreopt to run dex2oat.
     ActivateApexPackages();
 
+    auto cleanup = android::base::make_scope_guard([](){
+        std::vector<std::string> apexd_cmd{"/system/bin/apexd", "--unmount-all"};
+        std::string apexd_error_msg;
+        bool exec_result = Exec(apexd_cmd, &apexd_error_msg);
+        if (!exec_result) {
+            PLOG(ERROR) << "Running /system/bin/apexd --unmount-all failed: " << apexd_error_msg;
+        }
+    });
     // Check that an ART APEX has been activated; clean up and exit
     // early otherwise.
     static constexpr const std::string_view kRequiredApexs[] = {
