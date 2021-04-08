@@ -52,6 +52,7 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "RenderArea.h"
+#include "Scheduler/LayerInfo.h"
 #include "Scheduler/Seamlessness.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceTracing.h"
@@ -141,59 +142,8 @@ public:
         float radius = 0.0f;
     };
 
-    // FrameRateCompatibility specifies how we should interpret the frame rate associated with
-    // the layer.
-    enum class FrameRateCompatibility {
-        Default, // Layer didn't specify any specific handling strategy
-
-        Exact, // Layer needs the exact frame rate.
-
-        ExactOrMultiple, // Layer needs the exact frame rate (or a multiple of it) to present the
-                         // content properly. Any other value will result in a pull down.
-
-        NoVote, // Layer doesn't have any requirements for the refresh rate and
-                // should not be considered when the display refresh rate is determined.
-    };
-
-    // Encapsulates the frame rate and compatibility of the layer. This information will be used
-    // when the display refresh rate is determined.
-    struct FrameRate {
-        using Seamlessness = scheduler::Seamlessness;
-
-        Fps rate;
-        FrameRateCompatibility type;
-        Seamlessness seamlessness;
-
-        FrameRate()
-              : rate(0),
-                type(FrameRateCompatibility::Default),
-                seamlessness(Seamlessness::Default) {}
-        FrameRate(Fps rate, FrameRateCompatibility type,
-                  Seamlessness seamlessness = Seamlessness::OnlySeamless)
-              : rate(rate), type(type), seamlessness(getSeamlessness(rate, seamlessness)) {}
-
-        bool operator==(const FrameRate& other) const {
-            return rate.equalsWithMargin(other.rate) && type == other.type &&
-                    seamlessness == other.seamlessness;
-        }
-
-        bool operator!=(const FrameRate& other) const { return !(*this == other); }
-
-        // Convert an ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* value to a
-        // Layer::FrameRateCompatibility. Logs fatal if the compatibility value is invalid.
-        static FrameRateCompatibility convertCompatibility(int8_t compatibility);
-        static scheduler::Seamlessness convertChangeFrameRateStrategy(int8_t strategy);
-
-    private:
-        static Seamlessness getSeamlessness(Fps rate, Seamlessness seamlessness) {
-            if (!rate.isValid()) {
-                // Refresh rate of 0 is a special value which should reset the vote to
-                // its default value.
-                return Seamlessness::Default;
-            }
-            return seamlessness;
-        }
-    };
+    using FrameRate = scheduler::LayerInfo::FrameRate;
+    using FrameRateCompatibility = scheduler::LayerInfo::FrameRateCompatibility;
 
     struct State {
         Geometry active_legacy;
@@ -462,7 +412,6 @@ public:
     // Used only to set BufferStateLayer state
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
-    virtual bool setFrame(const Rect& /*frame*/) { return false; };
     virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/, const sp<Fence>& /*acquireFence*/,
                            nsecs_t /*postTime*/, nsecs_t /*desiredPresentTime*/,
                            bool /*isAutoTimestamp*/, const client_cache_t& /*clientCacheId*/,

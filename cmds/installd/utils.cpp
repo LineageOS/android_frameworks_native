@@ -1062,6 +1062,8 @@ int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t ta
 
 static const char* kProcFilesystems = "/proc/filesystems";
 bool supports_sdcardfs() {
+    if (!property_get_bool("external_storage.sdcardfs.enabled", true))
+        return false;
     std::string supported;
     if (!android::base::ReadFileToString(kProcFilesystems, &supported)) {
         PLOG(ERROR) << "Failed to read supported filesystems";
