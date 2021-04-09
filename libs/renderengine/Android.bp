@@ -95,6 +95,7 @@ filegroup {
         "skia/debug/SkiaMemoryReporter.cpp",
         "skia/filters/BlurFilter.cpp",
         "skia/filters/LinearEffect.cpp",
+        "skia/filters/StretchShaderFactory.cpp"
     ],
 }
 

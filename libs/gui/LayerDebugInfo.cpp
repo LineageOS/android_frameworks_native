@@ -119,9 +119,11 @@ std::string to_string(const LayerDebugInfo& info) {
     info.mSurfaceDamageRegion.dump(result, "SurfaceDamageRegion");
     if (info.mStretchEffect.hasEffect()) {
         const auto& se = info.mStretchEffect;
-        StringAppendF(&result, "  StretchEffect area=[%f, %f, %f, %f] vec=(%f, %f) maxAmount=%f\n",
-                      se.area.left, se.area.top, se.area.right, se.area.bottom, se.vectorX,
-                      se.vectorY, se.maxAmount);
+        StringAppendF(&result,
+                      "  StretchEffect width = %f, height = %f vec=(%f, %f) "
+                      "maxAmount=(%f, %f)\n",
+                      se.width, se.height,
+                      se.vectorX, se.vectorY, se.maxAmountX, se.maxAmountY);
     }
 
     StringAppendF(&result, "      layerStack=%4d, z=%9d, pos=(%g,%g), size=(%4d,%4d), ",
