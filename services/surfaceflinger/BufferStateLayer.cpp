@@ -903,6 +903,36 @@ void BufferStateLayer::bufferMayChange(sp<GraphicBuffer>& newBuffer) {
     }
 }
 
+/*
+ * We don't want to send the layer's transform to input, but rather the
+ * parent's transform. This is because BufferStateLayer's transform is
+ * information about how the buffer is placed on screen. The parent's
+ * transform makes more sense to send since it's information about how the
+ * layer is placed on screen. This transform is used by input to determine
+ * how to go from screen space back to window space.
+ */
+ui::Transform BufferStateLayer::getInputTransform() const {
+    sp<Layer> parent = mDrawingParent.promote();
+    if (parent == nullptr) {
+        return ui::Transform();
+    }
+
+    return parent->getTransform();
+}
+
+/**
+ * Similar to getInputTransform, we need to update the bounds to include the transform.
+ * This is because bounds for BSL doesn't include buffer transform, where the input assumes
+ * that's already included.
+ */
+Rect BufferStateLayer::getInputBounds() const {
+    Rect bufferBounds = getCroppedBufferSize(getDrawingState());
+    if (mDrawingState.transform.getType() == ui::Transform::IDENTITY || !bufferBounds.isValid()) {
+        return bufferBounds;
+    }
+    return mDrawingState.transform.transform(bufferBounds);
+}
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

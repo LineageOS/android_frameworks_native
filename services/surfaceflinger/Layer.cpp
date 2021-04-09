@@ -2535,14 +2535,22 @@ bool Layer::isRemovedFromCurrentState() const  {
     return mRemovedFromCurrentState;
 }
 
+ui::Transform Layer::getInputTransform() const {
+    return getTransform();
+}
+
+Rect Layer::getInputBounds() const {
+    return getCroppedBufferSize(getDrawingState());
+}
+
 void Layer::fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhysicalDisplay) {
     // Transform layer size to screen space and inset it by surface insets.
     // If this is a portal window, set the touchableRegion to the layerBounds.
     Rect layerBounds = info.portalToDisplayId == ADISPLAY_ID_NONE
-            ? getBufferSize(getDrawingState())
+            ? getInputBounds()
             : info.touchableRegion.getBounds();
     if (!layerBounds.isValid()) {
-        layerBounds = getCroppedBufferSize(getDrawingState());
+        layerBounds = getInputBounds();
     }
 
     if (!layerBounds.isValid()) {
@@ -2555,7 +2563,7 @@ void Layer::fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhy
         return;
     }
 
-    ui::Transform layerToDisplay = getTransform();
+    ui::Transform layerToDisplay = getInputTransform();
     // Transform that takes window coordinates to unrotated display coordinates
     ui::Transform t = toPhysicalDisplay * layerToDisplay;
     int32_t xSurfaceInset = info.surfaceInset;
