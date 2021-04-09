@@ -4038,6 +4038,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     if (what & layer_state_t::eCropChanged) {
         if (layer->setCrop(s.crop)) flags |= eTraversalNeeded;
     }
+    if (what & layer_state_t::eFrameChanged) {
+        if (layer->setFrame(s.orientedDisplaySpaceRect)) flags |= eTraversalNeeded;
+    }
     if (what & layer_state_t::eAcquireFenceChanged) {
         if (layer->setAcquireFence(s.acquireFence)) flags |= eTraversalNeeded;
     }

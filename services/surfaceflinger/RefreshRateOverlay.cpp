@@ -231,14 +231,8 @@ const std::vector<sp<GraphicBuffer>>& RefreshRateOverlay::getOrCreateBuffers(uin
 void RefreshRateOverlay::setViewport(ui::Size viewport) {
     Rect frame((3 * viewport.width) >> 4, viewport.height >> 5);
     frame.offsetBy(viewport.width >> 5, viewport.height >> 4);
+    mLayer->setFrame(frame);
 
-    layer_state_t::matrix22_t matrix;
-    matrix.dsdx = frame.getWidth() / static_cast<float>(SevenSegmentDrawer::getWidth());
-    matrix.dtdx = 0;
-    matrix.dtdy = 0;
-    matrix.dsdy = frame.getHeight() / static_cast<float>(SevenSegmentDrawer::getHeight());
-    mLayer->setMatrix(matrix, true);
-    mLayer->setPosition(frame.left, frame.top);
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
 
