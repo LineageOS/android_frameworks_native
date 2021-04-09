@@ -122,11 +122,9 @@ ndk::ScopedAStatus MemtrackProxy::getMemory(int pid, MemtrackType type,
 
     _aidl_return->clear();
 
-    if (memtrack_aidl_instance_ ||
-        (memtrack_aidl_instance_ = MemtrackProxy::MemtrackAidlInstance())) {
+    if (memtrack_aidl_instance_) {
         return memtrack_aidl_instance_->getMemory(pid, type, _aidl_return);
-    } else if (memtrack_hidl_instance_ ||
-               (memtrack_hidl_instance_ = MemtrackProxy::MemtrackHidlInstance())) {
+    } else if (memtrack_hidl_instance_) {
         ndk::ScopedAStatus aidl_status;
 
         Return<void> ret = memtrack_hidl_instance_->getMemory(
