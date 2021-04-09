@@ -1949,32 +1949,6 @@ ssize_t Layer::removeChild(const sp<Layer>& layer) {
     return removeResult;
 }
 
-void Layer::reparentChildren(const sp<Layer>& newParent) {
-    for (const sp<Layer>& child : mCurrentChildren) {
-        newParent->addChild(child);
-    }
-    mCurrentChildren.clear();
-    updateTreeHasFrameRateVote();
-}
-
-bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
-    sp<Handle> handle = nullptr;
-    sp<Layer> newParent = nullptr;
-    if (newParentHandle == nullptr) {
-        return false;
-    }
-    handle = static_cast<Handle*>(newParentHandle.get());
-    newParent = handle->owner.promote();
-    if (newParent == nullptr) {
-        ALOGE("Unable to promote Layer handle");
-        return false;
-    }
-
-    reparentChildren(newParent);
-
-    return true;
-}
-
 void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
     for (const sp<Layer>& child : mDrawingChildren) {
         child->mDrawingParent = newParent;

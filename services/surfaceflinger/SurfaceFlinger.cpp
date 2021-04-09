@@ -4023,11 +4023,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         // We don't trigger a traversal here because if no other state is
         // changed, we don't want this to cause any more work
     }
-    if (what & layer_state_t::eReparentChildren) {
-        if (layer->reparentChildren(s.reparentSurfaceControl->getHandle())) {
-            flags |= eTransactionNeeded|eTraversalNeeded;
-        }
-    }
     if (what & layer_state_t::eTransformChanged) {
         if (layer->setTransform(s.transform)) flags |= eTraversalNeeded;
     }

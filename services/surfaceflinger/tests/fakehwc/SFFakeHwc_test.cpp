@@ -1766,30 +1766,6 @@ protected:
         EXPECT_TRUE(framesAreSame(referenceFrame2, Base::sFakeComposer->getLatestFrame()));
     }
 
-    void Test_ReparentChildren() {
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.show(mChild);
-            ts.setPosition(mChild, 10, 10);
-            ts.setPosition(Base::mFGSurfaceControl, 64, 64);
-        }
-        auto referenceFrame = Base::mBaseFrame;
-        referenceFrame[Base::FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 64, 64 + 64};
-        referenceFrame[CHILD_LAYER].mDisplayFrame =
-                hwc_rect_t{64 + 10, 64 + 10, 64 + 10 + 10, 64 + 10 + 10};
-        EXPECT_TRUE(framesAreSame(referenceFrame, Base::sFakeComposer->getLatestFrame()));
-
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.reparentChildren(Base::mFGSurfaceControl, Base::mBGSurfaceControl);
-        }
-
-        auto referenceFrame2 = referenceFrame;
-        referenceFrame2[Base::FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 64, 64 + 64};
-        referenceFrame2[CHILD_LAYER].mDisplayFrame = hwc_rect_t{10, 10, 10 + 10, 10 + 10};
-        EXPECT_TRUE(framesAreSame(referenceFrame2, Base::sFakeComposer->getLatestFrame()));
-    }
-
     // Regression test for b/37673612
     void Test_ChildrenWithParentBufferTransform() {
         {
@@ -1884,10 +1860,6 @@ TEST_F(ChildLayerTest_2_1, DISABLED_Scaling) {
 
 TEST_F(ChildLayerTest_2_1, DISABLED_LayerAlpha) {
     Test_LayerAlpha();
-}
-
-TEST_F(ChildLayerTest_2_1, DISABLED_ReparentChildren) {
-    Test_ReparentChildren();
 }
 
 // Regression test for b/37673612

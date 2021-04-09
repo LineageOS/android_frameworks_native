@@ -638,8 +638,6 @@ public:
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
     const char* getDebugName() const override;
 
-    bool reparentChildren(const sp<IBinder>& newParentHandle);
-    void reparentChildren(const sp<Layer>& newParent);
     bool setShadowRadius(float shadowRadius);
 
     // Before color management is introduced, contents on Android have to be
