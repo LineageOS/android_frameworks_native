@@ -304,7 +304,7 @@ void CachedSet::addHolePunchLayerIfFeasible(const CachedSet& holePunchLayer, boo
     }
 }
 
-OutputLayer* CachedSet::getHolePunchLayer() const {
+compositionengine::OutputLayer* CachedSet::getHolePunchLayer() const {
     return mHolePunchLayer ? mHolePunchLayer->getOutputLayer() : nullptr;
 }
 
