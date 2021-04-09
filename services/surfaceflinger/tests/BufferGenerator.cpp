@@ -296,12 +296,12 @@ private:
 
 BufferGenerator::BufferGenerator()
       : mSurfaceManager(new SurfaceManager), mEglManager(new EglManager), mProgram(new Program) {
-    const float width = 1000.0;
-    const float height = 1000.0;
+    mBufferSize.set(1000.0, 1000.0);
 
     auto setBufferWithContext =
             std::bind(setBuffer, std::placeholders::_1, std::placeholders::_2, this);
-    mSurfaceManager->initialize(width, height, HAL_PIXEL_FORMAT_RGBA_8888, setBufferWithContext);
+    mSurfaceManager->initialize(mBufferSize.width, mBufferSize.height, HAL_PIXEL_FORMAT_RGBA_8888,
+                                setBufferWithContext);
 
     if (!mEglManager->initialize(mSurfaceManager->getSurface())) return;
 
@@ -309,7 +309,9 @@ BufferGenerator::BufferGenerator()
 
     if (!mProgram->initialize(VERTEX_SHADER, FRAGMENT_SHADER)) return;
     mProgram->use();
-    mProgram->bindVec4(0, vec4{width, height, 1.0f / width, 1.0f / height});
+    mProgram->bindVec4(0,
+                       vec4{mBufferSize.width, mBufferSize.height, 1.0f / mBufferSize.width,
+                            1.0f / mBufferSize.height});
     mProgram->bindVec3(2, &SPHERICAL_HARMONICS[0], 4);
 
     glEnableVertexAttribArray(0);
@@ -370,6 +372,10 @@ status_t BufferGenerator::get(sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence)
     mFence = -1;
 
     return NO_ERROR;
+}
+
+ui::Size BufferGenerator::getSize() {
+    return mBufferSize;
 }
 
 // static
