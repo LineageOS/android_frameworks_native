@@ -462,38 +462,6 @@ TEST_F(ChildLayerTest, ChildLayerAlpha) {
     }
 }
 
-TEST_F(ChildLayerTest, ReparentChildren) {
-    asTransaction([&](Transaction& t) {
-        t.show(mChild);
-        t.setPosition(mChild, 10, 10);
-        t.setPosition(mFGSurfaceControl, 64, 64);
-    });
-
-    {
-        mCapture = screenshot();
-        // Top left of foreground must now be visible
-        mCapture->expectFGColor(64, 64);
-        // But 10 pixels in we should see the child surface
-        mCapture->expectChildColor(74, 74);
-        // And 10 more pixels we should be back to the foreground surface
-        mCapture->expectFGColor(84, 84);
-    }
-
-    asTransaction(
-            [&](Transaction& t) { t.reparentChildren(mFGSurfaceControl, mBGSurfaceControl); });
-
-    {
-        mCapture = screenshot();
-        mCapture->expectFGColor(64, 64);
-        // In reparenting we should have exposed the entire foreground surface.
-        mCapture->expectFGColor(74, 74);
-        // And the child layer should now begin at 10, 10 (since the BG
-        // layer is at (0, 0)).
-        mCapture->expectBGColor(9, 9);
-        mCapture->expectChildColor(10, 10);
-    }
-}
-
 TEST_F(ChildLayerTest, ChildrenSurviveParentDestruction) {
     sp<SurfaceControl> mGrandChild =
             createSurface(mClient, "Grand Child", 10, 10, PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
@@ -539,7 +507,7 @@ TEST_F(ChildLayerTest, ChildrenRelativeZSurvivesParentDestruction) {
 
     asTransaction([&](Transaction& t) {
         t.reparent(mChild, nullptr);
-        t.reparentChildren(mChild, mFGSurfaceControl);
+        t.reparent(mGrandChild, mFGSurfaceControl);
     });
 
     {
