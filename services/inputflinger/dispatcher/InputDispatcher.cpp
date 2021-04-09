@@ -2326,6 +2326,8 @@ void InputDispatcher::finishDragAndDrop(int32_t displayId, float x, float y) {
     if (dropWindow) {
         vec2 local = dropWindow->getInfo()->transform.transform(x, y);
         notifyDropWindowLocked(dropWindow->getToken(), local.x, local.y);
+    } else {
+        notifyDropWindowLocked(nullptr, 0, 0);
     }
     mDragState.reset();
 }
@@ -2372,6 +2374,7 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
     } else if (maskedAction == AMOTION_EVENT_ACTION_UP) {
         finishDragAndDrop(entry.displayId, x, y);
     } else if (maskedAction == AMOTION_EVENT_ACTION_CANCEL) {
+        notifyDropWindowLocked(nullptr, 0, 0);
         mDragState.reset();
     }
 }
