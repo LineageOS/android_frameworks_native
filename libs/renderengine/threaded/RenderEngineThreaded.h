@@ -70,6 +70,7 @@ public:
 
 private:
     void threadMain(CreateInstanceFactory factory);
+    void waitUntilInitialized() const;
 
     /* ------------------------------------------------------------------------
      * Threading
@@ -82,6 +83,12 @@ private:
     mutable std::queue<std::function<void(renderengine::RenderEngine& instance)>> mFunctionCalls
             GUARDED_BY(mThreadMutex);
     mutable std::condition_variable mCondition;
+
+    // Used to allow select thread safe methods to be accessed without requiring the
+    // method to be invoked on the RenderEngine thread
+    bool mIsInitialized = false;
+    mutable std::mutex mInitializedMutex;
+    mutable std::condition_variable mInitializedCondition;
 
     /* ------------------------------------------------------------------------
      * Render Engine
