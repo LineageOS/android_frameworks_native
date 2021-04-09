@@ -3361,8 +3361,12 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
             }
         }
 
-        if (const auto display = getDefaultDisplayDeviceLocked()) {
-            lbc->updateTransformHint(display->getTransformHint());
+        if (const auto token = getInternalDisplayTokenLocked()) {
+            const ssize_t index = mCurrentState.displays.indexOfKey(token);
+            if (index >= 0) {
+                const DisplayDeviceState& state = mCurrentState.displays.valueAt(index);
+                lbc->updateTransformHint(ui::Transform::toRotationFlags(state.orientation));
+            }
         }
         if (outTransformHint) {
             *outTransformHint = lbc->getTransformHint();
@@ -4033,9 +4037,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eCropChanged) {
         if (layer->setCrop(s.crop)) flags |= eTraversalNeeded;
-    }
-    if (what & layer_state_t::eFrameChanged) {
-        if (layer->setFrame(s.orientedDisplaySpaceRect)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eAcquireFenceChanged) {
         if (layer->setAcquireFence(s.acquireFence)) flags |= eTraversalNeeded;
@@ -6051,11 +6052,8 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
     const status_t bufferStatus = buffer->initCheck();
     LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "captureScreenCommon: Buffer failed to allocate: %d",
                         bufferStatus);
-    getRenderEngine().cacheExternalTextureBuffer(buffer);
-    status_t result = captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
-                                          false /* regionSampling */, grayscale, captureListener);
-    getRenderEngine().unbindExternalTextureBuffer(buffer->getId());
-    return result;
+    return captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
+                               false /* regionSampling */, grayscale, captureListener);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
@@ -6094,6 +6092,15 @@ status_t SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
             result = renderScreenImplLocked(*renderArea, traverseLayers, buffer, forSystem,
                                             regionSampling, grayscale, captureResults);
         });
+
+        // TODO(b/180767535): Remove this once we optimize buffer lifecycle for RenderEngine
+        // Only do this when we're not doing region sampling, to allow the region sampling thread to
+        // manage buffer lifecycle itself.
+        if (!regionSampling &&
+            getRenderEngine().getRenderEngineType() ==
+                    renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED) {
+            getRenderEngine().unbindExternalTextureBuffer(buffer->getId());
+        }
 
         captureResults.result = result;
         captureListener->onScreenCaptureCompleted(captureResults);

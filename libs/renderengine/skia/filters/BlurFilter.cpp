@@ -34,7 +34,7 @@ namespace skia {
 
 BlurFilter::BlurFilter() {
     SkString blurString(R"(
-        in shader input;
+        uniform shader input;
         uniform float2 in_blurOffset;
         uniform float2 in_maxSizeXY;
 
@@ -60,8 +60,8 @@ BlurFilter::BlurFilter() {
     mBlurEffect = std::move(blurEffect);
 
     SkString mixString(R"(
-        in shader blurredInput;
-        in shader originalInput;
+        uniform shader blurredInput;
+        uniform shader originalInput;
         uniform float mixFactor;
 
         half4 main(float2 xy) {
