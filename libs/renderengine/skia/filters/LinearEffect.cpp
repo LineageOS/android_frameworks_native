@@ -390,7 +390,7 @@ static void generateOETF(ui::Dataspace dataspace, SkString& shader) {
 
 static void generateEffectiveOOTF(bool undoPremultipliedAlpha, SkString& shader) {
     shader.append(R"(
-        in shader input;
+        uniform shader input;
         half4 main(float2 xy) {
             float4 c = float4(sample(input, xy));
     )");
