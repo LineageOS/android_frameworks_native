@@ -2313,8 +2313,8 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
         }
     }
     const float radius = getDrawingState().cornerRadius;
-    return radius > 0 && getCrop(getDrawingState()).isValid()
-            ? RoundedCornerState(getCrop(getDrawingState()).toFloatRect(), radius)
+    return radius > 0 && getCroppedBufferSize(getDrawingState()).isValid()
+            ? RoundedCornerState(getCroppedBufferSize(getDrawingState()).toFloatRect(), radius)
             : RoundedCornerState();
 }
 
