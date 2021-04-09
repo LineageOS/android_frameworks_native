@@ -176,7 +176,6 @@ private:
                               uint32_t transactionFlags, int originPid, int originUid,
                               uint64_t transactionId);
     void addReparentLocked(Transaction* transaction, int32_t layerId, int32_t parentId);
-    void addReparentChildrenLocked(Transaction* transaction, int32_t layerId, int32_t parentId);
     void addRelativeParentLocked(Transaction* transaction, int32_t layerId, int32_t parentId,
                                  int z);
     void addShadowRadiusLocked(Transaction* transaction, int32_t layerId, float shadowRadius);

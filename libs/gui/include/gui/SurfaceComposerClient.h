@@ -461,13 +461,7 @@ public:
         Transaction& deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
                                                   const sp<SurfaceControl>& barrierSurfaceControl,
                                                   uint64_t frameNumber);
-        // Reparents all children of this layer to the new parent handle.
-        Transaction& reparentChildren(const sp<SurfaceControl>& sc,
-                                      const sp<SurfaceControl>& newParent);
-
         /// Reparents the current layer to the new parent handle. The new parent must not be null.
-        // This can be used instead of reparentChildren if the caller wants to
-        // only re-parent a specific child.
         Transaction& reparent(const sp<SurfaceControl>& sc, const sp<SurfaceControl>& newParent);
 
         Transaction& setColor(const sp<SurfaceControl>& sc, const half3& color);

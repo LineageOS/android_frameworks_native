@@ -1157,20 +1157,6 @@ SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::reparentChildren(
-        const sp<SurfaceControl>& sc, const sp<SurfaceControl>& newParent) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-    s->what |= layer_state_t::eReparentChildren;
-    s->reparentSurfaceControl = newParent;
-
-    registerSurfaceControlForCallback(sc);
-    return *this;
-}
-
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::reparent(
         const sp<SurfaceControl>& sc, const sp<SurfaceControl>& newParent) {
     layer_state_t* s = getLayerState(sc);
