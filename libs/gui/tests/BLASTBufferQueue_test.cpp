@@ -140,6 +140,7 @@ protected:
                                                  /*parent*/ nullptr);
         t.setLayerStack(mSurfaceControl, 0)
                 .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
+                .setFrame(mSurfaceControl, Rect(resolution))
                 .show(mSurfaceControl)
                 .setDataspace(mSurfaceControl, ui::Dataspace::V0_SRGB)
                 .apply();
@@ -217,13 +218,13 @@ protected:
                             col >= region.left - border && col < region.right + border;
                 }
                 if (!outsideRegion && inRegion) {
-                    ASSERT_GE(epsilon, abs(r - *(pixel)));
-                    ASSERT_GE(epsilon, abs(g - *(pixel + 1)));
-                    ASSERT_GE(epsilon, abs(b - *(pixel + 2)));
+                    EXPECT_GE(epsilon, abs(r - *(pixel)));
+                    EXPECT_GE(epsilon, abs(g - *(pixel + 1)));
+                    EXPECT_GE(epsilon, abs(b - *(pixel + 2)));
                 } else if (outsideRegion && !inRegion) {
-                    ASSERT_GE(epsilon, abs(r - *(pixel)));
-                    ASSERT_GE(epsilon, abs(g - *(pixel + 1)));
-                    ASSERT_GE(epsilon, abs(b - *(pixel + 2)));
+                    EXPECT_GE(epsilon, abs(r - *(pixel)));
+                    EXPECT_GE(epsilon, abs(g - *(pixel + 1)));
+                    EXPECT_GE(epsilon, abs(b - *(pixel + 2)));
                 }
                 ASSERT_EQ(false, ::testing::Test::HasFailure());
             }
@@ -465,8 +466,7 @@ TEST_F(BLASTBufferQueueTest, SetCrop_Item) {
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
 
     ASSERT_NO_FATAL_FAILURE(
-            checkScreenCapture(r, g, b,
-                               {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight / 2}));
+            checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
 
 TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
@@ -523,15 +523,13 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
     // capture screen and verify that it is red
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
 
-    Rect bounds;
-    bounds.left = finalCropSideLength / 2;
-    bounds.top = 0;
-    bounds.right = bounds.left + finalCropSideLength;
-    bounds.bottom = finalCropSideLength;
-
-    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(r, g, b, bounds));
     ASSERT_NO_FATAL_FAILURE(
-            checkScreenCapture(0, 0, 0, bounds, /*border*/ 0, /*outsideRegion*/ true));
+            checkScreenCapture(r, g, b,
+                               {0, 0, (int32_t)bufferSideLength, (int32_t)bufferSideLength}));
+    ASSERT_NO_FATAL_FAILURE(
+            checkScreenCapture(0, 0, 0,
+                               {0, 0, (int32_t)bufferSideLength, (int32_t)bufferSideLength},
+                               /*border*/ 0, /*outsideRegion*/ true));
 }
 
 class TestProducerListener : public BnProducerListener {
@@ -598,6 +596,7 @@ TEST_F(BLASTBufferQueueTest, OutOfOrderTransactionTest) {
     t.setLayerStack(bgSurface, 0)
             .show(bgSurface)
             .setDataspace(bgSurface, ui::Dataspace::V0_SRGB)
+            .setFrame(bgSurface, Rect(0, 0, mDisplayWidth, mDisplayHeight))
             .setLayer(bgSurface, std::numeric_limits<int32_t>::max() - 1)
             .apply();
 
@@ -620,8 +619,7 @@ TEST_F(BLASTBufferQueueTest, OutOfOrderTransactionTest) {
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
 
     ASSERT_NO_FATAL_FAILURE(
-            checkScreenCapture(r, g, b,
-                               {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight / 2}));
+            checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
 
 class BLASTBufferQueueTransformTest : public BLASTBufferQueueTest {
