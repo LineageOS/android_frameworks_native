@@ -36,7 +36,7 @@ filegroup {
     srcs: [
         "EventHub.cpp",
         "InputDevice.cpp",
-        "controller/InputController.cpp",
+        "controller/PeripheralController.cpp",
         "mapper/accumulator/CursorButtonAccumulator.cpp",
         "mapper/accumulator/CursorScrollAccumulator.cpp",
         "mapper/accumulator/SingleTouchMotionAccumulator.cpp",

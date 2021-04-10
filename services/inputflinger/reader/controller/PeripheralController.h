@@ -17,19 +17,19 @@
 #ifndef _UI_INPUTREADER_LIGHT_CONTROLLER_H
 #define _UI_INPUTREADER_LIGHT_CONTROLLER_H
 
-#include "InputControllerInterface.h"
+#include "PeripheralControllerInterface.h"
 
 namespace android {
 
-class InputController : public InputControllerInterface {
+class PeripheralController : public PeripheralControllerInterface {
     // Refer to https://developer.android.com/reference/kotlin/android/graphics/Color
     /* Number of colors : {red, green, blue} */
     static constexpr size_t COLOR_NUM = 3;
     static constexpr int32_t MAX_BRIGHTNESS = 0xff;
 
 public:
-    explicit InputController(InputDeviceContext& deviceContext);
-    ~InputController() override;
+    explicit PeripheralController(InputDeviceContext& deviceContext);
+    ~PeripheralController() override;
 
     void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
     void dump(std::string& dump) override;
