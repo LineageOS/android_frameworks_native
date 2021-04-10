@@ -401,13 +401,6 @@ void SurfaceInterceptor::addReparentLocked(Transaction* transaction, int32_t lay
     overrideChange->set_parent_id(parentId);
 }
 
-void SurfaceInterceptor::addReparentChildrenLocked(Transaction* transaction, int32_t layerId,
-                                                   int32_t parentId) {
-    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
-    ReparentChildrenChange* overrideChange(change->mutable_reparent_children());
-    overrideChange->set_parent_id(parentId);
-}
-
 void SurfaceInterceptor::addRelativeParentLocked(Transaction* transaction, int32_t layerId,
                                                  int32_t parentId, int z) {
     SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
@@ -485,10 +478,6 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
                 ? state.parentSurfaceControlForChild->getHandle()
                 : nullptr;
         addReparentLocked(transaction, layerId, getLayerIdFromHandle(parentHandle));
-    }
-    if (state.what & layer_state_t::eReparentChildren) {
-        addReparentChildrenLocked(transaction, layerId,
-                                  getLayerIdFromHandle(state.reparentSurfaceControl->getHandle()));
     }
     if (state.what & layer_state_t::eRelativeLayerChanged) {
         addRelativeParentLocked(transaction, layerId,

@@ -122,6 +122,8 @@ protected:
     void gatherBufferInfo() override;
     uint64_t getHeadFrameNumber(nsecs_t expectedPresentTime) const;
     void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame);
+    ui::Transform getInputTransform() const override;
+    Rect getInputBounds() const override;
 
 private:
     friend class SlotGenerationTest;

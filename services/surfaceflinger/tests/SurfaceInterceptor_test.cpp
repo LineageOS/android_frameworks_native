@@ -194,7 +194,6 @@ public:
     bool deferredTransactionUpdateFound(const SurfaceChange& change, bool foundDeferred);
     bool reparentUpdateFound(const SurfaceChange& change, bool found);
     bool relativeParentUpdateFound(const SurfaceChange& change, bool found);
-    bool reparentChildrenUpdateFound(const SurfaceChange& change, bool found);
     bool shadowRadiusUpdateFound(const SurfaceChange& change, bool found);
     bool surfaceUpdateFound(const Trace& trace, SurfaceChange::SurfaceChangeCase changeCase);
 
@@ -231,7 +230,6 @@ public:
     void deferredTransactionUpdate(Transaction&);
     void reparentUpdate(Transaction&);
     void relativeParentUpdate(Transaction&);
-    void reparentChildrenUpdate(Transaction&);
     void shadowRadiusUpdate(Transaction&);
     void surfaceCreation(Transaction&);
     void displayCreation(Transaction&);
@@ -410,10 +408,6 @@ void SurfaceInterceptorTest::relativeParentUpdate(Transaction& t) {
     t.setRelativeLayer(mBGSurfaceControl, mFGSurfaceControl, RELATIVE_Z);
 }
 
-void SurfaceInterceptorTest::reparentChildrenUpdate(Transaction& t) {
-    t.reparentChildren(mBGSurfaceControl, mFGSurfaceControl);
-}
-
 void SurfaceInterceptorTest::shadowRadiusUpdate(Transaction& t) {
     t.setShadowRadius(mBGSurfaceControl, SHADOW_RADIUS_UPDATE);
 }
@@ -445,7 +439,6 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::secureFlagUpdate);
     runInTransaction(&SurfaceInterceptorTest::deferredTransactionUpdate);
     runInTransaction(&SurfaceInterceptorTest::reparentUpdate);
-    runInTransaction(&SurfaceInterceptorTest::reparentChildrenUpdate);
     runInTransaction(&SurfaceInterceptorTest::relativeParentUpdate);
     runInTransaction(&SurfaceInterceptorTest::shadowRadiusUpdate);
 }
@@ -660,16 +653,6 @@ bool SurfaceInterceptorTest::relativeParentUpdateFound(const SurfaceChange& chan
     return found;
 }
 
-bool SurfaceInterceptorTest::reparentChildrenUpdateFound(const SurfaceChange& change, bool found) {
-    bool hasId(change.reparent_children().parent_id() == mFGLayerId);
-    if (hasId && !found) {
-        found = true;
-    } else if (hasId && found) {
-        []() { FAIL(); }();
-    }
-    return found;
-}
-
 bool SurfaceInterceptorTest::shadowRadiusUpdateFound(const SurfaceChange& change,
                                                      bool foundShadowRadius) {
     bool hasShadowRadius(change.shadow_radius().radius() == SHADOW_RADIUS_UPDATE);
@@ -738,9 +721,6 @@ bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
                         case SurfaceChange::SurfaceChangeCase::kReparent:
                             foundUpdate = reparentUpdateFound(change, foundUpdate);
                             break;
-                        case SurfaceChange::SurfaceChangeCase::kReparentChildren:
-                            foundUpdate = reparentChildrenUpdateFound(change, foundUpdate);
-                            break;
                         case SurfaceChange::SurfaceChangeCase::kRelativeParent:
                             foundUpdate = relativeParentUpdateFound(change, foundUpdate);
                             break;
@@ -771,7 +751,6 @@ void SurfaceInterceptorTest::assertAllUpdatesFound(const Trace& trace) {
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kSecureFlag));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kDeferredTransaction));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kReparent));
-    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kReparentChildren));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kRelativeParent));
 }
 
@@ -935,11 +914,6 @@ TEST_F(SurfaceInterceptorTest, InterceptDeferredTransactionUpdateWorks) {
 TEST_F(SurfaceInterceptorTest, InterceptReparentUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::reparentUpdate,
                 SurfaceChange::SurfaceChangeCase::kReparent);
-}
-
-TEST_F(SurfaceInterceptorTest, InterceptReparentChildrenUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::reparentChildrenUpdate,
-                SurfaceChange::SurfaceChangeCase::kReparentChildren);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptRelativeParentUpdateWorks) {
