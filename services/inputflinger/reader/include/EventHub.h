@@ -528,7 +528,7 @@ public:
     ~EventHub() override;
 
 private:
-    struct MiscDevice {
+    struct AssociatedDevice {
         // The device descriptor from evdev device the misc device associated with.
         std::string descriptor;
         // The sysfs root path of the misc device.
@@ -538,7 +538,7 @@ private:
         int32_t nextLightId;
         std::unordered_map<int32_t, RawBatteryInfo> batteryInfos;
         std::unordered_map<int32_t, RawLightInfo> lightInfos;
-        explicit MiscDevice(std::filesystem::path sysfsRootPath)
+        explicit AssociatedDevice(std::filesystem::path sysfsRootPath)
               : sysfsRootPath(sysfsRootPath), nextBatteryId(0), nextLightId(0) {}
         bool configureBatteryLocked();
         bool configureLightsLocked();
@@ -573,7 +573,9 @@ private:
         bool ffEffectPlaying;
         int16_t ffEffectId; // initially -1
 
-        std::shared_ptr<MiscDevice> miscDevice;
+        // A shared_ptr of a device associated with the input device.
+        // The input devices with same descriptor has the same associated device.
+        std::shared_ptr<AssociatedDevice> associatedDevice;
 
         int32_t controllerNumber;
 
@@ -689,11 +691,6 @@ private:
 
     std::vector<std::unique_ptr<Device>> mOpeningDevices;
     std::vector<std::unique_ptr<Device>> mClosingDevices;
-
-    // Map from std::string descriptor, to a shared_ptr of a miscellaneous device associated with
-    // the input device. The descriptor is the same from the EventHub device which it associates
-    // with.
-    std::unordered_map<std::string, std::shared_ptr<MiscDevice>> mMiscDevices;
 
     bool mNeedToSendFinishedDeviceScan;
     bool mNeedToReopenDevices;

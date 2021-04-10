@@ -24,14 +24,14 @@
 
 namespace android {
 
-/* An input controller manages the miscellaneous devices associated with the input device,
+/* A peripheral controller manages the input device peripherals associated with the input device,
  * like the sysfs based battery and light class devices.
  *
  */
-class InputControllerInterface {
+class PeripheralControllerInterface {
 public:
-    InputControllerInterface() {}
-    virtual ~InputControllerInterface() {}
+    PeripheralControllerInterface() {}
+    virtual ~PeripheralControllerInterface() {}
 
     // Interface methods for Battery
     virtual std::optional<int32_t> getBatteryCapacity(int32_t batteryId) = 0;

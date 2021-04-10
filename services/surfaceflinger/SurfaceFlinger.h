@@ -1387,13 +1387,6 @@ private:
     // be any issues with a raw pointer referencing an invalid object.
     std::unordered_set<Layer*> mOffscreenLayers;
 
-    // Fields tracking the current jank event: when it started and how many
-    // janky frames there are.
-    nsecs_t mMissedFrameJankStart = 0;
-    int32_t mMissedFrameJankCount = 0;
-    // Positive if jank should be uploaded in postComposition
-    nsecs_t mLastJankDuration = -1;
-
     int mFrameRateFlexibilityTokenCount = 0;
 
     sp<IBinder> mDebugFrameRateFlexibilityToken;

@@ -1104,6 +1104,7 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
     Region stubRegion;
 
     bool disableBlurs = false;
+    sp<GraphicBuffer> previousOverrideBuffer = nullptr;
 
     for (auto* layer : getOutputLayersOrderedByZ()) {
         const auto& layerState = layer->getState();
@@ -1153,8 +1154,14 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
 
             std::vector<LayerFE::LayerSettings> results;
             if (layer->getState().overrideInfo.buffer != nullptr) {
-                results = layer->getOverrideCompositionList();
-                ALOGV("Replacing [%s] with override in RE", layer->getLayerFE().getDebugName());
+                if (layer->getState().overrideInfo.buffer != previousOverrideBuffer) {
+                    results = layer->getOverrideCompositionList();
+                    previousOverrideBuffer = layer->getState().overrideInfo.buffer;
+                    ALOGV("Replacing [%s] with override in RE", layer->getLayerFE().getDebugName());
+                } else {
+                    ALOGV("Skipping redundant override buffer for [%s] in RE",
+                          layer->getLayerFE().getDebugName());
+                }
             } else {
                 results = layerFE.prepareClientCompositionList(targetSettings);
                 if (realContentIsVisible && !results.empty()) {
