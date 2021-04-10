@@ -19,7 +19,7 @@
 
 #include "../Macros.h"
 
-#include "InputController.h"
+#include "PeripheralController.h"
 #include "input/NamedEnum.h"
 
 // Log detailed debug messages about input device lights.
@@ -52,15 +52,15 @@ static inline int32_t toArgb(int32_t brightness, int32_t red, int32_t green, int
  * lights, getting and setting the lights brightness and color, by interacting with EventHub
  * devices.
  */
-InputController::InputController(InputDeviceContext& deviceContext)
+PeripheralController::PeripheralController(InputDeviceContext& deviceContext)
       : mDeviceContext(deviceContext) {
     configureBattries();
     configureLights();
 }
 
-InputController::~InputController() {}
+PeripheralController::~PeripheralController() {}
 
-std::optional<std::int32_t> InputController::Light::getRawLightBrightness(int32_t rawLightId) {
+std::optional<std::int32_t> PeripheralController::Light::getRawLightBrightness(int32_t rawLightId) {
     std::optional<RawLightInfo> rawInfoOpt = context.getRawLightInfo(rawLightId);
     if (!rawInfoOpt.has_value()) {
         return std::nullopt;
@@ -85,7 +85,7 @@ std::optional<std::int32_t> InputController::Light::getRawLightBrightness(int32_
     return brightness;
 }
 
-void InputController::Light::setRawLightBrightness(int32_t rawLightId, int32_t brightness) {
+void PeripheralController::Light::setRawLightBrightness(int32_t rawLightId, int32_t brightness) {
     std::optional<RawLightInfo> rawInfo = context.getRawLightInfo(rawLightId);
     if (!rawInfo.has_value()) {
         return;
@@ -104,14 +104,14 @@ void InputController::Light::setRawLightBrightness(int32_t rawLightId, int32_t b
     context.setLightBrightness(rawLightId, brightness);
 }
 
-bool InputController::SingleLight::setLightColor(int32_t color) {
+bool PeripheralController::SingleLight::setLightColor(int32_t color) {
     int32_t brightness = getAlpha(color);
     setRawLightBrightness(rawId, brightness);
 
     return true;
 }
 
-bool InputController::RgbLight::setLightColor(int32_t color) {
+bool PeripheralController::RgbLight::setLightColor(int32_t color) {
     // Compose color value as per:
     // https://developer.android.com/reference/android/graphics/Color?hl=en
     // int color = (A & 0xff) << 24 | (R & 0xff) << 16 | (G & 0xff) << 8 | (B & 0xff);
@@ -137,7 +137,7 @@ bool InputController::RgbLight::setLightColor(int32_t color) {
     return true;
 }
 
-bool InputController::MultiColorLight::setLightColor(int32_t color) {
+bool PeripheralController::MultiColorLight::setLightColor(int32_t color) {
     std::unordered_map<LightColor, int32_t> intensities;
     intensities.emplace(LightColor::RED, getRed(color));
     intensities.emplace(LightColor::GREEN, getGreen(color));
@@ -148,7 +148,7 @@ bool InputController::MultiColorLight::setLightColor(int32_t color) {
     return true;
 }
 
-std::optional<int32_t> InputController::SingleLight::getLightColor() {
+std::optional<int32_t> PeripheralController::SingleLight::getLightColor() {
     std::optional<int32_t> brightness = getRawLightBrightness(rawId);
     if (!brightness.has_value()) {
         return std::nullopt;
@@ -157,7 +157,7 @@ std::optional<int32_t> InputController::SingleLight::getLightColor() {
     return toArgb(brightness.value(), 0 /* red */, 0 /* green */, 0 /* blue */);
 }
 
-std::optional<int32_t> InputController::RgbLight::getLightColor() {
+std::optional<int32_t> PeripheralController::RgbLight::getLightColor() {
     // If the Alpha component is zero, then return color 0.
     if (brightness == 0) {
         return 0;
@@ -192,7 +192,7 @@ std::optional<int32_t> InputController::RgbLight::getLightColor() {
     return toArgb(brightness, red, green, blue);
 }
 
-std::optional<int32_t> InputController::MultiColorLight::getLightColor() {
+std::optional<int32_t> PeripheralController::MultiColorLight::getLightColor() {
     auto ret = context.getLightIntensities(rawId);
     if (!ret.has_value()) {
         return std::nullopt;
@@ -210,7 +210,7 @@ std::optional<int32_t> InputController::MultiColorLight::getLightColor() {
     return std::nullopt;
 }
 
-bool InputController::PlayerIdLight::setLightPlayerId(int32_t playerId) {
+bool PeripheralController::PlayerIdLight::setLightPlayerId(int32_t playerId) {
     if (rawLightIds.find(playerId) == rawLightIds.end()) {
         return false;
     }
@@ -224,7 +224,7 @@ bool InputController::PlayerIdLight::setLightPlayerId(int32_t playerId) {
     return true;
 }
 
-std::optional<int32_t> InputController::PlayerIdLight::getLightPlayerId() {
+std::optional<int32_t> PeripheralController::PlayerIdLight::getLightPlayerId() {
     for (const auto& [id, rawId] : rawLightIds) {
         std::optional<int32_t> brightness = getRawLightBrightness(rawId);
         if (brightness.has_value() && brightness.value() > 0) {
@@ -234,11 +234,11 @@ std::optional<int32_t> InputController::PlayerIdLight::getLightPlayerId() {
     return std::nullopt;
 }
 
-void InputController::SingleLight::dump(std::string& dump) {
+void PeripheralController::SingleLight::dump(std::string& dump) {
     dump += StringPrintf(INDENT4 "Color: 0x%x\n", getLightColor().value_or(0));
 }
 
-void InputController::PlayerIdLight::dump(std::string& dump) {
+void PeripheralController::PlayerIdLight::dump(std::string& dump) {
     dump += StringPrintf(INDENT4 "PlayerId: %d\n", getLightPlayerId().value_or(-1));
     dump += StringPrintf(INDENT4 "Raw Player ID LEDs:");
     for (const auto& [id, rawId] : rawLightIds) {
@@ -247,7 +247,7 @@ void InputController::PlayerIdLight::dump(std::string& dump) {
     dump += "\n";
 }
 
-void InputController::RgbLight::dump(std::string& dump) {
+void PeripheralController::RgbLight::dump(std::string& dump) {
     dump += StringPrintf(INDENT4 "Color: 0x%x\n", getLightColor().value_or(0));
     dump += StringPrintf(INDENT4 "Raw RGB LEDs: [%d, %d, %d] ", rawRgbIds.at(LightColor::RED),
                          rawRgbIds.at(LightColor::GREEN), rawRgbIds.at(LightColor::BLUE));
@@ -257,11 +257,11 @@ void InputController::RgbLight::dump(std::string& dump) {
     dump += "\n";
 }
 
-void InputController::MultiColorLight::dump(std::string& dump) {
+void PeripheralController::MultiColorLight::dump(std::string& dump) {
     dump += StringPrintf(INDENT4 "Color: 0x%x\n", getLightColor().value_or(0));
 }
 
-void InputController::populateDeviceInfo(InputDeviceInfo* deviceInfo) {
+void PeripheralController::populateDeviceInfo(InputDeviceInfo* deviceInfo) {
     // TODO: b/180733860 Remove this after enabling multi-battery
     if (!mBatteries.empty()) {
         deviceInfo->setHasBattery(true);
@@ -279,7 +279,7 @@ void InputController::populateDeviceInfo(InputDeviceInfo* deviceInfo) {
     }
 }
 
-void InputController::dump(std::string& dump) {
+void PeripheralController::dump(std::string& dump) {
     dump += INDENT2 "Input Controller:\n";
     if (!mLights.empty()) {
         dump += INDENT3 "Lights:\n";
@@ -340,7 +340,7 @@ void InputController::dump(std::string& dump) {
     }
 }
 
-void InputController::configureBattries() {
+void PeripheralController::configureBattries() {
     // Check raw batteries
     const std::vector<int32_t> rawBatteryIds = getDeviceContext().getRawBatteryIds();
 
@@ -355,7 +355,7 @@ void InputController::configureBattries() {
     }
 }
 
-void InputController::configureLights() {
+void PeripheralController::configureLights() {
     bool hasRedLed = false;
     bool hasGreenLed = false;
     bool hasBlueLed = false;
@@ -472,15 +472,15 @@ void InputController::configureLights() {
     }
 }
 
-std::optional<int32_t> InputController::getBatteryCapacity(int batteryId) {
+std::optional<int32_t> PeripheralController::getBatteryCapacity(int batteryId) {
     return getDeviceContext().getBatteryCapacity(batteryId);
 }
 
-std::optional<int32_t> InputController::getBatteryStatus(int batteryId) {
+std::optional<int32_t> PeripheralController::getBatteryStatus(int batteryId) {
     return getDeviceContext().getBatteryStatus(batteryId);
 }
 
-bool InputController::setLightColor(int32_t lightId, int32_t color) {
+bool PeripheralController::setLightColor(int32_t lightId, int32_t color) {
     auto it = mLights.find(lightId);
     if (it == mLights.end()) {
         return false;
@@ -493,7 +493,7 @@ bool InputController::setLightColor(int32_t lightId, int32_t color) {
     return light->setLightColor(color);
 }
 
-std::optional<int32_t> InputController::getLightColor(int32_t lightId) {
+std::optional<int32_t> PeripheralController::getLightColor(int32_t lightId) {
     auto it = mLights.find(lightId);
     if (it == mLights.end()) {
         return std::nullopt;
@@ -507,7 +507,7 @@ std::optional<int32_t> InputController::getLightColor(int32_t lightId) {
     return color;
 }
 
-bool InputController::setLightPlayerId(int32_t lightId, int32_t playerId) {
+bool PeripheralController::setLightPlayerId(int32_t lightId, int32_t playerId) {
     auto it = mLights.find(lightId);
     if (it == mLights.end()) {
         return false;
@@ -516,7 +516,7 @@ bool InputController::setLightPlayerId(int32_t lightId, int32_t playerId) {
     return light->setLightPlayerId(playerId);
 }
 
-std::optional<int32_t> InputController::getLightPlayerId(int32_t lightId) {
+std::optional<int32_t> PeripheralController::getLightPlayerId(int32_t lightId) {
     auto it = mLights.find(lightId);
     if (it == mLights.end()) {
         return std::nullopt;

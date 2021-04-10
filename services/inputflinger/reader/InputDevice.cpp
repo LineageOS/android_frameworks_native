@@ -23,11 +23,11 @@
 
 #include "CursorInputMapper.h"
 #include "ExternalStylusInputMapper.h"
-#include "InputController.h"
 #include "InputReaderContext.h"
 #include "JoystickInputMapper.h"
 #include "KeyboardInputMapper.h"
 #include "MultiTouchInputMapper.h"
+#include "PeripheralController.h"
 #include "RotaryEncoderInputMapper.h"
 #include "SensorInputMapper.h"
 #include "SingleTouchInputMapper.h"
@@ -165,9 +165,9 @@ void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
     }
 
     // Battery-like devices or light-containing devices.
-    // InputController will be created with associated EventHub device.
+    // PeripheralController will be created with associated EventHub device.
     if (classes.test(InputDeviceClass::BATTERY) || classes.test(InputDeviceClass::LIGHT)) {
-        mController = std::make_unique<InputController>(*contextPtr);
+        mController = std::make_unique<PeripheralController>(*contextPtr);
     }
 
     // Keyboard-like devices.
@@ -504,8 +504,6 @@ void InputDevice::cancelTouch(nsecs_t when, nsecs_t readTime) {
     for_each_mapper([when, readTime](InputMapper& mapper) { mapper.cancelTouch(when, readTime); });
 }
 
-// TODO b/180733860 support multiple battery in API and remove this.
-constexpr int32_t DEFAULT_BATTERY_ID = 1;
 std::optional<int32_t> InputDevice::getBatteryCapacity() {
     return mController ? mController->getBatteryCapacity(DEFAULT_BATTERY_ID) : std::nullopt;
 }
