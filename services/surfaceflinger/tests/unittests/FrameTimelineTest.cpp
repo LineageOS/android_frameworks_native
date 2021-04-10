@@ -671,7 +671,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_displayFramePredictionExpiredPres
                 incrementJankyFrames(
                         TimeStats::JankyFramesInfo{refreshRate, renderRate, sUidOne, sLayerNameOne,
                                                    JankType::Unknown | JankType::AppDeadlineMissed,
-                                                   -1, -1, 25}));
+                                                   0, 0, 25}));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 60});
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({82, 90, 90});

@@ -881,10 +881,11 @@ void FrameTimeline::DisplayFrame::setGpuComposition() {
 void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync) {
     if (mPredictionState == PredictionState::Expired ||
         mSurfaceFlingerActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
-        // Cannot do jank classification with expired predictions or invalid signal times.
+        // Cannot do jank classification with expired predictions or invalid signal times. Set the
+        // deltas to 0 as both negative and positive deltas are used as real values.
         mJankType = JankType::Unknown;
-        deadlineDelta = -1;
-        deltaToVsync = -1;
+        deadlineDelta = 0;
+        deltaToVsync = 0;
         return;
     }
 
