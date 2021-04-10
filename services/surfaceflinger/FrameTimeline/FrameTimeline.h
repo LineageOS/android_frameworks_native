@@ -355,7 +355,7 @@ public:
     class DisplayFrame {
     public:
         DisplayFrame(std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds,
-                     nsecs_t hwcDuration, TraceCookieCounter* traceCookieCounter);
+                     TraceCookieCounter* traceCookieCounter);
         virtual ~DisplayFrame() = default;
         // Dumpsys interface - dumps only if the DisplayFrame itself is janky or is at least one
         // SurfaceFrame is janky.
@@ -410,7 +410,6 @@ public:
         TimelineItem mSurfaceFlingerActuals;
         std::shared_ptr<TimeStats> mTimeStats;
         const JankClassificationThresholds mJankClassificationThresholds;
-        const nsecs_t mHwcDuration;
 
         // Collection of predictions and actual values sent over by Layers
         std::vector<std::shared_ptr<SurfaceFrame>> mSurfaceFrames;
@@ -436,8 +435,7 @@ public:
     };
 
     FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid,
-                  JankClassificationThresholds thresholds = {},
-                  nsecs_t hwcDuration = kDefaultHwcDuration);
+                  JankClassificationThresholds thresholds = {});
     ~FrameTimeline() = default;
 
     frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
@@ -482,11 +480,6 @@ private:
     std::shared_ptr<TimeStats> mTimeStats;
     const pid_t mSurfaceFlingerPid;
     const JankClassificationThresholds mJankClassificationThresholds;
-    // In SF Predictions, both end & present are the same. The predictions consider the time used by
-    // composer as well, but we have no way to estimate how much time the composer needs. We are
-    // assuming an arbitrary time for the composer work.
-    const nsecs_t mHwcDuration;
-    static constexpr nsecs_t kDefaultHwcDuration = std::chrono::nanoseconds(3ms).count();
     static constexpr uint32_t kDefaultMaxDisplayFrames = 64;
     // The initial container size for the vector<SurfaceFrames> inside display frame. Although
     // this number doesn't represent any bounds on the number of surface frames that can go in a

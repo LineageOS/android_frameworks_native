@@ -68,7 +68,7 @@ public:
     void SetUp() override {
         mTimeStats = std::make_shared<mock::TimeStats>();
         mFrameTimeline = std::make_unique<impl::FrameTimeline>(mTimeStats, kSurfaceFlingerPid,
-                                                               kTestThresholds, kHwcDuration);
+                                                               kTestThresholds);
         mFrameTimeline->registerDataSource();
         mTokenManager = &mFrameTimeline->mTokenManager;
         mTraceCookieCounter = &mFrameTimeline->mTraceCookieCounter;
@@ -163,7 +163,6 @@ public:
     static constexpr JankClassificationThresholds kTestThresholds{kPresentThreshold,
                                                                   kDeadlineThreshold,
                                                                   kStartThreshold};
-    static constexpr nsecs_t kHwcDuration = std::chrono::nanoseconds(3ns).count();
 };
 
 static const std::string sLayerNameOne = "layer1";
@@ -483,7 +482,6 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_doesNotReportForInvalidTokens) {
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
     Fps refreshRate = Fps::fromPeriodNsecs(11);
-    // Deadline delta is 2ms because, sf's adjusted deadline is 60 - composerTime(3) = 57ms.
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(
                         TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
@@ -504,7 +502,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     presentFence1->signalForTest(70);
 
-    mFrameTimeline->setSfPresent(59, presentFence1);
+    mFrameTimeline->setSfPresent(62, presentFence1);
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
@@ -512,7 +510,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
                                                                 sLayerNameOne, JankType::DisplayHAL,
-                                                                -1, 0, 0}));
+                                                                -4, 0, 0}));
 
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 60});
@@ -536,7 +534,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMiss) {
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
                                                                 sLayerNameOne,
-                                                                JankType::AppDeadlineMissed, -1, 0,
+                                                                JankType::AppDeadlineMissed, -4, 0,
                                                                 25}));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 60});
@@ -563,7 +561,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsSfScheduling) {
                 incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
                                                                 sLayerNameOne,
                                                                 JankType::SurfaceFlingerScheduling,
-                                                                -1, 0, -10}));
+                                                                -4, 0, -10}));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({40, 60, 92});
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({52, 60, 60});
@@ -588,7 +586,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsSfPredictionError) {
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
                                                                 sLayerNameOne,
-                                                                JankType::PredictionError, -1, 5,
+                                                                JankType::PredictionError, -4, 5,
                                                                 0}));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({30, 40, 60});
@@ -614,7 +612,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppBufferStuffing) {
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
                                                                 sLayerNameOne,
-                                                                JankType::BufferStuffing, -1, 0,
+                                                                JankType::BufferStuffing, -4, 0,
                                                                 0}));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({30, 40, 58});
@@ -642,7 +640,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMissWithRenderRate) {
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(
                         TimeStats::JankyFramesInfo{refreshRate, renderRate, sUidOne, sLayerNameOne,
-                                                   JankType::AppDeadlineMissed, -1, 0, 25}));
+                                                   JankType::AppDeadlineMissed, -4, 0, 25}));
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 60});
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({82, 90, 90});
@@ -1562,7 +1560,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishEarlyPresen
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(
                         TimeStats::JankyFramesInfo{Fps::fromPeriodNsecs(11), std::nullopt, sUidOne,
-                                                   sLayerNameOne, JankType::PredictionError, 0, 5,
+                                                   sLayerNameOne, JankType::PredictionError, -3, 5,
                                                    0}));
 
     addEmptyDisplayFrame();
@@ -1642,7 +1640,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishLatePresent
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(
                         TimeStats::JankyFramesInfo{Fps::fromPeriodNsecs(11), std::nullopt, sUidOne,
-                                                   sLayerNameOne, JankType::PredictionError, 0, 5,
+                                                   sLayerNameOne, JankType::PredictionError, -3, 5,
                                                    0}));
 
     addEmptyDisplayFrame();

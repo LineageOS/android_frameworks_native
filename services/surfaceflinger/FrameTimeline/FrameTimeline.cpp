@@ -752,14 +752,13 @@ void TokenManager::flushTokens(nsecs_t flushTime) {
 }
 
 FrameTimeline::FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid,
-                             JankClassificationThresholds thresholds, nsecs_t hwcDuration)
+                             JankClassificationThresholds thresholds)
       : mMaxDisplayFrames(kDefaultMaxDisplayFrames),
         mTimeStats(std::move(timeStats)),
         mSurfaceFlingerPid(surfaceFlingerPid),
-        mJankClassificationThresholds(thresholds),
-        mHwcDuration(hwcDuration) {
-    mCurrentDisplayFrame = std::make_shared<DisplayFrame>(mTimeStats, thresholds, hwcDuration,
-                                                          &mTraceCookieCounter);
+        mJankClassificationThresholds(thresholds) {
+    mCurrentDisplayFrame =
+            std::make_shared<DisplayFrame>(mTimeStats, thresholds, &mTraceCookieCounter);
 }
 
 void FrameTimeline::onBootFinished() {
@@ -804,13 +803,11 @@ std::shared_ptr<SurfaceFrame> FrameTimeline::createSurfaceFrameForToken(
 
 FrameTimeline::DisplayFrame::DisplayFrame(std::shared_ptr<TimeStats> timeStats,
                                           JankClassificationThresholds thresholds,
-                                          nsecs_t hwcDuration,
                                           TraceCookieCounter* traceCookieCounter)
       : mSurfaceFlingerPredictions(TimelineItem()),
         mSurfaceFlingerActuals(TimelineItem()),
         mTimeStats(timeStats),
         mJankClassificationThresholds(thresholds),
-        mHwcDuration(hwcDuration),
         mTraceCookieCounter(*traceCookieCounter) {
     mSurfaceFrames.reserve(kNumSurfaceFramesInitial);
 }
@@ -892,8 +889,7 @@ void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& 
     // Delta between the expected present and the actual present
     const nsecs_t presentDelta =
             mSurfaceFlingerActuals.presentTime - mSurfaceFlingerPredictions.presentTime;
-    deadlineDelta =
-            mSurfaceFlingerActuals.endTime - (mSurfaceFlingerPredictions.endTime - mHwcDuration);
+    deadlineDelta = mSurfaceFlingerActuals.endTime - mSurfaceFlingerPredictions.endTime;
 
     // How far off was the presentDelta when compared to the vsyncPeriod. Used in checking if there
     // was a prediction error or not.
@@ -908,9 +904,7 @@ void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& 
         mFramePresentMetadata = FramePresentMetadata::OnTimePresent;
     }
 
-    if (mSurfaceFlingerActuals.endTime > mSurfaceFlingerPredictions.endTime - mHwcDuration) {
-        // SF needs to have finished at least mHwcDuration ahead of the deadline for it to be
-        // on time.
+    if (mSurfaceFlingerActuals.endTime > mSurfaceFlingerPredictions.endTime) {
         mFrameReadyMetadata = FrameReadyMetadata::LateFinish;
     } else {
         mFrameReadyMetadata = FrameReadyMetadata::OnTimeFinish;
@@ -1165,7 +1159,7 @@ void FrameTimeline::finalizeCurrentDisplayFrame() {
     mDisplayFrames.push_back(mCurrentDisplayFrame);
     mCurrentDisplayFrame.reset();
     mCurrentDisplayFrame = std::make_shared<DisplayFrame>(mTimeStats, mJankClassificationThresholds,
-                                                          mHwcDuration, &mTraceCookieCounter);
+                                                          &mTraceCookieCounter);
 }
 
 nsecs_t FrameTimeline::DisplayFrame::getBaseTime() const {
