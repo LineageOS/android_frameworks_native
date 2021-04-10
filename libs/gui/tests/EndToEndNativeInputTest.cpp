@@ -47,6 +47,8 @@
 
 using android::os::IInputFlinger;
 
+using android::hardware::graphics::common::V1_1::BufferUsage;
+
 namespace android::test {
 
 using Transaction = SurfaceComposerClient::Transaction;
@@ -92,15 +94,6 @@ public:
         sp<SurfaceControl> surfaceControl =
                 scc->createSurface(String8("Test Buffer Surface"), width, height,
                                    PIXEL_FORMAT_RGBA_8888, 0 /* flags */);
-        return std::make_unique<InputSurface>(surfaceControl, width, height);
-    }
-
-    static std::unique_ptr<InputSurface> makeBlastInputSurface(const sp<SurfaceComposerClient> &scc,
-                                                               int width, int height) {
-        sp<SurfaceControl> surfaceControl =
-                scc->createSurface(String8("Test Buffer Surface"), width, height,
-                                   PIXEL_FORMAT_RGBA_8888,
-                                   ISurfaceComposerClient::eFXSurfaceBufferState);
         return std::make_unique<InputSurface>(surfaceControl, width, height);
     }
 
@@ -180,16 +173,19 @@ public:
         EXPECT_EQ(flags, mev->getFlags() & flags);
     }
 
-    ~InputSurface() { mInputFlinger->removeInputChannel(mClientChannel->getConnectionToken()); }
+    virtual ~InputSurface() {
+        mInputFlinger->removeInputChannel(mClientChannel->getConnectionToken());
+    }
 
-    void doTransaction(std::function<void(SurfaceComposerClient::Transaction&,
-                    const sp<SurfaceControl>&)> transactionBody) {
+    virtual void doTransaction(
+            std::function<void(SurfaceComposerClient::Transaction &, const sp<SurfaceControl> &)>
+                    transactionBody) {
         SurfaceComposerClient::Transaction t;
         transactionBody(t, mSurfaceControl);
         t.apply(true);
     }
 
-    void showAt(int x, int y, Rect crop = Rect(0, 0, 100, 100)) {
+    virtual void showAt(int x, int y, Rect crop = Rect(0, 0, 100, 100)) {
         SurfaceComposerClient::Transaction t;
         t.show(mSurfaceControl);
         t.setInputWindowInfo(mSurfaceControl, mInputInfo);
@@ -259,6 +255,57 @@ public:
     InputConsumer* mInputConsumer;
 };
 
+class BlastInputSurface : public InputSurface {
+public:
+    BlastInputSurface(const sp<SurfaceControl> &sc, const sp<SurfaceControl> &parentSc, int width,
+                      int height)
+          : InputSurface(sc, width, height) {
+        mParentSurfaceControl = parentSc;
+    }
+
+    ~BlastInputSurface() = default;
+
+    static std::unique_ptr<BlastInputSurface> makeBlastInputSurface(
+            const sp<SurfaceComposerClient> &scc, int width, int height) {
+        sp<SurfaceControl> parentSc =
+                scc->createSurface(String8("Test Parent Surface"), 0 /* bufHeight */,
+                                   0 /* bufWidth */, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceContainer);
+
+        sp<SurfaceControl> surfaceControl =
+                scc->createSurface(String8("Test Buffer Surface"), width, height,
+                                   PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceBufferState,
+                                   parentSc->getHandle());
+        return std::make_unique<BlastInputSurface>(surfaceControl, parentSc, width, height);
+    }
+
+    void doTransaction(
+            std::function<void(SurfaceComposerClient::Transaction &, const sp<SurfaceControl> &)>
+                    transactionBody) override {
+        SurfaceComposerClient::Transaction t;
+        transactionBody(t, mParentSurfaceControl);
+        t.apply(true);
+    }
+
+    void showAt(int x, int y, Rect crop = Rect(0, 0, 100, 100)) override {
+        SurfaceComposerClient::Transaction t;
+        t.show(mParentSurfaceControl);
+        t.setLayer(mParentSurfaceControl, LAYER_BASE);
+        t.setPosition(mParentSurfaceControl, x, y);
+        t.setCrop(mParentSurfaceControl, crop);
+
+        t.show(mSurfaceControl);
+        t.setInputWindowInfo(mSurfaceControl, mInputInfo);
+        t.setCrop(mSurfaceControl, crop);
+        t.setAlpha(mSurfaceControl, 1);
+        t.apply(true);
+    }
+
+private:
+    sp<SurfaceControl> mParentSurfaceControl;
+};
+
 class InputSurfacesTest : public ::testing::Test {
 public:
     InputSurfacesTest() {
@@ -289,15 +336,12 @@ public:
         return InputSurface::makeColorInputSurface(mComposerClient, width, height);
     }
 
-    void postBuffer(const sp<SurfaceControl> &layer) {
-        // wait for previous transactions (such as setSize) to complete
-        Transaction().apply(true);
-        ANativeWindow_Buffer buffer = {};
-        EXPECT_EQ(NO_ERROR, layer->getSurface()->lock(&buffer, nullptr));
-        ASSERT_EQ(NO_ERROR, layer->getSurface()->unlockAndPost());
-        // Request an empty transaction to get applied synchronously to ensure the buffer is
-        // latched.
-        Transaction().apply(true);
+    void postBuffer(const sp<SurfaceControl> &layer, int32_t w, int32_t h) {
+        int64_t usageFlags = BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE;
+        sp<GraphicBuffer> buffer =
+                new GraphicBuffer(w, h, PIXEL_FORMAT_RGBA_8888, 1, usageFlags, "test");
+        Transaction().setBuffer(layer, buffer).apply(true);
         usleep(mBufferPostDelay);
     }
 
@@ -474,8 +518,8 @@ TEST_F(InputSurfacesTest, input_ignores_transparent_region) {
 // Original bug ref: b/120839715
 TEST_F(InputSurfacesTest, input_ignores_buffer_layer_buffer) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
-    std::unique_ptr<InputSurface> bufferSurface =
-            InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
+    std::unique_ptr<BlastInputSurface> bufferSurface =
+            BlastInputSurface::makeBlastInputSurface(mComposerClient, 100, 100);
 
     bgSurface->showAt(10, 10);
     bufferSurface->showAt(10, 10);
@@ -483,16 +527,16 @@ TEST_F(InputSurfacesTest, input_ignores_buffer_layer_buffer) {
     injectTap(11, 11);
     bufferSurface->expectTap(1, 1);
 
-    postBuffer(bufferSurface->mSurfaceControl);
+    postBuffer(bufferSurface->mSurfaceControl, 100, 100);
     injectTap(11, 11);
     bufferSurface->expectTap(1, 1);
 }
 
 TEST_F(InputSurfacesTest, input_ignores_buffer_layer_alpha) {
     std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
-    std::unique_ptr<InputSurface> bufferSurface =
-            InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
-    postBuffer(bufferSurface->mSurfaceControl);
+    std::unique_ptr<BlastInputSurface> bufferSurface =
+            BlastInputSurface::makeBlastInputSurface(mComposerClient, 100, 100);
+    postBuffer(bufferSurface->mSurfaceControl, 100, 100);
 
     bgSurface->showAt(10, 10);
     bufferSurface->showAt(10, 10);
@@ -720,8 +764,8 @@ TEST_F(InputSurfacesTest, touch_not_obscured_with_zero_sized_bql) {
 TEST_F(InputSurfacesTest, touch_not_obscured_with_zero_sized_blast) {
     std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
 
-    std::unique_ptr<InputSurface> bufferSurface =
-            InputSurface::makeBlastInputSurface(mComposerClient, 0, 0);
+    std::unique_ptr<BlastInputSurface> bufferSurface =
+            BlastInputSurface::makeBlastInputSurface(mComposerClient, 0, 0);
     bufferSurface->mInputInfo.flags = InputWindowInfo::Flag::NOT_TOUCHABLE;
     bufferSurface->mInputInfo.ownerUid = 22222;
 

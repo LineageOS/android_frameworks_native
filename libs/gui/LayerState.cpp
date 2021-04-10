@@ -430,10 +430,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         barrierSurfaceControl_legacy = other.barrierSurfaceControl_legacy;
         barrierFrameNumber = other.barrierFrameNumber;
     }
-    if (other.what & eReparentChildren) {
-        what |= eReparentChildren;
-        reparentSurfaceControl = other.reparentSurfaceControl;
-    }
     if (other.what & eRelativeLayerChanged) {
         what |= eRelativeLayerChanged;
         what &= ~eLayerChanged;
