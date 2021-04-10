@@ -1814,10 +1814,6 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
     if (frameMissed) {
         mFrameMissedCount++;
         mTimeStats->incrementMissedFrames();
-        if (mMissedFrameJankCount == 0) {
-            mMissedFrameJankStart = systemTime();
-        }
-        mMissedFrameJankCount++;
     }
 
     if (hwcFrameMissed) {
@@ -1846,37 +1842,6 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
         if ((hwcFrameMissed && !gpuFrameMissed) || mPropagateBackpressureClientComposition) {
             signalLayerUpdate();
             return;
-        }
-    }
-
-    // Our jank window is always at least 100ms since we missed a
-    // frame...
-    static constexpr nsecs_t kMinJankyDuration =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(100ms).count();
-    // ...but if it's larger than 1s then we missed the trace cutoff.
-    static constexpr nsecs_t kMaxJankyDuration =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
-    nsecs_t jankDurationToUpload = -1;
-    // If we're in a user build then don't push any atoms
-    if (!mIsUserBuild && mMissedFrameJankCount > 0) {
-        const auto display = ON_MAIN_THREAD(getDefaultDisplayDeviceLocked());
-        // Only report jank when the display is on, as displays in DOZE
-        // power mode may operate at a different frame rate than is
-        // reported in their config, which causes noticeable (but less
-        // severe) jank.
-        if (display && display->getPowerMode() == hal::PowerMode::ON) {
-            const nsecs_t currentTime = systemTime();
-            const nsecs_t jankDuration = currentTime - mMissedFrameJankStart;
-            if (jankDuration > kMinJankyDuration && jankDuration < kMaxJankyDuration) {
-                jankDurationToUpload = jankDuration;
-            }
-
-            // We either reported a jank event or we missed the trace
-            // window, so clear counters here.
-            if (jankDuration > kMinJankyDuration) {
-                mMissedFrameJankCount = 0;
-                mMissedFrameJankStart = 0;
-            }
         }
     }
 
@@ -1926,7 +1891,6 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
 
     refreshNeeded |= mRepaintEverything;
     if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
-        mLastJankDuration = jankDurationToUpload;
         // Signal a refresh if a transaction modified the window state,
         // a new buffer was latched, or if HWC has requested a full
         // repaint
@@ -2301,14 +2265,6 @@ void SurfaceFlinger::postComposition() {
     const size_t sfConnections = mScheduler->getEventThreadConnectionCount(mSfConnectionHandle);
     const size_t appConnections = mScheduler->getEventThreadConnectionCount(mAppConnectionHandle);
     mTimeStats->recordDisplayEventConnectionCount(sfConnections + appConnections);
-
-    if (mLastJankDuration > 0) {
-        ATRACE_NAME("Jank detected");
-        const int32_t jankyDurationMillis = mLastJankDuration / (1000 * 1000);
-        android::util::stats_write(android::util::DISPLAY_JANK_REPORTED, jankyDurationMillis,
-                                   mMissedFrameJankCount);
-        mLastJankDuration = -1;
-    }
 
     if (isDisplayConnected && !display->isPoweredOn()) {
         return;
