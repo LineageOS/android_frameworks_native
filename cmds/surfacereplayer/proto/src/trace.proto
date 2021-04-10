@@ -50,7 +50,6 @@ message SurfaceChange {
         CornerRadiusChange          corner_radius           = 16;
         ReparentChange              reparent                = 17;
         RelativeParentChange        relative_parent         = 18;
-        ReparentChildrenChange      reparent_children       = 19;
         BackgroundBlurRadiusChange  background_blur_radius  = 20;
         ShadowRadiusChange          shadow_radius           = 21;
         BlurRegionsChange           blur_regions            = 22;
@@ -187,10 +186,6 @@ message PowerModeUpdate {
 }
 
 message ReparentChange {
-    required int32 parent_id = 1;
-}
-
-message ReparentChildrenChange {
     required int32 parent_id = 1;
 }
 

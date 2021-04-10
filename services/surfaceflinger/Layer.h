@@ -638,8 +638,6 @@ public:
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
     const char* getDebugName() const override;
 
-    bool reparentChildren(const sp<IBinder>& newParentHandle);
-    void reparentChildren(const sp<Layer>& newParent);
     bool setShadowRadius(float shadowRadius);
 
     // Before color management is introduced, contents on Android have to be
@@ -1025,6 +1023,9 @@ protected:
     void removeZOrderRelative(const wp<Layer>& relative);
     compositionengine::OutputLayer* findOutputLayerForDisplay(const DisplayDevice*) const;
     bool usingRelativeZ(LayerVector::StateSet) const;
+
+    virtual ui::Transform getInputTransform() const;
+    virtual Rect getInputBounds() const;
 
     // SyncPoints which will be signaled when the correct frame is at the head
     // of the queue and dropped after the frame has been latched. Protected by
