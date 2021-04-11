@@ -72,7 +72,7 @@ TEST_F(PowerHalWrapperHidlV1_0Test, TestSetBoostSuccessful) {
     EXPECT_CALL(*mMockHal.get(), powerHint(Eq(PowerHint::INTERACTION), Eq(1000))).Times(Exactly(1));
 
     auto result = mWrapper->setBoost(Boost::INTERACTION, 1000);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
 }
 
 TEST_F(PowerHalWrapperHidlV1_0Test, TestSetBoostFailed) {
@@ -83,12 +83,12 @@ TEST_F(PowerHalWrapperHidlV1_0Test, TestSetBoostFailed) {
             });
 
     auto result = mWrapper->setBoost(Boost::INTERACTION, 1000);
-    ASSERT_EQ(HalResult::FAILED, result);
+    ASSERT_TRUE(result.isFailed());
 }
 
 TEST_F(PowerHalWrapperHidlV1_0Test, TestSetBoostUnsupported) {
     auto result = mWrapper->setBoost(Boost::CAMERA_LAUNCH, 10);
-    ASSERT_EQ(HalResult::UNSUPPORTED, result);
+    ASSERT_TRUE(result.isUnsupported());
 }
 
 TEST_F(PowerHalWrapperHidlV1_0Test, TestSetModeSuccessful) {
@@ -106,17 +106,17 @@ TEST_F(PowerHalWrapperHidlV1_0Test, TestSetModeSuccessful) {
     }
 
     auto result = mWrapper->setMode(Mode::LAUNCH, true);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
     result = mWrapper->setMode(Mode::LOW_POWER, false);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
     result = mWrapper->setMode(Mode::SUSTAINED_PERFORMANCE, true);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
     result = mWrapper->setMode(Mode::VR, false);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
     result = mWrapper->setMode(Mode::INTERACTIVE, true);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
     result = mWrapper->setMode(Mode::DOUBLE_TAP_TO_WAKE, false);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
 }
 
 TEST_F(PowerHalWrapperHidlV1_0Test, TestSetModeFailed) {
@@ -127,10 +127,10 @@ TEST_F(PowerHalWrapperHidlV1_0Test, TestSetModeFailed) {
             });
 
     auto result = mWrapper->setMode(Mode::LAUNCH, 1);
-    ASSERT_EQ(HalResult::FAILED, result);
+    ASSERT_TRUE(result.isFailed());
 }
 
 TEST_F(PowerHalWrapperHidlV1_0Test, TestSetModeIgnored) {
     auto result = mWrapper->setMode(Mode::CAMERA_STREAMING_HIGH, true);
-    ASSERT_EQ(HalResult::UNSUPPORTED, result);
+    ASSERT_TRUE(result.isUnsupported());
 }

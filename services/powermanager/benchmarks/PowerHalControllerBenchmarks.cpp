@@ -40,29 +40,29 @@ static constexpr int64_t LAST_MODE = static_cast<int64_t>(Mode::CAMERA_STREAMING
 // Delay between oneway method calls to avoid overflowing the binder buffers.
 static constexpr std::chrono::microseconds ONEWAY_API_DELAY = 100us;
 
-template <class... Args0, class... Args1>
-static void runBenchmark(benchmark::State& state, HalResult (PowerHalController::*fn)(Args0...),
+template <typename T, class... Args0, class... Args1>
+static void runBenchmark(benchmark::State& state, HalResult<T> (PowerHalController::*fn)(Args0...),
                          Args1&&... args1) {
     while (state.KeepRunning()) {
         PowerHalController controller;
-        HalResult ret = (controller.*fn)(std::forward<Args1>(args1)...);
+        HalResult<T> ret = (controller.*fn)(std::forward<Args1>(args1)...);
         state.PauseTiming();
-        if (ret == HalResult::FAILED) state.SkipWithError("Power HAL request failed");
+        if (ret.isFailed()) state.SkipWithError("Power HAL request failed");
         state.ResumeTiming();
     }
 }
 
-template <class... Args0, class... Args1>
+template <typename T, class... Args0, class... Args1>
 static void runCachedBenchmark(benchmark::State& state,
-                               HalResult (PowerHalController::*fn)(Args0...), Args1&&... args1) {
+                               HalResult<T> (PowerHalController::*fn)(Args0...), Args1&&... args1) {
     PowerHalController controller;
     // First call out of test, to cache HAL service and isSupported result.
     (controller.*fn)(std::forward<Args1>(args1)...);
 
     while (state.KeepRunning()) {
-        HalResult ret = (controller.*fn)(std::forward<Args1>(args1)...);
+        HalResult<T> ret = (controller.*fn)(std::forward<Args1>(args1)...);
         state.PauseTiming();
-        if (ret == HalResult::FAILED) {
+        if (ret.isFailed()) {
             state.SkipWithError("Power HAL request failed");
         }
         testDelaySpin(
