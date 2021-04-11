@@ -18,6 +18,7 @@
 #include <android/hardware/power/1.1/IPower.h>
 #include <android/hardware/power/Boost.h>
 #include <android/hardware/power/IPower.h>
+#include <android/hardware/power/IPowerHintSession.h>
 #include <android/hardware/power/Mode.h>
 #include <powermanager/PowerHalController.h>
 #include <powermanager/PowerHalLoader.h>
@@ -73,9 +74,10 @@ std::shared_ptr<HalWrapper> PowerHalController::initHal() {
 
 // Check if a call to Power HAL function failed; if so, log the failure and
 // invalidate the current Power HAL handle.
-HalResult PowerHalController::processHalResult(HalResult result, const char* fnName) {
-    if (result == HalResult::FAILED) {
-        ALOGE("%s() failed: power HAL service not available.", fnName);
+template <typename T>
+HalResult<T> PowerHalController::processHalResult(HalResult<T> result, const char* fnName) {
+    if (result.isFailed()) {
+        ALOGE("%s failed: %s", fnName, result.errorMessage());
         std::lock_guard<std::mutex> lock(mConnectedHalMutex);
         // Drop Power HAL handle. This will force future api calls to reconnect.
         mConnectedHal = nullptr;
@@ -84,16 +86,29 @@ HalResult PowerHalController::processHalResult(HalResult result, const char* fnN
     return result;
 }
 
-HalResult PowerHalController::setBoost(Boost boost, int32_t durationMs) {
+HalResult<void> PowerHalController::setBoost(Boost boost, int32_t durationMs) {
     std::shared_ptr<HalWrapper> handle = initHal();
     auto result = handle->setBoost(boost, durationMs);
     return processHalResult(result, "setBoost");
 }
 
-HalResult PowerHalController::setMode(Mode mode, bool enabled) {
+HalResult<void> PowerHalController::setMode(Mode mode, bool enabled) {
     std::shared_ptr<HalWrapper> handle = initHal();
     auto result = handle->setMode(mode, enabled);
     return processHalResult(result, "setMode");
+}
+
+HalResult<sp<IPowerHintSession>> PowerHalController::createHintSession(
+        int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds, int64_t durationNanos) {
+    std::shared_ptr<HalWrapper> handle = initHal();
+    auto result = handle->createHintSession(tgid, uid, threadIds, durationNanos);
+    return processHalResult(result, "createHintSession");
+}
+
+HalResult<int64_t> PowerHalController::getHintSessionPreferredRate() {
+    std::shared_ptr<HalWrapper> handle = initHal();
+    auto result = handle->getHintSessionPreferredRate();
+    return processHalResult(result, "getHintSessionPreferredRate");
 }
 
 } // namespace power
