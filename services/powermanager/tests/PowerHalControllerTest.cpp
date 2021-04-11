@@ -134,9 +134,9 @@ TEST_F(PowerHalControllerTest, TestUnableToConnectToPowerHalIgnoresAllApiCalls) 
     // Still works with EmptyPowerHalWrapper as fallback ignoring every api call
     // and logging.
     auto result = halController.setBoost(Boost::INTERACTION, 1000);
-    ASSERT_EQ(HalResult::UNSUPPORTED, result);
+    ASSERT_TRUE(result.isUnsupported());
     result = halController.setMode(Mode::LAUNCH, true);
-    ASSERT_EQ(HalResult::UNSUPPORTED, result);
+    ASSERT_TRUE(result.isUnsupported());
 
     // PowerHalConnector was called every time to attempt to reconnect with
     // underlying service.
@@ -159,9 +159,9 @@ TEST_F(PowerHalControllerTest, TestAllApiCallsDelegatedToConnectedPowerHal) {
     }
 
     auto result = mHalController->setBoost(Boost::INTERACTION, 100);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
     result = mHalController->setMode(Mode::LAUNCH, true);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
 
     // PowerHalConnector was called only once and never reset.
     powerHalConnectCount = mHalConnector->getConnectCount();
@@ -182,13 +182,13 @@ TEST_F(PowerHalControllerTest, TestPowerHalRecoversFromFailureByRecreatingPowerH
     EXPECT_CALL(*mMockHal.get(), powerHint(_, _)).Times(Exactly(4));
 
     auto result = mHalController->setBoost(Boost::INTERACTION, 1000);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
     result = mHalController->setMode(Mode::LAUNCH, true);
-    ASSERT_EQ(HalResult::FAILED, result);
+    ASSERT_TRUE(result.isFailed());
     result = mHalController->setMode(Mode::VR, false);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
     result = mHalController->setMode(Mode::LOW_POWER, true);
-    ASSERT_EQ(HalResult::SUCCESSFUL, result);
+    ASSERT_TRUE(result.isOk());
 
     // PowerHalConnector was called only twice: on first api call and after failed
     // call.
@@ -204,9 +204,9 @@ TEST_F(PowerHalControllerTest, TestPowerHalDoesNotTryToRecoverFromFailureOnUnsup
     EXPECT_EQ(powerHalConnectCount, 0);
 
     auto result = mHalController->setBoost(Boost::CAMERA_LAUNCH, 1000);
-    ASSERT_EQ(HalResult::UNSUPPORTED, result);
+    ASSERT_TRUE(result.isUnsupported());
     result = mHalController->setMode(Mode::CAMERA_STREAMING_HIGH, true);
-    ASSERT_EQ(HalResult::UNSUPPORTED, result);
+    ASSERT_TRUE(result.isUnsupported());
 
     // PowerHalConnector was called only once and never reset.
     powerHalConnectCount = mHalConnector->getConnectCount();
@@ -225,7 +225,7 @@ TEST_F(PowerHalControllerTest, TestMultiThreadConnectsOnlyOnce) {
     for (int i = 0; i < 10; i++) {
         threads.push_back(std::thread([&]() {
             auto result = mHalController->setBoost(Boost::INTERACTION, 1000);
-            ASSERT_EQ(HalResult::SUCCESSFUL, result);
+            ASSERT_TRUE(result.isOk());
         }));
     }
     std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
@@ -253,19 +253,19 @@ TEST_F(PowerHalControllerTest, TestMultiThreadWithFailureReconnectIsThreadSafe) 
     for (int i = 0; i < 10; i++) {
         threads.push_back(std::thread([&]() {
             auto result = mHalController->setBoost(Boost::INTERACTION, 1000);
-            ASSERT_EQ(HalResult::SUCCESSFUL, result);
+            ASSERT_TRUE(result.isOk());
         }));
         threads.push_back(std::thread([&]() {
             auto result = mHalController->setMode(Mode::LAUNCH, true);
-            ASSERT_EQ(HalResult::FAILED, result);
+            ASSERT_TRUE(result.isFailed());
         }));
         threads.push_back(std::thread([&]() {
             auto result = mHalController->setMode(Mode::LOW_POWER, false);
-            ASSERT_EQ(HalResult::SUCCESSFUL, result);
+            ASSERT_TRUE(result.isOk());
         }));
         threads.push_back(std::thread([&]() {
             auto result = mHalController->setMode(Mode::VR, true);
-            ASSERT_EQ(HalResult::SUCCESSFUL, result);
+            ASSERT_TRUE(result.isOk());
         }));
     }
     std::for_each(threads.begin(), threads.end(), [](std::thread& t) { t.join(); });
