@@ -38,7 +38,7 @@ cc_benchmark {
         "libutils",
         "android.hardware.power@1.0",
         "android.hardware.power@1.1",
-        "android.hardware.power-V1-cpp",
+        "android.hardware.power-V2-cpp",
     ],
     static_libs: [
         "libtestUtil",
