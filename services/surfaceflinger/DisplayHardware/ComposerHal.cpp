@@ -20,11 +20,7 @@
 
 #undef LOG_TAG
 #define LOG_TAG "HwcComposer"
-
-#include <log/log.h>
-
-#include <algorithm>
-#include <cinttypes>
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "ComposerHal.h"
 
@@ -32,6 +28,11 @@
 #include <gui/BufferQueue.h>
 #include <hidl/HidlTransportSupport.h>
 #include <hidl/HidlTransportUtils.h>
+#include <log/log.h>
+#include <utils/Trace.h>
+
+#include <algorithm>
+#include <cinttypes>
 
 namespace android {
 
@@ -492,6 +493,7 @@ Error Composer::getReleaseFences(Display display,
 
 Error Composer::presentDisplay(Display display, int* outPresentFence)
 {
+    ATRACE_NAME("HwcPresentDisplay");
     mWriter.selectDisplay(display);
     mWriter.presentDisplay();
 
@@ -586,6 +588,7 @@ Error Composer::setClientTargetSlotCount(Display display)
 Error Composer::validateDisplay(Display display, uint32_t* outNumTypes,
         uint32_t* outNumRequests)
 {
+    ATRACE_NAME("HwcValidateDisplay");
     mWriter.selectDisplay(display);
     mWriter.validateDisplay();
 
@@ -601,13 +604,14 @@ Error Composer::validateDisplay(Display display, uint32_t* outNumTypes,
 
 Error Composer::presentOrValidateDisplay(Display display, uint32_t* outNumTypes,
                                uint32_t* outNumRequests, int* outPresentFence, uint32_t* state) {
-   mWriter.selectDisplay(display);
-   mWriter.presentOrvalidateDisplay();
+    ATRACE_NAME("HwcPresentOrValidateDisplay");
+    mWriter.selectDisplay(display);
+    mWriter.presentOrvalidateDisplay();
 
-   Error error = execute();
-   if (error != Error::NONE) {
-       return error;
-   }
+    Error error = execute();
+    if (error != Error::NONE) {
+        return error;
+    }
 
    mReader.takePresentOrValidateStage(display, state);
 
