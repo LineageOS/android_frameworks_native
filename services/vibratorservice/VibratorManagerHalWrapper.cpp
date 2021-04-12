@@ -30,7 +30,7 @@ constexpr int32_t SINGLE_VIBRATOR_ID = 0;
 const constexpr char* MISSING_VIBRATOR_MESSAGE_PREFIX = "No vibrator with id=";
 
 HalResult<void> LegacyManagerHalWrapper::ping() {
-    auto pingFn = [](std::shared_ptr<HalWrapper> hal) { return hal->ping(); };
+    auto pingFn = [](HalWrapper* hal) { return hal->ping(); };
     return mController->doWithRetry<void>(pingFn, "ping");
 }
 

@@ -40,11 +40,9 @@ using namespace android;
 using namespace std::chrono_literals;
 using namespace testing;
 
-static const auto ON_FN = [](std::shared_ptr<vibrator::HalWrapper> hal) {
-    return hal->on(10ms, []() {});
-};
-static const auto OFF_FN = [](std::shared_ptr<vibrator::HalWrapper> hal) { return hal->off(); };
-static const auto PING_FN = [](std::shared_ptr<vibrator::HalWrapper> hal) { return hal->ping(); };
+static const auto ON_FN = [](vibrator::HalWrapper* hal) { return hal->on(10ms, []() {}); };
+static const auto OFF_FN = [](vibrator::HalWrapper* hal) { return hal->off(); };
+static const auto PING_FN = [](vibrator::HalWrapper* hal) { return hal->ping(); };
 
 // -------------------------------------------------------------------------------------------------
 
@@ -233,7 +231,7 @@ TEST_F(VibratorHalControllerTest, TestScheduledCallbackSurvivesReconnection) {
     std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
     auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
 
-    auto onFn = [&](std::shared_ptr<vibrator::HalWrapper> hal) { return hal->on(10ms, callback); };
+    auto onFn = [&](vibrator::HalWrapper* hal) { return hal->on(10ms, callback); };
     ASSERT_TRUE(mController->doWithRetry<void>(onFn, "on").isOk());
     ASSERT_TRUE(mController->doWithRetry<void>(PING_FN, "ping").isFailed());
     mMockHal.reset();
