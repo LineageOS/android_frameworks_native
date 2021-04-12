@@ -40,7 +40,7 @@ using android::hardware::vibrator::PrimitivePwle;
 using namespace android;
 using namespace testing;
 
-static const auto OFF_FN = [](std::shared_ptr<vibrator::HalWrapper> hal) { return hal->off(); };
+static const auto OFF_FN = [](vibrator::HalWrapper* hal) { return hal->off(); };
 
 class MockBinder : public BBinder {
 public:
