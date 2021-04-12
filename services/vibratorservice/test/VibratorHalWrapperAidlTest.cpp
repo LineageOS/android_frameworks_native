@@ -644,7 +644,6 @@ TEST_F(VibratorHalWrapperAidlTest, TestPerformPwleEffect) {
                 .Times(Exactly(2))
                 .WillOnce(Return(Status::fromExceptionCode(Status::Exception::EX_SECURITY)))
                 .WillRepeatedly(DoAll(TriggerCallbackInArg1(), Return(Status())));
-        ;
     }
 
     std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
