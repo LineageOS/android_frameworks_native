@@ -115,6 +115,9 @@ struct OutputLayerCompositionState {
         // The buffer cache for this layer. This is used to lower the
         // cost of sending reused buffers to the HWC.
         HwcBufferCache hwcBufferCache;
+
+        // Set to true when overridden info has been sent to HW composer
+        bool stateOverridden = false;
     };
 
     // The HWC state is optional, and is only set up if there is any potential
