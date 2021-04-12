@@ -21,6 +21,7 @@
 #include <android/hardware/power/1.1/IPower.h>
 #include <android/hardware/power/Boost.h>
 #include <android/hardware/power/IPower.h>
+#include <android/hardware/power/IPowerHintSession.h>
 #include <android/hardware/power/Mode.h>
 
 namespace android {
@@ -34,11 +35,81 @@ enum class HalSupport {
     OFF = 2,
 };
 
-// State of the Power HAL api call result.
-enum class HalResult {
-    SUCCESSFUL = 0,
-    FAILED = 1,
-    UNSUPPORTED = 2,
+// Result of a call to the Power HAL wrapper, holding data if successful.
+template <typename T>
+class HalResult {
+public:
+    static HalResult<T> ok(T value) { return HalResult(value); }
+    static HalResult<T> failed(std::string msg) {
+        return HalResult(std::move(msg), /* unsupported= */ false);
+    }
+    static HalResult<T> unsupported() { return HalResult("", /* unsupported= */ true); }
+
+    static HalResult<T> fromStatus(binder::Status status, T data) {
+        if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
+            return HalResult<T>::unsupported();
+        }
+        if (status.isOk()) {
+            return HalResult<T>::ok(data);
+        }
+        return HalResult<T>::failed(std::string(status.toString8().c_str()));
+    }
+    static HalResult<T> fromStatus(hardware::power::V1_0::Status status, T data);
+
+    template <typename R>
+    static HalResult<T> fromReturn(hardware::Return<R>& ret, T data);
+
+    template <typename R>
+    static HalResult<T> fromReturn(hardware::Return<R>& ret, hardware::power::V1_0::Status status,
+                                   T data);
+
+    // This will throw std::bad_optional_access if this result is not ok.
+    const T& value() const { return mValue.value(); }
+    bool isOk() const { return !mUnsupported && mValue.has_value(); }
+    bool isFailed() const { return !mUnsupported && !mValue.has_value(); }
+    bool isUnsupported() const { return mUnsupported; }
+    const char* errorMessage() const { return mErrorMessage.c_str(); }
+
+private:
+    std::optional<T> mValue;
+    std::string mErrorMessage;
+    bool mUnsupported;
+
+    explicit HalResult(T value)
+          : mValue(std::make_optional(value)), mErrorMessage(), mUnsupported(false) {}
+    explicit HalResult(std::string errorMessage, bool unsupported)
+          : mValue(), mErrorMessage(std::move(errorMessage)), mUnsupported(unsupported) {}
+};
+
+// Empty result of a call to the Power HAL wrapper.
+template <>
+class HalResult<void> {
+public:
+    static HalResult<void> ok() { return HalResult(); }
+    static HalResult<void> failed(std::string msg) { return HalResult(std::move(msg)); }
+    static HalResult<void> unsupported() { return HalResult(/* unsupported= */ true); }
+
+    static HalResult<void> fromStatus(status_t status);
+    static HalResult<void> fromStatus(binder::Status status);
+    static HalResult<void> fromStatus(hardware::power::V1_0::Status status);
+
+    template <typename R>
+    static HalResult<void> fromReturn(hardware::Return<R>& ret);
+
+    bool isOk() const { return !mUnsupported && !mFailed; }
+    bool isFailed() const { return !mUnsupported && mFailed; }
+    bool isUnsupported() const { return mUnsupported; }
+    const char* errorMessage() const { return mErrorMessage.c_str(); }
+
+private:
+    std::string mErrorMessage;
+    bool mFailed;
+    bool mUnsupported;
+
+    explicit HalResult(bool unsupported = false)
+          : mErrorMessage(), mFailed(false), mUnsupported(unsupported) {}
+    explicit HalResult(std::string errorMessage)
+          : mErrorMessage(std::move(errorMessage)), mFailed(true), mUnsupported(false) {}
 };
 
 // Wrapper for Power HAL handlers.
@@ -46,8 +117,12 @@ class HalWrapper {
 public:
     virtual ~HalWrapper() = default;
 
-    virtual HalResult setBoost(hardware::power::Boost boost, int32_t durationMs) = 0;
-    virtual HalResult setMode(hardware::power::Mode mode, bool enabled) = 0;
+    virtual HalResult<void> setBoost(hardware::power::Boost boost, int32_t durationMs) = 0;
+    virtual HalResult<void> setMode(hardware::power::Mode mode, bool enabled) = 0;
+    virtual HalResult<sp<hardware::power::IPowerHintSession>> createHintSession(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+            int64_t durationNanos) = 0;
+    virtual HalResult<int64_t> getHintSessionPreferredRate() = 0;
 };
 
 // Empty Power HAL wrapper that ignores all api calls.
@@ -56,8 +131,12 @@ public:
     EmptyHalWrapper() = default;
     ~EmptyHalWrapper() = default;
 
-    virtual HalResult setBoost(hardware::power::Boost boost, int32_t durationMs) override;
-    virtual HalResult setMode(hardware::power::Mode mode, bool enabled) override;
+    virtual HalResult<void> setBoost(hardware::power::Boost boost, int32_t durationMs) override;
+    virtual HalResult<void> setMode(hardware::power::Mode mode, bool enabled) override;
+    virtual HalResult<sp<hardware::power::IPowerHintSession>> createHintSession(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+            int64_t durationNanos) override;
+    virtual HalResult<int64_t> getHintSessionPreferredRate() override;
 };
 
 // Wrapper for the HIDL Power HAL v1.0.
@@ -67,16 +146,20 @@ public:
           : mHandleV1_0(std::move(Hal)) {}
     virtual ~HidlHalWrapperV1_0() = default;
 
-    virtual HalResult setBoost(hardware::power::Boost boost, int32_t durationMs) override;
-    virtual HalResult setMode(hardware::power::Mode mode, bool enabled) override;
+    virtual HalResult<void> setBoost(hardware::power::Boost boost, int32_t durationMs) override;
+    virtual HalResult<void> setMode(hardware::power::Mode mode, bool enabled) override;
+    virtual HalResult<sp<hardware::power::IPowerHintSession>> createHintSession(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+            int64_t durationNanos) override;
+    virtual HalResult<int64_t> getHintSessionPreferredRate() override;
 
 protected:
-    virtual HalResult sendPowerHint(hardware::power::V1_0::PowerHint hintId, uint32_t data);
+    virtual HalResult<void> sendPowerHint(hardware::power::V1_0::PowerHint hintId, uint32_t data);
 
 private:
     sp<hardware::power::V1_0::IPower> mHandleV1_0;
-    HalResult setInteractive(bool enabled);
-    HalResult setFeature(hardware::power::V1_0::Feature feature, bool enabled);
+    HalResult<void> setInteractive(bool enabled);
+    HalResult<void> setFeature(hardware::power::V1_0::Feature feature, bool enabled);
 };
 
 // Wrapper for the HIDL Power HAL v1.1.
@@ -88,8 +171,8 @@ public:
     virtual ~HidlHalWrapperV1_1() = default;
 
 protected:
-    virtual HalResult sendPowerHint(hardware::power::V1_0::PowerHint hintId,
-                                    uint32_t data) override;
+    virtual HalResult<void> sendPowerHint(hardware::power::V1_0::PowerHint hintId,
+                                          uint32_t data) override;
 
 private:
     sp<hardware::power::V1_1::IPower> mHandleV1_1;
@@ -101,8 +184,12 @@ public:
     explicit AidlHalWrapper(sp<hardware::power::IPower> handle) : mHandle(std::move(handle)) {}
     virtual ~AidlHalWrapper() = default;
 
-    virtual HalResult setBoost(hardware::power::Boost boost, int32_t durationMs) override;
-    virtual HalResult setMode(hardware::power::Mode mode, bool enabled) override;
+    virtual HalResult<void> setBoost(hardware::power::Boost boost, int32_t durationMs) override;
+    virtual HalResult<void> setMode(hardware::power::Mode mode, bool enabled) override;
+    virtual HalResult<sp<hardware::power::IPowerHintSession>> createHintSession(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+            int64_t durationNanos) override;
+    virtual HalResult<int64_t> getHintSessionPreferredRate() override;
 
 private:
     // Control access to the boost and mode supported arrays.
