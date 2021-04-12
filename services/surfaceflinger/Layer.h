@@ -1192,7 +1192,7 @@ private:
     float mEffectiveShadowRadius = 0.f;
 
     // A list of regions on this layer that should have blurs.
-    const std::vector<BlurRegion>& getBlurRegions() const;
+    const std::vector<BlurRegion> getBlurRegions() const;
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);
