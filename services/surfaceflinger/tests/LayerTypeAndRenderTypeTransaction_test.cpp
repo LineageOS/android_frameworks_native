@@ -196,17 +196,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadius) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", size, size));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, size, size));
 
-    if (mLayerType == ISurfaceComposerClient::eFXSurfaceBufferQueue) {
-        Transaction()
-                .setCornerRadius(layer, cornerRadius)
-                .setCrop(layer, Rect(0, 0, size, size))
-                .apply();
-    } else {
-        Transaction()
-                .setCornerRadius(layer, cornerRadius)
-                .setFrame(layer, Rect(0, 0, size, size))
-                .apply();
-    }
+    Transaction().setCornerRadius(layer, cornerRadius).apply();
     {
         const uint8_t bottom = size - 1;
         const uint8_t right = size - 1;
@@ -234,19 +224,13 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusRotated) {
     ASSERT_NO_FATAL_FAILURE(child = createLayer("child", size, size));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(child, Color::GREEN, size, size));
 
-    auto transaction = Transaction()
-                               .setCornerRadius(parent, cornerRadius)
-                               .setCrop(parent, Rect(0, 0, size, size))
-                               .reparent(child, parent)
-                               .setPosition(child, 0, size)
-                               // Rotate by half PI
-                               .setMatrix(child, 0.0f, -1.0f, 1.0f, 0.0f);
-    if (mLayerType == ISurfaceComposerClient::eFXSurfaceBufferQueue) {
-        transaction.setCrop(parent, Rect(0, 0, size, size));
-    } else {
-        transaction.setFrame(parent, Rect(0, 0, size, size));
-    }
-    transaction.apply();
+    Transaction()
+            .setCornerRadius(parent, cornerRadius)
+            .reparent(child, parent)
+            .setPosition(child, 0, size)
+            // Rotate by half PI
+            .setMatrix(child, 0.0f, -1.0f, 1.0f, 0.0f)
+            .apply();
 
     {
         const uint8_t bottom = size - 1;
@@ -275,21 +259,12 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusChildCrop) {
     ASSERT_NO_FATAL_FAILURE(child = createLayer("child", size, size / 2));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(child, Color::GREEN, size, size / 2));
 
-    if (mLayerType == ISurfaceComposerClient::eFXSurfaceBufferQueue) {
-        Transaction()
-                .setCornerRadius(parent, cornerRadius)
-                .setCrop(parent, Rect(0, 0, size, size))
-                .reparent(child, parent)
-                .setPosition(child, 0, size / 2)
-                .apply();
-    } else {
-        Transaction()
-                .setCornerRadius(parent, cornerRadius)
-                .setFrame(parent, Rect(0, 0, size, size))
-                .reparent(child, parent)
-                .setFrame(child, Rect(0, size / 2, size, size))
-                .apply();
-    }
+    Transaction()
+            .setCornerRadius(parent, cornerRadius)
+            .reparent(child, parent)
+            .setPosition(child, 0, size / 2)
+            .apply();
+
     {
         const uint8_t bottom = size - 1;
         const uint8_t right = size - 1;
@@ -331,12 +306,9 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurRadiusSimple) {
 
     Transaction()
             .setLayer(greenLayer, mLayerZBase)
-            .setFrame(leftLayer, {0, 0, canvasSize * 2, canvasSize * 2})
             .setLayer(leftLayer, mLayerZBase + 1)
-            .setFrame(leftLayer, leftRect)
             .setLayer(rightLayer, mLayerZBase + 2)
             .setPosition(rightLayer, rightRect.left, rightRect.top)
-            .setFrame(rightLayer, rightRect)
             .apply();
 
     {
@@ -352,7 +324,6 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurRadiusSimple) {
             .setLayer(blurLayer, mLayerZBase + 3)
             .setBackgroundBlurRadius(blurLayer, blurRadius)
             .setCrop(blurLayer, blurRect)
-            .setFrame(blurLayer, blurRect)
             .setSize(blurLayer, blurRect.getWidth(), blurRect.getHeight())
             .setAlpha(blurLayer, 0.0f)
             .apply();
@@ -435,10 +406,8 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurAffectedByParentA
 
     Transaction()
             .setLayer(left, mLayerZBase + 1)
-            .setFrame(left, {0, 0, size, size})
             .setLayer(right, mLayerZBase + 2)
             .setPosition(right, size, 0)
-            .setFrame(right, {size, 0, size * 2, size})
             .apply();
 
     {
@@ -457,7 +426,6 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurAffectedByParentA
             .setAlpha(blurParent, 0.5)
             .setLayer(blur, mLayerZBase + 4)
             .setBackgroundBlurRadius(blur, size) // set the blur radius to the size of one rect
-            .setFrame(blur, {0, 0, size * 2, size})
             .reparent(blur, blurParent)
             .apply();
 

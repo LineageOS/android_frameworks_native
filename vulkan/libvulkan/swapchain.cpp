@@ -1086,7 +1086,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
     ALOGW_IF(err != android::OK, "native_window_api_connect failed: %s (%d)",
              strerror(-err), err);
 
-    err = window->perform(window, NATIVE_WINDOW_SET_DEQUEUE_TIMEOUT, -1);
+    err =
+        window->perform(window, NATIVE_WINDOW_SET_DEQUEUE_TIMEOUT, nsecs_t{-1});
     if (err != android::OK) {
         ALOGE("window->perform(SET_DEQUEUE_TIMEOUT) failed: %s (%d)",
               strerror(-err), err);

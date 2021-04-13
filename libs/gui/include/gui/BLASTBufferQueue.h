@@ -142,6 +142,33 @@ private:
     ui::Size mRequestedSize GUARDED_BY(mMutex);
     int32_t mFormat GUARDED_BY(mMutex);
 
+    struct BufferInfo {
+        bool hasBuffer = false;
+        uint32_t width;
+        uint32_t height;
+        uint32_t transform;
+        // This is used to check if we should update the blast layer size immediately or wait until
+        // we get the next buffer. This will support scenarios where the layer can change sizes
+        // and the buffer will scale to fit the new size.
+        uint32_t scalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
+
+        void update(bool hasBuffer, uint32_t width, uint32_t height, uint32_t transform,
+                    uint32_t scalingMode) {
+            this->hasBuffer = hasBuffer;
+            this->width = width;
+            this->height = height;
+            this->transform = transform;
+            this->scalingMode = scalingMode;
+        }
+    };
+
+    // Last acquired buffer's info. This is used to calculate the correct scale when size change is
+    // requested. We need to use the old buffer's info to determine what scale we need to apply to
+    // ensure the correct size.
+    BufferInfo mLastBufferInfo GUARDED_BY(mMutex);
+    void setMatrix(SurfaceComposerClient::Transaction* t, const BufferInfo& bufferInfo)
+            REQUIRES(mMutex);
+
     uint32_t mTransformHint GUARDED_BY(mMutex);
 
     sp<IGraphicBufferConsumer> mConsumer;
@@ -158,11 +185,6 @@ private:
     bool mAutoRefresh GUARDED_BY(mMutex) = false;
 
     std::queue<FrameTimelineInfo> mNextFrameTimelineInfoQueue GUARDED_BY(mMutex);
-
-    // Last acquired buffer's scaling mode. This is used to check if we should update the blast
-    // layer size immediately or wait until we get the next buffer. This will support scenarios
-    // where the layer can change sizes and the buffer will scale to fit the new size.
-    uint32_t mLastBufferScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
 
     // Tracks the last acquired frame number
     uint64_t mLastAcquiredFrameNumber GUARDED_BY(mMutex) = 0;
