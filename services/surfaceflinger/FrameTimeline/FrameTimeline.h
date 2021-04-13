@@ -293,11 +293,12 @@ public:
     // the token and sets the actualSfWakeTime for the current DisplayFrame.
     virtual void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) = 0;
 
-    // Sets the sfPresentTime, gpuComposition and finalizes the current DisplayFrame. Tracks the
+    // Sets the sfPresentTime and finalizes the current DisplayFrame. Tracks the
     // given present fence until it's signaled, and updates the present timestamps of all presented
-    // SurfaceFrames in that vsync.
+    // SurfaceFrames in that vsync. If a gpuFence was also provided, its tracked in the
+    // corresponding DisplayFrame.
     virtual void setSfPresent(nsecs_t sfPresentTime, const std::shared_ptr<FenceTime>& presentFence,
-                              bool gpuComposition) = 0;
+                              const std::shared_ptr<FenceTime>& gpuFence) = 0;
 
     // Args:
     // -jank : Dumps only the Display Frames that are either janky themselves
@@ -355,7 +356,7 @@ public:
     class DisplayFrame {
     public:
         DisplayFrame(std::shared_ptr<TimeStats> timeStats, JankClassificationThresholds thresholds,
-                     nsecs_t hwcDuration, TraceCookieCounter* traceCookieCounter);
+                     TraceCookieCounter* traceCookieCounter);
         virtual ~DisplayFrame() = default;
         // Dumpsys interface - dumps only if the DisplayFrame itself is janky or is at least one
         // SurfaceFrame is janky.
@@ -376,7 +377,7 @@ public:
         void setPredictions(PredictionState predictionState, TimelineItem predictions);
         void setActualStartTime(nsecs_t actualStartTime);
         void setActualEndTime(nsecs_t actualEndTime);
-        void setGpuComposition();
+        void setGpuFence(const std::shared_ptr<FenceTime>& gpuFence);
 
         // BaseTime is the smallest timestamp in a DisplayFrame.
         // Used for dumping all timestamps relative to the oldest, making it easy to read.
@@ -410,7 +411,6 @@ public:
         TimelineItem mSurfaceFlingerActuals;
         std::shared_ptr<TimeStats> mTimeStats;
         const JankClassificationThresholds mJankClassificationThresholds;
-        const nsecs_t mHwcDuration;
 
         // Collection of predictions and actual values sent over by Layers
         std::vector<std::shared_ptr<SurfaceFrame>> mSurfaceFrames;
@@ -418,8 +418,8 @@ public:
         PredictionState mPredictionState = PredictionState::None;
         // Bitmask for the type of jank
         int32_t mJankType = JankType::None;
-        // Indicates if this frame was composited by the GPU or not
-        bool mGpuComposition = false;
+        // A valid gpu fence indicates that the DisplayFrame was composited by the GPU
+        std::shared_ptr<FenceTime> mGpuFence = FenceTime::NO_FENCE;
         // Enum for the type of present
         FramePresentMetadata mFramePresentMetadata = FramePresentMetadata::UnknownPresent;
         // Enum for the type of finish
@@ -436,8 +436,7 @@ public:
     };
 
     FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid,
-                  JankClassificationThresholds thresholds = {},
-                  nsecs_t hwcDuration = kDefaultHwcDuration);
+                  JankClassificationThresholds thresholds = {});
     ~FrameTimeline() = default;
 
     frametimeline::TokenManager* getTokenManager() override { return &mTokenManager; }
@@ -447,7 +446,7 @@ public:
     void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame) override;
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) override;
     void setSfPresent(nsecs_t sfPresentTime, const std::shared_ptr<FenceTime>& presentFence,
-                      bool gpuComposition = false) override;
+                      const std::shared_ptr<FenceTime>& gpuFence = FenceTime::NO_FENCE) override;
     void parseArgs(const Vector<String16>& args, std::string& result) override;
     void setMaxDisplayFrames(uint32_t size) override;
     float computeFps(const std::unordered_set<int32_t>& layerIds) override;
@@ -482,11 +481,6 @@ private:
     std::shared_ptr<TimeStats> mTimeStats;
     const pid_t mSurfaceFlingerPid;
     const JankClassificationThresholds mJankClassificationThresholds;
-    // In SF Predictions, both end & present are the same. The predictions consider the time used by
-    // composer as well, but we have no way to estimate how much time the composer needs. We are
-    // assuming an arbitrary time for the composer work.
-    const nsecs_t mHwcDuration;
-    static constexpr nsecs_t kDefaultHwcDuration = std::chrono::nanoseconds(3ms).count();
     static constexpr uint32_t kDefaultMaxDisplayFrames = 64;
     // The initial container size for the vector<SurfaceFrames> inside display frame. Although
     // this number doesn't represent any bounds on the number of surface frames that can go in a
