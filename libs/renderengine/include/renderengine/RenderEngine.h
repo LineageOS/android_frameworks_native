@@ -17,18 +17,19 @@
 #ifndef SF_RENDERENGINE_H_
 #define SF_RENDERENGINE_H_
 
-#include <stdint.h>
-#include <sys/types.h>
-#include <memory>
-
 #include <android-base/unique_fd.h>
 #include <math/mat4.h>
 #include <renderengine/DisplaySettings.h>
+#include <renderengine/ExternalTexture.h>
 #include <renderengine/Framebuffer.h>
 #include <renderengine/Image.h>
 #include <renderengine/LayerSettings.h>
+#include <stdint.h>
+#include <sys/types.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
+
+#include <memory>
 
 /**
  * Allows to set RenderEngine backend to GLES (default) or SkiaGL (NOT yet supported).
@@ -51,6 +52,7 @@ class Region;
 
 namespace renderengine {
 
+class ExternalTexture;
 class Image;
 class Mesh;
 class Texture;
@@ -104,23 +106,6 @@ public:
 
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
-    // Caches Image resources for this buffer, but does not bind the buffer to
-    // a particular texture.
-    // Note that work is deferred to an additional thread, i.e. this call
-    // is made asynchronously, but the caller can expect that cache/unbind calls
-    // are performed in a manner that's conflict serializable, i.e. unbinding
-    // a buffer should never occur before binding the buffer if the caller
-    // called {bind, cache}ExternalTextureBuffer before calling unbind.
-    virtual void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) = 0;
-    // Removes internal resources referenced by the bufferId. This method should be
-    // invoked when the caller will no longer hold a reference to a GraphicBuffer
-    // and needs to clean up its resources.
-    // Note that work is deferred to an additional thread, i.e. this call
-    // is made asynchronously, but the caller can expect that cache/unbind calls
-    // are performed in a manner that's conflict serializable, i.e. unbinding
-    // a buffer should never occur before binding the buffer if the caller
-    // called {bind, cache}ExternalTextureBuffer before calling unbind.
-    virtual void unbindExternalTextureBuffer(uint64_t bufferId) = 0;
 
     enum class CleanupMode {
         CLEAN_OUTPUT_RESOURCES,
@@ -191,8 +176,9 @@ public:
     // now, this always returns NO_ERROR.
     virtual status_t drawLayers(const DisplaySettings& display,
                                 const std::vector<const LayerSettings*>& layers,
-                                const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
-                                base::unique_fd&& bufferFence, base::unique_fd* drawFence) = 0;
+                                const std::shared_ptr<ExternalTexture>& buffer,
+                                const bool useFramebufferCache, base::unique_fd&& bufferFence,
+                                base::unique_fd* drawFence) = 0;
     virtual void cleanFramebufferCache() = 0;
     // Returns the priority this context was actually created with. Note: this may not be
     // the same as specified at context creation time, due to implementation limits on the
@@ -213,6 +199,31 @@ public:
     static void validateOutputBufferUsage(const sp<GraphicBuffer>&);
 
 protected:
+    // Maps GPU resources for this buffer.
+    // Note that work may be deferred to an additional thread, i.e. this call
+    // is made asynchronously, but the caller can expect that map/unmap calls
+    // are performed in a manner that's conflict serializable, i.e. unmapping
+    // a buffer should never occur before binding the buffer if the caller
+    // called mapExternalTextureBuffer before calling unmap.
+    // Note also that if the buffer contains protected content, then mapping those GPU resources may
+    // be deferred until the buffer is really used for drawing. This is because typical SoCs that
+    // support protected memory only support a limited amount, so optimisitically mapping protected
+    // memory may be too burdensome. If a buffer contains protected content and the RenderEngine
+    // implementation supports protected context, then GPU resources may be mapped into both the
+    // protected and unprotected contexts.
+    // If the buffer may ever be written to by RenderEngine, then isRenderable must be true.
+    virtual void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) = 0;
+    // Unmaps GPU resources used by this buffer. This method should be
+    // invoked when the caller will no longer hold a reference to a GraphicBuffer
+    // and needs to clean up its resources.
+    // Note that if there are multiple callers holding onto the same buffer, then the buffer's
+    // resources may be internally ref-counted to guard against use-after-free errors. Note that
+    // work may be deferred to an additional thread, i.e. this call is expected to be made
+    // asynchronously, but the caller can expect that map/unmap calls are performed in a manner
+    // that's conflict serializable, i.e. unmap a buffer should never occur before binding the
+    // buffer if the caller called mapExternalTextureBuffer before calling unmap.
+    virtual void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) = 0;
+    friend class ExternalTexture;
     friend class threaded::RenderEngineThreaded;
     const RenderEngineType mRenderEngineType;
 };

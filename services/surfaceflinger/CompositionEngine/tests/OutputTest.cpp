@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <cmath>
-
 #include <android-base/stringprintf.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/Output.h>
@@ -31,9 +29,12 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
+#include <cmath>
+
 #include "CallOrderStateMachineHelper.h"
 #include "MockHWC2.h"
 #include "RegionMatcher.h"
+#include "renderengine/ExternalTexture.h"
 
 namespace android::compositionengine {
 namespace {
@@ -2960,7 +2961,10 @@ struct OutputComposeSurfacesTest : public testing::Test {
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
     StrictMock<OutputPartialMock> mOutput;
-    sp<GraphicBuffer> mOutputBuffer = new GraphicBuffer();
+    std::shared_ptr<renderengine::ExternalTexture> mOutputBuffer = std::make_shared<
+            renderengine::ExternalTexture>(new GraphicBuffer(), mRenderEngine,
+                                           renderengine::ExternalTexture::Usage::READABLE |
+                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
 
     std::optional<base::unique_fd> mReadyFence;
 };
@@ -3173,7 +3177,10 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
     EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
             .WillRepeatedly(Return());
 
-    sp<GraphicBuffer> otherOutputBuffer = new GraphicBuffer();
+    const auto otherOutputBuffer = std::make_shared<
+            renderengine::ExternalTexture>(new GraphicBuffer(), mRenderEngine,
+                                           renderengine::ExternalTexture::Usage::READABLE |
+                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_))
             .WillOnce(Return(mOutputBuffer))
             .WillOnce(Return(otherOutputBuffer));
