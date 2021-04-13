@@ -28,6 +28,7 @@
 #include <SkColorFilter.h>
 #include <SkColorMatrix.h>
 #include <SkColorSpace.h>
+#include <SkGraphics.h>
 #include <SkImage.h>
 #include <SkImageFilters.h>
 #include <SkRegion.h>
@@ -40,13 +41,13 @@
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/Trace.h>
-#include "Cache.h"
 
 #include <cmath>
 #include <cstdint>
 #include <memory>
 
 #include "../gl/GLExtensions.h"
+#include "Cache.h"
 #include "ColorSpaces.h"
 #include "SkBlendMode.h"
 #include "SkImageInfo.h"
@@ -54,6 +55,7 @@
 #include "filters/LinearEffect.h"
 #include "log/log_main.h"
 #include "skia/debug/SkiaCapture.h"
+#include "skia/debug/SkiaMemoryReporter.h"
 #include "system/graphics-base-v1.0.h"
 
 namespace {
@@ -1249,9 +1251,38 @@ void SkiaGLRenderEngine::dump(std::string& result) {
     StringAppendF(&result, "RenderEngine shaders cached since last dump/primeCache: %d\n",
                   mSkSLCacheMonitor.shadersCachedSinceLastCall());
 
+    std::vector<ResourcePair> cpuResourceMap = {
+            {"skia/sk_resource_cache/bitmap_", "Bitmaps"},
+            {"skia/sk_resource_cache/rrect-blur_", "Masks"},
+            {"skia/sk_resource_cache/rects-blur_", "Masks"},
+            {"skia/sk_resource_cache/tessellated", "Shadows"},
+            {"skia", "Other"},
+    };
+    SkiaMemoryReporter cpuReporter(cpuResourceMap, false);
+    SkGraphics::DumpMemoryStatistics(&cpuReporter);
+    StringAppendF(&result, "Skia CPU Caches: ");
+    cpuReporter.logTotals(result);
+    cpuReporter.logOutput(result);
+
     {
         std::lock_guard<std::mutex> lock(mRenderingMutex);
-        StringAppendF(&result, "RenderEngine texture cache size: %zu\n", mTextureCache.size());
+
+        std::vector<ResourcePair> gpuResourceMap = {
+                {"texture_renderbuffer", "Texture/RenderBuffer"},
+                {"texture", "Texture"},
+                {"gr_text_blob_cache", "Text"},
+                {"skia", "Other"},
+        };
+        SkiaMemoryReporter gpuReporter(gpuResourceMap, true);
+        mGrContext->dumpMemoryStatistics(&gpuReporter);
+        StringAppendF(&result, "Skia's GPU Caches: ");
+        gpuReporter.logTotals(result);
+        gpuReporter.logOutput(result);
+        StringAppendF(&result, "Skia's Wrapped Objects:\n");
+        gpuReporter.logOutput(result, true);
+
+        StringAppendF(&result, "RenderEngine AHB/BackendTexture cache size: %zu\n",
+                      mTextureCache.size());
         StringAppendF(&result, "Dumping buffer ids...\n");
         // TODO(178539829): It would be nice to know which layer these are coming from and what
         // the texture sizes are.
@@ -1259,7 +1290,16 @@ void SkiaGLRenderEngine::dump(std::string& result) {
             StringAppendF(&result, "- 0x%" PRIx64 "\n", id);
         }
         StringAppendF(&result, "\n");
-        StringAppendF(&result, "RenderEngine protected texture cache size: %zu\n",
+
+        SkiaMemoryReporter gpuProtectedReporter(gpuResourceMap, true);
+        mProtectedGrContext->dumpMemoryStatistics(&gpuProtectedReporter);
+        StringAppendF(&result, "Skia's GPU Protected Caches: ");
+        gpuProtectedReporter.logTotals(result);
+        gpuProtectedReporter.logOutput(result);
+        StringAppendF(&result, "Skia's Protected Wrapped Objects:\n");
+        gpuProtectedReporter.logOutput(result, true);
+
+        StringAppendF(&result, "RenderEngine protected AHB/BackendTexture cache size: %zu\n",
                       mProtectedTextureCache.size());
         StringAppendF(&result, "Dumping buffer ids...\n");
         for (const auto& [id, unused] : mProtectedTextureCache) {
