@@ -1032,12 +1032,12 @@ class ZippedBugReportStreamTest : public DumpstateBaseTest {
     ZipArchiveHandle handle_;
 };
 
-// Generate a quick wifi report redirected to a file, open it and verify entry exist.
-TEST_F(ZippedBugReportStreamTest, StreamWifiReport) {
-    std::string out_path = kTestDataPath + "out.zip";
+// Generate a quick LimitedOnly report redirected to a file, open it and verify entry exist.
+TEST_F(ZippedBugReportStreamTest, StreamLimitedOnlyReport) {
+    std::string out_path = kTestDataPath + "StreamLimitedOnlyReportOut.zip";
     android::base::unique_fd out_fd;
     CreateFd(out_path, &out_fd);
-    ds_.options_->wifi_only = true;
+    ds_.options_->limited_only = true;
     ds_.options_->stream_to_socket = true;
     RedirectOutputToFd(out_fd);
 
@@ -1051,7 +1051,7 @@ TEST_F(ZippedBugReportStreamTest, StreamWifiReport) {
     ExtractToMemory(handle_, &entry, reinterpret_cast<uint8_t*>(bugreport_txt_name.data()),
                     entry.uncompressed_length);
     EXPECT_THAT(bugreport_txt_name,
-                testing::ContainsRegex("(bugreport-.+-wifi(-[[:digit:]]+){6}\\.txt)"));
+                testing::ContainsRegex("(bugreport-.+(-[[:digit:]]+){6}\\.txt)"));
     VerifyEntry(handle_, bugreport_txt_name, &entry);
 }
 
