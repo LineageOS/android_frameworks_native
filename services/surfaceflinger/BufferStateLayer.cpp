@@ -259,25 +259,6 @@ bool BufferStateLayer::willPresentCurrentTransaction() const {
              (mCurrentState.buffer != nullptr || mCurrentState.bgColorLayer != nullptr)));
 }
 
-/* TODO: vhau uncomment once deferred transaction migration complete in
- * WindowManager
-void BufferStateLayer::pushPendingState() {
-    if (!mCurrentState.modified) {
-        return;
-    }
-    mPendingStates.push_back(mCurrentState);
-    ATRACE_INT(mTransactionName.c_str(), mPendingStates.size());
-}
-*/
-
-bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
-    mCurrentStateModified = mCurrentState.modified;
-    bool stateUpdateAvailable = Layer::applyPendingStates(stateToCommit);
-    mCurrentStateModified = stateUpdateAvailable && mCurrentStateModified;
-    mCurrentState.modified = false;
-    return stateUpdateAvailable;
-}
-
 Rect BufferStateLayer::getCrop(const Layer::State& s) const {
     return s.crop;
 }

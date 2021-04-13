@@ -1140,23 +1140,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBlurR
     return *this;
 }
 
-SurfaceComposerClient::Transaction&
-SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(
-        const sp<SurfaceControl>& sc, const sp<SurfaceControl>& barrierSurfaceControl,
-        uint64_t frameNumber) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-    s->what |= layer_state_t::eDeferTransaction_legacy;
-    s->barrierSurfaceControl_legacy = barrierSurfaceControl;
-    s->barrierFrameNumber = frameNumber;
-
-    registerSurfaceControlForCallback(sc);
-    return *this;
-}
-
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::reparent(
         const sp<SurfaceControl>& sc, const sp<SurfaceControl>& newParent) {
     layer_state_t* s = getLayerState(sc);
