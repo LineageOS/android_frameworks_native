@@ -30,7 +30,7 @@ namespace vibrator {
 std::shared_ptr<HalWrapper> connectHal(std::shared_ptr<CallbackScheduler> scheduler);
 
 template <typename T>
-using HalFunction = std::function<T(std::shared_ptr<HalWrapper>)>;
+using HalFunction = std::function<T(HalWrapper*)>;
 
 // Controller for Vibrator HAL handle.
 // This relies on a given Connector to connect to the underlying Vibrator HAL service and reconnects
@@ -64,8 +64,7 @@ public:
      */
     Info getInfo() {
         static Info sDefaultInfo = InfoCache().get();
-        return apply<Info>([](std::shared_ptr<HalWrapper> hal) { return hal->getInfo(); },
-                           sDefaultInfo, "getInfo");
+        return apply<Info>([](HalWrapper* hal) { return hal->getInfo(); }, sDefaultInfo, "getInfo");
     }
 
     /* Calls given HAL function, applying automatic retries to reconnect with the HAL when the
@@ -103,7 +102,7 @@ private:
         }
 
         for (int i = 0; i < MAX_RETRIES; i++) {
-            T result = halFn(hal);
+            T result = halFn(hal.get());
             if (result.checkAndLogFailure(functionName)) {
                 tryReconnect();
             } else {
@@ -111,7 +110,7 @@ private:
             }
         }
 
-        return halFn(hal);
+        return halFn(hal.get());
     }
 };
 

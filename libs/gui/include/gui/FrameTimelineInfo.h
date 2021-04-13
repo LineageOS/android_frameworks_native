@@ -18,7 +18,6 @@
 
 #include <stdint.h>
 
-#include <android/os/IInputConstants.h>
 #include <binder/Parcel.h>
 
 namespace android {
@@ -31,7 +30,11 @@ struct FrameTimelineInfo {
     int64_t vsyncId = INVALID_VSYNC_ID;
 
     // The id of the input event that caused this buffer
-    int32_t inputEventId = android::os::IInputConstants::INVALID_INPUT_EVENT_ID;
+    // Default is android::os::IInputConstants::INVALID_INPUT_EVENT_ID = 0
+    // We copy the value of the input event ID instead of including the header, because libgui
+    // header libraries containing FrameTimelineInfo must be available to vendors, but libinput is
+    // not directly vendor available.
+    int32_t inputEventId = 0;
 
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
