@@ -40,13 +40,17 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
 
     ++mInitialLayerCounts[layers.size()];
 
-    if (mergeWithCachedSets(layers, now)) {
-        hash = mLayersHash;
-    }
+    // Only buildCachedSets if these layers are already stored in mLayers.
+    // Otherwise (i.e. mergeWithCachedSets returns false), the time has not
+    // changed, so buildCachedSets will never find any runs.
+    const bool alreadyHadCachedSets = mergeWithCachedSets(layers, now);
 
     ++mFinalLayerCounts[mLayers.size()];
 
-    buildCachedSets(now);
+    if (alreadyHadCachedSets) {
+        buildCachedSets(now);
+        hash = computeLayersHash();
+    }
 
     return hash;
 }
@@ -157,14 +161,17 @@ void Flattener::resetActivities(NonBufferHash hash, time_point now) {
     }
 }
 
-void Flattener::updateLayersHash() {
+NonBufferHash Flattener::computeLayersHash() const{
     size_t hash = 0;
     for (const auto& layer : mLayers) {
         android::hashCombineSingleHashed(hash, layer.getNonBufferHash());
     }
-    mLayersHash = hash;
+    return hash;
 }
 
+// Only called if the geometry matches the last frame. Return true if mLayers
+// was already populated with these layers, i.e. on the second and following
+// calls with the same geometry.
 bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers, time_point now) {
     std::vector<CachedSet> merged;
 
@@ -272,7 +279,6 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
     }
 
     mLayers = std::move(merged);
-    updateLayersHash();
     return true;
 }
 
