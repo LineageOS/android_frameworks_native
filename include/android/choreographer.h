@@ -32,6 +32,11 @@
 __BEGIN_DECLS
 
 struct AChoreographer;
+/**
+ * Opaque type that provides access to an AChoreographer object.
+ *
+ * A pointer can be obtained using {@link AChoreographer_getInstance()}.
+ */
 typedef struct AChoreographer AChoreographer;
 
 /**

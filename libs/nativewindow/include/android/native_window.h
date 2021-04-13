@@ -157,6 +157,7 @@ int32_t ANativeWindow_getFormat(ANativeWindow* window);
  * For all of these parameters, if 0 is supplied then the window's base
  * value will come back in force.
  *
+ * \param window pointer to an ANativeWindow object.
  * \param width width of the buffers in pixels.
  * \param height height of the buffers in pixels.
  * \param format one of the AHardwareBuffer_Format constants.
@@ -191,6 +192,7 @@ int32_t ANativeWindow_unlockAndPost(ANativeWindow* window);
  *
  * Available since API level 26.
  *
+ * \param window pointer to an ANativeWindow object.
  * \param transform combination of {@link ANativeWindowTransform} flags
  * \return 0 for success, or -EINVAL if \p transform is invalid
  */
@@ -208,6 +210,7 @@ int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transfo
  *
  * Available since API level 28.
  *
+ * \param window pointer to an ANativeWindow object.
  * \param dataSpace data space of all buffers queued after this call.
  * \return 0 for success, -EINVAL if window is invalid or the dataspace is not
  * supported.
@@ -305,6 +308,8 @@ enum ANativeWindow_ChangeFrameRateStrategy {
  * function isn't called. The frameRate param does <em>not</em> need to be a
  * valid refresh rate for this device's display - e.g., it's fine to pass 30fps
  * to a device that can only run the display at 60fps.
+ *
+ * \param window pointer to an ANativeWindow object.
  *
  * \param compatibility The frame rate compatibility of this window. The
  * compatibility value may influence the system's choice of display refresh
