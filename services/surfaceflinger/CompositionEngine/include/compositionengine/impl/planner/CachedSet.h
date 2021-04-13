@@ -108,7 +108,7 @@ public:
 private:
     CachedSet() = default;
 
-    NonBufferHash mFingerprint = 0;
+    const NonBufferHash mFingerprint;
     std::chrono::steady_clock::time_point mLastUpdate = std::chrono::steady_clock::now();
     std::vector<Layer> mLayers;
     Rect mBounds = Rect::EMPTY_RECT;
