@@ -46,7 +46,6 @@ message SurfaceChange {
         HiddenFlagChange            hidden_flag             = 12;
         OpaqueFlagChange            opaque_flag             = 13;
         SecureFlagChange            secure_flag             = 14;
-        DeferredTransactionChange   deferred_transaction    = 15;
         CornerRadiusChange          corner_radius           = 16;
         ReparentChange              reparent                = 17;
         RelativeParentChange        relative_parent         = 18;
@@ -111,11 +110,6 @@ message OpaqueFlagChange {
 
 message SecureFlagChange {
     required bool secure_flag = 1;
-}
-
-message DeferredTransactionChange {
-    required int32  layer_id     = 1;
-    required uint64 frame_number = 2;
 }
 
 message DisplayChange {

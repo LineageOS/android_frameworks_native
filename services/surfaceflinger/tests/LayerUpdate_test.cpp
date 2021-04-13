@@ -160,61 +160,6 @@ protected:
     }
 };
 
-TEST_F(LayerUpdateTest, DeferredTransactionTest) {
-    std::unique_ptr<ScreenCapture> sc;
-    {
-        SCOPED_TRACE("before anything");
-        ScreenCapture::captureScreen(&sc);
-        sc->expectBGColor(32, 32);
-        sc->expectFGColor(96, 96);
-        sc->expectBGColor(160, 160);
-    }
-
-    // set up two deferred transactions on different frames
-    asTransaction([&](Transaction& t) {
-        t.setAlpha(mFGSurfaceControl, 0.75);
-        t.deferTransactionUntil_legacy(mFGSurfaceControl, mSyncSurfaceControl,
-                                       mSyncSurfaceControl->getSurface()->getNextFrameNumber());
-    });
-
-    asTransaction([&](Transaction& t) {
-        t.setPosition(mFGSurfaceControl, 128, 128);
-        t.deferTransactionUntil_legacy(mFGSurfaceControl, mSyncSurfaceControl,
-                                       mSyncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
-    });
-
-    {
-        SCOPED_TRACE("before any trigger");
-        ScreenCapture::captureScreen(&sc);
-        sc->expectBGColor(32, 32);
-        sc->expectFGColor(96, 96);
-        sc->expectBGColor(160, 160);
-    }
-
-    // should trigger the first deferred transaction, but not the second one
-    TransactionUtils::fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
-    {
-        SCOPED_TRACE("after first trigger");
-        ScreenCapture::captureScreen(&sc);
-        sc->expectBGColor(32, 32);
-        sc->checkPixel(96, 96, 162, 63, 96);
-        sc->expectBGColor(160, 160);
-    }
-
-    // should show up immediately since it's not deferred
-    asTransaction([&](Transaction& t) { t.setAlpha(mFGSurfaceControl, 1.0); });
-
-    // trigger the second deferred transaction
-    TransactionUtils::fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
-    {
-        SCOPED_TRACE("after second trigger");
-        ScreenCapture::captureScreen(&sc);
-        sc->expectBGColor(32, 32);
-        sc->expectBGColor(96, 96);
-        sc->expectFGColor(160, 160);
-    }
-}
-
 TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
     std::unique_ptr<ScreenCapture> sc;
 
@@ -700,36 +645,6 @@ TEST_F(ChildLayerTest, ChildrenWithParentBufferTransformAndScale) {
         mCapture->expectChildColor(19, 29);
         mCapture->expectFGColor(20, 30);
     }
-}
-
-TEST_F(ChildLayerTest, Bug36858924) {
-    // Destroy the child layer
-    mChild.clear();
-
-    // Now recreate it as hidden
-    mChild = createSurface(mClient, "Child surface", 10, 10, PIXEL_FORMAT_RGBA_8888,
-                           ISurfaceComposerClient::eHidden, mFGSurfaceControl.get());
-
-    // Show the child layer in a deferred transaction
-    asTransaction([&](Transaction& t) {
-        t.deferTransactionUntil_legacy(mChild, mFGSurfaceControl,
-                                       mFGSurfaceControl->getSurface()->getNextFrameNumber());
-        t.show(mChild);
-    });
-
-    // Render the foreground surface a few times
-    //
-    // Prior to the bugfix for b/36858924, this would usually hang while trying to fill the third
-    // frame because SurfaceFlinger would never process the deferred transaction and would therefore
-    // never acquire/release the first buffer
-    ALOGI("Filling 1");
-    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 0, 255, 0);
-    ALOGI("Filling 2");
-    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 0, 0, 255);
-    ALOGI("Filling 3");
-    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 255, 0, 0);
-    ALOGI("Filling 4");
-    TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 0, 255, 0);
 }
 
 TEST_F(ChildLayerTest, Reparent) {

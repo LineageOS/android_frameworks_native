@@ -153,11 +153,8 @@ void SetFrameRateTest::removeChild(sp<Layer> layer, sp<Layer> child) {
 
 void SetFrameRateTest::commitTransaction() {
     for (auto layer : mLayers) {
-        layer->pushPendingState();
         auto c = layer->getCurrentState();
-        if (layer->applyPendingStates(&c)) {
-            layer->commitTransaction(c);
-        }
+        layer->commitTransaction(c);
     }
 }
 

@@ -141,11 +141,6 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
     addCornerRadiusLocked(transaction, layerId, layer->mCurrentState.cornerRadius);
     addBackgroundBlurRadiusLocked(transaction, layerId, layer->mCurrentState.backgroundBlurRadius);
     addBlurRegionsLocked(transaction, layerId, layer->mCurrentState.blurRegions);
-    if (layer->mCurrentState.barrierLayer_legacy != nullptr) {
-        addDeferTransactionLocked(transaction, layerId,
-                                  layer->mCurrentState.barrierLayer_legacy.promote(),
-                                  layer->mCurrentState.barrierFrameNumber);
-    }
     addFlagsLocked(transaction, layerId, layer->mCurrentState.flags,
                    layer_state_t::eLayerHidden | layer_state_t::eLayerOpaque |
                            layer_state_t::eLayerSecure);
@@ -380,20 +375,6 @@ void SurfaceInterceptor::addBlurRegionsLocked(Transaction* transaction, int32_t 
     }
 }
 
-void SurfaceInterceptor::addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
-        const sp<const Layer>& layer, uint64_t frameNumber)
-{
-    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
-    if (layer == nullptr) {
-        ALOGE("An existing layer could not be retrieved with the handle"
-                " for the deferred transaction");
-        return;
-    }
-    DeferredTransactionChange* deferTransaction(change->mutable_deferred_transaction());
-    deferTransaction->set_layer_id(getLayerId(layer));
-    deferTransaction->set_frame_number(frameNumber);
-}
-
 void SurfaceInterceptor::addReparentLocked(Transaction* transaction, int32_t layerId,
                                            int32_t parentId) {
     SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
@@ -463,15 +444,6 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     }
     if (state.what & layer_state_t::eBlurRegionsChanged) {
         addBlurRegionsLocked(transaction, layerId, state.blurRegions);
-    }
-    if (state.what & layer_state_t::eDeferTransaction_legacy) {
-        sp<Layer> otherLayer = nullptr;
-        if (state.barrierSurfaceControl_legacy != nullptr) {
-            otherLayer = static_cast<Layer::Handle*>(
-                                 state.barrierSurfaceControl_legacy->getHandle().get())
-                                 ->owner.promote();
-        }
-        addDeferTransactionLocked(transaction, layerId, otherLayer, state.barrierFrameNumber);
     }
     if (state.what & layer_state_t::eReparent) {
         auto parentHandle = (state.parentSurfaceControlForChild)

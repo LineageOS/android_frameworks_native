@@ -50,10 +50,6 @@ public:
     uint32_t doTransactionResize(uint32_t flags, Layer::State* /*stateToCommit*/) override {
         return flags;
     }
-    /*TODO:vhau return to using BufferStateLayer override once WM
-     * has removed deferred transactions!
-    void pushPendingState() override;*/
-    bool applyPendingStates(Layer::State* stateToCommit) override;
 
     uint32_t getActiveWidth(const Layer::State& s) const override { return s.width; }
     uint32_t getActiveHeight(const Layer::State& s) const override { return s.height; }
@@ -87,10 +83,6 @@ public:
     // Override to ignore legacy layer state properties that are not used by BufferStateLayer
     bool setSize(uint32_t /*w*/, uint32_t /*h*/) override { return false; }
     bool setTransparentRegionHint(const Region& transparent) override;
-    void deferTransactionUntil_legacy(const sp<IBinder>& /*barrierHandle*/,
-                                      uint64_t /*frameNumber*/) override {}
-    void deferTransactionUntil_legacy(const sp<Layer>& /*barrierLayer*/,
-                                      uint64_t /*frameNumber*/) override {}
 
     Rect getBufferSize(const State& s) const override;
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
@@ -165,7 +157,6 @@ private:
     uint64_t mPreviousBufferId = 0;
     uint64_t mPreviousReleasedFrameNumber = 0;
 
-    mutable bool mCurrentStateModified = false;
     bool mReleasePreviousBuffer = false;
 
     // Stores the last set acquire fence signal time used to populate the callback handle's acquire
