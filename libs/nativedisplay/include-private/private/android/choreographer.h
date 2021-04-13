@@ -42,6 +42,11 @@ int64_t AChoreographer_getVsyncId(const AChoreographer* choreographer);
 // value.
 int64_t AChoreographer_getFrameDeadline(const AChoreographer* choreographer);
 
+// Returns the current interval in ns between frames.
+// Client are expected to call this function from their frame callback function.
+// Calling this function from anywhere else will return an undefined value.
+int64_t AChoreographer_getFrameInterval(const AChoreographer* choreographer);
+
 // Trampoline functions allowing libandroid.so to define the NDK symbols without including
 // the entirety of libnativedisplay as a whole static lib. As libnativedisplay
 // maintains global state, libnativedisplay can never be directly statically

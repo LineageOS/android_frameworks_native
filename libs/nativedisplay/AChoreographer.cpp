@@ -130,7 +130,7 @@ public:
     virtual ~Choreographer() override EXCLUDES(gChoreographers.lock);
     int64_t getVsyncId() const;
     int64_t getFrameDeadline() const;
-
+    int64_t getFrameInterval() const;
 
 private:
     Choreographer(const Choreographer&) = delete;
@@ -418,6 +418,10 @@ int64_t Choreographer::getFrameDeadline() const {
     return mLastVsyncEventData.deadlineTimestamp;
 }
 
+int64_t Choreographer::getFrameInterval() const {
+    return mLastVsyncEventData.frameInterval;
+}
+
 } // namespace android
 using namespace android;
 
@@ -499,6 +503,10 @@ int64_t AChoreographer_getVsyncId(const AChoreographer* choreographer) {
 
 int64_t AChoreographer_getFrameDeadline(const AChoreographer* choreographer) {
     return AChoreographer_to_Choreographer(choreographer)->getFrameDeadline();
+}
+
+int64_t AChoreographer_getFrameInterval(const AChoreographer* choreographer) {
+    return AChoreographer_to_Choreographer(choreographer)->getFrameInterval();
 }
 
 } // namespace android

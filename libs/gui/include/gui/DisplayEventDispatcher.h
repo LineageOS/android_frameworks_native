@@ -30,6 +30,9 @@ struct VsyncEventData {
     // The deadline in CLOCK_MONOTONIC that the app needs to complete its
     // frame by (both on the CPU and the GPU)
     int64_t deadlineTimestamp = std::numeric_limits<int64_t>::max();
+
+    // The current frame interval in ns when this frame was scheduled.
+    int64_t frameInterval = 0;
 };
 
 class DisplayEventDispatcher : public LooperCallback {

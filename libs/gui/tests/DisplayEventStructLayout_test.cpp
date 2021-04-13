@@ -34,7 +34,8 @@ TEST(DisplayEventStructLayoutTest, TestEventAlignment) {
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync, count, 0);
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync, expectedVSyncTimestamp, 8);
     CHECK_OFFSET(DisplayEventReceiver::Event::VSync, deadlineTimestamp, 16);
-    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncId, 24);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, frameInterval, 24);
+    CHECK_OFFSET(DisplayEventReceiver::Event::VSync, vsyncId, 32);
 
     CHECK_OFFSET(DisplayEventReceiver::Event::Hotplug, connected, 0);
 
