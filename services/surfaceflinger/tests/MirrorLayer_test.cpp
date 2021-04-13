@@ -195,7 +195,7 @@ TEST_F(MirrorLayerTest, MirrorBufferLayer) {
             createLayer("BufferStateLayer", 200, 200, ISurfaceComposerClient::eFXSurfaceBufferState,
                         mChildLayer.get());
     fillBufferStateLayerColor(bufferStateLayer, Color::BLUE, 200, 200);
-    Transaction().setFrame(bufferStateLayer, Rect(0, 0, 200, 200)).show(bufferStateLayer).apply();
+    Transaction().show(bufferStateLayer).apply();
 
     {
         SCOPED_TRACE("Initial Mirror BufferStateLayer");
