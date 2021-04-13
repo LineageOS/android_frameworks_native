@@ -693,12 +693,16 @@ uint32_t SurfaceFlinger::getNewTexture() {
 
     // The pool was empty, so we need to get a new texture name directly using a
     // blocking call to the main thread
-    return schedule([this] {
+    auto genTextures = [this] {
                uint32_t name = 0;
                getRenderEngine().genTextures(1, &name);
                return name;
-           })
-            .get();
+    };
+    if (std::this_thread::get_id() == mMainThreadId) {
+        return genTextures();
+    } else {
+        return schedule(genTextures).get();
+    }
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
