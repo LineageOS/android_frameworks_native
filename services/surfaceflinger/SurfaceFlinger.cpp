@@ -5515,9 +5515,24 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 const int modeId = data.readInt32();
                 mDebugDisplayModeSetByBackdoor = false;
 
-                const auto displayId = getInternalDisplayId();
+                const auto displayId = [&]() -> std::optional<PhysicalDisplayId> {
+                    uint64_t inputDisplayId = 0;
+                    if (data.readUint64(&inputDisplayId) == NO_ERROR) {
+                        const auto token = getPhysicalDisplayToken(
+                                static_cast<PhysicalDisplayId>(inputDisplayId));
+                        if (!token) {
+                            ALOGE("No display with id: %" PRIu64, inputDisplayId);
+                            return std::nullopt;
+                        }
+
+                        return std::make_optional<PhysicalDisplayId>(inputDisplayId);
+                    }
+
+                    return getInternalDisplayId();
+                }();
+
                 if (!displayId) {
-                    ALOGE("No internal display found.");
+                    ALOGE("No display found");
                     return NO_ERROR;
                 }
 
@@ -6230,6 +6245,11 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
                         "Can only set override policy on the primary display");
     LOG_ALWAYS_FATAL_IF(!policy && !overridePolicy, "Can only clear the override policy");
 
+    if (mDebugDisplayModeSetByBackdoor) {
+        // ignore this request as mode is overridden by backdoor
+        return NO_ERROR;
+    }
+
     if (!display->isPrimary()) {
         // TODO(b/144711714): For non-primary displays we should be able to set an active mode
         // as well. For now, just call directly to initiateModeChange but ideally
@@ -6253,11 +6273,6 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         const nsecs_t vsyncPeriod = display->getMode(policy->defaultMode)->getVsyncPeriod();
         mScheduler->onNonPrimaryDisplayModeChanged(mAppConnectionHandle, displayId,
                                                    policy->defaultMode, vsyncPeriod);
-        return NO_ERROR;
-    }
-
-    if (mDebugDisplayModeSetByBackdoor) {
-        // ignore this request as mode is overridden by backdoor
         return NO_ERROR;
     }
 
