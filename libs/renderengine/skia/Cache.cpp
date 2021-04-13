@@ -25,8 +25,6 @@
 #include "ui/Rect.h"
 #include "utils/Timers.h"
 
-#include <android/hardware_buffer.h>
-
 namespace android::renderengine::skia {
 
 namespace {
@@ -183,41 +181,6 @@ static void drawBlurLayers(SkiaRenderEngine* renderengine, const DisplaySettings
     }
 }
 
-namespace {
-
-struct AHardwareBuffer_deleter {
-    void operator()(AHardwareBuffer* ahb) const { AHardwareBuffer_release(ahb); }
-};
-
-std::unique_ptr<AHardwareBuffer, AHardwareBuffer_deleter> makeAHardwareBuffer() {
-    AHardwareBuffer* buffer = nullptr;
-
-    int w = 32;
-    int h = 32;
-
-    AHardwareBuffer_Desc hwbDesc;
-    hwbDesc.width = w;
-    hwbDesc.height = h;
-    hwbDesc.layers = 1;
-    hwbDesc.usage = AHARDWAREBUFFER_USAGE_CPU_READ_NEVER | AHARDWAREBUFFER_USAGE_CPU_WRITE_NEVER |
-            AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
-    hwbDesc.format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
-    // The following three are not used in the allocate
-    hwbDesc.stride = 0;
-    hwbDesc.rfu0 = 0;
-    hwbDesc.rfu1 = 0;
-
-    if (int error = AHardwareBuffer_allocate(&hwbDesc, &buffer)) {
-        ALOGE("Failed to allocated hardware buffer, error: %d", error);
-        if (buffer) {
-            AHardwareBuffer_release(buffer);
-        }
-        return nullptr;
-    }
-    return std::unique_ptr<AHardwareBuffer, AHardwareBuffer_deleter>(buffer);
-}
-} // namespace
-
 //
 // The collection of shaders cached here were found by using perfetto to record shader compiles
 // during actions that involve RenderEngine, logging the layer settings, and the shader code
@@ -265,14 +228,16 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
     // The majority of shaders are related to sampling images.
     drawImageLayers(renderengine, display, dstBuffer, srcBuffer);
 
-    // Draw image layers again sampling from an AHardwareBuffer if it is possible to create one.
-    if (auto ahb = makeAHardwareBuffer()) {
-        sp<GraphicBuffer> externalBuffer = GraphicBuffer::fromAHardwareBuffer(ahb.get());
-        // TODO(b/184665179) doubles number of image shader compilations, but only somewhere
-        // between 6 and 8 will occur in real uses.
-        drawImageLayers(renderengine, display, dstBuffer, externalBuffer);
-        renderengine->unbindExternalTextureBuffer(externalBuffer->getId());
-    }
+    // should be the same as AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
+    const int64_t usageExternal = GRALLOC_USAGE_HW_TEXTURE;
+
+    sp<GraphicBuffer> externalBuffer =
+            new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888, 1,
+                              usageExternal, "primeShaderCache_external");
+    // TODO(b/184665179) doubles number of image shader compilations, but only somewhere
+    // between 6 and 8 will occur in real uses.
+    drawImageLayers(renderengine, display, dstBuffer, externalBuffer);
+    renderengine->unbindExternalTextureBuffer(externalBuffer->getId());
 
     renderengine->unbindExternalTextureBuffer(srcBuffer->getId());
 

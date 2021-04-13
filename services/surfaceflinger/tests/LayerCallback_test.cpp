@@ -164,7 +164,10 @@ TEST_F(LayerCallbackTest, NoBufferNoColor) {
         return;
     }
 
-    transaction.setFrame(layer, Rect(0, 0, 32, 32)).apply();
+    ui::Size bufferSize = getBufferSize();
+    TransactionUtils::setFrame(transaction, layer, Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(0, 0, 32, 32));
+    transaction.apply();
 
     ExpectedResult expected;
     expected.addSurface(ExpectedResult::Transaction::NOT_PRESENTED, layer,
@@ -184,7 +187,10 @@ TEST_F(LayerCallbackTest, BufferNoColor) {
         return;
     }
 
-    transaction.setFrame(layer, Rect(0, 0, 32, 32)).apply();
+    ui::Size bufferSize = getBufferSize();
+    TransactionUtils::setFrame(transaction, layer, Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(0, 0, 32, 32));
+    transaction.apply();
 
     ExpectedResult expected;
     expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
@@ -203,7 +209,10 @@ TEST_F(LayerCallbackTest, NoBufferColor) {
         return;
     }
 
-    transaction.setFrame(layer, Rect(0, 0, 32, 32)).apply();
+    ui::Size bufferSize = getBufferSize();
+    TransactionUtils::setFrame(transaction, layer, Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(0, 0, 32, 32));
+    transaction.apply();
 
     ExpectedResult expected;
     expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
@@ -238,7 +247,10 @@ TEST_F(LayerCallbackTest, OffScreen) {
         return;
     }
 
-    transaction.setFrame(layer, Rect(-100, -100, 100, 100)).apply();
+    ui::Size bufferSize = getBufferSize();
+    TransactionUtils::setFrame(transaction, layer, Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(-100, -100, 100, 100));
+    transaction.apply();
 
     ExpectedResult expected;
     expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
@@ -263,8 +275,15 @@ TEST_F(LayerCallbackTest, MergeBufferNoColor) {
         return;
     }
 
-    transaction1.setFrame(layer1, Rect(0, 0, 32, 32));
-    transaction2.setFrame(layer2, Rect(32, 32, 64, 64)).merge(std::move(transaction1)).apply();
+    ui::Size bufferSize = getBufferSize();
+
+    TransactionUtils::setFrame(transaction1, layer1,
+                               Rect(0, 0, bufferSize.width, bufferSize.height), Rect(0, 0, 32, 32));
+    TransactionUtils::setFrame(transaction2, layer2,
+                               Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(32, 32, 64, 64));
+
+    transaction2.merge(std::move(transaction1)).apply();
 
     ExpectedResult expected;
     expected.addSurfaces(ExpectedResult::Transaction::PRESENTED, {layer1, layer2});
@@ -290,8 +309,15 @@ TEST_F(LayerCallbackTest, MergeNoBufferColor) {
         return;
     }
 
-    transaction1.setFrame(layer1, Rect(0, 0, 32, 32));
-    transaction2.setFrame(layer2, Rect(32, 32, 64, 64)).merge(std::move(transaction1)).apply();
+    ui::Size bufferSize = getBufferSize();
+
+    TransactionUtils::setFrame(transaction1, layer1,
+                               Rect(0, 0, bufferSize.width, bufferSize.height), Rect(0, 0, 32, 32));
+    TransactionUtils::setFrame(transaction2, layer2,
+                               Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(32, 32, 64, 64));
+
+    transaction2.merge(std::move(transaction1)).apply();
 
     ExpectedResult expected;
     expected.addSurfaces(ExpectedResult::Transaction::PRESENTED, {layer1, layer2},
@@ -318,8 +344,15 @@ TEST_F(LayerCallbackTest, MergeOneBufferOneColor) {
         return;
     }
 
-    transaction1.setFrame(layer1, Rect(0, 0, 32, 32));
-    transaction2.setFrame(layer2, Rect(32, 32, 64, 64)).merge(std::move(transaction1)).apply();
+    ui::Size bufferSize = getBufferSize();
+
+    TransactionUtils::setFrame(transaction1, layer1,
+                               Rect(0, 0, bufferSize.width, bufferSize.height), Rect(0, 0, 32, 32));
+    TransactionUtils::setFrame(transaction2, layer2,
+                               Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(32, 32, 64, 64));
+
+    transaction2.merge(std::move(transaction1)).apply();
 
     ExpectedResult expected;
     expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer1);
@@ -405,8 +438,15 @@ TEST_F(LayerCallbackTest, Merge_DifferentClients) {
         return;
     }
 
-    transaction1.setFrame(layer1, Rect(0, 0, 32, 32));
-    transaction2.setFrame(layer2, Rect(32, 32, 64, 64)).merge(std::move(transaction1)).apply();
+    ui::Size bufferSize = getBufferSize();
+
+    TransactionUtils::setFrame(transaction1, layer1,
+                               Rect(0, 0, bufferSize.width, bufferSize.height), Rect(0, 0, 32, 32));
+    TransactionUtils::setFrame(transaction2, layer2,
+                               Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(32, 32, 64, 64));
+
+    transaction2.merge(std::move(transaction1)).apply();
 
     ExpectedResult expected;
     expected.addSurfaces(ExpectedResult::Transaction::PRESENTED, {layer1, layer2});
@@ -491,7 +531,11 @@ TEST_F(LayerCallbackTest, MultipleTransactions_SameStateChange) {
             }
         }
 
-        transaction.setFrame(layer, Rect(0, 0, 32, 32)).apply();
+        ui::Size bufferSize = getBufferSize();
+        TransactionUtils::setFrame(transaction, layer,
+                                   Rect(0, 0, bufferSize.width, bufferSize.height),
+                                   Rect(0, 0, 32, 32));
+        transaction.apply();
 
         ExpectedResult expected;
         expected.addSurface((i == 0) ? ExpectedResult::Transaction::PRESENTED
@@ -523,8 +567,16 @@ TEST_F(LayerCallbackTest, MultipleTransactions_Merge) {
             return;
         }
 
-        transaction1.setFrame(layer1, Rect(0, 0, 32, 32));
-        transaction2.setFrame(layer2, Rect(32, 32, 64, 64)).merge(std::move(transaction1)).apply();
+        ui::Size bufferSize = getBufferSize();
+
+        TransactionUtils::setFrame(transaction1, layer1,
+                                   Rect(0, 0, bufferSize.width, bufferSize.height),
+                                   Rect(0, 0, 32, 32));
+        TransactionUtils::setFrame(transaction2, layer2,
+                                   Rect(0, 0, bufferSize.width, bufferSize.height),
+                                   Rect(32, 32, 64, 64));
+
+        transaction2.merge(std::move(transaction1)).apply();
 
         ExpectedResult expected;
         expected.addSurfaces(ExpectedResult::Transaction::PRESENTED, {layer1, layer2},
@@ -564,8 +616,16 @@ TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients) {
             return;
         }
 
-        transaction1.setFrame(layer1, Rect(0, 0, 32, 32));
-        transaction2.setFrame(layer2, Rect(32, 32, 64, 64)).merge(std::move(transaction1)).apply();
+        ui::Size bufferSize = getBufferSize();
+
+        TransactionUtils::setFrame(transaction1, layer1,
+                                   Rect(0, 0, bufferSize.width, bufferSize.height),
+                                   Rect(0, 0, 32, 32));
+        TransactionUtils::setFrame(transaction2, layer2,
+                                   Rect(0, 0, bufferSize.width, bufferSize.height),
+                                   Rect(32, 32, 64, 64));
+
+        transaction2.merge(std::move(transaction1)).apply();
 
         ExpectedResult expected;
         expected.addSurfaces(ExpectedResult::Transaction::PRESENTED, {layer1, layer2},
@@ -606,8 +666,15 @@ TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients_NoStateCha
         return;
     }
 
-    transaction1.setFrame(layer1, Rect(0, 0, 32, 32));
-    transaction2.setFrame(layer2, Rect(32, 32, 64, 64)).merge(std::move(transaction1)).apply();
+    ui::Size bufferSize = getBufferSize();
+
+    TransactionUtils::setFrame(transaction1, layer1,
+                               Rect(0, 0, bufferSize.width, bufferSize.height), Rect(0, 0, 32, 32));
+    TransactionUtils::setFrame(transaction2, layer2,
+                               Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(32, 32, 64, 64));
+
+    transaction2.merge(std::move(transaction1)).apply();
 
     ExpectedResult expected;
     expected.addSurfaces(ExpectedResult::Transaction::PRESENTED, {layer1, layer2});
@@ -661,8 +728,15 @@ TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients_SameStateC
         return;
     }
 
-    transaction1.setFrame(layer1, Rect(0, 0, 32, 32));
-    transaction2.setFrame(layer2, Rect(32, 32, 64, 64)).merge(std::move(transaction1)).apply();
+    ui::Size bufferSize = getBufferSize();
+
+    TransactionUtils::setFrame(transaction1, layer1,
+                               Rect(0, 0, bufferSize.width, bufferSize.height), Rect(0, 0, 32, 32));
+    TransactionUtils::setFrame(transaction2, layer2,
+                               Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(32, 32, 64, 64));
+
+    transaction2.merge(std::move(transaction1)).apply();
 
     ExpectedResult expected;
     expected.addSurfaces(ExpectedResult::Transaction::PRESENTED, {layer1, layer2});
@@ -682,7 +756,10 @@ TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients_SameStateC
         return;
     }
 
-    transaction2.setFrame(layer2, Rect(32, 32, 64, 64)).merge(std::move(transaction1)).apply();
+    TransactionUtils::setFrame(transaction2, layer2,
+                               Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(32, 32, 64, 64));
+    transaction2.merge(std::move(transaction1)).apply();
 
     expected.addSurface(ExpectedResult::Transaction::NOT_PRESENTED, layer2,
                         ExpectedResult::Buffer::NOT_ACQUIRED);
@@ -762,7 +839,10 @@ TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame_SameStateChange) {
         return;
     }
 
-    transaction.setFrame(layer, Rect(0, 0, 32, 32)).apply();
+    ui::Size bufferSize = getBufferSize();
+    TransactionUtils::setFrame(transaction, layer, Rect(0, 0, bufferSize.width, bufferSize.height),
+                               Rect(0, 0, 32, 32));
+    transaction.apply();
 
     ExpectedResult expectedResult;
     expectedResult.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
@@ -781,7 +861,10 @@ TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame_SameStateChange) {
             return;
         }
 
-        transaction.setFrame(layer, Rect(0, 0, 32, 32)).apply();
+        TransactionUtils::setFrame(transaction, layer,
+                                   Rect(0, 0, bufferSize.width, bufferSize.height),
+                                   Rect(0, 0, 32, 32));
+        transaction.apply();
     }
     EXPECT_NO_FATAL_FAILURE(waitForCallbacks(callback, expectedResults, true));
 }
