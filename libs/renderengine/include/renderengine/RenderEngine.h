@@ -141,7 +141,7 @@ public:
     // do any work.
     virtual bool cleanupPostRender(CleanupMode mode = CleanupMode::CLEAN_OUTPUT_RESOURCES) = 0;
 
-    // queries
+    // queries that are required to be thread safe
     virtual size_t getMaxTextureSize() const = 0;
     virtual size_t getMaxViewportDims() const = 0;
 
@@ -149,8 +149,11 @@ public:
 
     // ----- BEGIN NEW INTERFACE -----
 
+    // queries that are required to be thread safe
     virtual bool isProtected() const = 0;
     virtual bool supportsProtectedContent() const = 0;
+
+    // Attempt to switch RenderEngine into and out of protectedContext mode
     virtual bool useProtectedContext(bool useProtectedContext) = 0;
 
     // Notify RenderEngine of changes to the dimensions of the primary display
@@ -197,7 +200,8 @@ public:
     virtual int getContextPriority() = 0;
 
     // Returns true if blur was requested in the RenderEngineCreationArgs and the implementation
-    // also supports background blur.  If false, no blur will be applied when drawing layers.
+    // also supports background blur.  If false, no blur will be applied when drawing layers. This
+    // query is required to be thread safe.
     virtual bool supportsBackgroundBlur() = 0;
 
     // Returns the current type of RenderEngine instance that was created.
