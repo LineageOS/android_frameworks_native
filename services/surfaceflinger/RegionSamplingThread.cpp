@@ -438,18 +438,22 @@ void RegionSamplingThread::captureSample() {
         mFlinger.traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, filterVisitor);
     };
 
-    sp<GraphicBuffer> buffer = nullptr;
-    if (mCachedBuffer && mCachedBuffer->getWidth() == sampledBounds.getWidth() &&
-        mCachedBuffer->getHeight() == sampledBounds.getHeight()) {
+    std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;
+    if (mCachedBuffer && mCachedBuffer->getBuffer()->getWidth() == sampledBounds.getWidth() &&
+        mCachedBuffer->getBuffer()->getHeight() == sampledBounds.getHeight()) {
         buffer = mCachedBuffer;
     } else {
         const uint32_t usage =
                 GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
-        buffer = new GraphicBuffer(sampledBounds.getWidth(), sampledBounds.getHeight(),
-                                   PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
-        const status_t bufferStatus = buffer->initCheck();
+        sp<GraphicBuffer> graphicBuffer =
+                new GraphicBuffer(sampledBounds.getWidth(), sampledBounds.getHeight(),
+                                  PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
+        const status_t bufferStatus = graphicBuffer->initCheck();
         LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "captureSample: Buffer failed to allocate: %d",
                             bufferStatus);
+        buffer = std::make_shared<
+                renderengine::ExternalTexture>(graphicBuffer, mFlinger.getRenderEngine(),
+                                               renderengine::ExternalTexture::Usage::WRITEABLE);
     }
 
     const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
@@ -465,8 +469,8 @@ void RegionSamplingThread::captureSample() {
     }
 
     ALOGV("Sampling %zu descriptors", activeDescriptors.size());
-    std::vector<float> lumas =
-            sampleBuffer(buffer, sampledBounds.leftTop(), activeDescriptors, orientation);
+    std::vector<float> lumas = sampleBuffer(buffer->getBuffer(), sampledBounds.leftTop(),
+                                            activeDescriptors, orientation);
     if (lumas.size() != activeDescriptors.size()) {
         ALOGW("collected %zu median luma values for %zu descriptors", lumas.size(),
               activeDescriptors.size());
@@ -477,16 +481,6 @@ void RegionSamplingThread::captureSample() {
         activeDescriptors[d].listener->onSampleCollected(lumas[d]);
     }
 
-    // Extend the lifetime of mCachedBuffer from the previous frame to here to ensure that:
-    // 1) The region sampling thread is the last owner of the buffer, and the freeing of the buffer
-    // happens in this thread, as opposed to the main thread.
-    // 2) The listener(s) receive their notifications prior to freeing the buffer.
-    if (mCachedBuffer != nullptr && mCachedBuffer != buffer) {
-        if (mFlinger.getRenderEngine().getRenderEngineType() ==
-            renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED) {
-            mFlinger.getRenderEngine().unbindExternalTextureBuffer(mCachedBuffer->getId());
-        }
-    }
     mCachedBuffer = buffer;
     ATRACE_INT(lumaSamplingStepTag, static_cast<int>(samplingStep::noWorkNeeded));
 }
