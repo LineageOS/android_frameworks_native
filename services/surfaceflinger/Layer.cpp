@@ -2264,8 +2264,13 @@ int32_t Layer::getBackgroundBlurRadius() const {
     return parentAlpha * getDrawingState().backgroundBlurRadius;
 }
 
-const std::vector<BlurRegion>& Layer::getBlurRegions() const {
-    return getDrawingState().blurRegions;
+const std::vector<BlurRegion> Layer::getBlurRegions() const {
+    auto regionsCopy(getDrawingState().blurRegions);
+    int layerAlpha = getAlpha();
+    for (auto& region : regionsCopy) {
+        region.alpha = region.alpha * layerAlpha;
+    }
+    return regionsCopy;
 }
 
 Layer::RoundedCornerState Layer::getRoundedCornerState() const {
