@@ -24,6 +24,7 @@
 
 #include <cutils/properties.h>
 #include <gtest/gtest.h>
+#include <renderengine/ExternalTexture.h>
 #include <renderengine/RenderEngine.h>
 #include <sync/sync.h>
 #include <ui/PixelFormat.h>
@@ -160,27 +161,42 @@ public:
 
 class RenderEngineTest : public ::testing::TestWithParam<std::shared_ptr<RenderEngineFactory>> {
 public:
-    static sp<GraphicBuffer> allocateDefaultBuffer() {
-        return new GraphicBuffer(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT,
-                                 HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                 GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                         GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE,
-                                 "output");
+    std::shared_ptr<renderengine::ExternalTexture> allocateDefaultBuffer() {
+        return std::make_shared<
+                renderengine::
+                        ExternalTexture>(new GraphicBuffer(DEFAULT_DISPLAY_WIDTH,
+                                                           DEFAULT_DISPLAY_HEIGHT,
+                                                           HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                           GRALLOC_USAGE_SW_READ_OFTEN |
+                                                                   GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                                   GRALLOC_USAGE_HW_RENDER |
+                                                                   GRALLOC_USAGE_HW_TEXTURE,
+                                                           "output"),
+                                         *mRE,
+                                         renderengine::ExternalTexture::Usage::READABLE |
+                                                 renderengine::ExternalTexture::Usage::WRITEABLE);
     }
 
     // Allocates a 1x1 buffer to fill with a solid color
-    static sp<GraphicBuffer> allocateSourceBuffer(uint32_t width, uint32_t height) {
-        return new GraphicBuffer(width, height, HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                 GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                         GRALLOC_USAGE_HW_TEXTURE,
-                                 "input");
+    std::shared_ptr<renderengine::ExternalTexture> allocateSourceBuffer(uint32_t width,
+                                                                        uint32_t height) {
+        return std::make_shared<
+                renderengine::
+                        ExternalTexture>(new GraphicBuffer(width, height,
+                                                           HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                                           GRALLOC_USAGE_SW_READ_OFTEN |
+                                                                   GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                                   GRALLOC_USAGE_HW_TEXTURE,
+                                                           "input"),
+                                         *mRE,
+                                         renderengine::ExternalTexture::Usage::READABLE |
+                                                 renderengine::ExternalTexture::Usage::WRITEABLE);
     }
 
     RenderEngineTest() {
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
-        mBuffer = allocateDefaultBuffer();
     }
 
     ~RenderEngineTest() {
@@ -211,20 +227,21 @@ public:
         }
 
         uint8_t* pixels;
-        mBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
-                      reinterpret_cast<void**>(&pixels));
+        mBuffer->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                   reinterpret_cast<void**>(&pixels));
 
         file << "P6\n";
-        file << mBuffer->getWidth() << "\n";
-        file << mBuffer->getHeight() << "\n";
+        file << mBuffer->getBuffer()->getWidth() << "\n";
+        file << mBuffer->getBuffer()->getHeight() << "\n";
         file << 255 << "\n";
 
-        std::vector<uint8_t> outBuffer(mBuffer->getWidth() * mBuffer->getHeight() * 3);
+        std::vector<uint8_t> outBuffer(mBuffer->getBuffer()->getWidth() *
+                                       mBuffer->getBuffer()->getHeight() * 3);
         auto outPtr = reinterpret_cast<uint8_t*>(outBuffer.data());
 
-        for (int32_t j = 0; j < mBuffer->getHeight(); j++) {
-            const uint8_t* src = pixels + (mBuffer->getStride() * j) * 4;
-            for (int32_t i = 0; i < mBuffer->getWidth(); i++) {
+        for (int32_t j = 0; j < mBuffer->getBuffer()->getHeight(); j++) {
+            const uint8_t* src = pixels + (mBuffer->getBuffer()->getStride() * j) * 4;
+            for (int32_t i = 0; i < mBuffer->getBuffer()->getWidth(); i++) {
                 // Only copy R, G and B components
                 outPtr[0] = src[0];
                 outPtr[1] = src[1];
@@ -235,7 +252,7 @@ public:
             }
         }
         file.write(reinterpret_cast<char*>(outBuffer.data()), outBuffer.size());
-        mBuffer->unlock();
+        mBuffer->getBuffer()->unlock();
     }
 
     void expectBufferColor(const Region& region, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
@@ -262,13 +279,13 @@ public:
     void expectBufferColor(const Rect& region, uint8_t r, uint8_t g, uint8_t b, uint8_t a,
                            std::function<bool(const uint8_t* a, const uint8_t* b)> colorCompare) {
         uint8_t* pixels;
-        mBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
-                      reinterpret_cast<void**>(&pixels));
+        mBuffer->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                   reinterpret_cast<void**>(&pixels));
         int32_t maxFails = 10;
         int32_t fails = 0;
         for (int32_t j = 0; j < region.getHeight(); j++) {
-            const uint8_t* src =
-                    pixels + (mBuffer->getStride() * (region.top + j) + region.left) * 4;
+            const uint8_t* src = pixels +
+                    (mBuffer->getBuffer()->getStride() * (region.top + j) + region.left) * 4;
             for (int32_t i = 0; i < region.getWidth(); i++) {
                 const uint8_t expected[4] = {r, g, b, a};
                 bool equal = colorCompare(src, expected);
@@ -289,7 +306,7 @@ public:
                 break;
             }
         }
-        mBuffer->unlock();
+        mBuffer->getBuffer()->unlock();
     }
 
     void expectAlpha(const Rect& rect, uint8_t a) {
@@ -387,7 +404,6 @@ public:
         base::unique_fd fence;
         status_t status =
                 mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(), &fence);
-        mCurrentBuffer = mBuffer;
 
         int fd = fence.release();
         if (fd >= 0) {
@@ -397,7 +413,7 @@ public:
 
         ASSERT_EQ(NO_ERROR, status);
         if (layers.size() > 0 && mGLESRE != nullptr) {
-            ASSERT_TRUE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getId()));
+            ASSERT_TRUE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getBuffer()->getId()));
         }
     }
 
@@ -503,16 +519,10 @@ public:
     void initializeRenderEngine();
 
     std::unique_ptr<renderengine::RenderEngine> mRE;
+    std::shared_ptr<renderengine::ExternalTexture> mBuffer;
     // GLESRenderEngine for testing GLES-specific behavior.
     // Owened by mRE, but this is downcasted.
     renderengine::gl::GLESRenderEngine* mGLESRE = nullptr;
-
-    // Dumb hack to avoid NPE in the EGL driver: the GraphicBuffer needs to
-    // be freed *after* RenderEngine is destroyed, so that the EGL image is
-    // destroyed first.
-    sp<GraphicBuffer> mCurrentBuffer;
-
-    sp<GraphicBuffer> mBuffer;
 
     std::vector<uint32_t> mTexNames;
 };
@@ -530,6 +540,7 @@ void RenderEngineTest::initializeRenderEngine() {
     } else {
         mRE = renderEngineFactory->createRenderEngine();
     }
+    mBuffer = allocateDefaultBuffer();
 }
 
 struct ColorSourceVariant {
@@ -566,18 +577,18 @@ template <typename OpaquenessVariant>
 struct BufferSourceVariant {
     static void fillColor(renderengine::LayerSettings& layer, half r, half g, half b,
                           RenderEngineTest* fixture) {
-        sp<GraphicBuffer> buf = RenderEngineTest::allocateSourceBuffer(1, 1);
+        const auto buf = fixture->allocateSourceBuffer(1, 1);
         uint32_t texName;
         fixture->mRE->genTextures(1, &texName);
         fixture->mTexNames.push_back(texName);
 
         uint8_t* pixels;
-        buf->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
-                  reinterpret_cast<void**>(&pixels));
+        buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                               reinterpret_cast<void**>(&pixels));
 
-        for (int32_t j = 0; j < buf->getHeight(); j++) {
-            uint8_t* iter = pixels + (buf->getStride() * j) * 4;
-            for (int32_t i = 0; i < buf->getWidth(); i++) {
+        for (int32_t j = 0; j < buf->getBuffer()->getHeight(); j++) {
+            uint8_t* iter = pixels + (buf->getBuffer()->getStride() * j) * 4;
+            for (int32_t i = 0; i < buf->getBuffer()->getWidth(); i++) {
                 iter[0] = uint8_t(r * 255);
                 iter[1] = uint8_t(g * 255);
                 iter[2] = uint8_t(b * 255);
@@ -586,7 +597,7 @@ struct BufferSourceVariant {
             }
         }
 
-        buf->unlock();
+        buf->getBuffer()->unlock();
 
         layer.source.buffer.buffer = buf;
         layer.source.buffer.textureName = texName;
@@ -1012,14 +1023,14 @@ void RenderEngineTest::fillRedBufferTextureTransform() {
     layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     // Here will allocate a checker board texture, but transform texture
     // coordinates so that only the upper left is applied.
-    sp<GraphicBuffer> buf = allocateSourceBuffer(2, 2);
+    const auto buf = allocateSourceBuffer(2, 2);
     uint32_t texName;
     RenderEngineTest::mRE->genTextures(1, &texName);
     this->mTexNames.push_back(texName);
 
     uint8_t* pixels;
-    buf->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
-              reinterpret_cast<void**>(&pixels));
+    buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                           reinterpret_cast<void**>(&pixels));
     // Red top left, Green top right, Blue bottom left, Black bottom right
     pixels[0] = 255;
     pixels[1] = 0;
@@ -1033,7 +1044,7 @@ void RenderEngineTest::fillRedBufferTextureTransform() {
     pixels[9] = 0;
     pixels[10] = 255;
     pixels[11] = 255;
-    buf->unlock();
+    buf->getBuffer()->unlock();
 
     layer.source.buffer.buffer = buf;
     layer.source.buffer.textureName = texName;
@@ -1061,19 +1072,19 @@ void RenderEngineTest::fillRedBufferWithPremultiplyAlpha() {
     std::vector<const renderengine::LayerSettings*> layers;
 
     renderengine::LayerSettings layer;
-    sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
+    const auto buf = allocateSourceBuffer(1, 1);
     uint32_t texName;
     RenderEngineTest::mRE->genTextures(1, &texName);
     this->mTexNames.push_back(texName);
 
     uint8_t* pixels;
-    buf->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
-              reinterpret_cast<void**>(&pixels));
+    buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                           reinterpret_cast<void**>(&pixels));
     pixels[0] = 255;
     pixels[1] = 0;
     pixels[2] = 0;
     pixels[3] = 255;
-    buf->unlock();
+    buf->getBuffer()->unlock();
 
     layer.source.buffer.buffer = buf;
     layer.source.buffer.textureName = texName;
@@ -1100,19 +1111,19 @@ void RenderEngineTest::fillRedBufferWithoutPremultiplyAlpha() {
     std::vector<const renderengine::LayerSettings*> layers;
 
     renderengine::LayerSettings layer;
-    sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
+    const auto buf = allocateSourceBuffer(1, 1);
     uint32_t texName;
     RenderEngineTest::mRE->genTextures(1, &texName);
     this->mTexNames.push_back(texName);
 
     uint8_t* pixels;
-    buf->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
-              reinterpret_cast<void**>(&pixels));
+    buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                           reinterpret_cast<void**>(&pixels));
     pixels[0] = 255;
     pixels[1] = 0;
     pixels[2] = 0;
     pixels[3] = 255;
-    buf->unlock();
+    buf->getBuffer()->unlock();
 
     layer.source.buffer.buffer = buf;
     layer.source.buffer.textureName = texName;
@@ -1233,8 +1244,7 @@ TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_withoutBuffers_withColorTransform) {
-    const auto& renderEngineFactory = GetParam();
-    mRE = renderEngineFactory->createRenderEngine();
+    initializeRenderEngine();
 
     renderengine::DisplaySettings settings;
     settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
@@ -1295,7 +1305,6 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputFence) {
     layers.push_back(&layer);
 
     status_t status = mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(), nullptr);
-    mCurrentBuffer = mBuffer;
     ASSERT_EQ(NO_ERROR, status);
     expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
 }
@@ -1323,9 +1332,8 @@ TEST_P(RenderEngineTest, drawLayers_doesNotCacheFramebuffer) {
     layers.push_back(&layer);
 
     status_t status = mRE->drawLayers(settings, layers, mBuffer, false, base::unique_fd(), nullptr);
-    mCurrentBuffer = mBuffer;
     ASSERT_EQ(NO_ERROR, status);
-    ASSERT_FALSE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getId()));
+    ASSERT_FALSE(mGLESRE->isFramebufferImageCachedForTesting(mBuffer->getBuffer()->getId()));
     expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
 }
 
@@ -1574,98 +1582,6 @@ TEST_P(RenderEngineTest, drawLayers_clearRegion) {
     clearRegion();
 }
 
-TEST_P(RenderEngineTest, drawLayers_fillsBufferAndCachesImages) {
-    const auto& renderEngineFactory = GetParam();
-
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        // GLES-specific test
-        return;
-    }
-
-    initializeRenderEngine();
-
-    renderengine::DisplaySettings settings;
-    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
-    settings.physicalDisplay = fullscreenRect();
-    settings.clip = fullscreenRect();
-
-    std::vector<const renderengine::LayerSettings*> layers;
-
-    renderengine::LayerSettings layer;
-    layer.geometry.boundaries = fullscreenRect().toFloatRect();
-    BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
-
-    layers.push_back(&layer);
-    invokeDraw(settings, layers);
-    uint64_t bufferId = layer.source.buffer.buffer->getId();
-    EXPECT_TRUE(mGLESRE->isImageCachedForTesting(bufferId));
-    std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
-            mGLESRE->unbindExternalTextureBufferForTesting(bufferId);
-    std::lock_guard<std::mutex> lock(barrier->mutex);
-    ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
-                                            [&]() REQUIRES(barrier->mutex) {
-                                                return barrier->isOpen;
-                                            }));
-    EXPECT_FALSE(mGLESRE->isImageCachedForTesting(bufferId));
-    EXPECT_EQ(NO_ERROR, barrier->result);
-}
-
-TEST_P(RenderEngineTest, cacheExternalBuffer_withNullBuffer) {
-    const auto& renderEngineFactory = GetParam();
-
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        // GLES-specific test
-        return;
-    }
-
-    initializeRenderEngine();
-
-    std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
-            mGLESRE->cacheExternalTextureBufferForTesting(nullptr);
-    std::lock_guard<std::mutex> lock(barrier->mutex);
-    ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
-                                            [&]() REQUIRES(barrier->mutex) {
-                                                return barrier->isOpen;
-                                            }));
-    EXPECT_TRUE(barrier->isOpen);
-    EXPECT_EQ(BAD_VALUE, barrier->result);
-}
-
-TEST_P(RenderEngineTest, cacheExternalBuffer_cachesImages) {
-    const auto& renderEngineFactory = GetParam();
-
-    if (renderEngineFactory->type() != renderengine::RenderEngine::RenderEngineType::GLES) {
-        // GLES-specific test
-        return;
-    }
-
-    initializeRenderEngine();
-
-    sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
-    uint64_t bufferId = buf->getId();
-    std::shared_ptr<renderengine::gl::ImageManager::Barrier> barrier =
-            mGLESRE->cacheExternalTextureBufferForTesting(buf);
-    {
-        std::lock_guard<std::mutex> lock(barrier->mutex);
-        ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
-                                                [&]() REQUIRES(barrier->mutex) {
-                                                    return barrier->isOpen;
-                                                }));
-        EXPECT_EQ(NO_ERROR, barrier->result);
-    }
-    EXPECT_TRUE(mGLESRE->isImageCachedForTesting(bufferId));
-    barrier = mGLESRE->unbindExternalTextureBufferForTesting(bufferId);
-    {
-        std::lock_guard<std::mutex> lock(barrier->mutex);
-        ASSERT_TRUE(barrier->condition.wait_for(barrier->mutex, std::chrono::seconds(5),
-                                                [&]() REQUIRES(barrier->mutex) {
-                                                    return barrier->isOpen;
-                                                }));
-        EXPECT_EQ(NO_ERROR, barrier->result);
-    }
-    EXPECT_FALSE(mGLESRE->isImageCachedForTesting(bufferId));
-}
-
 TEST_P(RenderEngineTest, drawLayers_fillShadow_castsWithoutCasterLayer) {
     initializeRenderEngine();
 
@@ -1858,7 +1774,7 @@ TEST_P(RenderEngineTest, cleanupPostRender_whenCleaningAll_replacesTextureMemory
         sync_wait(fd, -1);
     }
 
-    uint64_t bufferId = layer.source.buffer.buffer->getId();
+    uint64_t bufferId = layer.source.buffer.buffer->getBuffer()->getId();
     uint32_t texName = layer.source.buffer.textureName;
     EXPECT_TRUE(mGLESRE->isImageCachedForTesting(bufferId));
     EXPECT_EQ(bufferId, mGLESRE->getBufferIdForTextureNameForTesting(texName));
@@ -1966,16 +1882,16 @@ TEST_P(RenderEngineTest, testDisableBlendingBuffer) {
 
     // The next layer will overwrite redLayer with a GraphicBuffer that is green
     // applied with a translucent alpha.
-    auto buf = allocateSourceBuffer(1, 1);
+    const auto buf = allocateSourceBuffer(1, 1);
     {
         uint8_t* pixels;
-        buf->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
-                  reinterpret_cast<void**>(&pixels));
+        buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                               reinterpret_cast<void**>(&pixels));
         pixels[0] = 0;
         pixels[1] = 255;
         pixels[2] = 0;
         pixels[3] = 255;
-        buf->unlock();
+        buf->getBuffer()->unlock();
     }
 
     const renderengine::LayerSettings greenLayer{

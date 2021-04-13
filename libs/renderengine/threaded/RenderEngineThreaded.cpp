@@ -157,27 +157,28 @@ void RenderEngineThreaded::deleteTextures(size_t count, uint32_t const* names) {
     resultFuture.wait();
 }
 
-void RenderEngineThreaded::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+void RenderEngineThreaded::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
+                                                    bool isRenderable) {
     // This function is designed so it can run asynchronously, so we do not need to wait
     // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
         mFunctionCalls.push([=](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::cacheExternalTextureBuffer");
-            instance.cacheExternalTextureBuffer(buffer);
+            ATRACE_NAME("REThreaded::mapExternalTextureBuffer");
+            instance.mapExternalTextureBuffer(buffer, isRenderable);
         });
     }
     mCondition.notify_one();
 }
 
-void RenderEngineThreaded::unbindExternalTextureBuffer(uint64_t bufferId) {
+void RenderEngineThreaded::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
     // This function is designed so it can run asynchronously, so we do not need to wait
     // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
         mFunctionCalls.push([=](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::unbindExternalTextureBuffer");
-            instance.unbindExternalTextureBuffer(bufferId);
+            ATRACE_NAME("REThreaded::unmapExternalTextureBuffer");
+            instance.unmapExternalTextureBuffer(buffer);
         });
     }
     mCondition.notify_one();
@@ -239,7 +240,7 @@ bool RenderEngineThreaded::cleanupPostRender(CleanupMode mode) {
 
 status_t RenderEngineThreaded::drawLayers(const DisplaySettings& display,
                                           const std::vector<const LayerSettings*>& layers,
-                                          const sp<GraphicBuffer>& buffer,
+                                          const std::shared_ptr<ExternalTexture>& buffer,
                                           const bool useFramebufferCache,
                                           base::unique_fd&& bufferFence,
                                           base::unique_fd* drawFence) {

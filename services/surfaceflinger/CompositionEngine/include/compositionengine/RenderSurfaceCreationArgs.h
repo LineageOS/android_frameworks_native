@@ -45,6 +45,8 @@ struct RenderSurfaceCreationArgs {
 
     // The DisplaySurface for this surface
     sp<DisplaySurface> displaySurface;
+
+    size_t maxTextureCacheSize;
 };
 
 /**
@@ -78,6 +80,11 @@ public:
     }
     RenderSurfaceCreationArgsBuilder& setDisplaySurface(sp<DisplaySurface> displaySurface) {
         mArgs.displaySurface = displaySurface;
+        return *this;
+    }
+
+    RenderSurfaceCreationArgsBuilder& setMaxTextureCacheSize(size_t maxTextureCacheSize) {
+        mArgs.maxTextureCacheSize = maxTextureCacheSize;
         return *this;
     }
 
