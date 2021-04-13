@@ -42,15 +42,12 @@ public:
     virtual void primeCache() override{};
     virtual void genTextures(size_t /*count*/, uint32_t* /*names*/) override{};
     virtual void deleteTextures(size_t /*count*/, uint32_t const* /*names*/) override{};
-    virtual void cacheExternalTextureBuffer(const sp<GraphicBuffer>& /*buffer*/){};
-    virtual void unbindExternalTextureBuffer(uint64_t /*bufferId*/){};
-
     virtual bool isProtected() const override { return false; } // mInProtectedContext; }
     virtual bool supportsProtectedContent() const override { return false; };
     virtual bool useProtectedContext(bool /*useProtectedContext*/) override { return false; };
     virtual status_t drawLayers(const DisplaySettings& /*display*/,
                                 const std::vector<const LayerSettings*>& /*layers*/,
-                                const sp<GraphicBuffer>& /*buffer*/,
+                                const std::shared_ptr<ExternalTexture>& /*buffer*/,
                                 const bool /*useFramebufferCache*/,
                                 base::unique_fd&& /*bufferFence*/,
                                 base::unique_fd* /*drawFence*/) override {
@@ -60,6 +57,11 @@ public:
     virtual int getContextPriority() override { return 0; }
     virtual void assertShadersCompiled(int numShaders) {}
     virtual int reportShadersCompiled() { return 0; }
+
+protected:
+    virtual void mapExternalTextureBuffer(const sp<GraphicBuffer>& /*buffer*/,
+                                          bool /*isRenderable*/) override;
+    virtual void unmapExternalTextureBuffer(const sp<GraphicBuffer>& /*buffer*/) override;
 };
 
 } // namespace skia

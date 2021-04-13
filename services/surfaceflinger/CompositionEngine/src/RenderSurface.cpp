@@ -25,8 +25,8 @@
 #include <compositionengine/impl/DumpHelpers.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/RenderSurface.h>
-
 #include <log/log.h>
+#include <renderengine/ExternalTexture.h>
 #include <renderengine/RenderEngine.h>
 #include <system/window.h>
 #include <ui/GraphicBuffer.h>
@@ -63,7 +63,8 @@ RenderSurface::RenderSurface(const CompositionEngine& compositionEngine, Display
         mDisplay(display),
         mNativeWindow(args.nativeWindow),
         mDisplaySurface(args.displaySurface),
-        mSize(args.displayWidth, args.displayHeight) {
+        mSize(args.displayWidth, args.displayHeight),
+        mMaxTextureCacheSize(args.maxTextureCacheSize) {
     LOG_ALWAYS_FATAL_IF(!mNativeWindow);
 }
 
@@ -146,7 +147,8 @@ void RenderSurface::prepareFrame(bool usesClientComposition, bool usesDeviceComp
     }
 }
 
-sp<GraphicBuffer> RenderSurface::dequeueBuffer(base::unique_fd* bufferFence) {
+std::shared_ptr<renderengine::ExternalTexture> RenderSurface::dequeueBuffer(
+        base::unique_fd* bufferFence) {
     ATRACE_CALL();
     int fd = -1;
     ANativeWindowBuffer* buffer = nullptr;
@@ -158,16 +160,41 @@ sp<GraphicBuffer> RenderSurface::dequeueBuffer(base::unique_fd* bufferFence) {
               mDisplay.getName().c_str(), result);
         // Return fast here as we can't do much more - any rendering we do
         // now will just be wrong.
-        return mGraphicBuffer;
+        return mTexture;
     }
 
-    ALOGW_IF(mGraphicBuffer != nullptr, "Clobbering a non-null pointer to a buffer [%p].",
-             mGraphicBuffer->getNativeBuffer()->handle);
-    mGraphicBuffer = GraphicBuffer::from(buffer);
+    ALOGW_IF(mTexture != nullptr, "Clobbering a non-null pointer to a buffer [%p].",
+             mTexture->getBuffer()->getNativeBuffer()->handle);
+
+    sp<GraphicBuffer> newBuffer = GraphicBuffer::from(buffer);
+
+    std::shared_ptr<renderengine::ExternalTexture> texture;
+
+    for (auto it = mTextureCache.begin(); it != mTextureCache.end(); it++) {
+        const auto& cachedTexture = *it;
+        if (cachedTexture->getBuffer()->getId() == newBuffer->getId()) {
+            texture = cachedTexture;
+            mTextureCache.erase(it);
+            break;
+        }
+    }
+
+    if (texture) {
+        mTexture = texture;
+    } else {
+        mTexture = std::make_shared<
+                renderengine::ExternalTexture>(GraphicBuffer::from(buffer),
+                                               mCompositionEngine.getRenderEngine(),
+                                               renderengine::ExternalTexture::Usage::WRITEABLE);
+    }
+    mTextureCache.push_back(mTexture);
+    if (mTextureCache.size() > mMaxTextureCacheSize) {
+        mTextureCache.erase(mTextureCache.begin());
+    }
 
     *bufferFence = base::unique_fd(fd);
 
-    return mGraphicBuffer;
+    return mTexture;
 }
 
 void RenderSurface::queueBuffer(base::unique_fd readyFence) {
@@ -177,24 +204,24 @@ void RenderSurface::queueBuffer(base::unique_fd readyFence) {
         // hasFlipClientTargetRequest could return true even if we haven't
         // dequeued a buffer before. Try dequeueing one if we don't have a
         // buffer ready.
-        if (mGraphicBuffer == nullptr) {
+        if (mTexture == nullptr) {
             ALOGI("Attempting to queue a client composited buffer without one "
                   "previously dequeued for display [%s]. Attempting to dequeue "
                   "a scratch buffer now",
                   mDisplay.getName().c_str());
-            // We shouldn't deadlock here, since mGraphicBuffer == nullptr only
+            // We shouldn't deadlock here, since mTexture == nullptr only
             // after a successful call to queueBuffer, or if dequeueBuffer has
             // never been called.
             base::unique_fd unused;
             dequeueBuffer(&unused);
         }
 
-        if (mGraphicBuffer == nullptr) {
+        if (mTexture == nullptr) {
             ALOGE("No buffer is ready for display [%s]", mDisplay.getName().c_str());
         } else {
-            status_t result =
-                    mNativeWindow->queueBuffer(mNativeWindow.get(),
-                                               mGraphicBuffer->getNativeBuffer(), dup(readyFence));
+            status_t result = mNativeWindow->queueBuffer(mNativeWindow.get(),
+                                                         mTexture->getBuffer()->getNativeBuffer(),
+                                                         dup(readyFence));
             if (result != NO_ERROR) {
                 ALOGE("Error when queueing buffer for display [%s]: %d", mDisplay.getName().c_str(),
                       result);
@@ -204,11 +231,12 @@ void RenderSurface::queueBuffer(base::unique_fd readyFence) {
                     LOG_ALWAYS_FATAL("ANativeWindow::queueBuffer failed with error: %d", result);
                 } else {
                     mNativeWindow->cancelBuffer(mNativeWindow.get(),
-                                                mGraphicBuffer->getNativeBuffer(), dup(readyFence));
+                                                mTexture->getBuffer()->getNativeBuffer(),
+                                                dup(readyFence));
                 }
             }
 
-            mGraphicBuffer = nullptr;
+            mTexture = nullptr;
         }
     }
 
@@ -256,8 +284,8 @@ void RenderSurface::setSizeForTest(const ui::Size& size) {
     mSize = size;
 }
 
-sp<GraphicBuffer>& RenderSurface::mutableGraphicBufferForTest() {
-    return mGraphicBuffer;
+std::shared_ptr<renderengine::ExternalTexture>& RenderSurface::mutableTextureForTest() {
+    return mTexture;
 }
 
 } // namespace impl

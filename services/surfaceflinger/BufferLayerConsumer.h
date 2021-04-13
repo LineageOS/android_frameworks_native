@@ -21,12 +21,11 @@
 #include <gui/BufferQueueDefs.h>
 #include <gui/ConsumerBase.h>
 #include <gui/HdrMetadata.h>
-
+#include <renderengine/ExternalTexture.h>
 #include <ui/FenceTime.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Region.h>
-
 #include <utils/String8.h>
 #include <utils/Vector.h>
 #include <utils/threads.h>
@@ -39,7 +38,6 @@ class String8;
 
 namespace renderengine {
 class RenderEngine;
-class Image;
 } // namespace renderengine
 
 /*
@@ -153,7 +151,8 @@ public:
     // When outSlot is not nullptr, the current buffer slot index is also
     // returned. Simiarly, when outFence is not nullptr, the current output
     // fence is returned.
-    sp<GraphicBuffer> getCurrentBuffer(int* outSlot = nullptr, sp<Fence>* outFence = nullptr) const;
+    std::shared_ptr<renderengine::ExternalTexture> getCurrentBuffer(
+            int* outSlot = nullptr, sp<Fence>* outFence = nullptr) const;
 
     // getCurrentCrop returns the cropping rectangle of the current buffer.
     Rect getCurrentCrop() const;
@@ -258,7 +257,7 @@ private:
     // mCurrentTextureBuffer is the buffer containing the current texture. It's
     // possible that this buffer is not associated with any buffer slot, so we
     // must track it separately in order to support the getCurrentBuffer method.
-    std::shared_ptr<Image> mCurrentTextureBuffer;
+    std::shared_ptr<renderengine::ExternalTexture> mCurrentTextureBuffer;
 
     // mCurrentCrop is the crop rectangle that applies to the current texture.
     // It gets set each time updateTexImage is called.
@@ -337,7 +336,8 @@ private:
     int mCurrentTexture;
 
     // Shadow buffer cache for cleaning up renderengine references.
-    std::shared_ptr<Image> mImages[BufferQueueDefs::NUM_BUFFER_SLOTS] GUARDED_BY(mImagesMutex);
+    std::shared_ptr<renderengine::ExternalTexture>
+            mImages[BufferQueueDefs::NUM_BUFFER_SLOTS] GUARDED_BY(mImagesMutex);
 
     // Separate mutex guarding the shadow buffer cache.
     // mImagesMutex can be manipulated with binder threads (e.g. onBuffersAllocated)
