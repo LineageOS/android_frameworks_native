@@ -152,9 +152,10 @@ class EventThread : public android::EventThread, private VSyncSource::Callback {
 public:
     using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
     using ThrottleVsyncCallback = std::function<bool(nsecs_t, uid_t)>;
+    using GetVsyncPeriodFunction = std::function<nsecs_t(uid_t)>;
 
     EventThread(std::unique_ptr<VSyncSource>, frametimeline::TokenManager*, InterceptVSyncsCallback,
-                ThrottleVsyncCallback);
+                ThrottleVsyncCallback, GetVsyncPeriodFunction);
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
@@ -210,6 +211,7 @@ private:
 
     const InterceptVSyncsCallback mInterceptVSyncsCallback;
     const ThrottleVsyncCallback mThrottleVsyncCallback;
+    const GetVsyncPeriodFunction mGetVsyncPeriodFunction;
     const char* const mThreadName;
 
     std::thread mThread;

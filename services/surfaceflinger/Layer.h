@@ -166,11 +166,6 @@ public:
         Rect crop;
         Rect requestedCrop;
 
-        // If set, defers this state update until the identified Layer
-        // receives a frame with the given frameNumber
-        wp<Layer> barrierLayer_legacy;
-        uint64_t barrierFrameNumber;
-
         // the transparentRegion hint is a bit special, it's latched only
         // when we receive a buffer -- this is because it's "content"
         // dependent.
@@ -398,9 +393,6 @@ public:
     virtual bool setFlags(uint32_t flags, uint32_t mask);
     virtual bool setLayerStack(uint32_t layerStack);
     virtual uint32_t getLayerStack() const;
-    virtual void deferTransactionUntil_legacy(const sp<IBinder>& barrierHandle,
-                                              uint64_t frameNumber);
-    virtual void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber);
     virtual bool setMetadata(const LayerMetadata& data);
     virtual void setChildrenDrawingParent(const sp<Layer>&);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
@@ -578,14 +570,6 @@ public:
 
     virtual int32_t getQueuedFrameCount() const { return 0; }
 
-    virtual void pushPendingState();
-
-    /*
-     * Merges the BufferlessSurfaceFrames from source with the target. If the same token exists in
-     * both source and target, target's SurfaceFrame will be retained.
-     */
-    void mergeSurfaceFrames(State& source, State& target);
-
     /**
      * Returns active buffer size in the correct orientation. Buffer size is determined by undoing
      * any buffer transformations. If the layer has no buffer then return INVALID_RECT.
@@ -615,7 +599,6 @@ public:
     // ignored.
     virtual RoundedCornerState getRoundedCornerState() const;
 
-    virtual void notifyAvailableFrames(nsecs_t /*expectedPresentTime*/) {}
     virtual PixelFormat getPixelFormat() const { return PIXEL_FORMAT_NONE; }
     /**
      * Return whether this layer needs an input info. For most layer types
@@ -903,65 +886,6 @@ public:
     virtual std::string getPendingBufferCounterName() { return ""; }
 
 protected:
-    class SyncPoint {
-    public:
-        explicit SyncPoint(uint64_t frameNumber, wp<Layer> requestedSyncLayer,
-                           wp<Layer> barrierLayer_legacy)
-              : mFrameNumber(frameNumber),
-                mFrameIsAvailable(false),
-                mTransactionIsApplied(false),
-                mRequestedSyncLayer(requestedSyncLayer),
-                mBarrierLayer_legacy(barrierLayer_legacy) {}
-        uint64_t getFrameNumber() const { return mFrameNumber; }
-
-        bool frameIsAvailable() const { return mFrameIsAvailable; }
-
-        void setFrameAvailable() { mFrameIsAvailable = true; }
-
-        bool transactionIsApplied() const { return mTransactionIsApplied; }
-
-        void setTransactionApplied() { mTransactionIsApplied = true; }
-
-        sp<Layer> getRequestedSyncLayer() { return mRequestedSyncLayer.promote(); }
-
-        sp<Layer> getBarrierLayer() const { return mBarrierLayer_legacy.promote(); }
-
-        bool isTimeout() const {
-            using namespace std::chrono_literals;
-            static constexpr std::chrono::nanoseconds TIMEOUT_THRESHOLD = 1s;
-
-            return std::chrono::steady_clock::now() - mCreateTimeStamp > TIMEOUT_THRESHOLD;
-        }
-
-        void checkTimeoutAndLog() {
-            using namespace std::chrono_literals;
-            static constexpr std::chrono::nanoseconds LOG_PERIOD = 1s;
-
-            if (!frameIsAvailable() && isTimeout()) {
-                const auto now = std::chrono::steady_clock::now();
-                if (now - mLastLogTime > LOG_PERIOD) {
-                    mLastLogTime = now;
-                    sp<Layer> requestedSyncLayer = getRequestedSyncLayer();
-                    sp<Layer> barrierLayer = getBarrierLayer();
-                    ALOGW("[%s] sync point %" PRIu64 " wait timeout %lld for %s",
-                          requestedSyncLayer ? requestedSyncLayer->getDebugName() : "Removed",
-                          mFrameNumber, (now - mCreateTimeStamp).count(),
-                          barrierLayer ? barrierLayer->getDebugName() : "Removed");
-                }
-            }
-        }
-
-    private:
-        const uint64_t mFrameNumber;
-        std::atomic<bool> mFrameIsAvailable;
-        std::atomic<bool> mTransactionIsApplied;
-        wp<Layer> mRequestedSyncLayer;
-        wp<Layer> mBarrierLayer_legacy;
-        const std::chrono::time_point<std::chrono::steady_clock> mCreateTimeStamp =
-                std::chrono::steady_clock::now();
-        std::chrono::time_point<std::chrono::steady_clock> mLastLogTime;
-    };
-
     friend class impl::SurfaceInterceptor;
 
     // For unit tests
@@ -980,7 +904,6 @@ protected:
             ui::Dataspace outputDataspace);
     virtual void preparePerFrameCompositionState();
     virtual void commitTransaction(State& stateToCommit);
-    virtual bool applyPendingStates(State* stateToCommit);
     virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit);
     virtual void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&) {}
 
@@ -1026,21 +949,6 @@ protected:
     virtual ui::Transform getInputTransform() const;
     virtual Rect getInputBounds() const;
 
-    // SyncPoints which will be signaled when the correct frame is at the head
-    // of the queue and dropped after the frame has been latched. Protected by
-    // mLocalSyncPointMutex.
-    Mutex mLocalSyncPointMutex;
-    std::list<std::shared_ptr<SyncPoint>> mLocalSyncPoints;
-
-    // SyncPoints which will be signaled and then dropped when the transaction
-    // is applied
-    std::list<std::shared_ptr<SyncPoint>> mRemoteSyncPoints;
-
-    // Returns false if the relevant frame has already been latched
-    bool addSyncPoint(const std::shared_ptr<SyncPoint>& point);
-
-    void popPendingState(State* stateToCommit);
-
     // constant
     sp<SurfaceFlinger> mFlinger;
 
@@ -1050,14 +958,10 @@ protected:
 
     // These are only accessed by the main thread or the tracing thread.
     State mDrawingState;
-    // Store a copy of the pending state so that the drawing thread can access the
-    // states without a lock.
-    std::deque<State> mPendingStatesSnapshot;
 
     // these are protected by an external lock (mStateLock)
     State mCurrentState;
     std::atomic<uint32_t> mTransactionFlags{0};
-    std::deque<State> mPendingStates;
 
     // Timestamp history for UIAutomation. Thread safe.
     FrameTracker mFrameTracker;
@@ -1119,6 +1023,8 @@ protected:
     // Used in buffer stuffing analysis in FrameTimeline.
     nsecs_t mLastLatchTime = 0;
 
+    mutable bool mCurrentStateModified = false;
+
 private:
     virtual void setTransformHint(ui::Transform::RotationFlags) {}
 
@@ -1143,7 +1049,6 @@ private:
 
     void updateTreeHasFrameRateVote();
     void setZOrderRelativeOf(const wp<Layer>& relativeOf);
-    void removeRemoteSyncPoints();
 
     // Find the root of the cloned hierarchy, this means the first non cloned parent.
     // This will return null if first non cloned parent is not found.
@@ -1191,7 +1096,7 @@ private:
     float mEffectiveShadowRadius = 0.f;
 
     // A list of regions on this layer that should have blurs.
-    const std::vector<BlurRegion>& getBlurRegions() const;
+    const std::vector<BlurRegion> getBlurRegions() const;
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);

@@ -91,7 +91,6 @@ constexpr static TestColor RED = {195, 63, 63, 255};
 constexpr static TestColor LIGHT_RED = {255, 177, 177, 255};
 constexpr static TestColor GREEN = {63, 195, 63, 255};
 constexpr static TestColor BLUE = {63, 63, 195, 255};
-constexpr static TestColor DARK_GRAY = {63, 63, 63, 255};
 constexpr static TestColor LIGHT_GRAY = {200, 200, 200, 255};
 
 // Fill an RGBA_8888 formatted surface with a single color.
@@ -1469,77 +1468,6 @@ protected:
         }
     }
 
-    void Test_DeferredTransaction() {
-        // Synchronization surface
-        constexpr static int SYNC_LAYER = 2;
-        auto syncSurfaceControl = mComposerClient->createSurface(String8("Sync Test Surface"), 1, 1,
-                                                                 PIXEL_FORMAT_RGBA_8888, 0);
-        ASSERT_TRUE(syncSurfaceControl != nullptr);
-        ASSERT_TRUE(syncSurfaceControl->isValid());
-
-        fillSurfaceRGBA8(syncSurfaceControl, DARK_GRAY);
-
-        {
-            TransactionScope ts(*sFakeComposer);
-            ts.setLayer(syncSurfaceControl, INT32_MAX - 1);
-            ts.setPosition(syncSurfaceControl, mDisplayWidth - 2, mDisplayHeight - 2);
-            ts.show(syncSurfaceControl);
-        }
-        auto referenceFrame = mBaseFrame;
-        referenceFrame.push_back(makeSimpleRect(mDisplayWidth - 2, mDisplayHeight - 2,
-                                                mDisplayWidth - 1, mDisplayHeight - 1));
-        referenceFrame[SYNC_LAYER].mSwapCount = 1;
-        EXPECT_EQ(2, sFakeComposer->getFrameCount());
-        EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-
-        // set up two deferred transactions on different frames - these should not yield composited
-        // frames
-        {
-            TransactionScope ts(*sFakeComposer);
-            ts.setAlpha(mFGSurfaceControl, 0.75);
-            ts.deferTransactionUntil_legacy(mFGSurfaceControl, syncSurfaceControl,
-                                            syncSurfaceControl->getSurface()->getNextFrameNumber());
-        }
-        EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-
-        {
-            TransactionScope ts(*sFakeComposer);
-            ts.setPosition(mFGSurfaceControl, 128, 128);
-            ts.deferTransactionUntil_legacy(mFGSurfaceControl, syncSurfaceControl,
-                                            syncSurfaceControl->getSurface()->getNextFrameNumber() +
-                                                    1);
-        }
-        EXPECT_EQ(4, sFakeComposer->getFrameCount());
-        EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-
-        // should trigger the first deferred transaction, but not the second one
-        fillSurfaceRGBA8(syncSurfaceControl, DARK_GRAY);
-        sFakeComposer->runVSyncAndWait();
-        EXPECT_EQ(5, sFakeComposer->getFrameCount());
-
-        referenceFrame[FG_LAYER].mPlaneAlpha = 0.75f;
-        referenceFrame[SYNC_LAYER].mSwapCount++;
-        EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-
-        // should show up immediately since it's not deferred
-        {
-            TransactionScope ts(*sFakeComposer);
-            ts.setAlpha(mFGSurfaceControl, 1.0);
-        }
-        referenceFrame[FG_LAYER].mPlaneAlpha = 1.f;
-        EXPECT_EQ(6, sFakeComposer->getFrameCount());
-        EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-
-        // trigger the second deferred transaction
-        fillSurfaceRGBA8(syncSurfaceControl, DARK_GRAY);
-        sFakeComposer->runVSyncAndWait();
-        // TODO: Compute from layer size?
-        referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{128, 128, 128 + 64, 128 + 64};
-        referenceFrame[SYNC_LAYER].mSwapCount++;
-        EXPECT_EQ(7, sFakeComposer->getFrameCount());
-        EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-    }
-
     void Test_SetRelativeLayer() {
         constexpr int RELATIVE_LAYER = 2;
         auto relativeSurfaceControl = mComposerClient->createSurface(String8("Test Surface"), 64,
@@ -1623,10 +1551,6 @@ TEST_F(TransactionTest_2_1, DISABLED_LayerSetFlags) {
 
 TEST_F(TransactionTest_2_1, DISABLED_LayerSetMatrix) {
     Test_LayerSetMatrix();
-}
-
-TEST_F(TransactionTest_2_1, DISABLED_DeferredTransaction) {
-    Test_DeferredTransaction();
 }
 
 TEST_F(TransactionTest_2_1, DISABLED_SetRelativeLayer) {
@@ -1799,44 +1723,6 @@ protected:
         EXPECT_TRUE(framesAreSame(referenceFrame, Base::sFakeComposer->getLatestFrame()));
     }
 
-    void Test_Bug36858924() {
-        // Destroy the child layer
-        mChild.clear();
-
-        // Now recreate it as hidden
-        mChild = Base::mComposerClient->createSurface(String8("Child surface"), 10, 10,
-                                                      PIXEL_FORMAT_RGBA_8888,
-                                                      ISurfaceComposerClient::eHidden,
-                                                      Base::mFGSurfaceControl->getHandle());
-
-        // Show the child layer in a deferred transaction
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.deferTransactionUntil_legacy(mChild, Base::mFGSurfaceControl,
-                                            Base::mFGSurfaceControl->getSurface()
-                                                    ->getNextFrameNumber());
-            ts.show(mChild);
-        }
-
-        // Render the foreground surface a few times
-        //
-        // Prior to the bugfix for b/36858924, this would usually hang while trying to fill the
-        // third frame because SurfaceFlinger would never process the deferred transaction and would
-        // therefore never acquire/release the first buffer
-        ALOGI("Filling 1");
-        fillSurfaceRGBA8(Base::mFGSurfaceControl, GREEN);
-        Base::sFakeComposer->runVSyncAndWait();
-        ALOGI("Filling 2");
-        fillSurfaceRGBA8(Base::mFGSurfaceControl, BLUE);
-        Base::sFakeComposer->runVSyncAndWait();
-        ALOGI("Filling 3");
-        fillSurfaceRGBA8(Base::mFGSurfaceControl, RED);
-        Base::sFakeComposer->runVSyncAndWait();
-        ALOGI("Filling 4");
-        fillSurfaceRGBA8(Base::mFGSurfaceControl, GREEN);
-        Base::sFakeComposer->runVSyncAndWait();
-    }
-
     sp<SurfaceControl> mChild;
 };
 
@@ -1865,10 +1751,6 @@ TEST_F(ChildLayerTest_2_1, DISABLED_LayerAlpha) {
 // Regression test for b/37673612
 TEST_F(ChildLayerTest_2_1, DISABLED_ChildrenWithParentBufferTransform) {
     Test_ChildrenWithParentBufferTransform();
-}
-
-TEST_F(ChildLayerTest_2_1, DISABLED_Bug36858924) {
-    Test_Bug36858924();
 }
 
 template <typename FakeComposerService>

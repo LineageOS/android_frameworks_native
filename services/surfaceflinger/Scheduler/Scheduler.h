@@ -240,6 +240,7 @@ private:
             EXCLUDES(mFrameRateOverridesMutex);
 
     impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const;
+    impl::EventThread::GetVsyncPeriodFunction makeGetVsyncPeriodFunction() const;
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
