@@ -1294,7 +1294,9 @@ void SkiaGLRenderEngine::dump(std::string& result) {
         StringAppendF(&result, "\n");
 
         SkiaMemoryReporter gpuProtectedReporter(gpuResourceMap, true);
-        mProtectedGrContext->dumpMemoryStatistics(&gpuProtectedReporter);
+        if (mProtectedGrContext) {
+            mProtectedGrContext->dumpMemoryStatistics(&gpuProtectedReporter);
+        }
         StringAppendF(&result, "Skia's GPU Protected Caches: ");
         gpuProtectedReporter.logTotals(result);
         gpuProtectedReporter.logOutput(result);
