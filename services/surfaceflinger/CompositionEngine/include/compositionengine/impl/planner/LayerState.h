@@ -360,14 +360,6 @@ private:
 
     OutputLayerState<mat4, LayerStateField::ColorTransform> mColorTransform;
 
-    using SurfaceDamageState = OutputLayerState<Region, LayerStateField::SurfaceDamage>;
-    SurfaceDamageState
-            mSurfaceDamage{[](auto layer) {
-                               return layer->getLayerFE().getCompositionState()->surfaceDamage;
-                           },
-                           SurfaceDamageState::getRegionToStrings(),
-                           SurfaceDamageState::getRegionEquals()};
-
     using CompositionTypeState = OutputLayerState<hardware::graphics::composer::hal::Composition,
                                                   LayerStateField::CompositionType>;
     CompositionTypeState
@@ -410,7 +402,7 @@ private:
                             return std::vector<std::string>{stream.str()};
                         }};
 
-    static const constexpr size_t kNumNonUniqueFields = 16;
+    static const constexpr size_t kNumNonUniqueFields = 15;
 
     std::array<StateInterface*, kNumNonUniqueFields> getNonUniqueFields() {
         std::array<const StateInterface*, kNumNonUniqueFields> constFields =
@@ -427,8 +419,8 @@ private:
         return {
                 &mDisplayFrame,    &mSourceCrop,     &mZOrder,         &mBufferTransform,
                 &mBlendMode,       &mAlpha,          &mLayerMetadata,  &mVisibleRegion,
-                &mOutputDataspace, &mPixelFormat,    &mColorTransform, &mSurfaceDamage,
-                &mCompositionType, &mSidebandStream, &mBuffer,         &mSolidColor,
+                &mOutputDataspace, &mPixelFormat,    &mColorTransform, &mCompositionType,
+                &mSidebandStream,  &mBuffer,         &mSolidColor,
         };
     }
 };
