@@ -90,8 +90,6 @@ public:
 
     bool isBufferLatched() const override { return mRefreshPending; }
 
-    void notifyAvailableFrames(nsecs_t expectedPresentTime) override;
-
     bool hasReadyFrame() const override;
 
     // Returns the current scaling mode
@@ -134,7 +132,7 @@ protected:
         PixelFormat mPixelFormat{PIXEL_FORMAT_NONE};
         bool mTransformToDisplayInverse{false};
 
-        sp<GraphicBuffer> mBuffer;
+        std::shared_ptr<renderengine::ExternalTexture> mBuffer;
         int mBufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
 
         bool mFrameLatencyNeeded{false};
@@ -152,11 +150,6 @@ protected:
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
     bool onPreComposition(nsecs_t) override;
     void preparePerFrameCompositionState() override;
-
-    // Check all of the local sync points to ensure that all transactions
-    // which need to have been applied prior to the frame which is about to
-    // be latched have signaled
-    bool allTransactionsSignaled(nsecs_t expectedPresentTime);
 
     static bool getOpacityForFormat(uint32_t format);
 

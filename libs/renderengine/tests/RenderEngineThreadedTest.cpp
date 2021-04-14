@@ -49,6 +49,9 @@ TEST_F(RenderEngineThreadedTest, dump) {
 TEST_F(RenderEngineThreadedTest, primeCache) {
     EXPECT_CALL(*mRenderEngine, primeCache());
     mThreadedRE->primeCache();
+    // need to call ANY synchronous function after primeCache to ensure that primeCache has
+    // completed asynchronously before the test completes execution.
+    mThreadedRE->getContextPriority();
 }
 
 TEST_F(RenderEngineThreadedTest, genTextures) {
@@ -159,15 +162,18 @@ TEST_F(RenderEngineThreadedTest, supportsBackgroundBlur_returnsTrue) {
 TEST_F(RenderEngineThreadedTest, drawLayers) {
     renderengine::DisplaySettings settings;
     std::vector<const renderengine::LayerSettings*> layers;
-    sp<GraphicBuffer> buffer = new GraphicBuffer();
+    std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
+            renderengine::ExternalTexture>(new GraphicBuffer(), *mRenderEngine,
+                                           renderengine::ExternalTexture::Usage::READABLE |
+                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
     base::unique_fd bufferFence;
     base::unique_fd drawFence;
 
     EXPECT_CALL(*mRenderEngine, drawLayers)
             .WillOnce([](const renderengine::DisplaySettings&,
                          const std::vector<const renderengine::LayerSettings*>&,
-                         const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
-                         base::unique_fd*) -> status_t { return NO_ERROR; });
+                         const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                         base::unique_fd&&, base::unique_fd*) -> status_t { return NO_ERROR; });
 
     status_t result = mThreadedRE->drawLayers(settings, layers, buffer, false,
                                               std::move(bufferFence), &drawFence);

@@ -60,6 +60,10 @@
 extern "C" {
 #endif
 
+/**
+ * Thermal status used in function {@link AThermal_getCurrentThermalStatus} and
+ * {@link AThermal_StatusCallback}.
+ */
 enum AThermalStatus {
     /** Error in thermal status. */
     ATHERMAL_STATUS_ERROR = -1,
@@ -194,10 +198,10 @@ int AThermal_unregisterThermalStatusListener(AThermalManager *manager,
  *
  * The value returned is a non-negative float that represents how much of the thermal envelope
  * is in use (or is forecasted to be in use). A value of 1.0 indicates that the device is
- * (or will be) throttled at {@link #THERMAL_STATUS_SEVERE}. Such throttling can affect the
+ * (or will be) throttled at {@link #ATHERMAL_STATUS_SEVERE}. Such throttling can affect the
  * CPU, GPU, and other subsystems. Values may exceed 1.0, but there is no implied mapping
  * to specific thermal levels beyond that point. This means that values greater than 1.0
- * may correspond to {@link #THERMAL_STATUS_SEVERE}, but may also represent heavier throttling.
+ * may correspond to {@link #ATHERMAL_STATUS_SEVERE}, but may also represent heavier throttling.
  *
  * A value of 0.0 corresponds to a fixed distance from 1.0, but does not correspond to any
  * particular thermal status or temperature. Values on (0.0, 1.0] may be expected to scale

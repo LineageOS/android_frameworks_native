@@ -50,10 +50,6 @@ public:
     uint32_t doTransactionResize(uint32_t flags, Layer::State* /*stateToCommit*/) override {
         return flags;
     }
-    /*TODO:vhau return to using BufferStateLayer override once WM
-     * has removed deferred transactions!
-    void pushPendingState() override;*/
-    bool applyPendingStates(Layer::State* stateToCommit) override;
 
     uint32_t getActiveWidth(const Layer::State& s) const override { return s.width; }
     uint32_t getActiveHeight(const Layer::State& s) const override { return s.height; }
@@ -66,9 +62,9 @@ public:
     bool setTransform(uint32_t transform) override;
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;
-    bool setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence, nsecs_t postTime,
-                   nsecs_t desiredPresentTime, bool isAutoTimestamp,
-                   const client_cache_t& clientCacheId, uint64_t frameNumber,
+    bool setBuffer(const std::shared_ptr<renderengine::ExternalTexture>& buffer,
+                   const sp<Fence>& acquireFence, nsecs_t postTime, nsecs_t desiredPresentTime,
+                   bool isAutoTimestamp, const client_cache_t& clientCacheId, uint64_t frameNumber,
                    std::optional<nsecs_t> dequeueTime, const FrameTimelineInfo& info,
                    const sp<ITransactionCompletedListener>& transactionListener) override;
     bool setAcquireFence(const sp<Fence>& fence) override;
@@ -87,10 +83,6 @@ public:
     // Override to ignore legacy layer state properties that are not used by BufferStateLayer
     bool setSize(uint32_t /*w*/, uint32_t /*h*/) override { return false; }
     bool setTransparentRegionHint(const Region& transparent) override;
-    void deferTransactionUntil_legacy(const sp<IBinder>& /*barrierHandle*/,
-                                      uint64_t /*frameNumber*/) override {}
-    void deferTransactionUntil_legacy(const sp<Layer>& /*barrierLayer*/,
-                                      uint64_t /*frameNumber*/) override {}
 
     Rect getBufferSize(const State& s) const override;
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
@@ -108,7 +100,7 @@ public:
 
     // See mPendingBufferTransactions
     void decrementPendingBufferCount();
-    void bufferMayChange(sp<GraphicBuffer>& newBuffer) override;
+    void bufferMayChange(const sp<GraphicBuffer>& newBuffer) override;
     std::atomic<int32_t>* getPendingBufferCounter() override { return &mPendingBufferTransactions; }
     std::string getPendingBufferCounterName() override { return mBlastTransactionName; }
 
@@ -165,7 +157,6 @@ private:
     uint64_t mPreviousBufferId = 0;
     uint64_t mPreviousReleasedFrameNumber = 0;
 
-    mutable bool mCurrentStateModified = false;
     bool mReleasePreviousBuffer = false;
 
     // Stores the last set acquire fence signal time used to populate the callback handle's acquire

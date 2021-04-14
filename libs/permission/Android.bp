@@ -1,0 +1,5 @@
+// TODO(b/183654927): empty place holder to start moving permission related things out of libbinder
+// (appops, permission controller, etc..)
+cc_library_shared {
+    name: "libpermission",
+}

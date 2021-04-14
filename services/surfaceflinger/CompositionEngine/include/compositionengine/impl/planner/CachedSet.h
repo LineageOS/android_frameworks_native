@@ -66,7 +66,7 @@ public:
     const Rect& getBounds() const { return mBounds; }
     const Region& getVisibleRegion() const { return mVisibleRegion; }
     size_t getAge() const { return mAge; }
-    const sp<GraphicBuffer>& getBuffer() const { return mTexture.getBuffer(); }
+    const std::shared_ptr<renderengine::ExternalTexture>& getBuffer() const { return mTexture; }
     const sp<Fence>& getDrawFence() const { return mDrawFence; }
     const ProjectionSpace& getOutputSpace() const { return mOutputSpace; }
     ui::Dataspace getOutputDataspace() const { return mOutputDataspace; }
@@ -87,7 +87,7 @@ public:
 
     void setLastUpdate(std::chrono::steady_clock::time_point now) { mLastUpdate = now; }
     void append(const CachedSet& other) {
-        mTexture.setBuffer(nullptr, nullptr);
+        mTexture = nullptr;
         mOutputDataspace = ui::Dataspace::UNKNOWN;
         mDrawFence = nullptr;
 
@@ -108,38 +108,14 @@ public:
 private:
     CachedSet() = default;
 
-    NonBufferHash mFingerprint = 0;
+    const NonBufferHash mFingerprint;
     std::chrono::steady_clock::time_point mLastUpdate = std::chrono::steady_clock::now();
     std::vector<Layer> mLayers;
     Rect mBounds = Rect::EMPTY_RECT;
     Region mVisibleRegion;
     size_t mAge = 0;
 
-    class Texture {
-    public:
-        ~Texture() { setBuffer(nullptr, nullptr); }
-
-        void setBuffer(const sp<GraphicBuffer>& buffer, renderengine::RenderEngine* re) {
-            if (mRE && mBuffer) {
-                mRE->unbindExternalTextureBuffer(mBuffer->getId());
-            }
-
-            mBuffer = buffer;
-            mRE = re;
-
-            if (mRE && mBuffer) {
-                mRE->cacheExternalTextureBuffer(mBuffer);
-            }
-        }
-
-        const sp<GraphicBuffer>& getBuffer() const { return mBuffer; }
-
-    private:
-        sp<GraphicBuffer> mBuffer = nullptr;
-        renderengine::RenderEngine* mRE = nullptr;
-    };
-
-    Texture mTexture;
+    std::shared_ptr<renderengine::ExternalTexture> mTexture;
     sp<Fence> mDrawFence;
     ProjectionSpace mOutputSpace;
     ui::Dataspace mOutputDataspace;

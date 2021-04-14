@@ -48,6 +48,7 @@ filegroup {
     name: "librenderengine_sources",
     srcs: [
         "Description.cpp",
+        "ExternalTexture.cpp",
         "Mesh.cpp",
         "RenderEngine.cpp",
         "Texture.cpp",
@@ -91,6 +92,7 @@ filegroup {
         "skia/debug/CaptureTimer.cpp",
         "skia/debug/CommonPool.cpp",
         "skia/debug/SkiaCapture.cpp",
+        "skia/debug/SkiaMemoryReporter.cpp",
         "skia/filters/BlurFilter.cpp",
         "skia/filters/LinearEffect.cpp",
     ],
