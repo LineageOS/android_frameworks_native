@@ -507,11 +507,6 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
 
     BufferInfo oldBufferInfo = mBufferInfo;
 
-    if (!allTransactionsSignaled(expectedPresentTime)) {
-        mFlinger->setTransactionFlags(eTraversalNeeded);
-        return false;
-    }
-
     status_t err = updateTexImage(recomputeVisibleRegions, latchTime, expectedPresentTime);
     if (err != NO_ERROR) {
         return false;
@@ -556,51 +551,7 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
         recomputeVisibleRegions = true;
     }
 
-    // Remove any sync points corresponding to the buffer which was just
-    // latched
-    {
-        Mutex::Autolock lock(mLocalSyncPointMutex);
-        auto point = mLocalSyncPoints.begin();
-        while (point != mLocalSyncPoints.end()) {
-            if (!(*point)->frameIsAvailable() || !(*point)->transactionIsApplied()) {
-                // This sync point must have been added since we started
-                // latching. Don't drop it yet.
-                ++point;
-                continue;
-            }
-
-            if ((*point)->getFrameNumber() <= mCurrentFrameNumber) {
-                std::stringstream ss;
-                ss << "Dropping sync point " << (*point)->getFrameNumber();
-                ATRACE_NAME(ss.str().c_str());
-                point = mLocalSyncPoints.erase(point);
-            } else {
-                ++point;
-            }
-        }
-    }
-
     return true;
-}
-
-// transaction
-void BufferLayer::notifyAvailableFrames(nsecs_t expectedPresentTime) {
-    const auto headFrameNumber = getHeadFrameNumber(expectedPresentTime);
-    const bool headFenceSignaled = fenceHasSignaled();
-    const bool presentTimeIsCurrent = framePresentTimeIsCurrent(expectedPresentTime);
-    Mutex::Autolock lock(mLocalSyncPointMutex);
-    for (auto& point : mLocalSyncPoints) {
-        if (headFrameNumber >= point->getFrameNumber() && headFenceSignaled &&
-            presentTimeIsCurrent) {
-            point->setFrameAvailable();
-            sp<Layer> requestedSyncLayer = point->getRequestedSyncLayer();
-            if (requestedSyncLayer) {
-                // Need to update the transaction flag to ensure the layer's pending transaction
-                // gets applied.
-                requestedSyncLayer->setTransactionFlags(eTransactionNeeded);
-            }
-        }
-    }
 }
 
 bool BufferLayer::hasReadyFrame() const {
@@ -614,33 +565,6 @@ uint32_t BufferLayer::getEffectiveScalingMode() const {
 bool BufferLayer::isProtected() const {
     const sp<GraphicBuffer>& buffer(mBufferInfo.mBuffer);
     return (buffer != 0) && (buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
-}
-
-// h/w composer set-up
-bool BufferLayer::allTransactionsSignaled(nsecs_t expectedPresentTime) {
-    const auto headFrameNumber = getHeadFrameNumber(expectedPresentTime);
-    bool matchingFramesFound = false;
-    bool allTransactionsApplied = true;
-    Mutex::Autolock lock(mLocalSyncPointMutex);
-
-    for (auto& point : mLocalSyncPoints) {
-        if (point->getFrameNumber() > headFrameNumber) {
-            break;
-        }
-        matchingFramesFound = true;
-
-        if (!point->frameIsAvailable()) {
-            // We haven't notified the remote layer that the frame for
-            // this point is available yet. Notify it now, and then
-            // abort this attempt to latch.
-            point->setFrameAvailable();
-            allTransactionsApplied = false;
-            break;
-        }
-
-        allTransactionsApplied = allTransactionsApplied && point->transactionIsApplied();
-    }
-    return !matchingFramesFound || allTransactionsApplied;
 }
 
 // As documented in libhardware header, formats in the range

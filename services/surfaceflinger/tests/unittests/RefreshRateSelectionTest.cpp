@@ -118,11 +118,8 @@ void RefreshRateSelectionTest::setParent(Layer* child, Layer* parent) {
 }
 
 void RefreshRateSelectionTest::commitTransaction(Layer* layer) {
-    layer->pushPendingState();
     auto c = layer->getCurrentState();
-    if (layer->applyPendingStates(&c)) {
-        layer->commitTransaction(c);
-    }
+    layer->commitTransaction(c);
 }
 
 void RefreshRateSelectionTest::setupScheduler() {

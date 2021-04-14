@@ -217,12 +217,18 @@ namespace impl {
 EventThread::EventThread(std::unique_ptr<VSyncSource> vsyncSource,
                          android::frametimeline::TokenManager* tokenManager,
                          InterceptVSyncsCallback interceptVSyncsCallback,
-                         ThrottleVsyncCallback throttleVsyncCallback)
+                         ThrottleVsyncCallback throttleVsyncCallback,
+                         GetVsyncPeriodFunction getVsyncPeriodFunction)
       : mVSyncSource(std::move(vsyncSource)),
         mTokenManager(tokenManager),
         mInterceptVSyncsCallback(std::move(interceptVSyncsCallback)),
         mThrottleVsyncCallback(std::move(throttleVsyncCallback)),
+        mGetVsyncPeriodFunction(std::move(getVsyncPeriodFunction)),
         mThreadName(mVSyncSource->getName()) {
+
+    LOG_ALWAYS_FATAL_IF(getVsyncPeriodFunction == nullptr,
+            "getVsyncPeriodFunction must not be null");
+
     mVSyncSource->setCallback(this);
 
     mThread = std::thread([this]() NO_THREAD_SAFETY_ANALYSIS {
@@ -565,7 +571,11 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
 void EventThread::dispatchEvent(const DisplayEventReceiver::Event& event,
                                 const DisplayEventConsumers& consumers) {
     for (const auto& consumer : consumers) {
-        switch (consumer->postEvent(event)) {
+        DisplayEventReceiver::Event copy = event;
+        if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
+            copy.vsync.frameInterval = mGetVsyncPeriodFunction(consumer->mOwnerUid);
+        }
+        switch (consumer->postEvent(copy)) {
             case NO_ERROR:
                 break;
 
