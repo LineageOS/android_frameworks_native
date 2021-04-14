@@ -74,6 +74,12 @@ void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_S
     std::unique_lock<std::mutex> lock(mThreadMutex);
     pthread_setname_np(pthread_self(), mThreadName);
 
+    {
+        std::unique_lock<std::mutex> lock(mInitializedMutex);
+        mIsInitialized = true;
+    }
+    mInitializedCondition.notify_all();
+
     while (mRunning) {
         if (!mFunctionCalls.empty()) {
             auto task = mFunctionCalls.front();
@@ -86,19 +92,22 @@ void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_S
     }
 }
 
+void RenderEngineThreaded::waitUntilInitialized() const {
+    std::unique_lock<std::mutex> lock(mInitializedMutex);
+    mInitializedCondition.wait(lock, [=] { return mIsInitialized; });
+}
+
 void RenderEngineThreaded::primeCache() {
-    std::promise<void> resultPromise;
-    std::future<void> resultFuture = resultPromise.get_future();
+    // This function is designed so it can run asynchronously, so we do not need to wait
+    // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
+        mFunctionCalls.push([](renderengine::RenderEngine& instance) {
             ATRACE_NAME("REThreaded::primeCache");
             instance.primeCache();
-            resultPromise.set_value();
         });
     }
     mCondition.notify_one();
-    resultFuture.wait();
 }
 
 void RenderEngineThreaded::dump(std::string& result) {
@@ -175,63 +184,26 @@ void RenderEngineThreaded::unbindExternalTextureBuffer(uint64_t bufferId) {
 }
 
 size_t RenderEngineThreaded::getMaxTextureSize() const {
-    std::promise<size_t> resultPromise;
-    std::future<size_t> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::getMaxTextureSize");
-            size_t size = instance.getMaxTextureSize();
-            resultPromise.set_value(size);
-        });
-    }
-    mCondition.notify_one();
-    return resultFuture.get();
+    waitUntilInitialized();
+    return mRenderEngine->getMaxTextureSize();
 }
 
 size_t RenderEngineThreaded::getMaxViewportDims() const {
-    std::promise<size_t> resultPromise;
-    std::future<size_t> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::getMaxViewportDims");
-            size_t size = instance.getMaxViewportDims();
-            resultPromise.set_value(size);
-        });
-    }
-    mCondition.notify_one();
-    return resultFuture.get();
+    waitUntilInitialized();
+    return mRenderEngine->getMaxViewportDims();
 }
 
 bool RenderEngineThreaded::isProtected() const {
-    std::promise<bool> resultPromise;
-    std::future<bool> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::isProtected");
-            bool returnValue = instance.isProtected();
-            resultPromise.set_value(returnValue);
-        });
-    }
-    mCondition.notify_one();
-    return resultFuture.get();
+    waitUntilInitialized();
+    // ensure that useProtectedContext is not currently being changed by some
+    // other thread.
+    std::lock_guard lock(mThreadMutex);
+    return mRenderEngine->isProtected();
 }
 
 bool RenderEngineThreaded::supportsProtectedContent() const {
-    std::promise<bool> resultPromise;
-    std::future<bool> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::supportsProtectedContent");
-            bool returnValue = instance.supportsProtectedContent();
-            resultPromise.set_value(returnValue);
-        });
-    }
-    mCondition.notify_one();
-    return resultFuture.get();
+    waitUntilInitialized();
+    return mRenderEngine->supportsProtectedContent();
 }
 
 bool RenderEngineThreaded::useProtectedContext(bool useProtectedContext) {
@@ -288,18 +260,16 @@ status_t RenderEngineThreaded::drawLayers(const DisplaySettings& display,
 }
 
 void RenderEngineThreaded::cleanFramebufferCache() {
-    std::promise<void> resultPromise;
-    std::future<void> resultFuture = resultPromise.get_future();
+    // This function is designed so it can run asynchronously, so we do not need to wait
+    // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
+        mFunctionCalls.push([](renderengine::RenderEngine& instance) {
             ATRACE_NAME("REThreaded::cleanFramebufferCache");
             instance.cleanFramebufferCache();
-            resultPromise.set_value();
         });
     }
     mCondition.notify_one();
-    resultFuture.wait();
 }
 
 int RenderEngineThreaded::getContextPriority() {
@@ -318,33 +288,21 @@ int RenderEngineThreaded::getContextPriority() {
 }
 
 bool RenderEngineThreaded::supportsBackgroundBlur() {
-    std::promise<bool> resultPromise;
-    std::future<bool> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::supportsBackgroundBlur");
-            bool returnValue = instance.supportsBackgroundBlur();
-            resultPromise.set_value(returnValue);
-        });
-    }
-    mCondition.notify_one();
-    return resultFuture.get();
+    waitUntilInitialized();
+    return mRenderEngine->supportsBackgroundBlur();
 }
 
 void RenderEngineThreaded::onPrimaryDisplaySizeChanged(ui::Size size) {
-    std::promise<void> resultPromise;
-    std::future<void> resultFuture = resultPromise.get_future();
+    // This function is designed so it can run asynchronously, so we do not need to wait
+    // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise, size](renderengine::RenderEngine& instance) {
+        mFunctionCalls.push([size](renderengine::RenderEngine& instance) {
             ATRACE_NAME("REThreaded::onPrimaryDisplaySizeChanged");
             instance.onPrimaryDisplaySizeChanged(size);
-            resultPromise.set_value();
         });
     }
     mCondition.notify_one();
-    resultFuture.wait();
 }
 
 } // namespace threaded

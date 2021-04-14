@@ -693,12 +693,16 @@ uint32_t SurfaceFlinger::getNewTexture() {
 
     // The pool was empty, so we need to get a new texture name directly using a
     // blocking call to the main thread
-    return schedule([this] {
+    auto genTextures = [this] {
                uint32_t name = 0;
                getRenderEngine().genTextures(1, &name);
                return name;
-           })
-            .get();
+    };
+    if (std::this_thread::get_id() == mMainThreadId) {
+        return genTextures();
+    } else {
+        return schedule(genTextures).get();
+    }
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
@@ -2815,13 +2819,6 @@ void SurfaceFlinger::processDisplayChangesLocked() {
 }
 
 void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
-    const nsecs_t expectedPresentTime = mExpectedPresentTime.load();
-
-    // Notify all layers of available frames
-    mCurrentState.traverse([expectedPresentTime](Layer* layer) {
-        layer->notifyAvailableFrames(expectedPresentTime);
-    });
-
     /*
      * Traversal of the children
      * (perform the transaction for each of them if needed)
@@ -3833,12 +3830,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
 
     const uint64_t what = s.what;
 
-    // If we are deferring transaction, make sure to push the pending state, as otherwise the
-    // pending state will also be deferred.
-    if (what & layer_state_t::eDeferTransaction_legacy) {
-        layer->pushPendingState();
-    }
-
     // Only set by BLAST adapter layers
     if (what & layer_state_t::eProducerDisconnect) {
         layer->onDisconnect();
@@ -3972,12 +3963,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             // AND transaction (list changed)
             flags |= eTransactionNeeded | eTraversalNeeded | eTransformHintUpdateNeeded;
         }
-    }
-    if (what & layer_state_t::eDeferTransaction_legacy) {
-        layer->deferTransactionUntil_legacy(s.barrierSurfaceControl_legacy->getHandle(),
-                                            s.barrierFrameNumber);
-        // We don't trigger a traversal here because if no other state is
-        // changed, we don't want this to cause any more work
     }
     if (what & layer_state_t::eTransformChanged) {
         if (layer->setTransform(s.transform)) flags |= eTraversalNeeded;
@@ -5530,9 +5515,24 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 const int modeId = data.readInt32();
                 mDebugDisplayModeSetByBackdoor = false;
 
-                const auto displayId = getInternalDisplayId();
+                const auto displayId = [&]() -> std::optional<PhysicalDisplayId> {
+                    uint64_t inputDisplayId = 0;
+                    if (data.readUint64(&inputDisplayId) == NO_ERROR) {
+                        const auto token = getPhysicalDisplayToken(
+                                static_cast<PhysicalDisplayId>(inputDisplayId));
+                        if (!token) {
+                            ALOGE("No display with id: %" PRIu64, inputDisplayId);
+                            return std::nullopt;
+                        }
+
+                        return std::make_optional<PhysicalDisplayId>(inputDisplayId);
+                    }
+
+                    return getInternalDisplayId();
+                }();
+
                 if (!displayId) {
-                    ALOGE("No internal display found.");
+                    ALOGE("No display found");
                     return NO_ERROR;
                 }
 
@@ -6245,6 +6245,11 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
                         "Can only set override policy on the primary display");
     LOG_ALWAYS_FATAL_IF(!policy && !overridePolicy, "Can only clear the override policy");
 
+    if (mDebugDisplayModeSetByBackdoor) {
+        // ignore this request as mode is overridden by backdoor
+        return NO_ERROR;
+    }
+
     if (!display->isPrimary()) {
         // TODO(b/144711714): For non-primary displays we should be able to set an active mode
         // as well. For now, just call directly to initiateModeChange but ideally
@@ -6268,11 +6273,6 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
         const nsecs_t vsyncPeriod = display->getMode(policy->defaultMode)->getVsyncPeriod();
         mScheduler->onNonPrimaryDisplayModeChanged(mAppConnectionHandle, displayId,
                                                    policy->defaultMode, vsyncPeriod);
-        return NO_ERROR;
-    }
-
-    if (mDebugDisplayModeSetByBackdoor) {
-        // ignore this request as mode is overridden by backdoor
         return NO_ERROR;
     }
 

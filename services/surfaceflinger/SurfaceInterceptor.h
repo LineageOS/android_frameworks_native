@@ -167,8 +167,6 @@ private:
                                        int32_t backgroundBlurRadius);
     void addBlurRegionsLocked(Transaction* transaction, int32_t layerId,
                               const std::vector<BlurRegion>& effectRegions);
-    void addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
-            const sp<const Layer>& layer, uint64_t frameNumber);
     void addSurfaceChangesLocked(Transaction* transaction, const layer_state_t& state);
     void addTransactionLocked(Increment* increment, const Vector<ComposerState>& stateUpdates,
                               const DefaultKeyedVector<wp<IBinder>, DisplayDeviceState>& displays,

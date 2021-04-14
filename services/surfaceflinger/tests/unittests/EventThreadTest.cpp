@@ -44,7 +44,7 @@ namespace {
 constexpr PhysicalDisplayId INTERNAL_DISPLAY_ID(111);
 constexpr PhysicalDisplayId EXTERNAL_DISPLAY_ID(222);
 constexpr PhysicalDisplayId DISPLAY_ID_64BIT(0xabcd12349876fedcULL);
-
+constexpr std::chrono::duration VSYNC_PERIOD(16ms);
 class MockVSyncSource : public VSyncSource {
 public:
     const char* getName() const override { return "test"; }
@@ -166,11 +166,14 @@ void EventThreadTest::createThread(std::unique_ptr<VSyncSource> source) {
         mThrottleVsyncCallRecorder.getInvocable()(expectedVsyncTimestamp, uid);
         return (uid == mThrottledConnectionUid);
     };
+    const auto getVsyncPeriod = [](uid_t uid) {
+        return VSYNC_PERIOD.count();
+    };
 
     mThread = std::make_unique<impl::EventThread>(std::move(source),
                                                   /*tokenManager=*/nullptr,
                                                   mInterceptVSyncCallRecorder.getInvocable(),
-                                                  throttleVsync);
+                                                  throttleVsync, getVsyncPeriod);
 
     // EventThread should register itself as VSyncSource callback.
     mCallback = expectVSyncSetCallbackCallReceived();
