@@ -746,8 +746,7 @@ void GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, const sp<Grap
     return;
 }
 
-void GLESRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
-                                                bool /*isRenderable*/) {
+void GLESRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
     ATRACE_CALL();
     mImageManager->cacheAsync(buffer, nullptr);
 }
@@ -798,8 +797,8 @@ status_t GLESRenderEngine::cacheExternalTextureBufferInternal(const sp<GraphicBu
     return NO_ERROR;
 }
 
-void GLESRenderEngine::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
-    mImageManager->releaseAsync(buffer->getId(), nullptr);
+void GLESRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
+    mImageManager->releaseAsync(bufferId, nullptr);
 }
 
 std::shared_ptr<ImageManager::Barrier> GLESRenderEngine::unbindExternalTextureBufferForTesting(
@@ -1103,7 +1102,7 @@ EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer
 
 status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                                       const std::vector<const LayerSettings*>& layers,
-                                      const std::shared_ptr<ExternalTexture>& buffer,
+                                      const sp<GraphicBuffer>& buffer,
                                       const bool useFramebufferCache, base::unique_fd&& bufferFence,
                                       base::unique_fd* drawFence) {
     ATRACE_CALL();
@@ -1126,7 +1125,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         return BAD_VALUE;
     }
 
-    validateOutputBufferUsage(buffer->getBuffer());
+    validateOutputBufferUsage(buffer);
 
     std::unique_ptr<BindNativeBufferAsFramebuffer> fbo;
     // Gathering layers that requested blur, we'll need them to decide when to render to an
@@ -1143,13 +1142,11 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
     if (blurLayersSize == 0) {
         fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this,
-                                                              buffer->getBuffer()
-                                                                      .get()
-                                                                      ->getNativeBuffer(),
+                                                              buffer.get()->getNativeBuffer(),
                                                               useFramebufferCache);
         if (fbo->getStatus() != NO_ERROR) {
             ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
-                  buffer->getBuffer()->handle);
+                  buffer->handle);
             checkErrors();
             return fbo->getStatus();
         }
@@ -1160,7 +1157,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                 mBlurFilter->setAsDrawTarget(display, blurLayers.front()->backgroundBlurRadius);
         if (status != NO_ERROR) {
             ALOGE("Failed to prepare blur filter! Aborting GPU composition for buffer (%p).",
-                  buffer->getBuffer()->handle);
+                  buffer->handle);
             checkErrors();
             return status;
         }
@@ -1197,7 +1194,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             auto status = mBlurFilter->prepare();
             if (status != NO_ERROR) {
                 ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
-                      buffer->getBuffer()->handle);
+                      buffer->handle);
                 checkErrors("Can't render first blur pass");
                 return status;
             }
@@ -1206,7 +1203,6 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                 // Done blurring, time to bind the native FBO and render our blur onto it.
                 fbo = std::make_unique<BindNativeBufferAsFramebuffer>(*this,
                                                                       buffer.get()
-                                                                              ->getBuffer()
                                                                               ->getNativeBuffer(),
                                                                       useFramebufferCache);
                 status = fbo->getStatus();
@@ -1219,7 +1215,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             }
             if (status != NO_ERROR) {
                 ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
-                      buffer->getBuffer()->handle);
+                      buffer->handle);
                 checkErrors("Can't bind native framebuffer");
                 return status;
             }
@@ -1227,7 +1223,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             status = mBlurFilter->render(blurLayersSize > 1);
             if (status != NO_ERROR) {
                 ALOGE("Failed to render blur effect! Aborting GPU composition for buffer (%p).",
-                      buffer->getBuffer()->handle);
+                      buffer->handle);
                 checkErrors("Can't render blur filter");
                 return status;
             }
@@ -1254,7 +1250,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
             disableTexture = false;
             isOpaque = layer->source.buffer.isOpaque;
 
-            sp<GraphicBuffer> gBuf = layer->source.buffer.buffer->getBuffer();
+            sp<GraphicBuffer> gBuf = layer->source.buffer.buffer;
             validateInputBufferUsage(gBuf);
             bindExternalTextureBuffer(layer->source.buffer.textureName, gBuf,
                                       layer->source.buffer.fence);
@@ -1278,7 +1274,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
             // Do not cache protected EGLImage, protected memory is limited.
             if (gBuf->getUsage() & GRALLOC_USAGE_PROTECTED) {
-                unmapExternalTextureBuffer(gBuf);
+                unbindExternalTextureBuffer(gBuf->getId());
             }
         }
 
