@@ -228,8 +228,8 @@ enum {
      *
      * If a device supports the sensor additional information feature, it will
      * report additional information events via {@link ASensorEvent} and will
-     * have {@link ASensorEvent#type} set to
-     * {@link ASENSOR_TYPE_ADDITIONAL_INFO} and {@link ASensorEvent#sensor} set
+     * have the type of {@link ASensorEvent} set to
+     * {@link ASENSOR_TYPE_ADDITIONAL_INFO} and the sensor of {@link ASensorEvent} set
      * to the handle of the reporting sensor.
      *
      * Additional information reports consist of multiple frames ordered by
@@ -449,7 +449,7 @@ typedef struct AAdditionalInfoEvent {
 typedef struct ASensorEvent {
     int32_t version; /* sizeof(struct ASensorEvent) */
     int32_t sensor;  /** The sensor that generates this event */
-    int32_t type;    /** Sensor type for the event, such as {@link ASENSOR_TYPE_ACCELEROMETER}*/
+    int32_t type;    /** Sensor type for the event, such as {@link ASENSOR_TYPE_ACCELEROMETER} */
     int32_t reserved0; /** do not use */
     /**
      * The time in nanoseconds at which the event happened, and its behavior
@@ -928,7 +928,7 @@ int ASensor_getHighestDirectReportRateLevel(ASensor const* sensor) __INTRODUCED_
  * Returns the sensor's handle.
  *
  * The handle identifies the sensor within the system and is included in the
- * {@link ASensorEvent#sensor} field of sensor events, including those sent with type
+ * sensor field of {@link ASensorEvent}, including those sent with type
  * {@link ASENSOR_TYPE_ADDITIONAL_INFO}.
  *
  * A sensor's handle is able to be used to map {@link ASENSOR_TYPE_ADDITIONAL_INFO} events to the
