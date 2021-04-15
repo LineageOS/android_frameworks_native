@@ -16,19 +16,17 @@
 
 #pragma once
 
-#include <android-base/thread_annotations.h>
-#include <binder/IBinder.h>
-#include <renderengine/ExternalTexture.h>
-#include <ui/GraphicBuffer.h>
-#include <ui/Rect.h>
-#include <utils/StrongPointer.h>
-
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
 
+#include <android-base/thread_annotations.h>
+#include <binder/IBinder.h>
+#include <ui/GraphicBuffer.h>
+#include <ui/Rect.h>
+#include <utils/StrongPointer.h>
 #include "Scheduler/OneShotTimer.h"
 
 namespace android {
@@ -124,8 +122,7 @@ private:
 
     std::mutex mSamplingMutex;
     std::unordered_map<wp<IBinder>, Descriptor, WpHash> mDescriptors GUARDED_BY(mSamplingMutex);
-    std::shared_ptr<renderengine::ExternalTexture> mCachedBuffer GUARDED_BY(mSamplingMutex) =
-            nullptr;
+    sp<GraphicBuffer> mCachedBuffer GUARDED_BY(mSamplingMutex) = nullptr;
 };
 
 } // namespace android
