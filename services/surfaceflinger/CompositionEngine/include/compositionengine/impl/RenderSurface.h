@@ -16,11 +16,15 @@
 
 #pragma once
 
-#include <memory>
-
 #include <android-base/unique_fd.h>
 #include <compositionengine/RenderSurface.h>
 #include <utils/StrongPointer.h>
+
+#include <memory>
+#include <vector>
+
+#include "renderengine/ExternalTexture.h"
+#include "renderengine/RenderEngine.h"
 
 struct ANativeWindow;
 
@@ -54,7 +58,8 @@ public:
     void setProtected(bool useProtected) override;
     status_t beginFrame(bool mustRecompose) override;
     void prepareFrame(bool usesClientComposition, bool usesDeviceComposition) override;
-    sp<GraphicBuffer> dequeueBuffer(base::unique_fd* bufferFence) override;
+    std::shared_ptr<renderengine::ExternalTexture> dequeueBuffer(
+            base::unique_fd* bufferFence) override;
     void queueBuffer(base::unique_fd readyFence) override;
     void onPresentDisplayCompleted() override;
     void flip() override;
@@ -66,7 +71,7 @@ public:
     // Testing
     void setPageFlipCountForTest(std::uint32_t);
     void setSizeForTest(const ui::Size&);
-    sp<GraphicBuffer>& mutableGraphicBufferForTest();
+    std::shared_ptr<renderengine::ExternalTexture>& mutableTextureForTest();
     base::unique_fd& mutableBufferReadyForTest();
 
 private:
@@ -75,10 +80,13 @@ private:
 
     // ANativeWindow being rendered into
     const sp<ANativeWindow> mNativeWindow;
-    // Current buffer being rendered into
-    sp<GraphicBuffer> mGraphicBuffer;
+
+    std::vector<std::shared_ptr<renderengine::ExternalTexture>> mTextureCache;
+    // Current texture being rendered into
+    std::shared_ptr<renderengine::ExternalTexture> mTexture;
     const sp<DisplaySurface> mDisplaySurface;
     ui::Size mSize;
+    const size_t mMaxTextureCacheSize;
     bool mProtected{false};
     std::uint32_t mPageFlipCount{0};
 };

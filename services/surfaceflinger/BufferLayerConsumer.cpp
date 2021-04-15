@@ -40,7 +40,6 @@
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
-#include <renderengine/Image.h>
 #include <renderengine/RenderEngine.h>
 #include <utils/Log.h>
 #include <utils/String8.h>
@@ -167,7 +166,7 @@ void BufferLayerConsumer::setReleaseFence(const sp<Fence>& fence) {
     }
 
     auto buffer = mPendingRelease.isPending ? mPendingRelease.graphicBuffer
-                                            : mCurrentTextureBuffer->graphicBuffer();
+                                            : mCurrentTextureBuffer->getBuffer();
     auto err = addReleaseFence(slot, buffer, fence);
     if (err != OK) {
         BLC_LOGE("setReleaseFence: failed to add the fence: %s (%d)", strerror(-err), err);
@@ -206,9 +205,11 @@ status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t pres
     // before, so we need to clean up old references.
     if (item->mGraphicBuffer != nullptr) {
         std::lock_guard<std::mutex> lock(mImagesMutex);
-        if (mImages[item->mSlot] == nullptr || mImages[item->mSlot]->graphicBuffer() == nullptr ||
-            mImages[item->mSlot]->graphicBuffer()->getId() != item->mGraphicBuffer->getId()) {
-            mImages[item->mSlot] = std::make_shared<Image>(item->mGraphicBuffer, mRE);
+        if (mImages[item->mSlot] == nullptr || mImages[item->mSlot]->getBuffer() == nullptr ||
+            mImages[item->mSlot]->getBuffer()->getId() != item->mGraphicBuffer->getId()) {
+            mImages[item->mSlot] = std::make_shared<
+                    renderengine::ExternalTexture>(item->mGraphicBuffer, mRE,
+                                                   renderengine::ExternalTexture::Usage::READABLE);
         }
     }
 
@@ -222,8 +223,8 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     int slot = item.mSlot;
 
     BLC_LOGV("updateAndRelease: (slot=%d buf=%p) -> (slot=%d buf=%p)", mCurrentTexture,
-             (mCurrentTextureBuffer != nullptr && mCurrentTextureBuffer->graphicBuffer() != nullptr)
-                     ? mCurrentTextureBuffer->graphicBuffer()->handle
+             (mCurrentTextureBuffer != nullptr && mCurrentTextureBuffer->getBuffer() != nullptr)
+                     ? mCurrentTextureBuffer->getBuffer()->handle
                      : 0,
              slot, mSlots[slot].mGraphicBuffer->handle);
 
@@ -231,7 +232,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     // releaseBufferLocked() if we're in shared buffer mode and both buffers are
     // the same.
 
-    std::shared_ptr<Image> nextTextureBuffer;
+    std::shared_ptr<renderengine::ExternalTexture> nextTextureBuffer;
     {
         std::lock_guard<std::mutex> lock(mImagesMutex);
         nextTextureBuffer = mImages[slot];
@@ -241,7 +242,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
         if (pendingRelease == nullptr) {
             status_t status =
-                    releaseBufferLocked(mCurrentTexture, mCurrentTextureBuffer->graphicBuffer());
+                    releaseBufferLocked(mCurrentTexture, mCurrentTextureBuffer->getBuffer());
             if (status < NO_ERROR) {
                 BLC_LOGE("updateAndRelease: failed to release buffer: %s (%d)", strerror(-status),
                          status);
@@ -250,7 +251,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
             }
         } else {
             pendingRelease->currentTexture = mCurrentTexture;
-            pendingRelease->graphicBuffer = mCurrentTextureBuffer->graphicBuffer();
+            pendingRelease->graphicBuffer = mCurrentTextureBuffer->getBuffer();
             pendingRelease->isPending = true;
         }
     }
@@ -301,14 +302,14 @@ void BufferLayerConsumer::setFilteringEnabled(bool enabled) {
 
 void BufferLayerConsumer::computeCurrentTransformMatrixLocked() {
     BLC_LOGV("computeCurrentTransformMatrixLocked");
-    if (mCurrentTextureBuffer == nullptr || mCurrentTextureBuffer->graphicBuffer() == nullptr) {
+    if (mCurrentTextureBuffer == nullptr || mCurrentTextureBuffer->getBuffer() == nullptr) {
         BLC_LOGD("computeCurrentTransformMatrixLocked: "
                  "mCurrentTextureBuffer is nullptr");
     }
     GLConsumer::computeTransformMatrix(mCurrentTransformMatrix,
                                        mCurrentTextureBuffer == nullptr
                                                ? nullptr
-                                               : mCurrentTextureBuffer->graphicBuffer(),
+                                               : mCurrentTextureBuffer->getBuffer(),
                                        getCurrentCropLocked(), mCurrentTransform,
                                        mFilteringEnabled);
 }
@@ -360,7 +361,8 @@ int BufferLayerConsumer::getCurrentApi() const {
     return mCurrentApi;
 }
 
-sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot, sp<Fence>* outFence) const {
+std::shared_ptr<renderengine::ExternalTexture> BufferLayerConsumer::getCurrentBuffer(
+        int* outSlot, sp<Fence>* outFence) const {
     Mutex::Autolock lock(mMutex);
 
     if (outSlot != nullptr) {
@@ -371,7 +373,7 @@ sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot, sp<Fence>*
         *outFence = mCurrentFence;
     }
 
-    return mCurrentTextureBuffer == nullptr ? nullptr : mCurrentTextureBuffer->graphicBuffer();
+    return mCurrentTextureBuffer == nullptr ? nullptr : mCurrentTextureBuffer;
 }
 
 Rect BufferLayerConsumer::getCurrentCrop() const {
@@ -456,10 +458,12 @@ void BufferLayerConsumer::onSidebandStreamChanged() {
 void BufferLayerConsumer::onBufferAvailable(const BufferItem& item) {
     if (item.mGraphicBuffer != nullptr && item.mSlot != BufferQueue::INVALID_BUFFER_SLOT) {
         std::lock_guard<std::mutex> lock(mImagesMutex);
-        const std::shared_ptr<Image>& oldImage = mImages[item.mSlot];
-        if (oldImage == nullptr || oldImage->graphicBuffer() == nullptr ||
-            oldImage->graphicBuffer()->getId() != item.mGraphicBuffer->getId()) {
-            mImages[item.mSlot] = std::make_shared<Image>(item.mGraphicBuffer, mRE);
+        const std::shared_ptr<renderengine::ExternalTexture>& oldImage = mImages[item.mSlot];
+        if (oldImage == nullptr || oldImage->getBuffer() == nullptr ||
+            oldImage->getBuffer()->getId() != item.mGraphicBuffer->getId()) {
+            mImages[item.mSlot] = std::make_shared<
+                    renderengine::ExternalTexture>(item.mGraphicBuffer, mRE,
+                                                   renderengine::ExternalTexture::Usage::READABLE);
         }
     }
 }
@@ -498,22 +502,6 @@ void BufferLayerConsumer::dumpLocked(String8& result, const char* prefix) const 
                         mCurrentTransform);
 
     ConsumerBase::dumpLocked(result, prefix);
-}
-
-BufferLayerConsumer::Image::Image(const sp<GraphicBuffer>& graphicBuffer,
-                                  renderengine::RenderEngine& engine)
-      : mGraphicBuffer(graphicBuffer), mRE(engine) {
-    if (graphicBuffer != nullptr && (graphicBuffer->getUsage() & GRALLOC_USAGE_PROTECTED)) {
-        return;
-    }
-    mRE.cacheExternalTextureBuffer(mGraphicBuffer);
-}
-
-BufferLayerConsumer::Image::~Image() {
-    if (mGraphicBuffer != nullptr) {
-        ALOGV("Destroying buffer: %" PRId64, mGraphicBuffer->getId());
-        mRE.unbindExternalTextureBuffer(mGraphicBuffer->getId());
-    }
 }
 }; // namespace android
 
