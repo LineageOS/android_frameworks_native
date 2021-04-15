@@ -793,6 +793,9 @@ void Dumpstate::PrintHeader() const {
     if (module_metadata_version != 0) {
         printf("Module Metadata version: %" PRId64 "\n", module_metadata_version);
     }
+    printf("SDK extension versions [r=%s s=%s]\n",
+           android::base::GetProperty("build.version.extensions.r", "-").c_str(),
+           android::base::GetProperty("build.version.extensions.s", "-").c_str());
 
     printf("Kernel: ");
     DumpFileToFd(STDOUT_FILENO, "", "/proc/version");
