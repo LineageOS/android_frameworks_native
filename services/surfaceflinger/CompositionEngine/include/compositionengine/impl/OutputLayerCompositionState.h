@@ -18,7 +18,7 @@
 
 #include <compositionengine/ProjectionSpace.h>
 #include <compositionengine/impl/HwcBufferCache.h>
-#include <renderengine/Mesh.h>
+#include <renderengine/ExternalTexture.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
@@ -89,7 +89,7 @@ struct OutputLayerCompositionState {
 
     // Overrides the buffer, acquire fence, and display frame stored in LayerFECompositionState
     struct {
-        sp<GraphicBuffer> buffer = nullptr;
+        std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;
         sp<Fence> acquireFence = nullptr;
         Rect displayFrame = {};
         ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
