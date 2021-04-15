@@ -787,13 +787,16 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerContentForAllLayers
     uint32_t z = 0;
     EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_180));
     EXPECT_CALL(*layer1.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
     EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_180));
     EXPECT_CALL(*layer2.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
     EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_180));
     EXPECT_CALL(*layer3.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
 
     injectOutputLayer(layer1);
     injectOutputLayer(layer2);
@@ -818,13 +821,16 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, updatesLayerGeometryAndContentF
     uint32_t z = 0;
     EXPECT_CALL(*layer1.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
     EXPECT_CALL(*layer1.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
     EXPECT_CALL(*layer2.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
     EXPECT_CALL(*layer2.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
     EXPECT_CALL(*layer3.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
     EXPECT_CALL(*layer3.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
 
     injectOutputLayer(layer1);
     injectOutputLayer(layer2);
@@ -848,13 +854,16 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, forcesClientCompositionForAllLa
     uint32_t z = 0;
     EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer1.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
     EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer2.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
     EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer3.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
 
     injectOutputLayer(layer1);
     injectOutputLayer(layer2);
@@ -3500,7 +3509,8 @@ struct OutputComposeSurfacesTest_SetsExpensiveRendering_ForBlur
 
         EXPECT_CALL(mLayer.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
         EXPECT_CALL(mLayer.outputLayer,
-                    writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0));
+                    writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, 0,
+                                    /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
         EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, kDefaultOutputDataspace))
                 .WillOnce(Return(std::vector<LayerFE::LayerSettings>{}));
         EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _, _)).WillOnce(Return(NO_ERROR));
@@ -4083,13 +4093,16 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBackgroundBlurRequests) 
     // Layer requesting blur, or below, should request client composition.
     EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer1.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
     EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer2.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
     EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_0));
     EXPECT_CALL(*layer3.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
 
     layer2.layerFEState.backgroundBlurRadius = 10;
 
@@ -4116,13 +4129,16 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, handlesBlurRegionRequests) {
     // Layer requesting blur, or below, should request client composition.
     EXPECT_CALL(*layer1.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer1.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
     EXPECT_CALL(*layer2.outputLayer, updateCompositionState(false, true, ui::Transform::ROT_0));
     EXPECT_CALL(*layer2.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
     EXPECT_CALL(*layer3.outputLayer, updateCompositionState(false, false, ui::Transform::ROT_0));
     EXPECT_CALL(*layer3.outputLayer,
-                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++));
+                writeStateToHWC(/*includeGeometry*/ false, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
 
     BlurRegion region;
     layer2.layerFEState.blurRegions.push_back(region);

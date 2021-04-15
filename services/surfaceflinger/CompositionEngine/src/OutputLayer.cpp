@@ -313,7 +313,8 @@ void OutputLayer::updateCompositionState(
     }
 }
 
-void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t z) {
+void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t z,
+                                  bool zIsOverridden, bool isPeekingThrough) {
     const auto& state = getState();
     // Skip doing this if there is no HWC interface
     if (!state.hwc) {
@@ -336,7 +337,8 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t
 
     // TODO(b/181172795): We now update geometry for all flattened layers. We should update it
     // only when the geometry actually changes
-    const bool isOverridden = state.overrideInfo.buffer != nullptr;
+    const bool isOverridden =
+            state.overrideInfo.buffer != nullptr || isPeekingThrough || zIsOverridden;
     const bool prevOverridden = state.hwc->stateOverridden;
     if (isOverridden || prevOverridden || skipLayer || includeGeometry) {
         writeOutputDependentGeometryStateToHWC(hwcLayer.get(), requestedCompositionType, z);
@@ -347,7 +349,7 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t
     writeOutputDependentPerFrameStateToHWC(hwcLayer.get());
     writeOutputIndependentPerFrameStateToHWC(hwcLayer.get(), *outputIndependentState);
 
-    writeCompositionTypeToHWC(hwcLayer.get(), requestedCompositionType);
+    writeCompositionTypeToHWC(hwcLayer.get(), requestedCompositionType, isPeekingThrough);
 
     // Always set the layer color after setting the composition type.
     writeSolidColorStateToHWC(hwcLayer.get(), *outputIndependentState);
@@ -563,12 +565,13 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
 }
 
 void OutputLayer::writeCompositionTypeToHWC(HWC2::Layer* hwcLayer,
-                                            hal::Composition requestedCompositionType) {
+                                            hal::Composition requestedCompositionType,
+                                            bool isPeekingThrough) {
     auto& outputDependentState = editState();
 
     // If we are forcing client composition, we need to tell the HWC
     if (outputDependentState.forceClientComposition ||
-        (!getState().overrideInfo.isPeekingThrough && getLayerFE().hasRoundedCorners())) {
+        (!isPeekingThrough && getLayerFE().hasRoundedCorners())) {
         requestedCompositionType = hal::Composition::CLIENT;
     }
 

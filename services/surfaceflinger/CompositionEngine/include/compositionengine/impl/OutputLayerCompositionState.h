@@ -103,11 +103,6 @@ struct OutputLayerCompositionState {
         // be visible through it. Unowned - the OutputLayer's lifetime will
         // outlast this.)
         OutputLayer* peekThroughLayer = nullptr;
-
-        // True if the OutputLayer represented by this CompositionState is
-        // peeking through another layer, so it can be device composited even if
-        // it should visually have rounded corners.
-        bool isPeekingThrough = false;
     } overrideInfo;
 
     /*

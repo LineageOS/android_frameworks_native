@@ -93,8 +93,11 @@ public:
     // skipped. If skipLayer is true, then the alpha of the layer is forced to
     // 0 so that HWC will ignore it. z specifies the order to draw the layer in
     // (starting with 0 for the back layer, and increasing for each following
-    // layer).
-    virtual void writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t z) = 0;
+    // layer). zIsOverridden specifies whether the layer has been reordered.
+    // isPeekingThrough specifies whether this layer will be shown through a
+    // hole punch in a layer above it.
+    virtual void writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t z,
+                                 bool zIsOverridden, bool isPeekingThrough) = 0;
 
     // Updates the cursor position with the HWC
     virtual void writeCursorPositionToHWC() const = 0;

@@ -40,7 +40,7 @@ public:
     MOCK_METHOD0(editState, impl::OutputLayerCompositionState&());
 
     MOCK_METHOD3(updateCompositionState, void(bool, bool, ui::Transform::RotationFlags));
-    MOCK_METHOD3(writeStateToHWC, void(bool, bool, uint32_t));
+    MOCK_METHOD5(writeStateToHWC, void(bool, bool, uint32_t, bool, bool));
     MOCK_CONST_METHOD0(writeCursorPositionToHWC, void());
 
     MOCK_CONST_METHOD0(getHwcLayer, HWC2::Layer*());
