@@ -329,6 +329,8 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
 }
 
 SkiaGLRenderEngine::~SkiaGLRenderEngine() {
+    cleanFramebufferCache();
+
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     if (mBlurFilter) {
         delete mBlurFilter;
@@ -482,8 +484,7 @@ static bool needsToneMapping(ui::Dataspace sourceDataspace, ui::Dataspace destin
             sourceTransfer != destTransfer;
 }
 
-void SkiaGLRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
-                                                  bool isRenderable) {
+void SkiaGLRenderEngine::cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
     // Only run this if RE is running on its own thread. This way the access to GL
     // operations is guaranteed to be happening on the same thread.
     if (mRenderEngineType != RenderEngineType::SKIA_GL_THREADED) {
@@ -504,41 +505,25 @@ void SkiaGLRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffe
     auto& cache = mInProtectedContext ? mProtectedTextureCache : mTextureCache;
 
     std::lock_guard<std::mutex> lock(mRenderingMutex);
-    mGraphicBufferExternalRefs[buffer->getId()]++;
-
-    if (const auto& iter = cache.find(buffer->getId()); iter == cache.end()) {
+    auto iter = cache.find(buffer->getId());
+    if (iter != cache.end()) {
+        ALOGV("Texture already exists in cache.");
+    } else {
         std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
-                std::make_shared<AutoBackendTexture::LocalRef>(
-                        new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer(),
-                                               isRenderable));
+                std::make_shared<AutoBackendTexture::LocalRef>();
+        imageTextureRef->setTexture(
+                new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer(), false));
         cache.insert({buffer->getId(), imageTextureRef});
     }
     // restore the original state of the protected context if necessary
     useProtectedContext(protectedContextState);
 }
 
-void SkiaGLRenderEngine::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+void SkiaGLRenderEngine::unbindExternalTextureBuffer(uint64_t bufferId) {
     ATRACE_CALL();
     std::lock_guard<std::mutex> lock(mRenderingMutex);
-    if (const auto& iter = mGraphicBufferExternalRefs.find(buffer->getId());
-        iter != mGraphicBufferExternalRefs.end()) {
-        if (iter->second == 0) {
-            ALOGW("Attempted to unmap GraphicBuffer <id: %" PRId64
-                  "> from RenderEngine texture, but the "
-                  "ref count was already zero!",
-                  buffer->getId());
-            mGraphicBufferExternalRefs.erase(buffer->getId());
-            return;
-        }
-
-        iter->second--;
-
-        if (iter->second == 0) {
-            mTextureCache.erase(buffer->getId());
-            mProtectedTextureCache.erase(buffer->getId());
-            mGraphicBufferExternalRefs.erase(buffer->getId());
-        }
-    }
+    mTextureCache.erase(bufferId);
+    mProtectedTextureCache.erase(bufferId);
 }
 
 sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> shader,
@@ -636,8 +621,8 @@ private:
 
 status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                         const std::vector<const LayerSettings*>& layers,
-                                        const std::shared_ptr<ExternalTexture>& buffer,
-                                        const bool /*useFramebufferCache*/,
+                                        const sp<GraphicBuffer>& buffer,
+                                        const bool useFramebufferCache,
                                         base::unique_fd&& bufferFence, base::unique_fd* drawFence) {
     ATRACE_NAME("SkiaGL::drawLayers");
 
@@ -660,18 +645,32 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         return BAD_VALUE;
     }
 
-    validateOutputBufferUsage(buffer->getBuffer());
+    validateOutputBufferUsage(buffer);
 
     auto grContext = mInProtectedContext ? mProtectedGrContext : mGrContext;
     auto& cache = mInProtectedContext ? mProtectedTextureCache : mTextureCache;
+    AHardwareBuffer_Desc bufferDesc;
+    AHardwareBuffer_describe(buffer->toAHardwareBuffer(), &bufferDesc);
 
-    std::shared_ptr<AutoBackendTexture::LocalRef> surfaceTextureRef;
-    if (const auto& it = cache.find(buffer->getBuffer()->getId()); it != cache.end()) {
-        surfaceTextureRef = it->second;
-    } else {
-        surfaceTextureRef = std::make_shared<AutoBackendTexture::LocalRef>(
-                new AutoBackendTexture(grContext.get(), buffer->getBuffer()->toAHardwareBuffer(),
-                                       true));
+    std::shared_ptr<AutoBackendTexture::LocalRef> surfaceTextureRef = nullptr;
+    if (useFramebufferCache) {
+        auto iter = cache.find(buffer->getId());
+        if (iter != cache.end()) {
+            ALOGV("Cache hit!");
+            ATRACE_NAME("Cache hit");
+            surfaceTextureRef = iter->second;
+        }
+    }
+
+    if (surfaceTextureRef == nullptr || surfaceTextureRef->getTexture() == nullptr) {
+        ATRACE_NAME("Cache miss");
+        surfaceTextureRef = std::make_shared<AutoBackendTexture::LocalRef>();
+        surfaceTextureRef->setTexture(
+                new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer(), true));
+        if (useFramebufferCache) {
+            ALOGD("Adding to cache");
+            cache.insert({buffer->getId(), surfaceTextureRef});
+        }
     }
 
     const ui::Dataspace dstDataspace =
@@ -877,22 +876,18 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         SkPaint paint;
         if (layer->source.buffer.buffer) {
             ATRACE_NAME("DrawImage");
-            validateInputBufferUsage(layer->source.buffer.buffer->getBuffer());
+            validateInputBufferUsage(layer->source.buffer.buffer);
             const auto& item = layer->source.buffer;
             std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef = nullptr;
-
-            if (const auto& iter = cache.find(item.buffer->getBuffer()->getId());
-                iter != cache.end()) {
+            auto iter = cache.find(item.buffer->getId());
+            if (iter != cache.end()) {
                 imageTextureRef = iter->second;
             } else {
-                // If we didn't find the image in the cache, then create a local ref but don't cache
-                // it. If we're using skia, we're guaranteed to run on a dedicated GPU thread so if
-                // we didn't find anything in the cache then we intentionally did not cache this
-                // buffer's resources.
-                imageTextureRef = std::make_shared<AutoBackendTexture::LocalRef>(
-                        new AutoBackendTexture(grContext.get(),
-                                               item.buffer->getBuffer()->toAHardwareBuffer(),
-                                               false));
+                imageTextureRef = std::make_shared<AutoBackendTexture::LocalRef>();
+                imageTextureRef->setTexture(new AutoBackendTexture(grContext.get(),
+                                                                   item.buffer->toAHardwareBuffer(),
+                                                                   false));
+                cache.insert({item.buffer->getId(), imageTextureRef});
             }
 
             sk_sp<SkImage> image =
@@ -1205,6 +1200,15 @@ EGLSurface SkiaGLRenderEngine::createPlaceholderEglPbufferSurface(EGLDisplay dis
     return eglCreatePbufferSurface(display, placeholderConfig, attributes.data());
 }
 
+void SkiaGLRenderEngine::cleanFramebufferCache() {
+    // TODO(b/180767535) Remove this method and use b/180767535 instead, which would allow
+    // SF to control texture lifecycle more tightly rather than through custom hooks into RE.
+    std::lock_guard<std::mutex> lock(mRenderingMutex);
+    mRuntimeEffects.clear();
+    mProtectedTextureCache.clear();
+    mTextureCache.clear();
+}
+
 int SkiaGLRenderEngine::getContextPriority() {
     int value;
     eglQueryContext(mEGLDisplay, mEGLContext, EGL_CONTEXT_PRIORITY_LEVEL_IMG, &value);
@@ -1277,12 +1281,6 @@ void SkiaGLRenderEngine::dump(std::string& result) {
         StringAppendF(&result, "Skia's Wrapped Objects:\n");
         gpuReporter.logOutput(result, true);
 
-        StringAppendF(&result, "RenderEngine tracked buffers: %zu\n",
-                      mGraphicBufferExternalRefs.size());
-        StringAppendF(&result, "Dumping buffer ids...\n");
-        for (const auto& [id, refCounts] : mGraphicBufferExternalRefs) {
-            StringAppendF(&result, "- 0x%" PRIx64 " - %d refs \n", id, refCounts);
-        }
         StringAppendF(&result, "RenderEngine AHB/BackendTexture cache size: %zu\n",
                       mTextureCache.size());
         StringAppendF(&result, "Dumping buffer ids...\n");

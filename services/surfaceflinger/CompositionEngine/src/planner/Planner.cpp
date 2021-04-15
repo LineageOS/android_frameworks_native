@@ -111,12 +111,7 @@ void Planner::reportFinalPlan(
     const GraphicBuffer* currentOverrideBuffer = nullptr;
     bool hasSkippedLayers = false;
     for (auto layer : layers) {
-        if (!layer->getState().overrideInfo.buffer) {
-            continue;
-        }
-
-        const GraphicBuffer* overrideBuffer =
-                layer->getState().overrideInfo.buffer->getBuffer().get();
+        const GraphicBuffer* overrideBuffer = layer->getState().overrideInfo.buffer.get();
         if (overrideBuffer != nullptr && overrideBuffer == currentOverrideBuffer) {
             // Skip this layer since it is part of a previous cached set
             hasSkippedLayers = true;

@@ -70,13 +70,11 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mIsPrimary(args.isPrimary) {
     mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
-            compositionengine::
-                    RenderSurfaceCreationArgs{ANativeWindow_getWidth(args.nativeWindow.get()),
-                                              ANativeWindow_getHeight(args.nativeWindow.get()),
-                                              args.nativeWindow, args.displaySurface,
-                                              static_cast<size_t>(
-                                                      SurfaceFlinger::
-                                                              maxFrameBufferAcquiredBuffers)});
+            compositionengine::RenderSurfaceCreationArgs{ANativeWindow_getWidth(
+                                                                 args.nativeWindow.get()),
+                                                         ANativeWindow_getHeight(
+                                                                 args.nativeWindow.get()),
+                                                         args.nativeWindow, args.displaySurface});
 
     if (!mFlinger->mDisableClientCompositionCache &&
         SurfaceFlinger::maxFrameBufferAcquiredBuffers > 0) {

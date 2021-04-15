@@ -21,8 +21,6 @@
 #include <gtest/gtest.h>
 #include <gui/SurfaceComposerClient.h>
 #include <log/log.h>
-#include <renderengine/ExternalTexture.h>
-#include <renderengine/mock/RenderEngine.h>
 #include <utils/String8.h>
 
 #include "TestableSurfaceFlinger.h"
@@ -104,7 +102,6 @@ public:
 
     TestableSurfaceFlinger mFlinger;
     Hwc2::mock::Composer* mComposer = nullptr;
-    renderengine::mock::RenderEngine mRenderEngine;
     FenceToFenceTimeMap fenceFactory;
     client_cache_t mClientCache;
 
@@ -112,12 +109,9 @@ public:
         sp<BufferStateLayer> layer = createBufferStateLayer();
 
         sp<Fence> fence(new Fence());
-        const auto buffer = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                 1, 0),
-                                               mRenderEngine, false);
+        sp<GraphicBuffer> buffer{new GraphicBuffer(1, 1, HAL_PIXEL_FORMAT_RGBA_8888, 1, 0)};
         int32_t layerId = layer->getSequence();
-        uint64_t bufferId = buffer->getBuffer()->getId();
+        uint64_t bufferId = buffer->getId();
         uint64_t frameNumber = 5;
         nsecs_t dequeueTime = 10;
         nsecs_t postTime = 20;

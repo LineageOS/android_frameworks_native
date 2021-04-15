@@ -188,7 +188,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
     const bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
             (isSecure() && !targetSettings.isSecure);
     const bool bufferCanBeUsedAsHwTexture =
-            mBufferInfo.mBuffer->getBuffer()->getUsage() & GraphicBuffer::USAGE_HW_TEXTURE;
+            mBufferInfo.mBuffer->getUsage() & GraphicBuffer::USAGE_HW_TEXTURE;
     compositionengine::LayerFE::LayerSettings& layer = *result;
     if (blackOutLayer || !bufferCanBeUsedAsHwTexture) {
         ALOGE_IF(!bufferCanBeUsedAsHwTexture, "%s is blacked out as buffer is not gpu readable",
@@ -213,7 +213,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
             ? mBufferInfo.mHdrMetadata.cta8613.maxContentLightLevel
             : defaultMaxContentLuminance;
     layer.frameNumber = mCurrentFrameNumber;
-    layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getBuffer()->getId() : 0;
+    layer.bufferId = mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getId() : 0;
 
     const bool useFiltering =
             targetSettings.needsFiltering || mNeedsFiltering || bufferNeedsFiltering();
@@ -314,7 +314,7 @@ void BufferLayer::preparePerFrameCompositionState() {
                 : Hwc2::IComposerClient::Composition::DEVICE;
     }
 
-    compositionState->buffer = mBufferInfo.mBuffer->getBuffer();
+    compositionState->buffer = mBufferInfo.mBuffer;
     compositionState->bufferSlot = (mBufferInfo.mBufferSlot == BufferQueue::INVALID_BUFFER_SLOT)
             ? 0
             : mBufferInfo.mBufferSlot;
@@ -442,7 +442,7 @@ bool BufferLayer::onPostComposition(const DisplayDevice* display,
 
 void BufferLayer::gatherBufferInfo() {
     mBufferInfo.mPixelFormat =
-            !mBufferInfo.mBuffer ? PIXEL_FORMAT_NONE : mBufferInfo.mBuffer->getBuffer()->format;
+            !mBufferInfo.mBuffer ? PIXEL_FORMAT_NONE : mBufferInfo.mBuffer->format;
     mBufferInfo.mFrameLatencyNeeded = true;
 }
 
@@ -544,10 +544,10 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
     }
 
     if (oldBufferInfo.mBuffer != nullptr) {
-        uint32_t bufWidth = mBufferInfo.mBuffer->getBuffer()->getWidth();
-        uint32_t bufHeight = mBufferInfo.mBuffer->getBuffer()->getHeight();
-        if (bufWidth != uint32_t(oldBufferInfo.mBuffer->getBuffer()->width) ||
-            bufHeight != uint32_t(oldBufferInfo.mBuffer->getBuffer()->height)) {
+        uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+        uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
+        if (bufWidth != uint32_t(oldBufferInfo.mBuffer->width) ||
+            bufHeight != uint32_t(oldBufferInfo.mBuffer->height)) {
             recomputeVisibleRegions = true;
         }
     }
@@ -612,8 +612,8 @@ uint32_t BufferLayer::getEffectiveScalingMode() const {
 }
 
 bool BufferLayer::isProtected() const {
-    return (mBufferInfo.mBuffer != nullptr) &&
-            (mBufferInfo.mBuffer->getBuffer()->getUsage() & GRALLOC_USAGE_PROTECTED);
+    const sp<GraphicBuffer>& buffer(mBufferInfo.mBuffer);
+    return (buffer != 0) && (buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
 // h/w composer set-up
@@ -727,8 +727,8 @@ Rect BufferLayer::getBufferSize(const State& s) const {
         return Rect::INVALID_RECT;
     }
 
-    uint32_t bufWidth = mBufferInfo.mBuffer->getBuffer()->getWidth();
-    uint32_t bufHeight = mBufferInfo.mBuffer->getBuffer()->getHeight();
+    uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
 
     // Undo any transformations on the buffer and return the result.
     if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
@@ -759,8 +759,8 @@ FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const 
         return parentBounds;
     }
 
-    uint32_t bufWidth = mBufferInfo.mBuffer->getBuffer()->getWidth();
-    uint32_t bufHeight = mBufferInfo.mBuffer->getBuffer()->getHeight();
+    uint32_t bufWidth = mBufferInfo.mBuffer->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getHeight();
 
     // Undo any transformations on the buffer and return the result.
     if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
@@ -802,7 +802,7 @@ Rect BufferLayer::getBufferCrop() const {
         return mBufferInfo.mCrop;
     } else if (mBufferInfo.mBuffer != nullptr) {
         // otherwise we use the whole buffer
-        return mBufferInfo.mBuffer->getBuffer()->getBounds();
+        return mBufferInfo.mBuffer->getBounds();
     } else {
         // if we don't have a buffer yet, we use an empty/invalid crop
         return Rect();
@@ -847,14 +847,12 @@ ui::Dataspace BufferLayer::translateDataspace(ui::Dataspace dataspace) {
 }
 
 sp<GraphicBuffer> BufferLayer::getBuffer() const {
-    return mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getBuffer() : nullptr;
+    return mBufferInfo.mBuffer;
 }
 
 void BufferLayer::getDrawingTransformMatrix(bool filteringEnabled, float outMatrix[16]) {
-    GLConsumer::computeTransformMatrix(outMatrix,
-                                       mBufferInfo.mBuffer ? mBufferInfo.mBuffer->getBuffer()
-                                                           : nullptr,
-                                       mBufferInfo.mCrop, mBufferInfo.mTransform, filteringEnabled);
+    GLConsumer::computeTransformMatrix(outMatrix, mBufferInfo.mBuffer, mBufferInfo.mCrop,
+                                       mBufferInfo.mTransform, filteringEnabled);
 }
 
 void BufferLayer::setInitialValuesForClone(const sp<Layer>& clonedFrom) {

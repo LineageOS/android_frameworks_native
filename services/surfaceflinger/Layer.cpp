@@ -1050,7 +1050,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     }
 
     // Allow BufferStateLayer to release any unlatched buffers in drawing state.
-    bufferMayChange(c.buffer->getBuffer());
+    bufferMayChange(c.buffer);
 
     // Commit the transaction
     commitTransaction(c);
@@ -1062,11 +1062,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
 
 void Layer::commitTransaction(State& stateToCommit) {
     if (auto& bufferSurfaceFrame = mDrawingState.bufferSurfaceFrameTX;
-        ((mDrawingState.buffer && stateToCommit.buffer &&
-          mDrawingState.buffer->getBuffer() != stateToCommit.buffer->getBuffer()) ||
-         (mDrawingState.buffer && !stateToCommit.buffer) ||
-         (!mDrawingState.buffer && stateToCommit.buffer)) &&
-        bufferSurfaceFrame != nullptr &&
+        mDrawingState.buffer != stateToCommit.buffer && bufferSurfaceFrame != nullptr &&
         bufferSurfaceFrame->getPresentState() != PresentState::Presented) {
         // If the previous buffer was committed but not latched (refreshPending - happens during
         // back to back invalidates), it gets silently dropped here. Mark the corresponding
