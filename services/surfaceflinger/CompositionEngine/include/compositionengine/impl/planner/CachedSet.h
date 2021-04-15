@@ -66,7 +66,7 @@ public:
     const Rect& getBounds() const { return mBounds; }
     const Region& getVisibleRegion() const { return mVisibleRegion; }
     size_t getAge() const { return mAge; }
-    const std::shared_ptr<renderengine::ExternalTexture>& getBuffer() const { return mTexture; }
+    const sp<GraphicBuffer>& getBuffer() const { return mTexture.getBuffer(); }
     const sp<Fence>& getDrawFence() const { return mDrawFence; }
     const ProjectionSpace& getOutputSpace() const { return mOutputSpace; }
     ui::Dataspace getOutputDataspace() const { return mOutputDataspace; }
@@ -87,7 +87,7 @@ public:
 
     void setLastUpdate(std::chrono::steady_clock::time_point now) { mLastUpdate = now; }
     void append(const CachedSet& other) {
-        mTexture = nullptr;
+        mTexture.setBuffer(nullptr, nullptr);
         mOutputDataspace = ui::Dataspace::UNKNOWN;
         mDrawFence = nullptr;
 
@@ -115,7 +115,31 @@ private:
     Region mVisibleRegion;
     size_t mAge = 0;
 
-    std::shared_ptr<renderengine::ExternalTexture> mTexture;
+    class Texture {
+    public:
+        ~Texture() { setBuffer(nullptr, nullptr); }
+
+        void setBuffer(const sp<GraphicBuffer>& buffer, renderengine::RenderEngine* re) {
+            if (mRE && mBuffer) {
+                mRE->unbindExternalTextureBuffer(mBuffer->getId());
+            }
+
+            mBuffer = buffer;
+            mRE = re;
+
+            if (mRE && mBuffer) {
+                mRE->cacheExternalTextureBuffer(mBuffer);
+            }
+        }
+
+        const sp<GraphicBuffer>& getBuffer() const { return mBuffer; }
+
+    private:
+        sp<GraphicBuffer> mBuffer = nullptr;
+        renderengine::RenderEngine* mRE = nullptr;
+    };
+
+    Texture mTexture;
     sp<Fence> mDrawFence;
     ProjectionSpace mOutputSpace;
     ui::Dataspace mOutputDataspace;
