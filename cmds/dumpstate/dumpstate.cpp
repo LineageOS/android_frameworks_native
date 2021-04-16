@@ -2174,13 +2174,13 @@ void Dumpstate::DumpstateBoard(int out_fd) {
     }
 
     /*
-     * mount debugfs for non-user builds with ro.product.enforce_debugfs_restrictions
+     * mount debugfs for non-user builds with ro.product.debugfs_restrictions.enabled
      * set to true and unmount it after invoking dumpstateBoard_* methods.
      * This is to enable debug builds to not have debugfs mounted during runtime.
      * It will also ensure that debugfs is only accessed by the dumpstate HAL.
      */
     auto mount_debugfs =
-        android::base::GetBoolProperty("ro.product.enforce_debugfs_restrictions", false);
+        android::base::GetBoolProperty("ro.product.debugfs_restrictions.enabled", false);
     if (mount_debugfs) {
         RunCommand("mount debugfs", {"mount", "-t", "debugfs", "debugfs", "/sys/kernel/debug"},
                    AS_ROOT_20);
