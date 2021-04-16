@@ -71,8 +71,14 @@ BufferStateLayer::~BufferStateLayer() {
     // original layer and the clone should be removed at the same time so there shouldn't be any
     // issue with the clone layer trying to use the texture.
     if (mBufferInfo.mBuffer != nullptr && !isClone()) {
-        callReleaseBufferCallback(mDrawingState.releaseBufferListener,
-                                  mBufferInfo.mBuffer->getBuffer(), mBufferInfo.mFence);
+        // Ensure that mBuffer is uncached from RenderEngine here, as
+        // RenderEngine may have been using the buffer as an external texture
+        // after the client uncached the buffer.
+        auto& engine(mFlinger->getRenderEngine());
+        const uint64_t bufferId = mBufferInfo.mBuffer->getId();
+        engine.unbindExternalTextureBuffer(bufferId);
+        callReleaseBufferCallback(mDrawingState.releaseBufferListener, mBufferInfo.mBuffer,
+                                  mBufferInfo.mFence);
     }
 }
 
@@ -338,9 +344,8 @@ bool BufferStateLayer::addFrameEvent(const sp<Fence>& acquireFence, nsecs_t post
     return true;
 }
 
-bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTexture>& buffer,
-                                 const sp<Fence>& acquireFence, nsecs_t postTime,
-                                 nsecs_t desiredPresentTime, bool isAutoTimestamp,
+bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer, const sp<Fence>& acquireFence,
+                                 nsecs_t postTime, nsecs_t desiredPresentTime, bool isAutoTimestamp,
                                  const client_cache_t& clientCacheId, uint64_t frameNumber,
                                  std::optional<nsecs_t> dequeueTime, const FrameTimelineInfo& info,
                                  const sp<ITransactionCompletedListener>& releaseBufferListener) {
@@ -348,14 +353,12 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
 
     if (mCurrentState.buffer) {
         mReleasePreviousBuffer = true;
-        if (!mDrawingState.buffer ||
-            mCurrentState.buffer->getBuffer() != mDrawingState.buffer->getBuffer()) {
+        if (mCurrentState.buffer != mDrawingState.buffer) {
             // If mCurrentState has a buffer, and we are about to update again
             // before swapping to drawing state, then the first buffer will be
             // dropped and we should decrement the pending buffer count and
             // call any release buffer callbacks if set.
-            callReleaseBufferCallback(mCurrentState.releaseBufferListener,
-                                      mCurrentState.buffer->getBuffer(),
+            callReleaseBufferCallback(mCurrentState.releaseBufferListener, mCurrentState.buffer,
                                       mCurrentState.acquireFence);
             decrementPendingBufferCount();
             if (mCurrentState.bufferSurfaceFrameTX != nullptr) {
@@ -393,8 +396,8 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
 
     setFrameTimelineVsyncForBufferTransaction(info, postTime);
 
-    if (buffer && dequeueTime && *dequeueTime != 0) {
-        const uint64_t bufferId = buffer->getBuffer()->getId();
+    if (dequeueTime && *dequeueTime != 0) {
+        const uint64_t bufferId = buffer->getId();
         mFlinger->mFrameTracer->traceNewLayer(layerId, getName().c_str());
         mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, frameNumber, *dequeueTime,
                                                FrameTracer::FrameEvent::DEQUEUE);
@@ -402,8 +405,8 @@ bool BufferStateLayer::setBuffer(const std::shared_ptr<renderengine::ExternalTex
                                                FrameTracer::FrameEvent::QUEUE);
     }
 
-    mCurrentState.width = mCurrentState.buffer->getBuffer()->getWidth();
-    mCurrentState.height = mCurrentState.buffer->getBuffer()->getHeight();
+    mCurrentState.width = mCurrentState.buffer->width;
+    mCurrentState.height = mCurrentState.buffer->height;
 
     return true;
 }
@@ -652,7 +655,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     }
 
     const int32_t layerId = getSequence();
-    const uint64_t bufferId = mDrawingState.buffer->getBuffer()->getId();
+    const uint64_t bufferId = mDrawingState.buffer->getId();
     const uint64_t frameNumber = mDrawingState.frameNumber;
     const auto acquireFence = std::make_shared<FenceTime>(mDrawingState.acquireFence);
     mFlinger->mTimeStats->setAcquireFence(layerId, frameNumber, acquireFence);
@@ -686,7 +689,7 @@ status_t BufferStateLayer::updateActiveBuffer() {
         return BAD_VALUE;
     }
 
-    if (!mBufferInfo.mBuffer || s.buffer->getBuffer() != mBufferInfo.mBuffer->getBuffer()) {
+    if (s.buffer != mBufferInfo.mBuffer) {
         decrementPendingBufferCount();
     }
 
@@ -805,13 +808,13 @@ uint32_t BufferStateLayer::getEffectiveScalingMode() const {
 
 Rect BufferStateLayer::computeCrop(const State& s) {
     if (s.crop.isEmpty() && s.buffer) {
-        return s.buffer->getBuffer()->getBounds();
+        return s.buffer->getBounds();
     } else if (s.buffer) {
         Rect crop = s.crop;
         crop.left = std::max(crop.left, 0);
         crop.top = std::max(crop.top, 0);
-        uint32_t bufferWidth = s.buffer->getBuffer()->getWidth();
-        uint32_t bufferHeight = s.buffer->getBuffer()->getHeight();
+        uint32_t bufferWidth = s.buffer->getWidth();
+        uint32_t bufferHeight = s.buffer->getHeight();
         if (bufferHeight <= std::numeric_limits<int32_t>::max() &&
             bufferWidth <= std::numeric_limits<int32_t>::max()) {
             crop.right = std::min(crop.right, static_cast<int32_t>(bufferWidth));
@@ -819,7 +822,7 @@ Rect BufferStateLayer::computeCrop(const State& s) {
         }
         if (!crop.isValid()) {
             // Crop rect is out of bounds, return whole buffer
-            return s.buffer->getBuffer()->getBounds();
+            return s.buffer->getBounds();
         }
         return crop;
     }
@@ -841,8 +844,8 @@ bool BufferStateLayer::bufferNeedsFiltering() const {
         return false;
     }
 
-    uint32_t bufferWidth = s.buffer->getBuffer()->width;
-    uint32_t bufferHeight = s.buffer->getBuffer()->height;
+    uint32_t bufferWidth = s.buffer->width;
+    uint32_t bufferHeight = s.buffer->height;
 
     // Undo any transformations on the buffer and return the result.
     if (s.bufferTransform & ui::Transform::ROT_90) {
@@ -869,16 +872,14 @@ void BufferStateLayer::tracePendingBufferCount(int32_t pendingBuffers) {
     ATRACE_INT(mBlastTransactionName.c_str(), pendingBuffers);
 }
 
-void BufferStateLayer::bufferMayChange(const sp<GraphicBuffer>& newBuffer) {
-    if (mDrawingState.buffer != nullptr &&
-        (!mBufferInfo.mBuffer ||
-         mDrawingState.buffer->getBuffer() != mBufferInfo.mBuffer->getBuffer()) &&
-        newBuffer != mDrawingState.buffer->getBuffer()) {
+void BufferStateLayer::bufferMayChange(sp<GraphicBuffer>& newBuffer) {
+    if (mDrawingState.buffer != nullptr && mDrawingState.buffer != mBufferInfo.mBuffer &&
+        newBuffer != mDrawingState.buffer) {
         // If we are about to update mDrawingState.buffer but it has not yet latched
         // then we will drop a buffer and should decrement the pending buffer count and
         // call any release buffer callbacks if set.
-        callReleaseBufferCallback(mDrawingState.releaseBufferListener,
-                                  mDrawingState.buffer->getBuffer(), mDrawingState.acquireFence);
+        callReleaseBufferCallback(mDrawingState.releaseBufferListener, mDrawingState.buffer,
+                                  mDrawingState.acquireFence);
         decrementPendingBufferCount();
     }
 }
