@@ -23,7 +23,6 @@
 #include <GrDirectContext.h>
 #include <SkSurface.h>
 #include <android-base/thread_annotations.h>
-#include <renderengine/ExternalTexture.h>
 #include <renderengine/RenderEngine.h>
 #include <sys/types.h>
 
@@ -53,12 +52,13 @@ public:
     ~SkiaGLRenderEngine() override EXCLUDES(mRenderingMutex);
 
     void primeCache() override;
+    void cacheExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
+    void unbindExternalTextureBuffer(uint64_t bufferId) override;
     status_t drawLayers(const DisplaySettings& display,
                         const std::vector<const LayerSettings*>& layers,
-                        const std::shared_ptr<ExternalTexture>& buffer,
-                        const bool useFramebufferCache, base::unique_fd&& bufferFence,
-                        base::unique_fd* drawFence) override;
-    void cleanFramebufferCache() override {}
+                        const sp<GraphicBuffer>& buffer, const bool useFramebufferCache,
+                        base::unique_fd&& bufferFence, base::unique_fd* drawFence) override;
+    void cleanFramebufferCache() override;
     int getContextPriority() override;
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
@@ -72,8 +72,6 @@ protected:
     void dump(std::string& result) override;
     size_t getMaxTextureSize() const override;
     size_t getMaxViewportDims() const override;
-    void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;
-    void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
 
 private:
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
@@ -116,9 +114,7 @@ private:
     const PixelFormat mDefaultPixelFormat;
     const bool mUseColorManagement;
 
-    // Number of external holders of ExternalTexture references, per GraphicBuffer ID.
-    std::unordered_map<uint64_t, int32_t> mGraphicBufferExternalRefs GUARDED_BY(mRenderingMutex);
-    // Cache of GL textures that we'll store per GraphicBuffer ID, sliced by GPU context.
+    // Cache of GL textures that we'll store per GraphicBuffer ID
     std::unordered_map<uint64_t, std::shared_ptr<AutoBackendTexture::LocalRef>> mTextureCache
             GUARDED_BY(mRenderingMutex);
     std::unordered_map<uint64_t, std::shared_ptr<AutoBackendTexture::LocalRef>>
