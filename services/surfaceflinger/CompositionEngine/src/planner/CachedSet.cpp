@@ -130,7 +130,7 @@ bool CachedSet::hasBufferUpdate() const {
 }
 
 bool CachedSet::hasReadyBuffer() const {
-    return mTexture != nullptr && mDrawFence->getStatus() == Fence::Status::Signaled;
+    return mTexture.getBuffer() != nullptr && mDrawFence->getStatus() == Fence::Status::Signaled;
 }
 
 std::vector<CachedSet> CachedSet::decompose() const {
@@ -217,27 +217,21 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
     sp<GraphicBuffer> buffer = new GraphicBuffer(static_cast<uint32_t>(mBounds.getWidth()),
                                                  static_cast<uint32_t>(mBounds.getHeight()),
                                                  HAL_PIXEL_FORMAT_RGBA_8888, 1, usageFlags);
-    const auto texture = std::make_shared<
-            renderengine::ExternalTexture>(buffer, renderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE |
-                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
     LOG_ALWAYS_FATAL_IF(buffer->initCheck() != OK);
     base::unique_fd drawFence;
 
-    status_t result = renderEngine.drawLayers(displaySettings, layerSettingsPointers, mTexture,
-                                              false, base::unique_fd(), &drawFence);
+    status_t result = renderEngine.drawLayers(displaySettings, layerSettingsPointers, buffer, false,
+                                              base::unique_fd(), &drawFence);
 
     if (result == NO_ERROR) {
+        mTexture.setBuffer(buffer, &renderEngine);
         mDrawFence = new Fence(drawFence.release());
         mOutputSpace = ProjectionSpace(ui::Size(outputState.framebufferSpace.bounds.getWidth(),
                                                 outputState.framebufferSpace.bounds.getHeight()),
                                        mBounds);
-        mTexture = std::move(texture);
         mOutputSpace.orientation = outputState.framebufferSpace.orientation;
         mOutputDataspace = outputDataspace;
         mOrientation = orientation;
-    } else {
-        mTexture = nullptr;
     }
 }
 

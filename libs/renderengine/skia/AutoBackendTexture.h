@@ -21,9 +21,9 @@
 #include <SkImage.h>
 #include <SkSurface.h>
 #include <sys/types.h>
-#include <ui/GraphicTypes.h>
 
 #include "android-base/macros.h"
+#include "ui/GraphicTypes.h"
 
 namespace android {
 namespace renderengine {
@@ -41,18 +41,13 @@ public:
     // of shared ownership with Skia objects, so we wrap it here instead.
     class LocalRef {
     public:
-        LocalRef(AutoBackendTexture* texture) { setTexture(texture); }
+        LocalRef() {}
 
         ~LocalRef() {
             // Destroying the texture is the same as setting it to null
             setTexture(nullptr);
         }
 
-        AutoBackendTexture* getTexture() const { return mTexture; }
-
-        DISALLOW_COPY_AND_ASSIGN(LocalRef);
-
-    private:
         // Sets the texture to locally ref-track.
         void setTexture(AutoBackendTexture* texture) {
             if (mTexture != nullptr) {
@@ -64,6 +59,12 @@ public:
                 mTexture->ref();
             }
         }
+
+        AutoBackendTexture* getTexture() const { return mTexture; }
+
+        DISALLOW_COPY_AND_ASSIGN(LocalRef);
+
+    private:
         AutoBackendTexture* mTexture = nullptr;
     };
 
