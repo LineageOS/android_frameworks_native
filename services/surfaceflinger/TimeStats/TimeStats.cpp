@@ -745,7 +745,7 @@ void TimeStats::setPresentFence(int32_t layerId, uint64_t frameNumber,
 static const constexpr int32_t kValidJankyReason = JankType::DisplayHAL |
         JankType::SurfaceFlingerCpuDeadlineMissed | JankType::SurfaceFlingerGpuDeadlineMissed |
         JankType::AppDeadlineMissed | JankType::PredictionError |
-        JankType::SurfaceFlingerScheduling | JankType::BufferStuffing;
+        JankType::SurfaceFlingerScheduling;
 
 template <class T>
 static void updateJankPayload(T& t, int32_t reasons) {
@@ -771,9 +771,11 @@ static void updateJankPayload(T& t, int32_t reasons) {
         if ((reasons & JankType::SurfaceFlingerScheduling) != 0) {
             t.jankPayload.totalSFScheduling++;
         }
-        if ((reasons & JankType::BufferStuffing) != 0) {
-            t.jankPayload.totalAppBufferStuffing++;
-        }
+    }
+
+    // We want to track BufferStuffing separately as it can provide info on latency issues
+    if (reasons & JankType::BufferStuffing) {
+        t.jankPayload.totalAppBufferStuffing++;
     }
 }
 
