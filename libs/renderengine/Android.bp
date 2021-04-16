@@ -48,7 +48,6 @@ filegroup {
     name: "librenderengine_sources",
     srcs: [
         "Description.cpp",
-        "ExternalTexture.cpp",
         "Mesh.cpp",
         "RenderEngine.cpp",
         "Texture.cpp",
