@@ -363,7 +363,8 @@ void Flattener::buildCachedSets(time_point now) {
     if (mEnableHolePunch && holePunchLayer && holePunchLayer->requiresHolePunch()) {
         // Add the pip layer to mNewCachedSet, but in a special way - it should
         // replace the buffer with a clear round rect.
-        mNewCachedSet->addHolePunchLayer(holePunchLayer->getFirstLayer().getState());
+        mNewCachedSet->addHolePunchLayerIfFeasible(*holePunchLayer,
+                                                   runs[0].start == mLayers.cbegin());
     }
 
     // TODO(b/181192467): Actually compute new LayerState vector and corresponding hash for each run

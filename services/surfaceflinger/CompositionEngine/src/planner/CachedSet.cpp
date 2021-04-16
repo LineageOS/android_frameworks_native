@@ -278,8 +278,30 @@ bool CachedSet::requiresHolePunch() const {
     return layerFE.hasRoundedCorners();
 }
 
-void CachedSet::addHolePunchLayer(const LayerState* layerState) {
-    mHolePunchLayer = layerState;
+namespace {
+bool contains(const Rect& outer, const Rect& inner) {
+    return outer.left <= inner.left && outer.right >= inner.right && outer.top <= inner.top &&
+            outer.bottom >= inner.bottom;
+}
+}; // namespace
+
+void CachedSet::addHolePunchLayerIfFeasible(const CachedSet& holePunchLayer, bool isFirstLayer) {
+    // Verify that this CachedSet is opaque where the hole punch layer
+    // will draw.
+    const Rect& holePunchBounds = holePunchLayer.getBounds();
+    for (const auto& layer : mLayers) {
+        // The first layer is considered opaque because nothing is behind it.
+        // Note that isOpaque is always false for a layer with rounded
+        // corners, even if the interior is opaque. In theory, such a layer
+        // could be used for a hole punch, but this is unlikely to happen in
+        // practice.
+        const auto* outputLayer = layer.getState()->getOutputLayer();
+        if (contains(outputLayer->getState().displayFrame, holePunchBounds) &&
+            (isFirstLayer || outputLayer->getLayerFE().getCompositionState()->isOpaque)) {
+            mHolePunchLayer = holePunchLayer.getFirstLayer().getState();
+            return;
+        }
+    }
 }
 
 OutputLayer* CachedSet::getHolePunchLayer() const {
