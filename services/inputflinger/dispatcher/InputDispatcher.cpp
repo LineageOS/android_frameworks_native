@@ -339,14 +339,16 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
             // values do not represent on-screen coordinates, so they should not have any window
             // transformations applied to them.
             return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, identityTransform,
-                                                   1.0f /*globalScaleFactor*/);
+                                                   1.0f /*globalScaleFactor*/,
+                                                   inputTarget.displaySize);
         }
     }
 
     if (inputTarget.useDefaultPointerTransform()) {
         const ui::Transform& transform = inputTarget.getDefaultPointerTransform();
         return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, transform,
-                                               inputTarget.globalScaleFactor);
+                                               inputTarget.globalScaleFactor,
+                                               inputTarget.displaySize);
     }
 
     ALOG_ASSERT(eventEntry->type == EventEntry::Type::MOTION);
@@ -397,7 +399,8 @@ static std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inp
 
     std::unique_ptr<DispatchEntry> dispatchEntry =
             std::make_unique<DispatchEntry>(std::move(combinedMotionEntry), inputTargetFlags,
-                                            firstPointerTransform, inputTarget.globalScaleFactor);
+                                            firstPointerTransform, inputTarget.globalScaleFactor,
+                                            inputTarget.displaySize);
     return dispatchEntry;
 }
 
@@ -2402,6 +2405,8 @@ void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowH
         inputTarget.inputChannel = inputChannel;
         inputTarget.flags = targetFlags;
         inputTarget.globalScaleFactor = windowInfo->globalScaleFactor;
+        inputTarget.displaySize =
+                vec2(windowHandle->getInfo()->displayWidth, windowHandle->getInfo()->displayHeight);
         inputTargets.push_back(inputTarget);
         it = inputTargets.end() - 1;
     }
@@ -3107,6 +3112,8 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                      motionEntry.xPrecision, motionEntry.yPrecision,
                                                      motionEntry.xCursorPosition,
                                                      motionEntry.yCursorPosition,
+                                                     dispatchEntry->displaySize.x,
+                                                     dispatchEntry->displaySize.y,
                                                      motionEntry.downTime, motionEntry.eventTime,
                                                      motionEntry.pointerCount,
                                                      motionEntry.pointerProperties, usingCoords);
@@ -3819,7 +3826,8 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                              args->action, args->actionButton, args->flags, args->edgeFlags,
                              args->metaState, args->buttonState, args->classification, transform,
                              args->xPrecision, args->yPrecision, args->xCursorPosition,
-                             args->yCursorPosition, args->downTime, args->eventTime,
+                             args->yCursorPosition, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                             AMOTION_EVENT_INVALID_DISPLAY_SIZE, args->downTime, args->eventTime,
                              args->pointerCount, args->pointerProperties, args->pointerCoords);
 
             policyFlags |= POLICY_FLAG_FILTERED;
