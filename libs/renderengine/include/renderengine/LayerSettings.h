@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include <iosfwd>
+
 #include <math/mat4.h>
 #include <math/vec3.h>
-#include <renderengine/ExternalTexture.h>
+#include <renderengine/Texture.h>
 #include <ui/BlurRegion.h>
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
@@ -29,8 +31,6 @@
 #include <ui/StretchEffect.h>
 #include <ui/Transform.h>
 
-#include <iosfwd>
-
 namespace android {
 namespace renderengine {
 
@@ -39,7 +39,7 @@ struct Buffer {
     // Buffer containing the image that we will render.
     // If buffer == nullptr, then the rest of the fields in this struct will be
     // ignored.
-    std::shared_ptr<ExternalTexture> buffer = nullptr;
+    sp<GraphicBuffer> buffer = nullptr;
 
     // Fence that will fire when the buffer is ready to be bound.
     sp<Fence> fence = nullptr;
