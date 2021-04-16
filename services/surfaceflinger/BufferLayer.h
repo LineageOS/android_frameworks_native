@@ -132,7 +132,7 @@ protected:
         PixelFormat mPixelFormat{PIXEL_FORMAT_NONE};
         bool mTransformToDisplayInverse{false};
 
-        std::shared_ptr<renderengine::ExternalTexture> mBuffer;
+        sp<GraphicBuffer> mBuffer;
         int mBufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
 
         bool mFrameLatencyNeeded{false};

@@ -15,7 +15,6 @@
  */
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#include "renderengine/ExternalTexture.h"
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 #pragma clang diagnostic ignored "-Wextra"
@@ -195,7 +194,7 @@ public:
 
     sp<Fence> mClientTargetAcquireFence = Fence::NO_FENCE;
 
-    std::shared_ptr<renderengine::ExternalTexture> mCaptureScreenBuffer;
+    sp<GraphicBuffer> mCaptureScreenBuffer;
 };
 
 template <typename LayerCase>
@@ -244,15 +243,11 @@ void CompositionTest::captureScreenComposition() {
     // TODO: Eliminate expensive/real allocation if possible.
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
-    mCaptureScreenBuffer = std::make_shared<
-            renderengine::ExternalTexture>(new GraphicBuffer(renderArea->getReqWidth(),
-                                                             renderArea->getReqHeight(),
-                                                             HAL_PIXEL_FORMAT_RGBA_8888, 1, usage,
-                                                             "screenshot"),
-                                           *mRenderEngine, true);
+    mCaptureScreenBuffer = new GraphicBuffer(renderArea->getReqWidth(), renderArea->getReqHeight(),
+                                             HAL_PIXEL_FORMAT_RGBA_8888, 1, usage, "screenshot");
 
     status_t result =
-            mFlinger.renderScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer,
+            mFlinger.renderScreenImplLocked(*renderArea, traverseLayers, mCaptureScreenBuffer.get(),
                                             forSystem, regionSampling);
     EXPECT_EQ(NO_ERROR, result);
 
@@ -345,8 +340,8 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillRepeatedly([](const renderengine::DisplaySettings& displaySettings,
                                    const std::vector<const renderengine::LayerSettings*>&,
-                                   const std::shared_ptr<renderengine::ExternalTexture>&,
-                                   const bool, base::unique_fd&&, base::unique_fd*) -> status_t {
+                                   const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
+                                   base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -394,8 +389,8 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillRepeatedly([](const renderengine::DisplaySettings& displaySettings,
                                    const std::vector<const renderengine::LayerSettings*>&,
-                                   const std::shared_ptr<renderengine::ExternalTexture>&,
-                                   const bool, base::unique_fd&&, base::unique_fd*) -> status_t {
+                                   const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
+                                   base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -630,8 +625,8 @@ struct BaseLayerProperties {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
                              const std::vector<const renderengine::LayerSettings*>& layerSettings,
-                             const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                             base::unique_fd&&, base::unique_fd*) -> status_t {
+                             const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
+                             base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -679,8 +674,8 @@ struct BaseLayerProperties {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
                              const std::vector<const renderengine::LayerSettings*>& layerSettings,
-                             const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                             base::unique_fd&&, base::unique_fd*) -> status_t {
+                             const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
+                             base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -756,8 +751,8 @@ struct CommonSecureLayerProperties : public BaseLayerProperties<LayerProperties>
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
                              const std::vector<const renderengine::LayerSettings*>& layerSettings,
-                             const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                             base::unique_fd&&, base::unique_fd*) -> status_t {
+                             const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
+                             base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);

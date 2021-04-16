@@ -102,12 +102,7 @@ bool ClientCache::add(const client_cache_t& cacheId, const sp<GraphicBuffer>& bu
         return false;
     }
 
-    LOG_ALWAYS_FATAL_IF(mRenderEngine == nullptr,
-                        "Attempted to build the ClientCache before a RenderEngine instance was "
-                        "ready!");
-    processBuffers[id].buffer = std::make_shared<
-            renderengine::ExternalTexture>(buffer, *mRenderEngine,
-                                           renderengine::ExternalTexture::Usage::READABLE);
+    processBuffers[id].buffer = buffer;
     return true;
 }
 
@@ -137,7 +132,7 @@ void ClientCache::erase(const client_cache_t& cacheId) {
     }
 }
 
-std::shared_ptr<renderengine::ExternalTexture> ClientCache::get(const client_cache_t& cacheId) {
+sp<GraphicBuffer> ClientCache::get(const client_cache_t& cacheId) {
     std::lock_guard lock(mMutex);
 
     ClientCacheBuffer* buf = nullptr;
@@ -218,8 +213,8 @@ void ClientCache::dump(std::string& result) {
         auto &buffers = i.second.second;
         for (auto& [id, clientCacheBuffer] : buffers) {
             StringAppendF(&result, "\t ID: %d, Width/Height: %d,%d\n", (int)id,
-                          (int)clientCacheBuffer.buffer->getBuffer()->getWidth(),
-                          (int)clientCacheBuffer.buffer->getBuffer()->getHeight());
+                          (int)clientCacheBuffer.buffer->getWidth(),
+                          (int)clientCacheBuffer.buffer->getHeight());
         }
     }
 }
