@@ -26,7 +26,6 @@
 #include "MockHWC2.h"
 #include "MockHWComposer.h"
 #include "RegionMatcher.h"
-#include "renderengine/mock/RenderEngine.h"
 
 namespace android::compositionengine {
 namespace {
@@ -716,7 +715,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static const HdrMetadata kHdrMetadata;
     static native_handle_t* kSidebandStreamHandle;
     static const sp<GraphicBuffer> kBuffer;
-    std::shared_ptr<renderengine::ExternalTexture> kOverrideBuffer;
+    static const sp<GraphicBuffer> kOverrideBuffer;
     static const sp<Fence> kFence;
     static const sp<Fence> kOverrideFence;
     static const std::string kLayerGenericMetadata1Key;
@@ -725,11 +724,6 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static const std::vector<uint8_t> kLayerGenericMetadata2Value;
 
     OutputLayerWriteStateToHWCTest() {
-        kOverrideBuffer = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(), mRenderEngine,
-                                               renderengine::ExternalTexture::Usage::READABLE |
-                                                       renderengine::ExternalTexture::Usage::
-                                                               WRITEABLE);
         auto& outputLayerState = mOutputLayer.editState();
         outputLayerState.hwc = impl::OutputLayerCompositionState::Hwc(mHwcLayer);
 
@@ -845,7 +839,6 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
 
     std::shared_ptr<HWC2::mock::Layer> mHwcLayer{std::make_shared<StrictMock<HWC2::mock::Layer>>()};
     StrictMock<mock::DisplayColorProfile> mDisplayColorProfile;
-    renderengine::mock::RenderEngine mRenderEngine;
 };
 
 const half4 OutputLayerWriteStateToHWCTest::kColor{81.f / 255.f, 82.f / 255.f, 83.f / 255.f,
@@ -865,6 +858,7 @@ const HdrMetadata OutputLayerWriteStateToHWCTest::kHdrMetadata{{/* LightFlattena
 native_handle_t* OutputLayerWriteStateToHWCTest::kSidebandStreamHandle =
         reinterpret_cast<native_handle_t*>(1031);
 const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kBuffer;
+const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kOverrideBuffer = new GraphicBuffer();
 const sp<Fence> OutputLayerWriteStateToHWCTest::kFence;
 const sp<Fence> OutputLayerWriteStateToHWCTest::kOverrideFence = new Fence();
 const std::string OutputLayerWriteStateToHWCTest::kLayerGenericMetadata1Key =
@@ -1029,7 +1023,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
                               kOverrideBufferTransform, kOverrideBlendMode, kOverrideAlpha);
     expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace, kOverrideVisibleRegion,
                               kOverrideSurfaceDamage);
-    expectSetHdrMetadataAndBufferCalls(kOverrideBuffer->getBuffer(), kOverrideFence);
+    expectSetHdrMetadataAndBufferCalls(kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false);
