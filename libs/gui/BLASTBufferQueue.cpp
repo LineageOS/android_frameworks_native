@@ -498,6 +498,7 @@ void BLASTBufferQueue::setNextTransaction(SurfaceComposerClient::Transaction* t)
 
 bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
     if (item.mScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE) {
+        mSize = mRequestedSize;
         // Only reject buffers if scaling mode is freeze.
         return false;
     }
