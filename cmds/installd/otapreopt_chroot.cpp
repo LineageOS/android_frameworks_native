@@ -179,6 +179,11 @@ static int otapreopt_chroot(const int argc, char **arg) {
     // want it for product APKs. Same notes as vendor above.
     TryExtraMount("product", arg[2], "/postinstall/product");
 
+    // Try to mount the system_ext partition. update_engine doesn't do this for
+    // us, but we want it for system_ext APKs. Same notes as vendor and product
+    // above.
+    TryExtraMount("system_ext", arg[2], "/postinstall/system_ext");
+
     constexpr const char* kPostInstallLinkerconfig = "/postinstall/linkerconfig";
     // Try to mount /postinstall/linkerconfig. we will set it up after performing the chroot
     if (mount("tmpfs", kPostInstallLinkerconfig, "tmpfs", 0, nullptr) != 0) {
