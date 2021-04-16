@@ -16,12 +16,13 @@
 
 #pragma once
 
-#include <unordered_map>
-
 #include <math/vec4.h>
+#include <renderengine/RenderEngine.h>
 #include <ui/Rect.h>
 #include <ui/Size.h>
 #include <utils/StrongPointer.h>
+
+#include <unordered_map>
 
 #include "Fps.h"
 
@@ -70,7 +71,8 @@ private:
     };
 
     bool createLayer();
-    const std::vector<sp<GraphicBuffer>>& getOrCreateBuffers(uint32_t fps);
+    const std::vector<std::shared_ptr<renderengine::ExternalTexture>>& getOrCreateBuffers(
+            uint32_t fps);
 
     SurfaceFlinger& mFlinger;
     const sp<Client> mClient;
@@ -78,7 +80,8 @@ private:
     sp<IBinder> mIBinder;
     sp<IGraphicBufferProducer> mGbp;
 
-    std::unordered_map<int, std::vector<sp<GraphicBuffer>>> mBufferCache;
+    std::unordered_map<int, std::vector<std::shared_ptr<renderengine::ExternalTexture>>>
+            mBufferCache;
     std::optional<int> mCurrentFps;
     int mFrame = 0;
     static constexpr float ALPHA = 0.8f;
