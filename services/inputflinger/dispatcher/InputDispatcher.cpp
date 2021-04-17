@@ -3157,8 +3157,9 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                     ALOGE("channel '%s' ~ Could not publish event because the pipe is full. "
                           "This is unexpected because the wait queue is empty, so the pipe "
                           "should be empty and we shouldn't have any problems writing an "
-                          "event to it, status=%d",
-                          connection->getInputChannelName().c_str(), status);
+                          "event to it, status=%s(%d)",
+                          connection->getInputChannelName().c_str(), statusToString(status).c_str(),
+                          status);
                     abortBrokenDispatchCycleLocked(currentTime, connection, true /*notify*/);
                 } else {
                     // Pipe is full and we are waiting for the app to finish process some events
@@ -3171,8 +3172,9 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                 }
             } else {
                 ALOGE("channel '%s' ~ Could not publish event due to an unexpected error, "
-                      "status=%d",
-                      connection->getInputChannelName().c_str(), status);
+                      "status=%s(%d)",
+                      connection->getInputChannelName().c_str(), statusToString(status).c_str(),
+                      status);
                 abortBrokenDispatchCycleLocked(currentTime, connection, true /*notify*/);
             }
             return;
@@ -3341,8 +3343,9 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
 
             notify = status != DEAD_OBJECT || !connection->monitor;
             if (notify) {
-                ALOGE("channel '%s' ~ Failed to receive finished signal.  status=%d",
-                      connection->getInputChannelName().c_str(), status);
+                ALOGE("channel '%s' ~ Failed to receive finished signal.  status=%s(%d)",
+                      connection->getInputChannelName().c_str(), statusToString(status).c_str(),
+                      status);
             }
         } else {
             // Monitor channels are never explicitly unregistered.
