@@ -90,6 +90,9 @@ void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_S
             return !mRunning || !mFunctionCalls.empty();
         });
     }
+
+    // we must release the RenderEngine on the thread that created it
+    mRenderEngine.reset();
 }
 
 void RenderEngineThreaded::waitUntilInitialized() const {

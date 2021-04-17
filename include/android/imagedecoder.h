@@ -15,7 +15,7 @@
  */
 
 /**
- * @defgroup ImageDecoder
+ * @defgroup ImageDecoder Android Image Decoder
  *
  * Functions for converting encoded images into RGBA pixels.
  *
@@ -261,7 +261,8 @@ int AImageDecoder_createFromBuffer(const void* _Nonnull buffer, size_t length,
 
 /**
  * Delete the AImageDecoder.
- *
+ * @param decoder {@link AImageDecoder} object created with one of AImageDecoder_createFrom...
+ *        functions.
  * Available since API level 30.
  */
 void AImageDecoder_delete(AImageDecoder* _Nullable decoder) __INTRODUCED_IN(30);
@@ -276,6 +277,7 @@ void AImageDecoder_delete(AImageDecoder* _Nullable decoder) __INTRODUCED_IN(30);
  * Available since API level 30.
  *
  * @param format {@link AndroidBitmapFormat} to use for the output.
+ * @param decoder an {@link AImageDecoder} object.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
  *         indicating the reason for the failure. On failure, the
  *         {@link AImageDecoder} uses the format it was already planning
@@ -307,6 +309,7 @@ int AImageDecoder_setAndroidBitmapFormat(AImageDecoder* _Nonnull decoder,
  *
  * Available since API level 30.
  *
+ * @param decoder an {@link AImageDecoder} object.
  * @param unpremultipliedRequired Pass true to leave the pixels unpremultiplied.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
  *         indicating the reason for the failure.
@@ -335,6 +338,7 @@ int AImageDecoder_setUnpremultipliedRequired(AImageDecoder* _Nonnull decoder,
  *
  * Available since API level 30.
  *
+ * @param decoder an {@link AImageDecoder} object.
  * @param dataspace The {@link ADataSpace} to decode into. An ADataSpace
  *                  specifies how to interpret the colors. By default,
  *                  AImageDecoder will decode into the ADataSpace specified by
@@ -373,6 +377,7 @@ int AImageDecoder_setDataSpace(AImageDecoder* _Nonnull decoder, int32_t dataspac
  *
  * Available since API level 30.
  *
+ * @param decoder an {@link AImageDecoder} object.
  * @param width Width of the output (prior to cropping).
  *              This will affect future calls to
  *              {@link AImageDecoder_getMinimumStride}, which will now return
@@ -404,6 +409,7 @@ int AImageDecoder_setTargetSize(AImageDecoder* _Nonnull decoder, int32_t width,
  *
  * Available since API level 30.
  *
+ * @param decoder an {@link AImageDecoder} object.
  * @param sampleSize A subsampling rate of the original image. Must be greater
  *                   than or equal to 1. A sampleSize of 2 means to skip every
  *                   other pixel/line, resulting in a width and height that are
@@ -437,6 +443,7 @@ int AImageDecoder_computeSampledSize(const AImageDecoder* _Nonnull decoder, int 
  *
  * Available since API level 30.
  *
+ * @param decoder an {@link AImageDecoder} object.
  * @param crop Rectangle describing a crop of the decode. It must be contained inside of
  *             the (possibly scaled, by {@link AImageDecoder_setTargetSize})
  *             image dimensions. This will affect future calls to
@@ -474,6 +481,8 @@ typedef struct AImageDecoderHeaderInfo AImageDecoderHeaderInfo;
  *
  * This is owned by the {@link AImageDecoder} and will be destroyed when the
  * AImageDecoder is destroyed via {@link AImageDecoder_delete}.
+ *
+ * @param decoder an {@link AImageDecoder} object.
  *
  * Available since API level 30.
  */
@@ -562,7 +571,7 @@ int32_t AImageDecoderHeaderInfo_getDataSpace(
 
 /**
  * Return the minimum stride that can be used in
- * {@link AImageDecoder_decodeImage).
+ * {@link AImageDecoder_decodeImage}.
  *
  * This stride provides no padding, meaning it will be exactly equal to the
  * width times the number of bytes per pixel for the {@link AndroidBitmapFormat}
@@ -570,6 +579,8 @@ int32_t AImageDecoderHeaderInfo_getDataSpace(
  *
  * If the output is scaled (via {@link AImageDecoder_setTargetSize}) and/or
  * cropped (via {@link AImageDecoder_setCrop}), this takes those into account.
+ *
+ * @param decoder an {@link AImageDecoder} object.
  *
  * Available since API level 30.
  */
@@ -664,6 +675,8 @@ int AImageDecoder_decodeImage(AImageDecoder* _Nonnull decoder,
  * A single frame GIF is considered to *not* be animated. This may require
  * seeking past the first frame to verify whether there is a following frame.
  *
+ * @param decoder an {@link AImageDecoder} object.
+ *
  * Errors:
  * - returns false if |decoder| is null.
  */
@@ -671,7 +684,7 @@ bool AImageDecoder_isAnimated(AImageDecoder* _Nonnull decoder)
         __INTRODUCED_IN(31);
 
 enum {
-    /*
+    /**
      * Reported by {@link AImageDecoder_getRepeatCount} if the
      * animation should repeat forever.
      *
@@ -696,6 +709,7 @@ enum {
  * an image with only one frame (i.e. {@link AImageDecoder_isAnimated} returns
  * false) if the encoded image contains a repeat count.
  *
+ * @param decoder an {@link AImageDecoder} object.
  * @return Number of times to repeat on success or a value
  *         indicating the reason for the failure.
  *
@@ -725,6 +739,7 @@ int32_t AImageDecoder_getRepeatCount(AImageDecoder* _Nonnull decoder)
  * skipping frames in an image with such frames may not produce the correct
  * results.
  *
+ * @param decoder an {@link AImageDecoder} object.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
  *         indicating the reason for the failure.
  *
@@ -755,6 +770,7 @@ int AImageDecoder_advanceFrame(AImageDecoder* _Nonnull decoder)
  * the end of the animation or an error or in the middle of the
  * animation.
  *
+ * @param decoder an {@link AImageDecoder} object.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
  *         indicating the reason for the failure.
  *
@@ -847,7 +863,7 @@ int64_t AImageDecoderFrameInfo_getDuration(
 
 /**
  * The rectangle of the image (within 0, 0,
- * {@link AImageDecoder_getWidth}, {@link AImageDecoder_getHeight})
+ * {@link AImageDecoderHeaderInfo_getWidth}, {@link AImageDecoderHeaderInfo_getHeight})
  * updated by this frame.
  *
  * Introduced in API 31.
@@ -905,15 +921,15 @@ bool AImageDecoderFrameInfo_hasAlphaWithinBounds(
  * sequential client does not need this.
  */
 enum {
-    // No disposal. The following frame will be drawn directly
-    // on top of this one.
+    /// No disposal. The following frame will be drawn directly
+    /// on top of this one.
     ANDROID_IMAGE_DECODER_DISPOSE_OP_NONE = 1,
-    // The frame’s rectangle is cleared to transparent (by AImageDecoder)
-    // before decoding the next frame.
+    /// The frame’s rectangle is cleared to transparent (by AImageDecoder)
+    /// before decoding the next frame.
     ANDROID_IMAGE_DECODER_DISPOSE_OP_BACKGROUND = 2,
-    // The frame’s rectangle is reverted to the prior frame before decoding
-    // the next frame. This is handled by AImageDecoder, unless
-    // {@link AImageDecoder_setInternallyHandleDisposePrevious} is set to false.
+    /// The frame’s rectangle is reverted to the prior frame before decoding
+    /// the next frame. This is handled by AImageDecoder, unless
+    /// {@link AImageDecoder_setInternallyHandleDisposePrevious} is set to false.
     ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS = 3,
 };
 
@@ -948,10 +964,10 @@ int32_t AImageDecoderFrameInfo_getDisposeOp(
  * sequential client does not need this.
  */
 enum {
-    // This frame replaces existing content. This corresponds
-    // to webp’s “do not blend”.
+    /// This frame replaces existing content. This corresponds
+    /// to webp’s “do not blend”.
     ANDROID_IMAGE_DECODER_BLEND_OP_SRC = 1,
-    // This frame blends with the previous frame.
+    /// This frame blends with the previous frame.
     ANDROID_IMAGE_DECODER_BLEND_OP_SRC_OVER = 2,
 };
 
@@ -1002,6 +1018,7 @@ int32_t AImageDecoderFrameInfo_getBlendOp(
  * When asked to decode frame i+1, AImageDecoder will now assume that
  * the client provided i-1 in |pixels|.
  *
+ * @param decoder an {@link AImageDecoder} object.
  * @param handleInternally Whether AImageDecoder will internally
  *               handle ANDROID_IMAGE_DECODER_DISPOSE_OP_PREVIOUS
  *               frames.
