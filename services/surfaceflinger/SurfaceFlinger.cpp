@@ -308,20 +308,6 @@ Dataspace SurfaceFlinger::wideColorGamutCompositionDataspace = Dataspace::V0_SRG
 ui::PixelFormat SurfaceFlinger::wideColorGamutCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
 bool SurfaceFlinger::useFrameRateApi;
 
-std::string getHwcServiceName() {
-    char value[PROPERTY_VALUE_MAX] = {};
-    property_get("debug.sf.hwc_service_name", value, "default");
-    ALOGI("Using HWComposer service: '%s'", value);
-    return std::string(value);
-}
-
-bool useTrebleTestingOverride() {
-    char value[PROPERTY_VALUE_MAX] = {};
-    property_get("debug.sf.treble_testing_override", value, "false");
-    ALOGI("Treble testing override: '%s'", value);
-    return std::string(value) == "true";
-}
-
 std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
     switch(displayColorSetting) {
         case DisplayColorSetting::kManaged:
@@ -344,8 +330,6 @@ bool callingThreadHasRotateSurfaceFlingerAccess() {
             PermissionCache::checkPermission(sRotateSurfaceFlinger, pid, uid);
 }
 
-SurfaceFlingerBE::SurfaceFlingerBE() : mHwcServiceName(getHwcServiceName()) {}
-
 SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
       : mFactory(factory),
         mInterceptor(mFactory.createSurfaceInterceptor()),
@@ -354,8 +338,11 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mFrameTimeline(mFactory.createFrameTimeline(mTimeStats, getpid())),
         mEventQueue(mFactory.createMessageQueue()),
         mCompositionEngine(mFactory.createCompositionEngine()),
+        mHwcServiceName(base::GetProperty("debug.sf.hwc_service_name"s, "default"s)),
         mInternalDisplayDensity(getDensityFromProperty("ro.sf.lcd_density", true)),
         mEmulatedDisplayDensity(getDensityFromProperty("qemu.sf.lcd_density", false)) {
+    ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
+
     mSetInputWindowsListener = new SetInputWindowsListener([&]() { setInputWindowsFinished(); });
 }
 
@@ -469,12 +456,13 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     // comes online to attempt to read the property. The property is
     // instead read after the boot animation
 
-    if (useTrebleTestingOverride()) {
+    if (base::GetBoolProperty("debug.sf.treble_testing_override"s, false)) {
         // Without the override SurfaceFlinger cannot connect to HIDL
         // services that are not listed in the manifests.  Considered
         // deriving the setting from the set service name, but it
         // would be brittle if the name that's not 'default' is used
         // for production purposes later on.
+        ALOGI("Enabling Treble testing override");
         android::hardware::details::setTrebleTestingOverride(true);
     }
 
@@ -737,7 +725,7 @@ void SurfaceFlinger::init() {
                                     : renderengine::RenderEngine::ContextPriority::MEDIUM)
                     .build()));
     mCompositionEngine->setTimeStats(mTimeStats);
-    mCompositionEngine->setHwComposer(getFactory().createHWComposer(getBE().mHwcServiceName));
+    mCompositionEngine->setHwComposer(getFactory().createHWComposer(mHwcServiceName));
     mCompositionEngine->getHwComposer().setConfiguration(this, getBE().mComposerSequenceId);
     // Process any initial hotplug and resulting display changes.
     processDisplayHotplugEventsLocked();
@@ -5060,13 +5048,16 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
 #pragma clang diagnostic push
 #pragma clang diagnostic error "-Wswitch-enum"
     switch (static_cast<ISurfaceComposerTag>(code)) {
+        case ENABLE_VSYNC_INJECTIONS:
+        case INJECT_VSYNC:
+            if (!hasMockHwc()) return PERMISSION_DENIED;
+            [[fallthrough]];
         // These methods should at minimum make sure that the client requested
         // access to SF.
         case BOOT_FINISHED:
         case CLEAR_ANIMATION_FRAME_STATS:
         case CREATE_DISPLAY:
         case DESTROY_DISPLAY:
-        case ENABLE_VSYNC_INJECTIONS:
         case GET_ANIMATION_FRAME_STATS:
         case OVERRIDE_HDR_TYPES:
         case GET_HDR_CAPABILITIES:
@@ -5077,7 +5068,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_AUTO_LOW_LATENCY_MODE:
         case GET_GAME_CONTENT_TYPE_SUPPORT:
         case SET_GAME_CONTENT_TYPE:
-        case INJECT_VSYNC:
         case SET_POWER_MODE:
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
         case SET_DISPLAY_CONTENT_SAMPLING_ENABLED:
