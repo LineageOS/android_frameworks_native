@@ -309,7 +309,8 @@ status_t InputChannel::openInputChannelPair(const std::string& name,
     int sockets[2];
     if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets)) {
         status_t result = -errno;
-        ALOGE("channel '%s' ~ Could not create socket pair.  errno=%d", name.c_str(), errno);
+        ALOGE("channel '%s' ~ Could not create socket pair.  errno=%s(%d)", name.c_str(),
+              strerror(errno), errno);
         outServerChannel.reset();
         outClientChannel.reset();
         return result;
