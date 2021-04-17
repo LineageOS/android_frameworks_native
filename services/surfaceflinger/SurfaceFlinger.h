@@ -134,13 +134,7 @@ enum {
 
 using DisplayColorSetting = compositionengine::OutputColorSetting;
 
-class SurfaceFlingerBE
-{
-public:
-    SurfaceFlingerBE();
-
-    const std::string mHwcServiceName; // "default" for real use, something else for testing.
-
+struct SurfaceFlingerBE {
     FenceTimeline mGlCompositionDoneTimeline;
     FenceTimeline mDisplayTimeline;
 
@@ -1322,6 +1316,10 @@ private:
 
     SurfaceFlingerBE mBE;
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
+
+    const std::string mHwcServiceName;
+
+    bool hasMockHwc() const { return mHwcServiceName == "mock"; }
 
     /*
      * Scheduler
