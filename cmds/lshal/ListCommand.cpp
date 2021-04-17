@@ -417,7 +417,7 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
         }
     }
     out << "-->" << std::endl;
-    out << vintf::gHalManifestConverter(manifest, vintf::SerializeFlags::HALS_ONLY);
+    out << vintf::toXml(manifest, vintf::SerializeFlags::HALS_ONLY);
 }
 
 std::string ListCommand::INIT_VINTF_NOTES{
