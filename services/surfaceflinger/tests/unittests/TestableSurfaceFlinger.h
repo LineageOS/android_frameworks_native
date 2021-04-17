@@ -321,9 +321,8 @@ public:
         return mFlinger->handleTransactionLocked(transactionFlags);
     }
 
-    auto onHotplugReceived(int32_t sequenceId, hal::HWDisplayId display,
-                           hal::Connection connection) {
-        return mFlinger->onHotplugReceived(sequenceId, display, connection);
+    void onComposerHalHotplug(hal::HWDisplayId hwcDisplayId, hal::Connection connection) {
+        mFlinger->onComposerHalHotplug(hwcDisplayId, connection);
     }
 
     auto setDisplayStateLocked(const DisplayState& s) {
@@ -437,7 +436,6 @@ public:
     auto& mutablePowerAdvisor() { return mFlinger->mPowerAdvisor; }
     auto& mutableDebugDisableHWC() { return mFlinger->mDebugDisableHWC; }
 
-    auto& mutableComposerSequenceId() { return mFlinger->getBE().mComposerSequenceId; }
     auto& mutableHwcDisplayData() { return getHwComposer().mDisplayData; }
     auto& mutableHwcPhysicalDisplayIdMap() { return getHwComposer().mPhysicalDisplayIdMap; }
     auto& mutableInternalHwcDisplayId() { return getHwComposer().mInternalHwcDisplayId; }
