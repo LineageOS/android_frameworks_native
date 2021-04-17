@@ -793,47 +793,6 @@ TEST_F(LayerStateTest, compareColorTransform) {
     EXPECT_TRUE(otherLayerState->compare(*mLayerState));
 }
 
-TEST_F(LayerStateTest, updateSurfaceDamage) {
-    OutputLayerCompositionState outputLayerCompositionState;
-    LayerFECompositionState layerFECompositionState;
-    layerFECompositionState.surfaceDamage = sRegionOne;
-    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
-                       layerFECompositionState);
-    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
-
-    mock::OutputLayer newOutputLayer;
-    mock::LayerFE newLayerFE;
-    OutputLayerCompositionState outputLayerCompositionStateTwo;
-    LayerFECompositionState layerFECompositionStateTwo;
-    layerFECompositionStateTwo.surfaceDamage = sRegionTwo;
-    setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionStateTwo,
-                       layerFECompositionStateTwo);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::SurfaceDamage), updates);
-}
-
-TEST_F(LayerStateTest, compareSurfaceDamage) {
-    OutputLayerCompositionState outputLayerCompositionState;
-    LayerFECompositionState layerFECompositionState;
-    layerFECompositionState.surfaceDamage = sRegionOne;
-    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
-                       layerFECompositionState);
-    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
-    mock::OutputLayer newOutputLayer;
-    mock::LayerFE newLayerFE;
-    OutputLayerCompositionState outputLayerCompositionStateTwo;
-    LayerFECompositionState layerFECompositionStateTwo;
-    layerFECompositionStateTwo.surfaceDamage = sRegionTwo;
-    setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionStateTwo,
-                       layerFECompositionStateTwo);
-    auto otherLayerState = std::make_unique<LayerState>(&newOutputLayer);
-
-    verifyNonUniqueDifferingFields(*mLayerState, *otherLayerState, LayerStateField::SurfaceDamage);
-
-    EXPECT_TRUE(mLayerState->compare(*otherLayerState));
-    EXPECT_TRUE(otherLayerState->compare(*mLayerState));
-}
-
 TEST_F(LayerStateTest, updateSidebandStream) {
     OutputLayerCompositionState outputLayerCompositionState;
     LayerFECompositionState layerFECompositionState;

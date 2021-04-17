@@ -173,7 +173,7 @@ typedef binder_status_t (*AIBinder_Class_onTransact)(AIBinder* binder, transacti
  * Available since API level 29.
  *
  * \param interfaceDescriptor this is a unique identifier for the class. This is used internally for
- * sanity checks on transactions.
+ * validity checks on transactions. This should be utf-8.
  * \param onCreate see AIBinder_Class_onCreate.
  * \param onDestroy see AIBinder_Class_onDestroy.
  * \param onTransact see AIBinder_Class_onTransact.
@@ -645,7 +645,9 @@ binder_status_t AIBinder_setExtension(AIBinder* binder, AIBinder* ext) __INTRODU
  *
  * \return the class descriptor string. This pointer will never be null; a
  * descriptor is required to define a class. The pointer is owned by the class
- * and will remain valid as long as the class does.
+ * and will remain valid as long as the class does. For a local class, this will
+ * be the same value (not necessarily pointer equal) as is passed into
+ * AIBinder_Class_define. Format is utf-8.
  */
 const char* AIBinder_Class_getDescriptor(const AIBinder_Class* clazz) __INTRODUCED_IN(31);
 
@@ -669,7 +671,7 @@ const char* AIBinder_Class_getDescriptor(const AIBinder_Class* clazz) __INTRODUC
  *
  * \return whether "lhs < rhs" is true
  */
-bool AIBinder_lt(const AIBinder* lhs, const AIBinder* rhs);
+bool AIBinder_lt(const AIBinder* lhs, const AIBinder* rhs) __INTRODUCED_IN(31);
 
 /**
  * Clone an AIBinder_Weak. Useful because even if a weak binder promotes to a
@@ -683,7 +685,7 @@ bool AIBinder_lt(const AIBinder* lhs, const AIBinder* rhs);
  * \return clone of the input parameter. This must be deleted with
  * AIBinder_Weak_delete. Null if weak input parameter is also null.
  */
-AIBinder_Weak* AIBinder_Weak_clone(const AIBinder_Weak* weak);
+AIBinder_Weak* AIBinder_Weak_clone(const AIBinder_Weak* weak) __INTRODUCED_IN(31);
 
 /**
  * Whether AIBinder_Weak is less than another.
@@ -718,7 +720,7 @@ AIBinder_Weak* AIBinder_Weak_clone(const AIBinder_Weak* weak);
  *
  * \return whether "lhs < rhs" is true
  */
-bool AIBinder_Weak_lt(const AIBinder_Weak* lhs, const AIBinder_Weak* rhs);
+bool AIBinder_Weak_lt(const AIBinder_Weak* lhs, const AIBinder_Weak* rhs) __INTRODUCED_IN(31);
 
 __END_DECLS
 
