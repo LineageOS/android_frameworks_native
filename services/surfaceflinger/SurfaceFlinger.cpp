@@ -783,7 +783,7 @@ void SurfaceFlinger::init() {
                     .build()));
     mCompositionEngine->setTimeStats(mTimeStats);
     mCompositionEngine->setHwComposer(getFactory().createHWComposer(mHwcServiceName));
-    mCompositionEngine->getHwComposer().setConfiguration(this, getBE().mComposerSequenceId);
+    mCompositionEngine->getHwComposer().setCallback(this);
     ClientCache::getInstance().setRenderEngine(&getRenderEngine());
 
     if (base::GetBoolProperty("debug.sf.enable_hwc_vds"s, false)) {
@@ -1663,16 +1663,11 @@ nsecs_t SurfaceFlinger::getVsyncPeriodFromHWC() const {
     return 0;
 }
 
-void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hal::HWDisplayId hwcDisplayId,
-                                     int64_t timestamp,
-                                     std::optional<hal::VsyncPeriodNanos> vsyncPeriod) {
-    ATRACE_NAME("SF onVsync");
+void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp,
+                                        std::optional<hal::VsyncPeriodNanos> vsyncPeriod) {
+    ATRACE_CALL();
 
     Mutex::Autolock lock(mStateLock);
-    // Ignore any vsyncs from a previous hardware composer.
-    if (sequenceId != getBE().mComposerSequenceId) {
-        return;
-    }
 
     if (const auto displayId = getHwComposer().toPhysicalDisplayId(hwcDisplayId)) {
         auto token = getPhysicalDisplayTokenLocked(*displayId);
@@ -1723,15 +1718,10 @@ void SurfaceFlinger::changeRefreshRateLocked(const RefreshRate& refreshRate,
     setDesiredActiveMode({refreshRate.getModeId(), event});
 }
 
-void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hal::HWDisplayId hwcDisplayId,
-                                       hal::Connection connection) {
-    ALOGI("%s(%d, %" PRIu64 ", %s)", __FUNCTION__, sequenceId, hwcDisplayId,
+void SurfaceFlinger::onComposerHalHotplug(hal::HWDisplayId hwcDisplayId,
+                                          hal::Connection connection) {
+    ALOGI("%s(%" PRIu64 ", %s)", __func__, hwcDisplayId,
           connection == hal::Connection::CONNECTED ? "connected" : "disconnected");
-
-    // Ignore events that do not have the right sequenceId.
-    if (sequenceId != getBE().mComposerSequenceId) {
-        return;
-    }
 
     // Only lock if we're not on the main thread. This function is normally
     // called on a hwbinder thread, but for the primary display it's called on
@@ -1749,26 +1739,19 @@ void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hal::HWDisplayId hwcD
     setTransactionFlags(eDisplayTransactionNeeded);
 }
 
-void SurfaceFlinger::onVsyncPeriodTimingChangedReceived(
-        int32_t sequenceId, hal::HWDisplayId /*display*/,
-        const hal::VsyncPeriodChangeTimeline& updatedTimeline) {
+void SurfaceFlinger::onComposerHalVsyncPeriodTimingChanged(
+        hal::HWDisplayId, const hal::VsyncPeriodChangeTimeline& timeline) {
     Mutex::Autolock lock(mStateLock);
-    if (sequenceId != getBE().mComposerSequenceId) {
-        return;
-    }
-    mScheduler->onNewVsyncPeriodChangeTimeline(updatedTimeline);
+    mScheduler->onNewVsyncPeriodChangeTimeline(timeline);
 }
 
-void SurfaceFlinger::onSeamlessPossible(int32_t /*sequenceId*/, hal::HWDisplayId /*display*/) {
+void SurfaceFlinger::onComposerHalSeamlessPossible(hal::HWDisplayId) {
     // TODO(b/142753666): use constraints when calling to setActiveModeWithConstraints and
     // use this callback to know when to retry in case of SEAMLESS_NOT_POSSIBLE.
 }
 
-void SurfaceFlinger::onRefreshReceived(int sequenceId, hal::HWDisplayId /*hwcDisplayId*/) {
+void SurfaceFlinger::onComposerHalRefresh(hal::HWDisplayId) {
     Mutex::Autolock lock(mStateLock);
-    if (sequenceId != getBE().mComposerSequenceId) {
-        return;
-    }
     repaintEverythingForHWC();
 }
 
@@ -5651,7 +5634,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     Mutex::Autolock lock(mStateLock);
                     hwcId = getHwComposer().getInternalHwcDisplayId();
                 }
-                onHotplugReceived(getBE().mComposerSequenceId, *hwcId, hal::Connection::CONNECTED);
+                onComposerHalHotplug(*hwcId, hal::Connection::CONNECTED);
                 return NO_ERROR;
             }
             // Modify the max number of display frames stored within FrameTimeline
