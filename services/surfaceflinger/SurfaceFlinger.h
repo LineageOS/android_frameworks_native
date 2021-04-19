@@ -1113,15 +1113,19 @@ private:
         return {};
     }
 
-    // TODO(b/74619554): Remove special cases for primary display.
+    // TODO(b/182939859): SF conflates the primary (a.k.a. default) display with the first display
+    // connected at boot, which is typically internal. (Theoretically, it must be internal because
+    // SF does not support disconnecting it, though in practice HWC may circumvent this limitation.)
+    //
+    // SF inherits getInternalDisplayToken and getInternalDisplayId from ISurfaceComposer, so these
+    // locked counterparts are named consistently. Once SF supports headless mode and can designate
+    // any display as primary, the "internal" misnomer will be phased out.
     sp<IBinder> getInternalDisplayTokenLocked() const REQUIRES(mStateLock) {
-        const auto displayId = getInternalDisplayIdLocked();
-        return displayId ? getPhysicalDisplayTokenLocked(*displayId) : nullptr;
+        return getPhysicalDisplayTokenLocked(getInternalDisplayIdLocked());
     }
 
-    std::optional<PhysicalDisplayId> getInternalDisplayIdLocked() const REQUIRES(mStateLock) {
-        const auto hwcDisplayId = getHwComposer().getInternalHwcDisplayId();
-        return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
+    PhysicalDisplayId getInternalDisplayIdLocked() const REQUIRES(mStateLock) {
+        return getHwComposer().getPrimaryDisplayId();
     }
 
     // Toggles use of HAL/GPU virtual displays.
@@ -1200,8 +1204,7 @@ private:
     /*
      * Misc
      */
-    std::vector<ui::ColorMode> getDisplayColorModes(PhysicalDisplayId displayId)
-            REQUIRES(mStateLock);
+    std::vector<ui::ColorMode> getDisplayColorModes(const DisplayDevice&) REQUIRES(mStateLock);
 
     static int calculateMaxAcquiredBufferCount(Fps refreshRate,
                                                std::chrono::nanoseconds presentLatency);

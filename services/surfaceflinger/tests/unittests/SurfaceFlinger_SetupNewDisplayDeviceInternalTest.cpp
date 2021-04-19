@@ -292,7 +292,9 @@ TEST_F(SetupNewDisplayDeviceInternalTest, createSimplePrimaryDisplay) {
 }
 
 TEST_F(SetupNewDisplayDeviceInternalTest, createSimpleExternalDisplay) {
-    setupNewDisplayDeviceInternalTest<SimpleExternalDisplayCase>();
+    // External displays must be secondary, as the primary display cannot be disconnected.
+    EXPECT_EXIT(setupNewDisplayDeviceInternalTest<SimpleExternalDisplayCase>(),
+                testing::KilledBySignal(SIGABRT), "Missing primary display");
 }
 
 TEST_F(SetupNewDisplayDeviceInternalTest, createNonHwcVirtualDisplay) {

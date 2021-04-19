@@ -111,11 +111,15 @@ public:
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(getComposer, android::Hwc2::Composer*());
-    MOCK_CONST_METHOD1(getHwcDisplayId, std::optional<hal::HWDisplayId>(int32_t));
-    MOCK_CONST_METHOD0(getInternalHwcDisplayId, std::optional<hal::HWDisplayId>());
-    MOCK_CONST_METHOD0(getExternalHwcDisplayId, std::optional<hal::HWDisplayId>());
-    MOCK_CONST_METHOD1(toPhysicalDisplayId, std::optional<PhysicalDisplayId>(hal::HWDisplayId));
-    MOCK_CONST_METHOD1(fromPhysicalDisplayId, std::optional<hal::HWDisplayId>(PhysicalDisplayId));
+
+    MOCK_METHOD(hal::HWDisplayId, getPrimaryHwcDisplayId, (), (const, override));
+    MOCK_METHOD(PhysicalDisplayId, getPrimaryDisplayId, (), (const, override));
+    MOCK_METHOD(bool, isHeadless, (), (const, override));
+
+    MOCK_METHOD(std::optional<PhysicalDisplayId>, toPhysicalDisplayId, (hal::HWDisplayId),
+                (const, override));
+    MOCK_METHOD(std::optional<hal::HWDisplayId>, fromPhysicalDisplayId, (PhysicalDisplayId),
+                (const, override));
 };
 
 } // namespace mock

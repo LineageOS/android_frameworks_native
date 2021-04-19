@@ -282,7 +282,8 @@ TEST_F(HandleTransactionLockedTest, ignoresHotplugConnectIfPrimaryAndExternalAlr
 }
 
 TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectPrimaryDisplay) {
-    processesHotplugDisconnectCommon<SimplePrimaryDisplayCase>();
+    EXPECT_EXIT(processesHotplugDisconnectCommon<SimplePrimaryDisplayCase>(),
+                testing::KilledBySignal(SIGABRT), "Primary display cannot be disconnected.");
 }
 
 TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectExternalDisplay) {
@@ -290,96 +291,106 @@ TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectExternalDisplay) {
 }
 
 TEST_F(HandleTransactionLockedTest, processesHotplugConnectThenDisconnectPrimary) {
-    using Case = SimplePrimaryDisplayCase;
+    EXPECT_EXIT(
+            [this] {
+                using Case = SimplePrimaryDisplayCase;
 
-    // --------------------------------------------------------------------
-    // Preconditions
+                // --------------------------------------------------------------------
+                // Preconditions
 
-    setupCommonPreconditions<Case>();
+                setupCommonPreconditions<Case>();
 
-    // A hotplug connect event is enqueued for a display
-    Case::Display::injectPendingHotplugEvent(this, Connection::CONNECTED);
-    // A hotplug disconnect event is also enqueued for the same display
-    Case::Display::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
+                // A hotplug connect event is enqueued for a display
+                Case::Display::injectPendingHotplugEvent(this, Connection::CONNECTED);
+                // A hotplug disconnect event is also enqueued for the same display
+                Case::Display::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
 
-    // --------------------------------------------------------------------
-    // Call Expectations
+                // --------------------------------------------------------------------
+                // Call Expectations
 
-    setupCommonCallExpectationsForConnectProcessing<Case>();
-    setupCommonCallExpectationsForDisconnectProcessing<Case>();
+                setupCommonCallExpectationsForConnectProcessing<Case>();
+                setupCommonCallExpectationsForDisconnectProcessing<Case>();
 
-    EXPECT_CALL(*mComposer,
-                setVsyncEnabled(Case::Display::HWC_DISPLAY_ID, IComposerClient::Vsync::DISABLE))
-            .WillOnce(Return(Error::NONE));
-    EXPECT_CALL(*mConsumer, consumerDisconnect()).WillOnce(Return(NO_ERROR));
+                EXPECT_CALL(*mComposer,
+                            setVsyncEnabled(Case::Display::HWC_DISPLAY_ID,
+                                            IComposerClient::Vsync::DISABLE))
+                        .WillOnce(Return(Error::NONE));
+                EXPECT_CALL(*mConsumer, consumerDisconnect()).WillOnce(Return(NO_ERROR));
 
-    // --------------------------------------------------------------------
-    // Invocation
+                // --------------------------------------------------------------------
+                // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+                mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
 
-    // --------------------------------------------------------------------
-    // Postconditions
+                // --------------------------------------------------------------------
+                // Postconditions
 
-    // HWComposer should not have an entry for the display
-    EXPECT_FALSE(hasPhysicalHwcDisplay(Case::Display::HWC_DISPLAY_ID));
+                // HWComposer should not have an entry for the display
+                EXPECT_FALSE(hasPhysicalHwcDisplay(Case::Display::HWC_DISPLAY_ID));
 
-    // SF should not have a display token.
-    const auto displayId = Case::Display::DISPLAY_ID::get();
-    ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 0);
+                // SF should not have a display token.
+                const auto displayId = Case::Display::DISPLAY_ID::get();
+                ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
+                ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 0);
+            }(),
+            testing::KilledBySignal(SIGABRT), "Primary display cannot be disconnected.");
 }
 
 TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectThenConnectPrimary) {
-    using Case = SimplePrimaryDisplayCase;
+    EXPECT_EXIT(
+            [this] {
+                using Case = SimplePrimaryDisplayCase;
 
-    // --------------------------------------------------------------------
-    // Preconditions
+                // --------------------------------------------------------------------
+                // Preconditions
 
-    setupCommonPreconditions<Case>();
+                setupCommonPreconditions<Case>();
 
-    // The display is already completely set up.
-    Case::Display::injectHwcDisplay(this);
-    auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
-    existing.inject();
+                // The display is already completely set up.
+                Case::Display::injectHwcDisplay(this);
+                auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
+                existing.inject();
 
-    // A hotplug disconnect event is enqueued for a display
-    Case::Display::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
-    // A hotplug connect event is also enqueued for the same display
-    Case::Display::injectPendingHotplugEvent(this, Connection::CONNECTED);
+                // A hotplug disconnect event is enqueued for a display
+                Case::Display::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
+                // A hotplug connect event is also enqueued for the same display
+                Case::Display::injectPendingHotplugEvent(this, Connection::CONNECTED);
 
-    // --------------------------------------------------------------------
-    // Call Expectations
+                // --------------------------------------------------------------------
+                // Call Expectations
 
-    setupCommonCallExpectationsForConnectProcessing<Case>();
-    setupCommonCallExpectationsForDisconnectProcessing<Case>();
+                setupCommonCallExpectationsForConnectProcessing<Case>();
+                setupCommonCallExpectationsForDisconnectProcessing<Case>();
 
-    // --------------------------------------------------------------------
-    // Invocation
+                // --------------------------------------------------------------------
+                // Invocation
 
-    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+                mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
 
-    // --------------------------------------------------------------------
-    // Postconditions
+                // --------------------------------------------------------------------
+                // Postconditions
 
-    // The existing token should have been removed
-    verifyDisplayIsNotConnected(existing.token());
-    const auto displayId = Case::Display::DISPLAY_ID::get();
-    ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
-    ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 1);
-    EXPECT_NE(existing.token(), mFlinger.mutablePhysicalDisplayTokens()[displayId]);
+                // The existing token should have been removed
+                verifyDisplayIsNotConnected(existing.token());
+                const auto displayId = Case::Display::DISPLAY_ID::get();
+                ASSERT_TRUE(PhysicalDisplayId::tryCast(displayId));
+                ASSERT_TRUE(mFlinger.mutablePhysicalDisplayTokens().count(displayId) == 1);
+                EXPECT_NE(existing.token(), mFlinger.mutablePhysicalDisplayTokens()[displayId]);
 
-    // A new display should be connected in its place
+                // A new display should be connected in its place
 
-    verifyPhysicalDisplayIsConnected<Case>();
+                verifyPhysicalDisplayIsConnected<Case>();
 
-    // --------------------------------------------------------------------
-    // Cleanup conditions
+                // --------------------------------------------------------------------
+                // Cleanup conditions
 
-    EXPECT_CALL(*mComposer,
-                setVsyncEnabled(Case::Display::HWC_DISPLAY_ID, IComposerClient::Vsync::DISABLE))
-            .WillOnce(Return(Error::NONE));
-    EXPECT_CALL(*mConsumer, consumerDisconnect()).WillOnce(Return(NO_ERROR));
+                EXPECT_CALL(*mComposer,
+                            setVsyncEnabled(Case::Display::HWC_DISPLAY_ID,
+                                            IComposerClient::Vsync::DISABLE))
+                        .WillOnce(Return(Error::NONE));
+                EXPECT_CALL(*mConsumer, consumerDisconnect()).WillOnce(Return(NO_ERROR));
+            }(),
+            testing::KilledBySignal(SIGABRT), "Primary display cannot be disconnected.");
 }
 
 TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAdded) {
