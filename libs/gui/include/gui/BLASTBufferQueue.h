@@ -151,14 +151,20 @@ private:
         // we get the next buffer. This will support scenarios where the layer can change sizes
         // and the buffer will scale to fit the new size.
         uint32_t scalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
+        Rect crop;
 
         void update(bool hasBuffer, uint32_t width, uint32_t height, uint32_t transform,
-                    uint32_t scalingMode) {
+                    uint32_t scalingMode, const Rect& crop) {
             this->hasBuffer = hasBuffer;
             this->width = width;
             this->height = height;
             this->transform = transform;
             this->scalingMode = scalingMode;
+            if (!crop.isEmpty()) {
+                this->crop = crop;
+            } else {
+                this->crop = Rect(width, height);
+            }
         }
     };
 

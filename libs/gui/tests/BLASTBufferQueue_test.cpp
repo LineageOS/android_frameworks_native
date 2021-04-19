@@ -522,16 +522,146 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
     adapter.waitForCallbacks();
     // capture screen and verify that it is red
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
-
-    Rect bounds;
-    bounds.left = finalCropSideLength / 2;
-    bounds.top = 0;
-    bounds.right = bounds.left + finalCropSideLength;
-    bounds.bottom = finalCropSideLength;
-
-    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(r, g, b, bounds));
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(r, g, b,
+                                               {10, 10, (int32_t)bufferSideLength - 10,
+                                                (int32_t)bufferSideLength - 10}));
     ASSERT_NO_FATAL_FAILURE(
-            checkScreenCapture(0, 0, 0, bounds, /*border*/ 0, /*outsideRegion*/ true));
+            checkScreenCapture(0, 0, 0,
+                               {0, 0, (int32_t)bufferSideLength, (int32_t)bufferSideLength},
+                               /*border*/ 0, /*outsideRegion*/ true));
+}
+
+TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToBufferSize) {
+    // add black background
+    auto bg = mClient->createSurface(String8("BGTest"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                     ISurfaceComposerClient::eFXSurfaceEffect);
+    ASSERT_NE(nullptr, bg.get());
+    Transaction t;
+    t.setLayerStack(bg, 0)
+            .setCrop(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
+            .setColor(bg, half3{0, 0, 0})
+            .setLayer(bg, 0)
+            .apply();
+
+    Rect windowSize(1000, 1000);
+    Rect bufferSize(windowSize);
+    Rect bufferCrop(200, 200, 700, 700);
+
+    BLASTBufferQueueHelper adapter(mSurfaceControl, windowSize.getWidth(), windowSize.getHeight());
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+    int slot;
+    sp<Fence> fence;
+    sp<GraphicBuffer> buf;
+    auto ret = igbProducer->dequeueBuffer(&slot, &fence, bufferSize.getWidth(),
+                                          bufferSize.getHeight(), PIXEL_FORMAT_RGBA_8888,
+                                          GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr, nullptr);
+    ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+    ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+
+    uint32_t* bufData;
+    buf->lock(static_cast<uint32_t>(GraphicBuffer::USAGE_SW_WRITE_OFTEN),
+              reinterpret_cast<void**>(&bufData));
+    // fill buffer with grey
+    fillBuffer(bufData, bufferSize, buf->getStride(), 127, 127, 127);
+
+    // fill crop area with different colors so we can verify the cropped region has been scaled
+    // correctly.
+    fillBuffer(bufData, Rect(200, 200, 450, 450), buf->getStride(), /* rgb */ 255, 0, 0);
+    fillBuffer(bufData, Rect(200, 451, 450, 700), buf->getStride(), /* rgb */ 0, 255, 0);
+    fillBuffer(bufData, Rect(451, 200, 700, 450), buf->getStride(), /* rgb */ 0, 0, 255);
+    fillBuffer(bufData, Rect(451, 451, 700, 700), buf->getStride(), /* rgb */ 255, 0, 0);
+    buf->unlock();
+
+    IGraphicBufferProducer::QueueBufferOutput qbOutput;
+    IGraphicBufferProducer::QueueBufferInput input(systemTime(), true /* autotimestamp */,
+                                                   HAL_DATASPACE_UNKNOWN,
+                                                   bufferCrop /* Rect::INVALID_RECT */,
+                                                   NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW, 0,
+                                                   Fence::NO_FENCE);
+    igbProducer->queueBuffer(slot, input, &qbOutput);
+    ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
+
+    adapter.waitForCallbacks();
+
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+
+    // Verify cropped region is scaled correctly.
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(255, 0, 0, {10, 10, 490, 490}));
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(0, 255, 0, {10, 510, 490, 990}));
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(0, 0, 255, {510, 10, 990, 490}));
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(255, 0, 0, {510, 510, 990, 990}));
+    // Verify outside region is black.
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(0, 0, 0,
+                                               {0, 0, (int32_t)windowSize.getWidth(),
+                                                (int32_t)windowSize.getHeight()},
+                                               /*border*/ 0, /*outsideRegion*/ true));
+}
+
+TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToWindowSize) {
+    // add black background
+    auto bg = mClient->createSurface(String8("BGTest"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                     ISurfaceComposerClient::eFXSurfaceEffect);
+    ASSERT_NE(nullptr, bg.get());
+    Transaction t;
+    t.setLayerStack(bg, 0)
+            .setCrop(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
+            .setColor(bg, half3{0, 0, 0})
+            .setLayer(bg, 0)
+            .apply();
+
+    Rect windowSize(1000, 1000);
+    Rect bufferSize(500, 500);
+    Rect bufferCrop(100, 100, 350, 350);
+
+    BLASTBufferQueueHelper adapter(mSurfaceControl, windowSize.getWidth(), windowSize.getHeight());
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+    int slot;
+    sp<Fence> fence;
+    sp<GraphicBuffer> buf;
+    auto ret = igbProducer->dequeueBuffer(&slot, &fence, bufferSize.getWidth(),
+                                          bufferSize.getHeight(), PIXEL_FORMAT_RGBA_8888,
+                                          GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr, nullptr);
+    ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, ret);
+    ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
+
+    uint32_t* bufData;
+    buf->lock(static_cast<uint32_t>(GraphicBuffer::USAGE_SW_WRITE_OFTEN),
+              reinterpret_cast<void**>(&bufData));
+    // fill buffer with grey
+    fillBuffer(bufData, bufferSize, buf->getStride(), 127, 127, 127);
+
+    // fill crop area with different colors so we can verify the cropped region has been scaled
+    // correctly.
+    fillBuffer(bufData, Rect(100, 100, 225, 225), buf->getStride(), /* rgb */ 255, 0, 0);
+    fillBuffer(bufData, Rect(100, 226, 225, 350), buf->getStride(), /* rgb */ 0, 255, 0);
+    fillBuffer(bufData, Rect(226, 100, 350, 225), buf->getStride(), /* rgb */ 0, 0, 255);
+    fillBuffer(bufData, Rect(226, 226, 350, 350), buf->getStride(), /* rgb */ 255, 0, 0);
+    buf->unlock();
+
+    IGraphicBufferProducer::QueueBufferOutput qbOutput;
+    IGraphicBufferProducer::QueueBufferInput input(systemTime(), true /* autotimestamp */,
+                                                   HAL_DATASPACE_UNKNOWN,
+                                                   bufferCrop /* Rect::INVALID_RECT */,
+                                                   NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW, 0,
+                                                   Fence::NO_FENCE);
+    igbProducer->queueBuffer(slot, input, &qbOutput);
+    ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
+
+    adapter.waitForCallbacks();
+
+    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    // Verify cropped region is scaled correctly.
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(255, 0, 0, {10, 10, 490, 490}));
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(0, 255, 0, {10, 510, 490, 990}));
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(0, 0, 255, {510, 10, 990, 490}));
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(255, 0, 0, {510, 510, 990, 990}));
+    // Verify outside region is black.
+    ASSERT_NO_FATAL_FAILURE(checkScreenCapture(0, 0, 0,
+                                               {0, 0, (int32_t)windowSize.getWidth(),
+                                                (int32_t)windowSize.getHeight()},
+                                               /*border*/ 0, /*outsideRegion*/ true));
 }
 
 class TestProducerListener : public BnProducerListener {

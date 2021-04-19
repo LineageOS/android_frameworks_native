@@ -186,6 +186,7 @@ BLASTBufferQueue::~BLASTBufferQueue() {
 void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width, uint32_t height,
                               int32_t format) {
     std::unique_lock _lock{mMutex};
+    BQA_LOGV("update width=%d height=%d format=%d", width, height, format);
     if (mFormat != format) {
         mFormat = format;
         mBufferItemConsumer->setDefaultBufferFormat(convertBufferFormat(format));
@@ -377,10 +378,11 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     // Ensure BLASTBufferQueue stays alive until we receive the transaction complete callback.
     incStrong((void*)transactionCallbackThunk);
 
+    Rect crop = computeCrop(bufferItem);
     mLastAcquiredFrameNumber = bufferItem.mFrameNumber;
     mLastBufferInfo.update(true /* hasBuffer */, bufferItem.mGraphicBuffer->getWidth(),
                            bufferItem.mGraphicBuffer->getHeight(), bufferItem.mTransform,
-                           bufferItem.mScalingMode);
+                           bufferItem.mScalingMode, crop);
 
     auto releaseBufferCallback =
             std::bind(releaseBufferCallbackThunk, wp<BLASTBufferQueue>(this) /* callbackContext */,
@@ -394,7 +396,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
 
     setMatrix(t, mLastBufferInfo);
-    t->setCrop(mSurfaceControl, computeCrop(bufferItem));
+    t->setCrop(mSurfaceControl, crop);
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
     if (!bufferItem.mIsAutoTimestamp) {
@@ -522,13 +524,15 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
 
 void BLASTBufferQueue::setMatrix(SurfaceComposerClient::Transaction* t,
                                  const BufferInfo& bufferInfo) {
-    uint32_t bufWidth = bufferInfo.width;
-    uint32_t bufHeight = bufferInfo.height;
+    uint32_t bufWidth = bufferInfo.crop.getWidth();
+    uint32_t bufHeight = bufferInfo.crop.getHeight();
 
-    float dsdx = mSize.width / static_cast<float>(bufWidth);
-    float dsdy = mSize.height / static_cast<float>(bufHeight);
+    float sx = mSize.width / static_cast<float>(bufWidth);
+    float sy = mSize.height / static_cast<float>(bufHeight);
 
-    t->setMatrix(mSurfaceControl, dsdx, 0, 0, dsdy);
+    t->setMatrix(mSurfaceControl, sx, 0, 0, sy);
+    // Update position based on crop.
+    t->setPosition(mSurfaceControl, bufferInfo.crop.left * sx * -1, bufferInfo.crop.top * sy * -1);
 }
 
 void BLASTBufferQueue::setTransactionCompleteCallback(
