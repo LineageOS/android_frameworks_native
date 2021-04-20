@@ -4155,10 +4155,6 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
 
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
-            result = createBufferQueueLayer(client, std::move(uniqueName), w, h, flags,
-                                            std::move(metadata), format, handle, gbp, &layer);
-
-            break;
         case ISurfaceComposerClient::eFXSurfaceBufferState: {
             result = createBufferStateLayer(client, std::move(uniqueName), w, h, flags,
                                             std::move(metadata), handle, &layer);
