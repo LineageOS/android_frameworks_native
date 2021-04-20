@@ -537,7 +537,7 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
     sp<GraphicBuffer> buffer = outputIndependentState.buffer;
     sp<Fence> acquireFence = outputIndependentState.acquireFence;
     if (getState().overrideInfo.buffer != nullptr) {
-        buffer = getState().overrideInfo.buffer;
+        buffer = getState().overrideInfo.buffer->getBuffer();
         acquireFence = getState().overrideInfo.acquireFence;
     }
 
@@ -699,7 +699,7 @@ std::vector<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionList() co
     settings.geometry = renderengine::Geometry{
             .boundaries = boundaries.toFloatRect(),
     };
-    settings.bufferId = getState().overrideInfo.buffer->getId();
+    settings.bufferId = getState().overrideInfo.buffer->getBuffer()->getId();
     settings.source = renderengine::PixelSource{
             .buffer = renderengine::Buffer{
                     .buffer = getState().overrideInfo.buffer,
