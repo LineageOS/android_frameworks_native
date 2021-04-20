@@ -1,5 +1,14 @@
-// TODO(b/183654927): empty place holder to start moving permission related things out of libbinder
-// (appops, permission controller, etc..)
 cc_library_shared {
     name: "libpermission",
+    srcs: [
+        "AppOpsManager.cpp",
+        "IAppOpsCallback.cpp",
+        "IAppOpsService.cpp",
+    ],
+    export_include_dirs: ["include"],
+    shared_libs: [
+        "libbinder",
+        "liblog",
+        "libutils",
+    ],
 }
