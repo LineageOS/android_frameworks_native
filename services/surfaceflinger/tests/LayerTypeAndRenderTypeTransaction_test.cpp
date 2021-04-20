@@ -51,13 +51,8 @@ INSTANTIATE_TEST_CASE_P(
         LayerTypeAndRenderTypeTransactionTests, LayerTypeAndRenderTypeTransactionTest,
         ::testing::Combine(
                 ::testing::Values(
-                        static_cast<uint32_t>(ISurfaceComposerClient::eFXSurfaceBufferQueue),
                         static_cast<uint32_t>(ISurfaceComposerClient::eFXSurfaceBufferState)),
                 ::testing::Values(RenderPath::VIRTUAL_DISPLAY, RenderPath::SCREENSHOT)));
-
-TEST_P(LayerTypeAndRenderTypeTransactionTest, SetSizeInvalid) {
-    // cannot test robustness against invalid sizes (zero or really huge)
-}
 
 TEST_P(LayerTypeAndRenderTypeTransactionTest, SetZBasic) {
     sp<SurfaceControl> layerR;
@@ -324,7 +319,6 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurRadiusSimple) {
             .setLayer(blurLayer, mLayerZBase + 3)
             .setBackgroundBlurRadius(blurLayer, blurRadius)
             .setCrop(blurLayer, blurRect)
-            .setSize(blurLayer, blurRect.getWidth(), blurRect.getHeight())
             .setAlpha(blurLayer, 0.0f)
             .apply();
 

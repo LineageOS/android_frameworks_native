@@ -1293,31 +1293,6 @@ protected:
         EXPECT_TRUE(framesAreSame(frame2Ref, sFakeComposer->getFrameRects(2)));
     }
 
-    void Test_LayerResize() {
-        ALOGD("TransactionTest::LayerResize");
-        {
-            TransactionScope ts(*sFakeComposer);
-            ts.setSize(mFGSurfaceControl, 128, 128);
-        }
-
-        fillSurfaceRGBA8(mFGSurfaceControl, GREEN);
-        sFakeComposer->runVSyncAndWait();
-
-        ASSERT_EQ(3, sFakeComposer->getFrameCount()); // Make sure the waits didn't time out and
-                                                      // there's no extra frames.
-
-        auto frame1Ref = mBaseFrame;
-        // NOTE: The resize should not be visible for frame 1 as there's no buffer with new size
-        // posted.
-        EXPECT_TRUE(framesAreSame(frame1Ref, sFakeComposer->getFrameRects(1)));
-
-        auto frame2Ref = frame1Ref;
-        frame2Ref[FG_LAYER].mSwapCount++;
-        frame2Ref[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 128, 64 + 128};
-        frame2Ref[FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 128.f, 128.f};
-        EXPECT_TRUE(framesAreSame(frame2Ref, sFakeComposer->getFrameRects(2)));
-    }
-
     void Test_LayerCrop() {
         // TODO: Add scaling to confirm that crop happens in buffer space?
         {
@@ -1517,10 +1492,6 @@ TEST_F(TransactionTest_2_1, DISABLED_LayerMove) {
     Test_LayerMove();
 }
 
-TEST_F(TransactionTest_2_1, DISABLED_LayerResize) {
-    Test_LayerResize();
-}
-
 TEST_F(TransactionTest_2_1, DISABLED_LayerCrop) {
     Test_LayerCrop();
 }
@@ -1690,39 +1661,6 @@ protected:
         EXPECT_TRUE(framesAreSame(referenceFrame2, Base::sFakeComposer->getLatestFrame()));
     }
 
-    // Regression test for b/37673612
-    void Test_ChildrenWithParentBufferTransform() {
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.show(mChild);
-            ts.setPosition(mChild, 0, 0);
-            ts.setPosition(Base::mFGSurfaceControl, 0, 0);
-        }
-
-        // We set things up as in b/37673612 so that there is a mismatch between the buffer size and
-        // the WM specified state size.
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.setSize(Base::mFGSurfaceControl, 128, 64);
-        }
-
-        sp<Surface> s = Base::mFGSurfaceControl->getSurface();
-        auto anw = static_cast<ANativeWindow*>(s.get());
-        native_window_set_buffers_transform(anw, NATIVE_WINDOW_TRANSFORM_ROT_90);
-        native_window_set_buffers_dimensions(anw, 64, 128);
-        fillSurfaceRGBA8(Base::mFGSurfaceControl, RED);
-        Base::sFakeComposer->runVSyncAndWait();
-
-        // The child should still be in the same place and not have any strange scaling as in
-        // b/37673612.
-        auto referenceFrame = Base::mBaseFrame;
-        referenceFrame[Base::FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 128, 64};
-        referenceFrame[Base::FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 64.f, 128.f};
-        referenceFrame[Base::FG_LAYER].mSwapCount++;
-        referenceFrame[CHILD_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 10, 10};
-        EXPECT_TRUE(framesAreSame(referenceFrame, Base::sFakeComposer->getLatestFrame()));
-    }
-
     sp<SurfaceControl> mChild;
 };
 
@@ -1746,11 +1684,6 @@ TEST_F(ChildLayerTest_2_1, DISABLED_Scaling) {
 
 TEST_F(ChildLayerTest_2_1, DISABLED_LayerAlpha) {
     Test_LayerAlpha();
-}
-
-// Regression test for b/37673612
-TEST_F(ChildLayerTest_2_1, DISABLED_ChildrenWithParentBufferTransform) {
-    Test_ChildrenWithParentBufferTransform();
 }
 
 template <typename FakeComposerService>
@@ -1842,91 +1775,6 @@ TEST_F(ChildColorLayerTest_2_1, DISABLED_LayerAlpha) {
 TEST_F(ChildColorLayerTest_2_1, DISABLED_LayerZeroAlpha) {
     Test_LayerZeroAlpha();
 }
-
-template <typename FakeComposerService>
-class LatchingTest : public TransactionTest<FakeComposerService> {
-    using Base = TransactionTest<FakeComposerService>;
-
-protected:
-    void lockAndFillFGBuffer() { fillSurfaceRGBA8(Base::mFGSurfaceControl, RED, false); }
-
-    void unlockFGBuffer() {
-        sp<Surface> s = Base::mFGSurfaceControl->getSurface();
-        ASSERT_EQ(NO_ERROR, s->unlockAndPost());
-        Base::sFakeComposer->runVSyncAndWait();
-    }
-
-    void completeFGResize() {
-        fillSurfaceRGBA8(Base::mFGSurfaceControl, RED);
-        Base::sFakeComposer->runVSyncAndWait();
-    }
-    void restoreInitialState() {
-        TransactionScope ts(*Base::sFakeComposer);
-        ts.setSize(Base::mFGSurfaceControl, 64, 64);
-        ts.setPosition(Base::mFGSurfaceControl, 64, 64);
-        ts.setCrop(Base::mFGSurfaceControl, Rect(0, 0, 64, 64));
-    }
-
-    void Test_SurfacePositionLatching() {
-        // By default position can be updated even while
-        // a resize is pending.
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.setSize(Base::mFGSurfaceControl, 32, 32);
-            ts.setPosition(Base::mFGSurfaceControl, 100, 100);
-        }
-
-        // The size should not have updated as we have not provided a new buffer.
-        auto referenceFrame1 = Base::mBaseFrame;
-        referenceFrame1[Base::FG_LAYER].mDisplayFrame = hwc_rect_t{100, 100, 100 + 64, 100 + 64};
-        EXPECT_TRUE(framesAreSame(referenceFrame1, Base::sFakeComposer->getLatestFrame()));
-
-        restoreInitialState();
-
-        completeFGResize();
-
-        auto referenceFrame2 = Base::mBaseFrame;
-        referenceFrame2[Base::FG_LAYER].mDisplayFrame = hwc_rect_t{100, 100, 100 + 32, 100 + 32};
-        referenceFrame2[Base::FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 32.f, 32.f};
-        referenceFrame2[Base::FG_LAYER].mSwapCount++;
-        EXPECT_TRUE(framesAreSame(referenceFrame2, Base::sFakeComposer->getLatestFrame()));
-    }
-
-    void Test_CropLatching() {
-        // Normally the crop applies immediately even while a resize is pending.
-        {
-            TransactionScope ts(*Base::sFakeComposer);
-            ts.setSize(Base::mFGSurfaceControl, 128, 128);
-            ts.setCrop(Base::mFGSurfaceControl, Rect(0, 0, 63, 63));
-        }
-
-        auto referenceFrame1 = Base::mBaseFrame;
-        referenceFrame1[Base::FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 63, 64 + 63};
-        referenceFrame1[Base::FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 63.f, 63.f};
-        EXPECT_TRUE(framesAreSame(referenceFrame1, Base::sFakeComposer->getLatestFrame()));
-
-        restoreInitialState();
-
-        completeFGResize();
-
-        auto referenceFrame2 = Base::mBaseFrame;
-        referenceFrame2[Base::FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 63, 64 + 63};
-        referenceFrame2[Base::FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 63.f, 63.f};
-        referenceFrame2[Base::FG_LAYER].mSwapCount++;
-        EXPECT_TRUE(framesAreSame(referenceFrame2, Base::sFakeComposer->getLatestFrame()));
-    }
-};
-
-using LatchingTest_2_1 = LatchingTest<FakeComposerService_2_1>;
-
-TEST_F(LatchingTest_2_1, DISABLED_SurfacePositionLatching) {
-    Test_SurfacePositionLatching();
-}
-
-TEST_F(LatchingTest_2_1, DISABLED_CropLatching) {
-    Test_CropLatching();
-}
-
 } // namespace
 
 int main(int argc, char** argv) {
