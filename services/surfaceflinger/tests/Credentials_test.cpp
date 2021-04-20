@@ -305,25 +305,6 @@ TEST_F(CredentialsTest, CaptureLayersTest) {
 /**
  * The following tests are for methods accessible directly through SurfaceFlinger.
  */
-
-/**
- * An app can pass a buffer queue to the media server and ask the media server to decode a DRM video
- * to that buffer queue. The media server is the buffer producer in this case. Because the app may create
- * its own buffer queue and act as the buffer consumer, the media server wants to be careful to avoid
- * sending decoded video frames to the app. This is where authenticateSurfaceTexture call comes in, to check
- * the consumer of a buffer queue is SurfaceFlinger.
- */
-TEST_F(CredentialsTest, AuthenticateSurfaceTextureTest) {
-    setupBackgroundSurface();
-    sp<IGraphicBufferProducer> producer =
-            mBGSurfaceControl->getSurface()->getIGraphicBufferProducer();
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-
-    std::function<bool()> condition = [=]() { return sf->authenticateSurfaceTexture(producer); };
-    // Anyone should be able to check if the consumer of the buffer queue is SF.
-    ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, true));
-}
-
 TEST_F(CredentialsTest, GetLayerDebugInfo) {
     setupBackgroundSurface();
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());

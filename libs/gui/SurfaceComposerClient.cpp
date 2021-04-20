@@ -896,7 +896,7 @@ void SurfaceComposerClient::Transaction::setEarlyWakeupEnd() {
 }
 
 layer_state_t* SurfaceComposerClient::Transaction::getLayerState(const sp<SurfaceControl>& sc) {
-    auto handle = sc->getHandle();
+    auto handle = sc->getLayerStateHandle();
 
     if (mComposerStates.count(handle) == 0) {
         // we don't have it, add an initialized layer_state to our list
@@ -1147,8 +1147,11 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::reparent
         mStatus = BAD_INDEX;
         return *this;
     }
+    if (SurfaceControl::isSameSurface(sc, newParent)) {
+        return *this;
+    }
     s->what |= layer_state_t::eReparent;
-    s->parentSurfaceControlForChild = newParent;
+    s->parentSurfaceControlForChild = newParent ? newParent->getParentingLayer() : nullptr;
 
     registerSurfaceControlForCallback(sc);
     return *this;
@@ -1793,7 +1796,7 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
         }
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
-            *outSurface = new SurfaceControl(this, handle, gbp, id, transformHint);
+            *outSurface = new SurfaceControl(this, handle, gbp, id, w, h, format, transformHint);
         }
     }
     return err;
