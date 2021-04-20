@@ -350,7 +350,10 @@ TEST_F(ScreenCaptureTest, CaptureBoundlessLayerWithoutSourceCropFails) {
 
 TEST_F(ScreenCaptureTest, CaptureBufferLayerWithoutBufferFails) {
     sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
-                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+                                             PIXEL_FORMAT_RGBA_8888,
+                                             ISurfaceComposerClient::eFXSurfaceBufferState,
+                                             mFGSurfaceControl.get());
+
     SurfaceComposerClient::Transaction().show(child).apply(true);
     sp<GraphicBuffer> outBuffer;
 
@@ -361,7 +364,7 @@ TEST_F(ScreenCaptureTest, CaptureBufferLayerWithoutBufferFails) {
     ScreenCaptureResults captureResults;
     ASSERT_EQ(BAD_VALUE, ScreenCapture::captureLayers(args, captureResults));
 
-    TransactionUtils::fillSurfaceRGBA8(child, Color::RED);
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(child, Color::RED, 32, 32));
     SurfaceComposerClient::Transaction().apply(true);
     ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(args, captureResults));
     ScreenCapture sc(captureResults.buffer);
@@ -432,12 +435,15 @@ TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureCrop) {
-    sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60, 0);
+    sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60,
+                                              ISurfaceComposerClient::eFXSurfaceBufferState);
     sp<SurfaceControl> blueLayer = createSurface(mClient, "Blue surface", 30, 30,
-                                                 PIXEL_FORMAT_RGBA_8888, 0, redLayer.get());
+                                                 PIXEL_FORMAT_RGBA_8888,
+                                                 ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                 redLayer.get());
 
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(blueLayer, Color::BLUE, 30, 30));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(redLayer, Color::RED, 60, 60));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(blueLayer, Color::BLUE, 30, 30));
 
     SurfaceComposerClient::Transaction()
             .setLayer(redLayer, INT32_MAX - 1)
@@ -464,12 +470,15 @@ TEST_F(ScreenCaptureTest, CaptureCrop) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureSize) {
-    sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60, 0);
+  sp<SurfaceControl> redLayer =
+      createLayer(String8("Red surface"), 60, 60, ISurfaceComposerClient::eFXSurfaceBufferState);
     sp<SurfaceControl> blueLayer = createSurface(mClient, "Blue surface", 30, 30,
-                                                 PIXEL_FORMAT_RGBA_8888, 0, redLayer.get());
+                                                 PIXEL_FORMAT_RGBA_8888,
+                                                 ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                 redLayer.get());
 
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(blueLayer, Color::BLUE, 30, 30));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(redLayer, Color::RED, 60, 60));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(blueLayer, Color::BLUE, 30, 30));
 
     SurfaceComposerClient::Transaction()
             .setLayer(redLayer, INT32_MAX - 1)
@@ -489,6 +498,7 @@ TEST_F(ScreenCaptureTest, CaptureSize) {
 
     captureArgs.frameScaleX = 0.5f;
     captureArgs.frameScaleY = 0.5f;
+    sleep(1);
 
     ScreenCapture::captureLayers(&mCapture, captureArgs);
     // Capturing the downsized area (30x30) should leave both red and blue but in a smaller area.
@@ -519,14 +529,15 @@ TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
 }
 
 TEST_F(ScreenCaptureTest, CaputureSecureLayer) {
-    sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60, 0);
+    sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60,
+                                              ISurfaceComposerClient::eFXSurfaceBufferState);
     sp<SurfaceControl> secureLayer =
             createLayer(String8("Secure surface"), 30, 30,
                         ISurfaceComposerClient::eSecure |
-                                ISurfaceComposerClient::eFXSurfaceBufferQueue,
+                                ISurfaceComposerClient::eFXSurfaceBufferState,
                         redLayer.get());
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(secureLayer, Color::BLUE, 30, 30));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(redLayer, Color::RED, 60, 60));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(secureLayer, Color::BLUE, 30, 30));
 
     auto redLayerHandle = redLayer->getHandle();
     Transaction()

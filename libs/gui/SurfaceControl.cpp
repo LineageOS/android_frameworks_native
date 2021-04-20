@@ -35,6 +35,7 @@
 #include <ui/StaticDisplayInfo.h>
 
 #include <gui/BufferQueueCore.h>
+#include <gui/BLASTBufferQueue.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -49,12 +50,17 @@ namespace android {
 
 SurfaceControl::SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
                                const sp<IGraphicBufferProducer>& gbp, int32_t layerId,
-                               uint32_t transform)
+                               uint32_t w, uint32_t h, PixelFormat format, uint32_t transform,
+                               uint32_t flags)
       : mClient(client),
         mHandle(handle),
         mGraphicBufferProducer(gbp),
         mLayerId(layerId),
-        mTransformHint(transform) {}
+        mTransformHint(transform),
+        mWidth(w),
+        mHeight(h),
+        mFormat(format),
+        mCreateFlags(flags) {}
 
 SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
     mClient = other->mClient;
@@ -62,6 +68,9 @@ SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
     mGraphicBufferProducer = other->mGraphicBufferProducer;
     mTransformHint = other->mTransformHint;
     mLayerId = other->mLayerId;
+    mWidth = other->mWidth;
+    mHeight = other->mHeight;
+    mCreateFlags = other->mCreateFlags;
 }
 
 SurfaceControl::~SurfaceControl()
@@ -70,13 +79,13 @@ SurfaceControl::~SurfaceControl()
     // happen without delay, since these resources are quite heavy.
     mClient.clear();
     mHandle.clear();
-    mGraphicBufferProducer.clear();
+    mBbq.clear();
     IPCThreadState::self()->flushCommands();
 }
 
 void SurfaceControl::disconnect() {
-    if (mGraphicBufferProducer != nullptr) {
-        mGraphicBufferProducer->disconnect(
+    if (getIGraphicBufferProducer() != nullptr) {
+        getIGraphicBufferProducer()->disconnect(
                 BufferQueueCore::CURRENTLY_CONNECTED_API);
     }
 }
@@ -118,21 +127,28 @@ status_t SurfaceControl::writeSurfaceToParcel(
 {
     sp<IGraphicBufferProducer> bp;
     if (control != nullptr) {
-        bp = control->mGraphicBufferProducer;
+        bp = control->getIGraphicBufferProducer();
     }
     return parcel->writeStrongBinder(IInterface::asBinder(bp));
 }
 
-sp<Surface> SurfaceControl::generateSurfaceLocked() const
+sp<Surface> SurfaceControl::generateSurfaceLocked()
 {
+    uint32_t ignore;
+    auto flags = mCreateFlags & (ISurfaceComposerClient::eCursorWindow |
+                                 ISurfaceComposerClient::eOpaque);
+    mBbqChild = mClient->createSurface(String8("bbq-wrapper"), 0, 0, mFormat,
+                                       flags, mHandle, {}, &ignore);
+    mBbq = new BLASTBufferQueue("bbq-adapter", mBbqChild, mWidth, mHeight, mFormat);
+
     // This surface is always consumed by SurfaceFlinger, so the
     // producerControlledByApp value doesn't matter; using false.
-    mSurfaceData = new Surface(mGraphicBufferProducer, false);
+    mSurfaceData = mBbq->getSurface(true);
 
     return mSurfaceData;
 }
 
-sp<Surface> SurfaceControl::getSurface() const
+sp<Surface> SurfaceControl::getSurface()
 {
     Mutex::Autolock _l(mLock);
     if (mSurfaceData == nullptr) {
@@ -141,25 +157,42 @@ sp<Surface> SurfaceControl::getSurface() const
     return mSurfaceData;
 }
 
-sp<Surface> SurfaceControl::createSurface() const
+sp<Surface> SurfaceControl::createSurface()
 {
-    Mutex::Autolock _l(mLock);
-    return generateSurfaceLocked();
+    return getSurface();
 }
 
-sp<IBinder> SurfaceControl::getHandle() const
+void SurfaceControl::updateDefaultBufferSize(uint32_t width, uint32_t height) {
+    Mutex::Autolock _l(mLock);
+    mWidth = width; mHeight = height;
+    if (mBbq) {
+      mBbq->update(this, width, height, mFormat);
+    }
+
+}
+
+sp<IBinder> SurfaceControl::getLayerStateHandle() const
 {
     return mHandle;
+}
+
+sp<IBinder> SurfaceControl::getHandle() const {
+    if (mBbqChild != nullptr) {
+        return mBbqChild->getHandle();
+    }
+    return getLayerStateHandle();
 }
 
 int32_t SurfaceControl::getLayerId() const {
     return mLayerId;
 }
 
-sp<IGraphicBufferProducer> SurfaceControl::getIGraphicBufferProducer() const
+sp<IGraphicBufferProducer> SurfaceControl::getIGraphicBufferProducer()
 {
+    getSurface();
     Mutex::Autolock _l(mLock);
-    return mGraphicBufferProducer;
+
+    return mBbq->getIGraphicBufferProducer();
 }
 
 sp<SurfaceComposerClient> SurfaceControl::getClient() const
@@ -180,9 +213,11 @@ void SurfaceControl::setTransformHint(uint32_t hint) {
 status_t SurfaceControl::writeToParcel(Parcel& parcel) {
     SAFE_PARCEL(parcel.writeStrongBinder, ISurfaceComposerClient::asBinder(mClient->getClient()));
     SAFE_PARCEL(parcel.writeStrongBinder, mHandle);
-    SAFE_PARCEL(parcel.writeStrongBinder, IGraphicBufferProducer::asBinder(mGraphicBufferProducer));
     SAFE_PARCEL(parcel.writeInt32, mLayerId);
     SAFE_PARCEL(parcel.writeUint32, mTransformHint);
+    SAFE_PARCEL(parcel.writeUint32, mWidth);
+    SAFE_PARCEL(parcel.writeUint32, mHeight);
+    SAFE_PARCEL(parcel.writeUint32, mFormat);
 
     return NO_ERROR;
 }
@@ -191,21 +226,26 @@ status_t SurfaceControl::readFromParcel(const Parcel& parcel,
                                         sp<SurfaceControl>* outSurfaceControl) {
     sp<IBinder> client;
     sp<IBinder> handle;
-    sp<IBinder> gbp;
     int32_t layerId;
     uint32_t transformHint;
+    uint32_t width;
+    uint32_t height;
+    uint32_t format;
 
     SAFE_PARCEL(parcel.readStrongBinder, &client);
     SAFE_PARCEL(parcel.readStrongBinder, &handle);
-    SAFE_PARCEL(parcel.readNullableStrongBinder, &gbp);
     SAFE_PARCEL(parcel.readInt32, &layerId);
     SAFE_PARCEL(parcel.readUint32, &transformHint);
+    SAFE_PARCEL(parcel.readUint32, &width);
+    SAFE_PARCEL(parcel.readUint32, &height);
+    SAFE_PARCEL(parcel.readUint32, &format);
 
     // We aren't the original owner of the surface.
     *outSurfaceControl =
             new SurfaceControl(new SurfaceComposerClient(
                                        interface_cast<ISurfaceComposerClient>(client)),
-                               handle.get(), interface_cast<IGraphicBufferProducer>(gbp), layerId,
+                               handle.get(), nullptr, layerId,
+                               width, height, format,
                                transformHint);
 
     return NO_ERROR;
@@ -231,6 +271,13 @@ status_t SurfaceControl::writeNullableToParcel(Parcel& parcel,
     }
 
     return NO_ERROR;
+}
+
+sp<SurfaceControl> SurfaceControl::getParentingLayer() {
+    if (mBbqChild != nullptr) {
+        return mBbqChild;
+    }
+    return this;
 }
 
 // ----------------------------------------------------------------------------
