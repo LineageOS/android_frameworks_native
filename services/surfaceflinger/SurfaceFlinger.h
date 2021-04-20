@@ -178,7 +178,6 @@ struct SurfaceFlingerBE {
 
 class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
-                       public ClientCache::ErasedRecipient,
                        private IBinder::DeathRecipient,
                        private HWC2::ComposerCallback,
                        private ISchedulerCallback {
@@ -325,9 +324,6 @@ public:
     // won't accidentally hold onto the last strong reference.
     wp<Layer> fromHandle(const sp<IBinder>& handle);
     wp<Layer> fromHandleLocked(const sp<IBinder>& handle) const REQUIRES(mStateLock);
-
-    // Inherit from ClientCache::ErasedRecipient
-    void bufferErased(const client_cache_t& clientCacheId) override;
 
     // If set, disables reusing client composition buffers. This can be set by
     // debug.sf.disable_client_composition_cache
@@ -901,12 +897,14 @@ private:
     status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, ui::Size bufferSize,
                                  ui::PixelFormat, bool allowProtected, bool grayscale,
                                  const sp<IScreenCaptureListener>&);
-    status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction, sp<GraphicBuffer>&,
+    status_t captureScreenCommon(RenderAreaFuture, TraverseLayersFunction,
+                                 const std::shared_ptr<renderengine::ExternalTexture>&,
                                  bool regionSampling, bool grayscale,
                                  const sp<IScreenCaptureListener>&);
     status_t renderScreenImplLocked(const RenderArea&, TraverseLayersFunction,
-                                    const sp<GraphicBuffer>&, bool forSystem, bool regionSampling,
-                                    bool grayscale, ScreenCaptureResults&);
+                                    const std::shared_ptr<renderengine::ExternalTexture>&,
+                                    bool forSystem, bool regionSampling, bool grayscale,
+                                    ScreenCaptureResults&);
 
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayById(DisplayId displayId) const REQUIRES(mStateLock);
