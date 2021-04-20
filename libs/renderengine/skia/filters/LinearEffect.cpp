@@ -438,7 +438,7 @@ sk_sp<SkRuntimeEffect> buildRuntimeEffect(const LinearEffect& linearEffect) {
     generateOETF(linearEffect.outputDataspace, shaderString);
     generateEffectiveOOTF(linearEffect.undoPremultipliedAlpha, shaderString);
 
-    auto [shader, error] = SkRuntimeEffect::Make(shaderString);
+    auto [shader, error] = SkRuntimeEffect::MakeForShader(shaderString);
     if (!shader) {
         LOG_ALWAYS_FATAL("LinearColorFilter construction error: %s", error.c_str());
     }
