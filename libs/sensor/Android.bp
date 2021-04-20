@@ -48,11 +48,10 @@ cc_library_shared {
         "libutils",
         "liblog",
         "libhardware",
+        "libpermission",
     ],
 
     export_include_dirs: ["include"],
 
-    export_shared_lib_headers: ["libbinder", "libhardware"],
+    export_shared_lib_headers: ["libbinder", "libpermission", "libhardware"],
 }
-
-subdirs = ["tests"]
