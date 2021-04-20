@@ -203,6 +203,10 @@ private:
     // it for debugging purposes.
     std::unordered_map<uint64_t /* bufferId */, nsecs_t> mDequeueTimestamps
             GUARDED_BY(mTimestampMutex);
+
+    // Keep track of SurfaceControls that have submitted a transaction and BBQ is waiting on a
+    // callback for them.
+    std::queue<sp<SurfaceControl>> mSurfaceControlsWithPendingCallback GUARDED_BY(mMutex);
 };
 
 } // namespace android
