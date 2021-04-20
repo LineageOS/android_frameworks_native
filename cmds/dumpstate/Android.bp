@@ -99,6 +99,7 @@ cc_defaults {
         "libhidlbase",
         "liblog",
         "libutils",
+        "libbinderdebug",
     ],
     srcs: [
         "DumpstateService.cpp",

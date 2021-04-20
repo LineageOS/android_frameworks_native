@@ -16,12 +16,15 @@
 
 #include "../dumpsys.h"
 
+#include <regex>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <android-base/file.h>
+#include <binder/Binder.h>
+#include <binder/ProcessState.h>
 #include <serviceutils/PriorityDumper.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
@@ -220,6 +223,10 @@ class DumpsysTest : public Test {
 
     void AssertOutputContains(const std::string& expected) {
         EXPECT_THAT(stdout_, HasSubstr(expected));
+    }
+
+    void AssertOutputFormat(const std::string format) {
+        EXPECT_THAT(stdout_, testing::MatchesRegex(format));
     }
 
     void AssertDumped(const std::string& service, const std::string& dump) {
@@ -574,6 +581,30 @@ TEST_F(DumpsysTest, ListServiceWithPid) {
     AssertOutput(std::to_string(getpid()) + "\n");
 }
 
+// Tests 'dumpsys --thread'
+TEST_F(DumpsysTest, ListAllServicesWithThread) {
+    ExpectListServices({"Locksmith", "Valet"});
+    ExpectCheckService("Locksmith");
+    ExpectCheckService("Valet");
+
+    CallMain({"--thread"});
+
+    AssertRunningServices({"Locksmith", "Valet"});
+
+    const std::string format("(.|\n)*((Threads in use: [0-9]+/[0-9]+)?\n-(.|\n)*){2}");
+    AssertOutputFormat(format);
+}
+
+// Tests 'dumpsys --thread service_name'
+TEST_F(DumpsysTest, ListServiceWithThread) {
+    ExpectCheckService("Locksmith");
+
+    CallMain({"--thread", "Locksmith"});
+    // returns an empty string without root enabled
+    const std::string format("(^$|Threads in use: [0-9]/[0-9]+\n)");
+    AssertOutputFormat(format);
+}
+
 TEST_F(DumpsysTest, GetBytesWritten) {
     const char* serviceName = "service2";
     const char* dumpContents = "dump1";
@@ -598,4 +629,14 @@ TEST_F(DumpsysTest, WriteDumpWithoutThreadStart) {
         dump_.writeDump(STDOUT_FILENO, String16("service"), std::chrono::milliseconds(500),
                         /* as_proto = */ false, elapsedDuration, bytesWritten);
     EXPECT_THAT(status, Eq(INVALID_OPERATION));
+}
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+
+    // start a binder thread pool for testing --thread option
+    android::ProcessState::self()->setThreadPoolMaxThreadCount(8);
+    ProcessState::self()->startThreadPool();
+
+    return RUN_ALL_TESTS();
 }
