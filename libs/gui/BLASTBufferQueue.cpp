@@ -161,9 +161,9 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
     SurfaceComposerClient::Transaction()
-            .setFlags(surface, layer_state_t::eEnableBackpressure,
-                      layer_state_t::eEnableBackpressure)
-            .apply();
+          .setFlags(surface, layer_state_t::eEnableBackpressure,
+                    layer_state_t::eEnableBackpressure)
+          .apply();
 
     mNumAcquired = 0;
     mNumFrameAvailable = 0;
@@ -242,29 +242,49 @@ void BLASTBufferQueue::transactionCallback(nsecs_t /*latchTime*/, const sp<Fence
         ATRACE_CALL();
         BQA_LOGV("transactionCallback");
 
-        if (!stats.empty()) {
-            mTransformHint = stats[0].transformHint;
-            mBufferItemConsumer->setTransformHint(mTransformHint);
-            mBufferItemConsumer
-                    ->updateFrameTimestamps(stats[0].frameEventStats.frameNumber,
-                                            stats[0].frameEventStats.refreshStartTime,
-                                            stats[0].frameEventStats.gpuCompositionDoneFence,
-                                            stats[0].presentFence, stats[0].previousReleaseFence,
-                                            stats[0].frameEventStats.compositorTiming,
-                                            stats[0].latchTime,
-                                            stats[0].frameEventStats.dequeueReadyTime);
-            currFrameNumber = stats[0].frameEventStats.frameNumber;
-
-            if (mTransactionCompleteCallback &&
-                currFrameNumber >= mTransactionCompleteFrameNumber) {
-                if (currFrameNumber > mTransactionCompleteFrameNumber) {
-                    BQA_LOGE("transactionCallback received for a newer framenumber=%" PRIu64
-                             " than expected=%" PRIu64,
-                             currFrameNumber, mTransactionCompleteFrameNumber);
+        if (!mSurfaceControlsWithPendingCallback.empty()) {
+            sp<SurfaceControl> pendingSC = mSurfaceControlsWithPendingCallback.front();
+            mSurfaceControlsWithPendingCallback.pop();
+            bool found = false;
+            for (auto stat : stats) {
+                if (!SurfaceControl::isSameSurface(pendingSC, stat.surfaceControl)) {
+                    continue;
                 }
-                transactionCompleteCallback = std::move(mTransactionCompleteCallback);
-                mTransactionCompleteFrameNumber = 0;
+
+                mTransformHint = stat.transformHint;
+                mBufferItemConsumer->setTransformHint(mTransformHint);
+                mBufferItemConsumer
+                        ->updateFrameTimestamps(stat.frameEventStats.frameNumber,
+                                                stat.frameEventStats.refreshStartTime,
+                                                stat.frameEventStats.gpuCompositionDoneFence,
+                                                stat.presentFence, stat.previousReleaseFence,
+                                                stat.frameEventStats.compositorTiming,
+                                                stat.latchTime,
+                                                stat.frameEventStats.dequeueReadyTime);
+
+                currFrameNumber = stat.frameEventStats.frameNumber;
+
+                if (mTransactionCompleteCallback &&
+                    currFrameNumber >= mTransactionCompleteFrameNumber) {
+                    if (currFrameNumber > mTransactionCompleteFrameNumber) {
+                        BQA_LOGE("transactionCallback received for a newer framenumber=%" PRIu64
+                                 " than expected=%" PRIu64,
+                                 currFrameNumber, mTransactionCompleteFrameNumber);
+                    }
+                    transactionCompleteCallback = std::move(mTransactionCompleteCallback);
+                    mTransactionCompleteFrameNumber = 0;
+                }
+
+                found = true;
+                break;
             }
+
+            if (!found) {
+                BQA_LOGE("Failed to find matching SurfaceControl in transaction callback");
+            }
+        } else {
+            BQA_LOGE("No matching SurfaceControls found: mSurfaceControlsWithPendingCallback was "
+                     "empty.");
         }
 
         decStrong((void*)transactionCallbackThunk);
@@ -392,6 +412,7 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     t->setAcquireFence(mSurfaceControl,
                        bufferItem.mFence ? new Fence(bufferItem.mFence->dup()) : Fence::NO_FENCE);
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
+    mSurfaceControlsWithPendingCallback.push(mSurfaceControl);
 
     setMatrix(t, mLastBufferInfo);
     t->setCrop(mSurfaceControl, computeCrop(bufferItem));

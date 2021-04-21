@@ -305,8 +305,8 @@ TEST_F(CachedSetTest, render) {
 
     const auto drawLayers = [&](const renderengine::DisplaySettings& displaySettings,
                                 const std::vector<const renderengine::LayerSettings*>& layers,
-                                const sp<GraphicBuffer>&, const bool, base::unique_fd&&,
-                                base::unique_fd*) -> size_t {
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&, base::unique_fd*) -> size_t {
         EXPECT_EQ(Rect(0, 0, 2, 2), displaySettings.physicalDisplay);
         EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
         EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
@@ -321,7 +321,6 @@ TEST_F(CachedSetTest, render) {
     EXPECT_CALL(*layerFE1, prepareClientCompositionList(_)).WillOnce(Return(clientCompList1));
     EXPECT_CALL(*layerFE2, prepareClientCompositionList(_)).WillOnce(Return(clientCompList2));
     EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
-    EXPECT_CALL(mRenderEngine, cacheExternalTextureBuffer(_));
     cachedSet.render(mRenderEngine, mOutputState);
     expectReadyBuffer(cachedSet);
 
@@ -331,7 +330,6 @@ TEST_F(CachedSetTest, render) {
               cachedSet.getOutputSpace().bounds);
 
     // Now check that appending a new cached set properly cleans up RenderEngine resources.
-    EXPECT_CALL(mRenderEngine, unbindExternalTextureBuffer(_));
     CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
     cachedSet.append(CachedSet(layer3));
 }
