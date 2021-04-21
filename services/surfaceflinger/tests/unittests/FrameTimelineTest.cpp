@@ -1347,6 +1347,81 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDoesNotTraceExpecte
     validateTraceEvent(actualSurfaceFrameEnd, protoActualSurfaceFrameEnd);
 }
 
+TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDroppedFramesTracedProperly) {
+    auto tracingSession = getTracingSessionForTest();
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+
+    tracingSession->StartBlocking();
+    constexpr nsecs_t appStartTime = std::chrono::nanoseconds(10ms).count();
+    constexpr nsecs_t appEndTime = std::chrono::nanoseconds(20ms).count();
+    constexpr nsecs_t appPresentTime = std::chrono::nanoseconds(30ms).count();
+    int64_t surfaceFrameToken =
+            mTokenManager->generateTokenForPredictions({appStartTime, appEndTime, appPresentTime});
+
+    // Flush the token so that it would expire
+    flushTokens(systemTime() + maxTokenRetentionTime);
+    auto surfaceFrame1 =
+            mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken, /*inputEventId*/ 0},
+                                                       sPidOne, sUidOne, sLayerIdOne, sLayerNameOne,
+                                                       sLayerNameOne, /*isBuffer*/ true);
+
+    constexpr nsecs_t sfStartTime = std::chrono::nanoseconds(22ms).count();
+    constexpr nsecs_t sfEndTime = std::chrono::nanoseconds(30ms).count();
+    constexpr nsecs_t sfPresentTime = std::chrono::nanoseconds(30ms).count();
+    int64_t displayFrameToken =
+            mTokenManager->generateTokenForPredictions({sfStartTime, sfEndTime, sfPresentTime});
+
+    // First 2 cookies will be used by the DisplayFrame
+    int64_t traceCookie = snoopCurrentTraceCookie() + 2;
+
+    auto protoActualSurfaceFrameStart =
+            createProtoActualSurfaceFrameStart(traceCookie + 1, surfaceFrameToken,
+                                               displayFrameToken, sPidOne, sLayerNameOne,
+                                               FrameTimelineEvent::PRESENT_DROPPED, false, false,
+                                               FrameTimelineEvent::JANK_NONE,
+                                               FrameTimelineEvent::PREDICTION_EXPIRED);
+    auto protoActualSurfaceFrameEnd = createProtoFrameEnd(traceCookie + 1);
+
+    // Set up the display frame
+    mFrameTimeline->setSfWakeUp(displayFrameToken, sfStartTime, Fps::fromPeriodNsecs(11));
+    surfaceFrame1->setDropTime(sfStartTime);
+    surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame1);
+    mFrameTimeline->setSfPresent(sfEndTime, presentFence1);
+    presentFence1->signalForTest(sfPresentTime);
+
+    addEmptyDisplayFrame();
+    flushTrace();
+    tracingSession->StopBlocking();
+
+    auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
+    // Display Frame 4 packets + SurfaceFrame 2 packets
+    ASSERT_EQ(packets.size(), 6u);
+
+    // Packet - 4 : ActualSurfaceFrameStart
+    const auto& packet4 = packets[4];
+    ASSERT_TRUE(packet4.has_timestamp());
+    EXPECT_EQ(packet4.timestamp(),
+              static_cast<uint64_t>(sfStartTime - SurfaceFrame::kPredictionExpiredStartTimeDelta));
+    ASSERT_TRUE(packet4.has_frame_timeline_event());
+
+    const auto& event4 = packet4.frame_timeline_event();
+    ASSERT_TRUE(event4.has_actual_surface_frame_start());
+    const auto& actualSurfaceFrameStart = event4.actual_surface_frame_start();
+    validateTraceEvent(actualSurfaceFrameStart, protoActualSurfaceFrameStart);
+
+    // Packet - 5 : FrameEnd (ActualSurfaceFrame)
+    const auto& packet5 = packets[5];
+    ASSERT_TRUE(packet5.has_timestamp());
+    EXPECT_EQ(packet5.timestamp(), static_cast<uint64_t>(sfStartTime));
+    ASSERT_TRUE(packet5.has_frame_timeline_event());
+
+    const auto& event5 = packet5.frame_timeline_event();
+    ASSERT_TRUE(event5.has_frame_end());
+    const auto& actualSurfaceFrameEnd = event5.frame_end();
+    validateTraceEvent(actualSurfaceFrameEnd, protoActualSurfaceFrameEnd);
+}
+
 // Tests for Jank classification
 TEST_F(FrameTimelineTest, jankClassification_presentOnTimeDoesNotClassify) {
     // Layer specific increment
