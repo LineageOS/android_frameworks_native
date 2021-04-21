@@ -1796,7 +1796,8 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
         }
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
-            *outSurface = new SurfaceControl(this, handle, gbp, id, w, h, format, transformHint);
+            *outSurface =
+                    new SurfaceControl(this, handle, gbp, id, w, h, format, transformHint, flags);
         }
     }
     return err;
