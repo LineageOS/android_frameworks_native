@@ -567,6 +567,8 @@ public:
     static status_t overrideHdrTypes(const sp<IBinder>& display,
                                      const std::vector<ui::Hdr>& hdrTypes);
 
+    static status_t onPullAtom(const int32_t atomId, std::string* outData, bool* success);
+
     static void setDisplayProjection(const sp<IBinder>& token, ui::Rotation orientation,
                                      const Rect& layerStackRect, const Rect& displayRect);
 
