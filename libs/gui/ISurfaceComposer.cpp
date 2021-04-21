@@ -497,6 +497,28 @@ public:
         return result;
     }
 
+    status_t onPullAtom(const int32_t atomId, std::string* pulledData, bool* success) {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeInt32, atomId);
+
+        status_t err = remote()->transact(BnSurfaceComposer::ON_PULL_ATOM, data, &reply);
+        if (err != NO_ERROR) {
+            ALOGE("onPullAtom failed to transact: %d", err);
+            return err;
+        }
+
+        int32_t size = 0;
+        SAFE_PARCEL(reply.readInt32, &size);
+        const void* dataPtr = reply.readInplace(size);
+        if (dataPtr == nullptr) {
+            return UNEXPECTED_NULL;
+        }
+        pulledData->assign((const char*)dataPtr, size);
+        SAFE_PARCEL(reply.readBool, success);
+        return NO_ERROR;
+    }
+
     status_t enableVSyncInjections(bool enable) override {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -2020,6 +2042,19 @@ status_t BnSurfaceComposer::onTransact(
                 hdrTypesVector.push_back(static_cast<ui::Hdr>(i));
             }
             return overrideHdrTypes(display, hdrTypesVector);
+        }
+        case ON_PULL_ATOM: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            int32_t atomId = 0;
+            SAFE_PARCEL(data.readInt32, &atomId);
+
+            std::string pulledData;
+            bool success;
+            status_t err = onPullAtom(atomId, &pulledData, &success);
+            SAFE_PARCEL(reply->writeByteArray, pulledData.size(),
+                        reinterpret_cast<const uint8_t*>(pulledData.data()));
+            SAFE_PARCEL(reply->writeBool, success);
+            return err;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);
