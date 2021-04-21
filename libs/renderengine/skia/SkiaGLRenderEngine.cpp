@@ -508,9 +508,9 @@ void SkiaGLRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffe
 
     if (const auto& iter = cache.find(buffer->getId()); iter == cache.end()) {
         std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
-                std::make_shared<AutoBackendTexture::LocalRef>(
-                        new AutoBackendTexture(grContext.get(), buffer->toAHardwareBuffer(),
-                                               isRenderable));
+                std::make_shared<AutoBackendTexture::LocalRef>(grContext.get(),
+                                                               buffer->toAHardwareBuffer(),
+                                                               isRenderable);
         cache.insert({buffer->getId(), imageTextureRef});
     }
     // restore the original state of the protected context if necessary
@@ -669,15 +669,17 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     if (const auto& it = cache.find(buffer->getBuffer()->getId()); it != cache.end()) {
         surfaceTextureRef = it->second;
     } else {
-        surfaceTextureRef = std::make_shared<AutoBackendTexture::LocalRef>(
-                new AutoBackendTexture(grContext.get(), buffer->getBuffer()->toAHardwareBuffer(),
-                                       true));
+        surfaceTextureRef =
+                std::make_shared<AutoBackendTexture::LocalRef>(grContext.get(),
+                                                               buffer->getBuffer()
+                                                                       ->toAHardwareBuffer(),
+                                                               true);
     }
 
     const ui::Dataspace dstDataspace =
             mUseColorManagement ? display.outputDataspace : ui::Dataspace::UNKNOWN;
     sk_sp<SkSurface> dstSurface =
-            surfaceTextureRef->getTexture()->getOrCreateSurface(dstDataspace, grContext.get());
+            surfaceTextureRef->getOrCreateSurface(dstDataspace, grContext.get());
 
     SkCanvas* dstCanvas = mCapture->tryCapture(dstSurface.get());
     if (dstCanvas == nullptr) {
@@ -889,18 +891,17 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 // it. If we're using skia, we're guaranteed to run on a dedicated GPU thread so if
                 // we didn't find anything in the cache then we intentionally did not cache this
                 // buffer's resources.
-                imageTextureRef = std::make_shared<AutoBackendTexture::LocalRef>(
-                        new AutoBackendTexture(grContext.get(),
-                                               item.buffer->getBuffer()->toAHardwareBuffer(),
-                                               false));
+                imageTextureRef = std::make_shared<
+                        AutoBackendTexture::LocalRef>(grContext.get(),
+                                                      item.buffer->getBuffer()->toAHardwareBuffer(),
+                                                      false);
             }
 
             sk_sp<SkImage> image =
-                    imageTextureRef->getTexture()->makeImage(layerDataspace,
-                                                             item.usePremultipliedAlpha
-                                                                     ? kPremul_SkAlphaType
-                                                                     : kUnpremul_SkAlphaType,
-                                                             grContext.get());
+                    imageTextureRef->makeImage(layerDataspace,
+                                               item.usePremultipliedAlpha ? kPremul_SkAlphaType
+                                                                          : kUnpremul_SkAlphaType,
+                                               grContext.get());
 
             auto texMatrix = getSkM44(item.textureTransform).asM33();
             // textureTansform was intended to be passed directly into a shader, so when
