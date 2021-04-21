@@ -367,6 +367,11 @@ compositionengine::Output::FrameFences Display::presentAndGetFrameFences() {
         return fences;
     }
 
+    {
+        ATRACE_NAME("wait for earliest present time");
+        std::this_thread::sleep_until(getState().earliestPresentTime);
+    }
+
     auto& hwc = getCompositionEngine().getHwComposer();
     hwc.presentAndGetReleaseFences(*halDisplayIdOpt);
 
