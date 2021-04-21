@@ -1392,6 +1392,35 @@ private:
 
     std::unordered_map<DisplayId, sp<HdrLayerInfoReporter>> mHdrLayerInfoListeners
             GUARDED_BY(mStateLock);
+    mutable Mutex mCreatedLayersLock;
+    struct LayerCreatedState {
+        LayerCreatedState(const wp<Layer>& layer, const wp<IBinder>& parent,
+                          const wp<Layer> parentLayer, const wp<IBinder>& producer)
+              : layer(layer),
+                initialParent(parent),
+                initialParentLayer(parentLayer),
+                initialProducer(producer) {}
+        wp<Layer> layer;
+        // Indicates the initial parent of the created layer, only used for creating layer in
+        // SurfaceFlinger. If nullptr, it may add the created layer into the current root layers.
+        wp<IBinder> initialParent;
+        wp<Layer> initialParentLayer;
+        // Indicates the initial graphic buffer producer of the created layer, only used for
+        // creating layer in SurfaceFlinger.
+        wp<IBinder> initialProducer;
+    };
+
+    // A temporay pool that store the created layers and will be added to current state in main
+    // thread.
+    std::unordered_map<BBinder*, std::unique_ptr<LayerCreatedState>> mCreatedLayers;
+    void setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
+                              const wp<IBinder>& parent, const wp<Layer> parentLayer,
+                              const wp<IBinder>& producer);
+    auto getLayerCreatedState(const sp<IBinder>& handle);
+    sp<Layer> handleLayerCreatedLocked(const sp<IBinder>& handle, bool privileged)
+            REQUIRES(mStateLock);
+
+    std::atomic<ui::Transform::RotationFlags> mDefaultDisplayTransformHint;
 };
 
 } // namespace android
