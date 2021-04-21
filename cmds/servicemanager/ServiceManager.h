@@ -46,6 +46,8 @@ public:
 
     binder::Status isDeclared(const std::string& name, bool* outReturn) override;
     binder::Status getDeclaredInstances(const std::string& interface, std::vector<std::string>* outReturn) override;
+    binder::Status updatableViaApex(const std::string& name,
+                                    std::optional<std::string>* outReturn) override;
     binder::Status registerClientCallback(const std::string& name, const sp<IBinder>& service,
                                           const sp<IClientCallback>& cb) override;
     binder::Status tryUnregisterService(const std::string& name, const sp<IBinder>& binder) override;
