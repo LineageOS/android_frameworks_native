@@ -776,6 +776,10 @@ public:
                               const std::vector<ui::Hdr>& /*hdrTypes*/) override {
         return NO_ERROR;
     }
+    status_t onPullAtom(const int32_t /*atomId*/, std::string* /*outData*/,
+                        bool* /*success*/) override {
+        return NO_ERROR;
+    }
     status_t enableVSyncInjections(bool /*enable*/) override {
         return NO_ERROR;
     }
