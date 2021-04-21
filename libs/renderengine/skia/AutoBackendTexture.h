@@ -41,34 +41,42 @@ public:
     // of shared ownership with Skia objects, so we wrap it here instead.
     class LocalRef {
     public:
-        LocalRef(AutoBackendTexture* texture) { setTexture(texture); }
-
-        ~LocalRef() {
-            // Destroying the texture is the same as setting it to null
-            setTexture(nullptr);
+        LocalRef(GrDirectContext* context, AHardwareBuffer* buffer, bool isOutputBuffer) {
+            mTexture = new AutoBackendTexture(context, buffer, isOutputBuffer);
+            mTexture->ref();
         }
 
-        AutoBackendTexture* getTexture() const { return mTexture; }
+        ~LocalRef() {
+            if (mTexture != nullptr) {
+                mTexture->unref(true);
+            }
+        }
+
+        // Makes a new SkImage from the texture content.
+        // As SkImages are immutable but buffer content is not, we create
+        // a new SkImage every time.
+        sk_sp<SkImage> makeImage(ui::Dataspace dataspace, SkAlphaType alphaType,
+                                 GrDirectContext* context) {
+            return mTexture->makeImage(dataspace, alphaType, context);
+        }
+
+        // Makes a new SkSurface from the texture content, if needed.
+        sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace, GrDirectContext* context) {
+            return mTexture->getOrCreateSurface(dataspace, context);
+        }
 
         DISALLOW_COPY_AND_ASSIGN(LocalRef);
 
     private:
-        // Sets the texture to locally ref-track.
-        void setTexture(AutoBackendTexture* texture) {
-            if (mTexture != nullptr) {
-                mTexture->unref(true);
-            }
-
-            mTexture = texture;
-            if (mTexture != nullptr) {
-                mTexture->ref();
-            }
-        }
         AutoBackendTexture* mTexture = nullptr;
     };
 
+private:
     // Creates a GrBackendTexture whose contents come from the provided buffer.
-    AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer, bool isRender);
+    AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer, bool isOutputBuffer);
+
+    // The only way to invoke dtor is with unref, when mUsageCount is 0.
+    ~AutoBackendTexture() {}
 
     void ref() { mUsageCount++; }
 
@@ -85,10 +93,6 @@ public:
     // Makes a new SkSurface from the texture content, if needed.
     sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace, GrDirectContext* context);
 
-private:
-    // The only way to invoke dtor is with unref, when mUsageCount is 0.
-    ~AutoBackendTexture() {}
-
     GrBackendTexture mBackendTexture;
     GrAHardwareBufferUtils::DeleteImageProc mDeleteProc;
     GrAHardwareBufferUtils::UpdateImageProc mUpdateProc;
@@ -99,6 +103,7 @@ private:
 
     int mUsageCount = 0;
 
+    const bool mIsOutputBuffer;
     sk_sp<SkImage> mImage = nullptr;
     sk_sp<SkSurface> mSurface = nullptr;
     ui::Dataspace mDataspace = ui::Dataspace::UNKNOWN;
