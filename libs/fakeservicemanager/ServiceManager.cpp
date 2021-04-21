@@ -73,4 +73,9 @@ Vector<String16> ServiceManager::getDeclaredInstances(const String16& name) {
     return out;
 }
 
+std::optional<String16> ServiceManager::updatableViaApex(const String16& name) {
+    (void)name;
+    return std::nullopt;
+}
+
 }  // namespace android
