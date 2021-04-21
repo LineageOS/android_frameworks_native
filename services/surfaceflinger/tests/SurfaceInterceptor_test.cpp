@@ -921,11 +921,6 @@ TEST_F(SurfaceInterceptorTest, InterceptDisplayDeletionWorks) {
     ASSERT_TRUE(singleIncrementFound(capturedTrace, Increment::IncrementCase::kDisplayDeletion));
 }
 
-TEST_F(SurfaceInterceptorTest, InterceptBufferUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::nBufferUpdates,
-            &SurfaceInterceptorTest::bufferUpdatesFound);
-}
-
 // If the interceptor is enabled while buffer updates are being pushed, the interceptor should
 // first create a snapshot of the existing displays and surfaces and then start capturing
 // the buffer updates
@@ -941,26 +936,6 @@ TEST_F(SurfaceInterceptorTest, InterceptWhileBufferUpdatesWorks) {
     const auto& firstIncrement = capturedTrace.mutable_increment(0);
     ASSERT_EQ(firstIncrement->increment_case(), Increment::IncrementCase::kDisplayCreation);
 }
-
-TEST_F(SurfaceInterceptorTest, InterceptSimultaneousUpdatesWorks) {
-    enableInterceptor();
-    setupBackgroundSurface();
-    std::thread bufferUpdates(&SurfaceInterceptorTest::nBufferUpdates, this);
-    std::thread surfaceUpdates(&SurfaceInterceptorTest::runAllUpdates, this);
-    runInTransaction(&SurfaceInterceptorTest::surfaceCreation);
-    bufferUpdates.join();
-    surfaceUpdates.join();
-    disableInterceptor();
-
-    Trace capturedTrace;
-    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
-    preProcessTrace(capturedTrace);
-
-    assertAllUpdatesFound(capturedTrace);
-    ASSERT_TRUE(bufferUpdatesFound(capturedTrace));
-    ASSERT_TRUE(singleIncrementFound(capturedTrace, Increment::IncrementCase::kSurfaceCreation));
 }
-}
-
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
