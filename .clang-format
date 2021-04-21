@@ -11,3 +11,4 @@ ContinuationIndentWidth: 8
 IndentWidth: 4
 PenaltyBreakBeforeFirstCallParameter: 100000
 SpacesBeforeTrailingComments: 1
+IncludeBlocks: Preserve

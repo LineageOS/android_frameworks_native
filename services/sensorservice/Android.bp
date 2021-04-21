@@ -54,6 +54,7 @@ cc_library_shared {
         "libbinder",
         "libsensor",
         "libsensorprivacy",
+        "libpermission",
         "libprotoutil",
         "libcrypto",
         "libbase",
@@ -74,6 +75,7 @@ cc_library_shared {
         "libactivitymanager_aidl",
         "libsensor",
         "libsensorprivacy",
+        "libpermission",
     ],
 }
 

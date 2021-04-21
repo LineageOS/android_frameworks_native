@@ -46,7 +46,7 @@ constexpr auto kDestDataSpace = ui::Dataspace::SRGB;
 } // namespace
 
 static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
-                             sp<GraphicBuffer> dstBuffer) {
+                             const std::shared_ptr<ExternalTexture>& dstTexture) {
     // Somewhat arbitrary dimensions, but on screen and slightly shorter, based
     // on actual use.
     FloatRect rect(0, 0, display.physicalDisplay.width(), display.physicalDisplay.height() - 30);
@@ -73,7 +73,7 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
 
     auto layers = std::vector<const LayerSettings*>{&layer};
     // The identity matrix will generate the fast shader
-    renderengine->drawLayers(display, layers, dstBuffer, kUseFrameBufferCache, base::unique_fd(),
+    renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache, base::unique_fd(),
                              nullptr);
     // This matrix, which has different scales for x and y, will
     // generate the slower (more general case) version, which has variants for translucent
@@ -86,13 +86,14 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
     // clang-format on
     for (auto translucent : {false, true}) {
         layer.shadow.casterIsTranslucent = translucent;
-        renderengine->drawLayers(display, layers, dstBuffer, kUseFrameBufferCache,
+        renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
                                  base::unique_fd(), nullptr);
     }
 }
 
 static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
-                            sp<GraphicBuffer> dstBuffer, sp<GraphicBuffer> srcBuffer) {
+                            const std::shared_ptr<ExternalTexture>& dstTexture,
+                            const std::shared_ptr<ExternalTexture>& srcTexture) {
     const Rect& displayRect = display.physicalDisplay;
     FloatRect rect(0, 0, displayRect.width(), displayRect.height());
     LayerSettings layer{
@@ -103,7 +104,7 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                     },
             .source = PixelSource{.buffer =
                                           Buffer{
-                                                  .buffer = srcBuffer,
+                                                  .buffer = srcTexture,
                                                   .maxMasteringLuminance = 1000.f,
                                                   .maxContentLuminance = 1000.f,
                                           }},
@@ -126,7 +127,7 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                 layer.source.buffer.isOpaque = isOpaque;
                 for (auto alpha : {half(.23999f), half(1.0f)}) {
                     layer.alpha = alpha;
-                    renderengine->drawLayers(display, layers, dstBuffer, kUseFrameBufferCache,
+                    renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
                                              base::unique_fd(), nullptr);
                 }
             }
@@ -135,7 +136,7 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
 }
 
 static void drawSolidLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
-                            sp<GraphicBuffer> dstBuffer) {
+                            const std::shared_ptr<ExternalTexture>& dstTexture) {
     const Rect& displayRect = display.physicalDisplay;
     FloatRect rect(0, 0, displayRect.width(), displayRect.height());
     LayerSettings layer{
@@ -143,11 +144,11 @@ static void drawSolidLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                     Geometry{
                             .boundaries = rect,
                     },
-            .alpha = 1,
             .source =
                     PixelSource{
                             .solidColor = half3(0.1f, 0.2f, 0.3f),
                     },
+            .alpha = 1,
     };
 
     auto layers = std::vector<const LayerSettings*>{&layer};
@@ -155,14 +156,14 @@ static void drawSolidLayers(SkiaRenderEngine* renderengine, const DisplaySetting
         layer.geometry.positionTransform = transform;
         for (float roundedCornersRadius : {0.0f, 0.05f, 50.f}) {
             layer.geometry.roundedCornersRadius = roundedCornersRadius;
-            renderengine->drawLayers(display, layers, dstBuffer, kUseFrameBufferCache,
+            renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
                                      base::unique_fd(), nullptr);
         }
     }
 }
 
 static void drawBlurLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
-                           sp<GraphicBuffer> dstBuffer) {
+                           const std::shared_ptr<ExternalTexture>& dstTexture) {
     const Rect& displayRect = display.physicalDisplay;
     FloatRect rect(0, 0, displayRect.width(), displayRect.height());
     LayerSettings layer{
@@ -176,7 +177,7 @@ static void drawBlurLayers(SkiaRenderEngine* renderengine, const DisplaySettings
     auto layers = std::vector<const LayerSettings*>{&layer};
     for (int radius : {9, 60}) {
         layer.backgroundBlurRadius = radius;
-        renderengine->drawLayers(display, layers, dstBuffer, kUseFrameBufferCache,
+        renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
                                  base::unique_fd(), nullptr);
     }
 }
@@ -214,6 +215,9 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
     sp<GraphicBuffer> dstBuffer =
             new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888, 1,
                               usage, "primeShaderCache_dst");
+
+    const auto dstTexture = std::make_shared<ExternalTexture>(dstBuffer, *renderengine,
+                                                              ExternalTexture::Usage::WRITEABLE);
     // This buffer will be the source for the call to drawImageLayers. Draw
     // something to it as a placeholder for what an app draws. We should draw
     // something, but the details are not important. Make use of the shadow layer drawing step
@@ -222,11 +226,16 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
             new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888, 1,
                               usage, "drawImageLayer_src");
 
-    drawSolidLayers(renderengine, display, dstBuffer);
-    drawShadowLayers(renderengine, display, srcBuffer);
-    drawBlurLayers(renderengine, display, dstBuffer);
+    const auto srcTexture =
+            std::make_shared<ExternalTexture>(srcBuffer, *renderengine,
+                                              ExternalTexture::Usage::READABLE |
+                                                      ExternalTexture::Usage::WRITEABLE);
+
+    drawSolidLayers(renderengine, display, dstTexture);
+    drawShadowLayers(renderengine, display, srcTexture);
+    drawBlurLayers(renderengine, display, dstTexture);
     // The majority of shaders are related to sampling images.
-    drawImageLayers(renderengine, display, dstBuffer, srcBuffer);
+    drawImageLayers(renderengine, display, dstTexture, srcTexture);
 
     // should be the same as AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
     const int64_t usageExternal = GRALLOC_USAGE_HW_TEXTURE;
@@ -234,12 +243,12 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
     sp<GraphicBuffer> externalBuffer =
             new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888, 1,
                               usageExternal, "primeShaderCache_external");
+    const auto externalTexture =
+            std::make_shared<ExternalTexture>(externalBuffer, *renderengine,
+                                              ExternalTexture::Usage::READABLE);
     // TODO(b/184665179) doubles number of image shader compilations, but only somewhere
     // between 6 and 8 will occur in real uses.
-    drawImageLayers(renderengine, display, dstBuffer, externalBuffer);
-    renderengine->unbindExternalTextureBuffer(externalBuffer->getId());
-
-    renderengine->unbindExternalTextureBuffer(srcBuffer->getId());
+    drawImageLayers(renderengine, display, dstTexture, externalTexture);
 
     const nsecs_t timeAfter = systemTime();
     const float compileTimeMs = static_cast<float>(timeAfter - timeBefore) / 1.0E6;
