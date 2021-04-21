@@ -19,6 +19,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <utils/Log.h>
+#include <utils/Timers.h>
 
 #include "AsyncCallRecorder.h"
 #include "Scheduler/OneShotTimer.h"
@@ -28,20 +29,21 @@ using namespace std::chrono_literals;
 namespace android {
 namespace scheduler {
 
+class FakeClock : public OneShotTimer::Clock {
+public:
+    virtual ~FakeClock() = default;
+    std::chrono::steady_clock::time_point now() const override { return mNow; }
+
+    void advanceTime(std::chrono::nanoseconds delta) { mNow += delta; }
+
+private:
+    std::chrono::steady_clock::time_point mNow;
+};
+
 class OneShotTimerTest : public testing::Test {
 protected:
     OneShotTimerTest() = default;
     ~OneShotTimerTest() override = default;
-
-    // This timeout should be used when a 3ms callback is expected.
-    // While the tests typically request a callback after 3ms, the scheduler
-    // does not always cooperate, at it can take significantly longer (observed
-    // 30ms).
-    static constexpr auto waitTimeForExpected3msCallback = 100ms;
-
-    // This timeout should be used when an 3ms callback is not expected.
-    // Note that there can be false-negatives if the callback happens later.
-    static constexpr auto waitTimeForUnexpected3msCallback = 6ms;
 
     AsyncCallRecorder<void (*)()> mResetTimerCallback;
     AsyncCallRecorder<void (*)()> mExpiredTimerCallback;
@@ -56,162 +58,179 @@ protected:
 
 namespace {
 TEST_F(OneShotTimerTest, createAndDestroyTest) {
+    FakeClock* clock = new FakeClock();
     mIdleTimer = std::make_unique<scheduler::OneShotTimer>(
-            "TestTimer", 3ms, [] {}, [] {});
+            "TestTimer", 3ms, [] {}, [] {}, std::unique_ptr<FakeClock>(clock));
 }
 
 TEST_F(OneShotTimerTest, startStopTest) {
-    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 30ms,
+    FakeClock* clock = new FakeClock();
+    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
                                                            mResetTimerCallback.getInvocable(),
-                                                           mExpiredTimerCallback.getInvocable());
-    auto startTime = std::chrono::steady_clock::now();
+                                                           mExpiredTimerCallback.getInvocable(),
+                                                           std::unique_ptr<FakeClock>(clock));
     mIdleTimer->start();
     EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
-    // The idle timer fires after 30ms, so there should be no callback within
-    // 25ms (waiting for a callback for the full 30ms would be problematic).
-    bool callbackCalled = mExpiredTimerCallback.waitForCall(25ms).has_value();
-    // Under ideal conditions there should be no event. But occasionally
-    // it is possible that the wait just prior takes more than 30ms, and
-    // a callback is observed. We check the elapsed time since before the OneShotTimer
-    // thread was started as a sanity check to not have a flakey test.
-    EXPECT_FALSE(callbackCalled && std::chrono::steady_clock::now() - startTime < 30ms);
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(25));
-    EXPECT_FALSE(mResetTimerCallback.waitForCall().has_value());
+    clock->advanceTime(2ms);
+    EXPECT_TRUE(mExpiredTimerCallback.waitForCall().has_value());
+
+    clock->advanceTime(2ms);
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
     mIdleTimer->stop();
 }
 
 TEST_F(OneShotTimerTest, resetTest) {
-    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 20ms,
+    FakeClock* clock = new FakeClock();
+    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
                                                            mResetTimerCallback.getInvocable(),
-                                                           mExpiredTimerCallback.getInvocable());
+                                                           mExpiredTimerCallback.getInvocable(),
+                                                           std::unique_ptr<FakeClock>(clock));
+
     mIdleTimer->start();
     EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
-    // Observe any event that happens in about 25ms. We don't care if one was
-    // observed or not.
-    mExpiredTimerCallback.waitForCall(25ms).has_value();
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    clock->advanceTime(2ms);
+    EXPECT_TRUE(mExpiredTimerCallback.waitForCall().has_value());
     mIdleTimer->reset();
     EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
-    // There may have been a race with the reset. Clear any callbacks we
-    // received right afterwards.
-    clearPendingCallbacks();
-    // A single callback should be generated after 30ms
-    EXPECT_TRUE(
-            mExpiredTimerCallback.waitForCall(waitTimeForExpected3msCallback + 30ms).has_value());
-    // After one event, it should be idle, and not generate another.
-    EXPECT_FALSE(
-            mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback * 10).has_value());
-    mIdleTimer->stop();
-    // Final quick check that no more callback were observed.
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(0ms).has_value());
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(0ms).has_value());
+    clock->advanceTime(2ms);
+    EXPECT_TRUE(mExpiredTimerCallback.waitForCall().has_value());
+
+    clock->advanceTime(2ms);
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
 }
 
 TEST_F(OneShotTimerTest, resetBackToBackTest) {
-    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 20ms,
+    FakeClock* clock = new FakeClock();
+    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
                                                            mResetTimerCallback.getInvocable(),
-                                                           mExpiredTimerCallback.getInvocable());
+                                                           mExpiredTimerCallback.getInvocable(),
+                                                           std::unique_ptr<FakeClock>(clock));
     mIdleTimer->start();
     EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
 
     mIdleTimer->reset();
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(1ms).has_value());
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
 
     mIdleTimer->reset();
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(1ms).has_value());
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
 
     mIdleTimer->reset();
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(1ms).has_value());
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
 
     mIdleTimer->reset();
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(1ms).has_value());
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
 
-    // A single callback should be generated after 30ms
-    EXPECT_TRUE(
-            mExpiredTimerCallback.waitForCall(waitTimeForExpected3msCallback + 30ms).has_value());
+    clock->advanceTime(2ms);
+    EXPECT_TRUE(mExpiredTimerCallback.waitForCall().has_value());
+
     mIdleTimer->stop();
+    clock->advanceTime(2ms);
     // Final quick check that no more callback were observed.
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(0ms).has_value());
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(0ms).has_value());
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
 }
 
 TEST_F(OneShotTimerTest, startNotCalledTest) {
-    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 3ms,
+    FakeClock* clock = new FakeClock();
+    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
                                                            mResetTimerCallback.getInvocable(),
-                                                           mExpiredTimerCallback.getInvocable());
+                                                           mExpiredTimerCallback.getInvocable(),
+                                                           std::unique_ptr<FakeClock>(clock));
     // The start hasn't happened, so the callback does not happen.
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
-    EXPECT_FALSE(mResetTimerCallback.waitForCall().has_value());
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
     mIdleTimer->stop();
+    clock->advanceTime(2ms);
     // Final quick check that no more callback were observed.
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(0ms).has_value());
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(0ms).has_value());
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
 }
 
 TEST_F(OneShotTimerTest, idleTimerIdlesTest) {
-    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 3ms,
+    FakeClock* clock = new FakeClock();
+    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
                                                            mResetTimerCallback.getInvocable(),
-                                                           mExpiredTimerCallback.getInvocable());
+                                                           mExpiredTimerCallback.getInvocable(),
+                                                           std::unique_ptr<FakeClock>(clock));
     mIdleTimer->start();
     EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
+    clock->advanceTime(2ms);
+    EXPECT_TRUE(mExpiredTimerCallback.waitForCall().has_value());
 
-    // A callback should be generated after 3ms
-    EXPECT_TRUE(mExpiredTimerCallback.waitForCall(waitTimeForExpected3msCallback).has_value());
-    // After one event, it should be idle, and not generate another.
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
-    // Once reset, it should generate another
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
+
     mIdleTimer->reset();
     EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
-    EXPECT_TRUE(mExpiredTimerCallback.waitForCall(waitTimeForExpected3msCallback).has_value());
+    clock->advanceTime(2ms);
+    EXPECT_TRUE(mExpiredTimerCallback.waitForCall().has_value());
     mIdleTimer->stop();
+    clock->advanceTime(2ms);
     // Final quick check that no more callback were observed.
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(0ms).has_value());
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(0ms).has_value());
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
 }
 
 TEST_F(OneShotTimerTest, timeoutCallbackExecutionTest) {
-    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 3ms,
+    FakeClock* clock = new FakeClock();
+    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
                                                            mResetTimerCallback.getInvocable(),
-                                                           mExpiredTimerCallback.getInvocable());
+                                                           mExpiredTimerCallback.getInvocable(),
+                                                           std::unique_ptr<FakeClock>(clock));
     mIdleTimer->start();
     EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
-    EXPECT_TRUE(mExpiredTimerCallback.waitForCall(waitTimeForExpected3msCallback).has_value());
+
+    clock->advanceTime(2ms);
+    EXPECT_TRUE(mExpiredTimerCallback.waitForCall().has_value());
     mIdleTimer->stop();
+    clock->advanceTime(2ms);
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
 }
 
 TEST_F(OneShotTimerTest, noCallbacksAfterStopAndResetTest) {
-    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 3ms,
+    FakeClock* clock = new FakeClock();
+    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
                                                            mResetTimerCallback.getInvocable(),
-                                                           mExpiredTimerCallback.getInvocable());
+                                                           mExpiredTimerCallback.getInvocable(),
+                                                           std::unique_ptr<FakeClock>(clock));
     mIdleTimer->start();
     EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
-    EXPECT_TRUE(mExpiredTimerCallback.waitForCall(waitTimeForExpected3msCallback).has_value());
+    clock->advanceTime(2ms);
+    EXPECT_TRUE(mExpiredTimerCallback.waitForCall().has_value());
 
     mIdleTimer->stop();
-    clearPendingCallbacks();
     mIdleTimer->reset();
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
-    EXPECT_FALSE(mResetTimerCallback.waitForCall().has_value());
+    clock->advanceTime(2ms);
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
 }
 
 TEST_F(OneShotTimerTest, noCallbacksAfterStopTest) {
-    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 3ms,
+    FakeClock* clock = new FakeClock();
+    mIdleTimer = std::make_unique<scheduler::OneShotTimer>("TestTimer", 1ms,
                                                            mResetTimerCallback.getInvocable(),
-                                                           mExpiredTimerCallback.getInvocable());
+                                                           mExpiredTimerCallback.getInvocable(),
+                                                           std::unique_ptr<FakeClock>(clock));
     mIdleTimer->start();
     EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
 
     mIdleTimer->stop();
-    clearPendingCallbacks();
     mIdleTimer->reset();
 
+    clock->advanceTime(2ms);
     // No more idle events should be observed
-    EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
-    EXPECT_FALSE(mResetTimerCallback.waitForCall().has_value());
+    EXPECT_FALSE(mExpiredTimerCallback.waitForUnexpectedCall().has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForUnexpectedCall().has_value());
 }
 
 } // namespace

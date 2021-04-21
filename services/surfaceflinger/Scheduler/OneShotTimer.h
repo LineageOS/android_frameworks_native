@@ -36,8 +36,17 @@ public:
     using ResetCallback = std::function<void()>;
     using TimeoutCallback = std::function<void()>;
 
+    class Clock {
+    public:
+        Clock() = default;
+        virtual ~Clock() = default;
+
+        virtual std::chrono::steady_clock::time_point now() const;
+    };
+
     OneShotTimer(std::string name, const Interval& interval, const ResetCallback& resetCallback,
-                 const TimeoutCallback& timeoutCallback);
+                 const TimeoutCallback& timeoutCallback,
+                 std::unique_ptr<OneShotTimer::Clock> = std::make_unique<OneShotTimer::Clock>());
     ~OneShotTimer();
 
     // Initializes and turns on the idle timer.
@@ -77,6 +86,9 @@ private:
 
     // Thread waiting for timer to expire.
     std::thread mThread;
+
+    // Clock object for the timer. Mocked in unit tests.
+    std::unique_ptr<Clock> mClock;
 
     // Semaphore to keep mThread synchronized.
     sem_t mSemaphore;
