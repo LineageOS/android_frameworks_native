@@ -115,6 +115,9 @@ struct OutputCompositionState {
     // Current target dataspace
     ui::Dataspace targetDataspace{ui::Dataspace::UNKNOWN};
 
+    // The earliest time to send the present command to the HAL
+    std::chrono::steady_clock::time_point earliestPresentTime;
+
     // Debugging
     void dump(std::string& result) const;
 };

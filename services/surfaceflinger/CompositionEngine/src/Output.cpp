@@ -711,6 +711,8 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
         return;
     }
 
+    editState().earliestPresentTime = refreshArgs.earliestPresentTime;
+
     sp<GraphicBuffer> previousOverride = nullptr;
     for (auto* layer : getOutputLayersOrderedByZ()) {
         bool skipLayer = false;
