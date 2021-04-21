@@ -19,11 +19,9 @@
 #define LOG_TAG "TimeStats"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "TimeStats.h"
-
 #include <android-base/stringprintf.h>
-#include <android/util/ProtoOutputStream.h>
 #include <log/log.h>
+#include <timestatsatomsproto/TimeStatsAtomsProtoHeader.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
@@ -31,147 +29,102 @@
 #include <algorithm>
 #include <chrono>
 
+#include "TimeStats.h"
 #include "timestatsproto/TimeStatsHelper.h"
 
 namespace android {
 
 namespace impl {
 
-AStatsManager_PullAtomCallbackReturn TimeStats::pullAtomCallback(int32_t atom_tag,
-                                                                 AStatsEventList* data,
-                                                                 void* cookie) {
-    impl::TimeStats* timeStats = reinterpret_cast<impl::TimeStats*>(cookie);
-    AStatsManager_PullAtomCallbackReturn result = AStatsManager_PULL_SKIP;
-    if (atom_tag == android::util::SURFACEFLINGER_STATS_GLOBAL_INFO) {
-        result = timeStats->populateGlobalAtom(data);
-    } else if (atom_tag == android::util::SURFACEFLINGER_STATS_LAYER_INFO) {
-        result = timeStats->populateLayerAtom(data);
-    }
-
-    // Enable timestats now. The first full pull for a given build is expected to
-    // have empty or very little stats, as stats are first enabled after the
-    // first pull is completed for either the global or layer stats.
-    timeStats->enable();
-    return result;
-}
-
 namespace {
-// Histograms align with the order of fields in SurfaceflingerStatsLayerInfo.
-const std::array<std::string, 6> kHistogramNames = {
-        "present2present", "post2present",    "acquire2present",
-        "latch2present",   "desired2present", "post2acquire",
-};
 
-std::string histogramToProtoByteString(const std::unordered_map<int32_t, int32_t>& histogram,
-                                       size_t maxPulledHistogramBuckets) {
+FrameTimingHistogram histogramToProto(const std::unordered_map<int32_t, int32_t>& histogram,
+                                      size_t maxPulledHistogramBuckets) {
     auto buckets = std::vector<std::pair<int32_t, int32_t>>(histogram.begin(), histogram.end());
     std::sort(buckets.begin(), buckets.end(),
               [](std::pair<int32_t, int32_t>& left, std::pair<int32_t, int32_t>& right) {
                   return left.second > right.second;
               });
 
-    util::ProtoOutputStream proto;
+    FrameTimingHistogram histogramProto;
     int histogramSize = 0;
     for (const auto& bucket : buckets) {
         if (++histogramSize > maxPulledHistogramBuckets) {
             break;
         }
-        proto.write(android::util::FIELD_TYPE_INT32 | android::util::FIELD_COUNT_REPEATED |
-                            1 /* field id */,
-                    (int32_t)bucket.first);
-        proto.write(android::util::FIELD_TYPE_INT64 | android::util::FIELD_COUNT_REPEATED |
-                            2 /* field id */,
-                    (int64_t)bucket.second);
+        histogramProto.add_time_millis_buckets((int32_t)bucket.first);
+        histogramProto.add_frame_counts((int64_t)bucket.second);
     }
-
-    std::string byteString;
-    proto.serializeToString(&byteString);
-    return byteString;
+    return histogramProto;
 }
 
-std::string frameRateVoteToProtoByteString(
-        float refreshRate,
-        TimeStats::SetFrameRateVote::FrameRateCompatibility frameRateCompatibility,
-        TimeStats::SetFrameRateVote::Seamlessness seamlessness) {
-    util::ProtoOutputStream proto;
-    proto.write(android::util::FIELD_TYPE_FLOAT | 1 /* field id */, refreshRate);
-    proto.write(android::util::FIELD_TYPE_ENUM | 2 /* field id */,
-                static_cast<int>(frameRateCompatibility));
-    proto.write(android::util::FIELD_TYPE_ENUM | 3 /* field id */, static_cast<int>(seamlessness));
+SurfaceflingerStatsLayerInfo_SetFrameRateVote frameRateVoteToProto(
+        const TimeStats::SetFrameRateVote& setFrameRateVote) {
+    using FrameRateCompatibilityEnum =
+            SurfaceflingerStatsLayerInfo::SetFrameRateVote::FrameRateCompatibility;
+    using SeamlessnessEnum = SurfaceflingerStatsLayerInfo::SetFrameRateVote::Seamlessness;
 
-    std::string byteString;
-    proto.serializeToString(&byteString);
-    return byteString;
+    SurfaceflingerStatsLayerInfo_SetFrameRateVote proto;
+    proto.set_frame_rate(setFrameRateVote.frameRate);
+    proto.set_frame_rate_compatibility(
+            static_cast<FrameRateCompatibilityEnum>(setFrameRateVote.frameRateCompatibility));
+    proto.set_seamlessness(static_cast<SeamlessnessEnum>(setFrameRateVote.seamlessness));
+    return proto;
 }
 } // namespace
 
-AStatsManager_PullAtomCallbackReturn TimeStats::populateGlobalAtom(AStatsEventList* data) {
+bool TimeStats::populateGlobalAtom(std::string* pulledData) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     if (mTimeStats.statsStartLegacy == 0) {
-        return AStatsManager_PULL_SKIP;
+        return false;
     }
     flushPowerTimeLocked();
-
+    SurfaceflingerStatsGlobalInfoWrapper atomList;
     for (const auto& globalSlice : mTimeStats.stats) {
-        AStatsEvent* event = mStatsDelegate->addStatsEventToPullData(data);
-        mStatsDelegate->statsEventSetAtomId(event, android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
-        mStatsDelegate->statsEventWriteInt64(event, mTimeStats.totalFramesLegacy);
-        mStatsDelegate->statsEventWriteInt64(event, mTimeStats.missedFramesLegacy);
-        mStatsDelegate->statsEventWriteInt64(event, mTimeStats.clientCompositionFramesLegacy);
-        mStatsDelegate->statsEventWriteInt64(event, mTimeStats.displayOnTimeLegacy);
-        mStatsDelegate->statsEventWriteInt64(event, mTimeStats.presentToPresentLegacy.totalTime());
-        mStatsDelegate->statsEventWriteInt32(event, mTimeStats.displayEventConnectionsCountLegacy);
-        std::string frameDurationBytes =
-                histogramToProtoByteString(mTimeStats.frameDurationLegacy.hist,
-                                           mMaxPulledHistogramBuckets);
-        mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)frameDurationBytes.c_str(),
-                                                 frameDurationBytes.size());
-        std::string renderEngineTimingBytes =
-                histogramToProtoByteString(mTimeStats.renderEngineTimingLegacy.hist,
-                                           mMaxPulledHistogramBuckets);
-        mStatsDelegate->statsEventWriteByteArray(event,
-                                                 (const uint8_t*)renderEngineTimingBytes.c_str(),
-                                                 renderEngineTimingBytes.size());
-
-        mStatsDelegate->statsEventWriteInt32(event, globalSlice.second.jankPayload.totalFrames);
-        mStatsDelegate->statsEventWriteInt32(event,
-                                             globalSlice.second.jankPayload.totalJankyFrames);
-        mStatsDelegate->statsEventWriteInt32(event, globalSlice.second.jankPayload.totalSFLongCpu);
-        mStatsDelegate->statsEventWriteInt32(event, globalSlice.second.jankPayload.totalSFLongGpu);
-        mStatsDelegate->statsEventWriteInt32(event,
-                                             globalSlice.second.jankPayload.totalSFUnattributed);
-        mStatsDelegate->statsEventWriteInt32(event,
-                                             globalSlice.second.jankPayload.totalAppUnattributed);
-        mStatsDelegate->statsEventWriteInt32(event,
-                                             globalSlice.second.jankPayload.totalSFScheduling);
-        mStatsDelegate->statsEventWriteInt32(event,
-                                             globalSlice.second.jankPayload.totalSFPredictionError);
-        mStatsDelegate->statsEventWriteInt32(event,
-                                             globalSlice.second.jankPayload.totalAppBufferStuffing);
-        mStatsDelegate->statsEventWriteInt32(event, globalSlice.first.displayRefreshRateBucket);
-        std::string sfDeadlineMissedBytes =
-                histogramToProtoByteString(globalSlice.second.displayDeadlineDeltas.hist,
-                                           mMaxPulledHistogramBuckets);
-        mStatsDelegate->statsEventWriteByteArray(event,
-                                                 (const uint8_t*)sfDeadlineMissedBytes.c_str(),
-                                                 sfDeadlineMissedBytes.size());
-        std::string sfPredictionErrorBytes =
-                histogramToProtoByteString(globalSlice.second.displayPresentDeltas.hist,
-                                           mMaxPulledHistogramBuckets);
-        mStatsDelegate->statsEventWriteByteArray(event,
-                                                 (const uint8_t*)sfPredictionErrorBytes.c_str(),
-                                                 sfPredictionErrorBytes.size());
-        mStatsDelegate->statsEventWriteInt32(event, globalSlice.first.renderRateBucket);
-        mStatsDelegate->statsEventBuild(event);
+        SurfaceflingerStatsGlobalInfo* atom = atomList.add_atom();
+        atom->set_total_frames(mTimeStats.totalFramesLegacy);
+        atom->set_missed_frames(mTimeStats.missedFramesLegacy);
+        atom->set_client_composition_frames(mTimeStats.clientCompositionFramesLegacy);
+        atom->set_display_on_millis(mTimeStats.displayOnTimeLegacy);
+        atom->set_animation_millis(mTimeStats.presentToPresentLegacy.totalTime());
+        atom->set_event_connection_count(mTimeStats.displayEventConnectionsCountLegacy);
+        *atom->mutable_frame_duration() =
+                histogramToProto(mTimeStats.frameDurationLegacy.hist, mMaxPulledHistogramBuckets);
+        *atom->mutable_render_engine_timing() =
+                histogramToProto(mTimeStats.renderEngineTimingLegacy.hist,
+                                 mMaxPulledHistogramBuckets);
+        atom->set_total_timeline_frames(globalSlice.second.jankPayload.totalFrames);
+        atom->set_total_janky_frames(globalSlice.second.jankPayload.totalJankyFrames);
+        atom->set_total_janky_frames_with_long_cpu(globalSlice.second.jankPayload.totalSFLongCpu);
+        atom->set_total_janky_frames_with_long_gpu(globalSlice.second.jankPayload.totalSFLongGpu);
+        atom->set_total_janky_frames_sf_unattributed(
+                globalSlice.second.jankPayload.totalSFUnattributed);
+        atom->set_total_janky_frames_app_unattributed(
+                globalSlice.second.jankPayload.totalAppUnattributed);
+        atom->set_total_janky_frames_sf_scheduling(
+                globalSlice.second.jankPayload.totalSFScheduling);
+        atom->set_total_jank_frames_sf_prediction_error(
+                globalSlice.second.jankPayload.totalSFPredictionError);
+        atom->set_total_jank_frames_app_buffer_stuffing(
+                globalSlice.second.jankPayload.totalAppBufferStuffing);
+        atom->set_display_refresh_rate_bucket(globalSlice.first.displayRefreshRateBucket);
+        *atom->mutable_sf_deadline_misses() =
+                histogramToProto(globalSlice.second.displayDeadlineDeltas.hist,
+                                 mMaxPulledHistogramBuckets);
+        *atom->mutable_sf_prediction_errors() =
+                histogramToProto(globalSlice.second.displayPresentDeltas.hist,
+                                 mMaxPulledHistogramBuckets);
+        atom->set_render_rate_bucket(globalSlice.first.renderRateBucket);
     }
 
+    // Always clear data.
     clearGlobalLocked();
 
-    return AStatsManager_PULL_SUCCESS;
+    return atomList.SerializeToString(pulledData);
 }
 
-AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventList* data) {
+bool TimeStats::populateLayerAtom(std::string* pulledData) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     std::vector<TimeStatsHelper::TimeStatsLayer*> dumpStats;
@@ -198,69 +151,73 @@ AStatsManager_PullAtomCallbackReturn TimeStats::populateLayerAtom(AStatsEventLis
         dumpStats.resize(mMaxPulledLayers);
     }
 
+    SurfaceflingerStatsLayerInfoWrapper atomList;
     for (auto& layer : dumpStats) {
-        AStatsEvent* event = mStatsDelegate->addStatsEventToPullData(data);
-        mStatsDelegate->statsEventSetAtomId(event, android::util::SURFACEFLINGER_STATS_LAYER_INFO);
-        mStatsDelegate->statsEventWriteString8(event, layer->layerName.c_str());
-        mStatsDelegate->statsEventWriteInt64(event, layer->totalFrames);
-        mStatsDelegate->statsEventWriteInt64(event, layer->droppedFrames);
-
-        for (const auto& name : kHistogramNames) {
-            const auto& histogram = layer->deltas.find(name);
-            if (histogram == layer->deltas.cend()) {
-                mStatsDelegate->statsEventWriteByteArray(event, nullptr, 0);
-            } else {
-                std::string bytes = histogramToProtoByteString(histogram->second.hist,
-                                                               mMaxPulledHistogramBuckets);
-                mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)bytes.c_str(),
-                                                         bytes.size());
-            }
+        SurfaceflingerStatsLayerInfo* atom = atomList.add_atom();
+        atom->set_layer_name(layer->layerName);
+        atom->set_total_frames(layer->totalFrames);
+        atom->set_dropped_frames(layer->droppedFrames);
+        const auto& present2PresentHist = layer->deltas.find("present2present");
+        if (present2PresentHist != layer->deltas.cend()) {
+            *atom->mutable_present_to_present() =
+                    histogramToProto(present2PresentHist->second.hist, mMaxPulledHistogramBuckets);
+        }
+        const auto& post2presentHist = layer->deltas.find("post2present");
+        if (post2presentHist != layer->deltas.cend()) {
+            *atom->mutable_post_to_present() =
+                    histogramToProto(post2presentHist->second.hist, mMaxPulledHistogramBuckets);
+        }
+        const auto& acquire2presentHist = layer->deltas.find("acquire2present");
+        if (acquire2presentHist != layer->deltas.cend()) {
+            *atom->mutable_acquire_to_present() =
+                    histogramToProto(acquire2presentHist->second.hist, mMaxPulledHistogramBuckets);
+        }
+        const auto& latch2presentHist = layer->deltas.find("latch2present");
+        if (latch2presentHist != layer->deltas.cend()) {
+            *atom->mutable_latch_to_present() =
+                    histogramToProto(latch2presentHist->second.hist, mMaxPulledHistogramBuckets);
+        }
+        const auto& desired2presentHist = layer->deltas.find("desired2present");
+        if (desired2presentHist != layer->deltas.cend()) {
+            *atom->mutable_desired_to_present() =
+                    histogramToProto(desired2presentHist->second.hist, mMaxPulledHistogramBuckets);
+        }
+        const auto& post2acquireHist = layer->deltas.find("post2acquire");
+        if (post2acquireHist != layer->deltas.cend()) {
+            *atom->mutable_post_to_acquire() =
+                    histogramToProto(post2acquireHist->second.hist, mMaxPulledHistogramBuckets);
         }
 
-        mStatsDelegate->statsEventWriteInt64(event, layer->lateAcquireFrames);
-        mStatsDelegate->statsEventWriteInt64(event, layer->badDesiredPresentFrames);
-        mStatsDelegate->statsEventWriteInt32(event, layer->uid);
-        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalFrames);
-        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalJankyFrames);
-        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFLongCpu);
-        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFLongGpu);
-        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFUnattributed);
-        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalAppUnattributed);
-        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFScheduling);
-        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalSFPredictionError);
-        mStatsDelegate->statsEventWriteInt32(event, layer->jankPayload.totalAppBufferStuffing);
-        mStatsDelegate->statsEventWriteInt32(
-                event, layer->displayRefreshRateBucket); // display_refresh_rate_bucket
-        mStatsDelegate->statsEventWriteInt32(event, layer->renderRateBucket); // render_rate_bucket
-        std::string frameRateVoteBytes =
-                frameRateVoteToProtoByteString(layer->setFrameRateVote.frameRate,
-                                               layer->setFrameRateVote.frameRateCompatibility,
-                                               layer->setFrameRateVote.seamlessness);
-        mStatsDelegate->statsEventWriteByteArray(event, (const uint8_t*)frameRateVoteBytes.c_str(),
-                                                 frameRateVoteBytes.size()); // set_frame_rate_vote
-        std::string appDeadlineMissedBytes =
-                histogramToProtoByteString(layer->deltas["appDeadlineDeltas"].hist,
-                                           mMaxPulledHistogramBuckets);
-        mStatsDelegate->statsEventWriteByteArray(event,
-                                                 (const uint8_t*)appDeadlineMissedBytes.c_str(),
-                                                 appDeadlineMissedBytes.size());
-
-        mStatsDelegate->statsEventBuild(event);
+        atom->set_late_acquire_frames(layer->lateAcquireFrames);
+        atom->set_bad_desired_present_frames(layer->badDesiredPresentFrames);
+        atom->set_uid(layer->uid);
+        atom->set_total_timeline_frames(layer->jankPayload.totalFrames);
+        atom->set_total_janky_frames(layer->jankPayload.totalJankyFrames);
+        atom->set_total_janky_frames_with_long_cpu(layer->jankPayload.totalSFLongCpu);
+        atom->set_total_janky_frames_with_long_gpu(layer->jankPayload.totalSFLongGpu);
+        atom->set_total_janky_frames_sf_unattributed(layer->jankPayload.totalSFUnattributed);
+        atom->set_total_janky_frames_app_unattributed(layer->jankPayload.totalAppUnattributed);
+        atom->set_total_janky_frames_sf_scheduling(layer->jankPayload.totalSFScheduling);
+        atom->set_total_jank_frames_sf_prediction_error(layer->jankPayload.totalSFPredictionError);
+        atom->set_total_jank_frames_app_buffer_stuffing(layer->jankPayload.totalAppBufferStuffing);
+        atom->set_display_refresh_rate_bucket(layer->displayRefreshRateBucket);
+        atom->set_render_rate_bucket(layer->renderRateBucket);
+        *atom->mutable_set_frame_rate_vote() = frameRateVoteToProto(layer->setFrameRateVote);
+        *atom->mutable_app_deadline_misses() =
+                histogramToProto(layer->deltas["appDeadlineDeltas"].hist,
+                                 mMaxPulledHistogramBuckets);
     }
+
+    // Always clear data.
     clearLayersLocked();
 
-    return AStatsManager_PULL_SUCCESS;
+    return atomList.SerializeToString(pulledData);
 }
 
-TimeStats::TimeStats() : TimeStats(nullptr, std::nullopt, std::nullopt) {}
+TimeStats::TimeStats() : TimeStats(std::nullopt, std::nullopt) {}
 
-TimeStats::TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate,
-                     std::optional<size_t> maxPulledLayers,
+TimeStats::TimeStats(std::optional<size_t> maxPulledLayers,
                      std::optional<size_t> maxPulledHistogramBuckets) {
-    if (statsDelegate != nullptr) {
-        mStatsDelegate = std::move(statsDelegate);
-    }
-
     if (maxPulledLayers) {
         mMaxPulledLayers = *maxPulledLayers;
     }
@@ -270,18 +227,19 @@ TimeStats::TimeStats(std::unique_ptr<StatsEventDelegate> statsDelegate,
     }
 }
 
-TimeStats::~TimeStats() {
-    std::lock_guard<std::mutex> lock(mMutex);
-    mStatsDelegate->clearStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO);
-    mStatsDelegate->clearStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO);
-}
+bool TimeStats::onPullAtom(const int atomId, std::string* pulledData) {
+    bool success = false;
+    if (atomId == 10062) { // SURFACEFLINGER_STATS_GLOBAL_INFO
+        success = populateGlobalAtom(pulledData);
+    } else if (atomId == 10063) { // SURFACEFLINGER_STATS_LAYER_INFO
+        success = populateLayerAtom(pulledData);
+    }
 
-void TimeStats::onBootFinished() {
-    std::lock_guard<std::mutex> lock(mMutex);
-    mStatsDelegate->setStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_GLOBAL_INFO,
-                                             nullptr, TimeStats::pullAtomCallback, this);
-    mStatsDelegate->setStatsPullAtomCallback(android::util::SURFACEFLINGER_STATS_LAYER_INFO,
-                                             nullptr, TimeStats::pullAtomCallback, this);
+    // Enable timestats now. The first full pull for a given build is expected to
+    // have empty or very little stats, as stats are first enabled after the
+    // first pull is completed for either the global or layer stats.
+    enable();
+    return success;
 }
 
 void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, std::string& result) {
