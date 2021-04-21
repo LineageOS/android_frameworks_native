@@ -2754,6 +2754,7 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
             (currentState.orientedDisplaySpaceRect != drawingState.orientedDisplaySpaceRect)) {
             display->setProjection(currentState.orientation, currentState.layerStackSpaceRect,
                                    currentState.orientedDisplaySpaceRect);
+            mDefaultDisplayTransformHint = display->getTransformHint();
         }
         if (currentState.width != drawingState.width ||
             currentState.height != drawingState.height) {
@@ -3260,70 +3261,38 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client, const sp<IBind
                                         const sp<IBinder>& parentHandle,
                                         const sp<Layer>& parentLayer, bool addToCurrentState,
                                         uint32_t* outTransformHint) {
-    // add this layer to the current state list
-    {
-        Mutex::Autolock _l(mStateLock);
-        sp<Layer> parent;
-        if (parentHandle != nullptr) {
-            parent = fromHandleLocked(parentHandle).promote();
-            if (parent == nullptr) {
-                return NAME_NOT_FOUND;
-            }
-        } else {
-            parent = parentLayer;
-        }
-
-        if (mNumLayers >= ISurfaceComposer::MAX_LAYERS) {
-            ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
-                  ISurfaceComposer::MAX_LAYERS);
-            return NO_MEMORY;
-        }
-
-        mLayersByLocalBinderToken.emplace(handle->localBinder(), lbc);
-
-        if (parent == nullptr && addToCurrentState) {
-            mCurrentState.layersSortedByZ.add(lbc);
-        } else if (parent == nullptr) {
-            lbc->onRemovedFromCurrentState();
-        } else if (parent->isRemovedFromCurrentState()) {
-            parent->addChild(lbc);
-            lbc->onRemovedFromCurrentState();
-        } else {
-            parent->addChild(lbc);
-        }
-
-        if (gbc != nullptr) {
-            mGraphicBufferProducerList.insert(IInterface::asBinder(gbc).get());
-            LOG_ALWAYS_FATAL_IF(mGraphicBufferProducerList.size() >
-                                        mMaxGraphicBufferProducerListSize,
-                                "Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
-                                mGraphicBufferProducerList.size(),
-                                mMaxGraphicBufferProducerListSize, mNumLayers.load());
-            if (mGraphicBufferProducerList.size() > mGraphicBufferProducerListSizeLogThreshold) {
-                ALOGW("Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
-                      mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize,
-                      mNumLayers.load());
-            }
-        }
-
-        if (const auto token = getInternalDisplayTokenLocked()) {
-            const ssize_t index = mCurrentState.displays.indexOfKey(token);
-            if (index >= 0) {
-                const DisplayDeviceState& state = mCurrentState.displays.valueAt(index);
-                lbc->updateTransformHint(ui::Transform::toRotationFlags(state.orientation));
-            }
-        }
-        if (outTransformHint) {
-            *outTransformHint = lbc->getTransformHint();
-        }
-
-        mLayersAdded = true;
+    if (mNumLayers >= ISurfaceComposer::MAX_LAYERS) {
+        ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers.load(),
+              ISurfaceComposer::MAX_LAYERS);
+        return NO_MEMORY;
     }
 
+    wp<IBinder> initialProducer;
+    if (gbc != nullptr) {
+        initialProducer = IInterface::asBinder(gbc);
+    }
+    setLayerCreatedState(handle, lbc, parentHandle, parentLayer, initialProducer);
+
+    // Create a transaction includes the initial parent and producer.
+    Vector<ComposerState> states;
+    Vector<DisplayState> displays;
+
+    ComposerState composerState;
+    composerState.state.what = layer_state_t::eLayerCreated;
+    composerState.state.surface = handle;
+    states.add(composerState);
+
+    lbc->updateTransformHint(mDefaultDisplayTransformHint);
+    if (outTransformHint) {
+        *outTransformHint = mDefaultDisplayTransformHint;
+    }
     // attach this layer to the client
     client->attachLayer(handle, lbc);
 
-    return NO_ERROR;
+    return setTransactionState(FrameTimelineInfo{}, states, displays, 0 /* flags */, nullptr,
+                               InputWindowCommands{}, -1 /* desiredPresentTime */,
+                               true /* isAutoTimestamp */, {}, false /* hasListenerCallbacks */, {},
+                               0 /* Undefined transactionId */);
 }
 
 void SurfaceFlinger::removeGraphicBufferProducerAsync(const wp<IBinder>& binder) {
@@ -3802,9 +3771,21 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         listenerCallbacks.insert(listener);
     }
 
+    const uint64_t what = s.what;
+    uint32_t flags = 0;
     sp<Layer> layer = nullptr;
     if (s.surface) {
-        layer = fromHandleLocked(s.surface).promote();
+        if (what & layer_state_t::eLayerCreated) {
+            layer = handleLayerCreatedLocked(s.surface, privileged);
+            if (layer) {
+                // put the created layer into mLayersByLocalBinderToken.
+                mLayersByLocalBinderToken.emplace(s.surface->localBinder(), layer);
+                flags |= eTransactionNeeded | eTraversalNeeded;
+                mLayersAdded = true;
+            }
+        } else {
+            layer = fromHandleLocked(s.surface).promote();
+        }
     } else {
         // The client may provide us a null handle. Treat it as if the layer was removed.
         ALOGW("Attempt to set client state with a null layer handle");
@@ -3816,10 +3797,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
         return 0;
     }
-
-    uint32_t flags = 0;
-
-    const uint64_t what = s.what;
 
     // Only set by BLAST adapter layers
     if (what & layer_state_t::eProducerDisconnect) {
@@ -4274,14 +4251,7 @@ status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, std::s
                                                 sp<Layer>* outLayer) {
     LayerCreationArgs args(this, client, std::move(name), w, h, flags, std::move(metadata));
     args.textureName = getNewTexture();
-    sp<BufferStateLayer> layer;
-    {
-        // TODO (b/173538294): Investigate why we need mStateLock here and above in
-        // createBufferQueue layer. Is it the renderengine::Image?
-        Mutex::Autolock lock(mStateLock);
-        layer = getFactory().createBufferStateLayer(args);
-
-    }
+    sp<BufferStateLayer> layer = getFactory().createBufferStateLayer(args);
     *handle = layer->getHandle();
     *outLayer = layer;
 
@@ -4369,7 +4339,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     setPowerModeInternal(display, hal::PowerMode::ON);
     const nsecs_t vsyncPeriod = mRefreshRateConfigs->getCurrentRefreshRate().getVsyncPeriod();
     mAnimFrameTracker.setDisplayRefreshPeriod(vsyncPeriod);
-
+    mDefaultDisplayTransformHint = display->getTransformHint();
     // Use phase of 0 since phase is not known.
     // Use latency of 0, which will snap to the ideal latency.
     DisplayStatInfo stats{0 /* vsyncTime */, vsyncPeriod};
@@ -6632,6 +6602,87 @@ void SurfaceFlinger::TransactionState::traverseStatesWithBuffers(
     }
 }
 
+void SurfaceFlinger::setLayerCreatedState(const sp<IBinder>& handle, const wp<Layer>& layer,
+                                          const wp<IBinder>& parent, const wp<Layer> parentLayer,
+                                          const wp<IBinder>& producer) {
+    Mutex::Autolock lock(mCreatedLayersLock);
+    mCreatedLayers[handle->localBinder()] =
+            std::make_unique<LayerCreatedState>(layer, parent, parentLayer, producer);
+}
+
+auto SurfaceFlinger::getLayerCreatedState(const sp<IBinder>& handle) {
+    Mutex::Autolock lock(mCreatedLayersLock);
+    BBinder* b = nullptr;
+    if (handle) {
+        b = handle->localBinder();
+    }
+
+    if (b == nullptr) {
+        return std::unique_ptr<LayerCreatedState>(nullptr);
+    }
+
+    auto it = mCreatedLayers.find(b);
+    if (it == mCreatedLayers.end()) {
+        ALOGE("Can't find layer from handle %p", handle.get());
+        return std::unique_ptr<LayerCreatedState>(nullptr);
+    }
+
+    auto state = std::move(it->second);
+    mCreatedLayers.erase(it);
+    return state;
+}
+
+sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle, bool privileged) {
+    const auto& state = getLayerCreatedState(handle);
+    if (!state) {
+        return nullptr;
+    }
+
+    sp<Layer> layer = state->layer.promote();
+    if (!layer) {
+        ALOGE("Invalid layer %p", state->layer.unsafe_get());
+        return nullptr;
+    }
+
+    sp<Layer> parent;
+    bool allowAddRoot = privileged;
+    if (state->initialParent != nullptr) {
+        parent = fromHandleLocked(state->initialParent.promote()).promote();
+        if (parent == nullptr) {
+            ALOGE("Invalid parent %p", state->initialParent.unsafe_get());
+            allowAddRoot = false;
+        }
+    } else if (state->initialParentLayer != nullptr) {
+        parent = state->initialParentLayer.promote();
+        allowAddRoot = false;
+    }
+
+    if (parent == nullptr && allowAddRoot) {
+        mCurrentState.layersSortedByZ.add(layer);
+    } else if (parent == nullptr) {
+        layer->onRemovedFromCurrentState();
+    } else if (parent->isRemovedFromCurrentState()) {
+        parent->addChild(layer);
+        layer->onRemovedFromCurrentState();
+    } else {
+        parent->addChild(layer);
+    }
+
+    if (state->initialProducer != nullptr) {
+        mGraphicBufferProducerList.insert(state->initialProducer);
+        LOG_ALWAYS_FATAL_IF(mGraphicBufferProducerList.size() > mMaxGraphicBufferProducerListSize,
+                            "Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
+                            mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize,
+                            mNumLayers.load());
+        if (mGraphicBufferProducerList.size() > mGraphicBufferProducerListSizeLogThreshold) {
+            ALOGW("Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
+                  mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize,
+                  mNumLayers.load());
+        }
+    }
+
+    return layer;
+}
 } // namespace android
 
 #if defined(__gl_h_)
