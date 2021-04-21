@@ -336,7 +336,7 @@ public:
     struct CallbackInfo {
         // All the callbacks that have been requested for a TransactionCompletedListener in the
         // Transaction
-        std::unordered_set<CallbackId> callbackIds;
+        std::unordered_set<CallbackId, CallbackIdHash> callbackIds;
         // All the SurfaceControls that have been modified in this TransactionCompletedListener's
         // process that require a callback if there is one or more callbackIds set.
         std::unordered_set<sp<SurfaceControl>, SCHash> surfaceControls;
@@ -484,7 +484,13 @@ public:
         // Sets information about the priority of the frame.
         Transaction& setFrameRateSelectionPriority(const sp<SurfaceControl>& sc, int32_t priority);
 
+        Transaction& addTransactionCallback(TransactionCompletedCallbackTakesContext callback,
+                                            void* callbackContext, CallbackId::Type callbackType);
+
         Transaction& addTransactionCompletedCallback(
+                TransactionCompletedCallbackTakesContext callback, void* callbackContext);
+
+        Transaction& addTransactionCommittedCallback(
                 TransactionCompletedCallbackTakesContext callback, void* callbackContext);
 
         // ONLY FOR BLAST ADAPTER
@@ -619,14 +625,13 @@ public:
 class TransactionCompletedListener : public BnTransactionCompletedListener {
     TransactionCompletedListener();
 
-    CallbackId getNextIdLocked() REQUIRES(mMutex);
+    int64_t getNextIdLocked() REQUIRES(mMutex);
 
     std::mutex mMutex;
 
     bool mListening GUARDED_BY(mMutex) = false;
 
-    CallbackId mCallbackIdCounter GUARDED_BY(mMutex) = 1;
-
+    int64_t mCallbackIdCounter GUARDED_BY(mMutex) = 1;
     struct CallbackTranslation {
         TransactionCompletedCallback callbackFunction;
         std::unordered_map<sp<IBinder>, sp<SurfaceControl>, SurfaceComposerClient::IBinderHash>
@@ -644,7 +649,8 @@ class TransactionCompletedListener : public BnTransactionCompletedListener {
         SurfaceStatsCallback callback;
     };
 
-    std::unordered_map<CallbackId, CallbackTranslation> mCallbacks GUARDED_BY(mMutex);
+    std::unordered_map<CallbackId, CallbackTranslation, CallbackIdHash> mCallbacks
+            GUARDED_BY(mMutex);
     std::multimap<sp<IBinder>, sp<JankDataListener>> mJankListeners GUARDED_BY(mMutex);
     std::unordered_map<uint64_t /* graphicsBufferId */, ReleaseBufferCallback>
             mReleaseBufferCallbacks GUARDED_BY(mMutex);
@@ -660,10 +666,12 @@ public:
     CallbackId addCallbackFunction(
             const TransactionCompletedCallback& callbackFunction,
             const std::unordered_set<sp<SurfaceControl>, SurfaceComposerClient::SCHash>&
-                    surfaceControls);
+                    surfaceControls,
+            CallbackId::Type callbackType);
 
-    void addSurfaceControlToCallbacks(const sp<SurfaceControl>& surfaceControl,
-                                      const std::unordered_set<CallbackId>& callbackIds);
+    void addSurfaceControlToCallbacks(
+            const sp<SurfaceControl>& surfaceControl,
+            const std::unordered_set<CallbackId, CallbackIdHash>& callbackIds);
 
     /*
      * Adds a jank listener to be informed about SurfaceFlinger's jank classification for a specific

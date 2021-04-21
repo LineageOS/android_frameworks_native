@@ -139,7 +139,7 @@ JankDataListener::~JankDataListener() {
 // 0 is an invalid callback id
 TransactionCompletedListener::TransactionCompletedListener() : mCallbackIdCounter(1) {}
 
-CallbackId TransactionCompletedListener::getNextIdLocked() {
+int64_t TransactionCompletedListener::getNextIdLocked() {
     return mCallbackIdCounter++;
 }
 
@@ -163,13 +163,13 @@ void TransactionCompletedListener::startListeningLocked() {
 CallbackId TransactionCompletedListener::addCallbackFunction(
         const TransactionCompletedCallback& callbackFunction,
         const std::unordered_set<sp<SurfaceControl>, SurfaceComposerClient::SCHash>&
-                surfaceControls) {
+                surfaceControls,
+        CallbackId::Type callbackType) {
     std::lock_guard<std::mutex> lock(mMutex);
     startListeningLocked();
 
-    CallbackId callbackId = getNextIdLocked();
+    CallbackId callbackId(getNextIdLocked(), callbackType);
     mCallbacks[callbackId].callbackFunction = callbackFunction;
-
     auto& callbackSurfaceControls = mCallbacks[callbackId].surfaceControls;
 
     for (const auto& surfaceControl : surfaceControls) {
@@ -228,7 +228,7 @@ void TransactionCompletedListener::removeSurfaceStatsListener(void* context, voi
 
 void TransactionCompletedListener::addSurfaceControlToCallbacks(
         const sp<SurfaceControl>& surfaceControl,
-        const std::unordered_set<CallbackId>& callbackIds) {
+        const std::unordered_set<CallbackId, CallbackIdHash>& callbackIds) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     for (auto callbackId : callbackIds) {
@@ -240,7 +240,7 @@ void TransactionCompletedListener::addSurfaceControlToCallbacks(
 }
 
 void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
-    std::unordered_map<CallbackId, CallbackTranslation> callbacksMap;
+    std::unordered_map<CallbackId, CallbackTranslation, CallbackIdHash> callbacksMap;
     std::multimap<sp<IBinder>, sp<JankDataListener>> jankListenersMap;
     std::multimap<sp<IBinder>, SurfaceStatsCallbackEntry> surfaceListeners;
     {
@@ -267,7 +267,36 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
         }
     }
     for (const auto& transactionStats : listenerStats.transactionStats) {
+        // handle on commit callbacks
         for (auto callbackId : transactionStats.callbackIds) {
+            if (callbackId.type != CallbackId::Type::ON_COMMIT) {
+                continue;
+            }
+            auto& [callbackFunction, callbackSurfaceControls] = callbacksMap[callbackId];
+            if (!callbackFunction) {
+                ALOGE("cannot call null callback function, skipping");
+                continue;
+            }
+            std::vector<SurfaceControlStats> surfaceControlStats;
+            for (const auto& surfaceStats : transactionStats.surfaceStats) {
+                surfaceControlStats
+                        .emplace_back(callbacksMap[callbackId]
+                                              .surfaceControls[surfaceStats.surfaceControl],
+                                      transactionStats.latchTime, surfaceStats.acquireTime,
+                                      transactionStats.presentFence,
+                                      surfaceStats.previousReleaseFence, surfaceStats.transformHint,
+                                      surfaceStats.eventStats);
+            }
+
+            callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
+                             surfaceControlStats);
+        }
+
+        // handle on complete callbacks
+        for (auto callbackId : transactionStats.callbackIds) {
+            if (callbackId.type != CallbackId::Type::ON_COMPLETE) {
+                continue;
+            }
             auto& [callbackFunction, callbackSurfaceControls] = callbacksMap[callbackId];
             if (!callbackFunction) {
                 ALOGE("cannot call null callback function, skipping");
@@ -542,7 +571,9 @@ status_t SurfaceComposerClient::Transaction::readFromParcel(const Parcel* parcel
             return BAD_VALUE;
         }
         for (size_t j = 0; j < numCallbackIds; j++) {
-            listenerCallbacks[listener].callbackIds.insert(parcel->readInt64());
+            CallbackId id;
+            parcel->readParcelable(&id);
+            listenerCallbacks[listener].callbackIds.insert(id);
         }
         size_t numSurfaces = parcel->readUint32();
         if (numSurfaces > parcel->dataSize()) {
@@ -628,7 +659,7 @@ status_t SurfaceComposerClient::Transaction::writeToParcel(Parcel* parcel) const
         parcel->writeStrongBinder(ITransactionCompletedListener::asBinder(listener));
         parcel->writeUint32(static_cast<uint32_t>(callbackInfo.callbackIds.size()));
         for (auto callbackId : callbackInfo.callbackIds) {
-            parcel->writeInt64(callbackId);
+            parcel->writeParcelable(callbackId);
         }
         parcel->writeUint32(static_cast<uint32_t>(callbackInfo.surfaceControls.size()));
         for (auto surfaceControl : callbackInfo.surfaceControls) {
@@ -1389,9 +1420,9 @@ SurfaceComposerClient::Transaction::setFrameRateSelectionPriority(const sp<Surfa
     return *this;
 }
 
-SurfaceComposerClient::Transaction&
-SurfaceComposerClient::Transaction::addTransactionCompletedCallback(
-        TransactionCompletedCallbackTakesContext callback, void* callbackContext) {
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::addTransactionCallback(
+        TransactionCompletedCallbackTakesContext callback, void* callbackContext,
+        CallbackId::Type callbackType) {
     auto listener = TransactionCompletedListener::getInstance();
 
     auto callbackWithContext = std::bind(callback, callbackContext, std::placeholders::_1,
@@ -1399,11 +1430,24 @@ SurfaceComposerClient::Transaction::addTransactionCompletedCallback(
     const auto& surfaceControls =
             mListenerCallbacks[TransactionCompletedListener::getIInstance()].surfaceControls;
 
-    CallbackId callbackId = listener->addCallbackFunction(callbackWithContext, surfaceControls);
+    CallbackId callbackId =
+            listener->addCallbackFunction(callbackWithContext, surfaceControls, callbackType);
 
     mListenerCallbacks[TransactionCompletedListener::getIInstance()].callbackIds.emplace(
             callbackId);
     return *this;
+}
+
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::addTransactionCompletedCallback(
+        TransactionCompletedCallbackTakesContext callback, void* callbackContext) {
+    return addTransactionCallback(callback, callbackContext, CallbackId::Type::ON_COMPLETE);
+}
+
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::addTransactionCommittedCallback(
+        TransactionCompletedCallbackTakesContext callback, void* callbackContext) {
+    return addTransactionCallback(callback, callbackContext, CallbackId::Type::ON_COMMIT);
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::notifyProducerDisconnect(

@@ -99,7 +99,7 @@ public:
         SAFE_PARCEL(data.writeVectorSize, listenerCallbacks);
         for (const auto& [listener, callbackIds] : listenerCallbacks) {
             SAFE_PARCEL(data.writeStrongBinder, listener);
-            SAFE_PARCEL(data.writeInt64Vector, callbackIds);
+            SAFE_PARCEL(data.writeParcelableVector, callbackIds);
         }
 
         SAFE_PARCEL(data.writeUint64, transactionId);
@@ -1246,7 +1246,7 @@ status_t BnSurfaceComposer::onTransact(
             for (int32_t i = 0; i < listenersSize; i++) {
                 SAFE_PARCEL(data.readStrongBinder, &tmpBinder);
                 std::vector<CallbackId> callbackIds;
-                SAFE_PARCEL(data.readInt64Vector, &callbackIds);
+                SAFE_PARCEL(data.readParcelableVector, &callbackIds);
                 listenerCallbacks.emplace_back(tmpBinder, callbackIds);
             }
 
