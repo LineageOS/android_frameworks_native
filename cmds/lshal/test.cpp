@@ -47,8 +47,6 @@ using ::android::hardware::hidl_vec;
 using ::android::hardware::Void;
 using android::vintf::Arch;
 using android::vintf::CompatibilityMatrix;
-using android::vintf::gCompatibilityMatrixConverter;
-using android::vintf::gHalManifestConverter;
 using android::vintf::HalManifest;
 using android::vintf::Transport;
 using android::vintf::VintfObject;
@@ -510,7 +508,7 @@ TEST_F(ListTest, DumpVintf) {
 
     std::string error;
     vintf::HalManifest m;
-    EXPECT_EQ(true, vintf::gHalManifestConverter(&m, out.str(), &error))
+    EXPECT_EQ(true, vintf::fromXml(&m, out.str(), &error))
         << "--init-vintf does not emit valid HAL manifest: " << error;
 }
 
@@ -775,10 +773,10 @@ TEST_F(ListTest, Vintf) {
     auto deviceMatrix = std::make_shared<CompatibilityMatrix>();
     auto frameworkMatrix = std::make_shared<CompatibilityMatrix>();
 
-    ASSERT_TRUE(gHalManifestConverter(deviceManifest.get(), deviceManifestXml));
-    ASSERT_TRUE(gHalManifestConverter(frameworkManifest.get(), frameworkManifestXml));
-    ASSERT_TRUE(gCompatibilityMatrixConverter(deviceMatrix.get(), deviceMatrixXml));
-    ASSERT_TRUE(gCompatibilityMatrixConverter(frameworkMatrix.get(), frameworkMatrixXml));
+    ASSERT_TRUE(fromXml(deviceManifest.get(), deviceManifestXml));
+    ASSERT_TRUE(fromXml(frameworkManifest.get(), frameworkManifestXml));
+    ASSERT_TRUE(fromXml(deviceMatrix.get(), deviceMatrixXml));
+    ASSERT_TRUE(fromXml(frameworkMatrix.get(), frameworkMatrixXml));
 
     ON_CALL(*mockList, getDeviceManifest()).WillByDefault(Return(deviceManifest));
     ON_CALL(*mockList, getDeviceMatrix()).WillByDefault(Return(deviceMatrix));
@@ -964,7 +962,7 @@ public:
                 "    </hal>\n"
                 "</manifest>";
         auto manifest = std::make_shared<HalManifest>();
-        EXPECT_TRUE(gHalManifestConverter(manifest.get(), mockManifestXml));
+        EXPECT_TRUE(fromXml(manifest.get(), mockManifestXml));
         EXPECT_CALL(*mockList, getDeviceManifest())
             .Times(AnyNumber())
             .WillRepeatedly(Return(manifest));
