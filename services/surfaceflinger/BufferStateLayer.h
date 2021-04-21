@@ -140,7 +140,7 @@ private:
     sp<Layer> createClone() override;
 
     // Crop that applies to the buffer
-    Rect computeCrop(const State& s);
+    Rect computeBufferCrop(const State& s);
 
     bool willPresentCurrentTransaction() const;
 
