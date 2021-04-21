@@ -927,4 +927,11 @@ void Scheduler::setPreferredRefreshRateForUid(FrameRateOverride frameRateOverrid
     }
 }
 
+std::chrono::steady_clock::time_point Scheduler::getPreviousVsyncFrom(
+        nsecs_t expectedPresentTime) const {
+    const auto presentTime = std::chrono::nanoseconds(expectedPresentTime);
+    const auto vsyncPeriod = std::chrono::nanoseconds(mVsyncSchedule.tracker->currentPeriod());
+    return std::chrono::steady_clock::time_point(presentTime - vsyncPeriod);
+}
+
 } // namespace android

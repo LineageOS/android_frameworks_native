@@ -1972,6 +1972,8 @@ void SurfaceFlinger::onMessageRefresh() {
                 std::chrono::milliseconds(mDebugRegion > 1 ? mDebugRegion : 0);
     }
 
+    refreshArgs.earliestPresentTime = mScheduler->getPreviousVsyncFrom(mExpectedPresentTime);
+
     mGeometryInvalid = false;
 
     // Store the present time just before calling to the composition engine so we could notify
