@@ -58,22 +58,34 @@ static bool forEachManifest(const std::function<bool(const ManifestWithDescripti
     return false;
 }
 
-static bool isVintfDeclared(const std::string& name) {
-    size_t firstSlash = name.find('/');
-    size_t lastDot = name.rfind('.', firstSlash);
-    if (firstSlash == std::string::npos || lastDot == std::string::npos) {
-        LOG(ERROR) << "VINTF HALs require names in the format type/instance (e.g. "
-                   << "some.package.foo.IFoo/default) but got: " << name;
-        return false;
-    }
-    const std::string package = name.substr(0, lastDot);
-    const std::string iface = name.substr(lastDot+1, firstSlash-lastDot-1);
-    const std::string instance = name.substr(firstSlash+1);
+struct AidlName {
+    std::string package;
+    std::string iface;
+    std::string instance;
 
-    bool found = forEachManifest([&] (const ManifestWithDescription& mwd) {
-        if (mwd.manifest->hasAidlInstance(package, iface, instance)) {
+    static bool fill(const std::string& name, AidlName* aname) {
+        size_t firstSlash = name.find('/');
+        size_t lastDot = name.rfind('.', firstSlash);
+        if (firstSlash == std::string::npos || lastDot == std::string::npos) {
+            LOG(ERROR) << "VINTF HALs require names in the format type/instance (e.g. "
+                       << "some.package.foo.IFoo/default) but got: " << name;
+            return false;
+        }
+        aname->package = name.substr(0, lastDot);
+        aname->iface = name.substr(lastDot + 1, firstSlash - lastDot - 1);
+        aname->instance = name.substr(firstSlash + 1);
+        return true;
+    }
+};
+
+static bool isVintfDeclared(const std::string& name) {
+    AidlName aname;
+    if (!AidlName::fill(name, &aname)) return false;
+
+    bool found = forEachManifest([&](const ManifestWithDescription& mwd) {
+        if (mwd.manifest->hasAidlInstance(aname.package, aname.iface, aname.instance)) {
             LOG(INFO) << "Found " << name << " in " << mwd.description << " VINTF manifest.";
-            return true;
+            return true; // break
         }
         return false;  // continue
     });
@@ -81,11 +93,32 @@ static bool isVintfDeclared(const std::string& name) {
     if (!found) {
         // Although it is tested, explicitly rebuilding qualified name, in case it
         // becomes something unexpected.
-        LOG(ERROR) << "Could not find " << package << "." << iface << "/" << instance
-                   << " in the VINTF manifest.";
+        LOG(ERROR) << "Could not find " << aname.package << "." << aname.iface << "/"
+                   << aname.instance << " in the VINTF manifest.";
     }
 
     return found;
+}
+
+static std::optional<std::string> getVintfUpdatableApex(const std::string& name) {
+    AidlName aname;
+    if (!AidlName::fill(name, &aname)) return std::nullopt;
+
+    std::optional<std::string> updatableViaApex;
+
+    forEachManifest([&](const ManifestWithDescription& mwd) {
+        mwd.manifest->forEachInstance([&](const auto& manifestInstance) {
+            if (manifestInstance.format() != vintf::HalFormat::AIDL) return true;
+            if (manifestInstance.package() != aname.package) return true;
+            if (manifestInstance.interface() != aname.iface) return true;
+            if (manifestInstance.instance() != aname.instance) return true;
+            updatableViaApex = manifestInstance.updatableViaApex();
+            return false; // break (libvintf uses opposite convention)
+        });
+        return false; // continue
+    });
+
+    return updatableViaApex;
 }
 
 static std::vector<std::string> getVintfInstances(const std::string& interface) {
@@ -385,6 +418,22 @@ binder::Status ServiceManager::getDeclaredInstances(const std::string& interface
         return Status::fromExceptionCode(Status::EX_SECURITY);
     }
 
+    return Status::ok();
+}
+
+Status ServiceManager::updatableViaApex(const std::string& name,
+                                        std::optional<std::string>* outReturn) {
+    auto ctx = mAccess->getCallingContext();
+
+    if (!mAccess->canFind(ctx, name)) {
+        return Status::fromExceptionCode(Status::EX_SECURITY);
+    }
+
+    *outReturn = std::nullopt;
+
+#ifndef VENDORSERVICEMANAGER
+    *outReturn = getVintfUpdatableApex(name);
+#endif
     return Status::ok();
 }
 
