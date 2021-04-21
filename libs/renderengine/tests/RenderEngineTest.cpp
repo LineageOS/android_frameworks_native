@@ -1394,7 +1394,8 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_color
     fillBufferColorTransformZeroLayerAlpha<ColorSourceVariant>();
 }
 
-TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_colorSource) {
+// TODO(b/186010146): reenable once swiftshader is happy with this test
+TEST_P(RenderEngineTest, DISABLED_drawLayers_fillBufferAndBlurBackground_colorSource) {
     initializeRenderEngine();
     fillBufferAndBlurBackground<ColorSourceVariant>();
 }
@@ -1469,7 +1470,8 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_opaqu
     fillBufferColorTransformZeroLayerAlpha<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
-TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_opaqueBufferSource) {
+// TODO(b/186010146): reenable once swiftshader is happy with this test
+TEST_P(RenderEngineTest, DISABLED_drawLayers_fillBufferAndBlurBackground_opaqueBufferSource) {
     initializeRenderEngine();
     fillBufferAndBlurBackground<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
@@ -1544,7 +1546,8 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_buffe
     fillBufferColorTransformZeroLayerAlpha<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
-TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_bufferSource) {
+// TODO(b/186010146): reenable once swiftshader is happy with this test
+TEST_P(RenderEngineTest, DISABLED_drawLayers_fillBufferAndBlurBackground_bufferSource) {
     initializeRenderEngine();
     fillBufferAndBlurBackground<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
