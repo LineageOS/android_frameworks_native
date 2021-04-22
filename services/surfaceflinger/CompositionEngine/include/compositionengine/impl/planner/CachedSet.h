@@ -70,6 +70,7 @@ public:
     const sp<Fence>& getDrawFence() const { return mDrawFence; }
     const ProjectionSpace& getOutputSpace() const { return mOutputSpace; }
     ui::Dataspace getOutputDataspace() const { return mOutputDataspace; }
+    const std::vector<Layer>& getConstituentLayers() const { return mLayers; }
 
     NonBufferHash getNonBufferHash() const;
 
