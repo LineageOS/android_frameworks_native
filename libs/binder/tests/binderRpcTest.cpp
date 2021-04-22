@@ -80,11 +80,10 @@ public:
     sp<RpcConnection> connection;
 
     Status sendString(const std::string& str) override {
-        std::cout << "Child received string: " << str << std::endl;
+        (void)str;
         return Status::ok();
     }
     Status doubleString(const std::string& str, std::string* strstr) override {
-        std::cout << "Child received string to double: " << str << std::endl;
         *strstr = str + str;
         return Status::ok();
     }
@@ -257,6 +256,7 @@ enum class SocketType {
 #ifdef __BIONIC__
     VSOCK,
 #endif // __BIONIC__
+    INET,
 };
 static inline std::string PrintSocketType(const testing::TestParamInfo<SocketType>& info) {
     switch (info.param) {
@@ -266,6 +266,8 @@ static inline std::string PrintSocketType(const testing::TestParamInfo<SocketTyp
         case SocketType::VSOCK:
             return "vm_socket";
 #endif // __BIONIC__
+        case SocketType::INET:
+            return "inet_socket";
         default:
             LOG_ALWAYS_FATAL("Unknown socket type");
             return "";
@@ -305,6 +307,9 @@ public:
                             CHECK(connection->setupVsockServer(port));
                             break;
 #endif // __BIONIC__
+                        case SocketType::INET:
+                            CHECK(connection->setupInetServer(port));
+                            break;
                         default:
                             LOG_ALWAYS_FATAL("Unknown socket type");
                     }
@@ -335,6 +340,9 @@ public:
                         if (ret.connection->addVsockClient(VMADDR_CID_LOCAL, port)) goto success;
                         break;
 #endif // __BIONIC__
+                    case SocketType::INET:
+                        if (ret.connection->addInetClient("127.0.0.1", port)) goto success;
+                        break;
                     default:
                         LOG_ALWAYS_FATAL("Unknown socket type");
                 }
@@ -740,9 +748,31 @@ TEST_P(BinderRpc, ThreadingStressTest) {
         threads.push_back(std::thread([&] {
             for (size_t j = 0; j < kNumCalls; j++) {
                 sp<IBinder> out;
-                proc.rootIface->repeatBinder(proc.rootBinder, &out);
+                EXPECT_OK(proc.rootIface->repeatBinder(proc.rootBinder, &out));
                 EXPECT_EQ(proc.rootBinder, out);
             }
+        }));
+    }
+
+    for (auto& t : threads) t.join();
+}
+
+TEST_P(BinderRpc, OnewayStressTest) {
+    constexpr size_t kNumClientThreads = 10;
+    constexpr size_t kNumServerThreads = 10;
+    constexpr size_t kNumCalls = 100;
+
+    auto proc = createRpcTestSocketServerProcess(kNumServerThreads);
+
+    std::vector<std::thread> threads;
+    for (size_t i = 0; i < kNumClientThreads; i++) {
+        threads.push_back(std::thread([&] {
+            for (size_t j = 0; j < kNumCalls; j++) {
+                EXPECT_OK(proc.rootIface->sendString("a"));
+            }
+
+            // check threads are not stuck
+            EXPECT_OK(proc.rootIface->sleepMs(250));
         }));
     }
 
@@ -852,12 +882,13 @@ TEST_P(BinderRpc, Fds) {
 }
 
 INSTANTIATE_TEST_CASE_P(PerSocket, BinderRpc,
-                        ::testing::Values(SocketType::UNIX
+                        ::testing::ValuesIn({
+                                SocketType::UNIX,
 #ifdef __BIONIC__
-                                          ,
-                                          SocketType::VSOCK
+                                SocketType::VSOCK,
 #endif // __BIONIC__
-                                          ),
+                                SocketType::INET,
+                        }),
                         PrintSocketType);
 
 } // namespace android
