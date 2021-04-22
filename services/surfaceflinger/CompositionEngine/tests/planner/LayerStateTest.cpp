@@ -41,8 +41,6 @@ const Rect sRectOne = Rect(10, 20, 30, 40);
 const Rect sRectTwo = Rect(40, 30, 20, 10);
 const FloatRect sFloatRectOne = FloatRect(100.f, 200.f, 300.f, 400.f);
 const FloatRect sFloatRectTwo = FloatRect(400.f, 300.f, 200.f, 100.f);
-const constexpr int32_t sZOne = 100;
-const constexpr int32_t sZTwo = 101;
 const constexpr float sAlphaOne = 0.25f;
 const constexpr float sAlphaTwo = 0.5f;
 const Region sRegionOne = Region(sRectOne);
@@ -403,45 +401,6 @@ TEST_F(LayerStateTest, compareSourceCrop) {
     auto otherLayerState = std::make_unique<LayerState>(&newOutputLayer);
 
     verifyNonUniqueDifferingFields(*mLayerState, *otherLayerState, LayerStateField::SourceCrop);
-
-    EXPECT_TRUE(mLayerState->compare(*otherLayerState));
-    EXPECT_TRUE(otherLayerState->compare(*mLayerState));
-}
-
-TEST_F(LayerStateTest, updateZOrder) {
-    OutputLayerCompositionState outputLayerCompositionState;
-    outputLayerCompositionState.z = sZOne;
-    LayerFECompositionState layerFECompositionState;
-    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
-                       layerFECompositionState);
-    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
-
-    mock::OutputLayer newOutputLayer;
-    mock::LayerFE newLayerFE;
-    OutputLayerCompositionState outputLayerCompositionStateTwo;
-    outputLayerCompositionStateTwo.z = sZTwo;
-    setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionStateTwo,
-                       layerFECompositionState);
-    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
-    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::ZOrder), updates);
-}
-
-TEST_F(LayerStateTest, compareZOrder) {
-    OutputLayerCompositionState outputLayerCompositionState;
-    outputLayerCompositionState.z = sZOne;
-    LayerFECompositionState layerFECompositionState;
-    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
-                       layerFECompositionState);
-    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
-    mock::OutputLayer newOutputLayer;
-    mock::LayerFE newLayerFE;
-    OutputLayerCompositionState outputLayerCompositionStateTwo;
-    outputLayerCompositionStateTwo.z = sZTwo;
-    setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionStateTwo,
-                       layerFECompositionState);
-    auto otherLayerState = std::make_unique<LayerState>(&newOutputLayer);
-
-    verifyNonUniqueDifferingFields(*mLayerState, *otherLayerState, LayerStateField::ZOrder);
 
     EXPECT_TRUE(mLayerState->compare(*otherLayerState));
     EXPECT_TRUE(otherLayerState->compare(*mLayerState));

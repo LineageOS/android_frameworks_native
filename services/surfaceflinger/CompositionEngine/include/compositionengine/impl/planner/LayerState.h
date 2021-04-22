@@ -53,20 +53,19 @@ enum class LayerStateField : uint32_t {
     Name            = 1u << 1,
     DisplayFrame    = 1u << 2,
     SourceCrop      = 1u << 3,
-    ZOrder          = 1u << 4,
-    BufferTransform = 1u << 5,
-    BlendMode       = 1u << 6,
-    Alpha           = 1u << 7,
-    LayerMetadata   = 1u << 8,
-    VisibleRegion   = 1u << 9,
-    Dataspace       = 1u << 10,
-    PixelFormat     = 1u << 11,
-    ColorTransform  = 1u << 12,
-    SurfaceDamage   = 1u << 13,
-    CompositionType = 1u << 14,
-    SidebandStream  = 1u << 15,
-    Buffer          = 1u << 16,
-    SolidColor      = 1u << 17,
+    BufferTransform = 1u << 4,
+    BlendMode       = 1u << 5,
+    Alpha           = 1u << 6,
+    LayerMetadata   = 1u << 7,
+    VisibleRegion   = 1u << 8,
+    Dataspace       = 1u << 9,
+    PixelFormat     = 1u << 10,
+    ColorTransform  = 1u << 11,
+    SurfaceDamage   = 1u << 12,
+    CompositionType = 1u << 13,
+    SidebandStream  = 1u << 14,
+    Buffer          = 1u << 15,
+    SolidColor      = 1u << 16,
 };
 // clang-format on
 
@@ -271,9 +270,6 @@ private:
                                                        rect.top, rect.right, rect.bottom)};
                         }};
 
-    OutputLayerState<uint32_t, LayerStateField::ZOrder> mZOrder{
-            [](auto layer) { return layer->getState().z; }};
-
     using BufferTransformState = OutputLayerState<hardware::graphics::composer::hal::Transform,
                                                   LayerStateField::BufferTransform>;
     BufferTransformState mBufferTransform{[](auto layer) {
@@ -402,7 +398,7 @@ private:
                             return std::vector<std::string>{stream.str()};
                         }};
 
-    static const constexpr size_t kNumNonUniqueFields = 15;
+    static const constexpr size_t kNumNonUniqueFields = 14;
 
     std::array<StateInterface*, kNumNonUniqueFields> getNonUniqueFields() {
         std::array<const StateInterface*, kNumNonUniqueFields> constFields =
@@ -417,10 +413,10 @@ private:
 
     std::array<const StateInterface*, kNumNonUniqueFields> getNonUniqueFields() const {
         return {
-                &mDisplayFrame,    &mSourceCrop,     &mZOrder,         &mBufferTransform,
-                &mBlendMode,       &mAlpha,          &mLayerMetadata,  &mVisibleRegion,
-                &mOutputDataspace, &mPixelFormat,    &mColorTransform, &mCompositionType,
-                &mSidebandStream,  &mBuffer,         &mSolidColor,
+                &mDisplayFrame, &mSourceCrop,     &mBufferTransform, &mBlendMode,
+                &mAlpha,        &mLayerMetadata,  &mVisibleRegion,   &mOutputDataspace,
+                &mPixelFormat,  &mColorTransform, &mCompositionType, &mSidebandStream,
+                &mBuffer,       &mSolidColor,
         };
     }
 };

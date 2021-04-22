@@ -46,6 +46,10 @@ class Layer;
 
 class HWComposer;
 
+namespace compositionengine {
+class OutputLayer;
+} // namespace compositionengine
+
 namespace compositionengine::impl {
 
 // Note that fields that affect HW composer state may need to be mirrored into
@@ -84,9 +88,6 @@ struct OutputLayerCompositionState {
     // The dataspace for this layer
     ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
 
-    // The Z order index of this layer on this output
-    uint32_t z{0};
-
     // Overrides the buffer, acquire fence, and display frame stored in LayerFECompositionState
     struct {
         std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;
@@ -96,6 +97,12 @@ struct OutputLayerCompositionState {
         ProjectionSpace displaySpace;
         Region damageRegion = Region::INVALID_REGION;
         Region visibleRegion;
+
+        // The OutputLayer pointed to by this field will be rearranged to draw
+        // behind the OutputLayer represented by this CompositionState and will
+        // be visible through it. Unowned - the OutputLayer's lifetime will
+        // outlast this.)
+        OutputLayer* peekThroughLayer = nullptr;
     } overrideInfo;
 
     /*
