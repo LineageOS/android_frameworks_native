@@ -149,6 +149,8 @@ public:
     bool isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const
             EXCLUDES(mFrameRateOverridesMutex);
 
+    std::chrono::steady_clock::time_point getPreviousVsyncFrom(nsecs_t expectedPresentTime) const;
+
     void dump(std::string&) const;
     void dump(ConnectionHandle, std::string&) const;
     void dumpVsync(std::string&) const;

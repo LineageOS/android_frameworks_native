@@ -790,7 +790,7 @@ void BufferStateLayer::gatherBufferInfo() {
     mBufferInfo.mFence = s.acquireFence;
     mBufferInfo.mTransform = s.bufferTransform;
     mBufferInfo.mDataspace = translateDataspace(s.dataspace);
-    mBufferInfo.mCrop = computeCrop(s);
+    mBufferInfo.mCrop = computeBufferCrop(s);
     mBufferInfo.mScaleMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
     mBufferInfo.mSurfaceDamage = s.surfaceDamageRegion;
     mBufferInfo.mHdrMetadata = s.hdrMetadata;
@@ -803,27 +803,11 @@ uint32_t BufferStateLayer::getEffectiveScalingMode() const {
    return NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
 }
 
-Rect BufferStateLayer::computeCrop(const State& s) {
-    if (s.crop.isEmpty() && s.buffer) {
+Rect BufferStateLayer::computeBufferCrop(const State& s) {
+    if (s.buffer) {
         return s.buffer->getBuffer()->getBounds();
-    } else if (s.buffer) {
-        Rect crop = s.crop;
-        crop.left = std::max(crop.left, 0);
-        crop.top = std::max(crop.top, 0);
-        uint32_t bufferWidth = s.buffer->getBuffer()->getWidth();
-        uint32_t bufferHeight = s.buffer->getBuffer()->getHeight();
-        if (bufferHeight <= std::numeric_limits<int32_t>::max() &&
-            bufferWidth <= std::numeric_limits<int32_t>::max()) {
-            crop.right = std::min(crop.right, static_cast<int32_t>(bufferWidth));
-            crop.bottom = std::min(crop.bottom, static_cast<int32_t>(bufferHeight));
-        }
-        if (!crop.isValid()) {
-            // Crop rect is out of bounds, return whole buffer
-            return s.buffer->getBuffer()->getBounds();
-        }
-        return crop;
     }
-    return s.crop;
+    return Rect::INVALID_RECT;
 }
 
 sp<Layer> BufferStateLayer::createClone() {
