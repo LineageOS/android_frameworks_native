@@ -36,13 +36,17 @@ namespace android {
 //         <0 if the first id that doesn't match is lower in c2 or all ids match but c2 is shorter
 //         >0 if the first id that doesn't match is greater in c2 or all ids match but c2 is longer
 //
-// See CallbackIdsHash for a explaniation of why this works
+// See CallbackIdsHash for a explanation of why this works
 static int compareCallbackIds(const std::vector<CallbackId>& c1,
                               const std::vector<CallbackId>& c2) {
     if (c1.empty()) {
         return !c2.empty();
     }
-    return c1.front() - c2.front();
+    return c1.front().id - c2.front().id;
+}
+
+static bool containsOnCommitCallbacks(const std::vector<CallbackId>& callbacks) {
+    return !callbacks.empty() && callbacks.front().type == CallbackId::Type::ON_COMMIT;
 }
 
 TransactionCallbackInvoker::~TransactionCallbackInvoker() {
@@ -114,39 +118,69 @@ status_t TransactionCallbackInvoker::registerPendingCallbackHandle(
     return NO_ERROR;
 }
 
+status_t TransactionCallbackInvoker::finalizeCallbackHandle(const sp<CallbackHandle>& handle,
+                                                            const std::vector<JankData>& jankData) {
+    auto listener = mPendingTransactions.find(handle->listener);
+    if (listener != mPendingTransactions.end()) {
+        auto& pendingCallbacks = listener->second;
+        auto pendingCallback = pendingCallbacks.find(handle->callbackIds);
+
+        if (pendingCallback != pendingCallbacks.end()) {
+            auto& pendingCount = pendingCallback->second;
+
+            // Decrease the pending count for this listener
+            if (--pendingCount == 0) {
+                pendingCallbacks.erase(pendingCallback);
+            }
+        } else {
+            ALOGW("there are more latched callbacks than there were registered callbacks");
+        }
+        if (listener->second.size() == 0) {
+            mPendingTransactions.erase(listener);
+        }
+    } else {
+        ALOGW("cannot find listener in mPendingTransactions");
+    }
+
+    status_t err = addCallbackHandle(handle, jankData);
+    if (err != NO_ERROR) {
+        ALOGE("could not add callback handle");
+        return err;
+    }
+    return NO_ERROR;
+}
+
+status_t TransactionCallbackInvoker::finalizeOnCommitCallbackHandles(
+        const std::deque<sp<CallbackHandle>>& handles,
+        std::deque<sp<CallbackHandle>>& outRemainingHandles) {
+    if (handles.empty()) {
+        return NO_ERROR;
+    }
+    std::lock_guard lock(mMutex);
+    const std::vector<JankData>& jankData = std::vector<JankData>();
+    for (const auto& handle : handles) {
+        if (!containsOnCommitCallbacks(handle->callbackIds)) {
+            outRemainingHandles.push_back(handle);
+            continue;
+        }
+        status_t err = finalizeCallbackHandle(handle, jankData);
+        if (err != NO_ERROR) {
+            return err;
+        }
+    }
+
+    return NO_ERROR;
+}
+
 status_t TransactionCallbackInvoker::finalizePendingCallbackHandles(
         const std::deque<sp<CallbackHandle>>& handles, const std::vector<JankData>& jankData) {
     if (handles.empty()) {
         return NO_ERROR;
     }
     std::lock_guard lock(mMutex);
-
     for (const auto& handle : handles) {
-        auto listener = mPendingTransactions.find(handle->listener);
-        if (listener != mPendingTransactions.end()) {
-            auto& pendingCallbacks = listener->second;
-            auto pendingCallback = pendingCallbacks.find(handle->callbackIds);
-
-            if (pendingCallback != pendingCallbacks.end()) {
-                auto& pendingCount = pendingCallback->second;
-
-                // Decrease the pending count for this listener
-                if (--pendingCount == 0) {
-                    pendingCallbacks.erase(pendingCallback);
-                }
-            } else {
-                ALOGW("there are more latched callbacks than there were registered callbacks");
-            }
-            if (listener->second.size() == 0) {
-                mPendingTransactions.erase(listener);
-            }
-        } else {
-            ALOGW("cannot find listener in mPendingTransactions");
-        }
-
-        status_t err = addCallbackHandle(handle, jankData);
+        status_t err = finalizeCallbackHandle(handle, jankData);
         if (err != NO_ERROR) {
-            ALOGE("could not add callback handle");
             return err;
         }
     }
@@ -243,7 +277,8 @@ void TransactionCallbackInvoker::sendCallbacks() {
             }
 
             // If the transaction has been latched
-            if (transactionStats.latchTime >= 0) {
+            if (transactionStats.latchTime >= 0 &&
+                !containsOnCommitCallbacks(transactionStats.callbackIds)) {
                 if (!mPresentFence) {
                     break;
                 }
