@@ -22,6 +22,8 @@
 
 #include <utils/threads.h>
 
+#include <unordered_map>
+
 // ---------------------------------------------------------------------------
 namespace android {
 
@@ -35,6 +37,7 @@ public:
 
     SensorPrivacyManager();
 
+    bool supportsSensorToggle(int sensor);
     void addSensorPrivacyListener(const sp<hardware::ISensorPrivacyListener>& listener);
     status_t addIndividualSensorPrivacyListener(int userId, int sensor,
             const sp<hardware::ISensorPrivacyListener>& listener);
@@ -50,6 +53,8 @@ private:
     Mutex mLock;
     sp<hardware::ISensorPrivacyManager> mService;
     sp<hardware::ISensorPrivacyManager> getService();
+
+    std::unordered_map<int, bool> mSupportedCache;
 };
 
 
