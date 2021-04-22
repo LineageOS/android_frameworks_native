@@ -40,13 +40,21 @@ void calculateTimeoutTime(std::chrono::nanoseconds timestamp, timespec* spec) {
 namespace android {
 namespace scheduler {
 
+std::chrono::steady_clock::time_point OneShotTimer::Clock::now() const {
+    return std::chrono::steady_clock::now();
+}
+
 OneShotTimer::OneShotTimer(std::string name, const Interval& interval,
                            const ResetCallback& resetCallback,
-                           const TimeoutCallback& timeoutCallback)
-      : mName(std::move(name)),
+                           const TimeoutCallback& timeoutCallback,
+                           std::unique_ptr<OneShotTimer::Clock> clock)
+      : mClock(std::move(clock)),
+        mName(std::move(name)),
         mInterval(interval),
         mResetCallback(resetCallback),
-        mTimeoutCallback(timeoutCallback) {}
+        mTimeoutCallback(timeoutCallback) {
+    LOG_ALWAYS_FATAL_IF(!mClock, "Clock must not be provided");
+}
 
 OneShotTimer::~OneShotTimer() {
     stop();
@@ -112,7 +120,7 @@ void OneShotTimer::loop() {
             break;
         }
 
-        auto triggerTime = std::chrono::steady_clock::now() + mInterval;
+        auto triggerTime = mClock->now() + mInterval;
         state = TimerState::WAITING;
         while (state == TimerState::WAITING) {
             constexpr auto zero = std::chrono::steady_clock::duration::zero();
@@ -128,10 +136,9 @@ void OneShotTimer::loop() {
 
             state = checkForResetAndStop(state);
             if (state == TimerState::RESET) {
-                triggerTime = std::chrono::steady_clock::now() + mInterval;
+                triggerTime = mClock->now() + mInterval;
                 state = TimerState::WAITING;
-            } else if (state == TimerState::WAITING &&
-                       (triggerTime - std::chrono::steady_clock::now()) <= zero) {
+            } else if (state == TimerState::WAITING && (triggerTime - mClock->now()) <= zero) {
                 triggerTimeout = true;
                 state = TimerState::IDLE;
             }
