@@ -2034,6 +2034,9 @@ bool SurfaceFlinger::handleMessageInvalidate() {
     ATRACE_CALL();
     bool refreshNeeded = handlePageFlip();
 
+    // Send on commit callbacks
+    mTransactionCallbackInvoker.sendCallbacks();
+
     if (mVisibleRegionsDirty) {
         computeLayerBounds();
     }
@@ -3763,14 +3766,30 @@ bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermis
 uint32_t SurfaceFlinger::setClientStateLocked(
         const FrameTimelineInfo& frameTimelineInfo, const ComposerState& composerState,
         int64_t desiredPresentTime, bool isAutoTimestamp, int64_t postTime, uint32_t permissions,
-        std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& listenerCallbacks) {
+        std::unordered_set<ListenerCallbacks, ListenerCallbacksHash>& outListenerCallbacks) {
     const layer_state_t& s = composerState.state;
     const bool privileged = permissions & Permission::ACCESS_SURFACE_FLINGER;
+
+    std::vector<ListenerCallbacks> filteredListeners;
     for (auto& listener : s.listeners) {
+        // Starts a registration but separates the callback ids according to callback type. This
+        // allows the callback invoker to send on latch callbacks earlier.
         // note that startRegistration will not re-register if the listener has
         // already be registered for a prior surface control
-        mTransactionCallbackInvoker.startRegistration(listener);
-        listenerCallbacks.insert(listener);
+
+        ListenerCallbacks onCommitCallbacks = listener.filter(CallbackId::Type::ON_COMMIT);
+        if (!onCommitCallbacks.callbackIds.empty()) {
+            mTransactionCallbackInvoker.startRegistration(onCommitCallbacks);
+            filteredListeners.push_back(onCommitCallbacks);
+            outListenerCallbacks.insert(onCommitCallbacks);
+        }
+
+        ListenerCallbacks onCompleteCallbacks = listener.filter(CallbackId::Type::ON_COMPLETE);
+        if (!onCompleteCallbacks.callbackIds.empty()) {
+            mTransactionCallbackInvoker.startRegistration(onCompleteCallbacks);
+            filteredListeners.push_back(onCompleteCallbacks);
+            outListenerCallbacks.insert(onCompleteCallbacks);
+        }
     }
 
     const uint64_t what = s.what;
@@ -4031,8 +4050,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
     }
     std::vector<sp<CallbackHandle>> callbackHandles;
-    if ((what & layer_state_t::eHasListenerCallbacksChanged) && (!s.listeners.empty())) {
-        for (auto& [listener, callbackIds] : s.listeners) {
+    if ((what & layer_state_t::eHasListenerCallbacksChanged) && (!filteredListeners.empty())) {
+        for (auto& [listener, callbackIds] : filteredListeners) {
             callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
         }
     }
