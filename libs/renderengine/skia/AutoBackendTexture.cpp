@@ -29,7 +29,8 @@ namespace renderengine {
 namespace skia {
 
 AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer,
-                                       bool isRender) {
+                                       bool isOutputBuffer)
+      : mIsOutputBuffer(isOutputBuffer) {
     ATRACE_CALL();
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
@@ -40,8 +41,12 @@ AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer
             GrAHardwareBufferUtils::MakeBackendTexture(context, buffer, desc.width, desc.height,
                                                        &mDeleteProc, &mUpdateProc, &mImageCtx,
                                                        createProtectedImage, backendFormat,
-                                                       isRender);
+                                                       isOutputBuffer);
     mColorType = GrAHardwareBufferUtils::GetSkColorTypeFromBufferFormat(desc.format);
+    ALOGE_IF(!mBackendTexture.isValid(),
+             "Failed to create a valid texture. [%p]:[%d,%d] isProtected:%d isWriteable:%d "
+             "format:%d",
+             this, desc.width, desc.height, isOutputBuffer, createProtectedImage, desc.format);
 }
 
 void AutoBackendTexture::unref(bool releaseLocalResources) {
@@ -92,13 +97,16 @@ sk_sp<SkImage> AutoBackendTexture::makeImage(ui::Dataspace dataspace, SkAlphaTyp
 
     mImage = image;
     mDataspace = dataspace;
-    LOG_ALWAYS_FATAL_IF(mImage == nullptr, "Unable to generate SkImage from buffer");
+    LOG_ALWAYS_FATAL_IF(mImage == nullptr,
+                        "Unable to generate SkImage. isTextureValid:%d dataspace:%d",
+                        mBackendTexture.isValid(), dataspace);
     return mImage;
 }
 
 sk_sp<SkSurface> AutoBackendTexture::getOrCreateSurface(ui::Dataspace dataspace,
                                                         GrDirectContext* context) {
     ATRACE_CALL();
+    LOG_ALWAYS_FATAL_IF(!mIsOutputBuffer, "You can't generate a SkSurface for a read-only texture");
     if (!mSurface.get() || mDataspace != dataspace) {
         sk_sp<SkSurface> surface =
                 SkSurface::MakeFromBackendTexture(context, mBackendTexture,
@@ -113,7 +121,9 @@ sk_sp<SkSurface> AutoBackendTexture::getOrCreateSurface(ui::Dataspace dataspace,
     }
 
     mDataspace = dataspace;
-    LOG_ALWAYS_FATAL_IF(mSurface == nullptr, "Unable to generate SkSurface");
+    LOG_ALWAYS_FATAL_IF(mSurface == nullptr,
+                        "Unable to generate SkSurface. isTextureValid:%d dataspace:%d",
+                        mBackendTexture.isValid(), dataspace);
     return mSurface;
 }
 

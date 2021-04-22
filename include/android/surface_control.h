@@ -329,38 +329,52 @@ void ASurfaceTransaction_setGeometry(ASurfaceTransaction* transaction,
                                      __INTRODUCED_IN(29);
 
 /**
- * \param source The sub-rect within the buffer's content to be rendered inside the surface's area
- * The surface's source rect is clipped by the bounds of its current buffer. The source rect's width
- * and height must be > 0.
+ * Bounds the surface and its children to the bounds specified. The crop and buffer size will be
+ * used to determine the bounds of the surface. If no crop is specified and the surface has no
+ * buffer, the surface bounds is only constrained by the size of its parent bounds.
+ *
+ * \param crop The bounds of the crop to apply.
  *
  * Available since API level 31.
  */
-void ASurfaceTransaction_setSourceRect(ASurfaceTransaction* transaction,
-                                       ASurfaceControl* surface_control, const ARect& source)
+void ASurfaceTransaction_setCrop(ASurfaceTransaction* transaction,
+                                       ASurfaceControl* surface_control, const ARect& crop)
                                        __INTRODUCED_IN(31);
 
 /**
- * \param destination Specifies the rect in the parent's space where this surface will be drawn. The
- * post source rect bounds are scaled to fit the destination rect. The surface's destination rect is
- * clipped by the bounds of its parent. The destination rect's width and height must be > 0.
+ * Specifies the position in the parent's space where the surface will be drawn.
+ *
+ * \param x The x position to render the surface.
+ * \param y The y position to render the surface.
  *
  * Available since API level 31.
  */
 void ASurfaceTransaction_setPosition(ASurfaceTransaction* transaction,
-                                     ASurfaceControl* surface_control, const ARect& destination)
+                                     ASurfaceControl* surface_control, int32_t x, int32_t y)
                                      __INTRODUCED_IN(31);
 
 /**
  * \param transform The transform applied after the source rect is applied to the buffer. This
- * parameter should be set to 0 for no transform. To specify a transfrom use the
+ * parameter should be set to 0 for no transform. To specify a transform use the
  * NATIVE_WINDOW_TRANSFORM_* enum.
  *
  * Available since API level 31.
  */
-void ASurfaceTransaction_setTransform(ASurfaceTransaction* transaction,
+void ASurfaceTransaction_setBufferTransform(ASurfaceTransaction* transaction,
                                       ASurfaceControl* surface_control, int32_t transform)
                                       __INTRODUCED_IN(31);
 
+/**
+ * Sets an x and y scale of a surface with (0, 0) as the centerpoint of the scale.
+ *
+ * \param xScale The scale in the x direction. Must be greater than 0.
+ * \param yScale The scale in the y direction. Must be greater than 0.
+ *
+ * Available since API level 31.
+ */
+void ASurfaceTransaction_setScale(ASurfaceTransaction* transaction,
+                                      ASurfaceControl* surface_control, float xScale, float yScale)
+                                      __INTRODUCED_IN(31);
 /**
  * Parameter for ASurfaceTransaction_setBufferTransparency().
  */

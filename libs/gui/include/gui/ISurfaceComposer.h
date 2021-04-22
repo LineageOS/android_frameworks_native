@@ -275,6 +275,12 @@ public:
     virtual status_t overrideHdrTypes(const sp<IBinder>& display,
                                       const std::vector<ui::Hdr>& hdrTypes) = 0;
 
+    /* Pulls surfaceflinger atoms global stats and layer stats to pipe to statsd.
+     *
+     * Requires the calling uid be from system server.
+     */
+    virtual status_t onPullAtom(const int32_t atomId, std::string* outData, bool* success) = 0;
+
     virtual status_t enableVSyncInjections(bool enable) = 0;
 
     virtual status_t injectVSync(nsecs_t when) = 0;
@@ -600,6 +606,7 @@ public:
         OVERRIDE_HDR_TYPES,
         ADD_HDR_LAYER_INFO_LISTENER,
         REMOVE_HDR_LAYER_INFO_LISTENER,
+        ON_PULL_ATOM,
         // Always append new enum to the end.
     };
 

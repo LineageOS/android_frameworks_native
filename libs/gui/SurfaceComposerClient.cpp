@@ -1949,6 +1949,11 @@ status_t SurfaceComposerClient::overrideHdrTypes(const sp<IBinder>& display,
     return ComposerService::getComposerService()->overrideHdrTypes(display, hdrTypes);
 }
 
+status_t SurfaceComposerClient::onPullAtom(const int32_t atomId, std::string* outData,
+                                           bool* success) {
+    return ComposerService::getComposerService()->onPullAtom(atomId, outData, success);
+}
+
 status_t SurfaceComposerClient::getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
                                                                       ui::PixelFormat* outFormat,
                                                                       ui::Dataspace* outDataspace,
