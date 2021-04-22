@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -42,7 +43,8 @@ public:
 
     void updateCompositionState(bool includeGeometry, bool forceClientComposition,
                                 ui::Transform::RotationFlags) override;
-    void writeStateToHWC(bool includeGeometry, bool skipLayer) override;
+    void writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t z, bool zIsOverridden,
+                         bool isPeekingThrough) override;
     void writeCursorPositionToHWC() const override;
 
     HWC2::Layer* getHwcLayer() const override;
@@ -66,7 +68,8 @@ protected:
 
 private:
     Rect calculateInitialCrop() const;
-    void writeOutputDependentGeometryStateToHWC(HWC2::Layer*, Hwc2::IComposerClient::Composition);
+    void writeOutputDependentGeometryStateToHWC(HWC2::Layer*, Hwc2::IComposerClient::Composition,
+                                                uint32_t z);
     void writeOutputIndependentGeometryStateToHWC(HWC2::Layer*, const LayerFECompositionState&,
                                                   bool skipLayer);
     void writeOutputDependentPerFrameStateToHWC(HWC2::Layer*);
@@ -74,7 +77,8 @@ private:
     void writeSolidColorStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
     void writeSidebandStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
     void writeBufferStateToHWC(HWC2::Layer*, const LayerFECompositionState&);
-    void writeCompositionTypeToHWC(HWC2::Layer*, Hwc2::IComposerClient::Composition);
+    void writeCompositionTypeToHWC(HWC2::Layer*, Hwc2::IComposerClient::Composition,
+                                   bool isPeekingThrough);
     void detectDisallowedCompositionTypeChange(Hwc2::IComposerClient::Composition from,
                                                Hwc2::IComposerClient::Composition to) const;
 };
