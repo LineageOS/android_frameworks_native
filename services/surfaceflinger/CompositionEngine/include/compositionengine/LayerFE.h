@@ -138,6 +138,9 @@ public:
 
     // Gets the sequence number: a serial number that uniquely identifies a Layer
     virtual int32_t getSequence() const = 0;
+
+    // Whether the layer should be rendered with rounded corners.
+    virtual bool hasRoundedCorners() const = 0;
 };
 
 // TODO(b/121291683): Specialize std::hash<> for sp<T> so these and others can

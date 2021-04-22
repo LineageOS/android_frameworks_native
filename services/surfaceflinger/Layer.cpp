@@ -531,7 +531,9 @@ void Layer::preparePerFrameCompositionState() {
             isOpaque(drawingState) && !usesRoundedCorners && getAlpha() == 1.0_hf;
 
     // Force client composition for special cases known only to the front-end.
-    if (isHdrY410() || usesRoundedCorners || drawShadows() || drawingState.blurRegions.size() > 0 ||
+    // Rounded corners no longer force client composition, since we may use a
+    // hole punch so that the layer will appear to have rounded corners.
+    if (isHdrY410() || drawShadows() || drawingState.blurRegions.size() > 0 ||
         compositionState->stretchEffect.hasEffect()) {
         compositionState->forceClientComposition = true;
     }
