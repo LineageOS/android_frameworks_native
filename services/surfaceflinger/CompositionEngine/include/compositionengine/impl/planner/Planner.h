@@ -41,7 +41,7 @@ namespace compositionengine::impl::planner {
 // as a more efficient representation of parts of the layer stack.
 class Planner {
 public:
-    Planner() : mFlattener(mPredictor) {}
+    Planner();
 
     void setDisplaySize(ui::Size);
 

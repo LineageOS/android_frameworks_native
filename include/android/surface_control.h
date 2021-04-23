@@ -147,6 +147,28 @@ typedef struct ASurfaceTransactionStats ASurfaceTransactionStats;
 typedef void (*ASurfaceTransaction_OnComplete)(void* context, ASurfaceTransactionStats* stats)
                                                __INTRODUCED_IN(29);
 
+
+/**
+ * The ASurfaceTransaction_OnCommit callback is invoked when transaction is applied and the updates
+ * are ready to be presented. This callback will be invoked before the
+ * ASurfaceTransaction_OnComplete callback.
+ *
+ * \param context Optional context provided by the client that is passed into the callback.
+ *
+ * \param stats Opaque handle that can be passed to ASurfaceTransactionStats functions to query
+ * information about the transaction. The handle is only valid during the callback.
+ * Present and release fences are not available for this callback. Querying them using
+ * ASurfaceTransactionStats_getPresentFenceFd and ASurfaceTransactionStats_getPreviousReleaseFenceFd
+ * will result in failure.
+ *
+ * THREADING
+ * The transaction committed callback can be invoked on any thread.
+ *
+ * Available since API level 31.
+ */
+typedef void (*ASurfaceTransaction_OnCommit)(void* context, ASurfaceTransactionStats* stats)
+                                               __INTRODUCED_IN(31);
+
 /**
  * Returns the timestamp of when the frame was latched by the framework. Once a frame is
  * latched by the framework, it is presented at the following hardware vsync.
@@ -160,6 +182,8 @@ int64_t ASurfaceTransactionStats_getLatchTime(ASurfaceTransactionStats* surface_
  * Returns a sync fence that signals when the transaction has been presented.
  * The recipient of the callback takes ownership of the fence and is responsible for closing
  * it. If a device does not support present fences, a -1 will be returned.
+ *
+ * This query is not valid for ASurfaceTransaction_OnCommit callback.
  *
  * Available since API level 29.
  */
@@ -218,6 +242,8 @@ int64_t ASurfaceTransactionStats_getAcquireTime(ASurfaceTransactionStats* surfac
  * The client must ensure that all pending refs on a buffer are released before attempting to reuse
  * this buffer, otherwise synchronization errors may occur.
  *
+ * This query is not valid for ASurfaceTransaction_OnCommit callback.
+ *
  * Available since API level 29.
  */
 int ASurfaceTransactionStats_getPreviousReleaseFenceFd(
@@ -234,6 +260,16 @@ int ASurfaceTransactionStats_getPreviousReleaseFenceFd(
  */
 void ASurfaceTransaction_setOnComplete(ASurfaceTransaction* transaction, void* context,
                                        ASurfaceTransaction_OnComplete func) __INTRODUCED_IN(29);
+
+/**
+ * Sets the callback that will be invoked when the updates from this transaction are applied and are
+ * ready to be presented. This callback will be invoked before the ASurfaceTransaction_OnComplete
+ * callback.
+ *
+ * Available since API level 31.
+ */
+void ASurfaceTransaction_setOnCommit(ASurfaceTransaction* transaction, void* context,
+                                    ASurfaceTransaction_OnCommit func) __INTRODUCED_IN(31);
 
 /**
  * Reparents the \a surface_control from its old parent to the \a new_parent surface control.

@@ -193,6 +193,23 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
     std::transform(layerSettings.cbegin(), layerSettings.cend(),
                    std::back_inserter(layerSettingsPointers),
                    [](const renderengine::LayerSettings& settings) { return &settings; });
+    renderengine::LayerSettings holePunchSettings;
+    if (mHolePunchLayer) {
+        auto clientCompositionList =
+                mHolePunchLayer->getOutputLayer()->getLayerFE().prepareClientCompositionList(
+                        targetSettings);
+        // Assume that the final layer contains the buffer that we want to
+        // replace with a hole punch.
+        holePunchSettings = clientCompositionList.back();
+        LOG_ALWAYS_FATAL_IF(!holePunchSettings.source.buffer.buffer, "Expected to have a buffer!");
+        // This mimics Layer::prepareClearClientComposition
+        holePunchSettings.source.buffer.buffer = nullptr;
+        holePunchSettings.source.solidColor = half3(0.0f, 0.0f, 0.0f);
+        holePunchSettings.disableBlending = true;
+        holePunchSettings.alpha = 0.0f;
+        holePunchSettings.name = std::string("hole punch layer");
+        layerSettingsPointers.push_back(&holePunchSettings);
+    }
 
     if (sDebugHighlighLayers) {
         highlight = {
@@ -241,6 +258,56 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
     }
 }
 
+bool CachedSet::requiresHolePunch() const {
+    // In order for the hole punch to be beneficial, the layer must be updating
+    // regularly, meaning  it should not have been merged with other layers.
+    if (getLayerCount() != 1) {
+        return false;
+    }
+
+    // There is no benefit to a hole punch unless the layer has a buffer.
+    if (!mLayers[0].getBuffer()) {
+        return false;
+    }
+
+    const auto& layerFE = mLayers[0].getState()->getOutputLayer()->getLayerFE();
+    if (layerFE.getCompositionState()->forceClientComposition) {
+        return false;
+    }
+
+    return layerFE.hasRoundedCorners();
+}
+
+namespace {
+bool contains(const Rect& outer, const Rect& inner) {
+    return outer.left <= inner.left && outer.right >= inner.right && outer.top <= inner.top &&
+            outer.bottom >= inner.bottom;
+}
+}; // namespace
+
+void CachedSet::addHolePunchLayerIfFeasible(const CachedSet& holePunchLayer, bool isFirstLayer) {
+    // Verify that this CachedSet is opaque where the hole punch layer
+    // will draw.
+    const Rect& holePunchBounds = holePunchLayer.getBounds();
+    for (const auto& layer : mLayers) {
+        // The first layer is considered opaque because nothing is behind it.
+        // Note that isOpaque is always false for a layer with rounded
+        // corners, even if the interior is opaque. In theory, such a layer
+        // could be used for a hole punch, but this is unlikely to happen in
+        // practice.
+        const auto* outputLayer = layer.getState()->getOutputLayer();
+        if (contains(outputLayer->getState().displayFrame, holePunchBounds) &&
+            (isFirstLayer || outputLayer->getLayerFE().getCompositionState()->isOpaque)) {
+            mHolePunchLayer = holePunchLayer.getFirstLayer().getState();
+            return;
+        }
+    }
+}
+
+OutputLayer* CachedSet::getHolePunchLayer() const {
+    return mHolePunchLayer ? mHolePunchLayer->getOutputLayer() : nullptr;
+}
+
 void CachedSet::dump(std::string& result) const {
     const auto now = std::chrono::steady_clock::now();
 
@@ -248,6 +315,11 @@ void CachedSet::dump(std::string& result) const {
             std::chrono::duration_cast<std::chrono::milliseconds>(now - mLastUpdate);
     base::StringAppendF(&result, "  + Fingerprint %016zx, last update %sago, age %zd\n",
                         mFingerprint, durationString(lastUpdate).c_str(), mAge);
+    {
+        const auto b = mTexture ? mTexture->getBuffer().get() : nullptr;
+        base::StringAppendF(&result, "    Override buffer: %p\n", b);
+    }
+    base::StringAppendF(&result, "    HolePunchLayer: %p\n", mHolePunchLayer);
 
     if (mLayers.size() == 1) {
         base::StringAppendF(&result, "    Layer [%s]\n", mLayers[0].getName().c_str());

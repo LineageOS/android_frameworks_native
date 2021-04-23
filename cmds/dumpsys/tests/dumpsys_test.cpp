@@ -59,6 +59,7 @@ class ServiceManagerMock : public IServiceManager {
     MOCK_METHOD1(waitForService, sp<IBinder>(const String16&));
     MOCK_METHOD1(isDeclared, bool(const String16&));
     MOCK_METHOD1(getDeclaredInstances, Vector<String16>(const String16&));
+    MOCK_METHOD1(updatableViaApex, std::optional<String16>(const String16&));
   protected:
     MOCK_METHOD0(onAsBinder, IBinder*());
 };
