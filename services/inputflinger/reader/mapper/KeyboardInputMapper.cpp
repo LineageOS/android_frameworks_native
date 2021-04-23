@@ -132,9 +132,7 @@ void KeyboardInputMapper::dump(std::string& dump) {
 
 std::optional<DisplayViewport> KeyboardInputMapper::findViewport(
         nsecs_t when, const InputReaderConfiguration* config) {
-    const std::optional<uint8_t> displayPort = getDeviceContext().getAssociatedDisplayPort();
-    if (displayPort) {
-        // Find the viewport that contains the same port
+    if (getDeviceContext().getAssociatedViewport()) {
         return getDeviceContext().getAssociatedViewport();
     }
 
