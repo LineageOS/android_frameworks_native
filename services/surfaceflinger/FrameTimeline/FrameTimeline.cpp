@@ -653,8 +653,10 @@ void SurfaceFrame::traceActuals(int64_t displayFrameToken) const {
             // If prediction is expired, we can't use the predicted start time. Instead, just use a
             // start time a little earlier than the end time so that we have some info about this
             // frame in the trace.
+            nsecs_t endTime =
+                    (mPresentState == PresentState::Dropped ? mDropTime : mActuals.endTime);
             packet->set_timestamp(
-                    static_cast<uint64_t>(mActuals.endTime - kPredictionExpiredStartTimeDelta));
+                    static_cast<uint64_t>(endTime - kPredictionExpiredStartTimeDelta));
         } else {
             packet->set_timestamp(static_cast<uint64_t>(mPredictions.startTime));
         }

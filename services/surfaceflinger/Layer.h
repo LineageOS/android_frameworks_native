@@ -600,6 +600,8 @@ public:
     // ignored.
     virtual RoundedCornerState getRoundedCornerState() const;
 
+    bool hasRoundedCorners() const override { return getRoundedCornerState().radius > .0f; }
+
     virtual PixelFormat getPixelFormat() const { return PIXEL_FORMAT_NONE; }
     /**
      * Return whether this layer needs an input info. For most layer types

@@ -19,6 +19,7 @@
 #include <binder/IServiceManager.h>
 
 #include <map>
+#include <optional>
 
 namespace android {
 
@@ -47,6 +48,8 @@ public:
     bool isDeclared(const String16& name) override;
 
     Vector<String16> getDeclaredInstances(const String16& iface) override;
+
+    std::optional<String16> updatableViaApex(const String16& name) override;
 
 private:
     std::map<String16, sp<IBinder>> mNameToService;

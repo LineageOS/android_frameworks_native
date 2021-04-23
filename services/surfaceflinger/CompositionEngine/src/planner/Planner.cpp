@@ -19,11 +19,16 @@
 #undef LOG_TAG
 #define LOG_TAG "Planner"
 
+#include <android-base/properties.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/impl/planner/Planner.h>
 
 namespace android::compositionengine::impl::planner {
+
+Planner::Planner()
+      : mFlattener(mPredictor,
+                   base::GetBoolProperty(std::string("debug.sf.enable_hole_punch_pip"), false)) {}
 
 void Planner::setDisplaySize(ui::Size size) {
     mFlattener.setDisplaySize(size);

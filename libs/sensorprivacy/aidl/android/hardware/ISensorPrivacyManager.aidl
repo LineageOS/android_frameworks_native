@@ -20,6 +20,8 @@ import android.hardware.ISensorPrivacyListener;
 
 /** @hide */
 interface ISensorPrivacyManager {
+    boolean supportsSensorToggle(int sensor);
+
     void addSensorPrivacyListener(in ISensorPrivacyListener listener);
 
     void addIndividualSensorPrivacyListener(int userId, int sensor, in ISensorPrivacyListener listener);
