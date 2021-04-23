@@ -221,12 +221,11 @@ private:
 
     void removeConnectionLocked(const sp<Connection>& connection) REQUIRES(mLock);
 
-    struct IBinderHash {
-        std::size_t operator()(const sp<IBinder>& b) const {
-            return std::hash<IBinder*>{}(b.get());
-        }
+    template <typename T>
+    struct StrongPointerHash {
+        std::size_t operator()(const sp<T>& b) const { return std::hash<T*>{}(b.get()); }
     };
-    std::unordered_map<sp<IBinder>, std::shared_ptr<InputChannel>, IBinderHash>
+    std::unordered_map<sp<IBinder>, std::shared_ptr<InputChannel>, StrongPointerHash<IBinder>>
             mInputChannelsByToken GUARDED_BY(mLock);
 
     // Finds the display ID of the gesture monitor identified by the provided token.
@@ -327,10 +326,11 @@ private:
     // to loop through all displays.
     sp<InputWindowHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken,
                                                 int displayId) const REQUIRES(mLock);
+    sp<InputWindowHandle> getWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const
+            REQUIRES(mLock);
     std::shared_ptr<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const
             REQUIRES(mLock);
     sp<InputWindowHandle> getFocusedWindowHandleLocked(int displayId) const REQUIRES(mLock);
-    bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const REQUIRES(mLock);
     bool hasResponsiveConnectionLocked(InputWindowHandle& windowHandle) const REQUIRES(mLock);
 
     /*
@@ -371,7 +371,8 @@ private:
     std::string mLastAnrState GUARDED_BY(mLock);
 
     // The connection tokens of the channels that the user last interacted, for debugging
-    std::unordered_set<sp<IBinder>, IBinderHash> mInteractionConnectionTokens GUARDED_BY(mLock);
+    std::unordered_set<sp<IBinder>, StrongPointerHash<IBinder>> mInteractionConnectionTokens
+            GUARDED_BY(mLock);
     void updateInteractionTokensLocked(const EventEntry& entry,
                                        const std::vector<InputTarget>& targets) REQUIRES(mLock);
 
