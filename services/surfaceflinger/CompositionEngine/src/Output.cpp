@@ -455,12 +455,6 @@ void Output::collectVisibleLayers(const compositionengine::CompositionRefreshArg
     setReleasedLayers(refreshArgs);
 
     finalizePendingOutputLayers();
-
-    // Generate a simple Z-order values to each visible output layer
-    uint32_t zOrder = 0;
-    for (auto* outputLayer : getOutputLayersOrderedByZ()) {
-        outputLayer->editState().z = zOrder++;
-    }
 }
 
 void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
@@ -713,20 +707,45 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
 
     editState().earliestPresentTime = refreshArgs.earliestPresentTime;
 
+    OutputLayer* peekThroughLayer = nullptr;
     sp<GraphicBuffer> previousOverride = nullptr;
+    bool includeGeometry = refreshArgs.updatingGeometryThisFrame;
+    uint32_t z = 0;
+    bool overrideZ = false;
     for (auto* layer : getOutputLayersOrderedByZ()) {
+        if (layer == peekThroughLayer) {
+            // No longer needed, although it should not show up again, so
+            // resetting it is not truly needed either.
+            peekThroughLayer = nullptr;
+
+            // peekThroughLayer was already drawn ahead of its z order.
+            continue;
+        }
         bool skipLayer = false;
-        if (layer->getState().overrideInfo.buffer != nullptr) {
-            if (previousOverride != nullptr &&
-                layer->getState().overrideInfo.buffer->getBuffer() == previousOverride) {
+        const auto& overrideInfo = layer->getState().overrideInfo;
+        if (overrideInfo.buffer != nullptr) {
+            if (previousOverride && overrideInfo.buffer->getBuffer() == previousOverride) {
                 ALOGV("Skipping redundant buffer");
                 skipLayer = true;
+            } else {
+                // First layer with the override buffer.
+                if (overrideInfo.peekThroughLayer) {
+                    peekThroughLayer = overrideInfo.peekThroughLayer;
+
+                    // Draw peekThroughLayer first.
+                    overrideZ = true;
+                    includeGeometry = true;
+                    constexpr bool isPeekingThrough = true;
+                    peekThroughLayer->writeStateToHWC(includeGeometry, false, z++, overrideZ,
+                                                      isPeekingThrough);
+                }
+
+                previousOverride = overrideInfo.buffer->getBuffer();
             }
-            previousOverride = layer->getState().overrideInfo.buffer->getBuffer();
         }
 
-        const bool includeGeometry = refreshArgs.updatingGeometryThisFrame;
-        layer->writeStateToHWC(includeGeometry, skipLayer);
+        constexpr bool isPeekingThrough = false;
+        layer->writeStateToHWC(includeGeometry, skipLayer, z++, overrideZ, isPeekingThrough);
     }
 }
 

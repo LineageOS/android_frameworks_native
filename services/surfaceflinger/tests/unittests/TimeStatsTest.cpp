@@ -1051,6 +1051,8 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
                                       JankType::AppDeadlineMissed | JankType::BufferStuffing, 1, 2,
                                       3});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
+                                      JankType::BufferStuffing, 1, 2, 3});
+    mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
                                       JankType::None, 1, 2, 3});
 
     std::string pulledData;
@@ -1069,7 +1071,7 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     EXPECT_EQ(atom.event_connection_count(), DISPLAY_EVENT_CONNECTIONS);
     EXPECT_THAT(atom.frame_duration(), HistogramEq(buildExpectedHistogram({2}, {1})));
     EXPECT_THAT(atom.render_engine_timing(), HistogramEq(buildExpectedHistogram({1, 2}, {1, 1})));
-    EXPECT_EQ(atom.total_timeline_frames(), 8);
+    EXPECT_EQ(atom.total_timeline_frames(), 9);
     EXPECT_EQ(atom.total_janky_frames(), 7);
     EXPECT_EQ(atom.total_janky_frames_with_long_cpu(), 1);
     EXPECT_EQ(atom.total_janky_frames_with_long_gpu(), 1);
@@ -1077,7 +1079,7 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     EXPECT_EQ(atom.total_janky_frames_app_unattributed(), 2);
     EXPECT_EQ(atom.total_janky_frames_sf_scheduling(), 1);
     EXPECT_EQ(atom.total_jank_frames_sf_prediction_error(), 1);
-    EXPECT_EQ(atom.total_jank_frames_app_buffer_stuffing(), 1);
+    EXPECT_EQ(atom.total_jank_frames_app_buffer_stuffing(), 2);
     EXPECT_EQ(atom.display_refresh_rate_bucket(), REFRESH_RATE_BUCKET_0);
     EXPECT_THAT(atom.sf_deadline_misses(), HistogramEq(buildExpectedHistogram({1}, {7})));
     EXPECT_THAT(atom.sf_prediction_errors(), HistogramEq(buildExpectedHistogram({2}, {7})));
@@ -1096,7 +1098,7 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
     std::string expectedResult = "totalTimelineFrames = " + std::to_string(0);
     EXPECT_THAT(result, HasSubstr(expectedResult));
-    expectedResult = "totalTimelineFrames = " + std::to_string(8);
+    expectedResult = "totalTimelineFrames = " + std::to_string(9);
     EXPECT_THAT(result, HasSubstr(expectedResult));
     expectedResult = "jankyFrames = " + std::to_string(0);
     EXPECT_THAT(result, HasSubstr(expectedResult));
@@ -1128,7 +1130,7 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     EXPECT_THAT(result, HasSubstr(expectedResult));
     expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(0);
     EXPECT_THAT(result, HasSubstr(expectedResult));
-    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(1);
+    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(2);
     EXPECT_THAT(result, HasSubstr(expectedResult));
 }
 

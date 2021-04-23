@@ -152,7 +152,7 @@ status_t SurfaceStats::readFromParcel(const Parcel* input) {
 }
 
 status_t TransactionStats::writeToParcel(Parcel* output) const {
-    status_t err = output->writeInt64Vector(callbackIds);
+    status_t err = output->writeParcelableVector(callbackIds);
     if (err != NO_ERROR) {
         return err;
     }
@@ -176,7 +176,7 @@ status_t TransactionStats::writeToParcel(Parcel* output) const {
 }
 
 status_t TransactionStats::readFromParcel(const Parcel* input) {
-    status_t err = input->readInt64Vector(&callbackIds);
+    status_t err = input->readParcelableVector(&callbackIds);
     if (err != NO_ERROR) {
         return err;
     }
@@ -227,8 +227,9 @@ status_t ListenerStats::readFromParcel(const Parcel* input) {
     return NO_ERROR;
 }
 
-ListenerStats ListenerStats::createEmpty(const sp<IBinder>& listener,
-                                         const std::unordered_set<CallbackId>& callbackIds) {
+ListenerStats ListenerStats::createEmpty(
+        const sp<IBinder>& listener,
+        const std::unordered_set<CallbackId, CallbackIdHash>& callbackIds) {
     ListenerStats listenerStats;
     listenerStats.listener = listener;
     listenerStats.transactionStats.emplace_back(callbackIds);
@@ -276,6 +277,30 @@ status_t BnTransactionCompletedListener::onTransact(uint32_t code, const Parcel&
         case Tag::ON_RELEASE_BUFFER:
             return callLocalAsync(data, reply, &ITransactionCompletedListener::onReleaseBuffer);
     }
+}
+
+ListenerCallbacks ListenerCallbacks::filter(CallbackId::Type type) const {
+    std::vector<CallbackId> filteredCallbackIds;
+    for (const auto& callbackId : callbackIds) {
+        if (callbackId.type == type) {
+            filteredCallbackIds.push_back(callbackId);
+        }
+    }
+    return ListenerCallbacks(transactionCompletedListener, filteredCallbackIds);
+}
+
+status_t CallbackId::writeToParcel(Parcel* output) const {
+    SAFE_PARCEL(output->writeInt64, id);
+    SAFE_PARCEL(output->writeInt32, static_cast<int32_t>(type));
+    return NO_ERROR;
+}
+
+status_t CallbackId::readFromParcel(const Parcel* input) {
+    SAFE_PARCEL(input->readInt64, &id);
+    int32_t typeAsInt;
+    SAFE_PARCEL(input->readInt32, &typeAsInt);
+    type = static_cast<CallbackId::Type>(typeAsInt);
+    return NO_ERROR;
 }
 
 }; // namespace android
