@@ -186,7 +186,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
         }
     }
     const bool blackOutLayer = (isProtected() && !targetSettings.supportsProtectedContent) ||
-            (isSecure() && !targetSettings.isSecure);
+            ((isSecure() || isProtected()) && !targetSettings.isSecure);
     const bool bufferCanBeUsedAsHwTexture =
             mBufferInfo.mBuffer->getBuffer()->getUsage() & GraphicBuffer::USAGE_HW_TEXTURE;
     compositionengine::LayerFE::LayerSettings& layer = *result;
