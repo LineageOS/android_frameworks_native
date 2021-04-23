@@ -522,7 +522,11 @@ using DisplayCreateRenderSurfaceTest = PartialMockDisplayTestCommon;
 TEST_F(DisplayCreateRenderSurfaceTest, setsRenderSurface) {
     EXPECT_CALL(*mNativeWindow, disconnect(NATIVE_WINDOW_API_EGL)).WillRepeatedly(Return(NO_ERROR));
     EXPECT_TRUE(mDisplay->getRenderSurface() == nullptr);
-    mDisplay->createRenderSurface(RenderSurfaceCreationArgs{640, 480, mNativeWindow, nullptr});
+    mDisplay->createRenderSurface(RenderSurfaceCreationArgsBuilder()
+                                          .setDisplayWidth(640)
+                                          .setDisplayHeight(480)
+                                          .setNativeWindow(mNativeWindow)
+                                          .build());
     EXPECT_TRUE(mDisplay->getRenderSurface() != nullptr);
 }
 
@@ -1030,9 +1034,12 @@ struct DisplayFunctionalTest : public testing::Test {
     );
     impl::RenderSurface* mRenderSurface =
             new impl::RenderSurface{mCompositionEngine, *mDisplay,
-                                    RenderSurfaceCreationArgs{DEFAULT_DISPLAY_WIDTH,
-                                                              DEFAULT_DISPLAY_HEIGHT, mNativeWindow,
-                                                              mDisplaySurface}};
+                                    RenderSurfaceCreationArgsBuilder()
+                                            .setDisplayWidth(DEFAULT_DISPLAY_WIDTH)
+                                            .setDisplayHeight(DEFAULT_DISPLAY_HEIGHT)
+                                            .setNativeWindow(mNativeWindow)
+                                            .setDisplaySurface(mDisplaySurface)
+                                            .build()};
 };
 
 TEST_F(DisplayFunctionalTest, postFramebufferCriticalCallsAreOrdered) {
