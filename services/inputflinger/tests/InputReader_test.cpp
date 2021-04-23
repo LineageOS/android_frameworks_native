@@ -269,6 +269,11 @@ public:
         mConfig.portAssociations.insert({inputPort, displayPort});
     }
 
+    void addInputUniqueIdAssociation(const std::string& inputUniqueId,
+                                     const std::string& displayUniqueId) {
+        mConfig.uniqueIdAssociations.insert({inputUniqueId, displayUniqueId});
+    }
+
     void addDisabledDevice(int32_t deviceId) { mConfig.disabledDevices.insert(deviceId); }
 
     void removeDisabledDevice(int32_t deviceId) { mConfig.disabledDevices.erase(deviceId); }
@@ -2605,6 +2610,41 @@ TEST_F(InputDeviceTest, Configure_AssignsDisplayPort) {
     mFakePolicy->addDisplayViewport(SECONDARY_DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                     DISPLAY_ORIENTATION_0, true /*isActive*/, UNIQUE_ID, hdmi,
                                     ViewportType::INTERNAL);
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    ASSERT_TRUE(mDevice->isEnabled());
+
+    // Device should be disabled after set disable.
+    mFakePolicy->addDisabledDevice(mDevice->getId());
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_ENABLED_STATE);
+    ASSERT_FALSE(mDevice->isEnabled());
+
+    // Device should still be disabled even found the associated display.
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    ASSERT_FALSE(mDevice->isEnabled());
+}
+
+TEST_F(InputDeviceTest, Configure_AssignsDisplayUniqueId) {
+    // Device should be enabled by default.
+    mFakePolicy->clearViewports();
+    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, AINPUT_SOURCE_KEYBOARD);
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0);
+    ASSERT_TRUE(mDevice->isEnabled());
+
+    // Device should be disabled because it is associated with a specific display, but the
+    // corresponding display is not found.
+    const std::string DISPLAY_UNIQUE_ID = "displayUniqueId";
+    mFakePolicy->addInputUniqueIdAssociation(DEVICE_NAME, DISPLAY_UNIQUE_ID);
+    mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                       InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    ASSERT_FALSE(mDevice->isEnabled());
+
+    // Device should be enabled when a display is found.
+    mFakePolicy->addDisplayViewport(SECONDARY_DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                    DISPLAY_ORIENTATION_0, /* isActive= */ true, DISPLAY_UNIQUE_ID,
+                                    NO_PORT, ViewportType::INTERNAL);
     mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                        InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     ASSERT_TRUE(mDevice->isEnabled());
@@ -7852,8 +7892,6 @@ TEST_F(MultiTouchInputMapperTest, Configure_EnabledForAssociatedDisplay) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
     ASSERT_EQ(SECONDARY_DISPLAY_ID, args.displayId);
 }
-
-
 
 TEST_F(MultiTouchInputMapperTest, Process_ShouldHandleSingleTouch) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
