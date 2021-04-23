@@ -320,9 +320,6 @@ static const char* k_funcgraphCpuPath =
 static const char* k_funcgraphProcPath =
     "options/funcgraph-proc";
 
-static const char* k_funcgraphFlatPath =
-    "options/funcgraph-flat";
-
 static const char* k_ftraceFilterPath =
     "set_ftrace_filter";
 
@@ -700,7 +697,6 @@ static bool setKernelTraceFuncs(const char* funcs)
         ok &= setKernelOptionEnable(k_funcgraphAbsTimePath, true);
         ok &= setKernelOptionEnable(k_funcgraphCpuPath, true);
         ok &= setKernelOptionEnable(k_funcgraphProcPath, true);
-        ok &= setKernelOptionEnable(k_funcgraphFlatPath, true);
 
         // Set the requested filter functions.
         ok &= truncateFile(k_ftraceFilterPath);
