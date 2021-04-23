@@ -155,10 +155,9 @@ std::optional<std::string> LayerState::compare(const LayerState& other) const {
 
 bool operator==(const LayerState& lhs, const LayerState& rhs) {
     return lhs.mId == rhs.mId && lhs.mName == rhs.mName && lhs.mDisplayFrame == rhs.mDisplayFrame &&
-            lhs.mSourceCrop == rhs.mSourceCrop && lhs.mZOrder == rhs.mZOrder &&
-            lhs.mBufferTransform == rhs.mBufferTransform && lhs.mBlendMode == rhs.mBlendMode &&
-            lhs.mAlpha == rhs.mAlpha && lhs.mLayerMetadata == rhs.mLayerMetadata &&
-            lhs.mVisibleRegion == rhs.mVisibleRegion &&
+            lhs.mSourceCrop == rhs.mSourceCrop && lhs.mBufferTransform == rhs.mBufferTransform &&
+            lhs.mBlendMode == rhs.mBlendMode && lhs.mAlpha == rhs.mAlpha &&
+            lhs.mLayerMetadata == rhs.mLayerMetadata && lhs.mVisibleRegion == rhs.mVisibleRegion &&
             lhs.mOutputDataspace == rhs.mOutputDataspace && lhs.mPixelFormat == rhs.mPixelFormat &&
             lhs.mColorTransform == rhs.mColorTransform &&
             lhs.mCompositionType == rhs.mCompositionType &&
