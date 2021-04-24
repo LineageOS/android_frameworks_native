@@ -103,6 +103,12 @@ void InputDevice::dump(std::string& dump, const std::string& eventHubDevStr) {
     } else {
         dump += "<none>\n";
     }
+    dump += StringPrintf(INDENT2 "AssociatedDisplayUniqueId: ");
+    if (mAssociatedDisplayUniqueId) {
+        dump += StringPrintf("%s\n", mAssociatedDisplayUniqueId->c_str());
+    } else {
+        dump += "<none>\n";
+    }
     dump += StringPrintf(INDENT2 "HasMic:     %s\n", toString(mHasMic));
     dump += StringPrintf(INDENT2 "Sources: 0x%08x\n", deviceInfo.getSources());
     dump += StringPrintf(INDENT2 "KeyboardType: %d\n", deviceInfo.getKeyboardType());
@@ -293,8 +299,9 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
         }
 
         if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
-            // In most situations, no port will be specified.
+            // In most situations, no port or name will be specified.
             mAssociatedDisplayPort = std::nullopt;
+            mAssociatedDisplayUniqueId = std::nullopt;
             mAssociatedViewport = std::nullopt;
             // Find the display port that corresponds to the current input port.
             const std::string& inputPort = mIdentifier.location;
@@ -304,6 +311,13 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                 if (displayPort != ports.end()) {
                     mAssociatedDisplayPort = std::make_optional(displayPort->second);
                 }
+            }
+            const std::string& inputDeviceName = mIdentifier.name;
+            const std::unordered_map<std::string, std::string>& names =
+                    config->uniqueIdAssociations;
+            const auto& displayUniqueId = names.find(inputDeviceName);
+            if (displayUniqueId != names.end()) {
+                mAssociatedDisplayUniqueId = displayUniqueId->second;
             }
 
             // If the device was explicitly disabled by the user, it would be present in the
@@ -317,6 +331,15 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                     ALOGW("Input device %s should be associated with display on port %" PRIu8 ", "
                           "but the corresponding viewport is not found.",
                           getName().c_str(), *mAssociatedDisplayPort);
+                    enabled = false;
+                }
+            } else if (mAssociatedDisplayUniqueId != std::nullopt) {
+                mAssociatedViewport =
+                        config->getDisplayViewportByUniqueId(*mAssociatedDisplayUniqueId);
+                if (!mAssociatedViewport) {
+                    ALOGW("Input device %s should be associated with display %s but the "
+                          "corresponding viewport cannot be found",
+                          inputDeviceName.c_str(), mAssociatedDisplayUniqueId->c_str());
                     enabled = false;
                 }
             }

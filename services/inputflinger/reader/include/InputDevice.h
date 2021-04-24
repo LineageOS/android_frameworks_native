@@ -169,6 +169,7 @@ private:
     uint32_t mSources;
     bool mIsExternal;
     std::optional<uint8_t> mAssociatedDisplayPort;
+    std::optional<std::string> mAssociatedDisplayUniqueId;
     std::optional<DisplayViewport> mAssociatedViewport;
     bool mHasMic;
     bool mDropUntilNextSync;
