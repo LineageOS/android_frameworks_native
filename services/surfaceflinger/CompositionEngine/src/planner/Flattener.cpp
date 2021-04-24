@@ -27,12 +27,44 @@ using namespace std::chrono_literals;
 
 namespace android::compositionengine::impl::planner {
 
+namespace {
+
+// True if the underlying layer stack is the same modulo state that would be expected to be
+// different like specific buffers, false otherwise.
+bool isSameStack(const std::vector<const LayerState*>& incomingLayers,
+                 const std::vector<CachedSet>& cachedSets) {
+    std::vector<const LayerState*> existingLayers;
+    for (auto& cachedSet : cachedSets) {
+        for (auto& layer : cachedSet.getConstituentLayers()) {
+            existingLayers.push_back(layer.getState());
+        }
+    }
+
+    if (incomingLayers.size() != existingLayers.size()) {
+        return false;
+    }
+
+    for (size_t i = 0; i < incomingLayers.size(); i++) {
+        if (incomingLayers[i]->getDifferingFields(*(existingLayers[i])) != LayerStateField::None) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
 NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& layers,
                                        NonBufferHash hash, time_point now) {
     const size_t unflattenedDisplayCost = calculateDisplayCost(layers);
     mUnflattenedDisplayCost += unflattenedDisplayCost;
 
-    if (mCurrentGeometry != hash) {
+    // We invalidate the layer cache if:
+    // 1. We're not tracking any layers, or
+    // 2. The last seen hashed geometry changed between frames, or
+    // 3. A stricter equality check demonstrates that the layer stack really did change, since the
+    // hashed geometry does not guarantee uniqueness.
+    if (mCurrentGeometry != hash || (!mLayers.empty() && !isSameStack(layers, mLayers))) {
         resetActivities(hash, now);
         mFlattenedDisplayCost += unflattenedDisplayCost;
         return hash;
