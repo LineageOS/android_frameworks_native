@@ -46,7 +46,7 @@ AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer
     ALOGE_IF(!mBackendTexture.isValid(),
              "Failed to create a valid texture. [%p]:[%d,%d] isProtected:%d isWriteable:%d "
              "format:%d",
-             this, desc.width, desc.height, isOutputBuffer, createProtectedImage, desc.format);
+             this, desc.width, desc.height, createProtectedImage, isOutputBuffer, desc.format);
 }
 
 void AutoBackendTexture::unref(bool releaseLocalResources) {

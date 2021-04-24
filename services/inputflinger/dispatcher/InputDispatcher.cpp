@@ -5100,6 +5100,8 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
         monitorsByDisplay[displayId].emplace_back(serverChannel, pid);
 
         mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
+        ALOGI("Created monitor %s for display %" PRId32 ", gesture=%s, pid=%" PRId32, name.c_str(),
+              displayId, toString(isGestureMonitor), pid);
     }
 
     // Wake the looper because some connections have changed.
@@ -5160,6 +5162,8 @@ void InputDispatcher::removeMonitorChannelLocked(
         const size_t numMonitors = monitors.size();
         for (size_t i = 0; i < numMonitors; i++) {
             if (monitors[i].inputChannel->getConnectionToken() == connectionToken) {
+                ALOGI("Erasing monitor %s on display %" PRId32 ", pid=%" PRId32,
+                      monitors[i].inputChannel->getName().c_str(), it->first, monitors[i].pid);
                 monitors.erase(monitors.begin() + i);
                 break;
             }
