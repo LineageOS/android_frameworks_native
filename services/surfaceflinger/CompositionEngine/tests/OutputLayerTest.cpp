@@ -23,10 +23,11 @@
 #include <gtest/gtest.h>
 #include <log/log.h>
 
+#include <renderengine/mock/RenderEngine.h>
+#include <ui/PixelFormat.h>
 #include "MockHWC2.h"
 #include "MockHWComposer.h"
 #include "RegionMatcher.h"
-#include "renderengine/mock/RenderEngine.h"
 
 namespace android::compositionengine {
 namespace {
@@ -707,6 +708,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static const half4 kColor;
     static const Rect kDisplayFrame;
     static const Rect kOverrideDisplayFrame;
+    static const FloatRect kOverrideSourceCrop;
     static const Region kOutputSpaceVisibleRegion;
     static const Region kOverrideVisibleRegion;
     static const mat4 kColorTransform;
@@ -715,7 +717,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static const HdrMetadata kHdrMetadata;
     static native_handle_t* kSidebandStreamHandle;
     static const sp<GraphicBuffer> kBuffer;
-    std::shared_ptr<renderengine::ExternalTexture> kOverrideBuffer;
+    static const sp<GraphicBuffer> kOverrideBuffer;
     static const sp<Fence> kFence;
     static const sp<Fence> kOverrideFence;
     static const std::string kLayerGenericMetadata1Key;
@@ -724,11 +726,6 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static const std::vector<uint8_t> kLayerGenericMetadata2Value;
 
     OutputLayerWriteStateToHWCTest() {
-        kOverrideBuffer = std::make_shared<
-                renderengine::ExternalTexture>(new GraphicBuffer(), mRenderEngine,
-                                               renderengine::ExternalTexture::Usage::READABLE |
-                                                       renderengine::ExternalTexture::Usage::
-                                                               WRITEABLE);
         auto& outputLayerState = mOutputLayer.editState();
         outputLayerState.hwc = impl::OutputLayerCompositionState::Hwc(mHwcLayer);
 
@@ -768,7 +765,11 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     void includeOverrideInfo() {
         auto& overrideInfo = mOutputLayer.editState().overrideInfo;
 
-        overrideInfo.buffer = kOverrideBuffer;
+        overrideInfo.buffer = std::make_shared<
+                renderengine::ExternalTexture>(kOverrideBuffer, mRenderEngine,
+                                               renderengine::ExternalTexture::Usage::READABLE |
+                                                       renderengine::ExternalTexture::Usage::
+                                                               WRITEABLE);
         overrideInfo.acquireFence = kOverrideFence;
         overrideInfo.displayFrame = kOverrideDisplayFrame;
         overrideInfo.dataspace = kOverrideDataspace;
@@ -850,6 +851,7 @@ const half4 OutputLayerWriteStateToHWCTest::kColor{81.f / 255.f, 82.f / 255.f, 8
                                                    84.f / 255.f};
 const Rect OutputLayerWriteStateToHWCTest::kDisplayFrame{1001, 1002, 1003, 10044};
 const Rect OutputLayerWriteStateToHWCTest::kOverrideDisplayFrame{1002, 1003, 1004, 20044};
+const FloatRect OutputLayerWriteStateToHWCTest::kOverrideSourceCrop{0.f, 0.f, 4.f, 5.f};
 const Region OutputLayerWriteStateToHWCTest::kOutputSpaceVisibleRegion{
         Rect{1005, 1006, 1007, 1008}};
 const Region OutputLayerWriteStateToHWCTest::kOverrideVisibleRegion{Rect{1006, 1007, 1008, 1009}};
@@ -863,6 +865,10 @@ const HdrMetadata OutputLayerWriteStateToHWCTest::kHdrMetadata{{/* LightFlattena
 native_handle_t* OutputLayerWriteStateToHWCTest::kSidebandStreamHandle =
         reinterpret_cast<native_handle_t*>(1031);
 const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kBuffer;
+const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kOverrideBuffer =
+        new GraphicBuffer(4, 5, PIXEL_FORMAT_RGBA_8888,
+                          AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
+                                  AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN);
 const sp<Fence> OutputLayerWriteStateToHWCTest::kFence;
 const sp<Fence> OutputLayerWriteStateToHWCTest::kOverrideFence = new Fence();
 const std::string OutputLayerWriteStateToHWCTest::kLayerGenericMetadata1Key =
@@ -1050,11 +1056,11 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
     mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::DEVICE;
     includeOverrideInfo();
 
-    expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideDisplayFrame.toFloatRect(),
-                              kOverrideBufferTransform, kOverrideBlendMode, kOverrideAlpha);
+    expectGeometryCommonCalls(kOverrideDisplayFrame, kOverrideSourceCrop, kOverrideBufferTransform,
+                              kOverrideBlendMode, kOverrideAlpha);
     expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace, kOverrideVisibleRegion,
                               kOverrideSurfaceDamage);
-    expectSetHdrMetadataAndBufferCalls(kOverrideBuffer->getBuffer(), kOverrideFence);
+    expectSetHdrMetadataAndBufferCalls(kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
 
     EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
