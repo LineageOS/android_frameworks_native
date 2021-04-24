@@ -367,7 +367,12 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
 
     if (outputDependentState.overrideInfo.buffer != nullptr) {
         displayFrame = outputDependentState.overrideInfo.displayFrame;
-        sourceCrop = displayFrame.toFloatRect();
+        sourceCrop =
+                FloatRect(0.f, 0.f,
+                          static_cast<float>(outputDependentState.overrideInfo.buffer->getBuffer()
+                                                     ->getWidth()),
+                          static_cast<float>(outputDependentState.overrideInfo.buffer->getBuffer()
+                                                     ->getHeight()));
     }
 
     ALOGV("Writing display frame [%d, %d, %d, %d]", displayFrame.left, displayFrame.top,
