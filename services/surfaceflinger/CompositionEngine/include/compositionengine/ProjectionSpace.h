@@ -96,6 +96,11 @@ struct ProjectionSpace {
         // physical translation and finally rotate to the physical orientation.
         return rotationTransform * destTranslation * scale * sourceTranslation;
     }
+
+    bool operator==(const ProjectionSpace& other) const {
+        return bounds == other.bounds && content == other.content &&
+                orientation == other.orientation;
+    }
 };
 
 } // namespace compositionengine
