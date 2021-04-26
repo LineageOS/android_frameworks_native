@@ -484,11 +484,12 @@ void ASurfaceTransaction_setFrameRate(ASurfaceTransaction* transaction,
  *
  * \param compatibility The frame rate compatibility of this surface. The compatibility value may
  * influence the system's choice of display frame rate. To specify a compatibility use the
- * ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* enum.
+ * ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* enum. This parameter is ignored when frameRate is 0.
  *
- * \param changeFrameRateStrategy Whether display refresh rate transitions should be seamless.
- * A seamless transition is one that doesn't have any visual interruptions, such as a black
- * screen for a second or two. See the ANATIVEWINDOW_CHANGE_FRAME_RATE_* values.
+ * \param changeFrameRateStrategy Whether display refresh rate transitions caused by this
+ * surface should be seamless. A seamless transition is one that doesn't have any visual
+ * interruptions, such as a black screen for a second or two. See the
+ * ANATIVEWINDOW_CHANGE_FRAME_RATE_* values. This parameter is ignored when frameRate is 0.
  *
  * Available since API level 31.
  */
