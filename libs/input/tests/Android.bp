@@ -49,8 +49,8 @@ cc_test {
 cc_library_static {
     name: "StructLayout_test",
     srcs: ["StructLayout_test.cpp"],
+    compile_multilib: "both",
     cflags: [
-        "-O0",
         "-Wall",
         "-Werror",
         "-Wextra",

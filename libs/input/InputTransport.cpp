@@ -96,28 +96,42 @@ inline static const char* toString(bool value) {
 // --- InputMessage ---
 
 bool InputMessage::isValid(size_t actualSize) const {
-    if (size() == actualSize) {
-        switch (header.type) {
-            case Type::KEY:
-                return true;
-            case Type::MOTION:
-                return body.motion.pointerCount > 0 && body.motion.pointerCount <= MAX_POINTERS;
-            case Type::FINISHED:
-                return true;
-            case Type::FOCUS:
-                return true;
-            case Type::CAPTURE:
-                return true;
-            case Type::DRAG:
-                return true;
-            case Type::TIMELINE:
-                const nsecs_t gpuCompletedTime =
-                        body.timeline.graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME];
-                const nsecs_t presentTime =
-                        body.timeline.graphicsTimeline[GraphicsTimeline::PRESENT_TIME];
-                return presentTime > gpuCompletedTime;
+    if (size() != actualSize) {
+        ALOGE("Received message of incorrect size %zu (expected %zu)", actualSize, size());
+        return false;
+    }
+
+    switch (header.type) {
+        case Type::KEY:
+            return true;
+        case Type::MOTION: {
+            const bool valid =
+                    body.motion.pointerCount > 0 && body.motion.pointerCount <= MAX_POINTERS;
+            if (!valid) {
+                ALOGE("Received invalid MOTION: pointerCount = %" PRIu32, body.motion.pointerCount);
+            }
+            return valid;
+        }
+        case Type::FINISHED:
+        case Type::FOCUS:
+        case Type::CAPTURE:
+        case Type::DRAG:
+            return true;
+        case Type::TIMELINE: {
+            const nsecs_t gpuCompletedTime =
+                    body.timeline.graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME];
+            const nsecs_t presentTime =
+                    body.timeline.graphicsTimeline[GraphicsTimeline::PRESENT_TIME];
+            const bool valid = presentTime > gpuCompletedTime;
+            if (!valid) {
+                ALOGE("Received invalid TIMELINE: gpuCompletedTime = %" PRId64
+                      " presentTime = %" PRId64,
+                      gpuCompletedTime, presentTime);
+            }
+            return valid;
         }
     }
+    ALOGE("Invalid message type: %" PRIu32, header.type);
     return false;
 }
 
@@ -400,9 +414,7 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
     }
 
     if (!msg->isValid(nRead)) {
-#if DEBUG_CHANNEL_MESSAGES
-        ALOGD("channel '%s' ~ received invalid message", mName.c_str());
-#endif
+        ALOGE("channel '%s' ~ received invalid message of size %zd", mName.c_str(), nRead);
         return BAD_VALUE;
     }
 
