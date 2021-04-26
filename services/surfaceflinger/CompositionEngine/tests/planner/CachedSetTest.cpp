@@ -287,10 +287,11 @@ TEST_F(CachedSetTest, updateAge_BufferUpdate) {
 }
 
 TEST_F(CachedSetTest, render) {
-    CachedSet::Layer& layer1 = *mTestLayers[0]->cachedSetLayer.get();
-    sp<mock::LayerFE> layerFE1 = mTestLayers[0]->layerFE;
-    CachedSet::Layer& layer2 = *mTestLayers[1]->cachedSetLayer.get();
-    sp<mock::LayerFE> layerFE2 = mTestLayers[1]->layerFE;
+    // Skip the 0th layer to ensure that the bounding box of the layers is offset from (0, 0)
+    CachedSet::Layer& layer1 = *mTestLayers[1]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE1 = mTestLayers[1]->layerFE;
+    CachedSet::Layer& layer2 = *mTestLayers[2]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE2 = mTestLayers[2]->layerFE;
 
     CachedSet cachedSet(layer1);
     cachedSet.append(CachedSet(layer2));
@@ -307,7 +308,7 @@ TEST_F(CachedSetTest, render) {
                                 const std::vector<const renderengine::LayerSettings*>& layers,
                                 const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
                                 base::unique_fd&&, base::unique_fd*) -> size_t {
-        EXPECT_EQ(Rect(0, 0, 2, 2), displaySettings.physicalDisplay);
+        EXPECT_EQ(Rect(-1, -1, 9, 4), displaySettings.physicalDisplay);
         EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
         EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
                   displaySettings.orientation);
@@ -324,7 +325,7 @@ TEST_F(CachedSetTest, render) {
     cachedSet.render(mRenderEngine, mOutputState);
     expectReadyBuffer(cachedSet);
 
-    EXPECT_EQ(Rect(0, 0, 2, 2), cachedSet.getOutputSpace().content);
+    EXPECT_EQ(Rect(1, 1, 3, 3), cachedSet.getOutputSpace().content);
     EXPECT_EQ(Rect(mOutputState.framebufferSpace.bounds.getWidth(),
                    mOutputState.framebufferSpace.bounds.getHeight()),
               cachedSet.getOutputSpace().bounds);
