@@ -156,6 +156,10 @@ struct LayerSettings {
 
     std::vector<BlurRegion> blurRegions;
 
+    // Transform matrix used to convert the blurRegions geometry into the same
+    // coordinate space as LayerSettings.geometry
+    mat4 blurRegionTransform = mat4();
+
     StretchEffect stretchEffect;
 
     // Name associated with the layer for debugging purposes.
