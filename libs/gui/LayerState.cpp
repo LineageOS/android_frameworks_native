@@ -98,7 +98,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, transparentRegion);
     SAFE_PARCEL(output.writeUint32, transform);
     SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
-    SAFE_PARCEL(output.write, crop);
     SAFE_PARCEL(output.write, orientedDisplaySpaceRect);
 
     if (buffer) {
@@ -167,6 +166,7 @@ status_t layer_state_t::write(Parcel& output) const
     }
 
     SAFE_PARCEL(output.write, stretchEffect);
+    SAFE_PARCEL(output.write, bufferCrop);
 
     return NO_ERROR;
 }
@@ -209,7 +209,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, transparentRegion);
     SAFE_PARCEL(input.readUint32, &transform);
     SAFE_PARCEL(input.readBool, &transformToDisplayInverse);
-    SAFE_PARCEL(input.read, crop);
     SAFE_PARCEL(input.read, orientedDisplaySpaceRect);
 
     bool tmpBool = false;
@@ -296,6 +295,7 @@ status_t layer_state_t::read(const Parcel& input)
     }
 
     SAFE_PARCEL(input.read, stretchEffect);
+    SAFE_PARCEL(input.read, bufferCrop);
 
     return NO_ERROR;
 }
@@ -538,6 +538,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eStretchChanged) {
         what |= eStretchChanged;
         stretchEffect = other.stretchEffect;
+    }
+    if (other.what & eBufferCropChanged) {
+        what |= eBufferCropChanged;
+        bufferCrop = other.bufferCrop;
     }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "

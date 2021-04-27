@@ -274,6 +274,8 @@ public:
 
         // Stretch effect to apply to this layer
         StretchEffect stretchEffect;
+
+        Rect bufferCrop;
     };
 
     /*
@@ -885,6 +887,7 @@ public:
     bool setStretchEffect(const StretchEffect& effect);
     StretchEffect getStretchEffect() const;
 
+    virtual bool setBufferCrop(const Rect& /* bufferCrop */) { return false; }
     virtual std::atomic<int32_t>* getPendingBufferCounter() { return nullptr; }
     virtual std::string getPendingBufferCounterName() { return ""; }
 

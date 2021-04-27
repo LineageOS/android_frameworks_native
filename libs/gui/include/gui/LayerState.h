@@ -85,7 +85,7 @@ struct layer_state_t {
         eReleaseBufferListenerChanged = 0x00000400,
         eShadowRadiusChanged = 0x00000800,
         eLayerCreated = 0x00001000,
-        /* was eDetachChildren, now available 0x00002000, */
+        eBufferCropChanged = 0x00002000,
         eRelativeLayerChanged = 0x00004000,
         eReparent = 0x00008000,
         eColorChanged = 0x00010000,
@@ -226,6 +226,8 @@ struct layer_state_t {
 
     // Stretch effect to be applied to this layer
     StretchEffect stretchEffect;
+
+    Rect bufferCrop;
 
     // Listens to when the buffer is safe to be released. This is used for blast
     // layers only. The callback includes a release fence as well as the graphic
