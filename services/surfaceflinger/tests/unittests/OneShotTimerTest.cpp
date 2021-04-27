@@ -80,7 +80,8 @@ TEST_F(OneShotTimerTest, startStopTest) {
     mIdleTimer->stop();
 }
 
-TEST_F(OneShotTimerTest, resetTest) {
+// TODO(b/186417847) This test is flaky. Reenable once fixed.
+TEST_F(OneShotTimerTest, DISABLED_resetTest) {
     mIdleTimer = std::make_unique<scheduler::OneShotTimer>(20ms, mResetTimerCallback.getInvocable(),
                                                            mExpiredTimerCallback.getInvocable());
     mIdleTimer->start();
@@ -105,7 +106,8 @@ TEST_F(OneShotTimerTest, resetTest) {
     EXPECT_FALSE(mResetTimerCallback.waitForCall(0ms).has_value());
 }
 
-TEST_F(OneShotTimerTest, resetBackToBackTest) {
+// TODO(b/186417847) This test is flaky. Reenable once fixed.
+TEST_F(OneShotTimerTest, DISABLED_resetBackToBackTest) {
     mIdleTimer = std::make_unique<scheduler::OneShotTimer>(20ms, mResetTimerCallback.getInvocable(),
                                                            mExpiredTimerCallback.getInvocable());
     mIdleTimer->start();
@@ -136,7 +138,8 @@ TEST_F(OneShotTimerTest, resetBackToBackTest) {
     EXPECT_FALSE(mResetTimerCallback.waitForCall(0ms).has_value());
 }
 
-TEST_F(OneShotTimerTest, startNotCalledTest) {
+// TODO(b/186417847) This test is flaky. Reenable once fixed.
+TEST_F(OneShotTimerTest, DISABLED_startNotCalledTest) {
     mIdleTimer = std::make_unique<scheduler::OneShotTimer>(3ms, mResetTimerCallback.getInvocable(),
                                                            mExpiredTimerCallback.getInvocable());
     // The start hasn't happened, so the callback does not happen.
@@ -148,7 +151,8 @@ TEST_F(OneShotTimerTest, startNotCalledTest) {
     EXPECT_FALSE(mResetTimerCallback.waitForCall(0ms).has_value());
 }
 
-TEST_F(OneShotTimerTest, idleTimerIdlesTest) {
+// TODO(b/186417847) This test is flaky. Reenable once fixed.
+TEST_F(OneShotTimerTest, DISABLED_idleTimerIdlesTest) {
     mIdleTimer = std::make_unique<scheduler::OneShotTimer>(3ms, mResetTimerCallback.getInvocable(),
                                                            mExpiredTimerCallback.getInvocable());
     mIdleTimer->start();
@@ -168,7 +172,8 @@ TEST_F(OneShotTimerTest, idleTimerIdlesTest) {
     EXPECT_FALSE(mResetTimerCallback.waitForCall(0ms).has_value());
 }
 
-TEST_F(OneShotTimerTest, timeoutCallbackExecutionTest) {
+// TODO(b/186417847) This test is flaky. Reenable once fixed.
+TEST_F(OneShotTimerTest, DISABLED_timeoutCallbackExecutionTest) {
     mIdleTimer = std::make_unique<scheduler::OneShotTimer>(3ms, mResetTimerCallback.getInvocable(),
                                                            mExpiredTimerCallback.getInvocable());
     mIdleTimer->start();
