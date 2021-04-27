@@ -42,6 +42,10 @@ enum JankType {
     BufferStuffing = 0x40,
     // Jank due to unknown reasons.
     Unknown = 0x80,
+    // SF is said to be stuffed if the previous frame ran longer than expected resulting in the case
+    // where the previous frame was presented in the current frame's expected vsync. This pushes the
+    // current frame to the next vsync. The behavior is similar to BufferStuffing.
+    SurfaceFlingerStuffing = 0x100,
 };
 
 } // namespace android
