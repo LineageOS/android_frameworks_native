@@ -370,7 +370,7 @@ public:
         void onSfWakeUp(int64_t token, Fps refreshRate, std::optional<TimelineItem> predictions,
                         nsecs_t wakeUpTime);
         // Sets the appropriate metadata and classifies the jank.
-        void onPresent(nsecs_t signalTime);
+        void onPresent(nsecs_t signalTime, nsecs_t previousPresentTime);
         // Adds the provided SurfaceFrame to the current display frame.
         void addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame);
 
@@ -398,7 +398,8 @@ public:
         void dump(std::string& result, nsecs_t baseTime) const;
         void tracePredictions(pid_t surfaceFlingerPid) const;
         void traceActuals(pid_t surfaceFlingerPid) const;
-        void classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync);
+        void classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync,
+                          nsecs_t previousPresentTime);
 
         int64_t mToken = FrameTimelineInfo::INVALID_VSYNC_ID;
 
@@ -480,6 +481,7 @@ private:
     uint32_t mMaxDisplayFrames;
     std::shared_ptr<TimeStats> mTimeStats;
     const pid_t mSurfaceFlingerPid;
+    nsecs_t mPreviousPresentTime = 0;
     const JankClassificationThresholds mJankClassificationThresholds;
     static constexpr uint32_t kDefaultMaxDisplayFrames = 64;
     // The initial container size for the vector<SurfaceFrames> inside display frame. Although
