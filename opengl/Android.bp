@@ -68,11 +68,9 @@ cc_library_headers {
     name: "gl_headers",
     vendor_available: true,
     export_include_dirs: ["include"],
-}
-
-llndk_headers {
-    name: "gl_llndk_headers",
-    export_include_dirs: ["include"],
+    llndk: {
+        llndk_headers: true,
+    },
 }
 
 subdirs = [
