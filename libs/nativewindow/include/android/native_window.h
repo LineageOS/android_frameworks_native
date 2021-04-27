@@ -302,6 +302,8 @@ enum ANativeWindow_ChangeFrameRateStrategy {
  *
  * Available since API level 31.
  *
+ * \param window pointer to an ANativeWindow object.
+ *
  * \param frameRate The intended frame rate of this window, in frames per
  * second. 0 is a special value that indicates the app will accept the system's
  * choice for the display frame rate, which is the default behavior if this
@@ -309,15 +311,16 @@ enum ANativeWindow_ChangeFrameRateStrategy {
  * valid refresh rate for this device's display - e.g., it's fine to pass 30fps
  * to a device that can only run the display at 60fps.
  *
- * \param window pointer to an ANativeWindow object.
- *
  * \param compatibility The frame rate compatibility of this window. The
  * compatibility value may influence the system's choice of display refresh
  * rate. See the ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* values for more info.
+ * This parameter is ignored when frameRate is 0.
  *
- * \param changeFrameRateStrategy Whether display refresh rate transitions should be seamless.
+ * \param changeFrameRateStrategy Whether display refresh rate transitions caused by this
+ * window should be seamless.
  * A seamless transition is one that doesn't have any visual interruptions, such as a black
  * screen for a second or two. See the ANATIVEWINDOW_CHANGE_FRAME_RATE_* values.
+ * This parameter is ignored when frameRate is 0.
  *
  * \return 0 for success, -EINVAL if the window, frame rate, or compatibility
  * value are invalid.
