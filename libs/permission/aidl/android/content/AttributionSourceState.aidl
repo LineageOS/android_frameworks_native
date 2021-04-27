@@ -24,9 +24,7 @@ package android.content;
  */
 parcelable AttributionSourceState {
     /** The UID that is accessing the permission protected data. */
-    int uid = -1;
-    /** The PID that is accessing the permission protected data. */
-    int pid = -1;
+    int uid;
     /** The package that is accessing the permission protected data. */
     @nullable @utf8InCpp String packageName;
     /** The attribution tag of the app accessing the permission protected data. */
