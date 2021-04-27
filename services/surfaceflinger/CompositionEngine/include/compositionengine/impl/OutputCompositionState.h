@@ -32,6 +32,7 @@
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 #include <compositionengine/ProjectionSpace.h>
+#include <ui/LayerStack.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
@@ -59,11 +60,8 @@ struct OutputCompositionState {
     // If true, the current frame reused the buffer from a previous client composition
     bool reusedClientComposition{false};
 
-    // If true, this output displays layers that are internal-only
-    bool layerStackInternal{false};
-
-    // The layer stack to display on this display
-    uint32_t layerStackId{~0u};
+    // The conditions for including a layer on this output
+    ui::LayerFilter layerFilter;
 
     // The common space for all layers in the layer stack. layerStackSpace.content is the Rect
     // which gets projected on the display. The orientation of this space is always ROTATION_0.

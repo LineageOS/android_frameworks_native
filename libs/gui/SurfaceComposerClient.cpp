@@ -1087,7 +1087,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAlpha
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLayerStack(
-        const sp<SurfaceControl>& sc, uint32_t layerStack) {
+        const sp<SurfaceControl>& sc, ui::LayerStack layerStack) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
@@ -1751,7 +1751,7 @@ status_t SurfaceComposerClient::Transaction::setDisplaySurface(const sp<IBinder>
 }
 
 void SurfaceComposerClient::Transaction::setDisplayLayerStack(const sp<IBinder>& token,
-        uint32_t layerStack) {
+                                                              ui::LayerStack layerStack) {
     DisplayState& s(getDisplayState(token));
     s.layerStack = layerStack;
     s.what |= DisplayState::eLayerStackChanged;

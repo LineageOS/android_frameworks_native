@@ -281,7 +281,7 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }
 
-void RefreshRateOverlay::setLayerStack(uint32_t stack) {
+void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
     mLayer->setLayerStack(stack);
     mFlinger.mTransactionFlags.fetch_or(eTransactionMask);
 }

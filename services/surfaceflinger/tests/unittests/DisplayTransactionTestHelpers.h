@@ -267,11 +267,6 @@ struct DisplayVariant {
                 .setPixels({WIDTH, HEIGHT})
                 .setPowerAdvisor(&test->mPowerAdvisor);
 
-        const auto connectionType = CONNECTION_TYPE::value;
-        if (connectionType) {
-            ceDisplayArgs.setConnectionType(*connectionType);
-        }
-
         auto compositionDisplay =
                 compositionengine::impl::createDisplay(test->mFlinger.getCompositionEngine(),
                                                        ceDisplayArgs.build());
@@ -279,7 +274,7 @@ struct DisplayVariant {
         auto injector =
                 TestableSurfaceFlinger::FakeDisplayDeviceInjector(test->mFlinger,
                                                                   compositionDisplay,
-                                                                  connectionType,
+                                                                  CONNECTION_TYPE::value,
                                                                   HWC_DISPLAY_ID_OPT::value,
                                                                   static_cast<bool>(PRIMARY));
 
@@ -388,7 +383,6 @@ struct HwcDisplayVariant {
 
         auto ceDisplayArgs = compositionengine::DisplayCreationArgsBuilder()
                                      .setId(DisplayVariant::DISPLAY_ID::get())
-                                     .setConnectionType(PhysicalDisplay::CONNECTION_TYPE)
                                      .setPixels({DisplayVariant::WIDTH, DisplayVariant::HEIGHT})
                                      .setIsSecure(static_cast<bool>(DisplayVariant::SECURE))
                                      .setPowerAdvisor(&test->mPowerAdvisor)

@@ -151,12 +151,7 @@ public:
         Geometry requested_legacy;
         int32_t z;
 
-        // The identifier of the layer stack this layer belongs to. A layer can
-        // only be associated to a single layer stack. A layer stack is a
-        // z-ordered group of layers which can be associated to one or more
-        // displays. Using the same layer stack on different displays is a way
-        // to achieve mirroring.
-        uint32_t layerStack;
+        ui::LayerStack layerStack;
 
         uint32_t flags;
         uint8_t reserved[2];
@@ -403,8 +398,8 @@ public:
     virtual bool setTransparentRegionHint(const Region& transparent);
     virtual bool setTrustedOverlay(bool);
     virtual bool setFlags(uint32_t flags, uint32_t mask);
-    virtual bool setLayerStack(uint32_t layerStack);
-    virtual uint32_t getLayerStack() const;
+    virtual bool setLayerStack(ui::LayerStack);
+    virtual ui::LayerStack getLayerStack() const;
     virtual bool setMetadata(const LayerMetadata& data);
     virtual void setChildrenDrawingParent(const sp<Layer>&);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
@@ -645,11 +640,6 @@ public:
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t setTransactionFlags(uint32_t flags);
 
-    // Deprecated, please use compositionengine::Output::belongsInOutput()
-    // instead.
-    // TODO(lpique): Move the remaining callers (screencap) to the new function.
-    bool belongsToDisplay(uint32_t layerStack) const { return getLayerStack() == layerStack; }
-
     FloatRect getBounds(const Region& activeTransparentRegion) const;
     FloatRect getBounds() const;
 
@@ -681,6 +671,14 @@ public:
      */
     bool isHiddenByPolicy() const;
 
+    // True if the layer should be skipped in screenshots, screen recordings,
+    // and mirroring to external or virtual displays.
+    bool isInternalDisplayOverlay() const;
+
+    ui::LayerFilter getOutputFilter() const {
+        return {getLayerStack(), isInternalDisplayOverlay()};
+    }
+
     bool isRemovedFromCurrentState() const;
 
     LayerProto* writeToProto(LayersProto& layersProto, uint32_t traceFlags, const DisplayDevice*);
@@ -696,8 +694,6 @@ public:
                                  uint32_t traceFlags = SurfaceTracing::TRACE_ALL);
 
     gui::WindowInfo::Type getWindowType() const { return mWindowType; }
-
-    bool getPrimaryDisplayOnly() const;
 
     void updateMirrorInfo();
 
@@ -848,7 +844,8 @@ public:
     bool getPremultipledAlpha() const;
     void setInputInfo(const gui::WindowInfo& info);
 
-    gui::WindowInfo fillInputInfo(const sp<DisplayDevice>& display);
+    gui::WindowInfo fillInputInfo(const DisplayDevice*);
+
     /**
      * Returns whether this layer has an explicitly set input-info.
      */
@@ -1069,8 +1066,8 @@ private:
     // hasInputInfo() or no-op if no such parent is found.
     void fillTouchOcclusionMode(gui::WindowInfo& info);
 
-    // Fills in the frame and transform info for the gui::WindowInfo
-    void fillInputFrameInfo(gui::WindowInfo& info, const ui::Transform& toPhysicalDisplay);
+    // Fills in the frame and transform info for the gui::WindowInfo.
+    void fillInputFrameInfo(gui::WindowInfo&, const ui::Transform& displayTransform);
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling, which is

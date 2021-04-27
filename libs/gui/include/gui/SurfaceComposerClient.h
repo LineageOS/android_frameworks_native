@@ -456,7 +456,7 @@ public:
                                              int backgroundBlurRadius);
         Transaction& setBlurRegions(const sp<SurfaceControl>& sc,
                                     const std::vector<BlurRegion>& regions);
-        Transaction& setLayerStack(const sp<SurfaceControl>& sc, uint32_t layerStack);
+        Transaction& setLayerStack(const sp<SurfaceControl>&, ui::LayerStack);
         Transaction& setMetadata(const sp<SurfaceControl>& sc, uint32_t key, const Parcel& p);
 
         /// Reparents the current layer to the new parent handle. The new parent must not be null.
@@ -566,7 +566,7 @@ public:
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
 
-        void setDisplayLayerStack(const sp<IBinder>& token, uint32_t layerStack);
+        void setDisplayLayerStack(const sp<IBinder>& token, ui::LayerStack);
 
         void setDisplayFlags(const sp<IBinder>& token, uint32_t flags);
 

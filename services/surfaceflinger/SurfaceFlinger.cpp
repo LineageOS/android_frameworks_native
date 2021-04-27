@@ -2295,7 +2295,7 @@ void SurfaceFlinger::postComposition() {
             int32_t maxArea = 0;
             mDrawingState.traverse([&, compositionDisplay = compositionDisplay](Layer* layer) {
                 const auto layerFe = layer->getCompositionEngineLayerFE();
-                if (layer->isVisible() && compositionDisplay->belongsInOutput(layerFe)) {
+                if (layer->isVisible() && compositionDisplay->includesLayer(layerFe)) {
                     const Dataspace transfer =
                         static_cast<Dataspace>(layer->getDataSpace() & Dataspace::TRANSFER_MASK);
                     const bool isHdr = (transfer == Dataspace::TRANSFER_ST2084 ||
@@ -2426,8 +2426,8 @@ void SurfaceFlinger::computeLayerBounds() {
         const auto& displayDevice = pair.second;
         const auto display = displayDevice->getCompositionDisplay();
         for (const auto& layer : mDrawingState.layersSortedByZ) {
-            // only consider the layers on the given layer stack
-            if (!display->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
+            // Only consider the layers on this display.
+            if (!display->includesLayer(layer->getOutputFilter())) {
                 continue;
             }
 
@@ -2732,14 +2732,12 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     compositionengine::DisplayCreationArgsBuilder builder;
     if (const auto& physical = state.physical) {
         builder.setId(physical->id);
-        builder.setConnectionType(physical->type);
     } else {
         builder.setId(acquireVirtualDisplay(resolution, pixelFormat));
     }
 
     builder.setPixels(resolution);
     builder.setIsSecure(state.isSecure);
-    builder.setLayerStackId(state.layerStack);
     builder.setPowerAdvisor(&mPowerAdvisor);
     builder.setName(state.displayName);
     auto compositionDisplay = getCompositionEngine().createDisplay(builder.build());
@@ -2942,16 +2940,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
 
     // Update transform hint
     if (transactionFlags & (eTransformHintUpdateNeeded | eDisplayTransactionNeeded)) {
-        // The transform hint might have changed for some layers
-        // (either because a display has changed, or because a layer
-        // as changed).
-        //
-        // Walk through all the layers in currentLayers,
-        // and update their transform hint.
-        //
-        // If a layer is visible only on a single display, then that
-        // display is used to calculate the hint, otherwise we use the
-        // default display.
+        // Layers and/or displays have changed, so update the transform hint for each layer.
         //
         // NOTE: we do this here, rather than when presenting the display so that
         // the hint is set before we acquire a buffer from the surface texture.
@@ -2962,30 +2951,29 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
         // (soon to become the drawing state list).
         //
         sp<const DisplayDevice> hintDisplay;
-        uint32_t currentlayerStack = 0;
-        bool first = true;
+        ui::LayerStack layerStack;
+
         mCurrentState.traverse([&](Layer* layer) REQUIRES(mStateLock) {
             // NOTE: we rely on the fact that layers are sorted by
             // layerStack first (so we don't have to traverse the list
             // of displays for every layer).
-            uint32_t layerStack = layer->getLayerStack();
-            if (first || currentlayerStack != layerStack) {
-                currentlayerStack = layerStack;
-                // figure out if this layerstack is mirrored
-                // (more than one display) if so, pick the default display,
-                // if not, pick the only display it's on.
+            if (const auto filter = layer->getOutputFilter(); layerStack != filter.layerStack) {
+                layerStack = filter.layerStack;
                 hintDisplay = nullptr;
+
+                // Find the display that includes the layer.
                 for (const auto& [token, display] : mDisplays) {
-                    if (display->getCompositionDisplay()
-                                ->belongsInOutput(layer->getLayerStack(),
-                                                  layer->getPrimaryDisplayOnly())) {
-                        if (hintDisplay) {
-                            hintDisplay = nullptr;
-                            break;
-                        } else {
-                            hintDisplay = display;
-                        }
+                    if (!display->getCompositionDisplay()->includesLayer(filter)) {
+                        continue;
                     }
+
+                    // Pick the primary display if another display mirrors the layer.
+                    if (hintDisplay) {
+                        hintDisplay = nullptr;
+                        break;
+                    }
+
+                    hintDisplay = display;
                 }
             }
 
@@ -2999,13 +2987,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
                 hintDisplay = getDefaultDisplayDeviceLocked();
             }
 
-            // could be null if there is no display available at all to get
-            // the transform hint from.
-            if (hintDisplay) {
-                layer->updateTransformHint(hintDisplay->getTransformHint());
-            }
-
-            first = false;
+            layer->updateTransformHint(hintDisplay->getTransformHint());
         });
     }
 
@@ -3069,9 +3051,12 @@ void SurfaceFlinger::notifyWindowInfos() {
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (!layer->needsInputInfo()) return;
-        sp<DisplayDevice> display = enablePerWindowInputRotation()
-                ? ON_MAIN_THREAD(getDisplayWithInputByLayer(layer))
-                : nullptr;
+
+        const DisplayDevice* display = nullptr;
+        if (enablePerWindowInputRotation()) {
+            display = ON_MAIN_THREAD(getDisplayWithInputByLayer(layer)).get();
+        }
+
         // When calculating the screen bounds we ignore the transparent region since it may
         // result in an unwanted offset.
         windowInfos.push_back(layer->fillInputInfo(display));
@@ -3243,7 +3228,7 @@ void SurfaceFlinger::commitOffscreenLayers() {
 void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty) {
     for (const auto& [token, displayDevice] : ON_MAIN_THREAD(mDisplays)) {
         auto display = displayDevice->getCompositionDisplay();
-        if (display->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
+        if (display->includesLayer(layer->getOutputFilter())) {
             display->editState().dirtyRegion.orSelf(dirty);
         }
     }
@@ -4464,7 +4449,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.what = DisplayState::eDisplayProjectionChanged |
              DisplayState::eLayerStackChanged;
     d.token = token;
-    d.layerStack = 0;
+    d.layerStack = ui::DEFAULT_LAYER_STACK;
     d.orientation = ui::ROTATION_0;
     d.orientedDisplaySpaceRect.makeInvalid();
     d.layerStackSpaceRect.makeInvalid();
@@ -4495,23 +4480,22 @@ void SurfaceFlinger::initializeDisplays() {
 }
 
 sp<DisplayDevice> SurfaceFlinger::getDisplayWithInputByLayer(Layer* layer) const {
-    sp<DisplayDevice> display;
-    for (const auto& pair : mDisplays) {
-        const auto& displayDevice = pair.second;
-        if (!displayDevice->receivesInput() ||
-            !displayDevice->getCompositionDisplay()
-                     ->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
+    const auto filter = layer->getOutputFilter();
+    sp<DisplayDevice> inputDisplay;
+
+    for (const auto& [_, display] : mDisplays) {
+        if (!display->receivesInput() || !display->getCompositionDisplay()->includesLayer(filter)) {
             continue;
         }
         // Don't return immediately so that we can log duplicates.
-        if (display) {
-            ALOGE("Multiple display devices claim to accept input for the same layerstack: %d",
-                  layer->getLayerStack());
+        if (inputDisplay) {
+            ALOGE("Multiple displays claim to accept input for the same layer stack: %u",
+                  filter.layerStack.id);
             continue;
         }
-        display = displayDevice;
+        inputDisplay = display;
     }
-    return display;
+    return inputDisplay;
 }
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {
@@ -6417,12 +6401,12 @@ void SurfaceFlinger::traverseLayersInLayerStack(ui::LayerStack layerStack, const
     // We loop through the first level of layers without traversing,
     // as we need to determine which layers belong to the requested display.
     for (const auto& layer : mDrawingState.layersSortedByZ) {
-        if (!layer->belongsToDisplay(layerStack)) {
+        if (layer->getLayerStack() != layerStack) {
             continue;
         }
         // relative layers are traversed in Layer::traverseInZOrder
         layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
-            if (layer->getPrimaryDisplayOnly()) {
+            if (layer->isInternalDisplayOverlay()) {
                 return;
             }
             if (!layer->isVisible()) {

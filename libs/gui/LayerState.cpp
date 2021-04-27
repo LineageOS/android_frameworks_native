@@ -41,7 +41,6 @@ layer_state_t::layer_state_t()
         z(0),
         w(0),
         h(0),
-        layerStack(0),
         alpha(0),
         flags(0),
         mask(0),
@@ -86,7 +85,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeInt32, z);
     SAFE_PARCEL(output.writeUint32, w);
     SAFE_PARCEL(output.writeUint32, h);
-    SAFE_PARCEL(output.writeUint32, layerStack);
+    SAFE_PARCEL(output.writeUint32, layerStack.id);
     SAFE_PARCEL(output.writeFloat, alpha);
     SAFE_PARCEL(output.writeUint32, flags);
     SAFE_PARCEL(output.writeUint32, mask);
@@ -187,7 +186,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readInt32, &z);
     SAFE_PARCEL(input.readUint32, &w);
     SAFE_PARCEL(input.readUint32, &h);
-    SAFE_PARCEL(input.readUint32, &layerStack);
+    SAFE_PARCEL(input.readUint32, &layerStack.id);
     SAFE_PARCEL(input.readFloat, &alpha);
 
     SAFE_PARCEL(input.readUint32, &flags);
@@ -314,21 +313,14 @@ status_t ComposerState::read(const Parcel& input) {
     return state.read(input);
 }
 
-DisplayState::DisplayState()
-      : what(0),
-        layerStack(0),
-        flags(0),
-        layerStackSpaceRect(Rect::EMPTY_RECT),
-        orientedDisplaySpaceRect(Rect::EMPTY_RECT),
-        width(0),
-        height(0) {}
+DisplayState::DisplayState() = default;
 
 status_t DisplayState::write(Parcel& output) const {
     SAFE_PARCEL(output.writeStrongBinder, token);
     SAFE_PARCEL(output.writeStrongBinder, IInterface::asBinder(surface));
     SAFE_PARCEL(output.writeUint32, what);
-    SAFE_PARCEL(output.writeUint32, layerStack);
     SAFE_PARCEL(output.writeUint32, flags);
+    SAFE_PARCEL(output.writeUint32, layerStack.id);
     SAFE_PARCEL(output.writeUint32, toRotationInt(orientation));
     SAFE_PARCEL(output.write, layerStackSpaceRect);
     SAFE_PARCEL(output.write, orientedDisplaySpaceRect);
@@ -344,8 +336,8 @@ status_t DisplayState::read(const Parcel& input) {
     surface = interface_cast<IGraphicBufferProducer>(tmpBinder);
 
     SAFE_PARCEL(input.readUint32, &what);
-    SAFE_PARCEL(input.readUint32, &layerStack);
     SAFE_PARCEL(input.readUint32, &flags);
+    SAFE_PARCEL(input.readUint32, &layerStack.id);
     uint32_t tmpUint = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint);
     orientation = ui::toRotation(tmpUint);

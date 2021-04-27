@@ -33,7 +33,7 @@ protected:
 
         mParentLayer = createColorLayer("Parent layer", Color::RED);
         asTransaction([&](Transaction& t) {
-            t.setDisplayLayerStack(display, 0);
+            t.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
             t.setLayer(mParentLayer, INT32_MAX - 2).show(mParentLayer);
             t.setFlags(mParentLayer, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
         });
