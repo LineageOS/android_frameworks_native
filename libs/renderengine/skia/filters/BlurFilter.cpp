@@ -53,7 +53,7 @@ BlurFilter::BlurFilter() {
         }
     )");
 
-    auto [blurEffect, error] = SkRuntimeEffect::Make(blurString);
+    auto [blurEffect, error] = SkRuntimeEffect::MakeForShader(blurString);
     if (!blurEffect) {
         LOG_ALWAYS_FATAL("RuntimeShader error: %s", error.c_str());
     }
@@ -65,11 +65,11 @@ BlurFilter::BlurFilter() {
         uniform float mixFactor;
 
         half4 main(float2 xy) {
-            return half4(mix(sample(originalInput), sample(blurredInput), mixFactor));
+            return half4(mix(sample(originalInput, xy), sample(blurredInput, xy), mixFactor));
         }
     )");
 
-    auto [mixEffect, mixError] = SkRuntimeEffect::Make(mixString);
+    auto [mixEffect, mixError] = SkRuntimeEffect::MakeForShader(mixString);
     if (!mixEffect) {
         LOG_ALWAYS_FATAL("RuntimeShader error: %s", mixError.c_str());
     }
