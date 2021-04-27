@@ -583,13 +583,9 @@ void Scheduler::registerLayer(Layer* layer) {
 
     scheduler::LayerHistory::LayerVoteType voteType;
 
-    if (layer->getWindowType() == InputWindowInfo::Type::STATUS_BAR) {
+    if (!mOptions.useContentDetection ||
+        layer->getWindowType() == InputWindowInfo::Type::STATUS_BAR) {
         voteType = scheduler::LayerHistory::LayerVoteType::NoVote;
-    } else if (!mOptions.useContentDetection) {
-        // If the content detection feature is off, all layers are registered at Max. We still keep
-        // the layer history, since we use it for other features (like Frame Rate API), so layers
-        // still need to be registered.
-        voteType = scheduler::LayerHistory::LayerVoteType::Max;
     } else if (layer->getWindowType() == InputWindowInfo::Type::WALLPAPER) {
         // Running Wallpaper at Min is considered as part of content detection.
         voteType = scheduler::LayerHistory::LayerVoteType::Min;
@@ -597,6 +593,9 @@ void Scheduler::registerLayer(Layer* layer) {
         voteType = scheduler::LayerHistory::LayerVoteType::Heuristic;
     }
 
+    // If the content detection feature is off, we still keep the layer history,
+    // since we use it for other features (like Frame Rate API), so layers
+    // still need to be registered.
     mLayerHistory->registerLayer(layer, voteType);
 }
 
