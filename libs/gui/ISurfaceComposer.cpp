@@ -824,6 +824,36 @@ public:
         return error;
     }
 
+    virtual status_t addTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener) {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
+
+        const status_t error =
+                remote()->transact(BnSurfaceComposer::ADD_TUNNEL_MODE_ENABLED_LISTENER, data,
+                                   &reply);
+        if (error != NO_ERROR) {
+            ALOGE("addTunnelModeEnabledListener: Failed to transact");
+        }
+        return error;
+    }
+
+    virtual status_t removeTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener) {
+        Parcel data, reply;
+        SAFE_PARCEL(data.writeInterfaceToken, ISurfaceComposer::getInterfaceDescriptor());
+        SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(listener));
+
+        const status_t error =
+                remote()->transact(BnSurfaceComposer::REMOVE_TUNNEL_MODE_ENABLED_LISTENER, data,
+                                   &reply);
+        if (error != NO_ERROR) {
+            ALOGE("removeTunnelModeEnabledListener: Failed to transact");
+        }
+        return error;
+    }
+
     status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
                                         ui::DisplayModeId defaultMode, bool allowGroupSwitching,
                                         float primaryRefreshRateMin, float primaryRefreshRateMax,
@@ -1739,6 +1769,26 @@ status_t BnSurfaceComposer::onTransact(
                 return result;
             }
             return removeFpsListener(listener);
+        }
+        case ADD_TUNNEL_MODE_ENABLED_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<gui::ITunnelModeEnabledListener> listener;
+            status_t result = data.readNullableStrongBinder(&listener);
+            if (result != NO_ERROR) {
+                ALOGE("addTunnelModeEnabledListener: Failed to read listener");
+                return result;
+            }
+            return addTunnelModeEnabledListener(listener);
+        }
+        case REMOVE_TUNNEL_MODE_ENABLED_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<gui::ITunnelModeEnabledListener> listener;
+            status_t result = data.readNullableStrongBinder(&listener);
+            if (result != NO_ERROR) {
+                ALOGE("removeTunnelModeEnabledListener: Failed to read listener");
+                return result;
+            }
+            return removeTunnelModeEnabledListener(listener);
         }
         case SET_DESIRED_DISPLAY_MODE_SPECS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
