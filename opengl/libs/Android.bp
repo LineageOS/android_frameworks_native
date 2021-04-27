@@ -137,7 +137,12 @@ cc_library_static {
 cc_library_shared {
     name: "libEGL",
     defaults: ["egl_libs_defaults"],
-    llndk_stubs: "libEGL.llndk",
+    llndk: {
+        symbol_file: "libEGL.map.txt",
+        export_llndk_headers: ["gl_llndk_headers"],
+        // Don't export EGL/include from the LLNDK variant.
+        override_export_include_dirs: [],
+    },
     srcs: [
         "EGL/egl_tls.cpp",
         "EGL/egl_cache.cpp",
@@ -203,7 +208,12 @@ cc_defaults {
 cc_library_shared {
     name: "libGLESv1_CM",
     defaults: ["gles_libs_defaults"],
-    llndk_stubs: "libGLESv1_CM.llndk",
+    llndk: {
+        symbol_file: "libGLESv1_CM.map.txt",
+        export_llndk_headers: ["gl_llndk_headers"],
+        // Don't export EGL/include from the LLNDK variant.
+        override_export_include_dirs: [],
+    },
     srcs: ["GLES_CM/gl.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv1\""],
     version_script: "libGLESv1_CM.map.txt",
@@ -215,7 +225,12 @@ cc_library_shared {
 cc_library_shared {
     name: "libGLESv2",
     defaults: ["gles_libs_defaults"],
-    llndk_stubs: "libGLESv2.llndk",
+    llndk: {
+        symbol_file: "libGLESv2.map.txt",
+        export_llndk_headers: ["gl_llndk_headers"],
+        // Don't export EGL/include from the LLNDK variant.
+        override_export_include_dirs: [],
+    },
     srcs: ["GLES2/gl2.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv2\""],
 
@@ -230,31 +245,12 @@ cc_library_shared {
 cc_library_shared {
     name: "libGLESv3",
     defaults: ["gles_libs_defaults"],
-    llndk_stubs: "libGLESv3.llndk",
+    llndk: {
+        symbol_file: "libGLESv3.map.txt",
+        export_llndk_headers: ["gl_llndk_headers"],
+        // Don't export EGL/include from the LLNDK variant.
+        override_export_include_dirs: [],
+    },
     srcs: ["GLES2/gl2.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv3\""],
-}
-
-llndk_library {
-    name: "libEGL.llndk",
-    symbol_file: "libEGL.map.txt",
-    export_llndk_headers: ["gl_llndk_headers"],
-}
-
-llndk_library {
-    name: "libGLESv1_CM.llndk",
-    symbol_file: "libGLESv1_CM.map.txt",
-    export_llndk_headers: ["gl_llndk_headers"],
-}
-
-llndk_library {
-    name: "libGLESv2.llndk",
-    symbol_file: "libGLESv2.map.txt",
-    export_llndk_headers: ["gl_llndk_headers"],
-}
-
-llndk_library {
-    name: "libGLESv3.llndk",
-    symbol_file: "libGLESv3.map.txt",
-    export_llndk_headers: ["gl_llndk_headers"],
 }
