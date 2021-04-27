@@ -26,10 +26,18 @@
 
 namespace android {
 
-FpsReporter::FpsReporter(frametimeline::FrameTimeline& frameTimeline, SurfaceFlinger& flinger)
-      : mFrameTimeline(frameTimeline), mFlinger(flinger) {}
+FpsReporter::FpsReporter(frametimeline::FrameTimeline& frameTimeline, SurfaceFlinger& flinger,
+                         std::unique_ptr<Clock> clock)
+      : mFrameTimeline(frameTimeline), mFlinger(flinger), mClock(std::move(clock)) {
+    LOG_ALWAYS_FATAL_IF(mClock == nullptr, "Passed in null clock when constructing FpsReporter!");
+}
 
-void FpsReporter::dispatchLayerFps() const {
+void FpsReporter::dispatchLayerFps() {
+    const auto now = mClock->now();
+    if (now - mLastDispatch < kMinDispatchDuration) {
+        return;
+    }
+
     std::vector<TrackedListener> localListeners;
     {
         std::scoped_lock lock(mMutex);
@@ -71,6 +79,8 @@ void FpsReporter::dispatchLayerFps() const {
 
         listener.listener->onFpsReported(mFrameTimeline.computeFps(layerIds));
     }
+
+    mLastDispatch = now;
 }
 
 void FpsReporter::binderDied(const wp<IBinder>& who) {
