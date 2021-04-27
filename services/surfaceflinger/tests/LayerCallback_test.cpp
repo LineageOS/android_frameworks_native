@@ -767,7 +767,8 @@ TEST_F(LayerCallbackTest, MultipleTransactions_Merge_DifferentClients_SameStateC
     EXPECT_NO_FATAL_FAILURE(waitForCallback(callback2, expected, true));
 }
 
-TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame) {
+// TODO (b/183181768): Fix & re-enable
+TEST_F(LayerCallbackTest, DISABLED_MultipleTransactions_SingleFrame) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
 
@@ -938,7 +939,8 @@ TEST_F(LayerCallbackTest, DesiredPresentTime_Multiple) {
     EXPECT_NO_FATAL_FAILURE(waitForCallback(callback2, expected2, true));
 }
 
-TEST_F(LayerCallbackTest, DesiredPresentTime_OutOfOrder) {
+// TODO (b/183181768): Fix & re-enable
+TEST_F(LayerCallbackTest, DISABLED_DesiredPresentTime_OutOfOrder) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
 
