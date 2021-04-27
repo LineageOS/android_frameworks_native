@@ -37,12 +37,17 @@ const auto kScaleAndTranslate = mat4(0.7f,   0.f, 0.f, 0.f,
                                      0.f,  0.7f, 0.f, 0.f,
                                      0.f,   0.f, 1.f, 0.f,
                                    67.3f, 52.2f, 0.f, 1.f);
+const auto kScaleYOnly = mat4(1.f,   0.f, 0.f, 0.f,
+                              0.f,  0.7f, 0.f, 0.f,
+                              0.f,   0.f, 1.f, 0.f,
+                              0.f,   0.f, 0.f, 1.f);
 // clang-format on
 // When choosing dataspaces below, whether the match the destination or not determined whether
 // a color correction effect is added to the shader. There may be other additional shader details
 // for particular color spaces.
 // TODO(b/184842383) figure out which color related shaders are necessary
 constexpr auto kDestDataSpace = ui::Dataspace::SRGB;
+constexpr auto kOtherDataSpace = ui::Dataspace::DISPLAY_P3;
 } // namespace
 
 static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
@@ -182,6 +187,37 @@ static void drawBlurLayers(SkiaRenderEngine* renderengine, const DisplaySettings
     }
 }
 
+static void drawTextureScaleLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
+                                   const std::shared_ptr<ExternalTexture>& dstTexture,
+                                   const std::shared_ptr<ExternalTexture>& srcTexture) {
+    const Rect& displayRect = display.physicalDisplay;
+    FloatRect rect(0, 0, displayRect.width(), displayRect.height());
+    LayerSettings layer{
+            .geometry =
+                    Geometry{
+                            .boundaries = rect,
+                            .roundedCornersCrop = rect,
+                            .positionTransform = kScaleAndTranslate,
+                            .roundedCornersRadius = 300,
+                    },
+            .source = PixelSource{.buffer =
+                                          Buffer{
+                                                  .buffer = srcTexture,
+                                                  .maxMasteringLuminance = 1000.f,
+                                                  .maxContentLuminance = 1000.f,
+                                                  .textureTransform = kScaleYOnly,
+                                          }},
+            .sourceDataspace = kOtherDataSpace,
+    };
+
+    auto layers = std::vector<const LayerSettings*>{&layer};
+    for (float alpha : {0.5f, 1.f}) {
+        layer.alpha = alpha,
+        renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
+                                 base::unique_fd(), nullptr);
+    }
+}
+
 //
 // The collection of shaders cached here were found by using perfetto to record shader compiles
 // during actions that involve RenderEngine, logging the layer settings, and the shader code
@@ -249,6 +285,9 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
     // TODO(b/184665179) doubles number of image shader compilations, but only somewhere
     // between 6 and 8 will occur in real uses.
     drawImageLayers(renderengine, display, dstTexture, externalTexture);
+
+    // Draw layers for b/185569240.
+    drawTextureScaleLayers(renderengine, display, dstTexture, externalTexture);
 
     const nsecs_t timeAfter = systemTime();
     const float compileTimeMs = static_cast<float>(timeAfter - timeBefore) / 1.0E6;
