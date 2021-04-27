@@ -2967,7 +2967,7 @@ void InputDispatcher::updateInteractionTokensLocked(const EventEntry& entry,
         return; // Not a key or a motion
     }
 
-    std::unordered_set<sp<IBinder>, IBinderHash> newConnectionTokens;
+    std::unordered_set<sp<IBinder>, StrongPointerHash<IBinder>> newConnectionTokens;
     std::vector<sp<Connection>> newConnections;
     for (const InputTarget& target : targets) {
         if ((target.flags & InputTarget::FLAG_DISPATCH_AS_OUTSIDE) ==
@@ -4284,12 +4284,8 @@ sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(const sp<IBinder>& 
     return nullptr;
 }
 
-sp<InputWindowHandle> InputDispatcher::getFocusedWindowHandleLocked(int displayId) const {
-    sp<IBinder> focusedToken = mFocusResolver.getFocusedWindowToken(displayId);
-    return getWindowHandleLocked(focusedToken, displayId);
-}
-
-bool InputDispatcher::hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const {
+sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(
+        const sp<InputWindowHandle>& windowHandle) const {
     for (auto& it : mWindowHandlesByDisplay) {
         const std::vector<sp<InputWindowHandle>>& windowHandles = it.second;
         for (const sp<InputWindowHandle>& handle : windowHandles) {
@@ -4301,11 +4297,16 @@ bool InputDispatcher::hasWindowHandleLocked(const sp<InputWindowHandle>& windowH
                           windowHandle->getName().c_str(), it.first,
                           windowHandle->getInfo()->displayId);
                 }
-                return true;
+                return handle;
             }
         }
     }
-    return false;
+    return nullptr;
+}
+
+sp<InputWindowHandle> InputDispatcher::getFocusedWindowHandleLocked(int displayId) const {
+    sp<IBinder> focusedToken = mFocusResolver.getFocusedWindowToken(displayId);
+    return getWindowHandleLocked(focusedToken, displayId);
 }
 
 bool InputDispatcher::hasResponsiveConnectionLocked(InputWindowHandle& windowHandle) const {
@@ -4461,7 +4462,7 @@ void InputDispatcher::setInputWindowsLocked(
         TouchState& state = stateIt->second;
         for (size_t i = 0; i < state.windows.size();) {
             TouchedWindow& touchedWindow = state.windows[i];
-            if (!hasWindowHandleLocked(touchedWindow.windowHandle)) {
+            if (getWindowHandleLocked(touchedWindow.windowHandle) == nullptr) {
                 if (DEBUG_FOCUS) {
                     ALOGD("Touched window was removed: %s in display %" PRId32,
                           touchedWindow.windowHandle->getName().c_str(), displayId);
@@ -4493,7 +4494,7 @@ void InputDispatcher::setInputWindowsLocked(
     // Otherwise, they might stick around until the window handle is destroyed
     // which might not happen until the next GC.
     for (const sp<InputWindowHandle>& oldWindowHandle : oldWindowHandles) {
-        if (!hasWindowHandleLocked(oldWindowHandle)) {
+        if (getWindowHandleLocked(oldWindowHandle) == nullptr) {
             if (DEBUG_FOCUS) {
                 ALOGD("Window went away: %s", oldWindowHandle->getName().c_str());
             }

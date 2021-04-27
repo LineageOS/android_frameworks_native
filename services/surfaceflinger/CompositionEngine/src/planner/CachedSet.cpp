@@ -159,7 +159,10 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine,
     const ui::Transform::RotationFlags orientation =
             ui::Transform::toRotationFlags(outputState.framebufferSpace.orientation);
     renderengine::DisplaySettings displaySettings{
-            .physicalDisplay = Rect(0, 0, mBounds.getWidth(), mBounds.getHeight()),
+            .physicalDisplay =
+                    Rect(-mBounds.left, -mBounds.top,
+                         -mBounds.left + outputState.framebufferSpace.content.getWidth(),
+                         -mBounds.top + outputState.framebufferSpace.content.getHeight()),
             .clip = viewport,
             .outputDataspace = outputDataspace,
             .orientation = orientation,
