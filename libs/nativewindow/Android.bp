@@ -60,7 +60,13 @@ ndk_library {
 
 cc_library {
     name: "libnativewindow",
-    llndk_stubs: "libnativewindow.llndk",
+    llndk: {
+        symbol_file: "libnativewindow.map.txt",
+        unversioned: true,
+        override_export_include_dirs: [
+            "include"
+        ],
+    },
     export_include_dirs: [
         "include",
         "include-private",
@@ -113,13 +119,6 @@ cc_library {
         symbol_file: "libnativewindow.map.txt",
         versions: ["29"],
     },
-}
-
-llndk_library {
-    name: "libnativewindow.llndk",
-    symbol_file: "libnativewindow.map.txt",
-    unversioned: true,
-    export_include_dirs: ["include"],
 }
 
 subdirs = ["tests"]
