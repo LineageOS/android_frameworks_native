@@ -18,6 +18,7 @@
 #include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/Output.h>
+#include <compositionengine/impl/HwcBufferCache.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
@@ -548,9 +549,11 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
 
     sp<GraphicBuffer> buffer = outputIndependentState.buffer;
     sp<Fence> acquireFence = outputIndependentState.acquireFence;
+    int slot = outputIndependentState.bufferSlot;
     if (getState().overrideInfo.buffer != nullptr) {
         buffer = getState().overrideInfo.buffer->getBuffer();
         acquireFence = getState().overrideInfo.acquireFence;
+        slot = HwcBufferCache::FLATTENER_CACHING_SLOT;
     }
 
     ALOGV("Writing buffer %p", buffer.get());
@@ -559,8 +562,7 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
     sp<GraphicBuffer> hwcBuffer;
     // We need access to the output-dependent state for the buffer cache there,
     // though otherwise the buffer is not output-dependent.
-    editState().hwc->hwcBufferCache.getHwcBuffer(outputIndependentState.bufferSlot, buffer,
-                                                 &hwcSlot, &hwcBuffer);
+    editState().hwc->hwcBufferCache.getHwcBuffer(slot, buffer, &hwcSlot, &hwcBuffer);
 
     if (auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
         error != hal::Error::NONE) {
