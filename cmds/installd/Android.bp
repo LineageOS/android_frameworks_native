@@ -47,6 +47,9 @@ cc_defaults {
         "libutils",
         "server_configurable_flags",
     ],
+    static_libs: [
+        "libasync_safe",
+    ],
     export_shared_lib_headers: [
         "libbinder",
     ],
@@ -251,6 +254,7 @@ cc_binary {
     ],
 
     static_libs: [
+        "libasync_safe",
         "libdiskusage",
         "libotapreoptparameters",
     ],
