@@ -632,6 +632,8 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
     if (!targetSettings.disableBlurs) {
         layerSettings.backgroundBlurRadius = getBackgroundBlurRadius();
         layerSettings.blurRegions = getBlurRegions();
+        layerSettings.blurRegionTransform =
+                getActiveTransform(getDrawingState()).inverse().asMatrix4();
     }
     layerSettings.stretchEffect = getDrawingState().stretchEffect;
     // Record the name of the layer for debugging further down the stack.
