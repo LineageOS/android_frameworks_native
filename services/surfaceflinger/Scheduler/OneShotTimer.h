@@ -20,6 +20,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <thread>
+#include "../Clock.h"
 
 #include <android-base/thread_annotations.h>
 
@@ -36,17 +37,9 @@ public:
     using ResetCallback = std::function<void()>;
     using TimeoutCallback = std::function<void()>;
 
-    class Clock {
-    public:
-        Clock() = default;
-        virtual ~Clock() = default;
-
-        virtual std::chrono::steady_clock::time_point now() const;
-    };
-
     OneShotTimer(std::string name, const Interval& interval, const ResetCallback& resetCallback,
                  const TimeoutCallback& timeoutCallback,
-                 std::unique_ptr<OneShotTimer::Clock> = std::make_unique<OneShotTimer::Clock>());
+                 std::unique_ptr<Clock> clock = std::make_unique<SteadyClock>());
     ~OneShotTimer();
 
     // Initializes and turns on the idle timer.

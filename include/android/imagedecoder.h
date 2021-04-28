@@ -739,6 +739,9 @@ int32_t AImageDecoder_getRepeatCount(AImageDecoder* _Nonnull decoder)
  * skipping frames in an image with such frames may not produce the correct
  * results.
  *
+ * Only supported by {@link ANDROID_BITMAP_FORMAT_RGBA_8888} and
+ * {@link ANDROID_BITMAP_FORMAT_RGBA_F16}.
+ *
  * @param decoder an {@link AImageDecoder} object.
  * @return {@link ANDROID_IMAGE_DECODER_SUCCESS} on success or a value
  *         indicating the reason for the failure.
@@ -747,6 +750,8 @@ int32_t AImageDecoder_getRepeatCount(AImageDecoder* _Nonnull decoder)
  * - {@link ANDROID_IMAGE_DECODER_BAD_PARAMETER}: The AImageDecoder
  *   represents an image that is not animated (see
  *   {@link AImageDecoder_isAnimated}) or the AImageDecoder is null.
+ * - {@link ANDROID_IMAGE_DECODER_INVALID_STATE): The requested
+ *   {@link AndroidBitmapFormat} does not support animation.
  * - {@link ANDROID_IMAGE_DECODER_INCOMPLETE}: The input appears
  *   to be truncated. The client must call {@link AImageDecoder_rewind}
  *   before calling {@link AImageDecoder_decodeImage} again.
