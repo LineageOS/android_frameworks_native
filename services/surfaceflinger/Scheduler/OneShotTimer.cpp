@@ -15,7 +15,6 @@
  */
 
 #include "OneShotTimer.h"
-
 #include <utils/Log.h>
 #include <utils/Timers.h>
 #include <chrono>
@@ -40,14 +39,9 @@ void calculateTimeoutTime(std::chrono::nanoseconds timestamp, timespec* spec) {
 namespace android {
 namespace scheduler {
 
-std::chrono::steady_clock::time_point OneShotTimer::Clock::now() const {
-    return std::chrono::steady_clock::now();
-}
-
 OneShotTimer::OneShotTimer(std::string name, const Interval& interval,
                            const ResetCallback& resetCallback,
-                           const TimeoutCallback& timeoutCallback,
-                           std::unique_ptr<OneShotTimer::Clock> clock)
+                           const TimeoutCallback& timeoutCallback, std::unique_ptr<Clock> clock)
       : mClock(std::move(clock)),
         mName(std::move(name)),
         mInterval(interval),
