@@ -481,7 +481,12 @@ void ServiceManager::tryStartService(const std::string& name) {
           name.c_str());
 
     std::thread([=] {
-        (void)base::SetProperty("ctl.interface_start", "aidl/" + name);
+        if (!base::SetProperty("ctl.interface_start", "aidl/" + name)) {
+            LOG(INFO) << "Tried to start aidl service " << name
+                      << " as a lazy service, but was unable to. Usually this happens when a "
+                         "service is not installed, but if the service is intended to be used as a "
+                         "lazy service, then it may be configured incorrectly.";
+        }
     }).detach();
 }
 
