@@ -1664,6 +1664,21 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setStret
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBufferCrop(
+        const sp<SurfaceControl>& sc, const Rect& bufferCrop) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eBufferCropChanged;
+    s->bufferCrop = bufferCrop;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 
 DisplayState& SurfaceComposerClient::Transaction::getDisplayState(const sp<IBinder>& token) {

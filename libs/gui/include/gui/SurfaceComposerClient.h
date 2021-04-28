@@ -542,6 +542,8 @@ public:
                                       float right, float bottom, float vecX, float vecY,
                                       float maxAmount);
 
+        Transaction& setBufferCrop(const sp<SurfaceControl>& sc, const Rect& bufferCrop);
+
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
 
