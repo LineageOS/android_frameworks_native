@@ -284,6 +284,17 @@ bool BufferStateLayer::setCrop(const Rect& crop) {
     return true;
 }
 
+bool BufferStateLayer::setBufferCrop(const Rect& bufferCrop) {
+    if (mCurrentState.bufferCrop == bufferCrop) return false;
+
+    mCurrentState.sequence++;
+    mCurrentState.bufferCrop = bufferCrop;
+
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
 bool BufferStateLayer::setMatrix(const layer_state_t::matrix22_t& matrix,
                                  bool allowNonRectPreservingTransforms) {
     if (mCurrentState.transform.dsdx() == matrix.dsdx &&
@@ -809,10 +820,15 @@ uint32_t BufferStateLayer::getEffectiveScalingMode() const {
 }
 
 Rect BufferStateLayer::computeBufferCrop(const State& s) {
-    if (s.buffer) {
+    if (s.buffer && !s.bufferCrop.isEmpty()) {
+        Rect bufferCrop;
+        s.buffer->getBuffer()->getBounds().intersect(s.bufferCrop, &bufferCrop);
+        return bufferCrop;
+    } else if (s.buffer) {
         return s.buffer->getBuffer()->getBounds();
+    } else {
+        return s.bufferCrop;
     }
-    return Rect::INVALID_RECT;
 }
 
 sp<Layer> BufferStateLayer::createClone() {
