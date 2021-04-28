@@ -45,7 +45,10 @@ bool isSameStack(const std::vector<const LayerState*>& incomingLayers,
     }
 
     for (size_t i = 0; i < incomingLayers.size(); i++) {
-        if (incomingLayers[i]->getDifferingFields(*(existingLayers[i])) != LayerStateField::None) {
+        // Checking the IDs here is very strict, but we do this as otherwise we may mistakenly try
+        // to access destroyed OutputLayers later on.
+        if (incomingLayers[i]->getId() != existingLayers[i]->getId() ||
+            incomingLayers[i]->getDifferingFields(*(existingLayers[i])) != LayerStateField::None) {
             return false;
         }
     }
@@ -232,7 +235,8 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
     auto currentLayerIter = mLayers.begin();
     auto incomingLayerIter = layers.begin();
     while (incomingLayerIter != layers.end()) {
-        if (mNewCachedSet && mNewCachedSet->getFingerprint() == (*incomingLayerIter)->getHash()) {
+        if (mNewCachedSet &&
+            mNewCachedSet->getFirstLayer().getState()->getId() == (*incomingLayerIter)->getId()) {
             if (mNewCachedSet->hasBufferUpdate()) {
                 ALOGV("[%s] Dropping new cached set", __func__);
                 ++mInvalidatedCachedSetAges[0];
