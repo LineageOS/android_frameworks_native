@@ -19,18 +19,14 @@
 
 #include <fstream>
 #include <functional>
-#include <string>
+#include <string_view>
+#include "android-base/unique_fd.h"
 
 namespace android {
 namespace installd {
 
-bool ParseFile(const std::string& strFile, std::function<bool (const std::string&)> parse) {
-    std::ifstream input_stream(strFile);
-
-    if (!input_stream.is_open()) {
-        return false;
-    }
-
+template<typename Func>
+bool ParseFile(std::istream& input_stream, Func parse) {
     while (!input_stream.eof()) {
         // Read the next line.
         std::string line;
@@ -52,6 +48,15 @@ bool ParseFile(const std::string& strFile, std::function<bool (const std::string
     }
 
     return true;
+}
+
+template<typename Func>
+bool ParseFile(std::string_view str_file, Func parse) {
+  std::ifstream ifs(str_file);
+  if (!ifs.is_open()) {
+    return false;
+  }
+  return ParseFile(ifs, parse);
 }
 
 }  // namespace installd
