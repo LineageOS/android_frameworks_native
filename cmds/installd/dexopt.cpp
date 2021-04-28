@@ -36,6 +36,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
+#include <async_safe/log.h>
 #include <cutils/fs.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
@@ -727,7 +728,8 @@ bool copy_system_profile(const std::string& system_profile,
 
         if (flock(out_fd.get(), LOCK_EX | LOCK_NB) != 0) {
             if (errno != EWOULDBLOCK) {
-                PLOG(WARNING) << "Error locking profile " << package_name;
+                async_safe_format_log(ANDROID_LOG_WARN, LOG_TAG, "Error locking profile %s: %d",
+                        package_name.c_str(), errno);
             }
             // This implies that the app owning this profile is running
             // (and has acquired the lock).
@@ -735,13 +737,15 @@ bool copy_system_profile(const std::string& system_profile,
             // The app never acquires the lock for the reference profiles of primary apks.
             // Only dex2oat from installd will do that. Since installd is single threaded
             // we should not see this case. Nevertheless be prepared for it.
-            PLOG(WARNING) << "Failed to flock " << package_name;
+            async_safe_format_log(ANDROID_LOG_WARN, LOG_TAG, "Failed to flock %s: %d",
+                    package_name.c_str(), errno);
             return false;
         }
 
         bool truncated = ftruncate(out_fd.get(), 0) == 0;
         if (!truncated) {
-            PLOG(WARNING) << "Could not truncate " << package_name;
+            async_safe_format_log(ANDROID_LOG_WARN, LOG_TAG, "Could not truncate %s: %d",
+                    package_name.c_str(), errno);
         }
 
         // Copy over data.
@@ -755,7 +759,8 @@ bool copy_system_profile(const std::string& system_profile,
             write(out_fd.get(), buffer, bytes);
         }
         if (flock(out_fd.get(), LOCK_UN) != 0) {
-            PLOG(WARNING) << "Error unlocking profile " << package_name;
+            async_safe_format_log(ANDROID_LOG_WARN, LOG_TAG, "Error unlocking profile %s: %d",
+                    package_name.c_str(), errno);
         }
         // Use _exit since we don't want to run the global destructors in the child.
         // b/62597429
@@ -1513,7 +1518,8 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
 
         // Validate the path structure.
         if (!validate_secondary_dex_path(pkgname, dex_path, volume_uuid, uid, storage_flag)) {
-            LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
+            async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG,
+                    "Could not validate secondary dex path %s", dex_path.c_str());
             _exit(kSecondaryDexDexoptAnalyzerSkippedValidatePath);
         }
 
@@ -1809,7 +1815,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         drop_capabilities(uid);
 
         if (flock(out_oat.fd(), LOCK_EX | LOCK_NB) != 0) {
-            PLOG(ERROR) << "flock(" << out_oat.path() << ") failed";
+            async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG, "flock(%s) failed",
+                    out_oat.path().c_str());
             _exit(DexoptReturnCodes::kFlock);
         }
 
@@ -1904,7 +1911,8 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
         const char* volume_uuid_cstr = volume_uuid ? volume_uuid->c_str() : nullptr;
         if (!validate_secondary_dex_path(pkgname, dex_path, volume_uuid_cstr,
                 uid, storage_flag)) {
-            LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
+            async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG,
+                    "Could not validate secondary dex path %s", dex_path.c_str());
             _exit(kReconcileSecondaryDexValidationError);
         }
 
@@ -1917,7 +1925,8 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
             case kSecondaryDexAccessIOError: _exit(kReconcileSecondaryDexAccessIOError);
             case kSecondaryDexAccessPermissionError: _exit(kReconcileSecondaryDexValidationError);
             default:
-                LOG(ERROR) << "Unexpected result from check_secondary_dex_access: " << access_check;
+                async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Unexpected result from check_secondary_dex_access: %d", access_check);
                 _exit(kReconcileSecondaryDexValidationError);
         }
 
@@ -1930,7 +1939,7 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
             std::string error_msg;
             if (!create_secondary_dex_oat_layout(
                     dex_path,isas[i], oat_dir, oat_isa_dir, oat_path, &error_msg)) {
-                LOG(ERROR) << error_msg;
+                async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG, "%s", error_msg.c_str());
                 _exit(kReconcileSecondaryDexValidationError);
             }
 
@@ -1957,7 +1966,8 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
             result = rmdir_if_empty(oat_dir) && result;
         }
         if (!result) {
-            PLOG(ERROR) << "Failed to clean secondary dex artifacts for location " << dex_path;
+            async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG,
+                    "Could not validate secondary dex path %s", dex_path.c_str());
         }
         _exit(result ? kReconcileSecondaryDexCleanedUp : kReconcileSecondaryDexAccessIOError);
     }
@@ -2030,7 +2040,8 @@ bool hash_secondary_dex_file(const std::string& dex_path, const std::string& pkg
         pipe_read.reset();
 
         if (!validate_secondary_dex_path(pkgname, dex_path, volume_uuid_cstr, uid, storage_flag)) {
-            LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
+            async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG,
+                    "Could not validate secondary dex path %s", dex_path.c_str());
             _exit(DexoptReturnCodes::kHashValidatePath);
         }
 
@@ -2041,6 +2052,8 @@ bool hash_secondary_dex_file(const std::string& dex_path, const std::string& pkg
                 _exit(0);
             }
             PLOG(ERROR) << "Failed to open secondary dex " << dex_path;
+            async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG,
+                    "Failed to open secondary dex %s: %d", dex_path.c_str(), errno);
             _exit(DexoptReturnCodes::kHashOpenPath);
         }
 
@@ -2053,7 +2066,8 @@ bool hash_secondary_dex_file(const std::string& dex_path, const std::string& pkg
             if (bytes_read == 0) {
                 break;
             } else if (bytes_read == -1) {
-                PLOG(ERROR) << "Failed to read secondary dex " << dex_path;
+                async_safe_format_log(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to read secondary dex %s: %d", dex_path.c_str(), errno);
                 _exit(DexoptReturnCodes::kHashReadDex);
             }
 
