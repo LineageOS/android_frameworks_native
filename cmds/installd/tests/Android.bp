@@ -20,6 +20,7 @@ cc_test {
         "libcutils",
     ],
     static_libs: [
+        "libasync_safe",
         "libdiskusage",
         "libinstalld",
         "liblog",
@@ -44,6 +45,7 @@ cc_test {
         "server_configurable_flags",
     ],
     static_libs: [
+        "libasync_safe",
         "libdiskusage",
         "libinstalld",
         "liblog",
@@ -84,6 +86,7 @@ cc_test {
         "server_configurable_flags",
     ],
     static_libs: [
+        "libasync_safe",
         "libdiskusage",
         "libinstalld",
         "liblog",
@@ -124,6 +127,7 @@ cc_test {
         "server_configurable_flags",
     ],
     static_libs: [
+        "libasync_safe",
         "libdiskusage",
         "libinstalld",
         "liblog",
