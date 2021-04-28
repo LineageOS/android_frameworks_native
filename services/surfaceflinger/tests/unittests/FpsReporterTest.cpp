@@ -28,6 +28,7 @@
 #include "FpsReporter.h"
 #include "Layer.h"
 #include "TestableSurfaceFlinger.h"
+#include "fake/FakeClock.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockFrameTimeline.h"
@@ -91,7 +92,9 @@ protected:
     sp<Layer> mUnrelated;
 
     sp<TestableFpsListener> mFpsListener;
-    sp<FpsReporter> mFpsReporter = new FpsReporter(mFrameTimeline, *(mFlinger.flinger()));
+    fake::FakeClock* mClock = new fake::FakeClock();
+    sp<FpsReporter> mFpsReporter =
+            new FpsReporter(mFrameTimeline, *(mFlinger.flinger()), std::unique_ptr<Clock>(mClock));
 };
 
 FpsReporterTest::FpsReporterTest() {
@@ -178,6 +181,7 @@ TEST_F(FpsReporterTest, callsListeners) {
             .WillOnce(Return(expectedFps));
 
     mFpsReporter->addListener(mFpsListener, kTaskId);
+    mClock->advanceTime(600ms);
     mFpsReporter->dispatchLayerFps();
     EXPECT_EQ(expectedFps, mFpsListener->lastReportedFps);
     mFpsReporter->removeListener(mFpsListener);
@@ -185,6 +189,35 @@ TEST_F(FpsReporterTest, callsListeners) {
 
     EXPECT_CALL(mFrameTimeline, computeFps(_)).Times(0);
     mFpsReporter->dispatchLayerFps();
+}
+
+TEST_F(FpsReporterTest, rateLimits) {
+    const constexpr int32_t kTaskId = 12;
+    LayerMetadata targetMetadata;
+    targetMetadata.setInt32(METADATA_TASK_ID, kTaskId);
+    mTarget = createBufferStateLayer(targetMetadata);
+    mFlinger.mutableCurrentState().layersSortedByZ.add(mTarget);
+
+    float firstFps = 44.0;
+    float secondFps = 53.0;
+
+    EXPECT_CALL(mFrameTimeline, computeFps(UnorderedElementsAre(mTarget->getSequence())))
+            .WillOnce(Return(firstFps))
+            .WillOnce(Return(secondFps));
+
+    mFpsReporter->addListener(mFpsListener, kTaskId);
+    mClock->advanceTime(600ms);
+    mFpsReporter->dispatchLayerFps();
+    EXPECT_EQ(firstFps, mFpsListener->lastReportedFps);
+    mClock->advanceTime(200ms);
+    mFpsReporter->dispatchLayerFps();
+    EXPECT_EQ(firstFps, mFpsListener->lastReportedFps);
+    mClock->advanceTime(200ms);
+    mFpsReporter->dispatchLayerFps();
+    EXPECT_EQ(firstFps, mFpsListener->lastReportedFps);
+    mClock->advanceTime(200ms);
+    mFpsReporter->dispatchLayerFps();
+    EXPECT_EQ(secondFps, mFpsListener->lastReportedFps);
 }
 
 } // namespace
