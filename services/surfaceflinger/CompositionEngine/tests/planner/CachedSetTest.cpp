@@ -325,10 +325,55 @@ TEST_F(CachedSetTest, render) {
     cachedSet.render(mRenderEngine, mOutputState);
     expectReadyBuffer(cachedSet);
 
-    EXPECT_EQ(Rect(1, 1, 3, 3), cachedSet.getOutputSpace().content);
-    EXPECT_EQ(Rect(mOutputState.framebufferSpace.bounds.getWidth(),
-                   mOutputState.framebufferSpace.bounds.getHeight()),
-              cachedSet.getOutputSpace().bounds);
+    EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
+
+    // Now check that appending a new cached set properly cleans up RenderEngine resources.
+    CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
+    cachedSet.append(CachedSet(layer3));
+}
+
+TEST_F(CachedSetTest, rendersWithOffsetFramebufferContent) {
+    // Skip the 0th layer to ensure that the bounding box of the layers is offset from (0, 0)
+    CachedSet::Layer& layer1 = *mTestLayers[1]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE1 = mTestLayers[1]->layerFE;
+    CachedSet::Layer& layer2 = *mTestLayers[2]->cachedSetLayer.get();
+    sp<mock::LayerFE> layerFE2 = mTestLayers[2]->layerFE;
+
+    CachedSet cachedSet(layer1);
+    cachedSet.append(CachedSet(layer2));
+
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList1;
+    clientCompList1.push_back({});
+    clientCompList1[0].alpha = 0.5f;
+
+    std::vector<compositionengine::LayerFE::LayerSettings> clientCompList2;
+    clientCompList2.push_back({});
+    clientCompList2[0].alpha = 0.75f;
+
+    mOutputState.framebufferSpace = ProjectionSpace(ui::Size(10, 20), Rect(2, 3, 10, 5));
+
+    const auto drawLayers = [&](const renderengine::DisplaySettings& displaySettings,
+                                const std::vector<const renderengine::LayerSettings*>& layers,
+                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                base::unique_fd&&, base::unique_fd*) -> size_t {
+        EXPECT_EQ(Rect(1, 2, 9, 4), displaySettings.physicalDisplay);
+        EXPECT_EQ(mOutputState.layerStackSpace.content, displaySettings.clip);
+        EXPECT_EQ(ui::Transform::toRotationFlags(mOutputState.framebufferSpace.orientation),
+                  displaySettings.orientation);
+        EXPECT_EQ(0.5f, layers[0]->alpha);
+        EXPECT_EQ(0.75f, layers[1]->alpha);
+        EXPECT_EQ(ui::Dataspace::SRGB, displaySettings.outputDataspace);
+
+        return NO_ERROR;
+    };
+
+    EXPECT_CALL(*layerFE1, prepareClientCompositionList(_)).WillOnce(Return(clientCompList1));
+    EXPECT_CALL(*layerFE2, prepareClientCompositionList(_)).WillOnce(Return(clientCompList2));
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Invoke(drawLayers));
+    cachedSet.render(mRenderEngine, mOutputState);
+    expectReadyBuffer(cachedSet);
+
+    EXPECT_EQ(mOutputState.framebufferSpace, cachedSet.getOutputSpace());
 
     // Now check that appending a new cached set properly cleans up RenderEngine resources.
     CachedSet::Layer& layer3 = *mTestLayers[2]->cachedSetLayer.get();
