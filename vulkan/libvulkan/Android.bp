@@ -29,17 +29,14 @@ ndk_library {
     unversioned_until: "current",
 }
 
-llndk_library {
-    name: "libvulkan.llndk",
-    symbol_file: "libvulkan.map.txt",
-    export_llndk_headers: [
-        "vulkan_headers_llndk",
-    ],
-}
-
 cc_library_shared {
     name: "libvulkan",
-    llndk_stubs: "libvulkan.llndk",
+    llndk: {
+        symbol_file: "libvulkan.map.txt",
+        export_llndk_headers: [
+            "vulkan_headers_llndk",
+        ],
+    },
     clang: true,
     sanitize: {
         misc_undefined: ["integer"],
