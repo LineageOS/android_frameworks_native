@@ -55,9 +55,6 @@
           "include-filter": "*RelativeZTest.*"
         }
       ]
-    },
-    {
-      "name": "libsurfaceflinger_unittest"
     }
   ]
 }
