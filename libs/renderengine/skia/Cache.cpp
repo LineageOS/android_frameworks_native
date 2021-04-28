@@ -42,10 +42,8 @@ const auto kScaleYOnly = mat4(1.f,   0.f, 0.f, 0.f,
                               0.f,   0.f, 1.f, 0.f,
                               0.f,   0.f, 0.f, 1.f);
 // clang-format on
-// When choosing dataspaces below, whether the match the destination or not determined whether
-// a color correction effect is added to the shader. There may be other additional shader details
-// for particular color spaces.
-// TODO(b/184842383) figure out which color related shaders are necessary
+// When setting layer.sourceDataspace, whether it matches the destination or not determines whether
+// a color correction effect is added to the shader.
 constexpr auto kDestDataSpace = ui::Dataspace::SRGB;
 constexpr auto kOtherDataSpace = ui::Dataspace::DISPLAY_P3;
 } // namespace
@@ -120,20 +118,24 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
 
     // Test both drawRect and drawRRect
     auto layers = std::vector<const LayerSettings*>{&layer};
-    for (bool identity : {true, false}) {
-        layer.geometry.positionTransform = identity ? mat4() : kScaleAndTranslate;
-        // Corner radii less than 0.5 creates a special shader. This likely occurs in real usage
-        // due to animating corner radius.
-        // For the non-idenity matrix, only the large corner radius will create a new shader.
-        for (float roundedCornersRadius : identity ? threeCornerRadii : oneCornerRadius) {
-            // roundedCornersCrop is always set, but it is this radius that triggers the behavior
-            layer.geometry.roundedCornersRadius = roundedCornersRadius;
-            for (bool isOpaque : {true, false}) {
-                layer.source.buffer.isOpaque = isOpaque;
-                for (auto alpha : {half(.23999f), half(1.0f)}) {
-                    layer.alpha = alpha;
-                    renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                             base::unique_fd(), nullptr);
+    for (auto dataspace : {kDestDataSpace, kOtherDataSpace}) {
+        layer.sourceDataspace = dataspace;
+        for (bool identity : {true, false}) {
+            layer.geometry.positionTransform = identity ? mat4() : kScaleAndTranslate;
+            // Corner radii less than 0.5 creates a special shader. This likely occurs in real usage
+            // due to animating corner radius.
+            // For the non-idenity matrix, only the large corner radius will create a new shader.
+            for (float roundedCornersRadius : identity ? threeCornerRadii : oneCornerRadius) {
+                // roundedCornersCrop is always set, but it is this radius that triggers the
+                // behavior
+                layer.geometry.roundedCornersRadius = roundedCornersRadius;
+                for (bool isOpaque : {true, false}) {
+                    layer.source.buffer.isOpaque = isOpaque;
+                    for (auto alpha : {half(.23999f), half(1.0f)}) {
+                        layer.alpha = alpha;
+                        renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
+                                                 base::unique_fd(), nullptr);
+                    }
                 }
             }
         }
