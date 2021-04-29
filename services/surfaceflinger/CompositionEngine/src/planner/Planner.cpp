@@ -233,6 +233,8 @@ void Planner::dump(const Vector<String16>& args, std::string& result) {
             }
 
             mPredictor.listSimilarStacks(*plan, result);
+        } else if (command == "--layers" || command == "-l") {
+            mFlattener.dumpLayers(result);
         } else {
             base::StringAppendF(&result, "Unknown command '%s'\n\n", command.string());
             dumpUsage(result);
@@ -268,6 +270,9 @@ void Planner::dumpUsage(std::string& result) const {
 
     result.append("[--similar|-s] <plan>\n");
     result.append("  Prints the example layer names for similar stacks matching <plan>\n");
+
+    result.append("[--layers|-l]\n");
+    result.append("  Prints the current layers\n");
 }
 
 } // namespace android::compositionengine::impl::planner
