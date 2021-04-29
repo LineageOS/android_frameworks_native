@@ -109,7 +109,6 @@ void CachedSetTest::TearDown() {
 }
 
 void expectEqual(const CachedSet& cachedSet, const CachedSet::Layer& layer) {
-    EXPECT_EQ(layer.getHash(), cachedSet.getFingerprint());
     EXPECT_EQ(layer.getLastUpdate(), cachedSet.getLastUpdate());
     EXPECT_EQ(layer.getDisplayFrame(), cachedSet.getBounds());
     EXPECT_TRUE(layer.getVisibleRegion().hasSameRects(cachedSet.getVisibleRegion()));
@@ -158,7 +157,6 @@ TEST_F(CachedSetTest, addLayer) {
     CachedSet cachedSet(layer1);
     cachedSet.addLayer(layer2.getState(), kStartTime + 10ms);
 
-    EXPECT_EQ(layer1.getHash(), cachedSet.getFingerprint());
     EXPECT_EQ(kStartTime, cachedSet.getLastUpdate());
     EXPECT_EQ(Rect(0, 0, 2, 2), cachedSet.getBounds());
     Region expectedRegion;
@@ -247,7 +245,6 @@ TEST_F(CachedSetTest, append) {
     cachedSet1.addLayer(layer3.getState(), kStartTime + 10ms);
     cachedSet1.append(cachedSet2);
 
-    EXPECT_EQ(layer1.getHash(), cachedSet1.getFingerprint());
     EXPECT_EQ(kStartTime, cachedSet1.getLastUpdate());
     EXPECT_EQ(Rect(0, 0, 3, 3), cachedSet1.getBounds());
     Region expectedRegion;
