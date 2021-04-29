@@ -275,11 +275,7 @@ TEST_F(FlattenerTest, flattenLayers_FlattenedLayersSetsProjectionSpace) {
     mTime += 200ms;
     expectAllLayersFlattened(layers);
 
-    EXPECT_EQ(overrideDisplaySpace.bounds,
-              Rect(mOutputState.framebufferSpace.bounds.getWidth(),
-                   mOutputState.framebufferSpace.bounds.getHeight()));
-    EXPECT_EQ(overrideDisplaySpace.content, Rect(0, 0, 2, 2));
-    EXPECT_EQ(overrideDisplaySpace.orientation, mOutputState.framebufferSpace.orientation);
+    EXPECT_EQ(overrideDisplaySpace, mOutputState.framebufferSpace);
 }
 
 TEST_F(FlattenerTest, flattenLayers_FlattenedLayersSetsDamageRegions) {

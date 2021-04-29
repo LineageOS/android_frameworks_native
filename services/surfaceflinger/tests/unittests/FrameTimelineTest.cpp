@@ -1561,13 +1561,22 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent) 
     /*
      * Case 1 - cpu time > vsync period but combined time > deadline > deadline -> cpudeadlinemissed
      * Case 2 - cpu time < vsync period but combined time > deadline -> gpudeadlinemissed
+     * Case 3 - previous frame ran longer -> sf_stuffing
+     * Case 4 - Long cpu under SF stuffing -> cpudeadlinemissed
      */
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    auto presentFence3 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    auto presentFence4 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto gpuFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     auto gpuFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    auto gpuFence3 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    auto gpuFence4 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 40});
     int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 60, 60});
+    int64_t sfToken3 = mTokenManager->generateTokenForPredictions({82, 90, 90});
+    int64_t sfToken4 = mTokenManager->generateTokenForPredictions({112, 120, 120});
+
     // case 1 - cpu time = 33 - 12 = 21, vsync period = 11
     mFrameTimeline->setSfWakeUp(sfToken1, 12, Fps::fromPeriodNsecs(11));
     mFrameTimeline->setSfPresent(33, presentFence1, gpuFence1);
@@ -1578,12 +1587,12 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent) 
     // Fences haven't been flushed yet, so it should be 0
     EXPECT_EQ(displayFrame0->getActuals().presentTime, 0);
 
-    // case 2 - cpu time = 56 - 52 = 4, vsync period = 11
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
+    // case 2 - cpu time = 56 - 52 = 4, vsync period = 30
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(30));
     mFrameTimeline->setSfPresent(56, presentFence2, gpuFence2);
     auto displayFrame1 = getDisplayFrame(1);
-    gpuFence2->signalForTest(66);
-    presentFence2->signalForTest(71);
+    gpuFence2->signalForTest(76);
+    presentFence2->signalForTest(90);
 
     EXPECT_EQ(displayFrame1->getActuals().presentTime, 0);
     // Fences have flushed for first displayFrame, so the present timestamps should be updated
@@ -1592,35 +1601,41 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent) 
     EXPECT_EQ(displayFrame0->getFrameReadyMetadata(), FrameReadyMetadata::LateFinish);
     EXPECT_EQ(displayFrame0->getJankType(), JankType::SurfaceFlingerCpuDeadlineMissed);
 
-    addEmptyDisplayFrame();
+    // case 3 - cpu time = 86 - 82 = 4, vsync period = 30
+    mFrameTimeline->setSfWakeUp(sfToken3, 106, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfPresent(112, presentFence3, gpuFence3);
+    auto displayFrame2 = getDisplayFrame(2);
+    gpuFence3->signalForTest(116);
+    presentFence3->signalForTest(120);
 
+    EXPECT_EQ(displayFrame2->getActuals().presentTime, 0);
     // Fences have flushed for second displayFrame, so the present timestamps should be updated
-    EXPECT_EQ(displayFrame1->getActuals().presentTime, 71);
+    EXPECT_EQ(displayFrame1->getActuals().presentTime, 90);
     EXPECT_EQ(displayFrame1->getFramePresentMetadata(), FramePresentMetadata::LatePresent);
     EXPECT_EQ(displayFrame1->getFrameReadyMetadata(), FrameReadyMetadata::LateFinish);
     EXPECT_EQ(displayFrame1->getJankType(), JankType::SurfaceFlingerGpuDeadlineMissed);
-}
 
-TEST_F(FrameTimelineTest, jankClassification_displayFrameLateStartLateFinishLatePresent) {
-    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 26, 40});
-    mFrameTimeline->setSfWakeUp(sfToken1, 26, Fps::fromPeriodNsecs(11));
-    mFrameTimeline->setSfPresent(36, presentFence1);
-    auto displayFrame = getDisplayFrame(0);
-    presentFence1->signalForTest(52);
+    // case 4 - cpu time = 86 - 82 = 4, vsync period = 30
+    mFrameTimeline->setSfWakeUp(sfToken4, 120, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfPresent(140, presentFence4, gpuFence4);
+    auto displayFrame3 = getDisplayFrame(3);
+    gpuFence4->signalForTest(156);
+    presentFence4->signalForTest(180);
 
-    // Fences haven't been flushed yet, so it should be 0
-    EXPECT_EQ(displayFrame->getActuals().presentTime, 0);
+    EXPECT_EQ(displayFrame3->getActuals().presentTime, 0);
+    // Fences have flushed for third displayFrame, so the present timestamps should be updated
+    EXPECT_EQ(displayFrame2->getActuals().presentTime, 120);
+    EXPECT_EQ(displayFrame2->getFramePresentMetadata(), FramePresentMetadata::LatePresent);
+    EXPECT_EQ(displayFrame2->getFrameReadyMetadata(), FrameReadyMetadata::LateFinish);
+    EXPECT_EQ(displayFrame2->getJankType(), JankType::SurfaceFlingerStuffing);
 
     addEmptyDisplayFrame();
-    displayFrame = getDisplayFrame(0);
 
-    // Fences have flushed, so the present timestamps should be updated
-    EXPECT_EQ(displayFrame->getActuals().presentTime, 52);
-    EXPECT_EQ(displayFrame->getFrameStartMetadata(), FrameStartMetadata::LateStart);
-    EXPECT_EQ(displayFrame->getFramePresentMetadata(), FramePresentMetadata::LatePresent);
-    EXPECT_EQ(displayFrame->getFrameReadyMetadata(), FrameReadyMetadata::LateFinish);
-    EXPECT_EQ(displayFrame->getJankType(), JankType::SurfaceFlingerScheduling);
+    // Fences have flushed for third displayFrame, so the present timestamps should be updated
+    EXPECT_EQ(displayFrame3->getActuals().presentTime, 180);
+    EXPECT_EQ(displayFrame3->getFramePresentMetadata(), FramePresentMetadata::LatePresent);
+    EXPECT_EQ(displayFrame3->getFrameReadyMetadata(), FrameReadyMetadata::LateFinish);
+    EXPECT_EQ(displayFrame3->getJankType(), JankType::SurfaceFlingerGpuDeadlineMissed);
 }
 
 TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishEarlyPresent) {
