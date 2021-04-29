@@ -34,7 +34,7 @@ cc_library_shared {
     llndk: {
         symbol_file: "libvulkan.map.txt",
         export_llndk_headers: [
-            "vulkan_headers_llndk",
+            "vulkan_headers",
         ],
     },
     clang: true,

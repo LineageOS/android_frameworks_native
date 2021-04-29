@@ -26,6 +26,7 @@
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 
 #include <android-base/logging.h>
 #include <android-base/macros.h>
@@ -36,6 +37,7 @@
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 
+#include "android-base/file.h"
 #include "dexopt.h"
 #include "file_parsing.h"
 #include "globals.h"
@@ -195,38 +197,63 @@ private:
         //   export NAME VALUE
         // For simplicity, don't respect string quotation. The values we are interested in can be
         // encoded without them.
-        // init.environ.rc and etc/classpath have the same format for
-        // environment variable exports and can be matched by the same regex.
+        //
+        // init.environ.rc and derive_classpath all have the same format for
+        // environment variable exports (since they are all meant to be read by
+        // init) and can be matched by the same regex.
+
+        std::regex export_regex("\\s*export\\s+(\\S+)\\s+(\\S+)");
+        auto parse_results = [&](auto& input) {
+          ParseFile(input, [&](const std::string& line) {
+              std::smatch export_match;
+              if (!std::regex_match(line, export_match, export_regex)) {
+                  return true;
+              }
+
+              if (export_match.size() != 3) {
+                  return true;
+              }
+
+              std::string name = export_match[1].str();
+              std::string value = export_match[2].str();
+
+              system_properties_.SetProperty(name, value);
+
+              return true;
+          });
+        };
+
         // TODO Just like with the system-properties above we really should have
         // common code between init and otapreopt to deal with reading these
         // things. See b/181182967
+        // There have been a variety of places the various env-vars have been
+        // over the years.  Expand or reduce this list as needed.
         static constexpr const char* kEnvironmentVariableSources[] = {
-                "/init.environ.rc", "/etc/classpath"
+                "/init.environ.rc",
         };
-
-        std::regex export_regex("\\s*export\\s+(\\S+)\\s+(\\S+)");
+        // First get everything from the static files.
         for (const char* env_vars_file : kEnvironmentVariableSources) {
-            bool parse_result = ParseFile(env_vars_file, [&](const std::string& line) {
-                std::smatch export_match;
-                if (!std::regex_match(line, export_match, export_regex)) {
-                    return true;
-                }
-
-                if (export_match.size() != 3) {
-                    return true;
-                }
-
-                std::string name = export_match[1].str();
-                std::string value = export_match[2].str();
-
-                system_properties_.SetProperty(name, value);
-
-                return true;
-            });
-            if (!parse_result) {
-                return false;
-            }
+          parse_results(env_vars_file);
         }
+
+        // Next get everything from derive_classpath, since we're already in the
+        // chroot it will get the new versions of any dependencies.
+        {
+          android::base::unique_fd fd(memfd_create("derive_classpath_temp", MFD_CLOEXEC));
+          if (!fd.ok()) {
+            LOG(ERROR) << "Unable to create fd for derive_classpath";
+            return false;
+          }
+          std::string memfd_file = StringPrintf("/proc/%d/fd/%d", getpid(), fd.get());
+          std::string error_msg;
+          if (!Exec({"/apex/com.android.sdkext/bin/derive_classpath", memfd_file}, &error_msg)) {
+            PLOG(ERROR) << "Running derive_classpath failed: " << error_msg;
+            return false;
+          }
+          std::ifstream ifs(memfd_file);
+          parse_results(ifs);
+        }
+
         if (system_properties_.GetProperty(kAndroidDataPathPropertyName) == nullptr) {
             return false;
         }

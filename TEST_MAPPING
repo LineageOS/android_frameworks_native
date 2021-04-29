@@ -60,9 +60,6 @@
       ]
     },
     {
-      "name": "libsurfaceflinger_unittest"
-    },
-    {
       "name": "CtsGraphicsTestCases",
       "options": [
         {

@@ -427,8 +427,8 @@ bool TimeStats::recordReadyLocked(int32_t layerId, TimeRecord* timeRecord) {
     return true;
 }
 
-static int32_t clampToSmallestBucket(Fps fps, size_t bucketWidth) {
-    return (fps.getIntValue() / bucketWidth) * bucketWidth;
+static int32_t clampToNearestBucket(Fps fps, size_t bucketWidth) {
+    return std::round(fps.getValue() / bucketWidth) * bucketWidth;
 }
 
 void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayRefreshRate,
@@ -441,10 +441,10 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayR
     TimeRecord& prevTimeRecord = layerRecord.prevTimeRecord;
     std::deque<TimeRecord>& timeRecords = layerRecord.timeRecords;
     const int32_t refreshRateBucket =
-            clampToSmallestBucket(displayRefreshRate, REFRESH_RATE_BUCKET_WIDTH);
+            clampToNearestBucket(displayRefreshRate, REFRESH_RATE_BUCKET_WIDTH);
     const int32_t renderRateBucket =
-            clampToSmallestBucket(renderRate ? *renderRate : displayRefreshRate,
-                                  RENDER_RATE_BUCKET_WIDTH);
+            clampToNearestBucket(renderRate ? *renderRate : displayRefreshRate,
+                                 RENDER_RATE_BUCKET_WIDTH);
     while (!timeRecords.empty()) {
         if (!recordReadyLocked(layerId, &timeRecords[0])) break;
         ALOGV("[%d]-[%" PRIu64 "]-presentFenceTime[%" PRId64 "]", layerId,
@@ -799,10 +799,10 @@ void TimeStats::incrementJankyFrames(const JankyFramesInfo& info) {
     static const std::string kDefaultLayerName = "none";
 
     const int32_t refreshRateBucket =
-            clampToSmallestBucket(info.refreshRate, REFRESH_RATE_BUCKET_WIDTH);
+            clampToNearestBucket(info.refreshRate, REFRESH_RATE_BUCKET_WIDTH);
     const int32_t renderRateBucket =
-            clampToSmallestBucket(info.renderRate ? *info.renderRate : info.refreshRate,
-                                  RENDER_RATE_BUCKET_WIDTH);
+            clampToNearestBucket(info.renderRate ? *info.renderRate : info.refreshRate,
+                                 RENDER_RATE_BUCKET_WIDTH);
     const TimeStatsHelper::TimelineStatsKey timelineKey = {refreshRateBucket, renderRateBucket};
 
     if (!mTimeStats.stats.count(timelineKey)) {
@@ -1021,6 +1021,7 @@ void TimeStats::disable() {
 
 void TimeStats::clearAll() {
     std::lock_guard<std::mutex> lock(mMutex);
+    mTimeStats.stats.clear();
     clearGlobalLocked();
     clearLayersLocked();
 }
