@@ -22,6 +22,8 @@
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/OutputLayer.h>
 #include <gtest/gtest.h>
+#include <renderengine/ExternalTexture.h>
+#include <renderengine/LayerSettings.h>
 #include <renderengine/mock/RenderEngine.h>
 
 namespace android::compositionengine {
@@ -45,7 +47,7 @@ namespace {
 
 class FlattenerTest : public testing::Test {
 public:
-    FlattenerTest() : mFlattener(std::make_unique<Flattener>(mPredictor)) {}
+    FlattenerTest() : mFlattener(std::make_unique<Flattener>(mPredictor, true)) {}
     void SetUp() override;
 
 protected:
@@ -528,5 +530,123 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     EXPECT_EQ(overrideBuffer4, overrideBuffer5);
 }
 
+// Tests for a PIP
+TEST_F(FlattenerTest, flattenLayers_pipRequiresRoundedCorners) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+    const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+
+    auto& layerState2 = mTestLayers[1]->layerState;
+    const auto& overrideBuffer2 = layerState2->getOutputLayer()->getState().overrideInfo.buffer;
+
+    auto& layerState3 = mTestLayers[2]->layerState;
+    const auto& overrideBuffer3 = layerState3->getOutputLayer()->getState().overrideInfo.buffer;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+            layerState3.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // 3 has a buffer update, so it will not be merged, but it has no round
+    // corners, so it is not a PIP.
+    mTime += 200ms;
+    layerState3->resetFramesSinceBufferUpdate();
+
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+
+    // This will render a CachedSet.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Return(NO_ERROR));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    // We've rendered a CachedSet, but we haven't merged it in.
+    EXPECT_EQ(nullptr, overrideBuffer1);
+    EXPECT_EQ(nullptr, overrideBuffer2);
+    EXPECT_EQ(nullptr, overrideBuffer3);
+
+    // This time we merge the CachedSet in, so we have a new hash, and we should
+    // only have two sets.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).Times(0);
+    initializeOverrideBuffer(layers);
+    EXPECT_NE(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    EXPECT_NE(nullptr, overrideBuffer1);
+    EXPECT_EQ(overrideBuffer1, overrideBuffer2);
+    EXPECT_EQ(nullptr, overrideBuffer3);
+}
+
+TEST_F(FlattenerTest, flattenLayers_pip) {
+    mTestLayers[0]->outputLayerCompositionState.displayFrame = Rect(0, 0, 5, 5);
+    auto& layerState1 = mTestLayers[0]->layerState;
+    const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+
+    auto& layerState2 = mTestLayers[1]->layerState;
+    const auto& overrideBuffer2 = layerState2->getOutputLayer()->getState().overrideInfo.buffer;
+
+    auto& layerState3 = mTestLayers[2]->layerState;
+    const auto& overrideBuffer3 = layerState3->getOutputLayer()->getState().overrideInfo.buffer;
+
+    EXPECT_CALL(*mTestLayers[2]->layerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
+
+    std::vector<LayerFE::LayerSettings> clientCompositionList = {
+            LayerFE::LayerSettings{},
+    };
+    clientCompositionList[0].source.buffer.buffer = std::make_shared<
+            renderengine::ExternalTexture>(mTestLayers[2]->layerFECompositionState.buffer,
+                                           mRenderEngine,
+                                           renderengine::ExternalTexture::Usage::READABLE);
+    EXPECT_CALL(*mTestLayers[2]->layerFE, prepareClientCompositionList(_))
+            .WillOnce(Return(clientCompositionList));
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+            layerState3.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // 3 has a buffer update, so it will not be merged, and it has round
+    // corners, so it is a PIP.
+    mTime += 200ms;
+    layerState3->resetFramesSinceBufferUpdate();
+
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+
+    // This will render a CachedSet.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Return(NO_ERROR));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    // We've rendered a CachedSet, but we haven't merged it in.
+    EXPECT_EQ(nullptr, overrideBuffer1);
+    EXPECT_EQ(nullptr, overrideBuffer2);
+    EXPECT_EQ(nullptr, overrideBuffer3);
+
+    // This time we merge the CachedSet in, so we have a new hash, and we should
+    // only have two sets.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).Times(0);
+    initializeOverrideBuffer(layers);
+    EXPECT_NE(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    EXPECT_NE(nullptr, overrideBuffer1);
+    EXPECT_EQ(overrideBuffer1, overrideBuffer2);
+    EXPECT_EQ(nullptr, overrideBuffer3);
+
+    const auto* peekThroughLayer1 =
+            layerState1->getOutputLayer()->getState().overrideInfo.peekThroughLayer;
+    const auto* peekThroughLayer2 =
+            layerState2->getOutputLayer()->getState().overrideInfo.peekThroughLayer;
+    EXPECT_EQ(&mTestLayers[2]->outputLayer, peekThroughLayer1);
+    EXPECT_EQ(peekThroughLayer1, peekThroughLayer2);
+}
 } // namespace
 } // namespace android::compositionengine
