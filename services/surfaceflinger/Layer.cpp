@@ -2449,6 +2449,8 @@ InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     ui::Transform toPhysicalDisplay;
     if (display) {
         toPhysicalDisplay = display->getTransform();
+        info.displayWidth = display->getWidth();
+        info.displayHeight = display->getHeight();
     }
     fillInputFrameInfo(info, toPhysicalDisplay);
 
