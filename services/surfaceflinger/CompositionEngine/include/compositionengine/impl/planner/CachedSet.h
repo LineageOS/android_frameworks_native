@@ -121,7 +121,7 @@ public:
     void addHolePunchLayerIfFeasible(const CachedSet&, bool isFirstLayer);
 
     // Retrieve the layer that will be drawn behind this one.
-    OutputLayer* getHolePunchLayer() const;
+    compositionengine::OutputLayer* getHolePunchLayer() const;
 
 private:
     CachedSet() = default;
