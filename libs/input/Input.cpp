@@ -340,7 +340,8 @@ void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int3
                              int32_t flags, int32_t edgeFlags, int32_t metaState,
                              int32_t buttonState, MotionClassification classification,
                              const ui::Transform& transform, float xPrecision, float yPrecision,
-                             float rawXCursorPosition, float rawYCursorPosition, nsecs_t downTime,
+                             float rawXCursorPosition, float rawYCursorPosition,
+                             int32_t displayWidth, int32_t displayHeight, nsecs_t downTime,
                              nsecs_t eventTime, size_t pointerCount,
                              const PointerProperties* pointerProperties,
                              const PointerCoords* pointerCoords) {
@@ -357,6 +358,8 @@ void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int3
     mYPrecision = yPrecision;
     mRawXCursorPosition = rawXCursorPosition;
     mRawYCursorPosition = rawYCursorPosition;
+    mDisplayWidth = displayWidth;
+    mDisplayHeight = displayHeight;
     mDownTime = downTime;
     mPointerProperties.clear();
     mPointerProperties.appendArray(pointerProperties, pointerCount);
@@ -380,6 +383,8 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
     mYPrecision = other->mYPrecision;
     mRawXCursorPosition = other->mRawXCursorPosition;
     mRawYCursorPosition = other->mRawYCursorPosition;
+    mDisplayWidth = other->mDisplayWidth;
+    mDisplayHeight = other->mDisplayHeight;
     mDownTime = other->mDownTime;
     mPointerProperties = other->mPointerProperties;
 
@@ -426,7 +431,7 @@ const PointerCoords* MotionEvent::getRawPointerCoords(size_t pointerIndex) const
 }
 
 float MotionEvent::getRawAxisValue(int32_t axis, size_t pointerIndex) const {
-    return getRawPointerCoords(pointerIndex)->getAxisValue(axis);
+    return getHistoricalRawAxisValue(axis, pointerIndex, getHistorySize());
 }
 
 float MotionEvent::getAxisValue(int32_t axis, size_t pointerIndex) const {
@@ -440,7 +445,32 @@ const PointerCoords* MotionEvent::getHistoricalRawPointerCoords(
 
 float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
         size_t historicalIndex) const {
-    return getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getAxisValue(axis);
+    if (axis != AMOTION_EVENT_AXIS_X && axis != AMOTION_EVENT_AXIS_Y) {
+        return getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getAxisValue(axis);
+    }
+    // 0x7 encapsulates all 3 rotations (see ui::Transform::RotationFlags)
+    static const int ALL_ROTATIONS_MASK = 0x7;
+    uint32_t orientation = (mTransform.getOrientation() & ALL_ROTATIONS_MASK);
+    if (orientation == ui::Transform::ROT_0) {
+        return getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getAxisValue(axis);
+    }
+
+    // For compatibility, convert raw coordinates into "oriented screen space". Once app developers
+    // are educated about getRaw, we can consider removing this.
+    vec2 xy = getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getXYValue();
+    const float unrotatedX = xy.x;
+    if (orientation == ui::Transform::ROT_90) {
+        xy.x = mDisplayHeight - xy.y;
+        xy.y = unrotatedX;
+    } else if (orientation == ui::Transform::ROT_180) {
+        xy.x = mDisplayWidth - xy.x;
+        xy.y = mDisplayHeight - xy.y;
+    } else if (orientation == ui::Transform::ROT_270) {
+        xy.x = xy.y;
+        xy.y = mDisplayWidth - unrotatedX;
+    }
+    static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
+    return xy[axis];
 }
 
 float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
@@ -449,19 +479,10 @@ float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
         return getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getAxisValue(axis);
     }
 
-    float rawX = getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getX();
-    float rawY = getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getY();
-    vec2 vals = mTransform.transform(rawX, rawY);
-
-    switch (axis) {
-    case AMOTION_EVENT_AXIS_X:
-        return vals.x;
-    case AMOTION_EVENT_AXIS_Y:
-        return vals.y;
-    }
-
-    // This should never happen
-    return 0;
+    vec2 vals = mTransform.transform(
+            getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getXYValue());
+    static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
+    return vals[axis];
 }
 
 ssize_t MotionEvent::findPointerIndex(int32_t pointerId) const {
@@ -606,6 +627,8 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mYPrecision = parcel->readFloat();
     mRawXCursorPosition = parcel->readFloat();
     mRawYCursorPosition = parcel->readFloat();
+    mDisplayWidth = parcel->readInt32();
+    mDisplayHeight = parcel->readInt32();
     mDownTime = parcel->readInt64();
 
     mPointerProperties.clear();
@@ -665,6 +688,8 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeFloat(mYPrecision);
     parcel->writeFloat(mRawXCursorPosition);
     parcel->writeFloat(mRawYCursorPosition);
+    parcel->writeInt32(mDisplayWidth);
+    parcel->writeInt32(mDisplayHeight);
     parcel->writeInt64(mDownTime);
 
     for (size_t i = 0; i < pointerCount; i++) {

@@ -136,6 +136,8 @@ struct InputMessage {
             float yPrecision;
             float xCursorPosition;
             float yCursorPosition;
+            int32_t displayWidth;
+            int32_t displayHeight;
             uint32_t pointerCount;
             uint32_t empty3;
             /**
@@ -353,8 +355,9 @@ public:
                                 int32_t metaState, int32_t buttonState,
                                 MotionClassification classification, const ui::Transform& transform,
                                 float xPrecision, float yPrecision, float xCursorPosition,
-                                float yCursorPosition, nsecs_t downTime, nsecs_t eventTime,
-                                uint32_t pointerCount, const PointerProperties* pointerProperties,
+                                float yCursorPosition, int32_t displayWidth, int32_t displayHeight,
+                                nsecs_t downTime, nsecs_t eventTime, uint32_t pointerCount,
+                                const PointerProperties* pointerProperties,
                                 const PointerCoords* pointerCoords);
 
     /* Publishes a focus event to the input channel.

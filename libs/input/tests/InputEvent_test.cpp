@@ -271,6 +271,7 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
                       AMOTION_EVENT_EDGE_FLAG_TOP, AMETA_ALT_ON, AMOTION_EVENT_BUTTON_PRIMARY,
                       MotionClassification::NONE, mTransform, 2.0f, 2.1f,
                       AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                      AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
                       ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME, 2, pointerProperties,
                       pointerCoords);
 
@@ -592,6 +593,7 @@ TEST_F(MotionEventTest, Transform) {
                      AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
                      MotionClassification::NONE, identityTransform, 0 /*xPrecision*/,
                      0 /*yPrecision*/, 3 + RADIUS /*xCursorPosition*/, 2 /*yCursorPosition*/,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
                      0 /*downTime*/, 0 /*eventTime*/, pointerCount, pointerProperties,
                      pointerCoords);
     float originalRawX = 0 + 3;
@@ -634,6 +636,71 @@ TEST_F(MotionEventTest, Transform) {
     ASSERT_NEAR(originalRawY, event.getRawY(0), 0.001);
 }
 
+TEST_F(MotionEventTest, RawCompatTransform) {
+    auto createTouchDownEvent = [](int x, int y, ui::Transform transform) {
+        std::vector<PointerProperties> pointerProperties;
+        pointerProperties.push_back(PointerProperties{/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER});
+        std::vector<PointerCoords> pointerCoords;
+        pointerCoords.emplace_back().clear();
+        pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_X, x);
+        pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_Y, y);
+        nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+        MotionEvent event;
+        event.initialize(InputEvent::nextId(), /* deviceId */ 1, AINPUT_SOURCE_TOUCHSCREEN,
+                         /* displayId */ 0, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN,
+                         /* actionButton */ 0, /* flags */ 0, /* edgeFlags */ 0, AMETA_NONE,
+                         /* buttonState */ 0, MotionClassification::NONE, transform,
+                         /* xPrecision */ 0, /* yPrecision */ 0,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, /* displayWidth */ 400,
+                         /* displayHeight */ 800, eventTime, eventTime, pointerCoords.size(),
+                         pointerProperties.data(), pointerCoords.data());
+        return event;
+    };
+
+    {
+        // Make sure raw is raw regardless of transform translation.
+        ui::Transform xform;
+        xform.set(20, 40);
+        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        ASSERT_EQ(60, event.getRawX(0));
+        ASSERT_EQ(100, event.getRawY(0));
+        ASSERT_NE(event.getRawX(0), event.getX(0));
+        ASSERT_NE(event.getRawY(0), event.getY(0));
+    }
+
+    // Next check that getRaw contains rotation (for compatibility) but otherwise is still
+    // "Screen-space". The following tests check all 3 rotations.
+    {
+        // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
+        ui::Transform xform(ui::Transform::ROT_90, 800, 400);
+        xform.set(xform.tx() + 20, xform.ty() + 40);
+        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        ASSERT_EQ(700, event.getRawX(0));
+        ASSERT_EQ(60, event.getRawY(0));
+        ASSERT_NE(event.getRawX(0), event.getX(0));
+        ASSERT_NE(event.getRawY(0), event.getY(0));
+    }
+
+    {
+        // Same as above, but check rotate-180.
+        ui::Transform xform(ui::Transform::ROT_180, 400, 800);
+        xform.set(xform.tx() + 20, xform.ty() + 40);
+        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        ASSERT_EQ(340, event.getRawX(0));
+        ASSERT_EQ(700, event.getRawY(0));
+    }
+
+    {
+        // Same as above, but check rotate-270.
+        ui::Transform xform(ui::Transform::ROT_270, 800, 400);
+        xform.set(xform.tx() + 20, xform.ty() + 40);
+        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        ASSERT_EQ(100, event.getRawX(0));
+        ASSERT_EQ(340, event.getRawY(0));
+    }
+}
+
 TEST_F(MotionEventTest, Initialize_SetsClassification) {
     std::array<MotionClassification, 3> classifications = {
             MotionClassification::NONE,
@@ -657,7 +724,8 @@ TEST_F(MotionEventTest, Initialize_SetsClassification) {
                          DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
                          AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0, classification,
                          identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                         AMOTION_EVENT_INVALID_CURSOR_POSITION, 0 /*downTime*/, 0 /*eventTime*/,
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                         AMOTION_EVENT_INVALID_DISPLAY_SIZE, 0 /*downTime*/, 0 /*eventTime*/,
                          pointerCount, pointerProperties, pointerCoords);
         ASSERT_EQ(classification, event.getClassification());
     }
@@ -678,8 +746,10 @@ TEST_F(MotionEventTest, Initialize_SetsCursorPosition) {
     event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_MOUSE, DISPLAY_ID,
                      INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0, AMOTION_EVENT_EDGE_FLAG_NONE,
                      AMETA_NONE, 0, MotionClassification::NONE, identityTransform, 0, 0,
-                     280 /*xCursorPosition*/, 540 /*yCursorPosition*/, 0 /*downTime*/,
-                     0 /*eventTime*/, pointerCount, pointerProperties, pointerCoords);
+                     280 /*xCursorPosition*/, 540 /*yCursorPosition*/,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                     0 /*downTime*/, 0 /*eventTime*/, pointerCount, pointerProperties,
+                     pointerCoords);
     event.offsetLocation(20, 60);
     ASSERT_EQ(280, event.getRawXCursorPosition());
     ASSERT_EQ(540, event.getRawYCursorPosition());
