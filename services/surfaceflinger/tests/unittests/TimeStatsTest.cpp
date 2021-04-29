@@ -897,24 +897,24 @@ TEST_F(TimeStatsTest, canClearDumpOnlyTimeStats) {
     EXPECT_THAT(result, HasSubstr("compositionStrategyChanges = 0"));
     EXPECT_THAT(result, HasSubstr("averageFrameDuration = 0.000 ms"));
     EXPECT_THAT(result, HasSubstr("averageRenderEngineTiming = 0.000 ms"));
-    std::string expectedResult = "totalTimelineFrames = " + std::to_string(0);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
-    expectedResult = "jankyFrames = " + std::to_string(0);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
-    expectedResult = "sfLongCpuJankyFrames = " + std::to_string(0);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
-    expectedResult = "sfLongGpuJankyFrames = " + std::to_string(0);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
-    expectedResult = "sfUnattributedJankyFrames = " + std::to_string(0);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
-    expectedResult = "appUnattributedJankyFrames = " + std::to_string(0);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
-    expectedResult = "sfSchedulingJankyFrames = " + std::to_string(0);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
-    expectedResult = "sfPredictionErrorJankyFrames = " + std::to_string(0);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
-    expectedResult = "appBufferStuffingJankyFrames = " + std::to_string(0);
-    EXPECT_THAT(result, HasSubstr(expectedResult));
+    std::string expectedResult = "totalTimelineFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "jankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "sfLongCpuJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "sfLongGpuJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "sfUnattributedJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "appUnattributedJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "sfSchedulingJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "sfPredictionErrorJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
+    expectedResult = "appBufferStuffingJankyFrames = ";
+    EXPECT_THAT(result, Not(HasSubstr(expectedResult)));
 }
 
 TEST_F(TimeStatsTest, canDumpWithMaxLayers) {
@@ -1346,6 +1346,30 @@ TEST_F(TimeStatsTest, canSurviveMonkey) {
         ALOGV("type[%d], layerId[%d], frameNumber[%d], ts[%d]", type, layerId, frameNumber, ts);
         setTimeStamp(type, layerId, frameNumber, ts, {});
     }
+}
+
+TEST_F(TimeStatsTest, refreshRateIsClampedToNearestBucket) {
+    // this stat is not in the proto so verify by checking the string dump
+    const auto verifyRefreshRateBucket = [&](Fps fps, int32_t bucket) {
+        EXPECT_TRUE(inputCommand(InputCommand::CLEAR, FMT_STRING).empty());
+        EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+        insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
+        mTimeStats->incrementJankyFrames(
+                {fps, std::nullopt, UID_0, genLayerName(LAYER_ID_0), JankType::None, 0, 0, 0});
+        const std::string result(inputCommand(InputCommand::DUMP_ALL, FMT_STRING));
+        std::string expectedResult = "displayRefreshRate = " + std::to_string(bucket) + " fps";
+        EXPECT_THAT(result, HasSubstr(expectedResult)) << "failed for " << fps;
+    };
+
+    verifyRefreshRateBucket(Fps(91.f), 90);
+    verifyRefreshRateBucket(Fps(89.f), 90);
+
+    verifyRefreshRateBucket(Fps(61.f), 60);
+    verifyRefreshRateBucket(Fps(59.f), 60);
+
+    verifyRefreshRateBucket(Fps(31.f), 30);
+    verifyRefreshRateBucket(Fps(29.f), 30);
 }
 
 } // namespace

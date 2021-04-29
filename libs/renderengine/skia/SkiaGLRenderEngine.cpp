@@ -834,6 +834,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                     mBlurFilter->drawBlurRegion(canvas, getBlurRegion(layer), blurRect,
                                                 blurredImage, blurInput);
                 }
+                SkAutoCanvasRestore acr(canvas, true);
+                canvas->concat(getSkM44(layer->blurRegionTransform).asM33());
                 for (auto region : layer->blurRegions) {
                     if (cachedBlurs[region.blurRadius] == nullptr) {
                         ATRACE_NAME("BlurRegion");

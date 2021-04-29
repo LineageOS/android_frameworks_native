@@ -139,7 +139,7 @@ cc_library_shared {
     defaults: ["egl_libs_defaults"],
     llndk: {
         symbol_file: "libEGL.map.txt",
-        export_llndk_headers: ["gl_llndk_headers"],
+        export_llndk_headers: ["gl_headers"],
         // Don't export EGL/include from the LLNDK variant.
         override_export_include_dirs: [],
     },
@@ -210,7 +210,7 @@ cc_library_shared {
     defaults: ["gles_libs_defaults"],
     llndk: {
         symbol_file: "libGLESv1_CM.map.txt",
-        export_llndk_headers: ["gl_llndk_headers"],
+        export_llndk_headers: ["gl_headers"],
         // Don't export EGL/include from the LLNDK variant.
         override_export_include_dirs: [],
     },
@@ -227,7 +227,7 @@ cc_library_shared {
     defaults: ["gles_libs_defaults"],
     llndk: {
         symbol_file: "libGLESv2.map.txt",
-        export_llndk_headers: ["gl_llndk_headers"],
+        export_llndk_headers: ["gl_headers"],
         // Don't export EGL/include from the LLNDK variant.
         override_export_include_dirs: [],
     },
@@ -247,7 +247,7 @@ cc_library_shared {
     defaults: ["gles_libs_defaults"],
     llndk: {
         symbol_file: "libGLESv3.map.txt",
-        export_llndk_headers: ["gl_llndk_headers"],
+        export_llndk_headers: ["gl_headers"],
         // Don't export EGL/include from the LLNDK variant.
         override_export_include_dirs: [],
     },
