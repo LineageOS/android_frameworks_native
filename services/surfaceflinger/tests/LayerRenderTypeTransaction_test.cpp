@@ -1336,7 +1336,8 @@ TEST_P(LayerRenderTypeTransactionTest, SetTransformFlipV_BufferState) {
                                        Color::GREEN, true /* filtered */);
 }
 
-TEST_P(LayerRenderTypeTransactionTest, SetFenceBasic_BufferState) {
+// TODO (b/186543004): Fix & re-enable
+TEST_P(LayerRenderTypeTransactionTest, DISABLED_SetFenceBasic_BufferState) {
     sp<SurfaceControl> layer;
     Transaction transaction;
     ASSERT_NO_FATAL_FAILURE(

@@ -88,6 +88,8 @@ public:
     FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
     void setAutoRefresh(bool autoRefresh) override;
 
+    bool setBufferCrop(const Rect& bufferCrop) override;
+
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------

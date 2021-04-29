@@ -32,16 +32,15 @@ using ::android::hidl::manager::V1_0::IServiceNotification;
 namespace android {
 namespace SensorDeviceUtils {
 
-// Quantizes a single value using a sensor's resolution.
-inline void quantizeValue(float *value, double resolution) {
+// Quantizes a single value to (a fractional factor of) a sensor's resolution. Typically we
+// increase the value of the sensor's nominal resolution to ensure that sensor accuracy
+// improvements, like runtime calibration, are not masked during requantization.
+inline void quantizeValue(float *value, double resolution, double factor = 0.125) {
     if (resolution == 0) {
         return;
     }
 
-    // Increase the value of the sensor's nominal resolution to ensure that
-    // sensor accuracy improvements, like runtime calibration, are not masked
-    // during requantization.
-    double incRes = 0.125 * resolution;
+    double incRes = factor * resolution;
     *value = round(static_cast<double>(*value) / incRes) * incRes;
 }
 

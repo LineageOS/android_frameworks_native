@@ -275,6 +275,7 @@ static int otapreopt_chroot(const int argc, char **arg) {
     static constexpr const std::string_view kRequiredApexs[] = {
       "com.android.art",
       "com.android.runtime",
+      "com.android.sdkext",  // For derive_classpath
     };
     std::array<bool, arraysize(kRequiredApexs)> found_apexs{ false, false };
     DIR* apex_dir = opendir("/apex");
