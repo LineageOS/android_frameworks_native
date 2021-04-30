@@ -1062,11 +1062,71 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
                               kOverrideSurfaceDamage);
     expectSetHdrMetadataAndBufferCalls(kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
-
     EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
 
     mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
                                  /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, peekThroughChangesBlendMode) {
+    auto peekThroughLayerFE = sp<compositionengine::mock::LayerFE>::make();
+    OutputLayer peekThroughLayer{mOutput, peekThroughLayerFE};
+
+    mOutputLayer.mState.overrideInfo.peekThroughLayer = &peekThroughLayer;
+
+    expectGeometryCommonCalls(kDisplayFrame, kSourceCrop, kBufferTransform,
+                              Hwc2::IComposerClient::BlendMode::PREMULTIPLIED);
+    expectPerFrameCommonCalls();
+    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
+
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, isPeekingThroughSetsOverride) {
+    expectGeometryCommonCalls();
+    expectPerFrameCommonCalls();
+
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/ true);
+    EXPECT_TRUE(mOutputLayer.getState().hwc->stateOverridden);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, zIsOverriddenSetsOverride) {
+    expectGeometryCommonCalls();
+    expectPerFrameCommonCalls();
+    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
+
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ true, /*isPeekingThrough*/
+                                 false);
+    EXPECT_TRUE(mOutputLayer.getState().hwc->stateOverridden);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, roundedCornersForceClientComposition) {
+    expectGeometryCommonCalls();
+    expectPerFrameCommonCalls();
+    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(true));
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::CLIENT);
+
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/
+                                 false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, roundedCornersPeekingThroughAllowsDeviceComposition) {
+    expectGeometryCommonCalls();
+    expectPerFrameCommonCalls();
+    expectSetHdrMetadataAndBufferCalls();
+    EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(true));
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
+
+    mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::DEVICE;
+    mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
+                                 /*zIsOverridden*/ false, /*isPeekingThrough*/
+                                 true);
+    EXPECT_EQ(Hwc2::IComposerClient::Composition::DEVICE,
+              mOutputLayer.getState().hwc->hwcCompositionType);
 }
 
 /*

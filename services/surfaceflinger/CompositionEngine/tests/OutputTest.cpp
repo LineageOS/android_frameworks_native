@@ -879,6 +879,64 @@ TEST_F(OutputUpdateAndWriteCompositionStateTest, forcesClientCompositionForAllLa
     mOutput->writeCompositionState(args);
 }
 
+TEST_F(OutputUpdateAndWriteCompositionStateTest, peekThroughLayerChangesOrder) {
+    renderengine::mock::RenderEngine renderEngine;
+    InjectedLayer layer0;
+    InjectedLayer layer1;
+    InjectedLayer layer2;
+    InjectedLayer layer3;
+
+    InSequence seq;
+    EXPECT_CALL(*layer0.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
+    EXPECT_CALL(*layer1.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
+    EXPECT_CALL(*layer2.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
+    EXPECT_CALL(*layer3.outputLayer, updateCompositionState(true, false, ui::Transform::ROT_0));
+
+    uint32_t z = 0;
+    EXPECT_CALL(*layer0.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ false, /*isPeekingThrough*/ false));
+
+    // After calling planComposition (which clears overrideInfo), this test sets
+    // layer3 to be the peekThroughLayer for layer1 and layer2. As a result, it
+    // comes first, setting isPeekingThrough to true and zIsOverridden to true
+    // for it and the following layers.
+    EXPECT_CALL(*layer3.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ true, /*isPeekingThrough*/
+                                true));
+    EXPECT_CALL(*layer1.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, z++,
+                                /*zIsOverridden*/ true, /*isPeekingThrough*/ false));
+    EXPECT_CALL(*layer2.outputLayer,
+                writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ true, z++,
+                                /*zIsOverridden*/ true, /*isPeekingThrough*/ false));
+
+    injectOutputLayer(layer0);
+    injectOutputLayer(layer1);
+    injectOutputLayer(layer2);
+    injectOutputLayer(layer3);
+
+    mOutput->editState().isEnabled = true;
+
+    CompositionRefreshArgs args;
+    args.updatingGeometryThisFrame = true;
+    args.devOptForceClientComposition = false;
+    mOutput->updateCompositionState(args);
+    mOutput->planComposition();
+
+    std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
+            renderengine::ExternalTexture>(new GraphicBuffer(), renderEngine,
+                                           renderengine::ExternalTexture::Usage::READABLE |
+                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
+    layer1.outputLayerState.overrideInfo.buffer = buffer;
+    layer2.outputLayerState.overrideInfo.buffer = buffer;
+    layer1.outputLayerState.overrideInfo.peekThroughLayer = layer3.outputLayer;
+    layer2.outputLayerState.overrideInfo.peekThroughLayer = layer3.outputLayer;
+
+    mOutput->writeCompositionState(args);
+}
+
 /*
  * Output::prepareFrame()
  */
