@@ -130,8 +130,8 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
     transaction->set_animation(layerFlags & BnSurfaceComposer::eAnimation);
 
     const int32_t layerId(getLayerId(layer));
-    addPositionLocked(transaction, layerId, layer->mCurrentState.active_legacy.transform.tx(),
-                      layer->mCurrentState.active_legacy.transform.ty());
+    addPositionLocked(transaction, layerId, layer->mCurrentState.transform.tx(),
+                      layer->mCurrentState.transform.ty());
     addDepthLocked(transaction, layerId, layer->mCurrentState.z);
     addAlphaLocked(transaction, layerId, layer->mCurrentState.color.a);
     addTransparentRegionLocked(transaction, layerId,

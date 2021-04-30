@@ -51,9 +51,6 @@ public:
         return flags;
     }
 
-    uint32_t getActiveWidth(const Layer::State& s) const override { return s.width; }
-    uint32_t getActiveHeight(const Layer::State& s) const override { return s.height; }
-    ui::Transform getActiveTransform(const Layer::State& s) const override { return s.transform; }
     Region getActiveTransparentRegion(const Layer::State& s) const override {
         return s.transparentRegionHint;
     }
