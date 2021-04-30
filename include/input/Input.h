@@ -318,6 +318,12 @@ private:
  */
 constexpr float AMOTION_EVENT_INVALID_CURSOR_POSITION = std::numeric_limits<float>::quiet_NaN();
 
+/**
+ * Invalid value for display size. Used when display size isn't available for an event or doesn't
+ * matter. This is just a constant 0 so that it has no effect if unused.
+ */
+constexpr int32_t AMOTION_EVENT_INVALID_DISPLAY_SIZE = 0;
+
 /*
  * Pointer coordinate data.
  */
@@ -359,6 +365,8 @@ struct PointerCoords {
     inline float getY() const {
         return getAxisValue(AMOTION_EVENT_AXIS_Y);
     }
+
+    vec2 getXYValue() const { return vec2(getX(), getY()); }
 
 #ifdef __linux__
     status_t readFromParcel(Parcel* parcel);
@@ -548,6 +556,8 @@ public:
 
     void setCursorPosition(float x, float y);
 
+    int2 getDisplaySize() const { return {mDisplayWidth, mDisplayHeight}; }
+
     static inline bool isValidCursorPosition(float x, float y) { return !isnan(x) && !isnan(y); }
 
     inline nsecs_t getDownTime() const { return mDownTime; }
@@ -570,8 +580,17 @@ public:
 
     inline nsecs_t getEventTime() const { return mSampleEventTimes[getHistorySize()]; }
 
+    /**
+     * The actual raw pointer coords: whatever comes from the input device without any external
+     * transforms applied.
+     */
     const PointerCoords* getRawPointerCoords(size_t pointerIndex) const;
 
+    /**
+     * This is the raw axis value. However, for X/Y axes, this currently applies a "compat-raw"
+     * transform because many apps (incorrectly) assumed that raw == oriented-screen-space.
+     * "compat raw" is raw coordinates with screen rotation applied.
+     */
     float getRawAxisValue(int32_t axis, size_t pointerIndex) const;
 
     inline float getRawX(size_t pointerIndex) const {
@@ -634,9 +653,18 @@ public:
         return mSampleEventTimes[historicalIndex];
     }
 
+    /**
+     * The actual raw pointer coords: whatever comes from the input device without any external
+     * transforms applied.
+     */
     const PointerCoords* getHistoricalRawPointerCoords(
             size_t pointerIndex, size_t historicalIndex) const;
 
+    /**
+     * This is the raw axis value. However, for X/Y axes, this currently applies a "compat-raw"
+     * transform because many apps (incorrectly) assumed that raw == oriented-screen-space.
+     * "compat raw" is raw coordinates with screen rotation applied.
+     */
     float getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
             size_t historicalIndex) const;
 
@@ -704,9 +732,9 @@ public:
                     int32_t flags, int32_t edgeFlags, int32_t metaState, int32_t buttonState,
                     MotionClassification classification, const ui::Transform& transform,
                     float xPrecision, float yPrecision, float rawXCursorPosition,
-                    float rawYCursorPosition, nsecs_t downTime, nsecs_t eventTime,
-                    size_t pointerCount, const PointerProperties* pointerProperties,
-                    const PointerCoords* pointerCoords);
+                    float rawYCursorPosition, int32_t displayWidth, int32_t displayHeight,
+                    nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
+                    const PointerProperties* pointerProperties, const PointerCoords* pointerCoords);
 
     void copyFrom(const MotionEvent* other, bool keepHistory);
 
@@ -759,6 +787,8 @@ protected:
     float mYPrecision;
     float mRawXCursorPosition;
     float mRawYCursorPosition;
+    int32_t mDisplayWidth;
+    int32_t mDisplayHeight;
     nsecs_t mDownTime;
     Vector<PointerProperties> mPointerProperties;
     std::vector<nsecs_t> mSampleEventTimes;
