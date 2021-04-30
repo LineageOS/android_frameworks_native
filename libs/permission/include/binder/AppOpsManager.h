@@ -146,7 +146,8 @@ public:
         OP_UWB_RANGING = 112,
         OP_ACTIVITY_RECOGNITION_SOURCE = 113,
         OP_BLUETOOTH_ADVERTISE = 114,
-        _NUM_OP = 115
+        OP_RECORD_INCOMING_PHONE_AUDIO = 115,
+        _NUM_OP = 116
     };
 
     AppOpsManager();
