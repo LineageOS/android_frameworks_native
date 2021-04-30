@@ -966,7 +966,7 @@ void RenderEngineTest::fillBufferAndBlurBackground() {
     if (mRE->supportsBackgroundBlur()) {
         // blurred color (downsampling should result in the center color being close to 128)
         expectBufferColor(Rect(center - 1, center - 5, center + 1, center + 5), 128, 128, 0, 255,
-                          10 /* tolerance */);
+                          50 /* tolerance */);
     }
 }
 
@@ -1402,8 +1402,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_color
     fillBufferColorTransformZeroLayerAlpha<ColorSourceVariant>();
 }
 
-// TODO(b/186010146): reenable once swiftshader is happy with this test
-TEST_P(RenderEngineTest, DISABLED_drawLayers_fillBufferAndBlurBackground_colorSource) {
+TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_colorSource) {
     initializeRenderEngine();
     fillBufferAndBlurBackground<ColorSourceVariant>();
 }
@@ -1478,8 +1477,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_opaqu
     fillBufferColorTransformZeroLayerAlpha<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
-// TODO(b/186010146): reenable once swiftshader is happy with this test
-TEST_P(RenderEngineTest, DISABLED_drawLayers_fillBufferAndBlurBackground_opaqueBufferSource) {
+TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_opaqueBufferSource) {
     initializeRenderEngine();
     fillBufferAndBlurBackground<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
@@ -1554,8 +1552,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_buffe
     fillBufferColorTransformZeroLayerAlpha<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
-// TODO(b/186010146): reenable once swiftshader is happy with this test
-TEST_P(RenderEngineTest, DISABLED_drawLayers_fillBufferAndBlurBackground_bufferSource) {
+TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_bufferSource) {
     initializeRenderEngine();
     fillBufferAndBlurBackground<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
