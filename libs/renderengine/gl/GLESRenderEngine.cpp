@@ -249,7 +249,7 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(const RenderEngineCre
     // initialize EGL for the default display
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (!eglInitialize(display, nullptr, nullptr)) {
-        LOG_ALWAYS_FATAL("failed to initialize EGL");
+        LOG_ALWAYS_FATAL("failed to initialize EGL. EGL error=0x%x", eglGetError());
     }
 
     const auto eglVersion = eglQueryString(display, EGL_VERSION);
