@@ -45,7 +45,10 @@ bool isSameStack(const std::vector<const LayerState*>& incomingLayers,
     }
 
     for (size_t i = 0; i < incomingLayers.size(); i++) {
-        if (incomingLayers[i]->getDifferingFields(*(existingLayers[i])) != LayerStateField::None) {
+        // Checking the IDs here is very strict, but we do this as otherwise we may mistakenly try
+        // to access destroyed OutputLayers later on.
+        if (incomingLayers[i]->getId() != existingLayers[i]->getId() ||
+            incomingLayers[i]->getDifferingFields(*(existingLayers[i])) != LayerStateField::None) {
             return false;
         }
     }
@@ -96,6 +99,14 @@ void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine,
     mNewCachedSet->render(renderEngine, outputState);
 }
 
+void Flattener::dumpLayers(std::string& result) const {
+    result.append("  Current layers:");
+    for (const CachedSet& layer : mLayers) {
+        result.append("\n");
+        layer.dump(result);
+    }
+}
+
 void Flattener::dump(std::string& result) const {
     const auto now = std::chrono::steady_clock::now();
 
@@ -140,11 +151,7 @@ void Flattener::dump(std::string& result) const {
     base::StringAppendF(&result, "\n  Current hash %016zx, last update %sago\n\n", mCurrentGeometry,
                         durationString(lastUpdate).c_str());
 
-    result.append("  Current layers:");
-    for (const CachedSet& layer : mLayers) {
-        result.append("\n");
-        layer.dump(result);
-    }
+    dumpLayers(result);
 }
 
 size_t Flattener::calculateDisplayCost(const std::vector<const LayerState*>& layers) const {
@@ -232,7 +239,8 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
     auto currentLayerIter = mLayers.begin();
     auto incomingLayerIter = layers.begin();
     while (incomingLayerIter != layers.end()) {
-        if (mNewCachedSet && mNewCachedSet->getFingerprint() == (*incomingLayerIter)->getHash()) {
+        if (mNewCachedSet &&
+            mNewCachedSet->getFirstLayer().getState()->getId() == (*incomingLayerIter)->getId()) {
             if (mNewCachedSet->hasBufferUpdate()) {
                 ALOGV("[%s] Dropping new cached set", __func__);
                 ++mInvalidatedCachedSetAges[0];

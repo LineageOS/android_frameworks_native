@@ -102,7 +102,7 @@ struct OutputLayerCompositionState {
         // behind the OutputLayer represented by this CompositionState and will
         // be visible through it. Unowned - the OutputLayer's lifetime will
         // outlast this.)
-        OutputLayer* peekThroughLayer = nullptr;
+        compositionengine::OutputLayer* peekThroughLayer = nullptr;
     } overrideInfo;
 
     /*

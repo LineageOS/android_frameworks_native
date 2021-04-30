@@ -49,6 +49,7 @@ public:
                           const OutputCompositionState& outputState);
 
     void dump(std::string& result) const;
+    void dumpLayers(std::string& result) const;
 
 private:
     size_t calculateDisplayCost(const std::vector<const LayerState*>& layers) const;

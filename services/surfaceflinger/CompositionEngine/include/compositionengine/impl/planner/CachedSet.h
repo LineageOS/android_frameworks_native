@@ -60,7 +60,6 @@ public:
     void addLayer(const LayerState*, std::chrono::steady_clock::time_point lastUpdate);
 
     std::chrono::steady_clock::time_point getLastUpdate() const { return mLastUpdate; }
-    NonBufferHash getFingerprint() const { return mFingerprint; }
     size_t getLayerCount() const { return mLayers.size(); }
     const Layer& getFirstLayer() const { return mLayers[0]; }
     const Rect& getBounds() const { return mBounds; }
@@ -121,7 +120,7 @@ public:
     void addHolePunchLayerIfFeasible(const CachedSet&, bool isFirstLayer);
 
     // Retrieve the layer that will be drawn behind this one.
-    OutputLayer* getHolePunchLayer() const;
+    compositionengine::OutputLayer* getHolePunchLayer() const;
 
 private:
     CachedSet() = default;

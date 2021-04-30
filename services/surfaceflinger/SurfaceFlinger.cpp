@@ -4987,6 +4987,13 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
         result.append("\n");
     }
 
+    {
+        DumpArgs plannerArgs;
+        plannerArgs.add(); // first argument is ignored
+        plannerArgs.add(String16("--layers"));
+        dumpPlannerInfo(plannerArgs, result);
+    }
+
     /*
      * Dump HWComposer state
      */
