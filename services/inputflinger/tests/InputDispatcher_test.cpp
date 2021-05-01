@@ -526,7 +526,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      /*action*/ -1, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -539,6 +540,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                              (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
                      ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
                      pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
@@ -551,6 +553,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                              (~0U << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
                      ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
                      pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
@@ -564,6 +567,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                              (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
                      ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
                      pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
@@ -576,6 +580,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                              (~0U << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
                      ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
                      pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
@@ -587,7 +592,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 0, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -597,7 +603,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ MAX_POINTERS + 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -609,7 +616,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -620,7 +628,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -633,7 +642,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
+                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 2, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -1237,8 +1247,8 @@ public:
                          mAction, mActionButton, /* flags */ 0, /* edgeFlags */ 0, AMETA_NONE,
                          mButtonState, MotionClassification::NONE, identityTransform,
                          /* xPrecision */ 0, /* yPrecision */ 0, mRawXCursorPosition,
-                         mRawYCursorPosition, mEventTime, mEventTime, mPointers.size(),
-                         pointerProperties.data(), pointerCoords.data());
+                         mRawYCursorPosition, mDisplayWidth, mDisplayHeight, mEventTime, mEventTime,
+                         mPointers.size(), pointerProperties.data(), pointerCoords.data());
 
         return event;
     }
@@ -1252,6 +1262,8 @@ private:
     int32_t mButtonState{0};
     float mRawXCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
     float mRawYCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
+    int32_t mDisplayWidth{AMOTION_EVENT_INVALID_DISPLAY_SIZE};
+    int32_t mDisplayHeight{AMOTION_EVENT_INVALID_DISPLAY_SIZE};
 
     std::vector<PointerBuilder> mPointers;
 };
@@ -2029,6 +2041,19 @@ public:
                                      expectedDisplayId, expectedFlags);
     }
 
+    MotionEvent* consumeMotion() {
+        InputEvent* event = mInputReceiver->consume();
+        if (!event) {
+            ADD_FAILURE() << "No event was produced";
+            return nullptr;
+        }
+        if (event->getType() != AINPUT_EVENT_TYPE_MOTION) {
+            ADD_FAILURE() << "Received event of type " << event->getType() << " instead of motion";
+            return nullptr;
+        }
+        return static_cast<MotionEvent*>(event);
+    }
+
     void assertNoEvents() { mInputReceiver->assertNoEvents(); }
 
 private:
@@ -2113,6 +2138,27 @@ TEST_F(InputDispatcherTest, UnresponsiveGestureMonitor_GetsAnr) {
     monitor.finishEvent(*consumeSeq);
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertNotifyMonitorResponsiveWasCalled();
+}
+
+// Tests for gesture monitors
+TEST_F(InputDispatcherTest, GestureMonitor_NoWindowTransform) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    window->setWindowOffset(20, 40);
+    window->setWindowTransform(0, 1, -1, 0);
+
+    FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "GM_1", ADISPLAY_ID_DEFAULT,
+                                                      true /*isGestureMonitor*/);
+
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    MotionEvent* event = monitor.consumeMotion();
+    // Even though window has transform, gesture monitor must not.
+    ASSERT_EQ(ui::Transform(), event->getTransform());
 }
 
 TEST_F(InputDispatcherTest, TestMoveEvent) {
