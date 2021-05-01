@@ -162,6 +162,8 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     constexpr float yPrecision = 0.5;
     constexpr float xCursorPosition = 1.3;
     constexpr float yCursorPosition = 50.6;
+    constexpr int32_t displayWidth = 1000;
+    constexpr int32_t displayHeight = 2000;
     constexpr nsecs_t downTime = 3;
     constexpr size_t pointerCount = 3;
     constexpr nsecs_t eventTime = 4;
@@ -190,8 +192,9 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     status = mPublisher->publishMotionEvent(seq, eventId, deviceId, source, displayId, hmac, action,
                                             actionButton, flags, edgeFlags, metaState, buttonState,
                                             classification, transform, xPrecision, yPrecision,
-                                            xCursorPosition, yCursorPosition, downTime, eventTime,
-                                            pointerCount, pointerProperties, pointerCoords);
+                                            xCursorPosition, yCursorPosition, displayWidth,
+                                            displayHeight, downTime, eventTime, pointerCount,
+                                            pointerProperties, pointerCoords);
     ASSERT_EQ(OK, status)
             << "publisher publishMotionEvent should return OK";
 
@@ -228,6 +231,8 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     EXPECT_EQ(yCursorPosition, motionEvent->getRawYCursorPosition());
     EXPECT_EQ(xCursorPosition * xScale + xOffset, motionEvent->getXCursorPosition());
     EXPECT_EQ(yCursorPosition * yScale + yOffset, motionEvent->getYCursorPosition());
+    EXPECT_EQ(displayWidth, motionEvent->getDisplaySize().x);
+    EXPECT_EQ(displayHeight, motionEvent->getDisplaySize().y);
     EXPECT_EQ(downTime, motionEvent->getDownTime());
     EXPECT_EQ(eventTime, motionEvent->getEventTime());
     EXPECT_EQ(pointerCount, motionEvent->getPointerCount());
@@ -455,7 +460,7 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZer
     status = mPublisher->publishMotionEvent(0, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
                                             0, 0, 0, MotionClassification::NONE, identityTransform,
                                             0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0, 0, 0,
                                             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
@@ -471,7 +476,7 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessTha
     status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
                                             0, 0, 0, MotionClassification::NONE, identityTransform,
                                             0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0, 0, 0,
                                             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
@@ -492,7 +497,7 @@ TEST_F(InputPublisherAndConsumerTest,
     status = mPublisher->publishMotionEvent(1, InputEvent::nextId(), 0, 0, 0, INVALID_HMAC, 0, 0, 0,
                                             0, 0, 0, MotionClassification::NONE, identityTransform,
                                             0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0,
+                                            AMOTION_EVENT_INVALID_CURSOR_POSITION, 0, 0, 0, 0,
                                             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";

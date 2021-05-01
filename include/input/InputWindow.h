@@ -168,6 +168,10 @@ struct InputWindowInfo : public Parcelable {
     // Transform applied to individual windows.
     ui::Transform transform;
 
+    // Display size in its natural rotation. Used to rotate raw coordinates for compatibility.
+    int32_t displayWidth = AMOTION_EVENT_INVALID_DISPLAY_SIZE;
+    int32_t displayHeight = AMOTION_EVENT_INVALID_DISPLAY_SIZE;
+
     /*
      * This is filled in by the WM relative to the frame and then translated
      * to absolute coordinates by SurfaceFlinger once the frame is computed.

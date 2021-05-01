@@ -25,7 +25,6 @@
 #include "ComposerHal.h"
 
 #include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
-#include <gui/BufferQueue.h>
 #include <hidl/HidlTransportSupport.h>
 #include <hidl/HidlTransportUtils.h>
 #include <log/log.h>
@@ -266,15 +265,15 @@ Error Composer::acceptDisplayChanges(Display display)
 Error Composer::createLayer(Display display, Layer* outLayer)
 {
     Error error = kDefaultError;
-    mClient->createLayer(display, BufferQueue::NUM_BUFFER_SLOTS,
-            [&](const auto& tmpError, const auto& tmpLayer) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
+    mClient->createLayer(display, kMaxLayerBufferCount,
+                         [&](const auto& tmpError, const auto& tmpLayer) {
+                             error = tmpError;
+                             if (error != Error::NONE) {
+                                 return;
+                             }
 
-                *outLayer = tmpLayer;
-            });
+                             *outLayer = tmpLayer;
+                         });
 
     return error;
 }
