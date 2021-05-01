@@ -31,7 +31,7 @@ adb shell setprop debug.renderengine.capture_skia_ms $1
 # give the device time to both record, and starting writing the file.
 # Total time needed to write the file depends on how much data was recorded.
 # the loop at the end waits for this.
-sleep $(($1 / 1000 + 2));
+sleep $(($1 / 1000 + 4));
 
 # There is no guarantee that at least one frame passed through renderengine during that time
 # but as far as I know it always at least writes a 0-byte file with a new name, unless it crashes
@@ -54,7 +54,7 @@ adb_filesize() {
 
 mskp_size=$(adb_filesize "/data/user/$name")
 if [[ $mskp_size = "0" ]]; then
-  echo "Empty file, probably no RenderEngine activity during recording period."
+  echo "File opened, but remains empty after recording period + wait. Either there was no RenderEngine activity during recording period, or recording process is still working. Check /data/user/$name manually later."
   exit 1
 fi
 

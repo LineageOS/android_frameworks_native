@@ -487,6 +487,9 @@ public:
     void fillBufferAndBlurBackground();
 
     template <typename SourceVariant>
+    void fillSmallLayerAndBlurBackground();
+
+    template <typename SourceVariant>
     void overlayCorners();
 
     void fillRedBufferTextureTransform();
@@ -971,6 +974,39 @@ void RenderEngineTest::fillBufferAndBlurBackground() {
 }
 
 template <typename SourceVariant>
+void RenderEngineTest::fillSmallLayerAndBlurBackground() {
+    auto blurRadius = 50;
+    renderengine::DisplaySettings settings;
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+
+    std::vector<const renderengine::LayerSettings*> layers;
+
+    renderengine::LayerSettings backgroundLayer;
+    backgroundLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+    backgroundLayer.geometry.boundaries = fullscreenRect().toFloatRect();
+    SourceVariant::fillColor(backgroundLayer, 1.0f, 0.0f, 0.0f, this);
+    backgroundLayer.alpha = 1.0f;
+    layers.push_back(&backgroundLayer);
+
+    renderengine::LayerSettings blurLayer;
+    blurLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+    blurLayer.geometry.boundaries = FloatRect(0.f, 0.f, 1.f, 1.f);
+    blurLayer.backgroundBlurRadius = blurRadius;
+    SourceVariant::fillColor(blurLayer, 0.0f, 0.0f, 1.0f, this);
+    blurLayer.alpha = 0;
+    layers.push_back(&blurLayer);
+
+    invokeDraw(settings, layers);
+
+    // Give a generous tolerance - the blur rectangle is very small and this test is
+    // mainly concerned with ensuring that there's no device failure.
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT), 255, 0, 0, 255,
+                      40 /* tolerance */);
+}
+
+template <typename SourceVariant>
 void RenderEngineTest::overlayCorners() {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
@@ -1408,6 +1444,11 @@ TEST_P(RenderEngineTest, DISABLED_drawLayers_fillBufferAndBlurBackground_colorSo
     fillBufferAndBlurBackground<ColorSourceVariant>();
 }
 
+TEST_P(RenderEngineTest, drawLayers_fillSmallLayerAndBlurBackground_colorSource) {
+    initializeRenderEngine();
+    fillSmallLayerAndBlurBackground<ColorSourceVariant>();
+}
+
 TEST_P(RenderEngineTest, drawLayers_overlayCorners_colorSource) {
     initializeRenderEngine();
     overlayCorners<ColorSourceVariant>();
@@ -1484,6 +1525,11 @@ TEST_P(RenderEngineTest, DISABLED_drawLayers_fillBufferAndBlurBackground_opaqueB
     fillBufferAndBlurBackground<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
+TEST_P(RenderEngineTest, drawLayers_fillSmallLayerAndBlurBackground_opaqueBufferSource) {
+    initializeRenderEngine();
+    fillSmallLayerAndBlurBackground<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
 TEST_P(RenderEngineTest, drawLayers_overlayCorners_opaqueBufferSource) {
     initializeRenderEngine();
     overlayCorners<BufferSourceVariant<ForceOpaqueBufferVariant>>();
@@ -1558,6 +1604,11 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_buffe
 TEST_P(RenderEngineTest, DISABLED_drawLayers_fillBufferAndBlurBackground_bufferSource) {
     initializeRenderEngine();
     fillBufferAndBlurBackground<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_P(RenderEngineTest, drawLayers_fillSmallLayerAndBlurBackground_bufferSource) {
+    initializeRenderEngine();
+    fillSmallLayerAndBlurBackground<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_P(RenderEngineTest, drawLayers_overlayCorners_bufferSource) {

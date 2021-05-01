@@ -228,6 +228,10 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
             msg->body.motion.xCursorPosition = body.motion.xCursorPosition;
             // float yCursorPosition
             msg->body.motion.yCursorPosition = body.motion.yCursorPosition;
+            // int32_t displayW
+            msg->body.motion.displayWidth = body.motion.displayWidth;
+            // int32_t displayH
+            msg->body.motion.displayHeight = body.motion.displayHeight;
             // uint32_t pointerCount
             msg->body.motion.pointerCount = body.motion.pointerCount;
             //struct Pointer pointers[MAX_POINTERS]
@@ -517,9 +521,9 @@ status_t InputPublisher::publishMotionEvent(
         std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton, int32_t flags,
         int32_t edgeFlags, int32_t metaState, int32_t buttonState,
         MotionClassification classification, const ui::Transform& transform, float xPrecision,
-        float yPrecision, float xCursorPosition, float yCursorPosition, nsecs_t downTime,
-        nsecs_t eventTime, uint32_t pointerCount, const PointerProperties* pointerProperties,
-        const PointerCoords* pointerCoords) {
+        float yPrecision, float xCursorPosition, float yCursorPosition, int32_t displayWidth,
+        int32_t displayHeight, nsecs_t downTime, nsecs_t eventTime, uint32_t pointerCount,
+        const PointerProperties* pointerProperties, const PointerCoords* pointerCoords) {
     if (ATRACE_ENABLED()) {
         std::string message = StringPrintf(
                 "publishMotionEvent(inputChannel=%s, action=%" PRId32 ")",
@@ -577,6 +581,8 @@ status_t InputPublisher::publishMotionEvent(
     msg.body.motion.yPrecision = yPrecision;
     msg.body.motion.xCursorPosition = xCursorPosition;
     msg.body.motion.yCursorPosition = yCursorPosition;
+    msg.body.motion.displayWidth = displayWidth;
+    msg.body.motion.displayHeight = displayHeight;
     msg.body.motion.downTime = downTime;
     msg.body.motion.eventTime = eventTime;
     msg.body.motion.pointerCount = pointerCount;
@@ -1343,6 +1349,7 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
                       msg->body.motion.buttonState, msg->body.motion.classification, transform,
                       msg->body.motion.xPrecision, msg->body.motion.yPrecision,
                       msg->body.motion.xCursorPosition, msg->body.motion.yCursorPosition,
+                      msg->body.motion.displayWidth, msg->body.motion.displayHeight,
                       msg->body.motion.downTime, msg->body.motion.eventTime, pointerCount,
                       pointerProperties, pointerCoords);
 }
