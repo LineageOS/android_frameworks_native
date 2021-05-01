@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <compositionengine/impl/HwcBufferCache.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/mock/CompositionEngine.h>
@@ -702,6 +703,7 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static constexpr ui::Dataspace kOverrideDataspace = static_cast<ui::Dataspace>(72);
     static constexpr int kSupportedPerFrameMetadata = 101;
     static constexpr int kExpectedHwcSlot = 0;
+    static constexpr int kOverrideHwcSlot = impl::HwcBufferCache::FLATTENER_CACHING_SLOT;
     static constexpr bool kLayerGenericMetadata1Mandatory = true;
     static constexpr bool kLayerGenericMetadata2Mandatory = true;
 
@@ -824,10 +826,11 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         EXPECT_CALL(*mHwcLayer, setSidebandStream(kSidebandStreamHandle));
     }
 
-    void expectSetHdrMetadataAndBufferCalls(sp<GraphicBuffer> buffer = kBuffer,
+    void expectSetHdrMetadataAndBufferCalls(uint32_t hwcSlot = kExpectedHwcSlot,
+                                            sp<GraphicBuffer> buffer = kBuffer,
                                             sp<Fence> fence = kFence) {
         EXPECT_CALL(*mHwcLayer, setPerFrameMetadata(kSupportedPerFrameMetadata, kHdrMetadata));
-        EXPECT_CALL(*mHwcLayer, setBuffer(kExpectedHwcSlot, buffer, fence));
+        EXPECT_CALL(*mHwcLayer, setBuffer(hwcSlot, buffer, fence));
     }
 
     void expectGenericLayerMetadataCalls() {
@@ -1060,7 +1063,7 @@ TEST_F(OutputLayerWriteStateToHWCTest, includesOverrideInfoIfPresent) {
                               kOverrideBlendMode, kOverrideAlpha);
     expectPerFrameCommonCalls(SimulateUnsupported::None, kOverrideDataspace, kOverrideVisibleRegion,
                               kOverrideSurfaceDamage);
-    expectSetHdrMetadataAndBufferCalls(kOverrideBuffer, kOverrideFence);
+    expectSetHdrMetadataAndBufferCalls(kOverrideHwcSlot, kOverrideBuffer, kOverrideFence);
     expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
     EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillOnce(Return(false));
 
