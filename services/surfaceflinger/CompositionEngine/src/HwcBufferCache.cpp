@@ -36,7 +36,7 @@ void HwcBufferCache::getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uin
                                   sp<GraphicBuffer>* outBuffer) {
     // default is 0
     if (slot == BufferQueue::INVALID_BUFFER_SLOT || slot < 0 ||
-        slot >= BufferQueue::NUM_BUFFER_SLOTS) {
+        slot >= static_cast<int32_t>(kMaxLayerBufferCount)) {
         *outSlot = 0;
     } else {
         *outSlot = static_cast<uint32_t>(slot);
