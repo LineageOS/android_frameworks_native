@@ -120,7 +120,8 @@ protected:
 
 namespace {
 
-TEST_F(LayerHistoryTestV2, oneLayer) {
+// TODO(b/186417847) This test is flaky. Reenable once fixed.
+TEST_F(LayerHistoryTestV2, DISABLED_oneLayer) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
@@ -631,7 +632,8 @@ TEST_F(LayerHistoryTestV2, infrequentAnimatingLayer) {
     EXPECT_EQ(1, animatingLayerCount(time));
 }
 
-TEST_F(LayerHistoryTestV2, heuristicLayer60Hz) {
+// TODO(b/186417847) This test is flaky. Reenable once fixed.
+TEST_F(LayerHistoryTestV2, DISABLED_heuristicLayer60Hz) {
     const auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
