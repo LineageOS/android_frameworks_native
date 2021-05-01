@@ -32,6 +32,7 @@
 #include <android/hardware/graphics/composer/2.4/IComposer.h>
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 #include <composer-command-buffer/2.4/ComposerCommandBuffer.h>
+#include <gui/BufferQueue.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
 #include <ui/DisplayedFrameStats.h>
@@ -491,6 +492,11 @@ private:
     // 64KiB minus a small space for metadata such as read/write pointers
     static constexpr size_t kWriterInitialSize =
         64 * 1024 / sizeof(uint32_t) - 16;
+    // Max number of buffers that may be cached for a given layer
+    // We obtain this number by:
+    // 1. Tightly coupling this cache to the max size of BufferQueue
+    // 2. Adding an additional slot for the layer caching feature in SurfaceFlinger (see: Planner.h)
+    static const constexpr uint32_t kMaxLayerBufferCount = BufferQueue::NUM_BUFFER_SLOTS + 1;
     CommandWriter mWriter;
     CommandReader mReader;
 };
