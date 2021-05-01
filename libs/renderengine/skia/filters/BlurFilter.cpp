@@ -86,8 +86,8 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
     float radiusByPasses = tmpRadius / (float)numberOfPasses;
 
     // create blur surface with the bit depth and colorspace of the original surface
-    SkImageInfo scaledInfo = input->imageInfo().makeWH(blurRect.width() * kInputScale,
-                                                       blurRect.height() * kInputScale);
+    SkImageInfo scaledInfo = input->imageInfo().makeWH(std::ceil(blurRect.width() * kInputScale),
+                                                       std::ceil(blurRect.height() * kInputScale));
 
     const float stepX = radiusByPasses;
     const float stepY = radiusByPasses;
@@ -105,7 +105,7 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
             input->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear, blurMatrix);
     blurBuilder.uniform("in_blurOffset") = SkV2{stepX * kInputScale, stepY * kInputScale};
     blurBuilder.uniform("in_maxSizeXY") =
-            SkV2{blurRect.width() * kInputScale - 1, blurRect.height() * kInputScale - 1};
+            SkV2{blurRect.width() * kInputScale, blurRect.height() * kInputScale};
 
     sk_sp<SkImage> tmpBlur(blurBuilder.makeImage(context, nullptr, scaledInfo, false));
 
@@ -116,7 +116,7 @@ sk_sp<SkImage> BlurFilter::generate(GrRecordingContext* context, const uint32_t 
                 tmpBlur->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
         blurBuilder.uniform("in_blurOffset") = SkV2{stepX * stepScale, stepY * stepScale};
         blurBuilder.uniform("in_maxSizeXY") =
-                SkV2{blurRect.width() * kInputScale - 1, blurRect.height() * kInputScale - 1};
+                SkV2{blurRect.width() * kInputScale, blurRect.height() * kInputScale};
         tmpBlur = blurBuilder.makeImage(context, nullptr, scaledInfo, false);
     }
 
