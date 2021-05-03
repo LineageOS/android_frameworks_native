@@ -24,21 +24,17 @@
 
 struct ANativeWindow;
 
-namespace android {
-
-namespace compositionengine {
-
-class Display;
+namespace android::compositionengine {
 
 /**
  * A parameter object for creating RenderSurface instances
  */
 struct RenderSurfaceCreationArgs {
     // The initial width of the surface
-    int32_t displayWidth;
+    int32_t displayWidth = -1;
 
     // The initial height of the surface
-    int32_t displayHeight;
+    int32_t displayHeight = -1;
 
     // The ANativeWindow for the buffer queue for this surface
     sp<ANativeWindow> nativeWindow;
@@ -46,22 +42,16 @@ struct RenderSurfaceCreationArgs {
     // The DisplaySurface for this surface
     sp<DisplaySurface> displaySurface;
 
-    size_t maxTextureCacheSize;
+    // The maximum size of the renderengine::ExternalTexture cache
+    size_t maxTextureCacheSize = 0;
+
+private:
+    friend class RenderSurfaceCreationArgsBuilder;
+
+    // Not defaulted to disable aggregate initialization.
+    RenderSurfaceCreationArgs() {}
 };
 
-/**
- * A helper for setting up a RenderSurfaceCreationArgs value in-line.
- * Prefer this builder over raw structure initialization.
- *
- * Instead of:
- *
- *   RenderSurfaceCreationArgs{1000, 1000, nativeWindow, displaySurface}
- *
- * Prefer:
- *
- *  RenderSurfaceCreationArgsBuilder().setDisplayWidth(1000).setDisplayHeight(1000)
- *      .setNativeWindow(nativeWindow).setDisplaySurface(displaySurface).Build();
- */
 class RenderSurfaceCreationArgsBuilder {
 public:
     RenderSurfaceCreationArgs build() { return std::move(mArgs); }
@@ -75,11 +65,11 @@ public:
         return *this;
     }
     RenderSurfaceCreationArgsBuilder& setNativeWindow(sp<ANativeWindow> nativeWindow) {
-        mArgs.nativeWindow = nativeWindow;
+        mArgs.nativeWindow = std::move(nativeWindow);
         return *this;
     }
     RenderSurfaceCreationArgsBuilder& setDisplaySurface(sp<DisplaySurface> displaySurface) {
-        mArgs.displaySurface = displaySurface;
+        mArgs.displaySurface = std::move(displaySurface);
         return *this;
     }
 
@@ -92,5 +82,4 @@ private:
     RenderSurfaceCreationArgs mArgs;
 };
 
-} // namespace compositionengine
-} // namespace android
+} // namespace android::compositionengine

@@ -2175,11 +2175,10 @@ void SurfaceFlinger::postComposition() {
             mFpsReporter->dispatchLayerFps();
         }
         hdrInfoListeners.reserve(mHdrLayerInfoListeners.size());
-        for (auto& [key, value] : mHdrLayerInfoListeners) {
-            if (value && value->hasListeners()) {
-                auto listenersDisplay = getDisplayById(key);
-                if (listenersDisplay) {
-                    hdrInfoListeners.emplace_back(listenersDisplay->getCompositionDisplay(), value);
+        for (const auto& [displayId, reporter] : mHdrLayerInfoListeners) {
+            if (reporter && reporter->hasListeners()) {
+                if (const auto display = getDisplayDeviceLocked(displayId)) {
+                    hdrInfoListeners.emplace_back(display->getCompositionDisplay(), reporter);
                 }
             }
         }
@@ -5503,37 +5502,24 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             }
             case 1035: {
                 const int modeId = data.readInt32();
-                mDebugDisplayModeSetByBackdoor = false;
 
-                const auto displayId = [&]() -> std::optional<PhysicalDisplayId> {
-                    uint64_t inputDisplayId = 0;
-                    if (data.readUint64(&inputDisplayId) == NO_ERROR) {
-                        const auto token = getPhysicalDisplayToken(
-                                static_cast<PhysicalDisplayId>(inputDisplayId));
-                        if (!token) {
-                            ALOGE("No display with id: %" PRIu64, inputDisplayId);
-                            return std::nullopt;
-                        }
-
-                        return std::make_optional<PhysicalDisplayId>(inputDisplayId);
+                const auto display = [&]() -> sp<IBinder> {
+                    uint64_t value;
+                    if (data.readUint64(&value) != NO_ERROR) {
+                        return getInternalDisplayToken();
                     }
 
-                    return getInternalDisplayId();
+                    if (const auto id = DisplayId::fromValue<PhysicalDisplayId>(value)) {
+                        return getPhysicalDisplayToken(*id);
+                    }
+
+                    ALOGE("Invalid physical display ID");
+                    return nullptr;
                 }();
 
-                if (!displayId) {
-                    ALOGE("No display found");
-                    return NO_ERROR;
-                }
-
-                status_t result = setActiveMode(getPhysicalDisplayToken(*displayId), modeId);
-                if (result != NO_ERROR) {
-                    return result;
-                }
-
-                mDebugDisplayModeSetByBackdoor = true;
-
-                return NO_ERROR;
+                const status_t result = setActiveMode(display, modeId);
+                mDebugDisplayModeSetByBackdoor = result == NO_ERROR;
+                return result;
             }
             case 1036: {
                 if (data.readInt32() > 0) {
@@ -5718,34 +5704,6 @@ status_t SurfaceFlinger::setSchedFifo(bool enabled) {
     return NO_ERROR;
 }
 
-sp<DisplayDevice> SurfaceFlinger::getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) {
-    if (const sp<IBinder> displayToken =
-                getPhysicalDisplayTokenLocked(PhysicalDisplayId{displayOrLayerStack})) {
-        return getDisplayDeviceLocked(displayToken);
-    }
-    // Couldn't find display by displayId. Try to get display by layerStack since virtual displays
-    // may not have a displayId.
-    return getDisplayByLayerStack(displayOrLayerStack);
-}
-
-sp<DisplayDevice> SurfaceFlinger::getDisplayById(DisplayId displayId) const {
-    for (const auto& [token, display] : mDisplays) {
-        if (display->getId() == displayId) {
-            return display;
-        }
-    }
-    return nullptr;
-}
-
-sp<DisplayDevice> SurfaceFlinger::getDisplayByLayerStack(uint64_t layerStack) {
-    for (const auto& [token, display] : mDisplays) {
-        if (display->getLayerStack() == layerStack) {
-            return display;
-        }
-    }
-    return nullptr;
-}
-
 status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                                         const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
@@ -5757,7 +5715,7 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
 
     if (!args.displayToken) return BAD_VALUE;
 
-    wp<DisplayDevice> displayWeak;
+    wp<const DisplayDevice> displayWeak;
     ui::LayerStack layerStack;
     ui::Size reqSize(args.width, args.height);
     ui::Dataspace dataspace;
@@ -5798,21 +5756,22 @@ status_t SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                                captureListener);
 }
 
-status_t SurfaceFlinger::captureDisplay(uint64_t displayOrLayerStack,
+status_t SurfaceFlinger::captureDisplay(DisplayId displayId,
                                         const sp<IScreenCaptureListener>& captureListener) {
     ui::LayerStack layerStack;
-    wp<DisplayDevice> displayWeak;
+    wp<const DisplayDevice> displayWeak;
     ui::Size size;
     ui::Dataspace dataspace;
     {
         Mutex::Autolock lock(mStateLock);
-        sp<DisplayDevice> display = getDisplayByIdOrLayerStack(displayOrLayerStack);
+
+        const auto display = getDisplayDeviceLocked(displayId);
         if (!display) {
             return NAME_NOT_FOUND;
         }
-        layerStack = display->getLayerStack();
-        displayWeak = display;
 
+        displayWeak = display;
+        layerStack = display->getLayerStack();
         size = display->getLayerStackSpaceRect().getSize();
 
         dataspace =
@@ -5894,7 +5853,11 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
             }
         }
 
-        const auto display = getDisplayByLayerStack(parent->getLayerStack());
+        const auto display =
+                findDisplay([layerStack = parent->getLayerStack()](const auto& display) {
+                    return display.getLayerStack() == layerStack;
+                });
+
         if (!display) {
             return NAME_NOT_FOUND;
         }

@@ -14,12 +14,6 @@
  * limitations under the License.
  */
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#include "renderengine/ExternalTexture.h"
-#include "ui/GraphicBuffer.h"
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wextra"
-
 #include <cstdarg>
 #include <cstdint>
 
@@ -32,14 +26,16 @@
 #include <compositionengine/mock/NativeWindow.h>
 #include <compositionengine/mock/OutputLayer.h>
 #include <gtest/gtest.h>
+#include <renderengine/ExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
+#include <ui/GraphicBuffer.h>
 
 namespace android::compositionengine {
 namespace {
 
 constexpr int32_t DEFAULT_DISPLAY_WIDTH = 1920;
 constexpr int32_t DEFAULT_DISPLAY_HEIGHT = 1080;
-constexpr DisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId(123u);
+constexpr DisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId::fromPort(123u);
 const std::string DEFAULT_DISPLAY_NAME = "Mock Display";
 
 using testing::_;
@@ -67,9 +63,12 @@ public:
     sp<mock::NativeWindow> mNativeWindow = new StrictMock<mock::NativeWindow>();
     sp<mock::DisplaySurface> mDisplaySurface = new StrictMock<mock::DisplaySurface>();
     impl::RenderSurface mSurface{mCompositionEngine, mDisplay,
-                                 RenderSurfaceCreationArgs{DEFAULT_DISPLAY_WIDTH,
-                                                           DEFAULT_DISPLAY_HEIGHT, mNativeWindow,
-                                                           mDisplaySurface}};
+                                 RenderSurfaceCreationArgsBuilder()
+                                         .setDisplayWidth(DEFAULT_DISPLAY_WIDTH)
+                                         .setDisplayHeight(DEFAULT_DISPLAY_HEIGHT)
+                                         .setNativeWindow(mNativeWindow)
+                                         .setDisplaySurface(mDisplaySurface)
+                                         .build()};
 };
 
 /*
@@ -367,11 +366,8 @@ TEST_F(RenderSurfaceTest, flipForwardsSignal) {
 
     mSurface.flip();
 
-    EXPECT_EQ(501, mSurface.getPageFlipCount());
+    EXPECT_EQ(501u, mSurface.getPageFlipCount());
 }
 
 } // namespace
 } // namespace android::compositionengine
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wextra"
