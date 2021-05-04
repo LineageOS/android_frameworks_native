@@ -2114,12 +2114,12 @@ status_t ScreenshotClient::captureDisplay(const DisplayCaptureArgs& captureArgs,
     return s->captureDisplay(captureArgs, captureListener);
 }
 
-status_t ScreenshotClient::captureDisplay(uint64_t displayOrLayerStack,
+status_t ScreenshotClient::captureDisplay(DisplayId displayId,
                                           const sp<IScreenCaptureListener>& captureListener) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
 
-    return s->captureDisplay(displayOrLayerStack, captureListener);
+    return s->captureDisplay(displayId, captureListener);
 }
 
 status_t ScreenshotClient::captureLayers(const LayerCaptureArgs& captureArgs,

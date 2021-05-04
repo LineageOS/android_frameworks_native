@@ -279,7 +279,7 @@ protected:
     }
 
     bool waitForHotplugEvent(Display displayId, bool connected) {
-        return waitForHotplugEvent(PhysicalDisplayId(displayId), connected);
+        return waitForHotplugEvent(physicalIdFromHwcDisplayId(displayId), connected);
     }
 
     bool waitForHotplugEvent(PhysicalDisplayId displayId, bool connected) {
@@ -305,7 +305,7 @@ protected:
     }
 
     bool waitForModeChangedEvent(Display display, int32_t modeId) {
-        PhysicalDisplayId displayId(display);
+        PhysicalDisplayId displayId = physicalIdFromHwcDisplayId(display);
         int waitCount = 20;
         while (waitCount--) {
             while (!mReceivedDisplayEvents.empty()) {

@@ -123,11 +123,11 @@ public:
         return remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY, data, &reply);
     }
 
-    status_t captureDisplay(uint64_t displayOrLayerStack,
+    status_t captureDisplay(DisplayId displayId,
                             const sp<IScreenCaptureListener>& captureListener) override {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        SAFE_PARCEL(data.writeUint64, displayOrLayerStack);
+        SAFE_PARCEL(data.writeUint64, displayId.value);
         SAFE_PARCEL(data.writeStrongBinder, IInterface::asBinder(captureListener));
 
         return remote()->transact(BnSurfaceComposer::CAPTURE_DISPLAY_BY_ID, data, &reply);
@@ -281,9 +281,14 @@ public:
             NO_ERROR) {
             std::vector<uint64_t> rawIds;
             if (reply.readUint64Vector(&rawIds) == NO_ERROR) {
-                std::vector<PhysicalDisplayId> displayIds(rawIds.size());
-                std::transform(rawIds.begin(), rawIds.end(), displayIds.begin(),
-                               [](uint64_t rawId) { return PhysicalDisplayId(rawId); });
+                std::vector<PhysicalDisplayId> displayIds;
+                displayIds.reserve(rawIds.size());
+
+                for (const uint64_t rawId : rawIds) {
+                    if (const auto id = DisplayId::fromValue<PhysicalDisplayId>(rawId)) {
+                        displayIds.push_back(*id);
+                    }
+                }
                 return displayIds;
             }
         }
@@ -1296,12 +1301,15 @@ status_t BnSurfaceComposer::onTransact(
         }
         case CAPTURE_DISPLAY_BY_ID: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            uint64_t displayOrLayerStack = 0;
+            uint64_t value;
+            SAFE_PARCEL(data.readUint64, &value);
+            const auto id = DisplayId::fromValue(value);
+            if (!id) return BAD_VALUE;
+
             sp<IScreenCaptureListener> captureListener;
-            SAFE_PARCEL(data.readUint64, &displayOrLayerStack);
             SAFE_PARCEL(data.readStrongBinder, &captureListener);
 
-            return captureDisplay(displayOrLayerStack, captureListener);
+            return captureDisplay(*id, captureListener);
         }
         case CAPTURE_LAYERS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
@@ -1368,9 +1376,9 @@ status_t BnSurfaceComposer::onTransact(
         }
         case GET_PHYSICAL_DISPLAY_TOKEN: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            PhysicalDisplayId displayId(data.readUint64());
-            sp<IBinder> display = getPhysicalDisplayToken(displayId);
-            reply->writeStrongBinder(display);
+            const auto id = DisplayId::fromValue<PhysicalDisplayId>(data.readUint64());
+            if (!id) return BAD_VALUE;
+            reply->writeStrongBinder(getPhysicalDisplayToken(*id));
             return NO_ERROR;
         }
         case GET_DISPLAY_STATE: {
