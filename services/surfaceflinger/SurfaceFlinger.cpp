@@ -3105,7 +3105,7 @@ void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config,
 
 void SurfaceFlinger::commitTransaction() {
     commitTransactionLocked();
-    signalSynchronousTransactions();
+    signalSynchronousTransactions(CountDownLatch::eSyncTransaction);
     mAnimTransactionPending = false;
 }
 
@@ -3527,7 +3527,9 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
     // Generate a CountDownLatch pending state if this is a synchronous transaction.
     if ((state.flags & eSynchronous) || state.inputWindowCommands.syncInputWindows) {
         state.transactionCommittedSignal = std::make_shared<CountDownLatch>(
-                (state.inputWindowCommands.syncInputWindows ? 2 : 1));
+                (state.inputWindowCommands.syncInputWindows
+                         ? (CountDownLatch::eSyncInputWindows | CountDownLatch::eSyncTransaction)
+                         : CountDownLatch::eSyncTransaction));
     }
 
     mTransactionQueue.emplace(state);
@@ -3552,10 +3554,10 @@ void SurfaceFlinger::waitForSynchronousTransaction(
     }
 }
 
-void SurfaceFlinger::signalSynchronousTransactions() {
+void SurfaceFlinger::signalSynchronousTransactions(const uint32_t flag) {
     for (auto it = mTransactionCommittedSignals.begin();
          it != mTransactionCommittedSignals.end();) {
-        if ((*it)->countDown() == 0) {
+        if ((*it)->countDown(flag)) {
             it = mTransactionCommittedSignals.erase(it);
         } else {
             it++;
@@ -6175,7 +6177,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(
 
 void SurfaceFlinger::setInputWindowsFinished() {
     Mutex::Autolock _l(mStateLock);
-    signalSynchronousTransactions();
+    signalSynchronousTransactions(CountDownLatch::eSyncInputWindows);
 }
 
 // ---------------------------------------------------------------------------
