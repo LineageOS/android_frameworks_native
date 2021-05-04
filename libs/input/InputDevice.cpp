@@ -87,8 +87,10 @@ std::string getInputDeviceConfigurationFilePathByName(
     // Search system repository.
     std::string path;
 
-    // Treblized input device config files will be located /odm/usr or /vendor/usr.
-    const char *rootsForPartition[] {"/odm", "/vendor", getenv("ANDROID_ROOT")};
+    // Treblized input device config files will be located /product/usr, /system_ext/usr,
+    // /odm/usr or /vendor/usr.
+    const char* rootsForPartition[]{"/product", "/system_ext", "/odm", "/vendor",
+                                    getenv("ANDROID_ROOT")};
     for (size_t i = 0; i < size(rootsForPartition); i++) {
         if (rootsForPartition[i] == nullptr) {
             continue;
