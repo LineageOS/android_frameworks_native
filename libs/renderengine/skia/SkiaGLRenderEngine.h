@@ -97,7 +97,7 @@ private:
     base::unique_fd flush();
     bool waitFence(base::unique_fd fenceFd);
     void initCanvas(SkCanvas* canvas, const DisplaySettings& display);
-    void drawShadow(SkCanvas* canvas, const SkRect& casterRect, float casterCornerRadius,
+    void drawShadow(SkCanvas* canvas, const SkRRect& casterRRect,
                     const ShadowSettings& shadowSettings);
     // If requiresLinearEffect is true or the layer has a stretchEffect a new shader is returned.
     // Otherwise it returns the input shader.

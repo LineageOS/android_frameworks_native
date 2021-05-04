@@ -905,12 +905,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         // TODO(b/175915334): consider relaxing this restriction to enable more flexible
         // composition - using a well-defined invalid color is long-term less error-prone.
         if (layer->shadow.length > 0) {
-            const auto rect = layer->geometry.roundedCornersRadius > 0
-                    ? getSkRect(layer->geometry.roundedCornersCrop)
-                    : bounds.rect();
             // This would require a new parameter/flag to SkShadowUtils::DrawShadow
             LOG_ALWAYS_FATAL_IF(layer->disableBlending, "Cannot disableBlending with a shadow");
-            drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
+            drawShadow(canvas, bounds, layer->shadow);
             continue;
         }
 
@@ -1199,17 +1196,14 @@ size_t SkiaGLRenderEngine::getMaxViewportDims() const {
     return mGrContext->maxRenderTargetSize();
 }
 
-void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRect& casterRect, float cornerRadius,
+void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRRect& casterRRect,
                                     const ShadowSettings& settings) {
     ATRACE_CALL();
     const float casterZ = settings.length / 2.0f;
-    const auto shadowShape = cornerRadius > 0
-            ? SkPath::RRect(SkRRect::MakeRectXY(casterRect, cornerRadius, cornerRadius))
-            : SkPath::Rect(casterRect);
     const auto flags =
             settings.casterIsTranslucent ? kTransparentOccluder_ShadowFlag : kNone_ShadowFlag;
 
-    SkShadowUtils::DrawShadow(canvas, shadowShape, SkPoint3::Make(0, 0, casterZ),
+    SkShadowUtils::DrawShadow(canvas, SkPath::RRect(casterRRect), SkPoint3::Make(0, 0, casterZ),
                               getSkPoint3(settings.lightPos), settings.lightRadius,
                               getSkColor(settings.ambientColor), getSkColor(settings.spotColor),
                               flags);
