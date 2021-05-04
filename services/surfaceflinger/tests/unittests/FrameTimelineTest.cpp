@@ -73,7 +73,7 @@ public:
         mTokenManager = &mFrameTimeline->mTokenManager;
         mTraceCookieCounter = &mFrameTimeline->mTraceCookieCounter;
         maxDisplayFrames = &mFrameTimeline->mMaxDisplayFrames;
-        maxTokenRetentionTime = mTokenManager->kMaxRetentionTime;
+        maxTokens = mTokenManager->kMaxTokens;
     }
 
     // Each tracing session can be used for a single block of Start -> Stop.
@@ -111,9 +111,11 @@ public:
         mFrameTimeline->setSfPresent(2500, presentFence1);
     }
 
-    void flushTokens(nsecs_t flushTime) {
-        std::lock_guard<std::mutex> lock(mTokenManager->mMutex);
-        mTokenManager->flushTokens(flushTime);
+    void flushTokens() {
+        for (size_t i = 0; i < maxTokens; i++) {
+            mTokenManager->generateTokenForPredictions({});
+        }
+        EXPECT_EQ(getPredictions().size(), maxTokens);
     }
 
     SurfaceFrame& getSurfaceFrame(size_t displayFrameIdx, size_t surfaceFrameIdx) {
@@ -132,7 +134,7 @@ public:
                 a.presentTime == b.presentTime;
     }
 
-    const std::map<int64_t, TokenManagerPrediction>& getPredictions() const {
+    const std::map<int64_t, TimelineItem>& getPredictions() const {
         return mTokenManager->mPredictions;
     }
 
@@ -155,7 +157,7 @@ public:
     TraceCookieCounter* mTraceCookieCounter;
     FenceToFenceTimeMap fenceFactory;
     uint32_t* maxDisplayFrames;
-    nsecs_t maxTokenRetentionTime;
+    size_t maxTokens;
     static constexpr pid_t kSurfaceFlingerPid = 666;
     static constexpr nsecs_t kPresentThreshold = std::chrono::nanoseconds(2ns).count();
     static constexpr nsecs_t kDeadlineThreshold = std::chrono::nanoseconds(2ns).count();
@@ -177,12 +179,11 @@ static constexpr int32_t sLayerIdTwo = 2;
 TEST_F(FrameTimelineTest, tokenManagerRemovesStalePredictions) {
     int64_t token1 = mTokenManager->generateTokenForPredictions({0, 0, 0});
     EXPECT_EQ(getPredictions().size(), 1u);
-    flushTokens(systemTime() + maxTokenRetentionTime);
+    flushTokens();
     int64_t token2 = mTokenManager->generateTokenForPredictions({10, 20, 30});
     std::optional<TimelineItem> predictions = mTokenManager->getPredictionsForToken(token1);
 
     // token1 should have expired
-    EXPECT_EQ(getPredictions().size(), 1u);
     EXPECT_EQ(predictions.has_value(), false);
 
     predictions = mTokenManager->getPredictionsForToken(token2);
@@ -212,7 +213,7 @@ TEST_F(FrameTimelineTest, createSurfaceFrameForToken_noToken) {
 
 TEST_F(FrameTimelineTest, createSurfaceFrameForToken_expiredToken) {
     int64_t token1 = mTokenManager->generateTokenForPredictions({0, 0, 0});
-    flushTokens(systemTime() + maxTokenRetentionTime);
+    flushTokens();
     auto surfaceFrame =
             mFrameTimeline->createSurfaceFrameForToken({token1, sInputEventId}, sPidOne, sUidOne,
                                                        sLayerIdOne, sLayerNameOne, sLayerNameOne,
@@ -707,7 +708,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_displayFramePredictionExpiredPres
                                                        sLayerNameOne, /*isBuffer*/ true);
     surfaceFrame1->setAcquireFenceTime(45);
     // Trigger a prediction expiry
-    flushTokens(systemTime() + maxTokenRetentionTime);
+    flushTokens();
     mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
 
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
@@ -1065,7 +1066,7 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_predictionExpiredDoesNotTraceExpecte
     tracingSession->StartBlocking();
     int64_t displayFrameToken1 = mTokenManager->generateTokenForPredictions({10, 25, 30});
     // Flush the token so that it would expire
-    flushTokens(systemTime() + maxTokenRetentionTime);
+    flushTokens();
 
     // Set up the display frame
     mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, Fps::fromPeriodNsecs(11));
@@ -1283,7 +1284,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDoesNotTraceExpecte
             mTokenManager->generateTokenForPredictions({appStartTime, appEndTime, appPresentTime});
 
     // Flush the token so that it would expire
-    flushTokens(systemTime() + maxTokenRetentionTime);
+    flushTokens();
     auto surfaceFrame1 =
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken, /*inputEventId*/ 0},
                                                        sPidOne, sUidOne, sLayerIdOne, sLayerNameOne,
@@ -1359,7 +1360,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDroppedFramesTraced
             mTokenManager->generateTokenForPredictions({appStartTime, appEndTime, appPresentTime});
 
     // Flush the token so that it would expire
-    flushTokens(systemTime() + maxTokenRetentionTime);
+    flushTokens();
     auto surfaceFrame1 =
             mFrameTimeline->createSurfaceFrameForToken({surfaceFrameToken, /*inputEventId*/ 0},
                                                        sPidOne, sUidOne, sLayerIdOne, sLayerNameOne,
