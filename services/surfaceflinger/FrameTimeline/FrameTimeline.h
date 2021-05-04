@@ -92,11 +92,6 @@ struct TimelineItem {
     bool operator!=(const TimelineItem& other) const { return !(*this == other); }
 };
 
-struct TokenManagerPrediction {
-    nsecs_t timestamp = 0;
-    TimelineItem predictions;
-};
-
 struct JankClassificationThresholds {
     // The various thresholds for App and SF. If the actual timestamp falls within the threshold
     // compared to prediction, we treat it as on time.
@@ -334,11 +329,10 @@ private:
 
     void flushTokens(nsecs_t flushTime) REQUIRES(mMutex);
 
-    std::map<int64_t, TokenManagerPrediction> mPredictions GUARDED_BY(mMutex);
+    std::map<int64_t, TimelineItem> mPredictions GUARDED_BY(mMutex);
     int64_t mCurrentToken GUARDED_BY(mMutex);
     mutable std::mutex mMutex;
-    static constexpr nsecs_t kMaxRetentionTime =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(120ms).count();
+    static constexpr size_t kMaxTokens = 500;
 };
 
 class FrameTimeline : public android::frametimeline::FrameTimeline {
