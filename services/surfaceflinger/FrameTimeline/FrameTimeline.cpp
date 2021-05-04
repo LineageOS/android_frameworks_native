@@ -730,9 +730,11 @@ namespace impl {
 int64_t TokenManager::generateTokenForPredictions(TimelineItem&& predictions) {
     ATRACE_CALL();
     std::scoped_lock lock(mMutex);
+    while (mPredictions.size() >= kMaxTokens) {
+        mPredictions.erase(mPredictions.begin());
+    }
     const int64_t assignedToken = mCurrentToken++;
-    mPredictions[assignedToken] = {systemTime(), predictions};
-    flushTokens(systemTime());
+    mPredictions[assignedToken] = predictions;
     return assignedToken;
 }
 
@@ -740,21 +742,9 @@ std::optional<TimelineItem> TokenManager::getPredictionsForToken(int64_t token) 
     std::scoped_lock lock(mMutex);
     auto predictionsIterator = mPredictions.find(token);
     if (predictionsIterator != mPredictions.end()) {
-        return predictionsIterator->second.predictions;
+        return predictionsIterator->second;
     }
     return {};
-}
-
-void TokenManager::flushTokens(nsecs_t flushTime) {
-    for (auto it = mPredictions.begin(); it != mPredictions.end();) {
-        if (flushTime - it->second.timestamp >= kMaxRetentionTime) {
-            it = mPredictions.erase(it);
-        } else {
-            // Tokens are ordered by time. If i'th token is within the retention time, then the
-            // i+1'th token will also be within retention time.
-            break;
-        }
-    }
 }
 
 FrameTimeline::FrameTimeline(std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid,
