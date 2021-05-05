@@ -223,6 +223,7 @@ static inline bool operator==(const LayerSettings& lhs, const LayerSettings& rhs
             lhs.colorTransform == rhs.colorTransform &&
             lhs.disableBlending == rhs.disableBlending && lhs.shadow == rhs.shadow &&
             lhs.backgroundBlurRadius == rhs.backgroundBlurRadius &&
+            lhs.blurRegionTransform == rhs.blurRegionTransform &&
             lhs.stretchEffect == rhs.stretchEffect;
 }
 
