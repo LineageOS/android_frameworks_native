@@ -39,6 +39,7 @@
 #include "debug/SkiaCapture.h"
 #include "filters/BlurFilter.h"
 #include "filters/LinearEffect.h"
+#include "filters/StretchShaderFactory.h"
 
 namespace android {
 namespace renderengine {
@@ -101,7 +102,8 @@ private:
                     const ShadowSettings& shadowSettings);
     // If requiresLinearEffect is true or the layer has a stretchEffect a new shader is returned.
     // Otherwise it returns the input shader.
-    sk_sp<SkShader> createRuntimeEffectShader(sk_sp<SkShader> shader, const LayerSettings* layer,
+    sk_sp<SkShader> createRuntimeEffectShader(sk_sp<SkShader> shader,
+                                              const LayerSettings* layer,
                                               const DisplaySettings& display,
                                               bool undoPremultipliedAlpha,
                                               bool requiresLinearEffect);
@@ -116,14 +118,20 @@ private:
     const PixelFormat mDefaultPixelFormat;
     const bool mUseColorManagement;
 
+    // Identifier used or various mappings of layers to various
+    // textures or shaders
+    using LayerId = uint64_t;
+
     // Number of external holders of ExternalTexture references, per GraphicBuffer ID.
-    std::unordered_map<uint64_t, int32_t> mGraphicBufferExternalRefs GUARDED_BY(mRenderingMutex);
+    std::unordered_map<LayerId, int32_t> mGraphicBufferExternalRefs GUARDED_BY(mRenderingMutex);
     // Cache of GL textures that we'll store per GraphicBuffer ID, sliced by GPU context.
-    std::unordered_map<uint64_t, std::shared_ptr<AutoBackendTexture::LocalRef>> mTextureCache
+    std::unordered_map<LayerId, std::shared_ptr<AutoBackendTexture::LocalRef>> mTextureCache
             GUARDED_BY(mRenderingMutex);
-    std::unordered_map<uint64_t, std::shared_ptr<AutoBackendTexture::LocalRef>>
+    std::unordered_map<LayerId, std::shared_ptr<AutoBackendTexture::LocalRef>>
             mProtectedTextureCache GUARDED_BY(mRenderingMutex);
     std::unordered_map<LinearEffect, sk_sp<SkRuntimeEffect>, LinearEffectHasher> mRuntimeEffects;
+
+    StretchShaderFactory mStretchShaderFactory;
     // Mutex guarding rendering operations, so that:
     // 1. GL operations aren't interleaved, and
     // 2. Internal state related to rendering that is potentially modified by
