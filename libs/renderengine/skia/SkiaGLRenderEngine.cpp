@@ -667,6 +667,17 @@ void drawStretch(const SkRect& bounds, const StretchEffect& stretchEffect,
     canvas->drawRect(stretchBounds, paint);
 }
 
+static SkRRect getBlurRRect(const BlurRegion& region) {
+    const auto rect = SkRect::MakeLTRB(region.left, region.top, region.right, region.bottom);
+    const SkVector radii[4] = {SkVector::Make(region.cornerRadiusTL, region.cornerRadiusTL),
+                               SkVector::Make(region.cornerRadiusTR, region.cornerRadiusTR),
+                               SkVector::Make(region.cornerRadiusBR, region.cornerRadiusBR),
+                               SkVector::Make(region.cornerRadiusBL, region.cornerRadiusBL)};
+    SkRRect roundedRect;
+    roundedRect.setRectRadii(rect, radii);
+    return roundedRect;
+}
+
 status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                         const std::vector<const LayerSettings*>& layers,
                                         const std::shared_ptr<ExternalTexture>& buffer,
@@ -840,7 +851,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         // Layers have a local transform that should be applied to them
         canvas->concat(getSkM44(layer->geometry.positionTransform).asM33());
 
-        const auto bounds = getSkRect(layer->geometry.boundaries);
+        const auto [bounds, roundRectClip] = getBoundsAndClip(layer);
         if (mBlurFilter && layerHasBlur(layer)) {
             std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
 
@@ -850,7 +861,14 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 blurInput = activeSurface->makeImageSnapshot();
             }
             // rect to be blurred in the coordinate space of blurInput
-            const auto blurRect = canvas->getTotalMatrix().mapRect(bounds);
+            const auto blurRect = canvas->getTotalMatrix().mapRect(bounds.rect());
+
+            // if the clip needs to be applied then apply it now and make sure
+            // it is restored before we attempt to draw any shadows.
+            SkAutoCanvasRestore acr(canvas, true);
+            if (!roundRectClip.isEmpty()) {
+                canvas->clipRRect(roundRectClip, true);
+            }
 
             // TODO(b/182216890): Filter out empty layers earlier
             if (blurRect.width() > 0 && blurRect.height() > 0) {
@@ -862,10 +880,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
                     cachedBlurs[layer->backgroundBlurRadius] = blurredImage;
 
-                    mBlurFilter->drawBlurRegion(canvas, getBlurRegion(layer), blurRect,
-                                                blurredImage, blurInput);
+                    mBlurFilter->drawBlurRegion(canvas, bounds, layer->backgroundBlurRadius, 1.0f,
+                                                blurRect, blurredImage, blurInput);
                 }
-                SkAutoCanvasRestore acr(canvas, true);
+
                 canvas->concat(getSkM44(layer->blurRegionTransform).asM33());
                 for (auto region : layer->blurRegions) {
                     if (cachedBlurs[region.blurRadius] == nullptr) {
@@ -875,7 +893,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                                       blurRect);
                     }
 
-                    mBlurFilter->drawBlurRegion(canvas, region, blurRect,
+                    mBlurFilter->drawBlurRegion(canvas, getBlurRRect(region), region.blurRadius,
+                                                region.alpha, blurRect,
                                                 cachedBlurs[region.blurRadius], blurInput);
                 }
             }
@@ -888,7 +907,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         if (layer->shadow.length > 0) {
             const auto rect = layer->geometry.roundedCornersRadius > 0
                     ? getSkRect(layer->geometry.roundedCornersCrop)
-                    : bounds;
+                    : bounds.rect();
             // This would require a new parameter/flag to SkShadowUtils::DrawShadow
             LOG_ALWAYS_FATAL_IF(layer->disableBlending, "Cannot disableBlending with a shadow");
             drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
@@ -953,7 +972,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             // The shader does not respect the translation, so we add it to the texture
             // transform for the SkImage. This will make sure that the correct layer contents
             // are drawn in the correct part of the screen.
-            matrix.postTranslate(layer->geometry.boundaries.left, layer->geometry.boundaries.top);
+            matrix.postTranslate(bounds.rect().fLeft, bounds.rect().fTop);
 
             sk_sp<SkShader> shader;
 
@@ -1015,9 +1034,13 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
         paint.setColorFilter(displayColorTransform);
 
-        if (layer->geometry.roundedCornersRadius > 0) {
+        if (!roundRectClip.isEmpty()) {
+            canvas->clipRRect(roundRectClip, true);
+        }
+
+        if (!bounds.isRect()) {
             paint.setAntiAlias(true);
-            canvas->drawRRect(getRoundedRect(layer), paint);
+            canvas->drawRRect(bounds, paint);
         } else {
             auto& stretchEffect = layer->stretchEffect;
             // TODO (njawad) temporarily disable manipulation of geometry
@@ -1026,9 +1049,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             // Keep the method call in a dead code path to make -Werror happy
             // with unused methods
             if (stretchEffect.hasEffect() && /* DISABLES CODE */ (false)) {
-                drawStretch(bounds, stretchEffect, canvas, paint);
+                drawStretch(bounds.rect(), stretchEffect, canvas, paint);
             } else {
-                canvas->drawRect(bounds, paint);
+                canvas->drawRect(bounds.rect(), paint);
             }
         }
         if (kFlushAfterEveryLayer) {
@@ -1077,25 +1100,76 @@ inline SkRect SkiaGLRenderEngine::getSkRect(const Rect& rect) {
     return SkRect::MakeLTRB(rect.left, rect.top, rect.right, rect.bottom);
 }
 
-inline SkRRect SkiaGLRenderEngine::getRoundedRect(const LayerSettings* layer) {
-    const auto rect = getSkRect(layer->geometry.roundedCornersCrop);
+inline std::pair<SkRRect, SkRRect> SkiaGLRenderEngine::getBoundsAndClip(
+        const LayerSettings* layer) {
+    const auto bounds = getSkRect(layer->geometry.boundaries);
+    const auto crop = getSkRect(layer->geometry.roundedCornersCrop);
     const auto cornerRadius = layer->geometry.roundedCornersRadius;
-    return SkRRect::MakeRectXY(rect, cornerRadius, cornerRadius);
-}
 
-inline BlurRegion SkiaGLRenderEngine::getBlurRegion(const LayerSettings* layer) {
-    const auto rect = getSkRect(layer->geometry.boundaries);
-    const auto cornersRadius = layer->geometry.roundedCornersRadius;
-    return BlurRegion{.blurRadius = static_cast<uint32_t>(layer->backgroundBlurRadius),
-                      .cornerRadiusTL = cornersRadius,
-                      .cornerRadiusTR = cornersRadius,
-                      .cornerRadiusBL = cornersRadius,
-                      .cornerRadiusBR = cornersRadius,
-                      .alpha = 1,
-                      .left = static_cast<int>(rect.fLeft),
-                      .top = static_cast<int>(rect.fTop),
-                      .right = static_cast<int>(rect.fRight),
-                      .bottom = static_cast<int>(rect.fBottom)};
+    SkRRect clip;
+    if (cornerRadius > 0) {
+        // it the crop and the bounds are equivalent then we don't need a clip
+        if (bounds == crop) {
+            return {SkRRect::MakeRectXY(bounds, cornerRadius, cornerRadius), clip};
+        }
+
+        // This makes an effort to speed up common, simple bounds + clip combinations by
+        // converting them to a single RRect draw. It is possible there are other cases
+        // that can be converted.
+        if (crop.contains(bounds)) {
+            bool intersectionIsRoundRect = true;
+            // check each cropped corner to ensure that it exactly matches the crop or is full
+            SkVector radii[4];
+
+            const auto insetCrop = crop.makeInset(cornerRadius, cornerRadius);
+
+            // compute the UpperLeft corner radius
+            if (bounds.fLeft == crop.fLeft && bounds.fTop == crop.fTop) {
+                radii[0].set(cornerRadius, cornerRadius);
+            } else if (bounds.fLeft > insetCrop.fLeft && bounds.fTop > insetCrop.fTop) {
+                radii[0].set(0, 0);
+            } else {
+                intersectionIsRoundRect = false;
+            }
+            // compute the UpperRight corner radius
+            if (bounds.fRight == crop.fRight && bounds.fTop == crop.fTop) {
+                radii[1].set(cornerRadius, cornerRadius);
+            } else if (bounds.fRight < insetCrop.fRight && bounds.fTop > insetCrop.fTop) {
+                radii[1].set(0, 0);
+            } else {
+                intersectionIsRoundRect = false;
+            }
+            // compute the BottomRight corner radius
+            if (bounds.fRight == crop.fRight && bounds.fBottom == crop.fBottom) {
+                radii[2].set(cornerRadius, cornerRadius);
+            } else if (bounds.fRight < insetCrop.fRight && bounds.fBottom < insetCrop.fBottom) {
+                radii[2].set(0, 0);
+            } else {
+                intersectionIsRoundRect = false;
+            }
+            // compute the BottomLeft corner radius
+            if (bounds.fLeft == crop.fLeft && bounds.fBottom == crop.fBottom) {
+                radii[3].set(cornerRadius, cornerRadius);
+            } else if (bounds.fLeft > insetCrop.fLeft && bounds.fBottom < insetCrop.fBottom) {
+                radii[3].set(0, 0);
+            } else {
+                intersectionIsRoundRect = false;
+            }
+
+            if (intersectionIsRoundRect) {
+                SkRRect intersectionBounds;
+                intersectionBounds.setRectRadii(bounds, radii);
+                return {intersectionBounds, clip};
+            }
+        }
+
+        // we didn't it any of our fast paths so set the clip to the cropRect
+        clip.setRectXY(crop, cornerRadius, cornerRadius);
+    }
+
+    // if we hit this point then we either don't have rounded corners or we are going to rely
+    // on the clip to round the corners for us
+    return {SkRRect::MakeRect(bounds), clip};
 }
 
 inline bool SkiaGLRenderEngine::layerHasBlur(const LayerSettings* layer) {
