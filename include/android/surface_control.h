@@ -526,6 +526,9 @@ void ASurfaceTransaction_setFrameRate(ASurfaceTransaction* transaction,
  * callback timings, and changes to the time interval at which the system releases buffers back to
  * the application.
  *
+ * You can register for changes in the refresh rate using
+ * \a AChoreographer_registerRefreshRateCallback.
+ *
  * \param frameRate is the intended frame rate of this surface, in frames per second. 0 is a special
  * value that indicates the app will accept the system's choice for the display frame rate, which is
  * the default behavior if this function isn't called. The frameRate param does <em>not</em> need to

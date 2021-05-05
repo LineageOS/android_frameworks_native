@@ -300,6 +300,9 @@ enum ANativeWindow_ChangeFrameRateStrategy {
  * this ANativeWindow is consumed by something other than the system compositor,
  * e.g. a media codec, this call has no effect.
  *
+ * You can register for changes in the refresh rate using
+ * \a AChoreographer_registerRefreshRateCallback.
+ *
  * Available since API level 31.
  *
  * \param frameRate The intended frame rate of this window, in frames per
