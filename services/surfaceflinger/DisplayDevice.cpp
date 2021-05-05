@@ -268,8 +268,9 @@ void DisplayDevice::dump(std::string& result) const {
     StringAppendF(&result, "+ %s\n", getDebugName().c_str());
     StringAppendF(&result, "   powerMode=%s (%d)\n", to_string(mPowerMode).c_str(),
                   static_cast<int32_t>(mPowerMode));
+    const auto activeMode = getActiveMode();
     StringAppendF(&result, "   activeMode=%s\n",
-                  mSupportedModes.size() ? to_string(*getActiveMode()).c_str() : "none");
+                  activeMode ? to_string(*activeMode).c_str() : "none");
 
     result.append("   supportedModes=\n");
 
