@@ -117,7 +117,7 @@ cc_library_static {
     include_dirs: [
         "external/skia/src/gpu",
     ],
-    whole_static_libs: ["libskia"],
+    whole_static_libs: ["libskia_renderengine"],
     lto: {
         thin: true,
     },

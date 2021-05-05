@@ -106,42 +106,6 @@ cc_library_static {
     ],
 }
 
-cc_binary {
-    name: "vr_hwc",
-    enabled: false,
-    system_ext_specific: true,
-    vintf_fragments: ["manifest_vr_hwc.xml"],
-    srcs: [
-        "vr_hardware_composer_service.cpp",
-    ],
-    static_libs: [
-        "libvr_hwc-impl",
-        // NOTE: This needs to be included after the *-impl lib otherwise the
-        // symbols in the *-binder library get optimized out.
-        "libvr_hwc-binder",
-    ],
-    shared_libs: [
-        "android.frameworks.vr.composer@2.0",
-        "android.hardware.graphics.composer@2.3",
-        "libbase",
-        "libbinder",
-        "liblog",
-        "libhardware",
-        "libhidlbase",
-        "libui",
-        "libutils",
-        "libvr_hwc-hal",
-    ],
-    cflags: [
-        "-DLOG_TAG=\"vr_hwc\"",
-        "-Wall",
-        "-Werror",
-    ],
-    init_rc: [
-        "vr_hwc.rc",
-    ],
-}
-
 cc_test {
     name: "vr_hwc_test",
     gtest: true,

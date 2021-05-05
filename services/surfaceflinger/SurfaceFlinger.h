@@ -467,24 +467,31 @@ private:
 
     class CountDownLatch {
     public:
-        explicit CountDownLatch(int32_t count) : mCount(count) {}
+        enum {
+            eSyncTransaction = 1 << 0,
+            eSyncInputWindows = 1 << 1,
+        };
+        explicit CountDownLatch(uint32_t flags) : mFlags(flags) {}
 
-        int32_t countDown() {
+        // True if there is no waiting condition after count down.
+        bool countDown(uint32_t flag) {
             std::unique_lock<std::mutex> lock(mMutex);
-            if (mCount == 0) {
-                return 0;
+            if (mFlags == 0) {
+                return true;
             }
-            if (--mCount == 0) {
+            mFlags &= ~flag;
+            if (mFlags == 0) {
                 mCountDownComplete.notify_all();
+                return true;
             }
-            return mCount;
+            return false;
         }
 
         // Return true if triggered.
         bool wait_until(const std::chrono::seconds& timeout) const {
             std::unique_lock<std::mutex> lock(mMutex);
             const auto untilTime = std::chrono::system_clock::now() + timeout;
-            while (mCount != 0) {
+            while (mFlags != 0) {
                 // Conditional variables can be woken up sporadically, so we check count
                 // to verify the wakeup was triggered by |countDown|.
                 if (std::cv_status::timeout == mCountDownComplete.wait_until(lock, untilTime)) {
@@ -495,7 +502,7 @@ private:
         }
 
     private:
-        int32_t mCount;
+        uint32_t mFlags;
         mutable std::condition_variable mCountDownComplete;
         mutable std::mutex mMutex;
     };
@@ -1124,7 +1131,7 @@ private:
     // Add transaction to the Transaction Queue
     void queueTransaction(TransactionState& state) EXCLUDES(mQueueLock);
     void waitForSynchronousTransaction(const CountDownLatch& transactionCommittedSignal);
-    void signalSynchronousTransactions();
+    void signalSynchronousTransactions(const uint32_t flag);
 
     /*
      * Generic Layer Metadata
