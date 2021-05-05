@@ -1741,12 +1741,6 @@ nsecs_t SurfaceFlinger::calculateExpectedPresentTime(DisplayStatInfo stats) cons
 }
 
 void SurfaceFlinger::onMessageReceived(int32_t what, int64_t vsyncId, nsecs_t expectedVSyncTime) {
-    const auto vsyncIn = [&] {
-        if (!ATRACE_ENABLED()) return 0.f;
-        return (expectedVSyncTime - systemTime()) / 1e6f;
-    }();
-
-    ATRACE_FORMAT("onMessageReceived %" PRId64 " vsyncIn %.2fms", vsyncId, vsyncIn);
     switch (what) {
         case MessageQueue::INVALIDATE: {
             onMessageInvalidate(vsyncId, expectedVSyncTime);
@@ -1760,8 +1754,6 @@ void SurfaceFlinger::onMessageReceived(int32_t what, int64_t vsyncId, nsecs_t ex
 }
 
 void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTime) {
-    ATRACE_CALL();
-
     const nsecs_t frameStart = systemTime();
     // calculate the expected present time once and use the cached
     // value throughout this frame to make sure all layers are
@@ -1775,6 +1767,13 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
 
     const nsecs_t lastScheduledPresentTime = mScheduledPresentTime;
     mScheduledPresentTime = expectedVSyncTime;
+
+    const auto vsyncIn = [&] {
+        if (!ATRACE_ENABLED()) return 0.f;
+        return (mExpectedPresentTime - systemTime()) / 1e6f;
+    }();
+    ATRACE_FORMAT("onMessageInvalidate %" PRId64 " vsyncIn %.2fms%s", vsyncId, vsyncIn,
+                  mExpectedPresentTime == expectedVSyncTime ? "" : " (adjusted)");
 
     // When Backpressure propagation is enabled we want to give a small grace period
     // for the present fence to fire instead of just giving up on this frame to handle cases
@@ -3105,7 +3104,7 @@ void SurfaceFlinger::setVsyncConfig(const VsyncModulator::VsyncConfig& config,
 
 void SurfaceFlinger::commitTransaction() {
     commitTransactionLocked();
-    signalSynchronousTransactions();
+    signalSynchronousTransactions(CountDownLatch::eSyncTransaction);
     mAnimTransactionPending = false;
 }
 
@@ -3527,7 +3526,9 @@ void SurfaceFlinger::queueTransaction(TransactionState& state) {
     // Generate a CountDownLatch pending state if this is a synchronous transaction.
     if ((state.flags & eSynchronous) || state.inputWindowCommands.syncInputWindows) {
         state.transactionCommittedSignal = std::make_shared<CountDownLatch>(
-                (state.inputWindowCommands.syncInputWindows ? 2 : 1));
+                (state.inputWindowCommands.syncInputWindows
+                         ? (CountDownLatch::eSyncInputWindows | CountDownLatch::eSyncTransaction)
+                         : CountDownLatch::eSyncTransaction));
     }
 
     mTransactionQueue.emplace(state);
@@ -3552,10 +3553,10 @@ void SurfaceFlinger::waitForSynchronousTransaction(
     }
 }
 
-void SurfaceFlinger::signalSynchronousTransactions() {
+void SurfaceFlinger::signalSynchronousTransactions(const uint32_t flag) {
     for (auto it = mTransactionCommittedSignals.begin();
          it != mTransactionCommittedSignals.end();) {
-        if ((*it)->countDown() == 0) {
+        if ((*it)->countDown(flag)) {
             it = mTransactionCommittedSignals.erase(it);
         } else {
             it++;
@@ -6175,7 +6176,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(
 
 void SurfaceFlinger::setInputWindowsFinished() {
     Mutex::Autolock _l(mStateLock);
-    signalSynchronousTransactions();
+    signalSynchronousTransactions(CountDownLatch::eSyncInputWindows);
 }
 
 // ---------------------------------------------------------------------------
