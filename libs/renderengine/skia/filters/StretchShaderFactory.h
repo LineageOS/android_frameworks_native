@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,18 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
-//! Generated Rust bindings to libbinder_ndk
+#include <SkImage.h>
+#include <SkRuntimeEffect.h>
+#include <SkShader.h>
+#include <ui/StretchEffect.h>
 
-use std::error::Error;
-use std::fmt;
+namespace android {
+namespace renderengine {
+namespace skia {
+class StretchShaderFactory {
+public:
+    sk_sp<SkShader> createSkShader(const sk_sp<SkShader>& inputShader,
+                                   const StretchEffect& stretchEffect);
 
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-
-impl Error for android_c_interface_StatusCode {}
-
-impl fmt::Display for android_c_interface_StatusCode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "StatusCode::{:?}", self)
-    }
-}
+private:
+    std::unique_ptr<SkRuntimeShaderBuilder> mBuilder;
+};
+} // namespace skia
+} // namespace renderengine
+} // namespace android
