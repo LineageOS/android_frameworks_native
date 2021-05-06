@@ -56,6 +56,7 @@
 #include "log/log_main.h"
 #include "skia/debug/SkiaCapture.h"
 #include "skia/debug/SkiaMemoryReporter.h"
+#include "skia/filters/StretchShaderFactory.h"
 #include "system/graphics-base-v1.0.h"
 
 namespace {
@@ -541,14 +542,19 @@ void SkiaGLRenderEngine::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buf
     }
 }
 
-sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> shader,
-                                                              const LayerSettings* layer,
-                                                              const DisplaySettings& display,
-                                                              bool undoPremultipliedAlpha,
-                                                              bool requiresLinearEffect) {
-    if (layer->stretchEffect.hasEffect()) {
-        // TODO: Implement
+sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
+        sk_sp<SkShader> shader,
+        const LayerSettings* layer, const DisplaySettings& display, bool undoPremultipliedAlpha,
+        bool requiresLinearEffect) {
+    const auto stretchEffect = layer->stretchEffect;
+    if (stretchEffect.hasEffect()) {
+        const auto targetBuffer = layer->source.buffer.buffer;
+        const auto graphicsBuffer = targetBuffer ? targetBuffer->getBuffer() : nullptr;
+        if (graphicsBuffer && shader) {
+            shader = mStretchShaderFactory.createSkShader(shader, stretchEffect);
+        }
     }
+
     if (requiresLinearEffect) {
         const ui::Dataspace inputDataspace =
                 mUseColorManagement ? layer->sourceDataspace : ui::Dataspace::UNKNOWN;
@@ -634,6 +640,33 @@ private:
     int mSaveCount;
 };
 
+void drawStretch(const SkRect& bounds, const StretchEffect& stretchEffect,
+                 SkCanvas* canvas, const SkPaint& paint) {
+    float top = bounds.top();
+    float left = bounds.left();
+    float bottom = bounds.bottom();
+    float right = bounds.right();
+    // Adjust the drawing bounds based on the stretch itself.
+    float stretchOffsetX =
+        round(bounds.width() * stretchEffect.getStretchWidthMultiplier());
+    float stretchOffsetY =
+        round(bounds.height() * stretchEffect.getStretchHeightMultiplier());
+    if (stretchEffect.vectorY < 0.f) {
+        top -= stretchOffsetY;
+    } else if (stretchEffect.vectorY > 0.f){
+        bottom += stretchOffsetY;
+    }
+
+    if (stretchEffect.vectorX < 0.f) {
+        left -= stretchOffsetX;
+    } else if (stretchEffect.vectorX > 0.f) {
+        right += stretchOffsetX;
+    }
+
+    auto stretchBounds = SkRect::MakeLTRB(left, top, right, bottom);
+    canvas->drawRect(stretchBounds, paint);
+}
+
 status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                         const std::vector<const LayerSettings*>& layers,
                                         const std::shared_ptr<ExternalTexture>& buffer,
@@ -671,9 +704,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     } else {
         surfaceTextureRef =
                 std::make_shared<AutoBackendTexture::LocalRef>(grContext.get(),
-                                                               buffer->getBuffer()
-                                                                       ->toAHardwareBuffer(),
-                                                               true);
+                      buffer->getBuffer()->toAHardwareBuffer(), true);
     }
 
     const ui::Dataspace dstDataspace =
@@ -988,7 +1019,17 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             paint.setAntiAlias(true);
             canvas->drawRRect(getRoundedRect(layer), paint);
         } else {
-            canvas->drawRect(bounds, paint);
+            auto& stretchEffect = layer->stretchEffect;
+            // TODO (njawad) temporarily disable manipulation of geometry
+            //  the layer bounds will be updated in HWUI instead of RenderEngine
+            //  in a subsequent CL
+            // Keep the method call in a dead code path to make -Werror happy
+            // with unused methods
+            if (stretchEffect.hasEffect() && /* DISABLES CODE */ (false)) {
+                drawStretch(bounds, stretchEffect, canvas, paint);
+            } else {
+                canvas->drawRect(bounds, paint);
+            }
         }
         if (kFlushAfterEveryLayer) {
             ATRACE_NAME("flush surface");
