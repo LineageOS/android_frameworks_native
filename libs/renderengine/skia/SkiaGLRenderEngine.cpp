@@ -56,6 +56,7 @@
 #include "log/log_main.h"
 #include "skia/debug/SkiaCapture.h"
 #include "skia/debug/SkiaMemoryReporter.h"
+#include "skia/filters/StretchShaderFactory.h"
 #include "system/graphics-base-v1.0.h"
 
 namespace {
@@ -365,6 +366,10 @@ bool SkiaGLRenderEngine::supportsProtectedContent() const {
     return mProtectedEGLContext != EGL_NO_CONTEXT;
 }
 
+GrDirectContext* SkiaGLRenderEngine::getActiveGrContext() const {
+    return mInProtectedContext ? mProtectedGrContext.get() : mGrContext.get();
+}
+
 bool SkiaGLRenderEngine::useProtectedContext(bool useProtectedContext) {
     if (useProtectedContext == mInProtectedContext) {
         return true;
@@ -372,6 +377,12 @@ bool SkiaGLRenderEngine::useProtectedContext(bool useProtectedContext) {
     if (useProtectedContext && !supportsProtectedContent()) {
         return false;
     }
+
+    // release any scratch resources before switching into a new mode
+    if (getActiveGrContext()) {
+        getActiveGrContext()->purgeUnlockedResources(true);
+    }
+
     const EGLSurface surface =
             useProtectedContext ? mProtectedPlaceholderSurface : mPlaceholderSurface;
     const EGLContext context = useProtectedContext ? mProtectedEGLContext : mEGLContext;
@@ -379,6 +390,11 @@ bool SkiaGLRenderEngine::useProtectedContext(bool useProtectedContext) {
 
     if (success) {
         mInProtectedContext = useProtectedContext;
+        // given that we are sharing the same thread between two GrContexts we need to
+        // make sure that the thread state is reset when switching between the two.
+        if (getActiveGrContext()) {
+            getActiveGrContext()->resetContext();
+        }
     }
     return success;
 }
@@ -489,18 +505,23 @@ void SkiaGLRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffe
     if (mRenderEngineType != RenderEngineType::SKIA_GL_THREADED) {
         return;
     }
+    // we currently don't attempt to map a buffer if the buffer contains protected content
+    // because GPU resources for protected buffers is much more limited.
+    const bool isProtectedBuffer = buffer->getUsage() & GRALLOC_USAGE_PROTECTED;
+    if (isProtectedBuffer) {
+        return;
+    }
     ATRACE_CALL();
 
     // We need to switch the currently bound context if the buffer is protected but the current
     // context is not. The current state must then be restored after the buffer is cached.
     const bool protectedContextState = mInProtectedContext;
-    if (!useProtectedContext(protectedContextState ||
-                             (buffer->getUsage() & GRALLOC_USAGE_PROTECTED))) {
+    if (!useProtectedContext(protectedContextState || isProtectedBuffer)) {
         ALOGE("Attempting to cache a buffer into a different context than what is currently bound");
         return;
     }
 
-    auto grContext = mInProtectedContext ? mProtectedGrContext : mGrContext;
+    auto grContext = getActiveGrContext();
     auto& cache = mInProtectedContext ? mProtectedTextureCache : mTextureCache;
 
     std::lock_guard<std::mutex> lock(mRenderingMutex);
@@ -508,7 +529,7 @@ void SkiaGLRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffe
 
     if (const auto& iter = cache.find(buffer->getId()); iter == cache.end()) {
         std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
-                std::make_shared<AutoBackendTexture::LocalRef>(grContext.get(),
+                std::make_shared<AutoBackendTexture::LocalRef>(grContext,
                                                                buffer->toAHardwareBuffer(),
                                                                isRenderable);
         cache.insert({buffer->getId(), imageTextureRef});
@@ -541,14 +562,19 @@ void SkiaGLRenderEngine::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buf
     }
 }
 
-sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(sk_sp<SkShader> shader,
-                                                              const LayerSettings* layer,
-                                                              const DisplaySettings& display,
-                                                              bool undoPremultipliedAlpha,
-                                                              bool requiresLinearEffect) {
-    if (layer->stretchEffect.hasEffect()) {
-        // TODO: Implement
+sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
+        sk_sp<SkShader> shader,
+        const LayerSettings* layer, const DisplaySettings& display, bool undoPremultipliedAlpha,
+        bool requiresLinearEffect) {
+    const auto stretchEffect = layer->stretchEffect;
+    if (stretchEffect.hasEffect()) {
+        const auto targetBuffer = layer->source.buffer.buffer;
+        const auto graphicsBuffer = targetBuffer ? targetBuffer->getBuffer() : nullptr;
+        if (graphicsBuffer && shader) {
+            shader = mStretchShaderFactory.createSkShader(shader, stretchEffect);
+        }
     }
+
     if (requiresLinearEffect) {
         const ui::Dataspace inputDataspace =
                 mUseColorManagement ? layer->sourceDataspace : ui::Dataspace::UNKNOWN;
@@ -634,6 +660,44 @@ private:
     int mSaveCount;
 };
 
+void drawStretch(const SkRect& bounds, const StretchEffect& stretchEffect,
+                 SkCanvas* canvas, const SkPaint& paint) {
+    float top = bounds.top();
+    float left = bounds.left();
+    float bottom = bounds.bottom();
+    float right = bounds.right();
+    // Adjust the drawing bounds based on the stretch itself.
+    float stretchOffsetX =
+        round(bounds.width() * stretchEffect.getStretchWidthMultiplier());
+    float stretchOffsetY =
+        round(bounds.height() * stretchEffect.getStretchHeightMultiplier());
+    if (stretchEffect.vectorY < 0.f) {
+        top -= stretchOffsetY;
+    } else if (stretchEffect.vectorY > 0.f){
+        bottom += stretchOffsetY;
+    }
+
+    if (stretchEffect.vectorX < 0.f) {
+        left -= stretchOffsetX;
+    } else if (stretchEffect.vectorX > 0.f) {
+        right += stretchOffsetX;
+    }
+
+    auto stretchBounds = SkRect::MakeLTRB(left, top, right, bottom);
+    canvas->drawRect(stretchBounds, paint);
+}
+
+static SkRRect getBlurRRect(const BlurRegion& region) {
+    const auto rect = SkRect::MakeLTRB(region.left, region.top, region.right, region.bottom);
+    const SkVector radii[4] = {SkVector::Make(region.cornerRadiusTL, region.cornerRadiusTL),
+                               SkVector::Make(region.cornerRadiusTR, region.cornerRadiusTR),
+                               SkVector::Make(region.cornerRadiusBR, region.cornerRadiusBR),
+                               SkVector::Make(region.cornerRadiusBL, region.cornerRadiusBL)};
+    SkRRect roundedRect;
+    roundedRect.setRectRadii(rect, radii);
+    return roundedRect;
+}
+
 status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                                         const std::vector<const LayerSettings*>& layers,
                                         const std::shared_ptr<ExternalTexture>& buffer,
@@ -662,7 +726,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
     validateOutputBufferUsage(buffer->getBuffer());
 
-    auto grContext = mInProtectedContext ? mProtectedGrContext : mGrContext;
+    auto grContext = getActiveGrContext();
     auto& cache = mInProtectedContext ? mProtectedTextureCache : mTextureCache;
 
     std::shared_ptr<AutoBackendTexture::LocalRef> surfaceTextureRef;
@@ -670,7 +734,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         surfaceTextureRef = it->second;
     } else {
         surfaceTextureRef =
-                std::make_shared<AutoBackendTexture::LocalRef>(grContext.get(),
+                std::make_shared<AutoBackendTexture::LocalRef>(grContext,
                                                                buffer->getBuffer()
                                                                        ->toAHardwareBuffer(),
                                                                true);
@@ -678,8 +742,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
     const ui::Dataspace dstDataspace =
             mUseColorManagement ? display.outputDataspace : ui::Dataspace::UNKNOWN;
-    sk_sp<SkSurface> dstSurface =
-            surfaceTextureRef->getOrCreateSurface(dstDataspace, grContext.get());
+    sk_sp<SkSurface> dstSurface = surfaceTextureRef->getOrCreateSurface(dstDataspace, grContext);
 
     SkCanvas* dstCanvas = mCapture->tryCapture(dstSurface.get());
     if (dstCanvas == nullptr) {
@@ -809,7 +872,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         // Layers have a local transform that should be applied to them
         canvas->concat(getSkM44(layer->geometry.positionTransform).asM33());
 
-        const auto bounds = getSkRect(layer->geometry.boundaries);
+        const auto [bounds, roundRectClip] = getBoundsAndClip(layer);
         if (mBlurFilter && layerHasBlur(layer)) {
             std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
 
@@ -819,32 +882,40 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 blurInput = activeSurface->makeImageSnapshot();
             }
             // rect to be blurred in the coordinate space of blurInput
-            const auto blurRect = canvas->getTotalMatrix().mapRect(bounds);
+            const auto blurRect = canvas->getTotalMatrix().mapRect(bounds.rect());
+
+            // if the clip needs to be applied then apply it now and make sure
+            // it is restored before we attempt to draw any shadows.
+            SkAutoCanvasRestore acr(canvas, true);
+            if (!roundRectClip.isEmpty()) {
+                canvas->clipRRect(roundRectClip, true);
+            }
 
             // TODO(b/182216890): Filter out empty layers earlier
             if (blurRect.width() > 0 && blurRect.height() > 0) {
                 if (layer->backgroundBlurRadius > 0) {
                     ATRACE_NAME("BackgroundBlur");
                     auto blurredImage =
-                            mBlurFilter->generate(grContext.get(), layer->backgroundBlurRadius,
-                                                  blurInput, blurRect);
+                            mBlurFilter->generate(grContext, layer->backgroundBlurRadius, blurInput,
+                                                  blurRect);
 
                     cachedBlurs[layer->backgroundBlurRadius] = blurredImage;
 
-                    mBlurFilter->drawBlurRegion(canvas, getBlurRegion(layer), blurRect,
-                                                blurredImage, blurInput);
+                    mBlurFilter->drawBlurRegion(canvas, bounds, layer->backgroundBlurRadius, 1.0f,
+                                                blurRect, blurredImage, blurInput);
                 }
-                SkAutoCanvasRestore acr(canvas, true);
+
                 canvas->concat(getSkM44(layer->blurRegionTransform).asM33());
                 for (auto region : layer->blurRegions) {
                     if (cachedBlurs[region.blurRadius] == nullptr) {
                         ATRACE_NAME("BlurRegion");
                         cachedBlurs[region.blurRadius] =
-                                mBlurFilter->generate(grContext.get(), region.blurRadius, blurInput,
+                                mBlurFilter->generate(grContext, region.blurRadius, blurInput,
                                                       blurRect);
                     }
 
-                    mBlurFilter->drawBlurRegion(canvas, region, blurRect,
+                    mBlurFilter->drawBlurRegion(canvas, getBlurRRect(region), region.blurRadius,
+                                                region.alpha, blurRect,
                                                 cachedBlurs[region.blurRadius], blurInput);
                 }
             }
@@ -857,7 +928,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         if (layer->shadow.length > 0) {
             const auto rect = layer->geometry.roundedCornersRadius > 0
                     ? getSkRect(layer->geometry.roundedCornersCrop)
-                    : bounds;
+                    : bounds.rect();
             // This would require a new parameter/flag to SkShadowUtils::DrawShadow
             LOG_ALWAYS_FATAL_IF(layer->disableBlending, "Cannot disableBlending with a shadow");
             drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
@@ -897,7 +968,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                 // we didn't find anything in the cache then we intentionally did not cache this
                 // buffer's resources.
                 imageTextureRef = std::make_shared<
-                        AutoBackendTexture::LocalRef>(grContext.get(),
+                        AutoBackendTexture::LocalRef>(grContext,
                                                       item.buffer->getBuffer()->toAHardwareBuffer(),
                                                       false);
             }
@@ -906,7 +977,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                     imageTextureRef->makeImage(layerDataspace,
                                                item.usePremultipliedAlpha ? kPremul_SkAlphaType
                                                                           : kUnpremul_SkAlphaType,
-                                               grContext.get());
+                                               grContext);
 
             auto texMatrix = getSkM44(item.textureTransform).asM33();
             // textureTansform was intended to be passed directly into a shader, so when
@@ -922,7 +993,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             // The shader does not respect the translation, so we add it to the texture
             // transform for the SkImage. This will make sure that the correct layer contents
             // are drawn in the correct part of the screen.
-            matrix.postTranslate(layer->geometry.boundaries.left, layer->geometry.boundaries.top);
+            matrix.postTranslate(bounds.rect().fLeft, bounds.rect().fTop);
 
             sk_sp<SkShader> shader;
 
@@ -984,11 +1055,25 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
 
         paint.setColorFilter(displayColorTransform);
 
-        if (layer->geometry.roundedCornersRadius > 0) {
+        if (!roundRectClip.isEmpty()) {
+            canvas->clipRRect(roundRectClip, true);
+        }
+
+        if (!bounds.isRect()) {
             paint.setAntiAlias(true);
-            canvas->drawRRect(getRoundedRect(layer), paint);
+            canvas->drawRRect(bounds, paint);
         } else {
-            canvas->drawRect(bounds, paint);
+            auto& stretchEffect = layer->stretchEffect;
+            // TODO (njawad) temporarily disable manipulation of geometry
+            //  the layer bounds will be updated in HWUI instead of RenderEngine
+            //  in a subsequent CL
+            // Keep the method call in a dead code path to make -Werror happy
+            // with unused methods
+            if (stretchEffect.hasEffect() && /* DISABLES CODE */ (false)) {
+                drawStretch(bounds.rect(), stretchEffect, canvas, paint);
+            } else {
+                canvas->drawRect(bounds.rect(), paint);
+            }
         }
         if (kFlushAfterEveryLayer) {
             ATRACE_NAME("flush surface");
@@ -1036,25 +1121,76 @@ inline SkRect SkiaGLRenderEngine::getSkRect(const Rect& rect) {
     return SkRect::MakeLTRB(rect.left, rect.top, rect.right, rect.bottom);
 }
 
-inline SkRRect SkiaGLRenderEngine::getRoundedRect(const LayerSettings* layer) {
-    const auto rect = getSkRect(layer->geometry.roundedCornersCrop);
+inline std::pair<SkRRect, SkRRect> SkiaGLRenderEngine::getBoundsAndClip(
+        const LayerSettings* layer) {
+    const auto bounds = getSkRect(layer->geometry.boundaries);
+    const auto crop = getSkRect(layer->geometry.roundedCornersCrop);
     const auto cornerRadius = layer->geometry.roundedCornersRadius;
-    return SkRRect::MakeRectXY(rect, cornerRadius, cornerRadius);
-}
 
-inline BlurRegion SkiaGLRenderEngine::getBlurRegion(const LayerSettings* layer) {
-    const auto rect = getSkRect(layer->geometry.boundaries);
-    const auto cornersRadius = layer->geometry.roundedCornersRadius;
-    return BlurRegion{.blurRadius = static_cast<uint32_t>(layer->backgroundBlurRadius),
-                      .cornerRadiusTL = cornersRadius,
-                      .cornerRadiusTR = cornersRadius,
-                      .cornerRadiusBL = cornersRadius,
-                      .cornerRadiusBR = cornersRadius,
-                      .alpha = 1,
-                      .left = static_cast<int>(rect.fLeft),
-                      .top = static_cast<int>(rect.fTop),
-                      .right = static_cast<int>(rect.fRight),
-                      .bottom = static_cast<int>(rect.fBottom)};
+    SkRRect clip;
+    if (cornerRadius > 0) {
+        // it the crop and the bounds are equivalent then we don't need a clip
+        if (bounds == crop) {
+            return {SkRRect::MakeRectXY(bounds, cornerRadius, cornerRadius), clip};
+        }
+
+        // This makes an effort to speed up common, simple bounds + clip combinations by
+        // converting them to a single RRect draw. It is possible there are other cases
+        // that can be converted.
+        if (crop.contains(bounds)) {
+            bool intersectionIsRoundRect = true;
+            // check each cropped corner to ensure that it exactly matches the crop or is full
+            SkVector radii[4];
+
+            const auto insetCrop = crop.makeInset(cornerRadius, cornerRadius);
+
+            // compute the UpperLeft corner radius
+            if (bounds.fLeft == crop.fLeft && bounds.fTop == crop.fTop) {
+                radii[0].set(cornerRadius, cornerRadius);
+            } else if (bounds.fLeft > insetCrop.fLeft && bounds.fTop > insetCrop.fTop) {
+                radii[0].set(0, 0);
+            } else {
+                intersectionIsRoundRect = false;
+            }
+            // compute the UpperRight corner radius
+            if (bounds.fRight == crop.fRight && bounds.fTop == crop.fTop) {
+                radii[1].set(cornerRadius, cornerRadius);
+            } else if (bounds.fRight < insetCrop.fRight && bounds.fTop > insetCrop.fTop) {
+                radii[1].set(0, 0);
+            } else {
+                intersectionIsRoundRect = false;
+            }
+            // compute the BottomRight corner radius
+            if (bounds.fRight == crop.fRight && bounds.fBottom == crop.fBottom) {
+                radii[2].set(cornerRadius, cornerRadius);
+            } else if (bounds.fRight < insetCrop.fRight && bounds.fBottom < insetCrop.fBottom) {
+                radii[2].set(0, 0);
+            } else {
+                intersectionIsRoundRect = false;
+            }
+            // compute the BottomLeft corner radius
+            if (bounds.fLeft == crop.fLeft && bounds.fBottom == crop.fBottom) {
+                radii[3].set(cornerRadius, cornerRadius);
+            } else if (bounds.fLeft > insetCrop.fLeft && bounds.fBottom < insetCrop.fBottom) {
+                radii[3].set(0, 0);
+            } else {
+                intersectionIsRoundRect = false;
+            }
+
+            if (intersectionIsRoundRect) {
+                SkRRect intersectionBounds;
+                intersectionBounds.setRectRadii(bounds, radii);
+                return {intersectionBounds, clip};
+            }
+        }
+
+        // we didn't it any of our fast paths so set the clip to the cropRect
+        clip.setRectXY(crop, cornerRadius, cornerRadius);
+    }
+
+    // if we hit this point then we either don't have rounded corners or we are going to rely
+    // on the clip to round the corners for us
+    return {SkRRect::MakeRect(bounds), clip};
 }
 
 inline bool SkiaGLRenderEngine::layerHasBlur(const LayerSettings* layer) {
@@ -1226,13 +1362,11 @@ void SkiaGLRenderEngine::onPrimaryDisplaySizeChanged(ui::Size size) {
     const int maxResourceBytes = size.width * size.height * SURFACE_SIZE_MULTIPLIER;
 
     // start by resizing the current context
-    auto grContext = mInProtectedContext ? mProtectedGrContext : mGrContext;
-    grContext->setResourceCacheLimit(maxResourceBytes);
+    getActiveGrContext()->setResourceCacheLimit(maxResourceBytes);
 
     // if it is possible to switch contexts then we will resize the other context
     if (useProtectedContext(!mInProtectedContext)) {
-        grContext = mInProtectedContext ? mProtectedGrContext : mGrContext;
-        grContext->setResourceCacheLimit(maxResourceBytes);
+        getActiveGrContext()->setResourceCacheLimit(maxResourceBytes);
         // reset back to the initial context that was active when this method was called
         useProtectedContext(!mInProtectedContext);
     }

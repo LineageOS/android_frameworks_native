@@ -47,6 +47,7 @@ static const char* native_processes_to_dump[] = {
 
 // Native processes to dump on debuggable builds.
 static const char* debuggable_native_processes_to_dump[] = {
+        "/system/bin/keystore2",
         "/system/bin/vold",
         NULL,
 };

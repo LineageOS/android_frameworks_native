@@ -635,7 +635,7 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
         layerSettings.blurRegionTransform =
                 getActiveTransform(getDrawingState()).inverse().asMatrix4();
     }
-    layerSettings.stretchEffect = getDrawingState().stretchEffect;
+    layerSettings.stretchEffect = getStretchEffect();
     // Record the name of the layer for debugging further down the stack.
     layerSettings.name = getName();
     return layerSettings;

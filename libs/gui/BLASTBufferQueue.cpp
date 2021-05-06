@@ -666,12 +666,12 @@ private:
     void run() {
         std::unique_lock<std::mutex> lock(mMutex);
         while (!mDone) {
-            mCv.wait(lock);
             while (!mRunnables.empty()) {
                 std::function<void()> runnable = mRunnables.front();
                 mRunnables.pop_front();
                 runnable();
             }
+            mCv.wait(lock);
         }
     }
 

@@ -263,6 +263,11 @@ public:
         }
     }
 
+    void expectBufferColor(const Point& point, uint8_t r, uint8_t g, uint8_t b, uint8_t a,
+                           uint8_t tolerance = 0) {
+        expectBufferColor(Rect(point.x, point.y, point.x + 1, point.y + 1), r, g, b, a, tolerance);
+    }
+
     void expectBufferColor(const Rect& rect, uint8_t r, uint8_t g, uint8_t b, uint8_t a,
                            uint8_t tolerance = 0) {
         auto colorCompare = [tolerance](const uint8_t* colorA, const uint8_t* colorB) {
@@ -1885,6 +1890,51 @@ TEST_P(RenderEngineTest, testRoundedCornersCrop) {
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH - 1, DEFAULT_DISPLAY_HEIGHT - 1,
                            DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                       0, 255, 0, 255);
+}
+
+TEST_P(RenderEngineTest, testRoundedCornersParentCrop) {
+    initializeRenderEngine();
+
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+
+    std::vector<const renderengine::LayerSettings*> layers;
+
+    renderengine::LayerSettings redLayer;
+    redLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
+    redLayer.geometry.boundaries = fullscreenRect().toFloatRect();
+    redLayer.geometry.roundedCornersRadius = 5.0f;
+    redLayer.geometry.roundedCornersCrop = fullscreenRect().toFloatRect();
+    // Red background.
+    redLayer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
+    redLayer.alpha = 1.0f;
+
+    layers.push_back(&redLayer);
+
+    // Green layer with 1/2 size with parent crop rect.
+    renderengine::LayerSettings greenLayer = redLayer;
+    greenLayer.geometry.boundaries =
+            FloatRect(0, 0, DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT / 2);
+    greenLayer.source.solidColor = half3(0.0f, 1.0f, 0.0f);
+
+    layers.push_back(&greenLayer);
+
+    invokeDraw(settings, layers);
+
+    // Due to roundedCornersRadius, the corners are untouched.
+    expectBufferColor(Point(0, 0), 0, 0, 0, 0);
+    expectBufferColor(Point(DEFAULT_DISPLAY_WIDTH - 1, 0), 0, 0, 0, 0);
+    expectBufferColor(Point(0, DEFAULT_DISPLAY_HEIGHT - 1), 0, 0, 0, 0);
+    expectBufferColor(Point(DEFAULT_DISPLAY_WIDTH - 1, DEFAULT_DISPLAY_HEIGHT - 1), 0, 0, 0, 0);
+
+    // top middle should be green and the bottom middle red
+    expectBufferColor(Point(DEFAULT_DISPLAY_WIDTH / 2, 0), 0, 255, 0, 255);
+    expectBufferColor(Point(DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT / 2), 255, 0, 0, 255);
+
+    // the bottom edge of the green layer should not be rounded
+    expectBufferColor(Point(0, (DEFAULT_DISPLAY_HEIGHT / 2) - 1), 0, 255, 0, 255);
 }
 
 TEST_P(RenderEngineTest, testClear) {
