@@ -222,7 +222,8 @@ static inline bool operator==(const LayerSettings& lhs, const LayerSettings& rhs
             lhs.sourceDataspace == rhs.sourceDataspace &&
             lhs.colorTransform == rhs.colorTransform &&
             lhs.disableBlending == rhs.disableBlending && lhs.shadow == rhs.shadow &&
-            lhs.backgroundBlurRadius == rhs.backgroundBlurRadius;
+            lhs.backgroundBlurRadius == rhs.backgroundBlurRadius &&
+            lhs.stretchEffect == rhs.stretchEffect;
 }
 
 // Defining PrintTo helps with Google Tests.
@@ -272,6 +273,21 @@ static inline void PrintTo(const ShadowSettings& settings, ::std::ostream* os) {
     *os << "\n}";
 }
 
+static inline void PrintTo(const StretchEffect& effect, ::std::ostream* os) {
+    *os << "StretchEffect {";
+    *os << "\n     .width = " << effect.width;
+    *os << "\n     .height = " << effect.height;
+    *os << "\n     .vectorX = " << effect.vectorX;
+    *os << "\n     .vectorY = " << effect.vectorY;
+    *os << "\n     .maxAmountX = " << effect.maxAmountX;
+    *os << "\n     .maxAmountY = " << effect.maxAmountY;
+    *os << "\n     .mappedLeft = " << effect.mappedChildBounds.left;
+    *os << "\n     .mappedTop = " << effect.mappedChildBounds.top;
+    *os << "\n     .mappedRight = " << effect.mappedChildBounds.right;
+    *os << "\n     .mappedBottom = " << effect.mappedChildBounds.bottom;
+    *os << "\n}";
+}
+
 static inline void PrintTo(const LayerSettings& settings, ::std::ostream* os) {
     *os << "LayerSettings {";
     *os << "\n    .geometry = ";
@@ -290,6 +306,8 @@ static inline void PrintTo(const LayerSettings& settings, ::std::ostream* os) {
     }
     *os << "\n    .shadow = ";
     PrintTo(settings.shadow, os);
+    *os << "\n    .stretchEffect = ";
+    PrintTo(settings.stretchEffect, os);
     *os << "\n}";
 }
 

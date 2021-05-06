@@ -25,31 +25,49 @@
 namespace android {
 
 struct StretchEffect : public LightFlattenablePod<StretchEffect> {
-    FloatRect area = {0, 0, 0, 0};
-    float vectorX = 0;
-    float vectorY = 0;
-    float maxAmount = 0;
+  constexpr static const float CONTENT_DISTANCE_STRETCHED = 1.f;
 
-    bool operator==(const StretchEffect& other) const {
-        return area == other.area && vectorX == other.vectorX && vectorY == other.vectorY &&
-                maxAmount == other.maxAmount;
+  float width = 0;
+  float height = 0;
+  float vectorX = 0;
+  float vectorY = 0;
+  float maxAmountX = 0;
+  float maxAmountY = 0;
+  FloatRect mappedChildBounds = {0, 0, 0, 0};
+
+  bool operator==(const StretchEffect& other) const {
+    return width == other.width && height == other.height &&
+        vectorX == other.vectorX &&
+        vectorY == other.vectorY &&
+        maxAmountX == other.maxAmountX &&
+        maxAmountY == other.maxAmountY &&
+        mappedChildBounds == other.mappedChildBounds;
+  }
+
+  static bool isZero(float value) {
+    constexpr float NON_ZERO_EPSILON = 0.001f;
+    return fabsf(value) <= NON_ZERO_EPSILON;
+  }
+
+  bool isNoOp() const { return isZero(vectorX) && isZero(vectorY); }
+
+  bool hasEffect() const { return !isNoOp(); }
+
+  void sanitize() {
+    // If the area is empty, or the max amount is zero, then reset back to defaults
+    if (width == 0.f || height == 0.f || isZero(maxAmountX) ||
+        isZero(maxAmountY)) {
+      *this = StretchEffect{};
     }
+  }
 
-    static bool isZero(float value) {
-        constexpr float NON_ZERO_EPSILON = 0.001f;
-        return fabsf(value) <= NON_ZERO_EPSILON;
-    }
+  float getStretchWidthMultiplier() const {
+      return CONTENT_DISTANCE_STRETCHED / (1.f + abs(vectorX));
+  }
 
-    bool isNoOp() const { return isZero(vectorX) && isZero(vectorY); }
-
-    bool hasEffect() const { return !isNoOp(); }
-
-    void sanitize() {
-        // If the area is empty, or the max amount is zero, then reset back to defaults
-        if (area.isEmpty() || isZero(maxAmount)) {
-            *this = StretchEffect{};
-        }
-    }
+  float getStretchHeightMultiplier() const {
+      return CONTENT_DISTANCE_STRETCHED / (1.f + abs(vectorY));
+  }
 };
 
 static_assert(std::is_trivially_copyable<StretchEffect>::value,
