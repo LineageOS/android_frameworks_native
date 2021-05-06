@@ -538,9 +538,20 @@ public:
         // transactions from blocking each other.
         Transaction& setApplyToken(const sp<IBinder>& token);
 
-        Transaction& setStretchEffect(const sp<SurfaceControl>& sc, float left, float top,
-                                      float right, float bottom, float vecX, float vecY,
-                                      float maxAmount);
+        /**
+         * Provides the stretch effect configured on a container that the
+         * surface is rendered within.
+         * @param sc target surface the stretch should be applied to
+         * @param stretchEffect the corresponding stretch effect to be applied
+         *    to the surface. This can be directly on the surface itself or
+         *    configured from a parent of the surface in which case the
+         *    StretchEffect provided has parameters mapping the position of
+         *    the surface within the container that has the stretch configured
+         *    on it
+         * @return The transaction being constructed
+         */
+        Transaction& setStretchEffect(const sp<SurfaceControl>& sc,
+                                      const StretchEffect& stretchEffect);
 
         Transaction& setBufferCrop(const sp<SurfaceControl>& sc, const Rect& bufferCrop);
 
