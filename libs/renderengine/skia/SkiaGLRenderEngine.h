@@ -93,6 +93,7 @@ private:
     inline SkColor getSkColor(const vec4& color);
     inline SkM44 getSkM44(const mat4& matrix);
     inline SkPoint3 getSkPoint3(const vec3& vector);
+    inline GrDirectContext* getActiveGrContext() const;
 
     base::unique_fd flush();
     bool waitFence(base::unique_fd fenceFd);
