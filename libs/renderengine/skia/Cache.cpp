@@ -238,63 +238,70 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
     if (previousCount) {
         ALOGD("%d Shaders already compiled before Cache::primeShaderCache ran\n", previousCount);
     }
-    const nsecs_t timeBefore = systemTime();
-    // The dimensions should not matter, so long as we draw inside them.
-    const Rect displayRect(0, 0, 1080, 2340);
-    DisplaySettings display{
-            .physicalDisplay = displayRect,
-            .clip = displayRect,
-            .maxLuminance = 500,
-            .outputDataspace = kDestDataSpace,
-    };
 
-    const int64_t usage = GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
+    // The loop is beneficial for debugging and should otherwise be optimized out by the compiler.
+    // Adding additional bounds to the loop is useful for verifying that the size of the dst buffer
+    // does not impact the shader compilation counts by triggering different behaviors in RE/Skia.
+    for (SkSize bounds : {SkSize::Make(128, 128), /*SkSize::Make(1080, 2340)*/}) {
+        const nsecs_t timeBefore = systemTime();
+        // The dimensions should not matter, so long as we draw inside them.
+        const Rect displayRect(0, 0, bounds.fWidth, bounds.fHeight);
+        DisplaySettings display{
+                .physicalDisplay = displayRect,
+                .clip = displayRect,
+                .maxLuminance = 500,
+                .outputDataspace = kDestDataSpace,
+        };
 
-    sp<GraphicBuffer> dstBuffer =
-            new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888, 1,
-                              usage, "primeShaderCache_dst");
+        const int64_t usage = GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
 
-    const auto dstTexture = std::make_shared<ExternalTexture>(dstBuffer, *renderengine,
-                                                              ExternalTexture::Usage::WRITEABLE);
-    // This buffer will be the source for the call to drawImageLayers. Draw
-    // something to it as a placeholder for what an app draws. We should draw
-    // something, but the details are not important. Make use of the shadow layer drawing step
-    // to populate it.
-    sp<GraphicBuffer> srcBuffer =
-            new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888, 1,
-                              usage, "drawImageLayer_src");
+        sp<GraphicBuffer> dstBuffer =
+                new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888,
+                                  1, usage, "primeShaderCache_dst");
 
-    const auto srcTexture =
-            std::make_shared<ExternalTexture>(srcBuffer, *renderengine,
-                                              ExternalTexture::Usage::READABLE |
-                                                      ExternalTexture::Usage::WRITEABLE);
+        const auto dstTexture =
+                std::make_shared<ExternalTexture>(dstBuffer, *renderengine,
+                                                  ExternalTexture::Usage::WRITEABLE);
+        // This buffer will be the source for the call to drawImageLayers. Draw
+        // something to it as a placeholder for what an app draws. We should draw
+        // something, but the details are not important. Make use of the shadow layer drawing step
+        // to populate it.
+        sp<GraphicBuffer> srcBuffer =
+                new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888,
+                                  1, usage, "drawImageLayer_src");
 
-    drawSolidLayers(renderengine, display, dstTexture);
-    drawShadowLayers(renderengine, display, srcTexture);
-    drawBlurLayers(renderengine, display, dstTexture);
-    // The majority of shaders are related to sampling images.
-    drawImageLayers(renderengine, display, dstTexture, srcTexture);
+        const auto srcTexture =
+                std::make_shared<ExternalTexture>(srcBuffer, *renderengine,
+                                                  ExternalTexture::Usage::READABLE |
+                                                          ExternalTexture::Usage::WRITEABLE);
 
-    // should be the same as AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
-    const int64_t usageExternal = GRALLOC_USAGE_HW_TEXTURE;
+        drawSolidLayers(renderengine, display, dstTexture);
+        drawShadowLayers(renderengine, display, srcTexture);
+        drawBlurLayers(renderengine, display, dstTexture);
+        // The majority of shaders are related to sampling images.
+        drawImageLayers(renderengine, display, dstTexture, srcTexture);
 
-    sp<GraphicBuffer> externalBuffer =
-            new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888, 1,
-                              usageExternal, "primeShaderCache_external");
-    const auto externalTexture =
-            std::make_shared<ExternalTexture>(externalBuffer, *renderengine,
-                                              ExternalTexture::Usage::READABLE);
-    // TODO(b/184665179) doubles number of image shader compilations, but only somewhere
-    // between 6 and 8 will occur in real uses.
-    drawImageLayers(renderengine, display, dstTexture, externalTexture);
+        // should be the same as AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
+        const int64_t usageExternal = GRALLOC_USAGE_HW_TEXTURE;
 
-    // Draw layers for b/185569240.
-    drawTextureScaleLayers(renderengine, display, dstTexture, externalTexture);
+        sp<GraphicBuffer> externalBuffer =
+                new GraphicBuffer(displayRect.width(), displayRect.height(), PIXEL_FORMAT_RGBA_8888,
+                                  1, usageExternal, "primeShaderCache_external");
+        const auto externalTexture =
+                std::make_shared<ExternalTexture>(externalBuffer, *renderengine,
+                                                  ExternalTexture::Usage::READABLE);
+        // TODO(b/184665179) doubles number of image shader compilations, but only somewhere
+        // between 6 and 8 will occur in real uses.
+        drawImageLayers(renderengine, display, dstTexture, externalTexture);
 
-    const nsecs_t timeAfter = systemTime();
-    const float compileTimeMs = static_cast<float>(timeAfter - timeBefore) / 1.0E6;
-    const int shadersCompiled = renderengine->reportShadersCompiled();
-    ALOGD("Shader cache generated %d shaders in %f ms\n", shadersCompiled, compileTimeMs);
+        // Draw layers for b/185569240.
+        drawTextureScaleLayers(renderengine, display, dstTexture, externalTexture);
+
+        const nsecs_t timeAfter = systemTime();
+        const float compileTimeMs = static_cast<float>(timeAfter - timeBefore) / 1.0E6;
+        const int shadersCompiled = renderengine->reportShadersCompiled();
+        ALOGD("Shader cache generated %d shaders in %f ms\n", shadersCompiled, compileTimeMs);
+    }
 }
 
 } // namespace android::renderengine::skia
