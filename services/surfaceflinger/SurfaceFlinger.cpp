@@ -1909,6 +1909,7 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
         mRefreshPending = true;
         onMessageRefresh();
     }
+    notifyRegionSamplingThread();
 }
 
 bool SurfaceFlinger::handleMessageTransaction() {
@@ -2309,10 +2310,6 @@ void SurfaceFlinger::postComposition() {
             mTexturePool.resize(mTexturePoolSize);
             ATRACE_INT("TexturePoolSize", mTexturePool.size());
         }
-    }
-
-    if (mLumaSampling && mRegionSamplingThread) {
-        mRegionSamplingThread->notifyNewContent();
     }
 
     // Even though ATRACE_INT64 already checks if tracing is enabled, it doesn't prevent the
@@ -3067,8 +3064,7 @@ void SurfaceFlinger::initScheduler(const DisplayDeviceState& displayState) {
                            configs.late.sfWorkDuration);
 
     mRegionSamplingThread =
-            new RegionSamplingThread(*this, *mScheduler,
-                                     RegionSamplingThread::EnvironmentTimingTunables());
+            new RegionSamplingThread(*this, RegionSamplingThread::EnvironmentTimingTunables());
     mFpsReporter = new FpsReporter(*mFrameTimeline, *this);
     // Dispatch a mode change request for the primary display on scheduler
     // initialization, so that the EventThreads always contain a reference to a
@@ -6752,6 +6748,19 @@ sp<Layer> SurfaceFlinger::handleLayerCreatedLocked(const sp<IBinder>& handle, bo
 
     return layer;
 }
+
+void SurfaceFlinger::scheduleRegionSamplingThread() {
+    static_cast<void>(schedule([&] { notifyRegionSamplingThread(); }));
+}
+
+void SurfaceFlinger::notifyRegionSamplingThread() {
+    if (!mLumaSampling || !mRegionSamplingThread) {
+        return;
+    }
+
+    mRegionSamplingThread->onCompositionComplete(mEventQueue->nextExpectedInvalidate());
+}
+
 } // namespace android
 
 #if defined(__gl_h_)

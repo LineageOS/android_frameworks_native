@@ -1429,6 +1429,9 @@ private:
             REQUIRES(mStateLock);
 
     std::atomic<ui::Transform::RotationFlags> mDefaultDisplayTransformHint;
+
+    void scheduleRegionSamplingThread();
+    void notifyRegionSamplingThread();
 };
 
 } // namespace android

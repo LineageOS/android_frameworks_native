@@ -104,8 +104,12 @@ TEST_F(MessageQueueTest, invalidate) {
     const auto timing = scheduler::VSyncDispatch::ScheduleTiming{.workDuration = mDuration.count(),
                                                                  .readyDuration = 0,
                                                                  .earliestVsync = 0};
-    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(0));
+    EXPECT_FALSE(mEventQueue.nextExpectedInvalidate().has_value());
+
+    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.invalidate());
+    EXPECT_TRUE(mEventQueue.nextExpectedInvalidate().has_value());
+    EXPECT_EQ(1234, mEventQueue.nextExpectedInvalidate().value().time_since_epoch().count());
 }
 
 TEST_F(MessageQueueTest, invalidateTwice) {
@@ -114,11 +118,15 @@ TEST_F(MessageQueueTest, invalidateTwice) {
                                                                  .readyDuration = 0,
                                                                  .earliestVsync = 0};
 
-    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(0));
+    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.invalidate());
+    EXPECT_TRUE(mEventQueue.nextExpectedInvalidate().has_value());
+    EXPECT_EQ(1234, mEventQueue.nextExpectedInvalidate().value().time_since_epoch().count());
 
-    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(0));
+    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(4567));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.invalidate());
+    EXPECT_TRUE(mEventQueue.nextExpectedInvalidate().has_value());
+    EXPECT_EQ(4567, mEventQueue.nextExpectedInvalidate().value().time_since_epoch().count());
 }
 
 TEST_F(MessageQueueTest, invalidateTwiceWithCallback) {
@@ -127,8 +135,10 @@ TEST_F(MessageQueueTest, invalidateTwiceWithCallback) {
                                                                  .readyDuration = 0,
                                                                  .earliestVsync = 0};
 
-    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(0));
+    EXPECT_CALL(mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.invalidate());
+    EXPECT_TRUE(mEventQueue.nextExpectedInvalidate().has_value());
+    EXPECT_EQ(1234, mEventQueue.nextExpectedInvalidate().value().time_since_epoch().count());
 
     const auto startTime = 100;
     const auto endTime = startTime + mDuration.count();
@@ -140,6 +150,8 @@ TEST_F(MessageQueueTest, invalidateTwiceWithCallback) {
             .WillOnce(Return(vsyncId));
     EXPECT_CALL(*mHandler, dispatchInvalidate(vsyncId, presentTime)).Times(1);
     EXPECT_NO_FATAL_FAILURE(mEventQueue.triggerVsyncCallback(presentTime, startTime, endTime));
+
+    EXPECT_FALSE(mEventQueue.nextExpectedInvalidate().has_value());
 
     const auto timingAfterCallback =
             scheduler::VSyncDispatch::ScheduleTiming{.workDuration = mDuration.count(),

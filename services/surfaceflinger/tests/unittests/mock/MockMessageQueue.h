@@ -39,6 +39,7 @@ public:
                  void(scheduler::VSyncDispatch&, frametimeline::TokenManager&,
                       std::chrono::nanoseconds));
     MOCK_METHOD1(setDuration, void(std::chrono::nanoseconds workDuration));
+    MOCK_METHOD0(nextExpectedInvalidate, std::optional<std::chrono::steady_clock::time_point>());
 };
 
 } // namespace android::mock
