@@ -744,9 +744,13 @@ public:
 
     void scale(float globalScaleFactor);
 
-    // Apply 3x3 perspective matrix transformation.
+    // Set 3x3 perspective matrix transformation.
     // Matrix is in row-major form and compatible with SkMatrix.
     void transform(const std::array<float, 9>& matrix);
+
+    // Apply 3x3 perspective matrix transformation only to content (do not modify mTransform).
+    // Matrix is in row-major form and compatible with SkMatrix.
+    void applyTransform(const std::array<float, 9>& matrix);
 
 #ifdef __linux__
     status_t readFromParcel(Parcel* parcel);
