@@ -58,6 +58,10 @@ const GenericLayerMetadataEntry sMetadataValueOne = GenericLayerMetadataEntry{
 const GenericLayerMetadataEntry sMetadataValueTwo = GenericLayerMetadataEntry{
         .value = std::vector<uint8_t>({1, 3}),
 };
+const constexpr int32_t sBgBlurRadiusOne = 3;
+const constexpr int32_t sBgBlurRadiusTwo = 4;
+const BlurRegion sBlurRegionOne = BlurRegion{1, 2.f, 3.f, 4.f, 5.f, 6.f, 7, 8, 9, 10};
+const BlurRegion sBlurRegionTwo = BlurRegion{2, 3.f, 4.f, 5.f, 6.f, 7.f, 8, 9, 10, 11};
 
 struct LayerStateTest : public testing::Test {
     LayerStateTest() {
@@ -828,6 +832,114 @@ TEST_F(LayerStateTest, compareSolidColor) {
 
     EXPECT_TRUE(mLayerState->compare(*otherLayerState));
     EXPECT_TRUE(otherLayerState->compare(*mLayerState));
+}
+
+TEST_F(LayerStateTest, updateBackgroundBlur) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.backgroundBlurRadius = sBgBlurRadiusOne;
+    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+
+    mock::OutputLayer newOutputLayer;
+    mock::LayerFE newLayerFE;
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.backgroundBlurRadius = sBgBlurRadiusTwo;
+    setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::BackgroundBlurRadius), updates);
+}
+
+TEST_F(LayerStateTest, compareBackgroundBlur) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.backgroundBlurRadius = sBgBlurRadiusOne;
+    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    mock::OutputLayer newOutputLayer;
+    mock::LayerFE newLayerFE;
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.backgroundBlurRadius = sBgBlurRadiusTwo;
+    setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+    auto otherLayerState = std::make_unique<LayerState>(&newOutputLayer);
+
+    verifyNonUniqueDifferingFields(*mLayerState, *otherLayerState,
+                                   LayerStateField::BackgroundBlurRadius);
+
+    EXPECT_TRUE(mLayerState->compare(*otherLayerState));
+    EXPECT_TRUE(otherLayerState->compare(*mLayerState));
+}
+
+TEST_F(LayerStateTest, updateBlurRegions) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.blurRegions.push_back(sBlurRegionOne);
+    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+
+    mock::OutputLayer newOutputLayer;
+    mock::LayerFE newLayerFE;
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.blurRegions.push_back(sBlurRegionTwo);
+    setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+    Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(Flags<LayerStateField>(LayerStateField::BlurRegions), updates);
+}
+
+TEST_F(LayerStateTest, compareBlurRegions) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.blurRegions.push_back(sBlurRegionOne);
+    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    mock::OutputLayer newOutputLayer;
+    mock::LayerFE newLayerFE;
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.blurRegions.push_back(sBlurRegionTwo);
+    setupMocksForLayer(newOutputLayer, newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+    auto otherLayerState = std::make_unique<LayerState>(&newOutputLayer);
+
+    verifyNonUniqueDifferingFields(*mLayerState, *otherLayerState, LayerStateField::BlurRegions);
+
+    EXPECT_TRUE(mLayerState->compare(*otherLayerState));
+    EXPECT_TRUE(otherLayerState->compare(*mLayerState));
+}
+
+TEST_F(LayerStateTest, hasBlurBehind_noBlur_returnsFalse) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    EXPECT_FALSE(mLayerState->hasBlurBehind());
+}
+
+TEST_F(LayerStateTest, hasBlurBehind_withBackgroundBlur_returnsTrue) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.backgroundBlurRadius = sBgBlurRadiusOne;
+    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    EXPECT_TRUE(mLayerState->hasBlurBehind());
+}
+
+TEST_F(LayerStateTest, hasBlurBehind_withBlurRegion_returnsTrue) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.blurRegions.push_back(sBlurRegionOne);
+    setupMocksForLayer(mOutputLayer, mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    EXPECT_TRUE(mLayerState->hasBlurBehind());
 }
 
 TEST_F(LayerStateTest, dumpDoesNotCrash) {
