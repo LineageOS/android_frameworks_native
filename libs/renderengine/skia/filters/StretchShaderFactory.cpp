@@ -69,9 +69,8 @@ static const SkString stretchShader = SkString(R"(
     // and the other way around.
     uniform float uInterpolationStrength;
 
-    float easeInCubic(float t, float d) {
-        float tmp = t * d;
-        return tmp * tmp * tmp;
+    float easeIn(float t, float d) {
+        return t * d;
     }
 
     float computeOverscrollStart(
@@ -84,7 +83,7 @@ static const SkString stretchShader = SkString(R"(
     ) {
         float offsetPos = uStretchAffectedDist - inPos;
         float posBasedVariation = mix(
-                1. ,easeInCubic(offsetPos, uInverseStretchAffectedDist), interpolationStrength);
+                1. ,easeIn(offsetPos, uInverseStretchAffectedDist), interpolationStrength);
         float stretchIntensity = overscroll * posBasedVariation;
         return distanceStretched - (offsetPos / (1. + stretchIntensity));
     }
@@ -100,7 +99,7 @@ static const SkString stretchShader = SkString(R"(
     ) {
         float offsetPos = inPos - reverseStretchDist;
         float posBasedVariation = mix(
-                1. ,easeInCubic(offsetPos, uInverseStretchAffectedDist), interpolationStrength);
+                1. ,easeIn(offsetPos, uInverseStretchAffectedDist), interpolationStrength);
         float stretchIntensity = (-overscroll) * posBasedVariation;
         return 1 - (distanceStretched - (offsetPos / (1. + stretchIntensity)));
     }

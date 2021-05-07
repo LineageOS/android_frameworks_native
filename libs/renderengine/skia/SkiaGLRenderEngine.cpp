@@ -560,7 +560,11 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
         const LayerSettings* layer, const DisplaySettings& display, bool undoPremultipliedAlpha,
         bool requiresLinearEffect) {
     const auto stretchEffect = layer->stretchEffect;
-    if (stretchEffect.hasEffect()) {
+    // The given surface will be stretched by HWUI via matrix transformation
+    // which gets similar results for most surfaces
+    // Determine later on if we need to leverage the stertch shader within
+    // surface flinger
+    if (stretchEffect.hasEffect() && /* DISABLES CODE */ (false)) {
         const auto targetBuffer = layer->source.buffer.buffer;
         const auto graphicsBuffer = targetBuffer ? targetBuffer->getBuffer() : nullptr;
         if (graphicsBuffer && shader) {
@@ -652,33 +656,6 @@ private:
     SkCanvas* mCanvas;
     int mSaveCount;
 };
-
-void drawStretch(const SkRect& bounds, const StretchEffect& stretchEffect,
-                 SkCanvas* canvas, const SkPaint& paint) {
-    float top = bounds.top();
-    float left = bounds.left();
-    float bottom = bounds.bottom();
-    float right = bounds.right();
-    // Adjust the drawing bounds based on the stretch itself.
-    float stretchOffsetX =
-        round(bounds.width() * stretchEffect.getStretchWidthMultiplier());
-    float stretchOffsetY =
-        round(bounds.height() * stretchEffect.getStretchHeightMultiplier());
-    if (stretchEffect.vectorY < 0.f) {
-        top -= stretchOffsetY;
-    } else if (stretchEffect.vectorY > 0.f){
-        bottom += stretchOffsetY;
-    }
-
-    if (stretchEffect.vectorX < 0.f) {
-        left -= stretchOffsetX;
-    } else if (stretchEffect.vectorX > 0.f) {
-        right += stretchOffsetX;
-    }
-
-    auto stretchBounds = SkRect::MakeLTRB(left, top, right, bottom);
-    canvas->drawRect(stretchBounds, paint);
-}
 
 static SkRRect getBlurRRect(const BlurRegion& region) {
     const auto rect = SkRect::MakeLTRB(region.left, region.top, region.right, region.bottom);
@@ -1056,17 +1033,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             paint.setAntiAlias(true);
             canvas->drawRRect(bounds, paint);
         } else {
-            auto& stretchEffect = layer->stretchEffect;
-            // TODO (njawad) temporarily disable manipulation of geometry
-            //  the layer bounds will be updated in HWUI instead of RenderEngine
-            //  in a subsequent CL
-            // Keep the method call in a dead code path to make -Werror happy
-            // with unused methods
-            if (stretchEffect.hasEffect() && /* DISABLES CODE */ (false)) {
-                drawStretch(bounds.rect(), stretchEffect, canvas, paint);
-            } else {
-                canvas->drawRect(bounds.rect(), paint);
-            }
+            canvas->drawRect(bounds.rect(), paint);
         }
         if (kFlushAfterEveryLayer) {
             ATRACE_NAME("flush surface");
