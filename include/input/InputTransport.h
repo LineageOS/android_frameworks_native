@@ -229,7 +229,7 @@ public:
     InputChannel(const InputChannel& other)
           : mName(other.mName), mFd(::dup(other.mFd)), mToken(other.mToken){};
     InputChannel(const std::string name, android::base::unique_fd fd, sp<IBinder> token);
-    virtual ~InputChannel();
+    ~InputChannel() override;
     /**
      * Create a pair of input channels.
      * The two returned input channels are equivalent, and are labeled as "server" and "client"
