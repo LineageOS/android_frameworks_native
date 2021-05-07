@@ -203,7 +203,7 @@ private:
 
     void notifyExternalStylusPresenceChangedLocked() REQUIRES(mLock);
     void getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& outDevices) REQUIRES(mLock);
-    void dispatchExternalStylusState(const StylusState& state);
+    void dispatchExternalStylusStateLocked(const StylusState& state) REQUIRES(mLock);
 
     // The PointerController that is shared among all the input devices that need it.
     std::weak_ptr<PointerControllerInterface> mPointerController;
