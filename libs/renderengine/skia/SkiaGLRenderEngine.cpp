@@ -513,14 +513,9 @@ void SkiaGLRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffe
     }
     ATRACE_CALL();
 
-    // We need to switch the currently bound context if the buffer is protected but the current
-    // context is not. The current state must then be restored after the buffer is cached.
-    const bool protectedContextState = mInProtectedContext;
-    if (!useProtectedContext(protectedContextState || isProtectedBuffer)) {
-        ALOGE("Attempting to cache a buffer into a different context than what is currently bound");
-        return;
-    }
-
+    // If we were to support caching protected buffers then we will need to switch the currently
+    // bound context if we are not already using the protected context (and subsequently switch
+    // back after the buffer is cached).
     auto grContext = getActiveGrContext();
     auto& cache = mInProtectedContext ? mProtectedTextureCache : mTextureCache;
 
@@ -534,8 +529,6 @@ void SkiaGLRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffe
                                                                isRenderable);
         cache.insert({buffer->getId(), imageTextureRef});
     }
-    // restore the original state of the protected context if necessary
-    useProtectedContext(protectedContextState);
 }
 
 void SkiaGLRenderEngine::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
