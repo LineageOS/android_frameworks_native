@@ -1225,6 +1225,11 @@ public:
         return *this;
     }
 
+    MotionEventBuilder& addFlag(uint32_t flags) {
+        mFlags |= flags;
+        return *this;
+    }
+
     MotionEvent build() {
         std::vector<PointerProperties> pointerProperties;
         std::vector<PointerCoords> pointerCoords;
@@ -1244,7 +1249,7 @@ public:
         MotionEvent event;
         ui::Transform identityTransform;
         event.initialize(InputEvent::nextId(), DEVICE_ID, mSource, mDisplayId, INVALID_HMAC,
-                         mAction, mActionButton, /* flags */ 0, /* edgeFlags */ 0, AMETA_NONE,
+                         mAction, mActionButton, mFlags, /* edgeFlags */ 0, AMETA_NONE,
                          mButtonState, MotionClassification::NONE, identityTransform,
                          /* xPrecision */ 0, /* yPrecision */ 0, mRawXCursorPosition,
                          mRawYCursorPosition, mDisplayWidth, mDisplayHeight, mEventTime, mEventTime,
@@ -1260,6 +1265,7 @@ private:
     int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
     int32_t mActionButton{0};
     int32_t mButtonState{0};
+    int32_t mFlags{0};
     float mRawXCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
     float mRawYCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
     int32_t mDisplayWidth{AMOTION_EVENT_INVALID_DISPLAY_SIZE};
@@ -3103,6 +3109,25 @@ TEST_F(InputDispatcherOnPointerDownOutsideFocus, OnPointerDownOutsideFocus_OnAlr
 
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertOnPointerDownWasNotCalled();
+}
+
+// Have two windows, one with focus. Injecting a trusted DOWN MotionEvent with the flag
+// NO_FOCUS_CHANGE on the unfocused window should not call the onPointerDownOutsideFocus callback.
+TEST_F(InputDispatcherOnPointerDownOutsideFocus, NoFocusChangeFlag) {
+    const MotionEvent event =
+            MotionEventBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_MOUSE)
+                    .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
+                    .pointer(PointerBuilder(/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER).x(20).y(20))
+                    .addFlag(AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE)
+                    .build();
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectMotionEvent(mDispatcher, event))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+    mUnfocusedWindow->consumeAnyMotionDown(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
+
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mFakePolicy->assertOnPointerDownWasNotCalled();
+    // Ensure that the unfocused window did not receive any FOCUS events.
+    mUnfocusedWindow->assertNoEvents();
 }
 
 // These tests ensures we can send touch events to a single client when there are multiple input

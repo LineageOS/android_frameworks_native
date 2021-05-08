@@ -569,6 +569,24 @@ void MotionEvent::transform(const std::array<float, 9>& matrix) {
     }
 }
 
+void MotionEvent::applyTransform(const std::array<float, 9>& matrix) {
+    // Determine how the origin is transformed by the matrix so that we
+    // can transform orientation vectors.
+    vec2 origin = transformPoint(matrix, 0, 0);
+
+    // Apply the transformation to all samples.
+    size_t numSamples = mSamplePointerCoords.size();
+    for (size_t i = 0; i < numSamples; i++) {
+        PointerCoords& c = mSamplePointerCoords.editItemAt(i);
+        float orientation = c.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
+        c.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
+                       transformAngle(matrix, orientation, origin.x, origin.y));
+        vec2 xy = transformPoint(matrix, c.getX(), c.getY());
+        c.setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
+        c.setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
+    }
+}
+
 #ifdef __linux__
 static status_t readFromParcel(ui::Transform& transform, const Parcel& parcel) {
     float dsdx, dtdx, tx, dtdy, dsdy, ty;
