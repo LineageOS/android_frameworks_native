@@ -211,9 +211,6 @@ private:
                                                     bool addPortalWindows = false,
                                                     bool ignoreDragWindow = false) REQUIRES(mLock);
 
-    // All registered connections mapped by channel file descriptor.
-    std::unordered_map<int, sp<Connection>> mConnectionsByFd GUARDED_BY(mLock);
-
     sp<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
             REQUIRES(mLock);
 
@@ -225,8 +222,10 @@ private:
     struct StrongPointerHash {
         std::size_t operator()(const sp<T>& b) const { return std::hash<T*>{}(b.get()); }
     };
-    std::unordered_map<sp<IBinder>, std::shared_ptr<InputChannel>, StrongPointerHash<IBinder>>
-            mInputChannelsByToken GUARDED_BY(mLock);
+
+    // All registered connections mapped by input channel token.
+    std::unordered_map<sp<IBinder>, sp<Connection>, StrongPointerHash<IBinder>> mConnectionsByToken
+            GUARDED_BY(mLock);
 
     // Finds the display ID of the gesture monitor identified by the provided token.
     std::optional<int32_t> findGestureMonitorDisplayByTokenLocked(const sp<IBinder>& token)
@@ -544,7 +543,7 @@ private:
                                         bool notify) REQUIRES(mLock);
     void drainDispatchQueue(std::deque<DispatchEntry*>& queue);
     void releaseDispatchEntry(DispatchEntry* dispatchEntry);
-    static int handleReceiveCallback(int fd, int events, void* data);
+    int handleReceiveCallback(int events, sp<IBinder> connectionToken);
     // The action sent should only be of type AMOTION_EVENT_*
     void dispatchPointerDownOutsideFocus(uint32_t source, int32_t action,
                                          const sp<IBinder>& newToken) REQUIRES(mLock);
