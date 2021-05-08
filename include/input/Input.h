@@ -70,6 +70,14 @@ enum {
      */
     AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE = 0x8,
 
+    /**
+     * This flag indicates that the event will not cause a focus change if it is directed to an
+     * unfocused window, even if it an ACTION_DOWN. This is typically used with pointer
+     * gestures to allow the user to direct gestures to an unfocused window without bringing it
+     * into focus.
+     */
+    AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE = 0x40,
+
     /* Motion event is inconsistent with previously sent motion events. */
     AMOTION_EVENT_FLAG_TAINTED = 0x80000000,
 };

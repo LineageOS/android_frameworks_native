@@ -2456,6 +2456,12 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, nsecs_t readTime, u
     int32_t metaState = getContext()->getGlobalMetaState();
     int32_t buttonState = mCurrentCookedState.buttonState;
 
+    uint32_t flags = 0;
+
+    if (!PointerGesture::canGestureAffectWindowFocus(mPointerGesture.currentGestureMode)) {
+        flags |= AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE;
+    }
+
     // Update last coordinates of pointers that have moved so that we observe the new
     // pointer positions at the same time as other pointers that have just gone up.
     bool down = mPointerGesture.currentGestureMode == PointerGesture::Mode::TAP ||
@@ -2485,8 +2491,8 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, nsecs_t readTime, u
     BitSet32 dispatchedGestureIdBits(mPointerGesture.lastGestureIdBits);
     if (!dispatchedGestureIdBits.isEmpty()) {
         if (cancelPreviousGesture) {
-            dispatchMotion(when, readTime, policyFlags, mSource, AMOTION_EVENT_ACTION_CANCEL, 0, 0,
-                           metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
+            dispatchMotion(when, readTime, policyFlags, mSource, AMOTION_EVENT_ACTION_CANCEL, 0,
+                           flags, metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                            mPointerGesture.lastGestureProperties, mPointerGesture.lastGestureCoords,
                            mPointerGesture.lastGestureIdToIndex, dispatchedGestureIdBits, -1, 0, 0,
                            mPointerGesture.downTime);
@@ -2504,7 +2510,7 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, nsecs_t readTime, u
                 uint32_t id = upGestureIdBits.clearFirstMarkedBit();
 
                 dispatchMotion(when, readTime, policyFlags, mSource,
-                               AMOTION_EVENT_ACTION_POINTER_UP, 0, 0, metaState, buttonState,
+                               AMOTION_EVENT_ACTION_POINTER_UP, 0, flags, metaState, buttonState,
                                AMOTION_EVENT_EDGE_FLAG_NONE, mPointerGesture.lastGestureProperties,
                                mPointerGesture.lastGestureCoords,
                                mPointerGesture.lastGestureIdToIndex, dispatchedGestureIdBits, id, 0,
@@ -2517,7 +2523,7 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, nsecs_t readTime, u
 
     // Send motion events for all pointers that moved.
     if (moveNeeded) {
-        dispatchMotion(when, readTime, policyFlags, mSource, AMOTION_EVENT_ACTION_MOVE, 0, 0,
+        dispatchMotion(when, readTime, policyFlags, mSource, AMOTION_EVENT_ACTION_MOVE, 0, flags,
                        metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                        mPointerGesture.currentGestureProperties,
                        mPointerGesture.currentGestureCoords,
@@ -2538,7 +2544,7 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, nsecs_t readTime, u
             }
 
             dispatchMotion(when, readTime, policyFlags, mSource, AMOTION_EVENT_ACTION_POINTER_DOWN,
-                           0, 0, metaState, buttonState, 0,
+                           0, flags, metaState, buttonState, 0,
                            mPointerGesture.currentGestureProperties,
                            mPointerGesture.currentGestureCoords,
                            mPointerGesture.currentGestureIdToIndex, dispatchedGestureIdBits, id, 0,
@@ -2548,8 +2554,8 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, nsecs_t readTime, u
 
     // Send motion events for hover.
     if (mPointerGesture.currentGestureMode == PointerGesture::Mode::HOVER) {
-        dispatchMotion(when, readTime, policyFlags, mSource, AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
-                       metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
+        dispatchMotion(when, readTime, policyFlags, mSource, AMOTION_EVENT_ACTION_HOVER_MOVE, 0,
+                       flags, metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                        mPointerGesture.currentGestureProperties,
                        mPointerGesture.currentGestureCoords,
                        mPointerGesture.currentGestureIdToIndex,
@@ -2573,7 +2579,7 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, nsecs_t readTime, u
 
         const int32_t displayId = mPointerController->getDisplayId();
         NotifyMotionArgs args(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
-                              displayId, policyFlags, AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
+                              displayId, policyFlags, AMOTION_EVENT_ACTION_HOVER_MOVE, 0, flags,
                               metaState, buttonState, MotionClassification::NONE,
                               AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties, &pointerCoords,
                               0, 0, x, y, mPointerGesture.downTime, /* videoFrames */ {});
