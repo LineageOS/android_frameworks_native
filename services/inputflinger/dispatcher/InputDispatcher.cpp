@@ -283,27 +283,6 @@ static V getValueByKey(const std::unordered_map<K, V>& map, K key) {
     return it != map.end() ? it->second : V{};
 }
 
-/**
- * Find the entry in std::unordered_map by value, and remove it.
- * If more than one entry has the same value, then all matching
- * key-value pairs will be removed.
- *
- * Return true if at least one value has been removed.
- */
-template <typename K, typename V>
-static bool removeByValue(std::unordered_map<K, V>& map, const V& value) {
-    bool removed = false;
-    for (auto it = map.begin(); it != map.end();) {
-        if (it->second == value) {
-            it = map.erase(it);
-            removed = true;
-        } else {
-            it++;
-        }
-    }
-    return removed;
-}
-
 static bool haveSameToken(const sp<InputWindowHandle>& first, const sp<InputWindowHandle>& second) {
     if (first == second) {
         return true;
@@ -507,8 +486,8 @@ InputDispatcher::~InputDispatcher() {
         drainInboundQueueLocked();
     }
 
-    while (!mConnectionsByFd.empty()) {
-        sp<Connection> connection = mConnectionsByFd.begin()->second;
+    while (!mConnectionsByToken.empty()) {
+        sp<Connection> connection = mConnectionsByToken.begin()->second;
         removeInputChannel(connection->inputChannel->getConnectionToken());
     }
 }
@@ -2907,6 +2886,12 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
                 ATRACE_NAME(message.c_str());
             }
 
+            if ((motionEntry.flags & AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE) &&
+                (motionEntry.policyFlags & POLICY_FLAG_TRUSTED)) {
+                // Skip reporting pointer down outside focus to the policy.
+                break;
+            }
+
             dispatchPointerDownOutsideFocus(motionEntry.source, dispatchEntry->resolvedAction,
                                             inputTarget.inputChannel->getConnectionToken());
 
@@ -3297,86 +3282,78 @@ void InputDispatcher::releaseDispatchEntry(DispatchEntry* dispatchEntry) {
     delete dispatchEntry;
 }
 
-int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
-    InputDispatcher* d = static_cast<InputDispatcher*>(data);
+int InputDispatcher::handleReceiveCallback(int events, sp<IBinder> connectionToken) {
+    std::scoped_lock _l(mLock);
+    sp<Connection> connection = getConnectionLocked(connectionToken);
+    if (connection == nullptr) {
+        ALOGW("Received looper callback for unknown input channel token %p.  events=0x%x",
+              connectionToken.get(), events);
+        return 0; // remove the callback
+    }
 
-    { // acquire lock
-        std::scoped_lock _l(d->mLock);
-
-        if (d->mConnectionsByFd.find(fd) == d->mConnectionsByFd.end()) {
-            ALOGE("Received spurious receive callback for unknown input channel.  "
-                  "fd=%d, events=0x%x",
-                  fd, events);
-            return 0; // remove the callback
+    bool notify;
+    if (!(events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP))) {
+        if (!(events & ALOOPER_EVENT_INPUT)) {
+            ALOGW("channel '%s' ~ Received spurious callback for unhandled poll event.  "
+                  "events=0x%x",
+                  connection->getInputChannelName().c_str(), events);
+            return 1;
         }
 
-        bool notify;
-        sp<Connection> connection = d->mConnectionsByFd[fd];
-        if (!(events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP))) {
-            if (!(events & ALOOPER_EVENT_INPUT)) {
-                ALOGW("channel '%s' ~ Received spurious callback for unhandled poll event.  "
-                      "events=0x%x",
-                      connection->getInputChannelName().c_str(), events);
+        nsecs_t currentTime = now();
+        bool gotOne = false;
+        status_t status = OK;
+        for (;;) {
+            Result<InputPublisher::ConsumerResponse> result =
+                    connection->inputPublisher.receiveConsumerResponse();
+            if (!result.ok()) {
+                status = result.error().code();
+                break;
+            }
+
+            if (std::holds_alternative<InputPublisher::Finished>(*result)) {
+                const InputPublisher::Finished& finish =
+                        std::get<InputPublisher::Finished>(*result);
+                finishDispatchCycleLocked(currentTime, connection, finish.seq, finish.handled,
+                                          finish.consumeTime);
+            } else if (std::holds_alternative<InputPublisher::Timeline>(*result)) {
+                // TODO(b/167947340): Report this data to LatencyTracker
+            }
+            gotOne = true;
+        }
+        if (gotOne) {
+            runCommandsLockedInterruptible();
+            if (status == WOULD_BLOCK) {
                 return 1;
             }
-
-            nsecs_t currentTime = now();
-            bool gotOne = false;
-            status_t status = OK;
-            for (;;) {
-                Result<InputPublisher::ConsumerResponse> result =
-                        connection->inputPublisher.receiveConsumerResponse();
-                if (!result.ok()) {
-                    status = result.error().code();
-                    break;
-                }
-
-                if (std::holds_alternative<InputPublisher::Finished>(*result)) {
-                    const InputPublisher::Finished& finish =
-                            std::get<InputPublisher::Finished>(*result);
-                    d->finishDispatchCycleLocked(currentTime, connection, finish.seq,
-                                                 finish.handled, finish.consumeTime);
-                } else if (std::holds_alternative<InputPublisher::Timeline>(*result)) {
-                    // TODO(b/167947340): Report this data to LatencyTracker
-                }
-                gotOne = true;
-            }
-            if (gotOne) {
-                d->runCommandsLockedInterruptible();
-                if (status == WOULD_BLOCK) {
-                    return 1;
-                }
-            }
-
-            notify = status != DEAD_OBJECT || !connection->monitor;
-            if (notify) {
-                ALOGE("channel '%s' ~ Failed to receive finished signal.  status=%s(%d)",
-                      connection->getInputChannelName().c_str(), statusToString(status).c_str(),
-                      status);
-            }
-        } else {
-            // Monitor channels are never explicitly unregistered.
-            // We do it automatically when the remote endpoint is closed so don't warn about them.
-            const bool stillHaveWindowHandle =
-                    d->getWindowHandleLocked(connection->inputChannel->getConnectionToken()) !=
-                    nullptr;
-            notify = !connection->monitor && stillHaveWindowHandle;
-            if (notify) {
-                ALOGW("channel '%s' ~ Consumer closed input channel or an error occurred.  "
-                      "events=0x%x",
-                      connection->getInputChannelName().c_str(), events);
-            }
         }
 
-        // Remove the channel.
-        d->removeInputChannelLocked(connection->inputChannel->getConnectionToken(), notify);
-        return 0; // remove the callback
-    }             // release lock
+        notify = status != DEAD_OBJECT || !connection->monitor;
+        if (notify) {
+            ALOGE("channel '%s' ~ Failed to receive finished signal.  status=%s(%d)",
+                  connection->getInputChannelName().c_str(), statusToString(status).c_str(),
+                  status);
+        }
+    } else {
+        // Monitor channels are never explicitly unregistered.
+        // We do it automatically when the remote endpoint is closed so don't warn about them.
+        const bool stillHaveWindowHandle =
+                getWindowHandleLocked(connection->inputChannel->getConnectionToken()) != nullptr;
+        notify = !connection->monitor && stillHaveWindowHandle;
+        if (notify) {
+            ALOGW("channel '%s' ~ Consumer closed input channel or an error occurred.  events=0x%x",
+                  connection->getInputChannelName().c_str(), events);
+        }
+    }
+
+    // Remove the channel.
+    removeInputChannelLocked(connection->inputChannel->getConnectionToken(), notify);
+    return 0; // remove the callback
 }
 
 void InputDispatcher::synthesizeCancelationEventsForAllConnectionsLocked(
         const CancelationOptions& options) {
-    for (const auto& [fd, connection] : mConnectionsByFd) {
+    for (const auto& [token, connection] : mConnectionsByToken) {
         synthesizeCancelationEventsForConnectionLocked(connection, options);
     }
 }
@@ -4342,11 +4319,11 @@ bool InputDispatcher::hasResponsiveConnectionLocked(InputWindowHandle& windowHan
 
 std::shared_ptr<InputChannel> InputDispatcher::getInputChannelLocked(
         const sp<IBinder>& token) const {
-    size_t count = mInputChannelsByToken.count(token);
-    if (count == 0) {
+    auto connectionIt = mConnectionsByToken.find(token);
+    if (connectionIt == mConnectionsByToken.end()) {
         return nullptr;
     }
-    return mInputChannelsByToken.at(token);
+    return connectionIt->second->inputChannel;
 }
 
 void InputDispatcher::updateWindowHandlesForDisplayLocked(
@@ -4996,13 +4973,13 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += INDENT "ReplacedKeys: <empty>\n";
     }
 
-    if (!mConnectionsByFd.empty()) {
+    if (!mConnectionsByToken.empty()) {
         dump += INDENT "Connections:\n";
-        for (const auto& pair : mConnectionsByFd) {
-            const sp<Connection>& connection = pair.second;
+        for (const auto& [token, connection] : mConnectionsByToken) {
             dump += StringPrintf(INDENT2 "%i: channelName='%s', windowName='%s', "
                                          "status=%s, monitor=%s, responsive=%s\n",
-                                 pair.first, connection->getInputChannelName().c_str(),
+                                 connection->inputChannel->getFd().get(),
+                                 connection->getInputChannelName().c_str(),
                                  connection->getWindowName().c_str(), connection->getStatusLabel(),
                                  toString(connection->monitor), toString(connection->responsive));
 
@@ -5050,14 +5027,23 @@ void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>
     }
 }
 
+class LooperEventCallback : public LooperCallback {
+public:
+    LooperEventCallback(std::function<int(int events)> callback) : mCallback(callback) {}
+    int handleEvent(int /*fd*/, int events, void* /*data*/) override { return mCallback(events); }
+
+private:
+    std::function<int(int events)> mCallback;
+};
+
 Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const std::string& name) {
 #if DEBUG_CHANNEL_CREATION
     ALOGD("channel '%s' ~ createInputChannel", name.c_str());
 #endif
 
-    std::shared_ptr<InputChannel> serverChannel;
+    std::unique_ptr<InputChannel> serverChannel;
     std::unique_ptr<InputChannel> clientChannel;
-    status_t result = openInputChannelPair(name, serverChannel, clientChannel);
+    status_t result = InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
 
     if (result) {
         return base::Error(result) << "Failed to open input channel pair with name " << name;
@@ -5065,13 +5051,20 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
 
     { // acquire lock
         std::scoped_lock _l(mLock);
-        sp<Connection> connection = new Connection(serverChannel, false /*monitor*/, mIdGenerator);
-
+        const sp<IBinder>& token = serverChannel->getConnectionToken();
         int fd = serverChannel->getFd();
-        mConnectionsByFd[fd] = connection;
-        mInputChannelsByToken[serverChannel->getConnectionToken()] = serverChannel;
+        sp<Connection> connection =
+                new Connection(std::move(serverChannel), false /*monitor*/, mIdGenerator);
 
-        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
+        if (mConnectionsByToken.find(token) != mConnectionsByToken.end()) {
+            ALOGE("Created a new connection, but the token %p is already known", token.get());
+        }
+        mConnectionsByToken.emplace(token, connection);
+
+        std::function<int(int events)> callback = std::bind(&InputDispatcher::handleReceiveCallback,
+                                                            this, std::placeholders::_1, token);
+
+        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, new LooperEventCallback(callback), nullptr);
     } // release lock
 
     // Wake the looper because some connections have changed.
@@ -5099,18 +5092,21 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
         }
 
         sp<Connection> connection = new Connection(serverChannel, true /*monitor*/, mIdGenerator);
-
+        const sp<IBinder>& token = serverChannel->getConnectionToken();
         const int fd = serverChannel->getFd();
-        mConnectionsByFd[fd] = connection;
-        mInputChannelsByToken[serverChannel->getConnectionToken()] = serverChannel;
+
+        if (mConnectionsByToken.find(token) != mConnectionsByToken.end()) {
+            ALOGE("Created a new connection, but the token %p is already known", token.get());
+        }
+        mConnectionsByToken.emplace(token, connection);
+        std::function<int(int events)> callback = std::bind(&InputDispatcher::handleReceiveCallback,
+                                                            this, std::placeholders::_1, token);
 
         auto& monitorsByDisplay =
                 isGestureMonitor ? mGestureMonitorsByDisplay : mGlobalMonitorsByDisplay;
         monitorsByDisplay[displayId].emplace_back(serverChannel, pid);
 
-        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
-        ALOGI("Created monitor %s for display %" PRId32 ", gesture=%s, pid=%" PRId32, name.c_str(),
-              displayId, toString(isGestureMonitor), pid);
+        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, new LooperEventCallback(callback), nullptr);
     }
 
     // Wake the looper because some connections have changed.
@@ -5143,7 +5139,6 @@ status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connection
     }
 
     removeConnectionLocked(connection);
-    mInputChannelsByToken.erase(connectionToken);
 
     if (connection->monitor) {
         removeMonitorChannelLocked(connectionToken);
@@ -5301,9 +5296,8 @@ sp<Connection> InputDispatcher::getConnectionLocked(const sp<IBinder>& inputConn
         return nullptr;
     }
 
-    for (const auto& pair : mConnectionsByFd) {
-        const sp<Connection>& connection = pair.second;
-        if (connection->inputChannel->getConnectionToken() == inputConnectionToken) {
+    for (const auto& [token, connection] : mConnectionsByToken) {
+        if (token == inputConnectionToken) {
             return connection;
         }
     }
@@ -5321,7 +5315,7 @@ std::string InputDispatcher::getConnectionNameLocked(const sp<IBinder>& connecti
 
 void InputDispatcher::removeConnectionLocked(const sp<Connection>& connection) {
     mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
-    removeByValue(mConnectionsByFd, connection);
+    mConnectionsByToken.erase(connection->inputChannel->getConnectionToken());
 }
 
 void InputDispatcher::onDispatchCycleFinishedLocked(nsecs_t currentTime,

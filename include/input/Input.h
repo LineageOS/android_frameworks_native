@@ -70,6 +70,14 @@ enum {
      */
     AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE = 0x8,
 
+    /**
+     * This flag indicates that the event will not cause a focus change if it is directed to an
+     * unfocused window, even if it an ACTION_DOWN. This is typically used with pointer
+     * gestures to allow the user to direct gestures to an unfocused window without bringing it
+     * into focus.
+     */
+    AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE = 0x40,
+
     /* Motion event is inconsistent with previously sent motion events. */
     AMOTION_EVENT_FLAG_TAINTED = 0x80000000,
 };
@@ -746,9 +754,13 @@ public:
 
     void scale(float globalScaleFactor);
 
-    // Apply 3x3 perspective matrix transformation.
+    // Set 3x3 perspective matrix transformation.
     // Matrix is in row-major form and compatible with SkMatrix.
     void transform(const std::array<float, 9>& matrix);
+
+    // Apply 3x3 perspective matrix transformation only to content (do not modify mTransform).
+    // Matrix is in row-major form and compatible with SkMatrix.
+    void applyTransform(const std::array<float, 9>& matrix);
 
 #ifdef __linux__
     status_t readFromParcel(Parcel* parcel);

@@ -590,6 +590,27 @@ private:
             QUIET,
         };
 
+        // When a gesture is sent to an unfocused window, return true if it can bring that window
+        // into focus, false otherwise.
+        static bool canGestureAffectWindowFocus(Mode mode) {
+            switch (mode) {
+                case Mode::TAP:
+                case Mode::TAP_DRAG:
+                case Mode::BUTTON_CLICK_OR_DRAG:
+                    // Taps can affect window focus.
+                    return true;
+                case Mode::FREEFORM:
+                case Mode::HOVER:
+                case Mode::NEUTRAL:
+                case Mode::PRESS:
+                case Mode::QUIET:
+                case Mode::SWIPE:
+                    // Most gestures can be performed on an unfocused window, so they should not
+                    // not affect window focus.
+                    return false;
+            }
+        }
+
         // Time the first finger went down.
         nsecs_t firstTouchTime;
 
