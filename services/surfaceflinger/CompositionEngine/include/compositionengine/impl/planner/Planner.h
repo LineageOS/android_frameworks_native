@@ -76,6 +76,8 @@ private:
 
     std::optional<Predictor::PredictedPlan> mPredictedPlan;
     NonBufferHash mFlattenedHash = 0;
+
+    bool mPredictorEnabled = false;
 };
 
 } // namespace compositionengine::impl::planner

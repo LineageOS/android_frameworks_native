@@ -18,7 +18,6 @@
 #include <compositionengine/impl/planner/CachedSet.h>
 #include <compositionengine/impl/planner/Flattener.h>
 #include <compositionengine/impl/planner/LayerState.h>
-#include <compositionengine/impl/planner/Predictor.h>
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/OutputLayer.h>
 #include <gtest/gtest.h>
@@ -31,7 +30,6 @@ using namespace std::chrono_literals;
 using impl::planner::Flattener;
 using impl::planner::LayerState;
 using impl::planner::NonBufferHash;
-using impl::planner::Predictor;
 
 using testing::_;
 using testing::ByMove;
@@ -47,17 +45,13 @@ namespace {
 
 class FlattenerTest : public testing::Test {
 public:
-    FlattenerTest() : mFlattener(std::make_unique<Flattener>(mPredictor, true)) {}
+    FlattenerTest() : mFlattener(std::make_unique<Flattener>(true)) {}
     void SetUp() override;
 
 protected:
     void initializeOverrideBuffer(const std::vector<const LayerState*>& layers);
     void initializeFlattener(const std::vector<const LayerState*>& layers);
     void expectAllLayersFlattened(const std::vector<const LayerState*>& layers);
-
-    // TODO(b/181192467): Once Flattener starts to do something useful with Predictor,
-    // mPredictor should be mocked and checked for expectations.
-    Predictor mPredictor;
 
     // mRenderEngine may be held as a pointer to mFlattener, so mFlattener must be destroyed first.
     renderengine::mock::RenderEngine mRenderEngine;
