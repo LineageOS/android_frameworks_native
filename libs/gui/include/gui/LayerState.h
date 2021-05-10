@@ -104,7 +104,7 @@ struct layer_state_t {
         eHasListenerCallbacksChanged = 0x20000000,
         eInputInfoChanged = 0x40000000,
         eCornerRadiusChanged = 0x80000000,
-        /* was eFrameChanged, now available 0x1'00000000, */
+        eDestinationFrameChanged = 0x1'00000000,
         eCachedBufferChanged = 0x2'00000000,
         eBackgroundColorChanged = 0x4'00000000,
         eMetadataChanged = 0x8'00000000,
@@ -228,6 +228,7 @@ struct layer_state_t {
     StretchEffect stretchEffect;
 
     Rect bufferCrop;
+    Rect destinationFrame;
 
     // Listens to when the buffer is safe to be released. This is used for blast
     // layers only. The callback includes a release fence as well as the graphic

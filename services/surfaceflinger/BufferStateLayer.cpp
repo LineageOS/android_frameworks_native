@@ -295,12 +295,72 @@ bool BufferStateLayer::setBufferCrop(const Rect& bufferCrop) {
     return true;
 }
 
+bool BufferStateLayer::setDestinationFrame(const Rect& destinationFrame) {
+    if (mCurrentState.destinationFrame == destinationFrame) return false;
+
+    mCurrentState.sequence++;
+    mCurrentState.destinationFrame = destinationFrame;
+
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+// Translate destination frame into scale and position. If a destination frame is not set, use the
+// provided scale and position
+void BufferStateLayer::updateGeometry() {
+    if (mCurrentState.destinationFrame.isEmpty()) {
+        // If destination frame is not set, use the requested transform set via
+        // BufferStateLayer::setPosition and BufferStateLayer::setMatrix.
+        mCurrentState.transform = mRequestedTransform;
+        return;
+    }
+
+    Rect destRect = mCurrentState.destinationFrame;
+    int32_t destW = destRect.width();
+    int32_t destH = destRect.height();
+    if (destRect.left < 0) {
+        destRect.left = 0;
+        destRect.right = destW;
+    }
+    if (destRect.top < 0) {
+        destRect.top = 0;
+        destRect.bottom = destH;
+    }
+
+    if (!mCurrentState.buffer) {
+        ui::Transform t;
+        t.set(destRect.left, destRect.top);
+        mCurrentState.transform = t;
+        return;
+    }
+
+    uint32_t bufferWidth = mCurrentState.buffer->getBuffer()->getWidth();
+    uint32_t bufferHeight = mCurrentState.buffer->getBuffer()->getHeight();
+    // Undo any transformations on the buffer.
+    if (mCurrentState.bufferTransform & ui::Transform::ROT_90) {
+        std::swap(bufferWidth, bufferHeight);
+    }
+    uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
+    if (mCurrentState.transformToDisplayInverse) {
+        if (invTransform & ui::Transform::ROT_90) {
+            std::swap(bufferWidth, bufferHeight);
+        }
+    }
+
+    float sx = destW / static_cast<float>(bufferWidth);
+    float sy = destH / static_cast<float>(bufferHeight);
+    ui::Transform t;
+    t.set(sx, 0, 0, sy);
+    t.set(destRect.left, destRect.top);
+    mCurrentState.transform = t;
+    return;
+}
+
 bool BufferStateLayer::setMatrix(const layer_state_t::matrix22_t& matrix,
                                  bool allowNonRectPreservingTransforms) {
-    if (mCurrentState.transform.dsdx() == matrix.dsdx &&
-        mCurrentState.transform.dtdy() == matrix.dtdy &&
-        mCurrentState.transform.dtdx() == matrix.dtdx &&
-        mCurrentState.transform.dsdy() == matrix.dsdy) {
+    if (mRequestedTransform.dsdx() == matrix.dsdx && mRequestedTransform.dtdy() == matrix.dtdy &&
+        mRequestedTransform.dtdx() == matrix.dtdx && mRequestedTransform.dsdy() == matrix.dsdy) {
         return false;
     }
 
@@ -313,7 +373,7 @@ bool BufferStateLayer::setMatrix(const layer_state_t::matrix22_t& matrix,
         return false;
     }
 
-    mCurrentState.transform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
+    mRequestedTransform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
 
     mCurrentState.sequence++;
     mCurrentState.modified = true;
@@ -323,11 +383,11 @@ bool BufferStateLayer::setMatrix(const layer_state_t::matrix22_t& matrix,
 }
 
 bool BufferStateLayer::setPosition(float x, float y) {
-    if (mCurrentState.transform.tx() == x && mCurrentState.transform.ty() == y) {
+    if (mRequestedTransform.tx() == x && mRequestedTransform.ty() == y) {
         return false;
     }
 
-    mCurrentState.transform.set(x, y);
+    mRequestedTransform.set(x, y);
 
     mCurrentState.sequence++;
     mCurrentState.modified = true;
@@ -523,35 +583,35 @@ bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {
 
 Rect BufferStateLayer::getBufferSize(const State& s) const {
     // for buffer state layers we use the display frame size as the buffer size.
-    if (getActiveWidth(s) < UINT32_MAX && getActiveHeight(s) < UINT32_MAX) {
-        return Rect(getActiveWidth(s), getActiveHeight(s));
-    }
 
     if (mBufferInfo.mBuffer == nullptr) {
         return Rect::INVALID_RECT;
     }
 
-    // if the display frame is not defined, use the parent bounds as the buffer size.
-    const auto& p = mDrawingParent.promote();
-    if (p != nullptr) {
-        Rect parentBounds = Rect(p->getBounds(Region()));
-        if (!parentBounds.isEmpty()) {
-            return parentBounds;
+    uint32_t bufWidth = mBufferInfo.mBuffer->getBuffer()->getWidth();
+    uint32_t bufHeight = mBufferInfo.mBuffer->getBuffer()->getHeight();
+
+    // Undo any transformations on the buffer and return the result.
+    if (mBufferInfo.mTransform & ui::Transform::ROT_90) {
+        std::swap(bufWidth, bufHeight);
+    }
+
+    if (getTransformToDisplayInverse()) {
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayRotationFlags();
+        if (invTransform & ui::Transform::ROT_90) {
+            std::swap(bufWidth, bufHeight);
         }
     }
 
-    return Rect::INVALID_RECT;
+    return Rect(0, 0, bufWidth, bufHeight);
 }
 
 FloatRect BufferStateLayer::computeSourceBounds(const FloatRect& parentBounds) const {
-    const State& s(getDrawingState());
-    // for buffer state layers we use the display frame size as the buffer size.
-    if (getActiveWidth(s) < UINT32_MAX && getActiveHeight(s) < UINT32_MAX) {
-        return FloatRect(0, 0, getActiveWidth(s), getActiveHeight(s));
+    if (mBufferInfo.mBuffer == nullptr) {
+        return parentBounds;
     }
 
-    // if the display frame is not defined, use the parent bounds as the buffer size.
-    return parentBounds;
+    return getBufferSize(getDrawingState()).toFloatRect();
 }
 
 // -----------------------------------------------------------------------
