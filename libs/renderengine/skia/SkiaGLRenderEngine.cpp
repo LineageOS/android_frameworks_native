@@ -564,10 +564,10 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
     // which gets similar results for most surfaces
     // Determine later on if we need to leverage the stertch shader within
     // surface flinger
-    if (stretchEffect.hasEffect() && /* DISABLES CODE */ (false)) {
+    if (stretchEffect.hasEffect()) {
         const auto targetBuffer = layer->source.buffer.buffer;
-        const auto graphicsBuffer = targetBuffer ? targetBuffer->getBuffer() : nullptr;
-        if (graphicsBuffer && shader) {
+        const auto graphicBuffer = targetBuffer ? targetBuffer->getBuffer() : nullptr;
+        if (graphicBuffer && shader) {
             shader = mStretchShaderFactory.createSkShader(shader, stretchEffect);
         }
     }
