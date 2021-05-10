@@ -1640,6 +1640,10 @@ static Dumpstate::RunStatus dumpstate() {
         MYLOGD("Skipping 'lsmod' because /proc/modules does not exist\n");
     } else {
         RunCommand("LSMOD", {"lsmod"});
+        RunCommand("MODULES INFO",
+                   {"sh", "-c", "cat /proc/modules | cut -d' ' -f1 | "
+                    "    while read MOD ; do echo modinfo:$MOD ; modinfo $MOD ; "
+                    "done"}, CommandOptions::AS_ROOT);
     }
 
     if (android::base::GetBoolProperty("ro.logd.kernel", false)) {
