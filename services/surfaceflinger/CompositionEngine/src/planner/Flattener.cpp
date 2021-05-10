@@ -126,9 +126,11 @@ void Flattener::dump(std::string& result) const {
         return left.first < right.first;
     };
 
-    const size_t maxLayerCount = std::max_element(mInitialLayerCounts.cbegin(),
-                                                  mInitialLayerCounts.cend(), compareLayerCounts)
-                                         ->first;
+    const size_t maxLayerCount = mInitialLayerCounts.empty()
+            ? 0u
+            : std::max_element(mInitialLayerCounts.cbegin(), mInitialLayerCounts.cend(),
+                               compareLayerCounts)
+                      ->first;
 
     result.append("\n    Initial counts:\n");
     for (size_t count = 1; count < maxLayerCount; ++count) {
