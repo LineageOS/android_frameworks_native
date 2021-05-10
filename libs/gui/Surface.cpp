@@ -1268,8 +1268,11 @@ int Surface::query(int what, int* value) const {
                 if (err == NO_ERROR) {
                     return NO_ERROR;
                 }
-                if (composerService()->authenticateSurfaceTexture(
-                        mGraphicBufferProducer)) {
+                sp<ISurfaceComposer> surfaceComposer = composerService();
+                if (surfaceComposer == nullptr) {
+                    return -EPERM; // likely permissions error
+                }
+                if (surfaceComposer->authenticateSurfaceTexture(mGraphicBufferProducer)) {
                     *value = 1;
                 } else {
                     *value = 0;
