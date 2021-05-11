@@ -358,6 +358,11 @@ void ASurfaceTransaction_setColor(ASurfaceTransaction* transaction,
  * enum.
  *
  * Available since API level 29.
+ *
+ * @deprecated Use setCrop, setPosition, setBufferTransform, and setScale instead. Those functions
+ * provide well defined behavior and allows for more control by the apps. It also allows the caller
+ * to set different properties at different times, instead of having to specify all the desired
+ * properties at once.
  */
 void ASurfaceTransaction_setGeometry(ASurfaceTransaction* transaction,
                                      ASurfaceControl* surface_control, const ARect& source,
