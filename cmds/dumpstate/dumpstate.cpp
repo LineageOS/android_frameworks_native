@@ -1963,6 +1963,8 @@ static void DumpstateTelephonyOnly(const std::string& calling_package) {
 
     RunDumpsys("DUMPSYS", {"connectivity"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS", {"vcn_management"}, CommandOptions::WithTimeout(90).Build(),
+               SEC_TO_MSEC(10));
     if (include_sensitive_info) {
         // Carrier apps' services will be dumped below in dumpsys activity service all-non-platform.
         RunDumpsys("DUMPSYS", {"carrier_config"}, CommandOptions::WithTimeout(90).Build(),
