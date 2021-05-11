@@ -413,8 +413,7 @@ void InputReader::getExternalStylusDevicesLocked(std::vector<InputDeviceInfo>& o
     }
 }
 
-void InputReader::dispatchExternalStylusState(const StylusState& state) {
-    std::scoped_lock _l(mLock);
+void InputReader::dispatchExternalStylusStateLocked(const StylusState& state) {
     for (auto& devicePair : mDevices) {
         std::shared_ptr<InputDevice>& device = devicePair.second;
         device->updateExternalStylusState(state);
@@ -945,7 +944,7 @@ void InputReader::ContextImpl::getExternalStylusDevices(std::vector<InputDeviceI
 }
 
 void InputReader::ContextImpl::dispatchExternalStylusState(const StylusState& state) {
-    mReader->dispatchExternalStylusState(state);
+    mReader->dispatchExternalStylusStateLocked(state);
 }
 
 InputReaderPolicyInterface* InputReader::ContextImpl::getPolicy() {
