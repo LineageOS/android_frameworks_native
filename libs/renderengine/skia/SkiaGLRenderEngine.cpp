@@ -560,7 +560,11 @@ sk_sp<SkShader> SkiaGLRenderEngine::createRuntimeEffectShader(
         const LayerSettings* layer, const DisplaySettings& display, bool undoPremultipliedAlpha,
         bool requiresLinearEffect) {
     const auto stretchEffect = layer->stretchEffect;
-    if (stretchEffect.hasEffect()) {
+    // The given surface will be stretched by HWUI via matrix transformation
+    // which gets similar results for most surfaces
+    // Determine later on if we need to leverage the stertch shader within
+    // surface flinger
+    if (stretchEffect.hasEffect() && /* DISABLES CODE */ (false)) {
         const auto targetBuffer = layer->source.buffer.buffer;
         const auto graphicsBuffer = targetBuffer ? targetBuffer->getBuffer() : nullptr;
         if (graphicsBuffer && shader) {
@@ -652,33 +656,6 @@ private:
     SkCanvas* mCanvas;
     int mSaveCount;
 };
-
-void drawStretch(const SkRect& bounds, const StretchEffect& stretchEffect,
-                 SkCanvas* canvas, const SkPaint& paint) {
-    float top = bounds.top();
-    float left = bounds.left();
-    float bottom = bounds.bottom();
-    float right = bounds.right();
-    // Adjust the drawing bounds based on the stretch itself.
-    float stretchOffsetX =
-        round(bounds.width() * stretchEffect.getStretchWidthMultiplier());
-    float stretchOffsetY =
-        round(bounds.height() * stretchEffect.getStretchHeightMultiplier());
-    if (stretchEffect.vectorY < 0.f) {
-        top -= stretchOffsetY;
-    } else if (stretchEffect.vectorY > 0.f){
-        bottom += stretchOffsetY;
-    }
-
-    if (stretchEffect.vectorX < 0.f) {
-        left -= stretchOffsetX;
-    } else if (stretchEffect.vectorX > 0.f) {
-        right += stretchOffsetX;
-    }
-
-    auto stretchBounds = SkRect::MakeLTRB(left, top, right, bottom);
-    canvas->drawRect(stretchBounds, paint);
-}
 
 static SkRRect getBlurRRect(const BlurRegion& region) {
     const auto rect = SkRect::MakeLTRB(region.left, region.top, region.right, region.bottom);
@@ -919,12 +896,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         // TODO(b/175915334): consider relaxing this restriction to enable more flexible
         // composition - using a well-defined invalid color is long-term less error-prone.
         if (layer->shadow.length > 0) {
-            const auto rect = layer->geometry.roundedCornersRadius > 0
-                    ? getSkRect(layer->geometry.roundedCornersCrop)
-                    : bounds.rect();
             // This would require a new parameter/flag to SkShadowUtils::DrawShadow
             LOG_ALWAYS_FATAL_IF(layer->disableBlending, "Cannot disableBlending with a shadow");
-            drawShadow(canvas, rect, layer->geometry.roundedCornersRadius, layer->shadow);
+            drawShadow(canvas, bounds, layer->shadow);
             continue;
         }
 
@@ -1056,17 +1030,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             paint.setAntiAlias(true);
             canvas->drawRRect(bounds, paint);
         } else {
-            auto& stretchEffect = layer->stretchEffect;
-            // TODO (njawad) temporarily disable manipulation of geometry
-            //  the layer bounds will be updated in HWUI instead of RenderEngine
-            //  in a subsequent CL
-            // Keep the method call in a dead code path to make -Werror happy
-            // with unused methods
-            if (stretchEffect.hasEffect() && /* DISABLES CODE */ (false)) {
-                drawStretch(bounds.rect(), stretchEffect, canvas, paint);
-            } else {
-                canvas->drawRect(bounds.rect(), paint);
-            }
+            canvas->drawRect(bounds.rect(), paint);
         }
         if (kFlushAfterEveryLayer) {
             ATRACE_NAME("flush surface");
@@ -1213,17 +1177,14 @@ size_t SkiaGLRenderEngine::getMaxViewportDims() const {
     return mGrContext->maxRenderTargetSize();
 }
 
-void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRect& casterRect, float cornerRadius,
+void SkiaGLRenderEngine::drawShadow(SkCanvas* canvas, const SkRRect& casterRRect,
                                     const ShadowSettings& settings) {
     ATRACE_CALL();
     const float casterZ = settings.length / 2.0f;
-    const auto shadowShape = cornerRadius > 0
-            ? SkPath::RRect(SkRRect::MakeRectXY(casterRect, cornerRadius, cornerRadius))
-            : SkPath::Rect(casterRect);
     const auto flags =
             settings.casterIsTranslucent ? kTransparentOccluder_ShadowFlag : kNone_ShadowFlag;
 
-    SkShadowUtils::DrawShadow(canvas, shadowShape, SkPoint3::Make(0, 0, casterZ),
+    SkShadowUtils::DrawShadow(canvas, SkPath::RRect(casterRRect), SkPoint3::Make(0, 0, casterZ),
                               getSkPoint3(settings.lightPos), settings.lightRadius,
                               getSkColor(settings.ambientColor), getSkColor(settings.spotColor),
                               flags);
