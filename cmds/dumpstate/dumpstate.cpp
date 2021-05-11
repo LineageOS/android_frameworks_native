@@ -3183,6 +3183,11 @@ Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented(int32_t calling_uid
         // Since we do not have user consent to share the bugreport it does not get
         // copied over to the calling app but remains in the internal directory from
         // where the user can manually pull it.
+        std::string final_path = GetPath(".zip");
+        bool copy_succeeded = android::os::CopyFileToFile(path_, final_path);
+        if (copy_succeeded) {
+            android::os::UnlinkAndLogOnError(path_);
+        }
         return Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT;
     }
     // Unknown result; must be a programming error.
