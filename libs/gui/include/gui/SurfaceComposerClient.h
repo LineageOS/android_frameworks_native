@@ -554,6 +554,8 @@ public:
                                       const StretchEffect& stretchEffect);
 
         Transaction& setBufferCrop(const sp<SurfaceControl>& sc, const Rect& bufferCrop);
+        Transaction& setDestinationFrame(const sp<SurfaceControl>& sc,
+                                         const Rect& destinationFrame);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);

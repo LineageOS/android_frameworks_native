@@ -213,7 +213,8 @@ void BLASTBufferQueue::update(const sp<SurfaceControl>& surface, uint32_t width,
             // for this is the scale is calculated based on the requested size and buffer size.
             // If there's no buffer, the scale will always be 1.
             if (mLastBufferInfo.hasBuffer) {
-                setMatrix(&t, mLastBufferInfo);
+                t.setDestinationFrame(mSurfaceControl,
+                                      Rect(0, 0, newSize.getWidth(), newSize.getHeight()));
             }
             applyTransaction = true;
         }
@@ -416,8 +417,8 @@ void BLASTBufferQueue::processNextBufferLocked(bool useNextTransaction) {
     t->addTransactionCompletedCallback(transactionCallbackThunk, static_cast<void*>(this));
     mSurfaceControlsWithPendingCallback.push(mSurfaceControl);
 
-    setMatrix(t, mLastBufferInfo);
-    t->setCrop(mSurfaceControl, crop);
+    t->setDestinationFrame(mSurfaceControl, Rect(0, 0, mSize.getWidth(), mSize.getHeight()));
+    t->setBufferCrop(mSurfaceControl, crop);
     t->setTransform(mSurfaceControl, bufferItem.mTransform);
     t->setTransformToDisplayInverse(mSurfaceControl, bufferItem.mTransformToDisplayInverse);
     if (!bufferItem.mIsAutoTimestamp) {
@@ -541,19 +542,6 @@ bool BLASTBufferQueue::rejectBuffer(const BufferItem& item) {
 
     // reject buffers if the buffer size doesn't match.
     return mSize != bufferSize;
-}
-
-void BLASTBufferQueue::setMatrix(SurfaceComposerClient::Transaction* t,
-                                 const BufferInfo& bufferInfo) {
-    uint32_t bufWidth = bufferInfo.crop.getWidth();
-    uint32_t bufHeight = bufferInfo.crop.getHeight();
-
-    float sx = mSize.width / static_cast<float>(bufWidth);
-    float sy = mSize.height / static_cast<float>(bufHeight);
-
-    t->setMatrix(mSurfaceControl, sx, 0, 0, sy);
-    // Update position based on crop.
-    t->setPosition(mSurfaceControl, bufferInfo.crop.left * sx * -1, bufferInfo.crop.top * sy * -1);
 }
 
 void BLASTBufferQueue::setTransactionCompleteCallback(
