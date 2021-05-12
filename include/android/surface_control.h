@@ -133,6 +133,9 @@ typedef struct ASurfaceTransactionStats ASurfaceTransactionStats;
  * ASurfaceTransaction_OnComplete callback can be used to be notified when a frame
  * including the updates in a transaction was presented.
  *
+ * Buffers which are replaced or removed from the scene in the transaction invoking
+ * this callback may be reused after this point.
+ *
  * \param context Optional context provided by the client that is passed into
  * the callback.
  *
@@ -152,6 +155,13 @@ typedef void (*ASurfaceTransaction_OnComplete)(void* context, ASurfaceTransactio
  * The ASurfaceTransaction_OnCommit callback is invoked when transaction is applied and the updates
  * are ready to be presented. This callback will be invoked before the
  * ASurfaceTransaction_OnComplete callback.
+ *
+ * This callback does not mean buffers have been released! It simply means that any new
+ * transactions applied will not overwrite the transaction for which we are receiving
+ * a callback and instead will be included in the next frame. If you are trying to avoid
+ * dropping frames (overwriting transactions), and unable to use timestamps (Which provide
+ * a more efficient solution), then this method provides a method to pace your transaction
+ * application.
  *
  * \param context Optional context provided by the client that is passed into the callback.
  *
