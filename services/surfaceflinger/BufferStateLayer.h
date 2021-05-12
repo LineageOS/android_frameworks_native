@@ -86,6 +86,8 @@ public:
     void setAutoRefresh(bool autoRefresh) override;
 
     bool setBufferCrop(const Rect& bufferCrop) override;
+    bool setDestinationFrame(const Rect& destinationFrame) override;
+    void updateGeometry() override;
 
     // -----------------------------------------------------------------------
 
@@ -177,6 +179,10 @@ private:
     //     - If the integer decreases in latchBuffer, that buffer was latched
     //     - If the integer decreases in setBuffer or doTransaction, a buffer was dropped
     std::atomic<int32_t> mPendingBufferTransactions{0};
+
+    // Contains requested position and matrix updates. This will be applied if the client does
+    // not specify a destination frame.
+    ui::Transform mRequestedTransform;
 
     // TODO(marissaw): support sticky transform for LEGACY camera mode
 
