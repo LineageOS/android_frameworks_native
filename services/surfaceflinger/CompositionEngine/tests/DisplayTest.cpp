@@ -879,10 +879,7 @@ TEST_F(DisplayFinishFrameTest, doesNotSkipCompositionIfNotDirtyOnHwcDisplay) {
     mDisplay->editState().layerStackSpace.content = Rect(0, 0, 1, 1);
     mDisplay->editState().dirtyRegion = Region::INVALID_REGION;
 
-    CompositionRefreshArgs refreshArgs;
-    refreshArgs.repaintEverything = false;
-
-    mDisplay->finishFrame(refreshArgs);
+    mDisplay->finishFrame({});
 }
 
 TEST_F(DisplayFinishFrameTest, skipsCompositionIfNotDirty) {
@@ -900,10 +897,7 @@ TEST_F(DisplayFinishFrameTest, skipsCompositionIfNotDirty) {
     gpuDisplay->editState().layerStackSpace.content = Rect(0, 0, 1, 1);
     gpuDisplay->editState().dirtyRegion = Region::INVALID_REGION;
 
-    CompositionRefreshArgs refreshArgs;
-    refreshArgs.repaintEverything = false;
-
-    gpuDisplay->finishFrame(refreshArgs);
+    gpuDisplay->finishFrame({});
 }
 
 TEST_F(DisplayFinishFrameTest, performsCompositionIfDirty) {
@@ -921,31 +915,7 @@ TEST_F(DisplayFinishFrameTest, performsCompositionIfDirty) {
     gpuDisplay->editState().layerStackSpace.content = Rect(0, 0, 1, 1);
     gpuDisplay->editState().dirtyRegion = Region(Rect(0, 0, 1, 1));
 
-    CompositionRefreshArgs refreshArgs;
-    refreshArgs.repaintEverything = false;
-
-    gpuDisplay->finishFrame(refreshArgs);
-}
-
-TEST_F(DisplayFinishFrameTest, performsCompositionIfRepaintEverything) {
-    auto args = getDisplayCreationArgsForGpuVirtualDisplay();
-    std::shared_ptr<impl::Display> gpuDisplay = impl::createDisplay(mCompositionEngine, args);
-
-    mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
-    gpuDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
-
-    // We expect a single call to queueBuffer when composition is not skipped.
-    EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(1);
-
-    gpuDisplay->editState().isEnabled = true;
-    gpuDisplay->editState().usesClientComposition = false;
-    gpuDisplay->editState().layerStackSpace.content = Rect(0, 0, 1, 1);
-    gpuDisplay->editState().dirtyRegion = Region::INVALID_REGION;
-
-    CompositionRefreshArgs refreshArgs;
-    refreshArgs.repaintEverything = true;
-
-    gpuDisplay->finishFrame(refreshArgs);
+    gpuDisplay->finishFrame({});
 }
 
 /*

@@ -23,20 +23,20 @@
 namespace android::mock {
 
 struct SchedulerCallback final : ISchedulerCallback {
+    MOCK_METHOD(void, scheduleRefresh, (FrameHint), (override));
     MOCK_METHOD1(setVsyncEnabled, void(bool));
     MOCK_METHOD2(changeRefreshRate,
                  void(const scheduler::RefreshRateConfigs::RefreshRate&,
                       scheduler::RefreshRateConfigEvent));
-    MOCK_METHOD0(repaintEverythingForHWC, void());
     MOCK_METHOD1(kernelTimerChanged, void(bool));
     MOCK_METHOD0(triggerOnFrameRateOverridesChanged, void());
 };
 
 struct NoOpSchedulerCallback final : ISchedulerCallback {
+    void scheduleRefresh(FrameHint) override {}
     void setVsyncEnabled(bool) override {}
     void changeRefreshRate(const scheduler::RefreshRateConfigs::RefreshRate&,
                            scheduler::RefreshRateConfigEvent) override {}
-    void repaintEverythingForHWC() override {}
     void kernelTimerChanged(bool) override {}
     void triggerOnFrameRateOverridesChanged() {}
 };

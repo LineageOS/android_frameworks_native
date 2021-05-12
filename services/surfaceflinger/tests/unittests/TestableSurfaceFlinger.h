@@ -426,7 +426,7 @@ public:
     auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
     auto& mutableEventQueue() { return mFlinger->mEventQueue; }
-    auto& mutableGeometryInvalid() { return mFlinger->mGeometryInvalid; }
+    auto& mutableGeometryDirty() { return mFlinger->mGeometryDirty; }
     auto& mutableInterceptor() { return mFlinger->mInterceptor; }
     auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
     auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
@@ -762,9 +762,9 @@ public:
     };
 
 private:
+    void scheduleRefresh(FrameHint) override {}
     void setVsyncEnabled(bool) override {}
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ModeEvent) override {}
-    void repaintEverythingForHWC() override {}
     void kernelTimerChanged(bool) override {}
     void triggerOnFrameRateOverridesChanged() {}
 

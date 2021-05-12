@@ -285,8 +285,12 @@ public:
     template <typename F, typename T = std::invoke_result_t<F>>
     [[nodiscard]] std::future<T> schedule(F&&);
 
-    // force full composition on all displays
-    void repaintEverything();
+    // Schedule commit of transactions on the main thread ahead of the next VSYNC.
+    void scheduleInvalidate(FrameHint);
+    // As above, but also force refresh regardless if transactions were committed.
+    void scheduleRefresh(FrameHint) override;
+    // As above, but also force dirty geometry to repaint.
+    void scheduleRepaint();
 
     surfaceflinger::Factory& getFactory() { return mFactory; }
 
@@ -751,8 +755,6 @@ private:
     void setVsyncEnabled(bool) override;
     // Initiates a refresh rate change to be applied on invalidate.
     void changeRefreshRate(const Scheduler::RefreshRate&, Scheduler::ModeEvent) override;
-    // Forces full composition on all displays without resetting the scheduler idle timer.
-    void repaintEverythingForHWC() override;
     // Called when kernel idle timer has expired. Used to update the refresh rate overlay.
     void kernelTimerChanged(bool expired) override;
     // Called when the frame rate override list changed to trigger an event.
@@ -770,8 +772,6 @@ private:
     /*
      * Message handling
      */
-    // Can only be called from the main thread or with mStateLock held
-    void signalTransaction();
     // Can only be called from the main thread or with mStateLock held
     void signalLayerUpdate();
     void signalRefresh();
@@ -1033,8 +1033,6 @@ private:
     /*
      * Compositing
      */
-    void invalidateHwcGeometry();
-
     void postComposition();
     void getCompositorTiming(CompositorTiming* compositorTiming);
     void updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
@@ -1251,7 +1249,8 @@ private:
     bool mLayersRemoved = false;
     bool mLayersAdded = false;
 
-    std::atomic<bool> mRepaintEverything = false;
+    std::atomic_bool mForceRefresh = false;
+    std::atomic_bool mGeometryDirty = false;
 
     // constant members (no synchronization needed for access)
     const nsecs_t mBootTime = systemTime();
@@ -1278,7 +1277,6 @@ private:
     bool mSomeDataspaceChanged = false;
     bool mForceTransactionDisplayChange = false;
 
-    bool mGeometryInvalid = false;
     bool mAnimCompositionPending = false;
 
     // Tracks layers that have pending frames which are candidates for being
@@ -1313,13 +1311,13 @@ private:
         std::optional<DisplayIdGenerator<HalVirtualDisplayId>> hal;
     } mVirtualDisplayIdGenerators;
 
-    // don't use a lock for these, we don't care
-    int mDebugRegion = 0;
-    bool mDebugDisableHWC = false;
-    bool mDebugDisableTransformHint = false;
+    std::atomic_uint mDebugFlashDelay = 0;
+    std::atomic_bool mDebugDisableHWC = false;
+    std::atomic_bool mDebugDisableTransformHint = false;
+    std::atomic<nsecs_t> mDebugInTransaction = 0;
+    std::atomic_bool mForceFullDamage = false;
+
     bool mLayerCachingEnabled = false;
-    volatile nsecs_t mDebugInTransaction = 0;
-    bool mForceFullDamage = false;
     bool mPropagateBackpressureClientComposition = false;
     sp<SurfaceInterceptor> mInterceptor;
 
