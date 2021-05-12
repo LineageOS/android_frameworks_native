@@ -4,6 +4,14 @@ subdirs = [
 cc_library_shared {
     name: "libsensorservice",
 
+    product_variables: {
+        lineage: {
+            override_max_valid_magnetic_field: {
+                cppflags: ["-DOVERRIDE_MAX_VALID_MAGNETIC_FIELD=%f"],
+            },
+        },
+    },
+
     srcs: [
         "BatteryService.cpp",
         "CorrectedGyroSensor.cpp",
