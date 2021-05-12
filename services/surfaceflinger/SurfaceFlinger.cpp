@@ -1709,11 +1709,11 @@ void SurfaceFlinger::setVsyncEnabled(bool enabled) {
 }
 
 SurfaceFlinger::FenceWithFenceTime SurfaceFlinger::previousFrameFence() {
-    // We are storing the last 2 present fences. If sf's phase offset is to be
-    // woken up before the actual vsync but targeting the next vsync, we need to check
-    // fence N-2
-    return mVsyncModulator->getVsyncConfig().sfOffset > 0 ? mPreviousPresentFences[0]
-                                                          : mPreviousPresentFences[1];
+    const auto now = systemTime();
+    const auto vsyncPeriod = mScheduler->getDisplayStatInfo(now).vsyncPeriod;
+    const bool expectedPresentTimeIsTheNextVsync = mExpectedPresentTime - now <= vsyncPeriod;
+    return expectedPresentTimeIsTheNextVsync ? mPreviousPresentFences[0]
+                                             : mPreviousPresentFences[1];
 }
 
 bool SurfaceFlinger::previousFramePending(int graceTimeMs) {
