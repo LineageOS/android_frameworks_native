@@ -78,18 +78,14 @@ static const float FREE_FALL_THRESHOLD = 0.1f * (NOMINAL_GRAVITY);
  * Fields strengths greater than this likely indicate a local magnetic
  * disturbance which we do not want to update into the fused frame.
  */
-static const float MAX_VALID_MAGNETIC_FIELD = 100; // uT
-static const float MAX_VALID_MAGNETIC_FIELD_SQ =
-        MAX_VALID_MAGNETIC_FIELD*MAX_VALID_MAGNETIC_FIELD;
+static const float MAX_VALID_MAGNETIC_FIELD_SQ = 10000; // 100 uT
 
 /*
  * Values of the field smaller than this should be ignored in fusion to avoid
  * ill-conditioning. This state can happen with anomalous local magnetic
  * disturbances canceling the Earth field.
  */
-static const float MIN_VALID_MAGNETIC_FIELD = 10; // uT
-static const float MIN_VALID_MAGNETIC_FIELD_SQ =
-        MIN_VALID_MAGNETIC_FIELD*MIN_VALID_MAGNETIC_FIELD;
+static const float MIN_VALID_MAGNETIC_FIELD_SQ = 100; // 10 uT
 
 /*
  * If the cross product of two vectors has magnitude squared less than this,
