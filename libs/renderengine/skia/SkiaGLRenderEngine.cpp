@@ -898,7 +898,16 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         if (layer->shadow.length > 0) {
             // This would require a new parameter/flag to SkShadowUtils::DrawShadow
             LOG_ALWAYS_FATAL_IF(layer->disableBlending, "Cannot disableBlending with a shadow");
-            drawShadow(canvas, bounds, layer->shadow);
+
+            // Technically, if bounds is a rect and roundRectClip is not empty,
+            // it means that the bounds and roundedCornersCrop were different
+            // enough that we should intersect them to find the proper shadow.
+            // In practice, this often happens when the two rectangles appear to
+            // not match due to rounding errors. Draw the rounded version, which
+            // looks more like the intent.
+            const auto& rrect =
+                    bounds.isRect() && !roundRectClip.isEmpty() ? roundRectClip : bounds;
+            drawShadow(canvas, rrect, layer->shadow);
             continue;
         }
 
