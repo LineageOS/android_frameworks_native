@@ -101,6 +101,7 @@ void RenderEngineThreaded::waitUntilInitialized() const {
 }
 
 void RenderEngineThreaded::primeCache() {
+    ATRACE_CALL();
     // This function is designed so it can run asynchronously, so we do not need to wait
     // for the futures.
     {
@@ -131,6 +132,7 @@ void RenderEngineThreaded::dump(std::string& result) {
 }
 
 void RenderEngineThreaded::genTextures(size_t count, uint32_t* names) {
+    ATRACE_CALL();
     std::promise<void> resultPromise;
     std::future<void> resultFuture = resultPromise.get_future();
     {
@@ -146,6 +148,7 @@ void RenderEngineThreaded::genTextures(size_t count, uint32_t* names) {
 }
 
 void RenderEngineThreaded::deleteTextures(size_t count, uint32_t const* names) {
+    ATRACE_CALL();
     std::promise<void> resultPromise;
     std::future<void> resultFuture = resultPromise.get_future();
     {
@@ -162,6 +165,7 @@ void RenderEngineThreaded::deleteTextures(size_t count, uint32_t const* names) {
 
 void RenderEngineThreaded::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
                                                     bool isRenderable) {
+    ATRACE_CALL();
     // This function is designed so it can run asynchronously, so we do not need to wait
     // for the futures.
     {
@@ -175,6 +179,7 @@ void RenderEngineThreaded::mapExternalTextureBuffer(const sp<GraphicBuffer>& buf
 }
 
 void RenderEngineThreaded::unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) {
+    ATRACE_CALL();
     // This function is designed so it can run asynchronously, so we do not need to wait
     // for the futures.
     {
@@ -247,6 +252,7 @@ status_t RenderEngineThreaded::drawLayers(const DisplaySettings& display,
                                           const bool useFramebufferCache,
                                           base::unique_fd&& bufferFence,
                                           base::unique_fd* drawFence) {
+    ATRACE_CALL();
     std::promise<status_t> resultPromise;
     std::future<status_t> resultFuture = resultPromise.get_future();
     {
@@ -264,6 +270,7 @@ status_t RenderEngineThreaded::drawLayers(const DisplaySettings& display,
 }
 
 void RenderEngineThreaded::cleanFramebufferCache() {
+    ATRACE_CALL();
     // This function is designed so it can run asynchronously, so we do not need to wait
     // for the futures.
     {
