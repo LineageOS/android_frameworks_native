@@ -33,6 +33,10 @@ cc_library_shared {
         "-fvisibility=hidden"
     ],
 
+    defaults: [
+        "max_valid_magnetic_field_defaults",
+    ],
+
     header_libs: [
         "android.hardware.sensors@2.X-shared-utils",
     ],
