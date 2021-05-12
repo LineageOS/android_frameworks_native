@@ -231,6 +231,10 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
             mFlags |= SENSOR_FLAG_WAKE_UP;
         }
         break;
+    case SENSOR_TYPE_DEVICE_ORIENTATION:
+        mStringType = SENSOR_STRING_TYPE_DEVICE_ORIENTATION;
+        mFlags |= SENSOR_FLAG_ON_CHANGE_MODE;
+        break;
     case SENSOR_TYPE_DYNAMIC_SENSOR_META:
         mStringType = SENSOR_STRING_TYPE_DYNAMIC_SENSOR_META;
         mFlags |= SENSOR_FLAG_SPECIAL_REPORTING_MODE; // special trigger
