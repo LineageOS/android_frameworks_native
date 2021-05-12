@@ -49,16 +49,12 @@ bool RpcServer::setupUnixDomainServer(const char* path) {
     return setupSocketServer(UnixSocketAddress(path));
 }
 
-#ifdef __BIONIC__
-
 bool RpcServer::setupVsockServer(unsigned int port) {
     // realizing value w/ this type at compile time to avoid ubsan abort
     constexpr unsigned int kAnyCid = VMADDR_CID_ANY;
 
     return setupSocketServer(VsockSocketAddress(kAnyCid, port));
 }
-
-#endif // __BIONIC__
 
 bool RpcServer::setupInetServer(unsigned int port, unsigned int* assignedPort) {
     const char* kAddr = "127.0.0.1";
@@ -121,16 +117,14 @@ sp<IBinder> RpcServer::getRootObject() {
 
 void RpcServer::join() {
     LOG_ALWAYS_FATAL_IF(!mAgreedExperimental, "no!");
-
-    std::vector<std::thread> pool;
     {
         std::lock_guard<std::mutex> _l(mLock);
         LOG_ALWAYS_FATAL_IF(mServer.get() == -1, "RpcServer must be setup to join.");
     }
 
     while (true) {
-        unique_fd clientFd(
-                TEMP_FAILURE_RETRY(accept4(mServer.get(), nullptr, 0 /*length*/, SOCK_CLOEXEC)));
+        unique_fd clientFd(TEMP_FAILURE_RETRY(
+                accept4(mServer.get(), nullptr, nullptr /*length*/, SOCK_CLOEXEC)));
 
         if (clientFd < 0) {
             ALOGE("Could not accept4 socket: %s", strerror(errno));
@@ -138,7 +132,8 @@ void RpcServer::join() {
         }
         LOG_RPC_DETAIL("accept4 on fd %d yields fd %d", mServer.get(), clientFd.get());
 
-        // TODO(b/183988761): cannot trust this simple ID
+        // TODO(b/183988761): cannot trust this simple ID, should not block this
+        // thread
         LOG_ALWAYS_FATAL_IF(!mAgreedExperimental, "no!");
         int32_t id;
         if (sizeof(id) != read(clientFd.get(), &id, sizeof(id))) {
@@ -214,6 +209,18 @@ bool RpcServer::setupSocketServer(const RpcSocketAddress& addr) {
 
     mServer = std::move(serverFd);
     return true;
+}
+
+void RpcServer::onSessionTerminating(const sp<RpcSession>& session) {
+    auto id = session->mId;
+    LOG_ALWAYS_FATAL_IF(id == std::nullopt, "Server sessions must be initialized with ID");
+    LOG_RPC_DETAIL("Dropping session %d", *id);
+
+    std::lock_guard<std::mutex> _l(mLock);
+    auto it = mSessions.find(*id);
+    LOG_ALWAYS_FATAL_IF(it == mSessions.end(), "Bad state, unknown session id %d", *id);
+    LOG_ALWAYS_FATAL_IF(it->second != session, "Bad state, session has id mismatch %d", *id);
+    (void)mSessions.erase(it);
 }
 
 } // namespace android

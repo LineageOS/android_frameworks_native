@@ -57,12 +57,10 @@ public:
      */
     [[nodiscard]] bool setupUnixDomainServer(const char* path);
 
-#ifdef __BIONIC__
     /**
      * Creates an RPC server at the current port.
      */
     [[nodiscard]] bool setupVsockServer(unsigned int port);
-#endif // __BIONIC__
 
     /**
      * Creates an RPC server at the current port using IPv4.
@@ -108,6 +106,10 @@ public:
     std::vector<sp<RpcSession>> listSessions();
 
     ~RpcServer();
+
+    // internal use only
+
+    void onSessionTerminating(const sp<RpcSession>& session);
 
 private:
     friend sp<RpcServer>;
