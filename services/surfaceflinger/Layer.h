@@ -239,8 +239,8 @@ public:
 
         FrameRate frameRate;
 
-        // Indicates whether parents / children of this layer had set FrameRate
-        bool treeHasFrameRateVote;
+        // The combined frame rate of parents / children of this layer
+        FrameRate frameRateForLayerTree;
 
         // Set by window manager indicating the layer and all its children are
         // in a different orientation than the display. The hint suggests that
@@ -1056,6 +1056,8 @@ private:
 
     // Fills in the frame and transform info for the InputWindowInfo
     void fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhysicalDisplay);
+
+    bool updateFrameRateForLayerTree(bool treeHasFrameRateVote);
 
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling, which is
