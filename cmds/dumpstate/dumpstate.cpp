@@ -1964,6 +1964,8 @@ static void DumpstateTelephonyOnly(const std::string& calling_package) {
 
     RunDumpsys("DUMPSYS", {"connectivity"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS", {"vcn_management"}, CommandOptions::WithTimeout(90).Build(),
+               SEC_TO_MSEC(10));
     if (include_sensitive_info) {
         // Carrier apps' services will be dumped below in dumpsys activity service all-non-platform.
         RunDumpsys("DUMPSYS", {"carrier_config"}, CommandOptions::WithTimeout(90).Build(),
@@ -3187,6 +3189,11 @@ Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented(int32_t calling_uid
         // Since we do not have user consent to share the bugreport it does not get
         // copied over to the calling app but remains in the internal directory from
         // where the user can manually pull it.
+        std::string final_path = GetPath(".zip");
+        bool copy_succeeded = android::os::CopyFileToFile(path_, final_path);
+        if (copy_succeeded) {
+            android::os::UnlinkAndLogOnError(path_);
+        }
         return Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT;
     }
     // Unknown result; must be a programming error.
