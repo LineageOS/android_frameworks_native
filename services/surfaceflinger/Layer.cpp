@@ -129,7 +129,6 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.frameRateSelectionPriority = PRIORITY_UNSET;
     mCurrentState.metadata = args.metadata;
     mCurrentState.shadowRadius = 0.f;
-    mCurrentState.treeHasFrameRateVote = false;
     mCurrentState.fixedTransformHint = ui::Transform::ROT_INVALID;
     mCurrentState.frameTimelineInfo = {};
     mCurrentState.postTime = -1;
@@ -861,7 +860,14 @@ void Layer::commitTransaction(State& stateToCommit) {
         // list.
         addSurfaceFrameDroppedForBuffer(bufferSurfaceFrame);
     }
+    const bool frameRateVoteChanged =
+            mDrawingState.frameRateForLayerTree != stateToCommit.frameRateForLayerTree;
     mDrawingState = stateToCommit;
+
+    if (frameRateVoteChanged) {
+        mFlinger->mScheduler->recordLayerHistory(this, systemTime(),
+                                                 LayerHistory::LayerUpdateType::SetFrameRate);
+    }
 
     // Set the present state for all bufferlessSurfaceFramesTX to Presented. The
     // bufferSurfaceFrameTX will be presented in latchBuffer.
@@ -1265,8 +1271,7 @@ void Layer::updateTreeHasFrameRateVote() {
     };
 
     // update parents and children about the vote
-    // First traverse the tree and count how many layers has votes. In addition
-    // activate the layers in Scheduler's LayerHistory for it to check for changes
+    // First traverse the tree and count how many layers has votes.
     int layersWithVote = 0;
     traverseTree([&layersWithVote](Layer* layer) {
         const auto layerVotedWithDefaultCompatibility =
@@ -1286,20 +1291,11 @@ void Layer::updateTreeHasFrameRateVote() {
         }
     });
 
-    // Now update the other layers
+    // Now we can update the tree frame rate vote for each layer in the tree
+    const bool treeHasFrameRateVote = layersWithVote > 0;
     bool transactionNeeded = false;
-    traverseTree([layersWithVote, &transactionNeeded, this](Layer* layer) {
-        const bool treeHasFrameRateVote = layersWithVote > 0;
-        if (layer->mCurrentState.treeHasFrameRateVote != treeHasFrameRateVote) {
-            layer->mCurrentState.sequence++;
-            layer->mCurrentState.treeHasFrameRateVote = treeHasFrameRateVote;
-            layer->mCurrentState.modified = true;
-            layer->setTransactionFlags(eTransactionNeeded);
-            transactionNeeded = true;
-
-            mFlinger->mScheduler->recordLayerHistory(layer, systemTime(),
-                                                     LayerHistory::LayerUpdateType::SetFrameRate);
-        }
+    traverseTree([treeHasFrameRateVote, &transactionNeeded](Layer* layer) {
+        transactionNeeded = layer->updateFrameRateForLayerTree(treeHasFrameRateVote);
     });
 
     if (transactionNeeded) {
@@ -1428,32 +1424,42 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
     return surfaceFrame;
 }
 
-Layer::FrameRate Layer::getFrameRateForLayerTree() const {
-    const auto frameRate = getDrawingState().frameRate;
+bool Layer::updateFrameRateForLayerTree(bool treeHasFrameRateVote) {
+    const auto updateCurrentState = [&](FrameRate frameRate) {
+        if (mCurrentState.frameRateForLayerTree == frameRate) {
+            return false;
+        }
+        mCurrentState.frameRateForLayerTree = frameRate;
+        mCurrentState.sequence++;
+        mCurrentState.modified = true;
+        setTransactionFlags(eTransactionNeeded);
+        return true;
+    };
+
+    const auto frameRate = mCurrentState.frameRate;
     if (frameRate.rate.isValid() || frameRate.type == FrameRateCompatibility::NoVote) {
-        return frameRate;
+        return updateCurrentState(frameRate);
     }
 
     // This layer doesn't have a frame rate. Check if its ancestors have a vote
-    if (sp<Layer> parent = getParent(); parent) {
-        if (const auto parentFrameRate = parent->getFrameRateForLayerTree();
-            parentFrameRate.rate.isValid()) {
-            return parentFrameRate;
+    for (sp<Layer> parent = getParent(); parent; parent = parent->getParent()) {
+        if (parent->mCurrentState.frameRate.rate.isValid()) {
+            return updateCurrentState(parent->mCurrentState.frameRate);
         }
     }
 
     // This layer and its ancestors don't have a frame rate. If one of successors
     // has a vote, return a NoVote for successors to set the vote
-    if (getDrawingState().treeHasFrameRateVote) {
-        return {Fps(0.0f), FrameRateCompatibility::NoVote};
+    if (treeHasFrameRateVote) {
+        return updateCurrentState(FrameRate(Fps(0.0f), FrameRateCompatibility::NoVote));
     }
 
-    return frameRate;
+    return updateCurrentState(frameRate);
 }
 
-// ----------------------------------------------------------------------------
-// pageflip handling...
-// ----------------------------------------------------------------------------
+Layer::FrameRate Layer::getFrameRateForLayerTree() const {
+    return getDrawingState().frameRateForLayerTree;
+}
 
 bool Layer::isHiddenByPolicy() const {
     const State& s(mDrawingState);
