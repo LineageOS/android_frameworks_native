@@ -20,7 +20,6 @@
 
 #include <compositionengine/impl/planner/Flattener.h>
 #include <compositionengine/impl/planner/LayerState.h>
-#include <compositionengine/impl/planner/Predictor.h>
 
 using time_point = std::chrono::steady_clock::time_point;
 using namespace std::chrono_literals;
@@ -126,9 +125,11 @@ void Flattener::dump(std::string& result) const {
         return left.first < right.first;
     };
 
-    const size_t maxLayerCount = std::max_element(mInitialLayerCounts.cbegin(),
-                                                  mInitialLayerCounts.cend(), compareLayerCounts)
-                                         ->first;
+    const size_t maxLayerCount = mInitialLayerCounts.empty()
+            ? 0u
+            : std::max_element(mInitialLayerCounts.cbegin(), mInitialLayerCounts.cend(),
+                               compareLayerCounts)
+                      ->first;
 
     result.append("\n    Initial counts:\n");
     for (size_t count = 1; count < maxLayerCount; ++count) {
@@ -408,7 +409,7 @@ void Flattener::buildCachedSets(time_point now) {
     }
 
     // TODO(b/181192467): Actually compute new LayerState vector and corresponding hash for each run
-    mPredictor.getPredictedPlan({}, 0);
+    // and feedback into the predictor
 
     ++mCachedSetCreationCount;
     mCachedSetCreationCost += mNewCachedSet->getCreationCost();
