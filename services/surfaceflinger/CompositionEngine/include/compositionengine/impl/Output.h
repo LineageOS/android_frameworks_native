@@ -20,6 +20,7 @@
 #include <compositionengine/Output.h>
 #include <compositionengine/impl/ClientCompositionRequestCache.h>
 #include <compositionengine/impl/OutputCompositionState.h>
+#include <compositionengine/impl/planner/Planner.h>
 #include <renderengine/DisplaySettings.h>
 #include <renderengine/LayerSettings.h>
 #include <memory>
@@ -28,21 +29,18 @@
 
 namespace android::compositionengine::impl {
 
-namespace planner {
-class Planner;
-} // namespace planner
-
 // The implementation class contains the common implementation, but does not
 // actually contain the final output state.
 class Output : public virtual compositionengine::Output {
 public:
-    Output();
+    Output() = default;
     ~Output() override;
 
     // compositionengine::Output overrides
     bool isValid() const override;
     std::optional<DisplayId> getDisplayId() const override;
     void setCompositionEnabled(bool) override;
+    void setLayerCachingEnabled(bool) override;
     void setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
                        const Rect& orientedDisplaySpaceRect) override;
     void setDisplaySize(const ui::Size&) override;

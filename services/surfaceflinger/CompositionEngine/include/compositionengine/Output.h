@@ -163,6 +163,9 @@ public:
     // Enables (or disables) composition on this output
     virtual void setCompositionEnabled(bool) = 0;
 
+    // Enables (or disables) layer caching on this output
+    virtual void setLayerCachingEnabled(bool) = 0;
+
     // Sets the projection state to use
     virtual void setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
                                const Rect& orientedDisplaySpaceRect) = 0;
