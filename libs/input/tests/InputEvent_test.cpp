@@ -588,7 +588,7 @@ TEST_F(MotionEventTest, Transform) {
     }
     MotionEvent event;
     ui::Transform identityTransform;
-    event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_UNKNOWN, DISPLAY_ID,
+    event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID,
                      INVALID_HMAC, AMOTION_EVENT_ACTION_MOVE, 0 /*actionButton*/, 0 /*flags*/,
                      AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
                      MotionClassification::NONE, identityTransform, 0 /*xPrecision*/,
@@ -681,6 +681,26 @@ TEST_F(MotionEventTest, ApplyTransform) {
     // The transformed output should be the same then
     ASSERT_NEAR(event.getX(0), changedEvent.getX(0), 0.001);
     ASSERT_NEAR(event.getY(0), changedEvent.getY(0), 0.001);
+}
+
+TEST_F(MotionEventTest, NonPointerSourcesAreNotTranslated) {
+    constexpr static auto NON_POINTER_SOURCES = {AINPUT_SOURCE_TRACKBALL,
+                                                 AINPUT_SOURCE_MOUSE_RELATIVE,
+                                                 AINPUT_SOURCE_JOYSTICK};
+    for (uint32_t source : NON_POINTER_SOURCES) {
+        // Create a rotate-90 transform with an offset (like a window which isn't fullscreen).
+        ui::Transform xform(ui::Transform::ROT_90, 800, 400);
+        xform.set(xform.tx() + 20, xform.ty() + 40);
+        MotionEvent event = createTouchDownEvent(60, 100, xform);
+        event.setSource(source);
+
+        // Since this event comes from a non-pointer source, it should include rotation but not
+        // translation/offset.
+        ASSERT_EQ(-100, event.getX(0));
+        ASSERT_EQ(60, event.getY(0));
+        ASSERT_EQ(event.getRawX(0), event.getX(0));
+        ASSERT_EQ(event.getRawY(0), event.getY(0));
+    }
 }
 
 TEST_F(MotionEventTest, RawCompatTransform) {
