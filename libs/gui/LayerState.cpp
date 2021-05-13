@@ -64,6 +64,8 @@ layer_state_t::layer_state_t()
         fixedTransformHint(ui::Transform::ROT_INVALID),
         frameNumber(0),
         autoRefresh(false),
+        bufferCrop(Rect::INVALID_RECT),
+        destinationFrame(Rect::INVALID_RECT),
         releaseBufferListener(nullptr) {
     matrix.dsdx = matrix.dtdy = 1.0f;
     matrix.dsdy = matrix.dtdx = 0.0f;
@@ -167,6 +169,7 @@ status_t layer_state_t::write(Parcel& output) const
 
     SAFE_PARCEL(output.write, stretchEffect);
     SAFE_PARCEL(output.write, bufferCrop);
+    SAFE_PARCEL(output.write, destinationFrame);
 
     return NO_ERROR;
 }
@@ -296,6 +299,7 @@ status_t layer_state_t::read(const Parcel& input)
 
     SAFE_PARCEL(input.read, stretchEffect);
     SAFE_PARCEL(input.read, bufferCrop);
+    SAFE_PARCEL(input.read, destinationFrame);
 
     return NO_ERROR;
 }
@@ -542,6 +546,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eBufferCropChanged) {
         what |= eBufferCropChanged;
         bufferCrop = other.bufferCrop;
+    }
+    if (other.what & eDestinationFrameChanged) {
+        what |= eDestinationFrameChanged;
+        destinationFrame = other.destinationFrame;
     }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "

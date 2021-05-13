@@ -4747,6 +4747,40 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
     return true;
 }
 
+// Binder call
+bool InputDispatcher::transferTouch(const sp<IBinder>& destChannelToken) {
+    sp<IBinder> fromToken;
+    { // acquire lock
+        std::scoped_lock _l(mLock);
+
+        sp<InputWindowHandle> toWindowHandle = getWindowHandleLocked(destChannelToken);
+        if (toWindowHandle == nullptr) {
+            ALOGW("Could not find window associated with token=%p", destChannelToken.get());
+            return false;
+        }
+
+        const int32_t displayId = toWindowHandle->getInfo()->displayId;
+
+        auto touchStateIt = mTouchStatesByDisplay.find(displayId);
+        if (touchStateIt == mTouchStatesByDisplay.end()) {
+            ALOGD("Could not transfer touch because the display %" PRId32 " is not being touched",
+                  displayId);
+            return false;
+        }
+
+        TouchState& state = touchStateIt->second;
+        if (state.windows.size() != 1) {
+            ALOGW("Cannot transfer touch state because there are %zu windows being touched",
+                  state.windows.size());
+            return false;
+        }
+        const TouchedWindow& touchedWindow = state.windows[0];
+        fromToken = touchedWindow.windowHandle->getToken();
+    } // release lock
+
+    return transferTouchFocus(fromToken, destChannelToken);
+}
+
 void InputDispatcher::resetAndDropEverythingLocked(const char* reason) {
     if (DEBUG_FOCUS) {
         ALOGD("Resetting and dropping all events (%s).", reason);
