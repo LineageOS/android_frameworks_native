@@ -231,6 +231,7 @@ public:
     bool hasBlurBehind() const {
         return mBackgroundBlurRadius.get() > 0 || !mBlurRegions.get().empty();
     }
+    int32_t getBackgroundBlurRadius() const { return mBackgroundBlurRadius.get(); }
     hardware::graphics::composer::hal::Composition getCompositionType() const {
         return mCompositionType.get();
     }
