@@ -1236,6 +1236,7 @@ private:
     int mDebugRegion = 0;
     bool mDebugDisableHWC = false;
     bool mDebugDisableTransformHint = false;
+    bool mLayerCachingEnabled = false;
     volatile nsecs_t mDebugInTransaction = 0;
     bool mForceFullDamage = false;
     bool mPropagateBackpressureClientComposition = false;

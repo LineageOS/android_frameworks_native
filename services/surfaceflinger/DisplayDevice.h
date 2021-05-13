@@ -157,6 +157,9 @@ public:
     void setPowerMode(hardware::graphics::composer::hal::PowerMode mode);
     bool isPoweredOn() const;
 
+    // Enables layer caching on this DisplayDevice
+    void enableLayerCaching(bool enable);
+
     ui::Dataspace getCompositionDataSpace() const;
 
     /* ------------------------------------------------------------------------
