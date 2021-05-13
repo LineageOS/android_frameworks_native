@@ -28,30 +28,6 @@
 
 namespace android {
 
-namespace {
-
-// Rotates the given point (x, y) by the supplied orientation. The width and height are the
-// dimensions of the surface prior to this rotation being applied.
-void rotatePoint(int32_t orientation, float& x, float& y, int32_t width, int32_t height) {
-    rotateDelta(orientation, &x, &y);
-    switch (orientation) {
-        case DISPLAY_ORIENTATION_90:
-            y += width;
-            break;
-        case DISPLAY_ORIENTATION_180:
-            x += width;
-            y += height;
-            break;
-        case DISPLAY_ORIENTATION_270:
-            x += height;
-            break;
-        default:
-            break;
-    }
-}
-
-} // namespace
-
 // --- Constants ---
 
 // Maximum amount of latency to add to touch events while waiting for data from an
