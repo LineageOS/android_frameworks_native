@@ -138,6 +138,10 @@ void DisplayDevice::setPowerMode(hal::PowerMode mode) {
     getCompositionDisplay()->setCompositionEnabled(mPowerMode != hal::PowerMode::OFF);
 }
 
+void DisplayDevice::enableLayerCaching(bool enable) {
+    getCompositionDisplay()->setLayerCachingEnabled(enable);
+}
+
 hal::PowerMode DisplayDevice::getPowerMode() const {
     return mPowerMode;
 }
