@@ -36,8 +36,7 @@ class Predictor;
 
 class Flattener {
 public:
-    Flattener(Predictor& predictor, bool enableHolePunch = false)
-          : mEnableHolePunch(enableHolePunch), mPredictor(predictor) {}
+    Flattener(bool enableHolePunch = false) : mEnableHolePunch(enableHolePunch) {}
 
     void setDisplaySize(ui::Size size) { mDisplaySize = size; }
 
@@ -64,7 +63,6 @@ private:
     void buildCachedSets(std::chrono::steady_clock::time_point now);
 
     const bool mEnableHolePunch;
-    Predictor& mPredictor;
 
     ui::Size mDisplaySize;
 
