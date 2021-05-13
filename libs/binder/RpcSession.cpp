@@ -61,13 +61,9 @@ bool RpcSession::setupUnixDomainClient(const char* path) {
     return setupSocketClient(UnixSocketAddress(path));
 }
 
-#ifdef __BIONIC__
-
 bool RpcSession::setupVsockClient(unsigned int cid, unsigned int port) {
     return setupSocketClient(VsockSocketAddress(cid, port));
 }
-
-#endif // __BIONIC__
 
 bool RpcSession::setupInetClient(const char* addr, unsigned int port) {
     auto aiStart = InetSocketAddress::getAddrInfo(addr, port);
@@ -88,7 +84,7 @@ bool RpcSession::addNullDebuggingClient() {
         return false;
     }
 
-    addClient(std::move(serverFd));
+    addClientConnection(std::move(serverFd));
     return true;
 }
 
@@ -97,7 +93,7 @@ sp<IBinder> RpcSession::getRootObject() {
     return state()->getRootObject(connection.fd(), sp<RpcSession>::fromExisting(this));
 }
 
-status_t RpcSession::getMaxThreads(size_t* maxThreads) {
+status_t RpcSession::getRemoteMaxThreads(size_t* maxThreads) {
     ExclusiveConnection connection(sp<RpcSession>::fromExisting(this), ConnectionUse::CLIENT);
     return state()->getMaxThreads(connection.fd(), sp<RpcSession>::fromExisting(this), maxThreads);
 }
@@ -135,24 +131,14 @@ status_t RpcSession::readId() {
     return OK;
 }
 
-void RpcSession::startThread(unique_fd client) {
-    std::lock_guard<std::mutex> _l(mMutex);
-    sp<RpcSession> holdThis = sp<RpcSession>::fromExisting(this);
-    int fd = client.release();
-    auto thread = std::thread([=] {
-        holdThis->join(unique_fd(fd));
-        {
-            std::lock_guard<std::mutex> _l(holdThis->mMutex);
-            auto it = mThreads.find(std::this_thread::get_id());
-            LOG_ALWAYS_FATAL_IF(it == mThreads.end());
-            it->second.detach();
-            mThreads.erase(it);
-        }
-    });
-    mThreads[thread.get_id()] = std::move(thread);
-}
+void RpcSession::join(std::thread thread, unique_fd client) {
+    LOG_ALWAYS_FATAL_IF(thread.get_id() != std::this_thread::get_id(), "Must own this thread");
 
-void RpcSession::join(unique_fd client) {
+    {
+        std::lock_guard<std::mutex> _l(mMutex);
+        mThreads[thread.get_id()] = std::move(thread);
+    }
+
     // must be registered to allow arbitrary client code executing commands to
     // be able to do nested calls (we can't only read from it)
     sp<RpcConnection> connection = assignServerToThisThread(std::move(client));
@@ -169,6 +155,14 @@ void RpcSession::join(unique_fd client) {
 
     LOG_ALWAYS_FATAL_IF(!removeServerConnection(connection),
                         "bad state: connection object guaranteed to be in list");
+
+    {
+        std::lock_guard<std::mutex> _l(mMutex);
+        auto it = mThreads.find(std::this_thread::get_id());
+        LOG_ALWAYS_FATAL_IF(it == mThreads.end());
+        it->second.detach();
+        mThreads.erase(it);
+    }
 }
 
 void RpcSession::terminateLocked() {
@@ -205,7 +199,7 @@ bool RpcSession::setupSocketClient(const RpcSocketAddress& addr) {
     // instead of all at once.
     // TODO(b/186470974): first risk of blocking
     size_t numThreadsAvailable;
-    if (status_t status = getMaxThreads(&numThreadsAvailable); status != OK) {
+    if (status_t status = getRemoteMaxThreads(&numThreadsAvailable); status != OK) {
         ALOGE("Could not get max threads after initial session to %s: %s", addr.toString().c_str(),
               statusToString(status).c_str());
         return false;
@@ -219,45 +213,55 @@ bool RpcSession::setupSocketClient(const RpcSocketAddress& addr) {
 
     // we've already setup one client
     for (size_t i = 0; i + 1 < numThreadsAvailable; i++) {
-        // TODO(b/185167543): avoid race w/ accept4 not being called on server
-        for (size_t tries = 0; tries < 5; tries++) {
-            if (setupOneSocketClient(addr, mId.value())) break;
-            usleep(10000);
-        }
+        // TODO(b/185167543): shutdown existing connections?
+        if (!setupOneSocketClient(addr, mId.value())) return false;
     }
 
     return true;
 }
 
 bool RpcSession::setupOneSocketClient(const RpcSocketAddress& addr, int32_t id) {
-    unique_fd serverFd(
-            TEMP_FAILURE_RETRY(socket(addr.addr()->sa_family, SOCK_STREAM | SOCK_CLOEXEC, 0)));
-    if (serverFd == -1) {
-        int savedErrno = errno;
-        ALOGE("Could not create socket at %s: %s", addr.toString().c_str(), strerror(savedErrno));
-        return false;
+    for (size_t tries = 0; tries < 5; tries++) {
+        if (tries > 0) usleep(10000);
+
+        unique_fd serverFd(
+                TEMP_FAILURE_RETRY(socket(addr.addr()->sa_family, SOCK_STREAM | SOCK_CLOEXEC, 0)));
+        if (serverFd == -1) {
+            int savedErrno = errno;
+            ALOGE("Could not create socket at %s: %s", addr.toString().c_str(),
+                  strerror(savedErrno));
+            return false;
+        }
+
+        if (0 != TEMP_FAILURE_RETRY(connect(serverFd.get(), addr.addr(), addr.addrSize()))) {
+            if (errno == ECONNRESET) {
+                ALOGW("Connection reset on %s", addr.toString().c_str());
+                continue;
+            }
+            int savedErrno = errno;
+            ALOGE("Could not connect socket at %s: %s", addr.toString().c_str(),
+                  strerror(savedErrno));
+            return false;
+        }
+
+        if (sizeof(id) != TEMP_FAILURE_RETRY(write(serverFd.get(), &id, sizeof(id)))) {
+            int savedErrno = errno;
+            ALOGE("Could not write id to socket at %s: %s", addr.toString().c_str(),
+                  strerror(savedErrno));
+            return false;
+        }
+
+        LOG_RPC_DETAIL("Socket at %s client with fd %d", addr.toString().c_str(), serverFd.get());
+
+        addClientConnection(std::move(serverFd));
+        return true;
     }
 
-    if (0 != TEMP_FAILURE_RETRY(connect(serverFd.get(), addr.addr(), addr.addrSize()))) {
-        int savedErrno = errno;
-        ALOGE("Could not connect socket at %s: %s", addr.toString().c_str(), strerror(savedErrno));
-        return false;
-    }
-
-    if (sizeof(id) != TEMP_FAILURE_RETRY(write(serverFd.get(), &id, sizeof(id)))) {
-        int savedErrno = errno;
-        ALOGE("Could not write id to socket at %s: %s", addr.toString().c_str(),
-              strerror(savedErrno));
-        return false;
-    }
-
-    LOG_RPC_DETAIL("Socket at %s client with fd %d", addr.toString().c_str(), serverFd.get());
-
-    addClient(std::move(serverFd));
-    return true;
+    ALOGE("Ran out of retries to connect to %s", addr.toString().c_str());
+    return false;
 }
 
-void RpcSession::addClient(unique_fd fd) {
+void RpcSession::addClientConnection(unique_fd fd) {
     std::lock_guard<std::mutex> _l(mMutex);
     sp<RpcConnection> session = sp<RpcConnection>::make();
     session->fd = std::move(fd);

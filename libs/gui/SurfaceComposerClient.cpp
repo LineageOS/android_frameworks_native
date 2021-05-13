@@ -1675,6 +1675,21 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDestinationFrame(
+        const sp<SurfaceControl>& sc, const Rect& destinationFrame) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eDestinationFrameChanged;
+    s->destinationFrame = destinationFrame;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 
 DisplayState& SurfaceComposerClient::Transaction::getDisplayState(const sp<IBinder>& token) {

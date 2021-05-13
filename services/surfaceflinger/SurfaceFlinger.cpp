@@ -2815,16 +2815,19 @@ void SurfaceFlinger::processDisplayChangesLocked() {
 }
 
 void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
-    /*
-     * Traversal of the children
-     * (perform the transaction for each of them if needed)
-     */
+    // Commit display transactions
+    const bool displayTransactionNeeded = transactionFlags & eDisplayTransactionNeeded;
+    if (displayTransactionNeeded) {
+        processDisplayChangesLocked();
+        processDisplayHotplugEventsLocked();
+    }
 
-    if ((transactionFlags & eTraversalNeeded) || mForceTraversal) {
-        mForceTraversal = false;
+    // Commit layer transactions. This needs to happen after display transactions are
+    // committed because some geometry logic relies on display orientation.
+    if ((transactionFlags & eTraversalNeeded) || mForceTraversal || displayTransactionNeeded) {
         mCurrentState.traverse([&](Layer* layer) {
             uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
-            if (!trFlags) return;
+            if (!trFlags && !displayTransactionNeeded) return;
 
             const uint32_t flags = layer->doTransaction(0);
             if (flags & Layer::eVisibleRegion)
@@ -2836,15 +2839,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
         });
     }
 
-    /*
-     * Perform display own transactions if needed
-     */
-
-    if (transactionFlags & eDisplayTransactionNeeded) {
-        processDisplayChangesLocked();
-        processDisplayHotplugEventsLocked();
-    }
-
+    // Update transform hint
     if (transactionFlags & (eTransformHintUpdateNeeded | eDisplayTransactionNeeded)) {
         // The transform hint might have changed for some layers
         // (either because a display has changed, or because a layer
@@ -4035,6 +4030,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
     }
     if (what & layer_state_t::eBufferCropChanged) {
         if (layer->setBufferCrop(s.bufferCrop)) {
+            flags |= eTraversalNeeded;
+        }
+    }
+    if (what & layer_state_t::eDestinationFrameChanged) {
+        if (layer->setDestinationFrame(s.destinationFrame)) {
             flags |= eTraversalNeeded;
         }
     }

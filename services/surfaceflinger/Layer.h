@@ -276,6 +276,7 @@ public:
         StretchEffect stretchEffect;
 
         Rect bufferCrop;
+        Rect destinationFrame;
     };
 
     /*
@@ -646,16 +647,6 @@ public:
     // Compute bounds for the layer and cache the results.
     void computeBounds(FloatRect parentBounds, ui::Transform parentTransform, float shadowRadius);
 
-    // Returns the buffer scale transform if a scaling mode is set.
-    ui::Transform getBufferScaleTransform() const;
-
-    // Get effective layer transform, taking into account all its parent transform with any
-    // scaling if the parent scaling more is not NATIVE_WINDOW_SCALING_MODE_FREEZE.
-    ui::Transform getTransformWithScale(const ui::Transform& bufferScaleTransform) const;
-
-    // Returns the bounds of the layer without any buffer scaling.
-    FloatRect getBoundsPreScaling(const ui::Transform& bufferScaleTransform) const;
-
     int32_t getSequence() const override { return sequence; }
 
     // For tracing.
@@ -885,8 +876,10 @@ public:
     StretchEffect getStretchEffect() const;
 
     virtual bool setBufferCrop(const Rect& /* bufferCrop */) { return false; }
+    virtual bool setDestinationFrame(const Rect& /* destinationFrame */) { return false; }
     virtual std::atomic<int32_t>* getPendingBufferCounter() { return nullptr; }
     virtual std::string getPendingBufferCounterName() { return ""; }
+    virtual void updateGeometry() {}
 
 protected:
     friend class impl::SurfaceInterceptor;
