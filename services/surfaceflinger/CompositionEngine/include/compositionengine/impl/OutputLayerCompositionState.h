@@ -125,6 +125,9 @@ struct OutputLayerCompositionState {
 
         // Set to true when overridden info has been sent to HW composer
         bool stateOverridden = false;
+
+        // True when this layer was skipped as part of SF-side layer caching.
+        bool layerSkipped = false;
     };
 
     // The HWC state is optional, and is only set up if there is any potential
