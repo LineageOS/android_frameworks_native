@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "baf38543_5224c8ee",
+        "filename": "services/sensorservice/Fusion.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 82,
+      "author": {
+        "id": 13028
+      },
+      "writtenOn": "2021-05-14T17:51:14Z",
+      "side": 1,
+      "message": "this is misleading as it\u0027s the squared magnetic field. I\u0027d prefer removing the previous change and just do this same change but with the non-squared value",
+      "revId": "4cccff1db52094332604d383f70605f10641cf34",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
