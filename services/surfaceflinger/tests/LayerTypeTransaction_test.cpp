@@ -19,6 +19,7 @@
 #pragma clang diagnostic ignored "-Wconversion"
 
 #include <gui/BufferItemConsumer.h>
+#include <private/android_filesystem_config.h>
 #include "TransactionTestHarnesses.h"
 
 namespace android {
@@ -170,7 +171,11 @@ TEST_P(LayerTypeTransactionTest, SetFlagsSecure) {
     args.displayToken = mDisplay;
 
     ScreenCaptureResults captureResults;
-    ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureDisplay(args, captureResults));
+    {
+        // Ensure the UID is not root because root has all permissions
+        UIDFaker f(AID_APP_START);
+        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureDisplay(args, captureResults));
+    }
 
     Transaction().setFlags(layer, 0, layer_state_t::eLayerSecure).apply(true);
     ASSERT_EQ(NO_ERROR, ScreenCapture::captureDisplay(args, captureResults));
