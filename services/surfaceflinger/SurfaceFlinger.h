@@ -911,8 +911,8 @@ private:
                                  const sp<IScreenCaptureListener>&);
     status_t renderScreenImplLocked(const RenderArea&, TraverseLayersFunction,
                                     const std::shared_ptr<renderengine::ExternalTexture>&,
-                                    bool forSystem, bool regionSampling, bool grayscale,
-                                    ScreenCaptureResults&);
+                                    bool canCaptureBlackoutContent, bool regionSampling,
+                                    bool grayscale, ScreenCaptureResults&);
 
     sp<DisplayDevice> getDisplayByIdOrLayerStack(uint64_t displayOrLayerStack) REQUIRES(mStateLock);
     sp<DisplayDevice> getDisplayById(DisplayId displayId) const REQUIRES(mStateLock);
