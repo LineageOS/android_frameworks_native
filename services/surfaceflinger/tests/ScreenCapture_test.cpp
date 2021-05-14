@@ -84,7 +84,11 @@ TEST_F(ScreenCaptureTest, SetFlagsSecureEUidSystem) {
 
     Transaction().show(layer).setLayer(layer, INT32_MAX).apply(true);
 
-    ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureDisplay(mCaptureArgs, mCaptureResults));
+    {
+        // Ensure the UID is not root because root has all permissions
+        UIDFaker f(AID_APP_START);
+        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureDisplay(mCaptureArgs, mCaptureResults));
+    }
 
     UIDFaker f(AID_SYSTEM);
 
@@ -528,7 +532,7 @@ TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
     ASSERT_EQ(NAME_NOT_FOUND, ScreenCapture::captureLayers(args, captureResults));
 }
 
-TEST_F(ScreenCaptureTest, CaputureSecureLayer) {
+TEST_F(ScreenCaptureTest, CaptureSecureLayer) {
     sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60,
                                               ISurfaceComposerClient::eFXSurfaceBufferState);
     sp<SurfaceControl> secureLayer =
@@ -552,8 +556,12 @@ TEST_F(ScreenCaptureTest, CaputureSecureLayer) {
     args.childrenOnly = false;
     ScreenCaptureResults captureResults;
 
-    // Call from outside system with secure layers will result in permission denied
-    ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(args, captureResults));
+    {
+        // Ensure the UID is not root because root has all permissions
+        UIDFaker f(AID_APP_START);
+        // Call from outside system with secure layers will result in permission denied
+        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(args, captureResults));
+    }
 
     UIDFaker f(AID_SYSTEM);
 
