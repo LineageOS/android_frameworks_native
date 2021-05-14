@@ -27,8 +27,13 @@
 namespace android::compositionengine::impl::planner {
 
 Planner::Planner()
-      : mFlattener(mPredictor,
-                   base::GetBoolProperty(std::string("debug.sf.enable_hole_punch_pip"), false)) {}
+      : mFlattener(base::GetBoolProperty(std::string("debug.sf.enable_hole_punch_pip"), false)) {
+    // Implicitly, layer caching must also be enabled.
+    // E.g., setprop debug.sf.enable_layer_caching 1, or
+    // adb shell service call SurfaceFlinger 1040 i32 1 [i64 <display ID>]
+    mPredictorEnabled =
+            base::GetBoolProperty(std::string("debug.sf.enable_planner_prediction"), false);
+}
 
 void Planner::setDisplaySize(ui::Size size) {
     mFlattener.setDisplaySize(size);
@@ -99,19 +104,25 @@ void Planner::plan(
     const bool layersWereFlattened = hash != mFlattenedHash;
     ALOGV("[%s] Initial hash %zx flattened hash %zx", __func__, hash, mFlattenedHash);
 
-    mPredictedPlan =
-            mPredictor.getPredictedPlan(layersWereFlattened ? std::vector<const LayerState*>()
-                                                            : mCurrentLayers,
-                                        mFlattenedHash);
-    if (mPredictedPlan) {
-        ALOGV("[%s] Predicting plan %s", __func__, to_string(mPredictedPlan->plan).c_str());
-    } else {
-        ALOGV("[%s] No prediction found\n", __func__);
+    if (mPredictorEnabled) {
+        mPredictedPlan =
+                mPredictor.getPredictedPlan(layersWereFlattened ? std::vector<const LayerState*>()
+                                                                : mCurrentLayers,
+                                            mFlattenedHash);
+        if (mPredictedPlan) {
+            ALOGV("[%s] Predicting plan %s", __func__, to_string(mPredictedPlan->plan).c_str());
+        } else {
+            ALOGV("[%s] No prediction found\n", __func__);
+        }
     }
 }
 
 void Planner::reportFinalPlan(
         compositionengine::Output::OutputLayersEnumerator<compositionengine::Output>&& layers) {
+    if (!mPredictorEnabled) {
+        return;
+    }
+
     Plan finalPlan;
     const GraphicBuffer* currentOverrideBuffer = nullptr;
     bool hasSkippedLayers = false;
@@ -185,7 +196,9 @@ void Planner::dump(const Vector<String16>& args, std::string& result) {
                 return;
             }
 
-            mPredictor.compareLayerStacks(leftHash, rightHash, result);
+            if (mPredictorEnabled) {
+                mPredictor.compareLayerStacks(leftHash, rightHash, result);
+            }
         } else if (command == "--describe" || command == "-d") {
             if (args.size() < 3) {
                 base::StringAppendF(&result,
@@ -209,7 +222,9 @@ void Planner::dump(const Vector<String16>& args, std::string& result) {
                 return;
             }
 
-            mPredictor.describeLayerStack(hash, result);
+            if (mPredictorEnabled) {
+                mPredictor.describeLayerStack(hash, result);
+            }
         } else if (command == "--help" || command == "-h") {
             dumpUsage(result);
         } else if (command == "--similar" || command == "-s") {
@@ -232,7 +247,9 @@ void Planner::dump(const Vector<String16>& args, std::string& result) {
                 return;
             }
 
-            mPredictor.listSimilarStacks(*plan, result);
+            if (mPredictorEnabled) {
+                mPredictor.listSimilarStacks(*plan, result);
+            }
         } else if (command == "--layers" || command == "-l") {
             mFlattener.dumpLayers(result);
         } else {
@@ -247,7 +264,9 @@ void Planner::dump(const Vector<String16>& args, std::string& result) {
     mFlattener.dump(result);
     result.append("\n");
 
-    mPredictor.dump(result);
+    if (mPredictorEnabled) {
+        mPredictor.dump(result);
+    }
 }
 
 void Planner::dumpUsage(std::string& result) const {
