@@ -16,6 +16,24 @@
       "revId": "4cccff1db52094332604d383f70605f10641cf34",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "c4221074_397a7091",
+        "filename": "services/sensorservice/Fusion.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 82,
+      "author": {
+        "id": 15346
+      },
+      "writtenOn": "2021-05-14T18:03:20Z",
+      "side": 1,
+      "message": "I was told that the multiplication to produce the squared value was dumb so I removed it",
+      "parentUuid": "baf38543_5224c8ee",
+      "revId": "4cccff1db52094332604d383f70605f10641cf34",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
     }
   ]
 }
