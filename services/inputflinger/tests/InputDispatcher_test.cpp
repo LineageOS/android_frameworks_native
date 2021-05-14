@@ -1714,7 +1714,13 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
                          0 /*expectedFlags*/);
 }
 
-TEST_F(InputDispatcherTest, TransferTouchFocus_OnePointer) {
+using TransferFunction =
+        std::function<bool(sp<InputDispatcher> dispatcher, sp<IBinder>, sp<IBinder>)>;
+
+class TransferTouchFixture : public InputDispatcherTest,
+                             public ::testing::WithParamInterface<TransferFunction> {};
+
+TEST_P(TransferTouchFixture, TransferTouch_OnePointer) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
 
     // Create a couple of windows
@@ -1735,8 +1741,10 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_OnePointer) {
     firstWindow->consumeMotionDown();
     secondWindow->assertNoEvents();
 
-    // Transfer touch focus to the second window
-    mDispatcher->transferTouchFocus(firstWindow->getToken(), secondWindow->getToken());
+    // Transfer touch to the second window
+    TransferFunction f = GetParam();
+    const bool success = f(mDispatcher, firstWindow->getToken(), secondWindow->getToken());
+    ASSERT_TRUE(success);
     // The first window gets cancel and the second gets down
     firstWindow->consumeMotionCancel();
     secondWindow->consumeMotionDown();
@@ -1751,7 +1759,7 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_OnePointer) {
     secondWindow->consumeMotionUp();
 }
 
-TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointerNoSplitTouch) {
+TEST_P(TransferTouchFixture, TransferTouch_TwoPointersNonSplitTouch) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
 
     PointF touchPoint = {10, 10};
@@ -1786,7 +1794,9 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointerNoSplitTouch) {
     secondWindow->assertNoEvents();
 
     // Transfer touch focus to the second window
-    mDispatcher->transferTouchFocus(firstWindow->getToken(), secondWindow->getToken());
+    TransferFunction f = GetParam();
+    bool success = f(mDispatcher, firstWindow->getToken(), secondWindow->getToken());
+    ASSERT_TRUE(success);
     // The first window gets cancel and the second gets down and pointer down
     firstWindow->consumeMotionCancel();
     secondWindow->consumeMotionDown();
@@ -1812,6 +1822,21 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointerNoSplitTouch) {
     firstWindow->assertNoEvents();
     secondWindow->consumeMotionUp();
 }
+
+// For the cases of single pointer touch and two pointers non-split touch, the api's
+// 'transferTouch' and 'transferTouchFocus' are equivalent in behaviour. They only differ
+// for the case where there are multiple pointers split across several windows.
+INSTANTIATE_TEST_SUITE_P(TransferFunctionTests, TransferTouchFixture,
+                         ::testing::Values(
+                                 [&](sp<InputDispatcher> dispatcher, sp<IBinder> /*ignored*/,
+                                     sp<IBinder> destChannelToken) {
+                                     return dispatcher->transferTouch(destChannelToken);
+                                 },
+                                 [&](sp<InputDispatcher> dispatcher, sp<IBinder> from,
+                                     sp<IBinder> to) {
+                                     return dispatcher->transferTouchFocus(from, to,
+                                                                           false /*isDragAndDrop*/);
+                                 }));
 
 TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
@@ -1881,6 +1906,82 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
     // The first window gets nothing and the second gets up
     firstWindow->assertNoEvents();
     secondWindow->consumeMotionUp();
+}
+
+// Same as TransferTouchFocus_TwoPointersSplitTouch, but using 'transferTouch' api.
+// Unlike 'transferTouchFocus', calling 'transferTouch' when there are two windows receiving
+// touch is not supported, so the touch should continue on those windows and the transferred-to
+// window should get nothing.
+TEST_F(InputDispatcherTest, TransferTouch_TwoPointersSplitTouch) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    // Create a non touch modal window that supports split touch
+    sp<FakeWindowHandle> firstWindow =
+            new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
+    firstWindow->setFrame(Rect(0, 0, 600, 400));
+    firstWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
+                          InputWindowInfo::Flag::SPLIT_TOUCH);
+
+    // Create a non touch modal window that supports split touch
+    sp<FakeWindowHandle> secondWindow =
+            new FakeWindowHandle(application, mDispatcher, "Second Window", ADISPLAY_ID_DEFAULT);
+    secondWindow->setFrame(Rect(0, 400, 600, 800));
+    secondWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
+                           InputWindowInfo::Flag::SPLIT_TOUCH);
+
+    // Add the windows to the dispatcher
+    mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
+
+    PointF pointInFirst = {300, 200};
+    PointF pointInSecond = {300, 600};
+
+    // Send down to the first window
+    NotifyMotionArgs firstDownMotionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT, {pointInFirst});
+    mDispatcher->notifyMotion(&firstDownMotionArgs);
+    // Only the first window should get the down event
+    firstWindow->consumeMotionDown();
+    secondWindow->assertNoEvents();
+
+    // Send down to the second window
+    NotifyMotionArgs secondDownMotionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {pointInFirst, pointInSecond});
+    mDispatcher->notifyMotion(&secondDownMotionArgs);
+    // The first window gets a move and the second a down
+    firstWindow->consumeMotionMove();
+    secondWindow->consumeMotionDown();
+
+    // Transfer touch focus to the second window
+    const bool transferred = mDispatcher->transferTouch(secondWindow->getToken());
+    // The 'transferTouch' call should not succeed, because there are 2 touched windows
+    ASSERT_FALSE(transferred);
+    firstWindow->assertNoEvents();
+    secondWindow->assertNoEvents();
+
+    // The rest of the dispatch should proceed as normal
+    // Send pointer up to the second window
+    NotifyMotionArgs pointerUpMotionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_POINTER_UP |
+                                       (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                               AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {pointInFirst, pointInSecond});
+    mDispatcher->notifyMotion(&pointerUpMotionArgs);
+    // The first window gets MOVE and the second gets pointer up
+    firstWindow->consumeMotionMove();
+    secondWindow->consumeMotionUp();
+
+    // Send up event to the first window
+    NotifyMotionArgs upMotionArgs =
+            generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
+                               ADISPLAY_ID_DEFAULT);
+    mDispatcher->notifyMotion(&upMotionArgs);
+    // The first window gets nothing and the second gets up
+    firstWindow->consumeMotionUp();
+    secondWindow->assertNoEvents();
 }
 
 TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {
