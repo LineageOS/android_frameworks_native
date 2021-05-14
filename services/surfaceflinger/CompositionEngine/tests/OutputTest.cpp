@@ -238,6 +238,28 @@ TEST_F(OutputTest, setCompositionEnabledSetsDisabledAndDirtiesEntireOutput) {
 }
 
 /*
+ * Output::setLayerCachingEnabled()
+ */
+
+TEST_F(OutputTest, setLayerCachingEnabled_enablesCaching) {
+    const auto kSize = ui::Size(1, 1);
+    EXPECT_CALL(*mRenderSurface, getSize()).WillRepeatedly(ReturnRef(kSize));
+    mOutput->setLayerCachingEnabled(false);
+    mOutput->setLayerCachingEnabled(true);
+
+    EXPECT_TRUE(mOutput->plannerEnabled());
+}
+
+TEST_F(OutputTest, setLayerCachingEnabled_disablesCaching) {
+    const auto kSize = ui::Size(1, 1);
+    EXPECT_CALL(*mRenderSurface, getSize()).WillRepeatedly(ReturnRef(kSize));
+    mOutput->setLayerCachingEnabled(true);
+    mOutput->setLayerCachingEnabled(false);
+
+    EXPECT_FALSE(mOutput->plannerEnabled());
+}
+
+/*
  * Output::setProjection()
  */
 
@@ -972,9 +994,7 @@ TEST_F(OutputPrepareFrameTest, delegatesToChooseCompositionStrategyAndRenderSurf
     mOutput.editState().usesDeviceComposition = true;
 
     EXPECT_CALL(mOutput, chooseCompositionStrategy()).Times(1);
-    if (mOutput.plannerEnabled()) {
-        EXPECT_CALL(mOutput, getOutputLayerCount()).WillOnce(Return(0u));
-    }
+    EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
     EXPECT_CALL(*mRenderSurface, prepareFrame(false, true));
 
     mOutput.prepareFrame();
