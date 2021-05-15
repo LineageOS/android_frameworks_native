@@ -287,6 +287,8 @@ const String16 sRotateSurfaceFlinger("android.permission.ROTATE_SURFACE_FLINGER"
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sControlDisplayBrightness("android.permission.CONTROL_DISPLAY_BRIGHTNESS");
 const String16 sDump("android.permission.DUMP");
+const String16 sCaptureBlackoutContent("android.permission.CAPTURE_BLACKOUT_CONTENT");
+
 const char* KERNEL_IDLE_TIMER_PROP = "graphics.display.kernel_idle_timer.enabled";
 
 // ---------------------------------------------------------------------------
@@ -5701,6 +5703,14 @@ static Dataspace pickDataspaceFromColorMode(const ColorMode colorMode) {
     }
 }
 
+static bool hasCaptureBlackoutContentPermission() {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    return uid == AID_GRAPHICS || uid == AID_SYSTEM ||
+            PermissionCache::checkPermission(sCaptureBlackoutContent, pid, uid);
+}
+
 static status_t validateScreenshotPermissions(const CaptureArgs& captureArgs) {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
@@ -5844,6 +5854,10 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     Rect layerStackSpaceRect;
     ui::Dataspace dataspace;
     bool captureSecureLayers;
+
+    // Call this before holding mStateLock to avoid any deadlocking.
+    bool canCaptureBlackoutContent = hasCaptureBlackoutContentPermission();
+
     {
         Mutex::Autolock lock(mStateLock);
 
@@ -5853,9 +5867,8 @@ status_t SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
             return NAME_NOT_FOUND;
         }
 
-        const int uid = IPCThreadState::self()->getCallingUid();
-        const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
-        if (!forSystem && parent->getCurrentState().flags & layer_state_t::eLayerSecure) {
+        if (!canCaptureBlackoutContent &&
+            parent->getCurrentState().flags & layer_state_t::eLayerSecure) {
             ALOGW("Attempting to capture secure layer: PERMISSION_DENIED");
             return PERMISSION_DENIED;
         }
@@ -6009,8 +6022,7 @@ status_t SurfaceFlinger::captureScreenCommon(
         return BAD_VALUE;
     }
 
-    const int uid = IPCThreadState::self()->getCallingUid();
-    const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
+    bool canCaptureBlackoutContent = hasCaptureBlackoutContentPermission();
 
     static_cast<void>(schedule([=, renderAreaFuture = std::move(renderAreaFuture)]() mutable {
         if (mRefreshPending) {
@@ -6030,8 +6042,9 @@ status_t SurfaceFlinger::captureScreenCommon(
 
         status_t result = NO_ERROR;
         renderArea->render([&] {
-            result = renderScreenImplLocked(*renderArea, traverseLayers, buffer, forSystem,
-                                            regionSampling, grayscale, captureResults);
+            result = renderScreenImplLocked(*renderArea, traverseLayers, buffer,
+                                            canCaptureBlackoutContent, regionSampling, grayscale,
+                                            captureResults);
         });
 
         captureResults.result = result;
@@ -6043,8 +6056,9 @@ status_t SurfaceFlinger::captureScreenCommon(
 
 status_t SurfaceFlinger::renderScreenImplLocked(
         const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-        const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool forSystem,
-        bool regionSampling, bool grayscale, ScreenCaptureResults& captureResults) {
+        const std::shared_ptr<renderengine::ExternalTexture>& buffer,
+        bool canCaptureBlackoutContent, bool regionSampling, bool grayscale,
+        ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
     traverseLayers([&](Layer* layer) {
@@ -6057,7 +6071,7 @@ status_t SurfaceFlinger::renderScreenImplLocked(
     // We allow the system server to take screenshots of secure layers for
     // use in situations like the Screen-rotation animation and place
     // the impetus on WindowManager to not persist them.
-    if (captureResults.capturedSecureLayers && !forSystem) {
+    if (captureResults.capturedSecureLayers && !canCaptureBlackoutContent) {
         ALOGW("FB is protected: PERMISSION_DENIED");
         return PERMISSION_DENIED;
     }

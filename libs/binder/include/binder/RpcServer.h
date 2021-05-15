@@ -74,6 +74,22 @@ public:
      */
     [[nodiscard]] bool setupInetServer(unsigned int port, unsigned int* assignedPort);
 
+    /**
+     * If setup*Server has been successful, return true. Otherwise return false.
+     */
+    [[nodiscard]] bool hasServer();
+
+    /**
+     * If hasServer(), return the server FD. Otherwise return invalid FD.
+     */
+    [[nodiscard]] base::unique_fd releaseServer();
+
+    /**
+     * Set up server using an external FD previously set up by releaseServer().
+     * Return false if there's already a server.
+     */
+    bool setupExternalServer(base::unique_fd serverFd);
+
     void iUnderstandThisCodeIsExperimentalAndIWillNotUseItInProduction();
 
     /**
@@ -108,9 +124,16 @@ public:
     void join();
 
     /**
+     * Accept one connection on this server. You must have at least one client
+     * session before calling this.
+     */
+    [[nodiscard]] bool acceptOne();
+
+    /**
      * For debugging!
      */
     std::vector<sp<RpcSession>> listSessions();
+    size_t numUninitializedSessions();
 
     ~RpcServer();
 

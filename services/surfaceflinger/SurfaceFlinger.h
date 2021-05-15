@@ -909,8 +909,8 @@ private:
                                  const sp<IScreenCaptureListener>&);
     status_t renderScreenImplLocked(const RenderArea&, TraverseLayersFunction,
                                     const std::shared_ptr<renderengine::ExternalTexture>&,
-                                    bool forSystem, bool regionSampling, bool grayscale,
-                                    ScreenCaptureResults&);
+                                    bool canCaptureBlackoutContent, bool regionSampling,
+                                    bool grayscale, ScreenCaptureResults&);
 
     // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a
     // matching ownerUid
