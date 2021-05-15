@@ -23,6 +23,7 @@
 #include <android/binder_libbinder.h>
 #include <binder/Binder.h>
 #include <binder/BpBinder.h>
+#include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
 #include <binder/RpcServer.h>
@@ -47,6 +48,19 @@ TEST(BinderRpcParcel, EntireParcelFormatted) {
     p.writeInt32(3);
 
     EXPECT_DEATH(p.markForBinder(sp<BBinder>::make()), "");
+}
+
+TEST(BinderRpc, SetExternalServer) {
+    base::unique_fd sink(TEMP_FAILURE_RETRY(open("/dev/null", O_RDWR)));
+    int sinkFd = sink.get();
+    auto server = RpcServer::make();
+    server->iUnderstandThisCodeIsExperimentalAndIWillNotUseItInProduction();
+    ASSERT_FALSE(server->hasServer());
+    ASSERT_TRUE(server->setupExternalServer(std::move(sink)));
+    ASSERT_TRUE(server->hasServer());
+    base::unique_fd retrieved = server->releaseServer();
+    ASSERT_FALSE(server->hasServer());
+    ASSERT_EQ(sinkFd, retrieved.get());
 }
 
 using android::binder::Status;
@@ -177,6 +191,13 @@ public:
         } else {
             _exit(1);
         }
+    }
+    Status useKernelBinderCallingId() override {
+        // this is WRONG! It does not make sense when using RPC binder, and
+        // because it is SO wrong, and so much code calls this, it should abort!
+
+        (void)IPCThreadState::self()->getCallingPid();
+        return Status::ok();
     }
 };
 sp<IBinder> MyBinderRpcTest::mHeldBinder;
@@ -872,6 +893,19 @@ TEST_P(BinderRpc, Die) {
 
         proc.expectInvalid = true;
     }
+}
+
+TEST_P(BinderRpc, UseKernelBinderCallingId) {
+    auto proc = createRpcTestSocketServerProcess(1);
+
+    // we can't allocate IPCThreadState so actually the first time should
+    // succeed :(
+    EXPECT_OK(proc.rootIface->useKernelBinderCallingId());
+
+    // second time! we catch the error :)
+    EXPECT_EQ(DEAD_OBJECT, proc.rootIface->useKernelBinderCallingId().transactionError());
+
+    proc.expectInvalid = true;
 }
 
 TEST_P(BinderRpc, WorksWithLibbinderNdkPing) {
