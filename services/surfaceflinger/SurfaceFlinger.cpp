@@ -6450,13 +6450,17 @@ wp<Layer> SurfaceFlinger::fromHandleLocked(const sp<IBinder>& handle) const {
 
 void SurfaceFlinger::onLayerFirstRef(Layer* layer) {
     mNumLayers++;
-    mScheduler->registerLayer(layer);
+    if (!layer->isRemovedFromCurrentState()) {
+        mScheduler->registerLayer(layer);
+    }
 }
 
 void SurfaceFlinger::onLayerDestroyed(Layer* layer) {
-    mScheduler->deregisterLayer(layer);
     mNumLayers--;
     removeFromOffscreenLayers(layer);
+    if (!layer->isRemovedFromCurrentState()) {
+        mScheduler->deregisterLayer(layer);
+    }
 }
 
 // WARNING: ONLY CALL THIS FROM LAYER DTOR
