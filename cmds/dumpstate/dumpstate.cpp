@@ -1691,6 +1691,12 @@ static Dumpstate::RunStatus dumpstate() {
 
     RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK(RunDumpsysHigh);
 
+    // The dump mechanism in connectivity is refactored due to modularization work. Connectivity can
+    // only register with a default priority(NORMAL priority). Dumpstate has to call connectivity
+    // dump with priority parameters to dump high priority information.
+    RunDumpsys("SERVICE HIGH connectivity", {"connectivity", "--dump-priority", "HIGH"},
+                   CommandOptions::WithTimeout(10).Build());
+
     RunCommand("SYSTEM PROPERTIES", {"getprop"});
 
     RunCommand("STORAGED IO INFO", {"storaged", "-u", "-p"});
