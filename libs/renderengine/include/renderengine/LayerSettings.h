@@ -194,18 +194,6 @@ static inline bool operator==(const ShadowSettings& lhs, const ShadowSettings& r
             lhs.length == rhs.length && lhs.casterIsTranslucent == rhs.casterIsTranslucent;
 }
 
-static inline bool operator==(const BlurRegion& lhs, const BlurRegion& rhs) {
-    return lhs.alpha == rhs.alpha && lhs.cornerRadiusTL == rhs.cornerRadiusTL &&
-            lhs.cornerRadiusTR == rhs.cornerRadiusTR && lhs.cornerRadiusBL == rhs.cornerRadiusBL &&
-            lhs.cornerRadiusBR == rhs.cornerRadiusBR && lhs.blurRadius == rhs.blurRadius &&
-            lhs.left == rhs.left && lhs.top == rhs.top && lhs.right == rhs.right &&
-            lhs.bottom == rhs.bottom;
-}
-
-static inline bool operator!=(const BlurRegion& lhs, const BlurRegion& rhs) {
-    return !(lhs == rhs);
-}
-
 static inline bool operator==(const LayerSettings& lhs, const LayerSettings& rhs) {
     if (lhs.blurRegions.size() != rhs.blurRegions.size()) {
         return false;
