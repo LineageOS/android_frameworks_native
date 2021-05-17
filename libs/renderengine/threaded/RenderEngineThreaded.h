@@ -65,7 +65,7 @@ public:
     void cleanFramebufferCache() override;
     int getContextPriority() override;
     bool supportsBackgroundBlur() override;
-    void onPrimaryDisplaySizeChanged(ui::Size size) override;
+    void onActiveDisplaySizeChanged(ui::Size size) override;
 
 protected:
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;

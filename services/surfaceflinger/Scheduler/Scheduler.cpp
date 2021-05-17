@@ -893,7 +893,7 @@ void Scheduler::onDisplayRefreshed(nsecs_t timestamp) {
     }
 }
 
-void Scheduler::onPrimaryDisplayAreaChanged(uint32_t displayArea) {
+void Scheduler::onActiveDisplayAreaChanged(uint32_t displayArea) {
     mLayerHistory->setDisplayArea(displayArea);
 }
 

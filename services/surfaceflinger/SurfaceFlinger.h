@@ -609,7 +609,10 @@ private:
     sp<ISurfaceComposerClient> createConnection() override;
     sp<IBinder> createDisplay(const String8& displayName, bool secure) override;
     void destroyDisplay(const sp<IBinder>& displayToken) override;
-    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override;
+    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override EXCLUDES(mStateLock) {
+        Mutex::Autolock lock(mStateLock);
+        return getPhysicalDisplayIdsLocked();
+    }
     sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override;
     status_t setTransactionState(const FrameTimelineInfo& frameTimelineInfo,
                                  const Vector<ComposerState>& state,
@@ -961,6 +964,11 @@ private:
     }
 
     sp<DisplayDevice> getDefaultDisplayDeviceLocked() REQUIRES(mStateLock) {
+        if (const auto display = getDisplayDeviceLocked(mActiveDisplayToken)) {
+            return display;
+        }
+        // The active display is outdated, fall back to the internal display
+        mActiveDisplayToken.clear();
         if (const auto token = getInternalDisplayTokenLocked()) {
             return getDisplayDeviceLocked(token);
         }
@@ -986,11 +994,17 @@ private:
         return findDisplay([id](const auto& display) { return display.getId() == id; });
     }
 
+    std::vector<PhysicalDisplayId> getPhysicalDisplayIdsLocked() const REQUIRES(mStateLock);
+
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
 
     sp<DisplayDevice> getDisplayWithInputByLayer(Layer* layer) const REQUIRES(mStateLock);
+
+    bool isDisplayActiveLocked(const sp<const DisplayDevice>& display) REQUIRES(mStateLock) {
+        return display->getDisplayToken() == mActiveDisplayToken;
+    }
 
     /*
      * H/W composer
@@ -1114,6 +1128,10 @@ private:
             REQUIRES(mStateLock);
     void releaseVirtualDisplay(VirtualDisplayId);
 
+    void onActiveDisplayChangedLocked(const sp<DisplayDevice>& activeDisplay) REQUIRES(mStateLock);
+
+    void onActiveDisplaySizeChanged(const sp<DisplayDevice>& activeDisplay);
+
     /*
      * Debugging & dumpsys
      */
@@ -1192,6 +1210,9 @@ private:
     static int calculateMaxAcquiredBufferCount(Fps refreshRate,
                                                std::chrono::nanoseconds presentLatency);
     int getMaxAcquiredBufferCountForRefreshRate(Fps refreshRate) const;
+
+    void updateInternalDisplayVsyncLocked(const DisplayModes& modes, DisplayModeId currentModeId)
+            REQUIRES(mStateLock);
 
     sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;
@@ -1481,6 +1502,8 @@ private:
 
     void scheduleRegionSamplingThread();
     void notifyRegionSamplingThread();
+
+    wp<IBinder> mActiveDisplayToken GUARDED_BY(mStateLock);
 };
 
 } // namespace android
