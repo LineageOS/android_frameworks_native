@@ -259,6 +259,18 @@ void Output::setColorProfile(const ColorProfile& colorProfile) {
     dirtyEntireOutput();
 }
 
+void Output::setDisplayBrightness(float sdrWhitePointNits, float displayBrightnessNits) {
+    auto& outputState = editState();
+    if (outputState.sdrWhitePointNits == sdrWhitePointNits &&
+        outputState.displayBrightnessNits == displayBrightnessNits) {
+        // Nothing changed
+        return;
+    }
+    outputState.sdrWhitePointNits = sdrWhitePointNits;
+    outputState.displayBrightnessNits = displayBrightnessNits;
+    dirtyEntireOutput();
+}
+
 void Output::dump(std::string& out) const {
     using android::base::StringAppendF;
 
@@ -1035,8 +1047,13 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     clientCompositionDisplay.outputDataspace = mDisplayColorProfile->hasWideColorGamut()
             ? outputState.dataspace
             : ui::Dataspace::UNKNOWN;
-    clientCompositionDisplay.maxLuminance =
-            mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
+
+    // If we have a valid current display brightness use that, otherwise fall back to the
+    // display's max desired
+    clientCompositionDisplay.maxLuminance = outputState.displayBrightnessNits > 0.f
+            ? outputState.displayBrightnessNits
+            : mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
+    clientCompositionDisplay.sdrWhitePointNits = outputState.sdrWhitePointNits;
 
     // Compute the global color transform matrix.
     if (!outputState.usesDeviceComposition && !getSkipColorTransform()) {
