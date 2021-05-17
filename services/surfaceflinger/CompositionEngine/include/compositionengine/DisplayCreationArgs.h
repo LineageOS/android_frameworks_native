@@ -21,13 +21,10 @@
 #include <string>
 
 #include <ui/DisplayId.h>
-#include <ui/PixelFormat.h>
 #include <ui/Size.h>
 #include <ui/StaticDisplayInfo.h>
 
-#include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/PowerAdvisor.h"
-#include "DisplayIdGenerator.h"
 
 namespace android::compositionengine {
 
@@ -37,23 +34,13 @@ class CompositionEngine;
  * A parameter object for creating Display instances
  */
 struct DisplayCreationArgs {
-    struct Physical {
-        DisplayId id;
-        ui::DisplayConnectionType type;
-    };
+    DisplayId id;
 
-    // Required for physical displays. Gives the HWC display id for the existing
-    // display along with the connection type.
-    std::optional<Physical> physical;
+    // Unset for virtual displays
+    std::optional<ui::DisplayConnectionType> connectionType;
 
     // Size of the display in pixels
     ui::Size pixels = ui::kInvalidSize;
-
-    // Pixel format of the display
-    ui::PixelFormat pixelFormat = static_cast<ui::PixelFormat>(PIXEL_FORMAT_UNKNOWN);
-
-    // True if virtual displays should be created with the HWC API if possible
-    bool useHwcVirtualDisplays = false;
 
     // True if this display should be considered secure
     bool isSecure = false;
@@ -67,9 +54,6 @@ struct DisplayCreationArgs {
 
     // Debugging. Human readable name for the display.
     std::string name;
-
-    // Generator for IDs of virtual displays, which are backed by the GPU.
-    DisplayIdGenerator<GpuVirtualDisplayId>* gpuVirtualDisplayIdGenerator;
 };
 
 /**
@@ -80,29 +64,18 @@ class DisplayCreationArgsBuilder {
 public:
     DisplayCreationArgs build() { return std::move(mArgs); }
 
-    DisplayCreationArgsBuilder& setPhysical(DisplayCreationArgs::Physical physical) {
-        mArgs.physical = physical;
+    DisplayCreationArgsBuilder& setId(DisplayId id) {
+        mArgs.id = id;
+        return *this;
+    }
+
+    DisplayCreationArgsBuilder& setConnectionType(ui::DisplayConnectionType connectionType) {
+        mArgs.connectionType = connectionType;
         return *this;
     }
 
     DisplayCreationArgsBuilder& setPixels(ui::Size pixels) {
         mArgs.pixels = pixels;
-        return *this;
-    }
-
-    DisplayCreationArgsBuilder& setPixelFormat(ui::PixelFormat pixelFormat) {
-        mArgs.pixelFormat = pixelFormat;
-        return *this;
-    }
-
-    DisplayCreationArgsBuilder& setUseHwcVirtualDisplays(bool useHwcVirtualDisplays) {
-        mArgs.useHwcVirtualDisplays = useHwcVirtualDisplays;
-        return *this;
-    }
-
-    DisplayCreationArgsBuilder& setGpuVirtualDisplayIdGenerator(
-            DisplayIdGenerator<GpuVirtualDisplayId>& generator) {
-        mArgs.gpuVirtualDisplayIdGenerator = &generator;
         return *this;
     }
 

@@ -60,7 +60,6 @@ protected:
     static constexpr int32_t PRIORITY_UNSET = -1;
 
     void setupScheduler();
-    void setupComposer(uint32_t virtualDisplayCount);
     sp<BufferQueueLayer> createBufferQueueLayer();
     sp<BufferStateLayer> createBufferStateLayer();
     sp<EffectLayer> createEffectLayer();
@@ -69,7 +68,6 @@ protected:
     void commitTransaction(Layer* layer);
 
     TestableSurfaceFlinger mFlinger;
-    Hwc2::mock::Composer* mComposer = nullptr;
 
     sp<Client> mClient;
     sp<Layer> mParent;
@@ -83,7 +81,7 @@ RefreshRateSelectionTest::RefreshRateSelectionTest() {
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
     setupScheduler();
-    setupComposer(0);
+    mFlinger.setupComposer(std::make_unique<Hwc2::mock::Composer>());
 }
 
 RefreshRateSelectionTest::~RefreshRateSelectionTest() {
@@ -145,14 +143,6 @@ void RefreshRateSelectionTest::setupScheduler() {
     EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
     mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
                             std::move(eventThread), std::move(sfEventThread));
-}
-
-void RefreshRateSelectionTest::setupComposer(uint32_t virtualDisplayCount) {
-    mComposer = new Hwc2::mock::Composer();
-    EXPECT_CALL(*mComposer, getMaxVirtualDisplayCount()).WillOnce(Return(virtualDisplayCount));
-    mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
-
-    Mock::VerifyAndClear(mComposer);
 }
 
 namespace {
