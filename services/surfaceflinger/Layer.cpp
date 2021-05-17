@@ -628,23 +628,6 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareShadowCli
         return {};
     }
 
-    float casterCornerRadius = shadowLayer.geometry.roundedCornersRadius;
-    const FloatRect& cornerRadiusCropRect = shadowLayer.geometry.roundedCornersCrop;
-    const FloatRect& casterRect = shadowLayer.geometry.boundaries;
-
-    // crop used to set the corner radius may be larger than the content rect. Adjust the corner
-    // radius accordingly.
-    if (casterCornerRadius > 0.f) {
-        float cropRectOffset = std::max(std::abs(cornerRadiusCropRect.top - casterRect.top),
-                                        std::abs(cornerRadiusCropRect.left - casterRect.left));
-        if (cropRectOffset > casterCornerRadius) {
-            casterCornerRadius = 0;
-        } else {
-            casterCornerRadius -= cropRectOffset;
-        }
-        shadowLayer.geometry.roundedCornersRadius = casterCornerRadius;
-    }
-
     return shadowLayer;
 }
 
