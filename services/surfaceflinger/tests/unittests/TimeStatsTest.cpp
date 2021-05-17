@@ -1011,6 +1011,9 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     constexpr size_t MISSED_FRAMES = 4;
     constexpr size_t CLIENT_COMPOSITION_FRAMES = 3;
     constexpr size_t DISPLAY_EVENT_CONNECTIONS = 14;
+    constexpr nsecs_t DISPLAY_DEADLINE_DELTA = 1'000'000;
+    constexpr nsecs_t DISPLAY_PRESENT_JITTER = 2'000'000;
+    constexpr nsecs_t APP_DEADLINE_DELTA = 3'000'000;
 
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
@@ -1036,24 +1039,35 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     mTimeStats->setPresentFenceGlobal(std::make_shared<FenceTime>(5000000));
 
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::SurfaceFlingerCpuDeadlineMissed, 1, 2, 3});
+                                      JankType::SurfaceFlingerCpuDeadlineMissed,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::SurfaceFlingerGpuDeadlineMissed, 1, 2, 3});
+                                      JankType::SurfaceFlingerGpuDeadlineMissed,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::DisplayHAL, 1, 2, 3});
+                                      JankType::DisplayHAL, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::AppDeadlineMissed, 1, 2, 3});
+                                      JankType::AppDeadlineMissed, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::SurfaceFlingerScheduling, 1, 2, 3});
+                                      JankType::SurfaceFlingerScheduling, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::PredictionError, 1, 2, 3});
+                                      JankType::PredictionError, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::AppDeadlineMissed | JankType::BufferStuffing, 1, 2,
-                                      3});
+                                      JankType::AppDeadlineMissed | JankType::BufferStuffing,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::BufferStuffing, 1, 2, 3});
+                                      JankType::BufferStuffing, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::None, 1, 2, 3});
+                                      JankType::None, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA});
 
     std::string pulledData;
     EXPECT_TRUE(mTimeStats->onPullAtom(10062 /*SURFACEFLINGER_STATS_GLOBAL_INFO*/, &pulledData));
@@ -1137,6 +1151,10 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
 TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
     constexpr size_t LATE_ACQUIRE_FRAMES = 2;
     constexpr size_t BAD_DESIRED_PRESENT_FRAMES = 3;
+    constexpr nsecs_t DISPLAY_DEADLINE_DELTA = 1'000'000;
+    constexpr nsecs_t DISPLAY_PRESENT_JITTER = 2'000'000;
+    constexpr nsecs_t APP_DEADLINE_DELTA_2MS = 2'000'000;
+    constexpr nsecs_t APP_DEADLINE_DELTA_3MS = 3'000'000;
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
@@ -1155,22 +1173,32 @@ TEST_F(TimeStatsTest, layerStatsCallback_pullsAllAndClears) {
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 2, 2000000, frameRate60);
 
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::SurfaceFlingerCpuDeadlineMissed, 1, 2, 3});
+                                      JankType::SurfaceFlingerCpuDeadlineMissed,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA_3MS});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::SurfaceFlingerGpuDeadlineMissed, 1, 2, 3});
+                                      JankType::SurfaceFlingerGpuDeadlineMissed,
+                                      DISPLAY_DEADLINE_DELTA, DISPLAY_PRESENT_JITTER,
+                                      APP_DEADLINE_DELTA_3MS});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::DisplayHAL, 1, 2, 3});
+                                      JankType::DisplayHAL, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA_3MS});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::AppDeadlineMissed, 1, 2, 3});
+                                      JankType::AppDeadlineMissed, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA_3MS});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::SurfaceFlingerScheduling, 1, 2, 2});
+                                      JankType::SurfaceFlingerScheduling, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA_2MS});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::PredictionError, 1, 2, 2});
+                                      JankType::PredictionError, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA_2MS});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::AppDeadlineMissed | JankType::BufferStuffing, 1, 2,
-                                      2});
+                                      JankType::AppDeadlineMissed | JankType::BufferStuffing,
+                                      DISPLAY_DEADLINE_DELTA, APP_DEADLINE_DELTA_2MS,
+                                      APP_DEADLINE_DELTA_2MS});
     mTimeStats->incrementJankyFrames({kRefreshRate0, kRenderRate0, UID_0, genLayerName(LAYER_ID_0),
-                                      JankType::None, 1, 2, 3});
+                                      JankType::None, DISPLAY_DEADLINE_DELTA,
+                                      DISPLAY_PRESENT_JITTER, APP_DEADLINE_DELTA_3MS});
 
     std::string pulledData;
     EXPECT_TRUE(mTimeStats->onPullAtom(10063 /*SURFACEFLINGER_STATS_LAYER_INFO*/, &pulledData));

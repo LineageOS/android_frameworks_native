@@ -351,12 +351,16 @@ void TimeStats::recordDisplayEventConnectionCount(int32_t count) {
             std::max(mTimeStats.displayEventConnectionsCountLegacy, count);
 }
 
+static int32_t toMs(nsecs_t nanos) {
+    int64_t millis =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(nanos))
+                    .count();
+    millis = std::clamp(millis, int64_t(INT32_MIN), int64_t(INT32_MAX));
+    return static_cast<int32_t>(millis);
+}
+
 static int32_t msBetween(nsecs_t start, nsecs_t end) {
-    int64_t delta = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::nanoseconds(end - start))
-                            .count();
-    delta = std::clamp(delta, int64_t(INT32_MIN), int64_t(INT32_MAX));
-    return static_cast<int32_t>(delta);
+    return toMs(end - start);
 }
 
 void TimeStats::recordFrameDuration(nsecs_t startTime, nsecs_t endTime) {
@@ -829,10 +833,9 @@ void TimeStats::incrementJankyFrames(const JankyFramesInfo& info) {
         // TimeStats Histograms only retain positive values, so we don't need to check if these
         // deadlines were really missed if we know that the frame had jank, since deadlines
         // that were met will be dropped.
-        timelineStats.displayDeadlineDeltas.insert(static_cast<int32_t>(info.displayDeadlineDelta));
-        timelineStats.displayPresentDeltas.insert(static_cast<int32_t>(info.displayPresentJitter));
-        timeStatsLayer.deltas["appDeadlineDeltas"].insert(
-                static_cast<int32_t>(info.appDeadlineDelta));
+        timelineStats.displayDeadlineDeltas.insert(toMs(info.displayDeadlineDelta));
+        timelineStats.displayPresentDeltas.insert(toMs(info.displayPresentJitter));
+        timeStatsLayer.deltas["appDeadlineDeltas"].insert(toMs(info.appDeadlineDelta));
     }
 }
 
