@@ -2198,20 +2198,10 @@ void SurfaceFlinger::postComposition() {
         mDrawingState.traverse([&, compositionDisplay = compositionDisplay](Layer* layer) {
             if (layer->isVisible() &&
                 compositionDisplay->belongsInOutput(layer->getCompositionEngineLayerFE())) {
-                bool isHdr = false;
-                switch (layer->getDataSpace()) {
-                    case ui::Dataspace::BT2020:
-                    case ui::Dataspace::BT2020_HLG:
-                    case ui::Dataspace::BT2020_PQ:
-                    case ui::Dataspace::BT2020_ITU:
-                    case ui::Dataspace::BT2020_ITU_HLG:
-                    case ui::Dataspace::BT2020_ITU_PQ:
-                        isHdr = true;
-                        break;
-                    default:
-                        isHdr = false;
-                        break;
-                }
+                const Dataspace transfer =
+                        static_cast<Dataspace>(layer->getDataSpace() & Dataspace::TRANSFER_MASK);
+                const bool isHdr = (transfer == Dataspace::TRANSFER_ST2084 ||
+                                    transfer == Dataspace::TRANSFER_HLG);
 
                 if (isHdr) {
                     info.numberOfHdrLayers++;
