@@ -273,6 +273,198 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusChildCrop) {
     }
 }
 
+TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusBufferRotationTransform) {
+    sp<SurfaceControl> layer;
+    sp<SurfaceControl> parent;
+    ASSERT_NO_FATAL_FAILURE(
+            parent = LayerTransactionTest::createLayer("parent", 0, 0,
+                                                       ISurfaceComposerClient::eFXSurfaceEffect));
+
+    const uint32_t bufferWidth = 1500;
+    const uint32_t bufferHeight = 300;
+
+    const uint32_t layerWidth = 300;
+    const uint32_t layerHeight = 1500;
+
+    const uint32_t testArea = 4;
+    const float cornerRadius = 120.0f;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", bufferWidth, bufferHeight));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, bufferWidth, bufferHeight));
+
+    Transaction()
+            .reparent(layer, parent)
+            .setColor(parent, half3(0, 1, 0))
+            .setCrop(parent, Rect(0, 0, layerWidth, layerHeight))
+            .setCornerRadius(parent, cornerRadius)
+
+            .setTransform(layer, ui::Transform::ROT_90)
+            .setDestinationFrame(layer, Rect(0, 0, layerWidth, layerHeight))
+            .apply();
+    {
+        auto shot = getScreenCapture();
+        // Corners are transparent
+        // top-left
+        shot->expectColor(Rect(0, 0, testArea, testArea), Color::BLACK);
+        // top-right
+        shot->expectColor(Rect(layerWidth - testArea, 0, layerWidth, testArea), Color::BLACK);
+        // bottom-left
+        shot->expectColor(Rect(0, layerHeight - testArea, testArea, layerHeight), Color::BLACK);
+        // bottom-right
+        shot->expectColor(Rect(layerWidth - testArea, layerHeight - testArea, layerWidth,
+                               layerHeight),
+                          Color::BLACK);
+
+        // Area after corner radius is solid
+        // top-left to top-right under the corner
+        shot->expectColor(Rect(0, cornerRadius, layerWidth, cornerRadius + testArea), Color::RED);
+        // bottom-left to bottom-right above the corner
+        shot->expectColor(Rect(0, layerHeight - cornerRadius - testArea, layerWidth,
+                               layerHeight - cornerRadius),
+                          Color::RED);
+        // left side after the corner
+        shot->expectColor(Rect(cornerRadius, 0, cornerRadius + testArea, layerHeight), Color::RED);
+        // right side before the corner
+        shot->expectColor(Rect(layerWidth - cornerRadius - testArea, 0, layerWidth - cornerRadius,
+                               layerHeight),
+                          Color::RED);
+    }
+}
+
+TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusBufferCropTransform) {
+    sp<SurfaceControl> layer;
+    sp<SurfaceControl> parent;
+    ASSERT_NO_FATAL_FAILURE(
+            parent = LayerTransactionTest::createLayer("parent", 0, 0,
+                                                       ISurfaceComposerClient::eFXSurfaceEffect));
+
+    const uint32_t bufferWidth = 150 * 2;
+    const uint32_t bufferHeight = 750 * 2;
+
+    const Rect bufferCrop(0, 0, 150, 750);
+
+    const uint32_t layerWidth = 300;
+    const uint32_t layerHeight = 1500;
+
+    const uint32_t testArea = 4;
+    const float cornerRadius = 120.0f;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", bufferWidth, bufferHeight));
+    ASSERT_NO_FATAL_FAILURE(fillLayerQuadrant(layer, bufferWidth, bufferHeight, Color::RED,
+                                              Color::BLACK, Color::GREEN, Color::BLUE));
+
+    Transaction()
+            .reparent(layer, parent)
+            .setColor(parent, half3(0, 1, 0))
+            .setCrop(parent, Rect(0, 0, layerWidth, layerHeight))
+            .setCornerRadius(parent, cornerRadius)
+
+            .setBufferCrop(layer, bufferCrop)
+            .setDestinationFrame(layer, Rect(0, 0, layerWidth, layerHeight))
+            .apply();
+    {
+        auto shot = getScreenCapture();
+        // Corners are transparent
+        // top-left
+        shot->expectColor(Rect(0, 0, testArea, testArea), Color::BLACK);
+        // top-right
+        shot->expectColor(Rect(layerWidth - testArea, 0, layerWidth, testArea), Color::BLACK);
+        // bottom-left
+        shot->expectColor(Rect(0, layerHeight - testArea, testArea, layerHeight), Color::BLACK);
+        // bottom-right
+        shot->expectColor(Rect(layerWidth - testArea, layerHeight - testArea, layerWidth,
+                               layerHeight),
+                          Color::BLACK);
+
+        // Area after corner radius is solid
+        // since the buffer is scaled, there will blending so adjust some of the bounds when
+        // checking.
+        float adjustedCornerRadius = cornerRadius + 15;
+        float adjustedLayerHeight = layerHeight - 15;
+        float adjustedLayerWidth = layerWidth - 15;
+
+        // top-left to top-right under the corner
+        shot->expectColor(Rect(15, adjustedCornerRadius, adjustedLayerWidth,
+                               adjustedCornerRadius + testArea),
+                          Color::RED);
+        // bottom-left to bottom-right above the corner
+        shot->expectColor(Rect(15, adjustedLayerHeight - adjustedCornerRadius - testArea,
+                               adjustedLayerWidth, adjustedLayerHeight - adjustedCornerRadius),
+                          Color::RED);
+        // left side after the corner
+        shot->expectColor(Rect(adjustedCornerRadius, 15, adjustedCornerRadius + testArea,
+                               adjustedLayerHeight),
+                          Color::RED);
+        // right side before the corner
+        shot->expectColor(Rect(adjustedLayerWidth - adjustedCornerRadius - testArea, 15,
+                               adjustedLayerWidth - adjustedCornerRadius, adjustedLayerHeight),
+                          Color::RED);
+    }
+}
+
+TEST_P(LayerTypeAndRenderTypeTransactionTest, SetCornerRadiusChildBufferRotationTransform) {
+    sp<SurfaceControl> layer;
+    sp<SurfaceControl> parent;
+    ASSERT_NO_FATAL_FAILURE(
+            parent = LayerTransactionTest::createLayer("parent", 0, 0,
+                                                       ISurfaceComposerClient::eFXSurfaceEffect));
+
+    const uint32_t bufferWidth = 1500;
+    const uint32_t bufferHeight = 300;
+
+    const uint32_t layerWidth = 300;
+    const uint32_t layerHeight = 1500;
+
+    const uint32_t testArea = 4;
+    const float cornerRadius = 120.0f;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", bufferWidth, bufferHeight));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::BLUE, bufferWidth, bufferHeight));
+
+    sp<SurfaceControl> child;
+    ASSERT_NO_FATAL_FAILURE(child = createLayer("child", bufferWidth, bufferHeight));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(child, Color::RED, bufferWidth, bufferHeight));
+
+    Transaction()
+            .reparent(layer, parent)
+            .reparent(child, layer)
+            .setColor(parent, half3(0, 1, 0))
+            .setCrop(parent, Rect(0, 0, layerWidth, layerHeight))
+            .setCornerRadius(parent, cornerRadius) /* */
+
+            .setTransform(layer, ui::Transform::ROT_90)
+            .setDestinationFrame(layer, Rect(0, 0, layerWidth, layerHeight))
+
+            .setTransform(child, ui::Transform::ROT_90)
+            .setDestinationFrame(child, Rect(0, 0, layerWidth, layerHeight))
+            .apply();
+    {
+        auto shot = getScreenCapture();
+        // Corners are transparent
+        // top-left
+        shot->expectColor(Rect(0, 0, testArea, testArea), Color::BLACK);
+        // top-right
+        shot->expectColor(Rect(layerWidth - testArea, 0, layerWidth, testArea), Color::BLACK);
+        // bottom-left
+        shot->expectColor(Rect(0, layerHeight - testArea, testArea, layerHeight), Color::BLACK);
+        // bottom-right
+        shot->expectColor(Rect(layerWidth - testArea, layerHeight - testArea, layerWidth,
+                               layerHeight),
+                          Color::BLACK);
+
+        // Area after corner radius is solid
+        // top-left to top-right under the corner
+        shot->expectColor(Rect(0, cornerRadius, layerWidth, cornerRadius + testArea), Color::RED);
+        // bottom-left to bottom-right above the corner
+        shot->expectColor(Rect(0, layerHeight - cornerRadius - testArea, layerWidth,
+                               layerHeight - cornerRadius),
+                          Color::RED);
+        // left side after the corner
+        shot->expectColor(Rect(cornerRadius, 0, cornerRadius + testArea, layerHeight), Color::RED);
+        // right side before the corner
+        shot->expectColor(Rect(layerWidth - cornerRadius - testArea, 0, layerWidth - cornerRadius,
+                               layerHeight),
+                          Color::RED);
+    }
+}
+
 TEST_P(LayerTypeAndRenderTypeTransactionTest, SetBackgroundBlurRadiusSimple) {
     if (!deviceSupportsBlurs()) GTEST_SKIP();
     if (!deviceUsesSkiaRenderEngine()) GTEST_SKIP();
