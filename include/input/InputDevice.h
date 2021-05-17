@@ -101,7 +101,7 @@ enum class InputDeviceSensorReportingMode : int32_t {
 };
 
 enum class InputDeviceLightType : int32_t {
-    SINGLE = 0,
+    MONO = 0,
     PLAYER_ID = 1,
     RGB = 2,
     MULTI_COLOR = 3,
