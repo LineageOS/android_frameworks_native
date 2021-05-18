@@ -1450,16 +1450,37 @@ TEST_F(RefreshRateConfigsTest, nonSeamlessExactAndSeamlessMultipleLayers) {
                                                .seamlessness = Seamlessness::OnlySeamless,
                                                .weight = 1.0f,
                                                .focused = true}};
-    auto& seamedLayer = layers[0];
 
     ASSERT_EQ(HWC_CONFIG_ID_50,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
                       .getModeId());
 
+    auto& seamedLayer = layers[0];
     seamedLayer.name = "30Hz ExplicitDefault", seamedLayer.desiredRefreshRate = Fps(30.0f);
     refreshRateConfigs->setCurrentModeId(HWC_CONFIG_ID_30);
 
     ASSERT_EQ(HWC_CONFIG_ID_25,
+              refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
+                      .getModeId());
+}
+
+TEST_F(RefreshRateConfigsTest, minLayersDontTrigerSeamedSwitch) {
+    auto refreshRateConfigs =
+            std::make_unique<RefreshRateConfigs>(m60_90DeviceWithDifferentGroups,
+                                                 /*currentConfigId=*/HWC_CONFIG_ID_90);
+
+    // Allow group switching.
+    RefreshRateConfigs::Policy policy;
+    policy.defaultMode = refreshRateConfigs->getCurrentPolicy().defaultMode;
+    policy.allowGroupSwitching = true;
+    ASSERT_GE(refreshRateConfigs->setDisplayManagerPolicy(policy), 0);
+
+    auto layers = std::vector<LayerRequirement>{LayerRequirement{.name = "Min",
+                                                                 .vote = LayerVoteType::Min,
+                                                                 .weight = 1.f,
+                                                                 .focused = true}};
+
+    ASSERT_EQ(HWC_CONFIG_ID_90,
               refreshRateConfigs->getBestRefreshRate(layers, {.touch = false, .idle = false})
                       .getModeId());
 }
