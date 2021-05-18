@@ -276,7 +276,7 @@ static inline void PrintTo(const StretchEffect& effect, ::std::ostream* os) {
 }
 
 static inline void PrintTo(const LayerSettings& settings, ::std::ostream* os) {
-    *os << "LayerSettings {";
+    *os << "LayerSettings for '" << settings.name.c_str() << "' {";
     *os << "\n    .geometry = ";
     PrintTo(settings.geometry, os);
     *os << "\n    .source = ";
