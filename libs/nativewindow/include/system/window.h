@@ -255,6 +255,7 @@ enum {
     NATIVE_WINDOW_ALLOCATE_BUFFERS                = 45,    /* private */
     NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER          = 46,    /* private */
     NATIVE_WINDOW_SET_QUERY_INTERCEPTOR           = 47,    /* private */
+    NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER2         = 50,    /* private */
     // clang-format on
 };
 
@@ -1050,6 +1051,31 @@ static inline int ANativeWindow_getLastQueuedBuffer(ANativeWindow* window,
                                                     float outTransformMatrix[16]) {
     return window->perform(window, NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER, outBuffer, outFence,
                            outTransformMatrix);
+}
+
+/**
+ * Retrieves the last queued buffer for this window, along with the fence that
+ * fires when the buffer is ready to be read. The cropRect & transform should be applied to the
+ * buffer's content.
+ *
+ * If there was no buffer previously queued, then outBuffer will be NULL and
+ * the value of outFence will be -1.
+ *
+ * Note that if outBuffer is not NULL, then the caller will hold a reference
+ * onto the buffer. Accordingly, the caller must call AHardwareBuffer_release
+ * when the buffer is no longer needed so that the system may reclaim the
+ * buffer.
+ *
+ * \return NO_ERROR on success.
+ * \return NO_MEMORY if there was insufficient memory.
+ * \return STATUS_UNKNOWN_TRANSACTION if this ANativeWindow doesn't support this method, callers
+ *         should fall back to ANativeWindow_getLastQueuedBuffer instead.
+ */
+static inline int ANativeWindow_getLastQueuedBuffer2(ANativeWindow* window,
+                                                     AHardwareBuffer** outBuffer, int* outFence,
+                                                     ARect* outCropRect, uint32_t* outTransform) {
+    return window->perform(window, NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER2, outBuffer, outFence,
+                           outCropRect, outTransform);
 }
 
 /**

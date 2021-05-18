@@ -1207,6 +1207,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER:
         res = dispatchGetLastQueuedBuffer(args);
         break;
+    case NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER2:
+        res = dispatchGetLastQueuedBuffer2(args);
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -1501,6 +1504,39 @@ int Surface::dispatchGetLastQueuedBuffer(va_list args) {
     if (graphicBuffer != nullptr) {
         *buffer = reinterpret_cast<AHardwareBuffer*>(graphicBuffer.get());
         AHardwareBuffer_acquire(*buffer);
+    } else {
+        *buffer = nullptr;
+    }
+
+    if (spFence != nullptr) {
+        *fence = spFence->dup();
+    } else {
+        *fence = -1;
+    }
+    return result;
+}
+
+int Surface::dispatchGetLastQueuedBuffer2(va_list args) {
+    AHardwareBuffer** buffer = va_arg(args, AHardwareBuffer**);
+    int* fence = va_arg(args, int*);
+    ARect* crop = va_arg(args, ARect*);
+    uint32_t* transform = va_arg(args, uint32_t*);
+    sp<GraphicBuffer> graphicBuffer;
+    sp<Fence> spFence;
+
+    Rect r;
+    int result =
+            mGraphicBufferProducer->getLastQueuedBuffer(&graphicBuffer, &spFence, &r, transform);
+
+    if (graphicBuffer != nullptr) {
+        *buffer = graphicBuffer->toAHardwareBuffer();
+        AHardwareBuffer_acquire(*buffer);
+
+        // Avoid setting crop* unless buffer is valid (matches IGBP behavior)
+        crop->left = r.left;
+        crop->top = r.top;
+        crop->right = r.right;
+        crop->bottom = r.bottom;
     } else {
         *buffer = nullptr;
     }

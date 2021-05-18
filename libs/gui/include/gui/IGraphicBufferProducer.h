@@ -619,6 +619,22 @@ public:
     virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]) = 0;
 
+    // Returns the last queued buffer along with a fence which must signal
+    // before the contents of the buffer are read. If there are no buffers in
+    // the queue, outBuffer will be populated with nullptr and outFence will be
+    // populated with Fence::NO_FENCE
+    //
+    // outRect & outTransform are not modified if outBuffer is null.
+    //
+    // Returns NO_ERROR or the status of the Binder transaction
+    virtual status_t getLastQueuedBuffer([[maybe_unused]] sp<GraphicBuffer>* outBuffer,
+                                         [[maybe_unused]] sp<Fence>* outFence,
+                                         [[maybe_unused]] Rect* outRect,
+                                         [[maybe_unused]] uint32_t* outTransform) {
+        // Too many things implement IGraphicBufferProducer...
+        return UNKNOWN_TRANSACTION;
+    }
+
     // Gets the frame events that haven't already been retrieved.
     virtual void getFrameTimestamps(FrameEventHistoryDelta* /*outDelta*/) {}
 

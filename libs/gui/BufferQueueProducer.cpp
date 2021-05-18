@@ -1621,6 +1621,26 @@ status_t BufferQueueProducer::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
     return NO_ERROR;
 }
 
+status_t BufferQueueProducer::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence,
+                                                  Rect* outRect, uint32_t* outTransform) {
+    ATRACE_CALL();
+    BQ_LOGV("getLastQueuedBuffer");
+
+    std::lock_guard<std::mutex> lock(mCore->mMutex);
+    if (mCore->mLastQueuedSlot == BufferItem::INVALID_BUFFER_SLOT) {
+        *outBuffer = nullptr;
+        *outFence = Fence::NO_FENCE;
+        return NO_ERROR;
+    }
+
+    *outBuffer = mSlots[mCore->mLastQueuedSlot].mGraphicBuffer;
+    *outFence = mLastQueueBufferFence;
+    *outRect = mLastQueuedCrop;
+    *outTransform = mLastQueuedTransform;
+
+    return NO_ERROR;
+}
+
 void BufferQueueProducer::getFrameTimestamps(FrameEventHistoryDelta* outDelta) {
     addAndGetFrameTimestamps(nullptr, outDelta);
 }
