@@ -1101,8 +1101,8 @@ inline std::pair<SkRRect, SkRRect> SkiaGLRenderEngine::getBoundsAndClip(
 
     SkRRect clip;
     if (cornerRadius > 0) {
-        // it the crop and the bounds are equivalent then we don't need a clip
-        if (bounds == crop) {
+        // it the crop and the bounds are equivalent or there is no crop then we don't need a clip
+        if (bounds == crop || crop.isEmpty()) {
             return {SkRRect::MakeRectXY(bounds, cornerRadius, cornerRadius), clip};
         }
 
@@ -1116,34 +1116,47 @@ inline std::pair<SkRRect, SkRRect> SkiaGLRenderEngine::getBoundsAndClip(
 
             const auto insetCrop = crop.makeInset(cornerRadius, cornerRadius);
 
+            const bool leftEqual = bounds.fLeft == crop.fLeft;
+            const bool topEqual = bounds.fTop == crop.fTop;
+            const bool rightEqual = bounds.fRight == crop.fRight;
+            const bool bottomEqual = bounds.fBottom == crop.fBottom;
+
             // compute the UpperLeft corner radius
-            if (bounds.fLeft == crop.fLeft && bounds.fTop == crop.fTop) {
+            if (leftEqual && topEqual) {
                 radii[0].set(cornerRadius, cornerRadius);
-            } else if (bounds.fLeft > insetCrop.fLeft && bounds.fTop > insetCrop.fTop) {
+            } else if ((leftEqual && bounds.fTop >= insetCrop.fTop) ||
+                       (topEqual && bounds.fLeft >= insetCrop.fLeft) ||
+                       insetCrop.contains(bounds.fLeft, bounds.fTop)) {
                 radii[0].set(0, 0);
             } else {
                 intersectionIsRoundRect = false;
             }
             // compute the UpperRight corner radius
-            if (bounds.fRight == crop.fRight && bounds.fTop == crop.fTop) {
+            if (rightEqual && topEqual) {
                 radii[1].set(cornerRadius, cornerRadius);
-            } else if (bounds.fRight < insetCrop.fRight && bounds.fTop > insetCrop.fTop) {
+            } else if ((rightEqual && bounds.fTop >= insetCrop.fTop) ||
+                       (topEqual && bounds.fRight <= insetCrop.fRight) ||
+                       insetCrop.contains(bounds.fRight, bounds.fTop)) {
                 radii[1].set(0, 0);
             } else {
                 intersectionIsRoundRect = false;
             }
             // compute the BottomRight corner radius
-            if (bounds.fRight == crop.fRight && bounds.fBottom == crop.fBottom) {
+            if (rightEqual && bottomEqual) {
                 radii[2].set(cornerRadius, cornerRadius);
-            } else if (bounds.fRight < insetCrop.fRight && bounds.fBottom < insetCrop.fBottom) {
+            } else if ((rightEqual && bounds.fBottom <= insetCrop.fBottom) ||
+                       (bottomEqual && bounds.fRight <= insetCrop.fRight) ||
+                       insetCrop.contains(bounds.fRight, bounds.fBottom)) {
                 radii[2].set(0, 0);
             } else {
                 intersectionIsRoundRect = false;
             }
             // compute the BottomLeft corner radius
-            if (bounds.fLeft == crop.fLeft && bounds.fBottom == crop.fBottom) {
+            if (leftEqual && bottomEqual) {
                 radii[3].set(cornerRadius, cornerRadius);
-            } else if (bounds.fLeft > insetCrop.fLeft && bounds.fBottom < insetCrop.fBottom) {
+            } else if ((leftEqual && bounds.fBottom <= insetCrop.fBottom) ||
+                       (bottomEqual && bounds.fLeft >= insetCrop.fLeft) ||
+                       insetCrop.contains(bounds.fLeft, bounds.fBottom)) {
                 radii[3].set(0, 0);
             } else {
                 intersectionIsRoundRect = false;
