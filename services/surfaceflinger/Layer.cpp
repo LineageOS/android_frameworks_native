@@ -221,7 +221,10 @@ void Layer::removeRelativeZ(const std::vector<Layer*>& layersInTree) {
 }
 
 void Layer::removeFromCurrentState() {
-    mRemovedFromCurrentState = true;
+    if (!mRemovedFromCurrentState) {
+        mRemovedFromCurrentState = true;
+        mFlinger->mScheduler->deregisterLayer(this);
+    }
 
     mFlinger->markLayerPendingRemovalLocked(this);
 }
@@ -246,7 +249,10 @@ void Layer::onRemovedFromCurrentState() {
 }
 
 void Layer::addToCurrentState() {
-    mRemovedFromCurrentState = false;
+    if (mRemovedFromCurrentState) {
+        mRemovedFromCurrentState = false;
+        mFlinger->mScheduler->registerLayer(this);
+    }
 
     for (const auto& child : mCurrentChildren) {
         child->addToCurrentState();
@@ -620,23 +626,6 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareShadowCli
 
     if (shadowLayer.shadow.ambientColor.a <= 0.f && shadowLayer.shadow.spotColor.a <= 0.f) {
         return {};
-    }
-
-    float casterCornerRadius = shadowLayer.geometry.roundedCornersRadius;
-    const FloatRect& cornerRadiusCropRect = shadowLayer.geometry.roundedCornersCrop;
-    const FloatRect& casterRect = shadowLayer.geometry.boundaries;
-
-    // crop used to set the corner radius may be larger than the content rect. Adjust the corner
-    // radius accordingly.
-    if (casterCornerRadius > 0.f) {
-        float cropRectOffset = std::max(std::abs(cornerRadiusCropRect.top - casterRect.top),
-                                        std::abs(cornerRadiusCropRect.left - casterRect.left));
-        if (cropRectOffset > casterCornerRadius) {
-            casterCornerRadius = 0;
-        } else {
-            casterCornerRadius -= cropRectOffset;
-        }
-        shadowLayer.geometry.roundedCornersRadius = casterCornerRadius;
     }
 
     return shadowLayer;

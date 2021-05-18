@@ -84,8 +84,11 @@ LayerHistory::LayerHistory(const RefreshRateConfigs& refreshRateConfigs)
 LayerHistory::~LayerHistory() = default;
 
 void LayerHistory::registerLayer(Layer* layer, LayerVoteType type) {
-    auto info = std::make_unique<LayerInfo>(layer->getName(), layer->getOwnerUid(), type);
     std::lock_guard lock(mLock);
+    for (const auto& info : mLayerInfos) {
+        LOG_ALWAYS_FATAL_IF(info.first == layer, "%s already registered", layer->getName().c_str());
+    }
+    auto info = std::make_unique<LayerInfo>(layer->getName(), layer->getOwnerUid(), type);
     mLayerInfos.emplace_back(layer, std::move(info));
 }
 
@@ -94,7 +97,7 @@ void LayerHistory::deregisterLayer(Layer* layer) {
 
     const auto it = std::find_if(mLayerInfos.begin(), mLayerInfos.end(),
                                  [layer](const auto& pair) { return pair.first == layer; });
-    LOG_FATAL_IF(it == mLayerInfos.end(), "%s: unknown layer %p", __FUNCTION__, layer);
+    LOG_ALWAYS_FATAL_IF(it == mLayerInfos.end(), "%s: unknown layer %p", __FUNCTION__, layer);
 
     const size_t i = static_cast<size_t>(it - mLayerInfos.begin());
     if (i < mActiveLayersEnd) {
@@ -111,7 +114,11 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
 
     const auto it = std::find_if(mLayerInfos.begin(), mLayerInfos.end(),
                                  [layer](const auto& pair) { return pair.first == layer; });
-    LOG_FATAL_IF(it == mLayerInfos.end(), "%s: unknown layer %p", __FUNCTION__, layer);
+    if (it == mLayerInfos.end()) {
+        // Offscreen layer
+        ALOGV("LayerHistory::record: %s not registered", layer->getName().c_str());
+        return;
+    }
 
     const auto& info = it->second;
     const auto layerProps = LayerInfo::LayerProps{
