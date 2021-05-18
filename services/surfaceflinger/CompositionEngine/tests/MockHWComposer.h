@@ -52,8 +52,7 @@ public:
                       std::optional<PhysicalDisplayId>));
     MOCK_METHOD2(allocatePhysicalDisplay, void(hal::HWDisplayId, PhysicalDisplayId));
 
-    MOCK_METHOD1(createLayer, HWC2::Layer*(HalDisplayId));
-    MOCK_METHOD2(destroyLayer, void(HalDisplayId, HWC2::Layer*));
+    MOCK_METHOD1(createLayer, std::shared_ptr<HWC2::Layer>(HalDisplayId));
     MOCK_METHOD3(getDeviceCompositionChanges,
                  status_t(HalDisplayId, bool,
                           std::optional<android::HWComposer::DeviceRequestedChanges>*));
