@@ -272,7 +272,7 @@ private:
 
     // Used for sanitizing the heuristic data. If two frames are less than
     // this period apart from each other they'll be considered as duplicates.
-    static constexpr nsecs_t kMinPeriodBetweenFrames = Fps(120.f).getPeriodNsecs();
+    static constexpr nsecs_t kMinPeriodBetweenFrames = Fps(240.f).getPeriodNsecs();
     // Used for sanitizing the heuristic data. If two frames are more than
     // this period apart from each other, the interval between them won't be
     // taken into account when calculating average frame rate.
