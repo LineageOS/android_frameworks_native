@@ -317,6 +317,11 @@ void BLASTBufferQueue::releaseBufferCallback(uint64_t graphicBufferId,
     std::unique_lock _lock{mMutex};
     BQA_LOGV("releaseBufferCallback graphicBufferId=%" PRIu64, graphicBufferId);
 
+    if (mSurfaceControl != nullptr) {
+        mTransformHint = mSurfaceControl->getTransformHint();
+        mBufferItemConsumer->setTransformHint(mTransformHint);
+    }
+
     auto it = mSubmitted.find(graphicBufferId);
     if (it == mSubmitted.end()) {
         BQA_LOGE("ERROR: releaseBufferCallback without corresponding submitted buffer %" PRIu64,
@@ -596,6 +601,14 @@ public:
     status_t setFrameTimelineInfo(const FrameTimelineInfo& frameTimelineInfo) override {
         return mBbq->setFrameTimelineInfo(frameTimelineInfo);
     }
+ protected:
+    uint32_t getTransformHint() const override {
+        if (mStickyTransform == 0 && !transformToDisplayInverse()) {
+            return mBbq->getLastTransformHint();
+        } else {
+            return 0;
+        }
+    }
 };
 
 // TODO: Can we coalesce this with frame updates? Need to confirm
@@ -763,6 +776,14 @@ PixelFormat BLASTBufferQueue::convertBufferFormat(PixelFormat& format) {
             break;
     }
     return convertedFormat;
+}
+
+uint32_t BLASTBufferQueue::getLastTransformHint() const {
+    if (mSurfaceControl != nullptr) {
+        return mSurfaceControl->getTransformHint();
+    } else {
+        return 0;
+    }
 }
 
 } // namespace android
