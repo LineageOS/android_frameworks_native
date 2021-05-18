@@ -169,11 +169,6 @@ struct SurfaceFlingerBE {
     };
     mutable Mutex mBufferingStatsMutex;
     std::unordered_map<std::string, BufferingStats> mBufferingStats;
-
-    // The composer sequence id is a monotonically increasing integer that we
-    // use to differentiate callbacks from different hardware composer
-    // instances. Each hardware composer instance gets a different sequence id.
-    int32_t mComposerSequenceId = 0;
 };
 
 class SurfaceFlinger : public BnSurfaceComposer,
@@ -706,18 +701,14 @@ private:
     // Implements RefBase.
     void onFirstRef() override;
 
-    /*
-     * HWC2::ComposerCallback / HWComposer::EventHandler interface
-     */
-    void onVsyncReceived(int32_t sequenceId, hal::HWDisplayId hwcDisplayId, int64_t timestamp,
-                         std::optional<hal::VsyncPeriodNanos> vsyncPeriod) override;
-    void onHotplugReceived(int32_t sequenceId, hal::HWDisplayId hwcDisplayId,
-                           hal::Connection connection) override;
-    void onRefreshReceived(int32_t sequenceId, hal::HWDisplayId hwcDisplayId) override;
-    void onVsyncPeriodTimingChangedReceived(
-            int32_t sequenceId, hal::HWDisplayId display,
-            const hal::VsyncPeriodChangeTimeline& updatedTimeline) override;
-    void onSeamlessPossible(int32_t sequenceId, hal::HWDisplayId display) override;
+    // HWC2::ComposerCallback overrides:
+    void onComposerHalVsync(hal::HWDisplayId, int64_t timestamp,
+                            std::optional<hal::VsyncPeriodNanos>) override;
+    void onComposerHalHotplug(hal::HWDisplayId, hal::Connection) override;
+    void onComposerHalRefresh(hal::HWDisplayId) override;
+    void onComposerHalVsyncPeriodTimingChanged(hal::HWDisplayId,
+                                               const hal::VsyncPeriodChangeTimeline&) override;
+    void onComposerHalSeamlessPossible(hal::HWDisplayId) override;
 
     /*
      * ISchedulerCallback
