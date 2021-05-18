@@ -2385,7 +2385,7 @@ void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowH
         inputTarget.flags = targetFlags;
         inputTarget.globalScaleFactor = windowInfo->globalScaleFactor;
         inputTarget.displaySize =
-                vec2(windowHandle->getInfo()->displayWidth, windowHandle->getInfo()->displayHeight);
+                int2(windowHandle->getInfo()->displayWidth, windowHandle->getInfo()->displayHeight);
         inputTargets.push_back(inputTarget);
         it = inputTargets.end() - 1;
     }
