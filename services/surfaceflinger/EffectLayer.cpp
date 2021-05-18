@@ -57,19 +57,15 @@ std::vector<compositionengine::LayerFE::LayerSettings> EffectLayer::prepareClien
         return {};
     }
 
-    std::optional<compositionengine::LayerFE::LayerSettings> shadowSettings =
-            prepareShadowClientComposition(*layerSettings, targetSettings.viewport,
-                                           targetSettings.dataspace);
-    if (shadowSettings) {
-        results.push_back(*shadowSettings);
-    }
+    // set the shadow for the layer if needed
+    prepareShadowClientComposition(*layerSettings, targetSettings.viewport);
 
     // If fill bounds are occluded or the fill color is invalid skip the fill settings.
     if (targetSettings.realContentIsVisible && fillsColor()) {
         // Set color for color fill settings.
         layerSettings->source.solidColor = getColor().rgb;
         results.push_back(*layerSettings);
-    } else if (hasBlur()) {
+    } else if (hasBlur() || drawShadows()) {
         results.push_back(*layerSettings);
     }
 

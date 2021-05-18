@@ -1265,6 +1265,7 @@ void RenderEngineTest::drawShadowWithoutCaster(const FloatRect& castingBounds,
     renderengine::LayerSettings shadowLayer;
     shadowLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     shadowLayer.geometry.boundaries = castingBounds;
+    shadowLayer.skipContentDraw = true;
     shadowLayer.alpha = 1.0f;
     ColorSourceVariant::fillColor(shadowLayer, 0, 0, 0, this);
     shadowLayer.shadow = shadow;
