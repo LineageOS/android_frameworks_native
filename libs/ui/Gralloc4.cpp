@@ -36,6 +36,7 @@ using android::hardware::graphics::common::V1_2::BufferUsage;
 using android::hardware::graphics::mapper::V4_0::BufferDescriptor;
 using android::hardware::graphics::mapper::V4_0::Error;
 using android::hardware::graphics::mapper::V4_0::IMapper;
+using AidlDataspace = ::aidl::android::hardware::graphics::common::Dataspace;
 using BufferDump = android::hardware::graphics::mapper::V4_0::IMapper::BufferDump;
 using MetadataDump = android::hardware::graphics::mapper::V4_0::IMapper::MetadataDump;
 using MetadataType = android::hardware::graphics::mapper::V4_0::IMapper::MetadataType;
@@ -597,7 +598,7 @@ status_t Gralloc4Mapper::getDataspace(buffer_handle_t bufferHandle,
     if (!outDataspace) {
         return BAD_VALUE;
     }
-    aidl::android::hardware::graphics::common::Dataspace dataspace;
+    AidlDataspace dataspace;
     status_t error = get(bufferHandle, gralloc4::MetadataType_Dataspace, gralloc4::decodeDataspace,
                          &dataspace);
     if (error) {
@@ -841,6 +842,7 @@ status_t Gralloc4Mapper::bufferDumpHelper(const BufferDump& bufferDump, std::ost
     uint32_t pixelFormatFourCC;
     uint64_t pixelFormatModifier;
     uint64_t usage;
+    AidlDataspace dataspace;
     uint64_t allocationSize;
     uint64_t protectedContent;
     ExtendableType compression;
@@ -892,6 +894,11 @@ status_t Gralloc4Mapper::bufferDumpHelper(const BufferDump& bufferDump, std::ost
     if (error != NO_ERROR) {
         return error;
     }
+    error = metadataDumpHelper(bufferDump, StandardMetadataType::DATASPACE,
+                               gralloc4::decodeDataspace, &dataspace);
+    if (error != NO_ERROR) {
+        return error;
+    }
     error = metadataDumpHelper(bufferDump, StandardMetadataType::ALLOCATION_SIZE,
                                gralloc4::decodeAllocationSize, &allocationSize);
     if (error != NO_ERROR) {
@@ -932,6 +939,7 @@ status_t Gralloc4Mapper::bufferDumpHelper(const BufferDump& bufferDump, std::ost
              << "KiB, w/h:" << width << "x" << height << ", usage: 0x" << std::hex << usage
              << std::dec << ", req fmt:" << static_cast<int32_t>(pixelFormatRequested)
              << ", fourcc/mod:" << pixelFormatFourCC << "/" << pixelFormatModifier
+             << ", dataspace: 0x" << std::hex << static_cast<uint32_t>(dataspace)
              << ", compressed: ";
 
     if (less) {
