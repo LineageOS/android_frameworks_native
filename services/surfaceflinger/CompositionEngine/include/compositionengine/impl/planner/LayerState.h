@@ -26,6 +26,7 @@
 #include <string>
 
 #include "DisplayHardware/Hal.h"
+#include "math/HashCombine.h"
 
 namespace std {
 template <typename T>
@@ -48,24 +49,26 @@ using LayerId = int32_t;
 
 // clang-format off
 enum class LayerStateField : uint32_t {
-    None            = 0u,
-    Id              = 1u << 0,
-    Name            = 1u << 1,
-    DisplayFrame    = 1u << 2,
-    SourceCrop      = 1u << 3,
-    BufferTransform = 1u << 4,
-    BlendMode       = 1u << 5,
-    Alpha           = 1u << 6,
-    LayerMetadata   = 1u << 7,
-    VisibleRegion   = 1u << 8,
-    Dataspace       = 1u << 9,
-    PixelFormat     = 1u << 10,
-    ColorTransform  = 1u << 11,
-    SurfaceDamage   = 1u << 12,
-    CompositionType = 1u << 13,
-    SidebandStream  = 1u << 14,
-    Buffer          = 1u << 15,
-    SolidColor      = 1u << 16,
+    None                  = 0u,
+    Id                    = 1u << 0,
+    Name                  = 1u << 1,
+    DisplayFrame          = 1u << 2,
+    SourceCrop            = 1u << 3,
+    BufferTransform       = 1u << 4,
+    BlendMode             = 1u << 5,
+    Alpha                 = 1u << 6,
+    LayerMetadata         = 1u << 7,
+    VisibleRegion         = 1u << 8,
+    Dataspace             = 1u << 9,
+    PixelFormat           = 1u << 10,
+    ColorTransform        = 1u << 11,
+    SurfaceDamage         = 1u << 12,
+    CompositionType       = 1u << 13,
+    SidebandStream        = 1u << 14,
+    Buffer                = 1u << 15,
+    SolidColor            = 1u << 16,
+    BackgroundBlurRadius  = 1u << 17,
+    BlurRegions           = 1u << 18,
 };
 // clang-format on
 
@@ -225,6 +228,9 @@ public:
     const std::string& getName() const { return mName.get(); }
     Rect getDisplayFrame() const { return mDisplayFrame.get(); }
     const Region& getVisibleRegion() const { return mVisibleRegion.get(); }
+    bool hasBlurBehind() const {
+        return mBackgroundBlurRadius.get() > 0 || !mBlurRegions.get().empty();
+    }
     hardware::graphics::composer::hal::Composition getCompositionType() const {
         return mCompositionType.get();
     }
@@ -398,7 +404,45 @@ private:
                             return std::vector<std::string>{stream.str()};
                         }};
 
-    static const constexpr size_t kNumNonUniqueFields = 14;
+    OutputLayerState<int32_t, LayerStateField::BackgroundBlurRadius> mBackgroundBlurRadius{
+            [](auto layer) {
+                return layer->getLayerFE().getCompositionState()->backgroundBlurRadius;
+            }};
+
+    using BlurRegionsState =
+            OutputLayerState<std::vector<BlurRegion>, LayerStateField::BlurRegions>;
+    BlurRegionsState mBlurRegions{[](auto layer) {
+                                      return layer->getLayerFE().getCompositionState()->blurRegions;
+                                  },
+                                  [](const std::vector<BlurRegion>& regions) {
+                                      std::vector<std::string> result;
+                                      for (const auto region : regions) {
+                                          std::string str;
+                                          base::StringAppendF(&str,
+                                                              "{radius=%du, cornerRadii=[%f, %f, "
+                                                              "%f, %f], alpha=%f, rect=[%d, "
+                                                              "%d, %d, %d]",
+                                                              region.blurRadius,
+                                                              region.cornerRadiusTL,
+                                                              region.cornerRadiusTR,
+                                                              region.cornerRadiusBL,
+                                                              region.cornerRadiusBR, region.alpha,
+                                                              region.left, region.top, region.right,
+                                                              region.bottom);
+                                          result.push_back(str);
+                                      }
+                                      return result;
+                                  },
+                                  BlurRegionsState::getDefaultEquals(),
+                                  [](const std::vector<BlurRegion>& regions) {
+                                      size_t hash = 0;
+                                      for (const auto& region : regions) {
+                                          android::hashCombineSingle(hash, region);
+                                      }
+                                      return hash;
+                                  }};
+
+    static const constexpr size_t kNumNonUniqueFields = 16;
 
     std::array<StateInterface*, kNumNonUniqueFields> getNonUniqueFields() {
         std::array<const StateInterface*, kNumNonUniqueFields> constFields =
@@ -413,10 +457,10 @@ private:
 
     std::array<const StateInterface*, kNumNonUniqueFields> getNonUniqueFields() const {
         return {
-                &mDisplayFrame, &mSourceCrop,     &mBufferTransform, &mBlendMode,
-                &mAlpha,        &mLayerMetadata,  &mVisibleRegion,   &mOutputDataspace,
-                &mPixelFormat,  &mColorTransform, &mCompositionType, &mSidebandStream,
-                &mBuffer,       &mSolidColor,
+                &mDisplayFrame, &mSourceCrop,     &mBufferTransform,      &mBlendMode,
+                &mAlpha,        &mLayerMetadata,  &mVisibleRegion,        &mOutputDataspace,
+                &mPixelFormat,  &mColorTransform, &mCompositionType,      &mSidebandStream,
+                &mBuffer,       &mSolidColor,     &mBackgroundBlurRadius, &mBlurRegions,
         };
     }
 };
