@@ -5595,26 +5595,35 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             // Second argument is an optional uint64 - if present, then limits enabling/disabling
             // caching to a particular physical display
             case 1040: {
-                n = data.readInt32();
-                std::optional<PhysicalDisplayId> inputId = std::nullopt;
-                if (uint64_t inputDisplayId; data.readUint64(&inputDisplayId) == NO_ERROR) {
-                    const auto token =
-                            getPhysicalDisplayToken(static_cast<PhysicalDisplayId>(inputDisplayId));
-                    if (!token) {
-                        ALOGE("No display with id: %" PRIu64, inputDisplayId);
-                        return NAME_NOT_FOUND;
-                    }
+                status_t error =
+                        schedule([&] {
+                            n = data.readInt32();
+                            std::optional<PhysicalDisplayId> inputId = std::nullopt;
+                            if (uint64_t inputDisplayId;
+                                data.readUint64(&inputDisplayId) == NO_ERROR) {
+                                const auto token = getPhysicalDisplayToken(
+                                        static_cast<PhysicalDisplayId>(inputDisplayId));
+                                if (!token) {
+                                    ALOGE("No display with id: %" PRIu64, inputDisplayId);
+                                    return NAME_NOT_FOUND;
+                                }
 
-                    inputId = std::make_optional<PhysicalDisplayId>(inputDisplayId);
-                }
-                {
-                    Mutex::Autolock lock(mStateLock);
-                    mLayerCachingEnabled = n != 0;
-                    for (const auto& [_, display] : mDisplays) {
-                        if (!inputId || *inputId == display->getPhysicalId()) {
-                            display->enableLayerCaching(mLayerCachingEnabled);
-                        }
-                    }
+                                inputId = std::make_optional<PhysicalDisplayId>(inputDisplayId);
+                            }
+                            {
+                                Mutex::Autolock lock(mStateLock);
+                                mLayerCachingEnabled = n != 0;
+                                for (const auto& [_, display] : mDisplays) {
+                                    if (!inputId || *inputId == display->getPhysicalId()) {
+                                        display->enableLayerCaching(mLayerCachingEnabled);
+                                    }
+                                }
+                            }
+                            return OK;
+                        }).get();
+
+                if (error != OK) {
+                    return error;
                 }
                 invalidateHwcGeometry();
                 repaintEverything();
