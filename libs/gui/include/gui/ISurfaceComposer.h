@@ -24,9 +24,9 @@
 #include <android/gui/ITunnelModeEnabledListener.h>
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
+#include <ftl/Flags.h>
 #include <gui/FrameTimelineInfo.h>
 #include <gui/ITransactionCompletedListener.h>
-#include <input/Flags.h>
 #include <math/vec4.h>
 #include <stdint.h>
 #include <sys/types.h>

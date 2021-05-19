@@ -19,17 +19,16 @@
 
 #include <InputListener.h>
 #include <android-base/result.h>
-#include <android/FocusRequest.h>
+#include <android/gui/FocusRequest.h>
 #include <android/os/BlockUntrustedTouchesMode.h>
 #include <android/os/ISetInputWindowsListener.h>
 #include <android/os/InputEventInjectionResult.h>
 #include <android/os/InputEventInjectionSync.h>
-#include <input/InputApplication.h>
+#include <gui/InputApplication.h>
+#include <gui/WindowInfo.h>
 #include <input/InputDevice.h>
 #include <input/InputTransport.h>
-#include <input/InputWindow.h>
 #include <unordered_map>
-
 
 namespace android {
 
@@ -91,7 +90,7 @@ public:
      * This method may be called on any thread (usually by the input manager).
      */
     virtual void setInputWindows(
-            const std::unordered_map<int32_t, std::vector<sp<InputWindowHandle>>>&
+            const std::unordered_map<int32_t, std::vector<sp<gui::WindowInfoHandle>>>&
                     handlesPerDisplay) = 0;
 
     /* Sets the focused application on the given display.
@@ -162,7 +161,7 @@ public:
     /**
      * Sets focus on the specified window.
      */
-    virtual void setFocusedWindow(const FocusRequest&) = 0;
+    virtual void setFocusedWindow(const gui::FocusRequest&) = 0;
 
     /**
      * Creates an input channel that may be used as targets for input events.

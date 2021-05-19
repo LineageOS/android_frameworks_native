@@ -22,6 +22,9 @@
 #include "LayerProtoHelper.h"
 
 namespace android {
+
+using gui::WindowInfo;
+
 namespace surfaceflinger {
 
 void LayerProtoHelper::writePositionToProto(const float x, const float y,
@@ -125,7 +128,7 @@ void LayerProtoHelper::writeToProto(const sp<GraphicBuffer>& buffer,
 }
 
 void LayerProtoHelper::writeToProto(
-        const InputWindowInfo& inputInfo, const wp<Layer>& touchableRegionBounds,
+        const WindowInfo& inputInfo, const wp<Layer>& touchableRegionBounds,
         std::function<InputWindowInfoProto*()> getInputWindowInfoProto) {
     if (inputInfo.token == nullptr) {
         return;
@@ -133,7 +136,7 @@ void LayerProtoHelper::writeToProto(
 
     InputWindowInfoProto* proto = getInputWindowInfoProto();
     proto->set_layout_params_flags(inputInfo.flags.get());
-    using U = std::underlying_type_t<InputWindowInfo::Type>;
+    using U = std::underlying_type_t<WindowInfo::Type>;
     // TODO(b/129481165): This static assert can be safely removed once conversion warnings
     // are re-enabled.
     static_assert(std::is_same_v<U, int32_t>);

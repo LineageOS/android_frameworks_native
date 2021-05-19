@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#include <input/InputWindow.h>
+#include <gui/WindowInfo.h>
 
 #include "InputTarget.h"
 
 #include "TouchState.h"
 
-using android::InputWindowHandle;
+using android::gui::WindowInfo;
+using android::gui::WindowInfoHandle;
 
 namespace android::inputdispatcher {
 
@@ -49,7 +50,7 @@ void TouchState::copyFrom(const TouchState& other) {
     gestureMonitors = other.gestureMonitors;
 }
 
-void TouchState::addOrUpdateWindow(const sp<InputWindowHandle>& windowHandle, int32_t targetFlags,
+void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle, int32_t targetFlags,
                                    BitSet32 pointerIds) {
     if (targetFlags & InputTarget::FLAG_SPLIT) {
         split = true;
@@ -108,7 +109,7 @@ void TouchState::filterNonMonitors() {
     windows.clear();
 }
 
-sp<InputWindowHandle> TouchState::getFirstForegroundWindowHandle() const {
+sp<WindowInfoHandle> TouchState::getFirstForegroundWindowHandle() const {
     for (size_t i = 0; i < windows.size(); i++) {
         const TouchedWindow& window = windows[i];
         if (window.targetFlags & InputTarget::FLAG_FOREGROUND) {
@@ -124,7 +125,7 @@ bool TouchState::isSlippery() const {
     for (const TouchedWindow& window : windows) {
         if (window.targetFlags & InputTarget::FLAG_FOREGROUND) {
             if (haveSlipperyForegroundWindow ||
-                !window.windowHandle->getInfo()->flags.test(InputWindowInfo::Flag::SLIPPERY)) {
+                !window.windowHandle->getInfo()->flags.test(WindowInfo::Flag::SLIPPERY)) {
                 return false;
             }
             haveSlipperyForegroundWindow = true;

@@ -71,7 +71,6 @@
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
 #include "TunnelModeEnabledReporter.h"
-#include "input/InputWindow.h"
 
 #define DEBUG_RESIZE 0
 
@@ -83,6 +82,7 @@ constexpr int kDumpTableRowLength = 159;
 using base::StringAppendF;
 using namespace android::flag_operators;
 using PresentState = frametimeline::SurfaceFrame::PresentState;
+using gui::WindowInfo;
 
 std::atomic<int32_t> Layer::sSequence{1};
 
@@ -90,8 +90,8 @@ Layer::Layer(const LayerCreationArgs& args)
       : mFlinger(args.flinger),
         mName(args.name),
         mClientRef(args.client),
-        mWindowType(static_cast<InputWindowInfo::Type>(
-                args.metadata.getInt32(METADATA_WINDOW_TYPE, 0))) {
+        mWindowType(
+                static_cast<WindowInfo::Type>(args.metadata.getInt32(METADATA_WINDOW_TYPE, 0))) {
     uint32_t layerFlags = 0;
     if (args.flags & ISurfaceComposerClient::eHidden) layerFlags |= layer_state_t::eLayerHidden;
     if (args.flags & ISurfaceComposerClient::eOpaque) layerFlags |= layer_state_t::eLayerOpaque;
@@ -1986,7 +1986,7 @@ static wp<Layer> extractLayerFromBinder(const wp<IBinder>& weakBinderHandle) {
     return handle->owner;
 }
 
-void Layer::setInputInfo(const InputWindowInfo& info) {
+void Layer::setInputInfo(const WindowInfo& info) {
     mDrawingState.inputInfo = info;
     mDrawingState.touchableRegionCrop = extractLayerFromBinder(info.touchableRegionCropHandle);
     mDrawingState.modified = true;
@@ -2136,7 +2136,7 @@ void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet
     }
 
     if (traceFlags & SurfaceTracing::TRACE_INPUT) {
-        InputWindowInfo info;
+        WindowInfo info;
         if (useDrawing) {
             info = fillInputInfo({nullptr});
         } else {
@@ -2167,7 +2167,7 @@ Rect Layer::getInputBounds() const {
     return getCroppedBufferSize(getDrawingState());
 }
 
-void Layer::fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhysicalDisplay) {
+void Layer::fillInputFrameInfo(WindowInfo& info, const ui::Transform& toPhysicalDisplay) {
     // Transform layer size to screen space and inset it by surface insets.
     // If this is a portal window, set the touchableRegion to the layerBounds.
     Rect layerBounds = info.portalToDisplayId == ADISPLAY_ID_NONE
@@ -2262,7 +2262,7 @@ void Layer::fillInputFrameInfo(InputWindowInfo& info, const ui::Transform& toPhy
     info.touchableRegion = inputTransform.transform(info.touchableRegion);
 }
 
-void Layer::fillTouchOcclusionMode(InputWindowInfo& info) {
+void Layer::fillTouchOcclusionMode(WindowInfo& info) {
     sp<Layer> p = this;
     while (p != nullptr && !p->hasInputInfo()) {
         p = p->mDrawingParent.promote();
@@ -2272,17 +2272,17 @@ void Layer::fillTouchOcclusionMode(InputWindowInfo& info) {
     }
 }
 
-InputWindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
+WindowInfo Layer::fillInputInfo(const sp<DisplayDevice>& display) {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
         mDrawingState.inputInfo.ownerUid = mOwnerUid;
         mDrawingState.inputInfo.ownerPid = mOwnerPid;
-        mDrawingState.inputInfo.inputFeatures = InputWindowInfo::Feature::NO_INPUT_CHANNEL;
-        mDrawingState.inputInfo.flags = InputWindowInfo::Flag::NOT_TOUCH_MODAL;
+        mDrawingState.inputInfo.inputFeatures = WindowInfo::Feature::NO_INPUT_CHANNEL;
+        mDrawingState.inputInfo.flags = WindowInfo::Flag::NOT_TOUCH_MODAL;
         mDrawingState.inputInfo.displayId = getLayerStack();
     }
 
-    InputWindowInfo info = mDrawingState.inputInfo;
+    WindowInfo info = mDrawingState.inputInfo;
     info.id = sequence;
 
     if (info.displayId == ADISPLAY_ID_NONE) {
@@ -2456,7 +2456,7 @@ void Layer::updateClonedInputInfo(const std::map<sp<Layer>, sp<Layer>>& clonedLa
     }
     // Cloned layers shouldn't handle watch outside since their z order is not determined by
     // WM or the client.
-    mDrawingState.inputInfo.flags &= ~InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH;
+    mDrawingState.inputInfo.flags &= ~WindowInfo::Flag::WATCH_OUTSIDE_TOUCH;
 }
 
 void Layer::updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {

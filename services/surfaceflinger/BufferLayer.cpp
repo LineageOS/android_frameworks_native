@@ -58,6 +58,8 @@
 
 namespace android {
 
+using gui::WindowInfo;
+
 static constexpr float defaultMaxLuminance = 1000.0;
 
 BufferLayer::BufferLayer(const LayerCreationArgs& args)
@@ -825,7 +827,7 @@ void BufferLayer::updateCloneBufferInfo() {
     wp<Layer> tmpZOrderRelativeOf = mDrawingState.zOrderRelativeOf;
     SortedVector<wp<Layer>> tmpZOrderRelatives = mDrawingState.zOrderRelatives;
     wp<Layer> tmpTouchableRegionCrop = mDrawingState.touchableRegionCrop;
-    InputWindowInfo tmpInputInfo = mDrawingState.inputInfo;
+    WindowInfo tmpInputInfo = mDrawingState.inputInfo;
 
     mDrawingState = clonedFrom->mDrawingState;
 
