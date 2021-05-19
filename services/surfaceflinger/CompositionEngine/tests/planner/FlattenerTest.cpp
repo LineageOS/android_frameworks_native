@@ -642,5 +642,149 @@ TEST_F(FlattenerTest, flattenLayers_pip) {
     EXPECT_EQ(&mTestLayers[2]->outputLayer, peekThroughLayer1);
     EXPECT_EQ(peekThroughLayer1, peekThroughLayer2);
 }
+
+TEST_F(FlattenerTest, flattenLayers_flattensBlurBehindRunIfFirstRun) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+
+    auto& layerState2 = mTestLayers[1]->layerState;
+    mTestLayers[1]->layerFECompositionState.backgroundBlurRadius = 1;
+    layerState2->update(&mTestLayers[1]->outputLayer);
+
+    auto& layerState3 = mTestLayers[2]->layerState;
+    const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+    const auto& overrideBuffer2 = layerState2->getOutputLayer()->getState().overrideInfo.buffer;
+    const auto& overrideBuffer3 = layerState3->getOutputLayer()->getState().overrideInfo.buffer;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+            layerState3.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // Mark the first two layers inactive, which contain the blur behind
+    mTime += 200ms;
+    layerState3->resetFramesSinceBufferUpdate();
+
+    // layers would be flattened but the buffer would not be overridden
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Return(NO_ERROR));
+
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    for (const auto layer : layers) {
+        EXPECT_EQ(nullptr, layer->getOutputLayer()->getState().overrideInfo.buffer);
+    }
+
+    // the new flattened layer is replaced
+    initializeOverrideBuffer(layers);
+    EXPECT_NE(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+    EXPECT_NE(nullptr, overrideBuffer1);
+    EXPECT_EQ(overrideBuffer1, overrideBuffer2);
+    EXPECT_EQ(nullptr, overrideBuffer3);
+}
+
+TEST_F(FlattenerTest, flattenLayers_doesNotFlattenBlurBehindRun) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+
+    auto& layerState2 = mTestLayers[1]->layerState;
+    mTestLayers[1]->layerFECompositionState.backgroundBlurRadius = 1;
+    layerState2->update(&mTestLayers[1]->outputLayer);
+
+    auto& layerState3 = mTestLayers[2]->layerState;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+            layerState3.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // Mark the last two layers inactive, which contains the blur layer, but does not contain the
+    // first layer
+    mTime += 200ms;
+    layerState1->resetFramesSinceBufferUpdate();
+
+    // layers would be flattened but the buffer would not be overridden
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillRepeatedly(Return(NO_ERROR));
+
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    for (const auto layer : layers) {
+        EXPECT_EQ(nullptr, layer->getOutputLayer()->getState().overrideInfo.buffer);
+    }
+
+    // nothing is flattened because the last two frames cannot be cached due to containing a blur
+    // layer
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+    for (const auto layer : layers) {
+        EXPECT_EQ(nullptr, layer->getOutputLayer()->getState().overrideInfo.buffer);
+    }
+}
+
+TEST_F(FlattenerTest, flattenLayers_flattenSkipsLayerWithBlurBehind) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+
+    auto& layerStateWithBlurBehind = mTestLayers[1]->layerState;
+    mTestLayers[1]->layerFECompositionState.backgroundBlurRadius = 1;
+    layerStateWithBlurBehind->update(&mTestLayers[1]->outputLayer);
+
+    auto& layerState3 = mTestLayers[2]->layerState;
+    auto& layerState4 = mTestLayers[3]->layerState;
+    const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+    const auto& blurOverrideBuffer =
+            layerStateWithBlurBehind->getOutputLayer()->getState().overrideInfo.buffer;
+    const auto& overrideBuffer3 = layerState3->getOutputLayer()->getState().overrideInfo.buffer;
+    const auto& overrideBuffer4 = layerState4->getOutputLayer()->getState().overrideInfo.buffer;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerStateWithBlurBehind.get(),
+            layerState3.get(),
+            layerState4.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // Mark the last three layers inactive, which contains the blur layer, but does not contain the
+    // first layer
+    mTime += 200ms;
+    layerState1->resetFramesSinceBufferUpdate();
+
+    // layers would be flattened but the buffer would not be overridden
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Return(NO_ERROR));
+
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    for (const auto layer : layers) {
+        EXPECT_EQ(nullptr, layer->getOutputLayer()->getState().overrideInfo.buffer);
+    }
+
+    // the new flattened layer is replaced
+    initializeOverrideBuffer(layers);
+    EXPECT_NE(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+    EXPECT_EQ(nullptr, overrideBuffer1);
+    EXPECT_EQ(nullptr, blurOverrideBuffer);
+    EXPECT_NE(nullptr, overrideBuffer3);
+    EXPECT_EQ(overrideBuffer3, overrideBuffer4);
+}
+
 } // namespace
 } // namespace android::compositionengine
