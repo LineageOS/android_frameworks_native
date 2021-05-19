@@ -126,7 +126,7 @@ TEST_F(LayerInfoTest, ignoresSmallPeriods) {
     std::deque<FrameTimeData> frameTimes;
     constexpr auto kExpectedFps = Fps(50.0f);
     constexpr auto kExpectedPeriod = kExpectedFps.getPeriodNsecs();
-    constexpr auto kSmallPeriod = Fps(150.0f).getPeriodNsecs();
+    constexpr auto kSmallPeriod = Fps(250.0f).getPeriodNsecs();
     constexpr int kNumIterations = 10;
     for (int i = 1; i <= kNumIterations; i++) {
         frameTimes.push_back(FrameTimeData{.presentTime = kExpectedPeriod * i,

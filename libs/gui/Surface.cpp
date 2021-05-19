@@ -1288,7 +1288,7 @@ int Surface::query(int what, int* value) const {
                         mUserHeight ? mUserHeight : mDefaultHeight);
                 return NO_ERROR;
             case NATIVE_WINDOW_TRANSFORM_HINT:
-                *value = static_cast<int>(mTransformHint);
+                *value = static_cast<int>(getTransformHint());
                 return NO_ERROR;
             case NATIVE_WINDOW_CONSUMER_RUNNING_BEHIND: {
                 status_t err = NO_ERROR;
@@ -1822,7 +1822,7 @@ int Surface::dispatchGetExtraBufferCount(va_list args) {
     return getExtraBufferCount(extraBuffers);
 }
 
-bool Surface::transformToDisplayInverse() {
+bool Surface::transformToDisplayInverse() const {
     return (mTransform & NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY) ==
             NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY;
 }
