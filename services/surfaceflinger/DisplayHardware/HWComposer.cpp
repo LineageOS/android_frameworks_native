@@ -82,25 +82,22 @@ using android::HWC2::ComposerCallback;
 
 class ComposerCallbackBridge : public hal::IComposerCallback {
 public:
-    ComposerCallbackBridge(ComposerCallback* callback, int32_t sequenceId,
-                           bool vsyncSwitchingSupported)
-          : mCallback(callback),
-            mSequenceId(sequenceId),
-            mVsyncSwitchingSupported(vsyncSwitchingSupported) {}
+    ComposerCallbackBridge(ComposerCallback* callback, bool vsyncSwitchingSupported)
+          : mCallback(callback), mVsyncSwitchingSupported(vsyncSwitchingSupported) {}
 
-    Return<void> onHotplug(hal::HWDisplayId display, hal::Connection conn) override {
-        mCallback->onHotplugReceived(mSequenceId, display, conn);
+    Return<void> onHotplug(hal::HWDisplayId display, hal::Connection connection) override {
+        mCallback->onComposerHalHotplug(display, connection);
         return Void();
     }
 
     Return<void> onRefresh(hal::HWDisplayId display) override {
-        mCallback->onRefreshReceived(mSequenceId, display);
+        mCallback->onComposerHalRefresh(display);
         return Void();
     }
 
     Return<void> onVsync(hal::HWDisplayId display, int64_t timestamp) override {
         if (!mVsyncSwitchingSupported) {
-            mCallback->onVsyncReceived(mSequenceId, display, timestamp, std::nullopt);
+            mCallback->onComposerHalVsync(display, timestamp, std::nullopt);
         } else {
             ALOGW("Unexpected onVsync callback on composer >= 2.4, ignoring.");
         }
@@ -110,8 +107,7 @@ public:
     Return<void> onVsync_2_4(hal::HWDisplayId display, int64_t timestamp,
                              hal::VsyncPeriodNanos vsyncPeriodNanos) override {
         if (mVsyncSwitchingSupported) {
-            mCallback->onVsyncReceived(mSequenceId, display, timestamp,
-                                       std::make_optional(vsyncPeriodNanos));
+            mCallback->onComposerHalVsync(display, timestamp, vsyncPeriodNanos);
         } else {
             ALOGW("Unexpected onVsync_2_4 callback on composer <= 2.3, ignoring.");
         }
@@ -119,20 +115,18 @@ public:
     }
 
     Return<void> onVsyncPeriodTimingChanged(
-            hal::HWDisplayId display,
-            const hal::VsyncPeriodChangeTimeline& updatedTimeline) override {
-        mCallback->onVsyncPeriodTimingChangedReceived(mSequenceId, display, updatedTimeline);
+            hal::HWDisplayId display, const hal::VsyncPeriodChangeTimeline& timeline) override {
+        mCallback->onComposerHalVsyncPeriodTimingChanged(display, timeline);
         return Void();
     }
 
     Return<void> onSeamlessPossible(hal::HWDisplayId display) override {
-        mCallback->onSeamlessPossible(mSequenceId, display);
+        mCallback->onComposerHalSeamlessPossible(display);
         return Void();
     }
 
 private:
-    ComposerCallback* mCallback;
-    const int32_t mSequenceId;
+    ComposerCallback* const mCallback;
     const bool mVsyncSwitchingSupported;
 };
 
@@ -155,7 +149,7 @@ HWComposer::~HWComposer() {
     mDisplayData.clear();
 }
 
-void HWComposer::setConfiguration(HWC2::ComposerCallback* callback, int32_t sequenceId) {
+void HWComposer::setCallback(HWC2::ComposerCallback* callback) {
     loadCapabilities();
     loadLayerMetadataSupport();
 
@@ -164,10 +158,9 @@ void HWComposer::setConfiguration(HWC2::ComposerCallback* callback, int32_t sequ
         return;
     }
     mRegisteredCallback = true;
-    sp<ComposerCallbackBridge> callbackBridge(
-            new ComposerCallbackBridge(callback, sequenceId,
-                                       mComposer->isVsyncPeriodSwitchSupported()));
-    mComposer->registerCallback(callbackBridge);
+
+    mComposer->registerCallback(
+            sp<ComposerCallbackBridge>::make(callback, mComposer->isVsyncPeriodSwitchSupported()));
 }
 
 bool HWComposer::getDisplayIdentificationData(hal::HWDisplayId hwcDisplayId, uint8_t* outPort,
@@ -316,20 +309,15 @@ int32_t HWComposer::getAttribute(hal::HWDisplayId hwcDisplayId, hal::HWConfigId 
     return value;
 }
 
-HWC2::Layer* HWComposer::createLayer(HalDisplayId displayId) {
+std::shared_ptr<HWC2::Layer> HWComposer::createLayer(HalDisplayId displayId) {
     RETURN_IF_INVALID_DISPLAY(displayId, nullptr);
 
-    HWC2::Layer* layer;
-    auto error = mDisplayData[displayId].hwcDisplay->createLayer(&layer);
-    RETURN_IF_HWC_ERROR(error, displayId, nullptr);
-    return layer;
-}
-
-void HWComposer::destroyLayer(HalDisplayId displayId, HWC2::Layer* layer) {
-    RETURN_IF_INVALID_DISPLAY(displayId);
-
-    auto error = mDisplayData[displayId].hwcDisplay->destroyLayer(layer);
-    RETURN_IF_HWC_ERROR(error, displayId);
+    auto expected = mDisplayData[displayId].hwcDisplay->createLayer();
+    if (!expected.has_value()) {
+        auto error = std::move(expected).error();
+        RETURN_IF_HWC_ERROR(error, displayId, nullptr);
+    }
+    return std::move(expected).value();
 }
 
 bool HWComposer::isConnected(PhysicalDisplayId displayId) const {

@@ -39,7 +39,7 @@ public:
     HWComposer();
     ~HWComposer() override;
 
-    MOCK_METHOD2(setConfiguration, void(HWC2::ComposerCallback*, int32_t));
+    MOCK_METHOD1(setCallback, void(HWC2::ComposerCallback*));
     MOCK_CONST_METHOD3(getDisplayIdentificationData,
                        bool(hal::HWDisplayId, uint8_t*, DisplayIdentificationData*));
     MOCK_CONST_METHOD1(hasCapability, bool(hal::Capability));
@@ -52,8 +52,7 @@ public:
                       std::optional<PhysicalDisplayId>));
     MOCK_METHOD2(allocatePhysicalDisplay, void(hal::HWDisplayId, PhysicalDisplayId));
 
-    MOCK_METHOD1(createLayer, HWC2::Layer*(HalDisplayId));
-    MOCK_METHOD2(destroyLayer, void(HalDisplayId, HWC2::Layer*));
+    MOCK_METHOD1(createLayer, std::shared_ptr<HWC2::Layer>(HalDisplayId));
     MOCK_METHOD3(getDeviceCompositionChanges,
                  status_t(HalDisplayId, bool,
                           std::optional<android::HWComposer::DeviceRequestedChanges>*));

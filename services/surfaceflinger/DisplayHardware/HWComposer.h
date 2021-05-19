@@ -100,7 +100,7 @@ public:
 
     virtual ~HWComposer();
 
-    virtual void setConfiguration(HWC2::ComposerCallback* callback, int32_t sequenceId) = 0;
+    virtual void setCallback(HWC2::ComposerCallback*) = 0;
 
     virtual bool getDisplayIdentificationData(hal::HWDisplayId, uint8_t* outPort,
                                               DisplayIdentificationData* outData) const = 0;
@@ -122,9 +122,7 @@ public:
     virtual void allocatePhysicalDisplay(hal::HWDisplayId, PhysicalDisplayId) = 0;
 
     // Attempts to create a new layer on this display
-    virtual HWC2::Layer* createLayer(HalDisplayId) = 0;
-    // Destroy a previously created layer
-    virtual void destroyLayer(HalDisplayId, HWC2::Layer*) = 0;
+    virtual std::shared_ptr<HWC2::Layer> createLayer(HalDisplayId) = 0;
 
     // Gets any required composition change requests from the HWC device.
     //
@@ -252,7 +250,7 @@ public:
 
     ~HWComposer() override;
 
-    void setConfiguration(HWC2::ComposerCallback* callback, int32_t sequenceId) override;
+    void setCallback(HWC2::ComposerCallback*) override;
 
     bool getDisplayIdentificationData(hal::HWDisplayId, uint8_t* outPort,
                                       DisplayIdentificationData* outData) const override;
@@ -270,9 +268,7 @@ public:
     void allocatePhysicalDisplay(hal::HWDisplayId, PhysicalDisplayId) override;
 
     // Attempts to create a new layer on this display
-    HWC2::Layer* createLayer(HalDisplayId) override;
-    // Destroy a previously created layer
-    void destroyLayer(HalDisplayId, HWC2::Layer*) override;
+    std::shared_ptr<HWC2::Layer> createLayer(HalDisplayId) override;
 
     status_t getDeviceCompositionChanges(
             HalDisplayId, bool frameUsesClientComposition,
