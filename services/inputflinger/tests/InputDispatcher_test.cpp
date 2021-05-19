@@ -29,9 +29,12 @@
 #include <vector>
 
 using android::base::StringPrintf;
+using android::gui::FocusRequest;
+using android::gui::TouchOcclusionMode;
+using android::gui::WindowInfo;
+using android::gui::WindowInfoHandle;
 using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
-using android::os::TouchOcclusionMode;
 using namespace android::flag_operators;
 
 namespace android::inputdispatcher {
@@ -469,8 +472,8 @@ protected:
         }
     }
 
-    void setFocusedWindow(const sp<InputWindowHandle>& window,
-                          const sp<InputWindowHandle>& focusedWindow = nullptr) {
+    void setFocusedWindow(const sp<WindowInfoHandle>& window,
+                          const sp<WindowInfoHandle>& focusedWindow = nullptr) {
         FocusRequest request;
         request.token = window->getToken();
         request.windowName = window->getName();
@@ -527,8 +530,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      /*action*/ -1, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, INVALID_DISPLAY_SIZE,
+                     INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -541,9 +544,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                              (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
-                     pointerCoords);
+                     INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
+                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
                                             InputEventInjectionSync::NONE, 0ms, 0))
@@ -554,9 +556,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                              (~0U << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
-                     pointerCoords);
+                     INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
+                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
                                             InputEventInjectionSync::NONE, 0ms, 0))
@@ -568,9 +569,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                              (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
-                     pointerCoords);
+                     INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
+                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
                                             InputEventInjectionSync::NONE, 0ms, 0))
@@ -581,9 +581,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
                              (~0U << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                      0, 0, edgeFlags, metaState, 0, classification, identityTransform, 0, 0,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     ARBITRARY_TIME, ARBITRARY_TIME, /*pointerCount*/ 1, pointerProperties,
-                     pointerCoords);
+                     INVALID_DISPLAY_SIZE, INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
+                     /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
                                             InputEventInjectionSync::NONE, 0ms, 0))
@@ -593,8 +592,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, INVALID_DISPLAY_SIZE,
+                     INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 0, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -604,8 +603,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, INVALID_DISPLAY_SIZE,
+                     INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ MAX_POINTERS + 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -617,8 +616,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, INVALID_DISPLAY_SIZE,
+                     INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -629,8 +628,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, INVALID_DISPLAY_SIZE,
+                     INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 1, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -643,8 +642,8 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesMotionEvents) {
     event.initialize(InputEvent::nextId(), DEVICE_ID, source, DISPLAY_ID, INVALID_HMAC,
                      AMOTION_EVENT_ACTION_DOWN, 0, 0, edgeFlags, metaState, 0, classification,
                      identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                     AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_DISPLAY_SIZE,
-                     AMOTION_EVENT_INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
+                     AMOTION_EVENT_INVALID_CURSOR_POSITION, INVALID_DISPLAY_SIZE,
+                     INVALID_DISPLAY_SIZE, ARBITRARY_TIME, ARBITRARY_TIME,
                      /*pointerCount*/ 2, pointerProperties, pointerCoords);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               mDispatcher->injectInputEvent(&event, INJECTOR_PID, INJECTOR_UID,
@@ -892,7 +891,7 @@ protected:
     std::string mName;
 };
 
-class FakeWindowHandle : public InputWindowHandle {
+class FakeWindowHandle : public WindowInfoHandle {
 public:
     static const int32_t WIDTH = 600;
     static const int32_t HEIGHT = 800;
@@ -914,7 +913,7 @@ public:
         mInfo.token = *token;
         mInfo.id = sId++;
         mInfo.name = name;
-        mInfo.type = InputWindowInfo::Type::APPLICATION;
+        mInfo.type = WindowInfo::Type::APPLICATION;
         mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
         mInfo.alpha = 1.0;
         mInfo.frameLeft = 0;
@@ -948,9 +947,7 @@ public:
 
     void setAlpha(float alpha) { mInfo.alpha = alpha; }
 
-    void setTouchOcclusionMode(android::os::TouchOcclusionMode mode) {
-        mInfo.touchOcclusionMode = mode;
-    }
+    void setTouchOcclusionMode(TouchOcclusionMode mode) { mInfo.touchOcclusionMode = mode; }
 
     void setApplicationToken(sp<IBinder> token) { mInfo.applicationInfo.token = token; }
 
@@ -964,11 +961,11 @@ public:
         mInfo.addTouchableRegion(frame);
     }
 
-    void addFlags(Flags<InputWindowInfo::Flag> flags) { mInfo.flags |= flags; }
+    void addFlags(Flags<WindowInfo::Flag> flags) { mInfo.flags |= flags; }
 
-    void setFlags(Flags<InputWindowInfo::Flag> flags) { mInfo.flags = flags; }
+    void setFlags(Flags<WindowInfo::Flag> flags) { mInfo.flags = flags; }
 
-    void setInputFeatures(InputWindowInfo::Feature features) { mInfo.inputFeatures = features; }
+    void setInputFeatures(WindowInfo::Feature features) { mInfo.inputFeatures = features; }
 
     void setWindowTransform(float dsdx, float dtdx, float dtdy, float dsdy) {
         mInfo.transform.set(dsdx, dtdx, dtdy, dsdy);
@@ -1102,7 +1099,7 @@ public:
 
     void assertNoEvents() {
         if (mInputReceiver == nullptr &&
-            mInfo.inputFeatures.test(InputWindowInfo::Feature::NO_INPUT_CHANNEL)) {
+            mInfo.inputFeatures.test(WindowInfo::Feature::NO_INPUT_CHANNEL)) {
             return; // Can't receive events if the window does not have input channel
         }
         ASSERT_NE(nullptr, mInputReceiver)
@@ -1283,8 +1280,8 @@ private:
     int32_t mFlags{0};
     float mRawXCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
     float mRawYCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
-    int32_t mDisplayWidth{AMOTION_EVENT_INVALID_DISPLAY_SIZE};
-    int32_t mDisplayHeight{AMOTION_EVENT_INVALID_DISPLAY_SIZE};
+    int32_t mDisplayWidth{INVALID_DISPLAY_SIZE};
+    int32_t mDisplayHeight{INVALID_DISPLAY_SIZE};
 
     std::vector<PointerBuilder> mPointers;
 };
@@ -1410,7 +1407,7 @@ TEST_F(InputDispatcherTest, SetInputWindowOnce_SingleWindowTouch) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 100, 100));
-    window->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+    window->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -1433,7 +1430,7 @@ TEST_F(InputDispatcherTest, SetInputWindowTwice_SingleWindowTouch) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Fake Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 100, 100));
-    window->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+    window->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
 
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
@@ -1469,11 +1466,11 @@ TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
     sp<FakeWindowHandle> windowLeft =
             new FakeWindowHandle(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
     windowLeft->setFrame(Rect(0, 0, 600, 800));
-    windowLeft->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+    windowLeft->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
     sp<FakeWindowHandle> windowRight =
             new FakeWindowHandle(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
     windowRight->setFrame(Rect(600, 0, 1200, 800));
-    windowRight->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+    windowRight->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
@@ -1580,7 +1577,7 @@ TEST_F(InputDispatcherTest, HoverEnterMouseClickAndHoverExit) {
     sp<FakeWindowHandle> window =
             new FakeWindowHandle(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
     window->setFrame(Rect(0, 0, 1200, 800));
-    window->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+    window->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
@@ -1662,11 +1659,11 @@ TEST_F(InputDispatcherTest, DispatchMouseEventsUnderCursor) {
     sp<FakeWindowHandle> windowLeft =
             new FakeWindowHandle(application, mDispatcher, "Left", ADISPLAY_ID_DEFAULT);
     windowLeft->setFrame(Rect(0, 0, 600, 800));
-    windowLeft->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+    windowLeft->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
     sp<FakeWindowHandle> windowRight =
             new FakeWindowHandle(application, mDispatcher, "Right", ADISPLAY_ID_DEFAULT);
     windowRight->setFrame(Rect(600, 0, 1200, 800));
-    windowRight->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+    windowRight->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
 
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
@@ -1860,15 +1857,13 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
     sp<FakeWindowHandle> firstWindow =
             new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
     firstWindow->setFrame(Rect(0, 0, 600, 400));
-    firstWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                          InputWindowInfo::Flag::SPLIT_TOUCH);
+    firstWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
 
     // Create a non touch modal window that supports split touch
     sp<FakeWindowHandle> secondWindow =
             new FakeWindowHandle(application, mDispatcher, "Second Window", ADISPLAY_ID_DEFAULT);
     secondWindow->setFrame(Rect(0, 400, 600, 800));
-    secondWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                           InputWindowInfo::Flag::SPLIT_TOUCH);
+    secondWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
 
     // Add the windows to the dispatcher
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
@@ -1934,15 +1929,13 @@ TEST_F(InputDispatcherTest, TransferTouch_TwoPointersSplitTouch) {
     sp<FakeWindowHandle> firstWindow =
             new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
     firstWindow->setFrame(Rect(0, 0, 600, 400));
-    firstWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                          InputWindowInfo::Flag::SPLIT_TOUCH);
+    firstWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
 
     // Create a non touch modal window that supports split touch
     sp<FakeWindowHandle> secondWindow =
             new FakeWindowHandle(application, mDispatcher, "Second Window", ADISPLAY_ID_DEFAULT);
     secondWindow->setFrame(Rect(0, 400, 600, 800));
-    secondWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                           InputWindowInfo::Flag::SPLIT_TOUCH);
+    secondWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
 
     // Add the windows to the dispatcher
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
@@ -2060,15 +2053,13 @@ TEST_F(InputDispatcherTest, PointerCancel_SendCancelWhenSplitTouch) {
     sp<FakeWindowHandle> firstWindow =
             new FakeWindowHandle(application, mDispatcher, "First Window", ADISPLAY_ID_DEFAULT);
     firstWindow->setFrame(Rect(0, 0, 600, 400));
-    firstWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                          InputWindowInfo::Flag::SPLIT_TOUCH);
+    firstWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
 
     // Create second non touch modal window that supports split touch
     sp<FakeWindowHandle> secondWindow =
             new FakeWindowHandle(application, mDispatcher, "Second Window", ADISPLAY_ID_DEFAULT);
     secondWindow->setFrame(Rect(0, 400, 600, 800));
-    secondWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                           InputWindowInfo::Flag::SPLIT_TOUCH);
+    secondWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
 
     // Add the windows to the dispatcher
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {firstWindow, secondWindow}}});
@@ -2736,8 +2727,7 @@ TEST_F(InputDispatcherTest, SlipperyWindow_SetsFlagPartiallyObscured) {
 
     sp<FakeWindowHandle> slipperyExitWindow =
             new FakeWindowHandle(application, mDispatcher, "Top", ADISPLAY_ID_DEFAULT);
-    slipperyExitWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                                 InputWindowInfo::Flag::SLIPPERY);
+    slipperyExitWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SLIPPERY);
     // Make sure this one overlaps the bottom window
     slipperyExitWindow->setFrame(Rect(25, 25, 75, 75));
     // Change the owner uid/pid of the window so that it is considered to be occluding the bottom
@@ -3221,12 +3211,12 @@ class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
         mUnfocusedWindow->setFrame(Rect(0, 0, 30, 30));
         // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
         // window.
-        mUnfocusedWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+        mUnfocusedWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
 
         mFocusedWindow =
                 new FakeWindowHandle(application, mDispatcher, "Second", ADISPLAY_ID_DEFAULT);
         mFocusedWindow->setFrame(Rect(50, 50, 100, 100));
-        mFocusedWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+        mFocusedWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
@@ -3335,14 +3325,12 @@ class InputDispatcherMultiWindowSameTokenTests : public InputDispatcherTest {
                                         ADISPLAY_ID_DEFAULT);
         // Adding FLAG_NOT_TOUCH_MODAL otherwise all taps will go to the top most window.
         // We also need FLAG_SPLIT_TOUCH or we won't be able to get touches for both windows.
-        mWindow1->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                           InputWindowInfo::Flag::SPLIT_TOUCH);
+        mWindow1->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
         mWindow1->setFrame(Rect(0, 0, 100, 100));
 
         mWindow2 = new FakeWindowHandle(application, mDispatcher, "Fake Window 2",
                                         ADISPLAY_ID_DEFAULT, mWindow1->getToken());
-        mWindow2->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                           InputWindowInfo::Flag::SPLIT_TOUCH);
+        mWindow2->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
         mWindow2->setFrame(Rect(100, 100, 200, 200));
 
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow1, mWindow2}}});
@@ -3353,7 +3341,7 @@ protected:
     sp<FakeWindowHandle> mWindow2;
 
     // Helper function to convert the point from screen coordinates into the window's space
-    static PointF getPointInWindow(const InputWindowInfo* windowInfo, const PointF& point) {
+    static PointF getPointInWindow(const WindowInfo* windowInfo, const PointF& point) {
         vec2 vals = windowInfo->transform.transform(point.x, point.y);
         return {vals.x, vals.y};
     }
@@ -3541,7 +3529,7 @@ class InputDispatcherSingleWindowAnr : public InputDispatcherTest {
         mWindow->setFocusable(true);
         // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
         // window.
-        mWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+        mWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
@@ -3942,16 +3930,15 @@ class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
         // Adding FLAG_NOT_TOUCH_MODAL to ensure taps outside this window are not sent to this
         // window.
         // Adding FLAG_WATCH_OUTSIDE_TOUCH to receive ACTION_OUTSIDE when another window is tapped
-        mUnfocusedWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                                   InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH |
-                                   InputWindowInfo::Flag::SPLIT_TOUCH);
+        mUnfocusedWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL |
+                                   WindowInfo::Flag::WATCH_OUTSIDE_TOUCH |
+                                   WindowInfo::Flag::SPLIT_TOUCH);
 
         mFocusedWindow =
                 new FakeWindowHandle(mApplication, mDispatcher, "Focused", ADISPLAY_ID_DEFAULT);
         mFocusedWindow->setDispatchingTimeout(30ms);
         mFocusedWindow->setFrame(Rect(50, 50, 100, 100));
-        mFocusedWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL |
-                                 InputWindowInfo::Flag::SPLIT_TOUCH);
+        mFocusedWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL | WindowInfo::Flag::SPLIT_TOUCH);
 
         // Set focused application.
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
@@ -4319,7 +4306,7 @@ class InputDispatcherMultiWindowOcclusionTests : public InputDispatcherTest {
                                               "Window without input channel", ADISPLAY_ID_DEFAULT,
                                               std::make_optional<sp<IBinder>>(nullptr) /*token*/);
 
-        mNoInputWindow->setInputFeatures(InputWindowInfo::Feature::NO_INPUT_CHANNEL);
+        mNoInputWindow->setInputFeatures(WindowInfo::Feature::NO_INPUT_CHANNEL);
         mNoInputWindow->setFrame(Rect(0, 0, 100, 100));
         // It's perfectly valid for this window to not have an associated input channel
 
@@ -4361,7 +4348,7 @@ TEST_F(InputDispatcherMultiWindowOcclusionTests,
                                           "Window with input channel and NO_INPUT_CHANNEL",
                                           ADISPLAY_ID_DEFAULT);
 
-    mNoInputWindow->setInputFeatures(InputWindowInfo::Feature::NO_INPUT_CHANNEL);
+    mNoInputWindow->setInputFeatures(WindowInfo::Feature::NO_INPUT_CHANNEL);
     mNoInputWindow->setFrame(Rect(0, 0, 100, 100));
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mNoInputWindow, mBottomWindow}}});
 
@@ -4661,10 +4648,10 @@ protected:
         mTouchWindow.clear();
     }
 
-    sp<FakeWindowHandle> getOccludingWindow(int32_t uid, std::string name,
-                                            os::TouchOcclusionMode mode, float alpha = 1.0f) {
+    sp<FakeWindowHandle> getOccludingWindow(int32_t uid, std::string name, TouchOcclusionMode mode,
+                                            float alpha = 1.0f) {
         sp<FakeWindowHandle> window = getWindow(uid, name);
-        window->setFlags(InputWindowInfo::Flag::NOT_TOUCHABLE);
+        window->setFlags(WindowInfo::Flag::NOT_TOUCHABLE);
         window->setTouchOcclusionMode(mode);
         window->setAlpha(alpha);
         return window;
@@ -4778,7 +4765,7 @@ TEST_F(InputDispatcherUntrustedTouchesTest,
        WindowWithZeroOpacityAndWatchOutside_ReceivesOutsideEvent) {
     const sp<FakeWindowHandle>& w =
             getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED, 0.0f);
-    w->addFlags(InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH);
+    w->addFlags(WindowInfo::Flag::WATCH_OUTSIDE_TOUCH);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
 
     touch();
@@ -4789,7 +4776,7 @@ TEST_F(InputDispatcherUntrustedTouchesTest,
 TEST_F(InputDispatcherUntrustedTouchesTest, OutsideEvent_HasZeroCoordinates) {
     const sp<FakeWindowHandle>& w =
             getOccludingWindow(APP_B_UID, "B", TouchOcclusionMode::BLOCK_UNTRUSTED, 0.0f);
-    w->addFlags(InputWindowInfo::Flag::WATCH_OUTSIDE_TOUCH);
+    w->addFlags(WindowInfo::Flag::WATCH_OUTSIDE_TOUCH);
     mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {w, mTouchWindow}}});
 
     touch();
@@ -5043,11 +5030,11 @@ protected:
         mApp = std::make_shared<FakeApplicationHandle>();
         mWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
         mWindow->setFrame(Rect(0, 0, 100, 100));
-        mWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+        mWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
 
         mSecondWindow = new FakeWindowHandle(mApp, mDispatcher, "TestWindow2", ADISPLAY_ID_DEFAULT);
         mSecondWindow->setFrame(Rect(100, 0, 200, 100));
-        mSecondWindow->setFlags(InputWindowInfo::Flag::NOT_TOUCH_MODAL);
+        mSecondWindow->setFlags(WindowInfo::Flag::NOT_TOUCH_MODAL);
 
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApp);
         mDispatcher->setInputWindows({{ADISPLAY_ID_DEFAULT, {mWindow, mSecondWindow}}});

@@ -20,8 +20,8 @@
 #include "InjectionState.h"
 #include "InputTarget.h"
 
+#include <gui/InputApplication.h>
 #include <input/Input.h>
-#include <input/InputApplication.h>
 #include <stdint.h>
 #include <utils/Timers.h>
 #include <functional>

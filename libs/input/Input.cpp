@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include <android-base/stringprintf.h>
+#include <gui/constants.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
