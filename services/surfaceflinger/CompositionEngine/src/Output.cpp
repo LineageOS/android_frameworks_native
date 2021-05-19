@@ -20,6 +20,7 @@
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayColorProfile.h>
+#include <compositionengine/FodExtension.h>
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/RenderSurface.h>
@@ -602,9 +603,17 @@ void Output::updateAndWriteCompositionState(
 
 compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition() const {
     compositionengine::OutputLayer* layerRequestingBgComposition = nullptr;
-    for (auto* layer : getOutputLayersOrderedByZ()) {
-        if (layer->getLayerFE().getCompositionState()->backgroundBlurRadius > 0) {
-            layerRequestingBgComposition = layer;
+    for (size_t i = 0; i < getOutputLayerCount(); i++) {
+        compositionengine::OutputLayer* currentLayer = getOutputLayerOrderedByZByIndex(i);
+        compositionengine::OutputLayer* nextLayer = getOutputLayerOrderedByZByIndex(i + 1);
+        if (currentLayer->getLayerFE().getCompositionState()->backgroundBlurRadius > 0) {
+            layerRequestingBgComposition = currentLayer;
+        }
+        if (nextLayer != nullptr && layerRequestingBgComposition == nullptr) {
+            if (strcmp(nextLayer->getLayerFE().getDebugName(), FOD_LAYER_NAME) == 0) {
+                layerRequestingBgComposition = currentLayer;
+                break;
+            }
         }
     }
     return layerRequestingBgComposition;
