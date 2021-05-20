@@ -368,7 +368,8 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
     for (auto currentSet = mLayers.cbegin(); currentSet != mLayers.cend(); ++currentSet) {
         const bool layerIsInactive = now - currentSet->getLastUpdate() > kActiveLayerTimeout;
         const bool layerHasBlur = currentSet->hasBlurBehind();
-        if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur)) {
+        if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
+            !currentSet->hasHdrLayers()) {
             if (isPartOfRun) {
                 builder.append(currentSet->getLayerCount());
             } else {
