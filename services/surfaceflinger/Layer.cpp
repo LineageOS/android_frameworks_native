@@ -221,7 +221,10 @@ void Layer::removeRelativeZ(const std::vector<Layer*>& layersInTree) {
 }
 
 void Layer::removeFromCurrentState() {
-    mRemovedFromCurrentState = true;
+    if (!mRemovedFromCurrentState) {
+        mRemovedFromCurrentState = true;
+        mFlinger->mScheduler->deregisterLayer(this);
+    }
 
     mFlinger->markLayerPendingRemovalLocked(this);
 }
@@ -246,7 +249,10 @@ void Layer::onRemovedFromCurrentState() {
 }
 
 void Layer::addToCurrentState() {
-    mRemovedFromCurrentState = false;
+    if (mRemovedFromCurrentState) {
+        mRemovedFromCurrentState = false;
+        mFlinger->mScheduler->registerLayer(this);
+    }
 
     for (const auto& child : mCurrentChildren) {
         child->addToCurrentState();
