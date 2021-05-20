@@ -215,7 +215,7 @@ struct DispatchEntry {
     int32_t targetFlags;
     ui::Transform transform;
     float globalScaleFactor;
-    vec2 displaySize;
+    int2 displaySize;
     // Both deliveryTime and timeoutTime are only populated when the entry is sent to the app,
     // and will be undefined before that.
     nsecs_t deliveryTime; // time when the event was actually delivered
@@ -228,7 +228,7 @@ struct DispatchEntry {
     int32_t resolvedFlags;
 
     DispatchEntry(std::shared_ptr<EventEntry> eventEntry, int32_t targetFlags,
-                  ui::Transform transform, float globalScaleFactor, vec2 displaySize);
+                  ui::Transform transform, float globalScaleFactor, int2 displaySize);
 
     inline bool hasForegroundTarget() const { return targetFlags & InputTarget::FLAG_FOREGROUND; }
 

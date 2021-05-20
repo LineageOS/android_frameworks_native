@@ -57,11 +57,12 @@ bool InputWindowInfo::operator==(const InputWindowInfo& info) const {
             info.frameLeft == frameLeft && info.frameTop == frameTop &&
             info.frameRight == frameRight && info.frameBottom == frameBottom &&
             info.surfaceInset == surfaceInset && info.globalScaleFactor == globalScaleFactor &&
-            info.transform == transform && info.touchableRegion.hasSameRects(touchableRegion) &&
-            info.visible == visible && info.trustedOverlay == trustedOverlay &&
-            info.focusable == focusable && info.touchOcclusionMode == touchOcclusionMode &&
-            info.hasWallpaper == hasWallpaper && info.paused == paused &&
-            info.ownerPid == ownerPid && info.ownerUid == ownerUid &&
+            info.transform == transform && info.displayWidth == displayWidth &&
+            info.displayHeight == displayHeight &&
+            info.touchableRegion.hasSameRects(touchableRegion) && info.visible == visible &&
+            info.trustedOverlay == trustedOverlay && info.focusable == focusable &&
+            info.touchOcclusionMode == touchOcclusionMode && info.hasWallpaper == hasWallpaper &&
+            info.paused == paused && info.ownerPid == ownerPid && info.ownerUid == ownerUid &&
             info.packageName == packageName && info.inputFeatures == inputFeatures &&
             info.displayId == displayId && info.portalToDisplayId == portalToDisplayId &&
             info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
@@ -99,6 +100,8 @@ status_t InputWindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeFloat(transform.dtdy()) ?:
         parcel->writeFloat(transform.dsdy()) ?:
         parcel->writeFloat(transform.ty()) ?:
+        parcel->writeInt32(displayWidth) ?:
+        parcel->writeInt32(displayHeight) ?:
         parcel->writeBool(visible) ?:
         parcel->writeBool(focusable) ?:
         parcel->writeBool(hasWallpaper) ?:
@@ -153,6 +156,8 @@ status_t InputWindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->readFloat(&dtdy) ?:
         parcel->readFloat(&dsdy) ?:
         parcel->readFloat(&ty) ?:
+        parcel->readInt32(&displayWidth) ?:
+        parcel->readInt32(&displayHeight) ?:
         parcel->readBool(&visible) ?:
         parcel->readBool(&focusable) ?:
         parcel->readBool(&hasWallpaper) ?:
