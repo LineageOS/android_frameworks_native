@@ -229,7 +229,7 @@ void Display::chooseCompositionStrategy() {
     auto& hwc = getCompositionEngine().getHwComposer();
     if (status_t result =
                 hwc.getDeviceCompositionChanges(*halDisplayId, anyLayersRequireClientComposition(),
-                                                &changes);
+                                                getState().earliestPresentTime, &changes);
         result != NO_ERROR) {
         ALOGE("chooseCompositionStrategy failed for %s: %d (%s)", getName().c_str(), result,
               strerror(-result));
@@ -329,13 +329,8 @@ compositionengine::Output::FrameFences Display::presentAndGetFrameFences() {
         return fences;
     }
 
-    {
-        ATRACE_NAME("wait for earliest present time");
-        std::this_thread::sleep_until(getState().earliestPresentTime);
-    }
-
     auto& hwc = getCompositionEngine().getHwComposer();
-    hwc.presentAndGetReleaseFences(*halDisplayIdOpt);
+    hwc.presentAndGetReleaseFences(*halDisplayIdOpt, getState().earliestPresentTime);
 
     fences.presentFence = hwc.getPresentFence(*halDisplayIdOpt);
 
