@@ -184,6 +184,7 @@ private:
             const sp<const IGraphicBufferProducer>& surface);
     void addDisplayLayerStackLocked(Transaction* transaction, int32_t sequenceId,
             uint32_t layerStack);
+    void addDisplayFlagsLocked(Transaction* transaction, int32_t sequenceId, uint32_t flags);
     void addDisplaySizeLocked(Transaction* transaction, int32_t sequenceId, uint32_t w,
             uint32_t h);
     void addDisplayProjectionLocked(Transaction* transaction, int32_t sequenceId,
