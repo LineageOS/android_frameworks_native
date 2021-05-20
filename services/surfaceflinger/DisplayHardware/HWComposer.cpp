@@ -309,20 +309,15 @@ int32_t HWComposer::getAttribute(hal::HWDisplayId hwcDisplayId, hal::HWConfigId 
     return value;
 }
 
-HWC2::Layer* HWComposer::createLayer(HalDisplayId displayId) {
+std::shared_ptr<HWC2::Layer> HWComposer::createLayer(HalDisplayId displayId) {
     RETURN_IF_INVALID_DISPLAY(displayId, nullptr);
 
-    HWC2::Layer* layer;
-    auto error = mDisplayData[displayId].hwcDisplay->createLayer(&layer);
-    RETURN_IF_HWC_ERROR(error, displayId, nullptr);
-    return layer;
-}
-
-void HWComposer::destroyLayer(HalDisplayId displayId, HWC2::Layer* layer) {
-    RETURN_IF_INVALID_DISPLAY(displayId);
-
-    auto error = mDisplayData[displayId].hwcDisplay->destroyLayer(layer);
-    RETURN_IF_HWC_ERROR(error, displayId);
+    auto expected = mDisplayData[displayId].hwcDisplay->createLayer();
+    if (!expected.has_value()) {
+        auto error = std::move(expected).error();
+        RETURN_IF_HWC_ERROR(error, displayId, nullptr);
+    }
+    return std::move(expected).value();
 }
 
 bool HWComposer::isConnected(PhysicalDisplayId displayId) const {
