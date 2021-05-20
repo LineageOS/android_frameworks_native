@@ -37,6 +37,7 @@
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/Hal.h"
 #include "mock/DisplayHardware/MockComposer.h"
+#include "mock/DisplayHardware/MockHWC2.h"
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
@@ -120,13 +121,19 @@ struct HWComposerLayerTest : public testing::Test {
     static constexpr hal::HWLayerId kLayerId = static_cast<hal::HWLayerId>(1002);
 
     HWComposerLayerTest(const std::unordered_set<hal::Capability>& capabilities)
-          : mCapabilies(capabilities) {}
+          : mCapabilies(capabilities) {
+        EXPECT_CALL(mDisplay, getId()).WillRepeatedly(Return(kDisplayId));
+    }
 
-    ~HWComposerLayerTest() override { EXPECT_CALL(*mHal, destroyLayer(kDisplayId, kLayerId)); }
+    ~HWComposerLayerTest() override {
+        EXPECT_CALL(mDisplay, onLayerDestroyed(kLayerId));
+        EXPECT_CALL(*mHal, destroyLayer(kDisplayId, kLayerId));
+    }
 
     std::unique_ptr<Hwc2::mock::Composer> mHal{new StrictMock<Hwc2::mock::Composer>()};
     const std::unordered_set<hal::Capability> mCapabilies;
-    HWC2::impl::Layer mLayer{*mHal, mCapabilies, kDisplayId, kLayerId};
+    StrictMock<HWC2::mock::Display> mDisplay;
+    HWC2::impl::Layer mLayer{*mHal, mCapabilies, mDisplay, kLayerId};
 };
 
 struct HWComposerLayerGenericMetadataTest : public HWComposerLayerTest {
