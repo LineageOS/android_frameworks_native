@@ -55,6 +55,8 @@ TEST(InputWindowInfo, Parcelling) {
     i.globalScaleFactor = 0.3;
     i.alpha = 0.7;
     i.transform.set({0.4, -1, 100, 0.5, 0, 40, 0, 0, 1});
+    i.displayWidth = 1000;
+    i.displayHeight = 2000;
     i.visible = false;
     i.focusable = false;
     i.hasWallpaper = false;
@@ -91,6 +93,8 @@ TEST(InputWindowInfo, Parcelling) {
     ASSERT_EQ(i.globalScaleFactor, i2.globalScaleFactor);
     ASSERT_EQ(i.alpha, i2.alpha);
     ASSERT_EQ(i.transform, i2.transform);
+    ASSERT_EQ(i.displayWidth, i2.displayWidth);
+    ASSERT_EQ(i.displayHeight, i2.displayHeight);
     ASSERT_EQ(i.visible, i2.visible);
     ASSERT_EQ(i.focusable, i2.focusable);
     ASSERT_EQ(i.hasWallpaper, i2.hasWallpaper);
