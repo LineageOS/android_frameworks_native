@@ -533,16 +533,15 @@ using DisplayCreateOutputLayerTest = FullDisplayImplTestCommon;
 
 TEST_F(DisplayCreateOutputLayerTest, setsHwcLayer) {
     sp<mock::LayerFE> layerFE = new StrictMock<mock::LayerFE>();
-    StrictMock<HWC2::mock::Layer> hwcLayer;
+    auto hwcLayer = std::make_shared<StrictMock<HWC2::mock::Layer>>();
 
     EXPECT_CALL(mHwComposer, createLayer(HalDisplayId(DEFAULT_DISPLAY_ID)))
-            .WillOnce(Return(&hwcLayer));
+            .WillOnce(Return(hwcLayer));
 
     auto outputLayer = mDisplay->createOutputLayer(layerFE);
 
-    EXPECT_EQ(&hwcLayer, outputLayer->getHwcLayer());
+    EXPECT_EQ(hwcLayer.get(), outputLayer->getHwcLayer());
 
-    EXPECT_CALL(mHwComposer, destroyLayer(HalDisplayId(DEFAULT_DISPLAY_ID), &hwcLayer));
     outputLayer.reset();
 }
 

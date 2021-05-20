@@ -48,8 +48,7 @@ public:
     MOCK_METHOD3(allocateVirtualDisplay,
                  std::optional<DisplayId>(uint32_t, uint32_t, ui::PixelFormat*));
     MOCK_METHOD2(allocatePhysicalDisplay, void(hal::HWDisplayId, PhysicalDisplayId));
-    MOCK_METHOD1(createLayer, HWC2::Layer*(HalDisplayId));
-    MOCK_METHOD2(destroyLayer, void(HalDisplayId, HWC2::Layer*));
+    MOCK_METHOD1(createLayer, std::shared_ptr<HWC2::Layer>(HalDisplayId));
     MOCK_METHOD4(getDeviceCompositionChanges,
                  status_t(HalDisplayId, bool, std::chrono::steady_clock::time_point,
                           std::optional<android::HWComposer::DeviceRequestedChanges>*));
