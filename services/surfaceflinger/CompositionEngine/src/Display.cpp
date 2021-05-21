@@ -192,16 +192,7 @@ std::unique_ptr<compositionengine::OutputLayer> Display::createOutputLayer(
     if (const auto halDisplayId = HalDisplayId::tryCast(mId);
         outputLayer && !mIsDisconnected && halDisplayId) {
         auto& hwc = getCompositionEngine().getHwComposer();
-        // Note: For the moment we ensure it is safe to take a reference to the
-        // HWComposer implementation by destroying all the OutputLayers (and
-        // hence the HWC2::Layers they own) before setting a new HWComposer. See
-        // for example SurfaceFlinger::updateVrFlinger().
-        // TODO(b/121291683): Make this safer.
-        auto hwcLayer =
-                std::shared_ptr<HWC2::Layer>(hwc.createLayer(*halDisplayId),
-                                             [&hwc, id = *halDisplayId](HWC2::Layer* layer) {
-                                                 hwc.destroyLayer(id, layer);
-                                             });
+        auto hwcLayer = hwc.createLayer(*halDisplayId);
         ALOGE_IF(!hwcLayer, "Failed to create a HWC layer for a HWC supported display %s",
                  getName().c_str());
         outputLayer->setHwcLayer(std::move(hwcLayer));
