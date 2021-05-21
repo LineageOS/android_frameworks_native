@@ -64,8 +64,8 @@ struct Buffer {
 
     // HDR color-space setting for Y410.
     bool isY410BT2020 = false;
-    float maxMasteringLuminance = 0.0;
-    float maxContentLuminance = 0.0;
+
+    float maxLuminanceNits = 0.0;
 };
 
 // Metadata describing the layer geometry.
@@ -175,8 +175,7 @@ static inline bool operator==(const Buffer& lhs, const Buffer& rhs) {
             lhs.textureTransform == rhs.textureTransform &&
             lhs.usePremultipliedAlpha == rhs.usePremultipliedAlpha &&
             lhs.isOpaque == rhs.isOpaque && lhs.isY410BT2020 == rhs.isY410BT2020 &&
-            lhs.maxMasteringLuminance == rhs.maxMasteringLuminance &&
-            lhs.maxContentLuminance == rhs.maxContentLuminance;
+            lhs.maxLuminanceNits == rhs.maxLuminanceNits;
 }
 
 static inline bool operator==(const Geometry& lhs, const Geometry& rhs) {
@@ -193,18 +192,6 @@ static inline bool operator==(const ShadowSettings& lhs, const ShadowSettings& r
     return lhs.ambientColor == rhs.ambientColor && lhs.spotColor == rhs.spotColor &&
             lhs.lightPos == rhs.lightPos && lhs.lightRadius == rhs.lightRadius &&
             lhs.length == rhs.length && lhs.casterIsTranslucent == rhs.casterIsTranslucent;
-}
-
-static inline bool operator==(const BlurRegion& lhs, const BlurRegion& rhs) {
-    return lhs.alpha == rhs.alpha && lhs.cornerRadiusTL == rhs.cornerRadiusTL &&
-            lhs.cornerRadiusTR == rhs.cornerRadiusTR && lhs.cornerRadiusBL == rhs.cornerRadiusBL &&
-            lhs.cornerRadiusBR == rhs.cornerRadiusBR && lhs.blurRadius == rhs.blurRadius &&
-            lhs.left == rhs.left && lhs.top == rhs.top && lhs.right == rhs.right &&
-            lhs.bottom == rhs.bottom;
-}
-
-static inline bool operator!=(const BlurRegion& lhs, const BlurRegion& rhs) {
-    return !(lhs == rhs);
 }
 
 static inline bool operator==(const LayerSettings& lhs, const LayerSettings& rhs) {
@@ -239,8 +226,7 @@ static inline void PrintTo(const Buffer& settings, ::std::ostream* os) {
     *os << "\n    .usePremultipliedAlpha = " << settings.usePremultipliedAlpha;
     *os << "\n    .isOpaque = " << settings.isOpaque;
     *os << "\n    .isY410BT2020 = " << settings.isY410BT2020;
-    *os << "\n    .maxMasteringLuminance = " << settings.maxMasteringLuminance;
-    *os << "\n    .maxContentLuminance = " << settings.maxContentLuminance;
+    *os << "\n    .maxLuminanceNits = " << settings.maxLuminanceNits;
     *os << "\n}";
 }
 
@@ -290,7 +276,7 @@ static inline void PrintTo(const StretchEffect& effect, ::std::ostream* os) {
 }
 
 static inline void PrintTo(const LayerSettings& settings, ::std::ostream* os) {
-    *os << "LayerSettings {";
+    *os << "LayerSettings for '" << settings.name.c_str() << "' {";
     *os << "\n    .geometry = ";
     PrintTo(settings.geometry, os);
     *os << "\n    .source = ";

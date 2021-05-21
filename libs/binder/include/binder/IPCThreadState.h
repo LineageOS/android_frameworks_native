@@ -86,8 +86,11 @@ public:
              * execution.
              *
              * Usage:
-             *     IPCThreadState::SpGuard guard { "..." };
-             *     auto* orig = pushGetCallingSpGuard(&guard);
+             *     IPCThreadState::SpGuard guard {
+             *        .address = __builtin_frame_address(0),
+             *        .context = "...",
+             *     };
+             *     const auto* orig = pushGetCallingSpGuard(&guard);
              *     {
              *         // will abort if you call getCalling*, unless you are
              *         // serving a nested binder transaction
@@ -95,10 +98,11 @@ public:
              *     restoreCallingSpGuard(orig);
              */
             struct SpGuard {
+                const void* address;
                 const char* context;
             };
-            SpGuard* pushGetCallingSpGuard(SpGuard* guard);
-            void restoreGetCallingSpGuard(SpGuard* guard);
+            const SpGuard* pushGetCallingSpGuard(const SpGuard* guard);
+            void restoreGetCallingSpGuard(const SpGuard* guard);
             /**
              * Used internally by getCalling*. Can also be used to assert that
              * you are in a binder context (getCalling* is valid). This is
@@ -229,7 +233,7 @@ private:
             Parcel              mOut;
             status_t            mLastError;
             const void*         mServingStackPointer;
-            SpGuard* mServingStackPointerGuard;
+            const SpGuard* mServingStackPointerGuard;
             pid_t               mCallingPid;
             const char*         mCallingSid;
             uid_t               mCallingUid;

@@ -605,17 +605,6 @@ TEST_F(BinderLibTest, CallBack)
     EXPECT_THAT(callBack->getResult(), StatusEq(NO_ERROR));
 }
 
-TEST_F(BinderLibTest, NoBinderCallContextGuard) {
-    IPCThreadState::SpGuard spGuard{"NoBinderCallContext"};
-    IPCThreadState::SpGuard *origGuard = IPCThreadState::self()->pushGetCallingSpGuard(&spGuard);
-
-    // yes, this test uses threads, but it's careful and uses fork in addServer
-    EXPECT_DEATH({ IPCThreadState::self()->getCallingPid(); },
-                 "In context NoBinderCallContext, getCallingPid does not make sense.");
-
-    IPCThreadState::self()->restoreGetCallingSpGuard(origGuard);
-}
-
 TEST_F(BinderLibTest, BinderCallContextGuard) {
     sp<IBinder> binder = addServer();
     Parcel data, reply;
@@ -1184,39 +1173,30 @@ TEST_F(BinderLibTest, GotSid) {
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_CAN_GET_SID, data, nullptr), StatusEq(OK));
 }
 
-class BinderLibTestService : public BBinder
-{
-    public:
-        explicit BinderLibTestService(int32_t id)
-            : m_id(id)
-            , m_nextServerId(id + 1)
-            , m_serverStartRequested(false)
-            , m_callback(nullptr)
-        {
-            pthread_mutex_init(&m_serverWaitMutex, nullptr);
-            pthread_cond_init(&m_serverWaitCond, nullptr);
-        }
-        ~BinderLibTestService()
-        {
-            exit(EXIT_SUCCESS);
-        }
+class BinderLibTestService : public BBinder {
+public:
+    explicit BinderLibTestService(int32_t id)
+          : m_id(id), m_nextServerId(id + 1), m_serverStartRequested(false), m_callback(nullptr) {
+        pthread_mutex_init(&m_serverWaitMutex, nullptr);
+        pthread_cond_init(&m_serverWaitCond, nullptr);
+    }
+    ~BinderLibTestService() { exit(EXIT_SUCCESS); }
 
-        void processPendingCall() {
-            if (m_callback != nullptr) {
-                Parcel data;
-                data.writeInt32(NO_ERROR);
-                m_callback->transact(BINDER_LIB_TEST_CALL_BACK, data, nullptr, TF_ONE_WAY);
-                m_callback = nullptr;
-            }
+    void processPendingCall() {
+        if (m_callback != nullptr) {
+            Parcel data;
+            data.writeInt32(NO_ERROR);
+            m_callback->transact(BINDER_LIB_TEST_CALL_BACK, data, nullptr, TF_ONE_WAY);
+            m_callback = nullptr;
         }
+    }
 
-        virtual status_t onTransact(uint32_t code,
-                                    const Parcel& data, Parcel* reply,
-                                    uint32_t flags = 0) {
-            if (getuid() != (uid_t)IPCThreadState::self()->getCallingUid()) {
-                return PERMISSION_DENIED;
-            }
-            switch (code) {
+    virtual status_t onTransact(uint32_t code, const Parcel &data, Parcel *reply,
+                                uint32_t flags = 0) {
+        if (getuid() != (uid_t)IPCThreadState::self()->getCallingUid()) {
+            return PERMISSION_DENIED;
+        }
+        switch (code) {
             case BINDER_LIB_TEST_REGISTER_SERVER: {
                 int32_t id;
                 sp<IBinder> binder;
@@ -1226,8 +1206,7 @@ class BinderLibTestService : public BBinder
                     return BAD_VALUE;
                 }
 
-                if (m_id != 0)
-                    return INVALID_OPERATION;
+                if (m_id != 0) return INVALID_OPERATION;
 
                 pthread_mutex_lock(&m_serverWaitMutex);
                 if (m_serverStartRequested) {
@@ -1282,8 +1261,11 @@ class BinderLibTestService : public BBinder
                 return ret;
             }
             case BINDER_LIB_TEST_USE_CALLING_GUARD_TRANSACTION: {
-                IPCThreadState::SpGuard spGuard{"GuardInBinderTransaction"};
-                IPCThreadState::SpGuard *origGuard =
+                IPCThreadState::SpGuard spGuard{
+                        .address = __builtin_frame_address(0),
+                        .context = "GuardInBinderTransaction",
+                };
+                const IPCThreadState::SpGuard *origGuard =
                         IPCThreadState::self()->pushGetCallingSpGuard(&spGuard);
 
                 // if the guard works, this should abort
@@ -1409,8 +1391,7 @@ class BinderLibTestService : public BBinder
                     return BAD_VALUE;
                 }
                 ret = target->linkToDeath(testDeathRecipient);
-                if (ret == NO_ERROR)
-                    ret = testDeathRecipient->waitEvent(5);
+                if (ret == NO_ERROR) ret = testDeathRecipient->waitEvent(5);
                 data2.writeInt32(ret);
                 callback->transact(BINDER_LIB_TEST_CALL_BACK, data2, &reply2);
                 return NO_ERROR;
@@ -1434,8 +1415,7 @@ class BinderLibTestService : public BBinder
                     return BAD_VALUE;
                 }
                 ret = write(fd, buf, size);
-                if (ret != size)
-                    return UNKNOWN_ERROR;
+                if (ret != size) return UNKNOWN_ERROR;
                 return NO_ERROR;
             }
             case BINDER_LIB_TEST_WRITE_PARCEL_FILE_DESCRIPTOR_TRANSACTION: {
@@ -1490,8 +1470,7 @@ class BinderLibTestService : public BBinder
             case BINDER_LIB_TEST_ECHO_VECTOR: {
                 std::vector<uint64_t> vector;
                 auto err = data.readUint64Vector(&vector);
-                if (err != NO_ERROR)
-                    return err;
+                if (err != NO_ERROR) return err;
                 reply->writeUint64Vector(vector);
                 return NO_ERROR;
             }
@@ -1503,17 +1482,18 @@ class BinderLibTestService : public BBinder
             }
             default:
                 return UNKNOWN_TRANSACTION;
-            };
-        }
-    private:
-        int32_t m_id;
-        int32_t m_nextServerId;
-        pthread_mutex_t m_serverWaitMutex;
-        pthread_cond_t m_serverWaitCond;
-        bool m_serverStartRequested;
-        sp<IBinder> m_serverStarted;
-        sp<IBinder> m_strongRef;
-        sp<IBinder> m_callback;
+        };
+    }
+
+private:
+    int32_t m_id;
+    int32_t m_nextServerId;
+    pthread_mutex_t m_serverWaitMutex;
+    pthread_cond_t m_serverWaitCond;
+    bool m_serverStartRequested;
+    sp<IBinder> m_serverStarted;
+    sp<IBinder> m_strongRef;
+    sp<IBinder> m_callback;
 };
 
 int run_server(int index, int readypipefd, bool usePoll)
@@ -1522,7 +1502,10 @@ int run_server(int index, int readypipefd, bool usePoll)
 
     // Testing to make sure that calls that we are serving can use getCallin*
     // even though we don't here.
-    IPCThreadState::SpGuard spGuard{"main server thread"};
+    IPCThreadState::SpGuard spGuard{
+            .address = __builtin_frame_address(0),
+            .context = "main server thread",
+    };
     (void)IPCThreadState::self()->pushGetCallingSpGuard(&spGuard);
 
     status_t ret;

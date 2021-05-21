@@ -475,8 +475,11 @@ status_t RpcState::getAndExecuteCommand(const base::unique_fd& fd, const sp<RpcS
 status_t RpcState::processServerCommand(const base::unique_fd& fd, const sp<RpcSession>& session,
                                         const RpcWireHeader& command) {
     IPCThreadState* kernelBinderState = IPCThreadState::selfOrNull();
-    IPCThreadState::SpGuard spGuard{"processing binder RPC command"};
-    IPCThreadState::SpGuard* origGuard;
+    IPCThreadState::SpGuard spGuard{
+            .address = __builtin_frame_address(0),
+            .context = "processing binder RPC command",
+    };
+    const IPCThreadState::SpGuard* origGuard;
     if (kernelBinderState != nullptr) {
         origGuard = kernelBinderState->pushGetCallingSpGuard(&spGuard);
     }

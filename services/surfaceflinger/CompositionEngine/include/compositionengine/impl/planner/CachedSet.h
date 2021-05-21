@@ -110,6 +110,9 @@ public:
     // CachedSet and punching a hole.
     bool requiresHolePunch() const;
 
+    // True if any constituent layer is configured to blur any layers behind.
+    bool hasBlurBehind() const;
+
     // Add a layer that will be drawn behind this one. ::render() will render a
     // hole in this CachedSet's buffer, allowing the supplied layer to peek
     // through. Must be called before ::render().

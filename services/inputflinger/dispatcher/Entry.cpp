@@ -297,7 +297,7 @@ std::string SensorEntry::getDescription() const {
 volatile int32_t DispatchEntry::sNextSeqAtomic;
 
 DispatchEntry::DispatchEntry(std::shared_ptr<EventEntry> eventEntry, int32_t targetFlags,
-                             ui::Transform transform, float globalScaleFactor, vec2 displaySize)
+                             ui::Transform transform, float globalScaleFactor, int2 displaySize)
       : seq(nextSeq()),
         eventEntry(std::move(eventEntry)),
         targetFlags(targetFlags),

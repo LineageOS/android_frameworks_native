@@ -470,6 +470,7 @@ status_t HWComposer::setClientTarget(HalDisplayId displayId, uint32_t slot,
 
 status_t HWComposer::getDeviceCompositionChanges(
         HalDisplayId displayId, bool frameUsesClientComposition,
+        std::chrono::steady_clock::time_point earliestPresentTime,
         std::optional<android::HWComposer::DeviceRequestedChanges>* outChanges) {
     ATRACE_CALL();
 
@@ -486,12 +487,14 @@ status_t HWComposer::getDeviceCompositionChanges(
 
     hal::Error error = hal::Error::NONE;
 
-    // First try to skip validate altogether when there is no client
-    // composition.  When there is client composition, since we haven't
-    // rendered to the client target yet, we should not attempt to skip
-    // validate.
+    // First try to skip validate altogether when we passed the earliest time
+    // to present and there is no client. Otherwise, we may present a frame too
+    // early or in case of client composition we first need to render the
+    // client target buffer.
+    const bool canSkipValidate =
+            std::chrono::steady_clock::now() >= earliestPresentTime && !frameUsesClientComposition;
     displayData.validateWasSkipped = false;
-    if (!frameUsesClientComposition) {
+    if (canSkipValidate) {
         sp<Fence> outPresentFence;
         uint32_t state = UINT32_MAX;
         error = hwcDisplay->presentOrValidate(&numTypes, &numRequests, &outPresentFence , &state);
@@ -555,7 +558,8 @@ sp<Fence> HWComposer::getLayerReleaseFence(HalDisplayId displayId, HWC2::Layer* 
     return fence->second;
 }
 
-status_t HWComposer::presentAndGetReleaseFences(HalDisplayId displayId) {
+status_t HWComposer::presentAndGetReleaseFences(
+        HalDisplayId displayId, std::chrono::steady_clock::time_point earliestPresentTime) {
     ATRACE_CALL();
 
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
@@ -569,6 +573,11 @@ status_t HWComposer::presentAndGetReleaseFences(HalDisplayId displayId) {
         RETURN_IF_HWC_ERROR_FOR("executeCommands", error, displayId, UNKNOWN_ERROR);
         RETURN_IF_HWC_ERROR_FOR("present", displayData.presentError, displayId, UNKNOWN_ERROR);
         return NO_ERROR;
+    }
+
+    {
+        ATRACE_NAME("wait for earliest present time");
+        std::this_thread::sleep_until(earliestPresentTime);
     }
 
     auto error = hwcDisplay->present(&displayData.lastPresentFence);

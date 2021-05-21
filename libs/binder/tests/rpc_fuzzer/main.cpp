@@ -29,20 +29,6 @@ namespace android {
 static const std::string kSock = std::string(getenv("TMPDIR") ?: "/tmp") +
         "/binderRpcFuzzerSocket_" + std::to_string(getpid());
 
-size_t getHardMemoryLimit() {
-    struct rlimit limit;
-    CHECK(0 == getrlimit(RLIMIT_AS, &limit)) << errno;
-    return limit.rlim_max;
-}
-
-void setMemoryLimit(size_t cur, size_t max) {
-    const struct rlimit kLimit = {
-            .rlim_cur = cur,
-            .rlim_max = max,
-    };
-    CHECK(0 == setrlimit(RLIMIT_AS, &kLimit)) << errno;
-}
-
 class SomeBinder : public BBinder {
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags = 0) {
         (void)flags;
@@ -75,11 +61,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     server->iUnderstandThisCodeIsExperimentalAndIWillNotUseItInProduction();
     CHECK(server->setupUnixDomainServer(kSock.c_str()));
 
-    static constexpr size_t kMemLimit = 1llu * 1024 * 1024 * 1024;
-    size_t hardLimit = getHardMemoryLimit();
-    setMemoryLimit(std::min(kMemLimit, hardLimit), hardLimit);
-
-    std::thread serverThread([=] { (void)server->acceptOne(); });
+    std::thread serverThread([=] { (void)server->join(); });
 
     sockaddr_un addr{
             .sun_family = AF_UNIX,
@@ -94,8 +76,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                      connect(clientFd.get(), reinterpret_cast<sockaddr*>(&addr), sizeof(addr))))
             << strerror(errno);
 
-    serverThread.join();
-
     // TODO(b/182938024): fuzz multiple sessions, instead of just one
 
 #if 0
@@ -108,12 +88,16 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     clientFd.reset();
 
+    // TODO(185167543): currently this is okay because we only shutdown the one
+    // thread, but once we can shutdown other sessions, we'll need to change
+    // this behavior in order to make sure all of the input is actually read.
+    while (!server->shutdown()) usleep(100);
+    serverThread.join();
+
     // TODO(b/185167543): better way to force a server to shutdown
     while (!server->listSessions().empty() && server->numUninitializedSessions()) {
         usleep(1);
     }
-
-    setMemoryLimit(hardLimit, hardLimit);
 
     return 0;
 }

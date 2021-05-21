@@ -20,6 +20,7 @@
 #include <compositionengine/impl/planner/CachedSet.h>
 #include <compositionengine/impl/planner/LayerState.h>
 
+#include <numeric>
 #include <vector>
 
 namespace android {
@@ -59,6 +60,73 @@ private:
 
     bool mergeWithCachedSets(const std::vector<const LayerState*>& layers,
                              std::chrono::steady_clock::time_point now);
+
+    // A Run is a sequence of CachedSets, which is a candidate for flattening into a single
+    // CachedSet. Because it is wasteful to flatten 1 CachedSet, a Run must contain more than 1
+    // CachedSet
+    class Run {
+    public:
+        // A builder for a Run, to aid in construction
+        class Builder {
+        private:
+            std::vector<CachedSet>::const_iterator mStart;
+            std::vector<size_t> mLengths;
+            const CachedSet* mHolePunchCandidate = nullptr;
+
+        public:
+            // Initializes a Builder a CachedSet to start from.
+            // This start iterator must be an iterator for mLayers
+            void init(const std::vector<CachedSet>::const_iterator& start) {
+                mStart = start;
+                mLengths.push_back(start->getLayerCount());
+            }
+
+            // Appends a new CachedSet to the end of the run
+            // The provided length must be the size of the next sequential CachedSet in layers
+            void append(size_t length) { mLengths.push_back(length); }
+
+            // Sets the hole punch candidate for the Run.
+            void setHolePunchCandidate(const CachedSet* holePunchCandidate) {
+                mHolePunchCandidate = holePunchCandidate;
+            }
+
+            // Builds a Run instance, if a valid Run may be built.
+            std::optional<Run> validateAndBuild() {
+                if (mLengths.size() <= 1) {
+                    return std::nullopt;
+                }
+
+                return Run(mStart,
+                           std::reduce(mLengths.cbegin(), mLengths.cend(), 0u,
+                                       [](size_t left, size_t right) { return left + right; }),
+                           mHolePunchCandidate);
+            }
+
+            void reset() { *this = {}; }
+        };
+
+        // Gets the starting CachedSet of this run.
+        // This is an iterator into mLayers
+        const std::vector<CachedSet>::const_iterator& getStart() const { return mStart; }
+        // Gets the total number of layers encompassing this Run.
+        size_t getLayerLength() const { return mLength; }
+        // Gets the hole punch candidate for this Run.
+        const CachedSet* getHolePunchCandidate() const { return mHolePunchCandidate; }
+
+    private:
+        Run(std::vector<CachedSet>::const_iterator start, size_t length,
+            const CachedSet* holePunchCandidate)
+              : mStart(start), mLength(length), mHolePunchCandidate(holePunchCandidate) {}
+        const std::vector<CachedSet>::const_iterator mStart;
+        const size_t mLength;
+        const CachedSet* const mHolePunchCandidate;
+
+        friend class Builder;
+    };
+
+    std::vector<Run> findCandidateRuns(std::chrono::steady_clock::time_point now) const;
+
+    std::optional<Run> findBestRun(std::vector<Run>& runs) const;
 
     void buildCachedSets(std::chrono::steady_clock::time_point now);
 

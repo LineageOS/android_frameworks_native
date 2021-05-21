@@ -382,22 +382,23 @@ uid_t IPCThreadState::getCallingUid() const
     return mCallingUid;
 }
 
-IPCThreadState::SpGuard* IPCThreadState::pushGetCallingSpGuard(SpGuard* guard) {
-    SpGuard* orig = mServingStackPointerGuard;
+const IPCThreadState::SpGuard* IPCThreadState::pushGetCallingSpGuard(const SpGuard* guard) {
+    const SpGuard* orig = mServingStackPointerGuard;
     mServingStackPointerGuard = guard;
     return orig;
 }
 
-void IPCThreadState::restoreGetCallingSpGuard(SpGuard* guard) {
+void IPCThreadState::restoreGetCallingSpGuard(const SpGuard* guard) {
     mServingStackPointerGuard = guard;
 }
 
 void IPCThreadState::checkContextIsBinderForUse(const char* use) const {
-    if (mServingStackPointerGuard == nullptr) return;
+    if (LIKELY(mServingStackPointerGuard == nullptr)) return;
 
-    if (!mServingStackPointer || mServingStackPointerGuard < mServingStackPointer) {
-        LOG_ALWAYS_FATAL("In context %s, %s does not make sense.",
-                         mServingStackPointerGuard->context, use);
+    if (!mServingStackPointer || mServingStackPointerGuard->address < mServingStackPointer) {
+        LOG_ALWAYS_FATAL("In context %s, %s does not make sense (binder sp: %p, guard: %p).",
+                         mServingStackPointerGuard->context, use, mServingStackPointer,
+                         mServingStackPointerGuard->address);
     }
 
     // in the case mServingStackPointer is deeper in the stack than the guard,
@@ -1256,7 +1257,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
                 tr.offsets_size/sizeof(binder_size_t), freeBuffer);
 
             const void* origServingStackPointer = mServingStackPointer;
-            mServingStackPointer = &origServingStackPointer; // anything on the stack
+            mServingStackPointer = __builtin_frame_address(0);
 
             const pid_t origPid = mCallingPid;
             const char* origSid = mCallingSid;

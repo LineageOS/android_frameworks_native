@@ -276,9 +276,9 @@ private:
     int dispatchAddQueueInterceptor(va_list args);
     int dispatchAddQueryInterceptor(va_list args);
     int dispatchGetLastQueuedBuffer(va_list args);
+    int dispatchGetLastQueuedBuffer2(va_list args);
     int dispatchSetFrameTimelineInfo(va_list args);
     int dispatchGetExtraBufferCount(va_list args);
-    bool transformToDisplayInverse();
 
 protected:
     virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFd);
@@ -490,6 +490,8 @@ protected:
     // mTransformHint is the transform probably applied to buffers of this
     // window. this is only a hint, actual transform may differ.
     uint32_t mTransformHint;
+    virtual uint32_t getTransformHint() const { return mTransformHint; }
+    bool transformToDisplayInverse() const;
 
     // mProducerControlledByApp whether this buffer producer is controlled
     // by the application

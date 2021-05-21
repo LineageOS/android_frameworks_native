@@ -280,6 +280,11 @@ bool CachedSet::requiresHolePunch() const {
     return layerFE.hasRoundedCorners();
 }
 
+bool CachedSet::hasBlurBehind() const {
+    return std::any_of(mLayers.cbegin(), mLayers.cend(),
+                       [](const Layer& layer) { return layer.getState()->hasBlurBehind(); });
+}
+
 namespace {
 bool contains(const Rect& outer, const Rect& inner) {
     return outer.left <= inner.left && outer.right >= inner.right && outer.top <= inner.top &&

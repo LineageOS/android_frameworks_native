@@ -37,10 +37,6 @@ const auto kScaleAndTranslate = mat4(0.7f,   0.f, 0.f, 0.f,
                                      0.f,  0.7f, 0.f, 0.f,
                                      0.f,   0.f, 1.f, 0.f,
                                    67.3f, 52.2f, 0.f, 1.f);
-const auto kScaleYOnly = mat4(1.f,   0.f, 0.f, 0.f,
-                              0.f,  0.7f, 0.f, 0.f,
-                              0.f,   0.f, 1.f, 0.f,
-                              0.f,   0.f, 0.f, 1.f);
 // clang-format on
 // When setting layer.sourceDataspace, whether it matches the destination or not determines whether
 // a color correction effect is added to the shader.
@@ -108,8 +104,7 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
             .source = PixelSource{.buffer =
                                           Buffer{
                                                   .buffer = srcTexture,
-                                                  .maxMasteringLuminance = 1000.f,
-                                                  .maxContentLuminance = 1000.f,
+                                                  .maxLuminanceNits = 1000.f,
                                           }},
     };
 
@@ -189,34 +184,51 @@ static void drawBlurLayers(SkiaRenderEngine* renderengine, const DisplaySettings
     }
 }
 
-static void drawTextureScaleLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
-                                   const std::shared_ptr<ExternalTexture>& dstTexture,
-                                   const std::shared_ptr<ExternalTexture>& srcTexture) {
+// The unique feature of these layers is that the boundary is slightly smaller than the rounded
+// rect crop, so the rounded edges intersect that boundary and require a different clipping method.
+static void drawClippedLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
+                              const std::shared_ptr<ExternalTexture>& dstTexture,
+                              const std::shared_ptr<ExternalTexture>& srcTexture) {
     const Rect& displayRect = display.physicalDisplay;
-    FloatRect rect(0, 0, displayRect.width(), displayRect.height());
+    FloatRect rect(0, 0, displayRect.width(), displayRect.height() - 20); // boundary is smaller
+
+    // clang-format off
+    const auto symmetric = mat4(0.9f, 0.f,  0.f, 0.f,
+                                0.f,  0.9f, 0.f, 0.f,
+                                0.f,  0.f,  1.f, 0.f,
+                                8.8f, 8.1f, 0.f, 1.f);
+    const auto asymmetric = mat4(0.9f, 0.f,  0.f, 0.f,
+                                 0.f,  0.7f, 0.f, 0.f,
+                                 0.f,  0.f,  1.f, 0.f,
+                                 8.8f, 8.1f, 0.f, 1.f);
+
+    // clang-format on
     LayerSettings layer{
             .geometry =
                     Geometry{
                             .boundaries = rect,
-                            .roundedCornersCrop = rect,
-                            .positionTransform = kScaleAndTranslate,
-                            .roundedCornersRadius = 300,
+                            .roundedCornersRadius = 27, // larger than the 20 above.
+                            .roundedCornersCrop =
+                                    FloatRect(0, 0, displayRect.width(), displayRect.height()),
                     },
             .source = PixelSource{.buffer =
                                           Buffer{
                                                   .buffer = srcTexture,
-                                                  .maxMasteringLuminance = 1000.f,
-                                                  .maxContentLuminance = 1000.f,
-                                                  .textureTransform = kScaleYOnly,
+                                                  .isOpaque = 0,
+                                                  .maxLuminanceNits = 1000.f,
                                           }},
             .sourceDataspace = kOtherDataSpace,
     };
 
     auto layers = std::vector<const LayerSettings*>{&layer};
-    for (float alpha : {0.5f, 1.f}) {
-        layer.alpha = alpha,
-        renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                 base::unique_fd(), nullptr);
+    for (auto transform : {symmetric, asymmetric}) {
+        layer.geometry.positionTransform = transform;
+        // In real use, I saw alpha of 1.0 and 0.999, probably a mistake, but cache both shaders.
+        for (float alpha : {0.5f, 1.f}) {
+            layer.alpha = alpha,
+            renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
+                                     base::unique_fd(), nullptr);
+        }
     }
 }
 
@@ -295,7 +307,7 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         drawImageLayers(renderengine, display, dstTexture, externalTexture);
 
         // Draw layers for b/185569240.
-        drawTextureScaleLayers(renderengine, display, dstTexture, externalTexture);
+        drawClippedLayers(renderengine, display, dstTexture, externalTexture);
 
         const nsecs_t timeAfter = systemTime();
         const float compileTimeMs = static_cast<float>(timeAfter - timeBefore) / 1.0E6;

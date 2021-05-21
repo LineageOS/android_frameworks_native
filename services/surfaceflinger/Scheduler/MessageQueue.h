@@ -72,6 +72,7 @@ public:
     virtual void postMessage(sp<MessageHandler>&&) = 0;
     virtual void invalidate() = 0;
     virtual void refresh() = 0;
+    virtual std::optional<std::chrono::steady_clock::time_point> nextExpectedInvalidate() = 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -81,9 +82,13 @@ namespace impl {
 class MessageQueue : public android::MessageQueue {
 protected:
     class Handler : public MessageHandler {
-        enum { eventMaskInvalidate = 0x1, eventMaskRefresh = 0x2, eventMaskTransaction = 0x4 };
+        enum : uint32_t {
+            eventMaskInvalidate = 0x1,
+            eventMaskRefresh = 0x2,
+            eventMaskTransaction = 0x4
+        };
         MessageQueue& mQueue;
-        int32_t mEventMask;
+        std::atomic<uint32_t> mEventMask;
         std::atomic<int64_t> mVsyncId;
         std::atomic<nsecs_t> mExpectedVSyncTime;
 
@@ -92,6 +97,7 @@ protected:
         void handleMessage(const Message& message) override;
         virtual void dispatchRefresh();
         virtual void dispatchInvalidate(int64_t vsyncId, nsecs_t expectedVSyncTimestamp);
+        virtual bool invalidatePending();
     };
 
     friend class Handler;
@@ -107,7 +113,8 @@ protected:
         TracedOrdinal<std::chrono::nanoseconds> workDuration
                 GUARDED_BY(mutex) = {"VsyncWorkDuration-sf", std::chrono::nanoseconds(0)};
         std::chrono::nanoseconds lastCallbackTime GUARDED_BY(mutex) = std::chrono::nanoseconds{0};
-        bool mScheduled GUARDED_BY(mutex) = false;
+        bool scheduled GUARDED_BY(mutex) = false;
+        std::optional<nsecs_t> expectedWakeupTime GUARDED_BY(mutex);
         TracedOrdinal<int> value = {"VSYNC-sf", 0};
     };
 
@@ -141,6 +148,8 @@ public:
 
     // sends REFRESH message at next VSYNC
     void refresh() override;
+
+    std::optional<std::chrono::steady_clock::time_point> nextExpectedInvalidate() override;
 };
 
 } // namespace impl
