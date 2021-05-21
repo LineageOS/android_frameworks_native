@@ -49,7 +49,6 @@ cc_library {
         "Keyboard.cpp",
         "KeyCharacterMap.cpp",
         "KeyLayoutMap.cpp",
-        "LatencyStatistics.cpp",
         "PropertyMap.cpp",
         "TouchVideoFrame.cpp",
         "VelocityControl.cpp",
