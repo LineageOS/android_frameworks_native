@@ -505,10 +505,11 @@ void SkiaGLRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffe
     if (mRenderEngineType != RenderEngineType::SKIA_GL_THREADED) {
         return;
     }
-    // we currently don't attempt to map a buffer if the buffer contains protected content
-    // because GPU resources for protected buffers is much more limited.
+    // We currently don't attempt to map a buffer if the buffer contains protected content
+    // or we are using a protected context because GPU resources for protected buffers is
+    // much more limited.
     const bool isProtectedBuffer = buffer->getUsage() & GRALLOC_USAGE_PROTECTED;
-    if (isProtectedBuffer) {
+    if (isProtectedBuffer || mInProtectedContext) {
         return;
     }
     ATRACE_CALL();
@@ -517,7 +518,7 @@ void SkiaGLRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffe
     // bound context if we are not already using the protected context (and subsequently switch
     // back after the buffer is cached).
     auto grContext = getActiveGrContext();
-    auto& cache = mInProtectedContext ? mProtectedTextureCache : mTextureCache;
+    auto& cache = mTextureCache;
 
     std::lock_guard<std::mutex> lock(mRenderingMutex);
     mGraphicBufferExternalRefs[buffer->getId()]++;
