@@ -2858,6 +2858,16 @@ TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_KeyRepeatStopsAfterRepeatingK
     mWindow->assertNoEvents();
 }
 
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_StopsKeyRepeatAfterDisableInputDevice) {
+    sendAndConsumeKeyDown(DEVICE_ID);
+    expectKeyRepeatOnce(1 /*repeatCount*/);
+    NotifyDeviceResetArgs args(10 /*id*/, 20 /*eventTime*/, DEVICE_ID);
+    mDispatcher->notifyDeviceReset(&args);
+    mWindow->consumeKeyUp(ADISPLAY_ID_DEFAULT,
+                          AKEY_EVENT_FLAG_CANCELED | AKEY_EVENT_FLAG_LONG_PRESS);
+    mWindow->assertNoEvents();
+}
+
 TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseEventIdFromInputDispatcher) {
     sendAndConsumeKeyDown(1 /* deviceId */);
     for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
