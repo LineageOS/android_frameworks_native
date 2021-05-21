@@ -134,6 +134,7 @@ void expectReadyBuffer(const CachedSet& cachedSet) {
     EXPECT_NE(nullptr, cachedSet.getBuffer());
     EXPECT_NE(nullptr, cachedSet.getDrawFence());
     EXPECT_TRUE(cachedSet.hasReadyBuffer());
+    EXPECT_TRUE(cachedSet.hasRenderedBuffer());
 }
 
 TEST_F(CachedSetTest, createFromLayer) {
