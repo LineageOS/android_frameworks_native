@@ -136,6 +136,14 @@ void Output::setLayerCachingEnabled(bool enabled) {
     } else {
         mPlanner.reset();
     }
+
+    for (auto* outputLayer : getOutputLayersOrderedByZ()) {
+        if (!outputLayer) {
+            continue;
+        }
+
+        outputLayer->editState().overrideInfo = {};
+    }
 }
 
 void Output::setProjection(ui::Rotation orientation, const Rect& layerStackSpaceRect,
