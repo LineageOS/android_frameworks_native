@@ -1098,6 +1098,11 @@ bool InputDispatcher::dispatchDeviceResetLocked(nsecs_t currentTime, DeviceReset
           entry->deviceId);
 #endif
 
+    // Reset key repeating in case a keyboard device was disabled or enabled.
+    if (mKeyRepeatState.lastKeyEntry && mKeyRepeatState.lastKeyEntry->deviceId == entry->deviceId) {
+        resetKeyRepeatLocked();
+    }
+
     CancelationOptions options(CancelationOptions::CANCEL_ALL_EVENTS, "device was reset");
     options.deviceId = entry->deviceId;
     synthesizeCancelationEventsForAllConnectionsLocked(options);
