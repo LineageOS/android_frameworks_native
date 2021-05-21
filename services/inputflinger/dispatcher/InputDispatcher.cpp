@@ -59,7 +59,6 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 #include <log/log.h>
 #include <log/log_event_list.h>
 #include <powermanager/PowerManager.h>
-#include <statslog.h>
 #include <unistd.h>
 #include <utils/Trace.h>
 
@@ -447,6 +446,56 @@ static std::optional<int32_t> findMonitorPidByToken(
     return std::nullopt;
 }
 
+static bool shouldReportMetricsForConnection(const Connection& connection) {
+    // Do not keep track of gesture monitors. They receive every event and would disproportionately
+    // affect the statistics.
+    if (connection.monitor) {
+        return false;
+    }
+    // If the connection is experiencing ANR, let's skip it. We have separate ANR metrics
+    if (!connection.responsive) {
+        return false;
+    }
+    return true;
+}
+
+static bool shouldReportFinishedEvent(const DispatchEntry& dispatchEntry,
+                                      const Connection& connection) {
+    const EventEntry& eventEntry = *dispatchEntry.eventEntry;
+    const int32_t& inputEventId = eventEntry.id;
+    if (inputEventId != dispatchEntry.resolvedEventId) {
+        // Event was transmuted
+        return false;
+    }
+    if (inputEventId == android::os::IInputConstants::INVALID_INPUT_EVENT_ID) {
+        return false;
+    }
+    // Only track latency for events that originated from hardware
+    if (eventEntry.isSynthesized()) {
+        return false;
+    }
+    const EventEntry::Type& inputEventEntryType = eventEntry.type;
+    if (inputEventEntryType == EventEntry::Type::KEY) {
+        const KeyEntry& keyEntry = static_cast<const KeyEntry&>(eventEntry);
+        if (keyEntry.flags & AKEY_EVENT_FLAG_CANCELED) {
+            return false;
+        }
+    } else if (inputEventEntryType == EventEntry::Type::MOTION) {
+        const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
+        if (motionEntry.action == AMOTION_EVENT_ACTION_CANCEL ||
+            motionEntry.action == AMOTION_EVENT_ACTION_HOVER_EXIT) {
+            return false;
+        }
+    } else {
+        // Not a key or a motion
+        return false;
+    }
+    if (!shouldReportMetricsForConnection(connection)) {
+        return false;
+    }
+    return true;
+}
+
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy)
@@ -468,6 +517,8 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
         mFocusedWindowRequestedPointerCapture(false),
         mWindowTokenWithPointerCapture(nullptr),
+        mLatencyAggregator(),
+        mLatencyTracker(&mLatencyAggregator),
         mCompatService(getCompatService()) {
     mLooper = new Looper(false);
     mReporter = createInputReporter();
@@ -2854,6 +2905,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
                       "event",
                       connection->getInputChannelName().c_str());
 #endif
+                // We keep the 'resolvedEventId' here equal to the original 'motionEntry.id' because
+                // this is a one-to-one event conversion.
                 dispatchEntry->resolvedAction = AMOTION_EVENT_ACTION_HOVER_ENTER;
             }
 
@@ -2921,7 +2974,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const sp<Connection>& connectio
 
     // Enqueue the dispatch entry.
     connection->outboundQueue.push_back(dispatchEntry.release());
-    traceOutboundQueueLength(connection);
+    traceOutboundQueueLength(*connection);
 }
 
 /**
@@ -3102,7 +3155,6 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                      motionEntry.downTime, motionEntry.eventTime,
                                                      motionEntry.pointerCount,
                                                      motionEntry.pointerProperties, usingCoords);
-                reportTouchEventForStatistics(motionEntry);
                 break;
             }
 
@@ -3176,13 +3228,13 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         connection->outboundQueue.erase(std::remove(connection->outboundQueue.begin(),
                                                     connection->outboundQueue.end(),
                                                     dispatchEntry));
-        traceOutboundQueueLength(connection);
+        traceOutboundQueueLength(*connection);
         connection->waitQueue.push_back(dispatchEntry);
         if (connection->responsive) {
             mAnrTracker.insert(dispatchEntry->timeoutTime,
                                connection->inputChannel->getConnectionToken());
         }
-        traceWaitQueueLength(connection);
+        traceWaitQueueLength(*connection);
     }
 }
 
@@ -3251,9 +3303,9 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
 
     // Clear the dispatch queues.
     drainDispatchQueue(connection->outboundQueue);
-    traceOutboundQueueLength(connection);
+    traceOutboundQueueLength(*connection);
     drainDispatchQueue(connection->waitQueue);
-    traceWaitQueueLength(connection);
+    traceWaitQueueLength(*connection);
 
     // The connection appears to be unrecoverably broken.
     // Ignore already broken or zombie connections.
@@ -3317,7 +3369,14 @@ int InputDispatcher::handleReceiveCallback(int events, sp<IBinder> connectionTok
                 finishDispatchCycleLocked(currentTime, connection, finish.seq, finish.handled,
                                           finish.consumeTime);
             } else if (std::holds_alternative<InputPublisher::Timeline>(*result)) {
-                // TODO(b/167947340): Report this data to LatencyTracker
+                if (shouldReportMetricsForConnection(*connection)) {
+                    const InputPublisher::Timeline& timeline =
+                            std::get<InputPublisher::Timeline>(*result);
+                    mLatencyTracker
+                            .trackGraphicsLatency(timeline.inputEventId,
+                                                  connection->inputChannel->getConnectionToken(),
+                                                  std::move(timeline.graphicsTimeline));
+                }
             }
             gotOne = true;
         }
@@ -3826,6 +3885,12 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
                                               args->xCursorPosition, args->yCursorPosition,
                                               args->downTime, args->pointerCount,
                                               args->pointerProperties, args->pointerCoords, 0, 0);
+        if (args->id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
+            IdGenerator::getSource(args->id) == IdGenerator::Source::INPUT_READER &&
+            !mInputFilterEnabled) {
+            const bool isDown = args->action == AMOTION_EVENT_ACTION_DOWN;
+            mLatencyTracker.trackListener(args->id, isDown, args->eventTime, args->readTime);
+        }
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));
         mLock.unlock();
@@ -5049,6 +5114,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     dump += StringPrintf(INDENT2 "KeyRepeatDelay: %" PRId64 "ms\n", ns2ms(mConfig.keyRepeatDelay));
     dump += StringPrintf(INDENT2 "KeyRepeatTimeout: %" PRId64 "ms\n",
                          ns2ms(mConfig.keyRepeatTimeout));
+    dump += mLatencyTracker.dump(INDENT2);
+    dump += mLatencyAggregator.dump(INDENT2);
 }
 
 void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors) {
@@ -5624,7 +5691,12 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
         ALOGI("%s spent %" PRId64 "ms processing %s", connection->getWindowName().c_str(),
               ns2ms(eventDuration), dispatchEntry->eventEntry->getDescription().c_str());
     }
-    reportDispatchStatistics(std::chrono::nanoseconds(eventDuration), *connection, handled);
+    if (shouldReportFinishedEvent(*dispatchEntry, *connection)) {
+        mLatencyTracker.trackFinishedEvent(dispatchEntry->eventEntry->id,
+                                           connection->inputChannel->getConnectionToken(),
+                                           dispatchEntry->deliveryTime, commandEntry->consumeTime,
+                                           finishTime);
+    }
 
     bool restartEvent;
     if (dispatchEntry->eventEntry->type == EventEntry::Type::KEY) {
@@ -5656,10 +5728,10 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(CommandEntry* c
                 processConnectionResponsiveLocked(*connection);
             }
         }
-        traceWaitQueueLength(connection);
+        traceWaitQueueLength(*connection);
         if (restartEvent && connection->status == Connection::STATUS_NORMAL) {
             connection->outboundQueue.push_front(dispatchEntry);
-            traceOutboundQueueLength(connection);
+            traceOutboundQueueLength(*connection);
         } else {
             releaseDispatchEntry(dispatchEntry);
         }
@@ -5936,58 +6008,25 @@ void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* comman
     mLock.lock();
 }
 
-void InputDispatcher::reportDispatchStatistics(std::chrono::nanoseconds eventDuration,
-                                               const Connection& connection, bool handled) {
-    // TODO Write some statistics about how long we spend waiting.
-}
-
-/**
- * Report the touch event latency to the statsd server.
- * Input events are reported for statistics if:
- * - This is a touchscreen event
- * - InputFilter is not enabled
- * - Event is not injected or synthesized
- *
- * Statistics should be reported before calling addValue, to prevent a fresh new sample
- * from getting aggregated with the "old" data.
- */
-void InputDispatcher::reportTouchEventForStatistics(const MotionEntry& motionEntry)
-        REQUIRES(mLock) {
-    const bool reportForStatistics = (motionEntry.source == AINPUT_SOURCE_TOUCHSCREEN) &&
-            !(motionEntry.isSynthesized()) && !mInputFilterEnabled;
-    if (!reportForStatistics) {
-        return;
-    }
-
-    if (mTouchStatistics.shouldReport()) {
-        android::util::stats_write(android::util::TOUCH_EVENT_REPORTED, mTouchStatistics.getMin(),
-                                   mTouchStatistics.getMax(), mTouchStatistics.getMean(),
-                                   mTouchStatistics.getStDev(), mTouchStatistics.getCount());
-        mTouchStatistics.reset();
-    }
-    const float latencyMicros = nanoseconds_to_microseconds(now() - motionEntry.eventTime);
-    mTouchStatistics.addValue(latencyMicros);
-}
-
 void InputDispatcher::traceInboundQueueLengthLocked() {
     if (ATRACE_ENABLED()) {
         ATRACE_INT("iq", mInboundQueue.size());
     }
 }
 
-void InputDispatcher::traceOutboundQueueLength(const sp<Connection>& connection) {
+void InputDispatcher::traceOutboundQueueLength(const Connection& connection) {
     if (ATRACE_ENABLED()) {
         char counterName[40];
-        snprintf(counterName, sizeof(counterName), "oq:%s", connection->getWindowName().c_str());
-        ATRACE_INT(counterName, connection->outboundQueue.size());
+        snprintf(counterName, sizeof(counterName), "oq:%s", connection.getWindowName().c_str());
+        ATRACE_INT(counterName, connection.outboundQueue.size());
     }
 }
 
-void InputDispatcher::traceWaitQueueLength(const sp<Connection>& connection) {
+void InputDispatcher::traceWaitQueueLength(const Connection& connection) {
     if (ATRACE_ENABLED()) {
         char counterName[40];
-        snprintf(counterName, sizeof(counterName), "wq:%s", connection->getWindowName().c_str());
-        ATRACE_INT(counterName, connection->waitQueue.size());
+        snprintf(counterName, sizeof(counterName), "wq:%s", connection.getWindowName().c_str());
+        ATRACE_INT(counterName, connection.waitQueue.size());
     }
 }
 
