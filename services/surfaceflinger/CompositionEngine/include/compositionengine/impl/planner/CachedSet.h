@@ -78,6 +78,7 @@ public:
     size_t getDisplayCost() const;
 
     bool hasBufferUpdate() const;
+    bool hasRenderedBuffer() const { return mTexture != nullptr; }
     bool hasReadyBuffer() const;
 
     // Decomposes this CachedSet into a vector of its layers as individual CachedSets
