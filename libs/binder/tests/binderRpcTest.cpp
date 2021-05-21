@@ -23,6 +23,7 @@
 #include <android/binder_libbinder.h>
 #include <binder/Binder.h>
 #include <binder/BpBinder.h>
+#include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
 #include <binder/RpcServer.h>
@@ -39,6 +40,8 @@
 
 #include "../RpcState.h"   // for debugging
 #include "../vm_sockets.h" // for VMADDR_*
+
+using namespace std::chrono_literals;
 
 namespace android {
 
@@ -190,6 +193,13 @@ public:
         } else {
             _exit(1);
         }
+    }
+    Status useKernelBinderCallingId() override {
+        // this is WRONG! It does not make sense when using RPC binder, and
+        // because it is SO wrong, and so much code calls this, it should abort!
+
+        (void)IPCThreadState::self()->getCallingPid();
+        return Status::ok();
     }
 };
 sp<IBinder> MyBinderRpcTest::mHeldBinder;
@@ -887,6 +897,19 @@ TEST_P(BinderRpc, Die) {
     }
 }
 
+TEST_P(BinderRpc, UseKernelBinderCallingId) {
+    auto proc = createRpcTestSocketServerProcess(1);
+
+    // we can't allocate IPCThreadState so actually the first time should
+    // succeed :(
+    EXPECT_OK(proc.rootIface->useKernelBinderCallingId());
+
+    // second time! we catch the error :)
+    EXPECT_EQ(DEAD_OBJECT, proc.rootIface->useKernelBinderCallingId().transactionError());
+
+    proc.expectInvalid = true;
+}
+
 TEST_P(BinderRpc, WorksWithLibbinderNdkPing) {
     auto proc = createRpcTestSocketServerProcess(1);
 
@@ -969,6 +992,54 @@ TEST_P(BinderRpcServerRootObject, WeakRootObject) {
 
 INSTANTIATE_TEST_CASE_P(BinderRpc, BinderRpcServerRootObject,
                         ::testing::Combine(::testing::Bool(), ::testing::Bool()));
+
+class OneOffSignal {
+public:
+    // If notify() was previously called, or is called within |duration|, return true; else false.
+    template <typename R, typename P>
+    bool wait(std::chrono::duration<R, P> duration) {
+        std::unique_lock<std::mutex> lock(mMutex);
+        return mCv.wait_for(lock, duration, [this] { return mValue; });
+    }
+    void notify() {
+        std::unique_lock<std::mutex> lock(mMutex);
+        mValue = true;
+        lock.unlock();
+        mCv.notify_all();
+    }
+
+private:
+    std::mutex mMutex;
+    std::condition_variable mCv;
+    bool mValue = false;
+};
+
+TEST(BinderRpc, Shutdown) {
+    auto addr = allocateSocketAddress();
+    unlink(addr.c_str());
+    auto server = RpcServer::make();
+    server->iUnderstandThisCodeIsExperimentalAndIWillNotUseItInProduction();
+    ASSERT_TRUE(server->setupUnixDomainServer(addr.c_str()));
+    auto joinEnds = std::make_shared<OneOffSignal>();
+
+    // If things are broken and the thread never stops, don't block other tests. Because the thread
+    // may run after the test finishes, it must not access the stack memory of the test. Hence,
+    // shared pointers are passed.
+    std::thread([server, joinEnds] {
+        server->join();
+        joinEnds->notify();
+    }).detach();
+
+    bool shutdown = false;
+    for (int i = 0; i < 10 && !shutdown; i++) {
+        usleep(300 * 1000); // 300ms; total 3s
+        if (server->shutdown()) shutdown = true;
+    }
+    ASSERT_TRUE(shutdown) << "server->shutdown() never returns true";
+
+    ASSERT_TRUE(joinEnds->wait(2s))
+            << "After server->shutdown() returns true, join() did not stop after 2s";
+}
 
 } // namespace android
 

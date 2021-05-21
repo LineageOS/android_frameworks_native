@@ -90,15 +90,13 @@ sk_sp<SkRuntimeEffect> buildRuntimeEffect(const LinearEffect& linearEffect);
 // matrix transforming from linear XYZ to linear RGB immediately before OETF.
 // We also provide additional HDR metadata upon creating the shader:
 // * The max display luminance is the max luminance of the physical display in nits
-// * The max mastering luminance is provided as the max luminance from the SMPTE 2086
-// standard.
-// * The max content luminance is provided as the max light level from the CTA 861.3
-// standard.
+// * The max luminance is provided as the max luminance for the buffer, either from the SMPTE 2086
+// or as the max light level from the CTA 861.3 standard.
 sk_sp<SkShader> createLinearEffectShader(sk_sp<SkShader> inputShader,
                                          const LinearEffect& linearEffect,
                                          sk_sp<SkRuntimeEffect> runtimeEffect,
                                          const mat4& colorTransform, float maxDisplayLuminance,
-                                         float maxMasteringLuminance, float maxContentLuminance);
+                                         float maxLuminance);
 } // namespace skia
 } // namespace renderengine
 } // namespace android

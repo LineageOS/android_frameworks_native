@@ -579,7 +579,7 @@ TEST_F(DisplayChooseCompositionStrategyTest, takesEarlyOutIfGpuDisplay) {
 TEST_F(DisplayChooseCompositionStrategyTest, takesEarlyOutOnHwcError) {
     EXPECT_CALL(*mDisplay, anyLayersRequireClientComposition()).WillOnce(Return(false));
     EXPECT_CALL(mHwComposer,
-                getDeviceCompositionChanges(HalDisplayId(DEFAULT_DISPLAY_ID), false, _))
+                getDeviceCompositionChanges(HalDisplayId(DEFAULT_DISPLAY_ID), false, _, _))
             .WillOnce(Return(INVALID_OPERATION));
 
     mDisplay->chooseCompositionStrategy();
@@ -601,7 +601,8 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperation) {
             .InSequence(s)
             .WillOnce(Return(false));
 
-    EXPECT_CALL(mHwComposer, getDeviceCompositionChanges(HalDisplayId(DEFAULT_DISPLAY_ID), true, _))
+    EXPECT_CALL(mHwComposer,
+                getDeviceCompositionChanges(HalDisplayId(DEFAULT_DISPLAY_ID), true, _, _))
             .WillOnce(Return(NO_ERROR));
     EXPECT_CALL(*mDisplay, allLayersRequireClientComposition()).WillOnce(Return(false));
 
@@ -631,8 +632,9 @@ TEST_F(DisplayChooseCompositionStrategyTest, normalOperationWithChanges) {
             .InSequence(s)
             .WillOnce(Return(false));
 
-    EXPECT_CALL(mHwComposer, getDeviceCompositionChanges(HalDisplayId(DEFAULT_DISPLAY_ID), true, _))
-            .WillOnce(DoAll(SetArgPointee<2>(changes), Return(NO_ERROR)));
+    EXPECT_CALL(mHwComposer,
+                getDeviceCompositionChanges(HalDisplayId(DEFAULT_DISPLAY_ID), true, _, _))
+            .WillOnce(DoAll(SetArgPointee<3>(changes), Return(NO_ERROR)));
     EXPECT_CALL(*mDisplay, applyChangedTypesToLayers(changes.changedTypes)).Times(1);
     EXPECT_CALL(*mDisplay, applyDisplayRequests(changes.displayRequests)).Times(1);
     EXPECT_CALL(*mDisplay, applyLayerRequestsToLayers(changes.layerRequests)).Times(1);
@@ -819,7 +821,8 @@ TEST_F(DisplayPresentAndGetFrameFencesTest, returnsPresentAndLayerFences) {
     sp<Fence> layer1Fence = new Fence();
     sp<Fence> layer2Fence = new Fence();
 
-    EXPECT_CALL(mHwComposer, presentAndGetReleaseFences(HalDisplayId(DEFAULT_DISPLAY_ID))).Times(1);
+    EXPECT_CALL(mHwComposer, presentAndGetReleaseFences(HalDisplayId(DEFAULT_DISPLAY_ID), _))
+            .Times(1);
     EXPECT_CALL(mHwComposer, getPresentFence(HalDisplayId(DEFAULT_DISPLAY_ID)))
             .WillOnce(Return(presentFence));
     EXPECT_CALL(mHwComposer,
@@ -994,7 +997,7 @@ TEST_F(DisplayFunctionalTest, postFramebufferCriticalCallsAreOrdered) {
 
     mDisplay->editState().isEnabled = true;
 
-    EXPECT_CALL(mHwComposer, presentAndGetReleaseFences(_));
+    EXPECT_CALL(mHwComposer, presentAndGetReleaseFences(_, _));
     EXPECT_CALL(*mDisplaySurface, onFrameCommitted());
 
     mDisplay->postFramebuffer();

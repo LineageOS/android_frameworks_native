@@ -63,9 +63,8 @@ public:
     struct EnvironmentTimingTunables : TimingTunables {
         EnvironmentTimingTunables();
     };
-    explicit RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& scheduler,
-                                  const TimingTunables& tunables);
-    explicit RegionSamplingThread(SurfaceFlinger& flinger, Scheduler& scheduler);
+    explicit RegionSamplingThread(SurfaceFlinger& flinger, const TimingTunables& tunables);
+    explicit RegionSamplingThread(SurfaceFlinger& flinger);
 
     ~RegionSamplingThread();
 
@@ -76,12 +75,11 @@ public:
     // Remove the listener to stop receiving median luma notifications.
     void removeListener(const sp<IRegionSamplingListener>& listener);
 
-    // Notifies sampling engine that new content is available. This will trigger a sampling
-    // pass at some point in the future.
-    void notifyNewContent();
-
-    // Notifies the sampling engine that it has a good timing window in which to sample.
-    void notifySamplingOffset();
+    // Notifies sampling engine that composition is done and new content is
+    // available, and the deadline for the sampling work on the main thread to
+    // be completed without eating the budget of another frame.
+    void onCompositionComplete(
+            std::optional<std::chrono::steady_clock::time_point> samplingDeadline);
 
 private:
     struct Descriptor {
@@ -99,7 +97,7 @@ private:
             const sp<GraphicBuffer>& buffer, const Point& leftTop,
             const std::vector<RegionSamplingThread::Descriptor>& descriptors, uint32_t orientation);
 
-    void doSample();
+    void doSample(std::optional<std::chrono::steady_clock::time_point> samplingDeadline);
     void binderDied(const wp<IBinder>& who) override;
     void checkForStaleLuma();
 
@@ -107,11 +105,8 @@ private:
     void threadMain();
 
     SurfaceFlinger& mFlinger;
-    Scheduler& mScheduler;
     const TimingTunables mTunables;
     scheduler::OneShotTimer mIdleTimer;
-
-    std::unique_ptr<SamplingOffsetCallback> const mPhaseCallback;
 
     std::thread mThread;
 
@@ -119,8 +114,9 @@ private:
     std::condition_variable_any mCondition;
     bool mRunning GUARDED_BY(mThreadControlMutex) = true;
     bool mSampleRequested GUARDED_BY(mThreadControlMutex) = false;
-    uint32_t mDiscardedFrames GUARDED_BY(mThreadControlMutex) = 0;
-    std::chrono::nanoseconds lastSampleTime GUARDED_BY(mThreadControlMutex);
+    std::optional<std::chrono::steady_clock::time_point> mSampleRequestTime
+            GUARDED_BY(mThreadControlMutex);
+    std::chrono::steady_clock::time_point mLastSampleTime GUARDED_BY(mThreadControlMutex);
 
     std::mutex mSamplingMutex;
     std::unordered_map<wp<IBinder>, Descriptor, WpHash> mDescriptors GUARDED_BY(mSamplingMutex);

@@ -1288,7 +1288,7 @@ int Surface::query(int what, int* value) const {
                         mUserHeight ? mUserHeight : mDefaultHeight);
                 return NO_ERROR;
             case NATIVE_WINDOW_TRANSFORM_HINT:
-                *value = static_cast<int>(mTransformHint);
+                *value = static_cast<int>(getTransformHint());
                 return NO_ERROR;
             case NATIVE_WINDOW_CONSUMER_RUNNING_BEHIND: {
                 status_t err = NO_ERROR;
@@ -1491,6 +1491,9 @@ int Surface::perform(int operation, va_list args)
         break;
     case NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER:
         res = dispatchGetLastQueuedBuffer(args);
+        break;
+    case NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER2:
+        res = dispatchGetLastQueuedBuffer2(args);
         break;
     case NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO:
         res = dispatchSetFrameTimelineInfo(args);
@@ -1805,6 +1808,39 @@ int Surface::dispatchGetLastQueuedBuffer(va_list args) {
     return result;
 }
 
+int Surface::dispatchGetLastQueuedBuffer2(va_list args) {
+    AHardwareBuffer** buffer = va_arg(args, AHardwareBuffer**);
+    int* fence = va_arg(args, int*);
+    ARect* crop = va_arg(args, ARect*);
+    uint32_t* transform = va_arg(args, uint32_t*);
+    sp<GraphicBuffer> graphicBuffer;
+    sp<Fence> spFence;
+
+    Rect r;
+    int result =
+            mGraphicBufferProducer->getLastQueuedBuffer(&graphicBuffer, &spFence, &r, transform);
+
+    if (graphicBuffer != nullptr) {
+        *buffer = graphicBuffer->toAHardwareBuffer();
+        AHardwareBuffer_acquire(*buffer);
+
+        // Avoid setting crop* unless buffer is valid (matches IGBP behavior)
+        crop->left = r.left;
+        crop->top = r.top;
+        crop->right = r.right;
+        crop->bottom = r.bottom;
+    } else {
+        *buffer = nullptr;
+    }
+
+    if (spFence != nullptr) {
+        *fence = spFence->dup();
+    } else {
+        *fence = -1;
+    }
+    return result;
+}
+
 int Surface::dispatchSetFrameTimelineInfo(va_list args) {
     ATRACE_CALL();
     auto frameTimelineVsyncId = static_cast<int64_t>(va_arg(args, int64_t));
@@ -1822,7 +1858,7 @@ int Surface::dispatchGetExtraBufferCount(va_list args) {
     return getExtraBufferCount(extraBuffers);
 }
 
-bool Surface::transformToDisplayInverse() {
+bool Surface::transformToDisplayInverse() const {
     return (mTransform & NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY) ==
             NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY;
 }
