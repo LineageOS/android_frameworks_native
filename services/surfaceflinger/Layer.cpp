@@ -1651,12 +1651,25 @@ size_t Layer::getChildrenCount() const {
     return count;
 }
 
+void Layer::setGameModeForTree(int parentGameMode) {
+    int gameMode = parentGameMode;
+    auto& currentState = getCurrentState();
+    if (currentState.metadata.has(METADATA_GAME_MODE)) {
+        gameMode = currentState.metadata.getInt32(METADATA_GAME_MODE, 0);
+    }
+    setGameMode(gameMode);
+    for (const sp<Layer>& child : mCurrentChildren) {
+        child->setGameModeForTree(gameMode);
+    }
+}
+
 void Layer::addChild(const sp<Layer>& layer) {
     mChildrenChanged = true;
     setTransactionFlags(eTransactionNeeded);
 
     mCurrentChildren.add(layer);
     layer->setParent(this);
+    layer->setGameModeForTree(mGameMode);
     updateTreeHasFrameRateVote();
 }
 
@@ -1668,6 +1681,7 @@ ssize_t Layer::removeChild(const sp<Layer>& layer) {
     const auto removeResult = mCurrentChildren.remove(layer);
 
     updateTreeHasFrameRateVote();
+    layer->setGameModeForTree(0);
     layer->updateTreeHasFrameRateVote();
 
     return removeResult;
