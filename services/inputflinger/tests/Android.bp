@@ -46,6 +46,7 @@ cc_test {
         "InputDispatcher_test.cpp",
         "InputReader_test.cpp",
         "InputFlingerService_test.cpp",
+        "LatencyTracker_test.cpp",
         "TestInputListener.cpp",
         "UinputDevice.cpp",
     ],
