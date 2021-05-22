@@ -441,7 +441,7 @@ protected:
     sp<FakeInputDispatcherPolicy> mFakePolicy;
     sp<InputDispatcher> mDispatcher;
 
-    virtual void SetUp() override {
+    void SetUp() override {
         mFakePolicy = new FakeInputDispatcherPolicy();
         mDispatcher = new InputDispatcher(mFakePolicy);
         mDispatcher->setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
@@ -449,7 +449,7 @@ protected:
         ASSERT_EQ(OK, mDispatcher->start());
     }
 
-    virtual void TearDown() override {
+    void TearDown() override {
         ASSERT_EQ(OK, mDispatcher->stop());
         mFakePolicy.clear();
         mDispatcher.clear();

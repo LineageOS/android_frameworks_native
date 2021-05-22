@@ -91,7 +91,7 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
 
 void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine,
                                  const OutputCompositionState& outputState) {
-    if (!mNewCachedSet) {
+    if (!mNewCachedSet || mNewCachedSet->hasRenderedBuffer()) {
         return;
     }
 
@@ -390,6 +390,11 @@ std::optional<Flattener::Run> Flattener::findBestRun(std::vector<Flattener::Run>
 void Flattener::buildCachedSets(time_point now) {
     if (mLayers.empty()) {
         ALOGV("[%s] No layers found, returning", __func__);
+        return;
+    }
+
+    // Don't try to build a new cached set if we already have a new one in progress
+    if (mNewCachedSet) {
         return;
     }
 
