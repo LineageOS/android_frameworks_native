@@ -28,6 +28,8 @@ interface ISensorPrivacyManager {
 
     void removeSensorPrivacyListener(in ISensorPrivacyListener listener);
 
+    void removeIndividualSensorPrivacyListener(int sensor, in ISensorPrivacyListener listener);
+
     boolean isSensorPrivacyEnabled();
 
     boolean isIndividualSensorPrivacyEnabled(int userId, int sensor);

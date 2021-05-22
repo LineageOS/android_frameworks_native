@@ -42,6 +42,8 @@ public:
     status_t addIndividualSensorPrivacyListener(int userId, int sensor,
             const sp<hardware::ISensorPrivacyListener>& listener);
     void removeSensorPrivacyListener(const sp<hardware::ISensorPrivacyListener>& listener);
+    void removeIndividualSensorPrivacyListener(int sensor,
+            const sp<hardware::ISensorPrivacyListener>& listener);
     bool isSensorPrivacyEnabled();
     bool isIndividualSensorPrivacyEnabled(int userId, int sensor);
     status_t isIndividualSensorPrivacyEnabled(int userId, int sensor, bool &result);
