@@ -2138,7 +2138,12 @@ void SensorService::SensorPrivacyPolicy::registerSelf() {
 void SensorService::SensorPrivacyPolicy::unregisterSelf() {
     AutoCallerClear acc;
     SensorPrivacyManager spm;
-    spm.removeSensorPrivacyListener(this);
+    if (mIsIndividualMic) {
+        spm.removeIndividualSensorPrivacyListener(
+                SensorPrivacyManager::INDIVIDUAL_SENSOR_MICROPHONE, this);
+    } else {
+        spm.removeSensorPrivacyListener(this);
+    }
 }
 
 bool SensorService::SensorPrivacyPolicy::isSensorPrivacyEnabled() {
