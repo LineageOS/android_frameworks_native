@@ -259,6 +259,27 @@ TEST_F(OutputTest, setLayerCachingEnabled_disablesCaching) {
     EXPECT_FALSE(mOutput->plannerEnabled());
 }
 
+TEST_F(OutputTest, setLayerCachingEnabled_disablesCachingAndResetsOverrideInfo) {
+    renderengine::mock::RenderEngine renderEngine;
+    const auto kSize = ui::Size(1, 1);
+    EXPECT_CALL(*mRenderSurface, getSize()).WillRepeatedly(ReturnRef(kSize));
+    mOutput->setLayerCachingEnabled(true);
+
+    // Inject some layers
+    InjectedLayer layer;
+    layer.outputLayerState.overrideInfo.buffer = std::make_shared<
+            renderengine::ExternalTexture>(new GraphicBuffer(), renderEngine,
+                                           renderengine::ExternalTexture::Usage::READABLE |
+                                                   renderengine::ExternalTexture::Usage::WRITEABLE);
+    injectOutputLayer(layer);
+    // inject a null layer to check for null exceptions
+    injectNullOutputLayer();
+
+    EXPECT_NE(nullptr, layer.outputLayerState.overrideInfo.buffer);
+    mOutput->setLayerCachingEnabled(false);
+    EXPECT_EQ(nullptr, layer.outputLayerState.overrideInfo.buffer);
+}
+
 /*
  * Output::setProjection()
  */

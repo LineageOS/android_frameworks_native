@@ -786,5 +786,45 @@ TEST_F(FlattenerTest, flattenLayers_flattenSkipsLayerWithBlurBehind) {
     EXPECT_EQ(overrideBuffer3, overrideBuffer4);
 }
 
+TEST_F(FlattenerTest, flattenLayers_renderCachedSets_doesNotRenderTwice) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+    auto& layerState2 = mTestLayers[1]->layerState;
+    const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+    const auto& overrideBuffer2 = layerState2->getOutputLayer()->getState().overrideInfo.buffer;
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+    };
+
+    initializeFlattener(layers);
+
+    // Mark the layers inactive
+    mTime += 200ms;
+    // layers would be flattened but the buffer would not be overridden
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).WillOnce(Return(NO_ERROR));
+
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    EXPECT_EQ(nullptr, overrideBuffer1);
+    EXPECT_EQ(nullptr, overrideBuffer2);
+
+    // Simulate attempting to render prior to merging the new cached set with the layer stack.
+    // Here we should not try to re-render.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _, _)).Times(0);
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    // We provide the override buffer now that it's rendered
+    EXPECT_NE(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mRenderEngine, mOutputState);
+
+    EXPECT_NE(nullptr, overrideBuffer1);
+    EXPECT_EQ(overrideBuffer2, overrideBuffer1);
+}
+
 } // namespace
 } // namespace android::compositionengine
