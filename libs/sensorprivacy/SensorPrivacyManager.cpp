@@ -100,6 +100,15 @@ void SensorPrivacyManager::removeSensorPrivacyListener(
     }
 }
 
+void SensorPrivacyManager::removeIndividualSensorPrivacyListener(int sensor,
+        const sp<hardware::ISensorPrivacyListener>& listener)
+{
+    sp<hardware::ISensorPrivacyManager> service = getService();
+    if (service != nullptr) {
+        service->removeIndividualSensorPrivacyListener(sensor, listener);
+    }
+}
+
 bool SensorPrivacyManager::isSensorPrivacyEnabled()
 {
     sp<hardware::ISensorPrivacyManager> service = getService();
