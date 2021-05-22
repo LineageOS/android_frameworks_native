@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "Planner"
 // #define LOG_NDEBUG 0
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <android-base/properties.h>
 #include <compositionengine/impl/OutputCompositionState.h>
@@ -24,6 +25,8 @@
 #include <math/HashCombine.h>
 #include <renderengine/DisplaySettings.h>
 #include <renderengine/RenderEngine.h>
+
+#include <utils/Trace.h>
 
 namespace android::compositionengine::impl::planner {
 
@@ -154,6 +157,7 @@ void CachedSet::updateAge(std::chrono::steady_clock::time_point now) {
 
 void CachedSet::render(renderengine::RenderEngine& renderEngine,
                        const OutputCompositionState& outputState) {
+    ATRACE_CALL();
     const Rect& viewport = outputState.layerStackSpace.content;
     const ui::Dataspace& outputDataspace = outputState.dataspace;
     const ui::Transform::RotationFlags orientation =
