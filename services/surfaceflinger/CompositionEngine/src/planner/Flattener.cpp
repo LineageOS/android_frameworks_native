@@ -17,9 +17,12 @@
 #undef LOG_TAG
 #define LOG_TAG "Planner"
 // #define LOG_NDEBUG 0
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <compositionengine/impl/planner/Flattener.h>
 #include <compositionengine/impl/planner/LayerState.h>
+
+#include <utils/Trace.h>
 
 using time_point = std::chrono::steady_clock::time_point;
 using namespace std::chrono_literals;
@@ -58,6 +61,7 @@ bool isSameStack(const std::vector<const LayerState*>& incomingLayers,
 
 NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& layers,
                                        NonBufferHash hash, time_point now) {
+    ATRACE_CALL();
     const size_t unflattenedDisplayCost = calculateDisplayCost(layers);
     mUnflattenedDisplayCost += unflattenedDisplayCost;
 
@@ -91,6 +95,7 @@ NonBufferHash Flattener::flattenLayers(const std::vector<const LayerState*>& lay
 
 void Flattener::renderCachedSets(renderengine::RenderEngine& renderEngine,
                                  const OutputCompositionState& outputState) {
+    ATRACE_CALL();
     if (!mNewCachedSet || mNewCachedSet->hasRenderedBuffer()) {
         return;
     }
@@ -213,6 +218,7 @@ NonBufferHash Flattener::computeLayersHash() const{
 // was already populated with these layers, i.e. on the second and following
 // calls with the same geometry.
 bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers, time_point now) {
+    ATRACE_CALL();
     std::vector<CachedSet> merged;
 
     if (mLayers.empty()) {
@@ -328,6 +334,7 @@ bool Flattener::mergeWithCachedSets(const std::vector<const LayerState*>& layers
 }
 
 std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
+    ATRACE_CALL();
     std::vector<Run> runs;
     bool isPartOfRun = false;
     Run::Builder builder;
@@ -388,6 +395,7 @@ std::optional<Flattener::Run> Flattener::findBestRun(std::vector<Flattener::Run>
 }
 
 void Flattener::buildCachedSets(time_point now) {
+    ATRACE_CALL();
     if (mLayers.empty()) {
         ALOGV("[%s] No layers found, returning", __func__);
         return;
