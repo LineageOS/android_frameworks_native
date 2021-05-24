@@ -573,6 +573,9 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
     layerSettings.geometry.boundaries = bounds;
     layerSettings.geometry.positionTransform = getTransform().asMatrix4();
 
+    // skip drawing content if the targetSettings indicate the content will be occluded
+    layerSettings.skipContentDraw = !targetSettings.realContentIsVisible;
+
     if (hasColorTransform()) {
         layerSettings.colorTransform = getColorTransform();
     }
@@ -595,42 +598,6 @@ std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCom
     return layerSettings;
 }
 
-std::optional<compositionengine::LayerFE::LayerSettings> Layer::prepareShadowClientComposition(
-        const LayerFE::LayerSettings& casterLayerSettings, const Rect& layerStackRect,
-        ui::Dataspace outputDataspace) {
-    renderengine::ShadowSettings shadow = getShadowSettings(layerStackRect);
-    if (shadow.length <= 0.f) {
-        return {};
-    }
-
-    const float casterAlpha = casterLayerSettings.alpha;
-    const bool casterIsOpaque = ((casterLayerSettings.source.buffer.buffer != nullptr) &&
-                                 casterLayerSettings.source.buffer.isOpaque);
-
-    compositionengine::LayerFE::LayerSettings shadowLayer = casterLayerSettings;
-
-    shadowLayer.shadow = shadow;
-    shadowLayer.geometry.boundaries = mBounds; // ignore transparent region
-
-    // If the casting layer is translucent, we need to fill in the shadow underneath the layer.
-    // Otherwise the generated shadow will only be shown around the casting layer.
-    shadowLayer.shadow.casterIsTranslucent = !casterIsOpaque || (casterAlpha < 1.0f);
-    shadowLayer.shadow.ambientColor *= casterAlpha;
-    shadowLayer.shadow.spotColor *= casterAlpha;
-    shadowLayer.sourceDataspace = outputDataspace;
-    shadowLayer.source.buffer.buffer = nullptr;
-    shadowLayer.source.buffer.fence = nullptr;
-    shadowLayer.frameNumber = 0;
-    shadowLayer.bufferId = 0;
-    shadowLayer.name = getName();
-
-    if (shadowLayer.shadow.ambientColor.a <= 0.f && shadowLayer.shadow.spotColor.a <= 0.f) {
-        return {};
-    }
-
-    return shadowLayer;
-}
-
 void Layer::prepareClearClientComposition(LayerFE::LayerSettings& layerSettings,
                                           bool blackout) const {
     layerSettings.source.buffer.buffer = nullptr;
@@ -644,6 +611,9 @@ void Layer::prepareClearClientComposition(LayerFE::LayerSettings& layerSettings,
     layerSettings.name = getName();
 }
 
+// TODO(b/188891810): This method now only ever returns 0 or 1 layers so we should return
+// std::optional instead of a vector.  Additionally, we should consider removing
+// this method entirely in favor of calling prepareClientComposition directly.
 std::vector<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCompositionList(
         compositionengine::LayerFE::ClientCompositionTargetSettings& targetSettings) {
     std::optional<compositionengine::LayerFE::LayerSettings> layerSettings =
@@ -659,21 +629,10 @@ std::vector<compositionengine::LayerFE::LayerSettings> Layer::prepareClientCompo
         return {*layerSettings};
     }
 
-    std::optional<compositionengine::LayerFE::LayerSettings> shadowSettings =
-            prepareShadowClientComposition(*layerSettings, targetSettings.viewport,
-                                           targetSettings.dataspace);
-    // There are no shadows to render.
-    if (!shadowSettings) {
-        return {*layerSettings};
-    }
+    // set the shadow for the layer if needed
+    prepareShadowClientComposition(*layerSettings, targetSettings.viewport);
 
-    // If the layer casts a shadow but the content casting the shadow is occluded, skip
-    // composing the non-shadow content and only draw the shadows.
-    if (targetSettings.realContentIsVisible) {
-        return {*shadowSettings, *layerSettings};
-    }
-
-    return {*shadowSettings};
+    return {*layerSettings};
 }
 
 Hwc2::IComposerClient::Composition Layer::getCompositionType(const DisplayDevice& display) const {
@@ -2061,8 +2020,14 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
             : RoundedCornerState();
 }
 
-renderengine::ShadowSettings Layer::getShadowSettings(const Rect& layerStackRect) const {
+void Layer::prepareShadowClientComposition(LayerFE::LayerSettings& caster,
+                                           const Rect& layerStackRect) {
     renderengine::ShadowSettings state = mFlinger->mDrawingState.globalShadowSettings;
+
+    // Note: this preserves existing behavior of shadowing the entire layer and not cropping it if
+    // transparent regions are present. This may not be necessary since shadows are only cast by
+    // SurfaceFlinger's EffectLayers, which do not typically use transparent regions.
+    state.boundaries = mBounds;
 
     // Shift the spot light x-position to the middle of the display and then
     // offset it by casting layer's screen pos.
@@ -2070,7 +2035,22 @@ renderengine::ShadowSettings Layer::getShadowSettings(const Rect& layerStackRect
     state.lightPos.y -= mScreenBounds.top;
 
     state.length = mEffectiveShadowRadius;
-    return state;
+
+    if (state.length > 0.f) {
+        const float casterAlpha = caster.alpha;
+        const bool casterIsOpaque =
+                ((caster.source.buffer.buffer != nullptr) && caster.source.buffer.isOpaque);
+
+        // If the casting layer is translucent, we need to fill in the shadow underneath the layer.
+        // Otherwise the generated shadow will only be shown around the casting layer.
+        state.casterIsTranslucent = !casterIsOpaque || (casterAlpha < 1.0f);
+        state.ambientColor *= casterAlpha;
+        state.spotColor *= casterAlpha;
+
+        if (state.ambientColor.a > 0.f && state.spotColor.a > 0.f) {
+            caster.shadow = state;
+        }
+    }
 }
 
 void Layer::commitChildList() {
