@@ -78,10 +78,10 @@ private:
         void setRawLightBrightness(int32_t rawLightId, int32_t brightness);
     };
 
-    struct SingleLight : public Light {
-        explicit SingleLight(InputDeviceContext& context, const std::string& name, int32_t id,
-                             int32_t rawId)
-              : Light(context, name, id, InputDeviceLightType::SINGLE), rawId(rawId) {}
+    struct MonoLight : public Light {
+        explicit MonoLight(InputDeviceContext& context, const std::string& name, int32_t id,
+                           int32_t rawId)
+              : Light(context, name, id, InputDeviceLightType::MONO), rawId(rawId) {}
         int32_t rawId;
 
         bool setLightColor(int32_t color) override;
