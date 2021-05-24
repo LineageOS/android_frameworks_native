@@ -47,6 +47,7 @@ static constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 // Log debug messages about hover events.
 #define DEBUG_HOVER 0
 
+#include <InputFlingerProperties.sysprop.h>
 #include <android-base/chrono_utils.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
@@ -93,7 +94,8 @@ namespace android::inputdispatcher {
 // coordinates and SurfaceFlinger includes the display rotation in the input window transforms.
 static bool isPerWindowInputRotationEnabled() {
     static const bool PER_WINDOW_INPUT_ROTATION =
-            base::GetBoolProperty("persist.debug.per_window_input_rotation", false);
+            sysprop::InputFlingerProperties::per_window_input_rotation().value_or(false);
+
     return PER_WINDOW_INPUT_ROTATION;
 }
 

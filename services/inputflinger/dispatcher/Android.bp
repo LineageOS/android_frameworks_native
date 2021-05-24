@@ -67,6 +67,7 @@ cc_defaults {
         "libutils",
         "lib-platform-compat-native-api",
         "server_configurable_flags",
+        "InputFlingerProperties",
     ],
     static_libs: [
         "libattestation",
