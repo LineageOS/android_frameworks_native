@@ -846,7 +846,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         // Layers have a local transform that should be applied to them
         canvas->concat(getSkM44(layer->geometry.positionTransform).asM33());
 
-        const auto [bounds, roundRectClip] = getBoundsAndClip(layer);
+        const auto [bounds, roundRectClip] =
+                getBoundsAndClip(layer->geometry.boundaries, layer->geometry.roundedCornersCrop,
+                                 layer->geometry.roundedCornersRadius);
         if (mBlurFilter && layerHasBlur(layer)) {
             std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
 
@@ -895,13 +897,20 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             }
         }
 
-        // Shadows are assumed to live only on their own layer - it's not valid
-        // to draw the boundary rectangles when there is already a caster shadow
-        // TODO(b/175915334): consider relaxing this restriction to enable more flexible
-        // composition - using a well-defined invalid color is long-term less error-prone.
         if (layer->shadow.length > 0) {
             // This would require a new parameter/flag to SkShadowUtils::DrawShadow
             LOG_ALWAYS_FATAL_IF(layer->disableBlending, "Cannot disableBlending with a shadow");
+
+            SkRRect shadowBounds, shadowClip;
+            if (layer->geometry.boundaries == layer->shadow.boundaries) {
+                shadowBounds = bounds;
+                shadowClip = roundRectClip;
+            } else {
+                std::tie(shadowBounds, shadowClip) =
+                        getBoundsAndClip(layer->shadow.boundaries,
+                                         layer->geometry.roundedCornersCrop,
+                                         layer->geometry.roundedCornersRadius);
+            }
 
             // Technically, if bounds is a rect and roundRectClip is not empty,
             // it means that the bounds and roundedCornersCrop were different
@@ -910,9 +919,8 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
             // not match due to rounding errors. Draw the rounded version, which
             // looks more like the intent.
             const auto& rrect =
-                    bounds.isRect() && !roundRectClip.isEmpty() ? roundRectClip : bounds;
+                    shadowBounds.isRect() && !shadowClip.isEmpty() ? shadowClip : shadowBounds;
             drawShadow(canvas, rrect, layer->shadow);
-            continue;
         }
 
         const bool requiresLinearEffect = layer->colorTransform != mat4() ||
@@ -922,8 +930,9 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
                  display.sdrWhitePointNits != display.maxLuminance);
 
         // quick abort from drawing the remaining portion of the layer
-        if (layer->alpha == 0 && !requiresLinearEffect && !layer->disableBlending &&
-            (!displayColorTransform || displayColorTransform->isAlphaUnchanged())) {
+        if (layer->skipContentDraw ||
+            (layer->alpha == 0 && !requiresLinearEffect && !layer->disableBlending &&
+             (!displayColorTransform || displayColorTransform->isAlphaUnchanged()))) {
             continue;
         }
 
@@ -1093,11 +1102,11 @@ inline SkRect SkiaGLRenderEngine::getSkRect(const Rect& rect) {
     return SkRect::MakeLTRB(rect.left, rect.top, rect.right, rect.bottom);
 }
 
-inline std::pair<SkRRect, SkRRect> SkiaGLRenderEngine::getBoundsAndClip(
-        const LayerSettings* layer) {
-    const auto bounds = getSkRect(layer->geometry.boundaries);
-    const auto crop = getSkRect(layer->geometry.roundedCornersCrop);
-    const auto cornerRadius = layer->geometry.roundedCornersRadius;
+inline std::pair<SkRRect, SkRRect> SkiaGLRenderEngine::getBoundsAndClip(const FloatRect& boundsRect,
+                                                                        const FloatRect& cropRect,
+                                                                        const float cornerRadius) {
+    const SkRect bounds = getSkRect(boundsRect);
+    const SkRect crop = getSkRect(cropRect);
 
     SkRRect clip;
     if (cornerRadius > 0) {

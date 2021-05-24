@@ -764,8 +764,6 @@ public:
     // is ready to acquire a buffer.
     ui::Transform::RotationFlags getFixedTransformHint() const;
 
-    renderengine::ShadowSettings getShadowSettings(const Rect& layerStackRect) const;
-
     /**
      * Traverse this layer and it's hierarchy of children directly. Unlike traverseInZOrder
      * which will not emit children who have relativeZOrder to another layer, this method
@@ -895,9 +893,6 @@ protected:
     virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom);
     virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&);
-    virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareShadowClientComposition(
-            const LayerFE::LayerSettings&, const Rect& layerStackRect,
-            ui::Dataspace outputDataspace);
     virtual void preparePerFrameCompositionState();
     virtual void commitTransaction(State& stateToCommit);
     virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit);
@@ -923,6 +918,7 @@ protected:
     // Modifies the passed in layer settings to clear the contents. If the blackout flag is set,
     // the settings clears the content with a solid black fill.
     void prepareClearClientComposition(LayerFE::LayerSettings&, bool blackout) const;
+    void prepareShadowClientComposition(LayerFE::LayerSettings& caster, const Rect& layerStackRect);
 
     void prepareBasicGeometryCompositionState();
     void prepareGeometryCompositionState();
