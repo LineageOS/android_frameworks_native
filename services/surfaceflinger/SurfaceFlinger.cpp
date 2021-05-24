@@ -23,7 +23,6 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "SurfaceFlinger.h"
-#include "TraceUtils.h"
 
 #include <android-base/properties.h>
 #include <android/configuration.h>
@@ -58,6 +57,7 @@
 #include <gui/LayerMetadata.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
+#include <gui/TraceUtils.h>
 #include <hidl/ServiceManagement.h>
 #include <layerproto/LayerProtoParser.h>
 #include <log/log.h>
