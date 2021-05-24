@@ -104,7 +104,7 @@ void PeripheralController::Light::setRawLightBrightness(int32_t rawLightId, int3
     context.setLightBrightness(rawLightId, brightness);
 }
 
-bool PeripheralController::SingleLight::setLightColor(int32_t color) {
+bool PeripheralController::MonoLight::setLightColor(int32_t color) {
     int32_t brightness = getAlpha(color);
     setRawLightBrightness(rawId, brightness);
 
@@ -148,7 +148,7 @@ bool PeripheralController::MultiColorLight::setLightColor(int32_t color) {
     return true;
 }
 
-std::optional<int32_t> PeripheralController::SingleLight::getLightColor() {
+std::optional<int32_t> PeripheralController::MonoLight::getLightColor() {
     std::optional<int32_t> brightness = getRawLightBrightness(rawId);
     if (!brightness.has_value()) {
         return std::nullopt;
@@ -234,7 +234,7 @@ std::optional<int32_t> PeripheralController::PlayerIdLight::getLightPlayerId() {
     return std::nullopt;
 }
 
-void PeripheralController::SingleLight::dump(std::string& dump) {
+void PeripheralController::MonoLight::dump(std::string& dump) {
     dump += StringPrintf(INDENT4 "Color: 0x%x\n", getLightColor().value_or(0));
 }
 
@@ -423,7 +423,7 @@ void PeripheralController::configureLights() {
                                                 playerIdLightIds);
         mLights.insert_or_assign(light->id, std::move(light));
         // Remove these raw lights from raw light info as they've been used to compose a
-        // Player ID light, so we do not expose these raw lights as single lights.
+        // Player ID light, so we do not expose these raw lights as mono lights.
         for (const auto& [playerId, rawId] : playerIdLightIds) {
             rawInfos.erase(rawId);
         }
@@ -460,13 +460,12 @@ void PeripheralController::configureLights() {
             mLights.insert_or_assign(light->id, std::move(light));
             continue;
         }
-        // Construct a single LED light
+        // Construct a Mono LED light
         if (DEBUG_LIGHT_DETAILS) {
-            ALOGD("Single light Id %d name %s \n", rawInfo.id, rawInfo.name.c_str());
+            ALOGD("Mono light Id %d name %s \n", rawInfo.id, rawInfo.name.c_str());
         }
-        std::unique_ptr<Light> light =
-                std::make_unique<SingleLight>(getDeviceContext(), rawInfo.name, ++mNextId,
-                                              rawInfo.id);
+        std::unique_ptr<Light> light = std::make_unique<MonoLight>(getDeviceContext(), rawInfo.name,
+                                                                   ++mNextId, rawInfo.id);
 
         mLights.insert_or_assign(light->id, std::move(light));
     }
