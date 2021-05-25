@@ -39,6 +39,60 @@ using android::base::StringPrintf;
 
 namespace android {
 
+namespace {
+
+float transformAngle(const ui::Transform& transform, float angleRadians) {
+    // Construct and transform a vector oriented at the specified clockwise angle from vertical.
+    // Coordinate system: down is increasing Y, right is increasing X.
+    float x = sinf(angleRadians);
+    float y = -cosf(angleRadians);
+    vec2 transformedPoint = transform.transform(x, y);
+
+    // Determine how the origin is transformed by the matrix so that we
+    // can transform orientation vectors.
+    const vec2 origin = transform.transform(0, 0);
+
+    transformedPoint.x -= origin.x;
+    transformedPoint.y -= origin.y;
+
+    // Derive the transformed vector's clockwise angle from vertical.
+    float result = atan2f(transformedPoint.x, -transformedPoint.y);
+    if (result < -M_PI_2) {
+        result += M_PI;
+    } else if (result > M_PI_2) {
+        result -= M_PI;
+    }
+    return result;
+}
+
+// Rotates the given point to the transform's orientation. If the display width and height are
+// provided, the point is rotated in the screen space. Otherwise, the point is rotated about the
+// origin. This helper is used to avoid the extra overhead of creating new Transforms.
+vec2 rotatePoint(const ui::Transform& transform, float x, float y, int32_t displayWidth = 0,
+                 int32_t displayHeight = 0) {
+    // 0x7 encapsulates all 3 rotations (see ui::Transform::RotationFlags)
+    static const int ALL_ROTATIONS_MASK = 0x7;
+    const uint32_t orientation = (transform.getOrientation() & ALL_ROTATIONS_MASK);
+    if (orientation == ui::Transform::ROT_0) {
+        return {x, y};
+    }
+
+    vec2 xy(x, y);
+    if (orientation == ui::Transform::ROT_90) {
+        xy.x = displayHeight - y;
+        xy.y = x;
+    } else if (orientation == ui::Transform::ROT_180) {
+        xy.x = displayWidth - x;
+        xy.y = displayHeight - y;
+    } else if (orientation == ui::Transform::ROT_270) {
+        xy.x = y;
+        xy.y = displayWidth - x;
+    }
+    return xy;
+}
+
+} // namespace
+
 const char* motionClassificationToString(MotionClassification classification) {
     switch (classification) {
         case MotionClassification::NONE:
@@ -315,9 +369,14 @@ void PointerCoords::copyFrom(const PointerCoords& other) {
 }
 
 void PointerCoords::transform(const ui::Transform& transform) {
-    vec2 newCoords = transform.transform(getX(), getY());
-    setAxisValue(AMOTION_EVENT_AXIS_X, newCoords.x);
-    setAxisValue(AMOTION_EVENT_AXIS_Y, newCoords.y);
+    const vec2 xy = transform.transform(getXYValue());
+    setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
+    setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
+
+    if (BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_ORIENTATION)) {
+        const float val = getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
+        setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, transformAngle(transform, val));
+    }
 }
 
 // --- PointerProperties ---
@@ -444,45 +503,32 @@ const PointerCoords* MotionEvent::getHistoricalRawPointerCoords(
 }
 
 float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
-        size_t historicalIndex) const {
-    if (axis != AMOTION_EVENT_AXIS_X && axis != AMOTION_EVENT_AXIS_Y) {
-        return getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getAxisValue(axis);
-    }
-    // 0x7 encapsulates all 3 rotations (see ui::Transform::RotationFlags)
-    static const int ALL_ROTATIONS_MASK = 0x7;
-    uint32_t orientation = (mTransform.getOrientation() & ALL_ROTATIONS_MASK);
-    if (orientation == ui::Transform::ROT_0) {
-        return getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getAxisValue(axis);
+                                             size_t historicalIndex) const {
+    const PointerCoords* coords = getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
+
+    if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
+        // For compatibility, convert raw coordinates into "oriented screen space". Once app
+        // developers are educated about getRaw, we can consider removing this.
+        const vec2 xy = rotatePoint(mTransform, coords->getX(), coords->getY(), mDisplayWidth,
+                                    mDisplayHeight);
+        static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
+        return xy[axis];
     }
 
-    // For compatibility, convert raw coordinates into "oriented screen space". Once app developers
-    // are educated about getRaw, we can consider removing this.
-    vec2 xy = getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getXYValue();
-    const float unrotatedX = xy.x;
-    if (orientation == ui::Transform::ROT_90) {
-        xy.x = mDisplayHeight - xy.y;
-        xy.y = unrotatedX;
-    } else if (orientation == ui::Transform::ROT_180) {
-        xy.x = mDisplayWidth - xy.x;
-        xy.y = mDisplayHeight - xy.y;
-    } else if (orientation == ui::Transform::ROT_270) {
-        xy.x = xy.y;
-        xy.y = mDisplayWidth - unrotatedX;
-    }
-    static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
-    return xy[axis];
+    return coords->getAxisValue(axis);
 }
 
 float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
         size_t historicalIndex) const {
-    if (axis != AMOTION_EVENT_AXIS_X && axis != AMOTION_EVENT_AXIS_Y) {
-        return getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getAxisValue(axis);
+    const PointerCoords* coords = getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
+
+    if (axis == AMOTION_EVENT_AXIS_X || axis == AMOTION_EVENT_AXIS_Y) {
+        const vec2 xy = mTransform.transform(coords->getXYValue());
+        static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
+        return xy[axis];
     }
 
-    vec2 vals = mTransform.transform(
-            getHistoricalRawPointerCoords(pointerIndex, historicalIndex)->getXYValue());
-    static_assert(AMOTION_EVENT_AXIS_X == 0 && AMOTION_EVENT_AXIS_Y == 1);
-    return vals[axis];
+    return coords->getAxisValue(axis);
 }
 
 ssize_t MotionEvent::findPointerIndex(int32_t pointerId) const {
@@ -513,78 +559,30 @@ void MotionEvent::scale(float globalScaleFactor) {
     }
 }
 
-static vec2 transformPoint(const std::array<float, 9>& matrix, float x, float y) {
-    // Apply perspective transform like Skia.
-    float newX = matrix[0] * x + matrix[1] * y + matrix[2];
-    float newY = matrix[3] * x + matrix[4] * y + matrix[5];
-    float newZ = matrix[6] * x + matrix[7] * y + matrix[8];
-    if (newZ) {
-        newZ = 1.0f / newZ;
-    }
-    vec2 transformedPoint;
-    transformedPoint.x = newX * newZ;
-    transformedPoint.y = newY * newZ;
-    return transformedPoint;
-}
-
-static float transformAngle(const std::array<float, 9>& matrix, float angleRadians, float originX,
-                            float originY) {
-    // Construct and transform a vector oriented at the specified clockwise angle from vertical.
-    // Coordinate system: down is increasing Y, right is increasing X.
-    float x = sinf(angleRadians);
-    float y = -cosf(angleRadians);
-    vec2 transformedPoint = transformPoint(matrix, x, y);
-
-    transformedPoint.x -= originX;
-    transformedPoint.y -= originY;
-
-    // Derive the transformed vector's clockwise angle from vertical.
-    float result = atan2f(transformedPoint.x, -transformedPoint.y);
-    if (result < - M_PI_2) {
-        result += M_PI;
-    } else if (result > M_PI_2) {
-        result -= M_PI;
-    }
-    return result;
-}
-
 void MotionEvent::transform(const std::array<float, 9>& matrix) {
-    // We want to preserve the rawX and rawY so we just update the transform
-    // using the values of the transform passed in
+    // We want to preserve the raw axes values stored in the PointerCoords, so we just update the
+    // transform using the values passed in.
     ui::Transform newTransform;
     newTransform.set(matrix);
     mTransform = newTransform * mTransform;
 
-    // Determine how the origin is transformed by the matrix so that we
-    // can transform orientation vectors.
-    vec2 origin = transformPoint(matrix, 0, 0);
-
-    // Apply the transformation to all samples.
-    size_t numSamples = mSamplePointerCoords.size();
-    for (size_t i = 0; i < numSamples; i++) {
-        PointerCoords& c = mSamplePointerCoords.editItemAt(i);
-        float orientation = c.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
-        c.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
-                       transformAngle(matrix, orientation, origin.x, origin.y));
-    }
+    // We need to update the AXIS_ORIENTATION value here to maintain the old behavior where the
+    // orientation angle is not affected by the initial transformation set in the MotionEvent.
+    std::for_each(mSamplePointerCoords.begin(), mSamplePointerCoords.end(),
+                  [&newTransform](PointerCoords& c) {
+                      float orientation = c.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
+                      c.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
+                                     transformAngle(newTransform, orientation));
+                  });
 }
 
 void MotionEvent::applyTransform(const std::array<float, 9>& matrix) {
-    // Determine how the origin is transformed by the matrix so that we
-    // can transform orientation vectors.
-    vec2 origin = transformPoint(matrix, 0, 0);
+    ui::Transform transform;
+    transform.set(matrix);
 
     // Apply the transformation to all samples.
-    size_t numSamples = mSamplePointerCoords.size();
-    for (size_t i = 0; i < numSamples; i++) {
-        PointerCoords& c = mSamplePointerCoords.editItemAt(i);
-        float orientation = c.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
-        c.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
-                       transformAngle(matrix, orientation, origin.x, origin.y));
-        vec2 xy = transformPoint(matrix, c.getX(), c.getY());
-        c.setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
-        c.setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
-    }
+    std::for_each(mSamplePointerCoords.begin(), mSamplePointerCoords.end(),
+                  [&transform](PointerCoords& c) { c.transform(transform); });
 }
 
 #ifdef __linux__
