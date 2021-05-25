@@ -365,8 +365,8 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
         displayId = mPointerController->getDisplayId();
-    } else if (mSource == AINPUT_SOURCE_MOUSE_RELATIVE) {
-        // Pointer capture mode
+    } else {
+        // Pointer capture and navigation modes
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, deltaY);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
