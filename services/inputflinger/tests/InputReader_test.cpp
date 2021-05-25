@@ -8743,20 +8743,20 @@ protected:
     }
 };
 
-TEST_F(LightControllerTest, SingleLight) {
-    RawLightInfo infoSingle = {.id = 1,
-                               .name = "Mono",
-                               .maxBrightness = 255,
-                               .flags = InputLightClass::BRIGHTNESS,
-                               .path = ""};
-    mFakeEventHub->addRawLightInfo(infoSingle.id, std::move(infoSingle));
+TEST_F(LightControllerTest, MonoLight) {
+    RawLightInfo infoMono = {.id = 1,
+                             .name = "Mono",
+                             .maxBrightness = 255,
+                             .flags = InputLightClass::BRIGHTNESS,
+                             .path = ""};
+    mFakeEventHub->addRawLightInfo(infoMono.id, std::move(infoMono));
 
     PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
     InputDeviceInfo info;
     controller.populateDeviceInfo(&info);
     const auto& ids = info.getLightIds();
     ASSERT_EQ(1UL, ids.size());
-    ASSERT_EQ(InputDeviceLightType::SINGLE, info.getLightInfo(ids[0])->type);
+    ASSERT_EQ(InputDeviceLightType::MONO, info.getLightInfo(ids[0])->type);
 
     ASSERT_TRUE(controller.setLightColor(ids[0], LIGHT_BRIGHTNESS));
     ASSERT_EQ(controller.getLightColor(ids[0]).value_or(-1), LIGHT_BRIGHTNESS);
