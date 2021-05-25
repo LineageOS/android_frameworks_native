@@ -2077,6 +2077,16 @@ status_t SurfaceComposerClient::removeFpsListener(const sp<gui::IFpsListener>& l
     return ComposerService::getComposerService()->removeFpsListener(listener);
 }
 
+status_t SurfaceComposerClient::addTunnelModeEnabledListener(
+        const sp<gui::ITunnelModeEnabledListener>& listener) {
+    return ComposerService::getComposerService()->addTunnelModeEnabledListener(listener);
+}
+
+status_t SurfaceComposerClient::removeTunnelModeEnabledListener(
+        const sp<gui::ITunnelModeEnabledListener>& listener) {
+    return ComposerService::getComposerService()->removeTunnelModeEnabledListener(listener);
+}
+
 bool SurfaceComposerClient::getDisplayBrightnessSupport(const sp<IBinder>& displayToken) {
     bool support = false;
     ComposerService::getComposerService()->getDisplayBrightnessSupport(displayToken, &support);
