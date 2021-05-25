@@ -65,12 +65,12 @@ ComposerService::ComposerService()
     connectLocked();
 }
 
-void ComposerService::connectLocked() {
+bool ComposerService::connectLocked() {
     const String16 name("SurfaceFlinger");
-    while (getService(name, &mComposerService) != NO_ERROR) {
-        usleep(250000);
+    mComposerService = waitForService<ISurfaceComposer>(name);
+    if (mComposerService == nullptr) {
+        return false; // fatal error or permission problem
     }
-    assert(mComposerService != nullptr);
 
     // Create the death listener.
     class DeathObserver : public IBinder::DeathRecipient {
@@ -86,15 +86,16 @@ void ComposerService::connectLocked() {
 
     mDeathObserver = new DeathObserver(*const_cast<ComposerService*>(this));
     IInterface::asBinder(mComposerService)->linkToDeath(mDeathObserver);
+    return true;
 }
 
 /*static*/ sp<ISurfaceComposer> ComposerService::getComposerService() {
     ComposerService& instance = ComposerService::getInstance();
     Mutex::Autolock _l(instance.mLock);
     if (instance.mComposerService == nullptr) {
-        ComposerService::getInstance().connectLocked();
-        assert(instance.mComposerService != nullptr);
-        ALOGD("ComposerService reconnected");
+        if (ComposerService::getInstance().connectLocked()) {
+            ALOGD("ComposerService reconnected");
+        }
     }
     return instance.mComposerService;
 }
