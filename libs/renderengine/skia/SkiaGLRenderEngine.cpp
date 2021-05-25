@@ -725,6 +725,14 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         return BAD_VALUE;
     }
 
+    // setup color filter if necessary
+    sk_sp<SkColorFilter> displayColorTransform;
+    if (display.colorTransform != mat4()) {
+        displayColorTransform = SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform));
+    }
+    const bool ctModifiesAlpha =
+            displayColorTransform && !displayColorTransform->isAlphaUnchanged();
+
     // Find if any layers have requested blur, we'll use that info to decide when to render to an
     // offscreen buffer and when to render to the native buffer.
     sk_sp<SkSurface> activeSurface(dstSurface);
@@ -734,6 +742,10 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
     if (mBlurFilter) {
         bool requiresCompositionLayer = false;
         for (const auto& layer : layers) {
+            // if the layer doesn't have blur or it is not visible then continue
+            if (!layerHasBlur(layer, ctModifiesAlpha)) {
+                continue;
+            }
             if (layer->backgroundBlurRadius > 0 &&
                 layer->backgroundBlurRadius < BlurFilter::kMaxCrossFadeRadius) {
                 requiresCompositionLayer = true;
@@ -777,12 +789,6 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         paint.setShader(shader);
         clearRegion.setRects(skRects, numRects);
         canvas->drawRegion(clearRegion, paint);
-    }
-
-    // setup color filter if necessary
-    sk_sp<SkColorFilter> displayColorTransform;
-    if (display.colorTransform != mat4()) {
-        displayColorTransform = SkColorFilters::Matrix(toSkColorMatrix(display.colorTransform));
     }
 
     for (const auto& layer : layers) {
@@ -850,7 +856,7 @@ status_t SkiaGLRenderEngine::drawLayers(const DisplaySettings& display,
         const auto [bounds, roundRectClip] =
                 getBoundsAndClip(layer->geometry.boundaries, layer->geometry.roundedCornersCrop,
                                  layer->geometry.roundedCornersRadius);
-        if (mBlurFilter && layerHasBlur(layer)) {
+        if (mBlurFilter && layerHasBlur(layer, ctModifiesAlpha)) {
             std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
 
             // if multiple layers have blur, then we need to take a snapshot now because
@@ -1188,8 +1194,15 @@ inline std::pair<SkRRect, SkRRect> SkiaGLRenderEngine::getBoundsAndClip(const Fl
     return {SkRRect::MakeRect(bounds), clip};
 }
 
-inline bool SkiaGLRenderEngine::layerHasBlur(const LayerSettings* layer) {
-    return layer->backgroundBlurRadius > 0 || layer->blurRegions.size();
+inline bool SkiaGLRenderEngine::layerHasBlur(const LayerSettings* layer,
+                                             bool colorTransformModifiesAlpha) {
+    if (layer->backgroundBlurRadius > 0 || layer->blurRegions.size()) {
+        // return false if the content is opaque and would therefore occlude the blur
+        const bool opaqueContent = !layer->source.buffer.buffer || layer->source.buffer.isOpaque;
+        const bool opaqueAlpha = layer->alpha == 1.0f && !colorTransformModifiesAlpha;
+        return layer->skipContentDraw || !(opaqueContent && opaqueAlpha);
+    }
+    return false;
 }
 
 inline SkColor SkiaGLRenderEngine::getSkColor(const vec4& color) {
