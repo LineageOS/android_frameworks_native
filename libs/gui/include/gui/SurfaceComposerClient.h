@@ -50,6 +50,7 @@ class HdrCapabilities;
 class ISurfaceComposerClient;
 class IGraphicBufferProducer;
 class IRegionSamplingListener;
+class ITunnelModeEnabledListener;
 class Region;
 
 struct SurfaceControlStats {
@@ -610,6 +611,10 @@ public:
     static status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener);
     static status_t addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener);
     static status_t removeFpsListener(const sp<gui::IFpsListener>& listener);
+    static status_t addTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener);
+    static status_t removeTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener);
 
 private:
     virtual void onFirstRef();

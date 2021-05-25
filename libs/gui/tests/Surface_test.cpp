@@ -843,6 +843,16 @@ public:
         return NO_ERROR;
     }
     status_t removeFpsListener(const sp<gui::IFpsListener>& /*listener*/) { return NO_ERROR; }
+
+    status_t addTunnelModeEnabledListener(const sp<gui::ITunnelModeEnabledListener>& /*listener*/) {
+        return NO_ERROR;
+    }
+
+    status_t removeTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& /*listener*/) {
+        return NO_ERROR;
+    }
+
     status_t setDesiredDisplayModeSpecs(const sp<IBinder>& /*displayToken*/,
                                         ui::DisplayModeId /*defaultMode*/,
                                         bool /*allowGroupSwitching*/,
