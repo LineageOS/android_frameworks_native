@@ -188,6 +188,7 @@ filegroup {
         "SurfaceInterceptor.cpp",
         "SurfaceTracing.cpp",
         "TransactionCallbackInvoker.cpp",
+        "TunnelModeEnabledReporter.cpp",
     ],
 }
 
