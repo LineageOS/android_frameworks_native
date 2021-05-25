@@ -14,6 +14,7 @@ cc_test {
         address: true,
     },
     srcs: [
+        "cast_test.cpp",
         "future_test.cpp",
         "small_map_test.cpp",
         "small_vector_test.cpp",
