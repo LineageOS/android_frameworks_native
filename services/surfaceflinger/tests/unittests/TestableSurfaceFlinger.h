@@ -276,6 +276,7 @@ public:
     static void setLayerSidebandStream(const sp<Layer>& layer,
                                        const sp<NativeHandle>& sidebandStream) {
         layer->mDrawingState.sidebandStream = sidebandStream;
+        layer->mCurrentState.sidebandStream = sidebandStream;
         layer->mSidebandStream = sidebandStream;
         layer->editCompositionState()->sidebandStream = sidebandStream;
     }
