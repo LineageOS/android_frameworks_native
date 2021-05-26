@@ -21,6 +21,7 @@
 #include <android/gui/IHdrLayerInfoListener.h>
 #include <android/gui/IScreenCaptureListener.h>
 #include <android/gui/ITransactionTraceListener.h>
+#include <android/gui/ITunnelModeEnabledListener.h>
 #include <binder/IBinder.h>
 #include <binder/IInterface.h>
 #include <gui/FrameTimelineInfo.h>
@@ -377,6 +378,21 @@ public:
      */
     virtual status_t removeFpsListener(const sp<gui::IFpsListener>& listener) = 0;
 
+    /* Registers a listener to receive tunnel mode enabled updates from SurfaceFlinger.
+     *
+     * Requires ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t addTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener) = 0;
+
+    /*
+     * Removes a listener that was receiving tunnel mode enabled updates from SurfaceFlinger.
+     *
+     * Requires ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t removeTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener) = 0;
+
     /* Sets the refresh rate boundaries for the display.
      *
      * The primary refresh rate range represents display manager's general guidance on the display
@@ -607,6 +623,8 @@ public:
         ADD_HDR_LAYER_INFO_LISTENER,
         REMOVE_HDR_LAYER_INFO_LISTENER,
         ON_PULL_ATOM,
+        ADD_TUNNEL_MODE_ENABLED_LISTENER,
+        REMOVE_TUNNEL_MODE_ENABLED_LISTENER,
         // Always append new enum to the end.
     };
 
