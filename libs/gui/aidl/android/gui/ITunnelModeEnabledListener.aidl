@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,30 +14,16 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.gui;
 
+/** @hide */
+oneway interface ITunnelModeEnabledListener {
 
-#include <binder/Parcel.h>
-#include <utils/RefBase.h>
-
-// ---------------------------------------------------------------------------
-namespace android {
-
-/**
- * internal use only
- * @internal
- */
-class ParcelRef : public Parcel, public RefBase
-{
-public:
-    static sp<ParcelRef> create() {
-        return new ParcelRef();
-    }
-
-private:
-    ParcelRef() = default;
-};
-
-} // namespace android
-
-// ---------------------------------------------------------------------------
+    /**
+     * Called when tunnel mode status has changed. Tunnel mode is:
+     *  - enabled when there is a sideband stream attached to one of the layers in
+     *    surface flinger
+     *  - disabled when there is no layer with a sideband stream
+     */
+    void onTunnelModeEnabledChanged(boolean enabled);
+}

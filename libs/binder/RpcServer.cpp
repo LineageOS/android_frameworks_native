@@ -192,11 +192,13 @@ bool RpcServer::shutdown() {
     }
 
     mShutdownTrigger->trigger();
-    while (mJoinThreadRunning || !mConnectingThreads.empty()) {
-        ALOGI("Waiting for RpcServer to shut down. Join thread running: %d, Connecting threads: "
-              "%zu",
-              mJoinThreadRunning, mConnectingThreads.size());
-        mShutdownCv.wait(_l);
+    while (mJoinThreadRunning || !mConnectingThreads.empty() || !mSessions.empty()) {
+        if (std::cv_status::timeout == mShutdownCv.wait_for(_l, std::chrono::seconds(1))) {
+            ALOGE("Waiting for RpcServer to shut down (1s w/o progress). Join thread running: %d, "
+                  "Connecting threads: "
+                  "%zu, Sessions: %zu. Is your server deadlocked?",
+                  mJoinThreadRunning, mConnectingThreads.size(), mSessions.size());
+        }
     }
 
     // At this point, we know join() is about to exit, but the thread that calls
@@ -278,7 +280,8 @@ void RpcServer::establishConnection(sp<RpcServer>&& server, base::unique_fd clie
             server->mSessionIdCounter++;
 
             session = RpcSession::make();
-            session->setForServer(wp<RpcServer>(server), server->mSessionIdCounter);
+            session->setForServer(wp<RpcServer>(server), server->mSessionIdCounter,
+                                  server->mShutdownTrigger);
 
             server->mSessions[server->mSessionIdCounter] = session;
         } else {
@@ -342,6 +345,11 @@ void RpcServer::onSessionTerminating(const sp<RpcSession>& session) {
     LOG_ALWAYS_FATAL_IF(it == mSessions.end(), "Bad state, unknown session id %d", *id);
     LOG_ALWAYS_FATAL_IF(it->second != session, "Bad state, session has id mismatch %d", *id);
     (void)mSessions.erase(it);
+}
+
+void RpcServer::onSessionThreadEnding(const sp<RpcSession>& session) {
+    (void)session;
+    mShutdownCv.notify_all();
 }
 
 bool RpcServer::hasServer() {

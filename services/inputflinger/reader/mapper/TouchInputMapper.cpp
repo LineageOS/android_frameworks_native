@@ -28,30 +28,6 @@
 
 namespace android {
 
-namespace {
-
-// Rotates the given point (x, y) by the supplied orientation. The width and height are the
-// dimensions of the surface prior to this rotation being applied.
-void rotatePoint(int32_t orientation, float& x, float& y, int32_t width, int32_t height) {
-    rotateDelta(orientation, &x, &y);
-    switch (orientation) {
-        case DISPLAY_ORIENTATION_90:
-            y += width;
-            break;
-        case DISPLAY_ORIENTATION_180:
-            x += width;
-            y += height;
-            break;
-        case DISPLAY_ORIENTATION_270:
-            x += height;
-            break;
-        default:
-            break;
-    }
-}
-
-} // namespace
-
 // --- Constants ---
 
 // Maximum amount of latency to add to touch events while waiting for data from an
@@ -682,7 +658,9 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     int32_t rawHeight = mRawPointerAxes.getRawHeight();
 
     bool viewportChanged = mViewport != *newViewport;
+    bool skipViewportUpdate = false;
     if (viewportChanged) {
+        bool viewportOrientationChanged = mViewport.orientation != newViewport->orientation;
         mViewport = *newViewport;
 
         if (mDeviceMode == DeviceMode::DIRECT || mDeviceMode == DeviceMode::POINTER) {
@@ -746,6 +724,8 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mPhysicalLeft = naturalPhysicalLeft;
             mPhysicalTop = naturalPhysicalTop;
 
+            const int32_t oldSurfaceWidth = mRawSurfaceWidth;
+            const int32_t oldSurfaceHeight = mRawSurfaceHeight;
             mRawSurfaceWidth = naturalLogicalWidth * naturalDeviceWidth / naturalPhysicalWidth;
             mRawSurfaceHeight = naturalLogicalHeight * naturalDeviceHeight / naturalPhysicalHeight;
             mSurfaceLeft = naturalPhysicalLeft * naturalLogicalWidth / naturalPhysicalWidth;
@@ -763,6 +743,11 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
                 mSurfaceOrientation = mParameters.orientationAware
                         ? DISPLAY_ORIENTATION_0
                         : getInverseRotation(mViewport.orientation);
+                // For orientation-aware devices that work in the un-rotated coordinate space, the
+                // viewport update should be skipped if it is only a change in the orientation.
+                skipViewportUpdate = mParameters.orientationAware &&
+                        mRawSurfaceWidth == oldSurfaceWidth &&
+                        mRawSurfaceHeight == oldSurfaceHeight && viewportOrientationChanged;
             } else {
                 mSurfaceOrientation = mParameters.orientationAware ? mViewport.orientation
                                                                    : DISPLAY_ORIENTATION_0;
@@ -802,7 +787,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         mPointerController.reset();
     }
 
-    if (viewportChanged || deviceModeChanged) {
+    if ((viewportChanged && !skipViewportUpdate) || deviceModeChanged) {
         ALOGI("Device reconfigured: id=%d, name='%s', size %dx%d, orientation %d, mode %d, "
               "display id %d",
               getDeviceId(), getDeviceName().c_str(), mRawSurfaceWidth, mRawSurfaceHeight,

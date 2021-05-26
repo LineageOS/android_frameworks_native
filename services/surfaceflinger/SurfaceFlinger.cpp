@@ -23,7 +23,6 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "SurfaceFlinger.h"
-#include "TraceUtils.h"
 
 #include <android-base/properties.h>
 #include <android/configuration.h>
@@ -58,6 +57,7 @@
 #include <gui/LayerMetadata.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
+#include <gui/TraceUtils.h>
 #include <hidl/ServiceManagement.h>
 #include <layerproto/LayerProtoParser.h>
 #include <log/log.h>
@@ -130,6 +130,7 @@
 #include "SurfaceFlingerProperties.h"
 #include "SurfaceInterceptor.h"
 #include "TimeStats/TimeStats.h"
+#include "TunnelModeEnabledReporter.h"
 #include "android-base/parseint.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
@@ -1519,6 +1520,26 @@ status_t SurfaceFlinger::removeFpsListener(const sp<gui::IFpsListener>& listener
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::addTunnelModeEnabledListener(
+        const sp<gui::ITunnelModeEnabledListener>& listener) {
+    if (!listener) {
+        return BAD_VALUE;
+    }
+
+    mTunnelModeEnabledReporter->addListener(listener);
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::removeTunnelModeEnabledListener(
+        const sp<gui::ITunnelModeEnabledListener>& listener) {
+    if (!listener) {
+        return BAD_VALUE;
+    }
+
+    mTunnelModeEnabledReporter->removeListener(listener);
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
                                                      bool* outSupport) const {
     if (!displayToken || !outSupport) {
@@ -2224,6 +2245,10 @@ void SurfaceFlinger::postComposition() {
         Mutex::Autolock lock(mStateLock);
         if (mFpsReporter) {
             mFpsReporter->dispatchLayerFps();
+        }
+
+        if (mTunnelModeEnabledReporter) {
+            mTunnelModeEnabledReporter->updateTunnelModeStatus();
         }
         hdrInfoListeners.reserve(mHdrLayerInfoListeners.size());
         for (const auto& [displayId, reporter] : mHdrLayerInfoListeners) {
@@ -3111,6 +3136,7 @@ void SurfaceFlinger::initScheduler(const DisplayDeviceState& displayState) {
     mRegionSamplingThread =
             new RegionSamplingThread(*this, RegionSamplingThread::EnvironmentTimingTunables());
     mFpsReporter = new FpsReporter(*mFrameTimeline, *this);
+    mTunnelModeEnabledReporter = new TunnelModeEnabledReporter(*this);
     // Dispatch a mode change request for the primary display on scheduler
     // initialization, so that the EventThreads always contain a reference to a
     // prior configuration.
@@ -5117,6 +5143,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
         case SET_DISPLAY_CONTENT_SAMPLING_ENABLED:
         case GET_DISPLAYED_CONTENT_SAMPLE:
+        case ADD_TUNNEL_MODE_ENABLED_LISTENER:
+        case REMOVE_TUNNEL_MODE_ENABLED_LISTENER:
         case NOTIFY_POWER_BOOST:
         case SET_GLOBAL_SHADOW_SETTINGS:
         case ACQUIRE_FRAME_RATE_FLEXIBILITY_TOKEN: {

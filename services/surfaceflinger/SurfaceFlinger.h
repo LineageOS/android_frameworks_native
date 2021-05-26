@@ -90,6 +90,7 @@ namespace android {
 class Client;
 class EventThread;
 class FpsReporter;
+class TunnelModeEnabledReporter;
 class HdrLayerInfoReporter;
 class HWComposer;
 struct SetInputWindowsListener;
@@ -350,6 +351,7 @@ private:
     friend class BufferStateLayer;
     friend class Client;
     friend class FpsReporter;
+    friend class TunnelModeEnabledReporter;
     friend class Layer;
     friend class MonitoredProducer;
     friend class RefreshRateOverlay;
@@ -662,6 +664,10 @@ private:
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
     status_t addFpsListener(int32_t taskId, const sp<gui::IFpsListener>& listener) override;
     status_t removeFpsListener(const sp<gui::IFpsListener>& listener) override;
+    status_t addTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener) override;
+    status_t removeTunnelModeEnabledListener(
+            const sp<gui::ITunnelModeEnabledListener>& listener) override;
     status_t setDesiredDisplayModeSpecs(const sp<IBinder>& displayToken,
                                         ui::DisplayModeId displayModeId, bool allowGroupSwitching,
                                         float primaryRefreshRateMin, float primaryRefreshRateMax,
@@ -1374,6 +1380,7 @@ private:
     bool mLumaSampling = true;
     sp<RegionSamplingThread> mRegionSamplingThread;
     sp<FpsReporter> mFpsReporter;
+    sp<TunnelModeEnabledReporter> mTunnelModeEnabledReporter;
     ui::DisplayPrimaries mInternalDisplayPrimaries;
 
     const float mInternalDisplayDensity;

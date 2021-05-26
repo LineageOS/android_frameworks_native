@@ -582,6 +582,27 @@ TEST_F(DumpsysTest, ListServiceWithPid) {
     AssertOutput(std::to_string(getpid()) + "\n");
 }
 
+// Tests 'dumpsys --stability'
+TEST_F(DumpsysTest, ListAllServicesWithStability) {
+    ExpectListServices({"Locksmith", "Valet"});
+    ExpectCheckService("Locksmith");
+    ExpectCheckService("Valet");
+
+    CallMain({"--stability"});
+
+    AssertRunningServices({"Locksmith", "Valet"});
+    AssertOutputContains("stability");
+}
+
+// Tests 'dumpsys --stability service_name'
+TEST_F(DumpsysTest, ListServiceWithStability) {
+    ExpectCheckService("Locksmith");
+
+    CallMain({"--stability", "Locksmith"});
+
+    AssertOutputContains("stability");
+}
+
 // Tests 'dumpsys --thread'
 TEST_F(DumpsysTest, ListAllServicesWithThread) {
     ExpectListServices({"Locksmith", "Valet"});
