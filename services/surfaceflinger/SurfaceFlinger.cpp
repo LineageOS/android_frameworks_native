@@ -1139,7 +1139,18 @@ void SurfaceFlinger::setActiveModeInternal() {
         // have been already updated with the upcoming active mode.
         return;
     }
-    const Fps oldRefreshRate = display->getActiveMode()->getFps();
+
+    if (display->getActiveMode()->getSize() != upcomingMode->getSize()) {
+        auto& state = mCurrentState.displays.editValueFor(display->getDisplayToken());
+        // We need to generate new sequenceId in order to recreate the display (and this
+        // way the framebuffer).
+        state.sequenceId = DisplayDeviceState{}.sequenceId;
+        state.physical->activeMode = upcomingMode;
+        processDisplayChangesLocked();
+
+        // processDisplayChangesLocked will update all necessary components so we're done here.
+        return;
+    }
 
     std::lock_guard<std::mutex> lock(mActiveModeLock);
     mRefreshRateConfigs->setCurrentModeId(mUpcomingActiveMode.modeId);
@@ -1149,9 +1160,6 @@ void SurfaceFlinger::setActiveModeInternal() {
 
     mRefreshRateStats->setRefreshRate(refreshRate);
 
-    if (!refreshRate.equalsWithMargin(oldRefreshRate)) {
-        mTimeStats->incrementRefreshRateSwitches();
-    }
     updatePhaseConfiguration(refreshRate);
     ATRACE_INT("ActiveConfigFPS", refreshRate.getValue());
 
@@ -2808,7 +2816,10 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
                 mRefreshRateConfigs->updateDisplayModes(currentState.physical->supportedModes,
                                                         currentState.physical->activeMode->getId());
                 mVsyncConfiguration->reset();
-                updatePhaseConfiguration(mRefreshRateConfigs->getCurrentRefreshRate().getFps());
+                const Fps refreshRate = currentState.physical->activeMode->getFps();
+                updatePhaseConfiguration(refreshRate);
+                mRefreshRateStats->setRefreshRate(refreshRate);
+
                 if (mRefreshRateOverlay) {
                     mRefreshRateOverlay->reset();
                 }
